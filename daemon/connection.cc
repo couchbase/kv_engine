@@ -10,8 +10,7 @@
 #include "connection.h"
 
 #include "buckets.h"
-#include "client_cert_config.h"
-#include "connections.h"
+#include "connection_libevent.h"
 #include "cookie.h"
 #include "external_auth_manager_thread.h"
 #include "front_end_thread.h"
@@ -19,14 +18,10 @@
 #include "mc_time.h"
 #include "mcaudit.h"
 #include "memcached.h"
-#include "protocol/mcbp/engine_wrapper.h"
 #include "sendbuffer.h"
 #include "settings.h"
 #include "ssl_utils.h"
-#include "tracing.h"
 
-#include <event2/bufferevent.h>
-#include <event2/bufferevent_ssl.h>
 #include <gsl/gsl-lite.hpp>
 #include <logger/logger.h>
 #include <mcbp/codec/dcp_snapshot_marker.h>
@@ -35,7 +30,6 @@
 #include <mcbp/protocol/header.h>
 #include <memcached/durability_spec.h>
 #include <nlohmann/json.hpp>
-#include <phosphor/phosphor.h>
 #include <platform/backtrace.h>
 #include <platform/checked_snprintf.h>
 #include <platform/exceptions.h>
@@ -43,7 +37,6 @@
 #include <platform/socket.h>
 #include <platform/strerror.h>
 #include <platform/string_hex.h>
-#include <platform/timeutils.h>
 #include <serverless/config.h>
 #include <utilities/logtags.h>
 
@@ -614,7 +607,6 @@ void Connection::executeCommandPipeline() {
     if (!active || cookies.back()->mayReorder()) {
         // Only look at new commands if we don't have any active commands
         // or the active command allows for reordering.
-        auto input = bufferevent_get_input(bev.get());
         bool stop = !isDCP() && (getSendQueueSize() >= maxSendQueueSize);
         while (!stop && cookies.size() < maxActiveCommands &&
                isPacketAvailable() && numEvents > 0 &&
@@ -680,11 +672,7 @@ void Connection::executeCommandPipeline() {
                 cookie.reset();
             }
 
-            if (evbuffer_drain(input, drainSize) == -1) {
-                throw std::runtime_error(
-                        "Connection::executeCommandPipeline(): Failed to "
-                        "drain buffer");
-            }
+            drainInputPipe(drainSize);
         }
     }
 
@@ -1000,352 +988,6 @@ bool Connection::executeCommandsCallback() {
     return true;
 }
 
-std::string Connection::getOpenSSLErrors() {
-    unsigned long err;
-    auto buffer = thread.getScratchBuffer();
-    std::vector<std::string> messages;
-    while ((err = bufferevent_get_openssl_error(bev.get())) != 0) {
-        std::stringstream ss;
-        ERR_error_string_n(err, buffer.data(), buffer.size());
-        ss << "{" << buffer.data() << "},";
-        messages.emplace_back(ss.str());
-    }
-
-    if (messages.empty()) {
-        return {};
-    }
-
-    if (messages.size() == 1) {
-        // remove trailing ,
-        messages.front().pop_back();
-        return messages.front();
-    }
-
-    std::reverse(messages.begin(), messages.end());
-    std::string ret = "[";
-    for (const auto& a : messages) {
-        ret.append(a);
-    }
-    ret.back() = ']';
-    return ret;
-}
-
-void Connection::read_callback() {
-    if (isSslEnabled()) {
-        const auto ssl_errors = getOpenSSLErrors();
-        if (!ssl_errors.empty()) {
-            LOG_INFO("{} - OpenSSL errors reported: {}",
-                     this->getId(),
-                     ssl_errors);
-        }
-    }
-
-    TRACE_LOCKGUARD_TIMED(thread.mutex,
-                          "mutex",
-                          "Connection::read_callback::threadLock",
-                          SlowMutexThreshold);
-
-    if (!executeCommandsCallback()) {
-        conn_destroy(this);
-    }
-}
-
-void Connection::read_callback(bufferevent*, void* ctx) {
-    reinterpret_cast<Connection*>(ctx)->read_callback();
-}
-
-void Connection::write_callback() {
-    if (isSslEnabled()) {
-        const auto ssl_errors = getOpenSSLErrors();
-        if (!ssl_errors.empty()) {
-            LOG_INFO("{} - OpenSSL errors reported: {}", getId(), ssl_errors);
-        }
-    }
-
-    TRACE_LOCKGUARD_TIMED(thread.mutex,
-                          "mutex",
-                          "Connection::rw_callback::threadLock",
-                          SlowMutexThreshold);
-
-    if (!executeCommandsCallback()) {
-        conn_destroy(this);
-    }
-}
-
-void Connection::write_callback(bufferevent*, void* ctx) {
-    reinterpret_cast<Connection*>(ctx)->write_callback();
-}
-
-static nlohmann::json BevEvent2Json(short event) {
-    if (!event) {
-        return {};
-    }
-    nlohmann::json err = nlohmann::json::array();
-
-    if ((event & BEV_EVENT_READING) == BEV_EVENT_READING) {
-        err.push_back("reading");
-    }
-    if ((event & BEV_EVENT_WRITING) == BEV_EVENT_WRITING) {
-        err.push_back("writing");
-    }
-    if ((event & BEV_EVENT_EOF) == BEV_EVENT_EOF) {
-        err.push_back("EOF");
-    }
-    if ((event & BEV_EVENT_ERROR) == BEV_EVENT_ERROR) {
-        err.push_back("error");
-    }
-    if ((event & BEV_EVENT_TIMEOUT) == BEV_EVENT_TIMEOUT) {
-        err.push_back("timeout");
-    }
-    if ((event & BEV_EVENT_CONNECTED) == BEV_EVENT_CONNECTED) {
-        err.push_back("connected");
-    }
-
-    const short known = BEV_EVENT_READING | BEV_EVENT_WRITING | BEV_EVENT_EOF |
-                        BEV_EVENT_ERROR | BEV_EVENT_TIMEOUT |
-                        BEV_EVENT_CONNECTED;
-
-    if (event & ~known) {
-        err.push_back(cb::to_hex(uint16_t(event)));
-    }
-
-    return err;
-}
-
-void Connection::event_callback(bufferevent* bev, short event, void* ctx) {
-    auto& instance = *reinterpret_cast<Connection*>(ctx);
-    bool term = false;
-
-    std::string ssl_errors;
-    if (instance.isSslEnabled()) {
-        ssl_errors = instance.getOpenSSLErrors();
-    }
-
-    if ((event & BEV_EVENT_EOF) == BEV_EVENT_EOF) {
-        LOG_DEBUG("{}: Socket EOF", instance.getId());
-        instance.setTerminationReason("Client closed connection");
-        term = true;
-    } else if ((event & BEV_EVENT_ERROR) == BEV_EVENT_ERROR) {
-        // Note: SSL connections may fail for reasons different than socket
-        // error, so we avoid to dump errno:0 (ie, socket operation success).
-        const auto sockErr = EVUTIL_SOCKET_ERROR();
-        if (sockErr != 0) {
-            const auto errStr = evutil_socket_error_to_string(sockErr);
-            if (sockErr == ECONNRESET) {
-                LOG_INFO(
-                        "{}: Unrecoverable error encountered: {}, "
-                        "socket_error: {}:{}, shutting down connection",
-                        instance.getId(),
-                        BevEvent2Json(event).dump(),
-                        sockErr,
-                        errStr);
-            } else {
-                LOG_WARNING(
-                        "{}: Unrecoverable error encountered: {}, "
-                        "socket_error: {}:{}, shutting down connection",
-                        instance.getId(),
-                        BevEvent2Json(event).dump(),
-                        sockErr,
-                        errStr);
-            }
-            instance.setTerminationReason(
-                    "socket_error: " + std::to_string(sockErr) + ":" + errStr);
-        } else if (!ssl_errors.empty()) {
-            LOG_WARNING(
-                    "{}: Unrecoverable error encountered: {}, ssl_error: "
-                    "{}, shutting down connection",
-                    instance.getId(),
-                    BevEvent2Json(event).dump(),
-                    ssl_errors);
-            instance.setTerminationReason("ssl_error: " + ssl_errors);
-        } else {
-            LOG_WARNING(
-                    "{}: Unrecoverable error encountered: {}, shutting down "
-                    "connection",
-                    instance.getId(),
-                    BevEvent2Json(event).dump());
-            instance.setTerminationReason("Network error");
-        }
-
-        term = true;
-    }
-
-    if (term) {
-        auto& thread = instance.getThread();
-        TRACE_LOCKGUARD_TIMED(thread.mutex,
-                              "mutex",
-                              "Connection::event_callback::threadLock",
-                              SlowMutexThreshold);
-        // MB-44460: If a connection disconnects before all of the data
-        //           was moved to the kernels send buffer we would still
-        //           wait for the send buffer to be drained before closing
-        //           the connection. Given that the other side hung up that
-        //           will never happen so we should just terminate the
-        //           send queue immediately.
-        //           note: This extra complexity was added so that we could
-        //           send error messages back to the client and then
-        //           disconnect the socket once all data was sent to the
-        //           client (and bufferevent performs the actual send/recv
-        //           on the socket after the callback returned)
-        instance.sendQueueInfo.term = true;
-
-        if (instance.state == State::running) {
-            instance.shutdown();
-        }
-
-        if (!instance.executeCommandsCallback()) {
-            conn_destroy(&instance);
-        }
-    }
-}
-
-void Connection::ssl_read_callback(bufferevent* bev, void* ctx) {
-    auto& instance = *reinterpret_cast<Connection*>(ctx);
-
-    const auto ssl_errors = instance.getOpenSSLErrors();
-    if (!ssl_errors.empty()) {
-        LOG_INFO("{} - OpenSSL errors reported: {}",
-                 instance.getId(),
-                 ssl_errors);
-    }
-
-    // Let's inspect the certificate before we'll do anything further
-    auto* ssl_st = bufferevent_openssl_get_ssl(bev);
-    const auto verifyMode = SSL_get_verify_mode(ssl_st);
-    const auto enabled = ((verifyMode & SSL_VERIFY_PEER) == SSL_VERIFY_PEER);
-
-    bool disconnect = false;
-    cb::openssl::unique_x509_ptr cert(SSL_get_peer_certificate(ssl_st));
-    if (enabled) {
-        const auto mandatory =
-                ((verifyMode & SSL_VERIFY_FAIL_IF_NO_PEER_CERT) ==
-                 SSL_VERIFY_FAIL_IF_NO_PEER_CERT);
-        // Check certificate
-        if (cert) {
-            class ServerAuthMapper {
-            public:
-                static std::pair<cb::x509::Status, std::string> lookup(
-                        X509* cert) {
-                    static ServerAuthMapper inst;
-                    return inst.mapper->lookupUser(cert);
-                }
-
-            protected:
-                ServerAuthMapper() {
-                    mapper = cb::x509::ClientCertConfig::create(R"({
-"prefixes": [
-    {
-        "path": "san.email",
-        "prefix": "",
-        "delimiter": "",
-        "suffix":"@internal.couchbase.com"
-    }
-]
-})"_json);
-                }
-
-                std::unique_ptr<cb::x509::ClientCertConfig> mapper;
-            };
-
-            auto [status, name] = ServerAuthMapper::lookup(cert.get());
-            if (status == cb::x509::Status::Success) {
-                if (name == "internal") {
-                    name = "@internal";
-                } else {
-                    status = cb::x509::Status::NoMatch;
-                }
-            } else {
-                auto pair = Settings::instance().lookupUser(cert.get());
-                status = pair.first;
-                name = std::move(pair.second);
-            }
-
-            switch (status) {
-            case cb::x509::Status::NoMatch:
-                audit_auth_failure(instance,
-                                   {"unknown", cb::sasl::Domain::Local},
-                                   "Failed to map a user from the client "
-                                   "provided X.509 certificate");
-                instance.setTerminationReason(
-                        "Failed to map a user from the client provided X.509 "
-                        "certificate");
-                LOG_WARNING(
-                        "{}: Failed to map a user from the "
-                        "client provided X.509 certificate: [{}]",
-                        instance.getId(),
-                        name);
-                disconnect = true;
-                break;
-            case cb::x509::Status::Error:
-                audit_auth_failure(
-                        instance,
-                        {"unknown", cb::sasl::Domain::Local},
-                        "Failed to use client provided X.509 certificate");
-                instance.setTerminationReason(
-                        "Failed to use client provided X.509 certificate");
-                LOG_WARNING(
-                        "{}: Disconnection client due to error with the X.509 "
-                        "certificate [{}]",
-                        instance.getId(),
-                        name);
-                disconnect = true;
-                break;
-            case cb::x509::Status::NotPresent:
-                // Note: NotPresent in this context is that there is no
-                //       mapper present in the _configuration_ which is
-                //       allowed in "Enabled" mode as it just means that we'll
-                //       try to verify the peer.
-                if (mandatory) {
-                    const char* reason =
-                            "The server does not have any mapping rules "
-                            "configured for certificate authentication";
-                    audit_auth_failure(instance,
-                                       {"unknown", cb::sasl::Domain::Local},
-                                       reason);
-                    instance.setTerminationReason(reason);
-                    disconnect = true;
-                    LOG_WARNING("{}: Disconnecting client: {}",
-                                instance.getId(),
-                                reason);
-                }
-                break;
-            case cb::x509::Status::Success:
-                if (!instance.tryAuthFromSslCert(name,
-                                                 SSL_get_cipher_name(ssl_st))) {
-                    // Already logged
-                    const std::string reason =
-                            "User [" + name + "] not defined in Couchbase";
-                    audit_auth_failure(instance,
-                                       {name, cb::sasl::Domain::Local},
-                                       reason.c_str());
-                    instance.setTerminationReason(reason.c_str());
-                    disconnect = true;
-                }
-            }
-        }
-    }
-
-    if (disconnect) {
-        instance.shutdown();
-    } else if (!instance.authenticated) {
-        // tryAuthFromSslCertificate logged the cipher
-        LOG_INFO("{}: Using cipher '{}', peer certificate {}provided",
-                 instance.getId(),
-                 SSL_get_cipher_name(ssl_st),
-                 cert ? "" : "not ");
-    }
-
-    // update the callback to call the normal read callback
-    bufferevent_setcb(bev,
-                      Connection::read_callback,
-                      Connection::write_callback,
-                      Connection::event_callback,
-                      ctx);
-
-    // and let's call it to make sure we step through the state machinery
-    Connection::read_callback(bev, ctx);
-}
-
 void Connection::setAuthenticated(bool authenticated_,
                                   bool internal_,
                                   cb::rbac::UserIdent ui) {
@@ -1391,11 +1033,6 @@ bool Connection::tryAuthFromSslCert(const std::string& userName,
     return true;
 }
 
-void Connection::triggerCallback() {
-    const auto opt = BEV_TRIG_IGNORE_WATERMARKS | BEV_TRIG_DEFER_CALLBACKS;
-    bufferevent_trigger(bev.get(), EV_READ, opt);
-}
-
 bool Connection::dcpUseWriteBuffer(size_t size) const {
     return isSslEnabled() && size < thread.scratch_buffer.size();
 }
@@ -1408,55 +1045,6 @@ void Connection::updateSendBytes(size_t nbytes) {
 void Connection::updateRecvBytes(size_t nbytes) {
     totalRecv += nbytes;
     get_thread_stats(this)->bytes_read += nbytes;
-}
-
-void Connection::copyToOutputStream(std::string_view data) {
-    if (data.empty()) {
-        return;
-    }
-
-    if (bufferevent_write(bev.get(), data.data(), data.size()) == -1) {
-        throw std::bad_alloc();
-    }
-
-    updateSendBytes(data.size());
-}
-
-void Connection::copyToOutputStream(gsl::span<std::string_view> data) {
-    size_t nb = 0;
-    for (const auto& d : data) {
-        if (bufferevent_write(bev.get(), d.data(), d.size()) == -1) {
-            throw std::bad_alloc();
-        }
-        nb += d.size();
-    }
-    updateSendBytes(nb);
-}
-
-static void sendbuffer_cleanup_cb(const void*, size_t, void* extra) {
-    delete reinterpret_cast<SendBuffer*>(extra);
-}
-
-void Connection::chainDataToOutputStream(std::unique_ptr<SendBuffer> buffer) {
-    if (!buffer || buffer->getPayload().empty()) {
-        throw std::logic_error(
-                "Connection::chainDataToOutputStream: buffer must be set");
-    }
-
-    auto data = buffer->getPayload();
-    if (evbuffer_add_reference(bufferevent_get_output(bev.get()),
-                               data.data(),
-                               data.size(),
-                               sendbuffer_cleanup_cb,
-                               buffer.get()) == -1) {
-        throw std::bad_alloc();
-    }
-
-    // Buffer successfully added to libevent and the callback
-    // (sendbuffer_cleanup_cb) will free the memory.
-    // Move the ownership of the buffer!
-    (void)buffer.release();
-    updateSendBytes(data.size());
 }
 
 Connection::Connection(FrontEndThread& thr)
@@ -1479,14 +1067,14 @@ std::unique_ptr<Connection> Connection::create(
         FrontEndThread& thr,
         std::shared_ptr<ListeningPort> descr,
         uniqueSslPtr sslStructure) {
-    return std::unique_ptr<Connection>(new Connection(
-            sfd, thr, std::move(descr), std::move(sslStructure)));
+    return std::make_unique<LibeventConnection>(
+            sfd, thr, std::move(descr), std::move(sslStructure));
 }
 
 Connection::Connection(SOCKET sfd,
                        FrontEndThread& thr,
                        std::shared_ptr<ListeningPort> descr,
-                       uniqueSslPtr sslStructure)
+                       bool sslStructure)
     : peername(cb::net::getPeerNameAsJson(sfd).dump()),
       sockname(cb::net::getSockNameAsJson(sfd).dump()),
       thread(thr),
@@ -1501,39 +1089,6 @@ Connection::Connection(SOCKET sfd,
     updateDescription();
     cookies.emplace_back(std::make_unique<Cookie>(*this));
     setConnectionId(cb::net::getpeername(socketDescriptor).c_str());
-
-    // We need to use BEV_OPT_UNLOCK_CALLBACKS (which again require
-    // BEV_OPT_DEFER_CALLBACKS) to avoid lock ordering problem (and potential
-    // deadlock) because otherwise we'll hold the internal mutex in libevent
-    // as part of the callback and later on we acquire the worker threads
-    // mutex, but when we try to signal another cookie we hold
-    // the worker thread mutex when we try to acquire the mutex inside
-    // libevent.
-    const auto options = BEV_OPT_THREADSAFE | BEV_OPT_UNLOCK_CALLBACKS |
-                         BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS;
-    if (ssl) {
-        bev.reset(
-                bufferevent_openssl_socket_new(thr.eventBase.getLibeventBase(),
-                                               sfd,
-                                               sslStructure.release(),
-                                               BUFFEREVENT_SSL_ACCEPTING,
-                                               options));
-        bufferevent_setcb(bev.get(),
-                          Connection::ssl_read_callback,
-                          Connection::write_callback,
-                          Connection::event_callback,
-                          static_cast<void*>(this));
-    } else {
-        bev.reset(bufferevent_socket_new(
-                thr.eventBase.getLibeventBase(), sfd, options));
-        bufferevent_setcb(bev.get(),
-                          Connection::read_callback,
-                          Connection::write_callback,
-                          Connection::event_callback,
-                          static_cast<void*>(this));
-    }
-
-    bufferevent_enable(bev.get(), EV_READ);
     stats.conn_structs++;
 }
 
@@ -1545,11 +1100,6 @@ Connection::~Connection() {
     }
     if (authenticated && user.domain == cb::sasl::Domain::External) {
         externalAuthManager->logoff(user.name);
-    }
-
-    if (bev) {
-        bev.reset();
-        stats.curr_conns.fetch_sub(1, std::memory_order_relaxed);
     }
 
     --stats.conn_structs;
@@ -1589,76 +1139,6 @@ size_t Connection::getNumberOfCookies() const {
     }
 
     return ret;
-}
-
-bool Connection::isPacketAvailable() const {
-    auto* event = bev.get();
-    auto* input = bufferevent_get_input(event);
-    auto size = evbuffer_get_length(input);
-    if (size < sizeof(cb::mcbp::Header)) {
-        return false;
-    }
-
-    const auto* header = reinterpret_cast<const cb::mcbp::Header*>(
-            evbuffer_pullup(input, sizeof(cb::mcbp::Header)));
-    if (header == nullptr) {
-        throw std::runtime_error(
-                "Connection::isPacketAvailable(): Failed to reallocate event "
-                "input buffer: " +
-                std::to_string(sizeof(cb::mcbp::Header)));
-    }
-
-    if (!header->isValid()) {
-        audit_invalid_packet(*this, getAvailableBytes());
-        throw std::runtime_error(
-                "Connection::isPacketAvailable(): Invalid packet header "
-                "detected");
-    }
-
-    const auto framesize = sizeof(*header) + header->getBodylen();
-    if (size >= framesize) {
-        // We've got the entire buffer available.. make sure it is continuous
-        if (evbuffer_pullup(input, framesize) == nullptr) {
-            throw std::runtime_error(
-                    "Connection::isPacketAvailable(): Failed to reallocate "
-                    "event input buffer: " +
-                    std::to_string(framesize));
-        }
-        return true;
-    }
-
-    // We don't have the entire frame available.. Are we receiving an
-    // incredible big packet so that we want to disconnect the client?
-    if (framesize > Settings::instance().getMaxPacketSize()) {
-        throw std::runtime_error(
-                "Connection::isPacketAvailable(): The packet size " +
-                std::to_string(framesize) +
-                " exceeds the max allowed packet size " +
-                std::to_string(Settings::instance().getMaxPacketSize()));
-    }
-
-    return false;
-}
-
-const cb::mcbp::Header& Connection::getPacket() const {
-    // Drain all of the data available in bufferevent into the
-    // socket read buffer
-    auto* event = bev.get();
-    auto* input = bufferevent_get_input(event);
-    auto nb = evbuffer_get_length(input);
-    if (nb < sizeof(cb::mcbp::Header)) {
-        throw std::runtime_error(
-                "Connection::getPacket(): packet not available");
-    }
-
-    return *reinterpret_cast<const cb::mcbp::Header*>(
-            evbuffer_pullup(input, sizeof(cb::mcbp::Header)));
-}
-
-cb::const_byte_buffer Connection::getAvailableBytes(size_t max) const {
-    auto* input = bufferevent_get_input(bev.get());
-    auto nb = std::min(evbuffer_get_length(input), max);
-    return {evbuffer_pullup(input, nb), nb};
 }
 
 void Connection::close() {
@@ -1766,36 +1246,12 @@ bool Connection::selectedBucketIsXattrEnabled() const {
            getBucketEngine().isXattrEnabled();
 }
 
-void Connection::disableReadEvent() {
-    if ((bufferevent_get_enabled(bev.get()) & EV_READ) == EV_READ) {
-        if (bufferevent_disable(bev.get(), EV_READ) == -1) {
-            throw std::runtime_error(
-                    "Connection::disableReadEvent: Failed to disable read "
-                    "events");
-        }
-    }
-}
-
-void Connection::enableReadEvent() {
-    if ((bufferevent_get_enabled(bev.get()) & EV_READ) == 0) {
-        if (bufferevent_enable(bev.get(), EV_READ) == -1) {
-            throw std::runtime_error(
-                    "Connection::enableReadEvent: Failed to enable read "
-                    "events");
-        }
-    }
-}
-
 bool Connection::havePendingData() const {
     if (sendQueueInfo.term) {
         return false;
     }
 
     return getSendQueueSize() != 0;
-}
-
-size_t Connection::getSendQueueSize() const {
-    return evbuffer_get_length(bufferevent_get_output(bev.get()));
 }
 
 void Connection::setDcpFlowControlBufferSize(std::size_t size) {

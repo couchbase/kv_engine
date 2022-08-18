@@ -8,7 +8,7 @@
  *   the file licenses/APL2.txt.
  */
 
-#include "connection.h"
+#include "connection_libevent.h"
 #include "enginemap.h"
 #include "front_end_thread.h"
 #include "log_macros.h"
@@ -21,19 +21,19 @@
 #include <folly/portability/GTest.h>
 #include <folly/synchronization/Baton.h>
 
-/// A mock connection which doesn't own a socket and isn't bound to libevent
-class MockConnection : public Connection {
+/// A mock connection
+class MockConnection : public LibeventConnection {
 public:
     explicit MockConnection(FrontEndThread& frontEndThread)
-        : Connection(frontEndThread) {
+        : LibeventConnection(frontEndThread) {
         const auto options = BEV_OPT_UNLOCK_CALLBACKS | BEV_OPT_CLOSE_ON_FREE |
                              BEV_OPT_DEFER_CALLBACKS;
         bev.reset(bufferevent_socket_new(
                 frontEndThread.eventBase.getLibeventBase(), -1, options));
         bufferevent_setcb(bev.get(),
-                          Connection::read_callback,
-                          Connection::write_callback,
-                          Connection::event_callback,
+                          LibeventConnection::read_callback,
+                          LibeventConnection::write_callback,
+                          LibeventConnection::event_callback,
                           static_cast<void*>(this));
 
         bufferevent_enable(bev.get(), EV_READ);

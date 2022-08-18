@@ -40,6 +40,42 @@ class FuzzConnection : public Connection {
 public:
     explicit FuzzConnection(struct FrontEndThread& thr) : Connection(thr) {
     }
+
+    void copyToOutputStream(std::string_view data) override {
+        throw std::runtime_error("FuzzConnection: Not implemented");
+    }
+    void copyToOutputStream(gsl::span<std::string_view> data) override {
+        throw std::runtime_error("FuzzConnection: Not implemented");
+    }
+    void chainDataToOutputStream(std::unique_ptr<SendBuffer> buffer) override {
+        throw std::runtime_error("FuzzConnection: Not implemented");
+    }
+    bool isPacketAvailable() const override {
+        throw std::runtime_error("FuzzConnection: Not implemented");
+    }
+    cb::const_byte_buffer getAvailableBytes(size_t max) const override {
+        throw std::runtime_error("FuzzConnection: Not implemented");
+    }
+    void triggerCallback() override {
+        throw std::runtime_error("FuzzConnection: Not implemented");
+    }
+
+protected:
+    const cb::mcbp::Header& getPacket() const override {
+        throw std::runtime_error("FuzzConnection: Not implemented");
+    }
+    void drainInputPipe(size_t bytes) override {
+        throw std::runtime_error("FuzzConnection: Not implemented");
+    }
+    void disableReadEvent() override {
+        throw std::runtime_error("FuzzConnection: Not implemented");
+    }
+    void enableReadEvent() override {
+        throw std::runtime_error("FuzzConnection: Not implemented");
+    }
+    size_t getSendQueueSize() const override {
+        throw std::runtime_error("FuzzConnection: Not implemented");
+    }
 };
 
 /**

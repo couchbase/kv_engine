@@ -19,7 +19,6 @@
 #include <cbsasl/client.h>
 #include <cbsasl/server.h>
 #include <daemon/protocol/mcbp/command_context.h>
-#include <libevent/utilities.h>
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <memcached/dcp.h>
 #include <memcached/openssl.h>
@@ -62,6 +61,20 @@ const size_t MaxSavedConnectionId = 34;
  */
 class Connection : public DcpMessageProducersIface {
 public:
+    /// A class representing the states the connection may be in
+    enum class State : int8_t {
+        /// The client is running and may accept new commands
+        running,
+        /// Initiating shutdown of the connection. Depending of the number
+        /// of external references to the connection we may go to pending_close
+        /// or immediate close
+        closing,
+        /// Waiting for all of the references to the connections to be released
+        pending_close,
+        /// NO external references to the connection; may go ahead and kill it
+        immediate_close
+    };
+
     /// Factory method to create a new Connection structure
     static std::unique_ptr<Connection> create(
             SOCKET sfd,
@@ -361,7 +374,7 @@ public:
      * @throws std::bad_alloc if we failed to insert the data into the output
      *                        stream.
      */
-    void copyToOutputStream(std::string_view data1);
+    virtual void copyToOutputStream(std::string_view data) = 0;
 
     /**
      * Copy the provided data to the end of the output stream.
@@ -370,7 +383,7 @@ public:
      * @throws std::bad_alloc if we failed to insert the data into the output
      *                        stream.
      */
-    void copyToOutputStream(gsl::span<std::string_view> data);
+    virtual void copyToOutputStream(gsl::span<std::string_view> data) = 0;
 
     /**
      * Copy the provided data to the end of the output stream.
@@ -428,7 +441,8 @@ public:
      * @throws std::bad_alloc if we failed to insert the data into the output
      *                        stream.
      */
-    void chainDataToOutputStream(std::unique_ptr<SendBuffer> buffer);
+    virtual void chainDataToOutputStream(
+            std::unique_ptr<SendBuffer> buffer) = 0;
 
     /**
      * Enable the datatype which corresponds to the feature
@@ -533,19 +547,7 @@ public:
      *
      * @return true if we've got the entire packet, false otherwise
      */
-    bool isPacketAvailable() const;
-
-    /**
-     * Get the next packet available in the stream.
-     *
-     * The returned pointer is a pointer directly into the input buffer (and
-     * not allocated, so the user should NOT keep the pointer around or try
-     * to free it.
-     *
-     * @return the next packet
-     * @throws std::runtime_error if the packet isn't available
-     */
-    const cb::mcbp::Header& getPacket() const;
+    virtual bool isPacketAvailable() const = 0;
 
     /**
      * Get all of the available bytes (up to a maximum bumber of bytes) in
@@ -554,7 +556,8 @@ public:
      * NOTE: THIS MIGHT CAUSE REALLOCATION of the input stream so it should
      * NOT be used unless strictly needed
      */
-    cb::const_byte_buffer getAvailableBytes(size_t max = 1024) const;
+    virtual cb::const_byte_buffer getAvailableBytes(
+            size_t max = 1024) const = 0;
 
     /**
      * Is SASL disabled for this connection or not? (connection authenticated
@@ -652,7 +655,7 @@ public:
      * in the future (as part of the event dispatch loop) so that the
      * connection may continue its command execution.
      */
-    void triggerCallback();
+    virtual void triggerCallback() = 0;
 
     /// Check if DCP should use the write buffer for the message or if it
     /// should use an IOVector to do so
@@ -864,7 +867,7 @@ protected:
     Connection(SOCKET sfd,
                FrontEndThread& thr,
                std::shared_ptr<ListeningPort> descr,
-               uniqueSslPtr sslStructure);
+               bool sslStructure);
 
     /**
      * Protected constructor so that it may only be used by MockSubclasses
@@ -884,6 +887,22 @@ protected:
      * underlying engine keeps track of any of them)
      */
     void propagateDisconnect() const;
+
+    /**
+     * Get the next packet available in the stream.
+     *
+     * The returned reference goes directly into the underlying IO libraries
+     * input buffer(s), so the caller should NOT keep the reference around.
+     * It gets invalidated after a call to drainInputPipe (or a return
+     * into the event framework)
+     *
+     * @return the next packet
+     * @throws std::runtime_error if the packet isn't available
+     */
+    virtual const cb::mcbp::Header& getPacket() const = 0;
+
+    /// Drain the provided number of bytes from the input pipe
+    virtual void drainInputPipe(size_t bytes) = 0;
 
     /**
      * Update the description string for the connection. This
@@ -906,13 +925,13 @@ protected:
      * Disable read event for this connection (we won't get notified if
      * more data arrives on the socket).
      */
-    void disableReadEvent();
+    virtual void disableReadEvent() = 0;
 
     /**
      * Enable read event for this connection (cause the read callback to
      * be triggered once there is data on the socket).
      */
-    void enableReadEvent();
+    virtual void enableReadEvent() = 0;
 
     /**
      * Format the response header into the provided buffer.
@@ -1011,8 +1030,6 @@ protected:
     /// The stored DCP Connection Interface
     std::atomic<DcpConnHandlerIface*> dcpConnHandlerIface{nullptr};
 
-    /// The bufferevent structure for the object
-    cb::libevent::unique_bufferevent_ptr bev;
     /// Total number of bytes received on the network
     size_t totalRecv = 0;
     /// Total number of bytes sent to the network
@@ -1107,20 +1124,6 @@ protected:
      */
     std::array<char, MaxSavedConnectionId> connectionId{};
 
-    /// A class representing the states the connection may be in
-    enum class State : int8_t {
-        /// The client is running and may accept new commands
-        running,
-        /// Initiating shutdown of the connection. Depending of the number
-        /// of external references to the connection we may go to pending_close
-        /// or immediate close
-        closing,
-        /// Waiting for all of the references to the connections to be released
-        pending_close,
-        /// NO external references to the connection; may go ahead and kill it
-        immediate_close
-    };
-
     /// The current state we're in
     State state{State::running};
 
@@ -1180,7 +1183,7 @@ protected:
     bool havePendingData() const;
 
     /// Get the number of bytes stuck in the send queue
-    size_t getSendQueueSize() const;
+    virtual size_t getSendQueueSize() const = 0;
 
     /**
      * Shutdown the connection if the send queue is stuck  (no data transmitted
@@ -1236,46 +1239,4 @@ protected:
      */
     void logExecutionException(const std::string_view where,
                                const std::exception& e);
-
-    std::string getOpenSSLErrors();
-
-    /**
-     * The callback method called from bufferevent when there is new data
-     * available on the socket
-     *
-     * @param bev the bufferevent structure the event belongs to
-     * @param ctx the context registered with the bufferevent (pointer to
-     *            the connection object)
-     */
-    static void read_callback(bufferevent* bev, void* ctx);
-    void read_callback();
-
-    /**
-     * The callback method called from bufferevent when we're below the write
-     * threshold (or all data is sent)
-     *
-     * @param bev the bufferevent structure the event belongs to
-     * @param ctx the context registered with the bufferevent (pointer to
-     *            the connection object)
-     */
-    static void write_callback(bufferevent* bev, void* ctx);
-    void write_callback();
-
-    /**
-     * The callback method called from bufferevent for "other" callbacks
-     *
-     * @param bev the bufferevent structure the event belongs to
-     * @param event the event type
-     * @param ctx the context registered with the bufferevent (pointer to
-     *            the connection object)
-     */
-    static void event_callback(bufferevent* bev, short event, void* ctx);
-
-    /**
-     * The initial read callback for SSL connections and perform
-     * client certificate verification, authentication and authorization
-     * if configured. When the action is performed we'll switch over to
-     * the standard read callback.
-     */
-    static void ssl_read_callback(bufferevent*, void* ctx);
 };
