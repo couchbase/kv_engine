@@ -87,6 +87,7 @@ NodeImpl::NodeImpl(std::filesystem::path directory, std::string id)
               {"stdin_listener", false},
               {"datatype_json", true},
               {"datatype_snappy", true},
+              {"event_framework", "folly"},
               {"xattr_enabled", true},
               {"dedupe_nmvb_maps", false},
               {"active_external_users_push_interval", "30 m"},

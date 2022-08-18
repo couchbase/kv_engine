@@ -280,6 +280,18 @@ static void handle_enable_deprecated_bucket_autoselect(
     s.setDeprecatedBucketAutoselectEnabled(obj.get<bool>());
 }
 
+static void handle_event_framework(Settings& s, const nlohmann::json& obj) {
+    auto val = obj.get<std::string>();
+    if (val == "bufferevent") {
+        s.setEventFramework(EventFramework::Bufferevent);
+    } else if (val == "folly") {
+        s.setEventFramework(EventFramework::Folly);
+    } else {
+        throw std::invalid_argument(
+                R"("event_framework" must be "bufferevent" or "folly")");
+    }
+}
+
 /**
  * Handle the "datatype_snappy" tag in the settings
  *
@@ -649,6 +661,7 @@ void Settings::reconfigure(const nlohmann::json& json) {
             {"error_maps_dir", handle_error_maps_dir},
             {"enable_deprecated_bucket_autoselect",
              handle_enable_deprecated_bucket_autoselect},
+            {"event_framework", handle_event_framework},
             {"threads", handle_threads},
             {"interfaces", handle_interfaces},
             {"logger", handle_logger},
@@ -794,6 +807,15 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     }
 
     // Ok, go ahead and update the settings!!
+    if (other.has.event_framework) {
+        if (other.event_framework != event_framework) {
+            LOG_INFO("Change event framework from {} to {}",
+                     getEventFramework(),
+                     other.getEventFramework());
+            setEventFramework(other.getEventFramework());
+        }
+    }
+
     if (other.has.always_collect_trace_info) {
         if (other.alwaysCollectTraceInfo() != alwaysCollectTraceInfo()) {
             if (other.alwaysCollectTraceInfo()) {
@@ -1234,4 +1256,18 @@ void Settings::setMaxConcurrentCommandsPerConnection(size_t num) {
                                                  std::memory_order_release);
     has.max_concurrent_commands_per_connection = true;
     notify_changed("max_concurrent_commands_per_connection");
+}
+
+static std::string to_string(const EventFramework& framework) {
+    switch (framework) {
+    case EventFramework::Bufferevent:
+        return "bufferevent";
+    case EventFramework::Folly:
+        return "folly";
+    }
+    return "Invalid EventFramework: " + std::to_string(int(framework));
+}
+
+std::ostream& operator<<(std::ostream& os, const EventFramework& framework) {
+    return os << to_string(framework);
 }

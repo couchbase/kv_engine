@@ -36,6 +36,10 @@ void startCluster() {
     cluster = cb::test::Cluster::create(
             3, {}, [](std::string_view, nlohmann::json& config) {
                 config["deployment_model"] = "serverless";
+                // the cluster_test framework use folly io by default, but
+                // the serverless test in elixir should be as close as how
+                // we want to deploy it.
+                config.erase("event_framework");
                 auto file =
                         std::filesystem::path{
                                 config["root"].get<std::string>()} /

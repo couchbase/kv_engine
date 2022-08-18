@@ -13,6 +13,8 @@ add_library(memcached_daemon STATIC
             config_parse.h
             connection.cc
             connection.h
+            connection_folly.cc
+            connection_folly.h
             connection_libevent.cc
             connection_libevent.h
             error_map_manager.cc

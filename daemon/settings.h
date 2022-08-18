@@ -28,6 +28,9 @@
 #include <string>
 #include <vector>
 
+enum class EventFramework : uint8_t { Bufferevent, Folly };
+std::ostream& operator<<(std::ostream& os, const EventFramework& framework);
+
 enum class EventPriority {
     High,
     Medium,
@@ -783,6 +786,16 @@ public:
         notify_changed("enable_deprecated_bucket_autoselect");
     }
 
+    EventFramework getEventFramework() const {
+        return event_framework.load(std::memory_order_acquire);
+    }
+
+    void setEventFramework(EventFramework val) {
+        event_framework.store(val, std::memory_order_release);
+        has.event_framework = true;
+        notify_changed("event_framework");
+    }
+
 protected:
     /// The file containing audit configuration
     std::string audit_file;
@@ -934,6 +947,9 @@ protected:
 
     std::atomic<DeploymentModel> deployment_model{DeploymentModel::Normal};
 
+    /// The event framework to use
+    std::atomic<EventFramework> event_framework{EventFramework::Bufferevent};
+
     std::atomic_bool enable_deprecated_bucket_autoselect{false};
 
     void notify_changed(const std::string& key);
@@ -994,6 +1010,7 @@ public:
         bool prometheus_config = false;
         bool phosphor_config = false;
         bool allow_localhost_interface = false;
+        bool event_framework = false;
     } has;
 };
 

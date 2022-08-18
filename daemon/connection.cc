@@ -10,6 +10,7 @@
 #include "connection.h"
 
 #include "buckets.h"
+#include "connection_folly.h"
 #include "connection_libevent.h"
 #include "cookie.h"
 #include "external_auth_manager_thread.h"
@@ -1066,6 +1067,15 @@ std::unique_ptr<Connection> Connection::create(
         FrontEndThread& thr,
         std::shared_ptr<ListeningPort> descr,
         uniqueSslPtr sslStructure) {
+    static bool force_folly_backend = getenv("CB_USE_FOLLY_IO");
+    const auto folly =
+            (force_folly_backend ||
+             Settings::instance().getEventFramework() == EventFramework::Folly);
+    if (folly && !sslStructure) {
+        return std::make_unique<FollyConnection>(
+                sfd, thr, std::move(descr), uniqueSslPtr{});
+    }
+
     return std::make_unique<LibeventConnection>(
             sfd, thr, std::move(descr), std::move(sslStructure));
 }
@@ -1165,7 +1175,12 @@ void Connection::close() {
         // we nuke the connection now, the error message we tried to send back
         // to the client won't be sent).
         disableReadEvent();
-        cb::net::shutdown(socketDescriptor, SHUT_RD);
+        if (!dynamic_cast<FollyConnection*>(this)) {
+            // folly wasn't very happy when we shut down the socket underneath
+            // it. We've disabled the read event, so we won't be receiving any
+            // data from the client anyway.
+            cb::net::shutdown(socketDescriptor, SHUT_RD);
+        }
     }
 
     // Notify interested parties that the connection is currently being
