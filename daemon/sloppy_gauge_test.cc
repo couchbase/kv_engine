@@ -13,29 +13,12 @@
 
 #include "sloppy_gauge.h"
 
-class MockSloppyGauge : public SloppyGauge {
-public:
-    std::atomic<unsigned int>& getCurrent() {
-        return current;
-    }
-    std::array<std::atomic<std::size_t>, 60>& getSlots() {
-        return slots;
-    }
-};
-
 TEST(SloppyGaugeTest, increment) {
-    MockSloppyGauge gauge;
-    auto& current = gauge.getCurrent();
-    auto& slot = gauge.getSlots().at(0);
-
-    // Verify that we're using slot 0 and that it is initialized
-    ASSERT_EQ(0, current.load());
-    ASSERT_EQ(0, slot);
-
+    SloppyGauge gauge;
+    EXPECT_EQ(0, gauge.getValue());
     // Increment the count, and verify that we didn't move the slot
     gauge.increment(1);
-    ASSERT_EQ(0, current.load());
-    ASSERT_EQ(1, slot);
+    EXPECT_EQ(1, gauge.getValue());
 }
 
 TEST(SloppyGaugeTest, isBelow) {
@@ -46,32 +29,20 @@ TEST(SloppyGaugeTest, isBelow) {
     ASSERT_TRUE(gauge.isBelow(2));
 }
 
-TEST(SloppyGaugeTest, tick) {
-    MockSloppyGauge gauge;
-    auto& slots = gauge.getSlots();
-
-    for (std::size_t ii = 0; ii < slots.size() * 2; ++ii) {
-        EXPECT_EQ(ii % slots.size(), gauge.getCurrent().load());
-        gauge.increment(1000);
-        auto& pre = slots.at(gauge.getCurrent().load());
-        EXPECT_EQ(1000, pre);
-
-        gauge.tick(100000);
-        EXPECT_EQ((ii + 1) % slots.size(), gauge.getCurrent().load());
-        auto& post = slots.at(gauge.getCurrent().load());
-        EXPECT_EQ(0, post);
-    }
-}
-
 TEST(SloppyGaugeTest, tickDataRollover) {
-    MockSloppyGauge gauge;
-    auto& slots = gauge.getSlots();
-
+    SloppyGauge gauge;
     gauge.increment(1000);
-    for (std::size_t ii = 0; ii < slots.size() - 1; ++ii) {
-        EXPECT_EQ(1000 - ii * 10, slots.at(gauge.getCurrent()));
-        gauge.tick(10);
+    EXPECT_EQ(1000, gauge.getValue());
+    for (int ii = 900; ii > 0; ii -= 100) {
+        gauge.tick(100);
+        EXPECT_EQ(ii, gauge.getValue());
     }
+    gauge.tick(100);
+    EXPECT_EQ(0, gauge.getValue());
+
+    // Tick when the value is 0 should keep it at 0
+    gauge.tick(100);
+    EXPECT_EQ(0, gauge.getValue());
 }
 
 TEST(SloppyGaugeTest, tickNoDataRollover) {
@@ -79,47 +50,29 @@ TEST(SloppyGaugeTest, tickNoDataRollover) {
     // serverless configuration) that we don't roll over _everything_
     // into the next slot, but let each slot count whatever is used
     // within that second.
-    MockSloppyGauge gauge;
+    SloppyGauge gauge;
     gauge.increment(1000);
     gauge.tick(0);
-    EXPECT_EQ(0, gauge.getSlots().at(gauge.getCurrent()));
-}
-
-TEST(SloppyGaugeTest, iterate) {
-    SloppyGauge gauge;
-
-    // Populate the gauge with data (and make sure that we don't
-    // start at the beginning of the slots so that we can verify that
-    // it wraps correctly
-    for (std::size_t ii = 0; ii < 100; ++ii) {
-        gauge.tick(10000);
-        gauge.increment(ii);
-    }
-
-    // Iterate over the data. The first entry we should find should contain 40
-    int ii = 40;
-    gauge.iterate([&ii](auto count) {
-        ASSERT_EQ(ii, count);
-        ++ii;
-    });
+    EXPECT_EQ(0, gauge.getValue());
 }
 
 TEST(SloppyGaugeTest, Multithread) {
-    MockSloppyGauge gauge;
+    SloppyGauge gauge;
     std::atomic_bool stop{false};
 
     std::thread other{[&gauge, &stop]() {
         while (!stop) {
             gauge.increment(1);
+            std::this_thread::yield();
         }
     }};
 
-    auto& slots = gauge.getSlots();
-    for (std::size_t size = 0; size < slots.size(); ++size) {
-        while (slots[gauge.getCurrent()] == 0) {
-            std::this_thread::yield();
+    for (int ii = 0; ii < 100; ++ii) {
+        // Just try to access the bits to let TSAN be able to test it
+        if (gauge.getValue() > 1000) {
+            gauge.tick(gauge.getValue());
         }
-        gauge.tick(slots[gauge.getCurrent()]);
+        std::this_thread::yield();
     }
 
     stop.store(true);

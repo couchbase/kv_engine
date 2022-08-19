@@ -21,22 +21,17 @@
  * To avoid having to read the time "every time" we want to get the
  * limits (reset the value for the next slot) the class provides
  * a "tick" method to move to the next slot.
- *
- * We could have reduced the logic to have just the "current" and "next"
- * slot, but I picked 60 so that if you tick every second resolution you could
- * look back almost a minute (which would be nice in the prototoype to
- * see if it is working as expected ;) )
  */
 class SloppyGauge {
 public:
-    SloppyGauge();
+    SloppyGauge() = default;
 
     /// Bump the number of units used for the current slot
     void increment(std::size_t used);
 
     /// Check to see if the current cu_count for the current slot
     /// is below the provided limits
-    bool isBelow(std::size_t value) const;
+    bool isBelow(std::size_t limit) const;
 
     /// move the clock forward, and carry everything above max forward
     /// into the next slot. The motivation is that we don't want someone
@@ -46,15 +41,14 @@ public:
     /// an operation and do the proper accounting when we're done executing.
     void tick(size_t max);
 
-    /// Iterate through the entries in the log (oldest to newest)
-    void iterate(std::function<void(std::size_t)>) const;
-
     /// Reset all members to 0
     void reset();
 
+    /// The following member is _ONLY_ to be used from unit tests!
+    std::size_t getValue() const {
+        return value;
+    }
+
 protected:
-    /// The index of the current slot to use
-    std::atomic<unsigned int> current{0};
-    /// An array containing the "history" we want to use
-    std::array<std::atomic<std::size_t>, 60> slots;
+    std::atomic<std::size_t> value{0};
 };

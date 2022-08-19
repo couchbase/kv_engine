@@ -10,48 +10,35 @@
 
 #include "sloppy_gauge.h"
 
-SloppyGauge::SloppyGauge() {
-    for (auto& e : slots) {
-        e.store(0);
-    }
-}
-
 void SloppyGauge::increment(std::size_t used) {
-    slots.at(current.load()) += used;
+    value += used;
 }
 
-bool SloppyGauge::isBelow(std::size_t value) const {
-    return slots.at(current.load()) < value;
+bool SloppyGauge::isBelow(std::size_t limit) const {
+    return value < limit;
 }
 
 void SloppyGauge::tick(size_t max) {
-    size_t next = current + 1;
-    if (next == slots.size()) {
-        next = 0;
-    }
-    slots[next].store(0);
-    auto prev = current.load();
-    current = next;
-    if (max && slots[prev] > max) {
-        slots[next] += slots[prev] - max;
-    }
-}
-
-void SloppyGauge::iterate(std::function<void(std::size_t)> function) const {
-    size_t entry = current + 1;
-
-    for (std::size_t ii = 0; ii < slots.size(); ++ii) {
-        if (entry == slots.size()) {
-            entry = 0;
-        }
-        function(slots[entry].load());
-        ++entry;
+    if (max) {
+        do {
+            if (value > max) {
+                value -= max;
+                return;
+            } else {
+                // try to reset the value to 0, but deal with race
+                // incrementing the value
+                std::size_t next{value.load()};
+                if (value.compare_exchange_strong(next, 0)) {
+                    return;
+                }
+            }
+        } while (true);
+    } else {
+        // Don't roll over anything
+        value = 0;
     }
 }
 
 void SloppyGauge::reset() {
-    for (auto& slot : slots) {
-        slot = 0;
-    }
-    current = 0;
+    value = 0;
 }
