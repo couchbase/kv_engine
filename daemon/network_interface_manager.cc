@@ -513,6 +513,16 @@ uniqueSslPtr NetworkInterfaceManager::createClientSslHandle() {
     return ret;
 }
 
+std::shared_ptr<folly::SSLContext> NetworkInterfaceManager::getSslContext() {
+    return tlsConfiguration.withRLock(
+            [](auto& config) -> std::shared_ptr<folly::SSLContext> {
+                if (config) {
+                    return config->getSslContext();
+                }
+                return {};
+            });
+}
+
 std::size_t NetworkInterfaceManager::getNumberOfDaemonConnections() const {
     return ServerSocket::getNumInstances();
 }

@@ -9,9 +9,10 @@
  */
 #include "tls_configuration.h"
 #include "ssl_utils.h"
+#include <folly/io/async/SSLContext.h>
+#include <logger/logger.h>
 #include <nlohmann/json.hpp>
 #include <platform/base64.h>
-#include <logger/logger.h>
 
 std::string getString(const nlohmann::json& spec,
                       const std::string key,
@@ -249,6 +250,16 @@ cb::openssl::unique_ssl_ctx_ptr TlsConfiguration::createServerContext(
 
 uniqueSslPtr TlsConfiguration::createClientSslHandle() {
     return uniqueSslPtr{SSL_new(serverContext.get())};
+}
+
+std::shared_ptr<folly::SSLContext> TlsConfiguration::getSslContext() {
+    if (!serverContext) {
+        return {};
+    }
+
+    auto context = std::make_shared<folly::SSLContext>(serverContext.get());
+    context->sslAcceptRunner(std::make_unique<folly::SSLAcceptRunner>());
+    return context;
 }
 
 TlsConfiguration::ClientCertMode from_string(std::string_view view) {

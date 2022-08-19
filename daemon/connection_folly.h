@@ -10,6 +10,7 @@
 #pragma once
 
 #include "connection.h"
+#include <folly/io/async/AsyncSSLSocket.h>
 #include <folly/io/async/DelayedDestruction.h>
 #include <memory>
 
@@ -27,7 +28,8 @@ using AsyncSocketUniquePtr =
                         folly::DelayedDestruction::Destructor>;
 
 /// Implementation of the Connection class using Folly for IO.
-class FollyConnection : public Connection {
+class FollyConnection : public Connection,
+                        public folly::AsyncSSLSocket::HandshakeCB {
 public:
     FollyConnection(SOCKET sfd,
                     FrontEndThread& thr,
@@ -45,6 +47,17 @@ public:
     void triggerCallback() override;
     void disableReadEvent() override;
     void enableReadEvent() override;
+
+    ///////// Handshake callback API override
+    bool handshakeVer(folly::AsyncSSLSocket* socket,
+                      bool preverifyOk,
+                      X509_STORE_CTX* ctx) noexcept override;
+
+    void handshakeSuc(folly::AsyncSSLSocket* sock) noexcept override;
+
+    void handshakeErr(folly::AsyncSSLSocket* sock,
+                      const folly::AsyncSocketException& ex) noexcept override;
+    ///////// End handshake callback API override
 
 protected:
     friend class cb::daemon::AsyncReadCallback;

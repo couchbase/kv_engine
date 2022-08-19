@@ -13,6 +13,10 @@
 #include <nlohmann/json.hpp>
 #include <stdexcept>
 
+namespace folly {
+class SSLContext;
+}
+
 class CreateSslContextException : public std::runtime_error {
 public:
     CreateSslContextException(std::string_view message,
@@ -64,6 +68,9 @@ public:
     /// @param spec the JSON to check
     /// @throws std::invalid_argument if it fails to meet the criterias
     static void validate(const nlohmann::json& spec);
+
+    /// For use in the current folly prototype!
+    std::shared_ptr<folly::SSLContext> getSslContext();
 
 protected:
     /// Create the OpenSSL Server context structure

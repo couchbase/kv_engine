@@ -13,12 +13,14 @@
 #include "cookie.h"
 #include "front_end_thread.h"
 #include "mcaudit.h"
+#include "network_interface_manager.h"
 #include "settings.h"
 #include "tracing.h"
 
 #include <folly/io/async/AsyncSSLSocket.h>
 #include <folly/io/async/AsyncSocket.h>
 #include <folly/io/async/AsyncTransport.h>
+#include <folly/io/async/SSLContext.h>
 #include <logger/logger.h>
 #include <mcbp/protocol/header.h>
 #include <phosphor/phosphor.h>
@@ -380,15 +382,44 @@ FollyConnection::FollyConnection(SOCKET sfd,
     asyncReadCallback = std::make_unique<AsyncReadCallback>(*this);
     asyncWriteCallback = std::make_unique<AsyncWriteCallback>(*this);
 
-    asyncSocket = folly::AsyncSocket::newSocket(&thread.eventBase,
-                                                folly::NetworkSocket(sfd));
-    if (!asyncSocket->setZeroCopy(true)) {
-        LOG_DEBUG("{} Failed to set zero copy mode", getId());
+    if (sslStructure) {
+        auto context = networkInterfaceManager->getSslContext();
+        if (!context) {
+            throw std::runtime_error(
+                    "FollyConnection: Failed to get SSL Context");
+        }
+        auto* ss = new folly::AsyncSSLSocket(
+                context, &thread.eventBase, folly::NetworkSocket(sfd));
+        asyncSocket.reset(ss);
+        ss->sslAccept(this);
+    } else {
+        asyncSocket = folly::AsyncSocket::newSocket(&thread.eventBase,
+                                                    folly::NetworkSocket(sfd));
+    }
+
+    if (asyncSocket->setZeroCopy(true)) {
+        LOG_DEBUG("{}: Using zero copy mode", getId());
     }
     asyncSocket->setReadCB(asyncReadCallback.get());
 }
 
 FollyConnection::~FollyConnection() = default;
+
+bool FollyConnection::handshakeVer(folly::AsyncSSLSocket* socket,
+                                   bool preverifyOk,
+                                   X509_STORE_CTX* ctx) noexcept {
+    return HandshakeCB::handshakeVer(socket, preverifyOk, ctx);
+}
+
+void FollyConnection::handshakeSuc(folly::AsyncSSLSocket* sock) noexcept {
+    onTlsConnect(sock->getSSL());
+}
+
+void FollyConnection::handshakeErr(
+        folly::AsyncSSLSocket* sock,
+        const folly::AsyncSocketException& ex) noexcept {
+    LOG_WARNING("{}: Failed to do TLS handshake: {}", getId(), ex.what());
+}
 
 void FollyConnection::scheduleExecution() {
     if (!executionScheduled) {

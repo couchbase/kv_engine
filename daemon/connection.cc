@@ -1072,9 +1072,9 @@ std::unique_ptr<Connection> Connection::create(
     const auto folly =
             (force_folly_backend ||
              Settings::instance().getEventFramework() == EventFramework::Folly);
-    if (folly && !sslStructure) {
+    if (folly) {
         return std::make_unique<FollyConnection>(
-                sfd, thr, std::move(descr), uniqueSslPtr{});
+                sfd, thr, std::move(descr), std::move(sslStructure));
     }
 
     return std::make_unique<LibeventConnection>(
