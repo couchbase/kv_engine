@@ -616,13 +616,18 @@ private:
     EPStats& stats;
     const uint64_t checkpointId;
     const uint64_t snapStartSeqno;
-    WeaklyMonotonic<uint64_t, ThrowExceptionPolicy> snapEndSeqno{0};
+    class Labeller {
+    public:
+        std::string getLabel(const char* name) const;
+        const Checkpoint& c;
+    };
+    WEAKLY_MONOTONIC4(uint64_t, snapEndSeqno, Labeller, ThrowExceptionPolicy);
 
     /// The maximum visible snapshot end (hides prepare/abort), this could be
     /// a WeaklyMonotonic, but many unit tests will violate that.
     uint64_t visibleSnapEndSeqno = 0;
     /// The seqno of the highest expelled item.
-    Monotonic<int64_t> highestExpelledSeqno{0};
+    MONOTONIC3(int64_t, highestExpelledSeqno, Labeller);
     const Vbid vbucketId;
 
     folly::Synchronized<checkpoint_state> checkpointState;

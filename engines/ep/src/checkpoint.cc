@@ -62,8 +62,9 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
       stats(st),
       checkpointId(id),
       snapStartSeqno(snapStart),
-      snapEndSeqno(snapEnd),
+      snapEndSeqno(snapEnd, {*this}),
       visibleSnapEndSeqno(visibleSnapEnd),
+      highestExpelledSeqno(0, {*this}),
       vbucketId(vbid),
       checkpointState(CHECKPOINT_OPEN),
       toWrite(queueAllocator),
@@ -753,4 +754,13 @@ void Checkpoint::MemoryCounter::detachFromManager() {
     Expects(managerUsage);
     *managerUsage -= local;
     managerUsage = nullptr;
+}
+
+std::string Checkpoint::Labeller::getLabel(const char* name) const {
+    return fmt::format("Checkpoint({} ckptId:{} type:{} snapStartSeqno:{})::{}",
+                       c.vbucketId,
+                       c.getId(),
+                       to_string(c.getCheckpointType()),
+                       c.getSnapshotStartSeqno(),
+                       name);
 }
