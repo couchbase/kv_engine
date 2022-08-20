@@ -20,31 +20,39 @@
 
 namespace cb::test {
 
+void executeOnAllNodes(cb::test::Cluster& cluster,
+                       std::function<void(MemcachedConnection&)> callback) {
+    for (std::size_t ii = 0; ii < cluster.size(); ++ii) {
+        auto admin = cluster.getConnection(ii);
+        admin->authenticate("@admin", "password");
+        callback(*admin);
+    }
+}
+
 void setClusterConfig(cb::test::Cluster& cluster,
                       uint64_t token,
                       const std::string& bucketName,
                       const std::string& config,
                       int64_t revision) {
-    for (std::size_t ii = 0; ii < cluster.size(); ++ii) {
-        auto admin = cluster.getConnection(ii);
-        admin->authenticate("@admin", "password");
+    executeOnAllNodes(
+            cluster,
+            [token, &bucketName, &config, revision](MemcachedConnection& conn) {
+                // Verify that the bucket isn't there
+                auto rsp = conn.execute(BinprotGenericCommand{
+                        cb::mcbp::ClientOpcode::SelectBucket, bucketName});
+                ASSERT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus())
+                        << "The bucket should not exist";
 
-        // Verify that the bucket isn't there
-        auto rsp = admin->execute(BinprotGenericCommand{
-                cb::mcbp::ClientOpcode::SelectBucket, bucketName});
-        ASSERT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus())
-                << "The bucket should not exist";
+                rsp = conn.execute(BinprotSetClusterConfigCommand{
+                        token, config, 1, revision, bucketName});
+                ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus() << std::endl
+                                             << rsp.getDataJson();
 
-        rsp = admin->execute(BinprotSetClusterConfigCommand{
-                token, config, 1, revision, bucketName});
-        ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus() << std::endl
-                                     << rsp.getDataJson();
-
-        // Verify that the bucket is there
-        rsp = admin->execute(BinprotGenericCommand{
-                cb::mcbp::ClientOpcode::SelectBucket, bucketName});
-        ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    }
+                // Verify that the bucket is there
+                rsp = conn.execute(BinprotGenericCommand{
+                        cb::mcbp::ClientOpcode::SelectBucket, bucketName});
+                ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+            });
 }
 
 TEST(ConfigOnlyTest, SetClusterConfigCreatesBucket) {
@@ -90,6 +98,15 @@ TEST(ConfigOnlyTest, SetClusterConfigCreatesBucket) {
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_NE(dummy_clustermap, rsp.getDataString());
 
+    // This isn't a config-only bucket. I should not be able to delete it
+    // if I set the type to ClusterConfigOnly
+    nlohmann::json options = {{"type", "ClusterConfigOnly"}, {"force", true}};
+    rsp = admin->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::DeleteBucket,
+                                  "cluster-config",
+                                  options.dump()});
+    EXPECT_EQ(cb::mcbp::Status::KeyEexists, rsp.getStatus());
+
     // Delete the bucket
     cluster->deleteBucket("cluster-config");
 }
@@ -113,10 +130,22 @@ TEST(ConfigOnlyTest, DeleteClusterConfigBucket) {
             cb::mcbp::ClientOpcode::DeleteBucket, bucketname});
     ASSERT_EQ(cb::mcbp::Status::EConfigOnly, rsp.getStatus());
 
-    auto admin = cluster->getConnection(0);
-    admin->authenticate("@admin", "password");
-    // Delete will throw exception if it fails for some reason
-    admin->deleteBucket(bucketname);
+    executeOnAllNodes(*cluster, [&bucketname](MemcachedConnection& conn) {
+        // Delete will throw exception if it fails for some reason
+        conn.deleteBucket(bucketname);
+    });
+
+    // Recreate the config only bucket, and run try to delete the bucket
+    // with a filter on the bucket type
+    setClusterConfig(*cluster, 0, bucketname, dummy_clustermap, 1000);
+    executeOnAllNodes(*cluster, [&bucketname](MemcachedConnection& conn) {
+        nlohmann::json options = {{"type", "ClusterConfigOnly"}};
+        auto rsp = conn.execute(
+                BinprotGenericCommand{cb::mcbp::ClientOpcode::DeleteBucket,
+                                      bucketname,
+                                      options.dump()});
+        EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    });
 }
 
 } // namespace cb::test

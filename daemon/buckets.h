@@ -24,6 +24,7 @@
 #include <deque>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <unordered_map>
 
 struct thread_stats;
@@ -341,9 +342,13 @@ public:
      * @param name The name of the bucket to delete
      * @param force If set to true the underlying engine should not try to
      *              persist pending items etc
+     * @param type Only delete the bucket if it is of the given type
      * @return Status for the operation
      */
-    cb::engine_errc destroy(Cookie* cookie, const std::string name, bool force);
+    cb::engine_errc destroy(Cookie* cookie,
+                            const std::string name,
+                            bool force,
+                            std::optional<BucketType> type);
 
     /// Set the cluster configuration for the named bucket
     cb::engine_errc setClusterConfig(

@@ -9,6 +9,7 @@
  */
 
 #include <memcached/bucket_type.h>
+#include <string_view>
 
 std::string to_string(BucketType type) {
     switch (type) {
@@ -30,4 +31,29 @@ std::string to_string(BucketType type) {
     // an error message with an invalid bucket type
     return "[to_string(BucketType) - Illegal type: " +
            std::to_string(int(type)) + "]";
+}
+
+BucketType parse_bucket_type(std::string_view type) {
+    using namespace std::string_view_literals;
+
+    if (type == "Memcached"sv) {
+        return BucketType::Memcached;
+    }
+
+    if (type == "Couchbase"sv) {
+        return BucketType::Couchbase;
+    }
+
+    if (type == "ClusterConfigOnly"sv) {
+        return BucketType::ClusterConfigOnly;
+    }
+
+    if (type == "EWouldBlock"sv) {
+        return BucketType::EWouldBlock;
+    }
+
+    if (type == "No Bucket"sv) {
+        return BucketType::NoBucket;
+    }
+    return BucketType::Unknown;
 }

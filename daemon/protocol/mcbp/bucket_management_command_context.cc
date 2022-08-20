@@ -16,6 +16,7 @@
 #include <executor/executorpool.h>
 #include <logger/logger.h>
 #include <memcached/config_parser.h>
+#include <utilities/json_utilities.h>
 
 cb::engine_errc BucketManagementCommandContext::initial() {
     if (request.getClientOpcode() == cb::mcbp::ClientOpcode::CreateBucket) {
@@ -84,43 +85,72 @@ cb::engine_errc BucketManagementCommandContext::remove() {
     std::string name(reinterpret_cast<const char*>(k.data()), k.size());
     const auto config = request.getValueString();
     bool force = false;
+    std::optional<BucketType> bucket_type;
 
-    try {
-        bool invalid_arguments = false;
-        cb::config::tokenize(config,
-                             [&force, &invalid_arguments](auto k, auto v) {
-                                 using namespace std::string_view_literals;
-                                 if (k == "force"sv) {
-                                     force = cb::config::value_as_bool(v);
-                                 } else {
-                                     invalid_arguments = true;
-                                 }
-                             });
-        if (invalid_arguments) {
-            LOG_WARNING("{} Invalid payload provided with delete bucket: {}",
+    if (!config.empty()) {
+        try {
+            bool invalid_arguments = false;
+
+            if (config.front() == '{') {
+                auto json = nlohmann::json::parse(config);
+                auto v = cb::getOptionalJsonObject(
+                        json, "force", nlohmann::json::value_t::boolean);
+                if (v) {
+                    force = v.value().get<bool>();
+                }
+                v = cb::getOptionalJsonObject(
+                        json, "type", nlohmann::json::value_t::string);
+                if (v) {
+                    bucket_type =
+                            parse_bucket_type(v.value().get<std::string>());
+                    if (bucket_type.value() == BucketType::Unknown) {
+                        invalid_arguments = true;
+                    }
+                }
+            } else {
+                cb::config::tokenize(
+                        config, [&force, &invalid_arguments](auto k, auto v) {
+                            using namespace std::string_view_literals;
+                            if (k == "force"sv) {
+                                force = cb::config::value_as_bool(v);
+                            } else {
+                                invalid_arguments = true;
+                            }
+                        });
+            }
+            if (invalid_arguments) {
+                LOG_WARNING(
+                        "{} Invalid payload provided with delete bucket: {}",
                         connection.getId(),
                         config);
-            return cb::engine_errc::invalid_arguments;
+                return cb::engine_errc::invalid_arguments;
+            }
+
+        } catch (const std::exception& e) {
+            LOG_WARNING(
+                    "{} Exception occurred while parsing delete bucket "
+                    "payload: "
+                    "\"{}\". {}",
+                    connection.getId(),
+                    config,
+                    e.what());
+            return cb::engine_errc::failed;
         }
-    } catch (const std::exception& e) {
-        LOG_WARNING(
-                "{} Exception occurred while parsing delete bucket payload: "
-                "\"{}\". {}",
-                connection.getId(),
-                config,
-                e.what());
-        return cb::engine_errc::failed;
     }
 
     std::string taskname{"Delete bucket [" + name + "]"};
     ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
             TaskId::Core_DeleteBucketTask,
             taskname,
-            [client = &cookie, nm = std::move(name), f = force]() {
+            [client = &cookie,
+             nm = std::move(name),
+             f = force,
+             type = bucket_type]() {
                 auto& connection = client->getConnection();
                 cb::engine_errc status;
                 try {
-                    status = BucketManager::instance().destroy(client, nm, f);
+                    status = BucketManager::instance().destroy(
+                            client, nm, f, type);
                 } catch (const std::runtime_error& error) {
                     LOG_WARNING(
                             "{}: An error occurred while deleting bucket [{}]: "

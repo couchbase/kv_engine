@@ -23,3 +23,4 @@ enum class BucketType : uint8_t {
 };
 
 std::string to_string(BucketType type);
+BucketType parse_bucket_type(std::string_view type);

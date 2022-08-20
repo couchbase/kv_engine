@@ -552,7 +552,8 @@ cb::engine_errc BucketManager::create(Cookie& cookie,
 }
 cb::engine_errc BucketManager::destroy(Cookie* cookie,
                                        const std::string name,
-                                       bool force) {
+                                       bool force,
+                                       std::optional<BucketType> type) {
     cb::engine_errc ret = cb::engine_errc::no_such_key;
     std::unique_lock<std::mutex> all_bucket_lock(buckets_lock);
 
@@ -578,8 +579,12 @@ cb::engine_errc BucketManager::destroy(Cookie* cookie,
         if (name == all_buckets[ii].name) {
             idx = ii;
             if (all_buckets[ii].state == Bucket::State::Ready) {
-                ret = cb::engine_errc::success;
-                all_buckets[ii].state = Bucket::State::Destroying;
+                if (type && all_buckets[ii].type != type.value()) {
+                    ret = cb::engine_errc::key_already_exists;
+                } else {
+                    ret = cb::engine_errc::success;
+                    all_buckets[ii].state = Bucket::State::Destroying;
+                }
             } else {
                 ret = cb::engine_errc::key_already_exists;
             }
@@ -797,7 +802,7 @@ void BucketManager::destroyAll() {
         if (all_buckets[ii].state == Bucket::State::Ready) {
             const std::string name{all_buckets[ii].name};
             LOG_INFO("Waiting for delete of {} to complete", name);
-            BucketManager::instance().destroy(nullptr, name, false);
+            BucketManager::instance().destroy(nullptr, name, false, {});
             LOG_INFO("Bucket {} deleted", name);
         }
     }
