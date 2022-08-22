@@ -370,12 +370,15 @@ uint64_t PagingVisitor::casToAge(uint64_t cas) const {
 }
 
 void PagingVisitor::setUpHashBucketVisit() {
+    vbStateLock = folly::SharedMutex::ReadHolder(currentBucket->getStateLock());
     // Grab a locked ReadHandle
     readHandle = currentBucket->lockCollections();
 }
 
 void PagingVisitor::tearDownHashBucketVisit() {
-    // Unlock the readHandle. It can now never be locked again, and should
-    // not be used until overwriting with a locked ReadHandle.
+    // Unlock the locks. They can now never be locked again, and should
+    // be overwritten with new ones. The unlocking order matters - vbStateLock
+    // must outlive the collections lock to avoid lock inversion.
     readHandle.unlock();
+    vbStateLock.unlock();
 }

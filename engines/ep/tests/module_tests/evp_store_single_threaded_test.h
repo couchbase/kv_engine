@@ -440,6 +440,13 @@ public:
                 "ephemeral_full_policy=fail_new_data"s);
     }
 
+    static auto ephAutoDeleteConfigValues() {
+        using namespace std::string_literals;
+        return ::testing::Values(
+                "bucket_type=ephemeral:"
+                "ephemeral_full_policy=auto_delete"s);
+    }
+
     static auto allConfigValues() {
         using namespace std::string_literals;
         return ::testing::Values(

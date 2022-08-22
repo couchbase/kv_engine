@@ -47,4 +47,9 @@ public:
                                        TestingHook<folly::SharedMutex&> hook) {
         vb.fetchValidValueHook = hook;
     }
+
+    static void setSoftDeleteStoredValueHook(
+            VBucket& vb, TestingHook<folly::SharedMutex&> hook) {
+        vb.softDeleteStoredValueHook = hook;
+    }
 };

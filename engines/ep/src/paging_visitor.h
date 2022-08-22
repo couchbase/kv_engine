@@ -184,6 +184,9 @@ private:
     // visit all items in the vbucket.
     uint64_t maxCas;
 
+    // The VBucket state lock handle that we use around HashBucket visits.
+    folly::SharedMutex::ReadHolder vbStateLock{nullptr};
+
     // The VB::Manifest read handle that we use to lock around HashBucket
     // visits. Will contain a nullptr if we aren't currently locking anything.
     Collections::VB::ReadHandle readHandle;

@@ -30,6 +30,7 @@
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
 #include "vbucket.h"
+#include "vbucket_utils.h"
 
 #include <folly/portability/GTest.h>
 #include <platform/cb_arena_malloc.h>
@@ -1612,6 +1613,37 @@ TEST_P(STEphemeralItemPagerTest, ReplicaNotPaged) {
 }
 
 /**
+ * Test fixture for Ephemeral item pager tests with
+ * ephemeral_full_policy=auto_delete.
+ */
+class STEphemeralAutoDeleteItemPagerTest : public STItemPagerTest {};
+
+// It is important that we hold the vbucket state lock during pageOut because
+// otherwise we could end up deleting items from replicas in case of a poorly
+// timed change in the vbucket state.
+TEST_P(STEphemeralAutoDeleteItemPagerTest, PageOutHoldsVBStateLock) {
+    // Populate the vbucket until we reach the high watermark.
+    populateUntilAboveHighWaterMark(vbid);
+
+    auto& vb = *store->getVBucket(vbid);
+    bool softDeleteCalled{false};
+    VBucketTestIntrospector::setSoftDeleteStoredValueHook(
+            vb, {[&softDeleteCalled](folly::SharedMutex& vbStateLock) {
+                softDeleteCalled = true;
+
+                bool didManageToLock = vbStateLock.try_lock();
+                if (didManageToLock) {
+                    vbStateLock.unlock();
+                }
+                EXPECT_FALSE(didManageToLock);
+            }});
+
+    // Run the pager and check that items got deleted.
+    runHighMemoryPager();
+    EXPECT_TRUE(softDeleteCalled);
+}
+
+/**
  * Test fixture for expiry pager tests - enables the Expiry Pager (in addition
  * to what the parent class does).
  */
@@ -2716,6 +2748,11 @@ INSTANTIATE_TEST_SUITE_P(Ephemeral,
                          STParameterizedBucketTest::ephConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
+INSTANTIATE_TEST_SUITE_P(EphemeralAutoDelete,
+                         STEphemeralAutoDeleteItemPagerTest,
+                         STParameterizedBucketTest::ephAutoDeleteConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
 INSTANTIATE_TEST_SUITE_P(PersistentFullValue,
                          MB_36087,
                          STParameterizedBucketTest::persistentConfigValues(),
@@ -2729,5 +2766,6 @@ GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(STFullEvictionNoBloomFilterPagerTe
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(STValueEvictionExpiryPagerTest);
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(MB_32669);
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(STEphemeralItemPagerTest);
+GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(STEphemeralAutoDeleteItemPagerTest);
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(MB_36087);
 #endif

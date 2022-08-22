@@ -2531,6 +2531,9 @@ protected:
      */
     const SyncWriteTimeoutHandlerFactory syncWriteTimeoutFactory;
 
+    // Test hook for checking that softDeleteStoredValue holds the state lock
+    TestingHook<folly::SharedMutex&> softDeleteStoredValueHook;
+
 private:
     /**
      * The replication topology, set as part of SET_VBUCKET_STATE.
