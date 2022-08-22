@@ -383,10 +383,6 @@ cb::engine_errc BucketManager::setClusterConfig(
         ++ii;
     }
 
-    if (!isServerlessDeployment()) {
-        return cb::engine_errc::no_such_key;
-    }
-
     if (first_free == all_buckets.size()) {
         return cb::engine_errc::too_big;
     }
