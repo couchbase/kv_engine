@@ -30,8 +30,11 @@ CacheCallback::CacheCallback(KVBucket& bucket, std::shared_ptr<ActiveStream> s)
 GetValue CacheCallback::get(VBucket& vb,
                             CacheLookup& lookup,
                             ActiveStream& stream) {
-    // getInternal may generate expired items and thus may for example need to
-    // update a collection high-seqno, get a handle on the collection manifest
+    // getInternal may generate expired items, thus we need a lock on the
+    // vbucket state to prevent inconsistencies between replicas and actives.
+    // getInternal will also update the collection high-seqno, so get a handle
+    // on the collection manifest.
+    folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
     auto cHandle = vb.lockCollections(lookup.getKey().getDocKey());
     if (!cHandle.valid()) {
         return {};

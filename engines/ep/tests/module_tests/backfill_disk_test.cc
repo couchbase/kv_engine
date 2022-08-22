@@ -34,6 +34,8 @@ protected:
                            IncludeXattrs incXattr,
                            IncludeDeletedUserXattrs incDeletedXattr,
                            int expectedGetCalls);
+
+    void testDiskBackfillHoldsVBStateLock();
 };
 
 /**
@@ -169,6 +171,78 @@ void DCPBackfillDiskTest::backfillGetDriver(
     if (!(stream->isKeyOnly())) {
         EXPECT_EQ(item->getValue()->to_s(), "value");
     }
+}
+
+void DCPBackfillDiskTest::testDiskBackfillHoldsVBStateLock() {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    // Create item which expires in 10s, checkpoint and flush so item is to be
+    // backfilled from disk
+    auto key = makeStoredDocKey("key");
+    store_item(vbid, key, "value");
+    flushAndRemoveCheckpoints(vbid);
+
+    auto& vb = *engine->getKVBucket()->getVBucket(vbid);
+
+    // Set up and define expectations for the hook that is called in the body of
+    // CacheCallback::get(), i.e., when an item's value is retrieved from cache
+    testing::StrictMock<testing::MockFunction<void()>> getInternalHook;
+    VBucketTestIntrospector::setIsCalledHook(vb,
+                                             getInternalHook.AsStdFunction());
+    EXPECT_CALL(getInternalHook, Call()).Times(1);
+
+    // Set up a hook to run before we expire items and check whether an
+    // exclusive lock can be obtained on the vbucket state.
+    VBucketTestIntrospector::setFetchValidValueHook(
+            vb, {[&](folly::SharedMutex& vbStateLock) {
+                bool didManageToLock = vb.getStateLock().try_lock();
+                if (didManageToLock) {
+                    vb.getStateLock().unlock();
+                }
+                EXPECT_FALSE(didManageToLock);
+            }});
+
+    // Items now only on disk, create producer
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test-producer", 0 /*flags*/, false /*startTask*/);
+
+    auto stream = std::make_shared<MockActiveStream>(
+            engine.get(),
+            producer,
+            0, /* flags */
+            0, /* opaque */
+            vb, /* vbucket */
+            0, /* start seqNo */
+            1, /* end seqNo */
+            0, /* vbucket uuid */
+            0, /* snapshot start seqNo */
+            0, /* snapshot end seqNo */
+            IncludeValue::Yes, /* includeValue */
+            IncludeXattrs::No, /* includeXattrs */
+            IncludeDeletedUserXattrs::No, /* includeDeletedUserXattrs */
+            std::string{}); /* jsonFilter */
+
+    stream->setActive();
+    ASSERT_TRUE(stream->isBackfilling());
+
+    auto& bfm = producer->getBFM();
+    ASSERT_EQ(backfill_success, bfm.backfill()); // initialize backfill
+
+    auto backfillRemaining = stream->getNumBackfillItemsRemaining();
+    ASSERT_TRUE(backfillRemaining);
+
+    ASSERT_EQ(2, stream->public_readyQSize());
+
+    auto response = stream->public_popFromReadyQ();
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, response->getEvent());
+
+    // Ensure an item mutation is in the DCP stream
+    response = stream->public_popFromReadyQ();
+    EXPECT_EQ(DcpResponse::Event::Mutation, response->getEvent());
+}
+
+// Tests that the vbstate lock is held during disk backfill.
+TEST_F(DCPBackfillDiskTest, DiskBackfillHoldsVBStateLock) {
+    testDiskBackfillHoldsVBStateLock();
 }
 
 // Tests that CacheCallback::get is never called when a stream is keyOnly.
