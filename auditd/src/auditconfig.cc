@@ -9,6 +9,8 @@
  */
 
 #include "auditconfig.h"
+#include "audit.h"
+#include "audit_event_filter.h"
 #include <gsl/gsl-lite.hpp>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
@@ -418,4 +420,22 @@ void AuditConfig::initialize_config(const nlohmann::json& json) {
     uuid.swap(other.uuid);
 
     version = other.version;
+}
+
+std::unique_ptr<AuditEventFilter> AuditConfig::createAuditEventFilter(
+        uint64_t rev) {
+    std::vector<cb::rbac::UserIdent> u;
+    disabled_userids.withLock([&u](const auto& users) {
+        for (const auto& [domain, user] : users) {
+            if (domain == "local") {
+                u.emplace_back(
+                        cb::rbac::UserIdent{user, cb::rbac::Domain::Local});
+            } else {
+                u.emplace_back(
+                        cb::rbac::UserIdent{user, cb::rbac::Domain::External});
+            }
+        }
+    });
+    return std::make_unique<AuditEventFilter>(
+            rev, filtering_enabled.load(), std::move(u));
 }

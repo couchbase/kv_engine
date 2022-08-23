@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -11,6 +10,7 @@
 
 #pragma once
 
+#include "auditd/src/audit_event_filter.h"
 #include "ssl_utils.h"
 #include <JSON_checker.h>
 #include <folly/Synchronized.h>
@@ -99,6 +99,17 @@ struct FrontEndThread {
     /// so that we only log every 5 second (so that we can find the root cause
     /// of the problem)
     time_t shutdown_next_log = 0;
+    /**
+     * Check to see if the provided event should be filtered out for the
+     * provided user.
+     *
+     * @param id The event to check
+     * @param user The user to check
+     * @return true if the event should be dropped, false if it should be
+     *              submitted to the audit daemon.
+     */
+    bool is_audit_event_filtered_out(uint32_t id,
+                                     const cb::rbac::UserIdent& user);
 
 protected:
     void dispatch_new_connections();
@@ -131,6 +142,9 @@ protected:
     protected:
         folly::Synchronized<std::vector<Entry>, std::mutex> connections;
     } new_conn_queue;
+
+    /// The audit event filter used by this thread
+    std::unique_ptr<AuditEventFilter> auditEventFilter;
 };
 
 class Hdr1sfMicroSecHistogram;

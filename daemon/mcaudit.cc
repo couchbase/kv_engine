@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -14,6 +13,7 @@
 #include "connection.h"
 #include "cookie.h"
 #include "debug_helpers.h"
+#include "front_end_thread.h"
 #include "log_macros.h"
 #include "logger/logger.h"
 #include "memcached.h"
@@ -41,7 +41,7 @@ static const int Last = MEMCACHED_AUDIT_TENANT_RATE_LIMITED;
 
 static std::array<std::atomic_bool, Last - First + 1> events;
 
-static bool isEnabled(uint32_t id) {
+static bool isEnabled(uint32_t id, const Connection& connection) {
     if (!audit_enabled.load(std::memory_order_consume)) {
         // Global switch is off.. All events are disabled
         return false;
@@ -49,7 +49,15 @@ static bool isEnabled(uint32_t id) {
 
     if (id >= First && id <= Last) {
         // This is one of ours
-        return events[id - First].load(std::memory_order_consume);
+        if (events[id - First].load(std::memory_order_consume)) {
+            if (connection.getThread().is_audit_event_filtered_out(
+                        id, connection.getUser())) {
+                return false;
+            }
+
+            return true;
+        }
+        return false;
     }
 
     // we don't have information about this id... let the underlying event
@@ -129,11 +137,24 @@ static void do_audit(Cookie* cookie,
     });
 }
 
+std::unique_ptr<AuditEventFilter> create_audit_event_filter() {
+    try {
+        return getAuditHandle().withRLock([](auto& handle) {
+            if (handle) {
+                return handle->createAuditEventFilter();
+            }
+            return std::unique_ptr<AuditEventFilter>{};
+        });
+    } catch (const std::bad_alloc&) {
+        return {};
+    }
+}
+
 void audit_auth_failure(const Connection& c,
                         const cb::rbac::UserIdent& ui,
                         const char* reason,
                         Cookie* cookie) {
-    if (!isEnabled(MEMCACHED_AUDIT_AUTHENTICATION_FAILED)) {
+    if (!isEnabled(MEMCACHED_AUDIT_AUTHENTICATION_FAILED, c)) {
         return;
     }
     auto root = create_memcached_audit_object(c, ui, {});
@@ -146,7 +167,7 @@ void audit_auth_failure(const Connection& c,
 }
 
 void audit_auth_success(const Connection& c, Cookie* cookie) {
-    if (!isEnabled(MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED)) {
+    if (!isEnabled(MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED, c)) {
         return;
     }
     auto root = create_memcached_audit_object(c, c.getUser(), {});
@@ -157,7 +178,7 @@ void audit_auth_success(const Connection& c, Cookie* cookie) {
 }
 
 void audit_bucket_selection(const Connection& c, Cookie* cookie) {
-    if (!isEnabled(MEMCACHED_AUDIT_SELECT_BUCKET)) {
+    if (!isEnabled(MEMCACHED_AUDIT_SELECT_BUCKET, c)) {
         return;
     }
     const auto& bucket = c.getBucket();
@@ -173,7 +194,8 @@ void audit_bucket_selection(const Connection& c, Cookie* cookie) {
 }
 
 void audit_bucket_flush(Cookie& cookie, const char* bucket) {
-    if (!isEnabled(MEMCACHED_AUDIT_EXTERNAL_MEMCACHED_BUCKET_FLUSH)) {
+    if (!isEnabled(MEMCACHED_AUDIT_EXTERNAL_MEMCACHED_BUCKET_FLUSH,
+                   cookie.getConnection())) {
         return;
     }
     auto& c = cookie.getConnection();
@@ -187,7 +209,8 @@ void audit_bucket_flush(Cookie& cookie, const char* bucket) {
 }
 
 void audit_dcp_open(Cookie& cookie) {
-    if (!isEnabled(MEMCACHED_AUDIT_OPENED_DCP_CONNECTION)) {
+    if (!isEnabled(MEMCACHED_AUDIT_OPENED_DCP_CONNECTION,
+                   cookie.getConnection())) {
         return;
     }
     auto& c = cookie.getConnection();
@@ -206,7 +229,8 @@ void audit_dcp_open(Cookie& cookie) {
 }
 
 void audit_set_privilege_debug_mode(Cookie& cookie, bool enable) {
-    if (!isEnabled(MEMCACHED_AUDIT_PRIVILEGE_DEBUG_CONFIGURED)) {
+    if (!isEnabled(MEMCACHED_AUDIT_PRIVILEGE_DEBUG_CONFIGURED,
+                   cookie.getConnection())) {
         return;
     }
     auto& c = cookie.getConnection();
@@ -224,10 +248,10 @@ void audit_privilege_debug(Cookie& cookie,
                            const std::string& bucket,
                            const std::string& privilege,
                            const std::string& context) {
-    if (!isEnabled(MEMCACHED_AUDIT_PRIVILEGE_DEBUG)) {
+    auto& c = cookie.getConnection();
+    if (!isEnabled(MEMCACHED_AUDIT_PRIVILEGE_DEBUG, c)) {
         return;
     }
-    auto& c = cookie.getConnection();
     auto root = create_memcached_audit_object(c, c.getUser(), {});
     root["command"] = command;
     root["bucket"] = bucket;
@@ -241,7 +265,8 @@ void audit_privilege_debug(Cookie& cookie,
 }
 
 void audit_command_access_failed(Cookie& cookie) {
-    if (!isEnabled(MEMCACHED_AUDIT_COMMAND_ACCESS_FAILURE)) {
+    if (!isEnabled(MEMCACHED_AUDIT_COMMAND_ACCESS_FAILURE,
+                   cookie.getConnection())) {
         return;
     }
     const auto& connection = cookie.getConnection();
@@ -264,7 +289,7 @@ void audit_command_access_failed(Cookie& cookie) {
 }
 
 void audit_invalid_packet(const Connection& c, cb::const_byte_buffer packet) {
-    if (!isEnabled(MEMCACHED_AUDIT_INVALID_PACKET)) {
+    if (!isEnabled(MEMCACHED_AUDIT_INVALID_PACKET, c)) {
         return;
     }
     auto root = create_memcached_audit_object(c, c.getUser(), {});
@@ -306,7 +331,7 @@ bool mc_audit_event(Cookie& cookie,
 namespace cb::audit {
 
 void addTenantRateLimited(const Connection& c, Tenant::RateLimit limit) {
-    if (!isEnabled(MEMCACHED_AUDIT_TENANT_RATE_LIMITED) ||
+    if (!isEnabled(MEMCACHED_AUDIT_TENANT_RATE_LIMITED, c) ||
         !c.isAuthenticated()) {
         return;
     }
@@ -319,8 +344,8 @@ void addTenantRateLimited(const Connection& c, Tenant::RateLimit limit) {
 }
 
 void addSessionTerminated(const Connection& c) {
-    if (!isEnabled(MEMCACHED_AUDIT_SESSION_TERMINATED) ||
-        !c.isAuthenticated()) {
+    if (!c.isAuthenticated() ||
+        !isEnabled(MEMCACHED_AUDIT_SESSION_TERMINATED, c)) {
         return;
     }
     auto root = create_memcached_audit_object(c, c.getUser(), {});
@@ -359,7 +384,7 @@ void add(Cookie& cookie, Operation operation) {
                 "cb::audit::document::add: Invalid operation");
     }
 
-    if (!isEnabled(id)) {
+    if (!isEnabled(id, cookie.getConnection())) {
         return;
     }
 

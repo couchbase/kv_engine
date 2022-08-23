@@ -1,5 +1,6 @@
 include_directories(AFTER ${Memcached_SOURCE_DIR}/auditd/src)
 cb_add_test_executable(memcached_audit_test
+               audit_event_filter_test.cc
                auditfile_test.cc
                auditconfig_test.cc
                eventdescriptor_test.cc
@@ -14,6 +15,7 @@ target_link_libraries(memcached_audit_test PRIVATE
                       GTest::gtest
                       GTest::gtest_main
                       mcd_util)
+target_include_directories(memcached_audit_test PRIVATE ${Memcached_BINARY_DIR})
 add_test(NAME memcached-audit-test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_audit_test)

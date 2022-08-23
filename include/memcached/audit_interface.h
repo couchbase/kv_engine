@@ -16,6 +16,7 @@
 class StatCollector;
 class CookieIface;
 struct ServerCookieIface;
+class AuditEventFilter;
 
 namespace cb::audit {
 namespace document {
@@ -89,6 +90,13 @@ public:
      */
     virtual bool configure_auditdaemon(const std::string& config,
                                        const CookieIface& cookie) = 0;
+
+    /// Create an audit filter based upon the current configuration one may
+    /// use to check if an event should be filtered out or not. Multiple
+    /// threads may keep their own copy of the audit filter and perform
+    /// filtering without having to obtain any locks in the case where
+    /// an event should be filtered out.
+    virtual std::unique_ptr<AuditEventFilter> createAuditEventFilter() = 0;
 
 protected:
     Audit() = default;
