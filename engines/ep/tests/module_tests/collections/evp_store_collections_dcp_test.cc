@@ -1917,6 +1917,53 @@ TEST_F(CollectionsFilteredDcpTest, MB_47009) {
     EXPECT_EQ(9, stream->getLastReadSeqno());
 }
 
+// Test that when using TO_LATEST flag with a filtered stream and the
+// high_seqno of the vbucket is not one of those filtered collections, that
+// the stream ends at the high seqno of highest included collection in the
+// filter.
+TEST_F(CollectionsFilteredDcpTest,
+       filtered_collections_are_not_vbucket_highseqno_to_latest) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    // Perform a create of meat and fruit via the bucket level
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::meat));
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+
+    // Store documents - importantly the final documents are not in fruit.
+    store_item(vbid, StoredDocKey{"one", CollectionEntry::fruit}, "value");
+    store_item(vbid, StoredDocKey{"beef", CollectionEntry::meat}, "value");
+    flushVBucketToDiskIfPersistent(vbid, 4);
+
+    // Now DCP with backfill
+    ensureDcpWillBackfill();
+
+    // Filter on fruit collection (this will request from seqno:0 to LATEST)
+    createDcpObjects({{R"({"collections":["9"]})"}},
+                     OutOfOrderSnapshots::No,
+                     DCP_ADD_STREAM_FLAG_TO_LATEST);
+
+    // Expect to see items up to the last one in fruit, then a streamEnd.
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
+    EXPECT_EQ(0, producers->last_snap_start_seqno);
+    EXPECT_EQ(4, producers->last_snap_end_seqno);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(CollectionEntry::fruit.getId(), producers->last_collection_id);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ("one", producers->last_key);
+    EXPECT_EQ(CollectionEntry::fruit.getId(), producers->last_collection_id);
+    EXPECT_EQ(3, producers->last_byseqno);
+
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced);
+    EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Ok, producers->last_end_status);
+    EXPECT_EQ(4, producers->last_byseqno);
+
+    // Stream should be ended after fruit collection streamed.
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpStreamEnd);
+    EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Ok, producers->last_end_status);
+}
+
 // Test that a filtered stream-request is denied if the producer has sync-writes
 // enabled
 TEST_F(CollectionsFilteredDcpTest, MB_47009_deny_sync_writes) {

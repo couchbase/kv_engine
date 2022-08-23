@@ -453,7 +453,28 @@ cb::engine_errc DcpProducer::streamRequest(
             vb->failovers->getFailoverLog();
 
     if (flags & DCP_ADD_STREAM_FLAG_TO_LATEST) {
-        end_seqno = highSeqno;
+        if (filter.isPassThroughFilter()) {
+            end_seqno = highSeqno;
+        } else {
+            // If we are not passing through all collections then need to
+            // stop at highest seqno of the collections included (this also
+            // covers the legacy filter case where only the default collection
+            // is streamed).
+            auto highFilteredSeqno = getHighSeqnoOfCollections(filter, *vb);
+            if (!highFilteredSeqno) {
+                // If this happens it means an unknown collection id was
+                // specified in the filter ("race" where collection was dropped
+                // between constructing filter above and requesting seqnos
+                // here).
+                logger->warn(
+                        "Stream request for {} failed while calculating latest "
+                        "seqno for filtered collections '{}'",
+                        vbucket,
+                        filter);
+                return cb::engine_errc::unknown_collection;
+            }
+            end_seqno = highFilteredSeqno.value();
+        }
     }
 
     if (flags & DCP_ADD_STREAM_FLAG_DISKONLY) {

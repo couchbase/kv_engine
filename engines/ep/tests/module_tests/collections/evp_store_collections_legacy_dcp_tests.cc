@@ -133,6 +133,46 @@ TEST_P(CollectionsLegacyDcpTest,
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
 }
 
+// MB-53448: Similar to previous tests, except testing that when using TO_LATEST
+// flag with a legacy stream, and the high_seqno of the vbucket is not the
+// default collection, that the stream ends at the high seqno of default
+// collection (and does not hang as it hasn't reached out the vb high seqno
+// yet).
+TEST_P(CollectionsLegacyDcpTest,
+       default_collection_is_not_vbucket_highseqno_to_latest) {
+    VBucketPtr vb = store->getVBucket(vbid);
+    // Perform a create of fruit via the bucket level
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+
+    // Store documents - importantly the final documents are !defaultCollection
+    store_item(vbid, StoredDocKey{"d1", CollectionEntry::defaultC}, "value");
+    store_item(vbid, StoredDocKey{"one", CollectionEntry::fruit}, "value");
+    flushVBucketToDiskIfPersistent(vbid, 3);
+
+    // Now DCP with backfill
+    ensureDcpWillBackfill();
+
+    // Make cookie look like a non-collection client, requesting TO_LATEST
+    cookie_to_mock_cookie(cookieP)->setCollectionsSupport(false);
+    cookie_to_mock_cookie(cookieC)->setCollectionsSupport(false);
+    createDcpObjects(
+            {}, OutOfOrderSnapshots::No, DCP_ADD_STREAM_FLAG_TO_LATEST);
+
+    // Snapshot must not be past the high-seqno of the default collection.
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
+    EXPECT_EQ(0, producers->last_snap_start_seqno);
+    EXPECT_EQ(2, producers->last_snap_end_seqno);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ("d1", producers->last_key);
+    EXPECT_EQ(CollectionID::Default, producers->last_collection_id);
+    EXPECT_EQ(2, producers->last_byseqno);
+    // Stream should be ended after default collection streamed.
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, *producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers->last_op);
+    EXPECT_EQ(cb::mcbp::DcpStreamEndStatus::Ok, producers->last_end_status);
+}
+
 // Check when the default collection hasn't been written the backfill exits
 // and we switch to in-memory
 TEST_P(CollectionsLegacyDcpTest, default_collection_is_empty) {
