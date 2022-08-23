@@ -59,6 +59,10 @@ void MockEPBucket::disableItemFreqDecayerTask() {
     ExecutorPool::get()->cancel(itemFreqDecayerTask->getId());
 }
 
+ItemFreqDecayerTask* MockEPBucket::getItemFreqDecayerTask() {
+    return dynamic_cast<ItemFreqDecayerTask*>(itemFreqDecayerTask.get());
+}
+
 MockItemFreqDecayerTask* MockEPBucket::getMockItemFreqDecayerTask() {
     return dynamic_cast<MockItemFreqDecayerTask*>(itemFreqDecayerTask.get());
 }

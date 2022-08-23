@@ -15,6 +15,7 @@
 
 #include <folly/portability/GMock.h>
 
+class ItemFreqDecayerTask;
 class MockItemFreqDecayerTask;
 
 /*
@@ -42,6 +43,7 @@ public:
 
     void disableItemFreqDecayerTask();
 
+    ItemFreqDecayerTask* getItemFreqDecayerTask();
     MockItemFreqDecayerTask* getMockItemFreqDecayerTask();
 
     VBucketPtr makeVBucket(Vbid id,

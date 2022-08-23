@@ -529,9 +529,12 @@ TEST_F(SingleThreadedEPBucketTest, ItemFreqDecayerTaskTest) {
 // enter a "snoozed" state.
 TEST_F(SingleThreadedEPBucketTest, CreatedItemFreqDecayerTask) {
     store->initialize();
-    EXPECT_FALSE(isItemFreqDecayerTaskSnoozed());
-    store->runItemFreqDecayerTask();
-    EXPECT_TRUE(isItemFreqDecayerTaskSnoozed());
+    auto& mockEPBucket = dynamic_cast<MockEPBucket&>(*engine->getKVBucket());
+    auto* itemFreqDecayerTask = mockEPBucket.getItemFreqDecayerTask();
+    ASSERT_TRUE(itemFreqDecayerTask);
+    EXPECT_EQ(TASK_RUNNING, itemFreqDecayerTask->getState());
+    itemFreqDecayerTask->execute("");
+    EXPECT_EQ(TASK_SNOOZED, itemFreqDecayerTask->getState());
 }
 
 TEST_F(SingleThreadedEPBucketTest, takeoverUnblockingRaceWhenBufferLogFull) {

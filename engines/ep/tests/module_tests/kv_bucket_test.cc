@@ -377,10 +377,6 @@ void KVBucketTest::initializeExpiryPager() {
     store->initializeExpiryPager(engine->getConfiguration());
 }
 
-bool KVBucketTest::isItemFreqDecayerTaskSnoozed() const {
-    return store->isItemFreqDecayerTaskSnoozed();
-}
-
 void KVBucketTest::scheduleCheckpointRemoverTask() {
     for (auto& task : store->chkRemovers) {
         ExecutorPool::get()->schedule(task);

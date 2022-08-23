@@ -1013,14 +1013,6 @@ protected:
     /// Helper method from initialize() to setup the expiry pager
     void initializeExpiryPager(Configuration& config);
 
-    /**
-     * Check whether the ItemFreqDecayer Task is snoozed.  Currently only
-     * used for testing purposes.
-     */
-    bool isItemFreqDecayerTaskSnoozed() const {
-        return (itemFreqDecayerTask->getState() == TASK_SNOOZED);
-    }
-
     /// Factory method to create a VBucket count visitor of the correct type.
     virtual std::unique_ptr<VBucketCountVisitor> makeVBCountVisitor(
             vbucket_state_t state);

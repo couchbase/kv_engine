@@ -228,8 +228,6 @@ public:
 
     void initializeExpiryPager();
 
-    bool isItemFreqDecayerTaskSnoozed() const;
-
     /**
      * Schedules the CheckpointMemRecoveryTask.
      */
