@@ -172,8 +172,7 @@ cb::engine_errc EPVBucket::completeBGFetchForSingleItem(
             if (status == cb::engine_errc::success) {
                 if (v->isTempInitialItem() &&
                     v->getCas() == fetched_item.token) {
-                    ht.unlocked_restoreMeta(
-                            res.lock.getHTLock(), *fetchedValue, *v);
+                    ht.unlocked_restoreMeta(res.lock, *fetchedValue, *v);
                 }
             } else if (status == cb::engine_errc::no_such_key) {
                 if (v->isTempInitialItem() &&
@@ -202,8 +201,7 @@ cb::engine_errc EPVBucket::completeBGFetchForSingleItem(
             // HashTable.
             if (v->getCas() == fetched_item.token) {
                 if (status == cb::engine_errc::success) {
-                    ht.unlocked_restoreValue(
-                            res.lock.getHTLock(), *fetchedValue, *v);
+                    ht.unlocked_restoreValue(res.lock, *fetchedValue, *v);
                     if (!v->isResident()) {
                         throw std::logic_error(
                                 "VBucket::completeBGFetchForSingleItem: "
@@ -496,7 +494,7 @@ void EPVBucket::completeStatsVKey(const DocKey& key, const GetValue& gcb) {
     auto* v = res.storedValue;
     if (v && v->isTempInitialItem()) {
         if (gcb.getStatus() == cb::engine_errc::success) {
-            ht.unlocked_restoreValue(res.lock.getHTLock(), *gcb.item, *v);
+            ht.unlocked_restoreValue(res.lock, *gcb.item, *v);
             if (!v->isResident()) {
                 throw std::logic_error(
                         "VBucket::completeStatsVKey: "

@@ -86,12 +86,12 @@ HashTable::StoredValueProxy::StoredValueProxy(HashBucketLock&& hbl,
     : lock(std::move(hbl)),
       value(sv),
       valueStats(stats),
-      pre(valueStats.get().prologue(sv)) {
+      pre(valueStats.get().prologue(lock, sv)) {
 }
 
 HashTable::StoredValueProxy::~StoredValueProxy() {
     if (value) {
-        valueStats.get().epilogue(pre, value);
+        valueStats.get().epilogue(lock, pre, value);
     }
 }
 
@@ -458,13 +458,13 @@ HashTable::UpdateResult HashTable::unlocked_updateStoredValue(
     MutationStatus status =
             v.isDirty() ? MutationStatus::WasDirty : MutationStatus::WasClean;
 
-    const auto preProps = valueStats.prologue(&v);
+    const auto preProps = valueStats.prologue(hbl, &v);
 
     /* setValue() will mark v as undeleted if required */
     v.setValue(itm);
-    updateFreqCounter(v);
+    updateFreqCounter(hbl, v);
 
-    valueStats.epilogue(preProps, &v);
+    valueStats.epilogue(hbl, preProps, &v);
 
     return {status, &v};
 }
@@ -489,12 +489,12 @@ HashTable::UpdateResult HashTable::unlocked_replaceValueAndDatatype(
     const auto preStatus =
             v.isDirty() ? MutationStatus::WasDirty : MutationStatus::WasClean;
 
-    const auto preProps = valueStats.prologue(&v);
+    const auto preProps = valueStats.prologue(hbl, &v);
 
     v.setDatatype(newDT);
     v.replaceValue(std::move(newValue));
 
-    valueStats.epilogue(preProps, &v);
+    valueStats.epilogue(hbl, preProps, &v);
 
     return {preStatus, &v};
 }
@@ -513,18 +513,19 @@ StoredValue* HashTable::unlocked_addNewStoredValue(const HashBucketLock& hbl,
                 "call on a non-active HT object");
     }
 
-    const auto emptyProperties = valueStats.prologue(nullptr);
+    const auto emptyProperties = valueStats.prologue(hbl, nullptr);
 
     // Create a new StoredValue and link it into the head of the bucket chain.
     auto v = (*valFact)(itm, std::move(values[hbl.getBucketNum()]));
 
-    valueStats.epilogue(emptyProperties, v.get().get());
+    valueStats.epilogue(hbl, emptyProperties, v.get().get());
 
     values[hbl.getBucketNum()] = std::move(v);
     return values[hbl.getBucketNum()].get().get();
 }
 
 HashTable::Statistics::StoredValueProperties::StoredValueProperties(
+        const HashTable::HashBucketLock& lh,
         const StoredValue* sv) {
     // If no previous StoredValue exists; return default constructed object.
     if (sv == nullptr) {
@@ -546,8 +547,8 @@ HashTable::Statistics::StoredValueProperties::StoredValueProperties(
 }
 
 HashTable::Statistics::StoredValueProperties HashTable::Statistics::prologue(
-        const StoredValue* v) const {
-    return StoredValueProperties(v);
+        const HashTable::HashBucketLock& hbl, const StoredValue* v) const {
+    return StoredValueProperties(hbl, v);
 }
 
 struct HashTable::Statistics::CacheLocalStatistics {
@@ -692,12 +693,13 @@ size_t HashTable::Statistics::getUncompressedMemSize() const {
     return result;
 }
 
-void HashTable::Statistics::epilogue(StoredValueProperties pre,
+void HashTable::Statistics::epilogue(const HashTable::HashBucketLock& hbl,
+                                     StoredValueProperties pre,
                                      const StoredValue* v) {
     // After performing updates to sv; compare with the previous properties and
     // update all statistics for all properties which have changed.
 
-    const auto post = StoredValueProperties(v);
+    const auto post = StoredValueProperties(hbl, v);
 
     auto& local = llcLocal.get();
 
@@ -825,8 +827,8 @@ HashTable::unlocked_replaceByCopy(const HashBucketLock& hbl,
             vToCopy, std::move(values[hbl.getBucketNum()]));
 
     // Adding a new item into the HashTable; update stats.
-    const auto emptyProperties = valueStats.prologue(nullptr);
-    valueStats.epilogue(emptyProperties, newSv.get().get());
+    const auto emptyProperties = valueStats.prologue(hbl, nullptr);
+    valueStats.epilogue(hbl, emptyProperties, newSv.get().get());
 
     values[hbl.getBucketNum()] = std::move(newSv);
     return {values[hbl.getBucketNum()].get().get(), std::move(releasedSv)};
@@ -848,7 +850,7 @@ HashTable::DeleteResult HashTable::unlocked_softDelete(
     case CommittedState::PreparedMaybeVisible:
     case CommittedState::CommittedViaMutation:
     case CommittedState::CommittedViaPrepare:
-        const auto preProps = valueStats.prologue(&v);
+        const auto preProps = valueStats.prologue(hbl, &v);
 
         if (onlyMarkDeleted) {
             v.markDeleted(delSource);
@@ -862,7 +864,7 @@ HashTable::DeleteResult HashTable::unlocked_softDelete(
         // isn't mis-interpreted for a SyncDelete.
         v.setCommitted(CommittedState::CommittedViaMutation);
 
-        valueStats.epilogue(preProps, &v);
+        valueStats.epilogue(hbl, preProps, &v);
         return {DeletionStatus::Success, &v};
     }
     folly::assume_unreachable();
@@ -870,13 +872,13 @@ HashTable::DeleteResult HashTable::unlocked_softDelete(
 
 HashTable::DeleteResult HashTable::unlocked_abortPrepare(
         const HashTable::HashBucketLock& hbl, StoredValue& v) {
-    const auto preProps = valueStats.prologue(&v);
+    const auto preProps = valueStats.prologue(hbl, &v);
     // We consider a prepare that is non-resident to be a completed abort.
     v.setCommitted(CommittedState::PrepareAborted);
 
     // Set the completed time so we don't prematurely purge the SV
     v.setCompletedOrDeletedTime(ep_real_time());
-    valueStats.epilogue(preProps, &v);
+    valueStats.epilogue(hbl, preProps, &v);
     return {DeletionStatus::Success, &v};
 }
 
@@ -921,7 +923,7 @@ StoredValue* HashTable::selectSVForRead(TrackReference trackReference,
 
     // Found a non-deleted item. Now check if we should update ref-count.
     if (trackReference == TrackReference::Yes) {
-        updateFreqCounter(*sv);
+        updateFreqCounter(hbl, *sv);
     }
 
     return sv;
@@ -1092,8 +1094,8 @@ StoredValue::UniquePtr HashTable::unlocked_release(
     }
 
     // Update statistics for the item which is now gone.
-    const auto preProps = valueStats.prologue(released.get().get());
-    valueStats.epilogue(preProps, nullptr);
+    const auto preProps = valueStats.prologue(hbl, released.get().get());
+    valueStats.epilogue(hbl, preProps, nullptr);
 
     return released;
 }
@@ -1114,9 +1116,9 @@ MutationStatus HashTable::insertFromWarmup(const Item& itm,
         // first place instead of adding it to the Item and then discarding it
         // in markNotResident.
         if (keyMetaDataOnly) {
-            const auto preProps = valueStats.prologue(v);
+            const auto preProps = valueStats.prologue(hbl, v);
             v->markNotResident();
-            valueStats.epilogue(preProps, v);
+            valueStats.epilogue(hbl, preProps, v);
         }
     } else {
         if (keyMetaDataOnly) {
@@ -1145,7 +1147,7 @@ MutationStatus HashTable::insertFromWarmup(const Item& itm,
         // CAS is equal - exact same item. Update the SV if it's not already
         // resident.
         if (!v->isResident()) {
-            Expects(unlocked_restoreValue(hbl.getHTLock(), itm, *v));
+            Expects(unlocked_restoreValue(hbl, itm, *v));
             v->markClean();
         }
     }
@@ -1193,12 +1195,14 @@ nlohmann::json HashTable::dumpStoredValuesAsJson() const {
     return obj;
 }
 
-void HashTable::storeCompressedBuffer(std::string_view buf, StoredValue& v) {
-    const auto preProps = valueStats.prologue(&v);
+void HashTable::storeCompressedBuffer(const HashBucketLock& hbl,
+                                      std::string_view buf,
+                                      StoredValue& v) {
+    const auto preProps = valueStats.prologue(hbl, &v);
 
     v.storeCompressedBuffer(buf);
 
-    valueStats.epilogue(preProps, &v);
+    valueStats.epilogue(hbl, preProps, &v);
 }
 
 void HashTable::visit(HashTableVisitor& visitor) {
@@ -1335,7 +1339,7 @@ HashTable::Position HashTable::endPosition() const  {
     return {size, mutexes.size(), size};
 }
 
-bool HashTable::unlocked_ejectItem(const HashTable::HashBucketLock&,
+bool HashTable::unlocked_ejectItem(const HashTable::HashBucketLock& hbl,
                                    StoredValue*& vptr,
                                    EvictionPolicy policy) {
     if (vptr == nullptr) {
@@ -1348,7 +1352,7 @@ bool HashTable::unlocked_ejectItem(const HashTable::HashBucketLock&,
         return false;
     }
 
-    const auto preProps = valueStats.prologue(vptr);
+    const auto preProps = valueStats.prologue(hbl, vptr);
 
     // Deleted items may be entirely removed from memory even in value eviction.
     bool keepMetadata = policy == EvictionPolicy::Value && !vptr->isDeleted();
@@ -1357,7 +1361,7 @@ bool HashTable::unlocked_ejectItem(const HashTable::HashBucketLock&,
         // Just eject the value.
         vptr->ejectValue();
         ++stats.numValueEjects;
-        valueStats.epilogue(preProps, vptr);
+        valueStats.epilogue(hbl, preProps, vptr);
     } else {
         // Remove the item from the hash table.
         int bucket_num = getBucketForHash(vptr->getKey().hash());
@@ -1368,7 +1372,7 @@ bool HashTable::unlocked_ejectItem(const HashTable::HashBucketLock&,
         if (removed->isResident()) {
             ++stats.numValueEjects;
         }
-        valueStats.epilogue(preProps, nullptr);
+        valueStats.epilogue(hbl, preProps, nullptr);
 
         updateMaxDeletedRevSeqno(vptr->getRevSeqno());
     }
@@ -1391,27 +1395,26 @@ std::unique_ptr<Item> HashTable::getRandomKey(CollectionID cid,
     return nullptr;
 }
 
-bool HashTable::unlocked_restoreValue(
-        const std::unique_lock<std::mutex>& htLock,
-        const Item& itm,
-        StoredValue& v) {
-    if (!htLock || !isActive() || v.isResident()) {
+bool HashTable::unlocked_restoreValue(const HashBucketLock& hbl,
+                                      const Item& itm,
+                                      StoredValue& v) {
+    if (!hbl.getHTLock() || !isActive() || v.isResident()) {
         return false;
     }
 
-    const auto preProps = valueStats.prologue(&v);
+    const auto preProps = valueStats.prologue(hbl, &v);
 
     v.restoreValue(itm);
 
-    valueStats.epilogue(preProps, &v);
+    valueStats.epilogue(hbl, preProps, &v);
 
     return true;
 }
 
-void HashTable::unlocked_restoreMeta(const std::unique_lock<std::mutex>& htLock,
+void HashTable::unlocked_restoreMeta(const HashBucketLock& hbl,
                                      const Item& itm,
                                      StoredValue& v) {
-    if (!htLock) {
+    if (!hbl.getHTLock()) {
         throw std::invalid_argument(
                 "HashTable::unlocked_restoreMeta: htLock "
                 "not held");
@@ -1423,18 +1426,18 @@ void HashTable::unlocked_restoreMeta(const std::unique_lock<std::mutex>& htLock,
                 "call on a non-active HT object");
     }
 
-    const auto preProps = valueStats.prologue(&v);
+    const auto preProps = valueStats.prologue(hbl, &v);
 
     v.restoreMeta(itm);
 
-    valueStats.epilogue(preProps, &v);
+    valueStats.epilogue(hbl, preProps, &v);
 }
 
 uint8_t HashTable::generateFreqValue(uint8_t counter) {
     return probabilisticCounter.generateValue(counter);
 }
 
-void HashTable::updateFreqCounter(StoredValue& v) {
+void HashTable::updateFreqCounter(const HashBucketLock& lh, StoredValue& v) {
     // Attempt to increment the storedValue frequency counter
     // value.  Because a probabilistic counter is used the new
     // value will either be the same or an increment of the

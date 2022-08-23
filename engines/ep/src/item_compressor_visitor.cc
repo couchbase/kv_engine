@@ -45,7 +45,7 @@ bool ItemCompressorVisitor::visit(const HashTable::HashBucketLock& lh,
             // Compress the document only if the compression ratio is greater
             // than or equal to the current minium compression ratio
             if (comp_ratio >= currentMinCompressionRatio) {
-                currentVb->ht.storeCompressedBuffer(deflated, v);
+                currentVb->ht.storeCompressedBuffer(lh, deflated, v);
 
                 // If the value was compressed, increment the count of number
                 // of compressed documents

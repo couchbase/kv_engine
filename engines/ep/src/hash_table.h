@@ -205,6 +205,9 @@ public:
         friend std::ostream& operator<<(std::ostream& os, const Position& pos);
     };
 
+    // forward decl.
+    class HashBucketLock;
+
     /**
      * Records various statistics about a HashTable object.
      *
@@ -229,7 +232,9 @@ public:
          * Used by prologue() / epilogue() to update HashTable statistics.
          */
         struct StoredValueProperties {
-            explicit StoredValueProperties(const StoredValue* sv);
+            explicit StoredValueProperties(
+                    const HashTable::HashBucketLock& lh,
+                    const StoredValue* sv);
 
             // Following members are set to the equivalent property of the
             // given StoredValue.
@@ -270,7 +275,8 @@ public:
          * See also: epilogue().
          * @param sv StoredValue which is about to be modified.
          */
-        StoredValueProperties prologue(const StoredValue* sv) const;
+        StoredValueProperties prologue(const HashTable::HashBucketLock& hbl,
+                                       const StoredValue* sv) const;
 
         /**
          * Update HashTable statistics after modifying a StoredValue.
@@ -284,7 +290,9 @@ public:
          *                   was modified.
          * @param post StoredValue which has just been modified.
          */
-        void epilogue(StoredValueProperties pre, const StoredValue* post);
+        void epilogue(const HashTable::HashBucketLock& hbl,
+                      StoredValueProperties pre,
+                      const StoredValue* post);
 
         /**
          * Sets the callback to be invoked whenever prologue() or epilogue() are
@@ -953,7 +961,9 @@ public:
      * @param v   StoredValue in which compressed data has
      *            to be stored
      */
-    void storeCompressedBuffer(std::string_view buf, StoredValue& v);
+    void storeCompressedBuffer(const HashBucketLock& hbl,
+                               std::string_view buf,
+                               StoredValue& v);
 
     /**
      * Result of an Update operation.
@@ -1200,13 +1210,13 @@ public:
      * Restore the value for the item.
      * Assumes that HT bucket lock is grabbed.
      *
-     * @param htLock Hash table lock that must be held
+     * @param hbl Hash table lock that must be held
      * @param itm the item to be restored
      * @param v corresponding StoredValue
      *
      * @return true if restored; else false
      */
-    bool unlocked_restoreValue(const std::unique_lock<std::mutex>& htLock,
+    bool unlocked_restoreValue(const HashBucketLock& hbl,
                                const Item& itm,
                                StoredValue& v);
 
@@ -1215,11 +1225,11 @@ public:
      * background fetch.
      * Assumes that HT bucket lock is grabbed.
      *
-     * @param htLock Hash table lock that must be held
+     * @param hbl Hash table lock that must be held
      * @param itm the Item whose metadata is being restored
      * @param v corresponding StoredValue
      */
-    void unlocked_restoreMeta(const std::unique_lock<std::mutex>& htLock,
+    void unlocked_restoreMeta(const HashBucketLock& hbl,
                               const Item& itm,
                               StoredValue& v);
 
@@ -1531,7 +1541,7 @@ protected:
      * @param v  reference to a value in the hash table whose frequency counter
      *           is to be updated.
      */
-    void updateFreqCounter(StoredValue& v);
+    void updateFreqCounter(const HashBucketLock& lh, StoredValue& v);
 
     friend class HashTableBench;
 };

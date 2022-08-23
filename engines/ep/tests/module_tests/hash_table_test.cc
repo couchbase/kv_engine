@@ -475,7 +475,7 @@ TEST_P(HashTableStatsTest, SizeEjectRestoreValue) {
 
     {
         auto hbl = ht.getLockedBucket(key);
-        EXPECT_TRUE(ht.unlocked_restoreValue(hbl.getHTLock(), item, *v));
+        EXPECT_TRUE(ht.unlocked_restoreValue(hbl, item, *v));
     }
 
     EXPECT_EQ(0, ht.getNumInMemoryNonResItems());
@@ -508,7 +508,7 @@ TEST_P(HashTableStatsTest, SizeEjectRestoreMeta) {
         auto hbl = ht.getLockedBucket(key);
         auto* v = ht.unlocked_addNewStoredValue(hbl, temp);
         EXPECT_EQ(1, ht.getNumTempItems());
-        ht.unlocked_restoreMeta(hbl.getHTLock(), item, *v);
+        ht.unlocked_restoreMeta(hbl, item, *v);
         EXPECT_EQ(1, ht.getNumInMemoryNonResItems());
     }
 
@@ -600,7 +600,7 @@ TEST_P(HashTableStatsTest, TempDeletedRestore) {
         ASSERT_NE(nullptr, sv);
 
         // Restore the metadata for the (deleted) item.
-        ht.unlocked_restoreMeta(hbl.getHTLock(), item, *sv);
+        ht.unlocked_restoreMeta(hbl, item, *sv);
 
         // Check counts:
         EXPECT_EQ(0, ht.getNumItems())
@@ -615,7 +615,7 @@ TEST_P(HashTableStatsTest, TempDeletedRestore) {
                 << "Deleted, meta shouldn't count as deleted items";
 
         // Now restore the whole (deleted) value.
-        EXPECT_TRUE(ht.unlocked_restoreValue(hbl.getHTLock(), item, *sv));
+        EXPECT_TRUE(ht.unlocked_restoreValue(hbl, item, *sv));
     }
 
     // Check counts:

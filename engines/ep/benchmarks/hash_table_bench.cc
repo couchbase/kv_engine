@@ -343,11 +343,14 @@ BENCHMARK_DEFINE_F(HashTableBench, HTStatsEpilogue)(benchmark::State& state) {
         values.emplace_back((*valFact)(item, nullptr));
     }
 
+    // dummy lock
+    HashTable::HashBucketLock hbl;
+
     while (state.KeepRunning()) {
         const auto index = state.iterations() % numItems;
 
-        auto empty = valueStats.prologue(nullptr);
-        valueStats.epilogue(empty, values[index].get().get());
+        auto empty = valueStats.prologue(hbl, nullptr);
+        valueStats.epilogue(hbl, empty, values[index].get().get());
 
         // Once a thread gets to the end of it's items; pause timing and let
         // the *last* thread clear them all - this is to avoid measuring any
