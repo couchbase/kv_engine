@@ -24,6 +24,7 @@
 #include <platform/socket.h>
 #include <subdoc/operations.h>
 
+#include "auditd/src/audit_event_filter.h"
 #include <atomic>
 #include <memory>
 #include <mutex>
@@ -42,6 +43,22 @@ class ListeningPort;
 struct thread_stats;
 
 struct FrontEndThread {
+    /**
+     * Check to see if the provided event should be filtered out for the
+     * provided user.
+     *
+     * @param id The event to check
+     * @param user The username
+     * @param domain The domainname
+     * @return true if the event should be dropped, false if it should be
+     *              submitted to the audit daemon.
+     */
+    bool is_audit_event_filtered_out(uint32_t id,
+                                     const std::string& user,
+                                     cb::rbac::Domain domain);
+    /// The audit event filter used by this thread
+    std::unique_ptr<AuditEventFilter> auditEventFilter;
+
     /**
      * Pending IO requests for this thread. Maps each pending Connection to
      * the IO status to be notified.

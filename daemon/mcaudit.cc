@@ -20,6 +20,7 @@
 #include "connection.h"
 #include "cookie.h"
 #include "debug_helpers.h"
+#include "front_end_thread.h"
 #include "log_macros.h"
 #include "logger/logger.h"
 #include "memcached.h"
@@ -42,11 +43,11 @@ static folly::Synchronized<cb::audit::UniqueAuditPtr> auditHandle;
 static std::atomic_bool audit_enabled{false};
 
 static const int First = MEMCACHED_AUDIT_OPENED_DCP_CONNECTION;
-static const int Last = MEMCACHED_AUDIT_SELECT_BUCKET;
+static const int Last = MEMCACHED_AUDIT_SESSION_TERMINATED;
 
 static std::array<std::atomic_bool, Last - First + 1> events;
 
-static bool isEnabled(uint32_t id) {
+static bool isEnabled(uint32_t id, const Connection& connection) {
     if (!audit_enabled.load(std::memory_order_consume)) {
         // Global switch is off.. All events are disabled
         return false;
@@ -54,7 +55,15 @@ static bool isEnabled(uint32_t id) {
 
     if (id >= First && id <= Last) {
         // This is one of ours
-        return events[id - First].load(std::memory_order_consume);
+        if (events[id - First].load(std::memory_order_consume)) {
+            if (connection.getThread().is_audit_event_filtered_out(
+                        id, connection.getUsername(), connection.getDomain())) {
+                return false;
+            }
+
+            return true;
+        }
+        return false;
     }
 
     // we don't have information about this id... let the underlying event
@@ -123,8 +132,21 @@ static void do_audit(uint32_t id,
     });
 }
 
+std::unique_ptr<AuditEventFilter> create_audit_event_filter() {
+    try {
+        return auditHandle.withRLock([](auto& handle) {
+            if (handle) {
+                return handle->createAuditEventFilter();
+            }
+            return std::unique_ptr<AuditEventFilter>{};
+        });
+    } catch (const std::bad_alloc&) {
+        return {};
+    }
+}
+
 void audit_auth_failure(const Connection& c, const char* reason) {
-    if (!isEnabled(MEMCACHED_AUDIT_AUTHENTICATION_FAILED)) {
+    if (!isEnabled(MEMCACHED_AUDIT_AUTHENTICATION_FAILED, c)) {
         return;
     }
     auto root = create_memcached_audit_object(c);
@@ -136,7 +158,7 @@ void audit_auth_failure(const Connection& c, const char* reason) {
 }
 
 void audit_auth_success(const Connection& c) {
-    if (!isEnabled(MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED)) {
+    if (!isEnabled(MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED, c)) {
         return;
     }
     auto root = create_memcached_audit_object(c);
@@ -146,7 +168,7 @@ void audit_auth_success(const Connection& c) {
 }
 
 void audit_bucket_selection(const Connection& c) {
-    if (!isEnabled(MEMCACHED_AUDIT_SELECT_BUCKET)) {
+    if (!isEnabled(MEMCACHED_AUDIT_SELECT_BUCKET, c)) {
         return;
     }
     const auto& bucket = c.getBucket();
@@ -161,7 +183,7 @@ void audit_bucket_selection(const Connection& c) {
 }
 
 void audit_bucket_flush(const Connection& c, const char* bucket) {
-    if (!isEnabled(MEMCACHED_AUDIT_EXTERNAL_MEMCACHED_BUCKET_FLUSH)) {
+    if (!isEnabled(MEMCACHED_AUDIT_EXTERNAL_MEMCACHED_BUCKET_FLUSH, c)) {
         return;
     }
     auto root = create_memcached_audit_object(c);
@@ -173,7 +195,7 @@ void audit_bucket_flush(const Connection& c, const char* bucket) {
 }
 
 void audit_dcp_open(const Connection& c) {
-    if (!isEnabled(MEMCACHED_AUDIT_OPENED_DCP_CONNECTION)) {
+    if (!isEnabled(MEMCACHED_AUDIT_OPENED_DCP_CONNECTION, c)) {
         return;
     }
     if (c.isInternal()) {
@@ -190,7 +212,7 @@ void audit_dcp_open(const Connection& c) {
 }
 
 void audit_set_privilege_debug_mode(const Connection& c, bool enable) {
-    if (!isEnabled(MEMCACHED_AUDIT_PRIVILEGE_DEBUG_CONFIGURED)) {
+    if (!isEnabled(MEMCACHED_AUDIT_PRIVILEGE_DEBUG_CONFIGURED, c)) {
         return;
     }
     auto root = create_memcached_audit_object(c);
@@ -206,7 +228,7 @@ void audit_privilege_debug(const Connection& c,
                            const std::string& bucket,
                            const std::string& privilege,
                            const std::string& context) {
-    if (!isEnabled(MEMCACHED_AUDIT_PRIVILEGE_DEBUG)) {
+    if (!isEnabled(MEMCACHED_AUDIT_PRIVILEGE_DEBUG, c)) {
         return;
     }
     auto root = create_memcached_audit_object(c);
@@ -221,7 +243,8 @@ void audit_privilege_debug(const Connection& c,
 }
 
 void audit_command_access_failed(const Cookie& cookie) {
-    if (!isEnabled(MEMCACHED_AUDIT_COMMAND_ACCESS_FAILURE)) {
+    if (!isEnabled(MEMCACHED_AUDIT_COMMAND_ACCESS_FAILURE,
+                   cookie.getConnection())) {
         return;
     }
     const auto& connection = cookie.getConnection();
@@ -243,7 +266,7 @@ void audit_command_access_failed(const Cookie& cookie) {
 }
 
 void audit_invalid_packet(const Connection& c, cb::const_byte_buffer packet) {
-    if (!isEnabled(MEMCACHED_AUDIT_INVALID_PACKET)) {
+    if (!isEnabled(MEMCACHED_AUDIT_INVALID_PACKET, c)) {
         return;
     }
     auto root = create_memcached_audit_object(c);
@@ -280,8 +303,8 @@ namespace cb {
 namespace audit {
 
 void addSessionTerminated(const Connection& c) {
-    if (!isEnabled(MEMCACHED_AUDIT_SESSION_TERMINATED) ||
-        !c.isAuthenticated()) {
+    if (!c.isAuthenticated() ||
+        !isEnabled(MEMCACHED_AUDIT_SESSION_TERMINATED, c)) {
         return;
     }
     auto root = create_memcached_audit_object(c);
@@ -319,7 +342,7 @@ void add(const Cookie& cookie, Operation operation) {
             "cb::audit::document::add: Invalid operation");
     }
 
-    if (!isEnabled(id)) {
+    if (!isEnabled(id, cookie.getConnection())) {
         return;
     }
 

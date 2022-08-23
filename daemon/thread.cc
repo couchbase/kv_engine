@@ -8,6 +8,7 @@
 #include "front_end_thread.h"
 #include "listening_port.h"
 #include "log_macros.h"
+#include "mcaudit.h"
 #include "memcached.h"
 #include "opentracing.h"
 #include "settings.h"
@@ -537,4 +538,17 @@ int add_conn_to_pending_io_list(Connection* c,
     }
     iter->second.emplace_back(cookie, status);
     return 1;
+}
+
+bool FrontEndThread::is_audit_event_filtered_out(uint32_t id,
+                                                 const std::string& user,
+                                                 cb::rbac::Domain domain) {
+    if (!auditEventFilter || !auditEventFilter->isValid()) {
+        auditEventFilter = create_audit_event_filter();
+        if (!auditEventFilter) {
+            // failed to create a filter, let the daemon filter
+            return false;
+        }
+    }
+    return auditEventFilter->isFilteredOut(id, user, domain);
 }

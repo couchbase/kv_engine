@@ -28,6 +28,7 @@
 #include <utilities/json_utilities.h>
 
 #include "audit.h"
+#include "audit_event_filter.h"
 #include "auditconfig.h"
 
 AuditConfig::AuditConfig(const nlohmann::json& json) : AuditConfig() {
@@ -464,4 +465,23 @@ void AuditConfig::initialize_config(const nlohmann::json& json) {
     max_file_rotation_time = other.max_file_rotation_time;
     max_rotate_file_size = other.max_rotate_file_size;
     version = other.version;
+}
+
+std::unique_ptr<AuditEventFilter> AuditConfig::createAuditEventFilter(
+        uint64_t rev) {
+    std::vector<std::pair<std::string, cb::rbac::Domain>> u;
+    {
+        std::lock_guard<std::mutex> guard(disabled_userids_mutex);
+        for (const auto& pair : disabled_userids) {
+            if (pair.first == "local") {
+                u.emplace_back(std::pair<std::string, cb::rbac::Domain>{
+                        pair.second, cb::rbac::Domain::Local});
+            } else {
+                u.emplace_back(std::pair<std::string, cb::rbac::Domain>{
+                        pair.second, cb::rbac::Domain::External});
+            }
+        }
+    }
+    return std::make_unique<AuditEventFilter>(
+            rev, filtering_enabled.load(), std::move(u));
 }

@@ -1,6 +1,7 @@
 add_library(auditd STATIC
             audit.cc audit.h
             auditconfig.cc auditconfig.h
+            audit_event_filter.cc audit_event_filter.h
             audit_interface.cc
             auditfile.cc auditfile.h
             configureevent.cc configureevent.h

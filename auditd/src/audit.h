@@ -32,6 +32,8 @@
 #include <queue>
 #include <unordered_map>
 
+class AuditEventFilter;
+
 class AuditImpl : public cb::audit::Audit {
 public:
     // Implementation of the public API
@@ -74,6 +76,12 @@ public:
      */
     void consume_events();
 
+    std::unique_ptr<AuditEventFilter> createAuditEventFilter() override;
+
+    /// A simple generation counter which change every time the current
+    /// configuration change.
+    static std::atomic<uint64_t> generation;
+
 protected:
     /// The event class needs access to the configuration object
     /// and the event descriptors as part of filtering events (it'll be
@@ -109,7 +117,7 @@ protected:
         std::vector<cb::audit::EventStateListener> clients;
     } event_state_listener;
 
-    /// The current configuration used by the daemon
+    /// The current configuration used by the daemon.
     AuditConfig config;
 
     /// The map of known audit events to process
