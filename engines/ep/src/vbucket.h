@@ -1192,7 +1192,26 @@ public:
                          bool isDropped) = 0;
 
     /*
+     * Check to see if this vbucket is permitted to evict values.
+     *
+     * This depends on the vbucket type and current state (e.g., ephemeral
+     * replicas cannot evict).
+     *
+     * @return true if this vb can safely evict values
+     *
+     */
+    virtual bool canEvict() const = 0;
+
+    /*
      * Check to see if a StoredValue is eligible to be paged out of memory.
+     *
+     * The rules regarding what makes an SV eligible for eviction can vary
+     * by vbucket type.
+     * However, this method does _not_ check the vbucket state (replica/active);
+     * only properties of the value itself are inspected here.
+     *
+     * To determine if this vbucket can evict given its current state, use
+     * canEvict().
      *
      * @param lh Bucket lock associated with the StoredValue.
      * @param v Reference to the StoredValue to be ejected.
@@ -1200,8 +1219,8 @@ public:
      * @return true if the StoredValue is eligible to be paged out.
      *
      */
-    virtual bool eligibleToPageOut(const HashTable::HashBucketLock& lh,
-                                   const StoredValue& v) const = 0;
+    virtual bool isEligibleForEviction(const HashTable::HashBucketLock& lh,
+                                       const StoredValue& v) const = 0;
 
     /**
      * Check how much memory could be reclaimed if every resident item

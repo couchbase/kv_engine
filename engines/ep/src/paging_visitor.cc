@@ -132,7 +132,8 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
         evicted = eligibleForPaging = doEviction(lh, &v, isDropped);
     } else {
         // just check eligibility without trying to evict
-        eligibleForPaging = currentBucket->eligibleToPageOut(lh, v);
+        eligibleForPaging = currentBucket->canEvict() &&
+                            currentBucket->isEligibleForEviction(lh, v);
         if (eligibleForPaging) {
             /*
              * MB-29333 - For items that we have visited and did not

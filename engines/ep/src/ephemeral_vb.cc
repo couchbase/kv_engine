@@ -113,7 +113,8 @@ bool EphemeralVBucket::pageOut(const Collections::VB::ReadHandle& readHandle,
     }
 
     auto cid = v->getKey().getCollectionID();
-    if (!eligibleToPageOut(lh, *v) || !readHandle.exists(cid)) {
+    if (!canEvict() || !isEligibleForEviction(lh, *v) ||
+        !readHandle.exists(cid)) {
         return false;
     }
     VBQueueItemCtx queueCtx;
@@ -142,14 +143,15 @@ bool EphemeralVBucket::pageOut(const Collections::VB::ReadHandle& readHandle,
     folly::assume_unreachable();
 }
 
-bool EphemeralVBucket::eligibleToPageOut(const HashTable::HashBucketLock& lh,
-                                         const StoredValue& v) const {
+bool EphemeralVBucket::canEvict() const {
     // We only delete from active vBuckets to ensure that replicas stay in
     // sync with the active (the delete from active is sent via DCP to the
     // the replicas as an explicit delete).
-    if (getState() != vbucket_state_active) {
-        return false;
-    }
+    return getState() == vbucket_state_active;
+}
+
+bool EphemeralVBucket::isEligibleForEviction(
+        const HashTable::HashBucketLock& lh, const StoredValue& v) const {
     if (v.isDeleted() && !v.getValue()) {
         // If the item has already been deleted (and doesn't have a value
         // associated with it) then there's no further deletion possible,

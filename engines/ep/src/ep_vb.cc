@@ -610,8 +610,17 @@ bool EPVBucket::pageOut(const Collections::VB::ReadHandle& readHandle,
     return ht.unlocked_ejectItem(lh, v, eviction);
 }
 
-bool EPVBucket::eligibleToPageOut(const HashTable::HashBucketLock& lh,
-                                  const StoredValue& v) const {
+bool EPVBucket::canEvict() const {
+    // epvbs have no vbucket state-dependent restrictions on eviction.
+    // Eligibility for eviction can be determined purely from the properties
+    // of the stored value.
+    return true;
+}
+
+bool EPVBucket::isEligibleForEviction(const HashTable::HashBucketLock& lh,
+                                      const StoredValue& v) const {
+    // TODO: move the below eligibility check out of StoredValue.
+    //       the result is only accurate for SVs in an EPVBucket
     return v.eligibleForEviction(eviction);
 }
 

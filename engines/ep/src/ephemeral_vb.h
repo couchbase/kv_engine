@@ -98,8 +98,10 @@ public:
                  StoredValue*& v,
                  bool isDropped) override;
 
-    bool eligibleToPageOut(const HashTable::HashBucketLock& lh,
-                           const StoredValue& v) const override;
+    bool canEvict() const override;
+
+    bool isEligibleForEviction(const HashTable::HashBucketLock& lh,
+                               const StoredValue& v) const override;
 
     size_t getPageableMemUsage() override;
 
