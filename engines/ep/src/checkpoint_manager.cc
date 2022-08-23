@@ -318,7 +318,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
                 "CheckpointManager::registerCursorBySeqno: startBySeqno (which "
                 "is " +
                 std::to_string(startBySeqno) +
-                ") is less than last "
+                ") is greater than last "
                 "checkpoint highSeqno (which is " +
                 std::to_string(openCkpt.getHighSeqno()) + ")");
     }
