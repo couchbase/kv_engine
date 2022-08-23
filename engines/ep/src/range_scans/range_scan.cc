@@ -75,10 +75,11 @@ RangeScan::RangeScan(
         }
     }
 
-    EP_LOG_INFO("{}: {} RangeScan {} created. mode:{}{}{}",
+    EP_LOG_INFO("{}: {} RangeScan {} created. cid:{}, mode:{}{}{}",
                 cookie.getConnectionId(),
                 getVBucketId(),
                 uuid,
+                this->start.getDocKey().getCollectionID(),
                 keyOnly == cb::rangescan::KeyOnly::Yes ? "keys" : "values",
                 std::string_view{snapshotLog.data(), snapshotLog.size()},
                 std::string_view{samplingLog.data(), samplingLog.size()});
@@ -188,9 +189,10 @@ cb::rangescan::Id RangeScan::createScan(
                 // same errc as an empty range-scan
                 throw cb::engine_error(
                         cb::engine_errc::no_such_key,
-                        fmt::format("RangeScan::createScan {} sampling cannot "
-                                    "be met items:{} samples:{}",
+                        fmt::format("RangeScan::createScan {} cannot sample "
+                                    "empty cid:{}, items:{}, samples:{}",
                                     getVBucketId(),
+                                    start.getDocKey().getCollectionID(),
                                     stats.second.itemCount,
                                     samplingConfig->samples));
             } else if (stats.second.itemCount > samplingConfig->samples) {
@@ -207,13 +209,23 @@ cb::rangescan::Id RangeScan::createScan(
                         double(stats.second.itemCount)};
             }
             // else no prng, all keys are returned which is <= samples
+        } else if (stats.first == KVStore::GetCollectionStatsStatus::NotFound) {
+            // same errc as an empty range-scan
+            throw cb::engine_error(
+                    cb::engine_errc::no_such_key,
+                    fmt::format("RangeScan::createScan {} no "
+                                "collection stats for sampling cid:{}",
+                                getVBucketId(),
+                                start.getDocKey().getCollectionID()));
         } else {
-            throw cb::engine_error(cb::engine_errc::failed,
-                                   fmt::format("RangeScan::createScan {} no "
-                                               "collection stats for sampling",
-                                               getVBucketId(),
-                                               snapshotReqs->seqno));
+            throw cb::engine_error(
+                    cb::engine_errc::failed,
+                    fmt::format("RangeScan::createScan {} failed reading "
+                                "collection stats for sampling cid:{}",
+                                getVBucketId(),
+                                start.getDocKey().getCollectionID()));
         }
+
         approxBytesRead += sizeof(stats.second);
     }
 
