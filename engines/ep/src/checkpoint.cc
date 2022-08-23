@@ -644,6 +644,13 @@ void Checkpoint::addStats(const AddStatFn& add_stat,
                      vbucketId.get(),
                      getId());
     add_casted_stat(buf.data(), getVisibleSnapshotEndSeqno(), add_stat, cookie);
+
+    checked_snprintf(buf.data(),
+                     buf.size(),
+                     "vb_%d:id_%" PRIu64 ":highest_expelled_seqno",
+                     vbucketId.get(),
+                     getId());
+    add_casted_stat(buf.data(), highestExpelledSeqno, add_stat, cookie);
 }
 
 void Checkpoint::detachFromManager() {
