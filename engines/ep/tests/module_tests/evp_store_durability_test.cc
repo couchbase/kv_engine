@@ -50,13 +50,6 @@ protected:
         setVBucketToActiveWithValidTopology();
     }
 
-    void setVBucketToActiveWithValidTopology(
-            nlohmann::json topology = nlohmann::json::array({{"active",
-                                                              "replica"}})) {
-        setVBucketStateAndRunPersistTask(
-                vbid, vbucket_state_active, {{"topology", topology}});
-    }
-
     /// Test that a prepare of a SyncWrite / SyncDelete is correctly persisted
     /// to disk.
     void testPersistPrepare(DocumentState docState);
