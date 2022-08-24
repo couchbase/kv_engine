@@ -141,6 +141,8 @@ public:
 
     int write(const void* buf, int num);
 
+    bool bio_pending();
+
     bool havePendingInputData();
 
     std::pair<cb::x509::Status, std::string> getCertUserName();

@@ -49,6 +49,10 @@ int SslContext::write(const void* buf, int num) {
     return SSL_write(client, buf, num);
 }
 
+bool SslContext::bio_pending() {
+    return BIO_ctrl_pending(network);
+}
+
 bool SslContext::havePendingInputData() {
     if (isEnabled()) {
         // Move any data in the memory buffer over to the ssl pipe
@@ -62,7 +66,8 @@ bool SslContext::enable(const std::string& cert, const std::string& pkey) {
     const auto& settings = Settings::instance();
     ctx = SSL_CTX_new(SSLv23_server_method());
     SSL_CTX_set_dh_auto(ctx, 1);
-    SSL_CTX_set_options(ctx, settings.getSslProtocolMask());
+    SSL_CTX_set_options(
+            ctx, settings.getSslProtocolMask() | SSL_OP_NO_RENEGOTIATION);
     SSL_CTX_set_mode(ctx,
                      SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER |
                              SSL_MODE_ENABLE_PARTIAL_WRITE);

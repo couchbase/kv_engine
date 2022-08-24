@@ -344,6 +344,29 @@ protected:
     void doTestCompressedJSON(std::string mode);
 };
 
+// This test fixture is quite specific to MB-53428. It runs with plain/SSL and
+// no compression. 1 worker thread is configured as the test reconnects and
+// needs ordering with operations before the disconnect
+class MB_53428 : public GetSetTest {
+public:
+    static void SetUpTestCase() {
+        memcached_cfg = generate_config(0);
+        // Change the number of worker threads to one so we guarantee that
+        // multiple connections are handled by a single worker.
+        memcached_cfg["threads"] = 1;
+
+        start_memcached_server();
+
+        if (HasFailure()) {
+            std::cerr << "Error in MB_53428::SetUpTestCase, terminating process"
+                      << std::endl;
+            exit(EXIT_FAILURE);
+        } else {
+            CreateTestBucket();
+        }
+    }
+};
+
 void GetSetSnappyOnOffTest::doTestCompressedRawData(std::string mode) {
     MemcachedConnection& conn = getConnection();
 
@@ -444,6 +467,16 @@ INSTANTIATE_TEST_CASE_P(
                                              ClientJSONSupport::No),
                            ::testing::Values(ClientSnappySupport::Yes,
                                              ClientSnappySupport::No)),
+        PrintToStringCombinedName());
+
+INSTANTIATE_TEST_CASE_P(
+        TransportProtocols,
+        MB_53428,
+        ::testing::Combine(::testing::Values(TransportProtocols::McbpPlain,
+                                             TransportProtocols::McbpSsl),
+                           ::testing::Values(XattrSupport::Yes),
+                           ::testing::Values(ClientJSONSupport::No),
+                           ::testing::Values(ClientSnappySupport::No)),
         PrintToStringCombinedName());
 
 TEST_P(GetSetTest, TestAdd) {
@@ -1226,4 +1259,35 @@ TEST_P(GetSetTest, TestGetRandomKey) {
 
 TEST_P(GetSetTest, TestGetRandomKeyCollections) {
     doTestGetRandomKey(true);
+}
+
+// Test writes a large document to the server which we know will force the SSL
+// path to perform multiple reads. The test closes after sending the mutation
+// so that the SSL read code observes EOF. Prior to fixes in MB-53428 the EOF
+// meant any data that had been read and decrypted was ignored, compared to
+// non-SSL (plain) where it would always read and process upto the EOF.
+// cheshire-cat SSL also behaves more correctly in that it reads and processes
+// upto the EOF
+TEST_P(MB_53428, SSL_read_after_close) {
+    MemcachedConnection& conn = getConnection();
+    BinprotMutationCommand command;
+    command.setDocumentInfo(document.info);
+    command.addValueBuffer(cb::const_byte_buffer(
+            reinterpret_cast<const uint8_t*>(document.value.data()),
+            document.value.size()));
+    command.setVBucket(Vbid(0));
+    command.setMutationType(MutationType::Set);
+    conn.sendCommand(command);
+    conn.reconnect();
+
+    // Sent mutation, but didn't wait for response, server should still have
+    // read up to the disconnect. Prior to MB-53428 in mad-hatter an SSL
+    // connection would stop early when the close was detected but not process
+    // the bytes it has read
+    const auto stored = conn.get(name, Vbid(0));
+    EXPECT_TRUE(hasCorrectDatatype(stored, cb::mcbp::Datatype::Raw));
+    EXPECT_NE(mcbp::cas::Wildcard, stored.info.cas);
+    EXPECT_EQ(document.info.flags, stored.info.flags);
+    EXPECT_EQ(document.info.id, stored.info.id);
+    EXPECT_EQ(document.value, stored.value);
 }

@@ -900,11 +900,6 @@ int Connection::recv(char* dest, size_t nbytes) {
     if (ssl.isEnabled()) {
         ssl.drainBioRecvPipe(socketDescriptor);
 
-        if (ssl.hasError()) {
-            cb::net::set_econnreset();
-            return -1;
-        }
-
         if (!ssl.isConnected()) {
             res = sslPreConnection();
             if (res == -1) {
@@ -915,6 +910,14 @@ int Connection::recv(char* dest, size_t nbytes) {
         /* The SSL negotiation might be complete at this time */
         if (ssl.isConnected()) {
             res = sslRead(dest, nbytes);
+        }
+
+        // sslRead may have read and processed incoming data and placed that
+        // data into dest and the detected an error, we should only hit
+        // econnreset if no data was returned or -1
+        if (res <= 0 && ssl.hasError()) {
+            cb::net::set_econnreset();
+            return -1;
         }
     } else {
         res = (int)::cb::net::recv(socketDescriptor, dest, nbytes, 0);
@@ -1175,10 +1178,6 @@ int Connection::sslRead(char* dest, size_t nbytes) {
     while (ret < int(nbytes)) {
         int n;
         ssl.drainBioRecvPipe(socketDescriptor);
-        if (ssl.hasError()) {
-            cb::net::set_econnreset();
-            return -1;
-        }
         n = ssl.read(dest + ret, (int)(nbytes - ret));
         if (n > 0) {
             ret += n;
@@ -1188,25 +1187,36 @@ int Connection::sslRead(char* dest, size_t nbytes) {
 
             switch (error) {
             case SSL_ERROR_WANT_READ:
-                /*
-                 * Drain the buffers and retry if we've got data in
-                 * our input buffers
-                 */
-                if (ssl.moreInputAvailable()) {
-                    /* our recv buf has data feed the BIO */
+                // The SSL_read needs more data to continue, for example:
+                // - partial "frame"
+                // - renegotiation has occurred
+                // once more data has arrived the read can be retried.
+
+                // MB-53428: Check if SSL_read has generated a response and
+                // send it.
+                // E.g. "no_renegotiation" if the client has tried to
+                // renegotiate.
+                if (ssl.bio_pending()) {
+                    ssl.drainBioSendPipe(socketDescriptor);
+                } else if (ssl.moreInputAvailable()) {
+                    // The input cb::Pipe still has data which can now be
+                    // transferred into the BIO
                     ssl.drainBioRecvPipe(socketDescriptor);
                 } else if (ret > 0) {
                     /* nothing in our recv buf, return what we have */
                     return ret;
                 } else {
+                    // no data, wait for more from the client
                     cb::net::set_ewouldblock();
                     return -1;
                 }
                 break;
 
             case SSL_ERROR_ZERO_RETURN:
-                /* The TLS/SSL connection has been closed (cleanly). */
-                return 0;
+                // The TLS/SSL connection has been closed (cleanly). Return the
+                // value of ret as we may have decrypted something into dest and
+                // it should be processed before the close is processed
+                return ret;
 
             default:
                 logSslErrorInfo("SSL_read", n);
