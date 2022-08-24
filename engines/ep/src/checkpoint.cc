@@ -708,10 +708,15 @@ bool Checkpoint::isOpen() const {
     return getState() == CHECKPOINT_OPEN;
 }
 
+size_t Checkpoint::getHighestExpelledSeqno() const {
+    return highestExpelledSeqno;
+}
+
 std::ostream& operator<<(std::ostream& os, const Checkpoint& c) {
     os << "Checkpoint[" << &c << "] with"
        << " id:" << c.checkpointId << " seqno:{" << c.getMinimumCursorSeqno()
        << "," << c.getHighSeqno() << "}"
+       << " highestExpelledSeqno:" << c.getHighestExpelledSeqno()
        << " snap:{" << c.getSnapshotStartSeqno() << ","
        << c.getSnapshotEndSeqno()
        << ", visible:" << c.getVisibleSnapshotEndSeqno() << "}"

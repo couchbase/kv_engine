@@ -598,6 +598,11 @@ public:
      */
     bool isOpen() const;
 
+    /**
+     * @return the seqno of the last item expelled from this checkpoint
+     */
+    size_t getHighestExpelledSeqno() const;
+
     // Memory overhead of the toWrite container (a list), ie 3 ptrs (forward,
     // backwards and element pointers) per element in the list.
     static constexpr uint8_t per_item_queue_overhead = 3 * sizeof(uintptr_t);
@@ -626,8 +631,10 @@ private:
     /// The maximum visible snapshot end (hides prepare/abort), this could be
     /// a WeaklyMonotonic, but many unit tests will violate that.
     uint64_t visibleSnapEndSeqno = 0;
+
     /// The seqno of the highest expelled item.
     MONOTONIC3(int64_t, highestExpelledSeqno, Labeller);
+
     const Vbid vbucketId;
 
     folly::Synchronized<checkpoint_state> checkpointState;
