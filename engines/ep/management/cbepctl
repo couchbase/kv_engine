@@ -313,7 +313,8 @@ Available params for "set":
     dcp_idle_timeout - The maximum time a DCP connection can be idle before it
                        is disconnected.
 
-    dcp_conn_buffer_ratio - Ratio of the BucketQuota that can be allocated by all DCP consumers for buffered messages
+    dcp_consumer_buffer_ratio - Ratio of the BucketQuota that can be allocated by
+                                all DCP consumers for buffered messages
 
   Available params for "set_vbucket_param":
     max_cas - Change the max_cas of a vbucket. The value and vbucket are specified as decimal

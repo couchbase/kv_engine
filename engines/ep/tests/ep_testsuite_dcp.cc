@@ -1440,7 +1440,7 @@ static enum test_result test_dcp_consumer_flow_control_enabled(EngineIface* h) {
     setAndWaitForQuotaChange(h, bucketQuota);
 
     const size_t dcpQuota =
-            bucketQuota * get_float_stat(h, "ep_dcp_conn_buffer_ratio");
+            bucketQuota * get_float_stat(h, "ep_dcp_consumer_buffer_ratio");
     const std::string connNamePrefix("consumer_");
     const uint32_t opaque = 0;
     const uint32_t seqno = 0;

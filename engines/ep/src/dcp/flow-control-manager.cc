@@ -18,7 +18,8 @@
 DcpFlowControlManager::DcpFlowControlManager(
         const EventuallyPersistentEngine& engine)
     : engine(engine) {
-    dcpConnBufferRatio = engine.getConfiguration().getDcpConnBufferRatio();
+    dcpConsumerBufferRatio =
+            engine.getConfiguration().getDcpConsumerBufferRatio();
 }
 
 void DcpFlowControlManager::updateConsumersBufferSize(
@@ -31,7 +32,8 @@ void DcpFlowControlManager::updateConsumersBufferSize(
     // Compute new per-consumer buffer size and resize buffer of all existing
     // consumers
     const auto bucketQuota = engine.getEpStats().getMaxDataSize();
-    const size_t bufferSize = (dcpConnBufferRatio * bucketQuota) / numConsumers;
+    const size_t bufferSize =
+            (dcpConsumerBufferRatio * bucketQuota) / numConsumers;
     for (auto* c : consumers) {
         c->setFlowControlBufSize(bufferSize);
     }
@@ -59,11 +61,11 @@ void DcpFlowControlManager::handleDisconnect(DcpConsumer& consumer) {
     updateConsumersBufferSize(*lockedConsumers);
 }
 
-void DcpFlowControlManager::setDcpConnBufferRatio(float ratio) {
-    if (dcpConnBufferRatio == ratio) {
+void DcpFlowControlManager::setDcpConsumerBufferRatio(float ratio) {
+    if (dcpConsumerBufferRatio == ratio) {
         return;
     }
-    dcpConnBufferRatio = ratio;
+    dcpConsumerBufferRatio = ratio;
 
     updateConsumersBufferSize(*consumers.wlock());
 }

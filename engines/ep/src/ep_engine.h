@@ -1403,7 +1403,7 @@ private:
      *
      * @param ratio
      */
-    void setDcpConnBufferRatio(float ratio);
+    void setDcpConsumerBufferRatio(float ratio);
 
 public:
     // Testing hook for MB-45756, to allow a throw to be made during

@@ -101,7 +101,7 @@ SynchronousEPEngine::SynchronousEPEngine(const cb::ArenaMallocClient& client,
     }
 
     configuration.addValueChangedListener(
-            "dcp_conn_buffer_ratio",
+            "dcp_consumer_buffer_ratio",
             std::make_unique<EpEngineValueChangeListener>(*this));
 }
 

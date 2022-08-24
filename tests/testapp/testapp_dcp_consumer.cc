@@ -41,7 +41,8 @@ public:
         // will generate an ACK.
         TestappTest::doSetUpTestCaseWithConfiguration(
                 generate_config(),
-                "dcp_consumer_control_enabled=true;dcp_conn_buffer_ratio=0.0");
+                "dcp_consumer_control_enabled=true;"
+                "dcp_consumer_buffer_ratio=0.0");
     }
     void SetUp() override {
         if (mcd_env->getTestBucket().getName() == "default_engine") {

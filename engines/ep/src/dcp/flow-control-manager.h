@@ -39,7 +39,7 @@ public:
 
     void handleDisconnect(DcpConsumer& consumer);
 
-    void setDcpConnBufferRatio(float ratio);
+    void setDcpConsumerBufferRatio(float ratio);
 
     size_t getNumConsumers() const;
 
@@ -60,5 +60,5 @@ protected:
     folly::Synchronized<ConsumerContainer> consumers;
 
     // Ratio of BucketQuota for all dcp consumer connection buffers
-    std::atomic<double> dcpConnBufferRatio;
+    std::atomic<double> dcpConsumerBufferRatio;
 };

@@ -160,7 +160,7 @@ std::shared_ptr<Bucket> ClusterImpl::createBucket(
                            // To give an idea with the current settings,
                            // 67108864 * 0.01 ~ 671088 bytes with 1 consumer.
                            // Then equally split across any other consumer.
-                           {"dcp_conn_buffer_ratio", "0.01"}};
+                           {"dcp_consumer_buffer_ratio", "0.01"}};
 
     json.update(attributes);
 

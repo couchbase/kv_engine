@@ -2588,41 +2588,41 @@ TEST_F(FlowControlTest, NotifyConsumerWhenEnabled) {
     testNotifyConsumerOnlyIfFlowControlEnabled(true);
 }
 
-TEST_F(FlowControlTest, Config_ConnBufferRatio_LowerThanMin) {
+TEST_F(FlowControlTest, Config_ConsumerBufferRatio_LowerThanMin) {
     auto& config = engine->getConfiguration();
     try {
-        config.setDcpConnBufferRatio(-0.001);
+        config.setDcpConsumerBufferRatio(-0.001);
     } catch (const std::range_error& e) {
-        EXPECT_THAT(
-                e.what(),
-                testing::HasSubstr("Validation Error, dcp_conn_buffer_ratio "
-                                   "takes values between 0.000000"));
+        EXPECT_THAT(e.what(),
+                    testing::HasSubstr(
+                            "Validation Error, dcp_consumer_buffer_ratio "
+                            "takes values between 0.000000"));
         return;
     }
     FAIL();
 }
 
-TEST_F(FlowControlTest, Config_ConnBufferRatio_HigherThanMax) {
+TEST_F(FlowControlTest, Config_ConsumerBufferRatio_HigherThanMax) {
     auto& config = engine->getConfiguration();
     try {
-        config.setDcpConnBufferRatio(0.5);
+        config.setDcpConsumerBufferRatio(0.5);
     } catch (const std::range_error& e) {
         EXPECT_THAT(e.what(),
                     testing::HasSubstr(
-                            "Validation Error, dcp_conn_buffer_ratio "
+                            "Validation Error, dcp_consumer_buffer_ratio "
                             "takes values between 0.000000 and 0.20000"));
         return;
     }
     FAIL();
 }
 
-TEST_F(FlowControlTest, Config_ConnBufferRatio) {
+TEST_F(FlowControlTest, Config_ConsumerBufferRatio) {
     engine->getKVBucket()->setVBucketState(vbid, vbucket_state_replica);
 
     // Originally the final buffer size computed based on configuration was
     // collapsed to some min/max value - ie:
     //
-    //   0. Compute size based on dcp_conn_buffer_ratio
+    //   0. Compute size based on dcp_consumer_buffer_ratio
     //   1. If size < min -> size = min
     //   2. If size > max -> size = max
     //
@@ -2637,7 +2637,7 @@ TEST_F(FlowControlTest, Config_ConnBufferRatio) {
     ASSERT_EQ(_100MB, stats.getMaxDataSize());
 
     float ratio = 0.05;
-    config.setDcpConnBufferRatio(ratio);
+    config.setDcpConsumerBufferRatio(ratio);
 
     ASSERT_EQ(0, engine->getDcpFlowControlManager().getNumConsumers());
     auto consumer =
@@ -2651,7 +2651,7 @@ TEST_F(FlowControlTest, Config_ConnBufferRatio) {
     engine->setMaxDataSize(_1GB);
     ASSERT_EQ(_1GB, stats.getMaxDataSize());
     ratio = 0.1;
-    config.setDcpConnBufferRatio(ratio);
+    config.setDcpConsumerBufferRatio(ratio);
     // 100MB expected
     EXPECT_EQ(_1GB * ratio, consumer->getFlowControlBufSize());
 }

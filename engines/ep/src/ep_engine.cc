@@ -899,8 +899,8 @@ cb::engine_errc EventuallyPersistentEngine::setDcpParam(const std::string& key,
                                                         std::string& msg) {
     auto rv = cb::engine_errc::success;
     try {
-        if (key == "dcp_conn_buffer_ratio") {
-            getConfiguration().setDcpConnBufferRatio(std::stof(val));
+        if (key == "dcp_consumer_buffer_ratio") {
+            getConfiguration().setDcpConsumerBufferRatio(std::stof(val));
         } else if (key == "connection_manager_interval") {
             getConfiguration().setConnectionManagerInterval(std::stoull(val));
         } else if (key ==
@@ -1910,8 +1910,8 @@ void EpEngineValueChangeListener::floatValueChanged(const std::string& key,
                                                     float value) {
     if (key == "min_compression_ratio") {
         engine.setMinCompressionRatio(value);
-    } else if (key == "dcp_conn_buffer_ratio") {
-        engine.setDcpConnBufferRatio(value);
+    } else if (key == "dcp_consumer_buffer_ratio") {
+        engine.setDcpConsumerBufferRatio(value);
     }
 }
 
@@ -2172,7 +2172,7 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
             std::make_unique<EpEngineValueChangeListener>(*this));
 
     configuration.addValueChangedListener(
-            "dcp_conn_buffer_ratio",
+            "dcp_consumer_buffer_ratio",
             std::make_unique<EpEngineValueChangeListener>(*this));
 
     return cb::engine_errc::success;
@@ -7024,8 +7024,8 @@ cb::engine_errc EventuallyPersistentEngine::doRangeScanStats(
     return cb::engine_errc::success;
 }
 
-void EventuallyPersistentEngine::setDcpConnBufferRatio(float ratio) {
+void EventuallyPersistentEngine::setDcpConsumerBufferRatio(float ratio) {
     if (dcpFlowControlManager) {
-        dcpFlowControlManager->setDcpConnBufferRatio(ratio);
+        dcpFlowControlManager->setDcpConsumerBufferRatio(ratio);
     }
 }

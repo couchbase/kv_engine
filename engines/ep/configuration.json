@@ -996,7 +996,7 @@
             "dynamic": false,
             "type": "bool"
         },
-        "dcp_conn_buffer_ratio": {
+        "dcp_consumer_buffer_ratio": {
             "default": "0.05",
             "descr": "Ratio of the BucketQuota that can be allocated by all DCP consumers for buffered messages",
             "type": "float",
