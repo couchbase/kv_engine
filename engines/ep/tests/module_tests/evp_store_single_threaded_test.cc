@@ -7762,3 +7762,72 @@ TEST_P(WarmupSTSingleShardTest, WarmupBackillYieldForwardProgress) {
     }
     EXPECT_NE(diskScanState, warmup->getWarmupState());
 }
+
+TEST_P(WarmupSTSingleShardTest, WarmupScanResetsStatusOnEarlyReturn) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    // 1) Write the first item that we will scan (and yield on).
+    store_item(vbid, makeStoredDocKey("key1"), "value1");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // The second item must be an item unintersting to the scan that triggers an
+    // early return. Such items are prepares and system events. Using a prepare
+    // here as we introduced durable writes before collections.
+    auto pending = makePendingItem(makeStoredDocKey("key2"), "value");
+    pending->setVBucketId(vbid);
+    EXPECT_EQ(cb::engine_errc::sync_write_pending,
+              store->set(*pending, cookie));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Our third item is a completion for the prepare, completing it means we
+    // won't load it into the HashTable during the prepare scan phase of
+    // warmup which makes the test easier to reason about (as we should only
+    // load committed items). This item will be loaded for a value eviction
+    // bucket but not a full eviction bucket due to the differences between the
+    // two, the why of which is not interesting to this test.
+    { // Scope for vBucket which is destroyed with the engine when we reset
+        auto vb = engine->getKVBucket()->getVBucket(vbid);
+        EXPECT_EQ(cb::engine_errc::success,
+                  vb->seqnoAcknowledged(
+                          folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                          "replica",
+                          2 /*preparedSeqno*/));
+        vb->notifyActiveDMOfLocalSyncWrite();
+        vb->processResolvedSyncWrites();
+    }
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // This is the test item, neither value nor full eviction warmed this item
+    // up before the bug was fixed
+    auto testKey = makeStoredDocKey("I should be warmed up");
+    store_item(vbid, testKey, "value1");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // 2) Restart and warmup for warmup. Note we override the default value of
+    // warmup_backfill_scan_chunk_duration, setting to zero to simulate the
+    // behaviour if the disk scan took longer than the chunk duration.
+    resetEngineAndWarmup("warmup_backfill_scan_chunk_duration=0");
+
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+
+    EXPECT_EQ(3, engine->getEpStats().warmedUpValues);
+    EXPECT_EQ(3, engine->getEpStats().warmedUpKeys);
+
+    EXPECT_EQ(3, vb->getNumTotalItems());
+    EXPECT_EQ(3, vb->ht.getNumInMemoryItems());
+
+    if (!fullEviction()) {
+        EXPECT_EQ(3, vb->getNumItems());
+    }
+
+    // Note no GET_DELETED option as we don't want value eviction to attempt to
+    // go to disk
+    auto options = static_cast<get_options_t>(
+            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+            HIDE_LOCKED_CAS | TRACK_STATISTICS);
+    GetValue gv = store->get(testKey, vbid, cookie, options);
+    EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
+}
