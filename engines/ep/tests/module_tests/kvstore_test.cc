@@ -15,17 +15,10 @@
 #include "ep_vb.h"
 #include "failover-table.h"
 #include "item.h"
-#include "kvstore/couch-kvstore/couch-kvstore-config.h"
-#include "kvstore/couch-kvstore/couch-kvstore.h"
 #include "kvstore/kvstore.h"
 #include "kvstore/kvstore_config.h"
 #ifdef EP_USE_ROCKSDB
 #include "kvstore/rocksdb-kvstore/rocksdb-kvstore_config.h"
-#endif
-#ifdef EP_USE_MAGMA
-#include "../mock/mock_magma_kvstore.h"
-#include "kvstore/magma-kvstore/magma-kvstore_config.h"
-#include "kvstore/magma-kvstore/magma-kvstore_iorequest.h"
 #endif
 #include "programs/engine_testapp/mock_server.h"
 #include "test_helpers.h"
@@ -39,7 +32,6 @@
 #include <filesystem>
 #include <fstream>
 #include <thread>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -1948,5 +1940,9 @@ TEST_F(RocksDBKVStoreTest, StatisticsOptionWrongValueTest) {
 }
 #endif
 
+// While these look trivial, GoogleMock classes do a lot in the ctor / dtor
+// so outline to speedup build times.
 MockGetValueCallback::MockGetValueCallback() = default;
 MockGetValueCallback::~MockGetValueCallback() = default;
+MockPersistenceCallback::MockPersistenceCallback() = default;
+MockPersistenceCallback::~MockPersistenceCallback() = default;

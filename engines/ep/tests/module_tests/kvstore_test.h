@@ -15,7 +15,6 @@
 #include "collections/manager.h"
 #include "collections/vbucket_manifest.h"
 #include "configuration.h"
-#include "item.h"
 #include "kvstore/kvstore.h"
 #include "kvstore/kvstore_transaction_context.h"
 #include "vb_commit.h"
@@ -71,8 +70,7 @@ public:
     Configuration config;
 };
 
-// Test fixture for tests which run on all KVStore implementations (Couchstore
-// and RocksDB).
+// Test fixture for tests which run on different KVStore implementations.
 // The string parameter represents the KVStore implementation that each test
 // of this class will use (e.g., "couchdb", "magma" or "rocksdb").
 class KVStoreParamTest : public KVStoreTest,
@@ -208,6 +206,9 @@ std::unique_ptr<KVStoreIface> setup_kv_store(KVStoreConfig& config,
 
 class MockPersistenceCallback : public PersistenceCallback {
 public:
+    MockPersistenceCallback();
+    ~MockPersistenceCallback() override;
+
     MOCK_METHOD2(setCallback, void(const Item&, FlushStateMutation));
 
     void operator()(const Item& qi, FlushStateMutation state) override {
