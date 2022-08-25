@@ -33,6 +33,21 @@ public:
     // constructed.
     bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) override;
 
+    // called to inform the visitor of the vbucket being visited
+    void setCurrentVBucket(VBucket& vb) override;
+
+    /**
+     * Set the ht this task is currently visiting.
+     *
+     * In normal use, this is called from setCurrentVbucket(), in turn called
+     * by PauseResumeVBAdapter::visit().
+     *
+     * Tests may directly call this, if no vbucket exists. This avoids
+     * coupling this visitor to vbuckets too tightly.
+     * @param ht the hashtable being visited.
+     */
+    void setCurrentHT(HashTable& ht);
+
     // Resets any held stats to zero.
     void clearStats();
 
@@ -40,6 +55,9 @@ public:
     size_t getVisitedCount() const;
 
 private:
+    // pointer to the hashtable of the currently visited vbucket
+    HashTable* ht = nullptr;
+
     /* Configuration parameters */
 
     // The percentage by which to age (i.e. reduce) the frequency counter

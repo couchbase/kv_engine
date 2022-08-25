@@ -22,6 +22,7 @@
 #include "ep_bucket.h"
 #include "ep_time.h"
 #include "evp_store_single_threaded_test.h"
+#include "hashtable_utils.h"
 #include "item.h"
 #include "item_eviction.h"
 #include "kv_bucket.h"
@@ -1478,6 +1479,64 @@ TEST_P(STItemPagerTest, MB43559_EvictionWithoutReplicasReachesLWM) {
 
     // confirm that memory usage is now below the low watermark
     EXPECT_LT(stats.getPreciseTotalMemoryUsed(), stats.mem_low_wat.load());
+}
+
+TEST_P(STItemPagerTest, ItemPagerUpdatesMFUHistogram) {
+    // TODO: decouple paging visitor from KVBucket, and move this test
+    //       to vbucket_test.cc
+    // verify that the paging visitor task correctly updates the MFU
+    // histogram if it decreases the MFU of an item after visiting but
+    // _not_ evicting it.
+
+    // prepare for the test by storing an item
+    auto& vbucket = *store->getVBucket(vbid);
+    auto& ht = vbucket.ht;
+    auto& hist = HashTableIntrospector::getEvictableMFUHistogram(ht);
+    ASSERT_TRUE(hist.empty());
+
+    StoredDocKey key = makeStoredDocKey("key");
+    auto item = make_item(vbid, key, "value");
+
+    // Set a specific MFU for ease of testing
+    auto startMFU = uint8_t(123);
+    item.setFreqCounterValue(startMFU);
+    ASSERT_EQ(cb::engine_errc::success, storeItem(item));
+    flushAndExpelFromCheckpoints(vbid);
+
+    // check that the item is indeed reflected in the mfu hist before
+    // proceeding with this test
+    ASSERT_EQ(1, hist[startMFU]);
+
+    // set up a paging visitor
+    auto pagerSemaphore = std::make_shared<cb::Semaphore>();
+    pagerSemaphore->try_acquire(1);
+    MockPagingVisitor visitor(
+            *engine->getKVBucket(),
+            engine->getEpStats(),
+            EvictionRatios{1.0 /* active&pending */,
+                           1.0 /* replica */}, // try evict everything
+            pagerSemaphore,
+            ITEM_PAGER,
+            false,
+            VBucketFilter(),
+            0 /* "protected" age percentage */,
+            255 /* mfu age threshold */);
+
+    visitor.setCurrentBucket(vbucket);
+
+    // visit everthing in the HT
+    HashTable::Position pos;
+    while (pos != ht.endPosition()) {
+        // keep visiting until done
+        pos = ht.pauseResumeVisit(visitor, pos);
+    }
+
+    auto expectedMFU = uint8_t(startMFU - 1);
+
+    // check that the MFU was decremented.
+    EXPECT_EQ(0, hist[startMFU]);
+    EXPECT_EQ(1, hist[expectedMFU]);
+    EXPECT_EQ(1, hist.getNumberOfSamples());
 }
 
 /**

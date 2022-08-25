@@ -124,6 +124,9 @@ protected:
                               const Collections::VB::CachingReadHandle& cHandle,
                               ExpireBy expirySource);
 
+    StoredValue* public_addTempStoredValue(const HashTable::HashBucketLock& hbl,
+                                           const DocKey& key);
+
     SWCompleteTrace swCompleteTrace;
 
     // Mock SyncWriteCompleteCallback that helps in testing client-notify for

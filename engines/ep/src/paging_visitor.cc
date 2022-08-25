@@ -144,7 +144,8 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
              * incremented in between visits of the item pager).
              */
             if (storedValueFreqCounter > 0) {
-                v.setFreqCounterValue(storedValueFreqCounter - 1);
+                currentBucket->ht.setSVFreqCounter(
+                        lh, v, storedValueFreqCounter - 1);
             }
         }
     }

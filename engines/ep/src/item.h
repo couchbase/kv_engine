@@ -536,7 +536,7 @@ public:
      * when first added to the hash table.  It is not 0, as we want to ensure
      * that we do not immediately evict items that we have just added.
      */
-    static const uint8_t initialFreqCount = 4;
+    inline static constexpr uint8_t initialFreqCount = 4;
 
     /// Should the TTL of this object be replaced with the TTL for the object
     /// it tries to replace (if found)

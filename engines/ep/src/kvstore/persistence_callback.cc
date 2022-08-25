@@ -53,7 +53,7 @@ void EPPersistenceCallback::operator()(const Item& queuedItem,
                             cb::UserData{itemSS.str()},
                             cb::UserData{svSS.str()}));
                 }
-                v->markClean();
+                vbucket.ht.markSVClean(res.lock, *v);
             }
         }
         // Update general flush stats

@@ -1103,30 +1103,32 @@ TEST_F(HashTableTest, ItemFreqDecayerVisitorTest) {
     // Set the frequency count of each document in the range 0 to 255.
     for (int ii = 0; ii < 256; ii++) {
         auto key = makeStoredDocKey(std::to_string(ii));
+        auto res = ht.findForWrite(key);
+        v = res.storedValue;
+        ht.setSVFreqCounter(res.lock, *v, ii);
+    }
+
+    ItemFreqDecayerVisitor itemFreqDecayerVisitor(
+            Configuration().getItemFreqDecayerPercent());
+    itemFreqDecayerVisitor.setCurrentHT(ht);
+    // Decay the frequency count of each document by the configuration
+    // default of 50%
+    for (int ii = 0; ii < 256; ii++) {
+        auto key = makeStoredDocKey(std::to_string(ii));
+        auto item = ht.findForWrite(key);
+        itemFreqDecayerVisitor.visit(item.lock, *item.storedValue);
+    }
+
+    // Confirm we visited all the documents
+    EXPECT_EQ(256, itemFreqDecayerVisitor.getVisitedCount());
+
+    // Check the frequency of the docs have been decayed by 50%.
+    for (int ii = 0; ii < 256; ii++) {
+        auto key = makeStoredDocKey(std::to_string(ii));
         v = ht.findForWrite(key).storedValue;
-        v->setFreqCounterValue(ii);
-       }
-
-       ItemFreqDecayerVisitor itemFreqDecayerVisitor(
-               Configuration().getItemFreqDecayerPercent());
-       // Decay the frequency count of each document by the configuration
-       // default of 50%
-       for (int ii = 0; ii < 256; ii++) {
-           auto key = makeStoredDocKey(std::to_string(ii));
-           auto item = ht.findForWrite(key);
-           itemFreqDecayerVisitor.visit(item.lock, *item.storedValue);
-       }
-
-       // Confirm we visited all the documents
-       EXPECT_EQ(256, itemFreqDecayerVisitor.getVisitedCount());
-
-       // Check the frequency of the docs have been decayed by 50%.
-       for (int ii = 0; ii < 256; ii++) {
-           auto key = makeStoredDocKey(std::to_string(ii));
-           v = ht.findForWrite(key).storedValue;
-           uint16_t expectVal = ii * 0.5;
-           EXPECT_EQ(expectVal, v->getFreqCounterValue());
-       }
+        uint16_t expectVal = ii * 0.5;
+        EXPECT_EQ(expectVal, v->getFreqCounterValue());
+    }
 }
 
 // Test the reallocateStoredValue method.

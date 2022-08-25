@@ -197,7 +197,10 @@ VBucket::VBucket(Vbid i,
          std::move(valFact),
          config.getHtSize(),
          config.getHtLocks(),
-         config.getFreqCounterIncrementFactor()),
+         config.getFreqCounterIncrementFactor(),
+         [this](const HashTable::HashBucketLock& lh, const StoredValue& v) {
+             return this->isEligibleForEviction(lh, v);
+         }),
       failovers(std::move(table)),
       opsCreate(0),
       opsDelete(0),

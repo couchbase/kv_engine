@@ -11,6 +11,8 @@
 
 #include "item_freq_decayer_visitor.h"
 
+#include "vbucket.h"
+
 // AgeVisitor implementation ///////////////////////////////////////////
 
 ItemFreqDecayerVisitor::ItemFreqDecayerVisitor(uint16_t percentage_)
@@ -25,12 +27,20 @@ void ItemFreqDecayerVisitor::setDeadline(
 bool ItemFreqDecayerVisitor::visit(const HashTable::HashBucketLock& lh,
                                    StoredValue& v) {
     // age the value's frequency counter by the given percentage
-    v.setFreqCounterValue(v.getFreqCounterValue() * (percentage * 0.01));
+    ht->setSVFreqCounter(lh, v, v.getFreqCounterValue() * (percentage * 0.01));
     visitedCount++;
 
     // See if we have done enough work for this chunk. If so
     // stop visiting (for now).
     return progressTracker.shouldContinueVisiting(visitedCount);
+}
+
+void ItemFreqDecayerVisitor::setCurrentVBucket(VBucket& vb) {
+    setCurrentHT(vb.ht);
+}
+
+void ItemFreqDecayerVisitor::setCurrentHT(HashTable& ht) {
+    this->ht = &ht;
 }
 
 void ItemFreqDecayerVisitor::clearStats() {

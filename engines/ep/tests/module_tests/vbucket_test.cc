@@ -19,7 +19,9 @@
 #include "ep_vb.h"
 #include "ephemeral_vb.h"
 #include "failover-table.h"
+#include "hashtable_utils.h"
 #include "item.h"
+#include "item_freq_decayer_visitor.h"
 #include "kvstore/kvstore.h"
 #include "kvstore/persistence_callback.h"
 #include "programs/engine_testapp/mock_cookie.h"
@@ -306,6 +308,13 @@ VBucketTestBase::public_processExpiredItem(
         const Collections::VB::CachingReadHandle& cHandle,
         ExpireBy expirySource) {
     return vbucket->processExpiredItem(htRes, cHandle, expirySource);
+}
+
+StoredValue* VBucketTestBase::public_addTempStoredValue(
+        const HashTable::HashBucketLock& hbl, const DocKey& key) {
+    auto res = vbucket->addTempStoredValue(hbl, key);
+    EXPECT_EQ(TempAddStatus::BgFetch, res.status);
+    return res.storedValue;
 }
 
 bool operator==(const SWCompleteTrace& lhs, const SWCompleteTrace& rhs) {
@@ -720,6 +729,246 @@ TEST_P(VBucketEvictionTest, Durability_PendingNeverEjected) {
     EXPECT_EQ(0, ht.getNumInMemoryNonResItems());
 }
 
+class MFUTrackingTest : public VBucketTest {
+public:
+    auto& getHist() {
+        return HashTableIntrospector::getEvictableMFUHistogram(vbucket->ht);
+    }
+
+    void fakePersistenceForKey(const StoredDocKey& key) {
+        auto* pCursor = vbucket->checkpointManager->getPersistenceCursor();
+        std::vector<queued_item> items;
+        vbucket->checkpointManager->getItemsForCursor(*pCursor, items, 999);
+        for (const auto& item : items) {
+            if (item->isNonEmptyCheckpointMetaItem()) {
+                continue;
+            }
+            if (item->getKey() != key) {
+                ADD_FAILURE() << "MFUTrackingTest::storeAndPersistItem "
+                                 "refusing to silently fake persistence of "
+                                 "an unexpected item: "
+                              << *item;
+            }
+            if (item->isDeleted()) {
+                // run the persistence callback for this deletion
+                EPPersistenceCallback(global_stats, *vbucket)(
+                        *item, FlushStateDeletion::Delete);
+            } else {
+                // run the persistence callback for the mutation.
+                // Not supremely concerned about having the correct flush
+                // state, that is not the area these tests are focussed on.
+                EPPersistenceCallback(global_stats, *vbucket)(
+                        *item, FlushStateMutation::Insert);
+            }
+        }
+    }
+};
+
+TEST_P(MFUTrackingTest, addValue) {
+    // verify that an added item is:
+    // * evictable immediately for ephemeral
+    // * evictable only once persisted for persistent
+    // and that this is reflected in the mfu histogram.
+
+    auto& hist = getHist();
+
+    ASSERT_TRUE(hist.empty());
+
+    StoredDocKey key = makeStoredDocKey("key");
+    auto item = make_item(vbid, key, "value");
+    ASSERT_EQ(MutationStatus::WasClean,
+              this->public_processSet(item, item.getCas()));
+
+    if (persistent()) {
+        // histogram has not been updated because the item has not been
+        // persisted and so cannot be evictable yet
+        EXPECT_TRUE(hist.empty());
+        fakePersistenceForKey(key);
+    }
+
+    // adding the item (and persisting it, if required) should have updated
+    // the histogram to reflect an additional evictable item exists with
+    // the default starting MFU
+    EXPECT_EQ(1, hist.getNumberOfSamples());
+    EXPECT_EQ(1, hist[Item::initialFreqCount]);
+}
+
+TEST_P(MFUTrackingTest, deleteValue) {
+    // verify that a deleted item with no value is:
+    // * not evictable for ephemeral
+    // * not evictable for persistent (as it is removed from the HT when
+    // persisted)
+    // and that this is reflected in the mfu histogram.
+
+    // prepare for the test by storing an item
+    auto& hist = getHist();
+    ASSERT_TRUE(hist.empty());
+
+    StoredDocKey key = makeStoredDocKey("key");
+    auto item = make_item(vbid, key, "value");
+    ASSERT_EQ(MutationStatus::WasClean,
+              this->public_processSet(item, item.getCas()));
+
+    if (persistent()) {
+        fakePersistenceForKey(key);
+    }
+
+    // assert the desired starting condition for the test
+    ASSERT_EQ(1, hist.getNumberOfSamples());
+    ASSERT_EQ(1, hist[Item::initialFreqCount]);
+
+    // delete the item
+    EXPECT_EQ(
+            persistent() ? MutationStatus::WasClean : MutationStatus::WasDirty,
+            this->public_processSoftDelete(key).first);
+
+    if (persistent()) {
+        // histogram has already been updated, and does not track the item
+        // as it is dirty.
+        EXPECT_TRUE(hist.empty());
+        fakePersistenceForKey(key);
+
+        // the deleted item is no longer in the HT and is not tracked in the mfu
+        // histogram
+        {
+            auto storedValue = vbucket->ht.findForRead(key).storedValue;
+            ASSERT_FALSE(storedValue);
+        }
+    }
+
+    EXPECT_TRUE(hist.empty());
+}
+TEST_P(MFUTrackingTest, bgfetchedDeletedItem) {
+    if (!persistent()) {
+        // ephemeral buckets don't have anywhere to bgfetch deletes back from
+        GTEST_SKIP();
+    }
+
+    auto& hist = getHist();
+    ASSERT_TRUE(hist.empty());
+
+    StoredDocKey key = makeStoredDocKey("key");
+    auto* sv = public_addTempStoredValue(vbucket->ht.getLockedBucket(key), key);
+
+    if (getEvictionPolicy() == EvictionPolicy::Full) {
+        // temp items _can_ be evicted and should be reflected in the MFU
+        // histogram immediately
+        EXPECT_EQ(1, hist.getNumberOfSamples());
+        EXPECT_EQ(1, hist[0]);
+    } else {
+        // temp initial item not eligible for eviction
+        EXPECT_TRUE(hist.empty());
+    }
+
+    ASSERT_TRUE(sv);
+    auto cas = sv->getCas();
+
+    FrontEndBGFetchItem fetched_item(
+            nullptr /*cookie*/, ValueFilter::VALUES_DECOMPRESSED, cas);
+    auto itemPtr = std::make_unique<Item>(key, 0, 0, value_t{});
+    itemPtr->setDeleted();
+    GetValue gv(std::move(itemPtr));
+    fetched_item.value = &gv;
+    vbucket->completeBGFetchForSingleItem(
+            DiskDocKey(key), fetched_item, std::chrono::steady_clock::now());
+}
+
+TEST_P(MFUTrackingTest, accessUpdatesMFU) {
+    // verify that accessing an item in a manner which updates its MFU
+    // also updates the mfu histogram.
+
+    // prepare for the test by storing an item
+    auto& hist = getHist();
+    ASSERT_TRUE(hist.empty());
+
+    StoredDocKey key = makeStoredDocKey("key");
+    auto item = make_item(vbid, key, "value");
+    ASSERT_EQ(MutationStatus::WasClean,
+              this->public_processSet(item, item.getCas()));
+
+    if (persistent()) {
+        fakePersistenceForKey(key);
+    }
+
+    ASSERT_EQ(1, hist[Item::initialFreqCount]);
+
+    // access the item a number of times. The MFU counter is updated
+    // probabilistically, but it would be exceedingly unlikely for
+    // 100 accesses not to increment it once (especially at low MFU values)
+    for (int i = 0; i < 100; i++) {
+        auto cHandle = vbucket->lockCollections(key);
+        auto res = vbucket->fetchValidValue(WantsDeleted::No,
+                                            TrackReference::Yes,
+                                            cHandle,
+                                            ForGetReplicaOp::No);
+        ASSERT_TRUE(res.storedValue);
+
+        if (res.storedValue->getFreqCounterValue() != Item::initialFreqCount) {
+            // the storedvalue's MFU counter has changed, this should be
+            // reflected in the histogram
+
+            // the original bucket has been decreased
+            EXPECT_EQ(0, hist[Item::initialFreqCount]);
+
+            // the next higher bucket has been increased.
+            EXPECT_EQ(1, hist[Item::initialFreqCount + 1]);
+
+            // total tracked items is still just 1
+            EXPECT_EQ(1, hist.getNumberOfSamples());
+            break;
+        }
+        if (i == 99) {
+            FAIL() << "MFU was not updated after 100 accesses of the stored "
+                      "value";
+        }
+    }
+}
+
+TEST_P(MFUTrackingTest, FreqDecayer) {
+    // verify that the item freq decayer task correctly updates the MFU
+    // histogram when changing the MFU of an item.
+
+    // prepare for the test by storing an item
+    auto& hist = getHist();
+    ASSERT_TRUE(hist.empty());
+
+    StoredDocKey key = makeStoredDocKey("key");
+    auto item = make_item(vbid, key, "value");
+    ASSERT_EQ(MutationStatus::WasClean,
+              this->public_processSet(item, item.getCas()));
+
+    if (persistent()) {
+        fakePersistenceForKey(key);
+    }
+
+    ASSERT_EQ(1, hist[Item::initialFreqCount]);
+
+    /* percentage to decay MFU by */
+    uint16_t percentage = 50;
+
+    auto& ht = vbucket->ht;
+
+    ItemFreqDecayerVisitor visitor(percentage);
+
+    visitor.setCurrentVBucket(*vbucket);
+    HashTable::Position pos;
+
+    while (pos != ht.endPosition()) {
+        // keep visiting until done
+        visitor.setDeadline(std::chrono::steady_clock::now() +
+                            std::chrono::seconds(1));
+        pos = ht.pauseResumeVisit(visitor, pos);
+    }
+
+    auto expectedMFU = uint8_t(Item::initialFreqCount * (percentage * 0.01));
+
+    ASSERT_NE(expectedMFU, Item::initialFreqCount)
+            << "expected MFU after decay is same as initial, won't be able"
+               "to distinguish if the visitor succeeded";
+
+    EXPECT_EQ(1, hist[expectedMFU]);
+}
+
 class VBucketFullEvictionTest : public VBucketTest {};
 
 // This test aims to ensure the vBucket document count is correct in the
@@ -818,4 +1067,15 @@ INSTANTIATE_TEST_SUITE_P(
         VBucketFullEvictionTest,
         ::testing::Values(std::make_tuple(VBucketTestBase::VBType::Persistent,
                                           EvictionPolicy::Full)),
+        VBucketTest::PrintToStringParamName);
+
+// tests for tracking of MFU values of evictable items; runs over Value/Full for
+// persistent, Auto-delete and fail new data for Ephemeral
+INSTANTIATE_TEST_SUITE_P(
+        MFUTrackerTestAllEvictionModes,
+        MFUTrackingTest,
+        ::testing::Combine(
+                ::testing::Values(VBucketTestBase::VBType::Persistent,
+                                  VBucketTestBase::VBType::Ephemeral),
+                ::testing::Values(EvictionPolicy::Value, EvictionPolicy::Full)),
         VBucketTest::PrintToStringParamName);

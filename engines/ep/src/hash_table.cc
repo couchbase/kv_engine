@@ -127,14 +127,15 @@ HashTable::HashTable(EPStats& st,
                      std::unique_ptr<AbstractStoredValueFactory> svFactory,
                      size_t initialSize,
                      size_t locks,
-                     double freqCounterIncFactor)
+                     double freqCounterIncFactor,
+                     ShouldTrackMFUCallback shouldTrackMfuCallback)
     : initialSize(initialSize),
       size(initialSize),
       mutexes(locks),
       stats(st),
       valFact(std::move(svFactory)),
       visitors(0),
-      valueStats(stats),
+      valueStats(stats, std::move(shouldTrackMfuCallback)),
       numEjects(0),
       numResizes(0),
       maxDeletedRevSeqno(0),
@@ -504,7 +505,8 @@ StoredValue* HashTable::unlocked_addNewStoredValue(const HashBucketLock& hbl,
 
 HashTable::Statistics::StoredValueProperties::StoredValueProperties(
         const HashTable::HashBucketLock& lh,
-        const StoredValue* sv) {
+        const StoredValue* sv,
+        const ShouldTrackMFUCallback& shouldTrackMfuCallback) {
     // If no previous StoredValue exists; return default constructed object.
     if (sv == nullptr) {
         return;
@@ -522,11 +524,13 @@ HashTable::Statistics::StoredValueProperties::StoredValueProperties(
     isSystemItem = sv->getKey().isInSystemCollection();
     isPreparedSyncWrite = sv->isPending() || sv->isPrepareCompleted();
     cid = sv->getKey().getCollectionID();
+    shouldTrackMFU = shouldTrackMfuCallback(lh, *sv);
+    freqCounter = sv->getFreqCounterValue();
 }
 
 HashTable::Statistics::StoredValueProperties HashTable::Statistics::prologue(
         const HashTable::HashBucketLock& hbl, const StoredValue* v) const {
-    return StoredValueProperties(hbl, v);
+    return StoredValueProperties(hbl, v, shouldTrackMfuCallback);
 }
 
 struct HashTable::Statistics::CacheLocalStatistics {
@@ -578,7 +582,9 @@ struct HashTable::Statistics::CacheLocalStatistics {
     CopyableAtomic<ssize_t> uncompressedMemSize = {};
 };
 
-HashTable::Statistics::Statistics(EPStats& epStats) : epStats(epStats) {
+HashTable::Statistics::Statistics(EPStats& epStats,
+                                  ShouldTrackMFUCallback callback)
+    : shouldTrackMfuCallback(std::move(callback)), epStats(epStats) {
 }
 
 size_t HashTable::Statistics::getNumItems() const {
@@ -671,13 +677,21 @@ size_t HashTable::Statistics::getUncompressedMemSize() const {
     return result;
 }
 
+void HashTable::Statistics::recordMFU(uint8_t mfu) {
+    evictableMFUHist.add(mfu);
+}
+
+void HashTable::Statistics::removeMFU(uint8_t mfu) {
+    evictableMFUHist.remove(mfu);
+}
+
 void HashTable::Statistics::epilogue(const HashTable::HashBucketLock& hbl,
                                      StoredValueProperties pre,
                                      const StoredValue* v) {
     // After performing updates to sv; compare with the previous properties and
     // update all statistics for all properties which have changed.
 
-    const auto post = StoredValueProperties(hbl, v);
+    const auto post = StoredValueProperties(hbl, v, shouldTrackMfuCallback);
 
     auto& local = llcLocal.get();
 
@@ -764,6 +778,21 @@ void HashTable::Statistics::epilogue(const HashTable::HashBucketLock& hbl,
     if (postNonTemp && !post.isDeleted && !post.isPreparedSyncWrite) {
         ++local.datatypeCounts[post.datatype];
     }
+
+    // the evictability of the value may have changed (e.g., if the value
+    // has been made dirty or non-resident), or the MFU itself may have
+    // changed.
+    if ((pre.shouldTrackMFU != post.shouldTrackMFU) ||
+        (pre.freqCounter != post.freqCounter)) {
+        if (pre.shouldTrackMFU) {
+            // remove the old MFU from the MFU histogram
+            evictableMFUHist.remove(pre.freqCounter);
+        }
+        if (post.shouldTrackMFU) {
+            // add the new MFU to the MFU histogram
+            evictableMFUHist.add(post.freqCounter);
+        }
+    }
 }
 
 void HashTable::Statistics::setMemChangedCallback(
@@ -774,6 +803,11 @@ void HashTable::Statistics::setMemChangedCallback(
 const std::function<void(int64_t delta)>&
 HashTable::Statistics::getMemChangedCallback() const {
     return memChangedCallback;
+}
+
+bool HashTable::Statistics::shouldTrackMFU(const HashTable::HashBucketLock& lh,
+                                           const StoredValue& v) const {
+    return shouldTrackMfuCallback(lh, v);
 }
 
 void HashTable::Statistics::reset() {
@@ -1420,13 +1454,48 @@ void HashTable::updateFreqCounter(const HashBucketLock& lh, StoredValue& v) {
     // value.  Because a probabilistic counter is used the new
     // value will either be the same or an increment of the
     // current value.
-    auto updatedFreqCounterValue = generateFreqValue(v.getFreqCounterValue());
-    v.setFreqCounterValue(updatedFreqCounterValue);
+    auto origFreqCounterValue = v.getFreqCounterValue();
+    auto updatedFreqCounterValue = generateFreqValue(origFreqCounterValue);
+    setSVFreqCounter(lh, v, updatedFreqCounterValue);
 
     if (updatedFreqCounterValue == std::numeric_limits<uint8_t>::max()) {
         // Invoke the registered callback function which
         // wakeups the ItemFreqDecayer task.
         frequencyCounterSaturated();
+    }
+}
+
+void HashTable::setSVFreqCounter(const HashBucketLock& lh,
+                                 StoredValue& v,
+                                 uint8_t newFreqCounter) {
+    // changing the MFU counter of a value will not change whether it is
+    // evictable, but if the value already _is_ evictable the MFU histogram
+    // needs to be updated to reflect this.
+    auto origFreqCounter = v.getFreqCounterValue();
+    // update the SV itself
+    v.setFreqCounterValue(newFreqCounter);
+
+    bool isEvictable = valueStats.shouldTrackMFU(lh, v);
+    if (isEvictable) {
+        valueStats.removeMFU(origFreqCounter);
+        valueStats.recordMFU(newFreqCounter);
+    }
+}
+
+void HashTable::markSVClean(const HashBucketLock& lh, StoredValue& v) {
+    // Marking a value as clean _may_ change it from non-evictable to evictable.
+    // Doing so does not change the MFU of the item, and will never transition
+    // the item from evictable to non-evictable.
+    // Therefore, the only action which may need to be taken would be to add the
+    // value's current MFU to the evictable histogram.
+
+    auto wasEvictable = valueStats.shouldTrackMFU(lh, v);
+    // update the SV itself
+    v.markClean();
+
+    auto isEvictable = valueStats.shouldTrackMFU(lh, v);
+    if (isEvictable && !wasEvictable) {
+        valueStats.recordMFU(v.getFreqCounterValue());
     }
 }
 

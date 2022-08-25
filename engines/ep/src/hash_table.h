@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "array_histogram.h"
 #include "copyable_atomic.h"
 #include "probabilistic_counter.h"
 #include "stored-value.h"
@@ -208,6 +209,17 @@ public:
     // forward decl.
     class HashBucketLock;
 
+    // Callback type used to check if a stored value should have its MFU
+    // recorded in a histogram. As this decision is vb-level logic, this
+    // callback is provided from the vbucket.
+    using ShouldTrackMFUCallback = std::function<bool(
+            const HashTable::HashBucketLock& lh, const StoredValue& v)>;
+
+    static bool defaultShouldTrackMFUCallback(
+            const HashTable::HashBucketLock& lh, const StoredValue& v) {
+        return false;
+    }
+
     /**
      * Records various statistics about a HashTable object.
      *
@@ -224,7 +236,7 @@ public:
      */
     class Statistics {
     public:
-        explicit Statistics(EPStats& epStats);
+        explicit Statistics(EPStats& epStats, ShouldTrackMFUCallback callback);
 
         /**
          * Set of properties on a StoredValue which are considerd by statistics
@@ -234,7 +246,8 @@ public:
         struct StoredValueProperties {
             explicit StoredValueProperties(
                     const HashTable::HashBucketLock& lh,
-                    const StoredValue* sv);
+                    const StoredValue* sv,
+                    const ShouldTrackMFUCallback& shouldTrackMfuCallback);
 
             // Following members are set to the equivalent property of the
             // given StoredValue.
@@ -251,6 +264,11 @@ public:
             bool isTempItem = false;
             bool isSystemItem = false;
             bool isPreparedSyncWrite = false;
+            uint8_t freqCounter = 0;
+
+            // A ShouldTrackMFUCallback is provided to allow the owning vb
+            // to determine if the HT should track the MFU of this item
+            bool shouldTrackMFU = false;
         };
 
         /**
@@ -306,6 +324,16 @@ public:
          */
         const std::function<void(int64_t delta)>& getMemChangedCallback() const;
 
+        /**
+         * Use the provided callback to determine if a StoredValue should have
+         * its MFU tracked in a histogram.
+         *
+         * Used to track the MFU of a subset of items (currently, items which
+         * are suitable for eviction).
+         */
+        bool shouldTrackMFU(const HashTable::HashBucketLock& lh,
+                            const StoredValue& v) const;
+
         /// Reset the values of all statistics to zero.
         void reset();
 
@@ -331,7 +359,31 @@ public:
 
         size_t getUncompressedMemSize() const;
 
+        /**
+         * Record (in the evictableMFUHist) the frequency counter value of an
+         * evictable item which is stored in the containing HashTable.
+         * @param mfu frequency counter of the item
+         */
+        void recordMFU(uint8_t mfu);
+
+        /**
+         * Remove a record of a frequency counter value from evictableMFUHist.
+         *
+         * To be used when an item which was previously evictable (and had its
+         * mfu recorded with `recordMFU(mfu)`) is removed from the
+         * HashTable, made non-evictable, or has had its MFU changed.
+         *
+         * @param mfu frequency counter of the item
+         */
+        void removeMFU(uint8_t mfu);
+
     private:
+        // Histogram used to record the MFU values of all evictable items.
+        // Contains a flat array of uint64_t counts for every possible MFU
+        // value.
+        ArrayHistogram<uint64_t, std::numeric_limits<uint8_t>::max() + 1>
+                evictableMFUHist;
+
         struct CacheLocalStatistics;
 
         LastLevelCacheStore<CacheLocalStatistics> llcLocal;
@@ -344,7 +396,20 @@ public:
          */
         std::function<void(int64_t delta)> memChangedCallback{[](int64_t) {}};
 
+        /**
+         * Statistics need to track the distribution of MFU values for a subset
+         * of items (specifically, those which could be evicted).
+         * However, exactly what criteria a StoredValue must meet to be
+         * tracked varies by bucket type.
+         * This callback is provided by the vbucket so statistics can be
+         * tracked without the hashtable having specific knowledge of the
+         * vbucket.
+         */
+        const ShouldTrackMFUCallback shouldTrackMfuCallback;
+
         EPStats& epStats;
+
+        friend class HashTableIntrospector;
     };
 
     /**
@@ -402,12 +467,16 @@ public:
      * @param locks the number of locks in the hash table
      * @param freqCounterIncFactor The increment factor for the frequency
      *        counters
+     * @param shouldTrackMfuCallback callback used to check if a value can be
+     *        evicted from the HashTable safely.
      */
     HashTable(EPStats& st,
               std::unique_ptr<AbstractStoredValueFactory> svFactory,
               size_t initialSize,
               size_t locks,
-              double freqCounterIncFactor);
+              double freqCounterIncFactor,
+              ShouldTrackMFUCallback shouldTrackMfuCallback =
+                      defaultShouldTrackMFUCallback);
 
     ~HashTable();
     HashTable(const HashTable&) = delete;
@@ -1307,6 +1376,22 @@ public:
      */
     uint8_t generateFreqValue(uint8_t value);
 
+    /**
+     * Set the MFU counter of the given StoredValue, ensuring affected stats are
+     * updated.
+     */
+    void setSVFreqCounter(const HashBucketLock& lh,
+                          StoredValue& v,
+                          uint8_t newFreqCounter);
+
+    /**
+     * Marks the provided StoredValue as clean.
+     *
+     * If this makes the SV evictable (e.g., in a persistent bucket), this
+     * ensures the MFU histogram is also updated.
+     */
+    void markSVClean(const HashBucketLock& lh, StoredValue& v);
+
 protected:
     // The container for actually holding the StoredValues.
     using table_type = std::vector<StoredValue::UniquePtr>;
@@ -1547,6 +1632,7 @@ protected:
     void updateFreqCounter(const HashBucketLock& lh, StoredValue& v);
 
     friend class HashTableBench;
+    friend class HashTableIntrospector;
 };
 
 std::ostream& operator<<(std::ostream& os, const HashTable& ht);
