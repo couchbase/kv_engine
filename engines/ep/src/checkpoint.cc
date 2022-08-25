@@ -210,8 +210,8 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
                 //    points to the item being removed.
                 // 2. Specifically and only for the Persistence cursor, we need
                 //    to do some computation for correct stats update at caller.
-                for (auto& cursor : manager->cursors) {
-                    if ((*cursor.second->getCheckpoint()).get() != this) {
+                for (auto& [_, cursor] : manager->cursors) {
+                    if ((*cursor->getCheckpoint()).get() != this) {
                         // Cursor is in another checkpoint, doesn't need
                         // updating here
                         continue;
@@ -219,7 +219,7 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
 
                     // Save the original cursor pos before the cursor is
                     // possibly repositioned
-                    const auto originalCursorPos = cursor.second->getPos();
+                    const auto originalCursorPos = cursor->getPos();
 
                     // Reposition the cursor to the previous item if it points
                     // to the item being dedup'ed. That also decrements the
@@ -230,7 +230,7 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
                     if (originalCursorPos.getUnderlyingIterator() == oldPos) {
                         // Note: We never deduplicate meta-items
                         Expects(!(*originalCursorPos)->isCheckPointMetaItem());
-                        cursor.second->decrPos();
+                        cursor->decrPos();
                     } else {
                         // The cursor is not being repositioned, so the only
                         // thing that we need to do (if necessary) case is
@@ -246,14 +246,13 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
                         // regardless of whether cursor points to vbs:2 or m:2.
                         if (existingSeqno <
                             (*originalCursorPos)->getBySeqno()) {
-                            cursor.second->decrDistance();
+                            cursor->decrDistance();
                         }
                     }
 
                     // The logic below is specific to the Persistence cursor,
                     // so skip it for any other cursor.
-                    if (cursor.second->getName() !=
-                        CheckpointManager::pCursorName) {
+                    if (cursor->getName() != CheckpointManager::pCursorName) {
                         continue;
                     }
 
