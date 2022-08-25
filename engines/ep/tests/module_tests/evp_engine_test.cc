@@ -349,16 +349,6 @@ INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
                              return info.param;
                          });
 
-TEST_P(DurabilityTest, TimeoutTaskScheduled) {
-    if (engine->getConfiguration().getDurabilityTimeoutMode() != "polling") {
-        GTEST_SKIP_("Only applicable to durability_timeout_mode==polling");
-    }
-    auto* executor = dynamic_cast<MockExecutorPool*>(ExecutorPool::get());
-    ASSERT_TRUE(executor);
-    EXPECT_TRUE(
-            executor->isTaskScheduled(NONIO_TASK_IDX, "DurabilityTimeoutTask"));
-}
-
 TEST_P(DurabilityTest, DurabilityStateStats) {
     // test that vbucket-durability-state stats group includes (only) the
     // expected stats

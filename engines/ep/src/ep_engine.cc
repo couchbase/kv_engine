@@ -614,8 +614,6 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setMemHighWat(std::stoull(val));
         } else if (key == "backfill_mem_threshold") {
             configuration.setBackfillMemThreshold(std::stoull(val));
-        } else if (key == "durability_timeout_task_interval") {
-            configuration.setDurabilityTimeoutTaskInterval(std::stoull(val));
         } else if (key == "durability_min_level") {
             configuration.setDurabilityMinLevel(val);
         } else if (key == "mutation_mem_ratio") {

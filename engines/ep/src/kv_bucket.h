@@ -1113,16 +1113,11 @@ protected:
      */
     float compactionMaxConcurrency;
 
-    // Responsible for enforcing the Durability Timeout for the SyncWrites
-    // tracked in this KVBucket.
-    ExTask durabilityTimeoutTask;
-
     /**
      * Factory function which returns on object to handle SyncWrite timeouts
      * for a given vBucket.
-     * Only used if durability_timeout_mode == event-driven.
      * Note this defaults to NoopSyncWriteTimeoutFactory to aid in testing;
-     * initialise() will set to a non-noop factory (if mode == event-driven).
+     * initialise() will set to a non-noop factory.
      */
     SyncWriteTimeoutHandlerFactory syncWriteTimeoutFactory =
             NoopSyncWriteTimeoutFactory;

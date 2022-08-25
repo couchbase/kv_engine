@@ -450,37 +450,17 @@ bool KVBucket::initialize() {
 
     createAndScheduleCheckpointDestroyerTasks();
 
-    // Setup tasks related to SyncWrite timeout handling. At present there are
-    // two possible modes:
-    // * "polling" (added in Mad-Hatter) which uses a task per Bucket and polls
-    //   all vBuckets for any timed out SyncWrites every
-    //   durability_timeout_task_interval ms.
-    // * "event-driven" (added in Neo) which uses a task per vBucket; each of
-    //   which is scheduled to run when the next SyncWrite to be completed is
-    //   due to exceed it's timeout. If that SyncWrite is completed before the
-    //   timeout then the task is re-scheduled (and doesn't run).
-    if (config.getDurabilityTimeoutMode() == "polling") {
-        durabilityTimeoutTask = std::make_shared<DurabilityTimeoutTask>(
-                engine,
-                std::chrono::milliseconds(
-                        config.getDurabilityTimeoutTaskInterval()));
-        ExecutorPool::get()->schedule(durabilityTimeoutTask);
-    } else if (config.getDurabilityTimeoutMode() == "event-driven") {
-        // Create an implementation of EventDrivenTimeoutTask to manage the
-        // NonIO VBucketSyncWriteTimeoutTask. The task is scheduled / cancelled
-        // based on calls to update() /cancel() with input derived from the
-        // DurabilityManager.
-        //
-        // This class is used when durability_timeout_mode == "event-driven".
-        // See also: DurabilityTimeoutTask.
-        syncWriteTimeoutFactory =
-                [& taskable =
-                         this->getEPEngine().getTaskable()](VBucket& vbucket) {
-                    return std::make_unique<EventDrivenTimeoutTask>(
-                            std::make_shared<VBucketSyncWriteTimeoutTask>(
-                                    taskable, vbucket));
-                };
-    }
+    // Setup tasks related to SyncWrite timeout handling.
+    // We use a task per vBucket; each of which is scheduled to run when the
+    // next SyncWrite to be completed is due to exceed its timeout. If that
+    // SyncWrite is completed before the timeout then the task is re-scheduled
+    // (and doesn't run).
+    syncWriteTimeoutFactory =
+            [&taskable = this->getEPEngine().getTaskable()](VBucket& vbucket) {
+                return std::make_unique<EventDrivenTimeoutTask>(
+                        std::make_shared<VBucketSyncWriteTimeoutTask>(taskable,
+                                                                      vbucket));
+            };
 
     durabilityCompletionTask =
             std::make_shared<DurabilityCompletionTask>(engine);

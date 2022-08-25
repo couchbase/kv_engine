@@ -465,28 +465,6 @@
             "dynamic": true,
             "type": "size_t"
         },
-        "durability_timeout_mode": {
-            "default": "event-driven",
-            "descr": "How should durability timeouts be scheduled? polling=periodic task running every 'durability_timeout_task_interval'; event-driven=per-VBucket tasks scheduled based on when next SyncWrite will time out.",
-            "dynamic": false,
-            "type": "std::string",
-            "validator": {
-                "enum": [
-                    "polling",
-                    "event-driven"
-                ]
-            }
-        },
-        "durability_timeout_task_interval": {
-            "default": "25",
-            "descr": "Interval (in ms) between subsequent runs of the DurabilityTimeoutTask",
-            "dynamic": true,
-            "type": "size_t",
-            "requires": {
-                "durability_timeout_mode": "polling"
-            }
-
-        },
         "durability_min_level": {
             "default": "none",
             "descr": "Bucket Minimum Durability Level. KVEngine upgrades any write request to this min-level, if the min-level is higher than the write-level. May upgrade a NormalWrite to SyncWrite.",
