@@ -219,20 +219,14 @@ protected:
                                                 std::to_string(count++));
                     auto item =
                             make_item(vbid, key, std::string(itemSize, 'x'));
-                    // make the items have a range of MFU values
-                    // without this, no matter what percent of items should be
-                    // evicted, either all of them or none of them would be
-                    // evicted as they are evicted/kept based on an mfu
-                    // threshold
-                    auto& ht = store->getVBucket(vbid)->ht;
-                    auto mfu = item.getFreqCounterValue();
-                    for (int i = 0; i < count % 256; ++i) {
-                        // probabilistically update the MFU
-                        mfu = ht.generateFreqValue(mfu);
-                    }
-                    item.setFreqCounterValue(mfu);
-                    if (storeItem(item) != cb::engine_errc::success) {
-                        ADD_FAILURE() << "Failed storing an item before the "
+                    // Set the frequency counter to the same value for all items
+                    // to avoid potential probabilistic failures around not
+                    // evicting to below the LWM in one pass
+                    item.setFreqCounterValue(0);
+                    const auto status = storeItem(item);
+                    if (status != cb::engine_errc::success) {
+                        ADD_FAILURE() << "Failed (cb::engine_errc: " << status
+                                      << ") storing an item before the "
                                          "predicate returned true";
                         return count;
                     }
@@ -1306,10 +1300,8 @@ TEST_P(STItemPagerTest, ActiveEvictedIfReplicaEvictionInsufficient) {
     activeRR = getRRPercent(*store->getVBucket(activeVB));
     replicaRR = getRRPercent(*store->getVBucket(replicaVB));
 
-    EXPECT_LT(activeRR, 100);
-    EXPECT_GT(activeRR, 60);
-
-    EXPECT_LT(replicaRR, 5);
+    EXPECT_EQ(activeRR, 0);
+    EXPECT_EQ(replicaRR, 0);
 }
 
 MATCHER_P(VBPtrVbidMatcher,
