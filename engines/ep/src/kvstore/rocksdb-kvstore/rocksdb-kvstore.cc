@@ -1017,13 +1017,16 @@ std::unique_ptr<Item> RocksDBKVStore::makeItem(Vbid vb,
     std::memcpy(&meta, data, sizeof(meta));
     data += sizeof(meta);
 
-    includeValue = includeValue && (meta.valueSize > 0);
+    value_t body;
+    if (includeValue) {
+        body.reset(TaggedPtr<Blob>(Blob::New(data, meta.valueSize),
+                                   TaggedPtrBase::NoTagValue));
+    }
 
     auto item = std::make_unique<Item>(key.getDocKey(),
                                        meta.flags,
                                        meta.exptime,
-                                       includeValue ? data : nullptr,
-                                       includeValue ? meta.valueSize : 0,
+                                       body,
                                        meta.datatype,
                                        meta.cas,
                                        meta.bySeqno,

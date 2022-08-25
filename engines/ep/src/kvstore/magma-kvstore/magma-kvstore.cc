@@ -1242,17 +1242,22 @@ std::unique_ptr<Item> MagmaKVStore::makeItem(Vbid vb,
 
     const bool forceValueFetch = isDocumentPotentiallyCorruptedByMB52793(
             meta.isDeleted(), meta.getDatatype());
-    const bool includeValue =
-            (filter != ValueFilter::KEYS_ONLY ||
-             key.getDocKey().isInSystemCollection() || forceValueFetch) &&
-            meta.getValueSize();
+
+    const bool includeValue = filter != ValueFilter::KEYS_ONLY ||
+                              key.getDocKey().isInSystemCollection();
+
+    value_t body;
+    if (includeValue || forceValueFetch) {
+        body.reset(TaggedPtr<Blob>(
+                Blob::New(valueSlice.Data(), meta.getValueSize()),
+                TaggedPtrBase::NoTagValue));
+    }
 
     auto item =
             std::make_unique<Item>(key.getDocKey(),
                                    meta.getFlags(),
                                    meta.getExptime(),
-                                   includeValue ? valueSlice.Data() : nullptr,
-                                   includeValue ? meta.getValueSize() : 0,
+                                   body,
                                    meta.getDatatype(),
                                    meta.getCas(),
                                    meta.getBySeqno(),

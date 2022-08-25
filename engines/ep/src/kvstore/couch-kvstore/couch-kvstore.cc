@@ -146,13 +146,17 @@ static std::unique_ptr<Item> makeItemFromDocInfo(Vbid vbid,
         datatype |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
     }
 
+    value_t body;
+    if (value) {
+        body.reset(TaggedPtr<Blob>(Blob::New(value->buf, value->size),
+                                   TaggedPtrBase::NoTagValue));
+    }
     // Strip off the DurabilityPrepare namespace (if present) from the persisted
     // dockey before we create the in-memory item.
     auto item = std::make_unique<Item>(makeDiskDocKey(docinfo.id).getDocKey(),
                                        metadata.getFlags(),
                                        metadata.getExptime(),
-                                       value.value_or(sized_buf{}).buf,
-                                       value.value_or(sized_buf{}).size,
+                                       body,
                                        datatype,
                                        metadata.getCas(),
                                        docinfo.db_seq,
@@ -771,7 +775,6 @@ void CouchKVStore::getRange(Vbid vb,
         const bool fetchCompressed =
                 (state.filter == ValueFilter::VALUES_COMPRESSED);
         Doc* doc = nullptr;
-        std::optional<sized_buf> value;
         if (state.filter != ValueFilter::KEYS_ONLY) {
             const couchstore_open_options openOptions =
                     fetchCompressed ? 0 : DECOMPRESS_DOC_BODIES;
@@ -782,9 +785,12 @@ void CouchKVStore::getRange(Vbid vb,
                 // scan.
                 return errCode;
             }
-            value = doc->data;
         }
 
+        std::optional<sized_buf> value;
+        if (doc) {
+            value = doc->data;
+        }
         state.userFunc(GetValue{makeItemFromDocInfo(
                 state.vb, *docinfo, *metadata, value, fetchCompressed)});
         if (doc) {
