@@ -1700,12 +1700,7 @@ TEST_P(KVStoreParamTest, ScanAborted) {
     EXPECT_EQ(ScanStatus::Cancelled, kvstore->scan(*scanCtx));
 }
 
-TEST_P(KVStoreParamTest, GetBySeqno) {
-    // @todo: move to cover more KVStores, for now only CouchKVStore has support
-    if (GetParam() != "couchdb") {
-        GTEST_SKIP();
-    }
-
+TEST_P(KVStoreParamTestSkipRocks, GetBySeqno) {
     const int nItems = 5;
     for (int ii = 1; ii < nItems; ++ii) {
         auto ctx = kvstore->begin(vbid);
@@ -1758,7 +1753,7 @@ TEST_P(KVStoreParamTest, GetBySeqno) {
     }
 
     // Check compressed
-    {
+    if (supportsFetchingAsSnappy()) {
         auto gv = kvstore->getBySeqno(
                 *handle, Vbid(0), nItems, ValueFilter::VALUES_COMPRESSED);
         EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
