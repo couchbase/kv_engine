@@ -278,10 +278,10 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
         CheckpointCursor::Droppable droppable) {
     // If cursor exists with the same name as the one being created, then
     // remove it.
-    for (const auto& cursor : cursors) {
-        if (cursor.first == name) {
-            Expects(cursor.second);
-            removeCursor(lh, *cursor.second);
+    for (const auto& [currCName, cursor] : cursors) {
+        if (name == currCName) {
+            Expects(cursor);
+            removeCursor(lh, *cursor);
             break;
         }
     }
@@ -301,16 +301,8 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
         auto cursor = std::make_shared<CheckpointCursor>(
                 name, ckptIt, (*ckptIt)->begin(), droppable, 0);
         cursors[name] = cursor;
-
-        CursorRegResult res;
-        res.seqno = lastBySeqno + 1;
-        res.cursor.setCursor(cursor);
-        res.tryBackfill = true;
-        return res;
+        return {true, static_cast<uint64_t>(lastBySeqno + 1), Cursor{cursor}};
     }
-
-    // Path here handles all scenarios but the new one introduced in MB-39344
-    // (ie one single open checkpoint has been emptied by ItemExpel).
 
     const auto& openCkpt = getOpenCheckpoint(lh);
     if (openCkpt.getHighSeqno() < startBySeqno) {
@@ -323,10 +315,8 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
                 std::to_string(openCkpt.getHighSeqno()) + ")");
     }
 
-    CursorRegResult result;
-    result.seqno = std::numeric_limits<uint64_t>::max();
-    result.tryBackfill = false;
-
+    // Path here handles all scenarios but the new one introduced in MB-39344
+    // (ie one single open checkpoint has been emptied by ItemExpel).
     for (; ckptIt != checkpointList.end(); ++ckptIt) {
         // Some important sanity checks
         if (ckptIt == checkpointList.begin()) {
@@ -345,24 +335,19 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
             Expects(!(*ckptIt)->modifiedByExpel());
         }
 
-        uint64_t en = (*ckptIt)->getHighSeqno();
         uint64_t st = (*ckptIt)->getMinimumCursorSeqno();
-
         if (startBySeqno < st) {
             // Requested sequence number is before the start of this
             // checkpoint, position cursor at the checkpoint begin.
             auto cursor = std::make_shared<CheckpointCursor>(
                     name, ckptIt, (*ckptIt)->begin(), droppable, 0);
             cursors[name] = cursor;
-            result.seqno = st;
-            result.cursor.setCursor(cursor);
-            result.tryBackfill = true;
-            break;
-        } else if (startBySeqno <= en) {
+            return {true, st, Cursor{cursor}};
+        } else if (startBySeqno <= (*ckptIt)->getHighSeqno()) {
             // MB-47551 Skip this checkpoint if it is closed and the requested
             // start is the high seqno. The cursor should go to an open
             // checkpoint ready for new mutations.
-            if ((*ckptIt)->getState() == CHECKPOINT_CLOSED &&
+            if (!(*ckptIt)->isOpen() &&
                 startBySeqno == uint64_t(lastBySeqno.load())) {
                 continue;
             }
@@ -371,17 +356,18 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
             // Calculate the position/distance to place the cursor, plus the
             // information for the caller on what's the next seqno available in
             // checkpoint.
+            uint64_t registerSeqno = std::numeric_limits<uint64_t>::max();
             auto pos = (*ckptIt)->begin();
             size_t distance = 0;
             while (true) {
                 auto next = std::next(pos);
                 if (next == (*ckptIt)->end()) {
-                    result.seqno = uint64_t((*pos)->getBySeqno() + 1);
+                    registerSeqno = uint64_t((*pos)->getBySeqno() + 1);
                     break;
                 }
                 const auto nextSeqno = uint64_t((*next)->getBySeqno());
                 if (startBySeqno < nextSeqno) {
-                    result.seqno = nextSeqno;
+                    registerSeqno = nextSeqno;
                     break;
                 }
                 ++pos;
@@ -391,22 +377,18 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
             auto cursor = std::make_shared<CheckpointCursor>(
                     name, ckptIt, pos, droppable, distance);
             cursors[name] = cursor;
-            result.cursor.setCursor(cursor);
-            break;
+            return {false, registerSeqno, Cursor{cursor}};
         }
     }
 
-    if (result.seqno == std::numeric_limits<uint64_t>::max()) {
-        /*
-         * We should never get here since this would mean that the sequence
-         * number we are looking for is higher than anything currently assigned
-         *  and there is already an assert above for this case.
-         */
-        throw std::logic_error(
-                "CheckpointManager::registerCursorBySeqno the sequences number "
-                "is higher than anything currently assigned");
-    }
-    return result;
+    /*
+     * We should never get here since this would mean that the sequence
+     * number we are looking for is higher than anything currently assigned
+     *  and there is already an assert above for this case.
+     */
+    throw std::logic_error(
+            "CheckpointManager::registerCursorBySeqno the sequences number "
+            "is higher than anything currently assigned");
 }
 
 void CheckpointManager::registerBackupPersistenceCursor(
