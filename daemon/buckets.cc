@@ -441,11 +441,10 @@ cb::engine_errc BucketManager::create(Cookie& cookie,
          * we can release the global lock..
          */
         std::lock_guard<std::mutex> guard(all_buckets[ii].mutex);
-        if (all_buckets[ii].type != BucketType::ClusterConfigOnly) {
+        if (all_buckets[ii].type == BucketType::Unknown) {
             all_buckets[ii].state = Bucket::State::Creating;
+            strcpy(all_buckets[ii].name, name.c_str());
         }
-        all_buckets[ii].type = type;
-        strcpy(all_buckets[ii].name, name.c_str());
     }
     all_bucket_lock.unlock();
 
@@ -459,9 +458,7 @@ cb::engine_errc BucketManager::create(Cookie& cookie,
     // so we can do stuff without locking..
     try {
         const auto start = std::chrono::steady_clock::now();
-        if (all_buckets[ii].type != BucketType::ClusterConfigOnly) {
-            bucket.setEngine(new_engine_instance(type, get_server_api));
-        }
+        bucket.setEngine(new_engine_instance(type, get_server_api));
         const auto stop = std::chrono::steady_clock::now();
         if ((stop - start) > std::chrono::seconds{1}) {
             LOG_WARNING(
@@ -481,7 +478,7 @@ cb::engine_errc BucketManager::create(Cookie& cookie,
     }
 
     auto& engine = bucket.getEngine();
-    if (all_buckets[ii].type != BucketType::ClusterConfigOnly) {
+    if (all_buckets[ii].type == BucketType::Unknown) {
         std::lock_guard<std::mutex> guard(bucket.mutex);
         bucket.state = Bucket::State::Initializing;
     }
@@ -524,6 +521,9 @@ cb::engine_errc BucketManager::create(Cookie& cookie,
 
         bucket.max_document_size = engine.getMaxItemSize();
         bucket.supportedFeatures = engine.getFeatures();
+
+        // MB-53498: Set the bucket type to the correct type
+        bucket.type.store(type, std::memory_order_seq_cst);
 
         // MB-47231: Reported use after free which was most likely caused
         // by setting the state of the bucket to ready _before_
