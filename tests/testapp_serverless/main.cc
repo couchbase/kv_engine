@@ -34,14 +34,18 @@ std::unique_ptr<cb::test::Cluster> cluster;
 /// authentication module to provide users with access to those buckets
 /// A bucket named metering (configured without throttling)
 /// A bucket named dcp to be used for DCP drain tests
-void startCluster(std::string_view backend) {
+void startCluster(int verbosity, std::string_view backend) {
     cluster = cb::test::Cluster::create(
-            3, {}, [](std::string_view, nlohmann::json& config) {
+            3, {}, [verbosity](std::string_view, nlohmann::json& config) {
                 config["deployment_model"] = "serverless";
                 // the cluster_test framework use folly io by default, but
                 // the serverless test in elixir should be as close as how
                 // we want to deploy it.
                 config.erase("event_framework");
+                if (verbosity) {
+                    config["verbosity"] = verbosity - 1;
+                    config["logger"]["unit_test"] = true;
+                }
                 auto file =
                         std::filesystem::path{
                                 config["root"].get<std::string>()} /
@@ -185,29 +189,36 @@ int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
 
     std::string backend{"couchdb"};
+    int verbosity{0};
     const std::vector<option> long_options{
             {"backend", required_argument, nullptr, 'b'},
+            {"verbose", no_argument, nullptr, 'v'},
             {"help", no_argument, nullptr, '?'},
             {}};
 
     int cmd;
     while ((cmd = getopt_long(
-                    argc, argv, "b:", long_options.data(), nullptr)) != EOF) {
+                    argc, argv, "b:v", long_options.data(), nullptr)) != EOF) {
         switch (cmd) {
         case 'b':
             backend = optarg;
+            break;
+        case 'v':
+            verbosity++;
             break;
         default:
             std::cerr << "Usage: " << cb::io::basename(argv[0])
                       << " [gtest options] [options]\n"
                       << "Options:\n"
-                      << "--backend=<BACKEND> The backend to use for the "
-                         "buckets (default couchdb)\n";
+                      << "--backend=<BACKEND>  The backend to use for the "
+                         "buckets (default couchdb)\n"
+                      << "-v / --verbose       Increase verbosity (can be "
+                         "specified multiple times)\n";
             exit(-1);
         }
     }
 
-    cb::test::startCluster(backend);
+    cb::test::startCluster(verbosity, backend);
     const auto ret = RUN_ALL_TESTS();
     cb::test::shutdownCluster();
 
