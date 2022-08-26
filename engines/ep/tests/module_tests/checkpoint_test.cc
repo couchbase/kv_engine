@@ -1679,6 +1679,80 @@ TEST_F(SingleThreadedCheckpointTest, RefCheckpointIsRemovedWhenClosedIfEmpty) {
                     .getNumCursorsInCheckpoint());
 }
 
+void SingleThreadedCheckpointTest::testRegisterCursorInCheckpointEmptyByExpel(
+        bool extraMetaItem) {
+    setVBucketState(vbid, vbucket_state_active);
+    auto vb = store->getVBuckets().getBucket(vbid);
+    auto& manager = *vb->checkpointManager;
+    ASSERT_EQ(1, manager.getOpenCheckpointId());
+    manager.createNewCheckpoint();
+    flushVBucket(vbid);
+
+    // [e:1 cs:1)
+    ASSERT_EQ(2, manager.getOpenCheckpointId());
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
+    ASSERT_EQ(0, manager.getHighSeqno());
+
+    // [e:1 cs:1 m:1 m:2)
+    const std::string value("value");
+    store_item(vbid, makeStoredDocKey("key"), value);
+    store_item(vbid, makeStoredDocKey("other-key"), value);
+    flushVBucket(vbid);
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(3, manager.getNumOpenChkItems());
+    ASSERT_EQ(2, manager.getHighSeqno());
+    const auto& checkpoint =
+            CheckpointManagerTestIntrospector::public_getOpenCheckpoint(
+                    manager);
+    ASSERT_EQ(3, manager.getNumOpenChkItems());
+    ASSERT_EQ(1, checkpoint.getMinimumCursorSeqno());
+    ASSERT_EQ(2, checkpoint.getHighSeqno());
+
+    // Expel
+    ASSERT_EQ(3, checkpoint.getNumItems());
+    ASSERT_EQ(2, manager.expelUnreferencedCheckpointItems().count);
+    ASSERT_EQ(1, checkpoint.getNumItems());
+
+    // We have expelled all the mutations
+    // [e:1 cs:1 x x)
+    ASSERT_EQ(0, checkpoint.getMinimumCursorSeqno());
+    ASSERT_EQ(0, checkpoint.getHighSeqno());
+
+    if (extraMetaItem) {
+        // Add a topology just as a variation from the previous state, that's
+        // for ensuring that the operation isn't skipped
+        setVBucketState(
+                vbid,
+                vbucket_state_active,
+                {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+        // cs + vbs
+        ASSERT_EQ(2, checkpoint.getNumItems());
+        ASSERT_EQ(0, checkpoint.getHighSeqno());
+        ASSERT_EQ(2, vb->getHighSeqno());
+    }
+
+    // Verify that we register the cursor successfully.
+    // Before the fix for MB-53055 this step fails in the case where the
+    // checkpoint is "empty" but contains some meta-item after checkpoint_start.
+    const auto res = manager.registerCursorBySeqno(
+            "cursor", 2, CheckpointCursor::Droppable::Yes);
+    EXPECT_TRUE(res.tryBackfill);
+    const auto cursor = res.cursor.lock();
+    EXPECT_EQ(queue_op::empty, (*cursor->getPos())->getOperation());
+    EXPECT_EQ(1, (*cursor->getPos())->getBySeqno());
+    EXPECT_EQ(0, cursor->getDistance());
+}
+
+TEST_F(SingleThreadedCheckpointTest, RegisterCursor_CheckpointEmptyByExpel) {
+    testRegisterCursorInCheckpointEmptyByExpel(false);
+}
+
+TEST_F(SingleThreadedCheckpointTest,
+       RegisterCursor_CheckpointEmptyByExpel_ExtraMetaItem) {
+    testRegisterCursorInCheckpointEmptyByExpel(true);
+}
+
 // Test that when the same client registers twice, the first cursor 'dies'
 TEST_P(CheckpointTest, reRegister) {
     auto dcpCursor1 = manager->registerCursorBySeqno(

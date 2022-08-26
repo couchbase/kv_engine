@@ -696,7 +696,7 @@ bool Checkpoint::isEmptyByExpel() const {
     Expects((*pos)->isCheckpointStart());
     Expects(seqno == (*pos)->getBySeqno());
 
-    return modifiedByExpel() && std::next(pos) == end();
+    return modifiedByExpel() && !hasNonMetaItems();
 }
 
 bool Checkpoint::modifiedByExpel() const {

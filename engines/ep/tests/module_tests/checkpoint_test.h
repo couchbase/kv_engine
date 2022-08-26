@@ -122,6 +122,18 @@ public:
      *  of item removal
      */
     void testMinimumCursorSeqno(ItemRemovalPath itemRemoval);
+
+    /**
+     * Verifies that registering a cursor succeeds in checkpoints from which
+     * all mutations have been expelled.
+     * Helper function to cover also the case where the checkpoint contains
+     * some meta-item after checkpoint_start (eg, set_vbstate is queued after
+     * ItemExpel).
+     *
+     * @param extraMetaItem Whether we run the test on a checkpoint that
+     *  contains a meta-item after checkpoint_start
+     */
+    void testRegisterCursorInCheckpointEmptyByExpel(bool extraMetaItem);
 };
 
 /**

@@ -584,7 +584,8 @@ public:
 
     /**
      * @return Whether this checkpoint wasn't empty in the past but is empty now
-     *  because of ItemExpel
+     *  because of ItemExpel. Note that being empty here means "not containing
+     *  any non-meta item".
      */
     bool isEmptyByExpel() const;
 
