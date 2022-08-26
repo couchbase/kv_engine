@@ -28,6 +28,12 @@ auto percentOf(size_t val, double percent) {
 class BucketQuotaChangeTest : public STParameterizedBucketTest {
 public:
     void SetUp() override {
+        // Magma occasionally blows the quota during the test if it isn't quite
+        // fast enough to free memory as it has extra copies of the item that we
+        // flush lying around. Setting memory optimized writes to true should
+        // prevent copies to obey quota limits.
+        config_string += ";magma_enable_memory_optimized_writes=true";
+
         STParameterizedBucketTest::SetUp();
         setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
