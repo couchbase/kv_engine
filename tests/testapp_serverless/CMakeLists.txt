@@ -16,4 +16,10 @@ cb_enable_unity_build(serverless_test)
 kv_enable_pch(serverless_test)
 add_test(NAME serverless_test
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-        COMMAND serverless_test)
+        COMMAND serverless_test --backend=couchdb)
+
+if(EP_USE_MAGMA)
+    add_test(NAME serverless_test_magma
+            WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+            COMMAND serverless_test --backend=magma)
+endif()

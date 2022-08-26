@@ -16,7 +16,9 @@
 #include <event2/thread.h>
 #include <folly/portability/GTest.h>
 #include <folly/portability/Stdlib.h>
+#include <getopt.h>
 #include <platform/cbassert.h>
+#include <platform/dirutils.h>
 #include <platform/platform_socket.h>
 #include <platform/socket.h>
 #include <csignal>
@@ -32,7 +34,7 @@ std::unique_ptr<cb::test::Cluster> cluster;
 /// authentication module to provide users with access to those buckets
 /// A bucket named metering (configured without throttling)
 /// A bucket named dcp to be used for DCP drain tests
-void startCluster() {
+void startCluster(std::string_view backend) {
     cluster = cb::test::Cluster::create(
             3, {}, [](std::string_view, nlohmann::json& config) {
                 config["deployment_model"] = "serverless";
@@ -59,6 +61,9 @@ void startCluster() {
     }
 
     try {
+        const nlohmann::json bucketConfig = {
+                {"replicas", 2}, {"max_vbuckets", 8}, {"backend", backend}};
+
         for (int ii = 0; ii < 5; ++ii) {
             const auto name = "bucket-" + std::to_string(ii);
             std::string rbac = R"({
@@ -82,8 +87,7 @@ void startCluster() {
             cluster->getAuthProviderService().upsertUser(
                     {name, name, nlohmann::json::parse(rbac)});
 
-            auto bucket = cluster->createBucket(
-                    name, {{"replicas", 2}, {"max_vbuckets", 8}});
+            auto bucket = cluster->createBucket(name, bucketConfig);
             if (!bucket) {
                 throw std::runtime_error("Failed to create bucket: " + name);
             }
@@ -96,8 +100,7 @@ void startCluster() {
             // @todo add collections and scopes
         }
 
-        auto bucket = cluster->createBucket(
-                "metering", {{"replicas", 2}, {"max_vbuckets", 8}});
+        auto bucket = cluster->createBucket("metering", bucketConfig);
         if (!bucket) {
             throw std::runtime_error(R"(Failed to create bucket: "metering")");
         }
@@ -105,8 +108,7 @@ void startCluster() {
         // Make sure we don't throttle the metering tests
         bucket->setThrottleLimit(0);
 
-        bucket = cluster->createBucket("dcp",
-                                       {{"replicas", 2}, {"max_vbuckets", 8}});
+        bucket = cluster->createBucket("dcp", bucketConfig);
         if (!bucket) {
             throw std::runtime_error(R"(Failed to create bucket: "dcp")");
         }
@@ -182,7 +184,30 @@ int main(int argc, char** argv) {
 #endif
     ::testing::InitGoogleTest(&argc, argv);
 
-    cb::test::startCluster();
+    std::string backend{"couchdb"};
+    const std::vector<option> long_options{
+            {"backend", required_argument, nullptr, 'b'},
+            {"help", no_argument, nullptr, '?'},
+            {}};
+
+    int cmd;
+    while ((cmd = getopt_long(
+                    argc, argv, "b:", long_options.data(), nullptr)) != EOF) {
+        switch (cmd) {
+        case 'b':
+            backend = optarg;
+            break;
+        default:
+            std::cerr << "Usage: " << cb::io::basename(argv[0])
+                      << " [gtest options] [options]\n"
+                      << "Options:\n"
+                      << "--backend=<BACKEND> The backend to use for the "
+                         "buckets (default couchdb)\n";
+            exit(-1);
+        }
+    }
+
+    cb::test::startCluster(backend);
     const auto ret = RUN_ALL_TESTS();
     cb::test::shutdownCluster();
 
