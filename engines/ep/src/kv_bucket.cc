@@ -1056,7 +1056,7 @@ cb::engine_errc KVBucket::createVBucket_UNLOCKED(
             std::make_unique<Collections::VB::Manifest>(collectionsManager));
 
     newvb->setFreqSaturatedCallback(
-            [this] { this->wakeItemFreqDecayerTask(); });
+            [this] { itemFrequencyCounterSaturated(); });
 
     Configuration& config = engine.getConfiguration();
     if (config.isBfilterEnabled()) {
@@ -2165,6 +2165,10 @@ void KVBucket::disableItemPager() {
 void KVBucket::wakeItemFreqDecayerTask() {
     auto& t = dynamic_cast<ItemFreqDecayerTask&>(*itemFreqDecayerTask);
     t.wakeup();
+}
+
+void KVBucket::itemFrequencyCounterSaturated() {
+    wakeItemFreqDecayerTask();
 }
 
 void KVBucket::enableAccessScannerTask() {

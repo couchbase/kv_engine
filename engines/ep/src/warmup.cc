@@ -1399,9 +1399,8 @@ void Warmup::createVBuckets(uint16_t shardId) {
                         entry.by_seqno,
                         !cleanShutdown ? "unclean shutdown" : "manifest uid");
             }
-            EPBucket* bucket = &this->store;
             vb->setFreqSaturatedCallback(
-                    [bucket]() { bucket->wakeItemFreqDecayerTask(); });
+                    [this]() { store.itemFrequencyCounterSaturated(); });
 
             // Add the new vbucket to our local map, it will later be added
             // to the bucket's vbMap once the vbuckets are fully initialised

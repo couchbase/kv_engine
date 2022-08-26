@@ -502,6 +502,11 @@ public:
     /// Wake up the ItemFreqDecayer Task, scheduling it for immediate run.
     void wakeItemFreqDecayerTask();
 
+    /**
+     * Item frequency counter was saturated
+     */
+    void itemFrequencyCounterSaturated();
+
     void enableAccessScannerTask() override;
     void disableAccessScannerTask() override;
     void setAccessScannerSleeptime(size_t val, bool useStartTime) override;
