@@ -364,7 +364,7 @@ public:
      * @param type Only delete the bucket if it is of the given type
      * @return Status for the operation
      */
-    cb::engine_errc destroy(Cookie* cookie,
+    cb::engine_errc destroy(Cookie& cookie,
                             const std::string name,
                             bool force,
                             std::optional<BucketType> type);
@@ -407,6 +407,21 @@ protected:
                            const std::string name,
                            const std::string config,
                            BucketType type);
+
+    /**
+     * Destroy a bucket
+     *
+     * @param cid The client identifier (for logging)
+     * @param name The name of the bucket to delete
+     * @param force If set to true the underlying engine should not try to
+     *              persist pending items etc
+     * @param type Only delete the bucket if it is of the given type
+     * @return Status for the operation
+     */
+    cb::engine_errc destroy(std::string_view cid,
+                            const std::string name,
+                            bool force,
+                            std::optional<BucketType> type);
 
     /**
      * iterate over all the buckets, lock the bucket and call the provided

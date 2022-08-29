@@ -273,3 +273,29 @@ TEST_F(BucketManagerTest, FailingPromoteClusterConfigOnlyBucket) {
     EXPECT_EQ(cb::engine_errc::not_stored, err);
     EXPECT_TRUE(destroying) << "Expected a state callback to destroying";
 }
+
+TEST_F(BucketManagerTest, DestroyEnoent) {
+    EXPECT_EQ(cb::engine_errc::no_such_key,
+              destroy("<none>", "DestroyEnoent", true, {}));
+}
+
+TEST_F(BucketManagerTest, DestroyEinprogress) {
+    auto [e, bucket] = allocateBucket("DestroyEinprogress");
+    ASSERT_EQ(cb::engine_errc::success, e);
+    ASSERT_NE(nullptr, bucket);
+    EXPECT_EQ(cb::engine_errc::temporary_failure,
+              destroy("<none>", "DestroyEinprogress", true, {}));
+    bucket->management_operation_in_progress = false;
+    bucket->state = Bucket::State::None;
+}
+
+TEST_F(BucketManagerTest, DestroyInvalidState) {
+    auto [e, bucket] = allocateBucket("DestroyInvalidState");
+    ASSERT_EQ(cb::engine_errc::success, e);
+    ASSERT_NE(nullptr, bucket);
+    bucket->management_operation_in_progress = false;
+    EXPECT_EQ(Bucket::State::Creating, bucket->state);
+    EXPECT_EQ(cb::engine_errc::key_already_exists,
+              destroy("<none>", "DestroyInvalidState", true, {}));
+    bucket->state = Bucket::State::None;
+}

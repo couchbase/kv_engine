@@ -155,7 +155,7 @@ cb::engine_errc BucketManagementCommandContext::remove() {
                 cb::engine_errc status;
                 try {
                     status = BucketManager::instance().destroy(
-                            client, nm, f, type);
+                            *client, nm, f, type);
                 } catch (const std::runtime_error& error) {
                     LOG_WARNING(
                             "{}: An error occurred while deleting bucket [{}]: "

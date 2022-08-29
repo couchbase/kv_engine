@@ -595,89 +595,77 @@ cb::engine_errc BucketManager::create(uint32_t cid,
     }
     return result;
 }
-cb::engine_errc BucketManager::destroy(Cookie* cookie,
+
+cb::engine_errc BucketManager::destroy(Cookie& cookie,
+                                       const std::string name,
+                                       bool force,
+                                       std::optional<BucketType> type) {
+    return destroy(std::to_string(cookie.getConnectionId()), name, force, type);
+}
+
+cb::engine_errc BucketManager::destroy(std::string_view cid,
                                        const std::string name,
                                        bool force,
                                        std::optional<BucketType> type) {
     cb::engine_errc ret = cb::engine_errc::no_such_key;
-    std::unique_lock<std::mutex> all_bucket_lock(buckets_lock);
+    Bucket* bucket_ptr = nullptr;
 
-    Connection* connection = nullptr;
-    if (cookie != nullptr) {
-        connection = &cookie->getConnection();
-    }
+    {
+        std::unique_lock<std::mutex> all_bucket_lock(buckets_lock);
+        iterateBuckets([&ret, &bucket_ptr, &name, this, &type](Bucket& b) {
+            if (name != b.name) {
+                return true;
+            }
 
-    /*
-     * The destroy function will have access to a connection if the
-     * McbpDestroyBucketTask originated from delete_bucket_executor().
-     * However if we are in the process of shuting down and the
-     * McbpDestroyBucketTask originated from main() then connection
-     * will be set to nullptr.
-     */
-    const std::string connection_id{
-            (connection == nullptr) ? "<none>"
-                                    : std::to_string(connection->getId())};
+            if (b.management_operation_in_progress) {
+                // Someone else is currently operating on the bucket
+                ret = cb::engine_errc::temporary_failure;
+                return false;
+            }
 
-    size_t idx = 0;
-    for (size_t ii = 0; ii < all_buckets.size(); ++ii) {
-        std::lock_guard<std::mutex> guard(all_buckets[ii].mutex);
-        if (name == all_buckets[ii].name) {
-            idx = ii;
-            if (all_buckets[ii].state == Bucket::State::Ready) {
-                if (type && all_buckets[ii].type != type.value()) {
+            if (b.state == Bucket::State::Ready) {
+                if (type && b.type != type.value()) {
                     ret = cb::engine_errc::key_already_exists;
                 } else {
                     ret = cb::engine_errc::success;
-                    bucketStateChangeListener(all_buckets[ii],
-                                              Bucket::State::None);
-                    all_buckets[ii].state = Bucket::State::Destroying;
+                    bucket_ptr = &b;
+                    b.management_operation_in_progress = true;
+                    bucketStateChangeListener(b, Bucket::State::Destroying);
+                    b.state = Bucket::State::Destroying;
                 }
             } else {
                 ret = cb::engine_errc::key_already_exists;
             }
-        }
-        if (ret != cb::engine_errc::no_such_key) {
-            break;
-        }
+
+            return true;
+        });
     }
-    all_bucket_lock.unlock();
 
     if (ret != cb::engine_errc::success) {
-        LOG_INFO("{}: Delete bucket [{}]: {}",
-                 connection_id,
-                 name,
-                 to_string(ret));
+        LOG_WARNING("{}: Delete bucket [{}]: {}", cid, name, to_string(ret));
         return ret;
     }
 
-    if (all_buckets[idx].type != BucketType::ClusterConfigOnly) {
-        LOG_INFO("{}: Delete bucket [{}]. Notifying engine",
-                 connection_id,
-                 name);
-
-        all_buckets[idx].getEngine().initiate_shutdown();
-        all_buckets[idx].getEngine().cancel_all_operations_in_ewb_state();
+    auto& bucket = *bucket_ptr;
+    if (bucket.type != BucketType::ClusterConfigOnly) {
+        LOG_INFO("{}: Delete bucket [{}]. Notifying engine", cid, name);
+        bucket.getEngine().initiate_shutdown();
+        bucket.getEngine().cancel_all_operations_in_ewb_state();
     }
 
-    LOG_INFO("{}: Delete bucket [{}]. Engine ready for shutdown",
-             connection_id,
-             name);
+    LOG_INFO("{}: Delete bucket [{}]. Engine ready for shutdown", cid, name);
 
     // Wait until all users disconnected...
-    auto& bucket = all_buckets[idx];
-    waitForEveryoneToDisconnect(bucket, "Delete", connection_id);
+    waitForEveryoneToDisconnect(bucket, "Delete", cid);
 
-    LOG_INFO("{}: Delete bucket [{}]. Shut down the bucket",
-             connection_id,
-             name);
+    LOG_INFO("{}: Delete bucket [{}]. Shut down the bucket", cid, name);
     bucket.destroyEngine(force);
 
-    LOG_INFO("{}: Delete bucket [{}]. Clean up allocated resources ",
-             connection_id,
-             name);
+    LOG_INFO(
+            "{}: Delete bucket [{}]. Clean up allocated resources ", cid, name);
     bucket.reset();
 
-    LOG_INFO("{}: Delete bucket [{}] complete", connection_id, name);
+    LOG_INFO("{}: Delete bucket [{}] complete", cid, name);
     return cb::engine_errc::success;
 }
 
@@ -844,7 +832,7 @@ void BucketManager::destroyAll() {
         if (all_buckets[ii].state == Bucket::State::Ready) {
             const std::string name{all_buckets[ii].name};
             LOG_INFO("Waiting for delete of {} to complete", name);
-            BucketManager::instance().destroy(nullptr, name, false, {});
+            destroy("<none>", name, false, {});
             LOG_INFO("Bucket {} deleted", name);
         }
     }
