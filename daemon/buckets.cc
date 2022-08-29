@@ -34,7 +34,7 @@ void Bucket::reset() {
     std::lock_guard<std::mutex> guard(mutex);
     engine.reset();
     state = Bucket::State::None;
-    name[0] = '\0';
+    memset(name, 0, sizeof(name));
     setEngine(nullptr);
     clusterConfiguration.reset();
     max_document_size = default_max_item_size;
@@ -68,6 +68,7 @@ void Bucket::reset() {
     }
     type = BucketType::Unknown;
     throttledConnections.resize(Settings::instance().getNumWorkerThreads());
+    management_operation_in_progress = false;
 }
 
 bool Bucket::supports(cb::engine::Feature feature) {
@@ -152,6 +153,10 @@ void Bucket::setThrottleLimit(std::size_t limit) {
 
 DcpIface* Bucket::getDcpIface() const {
     return bucketDcp;
+}
+
+bool Bucket::hasEngine() const {
+    return bool(engine);
 }
 
 EngineIface& Bucket::getEngine() const {
@@ -392,160 +397,200 @@ cb::engine_errc BucketManager::setClusterConfig(
     bucket.type = BucketType::ClusterConfigOnly;
     bucket.clusterConfiguration.setConfiguration(std::move(configuration));
     strcpy(bucket.name, name.c_str());
-    bucket.state = Bucket::State::Ready;
     bucket.supportedFeatures.emplace(cb::engine::Feature::Collections);
+    bucketStateChangeListener(bucket, Bucket::State::Ready);
+    bucket.state = Bucket::State::Ready;
     LOG_INFO("Created cluster config bucket [{}]", name);
     return cb::engine_errc::success;
+}
+
+void BucketManager::iterateBuckets(std::function<bool(Bucket&)> fn) {
+    for (auto& b : all_buckets) {
+        std::lock_guard<std::mutex> guard(b.mutex);
+        if (!fn(b)) {
+            return;
+        }
+    }
+}
+
+std::pair<cb::engine_errc, Bucket*> BucketManager::allocateBucket(
+        std::string_view name) {
+    // Acquire the global mutex to lock out anyone else from adding/removing
+    // buckets in the bucket array
+    std::unique_lock<std::mutex> all_bucket_lock(buckets_lock);
+    // We need to find a new slot for the bucket, and verify that
+    // the bucket don't exist.
+    Bucket* free_bucket = nullptr;
+    Bucket* existing_bucket = nullptr;
+    bool einprogress = false;
+    iterateBuckets(
+            [&free_bucket, &existing_bucket, name, &einprogress](auto& bucket) {
+                if (!free_bucket && bucket.state == Bucket::State::None) {
+                    free_bucket = &bucket;
+                } else if (name == bucket.name) {
+                    if (bucket.management_operation_in_progress) {
+                        einprogress = true;
+                    } else if (bucket.type == BucketType::ClusterConfigOnly) {
+                        free_bucket = &bucket;
+                        bucket.management_operation_in_progress = true;
+                    } else {
+                        existing_bucket = &bucket;
+                    }
+
+                    return false;
+                }
+                return true;
+            });
+
+    if (einprogress) {
+        return {cb::engine_errc::temporary_failure, nullptr};
+    }
+
+    if (existing_bucket) {
+        return {cb::engine_errc::key_already_exists, nullptr};
+    }
+
+    if (!free_bucket) {
+        return {cb::engine_errc::too_big, nullptr};
+    }
+
+    std::lock_guard<std::mutex> guard(free_bucket->mutex);
+    // Set the bucket state to creating and copy the name over.
+    // We can't set the state to Creating for a ClusterConfigOnly bucket as
+    // that would cause all clients to disconnect.
+    free_bucket->management_operation_in_progress = true;
+    if (free_bucket->type == BucketType::Unknown) {
+        std::copy(name.begin(), name.end(), free_bucket->name);
+        bucketStateChangeListener(*free_bucket, Bucket::State::Creating);
+        free_bucket->state = Bucket::State::Creating;
+    }
+    return {cb::engine_errc::success, free_bucket};
+}
+
+void BucketManager::createEngineInstance(Bucket& bucket,
+                                         BucketType type,
+                                         std::string_view name,
+                                         std::string_view config,
+                                         uint32_t cid) {
+    auto start = std::chrono::steady_clock::now();
+    bucket.setEngine(new_engine_instance(type, get_server_api));
+    auto stop = std::chrono::steady_clock::now();
+    if ((stop - start) > std::chrono::seconds{1}) {
+        LOG_WARNING("{}: Creation of bucket instance for bucket [{}] took {}",
+                    cid,
+                    name,
+                    cb::time2text(stop - start));
+    }
+
+    // Set the state initializing so that people monitoring the
+    // bucket states can pick it up. We can't change the state
+    // for cluster-config-only buckets as that would cause clients
+    // to disconnect
+    if (bucket.type == BucketType::Unknown) {
+        std::lock_guard<std::mutex> guard(bucket.mutex);
+        bucketStateChangeListener(bucket, Bucket::State::Initializing);
+        bucket.state = Bucket::State::Initializing;
+    }
+
+    LOG_INFO(R"({}: Initialize {} bucket [{}] using configuration: "{}")",
+             cid,
+             to_string(type),
+             name,
+             config);
+    start = std::chrono::steady_clock::now();
+    auto result = bucket.getEngine().initialize(config);
+    if (result != cb::engine_errc::success) {
+        throw cb::engine_error(result, "initializeEngineInstance failed");
+    }
+    stop = std::chrono::steady_clock::now();
+    if ((stop - start) > std::chrono::seconds{1}) {
+        LOG_WARNING("{}: Initialization of bucket [{}] took {}",
+                    cid,
+                    name,
+                    cb::time2text(stop - start));
+    }
+
+    // We don't pass the storage threads down in the config like we do for
+    // readers and writers because that evolved over time to be duplicated
+    // in both configs. Instead, we just inform the engine of the number
+    // of threads.
+    auto& engine = bucket.getEngine();
+    engine.set_num_storage_threads(ThreadPoolConfig::StorageThreadCount(
+            Settings::instance().getNumStorageThreads()));
+
+    bucket.max_document_size = engine.getMaxItemSize();
+    bucket.supportedFeatures = engine.getFeatures();
+
+    // MB-53498: Set the bucket type to the correct type
+    bucketTypeChangeListener(bucket, type);
+    bucket.type.store(type, std::memory_order_seq_cst);
 }
 
 cb::engine_errc BucketManager::create(Cookie& cookie,
                                       const std::string name,
                                       const std::string config,
                                       BucketType type) {
-    // If there is an error I should set the cookie error context
-    cb::engine_errc result;
-    auto cid = cookie.getConnectionId();
+    return create(cookie.getConnectionId(), name, config, type);
+}
 
+cb::engine_errc BucketManager::create(uint32_t cid,
+                                      const std::string name,
+                                      const std::string config,
+                                      BucketType type) {
     LOG_INFO("{}: Create {} bucket [{}]", cid, to_string(type), name);
-
-    size_t ii;
-    size_t first_free = all_buckets.size();
-    bool found = false;
-
-    std::unique_lock<std::mutex> all_bucket_lock(buckets_lock);
-    for (ii = 0; ii < all_buckets.size() && !found; ++ii) {
-        std::lock_guard<std::mutex> guard(all_buckets[ii].mutex);
-        if (first_free == all_buckets.size() &&
-            all_buckets[ii].state == Bucket::State::None) {
-            first_free = ii;
-        }
-        if (name == all_buckets[ii].name) {
-            found = true;
-            first_free = ii;
-        }
+    auto [err, free_bucket] = allocateBucket(name);
+    if (err != cb::engine_errc::success) {
+        LOG_ERROR("{}: Create bucket [{}] failed - {}",
+                  cid,
+                  name,
+                  to_string(err));
+        return err;
     }
 
-    if (found &&
-        all_buckets[first_free].type != BucketType::ClusterConfigOnly) {
-        result = cb::engine_errc::key_already_exists;
-        LOG_ERROR("{}: Create bucket [{}] failed - Already exists", cid, name);
-    } else if (first_free == all_buckets.size()) {
-        result = cb::engine_errc::too_big;
-        LOG_ERROR(
-                "{}: Create bucket [{}] failed - Too many buckets", cid, name);
-    } else {
-        result = cb::engine_errc::success;
-        ii = first_free;
-        /*
-         * split the creation of the bucket in two... so
-         * we can release the global lock..
-         */
-        std::lock_guard<std::mutex> guard(all_buckets[ii].mutex);
-        if (all_buckets[ii].type == BucketType::Unknown) {
-            all_buckets[ii].state = Bucket::State::Creating;
-            strcpy(all_buckets[ii].name, name.c_str());
-        }
+    if (!free_bucket) {
+        throw std::logic_error(
+                "BucketManager::create: allocateBucket returned success but no "
+                "bucket");
     }
-    all_bucket_lock.unlock();
+    auto& bucket = *free_bucket;
 
-    if (result != cb::engine_errc::success) {
-        return result;
-    }
-
-    auto& bucket = all_buckets[ii];
-
-    // People aren't allowed to use the engine in this state,
-    // so we can do stuff without locking..
+    cb::engine_errc result = cb::engine_errc::success;
     try {
-        const auto start = std::chrono::steady_clock::now();
-        bucket.setEngine(new_engine_instance(type, get_server_api));
-        const auto stop = std::chrono::steady_clock::now();
-        if ((stop - start) > std::chrono::seconds{1}) {
-            LOG_WARNING(
-                    "{}: Creation of bucket instance for bucket [{}] took {}",
-                    cid,
-                    name,
-                    cb::time2text(stop - start));
+        createEngineInstance(bucket, type, name, config, cid);
+
+        // The bucket is fully initialized and ready to use!
+        {
+            std::lock_guard<std::mutex> guard(bucket.mutex);
+            bucket.management_operation_in_progress = false;
+            bucketStateChangeListener(bucket, Bucket::State::Ready);
+            bucket.state = Bucket::State::Ready;
         }
+        LOG_INFO("{}: Bucket [{}] created successfully", cid, name);
     } catch (const cb::engine_error& exception) {
-        bucket.reset();
+        result = cb::engine_errc(exception.code().value());
         LOG_ERROR("{}: Failed to create bucket [{}]: {}",
                   cid,
                   name,
                   exception.what());
-        result = cb::engine_errc(exception.code().value());
-        return result;
-    }
-
-    auto& engine = bucket.getEngine();
-    if (all_buckets[ii].type == BucketType::Unknown) {
-        std::lock_guard<std::mutex> guard(bucket.mutex);
-        bucket.state = Bucket::State::Initializing;
-    }
-
-    try {
-        LOG_INFO(R"({}: Initialize {} bucket [{}] using configuration: "{}")",
-                 cid,
-                 to_string(type),
-                 name,
-                 config);
-        const auto start = std::chrono::steady_clock::now();
-        result = engine.initialize(config);
-        const auto stop = std::chrono::steady_clock::now();
-        if ((stop - start) > std::chrono::seconds{1}) {
-            LOG_WARNING("{}: Initialization of bucket [{}] took {}",
-                        cid,
-                        name,
-                        cb::time2text(stop - start));
-        }
-    } catch (const std::runtime_error& e) {
+    } catch (const std::bad_alloc&) {
+        LOG_ERROR("{}: Failed to create bucket [{}]: No memory", cid, name);
+        result = cb::engine_errc::no_memory;
+    } catch (const std::exception& e) {
         LOG_ERROR("{}: Failed to create bucket [{}]: {}", cid, name, e.what());
         result = cb::engine_errc::failed;
-    } catch (const std::bad_alloc& e) {
-        LOG_ERROR("{}: Failed to create bucket [{}]: {}", cid, name, e.what());
-        result = cb::engine_errc::no_memory;
     }
 
-    if (result == cb::engine_errc::success) {
-        // We don't pass the storage threads down in the config like we do for
-        // readers and writers because that evolved over time to be duplicated
-        // in both configs. Instead, we just inform the engine of the number
-        // of threads.
-        auto* serverCoreApi =
-                dynamic_cast<ServerCoreApi*>(get_server_api()->core);
-        if (!serverCoreApi) {
-            throw std::runtime_error("Server core API is unexpected type");
-        }
-        engine.set_num_storage_threads(ThreadPoolConfig::StorageThreadCount(
-                Settings::instance().getNumStorageThreads()));
-
-        bucket.max_document_size = engine.getMaxItemSize();
-        bucket.supportedFeatures = engine.getFeatures();
-
-        // MB-53498: Set the bucket type to the correct type
-        bucket.type.store(type, std::memory_order_seq_cst);
-
-        // MB-47231: Reported use after free which was most likely caused
-        // by setting the state of the bucket to ready _before_
-        // initializing bucket.supportedFeatures so if another thread
-        // tried to select the bucket and was scheduled in between of these
-        // calls it would fetch the old value for supportedFeature and we're
-        // experiencing undefined behavior (one thread will be writing into
-        // the std::set while another one reads from it. The other thread
-        // could also be traversing freed memory.
+    if (result != cb::engine_errc::success) {
+        // An error occurred, we need to roll back
         {
             std::lock_guard<std::mutex> guard(bucket.mutex);
-            bucket.state = Bucket::State::Ready;
-        }
-        LOG_INFO("{}: Bucket [{}] created successfully", cid, name);
-    } else {
-        {
-            std::lock_guard<std::mutex> guard(bucket.mutex);
+            bucketStateChangeListener(bucket, Bucket::State::Destroying);
             bucket.state = Bucket::State::Destroying;
         }
+        waitForEveryoneToDisconnect(
+                bucket, "bucket creation rollback", std::to_string(cid));
 
         bucket.reset();
-
         result = cb::engine_errc::not_stored;
     }
     return result;
@@ -583,6 +628,8 @@ cb::engine_errc BucketManager::destroy(Cookie* cookie,
                     ret = cb::engine_errc::key_already_exists;
                 } else {
                     ret = cb::engine_errc::success;
+                    bucketStateChangeListener(all_buckets[ii],
+                                              Bucket::State::None);
                     all_buckets[ii].state = Bucket::State::Destroying;
                 }
             } else {
@@ -826,5 +873,6 @@ BucketManager::BucketManager() {
     nobucket.max_document_size = nobucket.getEngine().getMaxItemSize();
     nobucket.supportedFeatures = nobucket.getEngine().getFeatures();
     nobucket.type = BucketType::NoBucket;
+    bucketStateChangeListener(nobucket, Bucket::State::Ready);
     nobucket.state = Bucket::State::Ready;
 }

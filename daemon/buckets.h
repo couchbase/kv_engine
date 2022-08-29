@@ -33,6 +33,7 @@ struct DcpIface;
 class Connection;
 struct FrontEndThread;
 class Cookie;
+class BucketManager;
 
 #define MAX_BUCKET_NAME_LENGTH 100
 
@@ -61,6 +62,9 @@ public:
     /// to create a copy of the bucket anyway, so it's most likely a bug
     /// if people ended up making a copy.
     Bucket(const Bucket& other) = delete;
+
+    /// Does this bucket have an engine or not (for unit tests)
+    bool hasEngine() const;
 
     /// @returns a pointer to the actual engine serving the request
     EngineIface& getEngine() const;
@@ -91,6 +95,21 @@ public:
      * is_bucket_dying().
      */
     std::atomic<State> state{State::None};
+
+    /**
+     * A ClusterConfigOnly bucket may be "upgraded" to a real bucket "in place"
+     * which makes it possible for two ns_server connections to concurrently
+     * perform that operation (and we would have a race touching the internal
+     * members). We don't want to fully serialize bucket creation/deletion
+     * as creating / deletion of some buckets _could_ take some time,
+     * and we would like to be able to run such commands in parallel.
+     * The management operations should look at this member in order
+     * to check if there is already and ongoing management operation on
+     * the bucket before trying to start a new operation. The member is put
+     * here as we had an available padding byte here, another alternative
+     * would have been to put a member within the BucketManager itself.
+     */
+    bool management_operation_in_progress;
 
     /// The number of items in flight from the bucket (which keeps a reference
     /// inside the bucket so we cannot kill the bucket until they're gone.
@@ -375,6 +394,69 @@ public:
     void tick();
 
 protected:
+    /**
+     * Create a bucket
+     *
+     * @param cid The client identifier (for logging)
+     * @param name The name of the bucket
+     * @param config The configuration for the bucket
+     * @param type The type of bucket to create
+     * @return Status for the operation
+     */
+    cb::engine_errc create(uint32_t cid,
+                           const std::string name,
+                           const std::string config,
+                           BucketType type);
+
+    /**
+     * iterate over all the buckets, lock the bucket and call the provided
+     * function. If the callback returns false iteration stops.
+     *
+     * The member function is intended to be used within the bucket manager
+     * to try to locate a bucket bucket. The caller typically holds global
+     * lock to make sure that no one else will try to create/delete buckets
+     * while iterating over the buckets. (Note that it is possible to call
+     * the method _without_ holding the lock, but then you're not guaranteed
+     * that buckets will come or go during the iteration).
+     */
+    void iterateBuckets(std::function<bool(Bucket&)> fn);
+
+    /**
+     * Allocate a bucket for the given name and set its state to creating.
+     *
+     * @param name The name of the bucket to create
+     * @return success if a slot was successfully allocated
+     *         key_already_exists if a bucket with the same name already exists
+     *         too_big if all bucket slots are in use
+     *         temporary_failure if there is an ongoing management command on
+     *                           the bucket represented by the provided name
+     */
+    std::pair<cb::engine_errc, Bucket*> allocateBucket(std::string_view name);
+
+    /**
+     * Create an engine instance of the specified type for the provided bucket
+     *
+     * @param bucket The bucket to get the engine instance
+     * @param type The type of engine to create
+     * @param name The name of the bucket (for logging)
+     * @param config The configuration to initialize the engine
+     * @param cid The client identifier (for logging)
+     */
+    void createEngineInstance(Bucket& bucket,
+                              BucketType type,
+                              std::string_view name,
+                              std::string_view config,
+                              uint32_t cid);
+
+    // Called right before changing the bucket type (to use for testing)
+    virtual void bucketTypeChangeListener(Bucket& bucket, BucketType type) {
+    }
+
+    // Called right before changing the bucket state (to use for testing)
+    virtual void bucketStateChangeListener(Bucket& bucket,
+                                           Bucket::State state) {
+    }
+
     /**
      * Wait for all clients to disconnect from the provided bucket
      *
