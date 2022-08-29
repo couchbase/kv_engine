@@ -395,3 +395,10 @@ TEST_P(BucketTest, TestMemcachedBucketBigObjects) {
     });
     adminConnection->deleteBucket("mybucket_000");
 }
+
+/// Verify that we can delete the currently selected bucket
+TEST_P(BucketTest, DeleteSelectedBucket) {
+    adminConnection->createBucket("bucket", "", BucketType::Memcached);
+    adminConnection->selectBucket("bucket");
+    deleteBucket(*adminConnection, "bucket", [](const std::string&) {});
+}

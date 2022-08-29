@@ -616,11 +616,6 @@ cb::engine_errc BucketManager::destroy(Cookie* cookie,
              connection_id,
              name);
 
-    /* If this thread is connected to the requested bucket... release it */
-    if (connection != nullptr && idx == size_t(connection->getBucketIndex())) {
-        disassociate_bucket(*connection, cookie);
-    }
-
     // Wait until all users disconnected...
     auto& bucket = all_buckets[idx];
     waitForEveryoneToDisconnect(bucket, "Delete", connection_id);

@@ -125,7 +125,6 @@ cb::engine_errc BucketManagementCommandContext::remove() {
                         config);
                 return cb::engine_errc::invalid_arguments;
             }
-
         } catch (const std::exception& e) {
             LOG_WARNING(
                     "{} Exception occurred while parsing delete bucket "
@@ -136,6 +135,12 @@ cb::engine_errc BucketManagementCommandContext::remove() {
                     e.what());
             return cb::engine_errc::failed;
         }
+    }
+
+    // If we're connected to the given bucket we should switch to another
+    // bucket first
+    if (name == connection.getBucket().name) {
+        associate_bucket(cookie, "");
     }
 
     std::string taskname{"Delete bucket [" + name + "]"};
