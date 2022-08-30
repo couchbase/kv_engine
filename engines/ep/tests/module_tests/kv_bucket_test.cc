@@ -32,7 +32,6 @@
 #include "evp_store_single_threaded_test.h"
 #include "failover-table.h"
 #include "flusher.h"
-#include "kv_bucket.h"
 #ifdef EP_USE_MAGMA
 #include "kvstore/magma-kvstore/magma-kvstore_config.h"
 #endif
@@ -131,8 +130,9 @@ void KVBucketTest::initialise(std::string config) {
 
     auto numCkptDestroyers =
             engine->getConfiguration().getCheckpointDestructionTasks();
+    auto locked = store->ckptDestroyerTasks.wlock();
     for (size_t i = 0; i < numCkptDestroyers; ++i) {
-        store->ckptDestroyerTasks.push_back(
+        locked->push_back(
                 std::make_shared<CheckpointDestroyerTask>(engine.get()));
     }
 
@@ -384,12 +384,13 @@ void KVBucketTest::scheduleCheckpointRemoverTask() {
 }
 
 void KVBucketTest::scheduleCheckpointDestroyerTasks() {
-    for (const auto& task : store->ckptDestroyerTasks) {
+    const auto locked = store->ckptDestroyerTasks.rlock();
+    for (const auto& task : *locked) {
         ExecutorPool::get()->schedule(task);
     }
 }
 
-const std::vector<std::shared_ptr<CheckpointDestroyerTask>>&
+const KVBucket::CheckpointDestroyers&
 KVBucketTest::getCheckpointDestroyerTasks() const {
     return store->ckptDestroyerTasks;
 }

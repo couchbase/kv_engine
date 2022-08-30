@@ -2982,13 +2982,15 @@ bool KVBucket::isCheckpointMemoryReductionRequired() const {
 }
 
 CheckpointDestroyerTask& KVBucket::getCkptDestroyerTask(Vbid vbid) const {
-    Expects(!ckptDestroyerTasks.empty());
-    return *ckptDestroyerTasks[vbid.get() % ckptDestroyerTasks.size()];
+    const auto locked = ckptDestroyerTasks.rlock();
+    Expects(!locked->empty());
+    return *locked->at(vbid.get() % locked->size());
 }
 
 size_t KVBucket::getCheckpointPendingDestructionMemoryUsage() const {
     size_t memoryUsage = 0;
-    for (const auto& task : ckptDestroyerTasks) {
+    const auto locked = ckptDestroyerTasks.rlock();
+    for (const auto& task : *locked) {
         memoryUsage += task->getMemoryUsage();
     }
     return memoryUsage;
@@ -2996,7 +2998,8 @@ size_t KVBucket::getCheckpointPendingDestructionMemoryUsage() const {
 
 size_t KVBucket::getNumCheckpointsPendingDestruction() const {
     size_t count = 0;
-    for (const auto& task : ckptDestroyerTasks) {
+    const auto locked = ckptDestroyerTasks.rlock();
+    for (const auto& task : *locked) {
         count += task->getNumCheckpoints();
     }
     return count;
@@ -3025,12 +3028,12 @@ KVBucket::createAndScheduleSeqnoPersistenceNotifier() {
 }
 
 void KVBucket::createAndScheduleCheckpointDestroyerTasks() {
-    auto numCkptDestroyers =
+    const auto numCkptDestroyers =
             engine.getConfiguration().getCheckpointDestructionTasks();
+    auto locked = ckptDestroyerTasks.wlock();
     for (size_t i = 0; i < numCkptDestroyers; ++i) {
-        ckptDestroyerTasks.push_back(
-                std::make_shared<CheckpointDestroyerTask>(&engine));
-        ExecutorPool::get()->schedule(ckptDestroyerTasks.back());
+        locked->push_back(std::make_shared<CheckpointDestroyerTask>(&engine));
+        ExecutorPool::get()->schedule(locked->back());
     }
 }
 

@@ -1091,8 +1091,13 @@ protected:
      * Multiple tasks allows checkpoint destruction to be scaled; under heavy
      * workloads checkpoints may be created and consumed faster than they can
      * be destroyed by a single task.
+     *
+     * Note: Thread-safe type as the number of destroyers is controlled by the
+     *  related dynamic parameter in EP configuration.
      */
-    std::vector<std::shared_ptr<CheckpointDestroyerTask>> ckptDestroyerTasks;
+    using CheckpointDestroyers = folly::Synchronized<
+            std::vector<std::shared_ptr<CheckpointDestroyerTask>>>;
+    CheckpointDestroyers ckptDestroyerTasks;
 
     float                           bfilterResidencyThreshold;
     ExTask                          defragmenterTask;

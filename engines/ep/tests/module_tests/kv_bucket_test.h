@@ -20,6 +20,7 @@
 #pragma once
 
 #include "ep_types.h"
+#include "kv_bucket.h"
 #include "storeddockey_fwd.h"
 
 #include <folly/portability/GTest.h>
@@ -247,8 +248,7 @@ public:
     /**
      * Allow test access to all checkpoint destroyer tasks.
      */
-    const std::vector<std::shared_ptr<CheckpointDestroyerTask>>&
-    getCheckpointDestroyerTasks() const;
+    const KVBucket::CheckpointDestroyers& getCheckpointDestroyerTasks() const;
 
     /**
      * Convenience method to run the background fetcher task once (in the

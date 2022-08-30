@@ -4009,7 +4009,8 @@ TEST_P(ShardedCheckpointDestructionTest, ShardedBackgroundTaskIsNotified) {
     // Verify that eager checkpoint removal notifies the correct destroyer task
 
     // sanity check that the number of tasks that exist matches the config
-    ASSERT_EQ(GetParam(), getCheckpointDestroyerTasks().size());
+    const auto locked = getCheckpointDestroyerTasks().rlock();
+    ASSERT_EQ(GetParam(), locked->size());
 
     const size_t numVbuckets = 4;
     // setup 4 vbuckets
@@ -4021,7 +4022,7 @@ TEST_P(ShardedCheckpointDestructionTest, ShardedBackgroundTaskIsNotified) {
     scheduleCheckpointDestroyerTasks();
 
     // none of the tasks should be scheduled to run
-    for (const auto& task : getCheckpointDestroyerTasks()) {
+    for (const auto& task : *locked) {
         EXPECT_EQ(task->getWaketime(),
                   std::chrono::steady_clock::time_point::max());
     }
@@ -4057,9 +4058,8 @@ TEST_P(ShardedCheckpointDestructionTest, ShardedBackgroundTaskIsNotified) {
 
     auto& nonIOQueue = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
     // check that expected tasks have been notified, and run them
-    const auto& tasks = getCheckpointDestroyerTasks();
-    for (size_t i = 0; i < tasks.size(); ++i) {
-        const auto& task = tasks[i];
+    for (size_t i = 0; i < locked->size(); ++i) {
+        const auto& task = locked->at(i);
         if (numVbuckets > i) {
             // there are enough vbuckets that this task should definitely
             // have been triggered
