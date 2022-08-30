@@ -8230,9 +8230,9 @@ static enum test_result test_replace_at_pending_insert(EngineIface* h) {
  * This is done by creating two buckets, populating each with some data,
  * then restarting and warming up both buckets, but wioth only 1 reader thread
  * available. We orchestrate the warmups so the larger bucket (slowBucket)
- * begins warmup first and advances to the keyDumpforShard phase (which is O(n)),
- * before we start warmup of the second (smallBucket). A testing hook is used
- * which inserts a 100ms delay after every key of slowBucket is scanned.
+ * begins warmup first and advances to the keyDumpforShard phase (which is
+ * O(n)), before we start warmup of the second (smallBucket). A testing hook is
+ * used which inserts a 100ms delay after every key of slowBucket is scanned.
  * Without the fix, this causes smallBucket to be blocked for
  * 100ms * keys_in_slowBucket. With the fix, keyDumpforShard should yield after
  * the task has run for 10ms, which should allow smallBucket to run its warmup
@@ -8343,7 +8343,8 @@ static test_result test_reader_thread_starvation_warmup(EngineIface* h) {
             keysPerVbucket * milliseconds{perKeySleepMs} / 2);
     checklt(smallWarmupDuration.count(),
             smallWarmupTimeLimit.count(),
-            "smallBucket should have populated VB map before slowBucket completed warmup");
+            "smallBucket should have populated VB map before slowBucket "
+            "completed warmup");
 
     // 10. Wait for the both buckets to complete warmup - we can accelerate
     // this now by removing the per-key sleep happening to slowBucket.
