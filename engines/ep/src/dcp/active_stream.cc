@@ -1488,9 +1488,12 @@ void ActiveStream::snapshot(
             lastSentSnapStartSeqno = snapStart;
         }
 
-        // Only compare last sent start with last sent end if end has already
-        // been set
-        if (!wasFirst && lastSentSnapStartSeqno <= lastSentSnapEndSeqno) {
+        // We only consider failing here if the vBucket state is active. If this
+        // is a replica vBucket (and as such this must be a view stream) then it
+        // is possible for us to send a snap start < previous snap end as we
+        // attempt to merge disk and memory snapshots.
+        if (!wasFirst && lastSentSnapStartSeqno <= lastSentSnapEndSeqno &&
+            engine->getVBucket(vb_)->getState() == vbucket_state_active) {
             auto msg = fmt::format(
                     "ActiveStream::snapshot: sent "
                     "snapshot marker to client with snap start <= previous "
