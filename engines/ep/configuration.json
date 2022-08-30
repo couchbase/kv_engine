@@ -192,7 +192,7 @@
             "type": "size_t"
         },
         "checkpoint_destruction_tasks": {
-            "default": "1",
+            "default": "2",
             "descr": "Number of tasks responsible for destroying closed unreferenced checkpoints.",
             "dynamic": false,
             "type": "size_t",
