@@ -860,6 +860,7 @@ TEST_P(StreamTest, DiskBackfillFail) {
    However small the backfill buffer is, backfill must not stop, it must
    proceed to completion eventually */
 TEST_P(StreamTest, BackfillSmallBuffer) {
+    GTEST_SKIP_("Skipping due to MB-53543");
     if (bucketType == "ephemeral") {
         /* Ephemeral buckets is not memory managed for now. Will be memory
            managed soon and then this test will be enabled */
