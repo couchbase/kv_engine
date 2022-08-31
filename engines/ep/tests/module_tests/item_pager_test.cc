@@ -1089,7 +1089,7 @@ TEST_P(STItemPagerTest, EvictBGFetchedDeletedItem) {
     checkItemStatePostFetch(false /*expect item to not exist*/);
 }
 
-// See MB-51958, disabled due to consistent failures
+// Previously disabled due to consistent failures (MB-51958)
 TEST_P(STItemPagerTest, ReplicaEvictedBeforeActive) {
     // MB-40531 test that the item pager does not evict from active vbuckets
     // if evicting from replicas can reclaim enough memory to reach the low
@@ -1114,8 +1114,8 @@ TEST_P(STItemPagerTest, ReplicaEvictedBeforeActive) {
     const Vbid activeVb(0);
     const Vbid replicaVb(1);
 
-    // Set replicaVb as active initially so we can populate it easily
     setVBucketStateAndRunPersistTask(activeVb, vbucket_state_active);
+    // Set replicaVb as active initially so we can populate it easily
     setVBucketStateAndRunPersistTask(replicaVb, vbucket_state_active);
 
     // bump the quota up. We need the evictable data stored in replicas to be
@@ -1142,13 +1142,8 @@ TEST_P(STItemPagerTest, ReplicaEvictedBeforeActive) {
                 EXPECT_LT(stats.getPreciseTotalMemoryUsed(),
                           stats.mem_high_wat.load());
 
-                // When the actives are populated, mem used will go _over_
-                // the high water mark by a small amount. To evict only from
-                // replicas, their total pageable memory must be at least the
-                // watermark diff + a small excess to account for the final
-                // inserted item _passing_ the high watermark.
                 return store->getVBucket(replicaVb)->getPageableMemUsage() >
-                       watermarkDiff + 10000;
+                       watermarkDiff;
             });
     flushAndRemoveCheckpoints(replicaVb);
 
@@ -1160,7 +1155,6 @@ TEST_P(STItemPagerTest, ReplicaEvictedBeforeActive) {
     auto activeItemCount = populateVbsUntil({activeVb}, [&stats] {
         return stats.getPreciseTotalMemoryUsed() > stats.mem_high_wat.load();
     });
-
     flushAndRemoveCheckpoints(activeVb);
 
     // Flushing and removing checkpoints frees some memory, "top up" the
@@ -1190,6 +1184,17 @@ TEST_P(STItemPagerTest, ReplicaEvictedBeforeActive) {
     ASSERT_EQ(100, getRRPercent(*store->getVBucket(activeVb)));
     ASSERT_EQ(100, getRRPercent(*store->getVBucket(replicaVb)));
 
+    // PreciseTotalMemoryUsed will be above the high watermark by some amount
+    // after population. Because the item pager evicts down to the low
+    // watermark, this would cause us to evict > watermarkDiff, forcing
+    // actives to be evicted as well.
+    // Additionally, setting the replica vBuckets to replica state may change
+    // the memory used. Set the low watermark so this doesn't affect the test.
+    stats.setLowWaterMark(
+            (stats.getPreciseTotalMemoryUsed() -
+             store->getVBucket(replicaVb)->getPageableMemUsage()) +
+            1);
+
     // Run the item pager
     auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
     // This creates the paging visitor
@@ -1199,9 +1204,9 @@ TEST_P(STItemPagerTest, ReplicaEvictedBeforeActive) {
     // nothing left to do
     EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
 
-    // Nothing evicted from active
+    // Nothing should be evicted from active
     EXPECT_EQ(100, getRRPercent(*store->getVBucket(activeVb)));
-    // Confirm the replica RR is lower that active RR
+    // Confirm the replica RR is lower than active RR
     EXPECT_LT(getRRPercent(*store->getVBucket(replicaVb)), 100);
 }
 
