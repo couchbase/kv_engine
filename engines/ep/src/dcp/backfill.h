@@ -135,24 +135,56 @@ protected:
 };
 
 /**
- * Interface for classes which support tracking the total number of
- * Backfills across an entire Bucket.
+ * KVStoreScanTracker is a class used to count how many scans are in existence
+ * and providing methods to know if a new scan can be created.
  */
-struct BackfillTrackingIface {
-    virtual ~BackfillTrackingIface() = default;
+class KVStoreScanTracker {
+public:
+    virtual ~KVStoreScanTracker() = default;
 
     /**
-     * Checks if one more backfill can be added to the active set. If so
-     * then returns true, and notes that one more backfill is active.
-     * If no more backfills can be added to the active set, returns false.
+     * Check if a backfill can be created (which will create a ScanContext).
+     * If true is returned the KVStoreScanTracker has incremented the tracking
+     * to include a new scan and the caller must now proceed to create the scan.
+     * If no more backfills can be created returns false.
+     *
+     * @return true if a backfill can be created
      */
-    virtual bool canAddBackfillToActiveQ() = 0;
+    virtual bool canCreateBackfill();
+
+    /// Decrement number of running backfills by one
+    virtual void decrNumRunningBackfills();
 
     /**
-     * Decrement by one the number of running (active/initializing/snoozing)
-     * backfills. Does not include pending backfills.
+     * Set the maxRunning limit. The value is found by calling
+     * getMaxRunningScansForQuota(maxDataSize)
      */
-    virtual void decrNumRunningBackfills() = 0;
+    void updateMaxRunningScans(size_t maxDataSize);
+
+    /// @return how many DCP backfills are running
+    uint16_t getNumRunningBackfills() const {
+        return scans.lock()->running;
+    }
+
+    /// @return the maximum number of DCP backfills
+    uint16_t getMaxRunningBackfills() const {
+        return scans.lock()->maxRunning;
+    }
+
+    /// @return the maximum scans value from the given maxDataSize (quota).
+    static uint16_t getMaxRunningScansForQuota(size_t maxDataSize);
+
+private:
+    // Current and maximum number of scans (i.e. DCPBackfills). These may not
+    // be actively scanning, but have an open snapshot.
+    struct Scans {
+        // count of backfills
+        uint16_t running{0};
+
+        // The upper limit
+        uint16_t maxRunning{0};
+    };
+    folly::Synchronized<Scans, std::mutex> scans;
 };
 
 using UniqueDCPBackfillPtr = std::unique_ptr<DCPBackfillIface>;

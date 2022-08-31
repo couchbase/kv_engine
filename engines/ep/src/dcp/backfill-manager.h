@@ -111,7 +111,7 @@
 
 class Configuration;
 class CookieIface;
-struct BackfillTrackingIface;
+class KVStoreScanTracker;
 class DcpProducer;
 class GlobalTask;
 class KVBucket;
@@ -131,7 +131,7 @@ public:
      * Construct a BackfillManager to manage backfills for a DCP Producer.
      * @param kvBucket Bucket DCP Producer belongs to (used to check memory
      *        usage and if Backfills should be paused).
-     * @param backfillTracker Object which tracks how many backfills are
+     * @param scanTracker Object which tracks how many scans are
      *        in progress, and tells BackfillManager when it should
      *        set new backfills as pending.
      * @param name The name of the BackfillManager; used for logging etc.
@@ -144,7 +144,7 @@ public:
      *        bytesSent()).
      */
     BackfillManager(KVBucket& kvBucket,
-                    BackfillTrackingIface& backfillTracker,
+                    KVStoreScanTracker& scanTracker,
                     std::string name,
                     size_t scanByteLimit,
                     size_t scanItemLimit,
@@ -156,7 +156,7 @@ public:
      * object.
      */
     BackfillManager(KVBucket& kvBucket,
-                    BackfillTrackingIface& dcpConnmap,
+                    KVStoreScanTracker& scanTracker,
                     std::string name,
                     const Configuration& config);
 
@@ -309,10 +309,10 @@ protected:
     std::list<UniqueDCPBackfillPtr> pendingBackfills;
     // KVBucket this BackfillManager is associated with.
     KVBucket& kvBucket;
-    // The object tracking how many backfills are in progress. This tells
+    // The object tracking how many scans are in progress. This tells
     // BackfillManager when to place new Backfills on the pending list (if
     // too many are already in progress).
-    BackfillTrackingIface& backfillTracker;
+    KVStoreScanTracker& scanTracker;
     ExTask managerTask;
     ScheduleOrder scheduleOrder{ScheduleOrder::RoundRobin};
 };

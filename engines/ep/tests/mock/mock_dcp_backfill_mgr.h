@@ -14,6 +14,7 @@
 #include "dcp/backfill-manager.h"
 #include "dcp/dcpconnmap.h"
 #include "ep_engine.h"
+#include "kv_bucket.h"
 
 /*
  * Mock of the BackfillManager class.  Wraps the real BackfillManager, but
@@ -23,7 +24,7 @@ class MockDcpBackfillManager : public BackfillManager {
 public:
     explicit MockDcpBackfillManager(EventuallyPersistentEngine& theEngine)
         : BackfillManager(*theEngine.getKVBucket(),
-                          theEngine.getDcpConnMap(),
+                          theEngine.getKVBucket()->getKVStoreScanTracker(),
                           "MockDcpBackfillManager",
                           theEngine.getConfiguration()) {
     }

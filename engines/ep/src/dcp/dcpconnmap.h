@@ -11,7 +11,6 @@
 
 #pragma once
 
-#include "backfill.h"
 #include "conn_store_fwd.h"
 #include "connmap.h"
 #include "ep_types.h"
@@ -26,7 +25,7 @@ class CheckpointCursor;
 class DcpProducer;
 class DcpConsumer;
 
-class DcpConnMap : public ConnMap, public BackfillTrackingIface {
+class DcpConnMap : public ConnMap {
 public:
     explicit DcpConnMap(EventuallyPersistentEngine& engine);
 
@@ -119,12 +118,6 @@ public:
 
     void manageConnections() override;
 
-    bool canAddBackfillToActiveQ() override;
-
-    void decrNumRunningBackfills() override;
-
-    void updateMaxRunningBackfills(size_t maxDataSize);
-
     /**
      * Calculate how many backfills we can run for the given Bucket quota.
      *
@@ -133,15 +126,7 @@ public:
      */
     static uint16_t getMaxRunningBackfillsForQuota(size_t maxDataSize);
 
-    uint16_t getNumRunningBackfills() {
-        std::lock_guard<std::mutex> lh(backfills.mutex);
-        return backfills.running;
-    }
 
-    uint16_t getMaxRunningBackfills() {
-        std::lock_guard<std::mutex> lh(backfills.mutex);
-        return backfills.maxRunning;
-    }
 
     cb::engine_errc addPassiveStream(ConnHandler& conn,
                                      uint32_t opaque,
@@ -229,22 +214,6 @@ protected:
      * Cancels all tasks assocuated with each connection in `map`.
      */
     static void cancelTasks(CookieToConnectionMap& map);
-
-    /* Db file memory */
-    static const uint32_t dbFileMem;
-
-    // Current and maximum number of running (active/initializing/snoozing)
-    // backfills. Does not include pending backfills.
-    struct {
-        std::mutex mutex;
-        uint16_t running;
-        uint16_t maxRunning;
-    } backfills;
-
-    /* Max num of backfills we want to have irrespective of memory */
-    static const uint16_t numBackfillsThreshold;
-    /* Max percentage of memory we want backfills to occupy */
-    static const uint8_t numBackfillsMemThreshold;
 
     std::atomic<float> minCompressionRatioForProducer;
 

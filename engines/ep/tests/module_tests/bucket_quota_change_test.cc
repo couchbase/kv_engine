@@ -135,9 +135,12 @@ public:
     }
 
     void checkMaxRunningBackfills(size_t quotaValue) {
-        EXPECT_EQ(engine->getDcpConnMap().getMaxRunningBackfillsForQuota(
-                          quotaValue),
-                  engine->getDcpConnMap().getMaxRunningBackfills());
+        EXPECT_EQ(engine->getKVBucket()
+                          ->getKVStoreScanTracker()
+                          .getMaxRunningScansForQuota(quotaValue),
+                  engine->getKVBucket()
+                          ->getKVStoreScanTracker()
+                          .getMaxRunningBackfills());
     }
 
     void checkStorageEngineQuota(size_t quotaValue) {

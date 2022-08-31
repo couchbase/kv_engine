@@ -191,7 +191,8 @@ void BucketQuotaChangeTask::prepareToReduceMemoryUsage(size_t desiredQuota) {
     engine->getKVBucket()->verifyCheckpointMemoryState();
 
     // Step 3
-    engine->getDcpConnMap().updateMaxRunningBackfills(desiredQuota);
+    engine->getKVBucket()->getKVStoreScanTracker().updateMaxRunningScans(
+            desiredQuota);
 
     // Step 4
     engine->configureMemWatermarksForQuota(desiredQuota);

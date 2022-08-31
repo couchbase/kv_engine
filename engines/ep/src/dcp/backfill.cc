@@ -116,3 +116,53 @@ void DCPBackfill::transitionState(State& currentState, State newState) {
 
     currentState = newState;
 }
+
+bool KVStoreScanTracker::canCreateBackfill() {
+    return scans.withLock([](auto& scans) {
+        if (scans.running < scans.maxRunning) {
+            ++scans.running;
+            return true;
+        }
+        return false;
+    });
+}
+
+void KVStoreScanTracker::decrNumRunningBackfills() {
+    if (!scans.withLock([](auto& backfills) {
+            if (backfills.running > 0) {
+                --backfills.running;
+                return true;
+            }
+            return false;
+        })) {
+        EP_LOG_WARN_RAW(
+                "KVStoreScanTracker::decrNumRunningBackfills backfills.running "
+                "is zero");
+    }
+}
+
+void KVStoreScanTracker::updateMaxRunningScans(size_t maxDataSize) {
+    auto newMaxRunningScans = getMaxRunningScansForQuota(maxDataSize);
+    scans.lock()->maxRunning = newMaxRunningScans;
+    EP_LOG_DEBUG("KVStoreScanTracker::updateMaxRunningScans maxRunning:{}",
+                 newMaxRunningScans);
+}
+
+/* Db file memory */
+const uint32_t dbFileMem = 10 * 1024;
+/* Max num of scans we want to have irrespective of memory */
+const uint16_t numScansThreshold = 4096;
+/* Max percentage of memory we want scans to occupy */
+const uint8_t numScansMemThreshold = 1;
+
+uint16_t KVStoreScanTracker::getMaxRunningScansForQuota(size_t maxDataSize) {
+    double numScansMemThresholdPercent =
+            static_cast<double>(numScansMemThreshold) / 100;
+    size_t max = maxDataSize * numScansMemThresholdPercent / dbFileMem;
+
+    /* We must have at least one scan available */
+    size_t newMaxScans =
+            std::max(static_cast<size_t>(1),
+                     std::min(max, static_cast<size_t>(numScansThreshold)));
+    return gsl::narrow_cast<uint16_t>(newMaxScans);
+}
