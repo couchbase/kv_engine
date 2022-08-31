@@ -280,17 +280,6 @@
                         ]
             }
         },
-        "compaction_write_queue_cap": {
-            "default": "10000",
-            "desr" : "Disk write queue threshold after which compaction tasks will be made to snooze, if there are already pending compaction tasks",
-	    "dynamic": true,
-            "type" : "size_t",
-            "validator": {
-                "range": {
-                    "min": 1
-                }
-            }
-        },
         "compaction_max_concurrent_ratio": {
             "default": "0.5",
             "desr" : "Maximum number of CompactVBucketTask tasks which can run concurrently, as a fraction of the possible Writer task concurrency. Note that a minimum of 1, and a maximum of N-1 CompactVBucketTasks will be run (where N is the possible Writer task concurrency), to ensure both forward progress for Compaction and Flushing.",

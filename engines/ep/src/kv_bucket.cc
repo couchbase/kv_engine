@@ -123,9 +123,7 @@ public:
     }
 
     void sizeValueChanged(const std::string& key, size_t value) override {
-        if (key == "compaction_write_queue_cap") {
-            store.setCompactionWriteQueueCap(value);
-        } else if (key == "exp_pager_stime") {
+        if (key == "exp_pager_stime") {
             store.setExpiryPagerSleeptime(value);
         } else if (key == "backfill_mem_threshold") {
             double backfill_threshold = static_cast<double>(value) / 100;
@@ -370,11 +368,6 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     bfilterResidencyThreshold = config.getBfilterResidencyThreshold();
     config.addValueChangedListener(
             "bfilter_residency_threshold",
-            std::make_unique<EPStoreValueChangeListener>(*this));
-
-    compactionWriteQueueCap = config.getCompactionWriteQueueCap();
-    config.addValueChangedListener(
-            "compaction_write_queue_cap",
             std::make_unique<EPStoreValueChangeListener>(*this));
 
     compactionMaxConcurrency = config.getCompactionMaxConcurrentRatio();

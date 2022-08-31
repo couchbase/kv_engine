@@ -780,8 +780,6 @@ public:
 
     virtual void runVbStatePersistTask(Vbid vbid) = 0;
 
-    virtual void setCompactionWriteQueueCap(size_t to) = 0;
-
     virtual void setCompactionMaxConcurrency(float to) = 0;
 
     virtual bool isAccessScannerEnabled() = 0;

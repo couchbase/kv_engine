@@ -609,10 +609,6 @@ public:
 
     void runVbStatePersistTask(Vbid vbid) override;
 
-    void setCompactionWriteQueueCap(size_t to) override {
-        compactionWriteQueueCap = to;
-    }
-
     void setCompactionMaxConcurrency(float to) override {
         compactionMaxConcurrency = to;
     }
@@ -1105,7 +1101,6 @@ protected:
     // stored in the hash table.  This is required to ensure that all the
     // frequency counts do not become saturated.
     ExTask itemFreqDecayerTask;
-    size_t                          compactionWriteQueueCap;
 
     /**
      * Cached copy of Configuration::compaction_max_concurrent_ratio, to

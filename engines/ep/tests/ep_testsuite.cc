@@ -1527,20 +1527,6 @@ static enum test_result test_vbucket_compact(EngineIface* h) {
     return SUCCESS;
 }
 
-static enum test_result test_compaction_config(EngineIface* h) {
-    checkeq(10000,
-            get_int_stat(h, "ep_compaction_write_queue_cap"),
-            "Expected compaction queue cap to be 10000");
-    set_param(h,
-              EngineParamCategory::Flush,
-              "compaction_write_queue_cap",
-              "100000");
-    checkeq(100000,
-            get_int_stat(h, "ep_compaction_write_queue_cap"),
-            "Expected compaction queue cap to be 100000");
-    return SUCCESS;
-}
-
 static enum test_result test_MB_33919(EngineIface* h) {
     const char* expKey = "expiryKey";
     const char* otherKey = "otherKey";
@@ -6943,7 +6929,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_collections_drop_compaction_delay",
               "ep_collections_enabled",
               "ep_compaction_expire_from_start",
-              "ep_compaction_write_queue_cap",
               "ep_compaction_max_concurrent_ratio",
               "ep_compression_mode",
               "ep_concurrent_pagers",
@@ -7169,7 +7154,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_collections_drop_compaction_delay",
               "ep_collections_enabled",
               "ep_compaction_expire_from_start",
-              "ep_compaction_write_queue_cap",
               "ep_compaction_max_concurrent_ratio",
               "ep_compression_mode",
               "ep_concurrent_pagers",
@@ -9325,13 +9309,6 @@ BaseTestCase testsuite_testcases[] = {
                  // TODO RDB: Needs RocksDBKVStore to implement manual
                  // compaction and item expiration on compaction.
                  prepare_ep_bucket_skip_broken_under_rocks,
-                 cleanup),
-        TestCase("test compaction config",
-                 test_compaction_config,
-                 test_setup,
-                 teardown,
-                 nullptr,
-                 prepare,
                  cleanup),
         TestCase("test multiple vb compactions",
                  test_multiple_vb_compactions,

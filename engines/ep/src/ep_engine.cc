@@ -740,8 +740,6 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setDefragmenterAutoPidD(std::stof(val));
         } else if (key == "defragmenter_auto_pid_dt") {
             configuration.setDefragmenterAutoPidDt(std::stof(val));
-        } else if (key == "compaction_write_queue_cap") {
-            configuration.setCompactionWriteQueueCap(std::stoull(val));
         } else if (key == "compaction_max_concurrent_ratio") {
             configuration.setCompactionMaxConcurrentRatio(std::stof(val));
         } else if (key == "chk_expel_enabled") {
