@@ -1112,12 +1112,6 @@ TEST_P(STItemPagerTest, ReplicaEvictedBeforeActive) {
     // Set replicaVb as active initially so we can populate it easily
     setVBucketStateAndRunPersistTask(replicaVb, vbucket_state_active);
 
-    // bump the quota up. We need the evictable data stored in replicas to be
-    // greater than the gap between high and low watermarks. With the default
-    // quota, there's not enough "headroom" left after base memory usage to
-    // populate vbs as desired.
-    increaseQuota(2500000);
-
     auto& stats = engine->getEpStats();
 
     const auto watermarkDiff = stats.mem_high_wat - stats.mem_low_wat;
@@ -1208,12 +1202,6 @@ TEST_P(STItemPagerTest, ActiveEvictedIfReplicaEvictionInsufficient) {
 
     // Set replicaVB as active initially (so we can populate it).
     setVBucketStateAndRunPersistTask(replicaVB, vbucket_state_active);
-
-    // bump the quota up. We need total evictable data to comfortably exceed
-    // the gap between high and low watermarks. With the default
-    // quota, there's not enough "headroom" left after base memory usage to
-    // populate vbs as desired.
-    increaseQuota(20000000);
 
     auto& stats = engine->getEpStats();
 
