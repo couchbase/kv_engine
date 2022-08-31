@@ -985,7 +985,8 @@ protected:
      * Get the checkpoint destroyer task responsible for checkpoints from the
      * given vbid.
      */
-    CheckpointDestroyerTask& getCkptDestroyerTask(Vbid vbid) const;
+    using CheckpointDestroyer = std::shared_ptr<CheckpointDestroyerTask>;
+    CheckpointDestroyer getCkptDestroyerTask(Vbid vbid) const;
 
     GetValue getInternal(const DocKey& key,
                          Vbid vbucket,
@@ -1100,8 +1101,8 @@ protected:
      * Note: Thread-safe type as the number of destroyers is controlled by the
      *  related dynamic parameter in EP configuration.
      */
-    using CheckpointDestroyers = folly::Synchronized<
-            std::vector<std::shared_ptr<CheckpointDestroyerTask>>>;
+    using CheckpointDestroyers =
+            folly::Synchronized<std::vector<CheckpointDestroyer>>;
     CheckpointDestroyers ckptDestroyerTasks;
 
     float                           bfilterResidencyThreshold;

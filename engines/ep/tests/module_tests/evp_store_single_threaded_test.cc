@@ -486,7 +486,7 @@ void SingleThreadedKVBucketTest::runCollectionsEraser(Vbid id,
 }
 
 void SingleThreadedKVBucketTest::runCheckpointDestroyer(Vbid id) {
-    getCkptDestroyerTask(id).run();
+    getCkptDestroyerTask(id)->run();
 }
 
 bool SingleThreadedKVBucketTest::isBloomFilterEnabled() const {

@@ -362,7 +362,7 @@ public:
      * Get the destroyer task responsible for checkpoints from the given
      * vbucket.
      */
-    CheckpointDestroyerTask& getCkptDestroyerTask(Vbid vbid) const;
+    KVBucket::CheckpointDestroyer getCkptDestroyerTask(Vbid vbid) const;
 
 private:
     /**

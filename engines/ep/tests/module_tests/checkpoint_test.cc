@@ -3791,7 +3791,7 @@ TEST_F(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtRemoval) {
     EXPECT_EQ(1, manager.getNumOpenChkItems());
 
     // Checkpoint queued for destruction
-    EXPECT_EQ(1, getCkptDestroyerTask(vbid).getNumCheckpoints());
+    EXPECT_EQ(1, getCkptDestroyerTask(vbid)->getNumCheckpoints());
     // Run the destroyer task to recover the memory the checkpoints use
     runCheckpointDestroyer(vbid);
 
@@ -3872,9 +3872,9 @@ TEST_F(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {
 
     scheduleCheckpointDestroyerTasks();
 
-    auto& task = getCkptDestroyerTask(vbid);
+    const auto task = getCkptDestroyerTask(vbid);
 
-    auto initialWaketime = task.getWaketime();
+    auto initialWaketime = task->getWaketime();
 
     // Add two items to the initial (open) checkpoint.
     ASSERT_EQ(2, manager.getNumOpenChkItems());
@@ -3890,7 +3890,7 @@ TEST_F(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {
     EXPECT_EQ(2, manager.getNumItemsForCursor(cursor));
 
     // task should not have been woken yet
-    EXPECT_EQ(initialWaketime, task.getWaketime());
+    EXPECT_EQ(initialWaketime, task->getWaketime());
 
     // Create a new checkpoint, closing the current open one. The cursor
     // remains in the old checkpoint, so it is still reffed - callback
@@ -3901,7 +3901,7 @@ TEST_F(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {
     EXPECT_EQ(3, manager.getNumItemsForCursor(cursor));
 
     // task should not have been woken yet
-    EXPECT_EQ(initialWaketime, task.getWaketime());
+    EXPECT_EQ(initialWaketime, task->getWaketime());
 
     auto& epstats = engine->getEpStats();
 
@@ -3909,8 +3909,8 @@ TEST_F(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {
     auto initialEPMemUsage = epstats.getCheckpointManagerEstimatedMemUsage();
 
     // the destroyer doesn't own anything yet, so should have no mem usage
-    EXPECT_EQ(0, task.getMemoryUsage());
-    EXPECT_EQ(0, task.getNumCheckpoints());
+    EXPECT_EQ(0, task->getMemoryUsage());
+    EXPECT_EQ(0, task->getNumCheckpoints());
 
     // advance the cursor, unreffing the checkpoint. CheckpointDestroyerTask
     // should be notified and ownership of the checkpoint transferred.
@@ -3923,8 +3923,9 @@ TEST_F(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {
     // decrease...
     EXPECT_LT(manager.getMemUsage(), initialCMMemUsage);
     // ... and the destroyer task's should increase by the same amount
-    EXPECT_EQ(initialCMMemUsage - manager.getMemUsage(), task.getMemoryUsage());
-    EXPECT_EQ(1, task.getNumCheckpoints());
+    EXPECT_EQ(initialCMMemUsage - manager.getMemUsage(),
+              task->getMemoryUsage());
+    EXPECT_EQ(1, task->getNumCheckpoints());
 
     // Also the counter in EPStats accounts only checkpoints owned by CM, so it
     // must be already updated now that checkpoints are owned by the destroyer
@@ -3933,7 +3934,7 @@ TEST_F(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {
     EXPECT_LT(postDetachEPMemUsage, initialEPMemUsage);
 
     // now the task should be ready to run
-    EXPECT_LE(task.getWaketime(), std::chrono::steady_clock::now());
+    EXPECT_LE(task->getWaketime(), std::chrono::steady_clock::now());
 
     auto& nonIOQueue = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
     runNextTask(nonIOQueue, "Destroying closed unreferenced checkpoints");
@@ -3943,8 +3944,8 @@ TEST_F(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {
     EXPECT_EQ(postDetachEPMemUsage,
               epstats.getCheckpointManagerEstimatedMemUsage());
     // and so should the destroyers memory tracking
-    EXPECT_EQ(0, task.getMemoryUsage());
-    EXPECT_EQ(0, task.getNumCheckpoints());
+    EXPECT_EQ(0, task->getMemoryUsage());
+    EXPECT_EQ(0, task->getNumCheckpoints());
 }
 
 TEST_F(CheckpointIndexAllocatorMemoryTrackingTest,
@@ -4050,10 +4051,10 @@ TEST_P(ShardedCheckpointDestructionTest, ShardedBackgroundTaskIsNotified) {
                                       std::numeric_limits<size_t>::max());
         }
 
-        // get the specific task this vbid is associated with
-        auto& task = getCkptDestroyerTask(vbid);
-        // it should have been scheduled to run
-        EXPECT_LE(task.getWaketime(), std::chrono::steady_clock::now());
+        // The specific task this vbid is associated with should have been
+        // scheduled to run
+        EXPECT_LE(getCkptDestroyerTask(vbid)->getWaketime(),
+                  std::chrono::steady_clock::now());
     }
 
     auto& nonIOQueue = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];

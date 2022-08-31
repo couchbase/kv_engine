@@ -643,7 +643,8 @@ KVBucketTest::getCollectionStats(Vbid id,
     return rv;
 }
 
-CheckpointDestroyerTask& KVBucketTest::getCkptDestroyerTask(Vbid vbid) const {
+KVBucket::CheckpointDestroyer KVBucketTest::getCkptDestroyerTask(
+        Vbid vbid) const {
     return store->getCkptDestroyerTask(vbid);
 }
 

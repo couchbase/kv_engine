@@ -2754,7 +2754,7 @@ SeqnoAckCallback KVBucket::makeSeqnoAckCB() const {
 }
 
 void KVBucket::scheduleDestruction(CheckpointList&& checkpoints, Vbid vbid) {
-    getCkptDestroyerTask(vbid).queueForDestruction(std::move(checkpoints));
+    getCkptDestroyerTask(vbid)->queueForDestruction(std::move(checkpoints));
 }
 
 std::unique_ptr<KVStoreIface> KVBucket::takeRW(size_t shardId) {
@@ -2985,10 +2985,10 @@ bool KVBucket::isCheckpointMemoryReductionRequired() const {
     return usage > recoveryThreshold;
 }
 
-CheckpointDestroyerTask& KVBucket::getCkptDestroyerTask(Vbid vbid) const {
+KVBucket::CheckpointDestroyer KVBucket::getCkptDestroyerTask(Vbid vbid) const {
     const auto locked = ckptDestroyerTasks.rlock();
     Expects(!locked->empty());
-    return *locked->at(vbid.get() % locked->size());
+    return locked->at(vbid.get() % locked->size());
 }
 
 size_t KVBucket::getCheckpointPendingDestructionMemoryUsage() const {
