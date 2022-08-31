@@ -977,22 +977,27 @@ TEST_P(RangeScanTest, random_sample) {
                            {"\0", 1},
                            {"\xFF"},
                            {/* no snapshot requirements */},
-                           cb::rangescan::SamplingConfiguration{sampleSize, 0});
+                           cb::rangescan::SamplingConfiguration{sampleSize, 1});
 
     auto vb = store->getVBucket(vbid);
 
-    EXPECT_EQ(cb::engine_errc::would_block,
-              vb->continueRangeScan(
-                      uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
+    // run the scan with a limit, this gives more coverage of checks for
+    // sampleSize. This loop also runs the scan one extra time to ensure we
+    // enter the continue code with the isTotalLimitReached() condition true
+    for (size_t ii = 0; ii <= sampleSize; ii++) {
+        EXPECT_EQ(cb::engine_errc::would_block,
+                  vb->continueRangeScan(
+                          uuid, *cookie, 1, std::chrono::milliseconds(0), 0));
 
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
-                "RangeScanContinueTask");
+        runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                    "RangeScanContinueTask");
+    }
 
-    // the chosen seed, results in 1 less key than desired
+    // the chosen seed, results in sampleSize keys
     if (isKeyOnly()) {
-        EXPECT_EQ(sampleSize - 1, scannedKeys.size());
+        EXPECT_EQ(sampleSize, scannedKeys.size());
     } else {
-        EXPECT_EQ(sampleSize - 1, scannedItems.size());
+        EXPECT_EQ(sampleSize, scannedItems.size());
     }
 }
 

@@ -315,10 +315,9 @@ cb::engine_errc RangeScan::continueScan(KVStoreIface& kvstore) {
         handleStatus(cb::engine_errc::range_scan_cancelled);
         return cb::engine_errc::range_scan_cancelled;
     } else if (isTotalLimitReached()) {
-        // No point scanning if the total has been hit. Change to Idle and
-        // return success. Any waiting client will see the complete status and
-        // the scan now cleans-up
-        return tryAndSetStateIdle(cb::engine_errc::range_scan_complete);
+        // If the total was reached, scan is complete
+        handleStatus(cb::engine_errc::range_scan_complete);
+        return cb::engine_errc::success;
     }
 
     EP_LOG_DEBUG("RangeScan {} continue for {}", uuid, getVBucketId());
