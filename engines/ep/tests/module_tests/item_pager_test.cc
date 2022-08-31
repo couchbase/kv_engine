@@ -1119,7 +1119,7 @@ TEST_P(STItemPagerTest, ReplicaEvictedBeforeActive) {
     // starting above the low water mark would mean that the replica pageable
     // memory will definitely not exceed the watermarkdiff when the high
     // watermark is reached.
-    ASSERT_LT(stats.getPreciseTotalMemoryUsed(), stats.mem_low_wat.load());
+    ASSERT_LT(stats.getPreciseTotalMemoryUsed(), stats.mem_low_wat);
 
     // populate the replica vbs until its evictable memory _exceeds_ the gap
     // between the high and low water mark. When the mem usage later passes the
@@ -1128,7 +1128,7 @@ TEST_P(STItemPagerTest, ReplicaEvictedBeforeActive) {
             {replicaVb}, [&stats, &store = store, replicaVb, watermarkDiff] {
                 // sanity check - if this fails the quota is too low -
                 EXPECT_LT(stats.getPreciseTotalMemoryUsed(),
-                          stats.mem_high_wat.load());
+                          stats.mem_high_wat);
 
                 return store->getVBucket(replicaVb)->getPageableMemUsage() >
                        watermarkDiff;
@@ -1137,7 +1137,7 @@ TEST_P(STItemPagerTest, ReplicaEvictedBeforeActive) {
 
     // Now fill the active VB until the high watermark is reached
     auto activeItemCount = populateVbsUntil({activeVb}, [&stats] {
-        return stats.getPreciseTotalMemoryUsed() > stats.mem_high_wat.load();
+        return stats.getPreciseTotalMemoryUsed() > stats.mem_high_wat;
     });
     store->attemptToFreeMemory();
 
@@ -1200,13 +1200,12 @@ TEST_P(STItemPagerTest, ActiveEvictedIfReplicaEvictionInsufficient) {
     setVBucketStateAndRunPersistTask(replicaVB, vbucket_state_active);
 
     auto& stats = engine->getEpStats();
-
-    auto watermarkDiff = stats.mem_high_wat.load() - stats.mem_low_wat.load();
+    auto watermarkDiff = stats.mem_high_wat - stats.mem_low_wat;
 
     // starting above the low water mark would mean that the replica pageable
     // memory will definitely not exceed the watermarkdiff when the high
     // watermark is reached.
-    ASSERT_LT(stats.getPreciseTotalMemoryUsed(), stats.mem_low_wat.load());
+    ASSERT_LT(stats.getPreciseTotalMemoryUsed(), stats.mem_low_wat);
 
     // store items in the replica vb such that evicting everything in the
     // replica when at the high watermark will _not_ reach the low watermark
@@ -1214,7 +1213,7 @@ TEST_P(STItemPagerTest, ActiveEvictedIfReplicaEvictionInsufficient) {
             {replicaVB}, [&stats, &store = store, replicaVB, watermarkDiff] {
                 // sanity check - if this fails the quota is too low -
                 EXPECT_LT(stats.getPreciseTotalMemoryUsed(),
-                          stats.mem_high_wat.load());
+                          stats.mem_high_wat);
 
                 return store->getVBucket(replicaVB)->getPageableMemUsage() >
                        watermarkDiff * 0.5;
@@ -1228,11 +1227,9 @@ TEST_P(STItemPagerTest, ActiveEvictedIfReplicaEvictionInsufficient) {
     EXPECT_GT(replicaItemCount, 0);
 
     // Now fill the active VB until the high watermark is reached
-    auto activeItemCount =
-            populateVbsUntil({activeVB}, [&stats] {
-                return stats.getPreciseTotalMemoryUsed() >
-                       stats.mem_high_wat.load();
-            });
+    auto activeItemCount = populateVbsUntil({activeVB}, [&stats] {
+        return stats.getPreciseTotalMemoryUsed() > stats.mem_high_wat;
+    });
     store->attemptToFreeMemory();
 
     EXPECT_GT(activeItemCount, 0);
