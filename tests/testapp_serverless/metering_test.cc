@@ -217,11 +217,7 @@ protected:
         }
         auto rsp = conn->execute(cmd);
         EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
-        ASSERT_TRUE(rsp.getReadUnits());
-        EXPECT_EQ(
-                to_ru(calculateDocumentSize(id, "10", xattr_path, xattr_value)),
-                *rsp.getReadUnits());
-
+        EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
         const auto expected_wu =
                 to_wu(calculateDocumentSize(id, "10", xattr_path, xattr_value));
         ASSERT_TRUE(rsp.getWriteUnits());
@@ -270,14 +266,7 @@ protected:
                 EXPECT_EQ(1, *rsp.getWriteUnits());
             }
         } else {
-            ASSERT_TRUE(rsp.getReadUnits());
-            EXPECT_EQ(to_ru(calculateDocumentSize(id,
-                                                  value,
-                                                  user_xattr_path,
-                                                  user_xattr_value,
-                                                  system_xattr_path,
-                                                  system_xattr_value)),
-                      *rsp.getReadUnits());
+            EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
             if (durable) {
                 EXPECT_EQ(to_wu(calculateDocumentSize(id,
                                                       {},
@@ -1109,18 +1098,14 @@ TEST_F(MeteringTest, MeterDocumentTouch) {
     // server, but no data returned
     rsp = conn->execute(BinprotTouchCommand{id, 0});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(sconfig.to_ru(document_value.size() + id.size()),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(sconfig.to_wu(document_value.size() + id.size()),
               *rsp.getWriteUnits());
     EXPECT_TRUE(rsp.getDataString().empty());
     rsp = conn->execute(BinprotGetAndTouchCommand{id, Vbid{0}, 0});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(sconfig.to_ru(document_value.size() + id.size()),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(sconfig.to_wu(document_value.size() + id.size()),
               *rsp.getWriteUnits());
@@ -1197,10 +1182,7 @@ TEST_F(MeteringTest, MeterDocumentSimpleMutations) {
     upsert(id, document_value, xattr_path, xattr_value);
     rsp = conn->execute(command);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(sconfig.to_ru(id.size() + document_value.size() +
-                            xattr_path.size() + xattr_value.size()),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(sconfig.to_wu(id.size() + document_value.size() +
                             xattr_path.size() + xattr_value.size()),
@@ -1243,9 +1225,7 @@ TEST_F(MeteringTest, MeterDocumentSimpleMutations) {
     command.setMutationType(MutationType::Append);
     rsp = conn->execute(command);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(sconfig.to_ru(id.size() + document_value.size()),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(sconfig.to_wu(id.size() + document_value.size() * 2),
               *rsp.getWriteUnits());
@@ -1254,9 +1234,7 @@ TEST_F(MeteringTest, MeterDocumentSimpleMutations) {
     command.setMutationType(MutationType::Prepend);
     rsp = conn->execute(command);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(sconfig.to_ru(id.size() + document_value.size()),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(sconfig.to_wu(id.size() + document_value.size() * 2),
               *rsp.getWriteUnits());
@@ -1266,10 +1244,7 @@ TEST_F(MeteringTest, MeterDocumentSimpleMutations) {
     command.setMutationType(MutationType::Append);
     rsp = conn->execute(command);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(sconfig.to_ru(id.size() + document_value.size() +
-                            xattr_path.size() + xattr_value.size()),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(sconfig.to_wu(id.size() + document_value.size() * 2 +
                             xattr_path.size() + xattr_value.size()),
@@ -1279,10 +1254,7 @@ TEST_F(MeteringTest, MeterDocumentSimpleMutations) {
     command.setMutationType(MutationType::Prepend);
     rsp = conn->execute(command);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(sconfig.to_ru(id.size() + document_value.size() +
-                            xattr_path.size() + xattr_value.size()),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(sconfig.to_wu(id.size() + document_value.size() * 2 +
                             xattr_path.size() + xattr_value.size()),
@@ -1482,8 +1454,7 @@ TEST_F(MeteringTest, SubdocDictAddPlainDoc) {
     auto rsp = conn->execute(BinprotSubdocCommand{
             cb::mcbp::ClientOpcode::SubdocDictAdd, id, "v3", v3});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(to_wu(id.size() + value.size() + v3.size()),
               *rsp.getWriteUnits());
@@ -1501,8 +1472,7 @@ TEST_F(MeteringTest, SubdocDictAddPlainDoc_Durability) {
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(to_wu(id.size() + value.size() + v3.size()) * 2,
               *rsp.getWriteUnits());
@@ -1520,9 +1490,7 @@ TEST_F(MeteringTest, SubdocDictAddPlainDocWithXattr) {
     auto rsp = conn->execute(BinprotSubdocCommand{
             cb::mcbp::ClientOpcode::SubdocDictAdd, id, "v3", v3});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
     json["v3"] = v3;
     EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
@@ -1544,9 +1512,7 @@ TEST_F(MeteringTest, SubdocDictAddPlainDocWithXattr_Durability) {
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
     json["v3"] = v3;
     EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) * 2,
@@ -1565,8 +1531,7 @@ TEST_F(MeteringTest, SubdocDictUpsertPlainDoc) {
                                  "v1",
                                  R"("this is the new value")"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
     json["v1"] = "this is the new value";
     EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())),
@@ -1587,8 +1552,7 @@ TEST_F(MeteringTest, SubdocDictUpsertPlainDoc_Durability) {
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
     json["v1"] = "this is the new value";
     EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())) * 2,
@@ -1609,9 +1573,7 @@ TEST_F(MeteringTest, SubdocDictUpsertPlainDocWithXattr) {
                                  "v1",
                                  R"("this is the new value")"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
     json["v1"] = "this is the new value";
     EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
@@ -1634,9 +1596,7 @@ TEST_F(MeteringTest, SubdocDictUpsertPlainDocWithXattr_Durability) {
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
     json["v1"] = "this is the new value";
     EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) * 2,
@@ -1666,9 +1626,8 @@ TEST_F(MeteringTest, SubdocDeletePlainDoc) {
     auto rsp = conn->execute(BinprotSubdocCommand{
             cb::mcbp::ClientOpcode::SubdocDelete, id, "fill"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     json.erase("fill");
-    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())),
               *rsp.getWriteUnits());
@@ -1686,9 +1645,8 @@ TEST_F(MeteringTest, SubdocDeletePlainDoc_Durability) {
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     json.erase("fill");
-    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())) * 2,
               *rsp.getWriteUnits());
@@ -1705,9 +1663,7 @@ TEST_F(MeteringTest, SubdocDeletePlainDocWithXattr) {
     auto rsp = conn->execute(BinprotSubdocCommand{
             cb::mcbp::ClientOpcode::SubdocDelete, id, "fill"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
     json.erase("fill");
     EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
@@ -1727,9 +1683,7 @@ TEST_F(MeteringTest, SubdocDeletePlainDocWithXattr_Durability) {
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
     json.erase("fill");
     EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) * 2,
@@ -1759,9 +1713,8 @@ TEST_F(MeteringTest, SubdocReplacePlainDoc) {
     auto rsp = conn->execute(BinprotSubdocCommand{
             cb::mcbp::ClientOpcode::SubdocReplace, id, "fill", "true"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     json["fill"] = true;
-    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())),
               *rsp.getWriteUnits());
@@ -1780,9 +1733,8 @@ TEST_F(MeteringTest, SubdocReplacePlainDoc_Durability) {
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     json["fill"] = true;
-    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())) * 2,
               *rsp.getWriteUnits());
@@ -1799,9 +1751,7 @@ TEST_F(MeteringTest, SubdocReplacePlainDocWithXattr) {
     auto rsp = conn->execute(BinprotSubdocCommand{
             cb::mcbp::ClientOpcode::SubdocReplace, id, "fill", "true"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
     json["fill"] = true;
     EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
@@ -1822,9 +1772,7 @@ TEST_F(MeteringTest, SubdocReplacePlainDocWithXattr_Durability) {
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
     json["fill"] = true;
     EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) * 2,
@@ -1854,8 +1802,7 @@ TEST_F(MeteringTest, SubdocCounterPlainDoc) {
     auto rsp = conn->execute(BinprotSubdocCommand{
             cb::mcbp::ClientOpcode::SubdocCounter, id, "counter", "1"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, value)), *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(to_wu(calculateDocumentSize(id, value)), *rsp.getWriteUnits());
 }
@@ -1872,8 +1819,7 @@ TEST_F(MeteringTest, SubdocCounterPlainDoc_Durability) {
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, value)), *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(to_wu(calculateDocumentSize(id, value)) * 2,
               *rsp.getWriteUnits());
@@ -1889,9 +1835,7 @@ TEST_F(MeteringTest, SubdocCounterPlainDocWithXattr) {
     auto rsp = conn->execute(BinprotSubdocCommand{
             cb::mcbp::ClientOpcode::SubdocCounter, id, "counter", "1"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(to_wu(calculateDocumentSize(id, value, "xattr", xattr)),
               *rsp.getWriteUnits());
@@ -1910,9 +1854,7 @@ TEST_F(MeteringTest, SubdocCounterPlainDocWithXattr_Durability) {
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(to_wu(calculateDocumentSize(id, value, "xattr", xattr)) * 2,
               *rsp.getWriteUnits());
@@ -2017,8 +1959,7 @@ TEST_F(MeteringTest, SubdocArrayPushLastPlainDoc) {
     auto rsp = conn->execute(BinprotSubdocCommand{
             cb::mcbp::ClientOpcode::SubdocArrayPushLast, id, "array", "true"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(id.size() + json.dump().size()), *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     json["array"].push_back(true);
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(to_wu(id.size() + json.dump().size()), *rsp.getWriteUnits());
@@ -2036,8 +1977,7 @@ TEST_F(MeteringTest, SubdocArrayPushLastPlainDoc_Durability) {
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(id.size() + json.dump().size()), *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     json["array"].push_back(true);
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(to_wu(id.size() + json.dump().size()) * 2, *rsp.getWriteUnits());
@@ -2053,9 +1993,7 @@ TEST_F(MeteringTest, SubdocArrayPushLastPlainDocWithXattr) {
     auto rsp = conn->execute(BinprotSubdocCommand{
             cb::mcbp::ClientOpcode::SubdocArrayPushLast, id, "array", "true"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     json["array"].push_back(true);
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
@@ -2075,9 +2013,7 @@ TEST_F(MeteringTest, SubdocArrayPushLastPlainDocWithXattr_Durability) {
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     json["array"].push_back(true);
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) * 2,
@@ -2127,8 +2063,7 @@ TEST_F(MeteringTest, SubdocArrayPushFirstPlainDoc) {
     auto rsp = conn->execute(BinprotSubdocCommand{
             cb::mcbp::ClientOpcode::SubdocArrayPushFirst, id, "array", "true"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(id.size() + json.dump().size()), *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     json["array"].insert(json["array"].begin(), true);
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(to_wu(id.size() + json.dump().size()), *rsp.getWriteUnits());
@@ -2146,8 +2081,7 @@ TEST_F(MeteringTest, SubdocArrayPushFirstPlainDoc_Durability) {
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(id.size() + json.dump().size()), *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     json["array"].insert(json["array"].begin(), true);
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(to_wu(id.size() + json.dump().size()) * 2, *rsp.getWriteUnits());
@@ -2163,9 +2097,7 @@ TEST_F(MeteringTest, SubdocArrayPushFirstPlainDocWithXattr) {
     auto rsp = conn->execute(BinprotSubdocCommand{
             cb::mcbp::ClientOpcode::SubdocArrayPushFirst, id, "array", "true"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     json["array"].insert(json["array"].begin(), true);
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
@@ -2185,9 +2117,7 @@ TEST_F(MeteringTest, SubdocArrayPushFirstPlainDocWithXattr_Durability) {
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     json["array"].insert(json["array"].begin(), true);
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) * 2,
@@ -2254,9 +2184,7 @@ TEST_F(MeteringTest, SubdocArrayAddUniquePlainDoc) {
                                  "array",
                                  R"("Unique value")"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump())),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     json["array"].push_back("Unique value");
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())),
@@ -2277,9 +2205,7 @@ TEST_F(MeteringTest, SubdocArrayAddUniquePlainDoc_Durability) {
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump())),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     json["array"].push_back("Unique value");
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())) * 2,
@@ -2299,9 +2225,7 @@ TEST_F(MeteringTest, SubdocArrayAddUniquePlainDocWithXattr) {
                                  "array",
                                  R"("Unique value")"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     json["array"].push_back("Unique value");
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
@@ -2323,9 +2247,7 @@ TEST_F(MeteringTest, SubdocArrayAddUniquePlainDocWithXattr_Durability) {
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     json["array"].push_back("Unique value");
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) * 2,
@@ -2375,9 +2297,7 @@ TEST_F(MeteringTest, SubdocArrayInsertPlainDoc) {
                                  "array.[0]",
                                  "true"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump())),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     json["array"].insert(json["array"].begin(), true);
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())),
@@ -2396,9 +2316,7 @@ TEST_F(MeteringTest, SubdocArrayInsertPlainDoc_Durability) {
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump())),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     json["array"].insert(json["array"].begin(), true);
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())) * 2,
@@ -2418,9 +2336,7 @@ TEST_F(MeteringTest, SubdocArrayInsertPlainDocWithXattr) {
                                  "array.[0]",
                                  "true"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     json["array"].insert(json["array"].begin(), true);
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
@@ -2440,9 +2356,7 @@ TEST_F(MeteringTest, SubdocArrayInsertPlainDocWithXattr_Durability) {
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     json["array"].insert(json["array"].begin(), true);
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) * 2,
@@ -2538,9 +2452,7 @@ TEST_F(MeteringTest, SubdocMultiMutation) {
             cb::mcbp::subdoc::doc_flag::None});
 
     EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     json["foo"] = true;
     json["bar"] = true;
     ASSERT_TRUE(rsp.getWriteUnits());
@@ -2573,9 +2485,7 @@ TEST_F(MeteringTest, SubdocMultiMutation_Durability) {
     auto rsp = conn->execute(cmd);
 
     EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     json["foo"] = true;
     json["bar"] = true;
     ASSERT_TRUE(rsp.getWriteUnits());
@@ -2604,10 +2514,7 @@ TEST_F(MeteringTest, SubdocReplaceBodyWithXattr) {
             cb::mcbp::subdoc::doc_flag::None});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
 
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(
-                      id, old_value, "tnx.op.staged", new_value)),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(to_wu(calculateDocumentSize(id, new_value)),
               *rsp.getWriteUnits());
@@ -2638,10 +2545,7 @@ TEST_F(MeteringTest, SubdocReplaceBodyWithXattr_Durability) {
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
 
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(
-                      id, old_value, "tnx.op.staged", new_value)),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(to_wu(calculateDocumentSize(id, new_value)) * 2,
               *rsp.getWriteUnits());

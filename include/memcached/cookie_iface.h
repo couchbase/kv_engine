@@ -100,8 +100,11 @@ public:
     }
 
     std::pair<size_t, size_t> getDocumentRWBytes() const {
-        return {document_bytes_read.load(std::memory_order_acquire),
-                document_bytes_written.load(std::memory_order_acquire)};
+        size_t wb = document_bytes_written.load(std::memory_order_acquire);
+        if (wb) {
+            return {size_t{0}, wb};
+        }
+        return {document_bytes_read.load(std::memory_order_acquire), size_t{0}};
     }
 
 protected:
