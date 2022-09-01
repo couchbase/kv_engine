@@ -2603,7 +2603,7 @@ void KVBucket::notifyReplication(const Vbid vbid,
 
 void KVBucket::initializeExpiryPager(Configuration& config) {
     expiryPagerTask = std::make_shared<ExpiredItemPager>(
-            &engine,
+            engine,
             stats,
             config.getExpPagerStime(),
             config.getExpPagerInitialRunTime(),

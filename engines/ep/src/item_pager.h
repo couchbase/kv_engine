@@ -147,7 +147,7 @@ public:
      * @param st the stats
      * @param stime number of seconds to wait between runs
      */
-    ExpiredItemPager(EventuallyPersistentEngine* e,
+    ExpiredItemPager(EventuallyPersistentEngine& e,
                      EPStats& st,
                      size_t stime,
                      ssize_t taskTime,

@@ -2402,7 +2402,7 @@ TEST_P(CollectionsPersistentParameterizedTest,
     TimeTraveller docBrown(2000);
 
     // Now run the pager to force expiry of our little lamb
-    auto task = std::make_shared<ExpiredItemPager>(engine.get(),
+    auto task = std::make_shared<ExpiredItemPager>(*engine,
                                                    engine->getEpStats(),
                                                    0,
                                                    -1 /* taskTime */,
