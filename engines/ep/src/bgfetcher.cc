@@ -45,8 +45,7 @@ BgFetcher::~BgFetcher() {
 
 void BgFetcher::start() {
     ExecutorPool* iom = ExecutorPool::get();
-    auto task =
-            std::make_shared<MultiBGFetcherTask>(&(store.getEPEngine()), this);
+    auto task = std::make_shared<MultiBGFetcherTask>(store.getEPEngine(), this);
     this->setTaskId(task->getId());
     iom->schedule(task);
 }

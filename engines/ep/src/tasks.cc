@@ -170,9 +170,9 @@ std::vector<const CookieIface*> CompactTask::takeCookies() {
     return ret;
 }
 
-MultiBGFetcherTask::MultiBGFetcherTask(EventuallyPersistentEngine* e,
+MultiBGFetcherTask::MultiBGFetcherTask(EventuallyPersistentEngine& e,
                                        BgFetcher* b)
-    : GlobalTask(e,
+    : GlobalTask(&e,
                  TaskId::MultiBGFetcherTask,
                  /*sleeptime*/ INT_MAX,
                  /*completeBeforeShutdown*/ false),

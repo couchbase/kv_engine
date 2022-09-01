@@ -193,7 +193,7 @@ private:
 class BgFetcher;
 class MultiBGFetcherTask : public GlobalTask {
 public:
-    MultiBGFetcherTask(EventuallyPersistentEngine* e, BgFetcher* b);
+    MultiBGFetcherTask(EventuallyPersistentEngine& e, BgFetcher* b);
 
     bool run() override;
 
