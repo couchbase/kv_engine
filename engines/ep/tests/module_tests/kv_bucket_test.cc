@@ -133,7 +133,7 @@ void KVBucketTest::initialise(std::string config) {
     auto locked = store->ckptDestroyerTasks.wlock();
     for (size_t i = 0; i < numCkptDestroyers; ++i) {
         locked->push_back(
-                std::make_shared<CheckpointDestroyerTask>(engine.get()));
+                std::make_shared<CheckpointDestroyerTask>(*engine));
     }
 
     cookie = create_mock_cookie(engine.get());

@@ -22,7 +22,7 @@ class PauseResumeVBAdapter;
  */
 class ItemCompressorTask : public GlobalTask {
 public:
-    ItemCompressorTask(EventuallyPersistentEngine* e, EPStats& stats_);
+    ItemCompressorTask(EventuallyPersistentEngine& e, EPStats& stats_);
 
     bool run() override;
 

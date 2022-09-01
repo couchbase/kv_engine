@@ -18,9 +18,9 @@
 #include <executor/executorpool.h>
 #include <phosphor/phosphor.h>
 
-ItemCompressorTask::ItemCompressorTask(EventuallyPersistentEngine* e,
+ItemCompressorTask::ItemCompressorTask(EventuallyPersistentEngine& e,
                                        EPStats& stats_)
-    : GlobalTask(e, TaskId::ItemCompressorTask, 0, false),
+    : GlobalTask(&e, TaskId::ItemCompressorTask, 0, false),
       stats(stats_),
       epstore_position(engine->getKVBucket()->startPosition()) {
 }

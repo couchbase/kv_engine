@@ -29,7 +29,7 @@ public:
      * Construct a CheckpointDestroyerTask.
      * @param e the engine instance this task is associated with
      */
-    CheckpointDestroyerTask(EventuallyPersistentEngine* e);
+    CheckpointDestroyerTask(EventuallyPersistentEngine& e);
 
     std::chrono::microseconds maxExpectedDuration() const override {
         // this duration inherited from the replaced checkpoint visitor.

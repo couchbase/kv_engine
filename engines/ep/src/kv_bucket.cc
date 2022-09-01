@@ -2252,7 +2252,7 @@ void KVBucket::resetAccessScannerStartTime() {
 }
 
 void KVBucket::enableItemCompressor() {
-    itemCompressorTask = std::make_shared<ItemCompressorTask>(&engine, stats);
+    itemCompressorTask = std::make_shared<ItemCompressorTask>(engine, stats);
     ExecutorPool::get()->schedule(itemCompressorTask);
 }
 
@@ -3036,7 +3036,7 @@ void KVBucket::createAndScheduleCheckpointDestroyerTasks() {
             engine.getConfiguration().getCheckpointDestructionTasks();
     auto locked = ckptDestroyerTasks.wlock();
     for (size_t i = 0; i < numCkptDestroyers; ++i) {
-        locked->push_back(std::make_shared<CheckpointDestroyerTask>(&engine));
+        locked->push_back(std::make_shared<CheckpointDestroyerTask>(engine));
         ExecutorPool::get()->schedule(locked->back());
     }
 }

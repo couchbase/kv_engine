@@ -43,14 +43,14 @@ public:
         ConnManager& connManager;
     };
 
-    ConnManager(EventuallyPersistentEngine* e, ConnMap* cmap)
-        : GlobalTask(e,
+    ConnManager(EventuallyPersistentEngine& e, ConnMap* cmap)
+        : GlobalTask(&e,
                      TaskId::ConnManager,
-                     e->getConfiguration().getConnectionManagerInterval(),
+                     e.getConfiguration().getConnectionManagerInterval(),
                      true),
-          engine(e),
+          engine(&e),
           connmap(cmap),
-          snoozeTime(e->getConfiguration().getConnectionManagerInterval()) {
+          snoozeTime(e.getConfiguration().getConnectionManagerInterval()) {
         engine->getConfiguration().addValueChangedListener(
                 "connection_manager_interval",
                 std::make_unique<ConfigChangeListener>(*this));
@@ -101,7 +101,7 @@ ConnMap::ConnMap(EventuallyPersistentEngine& theEngine)
 }
 
 void ConnMap::initialize() {
-    ExTask connMgr = std::make_shared<ConnManager>(&engine, this);
+    ExTask connMgr = std::make_shared<ConnManager>(engine, this);
     ExecutorPool::get()->schedule(connMgr);
 }
 

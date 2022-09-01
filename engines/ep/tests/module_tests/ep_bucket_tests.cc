@@ -238,8 +238,8 @@ TEST_F(SingleThreadedEPBucketTest, ReadyQueueMaintainsWakeTimeOrder) {
 TEST_F(SingleThreadedEPBucketTest, MB20235_wake_and_work_count) {
     class TestTask : public GlobalTask {
     public:
-        TestTask(EventuallyPersistentEngine* e, double s)
-            : GlobalTask(e, TaskId::AccessScanner, s) {
+        TestTask(EventuallyPersistentEngine& e, double s)
+            : GlobalTask(&e, TaskId::AccessScanner, s) {
         }
         bool run() override {
             return false;
@@ -257,7 +257,7 @@ TEST_F(SingleThreadedEPBucketTest, MB20235_wake_and_work_count) {
     auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
 
     // New task with a massive sleep
-    ExTask task = std::make_shared<TestTask>(engine.get(), 99999.0);
+    ExTask task = std::make_shared<TestTask>(*engine, 99999.0);
     EXPECT_EQ(0, lpAuxioQ.getFutureQueueSize());
 
     // schedule the task, futureQueue grows

@@ -1940,8 +1940,8 @@ TYPED_TEST(ExecutorPoolEpEngineTest, MemoryTracking_Run) {
     // - deallocates memory on third execution.
     // Note it initially sleeps forever, must be explicitly woken to run.
     struct MemoryAllocTask : public GlobalTask {
-        MemoryAllocTask(EventuallyPersistentEngine* engine)
-            : GlobalTask(engine, TaskId::ItemPager, INT_MAX, false) {
+        MemoryAllocTask(EventuallyPersistentEngine& engine)
+            : GlobalTask(&engine, TaskId::ItemPager, INT_MAX, false) {
         }
 
         std::string getDescription() const override {
@@ -1993,12 +1993,12 @@ TYPED_TEST(ExecutorPoolEpEngineTest, MemoryTracking_Run) {
     // Setup - create an instance of MemoryAllocTask for each bucket.
     auto task1 = [&] {
         BucketAllocationGuard guard(engine1);
-        return std::make_shared<MemoryAllocTask>(engine1);
+        return std::make_shared<MemoryAllocTask>(*engine1);
     }();
 
     auto task2 = [&] {
         BucketAllocationGuard guard(engine2);
-        return std::make_shared<MemoryAllocTask>(engine2);
+        return std::make_shared<MemoryAllocTask>(*engine2);
     }();
 
     // Sanity check - memory should have increased by at least
