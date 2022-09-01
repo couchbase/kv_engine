@@ -221,14 +221,14 @@ private:
  */
 class VKeyStatBGFetchTask : public GlobalTask {
 public:
-    VKeyStatBGFetchTask(EventuallyPersistentEngine* e,
+    VKeyStatBGFetchTask(EventuallyPersistentEngine& e,
                         const DocKey& k,
                         Vbid vbid,
                         uint64_t s,
                         const CookieIface* c,
                         int sleeptime = 0,
                         bool completeBeforeShutdown = false)
-        : GlobalTask(e,
+        : GlobalTask(&e,
                      TaskId::VKeyStatBGFetchTask,
                      sleeptime,
                      completeBeforeShutdown),

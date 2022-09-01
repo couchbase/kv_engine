@@ -458,12 +458,8 @@ cb::engine_errc EPVBucket::statsVKey(const DocKey& key,
         }
         ++stats.numRemainingBgJobs;
         ExecutorPool* iom = ExecutorPool::get();
-        ExTask task = std::make_shared<VKeyStatBGFetchTask>(&engine,
-                                                            key,
-                                                            getId(),
-                                                            v->getBySeqno(),
-                                                            cookie,
-                                                            false);
+        ExTask task = std::make_shared<VKeyStatBGFetchTask>(
+                engine, key, getId(), v->getBySeqno(), cookie, false);
         iom->schedule(task);
         return cb::engine_errc::would_block;
     } else {
@@ -478,7 +474,7 @@ cb::engine_errc EPVBucket::statsVKey(const DocKey& key,
                 ++stats.numRemainingBgJobs;
                 ExecutorPool* iom = ExecutorPool::get();
                 ExTask task = std::make_shared<VKeyStatBGFetchTask>(
-                        &engine, key, getId(), -1, cookie, false);
+                        engine, key, getId(), -1, cookie, false);
                 iom->schedule(task);
                 return cb::engine_errc::would_block;
             }
