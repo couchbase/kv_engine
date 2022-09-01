@@ -96,7 +96,7 @@ class PauseResumeVBAdapter;
  */
 class DefragmenterTask : public GlobalTask {
 public:
-    DefragmenterTask(EventuallyPersistentEngine* e, EPStats& stats_);
+    DefragmenterTask(EventuallyPersistentEngine& e, EPStats& stats_);
 
     bool run() override;
 

@@ -21,9 +21,9 @@
 #include <platform/cb_arena_malloc.h>
 #include <cinttypes>
 
-DefragmenterTask::DefragmenterTask(EventuallyPersistentEngine* e,
+DefragmenterTask::DefragmenterTask(EventuallyPersistentEngine& e,
                                    EPStats& stats_)
-    : GlobalTask(e, TaskId::DefragmenterTask, 0, false),
+    : GlobalTask(&e, TaskId::DefragmenterTask, 0, false),
       stats(stats_),
       epstore_position(engine->getKVBucket()->startPosition()),
       pid(engine->getConfiguration().getDefragmenterAutoLowerThreshold(),

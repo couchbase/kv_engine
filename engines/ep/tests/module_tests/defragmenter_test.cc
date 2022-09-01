@@ -413,15 +413,14 @@ public:
 
 class MockDefragmenterTask : public DefragmenterTask {
 public:
-    MockDefragmenterTask(EventuallyPersistentEngine* engine, EPStats& stats)
+    MockDefragmenterTask(EventuallyPersistentEngine& engine, EPStats& stats)
         : DefragmenterTask(engine, stats),
-          testPid(engine->getConfiguration()
-                          .getDefragmenterAutoLowerThreshold(),
-                  engine->getConfiguration().getDefragmenterAutoPidP(),
-                  engine->getConfiguration().getDefragmenterAutoPidI(),
-                  engine->getConfiguration().getDefragmenterAutoPidD(),
+          testPid(engine.getConfiguration().getDefragmenterAutoLowerThreshold(),
+                  engine.getConfiguration().getDefragmenterAutoPidP(),
+                  engine.getConfiguration().getDefragmenterAutoPidI(),
+                  engine.getConfiguration().getDefragmenterAutoPidD(),
                   std::chrono::milliseconds{
-                          engine->getConfiguration()
+                          engine.getConfiguration()
                                   .getDefragmenterAutoPidDt()}) {
     }
 
@@ -460,7 +459,7 @@ std::chrono::milliseconds MockDefragmenterTask::MockDefragmenterTaskClock::step;
 TEST_F(DefragmenterTaskTest, autoCalculateSleep_PID) {
     // set hwm to some low number
     engine->getEpStats().setHighWaterMark(750);
-    auto task = std::make_unique<MockDefragmenterTask>(engine.get(),
+    auto task = std::make_unique<MockDefragmenterTask>(*engine,
                                                        engine->getEpStats());
 
     auto& conf = engine->getConfiguration();
@@ -524,7 +523,7 @@ TEST_F(DefragmenterTaskTest, autoCalculateSleep_PID) {
 TEST_F(DefragmenterTaskTest, autoCalculateSleep) {
     // set hwm to some low number
     engine->getEpStats().setHighWaterMark(750);
-    auto task = std::make_unique<MockDefragmenterTask>(engine.get(),
+    auto task = std::make_unique<MockDefragmenterTask>(*engine,
                                                        engine->getEpStats());
     auto& conf = engine->getConfiguration();
 

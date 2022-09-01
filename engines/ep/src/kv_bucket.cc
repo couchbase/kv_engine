@@ -467,7 +467,7 @@ bool KVBucket::initialize() {
     /* Only create the defragmenter task if we have an underlying memory
      * allocator which can facilitate defragmenting memory.
      */
-    defragmenterTask = std::make_shared<DefragmenterTask>(&engine, stats);
+    defragmenterTask = std::make_shared<DefragmenterTask>(engine, stats);
     ExecutorPool::get()->schedule(defragmenterTask);
 #endif
 
