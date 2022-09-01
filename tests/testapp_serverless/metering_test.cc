@@ -306,6 +306,8 @@ protected:
         return value;
     }
 
+    void testWithMeta(cb::mcbp::ClientOpcode opcode, std::string id);
+
     void testRangeScan(bool keyOnly);
 
     static std::unique_ptr<MemcachedConnection> conn;
@@ -660,6 +662,9 @@ TEST_F(MeteringTest, OpsMetered) {
         case ClientOpcode::SetWithMeta:
         case ClientOpcode::AddWithMeta:
         case ClientOpcode::DelWithMeta:
+            // Tested in its own unit test;
+            break;
+
         case ClientOpcode::ReturnMeta:
             // MetaWrite ops require meta write privilege... probably not
             // something we'll need initially...
@@ -2674,6 +2679,50 @@ TEST_F(MeteringTest, RangeScanKey) {
 }
 TEST_F(MeteringTest, RangeScanValue) {
     testRangeScan(false);
+}
+
+void MeteringTest::testWithMeta(cb::mcbp::ClientOpcode opcode, std::string id) {
+    Document doc;
+    doc.info.id = std::move(id);
+    doc.info.cas = 0xdeadbeef;
+    doc.info.flags = 0xcafefeed;
+    doc.value = getJsonDoc().dump();
+
+    std::vector<uint8_t> meta;
+    BinprotSetWithMetaCommand cmd{
+            doc,
+            Vbid{0},
+            cb::mcbp::cas::Wildcard,
+            127,
+            REGENERATE_CAS | SKIP_CONFLICT_RESOLUTION_FLAG,
+            meta};
+    cmd.setOp(opcode);
+    auto rsp = conn->execute(cmd);
+
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
+    ASSERT_TRUE(rsp.getWriteUnits());
+    if (opcode == cb::mcbp::ClientOpcode::DelWithMeta) {
+        // Del with meta strips off value
+        EXPECT_EQ(1, *rsp.getWriteUnits());
+    } else {
+        EXPECT_EQ(to_wu(calculateDocumentSize(doc.info.id, doc.value)),
+                  *rsp.getWriteUnits());
+    }
+    // @todo add unit tests with / without xattrs
+}
+
+TEST_F(MeteringTest, AddWithMeta) {
+    testWithMeta(cb::mcbp::ClientOpcode::AddWithMeta, "AddWithMeta");
+}
+
+TEST_F(MeteringTest, SetWithMeta) {
+    testWithMeta(cb::mcbp::ClientOpcode::SetWithMeta, "SetWithMeta");
+}
+
+TEST_F(MeteringTest, DelWithMeta) {
+    testWithMeta(cb::mcbp::ClientOpcode::DelWithMeta, "DelWithMeta");
 }
 
 } // namespace cb::test

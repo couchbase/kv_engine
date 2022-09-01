@@ -5540,6 +5540,8 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
     }
 
     if (ret == cb::engine_errc::success) {
+        const_cast<CookieIface*>(cookie)->addDocumentWriteBytes(
+                value.size() + request.getKey().size());
         ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
         guardedIface.audit_document_access(
                 const_cast<CookieIface&>(*cookie),
@@ -5842,6 +5844,8 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
     }
 
     if (ret == cb::engine_errc::success) {
+        const_cast<CookieIface*>(cookie)->addDocumentWriteBytes(
+                value.size() + request.getKey().size());
         ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
         guardedIface.audit_document_access(
                 const_cast<CookieIface&>(*cookie),
