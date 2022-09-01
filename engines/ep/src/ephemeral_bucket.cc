@@ -103,7 +103,7 @@ EphemeralBucket::EphemeralBucket(EventuallyPersistentEngine& engine)
     // Create tombstone purger task; it will later be scheduled as necessary
     // in initialize().
     tombstonePurgerTask =
-            std::make_shared<EphTombstoneHTCleaner>(&engine, *this);
+            std::make_shared<EphTombstoneHTCleaner>(engine, *this);
 
     replicationThrottle = std::make_unique<ReplicationThrottleEphe>(engine);
 }

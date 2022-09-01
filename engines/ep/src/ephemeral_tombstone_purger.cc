@@ -76,16 +76,16 @@ void EphemeralVBucket::HTTombstonePurger::clearStats() {
     numPurgedItems = 0;
 }
 
-EphTombstoneHTCleaner::EphTombstoneHTCleaner(EventuallyPersistentEngine* e,
+EphTombstoneHTCleaner::EphTombstoneHTCleaner(EventuallyPersistentEngine& e,
                                              EphemeralBucket& bucket)
-    : GlobalTask(e,
+    : GlobalTask(&e,
                  TaskId::EphTombstoneHTCleaner,
-                 e->getConfiguration().getEphemeralMetadataPurgeInterval(),
+                 e.getConfiguration().getEphemeralMetadataPurgeInterval(),
                  false),
       bucket(bucket),
       bucketPosition(bucket.endPosition()),
       staleItemDeleterTask(
-              std::make_shared<EphTombstoneStaleItemDeleter>(e, bucket)) {
+              std::make_shared<EphTombstoneStaleItemDeleter>(&e, bucket)) {
     staleItemDeleterTaskId =
             ExecutorPool::get()->schedule(staleItemDeleterTask);
 }

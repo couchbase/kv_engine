@@ -126,7 +126,7 @@ protected:
  */
 class EphTombstoneHTCleaner : public GlobalTask {
 public:
-    EphTombstoneHTCleaner(EventuallyPersistentEngine* e,
+    EphTombstoneHTCleaner(EventuallyPersistentEngine& e,
                           EphemeralBucket& bucket);
 
     bool run() override;
