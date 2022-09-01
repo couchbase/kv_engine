@@ -176,7 +176,7 @@ private:
  */
 class EphTombstoneStaleItemDeleter : public GlobalTask {
 public:
-    EphTombstoneStaleItemDeleter(EventuallyPersistentEngine* e,
+    EphTombstoneStaleItemDeleter(EventuallyPersistentEngine& e,
                                  EphemeralBucket& bucket);
 
     bool run() override;
