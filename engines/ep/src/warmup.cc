@@ -280,10 +280,10 @@ private:
  */
 class WarmupLoadPreparedSyncWrites : public GlobalTask {
 public:
-    WarmupLoadPreparedSyncWrites(EventuallyPersistentEngine* engine,
+    WarmupLoadPreparedSyncWrites(EventuallyPersistentEngine& engine,
                                  uint16_t shard,
                                  Warmup& warmup)
-        : GlobalTask(engine, TaskId::WarmupLoadPreparedSyncWrites, 0, false),
+        : GlobalTask(&engine, TaskId::WarmupLoadPreparedSyncWrites, 0, false),
           shardId(shard),
           warmup(warmup),
           description("Warmup - loading prepared SyncWrites: shard " +
@@ -1560,7 +1560,7 @@ void Warmup::scheduleLoadPreparedSyncWrites() {
     threadtask_count = 0;
     for (size_t i = 0; i < store.vbMap.shards.size(); i++) {
         ExTask task = std::make_shared<WarmupLoadPreparedSyncWrites>(
-                &store.getEPEngine(), i, *this);
+                store.getEPEngine(), i, *this);
         ExecutorPool::get()->schedule(task);
     }
 }
