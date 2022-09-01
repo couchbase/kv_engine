@@ -32,11 +32,11 @@ class EventuallyPersistentEngine;
 class Flusher;
 class FlusherTask : public GlobalTask {
 public:
-    FlusherTask(EventuallyPersistentEngine* e,
+    FlusherTask(EventuallyPersistentEngine& e,
                 Flusher* f,
                 uint16_t flusherId,
                 bool completeBeforeShutdown = true)
-        : GlobalTask(e, TaskId::FlusherTask, 0, completeBeforeShutdown),
+        : GlobalTask(&e, TaskId::FlusherTask, 0, completeBeforeShutdown),
           flusher(f) {
         std::stringstream ss;
         ss << "Running a flusher loop: flusher " << flusherId;
