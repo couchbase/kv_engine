@@ -2144,7 +2144,7 @@ TYPED_TEST(ExecutorPoolEpEngineTest, TaskStats_MemAccounting) {
     auto task = [&] {
         BucketAllocationGuard guard(this->engine.get());
         return std::make_shared<LambdaTask>(
-                this->engine.get(),
+                *this->engine,
                 TaskId::ItemPager,
                 INT_MAX,
                 false,

@@ -26,12 +26,12 @@ public:
           func(std::move(f)) {
     }
 
-    LambdaTask(EventuallyPersistentEngine* engine,
+    LambdaTask(EventuallyPersistentEngine& engine,
                TaskId taskId,
                double sleeptime,
                bool completeBeforeShutdown,
                std::function<bool(LambdaTask&)> f)
-        : GlobalTask(engine, taskId, sleeptime, completeBeforeShutdown),
+        : GlobalTask(&engine, taskId, sleeptime, completeBeforeShutdown),
           func(std::move(f)) {
     }
 
