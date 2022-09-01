@@ -6776,7 +6776,8 @@ void EventuallyPersistentEngine::setMaxDataSize(size_t size) {
     // that will update EPStats
     configureMemWatermarksForQuota(size);
 
-    kvBucket->getKVStoreScanTracker().updateMaxRunningScans(size);
+    kvBucket->getKVStoreScanTracker().updateMaxRunningScans(
+            size, configuration.getRangeScanKvStoreScanRatio());
 
     configureStorageMemoryForQuota(size);
 

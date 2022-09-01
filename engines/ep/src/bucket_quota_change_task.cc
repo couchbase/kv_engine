@@ -191,7 +191,9 @@ cb::engine_errc BucketQuotaChangeTask::prepareToReduceMemoryUsage(
         engine->configureStorageMemoryForQuota(initQuota);
         bucket.setCheckpointMemoryRecoveryLowerMark(initCkptLower);
         bucket.setCheckpointMemoryRecoveryUpperMark(initCkptUpper);
-        bucket.getKVStoreScanTracker().updateMaxRunningScans(initQuota);
+        bucket.getKVStoreScanTracker().updateMaxRunningScans(
+                initQuota,
+                engine->getConfiguration().getRangeScanKvStoreScanRatio());
         engine->configureMemWatermarksForQuota(initQuota);
     };
 
@@ -206,7 +208,9 @@ cb::engine_errc BucketQuotaChangeTask::prepareToReduceMemoryUsage(
     }
 
     // Step 3
-    bucket.getKVStoreScanTracker().updateMaxRunningScans(desiredQuota);
+    bucket.getKVStoreScanTracker().updateMaxRunningScans(
+            desiredQuota,
+            engine->getConfiguration().getRangeScanKvStoreScanRatio());
 
     // Step 4
     engine->configureMemWatermarksForQuota(desiredQuota);

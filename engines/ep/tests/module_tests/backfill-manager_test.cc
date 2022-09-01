@@ -30,7 +30,9 @@ public:
 class GMockBackfillTracker : public KVStoreScanTracker {
 public:
     MOCK_METHOD0(canCreateBackfill, bool());
+    MOCK_METHOD0(canCreateRangeScan, bool());
     MOCK_METHOD0(decrNumRunningBackfills, void());
+    MOCK_METHOD0(decrNumRunningRangeScans, void());
 };
 
 class BackfillManagerTest : public SingleThreadedKVBucketTest {

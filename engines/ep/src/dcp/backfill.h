@@ -148,22 +148,48 @@ public:
      * to include a new scan and the caller must now proceed to create the scan.
      * If no more backfills can be created returns false.
      *
-     * @return true if a backfill can be created
+     * @return true if a Backfill can be created
      */
     virtual bool canCreateBackfill();
+
+    /**
+     * Check if a RangeScan can be created (which will create a ScanContext).
+     * If true is returned the KVStoreScanTracker has incremented the tracking
+     * to include a new scan and the caller must now proceed to create the scan.
+     * If no more backfills can be created returns false.
+     *
+     * @return true if a RangeScan can be created
+     */
+    virtual bool canCreateRangeScan();
 
     /// Decrement number of running backfills by one
     virtual void decrNumRunningBackfills();
 
+    /// Decrement number of running RangeScans by one
+    virtual void decrNumRunningRangeScans();
+
     /**
-     * Set the maxRunning limit. The value is found by calling
-     * getMaxRunningScansForQuota(maxDataSize)
+     * Update the maxRunning and maxRunningRangeScans limits based on a quota.
+     * The values are found by calling:
+     *   getMaxRunningScansForQuota(maxDataSize, rangeScanRatio)
+     * @param maxDataSize The bucket quota
+     * @param rangeScanRatio The ratio of total scans available for RangeScan
      */
-    void updateMaxRunningScans(size_t maxDataSize);
+    void updateMaxRunningScans(size_t maxDataSize, float rangeScanRatio);
+
+    /**
+     * Set the max running scans (separate limits for backfill/RangeScan). This
+     * function allows any value to permit simpler testing.
+     *
+     * @param newMaxRunningBackfills How many DCP backfills can exist
+     * @param newMaxRunningRangeScans How many RangeScans can exist
+     */
+    void setMaxRunningScans(uint16_t newMaxRunningBackfills,
+                            uint16_t newMaxRunningRangeScans);
 
     /// @return how many DCP backfills are running
-    uint16_t getNumRunningBackfills() const {
-        return scans.lock()->running;
+    uint16_t getNumRunningBackfills() {
+        return scans.lock()->runningBackfills;
     }
 
     /// @return the maximum number of DCP backfills
@@ -171,18 +197,44 @@ public:
         return scans.lock()->maxRunning;
     }
 
-    /// @return the maximum scans value from the given maxDataSize (quota).
-    static uint16_t getMaxRunningScansForQuota(size_t maxDataSize);
+    /// @return how many RangeScans are running
+    uint16_t getNumRunningRangeScans() {
+        return scans.lock()->runningRangeScans;
+    }
+
+    /// @return the maximum number of RangeScans
+    uint16_t getMaxRunningRangeScans() {
+        return scans.lock()->maxRunningRangeScans;
+    }
+
+    /**
+     * Return the maximum number of backfills and RangeScans from the given
+     * maxDataSize (quota).
+     *
+     * @param maxDataSize The bucket quota
+     * @param rangeScanRatio The ratio of total scans available for RangeScan
+     * @return std::pair, first is max backfills, second is max RangeScans
+     */
+    static std::pair<uint16_t, uint16_t> getMaxRunningScansForQuota(
+            size_t maxDataSize, float rangeScanRatio);
 
 private:
     // Current and maximum number of scans (i.e. DCPBackfills). These may not
     // be actively scanning, but have an open snapshot.
     struct Scans {
-        // count of backfills
-        uint16_t running{0};
+        uint16_t getTotalRunning() const {
+            return runningBackfills + runningRangeScans;
+        }
+
+        uint16_t runningBackfills{0};
+
+        uint16_t runningRangeScans{0};
 
         // The upper limit
         uint16_t maxRunning{0};
+
+        // The upper limit for RangeScan and is generally lower than maxRunning
+        uint16_t maxRunningRangeScans{0};
     };
     folly::Synchronized<Scans, std::mutex> scans;
 };

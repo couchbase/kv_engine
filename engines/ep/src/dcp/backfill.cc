@@ -119,8 +119,20 @@ void DCPBackfill::transitionState(State& currentState, State newState) {
 
 bool KVStoreScanTracker::canCreateBackfill() {
     return scans.withLock([](auto& scans) {
-        if (scans.running < scans.maxRunning) {
-            ++scans.running;
+        // For backfills compare total against the absolute max, maxRunning
+        if (scans.getTotalRunning() < scans.maxRunning) {
+            ++scans.runningBackfills;
+            return true;
+        }
+        return false;
+    });
+}
+
+bool KVStoreScanTracker::canCreateRangeScan() {
+    return scans.withLock([](auto& scans) {
+        // For RangeScan compare total against maxRunningRangeScans
+        if (scans.getTotalRunning() < scans.maxRunningRangeScans) {
+            ++scans.runningRangeScans;
             return true;
         }
         return false;
@@ -129,23 +141,50 @@ bool KVStoreScanTracker::canCreateBackfill() {
 
 void KVStoreScanTracker::decrNumRunningBackfills() {
     if (!scans.withLock([](auto& backfills) {
-            if (backfills.running > 0) {
-                --backfills.running;
+            if (backfills.runningBackfills > 0) {
+                --backfills.runningBackfills;
                 return true;
             }
             return false;
         })) {
         EP_LOG_WARN_RAW(
-                "KVStoreScanTracker::decrNumRunningBackfills backfills.running "
-                "is zero");
+                "KVStoreScanTracker::decrNumRunningBackfills runningBackfills "
+                "already zero");
     }
 }
 
-void KVStoreScanTracker::updateMaxRunningScans(size_t maxDataSize) {
-    auto newMaxRunningScans = getMaxRunningScansForQuota(maxDataSize);
-    scans.lock()->maxRunning = newMaxRunningScans;
-    EP_LOG_DEBUG("KVStoreScanTracker::updateMaxRunningScans maxRunning:{}",
-                 newMaxRunningScans);
+void KVStoreScanTracker::decrNumRunningRangeScans() {
+    if (!scans.withLock([](auto& backfills) {
+            if (backfills.runningRangeScans > 0) {
+                --backfills.runningRangeScans;
+                return true;
+            }
+            return false;
+        })) {
+        EP_LOG_WARN_RAW(
+                "KVStoreScanTracker::decrNumRunningRangeScans "
+                "backfills.runningRangeScans already zero");
+    }
+}
+
+void KVStoreScanTracker::updateMaxRunningScans(size_t maxDataSize,
+                                               float rangeScanRatio) {
+    auto newMaxRunningScans =
+            getMaxRunningScansForQuota(maxDataSize, rangeScanRatio);
+    setMaxRunningScans(newMaxRunningScans.first, newMaxRunningScans.second);
+}
+
+void KVStoreScanTracker::setMaxRunningScans(uint16_t newMaxRunningBackfills,
+                                            uint16_t newMaxRunningRangeScans) {
+    scans.withLock([&newMaxRunningBackfills,
+                    &newMaxRunningRangeScans](auto& backfills) {
+        backfills.maxRunning = newMaxRunningBackfills;
+        backfills.maxRunningRangeScans = newMaxRunningRangeScans;
+    });
+    EP_LOG_DEBUG(
+            "KVStoreScanTracker::setMaxRunningScans scans:{} rangeScans:{}",
+            newMaxRunningBackfills,
+            newMaxRunningRangeScans);
 }
 
 /* Db file memory */
@@ -155,14 +194,26 @@ const uint16_t numScansThreshold = 4096;
 /* Max percentage of memory we want scans to occupy */
 const uint8_t numScansMemThreshold = 1;
 
-uint16_t KVStoreScanTracker::getMaxRunningScansForQuota(size_t maxDataSize) {
+std::pair<uint16_t, uint16_t> KVStoreScanTracker::getMaxRunningScansForQuota(
+        size_t maxDataSize, float rangeScanRatio) {
+    Expects(rangeScanRatio >= 0.0 && rangeScanRatio <= 1.0);
     double numScansMemThresholdPercent =
             static_cast<double>(numScansMemThreshold) / 100;
     size_t max = maxDataSize * numScansMemThresholdPercent / dbFileMem;
 
-    /* We must have at least one scan available */
+    // Need at least 2 scans available, 1 range and 1 backfill
     size_t newMaxScans =
-            std::max(static_cast<size_t>(1),
+            std::max(static_cast<size_t>(2),
                      std::min(max, static_cast<size_t>(numScansThreshold)));
-    return gsl::narrow_cast<uint16_t>(newMaxScans);
+
+    // Calculate how many range scans can exist. RangeScans themselves must not
+    // consumer all file handles, so are capped, but then further capped so that
+    // there is some room for backfills.
+    // The final max is either 1 or some % of newMaxScans
+    size_t rangeScans = newMaxScans * rangeScanRatio;
+    size_t newMaxRangeScans = std::max(static_cast<size_t>(1), rangeScans);
+
+    Expects(newMaxScans > newMaxRangeScans);
+    return std::make_pair(gsl::narrow_cast<uint16_t>(newMaxScans),
+                          gsl::narrow_cast<uint16_t>(newMaxRangeScans));
 }

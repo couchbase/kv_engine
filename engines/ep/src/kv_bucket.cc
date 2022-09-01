@@ -329,7 +329,8 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
             "mem_used_merge_threshold_percent",
             std::make_unique<StatsValueChangeListener>(stats, *this));
 
-    getKVStoreScanTracker().updateMaxRunningScans(config.getMaxSize());
+    getKVStoreScanTracker().updateMaxRunningScans(
+            config.getMaxSize(), config.getRangeScanKvStoreScanRatio());
 
     config.addValueChangedListener(
             "mem_low_wat",

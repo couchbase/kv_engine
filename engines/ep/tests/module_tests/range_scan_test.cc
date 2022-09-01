@@ -1820,9 +1820,11 @@ public:
         boost::uuids::name_generator_sha1 gen(boost::uuids::ns::dns());
         boost::uuids::uuid udoc = gen(std::to_string(++scanId));
         EXPECT_EQ(cb::engine_errc::success,
-                  rangeScans.addNewScan(std::make_shared<RangeScan>(udoc),
-                                        getEPVBucket(),
-                                        store->getEPEngine()));
+                  rangeScans.addNewScan(
+                          std::make_shared<RangeScan>(
+                                  udoc, store->getKVStoreScanTracker()),
+                          getEPVBucket(),
+                          store->getEPEngine()));
         return udoc;
     }
 
@@ -1901,6 +1903,42 @@ TEST_F(RangeScanOwnerTest, cancelRangeScansExceedingDuration) {
     // The return value has no value, which would be interpreted by the watch
     // dog task as sleep forever
     ASSERT_FALSE(rv.has_value());
+}
+
+// Test that RangeScan create fails once the limit is reached
+TEST_P(RangeScanTestSimple, limitRangeScans) {
+    // Override the KVStoreScanTracker and set that 1 RangeScan can be created
+    store->getKVStoreScanTracker().setMaxRunningScans(1, 1);
+    EXPECT_EQ(1, store->getKVStoreScanTracker().getMaxRunningRangeScans());
+    EXPECT_EQ(0, store->getKVStoreScanTracker().getNumRunningRangeScans());
+
+    // 1 key is required for the scan to create successfully
+    store_item(vbid, makeStoredDocKey("key", scanCollection), "value");
+    flushVBucket(vbid);
+    auto uuid1 = createScan(scanCollection,
+                            {"\0"},
+                            {"\xFF"},
+                            {/* no snapshot requirements */},
+                            {/* no sampling*/});
+
+    EXPECT_EQ(0, store->getKVStoreScanTracker().getNumRunningBackfills());
+    EXPECT_EQ(1, store->getKVStoreScanTracker().getNumRunningRangeScans());
+
+    createScan(scanCollection,
+               {"\0"},
+               {"\xFF"},
+               {/* no snapshot requirements */},
+               {/* no sampling*/},
+               cb::engine_errc::too_busy);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              store->cancelRangeScan(vbid, uuid1, *cookie));
+
+    EXPECT_EQ(1, store->getKVStoreScanTracker().getNumRunningRangeScans());
+
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                "RangeScanContinueTask");
+    EXPECT_EQ(0, store->getKVStoreScanTracker().getNumRunningRangeScans());
 }
 
 auto valueScanConfig =

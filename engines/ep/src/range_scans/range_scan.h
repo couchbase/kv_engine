@@ -30,6 +30,7 @@ class CookieIface;
 class EPBucket;
 class EventuallyPersistentEngine;
 class KVStoreIface;
+class KVStoreScanTracker;
 class RangeScanDataHandlerIFace;
 class StatCollector;
 class VBucket;
@@ -85,8 +86,9 @@ public:
      * constructed with this will fail to scan.
      *
      * @param id value to use for RangeScan::uuid
+     * @param resourceTracker to track how many scans are open
      */
-    RangeScan(cb::rangescan::Id id);
+    RangeScan(cb::rangescan::Id id, KVStoreScanTracker& resourceTracker);
 
     ~RangeScan();
 
@@ -302,6 +304,7 @@ protected:
     uint64_t vbUuid{0};
     std::unique_ptr<ByIdScanContext> scanCtx;
     std::unique_ptr<RangeScanDataHandlerIFace> handler;
+    KVStoreScanTracker& resourceTracker;
     /// keys read for the life of this scan (counted for key and value scans)
     size_t totalKeys{0};
     /// items read from memory for the life of this scan (only for value scans)

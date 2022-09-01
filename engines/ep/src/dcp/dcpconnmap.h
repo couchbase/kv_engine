@@ -118,16 +118,6 @@ public:
 
     void manageConnections() override;
 
-    /**
-     * Calculate how many backfills we can run for the given Bucket quota.
-     *
-     * @param maxDataSize bucket quota
-     * @return number of backfills we can run with the given quota
-     */
-    static uint16_t getMaxRunningBackfillsForQuota(size_t maxDataSize);
-
-
-
     cb::engine_errc addPassiveStream(ConnHandler& conn,
                                      uint32_t opaque,
                                      Vbid vbucket,

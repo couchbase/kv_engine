@@ -44,6 +44,7 @@
 #include <memcached/cookie_iface.h>
 #include <memcached/range_scan_optional_configuration.h>
 #include <platform/histogram.h>
+#include <statistics/collector.h>
 
 EPVBucket::EPVBucket(Vbid i,
                      vbucket_state_t newState,
@@ -1464,6 +1465,12 @@ void EPVBucket::completeRangeScan(cb::rangescan::Id id) {
 }
 
 cb::engine_errc EPVBucket::doRangeScanStats(const StatCollector& collector) {
+    collector.addStat(
+            "num_running",
+            bucket->getKVStoreScanTracker().getNumRunningRangeScans());
+    collector.addStat(
+            "max_running",
+            bucket->getKVStoreScanTracker().getMaxRunningRangeScans());
     return rangeScans.doStats(collector);
 }
 

@@ -1093,6 +1093,10 @@ protected:
     EventuallyPersistentEngine& engine;
 
     EPStats                        &stats;
+
+    // this ordering ensures this must destruct after vbMap
+    KVStoreScanTracker kvstoreScanTracker;
+
     VBucketMap                      vbMap;
     ExTask itemPagerTask;
 
@@ -1253,8 +1257,6 @@ protected:
      * requested will always be used over a currently running change request
      */
     std::shared_ptr<BucketQuotaChangeTask> bucketQuotaChangeTask;
-
-    KVStoreScanTracker kvstoreScanTracker;
 
     friend class KVBucketTest;
 

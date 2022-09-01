@@ -1319,6 +1319,18 @@
                 ]
             }
         },
+        "range_scan_kv_store_scan_ratio": {
+            "default": "0.8",
+            "dynamic": false,
+            "descr": "The ratio for calculating how many RangeScans can exist, a ratio of total KVStore scans.",
+            "type": "float",
+            "validator": {
+                "range": {
+                    "min": 0.0,
+                    "max": 1.0
+                }
+            }
+        },
         "range_scan_max_continue_tasks": {
             "default": "0",
             "dynamic": true,
