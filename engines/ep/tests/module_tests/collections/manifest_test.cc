@@ -325,7 +325,12 @@ TEST(ManifestTest, validation) {
                 "scopes":[{"name":"_default", "uid":"0", "collections":[]},
                           {"name":"s1", "uid":"8",
                            "limits": { "kv": {"data_size": "apple"}},
-                           "collections":[]}]})"};
+                           "collections":[]}]})",
+            // invalid type for metered
+            R"({"uid" : "0",
+                "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"_default","uid":"0", "metered":"true"}]}]})",
+    };
 
     std::vector<std::string> validManifests = {
             // this is the 'epoch' state of collections
@@ -396,7 +401,7 @@ TEST(ManifestTest, validation) {
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[]}]})",
             // mix-case uid is fine
-            R"({"uid" : "AbCd1",
+            R"({"uid" : "AbCd12",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[]}]})",
 
@@ -440,7 +445,13 @@ TEST(ManifestTest, validation) {
                 "scopes":[{"name":"_default", "uid":"0", "collections":[]},
                           {"name":"s1", "uid":"8",
                            "limits": {},
-                           "collections":[]}]})"};
+                           "collections":[]}]})",
+            R"({"uid" : "1",
+                "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"test0","uid":"8", "metered":true}]}]})",
+            R"({"uid" : "1",
+                "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"test1","uid":"8", "metered":false}]}]})"};
 
     for (auto& manifest : invalidManifests) {
         try {
@@ -462,16 +473,18 @@ TEST(ManifestTest, validation) {
         }
     }
 
-    // Following logic requires even number of valid manifests
-    ASSERT_EQ(0, validManifests.size() % 2);
-
     // Make use of the valid manifests to give some coverage on the compare
     // operator.
     auto itr = validManifests.rbegin();
-    for (auto& manifest : validManifests) {
+    for (auto itr2 = validManifests.begin(); itr2 != validManifests.end();
+         itr2++) {
+        if (itr2 == itr.base()) {
+            itr++;
+            continue;
+        }
         try {
-            Collections::Manifest m1(manifest);
-            Collections::Manifest m2(manifest);
+            Collections::Manifest m1(*itr2);
+            Collections::Manifest m2(*itr2);
 
             auto fb = m1.toFlatbuffer();
             std::string_view view(reinterpret_cast<const char*>(fb.data()),
@@ -485,9 +498,10 @@ TEST(ManifestTest, validation) {
 
             EXPECT_NE(m1, m4);
             EXPECT_NE(m3, m4);
+            std::cerr << "..\n";
         } catch (std::exception& e) {
             EXPECT_TRUE(false)
-                    << "Exception thrown for valid manifest:" << manifest
+                    << "Exception thrown for valid manifest:" << *itr2
                     << std::endl
                     << " what:" << e.what();
         }

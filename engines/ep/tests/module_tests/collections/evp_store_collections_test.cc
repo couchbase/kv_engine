@@ -4259,7 +4259,7 @@ TEST_P(CollectionsParameterizedTest, MB_45899) {
     // interested in.
     std::vector<Collections::CollectionEntry> collections;
     collections.push_back(
-            {CollectionID::Default, "_default", {}, ScopeID::Default});
+            {CollectionID::Default, "_default", {}, ScopeID::Default, true});
     Collections::Summary summary;
     auto vb0 = store->getVBucket(vbid0);
     auto vb1 = store->getVBucket(vbid1);

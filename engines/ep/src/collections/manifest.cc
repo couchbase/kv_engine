@@ -55,6 +55,9 @@ static constexpr nlohmann::json::value_t KvType =
 static constexpr char const* DataSizeKey = "data_size";
 static constexpr nlohmann::json::value_t DataSizeType =
         nlohmann::json::value_t::number_unsigned;
+static constexpr char const* MeteredKey = "metered";
+static constexpr nlohmann::json::value_t MeteredType =
+        nlohmann::json::value_t::boolean;
 
 /**
  * Get json sub-object from the json object for key and check the type.
@@ -155,6 +158,8 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
             auto cuid = getJsonObject(collection, UidKey, UidType);
             auto cmaxttl = cb::getOptionalJsonObject(
                     collection, MaxTtlKey, MaxTtlType);
+            auto metered = cb::getOptionalJsonObject(
+                    collection, MeteredKey, MeteredType);
 
             auto cnameValue = cname.get<std::string>();
             if (!validName(cnameValue)) {
@@ -205,8 +210,11 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
             }
 
             enableDefaultCollection(cidValue);
-            scopeCollections.push_back(
-                    CollectionEntry{cidValue, cnameValue, maxTtl, sidValue});
+            scopeCollections.push_back(CollectionEntry{cidValue,
+                                                       cnameValue,
+                                                       maxTtl,
+                                                       sidValue,
+                                                       metered.value_or(true)});
         }
 
         // Check for limits - only support for data_size
@@ -356,6 +364,9 @@ nlohmann::json Manifest::toJson(
                 if (c.maxTtl) {
                     collection["maxTTL"] = c.maxTtl.value().count();
                 }
+                if (!c.metered) {
+                    collection[MeteredKey] = c.metered;
+                }
                 scope["collections"].push_back(collection);
             }
         }
@@ -388,7 +399,8 @@ flatbuffers::DetachedBuffer Manifest::toFlatbuffer() const {
                     uint32_t(c.cid),
                     c.maxTtl.has_value(),
                     c.maxTtl.value_or(std::chrono::seconds(0)).count(),
-                    builder.CreateString(c.name));
+                    builder.CreateString(c.name),
+                    c.metered);
             fbCollections.push_back(newEntry);
         }
         auto collectionVector = builder.CreateVector(fbCollections);
@@ -456,8 +468,12 @@ Manifest::Manifest(std::string_view flatbufferData, Manifest::FlatBuffers tag)
             }
 
             enableDefaultCollection(cid);
-            scopeCollections.push_back(CollectionEntry{
-                    cid, collection->name()->str(), maxTtl, scope->scopeId()});
+            scopeCollections.push_back(
+                    CollectionEntry{cid,
+                                    collection->name()->str(),
+                                    maxTtl,
+                                    scope->scopeId(),
+                                    collection->metered()});
         }
 
         std::optional<size_t> dataSize;
@@ -502,7 +518,12 @@ void Manifest::addCollectionStats(KVBucket& bucket,
                 collectionC.addStat(Key::collection_name, entry.name);
 
                 if (entry.maxTtl) {
-                    collectionC.addStat(Key::collection_maxTTL, entry.maxTtl->count());
+                    collectionC.addStat(Key::collection_maxTTL,
+                                        entry.maxTtl->count());
+                }
+
+                if (!entry.metered) {
+                    collectionC.addStat(Key::collection_metered, entry.metered);
                 }
             }
         }
@@ -646,7 +667,7 @@ void Manifest::dump() const {
 
 bool CollectionEntry::operator==(const CollectionEntry& other) const {
     return cid == other.cid && name == other.name && sid == other.sid &&
-           maxTtl == other.maxTtl;
+           maxTtl == other.maxTtl && metered == other.metered;
 }
 
 bool Scope::operator==(const Scope& other) const {
@@ -827,7 +848,7 @@ std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
                << ", ttl:" << (collection.maxTtl.has_value() ? "yes" : "no")
                << ":"
                << collection.maxTtl.value_or(std::chrono::seconds(0)).count()
-               << "}";
+               << ", metered:" << collection.metered << "}";
         }
         os << "]\n";
     }

@@ -38,6 +38,7 @@ struct CollectionEntry {
     std::string name;
     cb::ExpiryLimit maxTtl;
     ScopeID sid;
+    bool metered;
     bool operator==(const CollectionEntry& other) const;
     bool operator!=(const CollectionEntry& other) const {
         return !(*this == other);
@@ -348,7 +349,8 @@ private:
                                {{CollectionID::Default,
                                  DefaultCollectionName,
                                  cb::NoExpiryLimit,
-                                 ScopeID::Default}}}}};
+                                 ScopeID::Default,
+                                 true}}}}};
     collectionContainer collections;
     ManifestUid uid{0};
 };

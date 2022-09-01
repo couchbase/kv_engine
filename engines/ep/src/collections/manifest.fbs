@@ -21,6 +21,7 @@ table Collection {
     ttlValid:bool;
     maxTtl:uint;
     name:string;
+    metered:bool;
 }
 
 table ScopeLimits {
