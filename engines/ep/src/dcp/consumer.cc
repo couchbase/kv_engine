@@ -1129,7 +1129,7 @@ bool DcpConsumer::handleRollbackResponse(Vbid vbid,
                  vbid,
                  rollbackSeqno);
     ExTask task = std::make_shared<RollbackTask>(
-            &engine_, opaque, vbid, rollbackSeqno, shared_from_this());
+            engine_, opaque, vbid, rollbackSeqno, shared_from_this());
     ExecutorPool::get()->schedule(task);
     return true;
 }

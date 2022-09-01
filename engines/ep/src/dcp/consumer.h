@@ -685,14 +685,14 @@ private:
  */
 class RollbackTask : public GlobalTask {
 public:
-    RollbackTask(EventuallyPersistentEngine* e,
+    RollbackTask(EventuallyPersistentEngine& e,
                  uint32_t opaque_,
                  Vbid vbid_,
                  uint64_t rollbackSeqno_,
                  std::shared_ptr<DcpConsumer> conn)
-        : GlobalTask(e, TaskId::RollbackTask, 0, false),
+        : GlobalTask(&e, TaskId::RollbackTask, 0, false),
           description("Running rollback task for " + vbid_.to_string()),
-          engine(e),
+          engine(&e),
           opaque(opaque_),
           vbid(vbid_),
           rollbackSeqno(rollbackSeqno_),
