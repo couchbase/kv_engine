@@ -80,12 +80,12 @@ size_t CheckpointDestroyerTask::getNumCheckpoints() const {
 }
 
 CheckpointMemRecoveryTask::CheckpointMemRecoveryTask(
-        EventuallyPersistentEngine* e,
+        EventuallyPersistentEngine& e,
         EPStats& st,
         size_t interval,
         size_t removerId)
     : NotifiableTask(e, TaskId::CheckpointMemRecoveryTask, interval),
-      engine(e),
+      engine(&e),
       stats(st),
       sleepTime(interval),
       removerId(removerId) {

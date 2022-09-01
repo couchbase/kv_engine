@@ -12,7 +12,7 @@
 #include "limited_concurrency_task.h"
 
 LimitedConcurrencyTask::LimitedConcurrencyTask(
-        EventuallyPersistentEngine* e,
+        EventuallyPersistentEngine& e,
         TaskId id,
         cb::AwaitableSemaphore& semaphore,
         bool completeBeforeShutdown)

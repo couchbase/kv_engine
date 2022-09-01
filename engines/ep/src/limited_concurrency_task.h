@@ -54,7 +54,7 @@ public:
      * @param completeBeforeShutdown should the task be required to complete
      *                               before shutdown
      */
-    LimitedConcurrencyTask(EventuallyPersistentEngine* e,
+    LimitedConcurrencyTask(EventuallyPersistentEngine& e,
                            TaskId id,
                            cb::AwaitableSemaphore& semaphore,
                            bool completeBeforeShutdown);

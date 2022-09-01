@@ -29,11 +29,11 @@
  */
 class NotifiableTask : public GlobalTask {
 public:
-    NotifiableTask(EventuallyPersistentEngine* e,
+    NotifiableTask(EventuallyPersistentEngine& e,
                    TaskId id,
                    double sleeptime,
                    bool completeBeforeShutdown = false)
-        : GlobalTask(e, id, sleeptime, completeBeforeShutdown){};
+        : GlobalTask(&e, id, sleeptime, completeBeforeShutdown){};
 
     bool run() override;
 

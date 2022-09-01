@@ -24,7 +24,7 @@
 class ConcurrencyTestTask : public LimitedConcurrencyTask {
 public:
     using Callback = TaskConcurrencyTest::Callback;
-    ConcurrencyTestTask(EventuallyPersistentEngine* e,
+    ConcurrencyTestTask(EventuallyPersistentEngine& e,
                         cb::AwaitableSemaphore& semaphore,
                         Callback callback)
         : LimitedConcurrencyTask(e, TaskId::ItemPager, semaphore, false),
@@ -63,8 +63,8 @@ TaskConcurrencyTest::makeTasks(cb::AwaitableSemaphore& sem,
                                ConcurrencyTestTask::Callback callback) {
     std::vector<std::shared_ptr<ConcurrencyTestTask>> tasks;
     for (size_t i = 0; i < taskCount; i++) {
-        tasks.push_back(std::make_shared<ConcurrencyTestTask>(
-                engine.get(), sem, callback));
+        tasks.push_back(
+                std::make_shared<ConcurrencyTestTask>(*engine, sem, callback));
     }
     return tasks;
 }

@@ -119,7 +119,7 @@ void KVBucketTest::initialise(std::string config) {
     const auto numChkTasks = epConfig.getCheckpointRemoverTaskCount();
     for (size_t id = 0; id < numChkTasks; ++id) {
         auto task = std::make_shared<CheckpointMemRecoveryTask>(
-                engine.get(),
+                *engine,
                 engine->getEpStats(),
                 epConfig.getChkRemoverStime(),
                 id);

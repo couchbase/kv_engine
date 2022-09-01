@@ -68,7 +68,7 @@ public:
      * @param interval
      * @param removerId of this task's instance, defined in [0, num_removers -1]
      */
-    CheckpointMemRecoveryTask(EventuallyPersistentEngine* e,
+    CheckpointMemRecoveryTask(EventuallyPersistentEngine& e,
                               EPStats& st,
                               size_t interval,
                               size_t removerId);

@@ -36,7 +36,7 @@ CompactTask::CompactTask(
         const CookieIface* ck,
         cb::AwaitableSemaphore& semaphore,
         bool completeBeforeShutdown)
-    : LimitedConcurrencyTask(&bucket.getEPEngine(),
+    : LimitedConcurrencyTask(bucket.getEPEngine(),
                              TaskId::CompactVBucketTask,
                              semaphore,
                              completeBeforeShutdown),
