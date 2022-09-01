@@ -155,8 +155,9 @@ protected:
         return rconn;
     }
 
+    /// MB-53560:
     /// Operating on a document which isn't a numeric value should
-    /// account for X ru's and fail
+    /// account for 0 ru's and fail
     void testArithmeticBadValue(ClientOpcode opcode,
                                 std::string id,
                                 std::string value,
@@ -167,10 +168,7 @@ protected:
         upsert(id, value, xattr_path, xattr_value);
         auto rsp = conn->execute(cmd);
         EXPECT_EQ(Status::DeltaBadval, rsp.getStatus());
-        ASSERT_TRUE(rsp.getReadUnits().has_value());
-        EXPECT_EQ(to_ru(calculateDocumentSize(
-                          id, value, xattr_path, xattr_value)),
-                  *rsp.getReadUnits());
+        ASSERT_FALSE(rsp.getReadUnits().has_value());
         EXPECT_FALSE(rsp.getWriteUnits());
     }
 
@@ -1193,12 +1191,7 @@ TEST_F(MeteringTest, MeterDocumentSimpleMutations) {
     command.setCas(1);
     rsp = conn->execute(command);
     EXPECT_EQ(cb::mcbp::Status::KeyEexists, rsp.getStatus());
-    ASSERT_TRUE(rsp.getReadUnits());
-    // @todo it currently fails and return the size of the old document!
-    // EXPECT_EQ(1, *rsp.getReadUnits());
-    EXPECT_EQ(sconfig.to_ru(id.size() + document_value.size() +
-                            xattr_path.size() + xattr_value.size()),
-              *rsp.getReadUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
     command.setCas(0);
 
@@ -1342,8 +1335,7 @@ TEST_F(MeteringTest, GetMetaDocumentWithXattr) {
     EXPECT_FALSE(rsp.getWriteUnits());
 }
 
-/// Subdoc get should cost the entire doc read; even if the requested path
-/// doesn't exists
+/// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocGetNoSuchPath) {
     const std::string id = "SubdocGetENoPath";
     const auto value = getJsonDoc().dump();
@@ -1352,9 +1344,8 @@ TEST_F(MeteringTest, SubdocGetNoSuchPath) {
     auto rsp = conn->execute(BinprotSubdocCommand{
             cb::mcbp::ClientOpcode::SubdocGet, id, "hello"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, rsp.getStatus());
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
-    EXPECT_FALSE(rsp.getWriteUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
+    EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
 }
 
 /// Subdoc get should cost the entire doc read; and not just the returned
@@ -1387,8 +1378,7 @@ TEST_F(MeteringTest, SubdocGetWithXattr) {
     EXPECT_FALSE(rsp.getWriteUnits());
 }
 
-/// Subdoc exists should cost the entire doc read no matter if the path
-/// exists or not
+/// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocExistsNoSuchPath) {
     const std::string id = "SubdocExistsNoSuchPath";
     const auto value = getJsonDoc().dump();
@@ -1396,9 +1386,8 @@ TEST_F(MeteringTest, SubdocExistsNoSuchPath) {
     auto rsp = conn->execute(BinprotSubdocCommand{
             cb::mcbp::ClientOpcode::SubdocExists, id, "hello"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, rsp.getStatus());
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
-    EXPECT_FALSE(rsp.getWriteUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
+    EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
 }
 
 /// Subdoc exists should cost the entire doc read
@@ -1429,8 +1418,7 @@ TEST_F(MeteringTest, SubdocExistsWithXattr) {
     EXPECT_FALSE(rsp.getWriteUnits());
 }
 
-/// Dict add should cost RU for the document event if the path already
-/// exists
+/// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocDictAddEExist) {
     const std::string id = "SubdocDictAddEExist";
     const auto value = getJsonDoc().dump();
@@ -1439,10 +1427,8 @@ TEST_F(MeteringTest, SubdocDictAddEExist) {
     auto rsp = conn->execute(BinprotSubdocCommand{
             cb::mcbp::ClientOpcode::SubdocDictAdd, id, "v1", "true"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEexists, rsp.getStatus());
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
-              *rsp.getReadUnits());
-    EXPECT_FALSE(rsp.getWriteUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
+    EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
 }
 
 /// Dict add should cost RU for the document, and WUs for the new document
@@ -1603,7 +1589,7 @@ TEST_F(MeteringTest, SubdocDictUpsertPlainDocWithXattr_Durability) {
               *rsp.getWriteUnits());
 }
 
-/// Delete should cost the full read even if the path doesn't exist
+/// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocDeleteENoPath) {
     const std::string id = "SubdocDeleteENoPath";
     const auto value = getJsonDoc().dump();
@@ -1611,9 +1597,8 @@ TEST_F(MeteringTest, SubdocDeleteENoPath) {
     auto rsp = conn->execute(BinprotSubdocCommand{
             cb::mcbp::ClientOpcode::SubdocDelete, id, "ENOPATH"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, rsp.getStatus());
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
-    EXPECT_FALSE(rsp.getWriteUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
+    EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
 }
 
 /// Delete should cost the full read, and the write of the full size of the
@@ -1690,7 +1675,7 @@ TEST_F(MeteringTest, SubdocDeletePlainDocWithXattr_Durability) {
               *rsp.getWriteUnits());
 }
 
-/// Replace should cost the read of the document even if the path isn't found
+/// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocReplaceENoPath) {
     const std::string id = "SubdocReplaceENoPath";
     const auto value = getJsonDoc().dump();
@@ -1698,9 +1683,8 @@ TEST_F(MeteringTest, SubdocReplaceENoPath) {
     auto rsp = conn->execute(BinprotSubdocCommand{
             cb::mcbp::ClientOpcode::SubdocReplace, id, "ENOPATH", "true"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, rsp.getStatus());
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
-    EXPECT_FALSE(rsp.getWriteUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
+    EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
 }
 
 /// Replace should cost the read of the document, and the write of the
@@ -1779,8 +1763,7 @@ TEST_F(MeteringTest, SubdocReplacePlainDocWithXattr_Durability) {
               *rsp.getWriteUnits());
 }
 
-/// Counter should cost the read of the document even if the requested
-/// path isn't a counter
+/// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocCounterENoCounter) {
     const std::string id = "SubdocCounterENoPath";
     const auto value = getJsonDoc().dump();
@@ -1788,9 +1771,8 @@ TEST_F(MeteringTest, SubdocCounterENoCounter) {
     auto rsp = conn->execute(BinprotSubdocCommand{
             cb::mcbp::ClientOpcode::SubdocCounter, id, "array", "1"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathMismatch, rsp.getStatus());
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
-    EXPECT_FALSE(rsp.getWriteUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
+    EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
 }
 
 /// Counter should cost the read of the full document and the write of
@@ -1860,8 +1842,7 @@ TEST_F(MeteringTest, SubdocCounterPlainDocWithXattr_Durability) {
               *rsp.getWriteUnits());
 }
 
-/// GetCount should cost the read of the document even if the path doesn't
-/// exists
+/// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocGetCountENoPath) {
     const std::string id = "SubdocGetCountENoPath";
     const auto value = getJsonDoc().dump();
@@ -1869,13 +1850,11 @@ TEST_F(MeteringTest, SubdocGetCountENoPath) {
     auto rsp = conn->execute(BinprotSubdocCommand{
             cb::mcbp::ClientOpcode::SubdocGetCount, id, "ENOPATH"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, rsp.getStatus());
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
-    EXPECT_FALSE(rsp.getWriteUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
+    EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
 }
 
-/// GetCount should cost the read of the document even if the path doesn't
-/// doesn't point to an array
+/// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocGetCountENotArray) {
     const std::string id = "SubdocGetCountENotArray";
     const auto value = getJsonDoc().dump();
@@ -1883,9 +1862,8 @@ TEST_F(MeteringTest, SubdocGetCountENotArray) {
     auto rsp = conn->execute(BinprotSubdocCommand{
             cb::mcbp::ClientOpcode::SubdocGetCount, id, "v1"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathMismatch, rsp.getStatus());
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
-    EXPECT_FALSE(rsp.getWriteUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
+    EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
 }
 
 /// GetCount should cost the read of the entire document
@@ -1916,8 +1894,7 @@ TEST_F(MeteringTest, SubdocGetCountPlainDocWithXattr) {
     EXPECT_FALSE(rsp.getWriteUnits());
 }
 
-/// ArrayPushLast should cost the read of the document even if the path
-/// doesn't exist
+/// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocArrayPushLastENoPath) {
     const std::string id = "SubdocArrayPushLastENoPath";
     const auto value = getJsonDoc().dump();
@@ -1928,13 +1905,11 @@ TEST_F(MeteringTest, SubdocArrayPushLastENoPath) {
                                  "ENOPATH",
                                  "true"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, rsp.getStatus());
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
-    EXPECT_FALSE(rsp.getWriteUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
+    EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
 }
 
-/// ArrayPushLast should cost the read of the document even if the path
-/// isn't an array
+/// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocArrayPushLastENotArray) {
     const std::string id = "SubdocArrayPushLastENotArray";
     const auto value = getJsonDoc().dump();
@@ -1945,9 +1920,8 @@ TEST_F(MeteringTest, SubdocArrayPushLastENotArray) {
                                  "counter",
                                  "true"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathMismatch, rsp.getStatus());
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
-    EXPECT_FALSE(rsp.getWriteUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
+    EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
 }
 
 /// ArrayPushLast should cost the read of the document, and then the
@@ -2020,8 +1994,7 @@ TEST_F(MeteringTest, SubdocArrayPushLastPlainDocWithXattr_Durability) {
               *rsp.getWriteUnits());
 }
 
-/// ArrayPushFirst should cost the read of the document even if the path
-/// doesn't exist
+/// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocArrayPushFirstENoPath) {
     const std::string id = "SubdocArrayPushFirstENoPath";
     const auto value = getJsonDoc().dump();
@@ -2032,13 +2005,11 @@ TEST_F(MeteringTest, SubdocArrayPushFirstENoPath) {
                                  "ENOPATH",
                                  "true"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, rsp.getStatus());
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
-    EXPECT_FALSE(rsp.getWriteUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
+    EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
 }
 
-/// ArrayPushFirst should cost the read of the document even if the path
-/// isn't an array
+/// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocArrayPushFirstENotArray) {
     const std::string id = "SubdocArrayPushFirstENotArray";
     const auto value = getJsonDoc().dump();
@@ -2049,9 +2020,8 @@ TEST_F(MeteringTest, SubdocArrayPushFirstENotArray) {
                                  "counter",
                                  "true"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathMismatch, rsp.getStatus());
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
-    EXPECT_FALSE(rsp.getWriteUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
+    EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
 }
 
 /// ArrayPushFirst should cost the read of the document, and then the
@@ -2124,8 +2094,7 @@ TEST_F(MeteringTest, SubdocArrayPushFirstPlainDocWithXattr_Durability) {
               *rsp.getWriteUnits());
 }
 
-/// ArrayAddUnique should cost the read of the document, even if the path
-/// doesn't exists
+/// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocArrayAddUniqueENoPath) {
     const std::string id = "SubdocArrayAddUniqueENoPath";
     const auto value = getJsonDoc().dump();
@@ -2136,13 +2105,11 @@ TEST_F(MeteringTest, SubdocArrayAddUniqueENoPath) {
                                  "ENOPATH",
                                  "true"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, rsp.getStatus());
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
-    EXPECT_FALSE(rsp.getWriteUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
+    EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
 }
 
-/// ArrayAddUnique should cost the read of the document, even if the path
-/// isn't an array
+/// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocArrayAddUniqueENotArray) {
     const std::string id = "SubdocArrayAddUniqueENotArray";
     const auto value = getJsonDoc().dump();
@@ -2150,13 +2117,11 @@ TEST_F(MeteringTest, SubdocArrayAddUniqueENotArray) {
     auto rsp = conn->execute(BinprotSubdocCommand{
             cb::mcbp::ClientOpcode::SubdocArrayAddUnique, id, "v1", "true"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathMismatch, rsp.getStatus());
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
-    EXPECT_FALSE(rsp.getWriteUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
+    EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
 }
 
-/// ArrayAddUnique should cost the read of the document, even if the array
-/// already contains the value
+/// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocArrayAddUniqueEExists) {
     const std::string id = "SubdocArrayAddUniqueEExists";
     const auto value = getJsonDoc().dump();
@@ -2167,9 +2132,8 @@ TEST_F(MeteringTest, SubdocArrayAddUniqueEExists) {
                                  "array",
                                  R"("1")"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEexists, rsp.getStatus());
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
-    EXPECT_FALSE(rsp.getWriteUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
+    EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
 }
 
 /// ArrayAddUnique should cost the read of the document, and the write
@@ -2254,8 +2218,7 @@ TEST_F(MeteringTest, SubdocArrayAddUniquePlainDocWithXattr_Durability) {
               *rsp.getWriteUnits());
 }
 
-/// ArrayInsert should cost the read of the document, even if the path
-/// doesn't exists
+/// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocArrayInsertENoPath) {
     const std::string id = "SubdocArrayInsertENoPath";
     const auto value = getJsonDoc().dump();
@@ -2266,13 +2229,11 @@ TEST_F(MeteringTest, SubdocArrayInsertENoPath) {
                                  "ENOPATH.[0]",
                                  "true"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, rsp.getStatus());
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
-    EXPECT_FALSE(rsp.getWriteUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
+    EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
 }
 
-/// ArrayInsert should cost the read of the document, even if the path
-/// isn't an array
+/// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocArrayInsertENotArray) {
     const std::string id = "SubdocArrayInsertENotArray";
     const auto value = getJsonDoc().dump();
@@ -2280,9 +2241,8 @@ TEST_F(MeteringTest, SubdocArrayInsertENotArray) {
     auto rsp = conn->execute(BinprotSubdocCommand{
             cb::mcbp::ClientOpcode::SubdocArrayInsert, id, "v1.[0]", "true"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathMismatch, rsp.getStatus());
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
-    EXPECT_FALSE(rsp.getWriteUnits());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
+    EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
 }
 
 /// ArrayInsert should cost the read of the document, and the write of

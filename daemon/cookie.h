@@ -609,6 +609,10 @@ public:
     /// in the log message for slow command)
     void setResponseStatus(cb::mcbp::Status status) {
         responseStatus = status;
+        if (!cb::mcbp::isStatusSuccess(status)) {
+            document_bytes_read = 0;
+            document_bytes_written = 0;
+        }
     }
 
     bool isMutationExtrasSupported() const override;

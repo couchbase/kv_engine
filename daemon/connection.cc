@@ -1400,7 +1400,7 @@ void Connection::sendResponseHeaders(Cookie& cookie,
                                      std::size_t value_len,
                                      uint8_t datatype) {
     std::array<char, sizeof(cb::mcbp::Response) + MaxFrameInfoSize> buffer;
-
+    cookie.setResponseStatus(status);
     auto wbuf = formatResponseHeaders(cookie,
                                       {buffer.data(), buffer.size()},
                                       status,
