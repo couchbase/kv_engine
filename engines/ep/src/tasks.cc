@@ -195,11 +195,12 @@ bool VKeyStatBGFetchTask::run() {
     return false;
 }
 
-
-WorkLoadMonitor::WorkLoadMonitor(EventuallyPersistentEngine *e,
-                                 bool completeBeforeShutdown) :
-    GlobalTask(e, TaskId::WorkLoadMonitor, WORKLOAD_MONITOR_FREQ,
-               completeBeforeShutdown) {
+WorkLoadMonitor::WorkLoadMonitor(EventuallyPersistentEngine& e,
+                                 bool completeBeforeShutdown)
+    : GlobalTask(&e,
+                 TaskId::WorkLoadMonitor,
+                 WORKLOAD_MONITOR_FREQ,
+                 completeBeforeShutdown) {
     prevNumMutations = getNumMutations();
     prevNumGets = getNumGets();
 }

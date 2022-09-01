@@ -269,7 +269,7 @@ private:
  */
 class WorkLoadMonitor : public GlobalTask {
 public:
-    explicit WorkLoadMonitor(EventuallyPersistentEngine* e,
+    explicit WorkLoadMonitor(EventuallyPersistentEngine& e,
                              bool completeBeforeShutdown = false);
 
     bool run() override;

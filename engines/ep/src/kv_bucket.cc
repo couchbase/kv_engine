@@ -460,7 +460,7 @@ bool KVBucket::initialize() {
     ExecutorPool::get()->schedule(durabilityCompletionTask);
 
     ExTask workloadMonitorTask =
-            std::make_shared<WorkLoadMonitor>(&engine, false);
+            std::make_shared<WorkLoadMonitor>(engine, false);
     ExecutorPool::get()->schedule(workloadMonitorTask);
 
 #if HAVE_JEMALLOC
