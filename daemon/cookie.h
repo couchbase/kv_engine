@@ -609,10 +609,6 @@ public:
     /// in the log message for slow command)
     void setResponseStatus(cb::mcbp::Status status) {
         responseStatus = status;
-        if (!cb::mcbp::isStatusSuccess(status)) {
-            document_bytes_read = 0;
-            document_bytes_written = 0;
-        }
     }
 
     bool isMutationExtrasSupported() const override;
@@ -629,6 +625,16 @@ public:
     bool isDurable() const {
         return durable;
     }
+
+    /**
+     * Get the amount of read/write units we should use for metering.
+     *
+     * According to MB-53560 a failing operation should not cost anything
+     * According to MB-53127 read should come for free if we charge for write
+     *
+     * @return number of read and write units to charge the user for.
+     */
+    std::pair<size_t, size_t> getDocumentMeteringRWUnits() const;
 
 protected:
     /**

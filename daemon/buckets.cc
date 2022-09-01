@@ -219,8 +219,9 @@ void Bucket::commandExecuted(const Cookie& cookie) {
         throttle_gauge.increment(ru + wu);
         throttle_wait_time += cookie.getTotalThrottleTime();
         if (cookie.getConnection().isSubjectToMetering()) {
-            read_units_used += ru;
-            write_units_used += wu;
+            const auto [nr, nw] = cookie.getDocumentMeteringRWUnits();
+            read_units_used += nr;
+            write_units_used += nw;
             ++num_commands_with_metered_units;
         }
     }

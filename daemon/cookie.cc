@@ -34,6 +34,7 @@
 #include <platform/string_hex.h>
 #include <platform/timeutils.h>
 #include <platform/uuid.h>
+#include <serverless/config.h>
 #include <utilities/engine_errc_2_mcbp.h>
 #include <utilities/logtags.h>
 #include <cctype>
@@ -1152,4 +1153,22 @@ bool Cookie::isCollectionsSupported() const {
 }
 bool Cookie::isDatatypeSupported(protocol_binary_datatype_t datatype) const {
     return connection.isDatatypeEnabled(datatype);
+}
+
+std::pair<size_t, size_t> Cookie::getDocumentMeteringRWUnits() const {
+    if (!cb::mcbp::isStatusSuccess(responseStatus)) {
+        return {size_t{0}, {0}};
+    }
+    auto& inst = cb::serverless::Config::instance();
+
+    size_t wb =
+            inst.to_wu(document_bytes_written.load(std::memory_order_acquire));
+    if (wb) {
+        if (isDurable()) {
+            return {size_t{0}, wb * 2};
+        }
+        return {size_t{0}, wb};
+    }
+    return {inst.to_ru(document_bytes_read.load(std::memory_order_acquire)),
+            size_t{0}};
 }

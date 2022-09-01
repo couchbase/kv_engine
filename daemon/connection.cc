@@ -37,7 +37,6 @@
 #include <platform/socket.h>
 #include <platform/strerror.h>
 #include <platform/string_hex.h>
-#include <serverless/config.h>
 #include <utilities/logtags.h>
 
 #include <exception>
@@ -1302,16 +1301,12 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
     size_t ru = 0;
     size_t wu = 0;
     if (cutracing) {
-        auto [read, write] = cookie.getDocumentRWBytes();
-        if (!read && !write) {
+        auto [nru, nwu] = cookie.getDocumentMeteringRWUnits();
+        if (!nru && !nwu) {
             cutracing = false;
         } else {
-            auto& inst = cb::serverless::Config::instance();
-            ru = inst.to_ru(read);
-            wu = inst.to_wu(write);
-            if (cookie.isDurable()) {
-                wu *= 2;
-            }
+            ru = nru;
+            wu = nwu;
             if (!ru && !wu) {
                 cutracing = false;
             }
