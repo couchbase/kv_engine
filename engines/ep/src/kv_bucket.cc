@@ -481,7 +481,7 @@ bool KVBucket::initialize() {
      * item in the hash table becomes saturated.
      */
     itemFreqDecayerTask = std::make_shared<ItemFreqDecayerTask>(
-            &engine, config.getItemFreqDecayerPercent());
+            engine, config.getItemFreqDecayerPercent());
     ExecutorPool::get()->schedule(itemFreqDecayerTask);
 
     createAndScheduleSeqnoPersistenceNotifier();

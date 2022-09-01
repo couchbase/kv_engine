@@ -18,7 +18,7 @@
  */
 class MockItemFreqDecayerTask : public ItemFreqDecayerTask {
 public:
-    MockItemFreqDecayerTask(EventuallyPersistentEngine* e, uint16_t percentage_)
+    MockItemFreqDecayerTask(EventuallyPersistentEngine& e, uint16_t percentage_)
         : ItemFreqDecayerTask(e, percentage_) {
     }
 

@@ -509,7 +509,7 @@ TEST_F(SingleThreadedEPBucketTest, ItemFreqDecayerTaskTest) {
 
     auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
     auto itemFreqDecayerTask =
-            std::make_shared<MockItemFreqDecayerTask>(engine.get(), 50);
+            std::make_shared<MockItemFreqDecayerTask>(*engine, 50);
 
     EXPECT_EQ(0, lpNonioQ.getFutureQueueSize());
     task_executor->schedule(itemFreqDecayerTask);

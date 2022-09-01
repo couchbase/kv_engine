@@ -24,7 +24,7 @@ class PauseResumeVBAdapter;
  */
 class ItemFreqDecayerTask : public GlobalTask {
 public:
-    ItemFreqDecayerTask(EventuallyPersistentEngine* e, uint16_t percentage_);
+    ItemFreqDecayerTask(EventuallyPersistentEngine& e, uint16_t percentage_);
 
     ~ItemFreqDecayerTask() override;
 

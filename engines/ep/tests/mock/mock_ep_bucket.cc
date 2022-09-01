@@ -52,7 +52,7 @@ void MockEPBucket::removeMakeCompactionContextCallback() {
 void MockEPBucket::createItemFreqDecayerTask() {
     Configuration& config = engine.getConfiguration();
     itemFreqDecayerTask = std::make_shared<MockItemFreqDecayerTask>(
-            &engine, config.getItemFreqDecayerPercent());
+            engine, config.getItemFreqDecayerPercent());
 }
 
 void MockEPBucket::disableItemFreqDecayerTask() {

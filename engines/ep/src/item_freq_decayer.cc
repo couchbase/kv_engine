@@ -21,9 +21,9 @@
 
 #include <limits>
 
-ItemFreqDecayerTask::ItemFreqDecayerTask(EventuallyPersistentEngine* e,
+ItemFreqDecayerTask::ItemFreqDecayerTask(EventuallyPersistentEngine& e,
                                          uint16_t percentage_)
-    : GlobalTask(e, TaskId::ItemFreqDecayerTask, 0, false),
+    : GlobalTask(&e, TaskId::ItemFreqDecayerTask, 0, false),
       completed(false),
       epstore_position(engine->getKVBucket()->startPosition()),
       notified(false),
