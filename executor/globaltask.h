@@ -60,7 +60,7 @@ public:
                double sleeptime = 0,
                bool completeBeforeShutdown = true);
 
-    GlobalTask(EventuallyPersistentEngine* e,
+    GlobalTask(EventuallyPersistentEngine& e,
                TaskId taskId,
                double sleeptime = 0,
                bool completeBeforeShutdown = true);

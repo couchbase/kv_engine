@@ -31,7 +31,7 @@ RangeScanCreateTask::RangeScanCreateTask(
         std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
         std::optional<cb::rangescan::SamplingConfiguration> samplingConfig,
         std::unique_ptr<RangeScanCreateData> scanData)
-    : GlobalTask(&bucket.getEPEngine(), TaskId::RangeScanCreateTask, 0, false),
+    : GlobalTask(bucket.getEPEngine(), TaskId::RangeScanCreateTask, 0, false),
       bucket(bucket),
       vbid(vbid),
       start(makeStartStoredDocKey(cid, start)),

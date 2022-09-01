@@ -30,7 +30,7 @@ PersistManifestTask::PersistManifestTask(
         EPBucket& bucket,
         std::unique_ptr<Collections::Manifest> manifest,
         const CookieIface* cookie)
-    : ::GlobalTask(&bucket.getEPEngine(),
+    : ::GlobalTask(bucket.getEPEngine(),
                    TaskId::PersistCollectionsManifest,
                    0,
                    true),

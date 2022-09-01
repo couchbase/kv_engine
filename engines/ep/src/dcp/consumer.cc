@@ -53,7 +53,7 @@ public:
                     std::shared_ptr<DcpConsumer> c,
                     double sleeptime = 1,
                     bool completeBeforeShutdown = true)
-        : GlobalTask(&e,
+        : GlobalTask(e,
                      TaskId::DcpConsumerTask,
                      sleeptime,
                      completeBeforeShutdown),

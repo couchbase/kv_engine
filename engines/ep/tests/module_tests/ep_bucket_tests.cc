@@ -239,7 +239,7 @@ TEST_F(SingleThreadedEPBucketTest, MB20235_wake_and_work_count) {
     class TestTask : public GlobalTask {
     public:
         TestTask(EventuallyPersistentEngine& e, double s)
-            : GlobalTask(&e, TaskId::AccessScanner, s) {
+            : GlobalTask(e, TaskId::AccessScanner, s) {
         }
         bool run() override {
             return false;

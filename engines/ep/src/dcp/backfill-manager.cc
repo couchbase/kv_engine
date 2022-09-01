@@ -35,7 +35,7 @@ public:
                         std::shared_ptr<BackfillManager> mgr,
                         double sleeptime = 0,
                         bool completeBeforeShutdown = false)
-        : GlobalTask(&e,
+        : GlobalTask(e,
                      TaskId::BackfillManagerTask,
                      sleeptime,
                      completeBeforeShutdown),

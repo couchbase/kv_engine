@@ -23,7 +23,7 @@ VBNotifiableTask::VBNotifiableTask(
         EventuallyPersistentEngine& engine,
         TaskId taskId,
         std::chrono::steady_clock::duration maxChunkDuration)
-    : GlobalTask(&engine, taskId),
+    : GlobalTask(engine, taskId),
       queue(engine.getConfiguration().getMaxVbuckets()),
       maxChunkDuration(maxChunkDuration) {
 }

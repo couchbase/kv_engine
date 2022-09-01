@@ -72,7 +72,7 @@ FetchAllKeysTask::FetchAllKeysTask(EventuallyPersistentEngine& e,
                                    Vbid vbucket,
                                    uint32_t count_,
                                    std::optional<CollectionID> collection)
-    : GlobalTask(&e, TaskId::FetchAllKeysTask, 0, false),
+    : GlobalTask(e, TaskId::FetchAllKeysTask, 0, false),
       cookie(c),
       description("Running the ALL_DOCS api on " + vbucket.to_string()),
       response(std::move(resp)),

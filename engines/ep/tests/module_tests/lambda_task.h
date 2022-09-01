@@ -31,7 +31,7 @@ public:
                double sleeptime,
                bool completeBeforeShutdown,
                std::function<bool(LambdaTask&)> f)
-        : GlobalTask(&engine, taskId, sleeptime, completeBeforeShutdown),
+        : GlobalTask(engine, taskId, sleeptime, completeBeforeShutdown),
           func(std::move(f)) {
     }
 

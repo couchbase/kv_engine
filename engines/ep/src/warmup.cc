@@ -144,7 +144,7 @@ private:
 class WarmupInitialize : public GlobalTask {
 public:
     WarmupInitialize(EPBucket& st, Warmup* w)
-        : GlobalTask(&st.getEPEngine(), TaskId::WarmupInitialize, 0, false),
+        : GlobalTask(st.getEPEngine(), TaskId::WarmupInitialize, 0, false),
           _warmup(w) {
         _warmup->addToTaskSet(uid);
     }
@@ -172,7 +172,7 @@ private:
 class WarmupCreateVBuckets : public GlobalTask {
 public:
     WarmupCreateVBuckets(EPBucket& st, uint16_t sh, Warmup* w)
-        : GlobalTask(&st.getEPEngine(), TaskId::WarmupCreateVBuckets, 0, false),
+        : GlobalTask(st.getEPEngine(), TaskId::WarmupCreateVBuckets, 0, false),
           _shardId(sh),
           _warmup(w),
           _description("Warmup - creating vbuckets: shard " +
@@ -205,7 +205,7 @@ private:
 class WarmupLoadingCollectionCounts : public GlobalTask {
 public:
     WarmupLoadingCollectionCounts(EPBucket& st, uint16_t sh, Warmup& w)
-        : GlobalTask(&st.getEPEngine(),
+        : GlobalTask(st.getEPEngine(),
                      TaskId::WarmupLoadingCollectionCounts,
                      0,
                      false),
@@ -240,7 +240,7 @@ private:
 class WarmupEstimateDatabaseItemCount : public GlobalTask {
 public:
     WarmupEstimateDatabaseItemCount(EPBucket& st, uint16_t sh, Warmup* w)
-        : GlobalTask(&st.getEPEngine(),
+        : GlobalTask(st.getEPEngine(),
                      TaskId::WarmupEstimateDatabaseItemCount,
                      0,
                      false),
@@ -283,7 +283,7 @@ public:
     WarmupLoadPreparedSyncWrites(EventuallyPersistentEngine& engine,
                                  uint16_t shard,
                                  Warmup& warmup)
-        : GlobalTask(&engine, TaskId::WarmupLoadPreparedSyncWrites, 0, false),
+        : GlobalTask(engine, TaskId::WarmupLoadPreparedSyncWrites, 0, false),
           shardId(shard),
           warmup(warmup),
           description("Warmup - loading prepared SyncWrites: shard " +
@@ -323,10 +323,8 @@ private:
 class WarmupPopulateVBucketMap : public GlobalTask {
 public:
     WarmupPopulateVBucketMap(EPBucket& st, uint16_t shard, Warmup& warmup)
-        : GlobalTask(&st.getEPEngine(),
-                     TaskId::WarmupPopulateVBucketMap,
-                     0,
-                     false),
+        : GlobalTask(
+                  st.getEPEngine(), TaskId::WarmupPopulateVBucketMap, 0, false),
           shardId(shard),
           warmup(warmup),
           description("Warmup - populate VB Map: shard " +
@@ -403,7 +401,7 @@ public:
                        TaskId taskId,
                        std::string_view taskDesc,
                        std::atomic<size_t>& threadTaskCount)
-        : GlobalTask(&bucket.getEPEngine(), taskId, 0, true),
+        : GlobalTask(bucket.getEPEngine(), taskId, 0, true),
           warmup(warmup),
           shardId(shardId),
           description(fmt::format("Warmup - {} shard {}", taskDesc, shardId)),
@@ -625,7 +623,7 @@ class WarmupCheckforAccessLog : public GlobalTask {
 public:
     WarmupCheckforAccessLog(EPBucket& st, Warmup* w)
         : GlobalTask(
-                  &st.getEPEngine(), TaskId::WarmupCheckforAccessLog, 0, false),
+                  st.getEPEngine(), TaskId::WarmupCheckforAccessLog, 0, false),
           _warmup(w) {
         _warmup->addToTaskSet(uid);
     }
@@ -655,7 +653,7 @@ private:
 class WarmupLoadAccessLog : public GlobalTask {
 public:
     WarmupLoadAccessLog(EPBucket& st, uint16_t sh, Warmup* w)
-        : GlobalTask(&st.getEPEngine(), TaskId::WarmupLoadAccessLog, 0, false),
+        : GlobalTask(st.getEPEngine(), TaskId::WarmupLoadAccessLog, 0, false),
           _shardId(sh),
           _warmup(w),
           _description("Warmup - loading access log: shard " +
@@ -762,7 +760,7 @@ public:
 class WarmupCompletion : public GlobalTask {
 public:
     WarmupCompletion(EPBucket& st, Warmup* w)
-        : GlobalTask(&st.getEPEngine(), TaskId::WarmupCompletion, 0, false),
+        : GlobalTask(st.getEPEngine(), TaskId::WarmupCompletion, 0, false),
           _warmup(w) {
         _warmup->addToTaskSet(uid);
     }

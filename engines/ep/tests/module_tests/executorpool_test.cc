@@ -1773,7 +1773,7 @@ public:
                            Taskable& taskable,
                            ExecutorPool& pool,
                            ThreadGate& tg)
-        : GlobalTask(&bucket, TaskId::ItemPager, 10, true),
+        : GlobalTask(bucket, TaskId::ItemPager, 10, true),
           scheduleOnDestruct(pool, taskable, tg) {
     }
 
@@ -1941,7 +1941,7 @@ TYPED_TEST(ExecutorPoolEpEngineTest, MemoryTracking_Run) {
     // Note it initially sleeps forever, must be explicitly woken to run.
     struct MemoryAllocTask : public GlobalTask {
         MemoryAllocTask(EventuallyPersistentEngine& engine)
-            : GlobalTask(&engine, TaskId::ItemPager, INT_MAX, false) {
+            : GlobalTask(engine, TaskId::ItemPager, INT_MAX, false) {
         }
 
         std::string getDescription() const override {

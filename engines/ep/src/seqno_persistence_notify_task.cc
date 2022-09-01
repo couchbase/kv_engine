@@ -24,7 +24,7 @@
  * expiry responsibility
  */
 SeqnoPersistenceNotifyTask::SeqnoPersistenceNotifyTask(KVBucket& bucket)
-    : GlobalTask(&bucket.getEPEngine(),
+    : GlobalTask(bucket.getEPEngine(),
                  TaskId::SeqnoPersistenceNotifyTask,
                  INT_MAX,
                  false),

@@ -36,7 +36,7 @@ public:
                 Flusher* f,
                 uint16_t flusherId,
                 bool completeBeforeShutdown = true)
-        : GlobalTask(&e, TaskId::FlusherTask, 0, completeBeforeShutdown),
+        : GlobalTask(e, TaskId::FlusherTask, 0, completeBeforeShutdown),
           flusher(f) {
         std::stringstream ss;
         ss << "Running a flusher loop: flusher " << flusherId;
@@ -228,7 +228,7 @@ public:
                         const CookieIface* c,
                         int sleeptime = 0,
                         bool completeBeforeShutdown = false)
-        : GlobalTask(&e,
+        : GlobalTask(e,
                      TaskId::VKeyStatBGFetchTask,
                      sleeptime,
                      completeBeforeShutdown),

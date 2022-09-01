@@ -202,7 +202,7 @@ AccessScanner::AccessScanner(KVBucket& _store,
                              double sleeptime,
                              bool useStartTime,
                              bool completeBeforeShutdown)
-    : GlobalTask(&_store.getEPEngine(),
+    : GlobalTask(_store.getEPEngine(),
                  TaskId::AccessScanner,
                  sleeptime,
                  completeBeforeShutdown),

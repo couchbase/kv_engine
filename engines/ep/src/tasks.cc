@@ -172,7 +172,7 @@ std::vector<const CookieIface*> CompactTask::takeCookies() {
 
 MultiBGFetcherTask::MultiBGFetcherTask(EventuallyPersistentEngine& e,
                                        BgFetcher* b)
-    : GlobalTask(&e,
+    : GlobalTask(e,
                  TaskId::MultiBGFetcherTask,
                  /*sleeptime*/ INT_MAX,
                  /*completeBeforeShutdown*/ false),
@@ -197,7 +197,7 @@ bool VKeyStatBGFetchTask::run() {
 
 WorkLoadMonitor::WorkLoadMonitor(EventuallyPersistentEngine& e,
                                  bool completeBeforeShutdown)
-    : GlobalTask(&e,
+    : GlobalTask(e,
                  TaskId::WorkLoadMonitor,
                  WORKLOAD_MONITOR_FREQ,
                  completeBeforeShutdown) {

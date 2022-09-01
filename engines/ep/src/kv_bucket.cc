@@ -197,7 +197,7 @@ private:
 class PendingOpsNotification : public GlobalTask {
 public:
     PendingOpsNotification(EventuallyPersistentEngine& e, VBucketPtr& vb)
-        : GlobalTask(&e, TaskId::PendingOpsNotification, 0, false),
+        : GlobalTask(e, TaskId::PendingOpsNotification, 0, false),
           engine(e),
           vbucket(vb),
           description("Notify pending operations for " +
@@ -234,7 +234,7 @@ public:
     RespondAmbiguousNotification(EventuallyPersistentEngine& e,
                                  VBucketPtr& vb,
                                  std::vector<const CookieIface*>&& cookies_)
-        : GlobalTask(&e, TaskId::RespondAmbiguousNotification, 0, false),
+        : GlobalTask(e, TaskId::RespondAmbiguousNotification, 0, false),
           weakVb(vb),
           cookies(std::move(cookies_)),
           description("Notify clients of Sync Write Ambiguous " +
@@ -2328,7 +2328,7 @@ VBCBAdaptor::VBCBAdaptor(KVBucket* s,
                          std::unique_ptr<InterruptableVBucketVisitor> v,
                          const char* l,
                          bool shutdown)
-    : GlobalTask(&s->getEPEngine(), id, 0 /*initialSleepTime*/, shutdown),
+    : GlobalTask(s->getEPEngine(), id, 0 /*initialSleepTime*/, shutdown),
       store(s),
       visitor(std::move(v)),
       label(l),

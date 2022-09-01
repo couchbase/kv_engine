@@ -72,7 +72,7 @@ void EvictionRatios::setForState(vbucket_state_t state, double value) {
 ItemPager::ItemPager(EventuallyPersistentEngine& e,
                      EPStats& st,
                      size_t numConcurrentPagers)
-    : GlobalTask(&e, TaskId::ItemPager, 10, false),
+    : GlobalTask(e, TaskId::ItemPager, 10, false),
       numConcurrentPagers(numConcurrentPagers),
       engine(e),
       stats(st),
@@ -265,7 +265,7 @@ ExpiredItemPager::ExpiredItemPager(EventuallyPersistentEngine& e,
                                    ssize_t taskTime,
                                    int numConcurrentExpiryPagers)
     : GlobalTask(
-              &e, TaskId::ExpiredItemPager, static_cast<double>(stime), false),
+              e, TaskId::ExpiredItemPager, static_cast<double>(stime), false),
       engine(&e),
       stats(st),
       pagerSemaphore(

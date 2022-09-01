@@ -32,10 +32,8 @@ public:
 };
 
 HashtableResizerTask::HashtableResizerTask(KVBucketIface& s, double sleepTime)
-    : GlobalTask(&s.getEPEngine(),
-                 TaskId::HashtableResizerTask,
-                 sleepTime,
-                 false),
+    : GlobalTask(
+              s.getEPEngine(), TaskId::HashtableResizerTask, sleepTime, false),
       store(s) {
 }
 

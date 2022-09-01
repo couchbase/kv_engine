@@ -690,7 +690,7 @@ public:
                  Vbid vbid_,
                  uint64_t rollbackSeqno_,
                  std::shared_ptr<DcpConsumer> conn)
-        : GlobalTask(&e, TaskId::RollbackTask, 0, false),
+        : GlobalTask(e, TaskId::RollbackTask, 0, false),
           description("Running rollback task for " + vbid_.to_string()),
           engine(&e),
           opaque(opaque_),

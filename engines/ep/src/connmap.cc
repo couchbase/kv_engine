@@ -44,7 +44,7 @@ public:
     };
 
     ConnManager(EventuallyPersistentEngine& e, ConnMap* cmap)
-        : GlobalTask(&e,
+        : GlobalTask(e,
                      TaskId::ConnManager,
                      e.getConfiguration().getConnectionManagerInterval(),
                      true),

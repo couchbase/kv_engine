@@ -41,15 +41,15 @@ GlobalTask::GlobalTask(Taskable& t,
     snooze(initialSleepTime);
 }
 
-GlobalTask::GlobalTask(EventuallyPersistentEngine* e,
+GlobalTask::GlobalTask(EventuallyPersistentEngine& e,
                        TaskId taskId,
                        double initialSleepTime,
                        bool completeBeforeShutdown)
-    : GlobalTask(e->getTaskable(),
+    : GlobalTask(e.getTaskable(),
                  taskId,
                  initialSleepTime,
                  completeBeforeShutdown) {
-    engine = e;
+    engine = &e;
 }
 
 GlobalTask::~GlobalTask() {
