@@ -49,11 +49,11 @@ const std::string DcpConsumer::enableOpcodeExpiryCtrlMsg =
 
 class DcpConsumerTask : public GlobalTask {
 public:
-    DcpConsumerTask(EventuallyPersistentEngine* e,
+    DcpConsumerTask(EventuallyPersistentEngine& e,
                     std::shared_ptr<DcpConsumer> c,
                     double sleeptime = 1,
                     bool completeBeforeShutdown = true)
-        : GlobalTask(e,
+        : GlobalTask(&e,
                      TaskId::DcpConsumerTask,
                      sleeptime,
                      completeBeforeShutdown),
@@ -309,7 +309,7 @@ cb::engine_errc DcpConsumer::addStream(uint32_t opaque,
     bool exp = false;
     if (processorTaskRunning.compare_exchange_strong(exp, true)) {
         ExTask task = std::make_shared<DcpConsumerTask>(
-                &engine_, shared_from_this(), 1);
+                engine_, shared_from_this(), 1);
         processorTaskId = ExecutorPool::get()->schedule(task);
     }
 
