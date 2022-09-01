@@ -6186,7 +6186,7 @@ cb::engine_errc EventuallyPersistentEngine::getAllKeys(
         keysCollection = start_key.getCollectionID();
     }
 
-    ExTask task = std::make_shared<FetchAllKeysTask>(this,
+    ExTask task = std::make_shared<FetchAllKeysTask>(*this,
                                                      cookie,
                                                      response,
                                                      start_key,

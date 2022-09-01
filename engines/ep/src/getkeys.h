@@ -63,7 +63,7 @@ private:
  */
 class FetchAllKeysTask : public GlobalTask {
 public:
-    FetchAllKeysTask(EventuallyPersistentEngine* e,
+    FetchAllKeysTask(EventuallyPersistentEngine& e,
                      const CookieIface* c,
                      AddResponseFn resp,
                      const DocKey start_key_,
