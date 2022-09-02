@@ -51,6 +51,9 @@ bool CheckpointDestroyerTask::run() {
         pendingDestructionMemoryUsage.fetch_sub((*checkpoint)->getMemUsage());
         checkpoint = temporary.erase(checkpoint);
     }
+
+    runHook();
+
     return true;
 }
 

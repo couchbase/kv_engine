@@ -1068,6 +1068,11 @@ public:
      */
     bool isCompactionExpiryFetchInline() const;
 
+    /**
+     * @return The number of checkpoint destroyer tasks enabled in this KVBucket
+     */
+    size_t getNumCheckpointDestroyers() const;
+
 protected:
     /**
      * Get the checkpoint destroyer task responsible for checkpoints from the

@@ -1170,6 +1170,80 @@ TEST_P(CheckpointRemoverTest, NoCMRecoveryIfPendingDeallocEnough) {
     EXPECT_EQ(cb::engine_errc::success, store->set(item, cookie));
 }
 
+TEST_P(CheckpointRemoverTest, UpdateNumDestroyers) {
+    auto& config = engine->getConfiguration();
+    const auto initialNumDestroyers = config.getCheckpointDestructionTasks();
+    ASSERT_GT(initialNumDestroyers, 0);
+    EXPECT_EQ(initialNumDestroyers, store->getNumCheckpointDestroyers());
+
+    const auto newNumDestroyers = initialNumDestroyers + 1;
+    config.setCheckpointDestructionTasks(newNumDestroyers);
+    EXPECT_EQ(newNumDestroyers, store->getNumCheckpointDestroyers());
+}
+
+TEST_P(CheckpointRemoverTest, UpdateNumDestroyers_LowerThanMin) {
+    auto& config = engine->getConfiguration();
+    try {
+        config.setCheckpointDestructionTasks(0);
+    } catch (const std::range_error& e) {
+        EXPECT_THAT(e.what(),
+                    testing::HasSubstr(
+                            "Validation Error, checkpoint_destruction_tasks "
+                            "takes values between 1"));
+        return;
+    }
+    FAIL();
+}
+
+TEST_P(CheckpointRemoverTest, UpdateNumDestroyers_TaskRunning) {
+    auto& config = engine->getConfiguration();
+    const auto initialNumDestroyers = config.getCheckpointDestructionTasks();
+    ASSERT_GT(initialNumDestroyers, 0);
+    EXPECT_EQ(initialNumDestroyers, store->getNumCheckpointDestroyers());
+
+    // No checkpoint to destroy
+    auto destroyer = getCkptDestroyerTask(vbid);
+    ASSERT_TRUE(destroyer);
+    ASSERT_EQ(0, destroyer->getNumCheckpoints());
+    ASSERT_EQ(0, destroyer->getMemoryUsage());
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    auto& manager = *vb->checkpointManager;
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+
+    // Schedule checkpoint destruction
+    const auto openId = manager.getOpenCheckpointId();
+    manager.createNewCheckpoint();
+    if (isPersistent()) {
+        std::vector<queued_item> items;
+        manager.getNextItemsForPersistence(items);
+    }
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(openId + 1, manager.getOpenCheckpointId());
+    EXPECT_GT(destroyer->getNumCheckpoints(), 0);
+    EXPECT_GT(destroyer->getMemoryUsage(), 0);
+    EXPECT_EQ(destroyer->getMemoryUsage(),
+              store->getCheckpointPendingDestructionMemoryUsage());
+
+    // Reset the Destroyer task pool while the existing task is running
+    destroyer->runHook = [this, &config]() {
+        config.setCheckpointDestructionTasks(2);
+        EXPECT_EQ(2, store->getNumCheckpointDestroyers());
+        EXPECT_EQ(0, store->getCheckpointPendingDestructionMemoryUsage());
+    };
+    destroyer->run();
+
+    // Verify that the new pool has been created and that the old task doesn't
+    // belong to it
+    auto* newDestroyer0 = getCkptDestroyerTask(Vbid(0)).get();
+    auto* newDestroyer1 = getCkptDestroyerTask(Vbid(1)).get();
+    EXPECT_NE(newDestroyer0, newDestroyer1);
+    EXPECT_NE(destroyer.get(), newDestroyer0);
+    EXPECT_NE(destroyer.get(), newDestroyer1);
+}
+
 INSTANTIATE_TEST_SUITE_P(
         EphemeralOrPersistent,
         CheckpointRemoverTest,

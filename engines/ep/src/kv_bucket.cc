@@ -137,6 +137,8 @@ public:
             store.setMaxTtl(value);
         } else if (key == "checkpoint_max_size") {
             store.setCheckpointMaxSize(value);
+        } else if (key == "checkpoint_destruction_tasks") {
+            store.createAndScheduleCheckpointDestroyerTasks();
         } else if (key == "seqno_persistence_timeout") {
             store.setSeqnoPersistenceTimeout(std::chrono::seconds(value));
         } else if (key == "history_retention_seconds") {
@@ -452,6 +454,10 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
 
     config.addValueChangedListener(
             "dcp_backfill_in_progress_per_connection_limit",
+            std::make_unique<EPStoreValueChangeListener>(*this));
+
+    config.addValueChangedListener(
+            "checkpoint_destruction_tasks",
             std::make_unique<EPStoreValueChangeListener>(*this));
 }
 
@@ -3150,10 +3156,17 @@ KVBucket::createAndScheduleSeqnoPersistenceNotifier() {
 }
 
 void KVBucket::createAndScheduleCheckpointDestroyerTasks() {
-    const auto numCkptDestroyers =
-            engine.getConfiguration().getCheckpointDestructionTasks();
+    // Cancel all the existing tasks.
+    // Note: Running tasks will complete their execution before being destroyed.
     auto locked = ckptDestroyerTasks.wlock();
-    for (size_t i = 0; i < numCkptDestroyers; ++i) {
+    for (const auto& task : *locked) {
+        ExecutorPool::get()->cancel(task->getId(), true /*remove*/);
+    }
+    locked->clear();
+
+    // Then recreate the pool.
+    const auto num = engine.getConfiguration().getCheckpointDestructionTasks();
+    for (size_t i = 0; i < num; ++i) {
         locked->push_back(std::make_shared<CheckpointDestroyerTask>(engine));
         ExecutorPool::get()->schedule(locked->back());
     }
@@ -3298,4 +3311,8 @@ void KVBucket::setCompactionExpiryFetchInline(bool value) {
 
 bool KVBucket::isCompactionExpiryFetchInline() const {
     return compactionExpiryFetchInline;
+}
+
+size_t KVBucket::getNumCheckpointDestroyers() const {
+    return ckptDestroyerTasks.rlock()->size();
 }

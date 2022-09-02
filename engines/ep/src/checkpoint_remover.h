@@ -12,6 +12,7 @@
 
 #include "checkpoint.h"
 #include "checkpoint_types.h"
+#include "utilities/testing_hook.h"
 #include <executor/globaltask.h>
 #include <executor/notifiable_task.h>
 #include <folly/Synchronized.h>
@@ -47,6 +48,9 @@ public:
     size_t getMemoryUsage() const;
 
     size_t getNumCheckpoints() const;
+
+    // Test hook executed at ::run() epilogue.
+    TestingHook<> runHook;
 
 private:
     folly::Synchronized<CheckpointList, std::mutex> toDestroy;
