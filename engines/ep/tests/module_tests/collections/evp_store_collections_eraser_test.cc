@@ -759,12 +759,16 @@ TEST_P(CollectionsEraserTest, PrepareCountCorrectAfterErase) {
         EXPECT_EQ(2, kvStore->getItemCount(vbid));
     }
 
-    // And commit it
-    EXPECT_EQ(cb::engine_errc::success,
-              vb->commit(key,
-                         2 /*prepareSeqno*/,
-                         {} /*commitSeqno*/,
-                         vb->lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        // And commit it
+        EXPECT_EQ(cb::engine_errc::success,
+                  vb->commit(rlh,
+                             key,
+                             2 /*prepareSeqno*/,
+                             {} /*commitSeqno*/,
+                             vb->lockCollections(key)));
+    }
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     if (isMagma()) {
@@ -785,12 +789,16 @@ TEST_P(CollectionsEraserTest, PrepareCountCorrectAfterErase) {
         EXPECT_EQ(3, kvStore->getItemCount(vbid));
     }
 
-    // And commit it
-    EXPECT_EQ(cb::engine_errc::success,
-              vb->commit(key,
-                         4 /*prepareSeqno*/,
-                         {} /*commitSeqno*/,
-                         vb->lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        // And commit it
+        EXPECT_EQ(cb::engine_errc::success,
+                  vb->commit(rlh,
+                             key,
+                             4 /*prepareSeqno*/,
+                             {} /*commitSeqno*/,
+                             vb->lockCollections(key)));
+    }
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     if (isMagma()) {
@@ -1209,8 +1217,10 @@ protected:
     }
 
     void commit() {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         EXPECT_EQ(cb::engine_errc::success,
-                  vb->commit(key,
+                  vb->commit(rlh,
+                             key,
                              2 /*prepareSeqno*/,
                              {} /*commitSeqno*/,
                              vb->lockCollections(key)));
@@ -1225,8 +1235,10 @@ protected:
     }
 
     void abort() {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         EXPECT_EQ(cb::engine_errc::success,
-                  vb->abort(key,
+                  vb->abort(rlh,
+                            key,
                             2 /*prepareSeqno*/,
                             {} /*commitSeqno*/,
                             vb->lockCollections(key)));
@@ -1523,12 +1535,16 @@ TEST_P(CollectionsEraserSyncWriteTest, EraserFindsPrepares) {
     EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    // And commit it
-    EXPECT_EQ(cb::engine_errc::success,
-              vb->commit(key,
-                         2 /*prepareSeqno*/,
-                         {} /*commitSeqno*/,
-                         vb->lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        // And commit it
+        EXPECT_EQ(cb::engine_errc::success,
+                  vb->commit(rlh,
+                             key,
+                             2 /*prepareSeqno*/,
+                             {} /*commitSeqno*/,
+                             vb->lockCollections(key)));
+    }
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // add some items

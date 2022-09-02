@@ -999,8 +999,9 @@ void DurabilityWarmupTest::testCommittedSyncWrite(
                                             prepareSeqno++));
             vb->processResolvedSyncWrites();
         } else {
+            folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
             // Commit on non-active is driven by VBucket::commit
-            vb->commit(key, prepareSeqno++, {}, vb->lockCollections(key));
+            vb->commit(rlh, key, prepareSeqno++, {}, vb->lockCollections(key));
         }
 
         flush_vbucket_to_disk(vbid, 1);
@@ -1118,9 +1119,10 @@ void DurabilityWarmupTest::testCommittedAndPendingSyncWrite(
     // Abort the prepare so we can validate the previous Committed value
     // is present, readable and the same it was before warmup.
     {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         auto handle = vb->lockCollections(item->getKey());
         ASSERT_EQ(cb::engine_errc::success,
-                  vb->abort(key, item->getBySeqno(), {}, handle));
+                  vb->abort(rlh, key, item->getBySeqno(), {}, handle));
     }
     gv = store->get(key, vbid, cookie, {});
     ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
@@ -1866,8 +1868,11 @@ TEST_P(DurabilityWarmupTest, ReplicaVBucket) {
     // snap 2
     vb->checkpointManager->createSnapshot(
             2, 2, {} /*HCS*/, CheckpointType::Memory, 0);
-    EXPECT_EQ(cb::engine_errc::success,
-              vb->commit(key, 1, 2, vb->lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        EXPECT_EQ(cb::engine_errc::success,
+                  vb->commit(rlh, key, 1, 2, vb->lockCollections(key)));
+    }
     flush_vbucket_to_disk(vbid, 1);
     vb->notifyPassiveDMOfSnapEndReceived(2);
 
@@ -1918,7 +1923,10 @@ TEST_P(DurabilityWarmupTest, AbortDoesNotMovePCSInDiskSnapshot) {
 
         // 2) Receive the abort
         auto abortKey = makeStoredDocKey("abort");
-        vb->abort(abortKey, 3, 4, vb->lockCollections(abortKey));
+        {
+            folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+            vb->abort(rlh, abortKey, 3, 4, vb->lockCollections(abortKey));
+        }
         EXPECT_EQ(4, vb->getHighSeqno());
 
         // 3) Flush and shutdown to simulate a partial snapshot.

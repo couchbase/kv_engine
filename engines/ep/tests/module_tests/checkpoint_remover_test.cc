@@ -740,14 +740,18 @@ TEST_P(CheckpointRemoverEPTest, ItemExpellingInvalidatesKeyIndexCorrectly) {
     EXPECT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*prepare, cookie, nullptr /*StoreIfPredicate*/));
 
-    // Commit - we need this step as in the following we want to SyncWrite again
-    // for the same key
-    EXPECT_EQ(cb::engine_errc::success,
-              vb->commit(prepareKey,
-                         2,
-                         {},
-                         vb->lockCollections(prepareKey),
-                         cookie));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        // Commit - we need this step as in the following we want to SyncWrite
+        // again for the same key
+        EXPECT_EQ(cb::engine_errc::success,
+                  vb->commit(rlh,
+                             prepareKey,
+                             2,
+                             {},
+                             vb->lockCollections(prepareKey),
+                             cookie));
+    }
 
     EXPECT_EQ(1, cm->getNumCheckpoints());
 

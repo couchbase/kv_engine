@@ -317,7 +317,7 @@ public:
      * For all items in the completedSWQueue, call VBucket::commit /
      * VBucket::abort as appropriate, then remove the item from the queue.
      */
-    void processCompletedSyncWriteQueue();
+    void processCompletedSyncWriteQueue(VBucketStateLockRef vbStateLock);
 
     /**
      * Remove all of the prepares from the resolvedQueue and put them back into
@@ -380,16 +380,18 @@ protected:
     /**
      * Commit the given SyncWrite.
      *
+     * @param vbStateLock A lock on the state of the VBucket.
      * @param sw The SyncWrite to commit
      */
-    void commit(const ActiveSyncWrite& sw);
+    void commit(VBucketStateLockRef vbStateLock, const ActiveSyncWrite& sw);
 
     /**
      * Abort the given SyncWrite.
      *
+     * @param vbStateLock A lock on the state of the VBucket.
      * @param sw The SyncWrite to abort
      */
-    void abort(const ActiveSyncWrite& sw);
+    void abort(VBucketStateLockRef vbStateLock, const ActiveSyncWrite& sw);
 
     /**
      * Test only: Hook which if non-empty is called from seqnoAckReceived()

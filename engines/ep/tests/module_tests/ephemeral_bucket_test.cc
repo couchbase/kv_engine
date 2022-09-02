@@ -473,8 +473,11 @@ TEST_F(SingleThreadedEphemeralTest, Commit_RangeRead) {
         ASSERT_EQ(1, res.pending->getBySeqno());
         ASSERT_FALSE(res.committed);
     }
-    ASSERT_EQ(cb::engine_errc::success,
-              vb.commit(key, 1, {}, vb.lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb.commit(rlh, key, 1, {}, vb.lockCollections(key)));
+    }
     {
         auto res = ht.findForUpdate(key);
         ASSERT_TRUE(res.pending);
@@ -548,9 +551,12 @@ TEST_F(SingleThreadedEphemeralTest, Commit_RangeRead) {
     ASSERT_EQ(3, readyQ.size());
     ASSERT_EQ(DcpResponse::Event::SnapshotMarker, readyQ.front()->getEvent());
 
-    // Commit:4
-    ASSERT_EQ(cb::engine_errc::success,
-              vb.commit(key, 3, {}, vb.lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        // Commit:4
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb.commit(rlh, key, 3, {}, vb.lockCollections(key)));
+    }
     {
         auto res = ht.findForUpdate(key);
         ASSERT_TRUE(res.pending);
@@ -705,10 +711,17 @@ TEST_F(SingleThreadedEphemeralPurgerTest, HTCleanerSkipsPrepares) {
         ASSERT_FALSE(res.committed);
     }
 
-    // Proceed with checking that everything behaves as expected at Prepare
-    // completion.
-    ASSERT_EQ(cb::engine_errc::success,
-              vb.commit(key, 1 /*prepareSeqno*/, {}, vb.lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        // Proceed with checking that everything behaves as expected at Prepare
+        // completion.
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb.commit(rlh,
+                            key,
+                            1 /*prepareSeqno*/,
+                            {},
+                            vb.lockCollections(key)));
+    }
 
     // Verify Prepare and Commit in the HT
     {
@@ -773,9 +786,15 @@ TEST_F(SingleThreadedEphemeralPurgerTest, MB_42568) {
     EXPECT_EQ(1, vb.getHighSeqno());
     EXPECT_EQ(1, vb.getSeqListNumItems());
     EXPECT_EQ(1, vb.getSeqListNumDeletedItems());
-    EXPECT_EQ(
-            cb::engine_errc::success,
-            vb.commit(keyA, 1 /*prepareSeqno*/, {}, vb.lockCollections(keyA)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        EXPECT_EQ(cb::engine_errc::success,
+                  vb.commit(rlh,
+                            keyA,
+                            1 /*prepareSeqno*/,
+                            {},
+                            vb.lockCollections(keyA)));
+    }
     EXPECT_EQ(2, vb.getHighSeqno());
     EXPECT_EQ(2, vb.getSeqListNumItems());
     EXPECT_EQ(2, vb.getSeqListNumDeletedItems());

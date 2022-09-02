@@ -530,7 +530,8 @@ void ActiveDurabilityMonitor::checkForResolvedSyncWrites() {
     vb.notifySyncWritesPendingCompletion();
 }
 
-void ActiveDurabilityMonitor::processCompletedSyncWriteQueue() {
+void ActiveDurabilityMonitor::processCompletedSyncWriteQueue(
+        VBucketStateLockRef vbStateLock) {
     std::lock_guard<ResolvedQueue::ConsumerLock> lock(
             resolvedQueue->getConsumerLock());
     while (auto sw = resolvedQueue->try_dequeue(lock)) {
@@ -543,10 +544,10 @@ void ActiveDurabilityMonitor::processCompletedSyncWriteQueue() {
                     to_string(sw->getStatus()));
             continue;
         case SyncWriteStatus::ToCommit:
-            commit(*sw);
+            commit(vbStateLock, *sw);
             continue;
         case SyncWriteStatus::ToAbort:
-            abort(*sw);
+            abort(vbStateLock, *sw);
             continue;
         }
         folly::assume_unreachable();
@@ -950,7 +951,8 @@ ActiveDurabilityMonitor::State::removeSyncWrite(Container::iterator it,
     return std::move(removed.front());
 }
 
-void ActiveDurabilityMonitor::commit(const ActiveSyncWrite& sw) {
+void ActiveDurabilityMonitor::commit(VBucketStateLockRef vbStateLock,
+                                     const ActiveSyncWrite& sw) {
     const auto& key = sw.getKey();
     auto cHandle = vb.lockCollections(key);
 
@@ -976,7 +978,8 @@ void ActiveDurabilityMonitor::commit(const ActiveSyncWrite& sw) {
         prepareDuration.start(sw.getStartTime());
         prepareDuration.stop(prepareEnd);
     }
-    auto result = vb.commit(key,
+    auto result = vb.commit(vbStateLock,
+                            key,
                             sw.getBySeqno() /*prepareSeqno*/,
                             {} /*commitSeqno*/,
                             cHandle,
@@ -1006,7 +1009,8 @@ void ActiveDurabilityMonitor::commit(const ActiveSyncWrite& sw) {
     }
 }
 
-void ActiveDurabilityMonitor::abort(const ActiveSyncWrite& sw) {
+void ActiveDurabilityMonitor::abort(VBucketStateLockRef vbStateLock,
+                                    const ActiveSyncWrite& sw) {
     const auto& key = sw.getKey();
 
     auto cHandle = vb.lockCollections(key);
@@ -1017,7 +1021,8 @@ void ActiveDurabilityMonitor::abort(const ActiveSyncWrite& sw) {
         return;
     }
 
-    auto result = vb.abort(key,
+    auto result = vb.abort(vbStateLock,
+                           key,
                            sw.getBySeqno() /*prepareSeqno*/,
                            {} /*abortSeqno*/,
                            cHandle,

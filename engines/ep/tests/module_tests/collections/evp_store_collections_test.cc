@@ -3005,7 +3005,8 @@ TEST_P(CollectionsPersistentParameterizedTest,
         // default collection disk size should _increase_
         auto d = DiskChecker(vb, CollectionEntry::defaultC, std::greater<>());
 
-        vb->commit(key, vb->getHighSeqno(), {}, vb->lockCollections(key));
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        vb->commit(rlh, key, vb->getHighSeqno(), {}, vb->lockCollections(key));
         KVBucketTest::flushVBucketToDiskIfPersistent(vbid);
     }
 
@@ -3071,7 +3072,8 @@ TEST_P(CollectionsPersistentParameterizedTest,
                              getPrepareStatCheckerPostFuncForBackend(
                                      getBackend(), std::less<>()));
 
-        vb->abort(key, vb->getHighSeqno(), {}, vb->lockCollections(key));
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        vb->abort(rlh, key, vb->getHighSeqno(), {}, vb->lockCollections(key));
         KVBucketTest::flushVBucketToDiskIfPersistent(vbid);
     }
 }

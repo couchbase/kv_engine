@@ -557,10 +557,13 @@ TEST_P(CollectionsLegacyDcpTest,
                   store->set(*item, cookie));
         flushVBucketToDiskIfPersistent(vbid);
 
-        EXPECT_EQ(
-                cb::engine_errc::success,
-                vb->commit(
-                        key, vb->getHighSeqno(), {}, vb->lockCollections(key)));
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        EXPECT_EQ(cb::engine_errc::success,
+                  vb->commit(rlh,
+                             key,
+                             vb->getHighSeqno(),
+                             {},
+                             vb->lockCollections(key)));
     }
     auto item = makePendingItem(StoredDocKey{"d2", CollectionEntry::defaultC},
                                 "value");
@@ -773,10 +776,13 @@ TEST_P(CollectionsDcpParameterizedTest,
         auto item = makePendingItem(key, "value");
         EXPECT_EQ(cb::engine_errc::sync_write_pending,
                   store->set(*item, cookie));
-        EXPECT_EQ(
-                cb::engine_errc::success,
-                vb->commit(
-                        key, vb->getHighSeqno(), {}, vb->lockCollections(key)));
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        EXPECT_EQ(cb::engine_errc::success,
+                  vb->commit(rlh,
+                             key,
+                             vb->getHighSeqno(),
+                             {},
+                             vb->lockCollections(key)));
     }
     auto highSeqno = vb->getHighSeqno();
 

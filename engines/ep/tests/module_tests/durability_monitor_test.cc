@@ -1322,7 +1322,8 @@ void ActiveDurabilityMonitorTest::simulateTimeoutCheck(
         ActiveDurabilityMonitor& adm,
         std::chrono::steady_clock::time_point now) const {
     adm.processTimeout(now);
-    adm.processCompletedSyncWriteQueue();
+    adm.processCompletedSyncWriteQueue(
+            folly::SharedMutex::ReadHolder(vb->getStateLock()));
 }
 
 TEST_P(ActiveDurabilityMonitorTest, ProcessTimeout) {
@@ -3898,7 +3899,8 @@ TEST_P(ActiveDurabilityMonitorTest, MB_41235_commit) {
     ASSERT_EQ(cb::engine_errc::success, adm.seqnoAckReceived("replica1", 1));
 
     adm.checkForCommit();
-    EXPECT_NO_THROW(adm.processCompletedSyncWriteQueue());
+    EXPECT_NO_THROW(adm.processCompletedSyncWriteQueue(
+            folly::SharedMutex::ReadHolder(vb->getStateLock())));
 }
 
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,

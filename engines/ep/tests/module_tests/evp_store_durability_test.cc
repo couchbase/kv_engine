@@ -200,10 +200,14 @@ protected:
                   store->set(*pending, cookie));
 
         auto vb = store->getVBucket(vbid);
-        vb->commit(key,
-                   1 /*prepareSeqno*/,
-                   {} /*commitSeqno*/,
-                   vb->lockCollections(key));
+        {
+            folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+            vb->commit(rlh,
+                       key,
+                       1 /*prepareSeqno*/,
+                       {} /*commitSeqno*/,
+                       vb->lockCollections(key));
+        }
 
         flushVBucketToDiskIfPersistent(vbid, 2);
 
@@ -334,8 +338,10 @@ protected:
         ASSERT_EQ(cb::engine_errc::sync_write_pending,
                   store->set(*prepared, cookie));
         auto& vb = *store->getVBucket(vbid);
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
-                  vb.abort(key,
+                  vb.abort(rlh,
+                           key,
                            prepared->getBySeqno(),
                            {},
                            vb.lockCollections(key),
@@ -354,8 +360,10 @@ protected:
                   store->deleteItem(
                           key, cas, vbid, cookie, reqs, nullptr, delInfo));
         auto& vb = *store->getVBucket(vbid);
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
-                  vb.abort(key,
+                  vb.abort(rlh,
+                           key,
                            delInfo.seqno,
                            {},
                            vb.lockCollections(key),
@@ -651,11 +659,15 @@ void DurabilityEPBucketTest::testPersistPrepareAbort(DocumentState docState) {
               (*(--ckptList.front()->end()))->getOperation() ==
                       queue_op::pending_sync_write);
 
-    ASSERT_EQ(cb::engine_errc::success,
-              vb.abort(key,
-                       1 /*prepareSeqno*/,
-                       {} /*abortSeqno*/,
-                       vb.lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb.abort(rlh,
+                           key,
+                           1 /*prepareSeqno*/,
+                           {} /*abortSeqno*/,
+                           vb.lockCollections(key)));
+    }
 
     // We do not deduplicate Prepare and Abort (achieved by inserting them into
     // 2 different checkpoints)
@@ -721,11 +733,15 @@ void DurabilityEPBucketTest::testPersistPrepareAbortPrepare(
     auto pending = makePendingItem(key, "value");
     ASSERT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*pending, cookie));
-    ASSERT_EQ(cb::engine_errc::success,
-              vb.abort(key,
-                       pending->getBySeqno(),
-                       {} /*abortSeqno*/,
-                       vb.lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb.abort(rlh,
+                           key,
+                           pending->getBySeqno(),
+                           {} /*abortSeqno*/,
+                           vb.lockCollections(key)));
+    }
 
     // Second prepare.
     auto pending2 = makePendingItem(key, "value2");
@@ -793,11 +809,15 @@ void DurabilityEPBucketTest::testPersistPrepareAbortX2(DocumentState docState) {
     auto pending = makePendingItem(key, "value");
     ASSERT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*pending, cookie));
-    ASSERT_EQ(cb::engine_errc::success,
-              vb.abort(key,
-                       pending->getBySeqno(),
-                       {} /*abortSeqno*/,
-                       vb.lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb.abort(rlh,
+                           key,
+                           pending->getBySeqno(),
+                           {} /*abortSeqno*/,
+                           vb.lockCollections(key)));
+    }
 
     // Second prepare and abort.
     auto pending2 = makePendingItem(key, "value2");
@@ -806,11 +826,15 @@ void DurabilityEPBucketTest::testPersistPrepareAbortX2(DocumentState docState) {
     }
     ASSERT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*pending2, cookie));
-    ASSERT_EQ(cb::engine_errc::success,
-              vb.abort(key,
-                       pending2->getBySeqno(),
-                       {} /*abortSeqno*/,
-                       vb.lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb.abort(rlh,
+                           key,
+                           pending2->getBySeqno(),
+                           {} /*abortSeqno*/,
+                           vb.lockCollections(key)));
+    }
 
     // We do not deduplicate Prepare and Abort (achieved by inserting them into
     // different checkpoints)
@@ -872,11 +896,15 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
     auto pending = makePendingItem(key, "value");
     ASSERT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*pending, cookie));
-    ASSERT_EQ(cb::engine_errc::success,
-              vb.commit(key,
-                        pending->getBySeqno(),
-                        {} /*commitSeqno*/,
-                        vb.lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb.commit(rlh,
+                            key,
+                            pending->getBySeqno(),
+                            {} /*commitSeqno*/,
+                            vb.lockCollections(key)));
+    }
 
     // We do not deduplicate Prepare and Commit in CheckpointManager but they
     // can exist in a single checkpoint
@@ -917,11 +945,15 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWriteSyncDelete) {
     EXPECT_EQ(0, vb.opsUpdate);
     EXPECT_EQ(0, vb.opsDelete);
 
-    ASSERT_EQ(cb::engine_errc::success,
-              vb.commit(key,
-                        delInfo.seqno,
-                        {} /*commitSeqno*/,
-                        vb.lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb.commit(rlh,
+                            key,
+                            delInfo.seqno,
+                            {} /*commitSeqno*/,
+                            vb.lockCollections(key)));
+    }
 
     ASSERT_EQ(1, ckptList.size());
     ASSERT_EQ(3, ckptList.back()->getNumItems());
@@ -969,11 +1001,15 @@ TEST_P(DurabilityBucketTest, SyncWriteSyncDelete) {
     EXPECT_EQ(0, vb.opsUpdate);
     EXPECT_EQ(0, vb.opsDelete);
 
-    ASSERT_EQ(cb::engine_errc::success,
-              vb.commit(key,
-                        pending->getBySeqno(),
-                        {} /*commitSeqno*/,
-                        vb.lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb.commit(rlh,
+                            key,
+                            pending->getBySeqno(),
+                            {} /*commitSeqno*/,
+                            vb.lockCollections(key)));
+    }
 
     // We do not deduplicate Prepare and Commit in CheckpointManager (achieved
     // by inserting them into different checkpoints)
@@ -1025,11 +1061,15 @@ TEST_P(DurabilityBucketTest, SyncWriteSyncDelete) {
     ASSERT_EQ(2, ckptList.back()->getNumItems());
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    ASSERT_EQ(cb::engine_errc::success,
-              vb.commit(key,
-                        3 /*prepareSeqno*/,
-                        {} /*commitSeqno*/,
-                        vb.lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb.commit(rlh,
+                            key,
+                            3 /*prepareSeqno*/,
+                            {} /*commitSeqno*/,
+                            vb.lockCollections(key)));
+    }
     validateHighAndVisibleSeqno(vb, 4, 4);
 
     EXPECT_EQ(4, vb.getHighSeqno());
@@ -1078,12 +1118,16 @@ TEST_P(DurabilityBucketTest, SyncDeleteSyncWriteDelayedPersistence) {
     // Setup: Persist SyncDelete prepare.
     flushVBucketToDiskIfPersistent(vbid, 2);
 
-    // Setup: commit SyncDelete (but no flush yet).
-    ASSERT_EQ(cb::engine_errc::success,
-              vb.commit(key,
-                        2 /*prepareSeqno*/,
-                        {} /*commitSeqno*/,
-                        vb.lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        // Setup: commit SyncDelete (but no flush yet).
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb.commit(rlh,
+                            key,
+                            2 /*prepareSeqno*/,
+                            {} /*commitSeqno*/,
+                            vb.lockCollections(key)));
+    }
 
     validateHighAndVisibleSeqno(vb, 3, 3);
 
@@ -1102,12 +1146,16 @@ TEST_P(DurabilityBucketTest, SyncDeleteSyncWriteDelayedPersistence) {
     EXPECT_EQ(1, vb.ht.getNumPreparedSyncWrites())
             << "SyncWrite prepare should still exist";
 
-    EXPECT_EQ(cb::engine_errc::success,
-              vb.commit(key,
-                        4 /*prepareSeqno*/,
-                        {} /*commitSeqno*/,
-                        vb.lockCollections(key)))
-            << "SyncWrite commit should be possible";
+    {
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        EXPECT_EQ(cb::engine_errc::success,
+                  vb.commit(rlh,
+                            key,
+                            4 /*prepareSeqno*/,
+                            {} /*commitSeqno*/,
+                            vb.lockCollections(key)))
+                << "SyncWrite commit should be possible";
+    }
     validateHighAndVisibleSeqno(vb, 5, 5);
 }
 
@@ -1125,11 +1173,15 @@ TEST_P(DurabilityBucketTest, SyncWriteDelete) {
     auto pending = makePendingItem(key, "value");
     ASSERT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*pending, cookie));
-    ASSERT_EQ(cb::engine_errc::success,
-              vb.commit(key,
-                        pending->getBySeqno(),
-                        {} /*commitSeqno*/,
-                        vb.lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb.commit(rlh,
+                            key,
+                            pending->getBySeqno(),
+                            {} /*commitSeqno*/,
+                            vb.lockCollections(key)));
+    }
 
     // We do not deduplicate Prepare and Commit (for the same key), they can
     // just be queued into the same checkpoint
@@ -1183,11 +1235,15 @@ TEST_P(DurabilityBucketTest, SyncWriteComparesToCorrectCas) {
     auto pending = makePendingItem(key, "value");
     ASSERT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*pending, cookie));
-    ASSERT_EQ(cb::engine_errc::success,
-              vb.commit(key,
-                        pending->getBySeqno(),
-                        {} /*commitSeqno*/,
-                        vb.lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb.commit(rlh,
+                            key,
+                            pending->getBySeqno(),
+                            {} /*commitSeqno*/,
+                            vb.lockCollections(key)));
+    }
 
     vb.processResolvedSyncWrites();
 
@@ -1224,11 +1280,15 @@ TEST_P(DurabilityEphemeralBucketTest, SyncAddChecksCorrectSVExists) {
 
     ASSERT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*pending, cookie));
-    ASSERT_EQ(cb::engine_errc::success,
-              vb.commit(key,
-                        pending->getBySeqno(),
-                        {} /*commitSeqno*/,
-                        vb.lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb.commit(rlh,
+                            key,
+                            pending->getBySeqno(),
+                            {} /*commitSeqno*/,
+                            vb.lockCollections(key)));
+    }
 
     vb.processResolvedSyncWrites();
 
@@ -1256,11 +1316,15 @@ TEST_P(DurabilityEphemeralBucketTest, SyncAddChecksCorrectExpiry) {
 
     ASSERT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*pending, cookie));
-    ASSERT_EQ(cb::engine_errc::success,
-              vb.commit(key,
-                        pending->getBySeqno(),
-                        {} /*commitSeqno*/,
-                        vb.lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb.commit(rlh,
+                            key,
+                            pending->getBySeqno(),
+                            {} /*commitSeqno*/,
+                            vb.lockCollections(key)));
+    }
 
     vb.processResolvedSyncWrites();
 
@@ -1296,11 +1360,15 @@ TEST_P(DurabilityEphemeralBucketTest, SyncReplaceChecksCorrectSVExists) {
 
     ASSERT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*pending, cookie));
-    ASSERT_EQ(cb::engine_errc::success,
-              vb.commit(key,
-                        pending->getBySeqno(),
-                        {} /*commitSeqno*/,
-                        vb.lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb.commit(rlh,
+                            key,
+                            pending->getBySeqno(),
+                            {} /*commitSeqno*/,
+                            vb.lockCollections(key)));
+    }
 
     vb.processResolvedSyncWrites();
 
@@ -1329,11 +1397,15 @@ TEST_P(DurabilityEphemeralBucketTest, SyncReplaceChecksCorrectExpiry) {
 
     ASSERT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*pending, cookie));
-    ASSERT_EQ(cb::engine_errc::success,
-              vb.commit(key,
-                        pending->getBySeqno(),
-                        {} /*commitSeqno*/,
-                        vb.lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb.commit(rlh,
+                            key,
+                            pending->getBySeqno(),
+                            {} /*commitSeqno*/,
+                            vb.lockCollections(key)));
+    }
 
     vb.processResolvedSyncWrites();
 
@@ -1368,11 +1440,15 @@ TEST_P(DurabilityEphemeralBucketTest, SyncWriteChecksCorrectExpiry) {
 
     ASSERT_EQ(cb::engine_errc::sync_write_pending,
               store->set(*pending, cookie));
-    ASSERT_EQ(cb::engine_errc::success,
-              vb.commit(key,
-                        pending->getBySeqno(),
-                        {} /*commitSeqno*/,
-                        vb.lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb.commit(rlh,
+                            key,
+                            pending->getBySeqno(),
+                            {} /*commitSeqno*/,
+                            vb.lockCollections(key)));
+    }
 
     vb.processResolvedSyncWrites();
 
@@ -1476,8 +1552,10 @@ void DurabilityEPBucketTest::performCommitForKey(
         uint64_t prepareSeqno,
         uint64_t expectedDiskCount,
         uint64_t expectedCollectedCount) {
+    folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
     ASSERT_EQ(cb::engine_errc::success,
-              vb.commit(key,
+              vb.commit(rlh,
+                        key,
                         prepareSeqno,
                         {} /*commitSeqno*/,
                         vb.lockCollections(key)));
@@ -2269,10 +2347,13 @@ TEST_P(DurabilityBucketTest, SyncAddAfterAbortedSyncWrite) {
               addPendingItem(*prepared2, cookie));
 
     auto& vb = *store->getVBucket(vbid);
-    EXPECT_EQ(
-            cb::engine_errc::success,
-            vb.commit(
-                    key, prepared2->getBySeqno(), {}, vb.lockCollections(key)));
+    folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+    EXPECT_EQ(cb::engine_errc::success,
+              vb.commit(rlh,
+                        key,
+                        prepared2->getBySeqno(),
+                        {},
+                        vb.lockCollections(key)));
 }
 
 /// MB-35303: Test that after a SyncWrite Prepare is Aborted, a subsequent
@@ -2313,10 +2394,13 @@ TEST_P(DurabilityBucketTest, SyncReplaceAfterAbortedSyncDelete) {
     EXPECT_EQ(cb::engine_errc::sync_write_pending,
               store->replace(*prepared2, cookie));
     auto& vb = *store->getVBucket(vbid);
-    EXPECT_EQ(
-            cb::engine_errc::success,
-            vb.commit(
-                    key, prepared2->getBySeqno(), {}, vb.lockCollections(key)));
+    folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+    EXPECT_EQ(cb::engine_errc::success,
+              vb.commit(rlh,
+                        key,
+                        prepared2->getBySeqno(),
+                        {},
+                        vb.lockCollections(key)));
 }
 
 /// MB-35303: Test that after a SyncDelete Prepare is Aborted, a subsequent
@@ -2343,8 +2427,9 @@ TEST_P(DurabilityBucketTest, SyncDeleteAfterAbortedSyncDelete) {
 
     // Test: Should be able to Commit also.
     auto& vb = *store->getVBucket(vbid);
+    folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
     EXPECT_EQ(cb::engine_errc::success,
-              vb.commit(key, delInfo.seqno, {}, vb.lockCollections(key)));
+              vb.commit(rlh, key, delInfo.seqno, {}, vb.lockCollections(key)));
 
     // Item should no longer exist.
     auto gv = store->get(key, vbid, cookie, get_options_t());
@@ -2667,12 +2752,16 @@ TEST_P(DurabilityBucketTest, MutationAfterTimeoutCorrect) {
                "after EWOULDBLOCK";
 
     auto& vb = *store->getVBucket(vbid);
-    ASSERT_EQ(cb::engine_errc::success,
-              vb.abort(key,
-                       pending->getBySeqno(),
-                       {},
-                       vb.lockCollections(key),
-                       cookie));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb.abort(rlh,
+                           key,
+                           pending->getBySeqno(),
+                           {},
+                           vb.lockCollections(key),
+                           cookie));
+    }
 
     // Test: Attempt another SyncWrite, which _should_ fail (in this case just
     // use replace against the same non-existent key).
@@ -2985,10 +3074,14 @@ TEST_P(DurabilityEPBucketTest, RemoveCommittedPreparesAtCompaction) {
               store->set(*pending, cookie));
 
     auto vb = store->getVBucket(vbid);
-    vb->commit(key,
-               1 /*prepareSeqno*/,
-               {} /*commitSeqno*/,
-               vb->lockCollections(key));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        vb->commit(rlh,
+                   key,
+                   1 /*prepareSeqno*/,
+                   {} /*commitSeqno*/,
+                   vb->lockCollections(key));
+    }
 
     flushVBucketToDiskIfPersistent(vbid, 2);
 
@@ -3091,10 +3184,15 @@ TEST_P(DurabilityEPBucketTest, RemoveAbortedPreparesAtCompaction) {
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     auto vb = store->getVBucket(vbid);
-    vb->abort(key,
-              1 /*prepareSeqno*/,
-              {} /*commitSeqno*/,
-              vb->lockCollections(key));
+
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        vb->abort(rlh,
+                  key,
+                  1 /*prepareSeqno*/,
+                  {} /*commitSeqno*/,
+                  vb->lockCollections(key));
+    }
 
     // We can't purge the last item so write a dummy
     auto dummyKey = makeStoredDocKey("dummy");
@@ -3394,7 +3492,9 @@ void DurabilityEphemeralBucketTest::testPurgeCompletedPrepare(F& func) {
 
 TEST_P(DurabilityEphemeralBucketTest, PurgeCompletedPrepare) {
     auto op = [this](VBucket& vb, StoredDocKey key) -> cb::engine_errc {
-        return vb.commit(key,
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        return vb.commit(rlh,
+                         key,
                          1 /*prepareSeqno*/,
                          {} /*commitSeqno*/,
                          vb.lockCollections(key));
@@ -3404,7 +3504,9 @@ TEST_P(DurabilityEphemeralBucketTest, PurgeCompletedPrepare) {
 
 TEST_P(DurabilityEphemeralBucketTest, PurgeCompletedAbort) {
     auto op = [this](VBucket& vb, StoredDocKey key) -> cb::engine_errc {
-        return vb.abort(key,
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        return vb.abort(rlh,
+                        key,
                         1 /*prepareSeqno*/,
                         {} /*abortSeqno*/,
                         vb.lockCollections(key));
@@ -3433,11 +3535,15 @@ TEST_P(DurabilityEphemeralBucketTest, CompletedPreparesNotExpired) {
 
     EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
 
-    ASSERT_EQ(cb::engine_errc::success,
-              vb->commit(key,
-                         1 /*prepareSeqno*/,
-                         {} /*commitSeqno*/,
-                         vb->lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb->commit(rlh,
+                             key,
+                             1 /*prepareSeqno*/,
+                             {} /*commitSeqno*/,
+                             vb->lockCollections(key)));
+    }
 
     TimeTraveller hgwells(10);
 
@@ -3521,8 +3627,9 @@ TEST_P(DurabilityBucketTest, ActiveToReplicaAndCommit) {
     // seqno:4 the prepare at seqno:1 is committed
     vb.checkpointManager->createSnapshot(
             4, 4, {} /*HCS*/, CheckpointType::Memory, 0);
+    folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
     ASSERT_EQ(cb::engine_errc::success,
-              vb.commit(key, 1, 4, vb.lockCollections(key)));
+              vb.commit(rlh, key, 1, 4, vb.lockCollections(key)));
 }
 
 TEST_P(DurabilityBucketTest, CasCheckMadeForNewPrepare) {
@@ -3583,11 +3690,15 @@ TEST_P(DurabilityBucketTest, CompletedPreparesDoNotPreventDelWithMetaReplica) {
     vbucket->checkpointManager->createSnapshot(
             seqno, seqno, {}, CheckpointType::Memory, seqno);
 
-    ASSERT_EQ(cb::engine_errc::success,
-              vbucket->commit(key,
-                              seqno - 1 /*prepareSeqno*/,
-                              seqno /*commitSeqno*/,
-                              vbucket->lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vbucket->commit(rlh,
+                                  key,
+                                  seqno - 1 /*prepareSeqno*/,
+                                  seqno /*commitSeqno*/,
+                                  vbucket->lockCollections(key)));
+    }
 
     // Check completed prepare is present
     if (!persistent()) {
@@ -4953,8 +5064,15 @@ TEST_P(DurabilityBucketTest, PrepareDoesNotExpire) {
     // Again, must NOT expire as the still in pending Prepare state.
     checkNotExpired();
 
-    ASSERT_EQ(cb::engine_errc::success,
-              vb.commit(key, 1 /*prepareSeqno*/, {}, vb.lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb.commit(rlh,
+                            key,
+                            1 /*prepareSeqno*/,
+                            {},
+                            vb.lockCollections(key)));
+    }
 
     // Note: The next call to VBucket::fetchValidValue needs the test engine in
     // ObjectRegistry as it makes a call to
@@ -5090,9 +5208,15 @@ TEST_P(DurabilityEphemeralBucketTest, GetRandomCompletedPrepare) {
 
     // Commit it
     auto vb = store->getVBucket(vbid);
-    ASSERT_EQ(
-            cb::engine_errc::success,
-            vb->commit(key, 2 /*prepareSeqno*/, {}, vb->lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb->commit(rlh,
+                             key,
+                             2 /*prepareSeqno*/,
+                             {},
+                             vb->lockCollections(key)));
+    }
 
     // Delete the committed value (making it in-eligible) which is required
     // as the commit is earlier in the chain than the prepare

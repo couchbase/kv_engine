@@ -740,7 +740,7 @@ void VBucket::processResolvedSyncWrites() {
     if (getState() != vbucket_state_active) {
         return;
     }
-    getActiveDM().processCompletedSyncWriteQueue();
+    getActiveDM().processCompletedSyncWriteQueue(rlh);
 }
 
 void VBucket::doStatsForQueueing(const Item& qi, size_t itemBytes)
@@ -870,6 +870,7 @@ void VBucket::handlePreExpiry(const HashTable::HashBucketLock& hbl,
 }
 
 cb::engine_errc VBucket::commit(
+        VBucketStateLockRef vbStateLock,
         const DocKey& key,
         uint64_t prepareSeqno,
         std::optional<int64_t> commitSeqno,
@@ -952,6 +953,7 @@ cb::engine_errc VBucket::commit(
 }
 
 cb::engine_errc VBucket::abort(
+        VBucketStateLockRef vbStateLock,
         const DocKey& key,
         uint64_t prepareSeqno,
         std::optional<int64_t> abortSeqno,

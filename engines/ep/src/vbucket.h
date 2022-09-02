@@ -1377,16 +1377,19 @@ public:
     /**
      * Perform a commit against the given pending Sync Write.
      *
+     * @param vbStateLock A lock on the state of the VBucket
      * @param key Key to commit
      * @param prepareSeqno The sequence number of the existing pending
      *                      SyncWrite
      * @param commitSeqno Optional commit sequence number to use for the commit.
      *                    If omitted then a sequence number will be generated
      *                    by the CheckpointManager.
+     * @param cHandle The collections handle
      * @param cookie (Optional) The cookie representing the client connection,
      *     must be provided if the operation needs to be notified to a client
      */
-    cb::engine_errc commit(const DocKey& key,
+    cb::engine_errc commit(VBucketStateLockRef vbStateLock,
+                           const DocKey& key,
                            uint64_t prepareSeqno,
                            std::optional<int64_t> commitSeqno,
                            const Collections::VB::CachingReadHandle& cHandle,
@@ -1395,6 +1398,7 @@ public:
     /**
      * Perform an abort against the given pending Sync Write.
      *
+     * @param vbStateLock A lock on the state of the VBucket
      * @param key Key to abort
      * @param prepareSeqno The sequence number of the existing pending
      *     SyncWrite
@@ -1405,7 +1409,8 @@ public:
      * @param cookie (Optional) The cookie representing the client connection,
      *     must be provided if the operation needs to be notified to a client
      */
-    cb::engine_errc abort(const DocKey& key,
+    cb::engine_errc abort(VBucketStateLockRef vbStateLock,
+                          const DocKey& key,
                           uint64_t prepareSeqno,
                           std::optional<int64_t> abortSeqno,
                           const Collections::VB::CachingReadHandle& cHandle,

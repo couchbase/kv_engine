@@ -254,8 +254,15 @@ TEST_P(STActiveStreamEphemeralTest, MB_43847_SyncWrite) {
     ASSERT_EQ(1, manager.getOpenCheckpointId());
     ASSERT_EQ(4, manager.getNumOpenChkItems());
 
-    EXPECT_EQ(cb::engine_errc::success,
-              vb.commit(key, 1 /*prepareSeqno*/, {}, vb.lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        EXPECT_EQ(cb::engine_errc::success,
+                  vb.commit(rlh,
+                            key,
+                            1 /*prepareSeqno*/,
+                            {},
+                            vb.lockCollections(key)));
+    }
     EXPECT_EQ(2, vb.getHighSeqno());
     EXPECT_EQ(2, vb.getSeqListNumItems());
     EXPECT_EQ(0, vb.getSeqListNumStaleItems());

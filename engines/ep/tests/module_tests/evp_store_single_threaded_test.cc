@@ -4552,11 +4552,15 @@ void STParamPersistentBucketTest::testAbortDoesNotIncrementOpsDelete(
 
     // ABORT:2
     ASSERT_EQ(1, manager.getHighSeqno());
-    EXPECT_EQ(cb::engine_errc::success,
-              vb.abort(key,
-                       1 /*prepareSeqno*/,
-                       {} /*abortSeqno*/,
-                       vb.lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        EXPECT_EQ(cb::engine_errc::success,
+                  vb.abort(rlh,
+                           key,
+                           1 /*prepareSeqno*/,
+                           {} /*abortSeqno*/,
+                           vb.lockCollections(key)));
+    }
 
     // Flush ABORT
     EXPECT_EQ(flusherDedup ? 4 : 2, manager.getNumItemsForPersistence());

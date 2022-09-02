@@ -232,7 +232,8 @@ public:
     cb::engine_errc storeCommit(std::string key) {
         auto docKey = makeStoredDocKey(key);
         auto vb = engine->getVBucket(vbid);
-        return vb->commit(docKey, 1, {}, vb->lockCollections(docKey));
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        return vb->commit(rlh, docKey, 1, {}, vb->lockCollections(docKey));
     }
 
     cb::engine_errc storeSet(std::string key) {

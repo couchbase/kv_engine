@@ -264,12 +264,16 @@ TEST_P(StreamTest, VerifyProducerStats) {
     auto reqs = Requirements{Level::Majority, Timeout()};
     auto prepareToCommit = store_pending_item(vbid, "pending1", "value3", reqs);
 
-    ASSERT_EQ(cb::engine_errc::success,
-              vb->commit(prepareToCommit->getKey(),
-                         prepareToCommit->getBySeqno(),
-                         {},
-                         vb->lockCollections(prepareToCommit->getKey()),
-                         cookie));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb->commit(rlh,
+                             prepareToCommit->getKey(),
+                             prepareToCommit->getBySeqno(),
+                             {},
+                             vb->lockCollections(prepareToCommit->getKey()),
+                             cookie));
+    }
 
     // Clear our cookie, we don't actually care about the cas of the item but
     // this is necessary to allow us to enqueue our next abort (which uses the
@@ -277,11 +281,15 @@ TEST_P(StreamTest, VerifyProducerStats) {
     engine->clearEngineSpecific(*cookie);
 
     auto prepareToAbort = store_pending_item(vbid, "pending2", "value4", reqs);
-    ASSERT_EQ(cb::engine_errc::success,
-              vb->abort(prepareToAbort->getKey(),
-                        prepareToAbort->getBySeqno(),
-                        {},
-                        vb->lockCollections(prepareToAbort->getKey())));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb->abort(rlh,
+                            prepareToAbort->getKey(),
+                            prepareToAbort->getBySeqno(),
+                            {},
+                            vb->lockCollections(prepareToAbort->getKey())));
+    }
 
     MockDcpMessageProducers producers;
 
@@ -2946,8 +2954,11 @@ void SingleThreadedPassiveStreamTest::testConsumerSanitizesBodyInDeletion(
     if (durReqs) {
         // Need to commit the first prepare for queuing a new one in the next
         // steps.
-        EXPECT_EQ(cb::engine_errc::success,
-                  vb.commit(key, 1, {}, vb.lockCollections(key)));
+        {
+            folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+            EXPECT_EQ(cb::engine_errc::success,
+                      vb.commit(rlh, key, 1, {}, vb.lockCollections(key)));
+        }
         // Replica doesn't like 2 prepares for the same key into the same
         // checkpoint.
         const int64_t newStartSeqno = initialEndSeqno + 2;

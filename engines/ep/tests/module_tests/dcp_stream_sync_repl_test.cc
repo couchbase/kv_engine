@@ -721,11 +721,15 @@ void DcpStreamSyncReplTest::testBackfillPrepareAbort(
     // backfill.
     using cb::durability::Level;
     auto prepared = storePending(docState, "1", "X", {level, {}});
-    ASSERT_EQ(cb::engine_errc::success,
-              vb0->abort(prepared->getKey(),
-                         prepared->getBySeqno(),
-                         {},
-                         vb0->lockCollections(prepared->getKey())));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb0->getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb0->abort(rlh,
+                             prepared->getKey(),
+                             prepared->getBySeqno(),
+                             {},
+                             vb0->lockCollections(prepared->getKey())));
+    }
     removeCheckpoint(2);
 
     // Create sync repl DCP stream

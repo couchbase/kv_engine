@@ -483,11 +483,15 @@ TEST_P(DurabilityActiveStreamTest, AbortWithBackfillPrepare) {
     auto prepareSeqno = vb->getHighSeqno();
 
     const auto openId = ckptMgr.getOpenCheckpointId();
-    EXPECT_EQ(cb::engine_errc::success,
-              vb->abort(key,
-                        prepareSeqno,
-                        {} /*abortSeqno*/,
-                        vb->lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        EXPECT_EQ(cb::engine_errc::success,
+                  vb->abort(rlh,
+                            key,
+                            prepareSeqno,
+                            {} /*abortSeqno*/,
+                            vb->lockCollections(key)));
+    }
     // Verify abort queued into a new checkpoint
     EXPECT_GT(ckptMgr.getOpenCheckpointId(), openId);
 
@@ -690,8 +694,11 @@ void DurabilityActiveStreamTest::setUpSendSetInsteadOfCommitTest() {
     EXPECT_EQ(MutationStatus::WasClean, public_processSet(*vb, *item, ctx));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    // Seqno 2 - Followed by a commit (the consumer does not get this)
-    vb->commit(key, vb->getHighSeqno(), {}, vb->lockCollections(key));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        // Seqno 2 - Followed by a commit (the consumer does not get this)
+        vb->commit(rlh, key, vb->getHighSeqno(), {}, vb->lockCollections(key));
+    }
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     auto mutationResult =
@@ -702,7 +709,10 @@ void DurabilityActiveStreamTest::setUpSendSetInsteadOfCommitTest() {
 
     // Seqno 4 - A commit that the consumer would receive when reconnecting with
     // seqno 1
-    vb->commit(key, vb->getHighSeqno(), {}, vb->lockCollections(key));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        vb->commit(rlh, key, vb->getHighSeqno(), {}, vb->lockCollections(key));
+    }
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Create a new checkpoint here to ensure that we always remove the correct
@@ -1741,8 +1751,10 @@ void DurabilityPassiveStreamTest::
             {}, // timestamp
             {} /*streamId*/);
     stream->processMarker(&marker);
+
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     EXPECT_EQ(cb::engine_errc::success,
-              vb->commit(key, prepareSeqno, {}, vb->lockCollections(key)));
+              vb->commit(rlh, key, prepareSeqno, {}, vb->lockCollections(key)));
     EXPECT_EQ(0, vb->getDurabilityMonitor().getNumTracked());
 }
 
@@ -4656,6 +4668,7 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
     const auto prepare = makePendingItem(
             key, value, Requirements(Level::Majority, Timeout::Infinity()));
     {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(item->getKey());
         EXPECT_EQ(cb::engine_errc::success,
                   vb->set(*item, cookie, *engine, {}, cHandle));
@@ -4663,8 +4676,10 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
         EXPECT_EQ(cb::engine_errc::sync_write_pending,
                   vb->set(*prepare, cookie, *engine, {}, cHandle));
         ASSERT_EQ(6, vb->getHighSeqno());
+
         EXPECT_EQ(cb::engine_errc::success,
-                  vb->commit(key,
+                  vb->commit(rlh,
+                             key,
                              6 /*prepare-seqno*/,
                              {} /*commit-seqno*/,
                              cHandle));
@@ -5706,11 +5721,15 @@ void DurabilityActiveStreamTest::testBackfillNoSyncWriteSupport(
     flushVBucketToDiskIfPersistent(vbid, 1);
     removeCheckpoint(*vb);
 
-    ASSERT_EQ(cb::engine_errc::success,
-              vb->abort(prepare->getKey(),
-                        prepare->getBySeqno(),
-                        {},
-                        vb->lockCollections(prepare->getKey())));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb->abort(rlh,
+                            prepare->getKey(),
+                            prepare->getBySeqno(),
+                            {},
+                            vb->lockCollections(prepare->getKey())));
+    }
 
     flushVBucketToDiskIfPersistent(vbid, 1);
     removeCheckpoint(*vb);
@@ -5818,11 +5837,15 @@ void DurabilityActiveStreamTest::testEmptyBackfillNoSyncWriteSupport(
     flushVBucketToDiskIfPersistent(vbid, 1);
     removeCheckpoint(*vb);
 
-    ASSERT_EQ(cb::engine_errc::success,
-              vb->abort(key,
-                        prepare->getBySeqno(),
-                        {},
-                        vb->lockCollections(prepare->getKey())));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb->abort(rlh,
+                            key,
+                            prepare->getBySeqno(),
+                            {},
+                            vb->lockCollections(prepare->getKey())));
+    }
 
     flushVBucketToDiskIfPersistent(vbid, 1);
     removeCheckpoint(*vb);
@@ -5983,11 +6006,15 @@ void DurabilityActiveStreamTest::
     flushVBucketToDiskIfPersistent(vbid, 1);
     removeCheckpoint(*vb);
 
-    ASSERT_EQ(cb::engine_errc::success,
-              vb->abort(key,
-                        prepare->getBySeqno(),
-                        {},
-                        vb->lockCollections(prepare->getKey())));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb->abort(rlh,
+                            key,
+                            prepare->getBySeqno(),
+                            {},
+                            vb->lockCollections(prepare->getKey())));
+    }
     // remove checkpoint to ensure stream backfills from disk
     flushVBucketToDiskIfPersistent(vbid, 1);
     removeCheckpoint(*vb);

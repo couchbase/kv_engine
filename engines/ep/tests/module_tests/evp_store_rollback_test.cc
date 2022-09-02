@@ -1445,11 +1445,15 @@ void RollbackDcpTest::doCommit(StoredDocKey key) {
             {} /*streamId*/);
     stream->processMarker(&marker);
 
-    ASSERT_EQ(cb::engine_errc::success,
-              vb->commit(key,
-                         prepareSeqno,
-                         {commitSeqno},
-                         vb->lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb->commit(rlh,
+                             key,
+                             prepareSeqno,
+                             {commitSeqno},
+                             vb->lockCollections(key)));
+    }
 
     flush_vbucket_to_disk(vbid, 1);
 
@@ -1490,10 +1494,15 @@ void RollbackDcpTest::doAbort(StoredDocKey key, bool flush) {
             {} /*streamID*/);
     stream->processMarker(&marker);
 
-    ASSERT_EQ(
-            cb::engine_errc::success,
-            vb->abort(
-                    key, prepareSeqno, {abortSeqno}, vb->lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb->abort(rlh,
+                            key,
+                            prepareSeqno,
+                            {abortSeqno},
+                            vb->lockCollections(key)));
+    }
     if (flush) {
         flush_vbucket_to_disk(vbid, 1);
     }

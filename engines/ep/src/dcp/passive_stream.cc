@@ -816,7 +816,8 @@ cb::engine_errc PassiveStream::processCommit(
     // when changing the VBucket state.
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
 
-    auto rv = vb->commit(commit.getKey(),
+    auto rv = vb->commit(rlh,
+                         commit.getKey(),
                          commit.getPreparedSeqno(),
                          *commit.getBySeqno(),
                          vb->lockCollections(commit.getKey()));
@@ -847,7 +848,8 @@ cb::engine_errc PassiveStream::processAbort(
     // when changing the VBucket state.
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
 
-    auto rv = vb->abort(abort.getKey(),
+    auto rv = vb->abort(rlh,
+                        abort.getKey(),
                         abort.getPreparedSeqno(),
                         abort.getAbortSeqno(),
                         vb->lockCollections(abort.getKey()));

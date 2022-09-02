@@ -3729,10 +3729,13 @@ TEST_P(CollectionsDcpParameterizedTest,
         auto item = makePendingItem(key, "value");
         EXPECT_EQ(cb::engine_errc::sync_write_pending,
                   store->set(*item, cookie));
-        EXPECT_EQ(
-                cb::engine_errc::success,
-                vb->commit(
-                        key, vb->getHighSeqno(), {}, vb->lockCollections(key)));
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        EXPECT_EQ(cb::engine_errc::success,
+                  vb->commit(rlh,
+                             key,
+                             vb->getHighSeqno(),
+                             {},
+                             vb->lockCollections(key)));
     }
     auto highSeqno = vb->getHighSeqno();
 
@@ -3789,10 +3792,13 @@ TEST_P(CollectionsDcpParameterizedTest,
         auto item = makePendingItem(key, "value");
         EXPECT_EQ(cb::engine_errc::sync_write_pending,
                   store->set(*item, cookie));
-        EXPECT_EQ(
-                cb::engine_errc::success,
-                vb->commit(
-                        key, vb->getHighSeqno(), {}, vb->lockCollections(key)));
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        EXPECT_EQ(cb::engine_errc::success,
+                  vb->commit(rlh,
+                             key,
+                             vb->getHighSeqno(),
+                             {},
+                             vb->lockCollections(key)));
     }
     auto highSeqno = vb->getHighSeqno();
 
@@ -3832,10 +3838,13 @@ TEST_P(CollectionsDcpParameterizedTest, MB_49453) {
         auto item = makePendingItem(key, "value");
         EXPECT_EQ(cb::engine_errc::sync_write_pending,
                   store->set(*item, cookie));
-        EXPECT_EQ(
-                cb::engine_errc::success,
-                vb->commit(
-                        key, vb->getHighSeqno(), {}, vb->lockCollections(key)));
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        EXPECT_EQ(cb::engine_errc::success,
+                  vb->commit(rlh,
+                             key,
+                             vb->getHighSeqno(),
+                             {},
+                             vb->lockCollections(key)));
     }
 
     // New checkpoint appears
