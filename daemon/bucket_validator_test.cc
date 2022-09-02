@@ -21,12 +21,12 @@ using BucketValidator::validateBucketName;
 TEST(BucketNameValidatorTest, LengthRestrictions) {
     ASSERT_EQ("Name can't be empty", validateBucketName(""));
     std::string name;
-    name.resize(MAX_BUCKET_NAME_LENGTH);
+    name.resize(MaxBucketNameLength);
     std::fill(name.begin(), name.end(), 'a');
     ASSERT_EQ("", validateBucketName(name));
     // adding one more character should make it too long
     name.push_back('b');
-    static_assert(MAX_BUCKET_NAME_LENGTH == 100, "Text needs to be updated");
+    static_assert(MaxBucketNameLength == 100, "Text needs to be updated");
     ASSERT_EQ("Name too long (exceeds 100)", validateBucketName(name));
 }
 

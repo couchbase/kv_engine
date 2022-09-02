@@ -16,7 +16,7 @@ using namespace std::string_view_literals;
 
 TEST(BucketTest, Reset) {
 #if defined(__linux) && defined(__x86_64__)
-    ASSERT_EQ(5808, sizeof(Bucket))
+    ASSERT_EQ(5744, sizeof(Bucket))
             << "Bucket size changed, the reset test must be updated with "
                "the new members";
 #endif
@@ -146,7 +146,7 @@ TEST_F(BucketManagerTest, CreateBucket) {
             FAIL() << "Unexpected callback";
         case Bucket::State::Creating:
             creating = true;
-            EXPECT_STREQ("mybucket", bucket.name);
+            EXPECT_EQ("mybucket", bucket.name);
             EXPECT_EQ(BucketType::Unknown, bucket.type);
             EXPECT_EQ(Bucket::State::None, bucket.state);
             EXPECT_FALSE(bucket.hasEngine());
@@ -157,7 +157,7 @@ TEST_F(BucketManagerTest, CreateBucket) {
             break;
         case Bucket::State::Initializing:
             initializing = true;
-            EXPECT_STREQ("mybucket", bucket.name);
+            EXPECT_EQ("mybucket", bucket.name);
             EXPECT_EQ(BucketType::Unknown, bucket.type);
             EXPECT_EQ(Bucket::State::Creating, bucket.state);
             EXPECT_TRUE(bucket.hasEngine());
@@ -168,7 +168,7 @@ TEST_F(BucketManagerTest, CreateBucket) {
             break;
         case Bucket::State::Ready:
             ready = true;
-            EXPECT_STREQ("mybucket", bucket.name);
+            EXPECT_EQ("mybucket", bucket.name);
             EXPECT_EQ(BucketType::NoBucket, bucket.type);
             EXPECT_EQ(Bucket::State::Initializing, bucket.state);
             EXPECT_TRUE(bucket.hasEngine());
@@ -200,7 +200,7 @@ TEST_F(BucketManagerTest, PromoteClusterConfigOnlyBucket) {
     bucketTypeChangeListenerFunc = [&typecallback](Bucket& bucket,
                                                    BucketType type) {
         typecallback = true;
-        EXPECT_STREQ("mybucket", bucket.name);
+        EXPECT_EQ("mybucket", bucket.name);
         EXPECT_EQ(Bucket::State::Ready, bucket.state);
         EXPECT_TRUE(bucket.hasEngine());
         EXPECT_NE(nullptr, bucket.getDcpIface());
@@ -223,7 +223,7 @@ TEST_F(BucketManagerTest, PromoteClusterConfigOnlyBucket) {
             break;
         case Bucket::State::Ready:
             ready = true;
-            EXPECT_STREQ("mybucket", bucket.name);
+            EXPECT_EQ("mybucket", bucket.name);
             EXPECT_EQ(BucketType::NoBucket, bucket.type);
             EXPECT_EQ(Bucket::State::Ready, bucket.state);
             EXPECT_TRUE(bucket.hasEngine());

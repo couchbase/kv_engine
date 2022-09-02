@@ -172,7 +172,7 @@ void audit_bucket_selection(const Connection& c, Cookie* cookie) {
     }
 }
 
-void audit_bucket_flush(Cookie& cookie, const char* bucket) {
+void audit_bucket_flush(Cookie& cookie, const std::string_view bucket) {
     if (!isEnabled(MEMCACHED_AUDIT_EXTERNAL_MEMCACHED_BUCKET_FLUSH)) {
         return;
     }

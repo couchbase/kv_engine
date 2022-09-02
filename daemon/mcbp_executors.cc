@@ -492,7 +492,7 @@ static void set_bucket_unit_throttle_limits_executor(Cookie& cookie) {
     bool found = false;
     BucketManager::instance().forEach(
             [&name, &found, payload](auto& bucket) -> bool {
-                if (strcmp(bucket.name, name.c_str()) == 0) {
+                if (bucket.name == name) {
                     bucket.setThrottleLimit(payload->getLimit());
                     found = true;
                     return false;
@@ -520,20 +520,20 @@ static void set_bucket_data_limit_exceeded_executor(Cookie& cookie) {
             reinterpret_cast<const SetBucketDataLimitExceededPayload*>(
                     extras.data());
     bool found = false;
-    BucketManager::instance().forEach(
-            [&cookie, &name, &found, payload](auto& bucket) -> bool {
-                if (strcmp(bucket.name, name.c_str()) == 0) {
-                    if (bucket.bucket_quota_exceeded != payload->isEnabled()) {
-                        LOG_INFO("{} {}able client document ingress",
-                                 cookie.getConnectionId(),
-                                 payload->isEnabled() ? "En" : "Dis");
-                        bucket.bucket_quota_exceeded = payload->isEnabled();
-                    }
-                    found = true;
-                    return false;
-                }
-                return true;
-            });
+    BucketManager::instance().forEach([&cookie, &name, &found, payload](
+                                              auto& bucket) -> bool {
+        if (bucket.name == name) {
+            if (bucket.bucket_quota_exceeded != payload->isEnabled()) {
+                LOG_INFO("{} {}able client document ingress",
+                         cookie.getConnectionId(),
+                         payload->isEnabled() ? "En" : "Dis");
+                bucket.bucket_quota_exceeded = payload->isEnabled();
+            }
+            found = true;
+            return false;
+        }
+        return true;
+    });
 
     if (found) {
         cookie.sendResponse(cb::mcbp::Status::Success);

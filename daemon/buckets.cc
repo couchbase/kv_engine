@@ -34,7 +34,7 @@ void Bucket::reset() {
     std::lock_guard<std::mutex> guard(mutex);
     engine.reset();
     state = Bucket::State::None;
-    memset(name, 0, sizeof(name));
+    name.clear();
     setEngine(nullptr);
     clusterConfiguration.reset();
     max_document_size = default_max_item_size;
@@ -311,9 +311,9 @@ std::string validateBucketName(std::string_view name) {
         return "Name can't be empty";
     }
 
-    if (name.length() > MAX_BUCKET_NAME_LENGTH) {
-        return "Name too long (exceeds " +
-               std::to_string(MAX_BUCKET_NAME_LENGTH) + ")";
+    if (name.length() > MaxBucketNameLength) {
+        return "Name too long (exceeds " + std::to_string(MaxBucketNameLength) +
+               ")";
     }
 
     // Verify that the bucket name only consists of legal characters
@@ -411,7 +411,7 @@ cb::engine_errc BucketManager::setClusterConfig(
     auto& bucket = all_buckets[first_free];
     bucket.type = BucketType::ClusterConfigOnly;
     bucket.clusterConfiguration.setConfiguration(std::move(configuration));
-    strcpy(bucket.name, name.c_str());
+    bucket.name = name;
     bucket.supportedFeatures.emplace(cb::engine::Feature::Collections);
     bucketStateChangeListener(bucket, Bucket::State::Ready);
     bucket.state = Bucket::State::Ready;
@@ -475,7 +475,7 @@ std::pair<cb::engine_errc, Bucket*> BucketManager::allocateBucket(
     // that would cause all clients to disconnect.
     free_bucket->management_operation_in_progress = true;
     if (free_bucket->type == BucketType::Unknown) {
-        std::copy(name.begin(), name.end(), free_bucket->name);
+        free_bucket->name = name;
         bucketStateChangeListener(*free_bucket, Bucket::State::Creating);
         free_bucket->state = Bucket::State::Creating;
     }

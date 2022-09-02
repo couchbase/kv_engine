@@ -76,7 +76,7 @@ cb::engine_errc SaslAuthCommandContext::tryHandleSaslOk(
         // associate the connection with the appropriate bucket
         const auto username = connection.getUser().name;
         if (mayAccessBucket(cookie, username)) {
-            associate_bucket(cookie, username.c_str());
+            associate_bucket(cookie, username);
             // Auth succeeded but the connection may not be valid for the
             // bucket
             if (connection.isCollectionsSupported() &&

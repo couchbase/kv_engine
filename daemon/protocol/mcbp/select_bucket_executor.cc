@@ -37,7 +37,7 @@ cb::engine_errc select_bucket(Cookie& cookie, const std::string& bucketname) {
         return cb::engine_errc::no_access;
     }
 
-    if (associate_bucket(cookie, bucketname.c_str())) {
+    if (associate_bucket(cookie, bucketname)) {
         // We found the bucket, great. Test to see if it is valid for the
         // given connection
         if (connection.isCollectionsSupported() &&

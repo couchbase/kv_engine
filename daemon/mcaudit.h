@@ -53,7 +53,7 @@ void audit_bucket_selection(const Connection& c, Cookie* cookie = nullptr);
  * @param c the cookie performing the operation
  * @param bucket the name of the bucket
  */
-void audit_bucket_flush(Cookie& c, const char* bucket);
+void audit_bucket_flush(Cookie& c, const std::string_view bucket);
 
 /**
  * Send an audit event for a DCP Open

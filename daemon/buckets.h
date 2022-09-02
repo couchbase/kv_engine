@@ -35,7 +35,7 @@ struct FrontEndThread;
 class Cookie;
 class BucketManager;
 
-#define MAX_BUCKET_NAME_LENGTH 100
+constexpr static const size_t MaxBucketNameLength = 100;
 
 class Bucket {
 public:
@@ -129,9 +129,10 @@ public:
     std::atomic<BucketType> type{BucketType::Unknown};
 
     /**
-     * The name of the bucket (and space for the '\0')
+     * The name of the bucket, should never be greater in size than
+     * MaxBucketNameLength
      */
-    char name[MAX_BUCKET_NAME_LENGTH + 1]{};
+    std::string name;
 
     /// Is the bucket quota exceeded or not
     std::atomic_bool bucket_quota_exceeded;

@@ -154,7 +154,7 @@ void disassociate_bucket(Connection& connection, Cookie* cookie) {
 }
 
 bool associate_bucket(Connection& connection,
-                      const char* name,
+                      const std::string_view name,
                       Cookie* cookie) {
     // leave the current bucket
     disassociate_bucket(connection, cookie);
@@ -170,7 +170,7 @@ bool associate_bucket(Connection& connection,
                                          cb::tracing::Code::BucketLockWait,
                                          cb::tracing::Code::BucketLockHeld,
                                          std::chrono::milliseconds(5));
-            if (b.state == Bucket::State::Ready && strcmp(b.name, name) == 0) {
+            if (b.state == Bucket::State::Ready && b.name == name) {
                 b.clients++;
                 idx = ii;
                 break;
@@ -198,7 +198,7 @@ bool associate_bucket(Connection& connection,
     return idx != 0;
 }
 
-bool associate_bucket(Cookie& cookie, const char* name) {
+bool associate_bucket(Cookie& cookie, const std::string_view name) {
     using cb::tracing::Code;
     using cb::tracing::SpanStopwatch;
     ScopeTimer1<SpanStopwatch> timer(cookie, Code::AssociateBucket);

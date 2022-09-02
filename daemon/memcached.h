@@ -64,9 +64,9 @@ ServerApi* get_server_api();
 void shutdown_server();
 /// associate to a bucket when running from a cookie context (to allow
 /// trace span
-bool associate_bucket(Cookie& cookie, const char* name);
+bool associate_bucket(Cookie& cookie, const std::string_view name);
 bool associate_bucket(Connection& connection,
-                      const char* name,
+                      const std::string_view name,
                       Cookie* cookie = nullptr);
 void disassociate_bucket(Connection& connection, Cookie* cookie = nullptr);
 void disconnect_bucket(Bucket& bucket, Cookie* cookie);
