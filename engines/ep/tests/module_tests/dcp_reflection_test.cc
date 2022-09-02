@@ -1227,9 +1227,10 @@ TEST_P(DCPLoopbackStreamTest, MB_41255_dcp_delete_evicted_xattr) {
     {
         const char* msg;
         auto replicaVB = engines[Node1]->getKVBucket()->getVBucket(vbid);
+        folly::SharedMutex::ReadHolder rlh(replicaVB->getStateLock());
         auto cHandle = replicaVB->lockCollections(k1);
         EXPECT_EQ(cb::mcbp::Status::Success,
-                  replicaVB->evictKey(&msg, cHandle));
+                  replicaVB->evictKey(&msg, rlh, cHandle));
     }
 
     EXPECT_EQ(cb::engine_errc::success, del(k1));

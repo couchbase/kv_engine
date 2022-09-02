@@ -104,6 +104,7 @@ public:
 
     cb::mcbp::Status evictKey(
             const char** msg,
+            VBucketStateLockRef vbStateLock,
             const Collections::VB::CachingReadHandle& cHandle) override;
 
     bool pageOut(VBucketStateLockRef vbStateLock,

@@ -567,7 +567,9 @@ UniqueDCPBackfillPtr EPVBucket::createDCPBackfill(
 }
 
 cb::mcbp::Status EPVBucket::evictKey(
-        const char** msg, const Collections::VB::CachingReadHandle& cHandle) {
+        const char** msg,
+        VBucketStateLockRef,
+        const Collections::VB::CachingReadHandle& cHandle) {
     auto res = fetchValidValue(WantsDeleted::No, TrackReference::No, cHandle);
     auto* v = res.storedValue;
     if (!v) {

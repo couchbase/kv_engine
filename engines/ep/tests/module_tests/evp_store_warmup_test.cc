@@ -854,7 +854,8 @@ GetValue DurabilityWarmupTest::getItemFromDisk(const DocKey& key,
     // works for replica vBuckets
     const char* msg;
     auto vb = store->getVBucket(vbid);
-    vb->evictKey(&msg, vb->lockCollections(key));
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    vb->evictKey(&msg, rlh, vb->lockCollections(key));
 
     // And get. Again, hit the vBucket level function rather than the KVBucket
     // one to run the get against both active and replica vBuckets.

@@ -88,6 +88,7 @@ public:
 
     cb::mcbp::Status evictKey(
             const char** msg,
+            VBucketStateLockRef,
             const Collections::VB::CachingReadHandle& readHandle) override {
         /* There is nothing (no disk) to evictKey to. Later on if we decide to
            use this as a deletion, then we can handle it differently */

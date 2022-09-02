@@ -548,7 +548,7 @@ cb::mcbp::Status KVBucket::evictKey(const DocKey& key,
         return cb::mcbp::Status::UnknownCollection;
     } // now hold collections read access for the duration of the evict
 
-    return vb->evictKey(msg, cHandle);
+    return vb->evictKey(msg, rlh, cHandle);
 }
 
 void KVBucket::getValue(Item& it) {

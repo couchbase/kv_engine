@@ -1014,7 +1014,8 @@ TEST_P(STItemPagerTest, EvictBGFetchedDeletedItem) {
     auto vb = store->getVBucket(vbid);
 
     const char* msg;
-    vb->evictKey(&msg, vb->lockCollections(key));
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    vb->evictKey(&msg, rlh, vb->lockCollections(key));
 
     // 3) Get to schedule our BGFetch
     auto options = static_cast<get_options_t>(

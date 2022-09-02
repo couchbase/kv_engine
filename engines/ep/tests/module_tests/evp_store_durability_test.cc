@@ -4661,11 +4661,12 @@ void DurabilityBucketTest::testReplaceAtPendingSW(DocState docState) {
             auto res = vb.ht.findForWrite(key);
             ASSERT_TRUE(res.storedValue);
         }
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
         auto cHandle = vb.lockCollections(key);
         ASSERT_TRUE(cHandle.valid());
         const auto buffer = std::make_unique<const char[]>(128);
         const char* msg = buffer.get();
-        ASSERT_EQ(cb::mcbp::Status::Success, vb.evictKey(&msg, cHandle));
+        ASSERT_EQ(cb::mcbp::Status::Success, vb.evictKey(&msg, rlh, cHandle));
         ASSERT_TRUE(std::strcmp("Ejected.", msg) == 0);
         break;
     }

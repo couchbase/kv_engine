@@ -4306,9 +4306,10 @@ TEST_P(STParameterizedBucketTest, MB_41255_evicted_xattr) {
     if (persistent()) {
         auto replicaVB = engine->getKVBucket()->getVBucket(vbid);
         const char* msg;
+        folly::SharedMutex::ReadHolder rlh(replicaVB->getStateLock());
         auto cHandle = replicaVB->lockCollections(key);
         EXPECT_EQ(cb::mcbp::Status::Success,
-                  replicaVB->evictKey(&msg, cHandle));
+                  replicaVB->evictKey(&msg, rlh, cHandle));
     }
 
     // now delete the key

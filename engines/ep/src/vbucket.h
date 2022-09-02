@@ -1158,6 +1158,7 @@ public:
      *
      * @param[out] msg Updated to point to a string (with static duration)
      *                 describing the result of the operation.
+     * @param vbStateLock A lock on the state of the VBucket.
      * @param cHandle Collections readhandle (caching mode) for this key
      *
      * @return SUCCESS if key was successfully evicted (or was already
@@ -1166,6 +1167,7 @@ public:
      */
     virtual cb::mcbp::Status evictKey(
             const char** msg,
+            VBucketStateLockRef vbStateLock,
             const Collections::VB::CachingReadHandle& cHandle) = 0;
 
     /**
