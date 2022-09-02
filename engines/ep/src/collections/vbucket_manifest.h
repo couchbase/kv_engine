@@ -305,6 +305,7 @@ public:
         ScopeCollectionPair identifiers;
         std::string name;
         cb::ExpiryLimit maxTtl;
+        Metered metered;
     };
 
     // local struct for managing scope creation
@@ -321,6 +322,12 @@ public:
         DataLimit dataLimit;
     };
 
+    // struct for managing collection modification
+    struct CollectionModified {
+        CollectionID cid;
+        Metered metered;
+    };
+
     /**
      * The changes that we need to make to the VB:Manifest manifest derived from
      * the bucket Collections::Manifest.
@@ -333,6 +340,7 @@ public:
         std::vector<ScopeModified> scopesToModify;
         std::vector<CollectionCreation> collectionsToCreate;
         std::vector<CollectionID> collectionsToDrop;
+        std::vector<CollectionModified> collectionsToModify;
         // stores any new value (if needed)
         std::optional<bool> changeScopeWithDataLimitExists;
 
@@ -426,6 +434,7 @@ protected:
      * @param identifiers ScopeID and CollectionID pair
      * @param collectionName Name of the created collection
      * @param maxTtl An optional maxTTL for the collection
+     * @param metered flag defining metering behaviour of the collection
      * @param optionalSeqno Either a seqno to assign to the new collection or
      *        none (none means the checkpoint will assign a seqno).
      */
@@ -435,6 +444,7 @@ protected:
                           ScopeCollectionPair identifiers,
                           std::string_view collectionName,
                           cb::ExpiryLimit maxTtl,
+                          Metered metered,
                           OptionalSeqno optionalSeqno);
 
     /**
@@ -454,6 +464,21 @@ protected:
                         ManifestUid newManUid,
                         CollectionID cid,
                         OptionalSeqno optionalSeqno);
+
+    /**
+     * Modify the collection from the vbucket
+     *
+     * @param wHandle The manifest write handle under which this operation is
+     *        currently locked. Required to ensure we lock correctly around
+     *        VBucket::notifyNewSeqno
+     * @param vb The vbucket to drop the collection from
+     * @param newManUid the uid of the manifest which made the change
+     * @param modification object holding modification data
+     */
+    void modifyCollection(const WriteHandle& wHandle,
+                          ::VBucket& vb,
+                          ManifestUid newManUid,
+                          const CollectionModified& modification);
 
     /**
      * Create a scope in the vbucket.
@@ -859,6 +884,7 @@ protected:
      * @param collectionName The name of the collection
      * @param maxTtl The maxTTL that if defined will be applied to new items of
      *        the collection (overriding bucket maxTTL)
+     * @param metered a flag defining how this collection is metered
      * @param startSeqno The seqno where the collection begins.
      * @return a non const reference to the new ManifestEntry so the caller can
      *         make any changes that are needed post construction.
@@ -866,6 +892,7 @@ protected:
     ManifestEntry& addNewCollectionEntry(ScopeCollectionPair identifiers,
                                          std::string_view collectionName,
                                          cb::ExpiryLimit maxTtl,
+                                         Metered metered,
                                          int64_t startSeqno);
 
     /**

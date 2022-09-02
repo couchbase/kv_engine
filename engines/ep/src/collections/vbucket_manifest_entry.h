@@ -34,7 +34,7 @@ namespace VB {
  */
 class ManifestEntry {
 public:
-    ManifestEntry(SingleThreadedRCPtr<const VB::CollectionSharedMetaData> meta,
+    ManifestEntry(SingleThreadedRCPtr<VB::CollectionSharedMetaData> meta,
                   uint64_t startSeqno)
         : startSeqno(startSeqno),
           itemCount(0),
@@ -80,6 +80,15 @@ public:
 
     std::string_view getName() const {
         return meta->name;
+    }
+
+    /// @return collection Metered state (Yes or No)
+    Metered isMetered() const {
+        return meta->metered;
+    }
+
+    void setMetered(Metered metered) {
+        meta->metered = metered;
     }
 
     /// increment how many items are stored for this collection
@@ -196,7 +205,7 @@ public:
      * Take the CollectionSharedMetaData from this entry (moves the data) to
      * the caller.
      */
-    SingleThreadedRCPtr<const CollectionSharedMetaData>&& takeMeta() {
+    SingleThreadedRCPtr<CollectionSharedMetaData>&& takeMeta() {
         return std::move(meta);
     }
 
@@ -291,7 +300,7 @@ private:
      * The VB::Manifest (ManifestEntry) does not own this data, but instead has
      * a reference to the data, which is stored inside the Manager.
      */
-    SingleThreadedRCPtr<const CollectionSharedMetaData> meta;
+    SingleThreadedRCPtr<CollectionSharedMetaData> meta;
 };
 
 std::ostream& operator<<(std::ostream& os, const ManifestEntry& manifestEntry);

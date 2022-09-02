@@ -209,12 +209,15 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
                 maxTtl = std::chrono::seconds(value);
             }
 
+            Metered meteredState{Metered::Yes};
+            if (metered && !metered.value()) {
+                // metered:false present in JSON
+                meteredState = Metered::No;
+            }
+
             enableDefaultCollection(cidValue);
-            scopeCollections.push_back(CollectionEntry{cidValue,
-                                                       cnameValue,
-                                                       maxTtl,
-                                                       sidValue,
-                                                       metered.value_or(true)});
+            scopeCollections.push_back(CollectionEntry{
+                    cidValue, cnameValue, maxTtl, sidValue, meteredState});
         }
 
         // Check for limits - only support for data_size
@@ -364,8 +367,9 @@ nlohmann::json Manifest::toJson(
                 if (c.maxTtl) {
                     collection["maxTTL"] = c.maxTtl.value().count();
                 }
-                if (!c.metered) {
-                    collection[MeteredKey] = c.metered;
+                // Include "metered" only when false
+                if (c.metered == Metered::No) {
+                    collection[MeteredKey] = false;
                 }
                 scope["collections"].push_back(collection);
             }
@@ -400,7 +404,7 @@ flatbuffers::DetachedBuffer Manifest::toFlatbuffer() const {
                     c.maxTtl.has_value(),
                     c.maxTtl.value_or(std::chrono::seconds(0)).count(),
                     builder.CreateString(c.name),
-                    c.metered);
+                    c.metered == Metered::Yes);
             fbCollections.push_back(newEntry);
         }
         auto collectionVector = builder.CreateVector(fbCollections);
@@ -468,12 +472,12 @@ Manifest::Manifest(std::string_view flatbufferData, Manifest::FlatBuffers tag)
             }
 
             enableDefaultCollection(cid);
-            scopeCollections.push_back(
-                    CollectionEntry{cid,
-                                    collection->name()->str(),
-                                    maxTtl,
-                                    scope->scopeId(),
-                                    collection->metered()});
+            scopeCollections.push_back(CollectionEntry{
+                    cid,
+                    collection->name()->str(),
+                    maxTtl,
+                    scope->scopeId(),
+                    collection->metered() ? Metered::Yes : Metered::No});
         }
 
         std::optional<size_t> dataSize;
@@ -522,8 +526,8 @@ void Manifest::addCollectionStats(KVBucket& bucket,
                                         entry.maxTtl->count());
                 }
 
-                if (!entry.metered) {
-                    collectionC.addStat(Key::collection_metered, entry.metered);
+                if (entry.metered == Metered::No) {
+                    collectionC.addStat(Key::collection_metered, "no");
                 }
             }
         }
@@ -659,6 +663,14 @@ DataLimit Manifest::getScopeDataLimit(ScopeID sid) const {
         return std::nullopt;
     }
     return scopeItr->second.dataLimit;
+}
+
+std::optional<Metered> Manifest::isMetered(CollectionID cid) const {
+    auto itr = collections.find(cid);
+    if (itr != collections.end()) {
+        return itr->second.metered;
+    }
+    return {};
 }
 
 void Manifest::dump() const {
@@ -848,7 +860,7 @@ std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
                << ", ttl:" << (collection.maxTtl.has_value() ? "yes" : "no")
                << ":"
                << collection.maxTtl.value_or(std::chrono::seconds(0)).count()
-               << ", metered:" << collection.metered << "}";
+               << ", metered:" << to_string(collection.metered) << "}";
         }
         os << "]\n";
     }

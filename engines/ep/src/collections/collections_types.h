@@ -86,7 +86,8 @@ static_assert(sizeof(ManifestUidNetworkOrder) == 8,
 ManifestUid makeManifestUid(std::string_view uid);
 
 /**
- * The metadata of a single collection
+ * The metadata of a single collection. This represents the data we persist
+ * in KVStore meta and is used to communicate back to kv from KVStore
  *
  * Default construction yields the default collection
  */
@@ -105,7 +106,8 @@ struct CollectionMetaData {
 std::ostream& operator<<(std::ostream& os, const CollectionMetaData& meta);
 
 /**
- * The metadata of a single scope
+ * The metadata of a single scope. This represents the data we persist
+ * in KVStore meta and is used to communicate back to kv from KVStore
  *
  * Default construction yields the default scope
  */
@@ -168,6 +170,12 @@ using DataLimit = std::optional<size_t>;
 
 static const DataLimit NoDataLimit{};
 
+/// Collection metering yes/no
+enum class Metered : bool { Yes, No };
+
+std::string to_string(Metered);
+std::ostream& operator<<(std::ostream&, Metered);
+
 namespace VB {
 enum class ManifestUpdateStatus {
     Success,
@@ -196,12 +204,14 @@ class CollectionSharedMetaDataView {
 public:
     CollectionSharedMetaDataView(std::string_view name,
                                  ScopeID scope,
-                                 cb::ExpiryLimit maxTtl);
+                                 cb::ExpiryLimit maxTtl,
+                                 Metered metered);
     CollectionSharedMetaDataView(const CollectionSharedMetaData&);
     std::string to_string() const;
     std::string_view name;
     const ScopeID scope;
     const cb::ExpiryLimit maxTtl;
+    Metered metered;
 };
 
 // The type stored by the Manager SharedMetaDataTable
@@ -209,7 +219,8 @@ class CollectionSharedMetaData : public RCValue {
 public:
     CollectionSharedMetaData(std::string_view name,
                              ScopeID scope,
-                             cb::ExpiryLimit maxTtl);
+                             cb::ExpiryLimit maxTtl,
+                             Metered metered);
     CollectionSharedMetaData(const CollectionSharedMetaDataView& view);
     bool operator==(const CollectionSharedMetaDataView& view) const;
     bool operator!=(const CollectionSharedMetaDataView& view) const {
@@ -223,6 +234,8 @@ public:
     const std::string name;
     const ScopeID scope;
     const cb::ExpiryLimit maxTtl;
+    // can be updated (corrected) post creation from any thread
+    std::atomic<Metered> metered;
 };
 std::ostream& operator<<(std::ostream& os,
                          const CollectionSharedMetaData& meta);

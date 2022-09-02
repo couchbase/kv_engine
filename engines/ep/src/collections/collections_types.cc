@@ -70,6 +70,20 @@ bool AccumulatedStats::operator!=(const AccumulatedStats& other) const {
     return !(*this == other);
 }
 
+std::string to_string(Metered metered) {
+    switch (metered) {
+    case Metered::Yes:
+        return "Metered";
+    case Metered::No:
+        return "Unmetered";
+    }
+    folly::assume_unreachable();
+}
+
+std::ostream& operator<<(std::ostream& os, Metered metered) {
+    return os << to_string(metered);
+}
+
 namespace VB {
 std::string to_string(ManifestUpdateStatus status) {
     switch (status) {
@@ -86,38 +100,52 @@ std::string to_string(ManifestUpdateStatus status) {
 }
 
 CollectionSharedMetaDataView::CollectionSharedMetaDataView(
-        std::string_view name, ScopeID scope, cb::ExpiryLimit maxTtl)
-    : name(name), scope(scope), maxTtl(std::move(maxTtl)) {
+        std::string_view name,
+        ScopeID scope,
+        cb::ExpiryLimit maxTtl,
+        Metered metered)
+    : name(name), scope(scope), maxTtl(std::move(maxTtl)), metered(metered) {
 }
 
 CollectionSharedMetaDataView::CollectionSharedMetaDataView(
         const CollectionSharedMetaData& meta)
-    : name(meta.name), scope(meta.scope), maxTtl(meta.maxTtl) {
+    : name(meta.name),
+      scope(meta.scope),
+      maxTtl(meta.maxTtl),
+      metered(meta.metered) {
 }
 
 std::string CollectionSharedMetaDataView::to_string() const {
     std::string rv = "Collection: name:" + std::string(name) +
-                     ", scope:" + scope.to_string();
+                     ", scope:" + scope.to_string() + ", " +
+                     Collections::to_string(metered);
+
     if (maxTtl) {
         rv += " maxTtl:" + std::to_string(maxTtl.value().count());
     }
+
     return rv;
 }
 
 CollectionSharedMetaData::CollectionSharedMetaData(std::string_view name,
                                                    ScopeID scope,
-                                                   cb::ExpiryLimit maxTtl)
-    : name(name), scope(scope), maxTtl(std::move(maxTtl)) {
+                                                   cb::ExpiryLimit maxTtl,
+                                                   Metered metered)
+    : name(name), scope(scope), maxTtl(std::move(maxTtl)), metered(metered) {
 }
 
 CollectionSharedMetaData::CollectionSharedMetaData(
         const CollectionSharedMetaDataView& view)
-    : name(view.name), scope(view.scope), maxTtl(view.maxTtl) {
+    : name(view.name),
+      scope(view.scope),
+      maxTtl(view.maxTtl),
+      metered(view.metered) {
 }
 
 bool CollectionSharedMetaData::operator==(
         const CollectionSharedMetaDataView& view) const {
-    return name == view.name && scope == view.scope && maxTtl == view.maxTtl;
+    return name == view.name && scope == view.scope && maxTtl == view.maxTtl &&
+           metered == view.metered;
 }
 
 bool CollectionSharedMetaData::operator==(
@@ -131,6 +159,7 @@ std::ostream& operator<<(std::ostream& os,
     if (meta.maxTtl) {
         os << ", maxTtl:" << meta.maxTtl.value().count();
     }
+    os << ", metered:" << meta.metered;
     return os;
 }
 

@@ -25,6 +25,10 @@ DataLimit ReadHandle::getDataLimit(ScopeID sid) const {
     return manifest->getScopeEntry(sid).getDataLimit();
 }
 
+Metered ReadHandle::isMetered(CollectionID cid) const {
+    return manifest->getManifestEntry(cid).isMetered();
+}
+
 PersistedStats StatsReadHandle::getPersistedStats() const {
     return {itr->second.getItemCount(),
             itr->second.getPersistedHighSeqno(),

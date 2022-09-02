@@ -38,7 +38,7 @@ struct CollectionEntry {
     std::string name;
     cb::ExpiryLimit maxTtl;
     ScopeID sid;
-    bool metered;
+    Metered metered;
     bool operator==(const CollectionEntry& other) const;
     bool operator!=(const CollectionEntry& other) const {
         return !(*this == other);
@@ -253,6 +253,12 @@ public:
     DataLimit getScopeDataLimit(ScopeID sid) const;
 
     /**
+     * Get the 'metered' state of the collection. If the collection is unknown
+     * the returned value is uninitialised.
+     */
+    std::optional<Metered> isMetered(CollectionID cid) const;
+
+    /**
      * @returns this manifest as nlohmann::json object
      */
     nlohmann::json toJson(
@@ -350,7 +356,7 @@ private:
                                  DefaultCollectionName,
                                  cb::NoExpiryLimit,
                                  ScopeID::Default,
-                                 true}}}}};
+                                 Metered::Yes}}}}};
     collectionContainer collections;
     ManifestUid uid{0};
 };

@@ -339,7 +339,7 @@ void Collections::Manager::warmupCompleted(EPBucket& bucket) const {
     }
 }
 
-SingleThreadedRCPtr<const Collections::VB::CollectionSharedMetaData>
+SingleThreadedRCPtr<Collections::VB::CollectionSharedMetaData>
 Collections::Manager::createOrReferenceMeta(
         CollectionID cid,
         const Collections::VB::CollectionSharedMetaDataView& view) {
@@ -348,7 +348,7 @@ Collections::Manager::createOrReferenceMeta(
 
 void Collections::Manager::dereferenceMeta(
         CollectionID cid,
-        SingleThreadedRCPtr<const VB::CollectionSharedMetaData>&& meta) {
+        SingleThreadedRCPtr<VB::CollectionSharedMetaData>&& meta) {
     collectionSMT.wlock()->dereference(cid, std::move(meta));
 }
 

@@ -83,6 +83,10 @@ CollectionsManifest& CollectionsManifest::add(
         jsonEntry["maxTTL"] = maxTtl.value().count();
     }
 
+    if (!collectionEntry.metered) {
+        jsonEntry["metered"] = false;
+    }
+
     // Add the new collection to the set of collections belonging to the
     // given scope
     for (auto itr = json["scopes"].begin(); itr != json["scopes"].end();

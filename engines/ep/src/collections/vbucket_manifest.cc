@@ -34,7 +34,8 @@ Manifest::Manifest(std::shared_ptr<Manager> manager)
     addNewScopeEntry(ScopeID::Default, DefaultScopeIdentifier, DataLimit{});
     addNewCollectionEntry({ScopeID::Default, CollectionID::Default},
                           DefaultCollectionIdentifier,
-                          {} /*ttl*/,
+                          cb::NoExpiryLimit,
+                          Collections::Metered::Yes,
                           0 /*startSeqno*/);
 }
 
@@ -51,12 +52,22 @@ Manifest::Manifest(std::shared_ptr<Manager> manager,
                     scope.metaData.name,
                     bucketManifest->getScopeDataLimit(scope.metaData.sid));
         }
-    }
 
     for (const auto& e : data.collections) {
         const auto& meta = e.metaData;
+        // For the Metered state, if the Manifest does not know the collection
+        // (isMetered returns no value) set the state to be Yes. The Manifest
+        // may not yet know the collection if the VB::Manifest learned of the
+        // collection via DCP ahead of ns_server pushing via set_collections +
+        // we then warmed up (note this is also a replica). The value of Yes
+        // will be checked/corrected when/if the VB is made active
         addNewCollectionEntry(
-                {meta.sid, meta.cid}, meta.name, meta.maxTtl, e.startSeqno);
+                {meta.sid, meta.cid},
+                meta.name,
+                meta.maxTtl,
+                bucketManifest->isMetered(meta.cid).value_or(Metered::Yes),
+                e.startSeqno);
+    }
     }
 }
 
@@ -82,8 +93,10 @@ Manifest::Manifest(Manifest& other) : manager(other.manager) {
 
     // Collection/Scope maps are not trivially copyable, so we do it manually
     for (auto& [cid, entry] : other.map) {
-        CollectionSharedMetaDataView meta{
-                entry.getName(), entry.getScopeID(), entry.getMaxTtl()};
+        CollectionSharedMetaDataView meta{entry.getName(),
+                                          entry.getScopeID(),
+                                          entry.getMaxTtl(),
+                                          entry.isMetered()};
         auto [itr, inserted] =
                 map.try_emplace(cid,
                                 other.manager->createOrReferenceMeta(cid, meta),
@@ -93,6 +106,7 @@ Manifest::Manifest(Manifest& other) : manager(other.manager) {
         itr->second.setDiskSize(entry.getDiskSize());
         itr->second.setHighSeqno(entry.getHighSeqno());
         itr->second.setPersistedHighSeqno(entry.getPersistedHighSeqno());
+        itr->second.setMetered(entry.isMetered());
     }
 
     for (auto& [sid, entry] : other.scopes) {
@@ -161,6 +175,7 @@ std::optional<Manifest::CollectionCreation> Manifest::applyCreates(
                          creation.identifiers,
                          creation.name,
                          creation.maxTtl,
+                         creation.metered,
                          OptionalSeqno{/*no-seqno*/});
     }
     changes.clear();
@@ -357,6 +372,7 @@ void Manifest::completeUpdate(mutex_type::UpgradeHolder&& upgradeLock,
                          finalAddition.value().identifiers,
                          finalAddition.value().name,
                          finalAddition.value().maxTtl,
+                         finalAddition.value().metered,
                          OptionalSeqno{/*no-seqno*/});
     }
 
@@ -372,11 +388,18 @@ void Manifest::completeUpdate(mutex_type::UpgradeHolder&& upgradeLock,
                   OptionalSeqno{/*no-seqno*/});
     }
 
-    // Can do the scope modifications last - these generate no events but will
-    // just sync any scope to the manifest
+    // The scope and collection modifications are process last. These generate
+    // no system-events and only result in this VB::Manifest being corrected
+    // the values from the Manifest for a subset of the scope/collection
+    // metadata
     for (const auto& modified : changeset.scopesToModify) {
         // Here the changeset.uid is used as it's for logging
         modifyScope(wHandle, vb, changeset.uid, modified);
+    }
+
+    for (const auto& modified : changeset.collectionsToModify) {
+        // Here the changeset.uid is used as it's for logging
+        modifyCollection(wHandle, vb, changeset.uid, modified);
     }
 }
 
@@ -427,11 +450,13 @@ void Manifest::createCollection(const WriteHandle& wHandle,
                                 ScopeCollectionPair identifiers,
                                 std::string_view collectionName,
                                 cb::ExpiryLimit maxTtl,
+                                Metered metered,
                                 OptionalSeqno optionalSeqno) {
     // 1. Update the manifest, adding or updating an entry in the collections
     // map. The start-seqno is 0 here and is patched up once we've created and
     // queued the system-event Item (step 2 and 3)
-    auto& entry = addNewCollectionEntry(identifiers, collectionName, maxTtl, 0);
+    auto& entry = addNewCollectionEntry(
+            identifiers, collectionName, maxTtl, metered, 0);
 
     // 1.1 record the uid of the manifest which is adding the collection
     updateUid(newManUid, optionalSeqno.has_value());
@@ -448,12 +473,15 @@ void Manifest::createCollection(const WriteHandle& wHandle,
                                             {/*no callback*/});
 
     EP_LOG_DEBUG(
-            "{} create collection:id:{}, name:{} in scope:{}, seq:{}, "
+            "{} create collection:id:{}, name:{} in scope:{}, metered:{}, "
+            "seq:{}, "
             "manifest:{:#x}{}{}",
             vb.getId(),
             identifiers.second,
             collectionName,
             identifiers.first,
+            metered,
+
             seqno,
             newManUid,
             maxTtl.has_value()
@@ -470,9 +498,10 @@ void Manifest::createCollection(const WriteHandle& wHandle,
 ManifestEntry& Manifest::addNewCollectionEntry(ScopeCollectionPair identifiers,
                                                std::string_view collectionName,
                                                cb::ExpiryLimit maxTtl,
+                                               Metered metered,
                                                int64_t startSeqno) {
     CollectionSharedMetaDataView meta{
-            collectionName, identifiers.first, maxTtl};
+            collectionName, identifiers.first, maxTtl, metered};
     auto [itr, inserted] = map.try_emplace(
             identifiers.second,
             manager->createOrReferenceMeta(identifiers.second, meta),
@@ -533,6 +562,7 @@ void Manifest::dropCollection(WriteHandle& wHandle,
         addNewCollectionEntry({ScopeID::Default, cid},
                               "tombstone",
                               cb::ExpiryLimit{},
+                              Metered::Yes,
                               0 /*startSeq*/);
     }
 
@@ -579,6 +609,27 @@ void Manifest::collectionDropPersisted(CollectionID cid, uint64_t seqno) {
     dropInProgress.store(true);
 
     droppedCollections.wlock()->remove(cid, seqno);
+}
+
+void Manifest::modifyCollection(const WriteHandle& wHandle,
+                                ::VBucket& vb,
+                                ManifestUid newManUid,
+                                const CollectionModified& modification) {
+    auto itr = map.find(modification.cid);
+    if (itr == map.end()) {
+        throwException<std::logic_error>(
+                __FUNCTION__,
+                "did not find collection:" + modification.cid.to_string());
+    }
+
+    itr->second.setMetered(modification.metered);
+
+    // Keep this logging - it's new and should be rare/interesting to know
+    EP_LOG_INFO("{} modifying collection:id:{} manifest:{:#x} metered:{}",
+                vb.getId(),
+                modification.cid,
+                manifestUid,
+                modification.metered);
 }
 
 const ManifestEntry& Manifest::getManifestEntry(CollectionID identifier) const {
@@ -740,6 +791,12 @@ Manifest::ManifestChanges Manifest::processManifest(
         if (itr == manifest.end()) {
             // Not found, so this collection should be dropped.
             rv.collectionsToDrop.push_back(cid);
+        } else if (itr->second.metered != entry.isMetered()) {
+            // We have the incorrect meter setting, we may have a
+            // collection created via DCP which doesn't replicate the meter
+            // state we just pick it up from ns_server direct. Or ns_server
+            // could of changed it, which we'll accept
+            rv.collectionsToModify.push_back({cid, itr->second.metered});
         }
     }
 
@@ -781,8 +838,10 @@ Manifest::ManifestChanges Manifest::processManifest(
             auto mapItr = map.find(m.cid);
 
             if (mapItr == map.end()) {
-                rv.collectionsToCreate.push_back(
-                        {std::make_pair(m.sid, m.cid), m.name, m.maxTtl});
+                rv.collectionsToCreate.push_back({std::make_pair(m.sid, m.cid),
+                                                  m.name,
+                                                  m.maxTtl,
+                                                  m.metered});
             }
         }
     }

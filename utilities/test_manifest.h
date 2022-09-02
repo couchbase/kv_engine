@@ -60,6 +60,7 @@ namespace CollectionEntry {
 struct Entry {
     std::string name;
     CollectionID uid;
+    bool metered{true};
 
     // Define the ID of a collection to be its CollectionID
     CollectionID getId() const {

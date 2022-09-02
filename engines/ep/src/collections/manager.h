@@ -232,9 +232,8 @@ public:
      * @param cid Collection the metadata belongs to
      * @param view The view of the metadata to use in lookup
      */
-    SingleThreadedRCPtr<const VB::CollectionSharedMetaData>
-    createOrReferenceMeta(CollectionID cid,
-                          const VB::CollectionSharedMetaDataView& view);
+    SingleThreadedRCPtr<VB::CollectionSharedMetaData> createOrReferenceMeta(
+            CollectionID cid, const VB::CollectionSharedMetaDataView& view);
 
     /**
      * When vbuckets drop a collection (from new manifest of over DCP) or the
@@ -247,7 +246,7 @@ public:
      */
     void dereferenceMeta(
             CollectionID cid,
-            SingleThreadedRCPtr<const VB::CollectionSharedMetaData>&& meta);
+            SingleThreadedRCPtr<VB::CollectionSharedMetaData>&& meta);
 
     /**
      * When vbuckets create a scope (from new manifest of over DCP) all
@@ -413,8 +412,7 @@ private:
      * the data.
      */
     using CollectionsSharedMetaDataTable =
-            SharedMetaDataTable<CollectionID,
-                                const VB::CollectionSharedMetaData>;
+            SharedMetaDataTable<CollectionID, VB::CollectionSharedMetaData>;
     folly::Synchronized<CollectionsSharedMetaDataTable> collectionSMT;
 
     /**

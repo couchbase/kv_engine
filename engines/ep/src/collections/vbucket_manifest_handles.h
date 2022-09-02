@@ -209,6 +209,9 @@ public:
     /// @return the data limit for the scope, throw for unknown scope
     DataLimit getDataLimit(ScopeID sid) const;
 
+    /// @return the metering state of the collection, throw for unknown cid
+    Metered isMetered(CollectionID cid) const;
+
     /**
      * Dump this VB::Manifest to std::cerr
      */
@@ -652,12 +655,15 @@ public:
                        std::string_view collectionName,
                        cb::ExpiryLimit maxTtl,
                        int64_t startSeqno) {
+        // note: metered set to 'yes' and will later be checked/corrected if a
+        // change to active occurs
         manifest.createCollection(*this,
                                   vb,
                                   manifestUid,
                                   identifiers,
                                   collectionName,
                                   maxTtl,
+                                  Metered::Yes,
                                   OptionalSeqno{startSeqno});
     }
 
