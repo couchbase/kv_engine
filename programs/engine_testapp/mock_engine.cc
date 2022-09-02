@@ -403,11 +403,11 @@ cb::EngineErrorGetScopeIDResult MockEngine::get_scope_id(
     return the_engine->get_scope_id(cookie, path);
 }
 
-cb::EngineErrorGetScopeIDResult MockEngine::get_scope_id(
+cb::EngineErrorGetCollectionMetaResult MockEngine::get_collection_meta(
         const CookieIface& cookie,
         CollectionID cid,
         std::optional<Vbid> vbid) const {
-    return the_engine->get_scope_id(cookie, cid, vbid);
+    return the_engine->get_collection_meta(cookie, cid, vbid);
 }
 
 cb::engine_errc MockEngine::step(const CookieIface& cookie,

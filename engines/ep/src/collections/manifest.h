@@ -45,6 +45,13 @@ struct CollectionEntry {
     }
 };
 
+/// collection 0, the default collection has the following entry
+const CollectionEntry DefaultCollectionEntry = {CollectionID::Default,
+                                                DefaultCollectionName,
+                                                cb::NoExpiryLimit,
+                                                ScopeID::Default,
+                                                Metered::Yes};
+
 struct Scope {
     /**
      * Store the dataLimit we will use (which is the clusters value / nVbuckets)
@@ -258,6 +265,8 @@ public:
      */
     std::optional<Metered> isMetered(CollectionID cid) const;
 
+    std::optional<CollectionEntry> getCollectionEntry(CollectionID cid) const;
+
     /**
      * @returns this manifest as nlohmann::json object
      */
@@ -348,15 +357,9 @@ private:
      * scopes stores all of the known scopes and the 'epoch' Manifest i.e.
      * default initialisation stores just the default scope.
      */
-    scopeContainer scopes = {{ScopeID::Default,
-                              {NoDataLimit,
-                               0,
-                               DefaultScopeName,
-                               {{CollectionID::Default,
-                                 DefaultCollectionName,
-                                 cb::NoExpiryLimit,
-                                 ScopeID::Default,
-                                 Metered::Yes}}}}};
+    scopeContainer scopes = {
+            {ScopeID::Default,
+             {NoDataLimit, 0, DefaultScopeName, {DefaultCollectionEntry}}}};
     collectionContainer collections;
     ManifestUid uid{0};
 };

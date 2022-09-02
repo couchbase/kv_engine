@@ -234,8 +234,7 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::getScopeID(
     auto current = currentManifest.rlock();
     auto scope = current->getScopeID(path);
     if (!scope) {
-        return cb::EngineErrorGetScopeIDResult{cb::engine_errc::unknown_scope,
-                                               current->getUid()};
+        return cb::EngineErrorGetScopeIDResult{current->getUid()};
     }
 
     return {current->getUid(), scope.value()};
@@ -257,14 +256,32 @@ std::pair<uint64_t, std::optional<ScopeID>> Collections::Manager::getScopeID(
             current->getUid(), current->getScopeID(cid));
 }
 
+std::pair<uint64_t, std::optional<Collections::CollectionEntry>>
+Collections::Manager::getCollectionEntry(CollectionID cid) const {
+    // 'shortcut' For the default collection, just return the default scope.
+    // If the default collection was deleted the vbucket will have the final say
+    // but for this interface allow this without taking the rlock.
+    if (cid.isDefaultCollection()) {
+        // Allow the default collection in the default scope...
+        return std::make_pair<uint64_t,
+                              std::optional<Collections::CollectionEntry>>(
+                0, Collections::DefaultCollectionEntry);
+    }
+
+    auto current = currentManifest.rlock();
+    return std::make_pair<uint64_t,
+                          std::optional<Collections::CollectionEntry>>(
+            current->getUid(), current->getCollectionEntry(cid));
+}
+
 cb::EngineErrorGetScopeIDResult Collections::Manager::isScopeIDValid(
         ScopeID sid) const {
     auto manifestLocked = currentManifest.rlock();
     if (manifestLocked->findScope(sid) != manifestLocked->endScopes()) {
         return cb::EngineErrorGetScopeIDResult{manifestLocked->getUid(), sid};
     }
-    return cb::EngineErrorGetScopeIDResult{cb::engine_errc::unknown_scope,
-                                           manifestLocked->getUid()};
+    // Returns unknown_scope + manifestUid
+    return cb::EngineErrorGetScopeIDResult{manifestLocked->getUid()};
 }
 
 bool Collections::Manager::needsUpdating(const VBucket& vb) const {
@@ -554,11 +571,12 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::doOneCollectionStats(
                     cb::engine_errc::invalid_arguments};
         }
         // Collection's scope is needed for privilege check
-        auto scope = bucket.getCollectionsManager().getScopeID(cid);
-        if (scope.second) {
-            res = {scope.first, scope.second.value(), cid};
+        auto [manifestUid, scope] =
+                bucket.getCollectionsManager().getScopeID(cid);
+        if (scope) {
+            res = {manifestUid, scope.value(), cid};
         } else {
-            return {cb::engine_errc::unknown_collection, scope.first};
+            return {cb::engine_errc::unknown_collection, manifestUid};
         }
     } else {
         // provided argument should be a collection path
@@ -750,8 +768,7 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doOneScopeStats(
                     "scope arg:{} sid:{}",
                     arg,
                     res.getScopeId().to_string());
-            return cb::EngineErrorGetScopeIDResult{
-                    cb::engine_errc::unknown_scope, current->getUid()};
+            return cb::EngineErrorGetScopeIDResult{current->getUid()};
         }
 
         scopeName = scopeItr->second.name;

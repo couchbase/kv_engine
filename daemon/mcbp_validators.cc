@@ -411,7 +411,7 @@ Status McbpValidator::verify_header(Cookie& cookie,
             sid = ScopeID{ScopeID::Default};
         } else {
             auto vbid = request.getVBucket();
-            auto res = connection.getBucket().getEngine().get_scope_id(
+            auto res = connection.getBucket().getEngine().get_collection_meta(
                     cookie, key.getCollectionID(), vbid);
             if (res.result == cb::engine_errc::success) {
                 manifestUid = res.getManifestId();
@@ -2303,8 +2303,10 @@ static Status create_range_scan_validator(Cookie& cookie) {
         sid = ScopeID{ScopeID::Default};
     } else {
         auto vbid = cookie.getRequest().getVBucket();
-        auto res = cookie.getConnection().getBucket().getEngine().get_scope_id(
-                cookie, cid, vbid);
+        auto res = cookie.getConnection()
+                           .getBucket()
+                           .getEngine()
+                           .get_collection_meta(cookie, cid, vbid);
         if (res.result == cb::engine_errc::success) {
             manifestUid = res.getManifestId();
             sid = res.getScopeId();

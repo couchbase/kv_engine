@@ -1761,7 +1761,8 @@ cb::EngineErrorGetScopeIDResult EventuallyPersistentEngine::get_scope_id(
     return rv;
 }
 
-cb::EngineErrorGetScopeIDResult EventuallyPersistentEngine::get_scope_id(
+cb::EngineErrorGetCollectionMetaResult
+EventuallyPersistentEngine::get_collection_meta(
         const CookieIface&, CollectionID cid, std::optional<Vbid> vbid) const {
     auto engine = acquireEngine(this);
     if (vbid) {
@@ -1769,24 +1770,26 @@ cb::EngineErrorGetScopeIDResult EventuallyPersistentEngine::get_scope_id(
         if (vbucket) {
             auto handle = vbucket->getManifest().lock(cid);
             if (handle.valid()) {
-                return {handle.getManifestUid(), handle.getScopeID()};
+                return {handle.getManifestUid(),
+                        handle.getScopeID(),
+                        handle.isMetered() == Collections::Metered::Yes};
             }
-            // return unknown_collection and the manifest uid
-            return cb::EngineErrorGetScopeIDResult(
-                    cb::engine_errc::unknown_collection,
+            // returns unknown_collection and the manifest uid
+            return cb::EngineErrorGetCollectionMetaResult(
                     handle.getManifestUid());
         }
-        return cb::EngineErrorGetScopeIDResult(cb::engine_errc::not_my_vbucket);
+        return cb::EngineErrorGetCollectionMetaResult(
+                cb::engine_errc::not_my_vbucket);
     }
-
     // No vbucket, perform lookup against bucket
-    auto scopeIdInfo = engine->getKVBucket()->getScopeID(cid);
-    if (scopeIdInfo.second.has_value()) {
-        return {scopeIdInfo.first, ScopeID(scopeIdInfo.second.value())};
+    auto [manifestUid, entry] = engine->getKVBucket()->getCollectionEntry(cid);
+    if (entry.has_value()) {
+        return {manifestUid,
+                entry->sid,
+                entry->metered == Collections::Metered::Yes};
     }
     // returns unknown_collection and the manifest uid
-    return cb::EngineErrorGetScopeIDResult(cb::engine_errc::unknown_collection,
-                                           scopeIdInfo.first);
+    return cb::EngineErrorGetCollectionMetaResult(manifestUid);
 }
 
 cb::engine::FeatureSet EventuallyPersistentEngine::getFeatures() {
@@ -4581,11 +4584,12 @@ EventuallyPersistentEngine::parseKeyStatCollection(
                     cb::engine_errc::invalid_arguments};
         }
         // Collection's scope is needed for privilege check
-        auto scope = kvBucket->getCollectionsManager().getScopeID(cid);
-        if (scope.second) {
-            return {scope.first, scope.second.value(), cid};
+        auto [manifesUid, scope] =
+                kvBucket->getCollectionsManager().getScopeID(cid);
+        if (scope) {
+            return {manifesUid, scope.value(), cid};
         } else {
-            return {cb::engine_errc::unknown_collection, scope.first};
+            return {cb::engine_errc::unknown_collection, manifesUid};
         }
     }
     return cb::EngineErrorGetCollectionIDResult(

@@ -83,15 +83,9 @@ struct EngineErrorGetScopeIDResult {
         Expects(result != cb::engine_errc::success);
     }
 
-    /**
-     * Construct for unknown scope or collection, this depends on the function
-     * used - search by cid or search by scope name
-     */
-    explicit EngineErrorGetScopeIDResult(engine_errc result,
-                                         uint64_t manifestId)
-        : result(result), manifestId(manifestId) {
-        Expects(result == cb::engine_errc::unknown_collection ||
-                result == cb::engine_errc::unknown_scope);
+    /// Construct for unknown scope
+    explicit EngineErrorGetScopeIDResult(uint64_t manifestId)
+        : result(cb::engine_errc::unknown_scope), manifestId(manifestId) {
     }
 
     /// construct for successful get
@@ -116,5 +110,52 @@ struct EngineErrorGetScopeIDResult {
     engine_errc result;
     uint64_t manifestId{0};
     ScopeID scopeId{ScopeID::Default};
+};
+
+struct EngineErrorGetCollectionMetaResult {
+    /// special case constructor which allows for success with no other data
+    /// used in stats path only
+    struct allowSuccess {};
+    EngineErrorGetCollectionMetaResult(engine_errc result, allowSuccess)
+        : result(result) {
+    }
+
+    /// construct for an error
+    explicit EngineErrorGetCollectionMetaResult(engine_errc result)
+        : result(result) {
+        Expects(result != cb::engine_errc::success);
+    }
+
+    /// construct for an unknown collection
+    explicit EngineErrorGetCollectionMetaResult(uint64_t manifestId)
+        : result(cb::engine_errc::unknown_collection), manifestId(manifestId) {
+    }
+
+    /// construct for successful lookup
+    EngineErrorGetCollectionMetaResult(uint64_t manifestId,
+                                       ScopeID scopeId,
+                                       bool metered)
+        : result(cb::engine_errc::success),
+          manifestId(manifestId),
+          scopeId(scopeId),
+          metered(metered) {
+    }
+
+    uint64_t getManifestId() const {
+        return manifestId;
+    }
+
+    ScopeID getScopeId() const {
+        return scopeId;
+    }
+
+    bool isMetered() const {
+        return metered;
+    }
+
+    engine_errc result;
+    uint64_t manifestId{0};
+    ScopeID scopeId{ScopeID::Default};
+    bool metered{true};
 };
 }

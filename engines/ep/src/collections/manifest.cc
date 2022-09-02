@@ -673,6 +673,15 @@ std::optional<Metered> Manifest::isMetered(CollectionID cid) const {
     return {};
 }
 
+std::optional<CollectionEntry> Manifest::getCollectionEntry(
+        CollectionID cid) const {
+    auto itr = collections.find(cid);
+    if (itr != collections.end()) {
+        return itr->second;
+    }
+    return {};
+}
+
 void Manifest::dump() const {
     std::cerr << *this << std::endl;
 }

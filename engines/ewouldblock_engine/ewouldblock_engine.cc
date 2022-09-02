@@ -710,7 +710,7 @@ public:
             const CookieIface& cookie, std::string_view path) override;
     cb::EngineErrorGetScopeIDResult get_scope_id(
             const CookieIface& cookie, std::string_view path) override;
-    cb::EngineErrorGetScopeIDResult get_scope_id(
+    cb::EngineErrorGetCollectionMetaResult get_collection_meta(
             const CookieIface& cookie,
             CollectionID cid,
             std::optional<Vbid> vbid) const override;
@@ -2104,11 +2104,11 @@ void EWB_Engine::initiate_shutdown() {
     }
 }
 
-cb::EngineErrorGetScopeIDResult EWB_Engine::get_scope_id(
+cb::EngineErrorGetCollectionMetaResult EWB_Engine::get_collection_meta(
         const CookieIface& cookie,
         CollectionID cid,
         std::optional<Vbid> vbid) const {
-    return real_engine->get_scope_id(cookie, cid, std::optional<Vbid>());
+    return real_engine->get_collection_meta(cookie, cid, std::optional<Vbid>());
 }
 
 void BlockMonitorThread::run() {

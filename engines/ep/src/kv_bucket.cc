@@ -2682,6 +2682,11 @@ std::pair<uint64_t, std::optional<ScopeID>> KVBucket::getScopeID(
     return collectionsManager->getScopeID(cid);
 }
 
+std::pair<uint64_t, std::optional<Collections::CollectionEntry>>
+KVBucket::getCollectionEntry(CollectionID cid) const {
+    return collectionsManager->getCollectionEntry(cid);
+}
+
 const Collections::Manager& KVBucket::getCollectionsManager() const {
     return *collectionsManager;
 }

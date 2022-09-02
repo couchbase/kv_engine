@@ -540,12 +540,14 @@ TEST_P(CollectionsParameterizedTest, get_scope_id) {
     EXPECT_EQ(ScopeEntry::shop2.getId(), rv.getScopeId());
 
     // Test the collection/vbucket lookup
-    auto sid = store->getScopeID(CollectionEntry::dairy);
-    EXPECT_TRUE(sid.second.has_value());
-    EXPECT_EQ(ScopeEntry::shop1.uid, sid.second.value());
+    auto [manifestUid, entry] =
+            store->getCollectionEntry(CollectionEntry::dairy);
+    EXPECT_TRUE(entry.has_value());
+    EXPECT_EQ(ScopeEntry::shop1.uid, entry.value().sid);
 
-    sid = store->getScopeID(CollectionEntry::fruit);
-    EXPECT_FALSE(sid.second.has_value());
+    std::tie(manifestUid, entry) =
+            store->getCollectionEntry(CollectionEntry::fruit);
+    EXPECT_FALSE(entry.has_value());
 }
 
 // Test high seqno values
@@ -3039,12 +3041,14 @@ TEST_P(CollectionsParameterizedTest, GetScopeIdForGivenKeyAndVbucket) {
     StoredDocKey keyDairy{"dairy:milk", CollectionEntry::dairy};
     StoredDocKey keyMeat{"meat:beef", CollectionEntry::meat};
 
-    auto result = engine->get_scope_id(*cookie, CollectionEntry::dairy, vbid);
+    auto result =
+            engine->get_collection_meta(*cookie, CollectionEntry::dairy, vbid);
     EXPECT_EQ(cb::engine_errc::success, result.result);
     EXPECT_EQ(cmDairyVb.getUid(), result.getManifestId());
     EXPECT_EQ(ScopeID(ScopeEntry::shop1), result.getScopeId());
+    EXPECT_TRUE(result.isMetered());
 
-    result = engine->get_scope_id(*cookie, CollectionEntry::meat, vbid);
+    result = engine->get_collection_meta(*cookie, CollectionEntry::meat, vbid);
     EXPECT_EQ(cb::engine_errc::unknown_collection, result.result);
     EXPECT_EQ(2, result.getManifestId());
 
@@ -3056,7 +3060,8 @@ TEST_P(CollectionsParameterizedTest, GetScopeIdForGivenKeyAndVbucket) {
               store->setVBucketState(meatVbid, vbucket_state_replica));
     auto replicaVb = store->getVBucket(meatVbid);
 
-    result = engine->get_scope_id(*cookie, CollectionEntry::dairy, meatVbid);
+    result = engine->get_collection_meta(
+            *cookie, CollectionEntry::dairy, meatVbid);
     EXPECT_EQ(cb::engine_errc::unknown_collection, result.result);
     EXPECT_EQ(0, result.getManifestId());
 
@@ -3073,17 +3078,20 @@ TEST_P(CollectionsParameterizedTest, GetScopeIdForGivenKeyAndVbucket) {
     // Trigger a flush to disk. Flushes the dairy create event.
     flushVBucketToDiskIfPersistent(meatVbid, 2);
 
-    result = engine->get_scope_id(*cookie, CollectionEntry::meat, meatVbid);
+    result = engine->get_collection_meta(
+            *cookie, CollectionEntry::meat, meatVbid);
     EXPECT_EQ(cb::engine_errc::success, result.result);
     EXPECT_EQ(2, result.getManifestId());
     EXPECT_EQ(ScopeUid::shop1, result.getScopeId());
 
-    result = engine->get_scope_id(*cookie, CollectionEntry::fruit, meatVbid);
+    result = engine->get_collection_meta(
+            *cookie, CollectionEntry::fruit, meatVbid);
     EXPECT_EQ(cb::engine_errc::unknown_collection, result.result);
     EXPECT_EQ(2, result.getManifestId());
 
-    // check vbucket that doesnt exist
-    result = engine->get_scope_id(*cookie, CollectionEntry::dairy, Vbid(10));
+    // check vbucket that doesn't exist
+    result = engine->get_collection_meta(
+            *cookie, CollectionEntry::dairy, Vbid(10));
     EXPECT_EQ(cb::engine_errc::not_my_vbucket, result.result);
 }
 
@@ -3101,17 +3109,19 @@ TEST_P(CollectionsParameterizedTest, GetScopeIdForGivenKeyNoVbid) {
     StoredDocKey keyDairy{"dairy:milk", CollectionEntry::dairy};
     StoredDocKey keyMeat{"meat:beef", CollectionEntry::meat};
 
-    auto result = engine->get_scope_id(*cookie, CollectionEntry::defaultC, {});
+    auto result =
+            engine->get_collection_meta(*cookie, CollectionEntry::defaultC, {});
     EXPECT_EQ(cb::engine_errc::success, result.result);
     EXPECT_EQ(0, result.getManifestId());
     EXPECT_EQ(ScopeUid::defaultS, result.getScopeId());
+    EXPECT_TRUE(result.isMetered());
 
-    result = engine->get_scope_id(*cookie, CollectionEntry::dairy, {});
+    result = engine->get_collection_meta(*cookie, CollectionEntry::dairy, {});
     EXPECT_EQ(cb::engine_errc::success, result.result);
     EXPECT_EQ(2, result.getManifestId());
     EXPECT_EQ(ScopeUid::shop1, result.getScopeId());
 
-    result = engine->get_scope_id(*cookie, CollectionEntry::meat, {});
+    result = engine->get_collection_meta(*cookie, CollectionEntry::meat, {});
     EXPECT_EQ(cb::engine_errc::unknown_collection, result.result);
     EXPECT_EQ(2, result.getManifestId());
 }

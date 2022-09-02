@@ -22,11 +22,12 @@ cb::EngineErrorGetScopeIDResult EngineIface::get_scope_id(
     return cb::EngineErrorGetScopeIDResult{cb::engine_errc::not_supported};
 }
 
-cb::EngineErrorGetScopeIDResult EngineIface::get_scope_id(
+cb::EngineErrorGetCollectionMetaResult EngineIface::get_collection_meta(
         const CookieIface& cookie,
         CollectionID cid,
         std::optional<Vbid> vbid) const {
-    return cb::EngineErrorGetScopeIDResult(cb::engine_errc::not_supported);
+    return cb::EngineErrorGetCollectionMetaResult(
+            cb::engine_errc::not_supported);
 }
 
 std::pair<cb::engine_errc, cb::rangescan::Id> EngineIface::createRangeScan(

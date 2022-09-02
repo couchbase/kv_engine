@@ -157,6 +157,15 @@ public:
     std::pair<uint64_t, std::optional<ScopeID>> getScopeID(CollectionID) const;
 
     /**
+     * Lookup the collection entry (all metadata) from an id
+     *
+     * @return pair of manifest-id (which was used in the search) and an
+     * optional. If the lookup was successful the optional contains the entry
+     */
+    std::pair<uint64_t, std::optional<CollectionEntry>> getCollectionEntry(
+            CollectionID) const;
+
+    /**
      * Method to check if a ScopeID is valid
      * @param sid scoped id to validate
      * @return cb::EngineErrorGetScopeIDResult containing the status of success

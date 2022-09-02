@@ -409,11 +409,12 @@ public:
         return cb::EngineErrorGetScopeIDResult{cb::engine_errc::no_bucket};
     }
 
-    cb::EngineErrorGetScopeIDResult get_scope_id(
+    cb::EngineErrorGetCollectionMetaResult get_collection_meta(
             const CookieIface& cookie,
             CollectionID cid,
             std::optional<Vbid> vbid) const override {
-        return cb::EngineErrorGetScopeIDResult(cb::engine_errc::no_bucket);
+        return cb::EngineErrorGetCollectionMetaResult(
+                cb::engine_errc::no_bucket);
     }
 };
 

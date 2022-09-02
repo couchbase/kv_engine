@@ -506,6 +506,10 @@ public:
         return itr->second.incrementOpsGet();
     }
 
+    Metered isMetered() const {
+        return itr->second.isMetered();
+    }
+
     /**
      * Dump this VB::Manifest to std::cerr
      */
@@ -604,6 +608,10 @@ public:
     /// @return the scope of the collection that locked this (must be valid())
     ScopeID getScopeID() const {
         return itr->second.getScopeID();
+    }
+
+    Metered isMetered() const {
+        return itr->second.isMetered();
     }
 
     void dump();

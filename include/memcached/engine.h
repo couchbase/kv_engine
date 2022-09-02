@@ -29,6 +29,7 @@
 namespace cb {
 struct EngineErrorGetCollectionIDResult;
 struct EngineErrorGetScopeIDResult;
+struct EngineErrorGetCollectionMetaResult;
 } // namespace cb
 
 namespace cb::durability {
@@ -600,14 +601,13 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
             const CookieIface& cookie, std::string_view path);
 
     /**
-     * Get the scope for the given collection
+     * Get the metadata for the given collection (scope and metering)
      *
      * @param cookie cookie object used to identify the request
      * @param cid The collection to lookup
-     * @return pair with the manifest UID and if found the scope where the key
-     *              belongs.
+     * @return pair with the manifest UID and if found the meta of the cid
      */
-    virtual cb::EngineErrorGetScopeIDResult get_scope_id(
+    virtual cb::EngineErrorGetCollectionMetaResult get_collection_meta(
             const CookieIface& cookie,
             CollectionID cid,
             std::optional<Vbid> vbid = std::nullopt) const;

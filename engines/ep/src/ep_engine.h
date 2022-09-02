@@ -212,7 +212,7 @@ public:
     cb::EngineErrorGetScopeIDResult get_scope_id(
             const CookieIface& cookie, std::string_view path) override;
 
-    cb::EngineErrorGetScopeIDResult get_scope_id(
+    cb::EngineErrorGetCollectionMetaResult get_collection_meta(
             const CookieIface& cookie,
             CollectionID cid,
             std::optional<Vbid> vbid) const override;

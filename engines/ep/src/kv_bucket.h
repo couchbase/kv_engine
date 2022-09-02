@@ -37,6 +37,7 @@ class SeqnoPersistenceNotifyTask;
 class VBucketCountVisitor;
 class DatatypeStatVisitor;
 namespace Collections {
+struct CollectionEntry;
 class Manager;
 }
 
@@ -707,6 +708,17 @@ public:
      */
     std::pair<uint64_t, std::optional<ScopeID>> getScopeID(
             CollectionID cid) const;
+
+    /**
+     * Method to lookup a collection's 'entry'
+     * @param cid collection to lookup
+     * @return pair with the manifest uid and the optional entry,
+     *              if the returned optional is empty the collection
+     *              does not exist in the manifest with the returned
+     *              uid
+     */
+    std::pair<uint64_t, std::optional<Collections::CollectionEntry>>
+    getCollectionEntry(CollectionID cid) const;
 
     /**
      * @return the Collections::Manager as a const reference
