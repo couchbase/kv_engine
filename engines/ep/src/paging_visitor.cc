@@ -276,7 +276,7 @@ bool PagingVisitor::doEviction(const HashTable::HashBucketLock& lh,
     // stored value.
     auto storedValueFreqCounter = v->getFreqCounterValue();
 
-    if (currentBucket->pageOut(readHandle, lh, v, isDropped)) {
+    if (currentBucket->pageOut(vbStateLock, readHandle, lh, v, isDropped)) {
         ++ejected;
 
         /**

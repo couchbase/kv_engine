@@ -177,13 +177,14 @@ TEST_P(STParamCouchstoreBucketTest, FlusherMarksCleanBySeqno) {
     auto& epVB = dynamic_cast<EPVBucket&>(vb);
     const auto docKey = makeStoredDocKey(key);
     {
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
         const auto readHandle = vb.lockCollections();
         auto res = vb.ht.findOnlyCommitted(docKey);
         ASSERT_TRUE(res.storedValue);
         ASSERT_EQ(2, res.storedValue->getBySeqno());
         EXPECT_TRUE(res.storedValue->isDirty());
-        EXPECT_FALSE(
-                epVB.pageOut(readHandle, res.lock, res.storedValue, false));
+        EXPECT_FALSE(epVB.pageOut(
+                rlh, readHandle, res.lock, res.storedValue, false));
     }
 
     // Note: The flusher has never persisted s:2

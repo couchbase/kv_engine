@@ -182,16 +182,19 @@ public:
     }
 
     void setUpHashBucketVisit() override {
+        vbStateLock = folly::SharedMutex::ReadHolder(vb.getStateLock());
         readHandle = vb.lockCollections();
     }
 
     void tearDownHashBucketVisit() override {
         readHandle.unlock();
+        vbStateLock.unlock();
     }
 
     VBucket& vb;
     std::function<bool(const HashTable::HashBucketLock&, StoredValue&)> visitFn;
 
+    folly::SharedMutex::ReadHolder vbStateLock{nullptr};
     Collections::VB::ReadHandle readHandle;
 };
 
@@ -301,7 +304,11 @@ BENCHMARK_DEFINE_F(PagingVisitorBench, EvictAllWithoutPager)
         LambdaEvictionVisitor ev(*vb);
         ev.visitFn = [&vb, &ev](const auto& hbl, auto& v) {
             auto* sv = &v;
-            vb->pageOut(ev.readHandle, hbl, sv, false /*isDropped*/);
+            vb->pageOut(ev.vbStateLock,
+                        ev.readHandle,
+                        hbl,
+                        sv,
+                        false /*isDropped*/);
             return true;
         };
 

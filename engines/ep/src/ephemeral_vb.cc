@@ -103,7 +103,8 @@ void EphemeralVBucket::completeStatsVKey(const DocKey& key,
             std::string(reinterpret_cast<const char*>(key.data()), key.size()));
 }
 
-bool EphemeralVBucket::pageOut(const Collections::VB::ReadHandle& readHandle,
+bool EphemeralVBucket::pageOut(VBucketStateLockRef,
+                               const Collections::VB::ReadHandle& readHandle,
                                const HashTable::HashBucketLock& lh,
                                StoredValue*& v,
                                bool isDropped) {

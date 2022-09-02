@@ -93,7 +93,8 @@ public:
         return cb::mcbp::Status::NotSupported;
     }
 
-    bool pageOut(const Collections::VB::ReadHandle& readHandle,
+    bool pageOut(VBucketStateLockRef vbStateLock,
+                 const Collections::VB::ReadHandle& readHandle,
                  const HashTable::HashBucketLock& lh,
                  StoredValue*& v,
                  bool isDropped) override;

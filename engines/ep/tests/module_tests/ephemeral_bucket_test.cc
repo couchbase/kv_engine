@@ -78,22 +78,27 @@ TEST_F(EphemeralBucketStatTest, VBSeqlistStats) {
                    StoredValue& v) override {
             if (v.getKey() == key) {
                 StoredValue* vPtr = &v;
-                EXPECT_TRUE(vb.pageOut(readHandle, lh, vPtr, false));
+                EXPECT_TRUE(
+                        vb.pageOut(vbStateLock, readHandle, lh, vPtr, false));
             }
             return true;
         }
 
         void setUpHashBucketVisit() override {
+            // Need to lock the vbucket state before collections.
+            vbStateLock = folly::SharedMutex::ReadHolder(vb.getStateLock());
             // Need to lock collections before we visit each SV.
             readHandle = vb.lockCollections();
         }
 
         void tearDownHashBucketVisit() override {
             readHandle.unlock();
+            vbStateLock.unlock();
         }
 
         VBucket& vb;
         StoredDocKey key;
+        folly::SharedMutex::ReadHolder vbStateLock{nullptr};
         Collections::VB::ReadHandle readHandle;
     };
 

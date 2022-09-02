@@ -596,7 +596,8 @@ cb::mcbp::Status EPVBucket::evictKey(
     return cb::mcbp::Status::Success;
 }
 
-bool EPVBucket::pageOut(const Collections::VB::ReadHandle& readHandle,
+bool EPVBucket::pageOut(VBucketStateLockRef,
+                        const Collections::VB::ReadHandle& readHandle,
                         const HashTable::HashBucketLock& lh,
                         StoredValue*& v,
                         bool isDropped) {

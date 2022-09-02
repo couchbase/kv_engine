@@ -1176,6 +1176,7 @@ public:
      * (Value Eviction), removing the entire document from memory (Full
      * Eviction), or actually deleting the document (Ephemeral Buckets).
      *
+     * @oaram vbStateLock A lock on the VBucket state.
      * @param readHandle Collections ReadHandle required by ephemeral as
      *                   paging out may result in deletions that increment the
      *                   high seqno for the collection.
@@ -1187,7 +1188,8 @@ public:
      *
      * @return true if an item is ejected.
      */
-    virtual bool pageOut(const Collections::VB::ReadHandle& readHandle,
+    virtual bool pageOut(VBucketStateLockRef vbStateLock,
+                         const Collections::VB::ReadHandle& readHandle,
                          const HashTable::HashBucketLock& lh,
                          StoredValue*& v,
                          bool isDropped) = 0;
