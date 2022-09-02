@@ -39,11 +39,6 @@ enum pager_type_t { ITEM_PAGER, EXPIRY_PAGER };
 class PagingVisitor : public CappedDurationVBucketVisitor,
                       public HashTableVisitor {
 public:
-    enum class EvictionPolicy : uint8_t {
-        lru2Bit, // The original 2-bit LRU policy
-        hifi_mfu // The new hifi_mfu policy
-    };
-
     /**
      * Construct a PagingVisitor that will attempt to evict the given
      * percentage of objects.
