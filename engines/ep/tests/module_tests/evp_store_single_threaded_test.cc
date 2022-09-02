@@ -5895,6 +5895,55 @@ TEST_P(STParameterizedBucketTest, TestKeyValidationStatsHoldVBStateLock) {
     store->validateKey(key, vbid, *dummyItem);
 }
 
+// Check that we don't leak Items when a vkey stats call is ewould blocked and
+// we don't call vkey stats on the same key again (connection might be dropped
+// etc.)
+TEST_P(STParamPersistentBucketTest, EWouldBlockedVKeyStatsDontLeakItems) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+
+    // Store an item
+    auto key = makeStoredDocKey("test");
+    auto item = make_item(vbid, key, "dummy", 0, 0);
+    ASSERT_EQ(cb::engine_errc::success, addItem(item, cookie));
+
+    flushVBucket(vbid);
+
+    auto& epStats = engine->getEpStats();
+    // Take note of how many alive items we have
+    auto startNumItems = epStats.getNumItem();
+    ASSERT_LE(0, startNumItems);
+    // We .reset() the cookie we use for the vkey call after the BGFetcher tasks
+    // complete because otherwise the callback calls into MockServer which
+    // in turn throws an exception due to being unable to find the associated
+    // cookie.
+    std::unique_ptr<CookieIface> vkeyCookie(create_mock_cookie(engine.get()));
+
+    // Stats vkey should always be ewould blocked the first time it is
+    // called
+    auto args = "vkey-byid test " + std::to_string(vbid.get());
+    ASSERT_EQ(cb::engine_errc::would_block,
+              engine->getStats(
+                      vkeyCookie.get(), args, {}, [](auto, auto, auto) {}));
+
+    // Fetch the item from disk
+    auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
+    CheckedExecutor executor(task_executor, readerQueue);
+    do {
+        executor.runCurrentTask();
+        executor.completeCurrentTask();
+        executor.updateCurrentTime();
+    } while (readerQueue.fetchNextTask(executor));
+
+    // Release the cookie
+    vkeyCookie.reset();
+
+    // We expect to not have more item objects than before
+    EXPECT_EQ(startNumItems, epStats.getNumItem());
+}
+
 TEST_P(STParamPersistentBucketTest,
        SanitizeOnDiskDeletedDocWithIncorrectXATTRFull) {
     testSanitizeOnDiskDeletedDocWithIncorrectXATTR(false);

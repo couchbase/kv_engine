@@ -4079,14 +4079,10 @@ cb::engine_errc EventuallyPersistentEngine::doKeyStats(
     std::unique_ptr<Item> it;
     struct key_stats kstats;
 
-    if (fetchLookupResult(cookie, it)) {
-        if (!validate) {
-            EP_LOG_DEBUG_RAW(
-                    "Found lookup results for non-validating key "
-                    "stat call. Would have leaked");
-            it.reset();
-        }
-    } else if (validate) {
+    // If this is a validating call, we need to fetch the item from disk. The
+    // fetch task is scheduled by statsVKey(). fetchLookupResult will succeed
+    // in returning the item once the fetch task has completed.
+    if (validate && !fetchLookupResult(cookie, it)) {
         rv = kvBucket->statsVKey(key, vbid, cookie);
         if (rv == cb::engine_errc::not_my_vbucket ||
             rv == cb::engine_errc::no_such_key) {
@@ -4391,29 +4387,27 @@ void EventuallyPersistentEngine::addSeqnoVbStats(const CookieIface* cookie,
 
 void EventuallyPersistentEngine::addLookupResult(const CookieIface* cookie,
                                                  std::unique_ptr<Item> result) {
-    std::lock_guard<std::mutex> lh(lookupMutex);
-    auto it = lookups.find(cookie);
-    if (it != lookups.end()) {
-        if (!it->second) {
+    auto oldItem = takeEngineSpecific<std::unique_ptr<Item>>(cookie);
+    // Check for old lookup results and clear them
+    if (oldItem) {
+        if (*oldItem) {
             EP_LOG_DEBUG("Cleaning up old lookup result for '{}'",
-                         it->second->getKey().data());
+                         (*oldItem)->getKey().data());
         } else {
             EP_LOG_DEBUG_RAW("Cleaning up old null lookup result");
         }
-        lookups.erase(it);
     }
-    lookups[cookie] = std::move(result);
+
+    storeEngineSpecific(cookie, std::move(result));
 }
 
 bool EventuallyPersistentEngine::fetchLookupResult(const CookieIface* cookie,
                                                    std::unique_ptr<Item>& itm) {
     // This will return *and erase* the lookup result for a connection.
     // You look it up, you own it.
-    std::lock_guard<std::mutex> lh(lookupMutex);
-    auto it = lookups.find(cookie);
-    if (it != lookups.end()) {
-        itm = std::move(it->second);
-        lookups.erase(it);
+    auto es = takeEngineSpecific<std::unique_ptr<Item>>(cookie);
+    if (es) {
+        itm = std::move(*es);
         return true;
     } else {
         return false;

@@ -1492,7 +1492,6 @@ protected:
     // SET/DEL_WITH_META operations).
     ConflictResolutionMode conflictResolutionMode;
 
-    std::map<const CookieIface*, std::unique_ptr<Item>> lookups;
     std::unordered_map<const CookieIface*, cb::engine_errc> allKeysLookups;
     std::mutex lookupMutex;
     GET_SERVER_API getServerApiFunc;
