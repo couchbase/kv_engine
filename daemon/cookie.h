@@ -523,8 +523,10 @@ public:
     /// a lock for the manifest) we'll keep the the result in the cookie
     void setCurrentCollectionInfo(ScopeID sid,
                                   CollectionID cid,
-                                  uint64_t manifestUid) {
-        currentCollectionInfo = CurrentCollectionInfo(sid, cid, manifestUid);
+                                  uint64_t manifestUid,
+                                  bool metered) {
+        currentCollectionInfo =
+                CurrentCollectionInfo(sid, cid, manifestUid, metered);
     }
 
     /// Set the JSON extras to return the manifestId which is located in
@@ -757,18 +759,23 @@ protected:
     /// the collection from the operation, it's scope and the unique-id of the
     /// collection manifest that mapped cid to sid.
     struct CurrentCollectionInfo {
-        CurrentCollectionInfo(ScopeID sid, CollectionID cid, uint64_t uid)
-            : sid(sid), cid(cid), manifestUid(uid) {
+        CurrentCollectionInfo(ScopeID sid,
+                              CollectionID cid,
+                              uint64_t uid,
+                              bool metered)
+            : sid(sid), cid(cid), manifestUid(uid), metered(metered) {
         }
         CurrentCollectionInfo() = default;
         void reset() {
             sid.reset();
             cid.reset();
             manifestUid = 0;
+            metered = true;
         }
         std::optional<ScopeID> sid;
         std::optional<CollectionID> cid;
         uint64_t manifestUid{0};
+        bool metered{true};
     } currentCollectionInfo;
 
     /// The privilege context the command should use for evaluating commands

@@ -398,7 +398,8 @@ TEST(ClientOpcode, is_collection_command) {
                      ClientOpcode::SubdocMultiLookup,
                      ClientOpcode::SubdocMultiMutation,
                      ClientOpcode::SubdocGetCount,
-                     ClientOpcode::SubdocReplaceBodyWithXattr}},
+                     ClientOpcode::SubdocReplaceBodyWithXattr,
+                     ClientOpcode::GetKeys}},
                    "collection");
 }
 

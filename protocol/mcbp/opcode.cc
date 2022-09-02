@@ -814,6 +814,7 @@ bool is_collection_command(ClientOpcode opcode) {
     case ClientOpcode::SubdocMultiMutation:
     case ClientOpcode::SubdocGetCount:
     case ClientOpcode::SubdocReplaceBodyWithXattr:
+    case ClientOpcode::GetKeys:
         return true;
 
     case ClientOpcode::Observe:
@@ -918,7 +919,6 @@ bool is_collection_command(ClientOpcode opcode) {
     case ClientOpcode::GetClusterConfig:
     case ClientOpcode::GetRandomKey:
     case ClientOpcode::SeqnoPersistence:
-    case ClientOpcode::GetKeys:
     case ClientOpcode::CollectionsSetManifest:
     case ClientOpcode::CollectionsGetManifest:
     case ClientOpcode::CollectionsGetID:

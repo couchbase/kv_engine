@@ -257,6 +257,11 @@ public:
      */
     void setThrottleLimit(std::size_t limit);
 
+    bool isCollectionCapable() {
+        return type != BucketType::NoBucket &&
+               supports(cb::engine::Feature::Collections);
+    }
+
 protected:
     unique_engine_ptr engine;
 

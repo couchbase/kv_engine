@@ -390,22 +390,39 @@ Status McbpValidator::verify_header(Cookie& cookie,
         return status;
     }
 
-    // We need to look up SID and CID if this command is related to a
-    // collection. Looking up the SID caused a perf regression (MB-39594) and
-    // we don't really need to look up the SID if the privilege context
-    // include all scopes and collections. If the command is executed with
-    // a different user we don't have that users privilege context yet, so
-    // we would have to look up SID and CID (MB-47904)
-    if (connection.getBucket().type != BucketType::NoBucket &&
+    // We need to set the scope and collection identifiers into the Cookie
+    // The following code-block exists to populate into the Cookie all of the
+    // data required to traverse the privileges hierarchy, that is we may need
+    // to index into the scope privileges and then into the collection
+    // privileges. Because the incoming "is_collection_command" operations only
+    // include the collection, this code is doing a look-up of the collection
+    // using the get_collection_meta.
+    // This code was extended by MB-51979 so that the "metered" state is also
+    // populated into the Cookie.
+    // This code though we try and avoid because without the if guards,
+    // unconditionally looking up the collection metadata introduced a perf
+    // regression (MB-39594).
+    // The if guards mean that we only do this lookup for collection buckets and
+    // collection operations and if any of the following are true:
+    // 1) The user has scope (or collection) privileges - thus we may need to
+    //    traverse the scope->collection privilege sets.
+    // 2) The the command is executed with a different user we don't have that
+    //    users privilege context yet (don't know if they do or don't have
+    //    scope or collection privileges MB-47904)
+    // 3) Serverless, some collection may have different metering behaviour, the
+    //    Cookie is given the metering state and decides after execution
+    //    completes how to handle the resource usage.
+    //
+    if (connection.getBucket().isCollectionCapable() &&
         cb::mcbp::is_collection_command(request.getClientOpcode()) &&
-        connection.getBucket().supports(cb::engine::Feature::Collections) &&
         (cookie.getPrivilegeContext().hasScopePrivileges() ||
-         cookie.getEffectiveUser())) {
+         cookie.getEffectiveUser() || isServerlessDeployment())) {
         // verify that we can map the connection to sid. To make our
         // unit tests easier lets go through the connection
         auto key = cookie.getRequestKey();
         ScopeID sid;
         uint64_t manifestUid = 0;
+        bool metered = true;
 
         if (key.getCollectionID().isDefaultCollection()) {
             sid = ScopeID{ScopeID::Default};
@@ -416,6 +433,7 @@ Status McbpValidator::verify_header(Cookie& cookie,
             if (res.result == cb::engine_errc::success) {
                 manifestUid = res.getManifestId();
                 sid = res.getScopeId();
+                metered = res.isMetered();
             } else if (res.result == cb::engine_errc::unknown_collection) {
                 // Could not get the collection's scope - an unknown collection
                 // against the manifest with id stored in res.first.
@@ -426,7 +444,7 @@ Status McbpValidator::verify_header(Cookie& cookie,
             }
         }
         cookie.setCurrentCollectionInfo(
-                sid, key.getCollectionID(), manifestUid);
+                sid, key.getCollectionID(), manifestUid, metered);
     }
 
     if (connection.getBucket().bucket_quota_exceeded &&
@@ -2298,6 +2316,7 @@ static Status create_range_scan_validator(Cookie& cookie) {
 
     ScopeID sid;
     uint64_t manifestUid = 0;
+    bool metered = true;
 
     if (cid.isDefaultCollection()) {
         sid = ScopeID{ScopeID::Default};
@@ -2310,6 +2329,7 @@ static Status create_range_scan_validator(Cookie& cookie) {
         if (res.result == cb::engine_errc::success) {
             manifestUid = res.getManifestId();
             sid = res.getScopeId();
+            metered = res.isMetered();
         } else if (res.result == cb::engine_errc::unknown_collection) {
             // Could not get the collection's scope - an unknown collection
             // against the manifest with id stored in res.first.
@@ -2319,7 +2339,7 @@ static Status create_range_scan_validator(Cookie& cookie) {
             return cb::mcbp::to_status(res.result);
         }
     }
-    cookie.setCurrentCollectionInfo(sid, cid, manifestUid);
+    cookie.setCurrentCollectionInfo(sid, cid, manifestUid, metered);
     return Status::Success;
 }
 

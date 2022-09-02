@@ -33,6 +33,7 @@ namespace cb::test {
 enum class MeteringType {
     Metered,
     UnmeteredByPrivilege,
+    UnmeteredByCollection
 };
 
 static std::string to_string(MeteringType type) {
@@ -41,17 +42,28 @@ static std::string to_string(MeteringType type) {
         return "Metered";
     case MeteringType::UnmeteredByPrivilege:
         return "UnmeteredByPrivilege";
+    case MeteringType::UnmeteredByCollection:
+        return "UnmeteredByCollection";
     }
     folly::assume_unreachable();
 }
 
 class MeteringTest : public ::testing::TestWithParam<MeteringType> {
 public:
+    static void SetUpTestCase() {
+        // Set one collection with no metering
+        auto entry = CollectionEntry::dairy;
+        entry.metered = false;
+        cluster->collections.add(entry);
+        cluster->getBucket("metering")
+                ->setCollectionManifest(cluster->collections.getJson());
+    }
+
     void SetUp() override {
         conn = cluster->getConnection(0);
         conn->authenticate("@admin", "password");
         conn->selectBucket("metering");
-        if (GetParam() == MeteringType::Metered) {
+        if (GetParam() != MeteringType::UnmeteredByPrivilege) {
             conn->dropPrivilege(cb::rbac::Privilege::Unmetered);
         }
         conn->dropPrivilege(cb::rbac::Privilege::NodeSupervisor);
@@ -66,12 +78,14 @@ public:
 protected:
     // @return the collection the test should use
     CollectionID getTestCollection() const {
-        // All tests currently operate in the default collection
+        if (GetParam() == MeteringType::UnmeteredByCollection) {
+            return CollectionEntry::dairy.getId();
+        }
         return CollectionID::Default;
     }
 
     bool isUnmetered() const {
-        return GetParam() == MeteringType::UnmeteredByPrivilege;
+        return GetParam() != MeteringType::Metered;
     }
 
     /**
@@ -1415,6 +1429,10 @@ TEST_P(MeteringTest, MeterDocumentSimpleMutations) {
 }
 
 TEST_P(MeteringTest, MeterGetRandomKey) {
+    // @todo: MB-51979: GetRandomKey doesn't yet work for UnmeteredByCollection
+    if (GetParam() == MeteringType::UnmeteredByCollection) {
+        GTEST_SKIP();
+    }
     // Random key needs at least one key to be stored in the bucket so that
     // it may return the key. To make sure that the unit tests doesn't depend
     // on other tests lets store a document in vbucket 0.
@@ -1432,7 +1450,9 @@ TEST_P(MeteringTest, MeterGetRandomKey) {
            true);
 
     BinprotGenericCommand getRandom{cb::mcbp::ClientOpcode::GetRandomKey};
-    getRandom.setExtrasValue(CollectionIDType{getTestCollection()});
+    mcbp::request::GetRandomKeyPayload payload(
+            CollectionIDType{getTestCollection()});
+    getRandom.setExtras(payload.getBuffer());
     const auto rsp = conn->execute(getRandom);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getWriteUnits());
@@ -3065,6 +3085,7 @@ TEST_P(MeteringTest, TTL_Expiry_Get) {
     size_t expiredAfter = std::stoull(getStatForKey("vb_active_expired"));
     EXPECT_NE(expiredBefore, expiredAfter);
 
+    // @todo: MB-51979 expiry in an unmetered collection is updating wu
     EXPECT_EQ(1,
               after["wu"].get<std::size_t>() - before["wu"].get<std::size_t>());
     // We can't reset the offset as that would cause ep-engine to
@@ -3115,6 +3136,7 @@ TEST_P(MeteringTest, TTL_Expiry_Compaction) {
     conn->stats([&after](auto k, auto v) { after = nlohmann::json::parse(v); },
                 "bucket_details metering");
 
+    // @todo: MB-51979 expiry in an unmetered collection is updating wu
     EXPECT_EQ(1,
               after["wu"].get<std::size_t>() - before["wu"].get<std::size_t>());
 
@@ -3193,7 +3215,12 @@ void MeteringTest::testRangeScan(bool keyOnly) {
     EXPECT_FALSE(resp.getWriteUnits());
 
     if (isUnmetered()) {
-        EXPECT_FALSE(resp.getReadUnits());
+        // @todo: The continue/metering doesn't yet know the collection so will
+        // return usage. KV needs to update the metering state as the cookie
+        // is passed to RangeScan
+        if (GetParam() == MeteringType::UnmeteredByPrivilege) {
+            EXPECT_FALSE(resp.getReadUnits());
+        }
     } else if (keyOnly) {
         EXPECT_EQ(to_ru(doc.info.id.size()), *resp.getReadUnits());
     } else {
@@ -3342,7 +3369,8 @@ INSTANTIATE_TEST_SUITE_P(MeteringTest,
                          MeteringTest,
 
                          ::testing::Values(MeteringType::Metered,
-                                           MeteringType::UnmeteredByPrivilege),
+                                           MeteringType::UnmeteredByPrivilege,
+                                           MeteringType::UnmeteredByCollection),
                          MeteringTypeToString);
 
 } // namespace cb::test
