@@ -1139,7 +1139,6 @@ TEST_P(STItemPagerTest, ReplicaEvictedBeforeActive) {
                 return store->getVBucket(replicaVb)->getPageableMemUsage() >
                        watermarkDiff;
             });
-    flushAndRemoveCheckpoints(replicaVb);
 
     // We don't care exactly how many were stored, just that it is a
     // "large enough" number for percentages to be somewhat useful
@@ -1149,26 +1148,7 @@ TEST_P(STItemPagerTest, ReplicaEvictedBeforeActive) {
     auto activeItemCount = populateVbsUntil({activeVb}, [&stats] {
         return stats.getPreciseTotalMemoryUsed() > stats.mem_high_wat.load();
     });
-    flushAndRemoveCheckpoints(activeVb);
-
-    // Flushing and removing checkpoints frees some memory, "top up" the
-    // active vbuckets back to the high watermark.
-    activeItemCount += populateVbsUntil(
-            {activeVb},
-            [this, &stats, activeVb] {
-                flushAndRemoveCheckpoints(activeVb);
-                const bool readyToEvict = stats.getPreciseTotalMemoryUsed() >
-                                          stats.mem_high_wat.load();
-                if (readyToEvict) {
-                    // This would be normally triggered by the _next_ item
-                    // stored. Done within this predicate, before any
-                    // deallocations take the memory usage below the watermark
-                    // again
-                    store->attemptToFreeMemory();
-                }
-                return readyToEvict;
-            },
-            "topup_keys");
+    store->attemptToFreeMemory();
 
     EXPECT_GT(activeItemCount, 0);
 
@@ -1257,7 +1237,6 @@ TEST_P(STItemPagerTest, ActiveEvictedIfReplicaEvictionInsufficient) {
 
                 return pageableMem > watermarkDiff * 0.9;
             });
-    flushAndRemoveCheckpoints(replicaVB);
 
     setVBucketStateAndRunPersistTask(replicaVB, vbucket_state_replica);
 
@@ -1271,14 +1250,7 @@ TEST_P(STItemPagerTest, ActiveEvictedIfReplicaEvictionInsufficient) {
                 return stats.getPreciseTotalMemoryUsed() >
                        stats.mem_high_wat.load();
             });
-
-    flushAndRemoveCheckpoints(activeVB);
-
-    // Flushing and removing checkpoints frees some memory, "top up" the
-    // active vbuckets back to the high watermark.
-    // Note, populateUntilTmpFail flushes each time an item is stored,
-    // using this without the above pre-population would be quite slow in CV
-    activeItemCount += populateUntilTmpFail(activeVB);
+    store->attemptToFreeMemory();
 
     EXPECT_GT(activeItemCount, 0);
 
@@ -1288,11 +1260,13 @@ TEST_P(STItemPagerTest, ActiveEvictedIfReplicaEvictionInsufficient) {
     ASSERT_EQ(100, activeRR);
     ASSERT_EQ(100, replicaRR);
 
-    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
-    // run the item pager. This creates the paging visitor
-    runNextTask(lpNonioQ, "Paging out items.");
+    ASSERT_GT(stats.getPreciseTotalMemoryUsed(), stats.mem_high_wat.load());
 
-    runNextTask(lpNonioQ, "Item pager no vbucket assigned");
+    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+
+    // run the item pager. This creates the paging visitor
+    ASSERT_NO_THROW(runNextTask(lpNonioQ, "Paging out items."));
+    ASSERT_NO_THROW(runNextTask(lpNonioQ, "Item pager no vbucket assigned"));
 
     // nothing left to do
     EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
@@ -2420,11 +2394,8 @@ TEST_P(MultiPagingVisitorTest, ItemPagerCreatesMultiplePagers) {
     while (!aboveHWM()) {
         itemCount += populateVbsUntil(
                 vbids, aboveHWM, "keys_" + std::to_string(i++) + "_", 500);
-        for (const auto& vb : vbids) {
-            // flush and remove checkpoints as eviction will not touch
-            // dirty items
-            flushAndRemoveCheckpoints(vb);
-        }
+        // populateVbsUntil flushes and removes checkpoints which is required
+        // as eviction will not touch dirty items
     }
     ASSERT_GT(itemCount, 0);
 
