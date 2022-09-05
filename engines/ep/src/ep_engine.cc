@@ -2304,7 +2304,7 @@ cb::engine_errc EventuallyPersistentEngine::itemDelete(
             // the result of the SyncWrite (see call to getEngineSpecific at
             // the head of this function).
             // (just store non-null value to indicate this).
-            storeEngineSpecific(cookie, reinterpret_cast<CookieIface*>(cas));
+            storeEngineSpecific(cookie, reinterpret_cast<void*>(cas));
         }
         ret = cb::engine_errc::would_block;
         break;

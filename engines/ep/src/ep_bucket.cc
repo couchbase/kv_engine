@@ -2325,8 +2325,7 @@ bool EPBucket::isValidBucketDurabilityLevel(cb::durability::Level level) const {
 bool EPBucket::maybeScheduleManifestPersistence(
         const CookieIface* cookie,
         std::unique_ptr<Collections::Manifest>& newManifest) {
-    getEPEngine().storeEngineSpecific(
-            cookie, reinterpret_cast<CookieIface*>(newManifest.get()));
+    getEPEngine().storeEngineSpecific(cookie, newManifest.get());
 
     ExTask task = std::make_shared<Collections::PersistManifestTask>(
             *this, std::move(newManifest), cookie);
