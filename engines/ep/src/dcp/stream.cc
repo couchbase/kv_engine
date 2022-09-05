@@ -52,7 +52,6 @@ Stream::Stream(std::string name,
       snap_start_seqno_(snap_start_seqno),
       snap_end_seqno_(snap_end_seqno),
       itemsReady(false),
-      readyQ_non_meta_items(0),
       readyQueueMemory(0) {
 }
 
@@ -61,9 +60,6 @@ Stream::~Stream() = default;
 void Stream::pushToReadyQ(std::unique_ptr<DcpResponse> resp) {
     /* expect streamMutex.ownsLock() == true */
     if (resp) {
-        if (!resp->isMetaEvent()) {
-            readyQ_non_meta_items++;
-        }
         readyQueueMemory.fetch_add(resp->getMessageSize(),
                                    std::memory_order_relaxed);
         readyQ.push(std::move(resp));
@@ -76,12 +72,8 @@ std::unique_ptr<DcpResponse> Stream::popFromReadyQ() {
         auto front = std::move(readyQ.front());
         readyQ.pop();
 
-        if (!front->isMetaEvent()) {
-            readyQ_non_meta_items--;
-        }
+        // Decrement the readyQ size
         const uint32_t respSize = front->getMessageSize();
-
-        /* Decrement the readyQ size */
         if (respSize <= readyQueueMemory.load(std::memory_order_relaxed)) {
             readyQueueMemory.fetch_sub(respSize, std::memory_order_relaxed);
         } else {

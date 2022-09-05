@@ -283,8 +283,11 @@ public:
                           const void* c,
                           const VBucket& vb);
 
-    /* Returns a count of how many items are outstanding to be sent for this
+    /**
+     * Returns a count of how many items are outstanding to be sent for this
      * stream's vBucket.
+     *
+     * @param accurate [unused] Added in MB-57400, @todo: remove
      */
     size_t getItemsRemaining(bool accurateItemsRemaining = true);
 

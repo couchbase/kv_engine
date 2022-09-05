@@ -1651,9 +1651,6 @@ void ActiveStream::notifySeqnoAvailable(DcpProducer& producer) {
 
 void ActiveStream::endStream(cb::mcbp::DcpStreamEndStatus reason) {
     if (isActive()) {
-        // Cache the number remaining items as if we call clear_UNLOCKED() then
-        // readyQ_non_meta_items will be reset to 0.
-        auto cachedRemainingItems = readyQ_non_meta_items.load();
         pendingBackfill = false;
         if (isBackfilling()) {
             // If Stream were in Backfilling state, clear out the
@@ -1700,7 +1697,7 @@ void ActiveStream::endStream(cb::mcbp::DcpStreamEndStatus reason) {
             "{}, reason: {}",
             logPrefix,
             lastSentSeqno.load(),
-            cachedRemainingItems,
+            readyQ.size(),
             cb::mcbp::to_string(reason));
     }
 }
@@ -2275,23 +2272,16 @@ size_t ActiveStream::getItemsRemaining(bool accurateItemsRemaining) {
 
     // Items remaining is the sum of:
     // (a) Items outstanding in checkpoints
-    // (b) Items pending in our readyQ, excluding any meta items.
-    //
-    // Note: if accurateItemsRemaining=true this call could be slow, the
-    // returned value will count from the cursor to the end of the checkpoint.
-    // That's an O(n) n=number-items.
-    // if accurateItemsRemaining=false the returned value represents the sum of
-    // items for current and all outstanding checkpoints, so is inaccurate in
-    // worst case by chk_max_items - 1 (if the cursor happens to be at the end
-    // of the checkpoint). The cost of the estimated call is O(n) where is
-    // number of checkpoints (and that is capped by max_checkpoints, 10 as
-    // default).
+    // (b) Items pending in our readyQ
     size_t ckptItems = 0;
     if (auto sp = cursor.lock()) {
         ckptItems = vbucket->checkpointManager->getNumItemsForCursor(
                 sp.get(), accurateItemsRemaining);
     }
-    return ckptItems + readyQ_non_meta_items;
+
+    // Note: concurrent access to readyQ guarded by streamMutex
+    std::lock_guard<std::mutex> lh(streamMutex);
+    return ckptItems + readyQ.size();
 }
 
 size_t ActiveStream::getBackfillItemsDisk() const {
