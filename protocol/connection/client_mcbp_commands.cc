@@ -1998,6 +1998,25 @@ void BinprotDelWithMetaCommand::encode(std::vector<uint8_t>& buf) const {
     buf.insert(buf.end(), doc.value.begin(), doc.value.end());
 }
 
+BinprotReturnMetaCommand::BinprotReturnMetaCommand(
+        cb::mcbp::request::ReturnMetaType type, Document d)
+    : BinprotGenericCommand(
+              cb::mcbp::ClientOpcode::ReturnMeta, d.info.id, d.value),
+      doc(std::move(d)) {
+    extras.setMutationType(type);
+    extras.setExpiration(d.info.expiration);
+    extras.setFlags(d.info.flags);
+    setCas(d.info.cas);
+}
+
+void BinprotReturnMetaCommand::encode(std::vector<uint8_t>& buf) const {
+    writeHeader(buf, doc.value.size(), sizeof(extras));
+    auto extraBuf = extras.getBuffer();
+    buf.insert(buf.end(), extraBuf.begin(), extraBuf.end());
+    buf.insert(buf.end(), key.begin(), key.end());
+    buf.insert(buf.end(), doc.value.begin(), doc.value.end());
+}
+
 void BinprotObserveCommand::encode(std::vector<uint8_t>& buf) const {
     BinprotGenericCommand::encode(buf);
 

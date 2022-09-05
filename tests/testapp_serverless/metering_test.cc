@@ -307,6 +307,9 @@ protected:
     }
 
     void testWithMeta(cb::mcbp::ClientOpcode opcode, std::string id);
+    void testReturnMeta(cb::mcbp::request::ReturnMetaType type,
+                        std::string id,
+                        bool success);
 
     void testRangeScan(bool keyOnly);
 
@@ -662,12 +665,8 @@ TEST_F(MeteringTest, OpsMetered) {
         case ClientOpcode::SetWithMeta:
         case ClientOpcode::AddWithMeta:
         case ClientOpcode::DelWithMeta:
-            // Tested in its own unit test;
-            break;
-
         case ClientOpcode::ReturnMeta:
-            // MetaWrite ops require meta write privilege... probably not
-            // something we'll need initially...
+            // Tested in its own unit test;
             break;
 
         case ClientOpcode::SeqnoPersistence:
@@ -2723,6 +2722,74 @@ TEST_F(MeteringTest, SetWithMeta) {
 
 TEST_F(MeteringTest, DelWithMeta) {
     testWithMeta(cb::mcbp::ClientOpcode::DelWithMeta, "DelWithMeta");
+}
+
+void MeteringTest::testReturnMeta(cb::mcbp::request::ReturnMetaType type,
+                                  std::string id,
+                                  bool success) {
+    Document document;
+    document.info.id = std::move(id);
+    document.value = getStringValue();
+    if (!success) {
+        document.info.cas = 0xdeadbeef;
+    }
+
+    auto rsp = conn->execute(BinprotReturnMetaCommand{type, document});
+    if (success) {
+        ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+        EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
+        ASSERT_TRUE(rsp.getWriteUnits());
+        if (type == cb::mcbp::request::ReturnMetaType::Del) {
+            EXPECT_EQ(1, *rsp.getWriteUnits());
+        } else {
+            EXPECT_EQ(to_wu(calculateDocumentSize(document.info.id,
+                                                  document.value)),
+                      *rsp.getWriteUnits());
+        }
+    } else {
+        if (type == cb::mcbp::request::ReturnMetaType::Del) {
+            EXPECT_EQ(cb::mcbp::Status::KeyEexists, rsp.getStatus());
+        } else {
+            EXPECT_EQ(cb::mcbp::Status::NotStored, rsp.getStatus());
+        }
+        EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
+        EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
+    }
+}
+
+TEST_F(MeteringTest, ReturnMetaAdd) {
+    testReturnMeta(
+            cb::mcbp::request::ReturnMetaType::Add, "ReturnMetaAdd", true);
+}
+
+TEST_F(MeteringTest, ReturnMetaAddFailing) {
+    testReturnMeta(cb::mcbp::request::ReturnMetaType::Add,
+                   "ReturnMetaAddFailing",
+                   false);
+}
+
+TEST_F(MeteringTest, ReturnMetaSet) {
+    testReturnMeta(
+            cb::mcbp::request::ReturnMetaType::Set, "ReturnMetaSet", true);
+}
+
+TEST_F(MeteringTest, ReturnMetaSetFailing) {
+    testReturnMeta(cb::mcbp::request::ReturnMetaType::Add,
+                   "ReturnMetaSetFailing",
+                   false);
+}
+
+TEST_F(MeteringTest, ReturnMetaDel) {
+    upsert("ReturnMetaDel", getStringValue());
+    testReturnMeta(
+            cb::mcbp::request::ReturnMetaType::Del, "ReturnMetaDel", true);
+}
+
+TEST_F(MeteringTest, ReturnMetaDelFailing) {
+    upsert("ReturnMetaDelFailing", getStringValue());
+    testReturnMeta(cb::mcbp::request::ReturnMetaType::Del,
+                   "ReturnMetaDelFailing",
+                   false);
 }
 
 } // namespace cb::test

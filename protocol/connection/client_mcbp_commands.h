@@ -1021,6 +1021,18 @@ protected:
     cb::mcbp::request::DelWithMetaPayload extras;
 };
 
+class BinprotReturnMetaCommand : public BinprotGenericCommand {
+public:
+    BinprotReturnMetaCommand(cb::mcbp::request::ReturnMetaType type,
+                             Document doc);
+
+    void encode(std::vector<uint8_t>& buf) const override;
+
+protected:
+    Document doc;
+    cb::mcbp::request::ReturnMetaPayload extras;
+};
+
 class BinprotSetControlTokenCommand : public BinprotGenericCommand {
 public:
     BinprotSetControlTokenCommand(uint64_t token_, uint64_t oldtoken);

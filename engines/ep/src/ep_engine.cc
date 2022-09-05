@@ -6094,6 +6094,8 @@ cb::engine_errc EventuallyPersistentEngine::returnMeta(
                     const_cast<CookieIface&>(*cookie),
                     cb::audit::document::Operation::Modify);
             ++stats.numOpsSetRetMeta;
+            const_cast<CookieIface&>(*cookie).addDocumentWriteBytes(
+                    req.getKeylen() + value.size());
         }
         cas = itm->getCas();
         seqno = htonll(itm->getRevSeqno());
@@ -6113,6 +6115,7 @@ cb::engine_errc EventuallyPersistentEngine::returnMeta(
                     const_cast<CookieIface&>(*cookie),
                     cb::audit::document::Operation::Delete);
             ++stats.numOpsDelRetMeta;
+            const_cast<CookieIface&>(*cookie).addDocumentWriteBytes(1);
         }
         flags = itm_meta.flags;
         exp = gsl::narrow<uint32_t>(itm_meta.exptime);
