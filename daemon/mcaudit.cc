@@ -247,20 +247,23 @@ void audit_command_access_failed(Cookie& cookie) {
     const auto& connection = cookie.getConnection();
     auto root = create_memcached_audit_object(
             connection, connection.getUser(), cookie.getEffectiveUser());
-    char buffer[256];
-    memset(buffer, 0, sizeof(buffer));
+    std::array<char, 256> buffer;
+    memset(buffer.data(), 0, buffer.size());
     const auto packet = cookie.getPacket();
     // Deliberately ignore failure of bytes_to_output_string
     // We'll either have a partial string or no string.
-    bytes_to_output_string(buffer,
-                           sizeof(buffer),
+    bytes_to_output_string(buffer.data(),
+                           buffer.size(),
                            connection.getId(),
                            true,
                            "Access to command is not allowed:",
                            reinterpret_cast<const char*>(packet.data()),
                            packet.size());
     root["packet"] = buffer;
-    do_audit(&cookie, MEMCACHED_AUDIT_COMMAND_ACCESS_FAILURE, root, buffer);
+    do_audit(&cookie,
+             MEMCACHED_AUDIT_COMMAND_ACCESS_FAILURE,
+             root,
+             buffer.data());
 }
 
 void audit_invalid_packet(const Connection& c, cb::const_byte_buffer packet) {
