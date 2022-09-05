@@ -45,7 +45,7 @@ static bool is_valid_xattr_blob(Cookie& cookie,
             cookie.getInflatedInputPayload());
 }
 
-bool is_document_key_valid(Cookie& cookie) {
+bool McbpValidator::is_document_key_valid(Cookie& cookie) {
     const auto& req = cookie.getRequest();
     const auto& key = req.getKey();
     if (!cookie.getConnection().isCollectionsSupported()) {
@@ -113,6 +113,7 @@ static inline std::string get_peer_description(const Cookie& cookie) {
 using ExpectedKeyLen = McbpValidator::ExpectedKeyLen;
 using ExpectedValueLen = McbpValidator::ExpectedValueLen;
 using ExpectedCas = McbpValidator::ExpectedCas;
+using GeneratesDocKey = McbpValidator::GeneratesDocKey;
 
 /**
  * Verify the header meets basic sanity checks and fields length
@@ -126,6 +127,7 @@ Status McbpValidator::verify_header(Cookie& cookie,
                                     ExpectedKeyLen expected_keylen,
                                     ExpectedValueLen expected_valuelen,
                                     ExpectedCas expected_cas,
+                                    GeneratesDocKey generates_dockey,
                                     uint8_t expected_datatype_mask) {
     const auto& header = cookie.getHeader();
     auto& connection = cookie.getConnection();
@@ -379,6 +381,11 @@ Status McbpValidator::verify_header(Cookie& cookie,
         cookie.setErrorContext("Invalid encoding in FrameExtras");
     }
 
+    if (generates_dockey == GeneratesDocKey::Yes &&
+        !is_document_key_valid(cookie)) {
+        status = cb::mcbp::Status::Einval;
+    }
+
     if (status != Status::Success) {
         return status;
     }
@@ -492,6 +499,7 @@ static Status dcp_open_validator(Cookie& cookie) {
             ExpectedKeyLen::NonZero,
             ExpectedValueLen::Any,
             ExpectedCas::Any,
+            GeneratesDocKey::No,
             PROTOCOL_BINARY_RAW_BYTES | PROTOCOL_BINARY_DATATYPE_JSON);
     if (status != Status::Success) {
         return status;
@@ -604,6 +612,7 @@ static Status dcp_add_stream_validator(Cookie& cookie) {
                                                ExpectedKeyLen::Zero,
                                                ExpectedValueLen::Zero,
                                                ExpectedCas::Any,
+                                               GeneratesDocKey::No,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
@@ -642,6 +651,7 @@ static Status dcp_close_stream_validator(Cookie& cookie) {
                                                ExpectedKeyLen::Zero,
                                                ExpectedValueLen::Zero,
                                                ExpectedCas::Any,
+                                               GeneratesDocKey::No,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
@@ -655,6 +665,7 @@ static Status dcp_get_failover_log_validator(Cookie& cookie) {
                                                ExpectedKeyLen::Zero,
                                                ExpectedValueLen::Zero,
                                                ExpectedCas::Any,
+                                               GeneratesDocKey::No,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
@@ -673,6 +684,7 @@ static Status dcp_stream_req_validator(Cookie& cookie) {
             ExpectedKeyLen::Zero,
             vlen,
             ExpectedCas::Any,
+            GeneratesDocKey::No,
             PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
@@ -687,6 +699,7 @@ static Status dcp_stream_end_validator(Cookie& cookie) {
             ExpectedKeyLen::Zero,
             ExpectedValueLen::Zero,
             ExpectedCas::Any,
+            GeneratesDocKey::No,
             PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
@@ -737,6 +750,7 @@ static Status dcp_snapshot_marker_validator(Cookie& cookie) {
                                                ExpectedKeyLen::Zero,
                                                expectedValueLen,
                                                ExpectedCas::Any,
+                                               GeneratesDocKey::No,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
@@ -753,6 +767,7 @@ static Status dcp_system_event_validator(Cookie& cookie) {
                                          ExpectedKeyLen::Any,
                                          ExpectedValueLen::Any,
                                          ExpectedCas::Any,
+                                         GeneratesDocKey::No,
                                          McbpValidator::AllSupportedDatatypes);
     if (status != Status::Success) {
         return status;
@@ -783,13 +798,10 @@ static Status dcp_mutation_validator(Cookie& cookie) {
                                          ExpectedKeyLen::NonZero,
                                          ExpectedValueLen::Any,
                                          ExpectedCas::Any,
+                                         GeneratesDocKey::Yes,
                                          McbpValidator::AllSupportedDatatypes);
     if (status != Status::Success) {
         return status;
-    }
-
-    if (!is_document_key_valid(cookie)) {
-        return Status::Einval;
     }
 
     const auto& payload =
@@ -839,6 +851,7 @@ static Status dcp_deletion_validator(Cookie& cookie) {
                                          ExpectedKeyLen::NonZero,
                                          ExpectedValueLen::Any,
                                          ExpectedCas::Any,
+                                         GeneratesDocKey::Yes,
                                          McbpValidator::AllSupportedDatatypes);
     if (status != Status::Success) {
         return status;
@@ -846,9 +859,6 @@ static Status dcp_deletion_validator(Cookie& cookie) {
 
     if (!valid_dcp_delete_datatype(cookie.getHeader().getDatatype())) {
         cookie.setErrorContext("Request datatype invalid");
-        return Status::Einval;
-    }
-    if (!is_document_key_valid(cookie)) {
         return Status::Einval;
     }
 
@@ -862,13 +872,12 @@ static Status dcp_expiration_validator(Cookie& cookie) {
             ExpectedKeyLen::NonZero,
             ExpectedValueLen::Any,
             ExpectedCas::Any,
+            GeneratesDocKey::Yes,
             McbpValidator::AllSupportedDatatypes);
     if (status != Status::Success) {
         return status;
     }
-    if (!is_document_key_valid(cookie)) {
-        return Status::Einval;
-    }
+
     return verify_common_dcp_restrictions(cookie);
 }
 
@@ -879,6 +888,7 @@ static Status dcp_set_vbucket_state_validator(Cookie& cookie) {
                                                ExpectedKeyLen::Zero,
                                                ExpectedValueLen::Zero,
                                                ExpectedCas::Any,
+                                               GeneratesDocKey::No,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
@@ -899,6 +909,7 @@ static Status dcp_noop_validator(Cookie& cookie) {
                                                ExpectedKeyLen::Zero,
                                                ExpectedValueLen::Zero,
                                                ExpectedCas::Any,
+                                               GeneratesDocKey::No,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
@@ -913,6 +924,7 @@ static Status dcp_buffer_acknowledgement_validator(Cookie& cookie) {
             ExpectedKeyLen::Zero,
             ExpectedValueLen::Zero,
             ExpectedCas::Any,
+            GeneratesDocKey::No,
             PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
@@ -926,6 +938,7 @@ static Status dcp_control_validator(Cookie& cookie) {
                                                ExpectedKeyLen::NonZero,
                                                ExpectedValueLen::NonZero,
                                                ExpectedCas::Any,
+                                               GeneratesDocKey::No,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
@@ -953,13 +966,10 @@ static Status dcp_prepare_validator(Cookie& cookie) {
                                          ExpectedKeyLen::NonZero,
                                          ExpectedValueLen::Any,
                                          ExpectedCas::Set,
+                                         GeneratesDocKey::Yes,
                                          McbpValidator::AllSupportedDatatypes);
     if (status != Status::Success) {
         return status;
-    }
-
-    if (!is_document_key_valid(cookie)) {
-        return Status::Einval;
     }
 
     const auto& payload =
@@ -986,6 +996,7 @@ static Status dcp_seqno_acknowledged_validator(Cookie& cookie) {
                                          ExpectedKeyLen::Zero,
                                          ExpectedValueLen::Zero,
                                          ExpectedCas::NotSet,
+                                         GeneratesDocKey::No,
                                          PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
@@ -1001,6 +1012,7 @@ static Status dcp_commit_validator(Cookie& cookie) {
                                                ExpectedKeyLen::NonZero,
                                                ExpectedValueLen::Zero,
                                                ExpectedCas::NotSet,
+                                               GeneratesDocKey::No,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
@@ -1015,6 +1027,7 @@ static Status dcp_abort_validator(Cookie& cookie) {
                                                ExpectedKeyLen::NonZero,
                                                ExpectedValueLen::Zero,
                                                ExpectedCas::NotSet,
+                                               GeneratesDocKey::No,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
@@ -1028,6 +1041,7 @@ static Status update_user_permissions_validator(Cookie& cookie) {
                                         ExpectedKeyLen::Zero,
                                         ExpectedValueLen::NonZero,
                                         ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -1037,6 +1051,7 @@ static Status configuration_refresh_validator(Cookie& cookie) {
                                         ExpectedKeyLen::Zero,
                                         ExpectedValueLen::Zero,
                                         ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -1046,6 +1061,7 @@ static Status auth_provider_validator(Cookie& cookie) {
                                         ExpectedKeyLen::Zero,
                                         ExpectedValueLen::Zero,
                                         ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -1055,6 +1071,7 @@ static Status drop_privilege_validator(Cookie& cookie) {
                                         ExpectedKeyLen::NonZero,
                                         ExpectedValueLen::Zero,
                                         ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -1064,6 +1081,7 @@ static Status get_cluster_config_validator(Cookie& cookie) {
                                         ExpectedKeyLen::Zero,
                                         ExpectedValueLen::Zero,
                                         ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -1076,6 +1094,7 @@ static Status set_cluster_config_validator(Cookie& cookie) {
             ExpectedKeyLen::Any,
             ExpectedValueLen::NonZero,
             ExpectedCas::Any,
+            GeneratesDocKey::No,
             PROTOCOL_BINARY_RAW_BYTES | PROTOCOL_BINARY_DATATYPE_JSON);
 
     if (status != Status::Success) {
@@ -1103,6 +1122,7 @@ static Status verbosity_validator(Cookie& cookie) {
             ExpectedKeyLen::Zero,
             ExpectedValueLen::Zero,
             ExpectedCas::NotSet,
+            GeneratesDocKey::No,
             PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -1112,6 +1132,7 @@ static Status hello_validator(Cookie& cookie) {
                                                ExpectedKeyLen::Any,
                                                ExpectedValueLen::Any,
                                                ExpectedCas::NotSet,
+                                               GeneratesDocKey::No,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
@@ -1133,6 +1154,7 @@ static Status version_validator(Cookie& cookie) {
                                         ExpectedKeyLen::Zero,
                                         ExpectedValueLen::Zero,
                                         ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -1142,6 +1164,7 @@ static Status quit_validator(Cookie& cookie) {
                                         ExpectedKeyLen::Zero,
                                         ExpectedValueLen::Zero,
                                         ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -1151,6 +1174,7 @@ static Status sasl_list_mech_validator(Cookie& cookie) {
                                         ExpectedKeyLen::Zero,
                                         ExpectedValueLen::Zero,
                                         ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -1160,6 +1184,7 @@ static Status sasl_auth_validator(Cookie& cookie) {
                                         ExpectedKeyLen::NonZero,
                                         ExpectedValueLen::Any,
                                         ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -1169,6 +1194,7 @@ static Status noop_validator(Cookie& cookie) {
                                         ExpectedKeyLen::Zero,
                                         ExpectedValueLen::Zero,
                                         ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -1186,6 +1212,7 @@ static Status flush_validator(Cookie& cookie) {
                                                ExpectedKeyLen::Zero,
                                                ExpectedValueLen::Zero,
                                                ExpectedCas::NotSet,
+                                               GeneratesDocKey::No,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
@@ -1208,20 +1235,14 @@ static Status add_validator(Cookie& cookie) {
                                                PROTOCOL_BINARY_DATATYPE_JSON |
                                                PROTOCOL_BINARY_DATATYPE_SNAPPY;
     /* Must have extras and key, may have value */
-    auto status = McbpValidator::verify_header(
+    return McbpValidator::verify_header(
             cookie,
             sizeof(cb::mcbp::request::MutationPayload),
             ExpectedKeyLen::NonZero,
             ExpectedValueLen::Any,
             ExpectedCas::NotSet,
+            GeneratesDocKey::Yes,
             expected_datatype_mask);
-    if (status != Status::Success) {
-        return status;
-    }
-    if (!is_document_key_valid(cookie)) {
-        return Status::Einval;
-    }
-    return Status::Success;
 }
 
 static Status set_replace_validator(Cookie& cookie) {
@@ -1229,20 +1250,14 @@ static Status set_replace_validator(Cookie& cookie) {
                                                PROTOCOL_BINARY_DATATYPE_JSON |
                                                PROTOCOL_BINARY_DATATYPE_SNAPPY;
     /* Must have extras and key, may have value */
-    auto status = McbpValidator::verify_header(
+    return McbpValidator::verify_header(
             cookie,
             sizeof(cb::mcbp::request::MutationPayload),
             ExpectedKeyLen::NonZero,
             ExpectedValueLen::Any,
             ExpectedCas::Any,
+            GeneratesDocKey::Yes,
             expected_datatype_mask);
-    if (status != Status::Success) {
-        return status;
-    }
-    if (!is_document_key_valid(cookie)) {
-        return Status::Einval;
-    }
-    return Status::Success;
 }
 
 static Status append_prepend_validator(Cookie& cookie) {
@@ -1250,73 +1265,43 @@ static Status append_prepend_validator(Cookie& cookie) {
                                                PROTOCOL_BINARY_DATATYPE_JSON |
                                                PROTOCOL_BINARY_DATATYPE_SNAPPY;
     /* Must not have extras, must have key, may have value */
-    auto status = McbpValidator::verify_header(cookie,
-                                               0,
-                                               ExpectedKeyLen::NonZero,
-                                               ExpectedValueLen::Any,
-                                               ExpectedCas::Any,
-                                               expected_datatype_mask);
-    if (status != Status::Success) {
-        return status;
-    }
-    if (!is_document_key_valid(cookie)) {
-        return Status::Einval;
-    }
-    return Status::Success;
+    return McbpValidator::verify_header(cookie,
+                                        0,
+                                        ExpectedKeyLen::NonZero,
+                                        ExpectedValueLen::Any,
+                                        ExpectedCas::Any,
+                                        GeneratesDocKey::Yes,
+                                        expected_datatype_mask);
 }
 
 static Status get_validator(Cookie& cookie) {
-    auto status = McbpValidator::verify_header(cookie,
-                                               0,
-                                               ExpectedKeyLen::NonZero,
-                                               ExpectedValueLen::Zero,
-                                               ExpectedCas::NotSet,
-                                               PROTOCOL_BINARY_RAW_BYTES);
-    if (status != Status::Success) {
-        return status;
-    }
-    if (!is_document_key_valid(cookie)) {
-        return Status::Einval;
-    }
-
-    return Status::Success;
+    return McbpValidator::verify_header(cookie,
+                                        0,
+                                        ExpectedKeyLen::NonZero,
+                                        ExpectedValueLen::Zero,
+                                        ExpectedCas::NotSet,
+                                        GeneratesDocKey::Yes,
+                                        PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status gat_validator(Cookie& cookie) {
-    auto status =
-            McbpValidator::verify_header(cookie,
-                                         sizeof(cb::mcbp::request::GatPayload),
-                                         ExpectedKeyLen::NonZero,
-                                         ExpectedValueLen::Zero,
-                                         ExpectedCas::NotSet,
-                                         PROTOCOL_BINARY_RAW_BYTES);
-
-    if (status != Status::Success) {
-        return status;
-    }
-
-    if (!is_document_key_valid(cookie)) {
-        return Status::Einval;
-    }
-
-    return Status::Success;
+    return McbpValidator::verify_header(cookie,
+                                        sizeof(cb::mcbp::request::GatPayload),
+                                        ExpectedKeyLen::NonZero,
+                                        ExpectedValueLen::Zero,
+                                        ExpectedCas::NotSet,
+                                        GeneratesDocKey::Yes,
+                                        PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status delete_validator(Cookie& cookie) {
-    auto status = McbpValidator::verify_header(cookie,
-                                               0,
-                                               ExpectedKeyLen::NonZero,
-                                               ExpectedValueLen::Zero,
-                                               ExpectedCas::Any,
-                                               PROTOCOL_BINARY_RAW_BYTES);
-    if (status != Status::Success) {
-        return status;
-    }
-    if (!is_document_key_valid(cookie)) {
-        return Status::Einval;
-    }
-
-    return Status::Success;
+    return McbpValidator::verify_header(cookie,
+                                        0,
+                                        ExpectedKeyLen::NonZero,
+                                        ExpectedValueLen::Zero,
+                                        ExpectedCas::Any,
+                                        GeneratesDocKey::Yes,
+                                        PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status stat_validator(Cookie& cookie) {
@@ -1326,6 +1311,7 @@ static Status stat_validator(Cookie& cookie) {
             ExpectedKeyLen::Any,
             ExpectedValueLen::Any,
             ExpectedCas::NotSet,
+            GeneratesDocKey::No,
             PROTOCOL_BINARY_RAW_BYTES | PROTOCOL_BINARY_DATATYPE_JSON);
     if (ret != Status::Success) {
         return ret;
@@ -1353,21 +1339,14 @@ static Status stat_validator(Cookie& cookie) {
 }
 
 static Status arithmetic_validator(Cookie& cookie) {
-    auto status = McbpValidator::verify_header(
+    return McbpValidator::verify_header(
             cookie,
             sizeof(cb::mcbp::request::ArithmeticPayload),
             ExpectedKeyLen::NonZero,
             ExpectedValueLen::Zero,
             ExpectedCas::NotSet,
+            GeneratesDocKey::Yes,
             PROTOCOL_BINARY_RAW_BYTES);
-    if (status != Status::Success) {
-        return status;
-    }
-    if (!is_document_key_valid(cookie)) {
-        return Status::Einval;
-    }
-
-    return Status::Success;
 }
 
 static Status get_cmd_timer_validator(Cookie& cookie) {
@@ -1376,6 +1355,7 @@ static Status get_cmd_timer_validator(Cookie& cookie) {
                                         ExpectedKeyLen::Any,
                                         ExpectedValueLen::Zero,
                                         ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -1386,6 +1366,7 @@ static Status set_ctrl_token_validator(Cookie& cookie) {
                                                ExpectedKeyLen::Zero,
                                                ExpectedValueLen::Zero,
                                                ExpectedCas::Any,
+                                               GeneratesDocKey::No,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
@@ -1407,6 +1388,7 @@ static Status get_ctrl_token_validator(Cookie& cookie) {
                                         ExpectedKeyLen::Zero,
                                         ExpectedValueLen::Zero,
                                         ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -1416,6 +1398,7 @@ static Status ioctl_get_validator(Cookie& cookie) {
                                         ExpectedKeyLen::NonZero,
                                         ExpectedValueLen::Zero,
                                         ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -1425,6 +1408,7 @@ static Status ioctl_set_validator(Cookie& cookie) {
                                         ExpectedKeyLen::NonZero,
                                         ExpectedValueLen::Any,
                                         ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -1434,6 +1418,7 @@ static Status audit_put_validator(Cookie& cookie) {
                                         ExpectedKeyLen::Zero,
                                         ExpectedValueLen::NonZero,
                                         ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -1443,6 +1428,7 @@ static Status audit_config_reload_validator(Cookie& cookie) {
                                         ExpectedKeyLen::Zero,
                                         ExpectedValueLen::Zero,
                                         ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -1452,6 +1438,7 @@ static Status config_reload_validator(Cookie& cookie) {
                                         ExpectedKeyLen::Zero,
                                         ExpectedValueLen::Zero,
                                         ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -1461,6 +1448,7 @@ static Status config_validate_validator(Cookie& cookie) {
                                         ExpectedKeyLen::Zero,
                                         ExpectedValueLen::NonZero,
                                         ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -1470,6 +1458,7 @@ static Status observe_seqno_validator(Cookie& cookie) {
                                                ExpectedKeyLen::Zero,
                                                ExpectedValueLen::Any,
                                                ExpectedCas::Any,
+                                               GeneratesDocKey::No,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
@@ -1492,6 +1481,7 @@ static Status create_bucket_validator(Cookie& cookie) {
                                                ExpectedKeyLen::NonZero,
                                                ExpectedValueLen::NonZero,
                                                ExpectedCas::Any,
+                                               GeneratesDocKey::No,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
@@ -1539,6 +1529,7 @@ static Status list_bucket_validator(Cookie& cookie) {
                                         ExpectedKeyLen::Zero,
                                         ExpectedValueLen::Zero,
                                         ExpectedCas::Any,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -1548,6 +1539,7 @@ static Status delete_bucket_validator(Cookie& cookie) {
                                         ExpectedKeyLen::NonZero,
                                         ExpectedValueLen::Any,
                                         ExpectedCas::Any,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -1557,6 +1549,7 @@ static Status select_bucket_validator(Cookie& cookie) {
                                         ExpectedKeyLen::Any,
                                         ExpectedValueLen::Zero,
                                         ExpectedCas::Any,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -1566,6 +1559,7 @@ static Status pause_bucket_validator(Cookie& cookie) {
                                         ExpectedKeyLen::Any,
                                         ExpectedValueLen::Zero,
                                         ExpectedCas::Any,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -1575,6 +1569,7 @@ static Status resume_bucket_validator(Cookie& cookie) {
                                         ExpectedKeyLen::Any,
                                         ExpectedValueLen::Zero,
                                         ExpectedCas::Any,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -1588,6 +1583,7 @@ static Status get_all_vb_seqnos_validator(Cookie& cookie) {
                                                ExpectedKeyLen::Zero,
                                                ExpectedValueLen::Zero,
                                                ExpectedCas::NotSet,
+                                               GeneratesDocKey::No,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
@@ -1631,6 +1627,7 @@ static Status shutdown_validator(Cookie& cookie) {
                                         ExpectedKeyLen::Zero,
                                         ExpectedValueLen::Zero,
                                         ExpectedCas::Set,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -1643,6 +1640,7 @@ static Status set_bucket_compute_unit_throttle_limits_validator(
             ExpectedKeyLen::NonZero,
             ExpectedValueLen::Zero,
             ExpectedCas::NotSet,
+            GeneratesDocKey::No,
             PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -1655,6 +1653,7 @@ static Status set_bucket_data_limit_exceeded_validator(
             ExpectedKeyLen::NonZero,
             ExpectedValueLen::Zero,
             ExpectedCas::NotSet,
+            GeneratesDocKey::No,
             PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -1668,6 +1667,7 @@ static Status get_meta_validator(Cookie& cookie) {
                                                ExpectedKeyLen::NonZero,
                                                ExpectedValueLen::Zero,
                                                ExpectedCas::NotSet,
+                                               GeneratesDocKey::Yes,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
@@ -1677,10 +1677,6 @@ static Status get_meta_validator(Cookie& cookie) {
 
     if (extras.size() > 1) {
         cookie.setErrorContext("Request extras must be of length 0 or 1");
-        return Status::Einval;
-    }
-
-    if (!is_document_key_valid(cookie)) {
         return Status::Einval;
     }
 
@@ -1707,12 +1703,10 @@ static Status mutate_with_meta_validator(Cookie& cookie) {
                                          ExpectedKeyLen::NonZero,
                                          ExpectedValueLen::Any,
                                          ExpectedCas::Any,
+                                         GeneratesDocKey::Yes,
                                          McbpValidator::AllSupportedDatatypes);
     if (status != Status::Success) {
         return status;
-    }
-    if (!is_document_key_valid(cookie)) {
-        return Status::Einval;
     }
 
     // revid_nbytes, flags and exptime is mandatory fields.. and we need a key
@@ -1737,6 +1731,7 @@ static Status get_errmap_validator(Cookie& cookie) {
                                                ExpectedKeyLen::Zero,
                                                ExpectedValueLen::Any,
                                                ExpectedCas::NotSet,
+                                               GeneratesDocKey::No,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
@@ -1766,14 +1761,12 @@ static Status get_locked_validator(Cookie& cookie) {
                                                ExpectedKeyLen::NonZero,
                                                ExpectedValueLen::Zero,
                                                ExpectedCas::NotSet,
+                                               GeneratesDocKey::Yes,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
     }
 
-    if (!is_document_key_valid(cookie)) {
-        return Status::Einval;
-    }
     if (extlen != 0 && extlen != sizeof(cb::mcbp::request::GetLockedPayload)) {
         cookie.setErrorContext("Request extras must be of length 0 or 4");
         return Status::Einval;
@@ -1783,36 +1776,23 @@ static Status get_locked_validator(Cookie& cookie) {
 }
 
 static Status unlock_validator(Cookie& cookie) {
-    auto status = McbpValidator::verify_header(cookie,
-                                               0,
-                                               ExpectedKeyLen::NonZero,
-                                               ExpectedValueLen::Zero,
-                                               ExpectedCas::Set,
-                                               PROTOCOL_BINARY_RAW_BYTES);
-    if (status != Status::Success) {
-        return status;
-    }
-    if (!is_document_key_valid(cookie)) {
-        return Status::Einval;
-    }
-
-    return Status::Success;
+    return McbpValidator::verify_header(cookie,
+                                        0,
+                                        ExpectedKeyLen::NonZero,
+                                        ExpectedValueLen::Zero,
+                                        ExpectedCas::Set,
+                                        GeneratesDocKey::Yes,
+                                        PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status evict_key_validator(Cookie& cookie) {
-    auto status = McbpValidator::verify_header(cookie,
-                                               0,
-                                               ExpectedKeyLen::NonZero,
-                                               ExpectedValueLen::Zero,
-                                               ExpectedCas::NotSet,
-                                               PROTOCOL_BINARY_RAW_BYTES);
-    if (status != Status::Success) {
-        return status;
-    }
-    if (!is_document_key_valid(cookie)) {
-        return Status::Einval;
-    }
-    return Status::Success;
+    return McbpValidator::verify_header(cookie,
+                                        0,
+                                        ExpectedKeyLen::NonZero,
+                                        ExpectedValueLen::Zero,
+                                        ExpectedCas::NotSet,
+                                        GeneratesDocKey::Yes,
+                                        PROTOCOL_BINARY_RAW_BYTES);
 }
 
 static Status collections_set_manifest_validator(Cookie& cookie) {
@@ -1821,6 +1801,7 @@ static Status collections_set_manifest_validator(Cookie& cookie) {
                                                ExpectedKeyLen::Zero,
                                                ExpectedValueLen::NonZero,
                                                ExpectedCas::NotSet,
+                                               GeneratesDocKey::No,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
@@ -1839,6 +1820,7 @@ static Status collections_get_manifest_validator(Cookie& cookie) {
                                                ExpectedKeyLen::Zero,
                                                ExpectedValueLen::Zero,
                                                ExpectedCas::NotSet,
+                                               GeneratesDocKey::No,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
@@ -1859,6 +1841,7 @@ static Status collections_get_id_validator(Cookie& cookie) {
                                                ExpectedKeyLen::Any,
                                                ExpectedValueLen::Any,
                                                ExpectedCas::NotSet,
+                                               GeneratesDocKey::No,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
@@ -1885,6 +1868,7 @@ static Status adjust_timeofday_validator(Cookie& cookie) {
                                                ExpectedKeyLen::Zero,
                                                ExpectedValueLen::Zero,
                                                ExpectedCas::NotSet,
+                                               GeneratesDocKey::No,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
@@ -1912,6 +1896,7 @@ static Status ewb_validator(Cookie& cookie) {
                                          ExpectedKeyLen::Any,
                                          ExpectedValueLen::Zero,
                                          ExpectedCas::NotSet,
+                                         GeneratesDocKey::No,
                                          PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
@@ -1932,6 +1917,7 @@ static Status scrub_validator(Cookie& cookie) {
                                         ExpectedKeyLen::Zero,
                                         ExpectedValueLen::Zero,
                                         ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -1946,6 +1932,7 @@ static Status get_random_key_validator(Cookie& cookie) {
                                         ExpectedKeyLen::Zero,
                                         ExpectedValueLen::Zero,
                                         ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -1970,6 +1957,7 @@ static Status set_vbucket_validator(Cookie& cookie) {
             ExpectedKeyLen::Zero,
             ExpectedValueLen::Any,
             ExpectedCas::Any,
+            GeneratesDocKey::No,
             PROTOCOL_BINARY_RAW_BYTES | PROTOCOL_BINARY_DATATYPE_JSON);
     if (status != Status::Success) {
         return status;
@@ -2024,6 +2012,7 @@ static Status del_vbucket_validator(Cookie& cookie) {
                                         ExpectedKeyLen::Zero,
                                         ExpectedValueLen::Any,
                                         ExpectedCas::Any,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -2033,6 +2022,7 @@ static Status get_vbucket_validator(Cookie& cookie) {
                                         ExpectedKeyLen::Any,
                                         ExpectedValueLen::Zero,
                                         ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -2042,6 +2032,7 @@ static Status start_stop_persistence_validator(Cookie& cookie) {
                                         ExpectedKeyLen::Zero,
                                         ExpectedValueLen::Zero,
                                         ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -2051,6 +2042,7 @@ static Status enable_disable_traffic_validator(Cookie& cookie) {
                                         ExpectedKeyLen::Zero,
                                         ExpectedValueLen::Zero,
                                         ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -2061,6 +2053,7 @@ static Status ifconfig_validator(Cookie& cookie) {
                                          ExpectedKeyLen::NonZero,
                                          ExpectedValueLen::Any,
                                          ExpectedCas::NotSet,
+                                         GeneratesDocKey::No,
                                          PROTOCOL_BINARY_DATATYPE_JSON);
     if (status != Status::Success) {
         return status;
@@ -2131,13 +2124,10 @@ static Status get_keys_validator(Cookie& cookie) {
                                                ExpectedKeyLen::NonZero,
                                                ExpectedValueLen::Zero,
                                                ExpectedCas::NotSet,
+                                               GeneratesDocKey::Yes,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
-    }
-
-    if (!is_document_key_valid(cookie)) {
-        return Status::Einval;
     }
 
     if (extlen != 0 && extlen != sizeof(uint32_t)) {
@@ -2157,6 +2147,7 @@ static Status set_param_validator(Cookie& cookie) {
                                                ExpectedKeyLen::NonZero,
                                                ExpectedValueLen::NonZero,
                                                ExpectedCas::Any,
+                                               GeneratesDocKey::No,
                                                PROTOCOL_BINARY_RAW_BYTES);
 
     if (status != Status::Success) {
@@ -2179,13 +2170,10 @@ static Status return_meta_validator(Cookie& cookie) {
                                                ExpectedKeyLen::NonZero,
                                                ExpectedValueLen::Any,
                                                ExpectedCas::Any,
+                                               GeneratesDocKey::Yes,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
-    }
-
-    if (!is_document_key_valid(cookie)) {
-        return Status::Einval;
     }
 
     const auto& payload =
@@ -2207,6 +2195,7 @@ static Status seqno_persistence_validator(Cookie& cookie) {
                                         ExpectedKeyLen::Zero,
                                         ExpectedValueLen::Zero,
                                         ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -2218,6 +2207,7 @@ static Status compact_db_validator(Cookie& cookie) {
                                                ExpectedKeyLen::Zero,
                                                ExpectedValueLen::Zero,
                                                ExpectedCas::NotSet,
+                                               GeneratesDocKey::No,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
@@ -2239,6 +2229,7 @@ static Status observe_validator(Cookie& cookie) {
                                         ExpectedKeyLen::Zero,
                                         ExpectedValueLen::NonZero,
                                         ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -2249,6 +2240,7 @@ static Status not_supported_validator(Cookie& cookie) {
                                                ExpectedKeyLen::Any,
                                                ExpectedValueLen::Any,
                                                ExpectedCas::Any,
+                                               GeneratesDocKey::No,
                                                PROTOCOL_BINARY_RAW_BYTES);
     if (status != Status::Success) {
         return status;
@@ -2264,6 +2256,7 @@ static Status create_range_scan_validator(Cookie& cookie) {
                                                ExpectedKeyLen::Zero,
                                                ExpectedValueLen::Any,
                                                ExpectedCas::NotSet,
+                                               GeneratesDocKey::No,
                                                PROTOCOL_BINARY_DATATYPE_JSON);
     if (status != Status::Success) {
         return status;
@@ -2335,6 +2328,7 @@ static Status continue_range_scan_validator(Cookie& cookie) {
             ExpectedKeyLen::Zero,
             ExpectedValueLen::Zero,
             ExpectedCas::NotSet,
+            GeneratesDocKey::No,
             PROTOCOL_BINARY_RAW_BYTES);
 }
 
@@ -2344,6 +2338,7 @@ static Status cancel_range_scan_validator(Cookie& cookie) {
                                         ExpectedKeyLen::Zero,
                                         ExpectedValueLen::Zero,
                                         ExpectedCas::NotSet,
+                                        GeneratesDocKey::No,
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 

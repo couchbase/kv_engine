@@ -3046,7 +3046,7 @@ TEST_P(CollectionsParameterizedTest, GetScopeIdForGivenKeyAndVbucket) {
 
     result = engine->get_scope_id(*cookie, CollectionEntry::meat, vbid);
     EXPECT_EQ(cb::engine_errc::unknown_collection, result.result);
-    EXPECT_EQ(0, result.getManifestId());
+    EXPECT_EQ(2, result.getManifestId());
 
     StoredDocKey keyFruit{"fruit:apple", CollectionEntry::fruit};
     // Add the meat collection to vbid(1)
@@ -3080,7 +3080,7 @@ TEST_P(CollectionsParameterizedTest, GetScopeIdForGivenKeyAndVbucket) {
 
     result = engine->get_scope_id(*cookie, CollectionEntry::fruit, meatVbid);
     EXPECT_EQ(cb::engine_errc::unknown_collection, result.result);
-    EXPECT_EQ(0, result.getManifestId());
+    EXPECT_EQ(2, result.getManifestId());
 
     // check vbucket that doesnt exist
     result = engine->get_scope_id(*cookie, CollectionEntry::dairy, Vbid(10));
@@ -3113,7 +3113,7 @@ TEST_P(CollectionsParameterizedTest, GetScopeIdForGivenKeyNoVbid) {
 
     result = engine->get_scope_id(*cookie, CollectionEntry::meat, {});
     EXPECT_EQ(cb::engine_errc::unknown_collection, result.result);
-    EXPECT_EQ(0, result.getManifestId());
+    EXPECT_EQ(2, result.getManifestId());
 }
 
 static std::set<std::string> lastGetKeysResult;

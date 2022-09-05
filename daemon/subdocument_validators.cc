@@ -31,13 +31,10 @@ static cb::mcbp::Status validate_basic_header_fields(Cookie& cookie) {
                                          McbpValidator::ExpectedKeyLen::NonZero,
                                          McbpValidator::ExpectedValueLen::Any,
                                          McbpValidator::ExpectedCas::Any,
+                                         McbpValidator::GeneratesDocKey::Yes,
                                          PROTOCOL_BINARY_RAW_BYTES);
     if (status != cb::mcbp::Status::Success) {
         return status;
-    }
-
-    if (!is_document_key_valid(cookie)) {
-        return cb::mcbp::Status::Einval;
     }
 
     return cb::mcbp::Status::Success;

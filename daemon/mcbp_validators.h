@@ -36,6 +36,8 @@ public:
     enum class ExpectedKeyLen { Zero, NonZero, Any };
     enum class ExpectedValueLen { Zero, NonZero, Any };
     enum class ExpectedCas { Set, NotSet, Any };
+    /// Yes commands that generate/use a DocKey (collection+key)
+    enum class GeneratesDocKey { Yes, No };
 
     constexpr static uint8_t AllSupportedDatatypes =
             cb::mcbp::datatype::highest;
@@ -53,9 +55,18 @@ public:
                                 ExpectedKeyLen expected_keylen,
                                 ExpectedValueLen expected_valuelen,
                                 ExpectedCas expected_cas,
+                                GeneratesDocKey generates_dockey,
                                 uint8_t expected_datatype_mask);
 
 protected:
+    /**
+     * Validate the key for operations which will create a DocKey
+     * @param cookie non const reference as failure will update the error
+     *        context
+     * @return true if the key data represents a valid key for the connection
+     */
+    static bool is_document_key_valid(Cookie& cookie);
+
     /**
      * Installs a validator for the given command
      */
@@ -63,10 +74,3 @@ protected:
 
     std::array<std::function<Status(Cookie&)>, 0x100> validators;
 };
-
-/**
- * Validate the key for operations which will create a DocKey
- * @param cookie non const reference as failure will update the error context
- * @return true if the keylen represents a valid key for the connection
- */
-bool is_document_key_valid(Cookie& cookie);

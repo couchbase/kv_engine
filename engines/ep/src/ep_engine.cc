@@ -1767,17 +1767,22 @@ cb::EngineErrorGetScopeIDResult EventuallyPersistentEngine::get_scope_id(
             if (handle.valid()) {
                 return {handle.getManifestUid(), handle.getScopeID()};
             }
-        } else {
+            // return unknown_collection and the manifest uid
             return cb::EngineErrorGetScopeIDResult(
-                    cb::engine_errc::not_my_vbucket);
+                    cb::engine_errc::unknown_collection,
+                    handle.getManifestUid());
         }
-    } else {
-        auto scopeIdInfo = engine->getKVBucket()->getScopeID(cid);
-        if (scopeIdInfo.second.has_value()) {
-            return {scopeIdInfo.first, ScopeID(scopeIdInfo.second.value())};
-        }
+        return cb::EngineErrorGetScopeIDResult(cb::engine_errc::not_my_vbucket);
     }
-    return cb::EngineErrorGetScopeIDResult(cb::engine_errc::unknown_collection);
+
+    // No vbucket, perform lookup against bucket
+    auto scopeIdInfo = engine->getKVBucket()->getScopeID(cid);
+    if (scopeIdInfo.second.has_value()) {
+        return {scopeIdInfo.first, ScopeID(scopeIdInfo.second.value())};
+    }
+    // returns unknown_collection and the manifest uid
+    return cb::EngineErrorGetScopeIDResult(cb::engine_errc::unknown_collection,
+                                           scopeIdInfo.first);
 }
 
 cb::engine::FeatureSet EventuallyPersistentEngine::getFeatures() {

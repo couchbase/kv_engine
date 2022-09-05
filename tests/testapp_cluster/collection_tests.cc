@@ -23,7 +23,31 @@
 #include <thread>
 
 class CollectionsTests : public cb::test::ClusterTest {
-protected:
+public:
+    void SetUp() override {
+        cb::test::ClusterTest::SetUp();
+        // Upsert a user who has privs only against a scope
+        cluster->getAuthProviderService().upsertUser({username, password, R"({
+  "buckets": {
+    "default": {
+      "privileges": [],
+      "scopes": {
+        "0": {
+          "privileges": [
+            "Read"
+          ]
+        }
+      }
+    }
+  },
+  "privileges": [],
+  "domain": "external"
+})"_json});
+    }
+
+    const std::string username{"ScopeUser"};
+    const std::string password{"ScopeUser"};
+
     void testSubdocRbac(MemcachedConnection& conn, const std::string& key);
     static std::unique_ptr<MemcachedConnection> getConnection() {
         auto bucket = cluster->getBucket("default");
@@ -64,16 +88,28 @@ TEST_F(CollectionsTests, TestBasicOperations) {
 }
 
 TEST_F(CollectionsTests, TestInvalidCollection) {
+    // Test using a non-bucket privileged user so we exercise the
+    // Connection::collectionInfo functionality
     auto conn = getConnection();
-    try {
-        // collections 1 to 7 are reserved and invalid from a client
-        mutate(*conn,
-               DocKey::makeWireEncodedString(1, "TestInvalidCollection"),
-               MutationType::Add);
-        FAIL() << "Einval not detected";
-    } catch (const ConnectionError& e) {
-        EXPECT_EQ(cb::mcbp::Status::Einval, e.getReason());
+    conn->authenticate(username, password);
+    conn->selectBucket("default");
+
+    // collections 1 to 7 are reserved and invalid from a client
+    for (int illegalCollection = 1; illegalCollection <= 7;
+         illegalCollection++) {
+        try {
+            mutate(*conn,
+                   DocKey::makeWireEncodedString(
+                           CollectionID(illegalCollection,
+                                        CollectionID::SkipIDVerificationTag{}),
+                           "TestInvalidCollection"),
+                   MutationType::Add);
+            FAIL() << "Einval not detected cid:" << illegalCollection;
+        } catch (const ConnectionError& e) {
+            EXPECT_EQ(cb::mcbp::Status::Einval, e.getReason());
+        }
     }
+
     try {
         // collection 1000 is unknown
         mutate(*conn,
@@ -82,6 +118,7 @@ TEST_F(CollectionsTests, TestInvalidCollection) {
         FAIL() << "UnknownCollection not detected";
     } catch (const ConnectionError& e) {
         EXPECT_EQ(cb::mcbp::Status::UnknownCollection, e.getReason());
+        EXPECT_EQ("6", e.getErrorJsonContext()["manifest_uid"]);
     }
 }
 

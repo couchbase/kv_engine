@@ -1016,7 +1016,8 @@ cb::EngineErrorGetScopeIDResult default_engine::get_scope_id(
         }
         generate_unknown_collection_response(&cookie);
         // Return just the manifest-uid of 0 which sets error to unknown_scope
-        return cb::EngineErrorGetScopeIDResult{0};
+        return cb::EngineErrorGetScopeIDResult{cb::engine_errc::unknown_scope,
+                                               0};
     }
     return cb::EngineErrorGetScopeIDResult{cb::engine_errc::invalid_arguments};
 }
@@ -1029,7 +1030,8 @@ cb::EngineErrorGetScopeIDResult default_engine::get_scope_id(
     if (cid.isDefaultCollection()) {
         return cb::EngineErrorGetScopeIDResult(0, ScopeID{ScopeID::Default});
     }
-    return cb::EngineErrorGetScopeIDResult(cb::engine_errc::unknown_collection);
+    return cb::EngineErrorGetScopeIDResult(cb::engine_errc::unknown_collection,
+                                           0);
 }
 
 void default_engine::generate_unknown_collection_response(

@@ -83,9 +83,15 @@ struct EngineErrorGetScopeIDResult {
         Expects(result != cb::engine_errc::success);
     }
 
-    /// construct for an unknown_scope
-    explicit EngineErrorGetScopeIDResult(uint64_t manifestId)
-        : result(cb::engine_errc::unknown_scope), manifestId(manifestId) {
+    /**
+     * Construct for unknown scope or collection, this depends on the function
+     * used - search by cid or search by scope name
+     */
+    explicit EngineErrorGetScopeIDResult(engine_errc result,
+                                         uint64_t manifestId)
+        : result(result), manifestId(manifestId) {
+        Expects(result == cb::engine_errc::unknown_collection ||
+                result == cb::engine_errc::unknown_scope);
     }
 
     /// construct for successful get

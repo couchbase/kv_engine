@@ -234,7 +234,8 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::getScopeID(
     auto current = currentManifest.rlock();
     auto scope = current->getScopeID(path);
     if (!scope) {
-        return cb::EngineErrorGetScopeIDResult{current->getUid()};
+        return cb::EngineErrorGetScopeIDResult{cb::engine_errc::unknown_scope,
+                                               current->getUid()};
     }
 
     return {current->getUid(), scope.value()};
@@ -262,7 +263,8 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::isScopeIDValid(
     if (manifestLocked->findScope(sid) != manifestLocked->endScopes()) {
         return cb::EngineErrorGetScopeIDResult{manifestLocked->getUid(), sid};
     }
-    return cb::EngineErrorGetScopeIDResult{manifestLocked->getUid()};
+    return cb::EngineErrorGetScopeIDResult{cb::engine_errc::unknown_scope,
+                                           manifestLocked->getUid()};
 }
 
 bool Collections::Manager::needsUpdating(const VBucket& vb) const {
@@ -748,7 +750,8 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doOneScopeStats(
                     "scope arg:{} sid:{}",
                     arg,
                     res.getScopeId().to_string());
-            return cb::EngineErrorGetScopeIDResult{current->getUid()};
+            return cb::EngineErrorGetScopeIDResult{
+                    cb::engine_errc::unknown_scope, current->getUid()};
         }
 
         scopeName = scopeItr->second.name;
