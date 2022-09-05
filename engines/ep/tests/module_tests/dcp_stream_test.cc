@@ -712,7 +712,7 @@ TEST_P(StreamTest, MB17653_ItemsRemaining) {
     // advancing the streams' cursor. Should result in no change in items
     // remaining (they still haven't been send out of the stream).
     stream->nextCheckpointItemTask();
-    EXPECT_EQ(1, stream->getItemsRemaining())
+    EXPECT_EQ(2, stream->getItemsRemaining())
             << "Mismatch after moving items to ready queue";
 
     // Add another mutation. As we have already iterated over all checkpoint
@@ -720,7 +720,7 @@ TEST_P(StreamTest, MB17653_ItemsRemaining) {
     // mutation (from the point of view of the stream) isn't possible, so items
     // remaining should increase by one.
     store_item(vbid, "key", "value");
-    EXPECT_EQ(2, stream->getItemsRemaining())
+    EXPECT_EQ(3, stream->getItemsRemaining())
             << "Mismatch after populating readyQ and storing 1 more item";
 
     // Now actually drain the items from the readyQ and see how many we

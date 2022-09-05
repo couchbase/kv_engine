@@ -1614,9 +1614,6 @@ void ActiveStream::notifySeqnoAvailable(DcpProducer& producer) {
 
 void ActiveStream::endStream(cb::mcbp::DcpStreamEndStatus reason) {
     if (isActive()) {
-        // Cache the number remaining items as if we call clear_UNLOCKED() then
-        // readyQ_non_meta_items will be reset to 0.
-        auto cachedRemainingItems = readyQ_non_meta_items.load();
         pendingBackfill = false;
         if (isBackfilling()) {
             // If Stream were in Backfilling state, clear out the
@@ -1663,7 +1660,7 @@ void ActiveStream::endStream(cb::mcbp::DcpStreamEndStatus reason) {
             "{}, reason: {}",
             logPrefix,
             lastSentSeqno.load(),
-            cachedRemainingItems,
+            readyQ.size(),
             cb::mcbp::to_string(reason));
     }
 }
@@ -2185,12 +2182,15 @@ size_t ActiveStream::getItemsRemaining() {
 
     // Items remaining is the sum of:
     // (a) Items outstanding in checkpoints
-    // (b) Items pending in our readyQ, excluding any meta items.
+    // (b) Items pending in our readyQ
     size_t ckptItems = 0;
     if (auto sp = cursor.lock()) {
         ckptItems = vbucket->checkpointManager->getNumItemsForCursor(sp.get());
     }
-    return ckptItems + readyQ_non_meta_items;
+
+    // Note: concurrent access to readyQ guarded by streamMutex
+    std::lock_guard<std::mutex> lh(streamMutex);
+    return ckptItems + readyQ.size();
 }
 
 uint64_t ActiveStream::getLastReadSeqno() const {
