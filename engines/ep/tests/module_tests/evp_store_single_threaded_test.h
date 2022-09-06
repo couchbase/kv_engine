@@ -17,9 +17,9 @@
 
 #include "dcp/dcp-types.h"
 #include "kv_bucket_test.h"
-#include "storeddockey_fwd.h"
 #include <executor/fake_executorpool.h>
 #include <libcouchstore/couch_db.h>
+#include <memcached/storeddockey_fwd.h>
 #include <nlohmann/json.hpp>
 
 class CollectionsManifest;

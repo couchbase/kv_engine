@@ -8,10 +8,12 @@
  *   the file licenses/APL2.txt.
  */
 
-#include "storeddockey.h"
+#include "serialised_dockey.h"
+#include "tests/module_tests/test_helpers.h"
 
 #include <folly/portability/GTest.h>
 #include <mcbp/protocol/unsigned_leb128.h>
+#include <memcached/storeddockey.h>
 #include <platform/memory_tracking_allocator.h>
 #include <map>
 
@@ -322,7 +324,8 @@ TEST_P(StoredDocKeyTest, constructFromSerialisedDocKey) {
 }
 
 TEST_P(StoredDocKeyTest, getObjectSize) {
-    auto key1 = SerialisedDocKey::make({"key_of_15_chars", GetParam()});
+    auto key1 = SerialisedDocKey::make(
+            makeStoredDocKey("key_of_15_chars", GetParam()));
     cb::mcbp::unsigned_leb128<CollectionIDType> leb128(uint32_t{GetParam()});
 
     // Should be 15 bytes plus 4 byte CID and 1 byte for length.

@@ -12,7 +12,8 @@
 
 #include "checkpoint_iterator.h"
 #include "checkpoint_types.h"
-#include "storeddockey_fwd.h"
+
+struct DocKey;
 
 /**
  * A checkpoint cursor, representing the current position in a Checkpoint
@@ -79,7 +80,7 @@ public:
         return isValid;
     }
 
-    const StoredDocKey& getKey() const;
+    DocKey getKey() const;
 
     bool isDroppable() const {
         return droppable == Droppable::Yes;

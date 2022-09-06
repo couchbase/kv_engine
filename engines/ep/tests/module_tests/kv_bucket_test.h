@@ -21,12 +21,12 @@
 
 #include "ep_types.h"
 #include "kv_bucket.h"
-#include "storeddockey_fwd.h"
 
 #include <folly/portability/GTest.h>
 #include <memcached/dockey.h>
 #include <memcached/durability_spec.h>
 #include <memcached/engine_error.h>
+#include <memcached/storeddockey_fwd.h>
 #include <tests/ep_request_utils.h>
 #include <tests/mock/mock_synchronous_ep_engine_fwd.h>
 

@@ -13,10 +13,10 @@
 #include "durability_monitor.h"
 #include "ep_types.h"
 #include "memcached/engine_error.h"
-#include "storeddockey_fwd.h"
 #include "utilities/testing_hook.h"
 
 #include <folly/SynchronizedPtr.h>
+#include <memcached/storeddockey_fwd.h>
 #include <nlohmann/json_fwd.hpp>
 
 #include <unordered_set>

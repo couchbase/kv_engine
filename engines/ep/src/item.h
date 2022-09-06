@@ -13,12 +13,13 @@
 
 #include "blob.h"
 #include "dcp/dcp-types.h"
+#include "ep_types.h"
 #include "queue_op.h"
-#include "storeddockey.h"
 #include <platform/atomic.h>
 
 #include <mcbp/protocol/datatype.h>
 #include <memcached/durability_spec.h>
+#include <memcached/storeddockey.h>
 #include <memcached/types.h>
 #include <platform/n_byte_integer.h>
 

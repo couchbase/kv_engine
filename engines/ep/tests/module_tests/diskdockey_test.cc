@@ -13,10 +13,10 @@
  */
 
 #include "diskdockey.h"
-#include "storeddockey.h"
 
 #include <folly/portability/GTest.h>
 #include <mcbp/protocol/unsigned_leb128.h>
+#include <memcached/storeddockey.h>
 
 class DiskDocKeyTest : public ::testing::TestWithParam<CollectionID> {};
 

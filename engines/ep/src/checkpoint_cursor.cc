@@ -53,7 +53,7 @@ void CheckpointCursor::invalidate() {
     isValid = false;
 }
 
-const StoredDocKey& CheckpointCursor::getKey() const {
+DocKey CheckpointCursor::getKey() const {
     return (*currentPos)->getKey();
 }
 

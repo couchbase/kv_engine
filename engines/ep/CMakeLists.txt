@@ -392,9 +392,9 @@ ADD_LIBRARY(ep_objs OBJECT
             src/server_document_iface_border_guard.h
             src/seqlist.cc
             src/seqno_persistence_notify_task.cc
+            src/serialised_dockey.cc
             src/stats.cc
             src/string_utils.cc
-            src/storeddockey.cc
             src/stored-value.cc
             src/stored_value_factories.cc
             src/stored_value_factories.h

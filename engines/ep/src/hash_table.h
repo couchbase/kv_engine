@@ -14,7 +14,6 @@
 #include "copyable_atomic.h"
 #include "probabilistic_counter.h"
 #include "stored-value.h"
-#include "storeddockey.h"
 
 #include <platform/corestore.h>
 #include <platform/non_negative_counter.h>
@@ -23,6 +22,7 @@
 #include <functional>
 
 class AbstractStoredValueFactory;
+struct DocKey;
 class HashTableVisitor;
 class HashTableDepthVisitor;
 
@@ -72,7 +72,7 @@ enum class DeletionDurability : uint8_t {};
  * A container of StoredValue instances.
  *
  * The HashTable class is an unordered, associative array which maps
- * StoredDocKeys to StoredValues.
+ * DocKey to StoredValues.
  *
  * Overview
  * ========

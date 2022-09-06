@@ -10,13 +10,12 @@
 
 #pragma once
 
-#include "storeddockey.h"
-
 #include <executor/globaltask.h>
 #include <memcached/engine_error.h>
 #include <memcached/range_scan.h>
 #include <memcached/range_scan_id.h>
 #include <memcached/range_scan_optional_configuration.h>
+#include <memcached/storeddockey.h>
 #include <memcached/vbucket.h>
 
 class CookieIface;

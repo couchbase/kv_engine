@@ -13,9 +13,9 @@
 
 #include "configuration.h"
 #include "ep_engine_public.h"
+#include "ep_types.h"
 #include "permitted_vb_states.h"
 #include "stats.h"
-#include "storeddockey.h"
 #include "vbucket_fwd.h"
 
 #include <executor/taskable.h>

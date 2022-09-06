@@ -8,8 +8,8 @@
  *   the file licenses/APL2.txt.
  */
 
-#include "storeddockey.h"
 #include <mcbp/protocol/unsigned_leb128.h>
+#include <memcached/storeddockey.h>
 #include <platform/memory_tracking_allocator.h>
 #include <iomanip>
 
@@ -84,46 +84,3 @@ std::string StoredDocKeyT<Allocator>::to_string() const {
 
 template class StoredDocKeyT<std::allocator>;
 template class StoredDocKeyT<MemoryTrackingAllocator>;
-
-CollectionID SerialisedDocKey::getCollectionID() const {
-    return cb::mcbp::unsigned_leb128<CollectionIDType>::decode({bytes, length})
-            .first;
-}
-
-bool SerialisedDocKey::isInSystemCollection() const {
-    return data()[0] == CollectionID::System;
-}
-
-bool SerialisedDocKey::isInDefaultCollection() const {
-    return data()[0] == CollectionID::Default;
-}
-
-bool SerialisedDocKey::operator==(const DocKey& rhs) const {
-    // Does 'rhs' encode a collection-ID
-    if (rhs.getEncoding() == DocKeyEncodesCollectionId::Yes) {
-        // compare size and then the entire key
-        return rhs.size() == size() &&
-               std::equal(rhs.begin(), rhs.end(), data());
-    }
-
-    // 'rhs' does not encode a collection - it is therefore a key in the default
-    // collection. We can check byte 0 of this key to see if this key is also
-    // in the default collection. if so compare sizes (discounting the
-    // default collection prefix) and finally the key data.
-    return data()[0] == CollectionID::Default && rhs.size() == size() - 1 &&
-           std::equal(rhs.begin(), rhs.end(), data() + 1);
-}
-
-SerialisedDocKey::SerialisedDocKey(cb::const_byte_buffer key,
-                                   CollectionID cid) {
-    cb::mcbp::unsigned_leb128<CollectionIDType> leb128(uint32_t{cid});
-    length = gsl::narrow_cast<uint8_t>(key.size() + leb128.size());
-    std::copy(key.begin(),
-              key.end(),
-              std::copy(leb128.begin(), leb128.end(), bytes));
-}
-
-std::ostream& operator<<(std::ostream& os, const SerialisedDocKey& key) {
-    os << key.to_string() << ", size:" << std::dec << key.size();
-    return os;
-}

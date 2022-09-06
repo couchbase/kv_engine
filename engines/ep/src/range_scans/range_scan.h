@@ -11,11 +11,11 @@
 #pragma once
 
 #include "callbacks.h"
-#include "storeddockey.h"
 
 #include <folly/Synchronized.h>
 #include <memcached/range_scan.h>
 #include <memcached/range_scan_id.h>
+#include <memcached/storeddockey.h>
 
 #include <atomic>
 #include <chrono>

@@ -35,8 +35,9 @@
 #include "mutation_log_entry.h"
 
 #include "utility.h"
-#include <memcached/vbucket.h>
 #include <hdrhistogram/hdrhistogram.h>
+#include <memcached/storeddockey.h>
+#include <memcached/vbucket.h>
 #include <array>
 #include <atomic>
 #include <cstring>

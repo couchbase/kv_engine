@@ -11,9 +11,10 @@
 
 #pragma once
 
-#include "storeddockey.h"
+#include "serialised_dockey.h"
 #include "utility.h"
 
+#include <gsl/gsl-lite.hpp>
 #include <memcached/vbucket.h>
 #include <type_traits>
 

@@ -13,8 +13,8 @@
 
 #include "collections/flush.h"
 #include "ep_types.h"
-#include "storeddockey_fwd.h"
 
+#include <memcached/storeddockey_fwd.h>
 #include <memcached/systemevent.h>
 
 #include <string>

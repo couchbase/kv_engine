@@ -18,12 +18,12 @@
 #include "kvstore/kvstore_iface.h"
 #include "locked_vbucket_ptr.h"
 #include "stored-value.h"
-#include "storeddockey.h"
 #include "utility.h"
 #include "vbucket_fwd.h"
 #include "vbucket_types.h"
 #include "vbucketmap.h"
 #include <executor/task_type.h>
+#include <memcached/storeddockey.h>
 
 #include <cstdlib>
 #include <deque>

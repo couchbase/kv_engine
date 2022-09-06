@@ -12,12 +12,12 @@
 
 #include "durability_monitor.h"
 #include "ep_types.h"
-#include "storeddockey_fwd.h"
 #include "utilities/testing_hook.h"
 
 #include <folly/SynchronizedPtr.h>
-#include <optional>
+#include <memcached/storeddockey_fwd.h>
 
+#include <optional>
 #include <vector>
 
 class ActiveDurabilityMonitor;

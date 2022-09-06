@@ -12,8 +12,8 @@
 #pragma once
 
 #include "kvstore/kvstore.h"
-#include "storeddockey.h"
 #include <executor/globaltask.h>
+#include <memcached/storeddockey.h>
 
 #include "limited_concurrency_task.h"
 

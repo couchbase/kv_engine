@@ -18,11 +18,11 @@
 #include "collections/vbucket_manifest_entry.h"
 #include "collections/vbucket_manifest_scope_entry.h"
 #include "ep_types.h"
-#include "storeddockey_fwd.h"
 
 #include <folly/SharedMutex.h>
 #include <folly/Synchronized.h>
 #include <folly/container/F14Map.h>
+#include <memcached/storeddockey_fwd.h>
 
 #include <optional>
 #include <unordered_map>

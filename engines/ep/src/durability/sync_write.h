@@ -13,7 +13,7 @@
 #include "durability_monitor.h"
 
 #include "item.h"
-#include "storeddockey_fwd.h"
+#include <memcached/storeddockey_fwd.h>
 
 /**
  * The status of an in-flight SyncWrite

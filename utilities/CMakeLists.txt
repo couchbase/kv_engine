@@ -39,6 +39,7 @@ add_library(mcd_util STATIC
             stat_group.cc
             string_utilities.cc
             string_utilities.h
+            storeddockey.cc
             terminate_handler.cc
             terminate_handler.h
             thread_pool_config.cc
