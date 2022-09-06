@@ -136,13 +136,13 @@ if (TIMEOUT_EXE AND NOT WIN32)
 endif()
 
 gtest_discover_tests(memcached_testapp
-    EXTRA_ARGS -E default ${VERBOSE_EXTRA_ARG}
-    WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-    TEST_PREFIX memcached_testapp.default.
-    ONE_CTEST_PER_SUITE
-    DISCOVERY_TIMEOUT 60
-    PROPERTIES TIMEOUT 300
-    ENVIRONMENT ${THREAD_SANITIZER_TEST_ENV})
+        EXTRA_ARGS -i folly -E default ${VERBOSE_EXTRA_ARG}
+        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+        TEST_PREFIX memcached_testapp.folly.default.
+        ONE_CTEST_PER_SUITE
+        DISCOVERY_TIMEOUT 60
+        PROPERTIES TIMEOUT 300
+        ENVIRONMENT ${THREAD_SANITIZER_TEST_ENV})
 
 gtest_discover_tests(memcached_testapp
     EXTRA_ARGS -E ep ${VERBOSE_EXTRA_ARG}
