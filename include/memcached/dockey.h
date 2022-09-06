@@ -390,8 +390,14 @@ struct DocKey : DocKeyInterface<DocKey> {
     DocKey(const std::string&& key,
            DocKeyEncodesCollectionId encoding) = delete;
 
+    /// Convert to a std::string_view, including the leb128 CollectionID prefix
     explicit operator std::string_view() const {
         return std::string_view(reinterpret_cast<const char*>(data()), size());
+    }
+
+    /// Convert to a std::string, including the leb128 CollectionID prefix
+    explicit operator std::string() const {
+        return std::string(reinterpret_cast<const char*>(data()), size());
     }
 
     int compare(const DocKey& rhs) const {

@@ -171,6 +171,11 @@ public:
         return {keydata, DocKeyEncodesCollectionId::Yes};
     }
 
+    /// Convert to a std::string including the leb128 CollectionID prefix
+    explicit operator std::string() const {
+        return std::string{keydata.data(), keydata.size()};
+    }
+
 protected:
     std::basic_string<std::string::value_type,
                       std::string::traits_type,

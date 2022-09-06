@@ -13,11 +13,13 @@
 #include <cluster_framework/bucket.h>
 #include <cluster_framework/cluster.h>
 #include <folly/portability/GTest.h>
+#include <memcached/storeddockey.h>
 #include <platform/base64.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <protocol/connection/frameinfo.h>
 #include <serverless/config.h>
+#include <spdlog/fmt/fmt.h>
 #include <xattr/blob.h>
 #include <chrono>
 #include <deque>
@@ -37,6 +39,7 @@ public:
         conn->dropPrivilege(cb::rbac::Privilege::Unmetered);
         conn->dropPrivilege(cb::rbac::Privilege::NodeSupervisor);
         conn->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
+        conn->setFeature(cb::mcbp::Feature::Collections, true);
     }
 
     static void TearDownTestCase() {
@@ -44,6 +47,12 @@ public:
     }
 
 protected:
+    // @return the collection the test should use
+    CollectionID getTestCollection() const {
+        // All tests currently operate in the default collection
+        return CollectionID::Default;
+    }
+
     /**
      * Upsert a document
      *
@@ -61,7 +70,7 @@ protected:
      * @param second_xattr_path An optional second XAttr pair
      * @param second_xattr_value An optional second XAttr value
      */
-    static void upsert(std::string id,
+    static void upsert(DocKey id,
                        std::string value,
                        std::string xattr_path = {},
                        std::string xattr_value = {},
@@ -89,7 +98,7 @@ protected:
      * @return The size of the document (key + value including the encoded
      *         xattr blob)
      */
-    size_t calculateDocumentSize(std::string_view key,
+    size_t calculateDocumentSize(DocKey key,
                                  std::string_view value,
                                  std::string_view xp = {},
                                  std::string_view xv = {},
@@ -152,6 +161,7 @@ protected:
         rconn->dropPrivilege(cb::rbac::Privilege::Unmetered);
         rconn->dropPrivilege(cb::rbac::Privilege::NodeSupervisor);
         rconn->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
+        rconn->setFeature(cb::mcbp::Feature::Collections, true);
         return rconn;
     }
 
@@ -159,11 +169,12 @@ protected:
     /// Operating on a document which isn't a numeric value should
     /// account for 0 ru's and fail
     void testArithmeticBadValue(ClientOpcode opcode,
-                                std::string id,
+                                DocKey id,
                                 std::string value,
                                 std::string xattr_path = {},
                                 std::string xattr_value = {}) {
-        auto cmd = BinprotIncrDecrCommand{opcode, id, Vbid{0}, 1ULL, 0ULL, 0};
+        auto cmd = BinprotIncrDecrCommand{
+                opcode, std::string{id}, Vbid{0}, 1ULL, 0ULL, 0};
 
         upsert(id, value, xattr_path, xattr_value);
         auto rsp = conn->execute(cmd);
@@ -175,9 +186,10 @@ protected:
     /// When creating a value as part of incr/decr it should not cost any
     /// RU, but 1 WU for a normal create, and 2 WU for durable writes.
     void testArithmeticCreateValue(ClientOpcode opcode,
-                                   std::string id,
+                                   DocKey id,
                                    bool durable) {
-        auto cmd = BinprotIncrDecrCommand{opcode, id, Vbid{0}, 1ULL, 0ULL, 0};
+        auto cmd = BinprotIncrDecrCommand{
+                opcode, std::string{id}, Vbid{0}, 1ULL, 0ULL, 0};
         DurabilityFrameInfo fi(
                 cb::durability::Level::MajorityAndPersistOnMaster);
         if (durable) {
@@ -201,13 +213,14 @@ protected:
     // to the RU/WU units.
     // For durable writes it costs 2x WU
     void testArithmetic(ClientOpcode opcode,
-                        std::string id,
+                        DocKey id,
                         std::string xattr_path,
                         std::string xattr_value,
                         bool durable) {
         upsert(id, "10", xattr_path, xattr_value);
 
-        auto cmd = BinprotIncrDecrCommand{opcode, id, Vbid{0}, 1ULL, 0ULL, 0};
+        auto cmd = BinprotIncrDecrCommand{
+                opcode, std::string{id}, Vbid{0}, 1ULL, 0ULL, 0};
         DurabilityFrameInfo fi(
                 cb::durability::Level::MajorityAndPersistOnMaster);
         if (durable) {
@@ -232,7 +245,7 @@ protected:
     //        size ru
     // Durable reads should cost twice
     void testDelete(ClientOpcode opcode,
-                    std::string id,
+                    DocKey id,
                     std::string value,
                     std::string user_xattr_path,
                     std::string user_xattr_value,
@@ -247,7 +260,8 @@ protected:
                system_xattr_path,
                system_xattr_value);
 
-        auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::Delete, id};
+        auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::Delete,
+                                         std::string{id}};
         DurabilityFrameInfo fi(
                 cb::durability::Level::MajorityAndPersistOnMaster);
         if (durable) {
@@ -306,9 +320,9 @@ protected:
         return value;
     }
 
-    void testWithMeta(cb::mcbp::ClientOpcode opcode, std::string id);
+    void testWithMeta(cb::mcbp::ClientOpcode opcode, DocKey id);
     void testReturnMeta(cb::mcbp::request::ReturnMetaType type,
-                        std::string id,
+                        DocKey id,
                         bool success);
 
     void testRangeScan(bool keyOnly);
@@ -318,7 +332,7 @@ protected:
 
 std::unique_ptr<MemcachedConnection> MeteringTest::conn;
 
-void MeteringTest::upsert(std::string id,
+void MeteringTest::upsert(DocKey id,
                           std::string value,
                           std::string xattr_path,
                           std::string xattr_value,
@@ -327,7 +341,7 @@ void MeteringTest::upsert(std::string id,
                           std::string second_xattr_value) {
     if (xattr_path.empty()) {
         Document doc;
-        doc.info.id = std::move(id);
+        doc.info.id = std::string{id};
         doc.value = std::move(value);
         if (wait_for_persistence) {
             conn->mutate(doc, Vbid{0}, MutationType::Set, []() {
@@ -342,7 +356,7 @@ void MeteringTest::upsert(std::string id,
     } else {
         for (int ii = 0; ii < 2; ++ii) {
             BinprotSubdocMultiMutationCommand cmd;
-            cmd.setKey(id);
+            cmd.setKey(std::string{id});
             cmd.setVBucket(Vbid{0});
             if (ii == 0) {
                 cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
@@ -764,110 +778,137 @@ TEST_F(MeteringTest, OpsMetered) {
 
 TEST_F(MeteringTest, IncrBadValuePlain) {
     testArithmeticBadValue(
-            ClientOpcode::Increment, "IncrBadValuePlain", getStringValue());
+            ClientOpcode::Increment,
+            StoredDocKey{"IncrBadValuePlain", getTestCollection()},
+            getStringValue());
 }
 
 TEST_F(MeteringTest, IncrBadValueWithXattr) {
-    testArithmeticBadValue(ClientOpcode::Increment,
-                           "IncrBadValueWithXattr",
-                           getStringValue(),
-                           "xattr",
-                           getStringValue());
+    testArithmeticBadValue(
+            ClientOpcode::Increment,
+            StoredDocKey{"IncrBadValueWithXattr", getTestCollection()},
+            getStringValue(),
+            "xattr",
+            getStringValue());
 }
 
 TEST_F(MeteringTest, DecrBadValuePlain) {
     testArithmeticBadValue(
-            ClientOpcode::Decrement, "DecrBadValuePlain", getStringValue());
+            ClientOpcode::Decrement,
+            StoredDocKey{"DecrBadValuePlain", getTestCollection()},
+            getStringValue());
 }
 
 TEST_F(MeteringTest, DecrBadValueWithXattr) {
-    testArithmeticBadValue(ClientOpcode::Decrement,
-                           "DecrBadValueWithXattr",
-                           getStringValue(),
-                           "xattr",
-                           getStringValue());
+    testArithmeticBadValue(
+            ClientOpcode::Decrement,
+            StoredDocKey{"DecrBadValueWithXattr", getTestCollection()},
+            getStringValue(),
+            "xattr",
+            getStringValue());
 }
 
 TEST_F(MeteringTest, IncrCreateValue) {
     testArithmeticCreateValue(
-            ClientOpcode::Increment, "IncrCreateValue", false);
+            ClientOpcode::Increment,
+            StoredDocKey{"IncrCreateValue", getTestCollection()},
+            false);
 }
 
 TEST_F(MeteringTest, IncrCreateValue_Durability) {
     testArithmeticCreateValue(
-            ClientOpcode::Increment, "IncrCreateValue_Durability", true);
+            ClientOpcode::Increment,
+            StoredDocKey{"IncrCreateValue_Durability", getTestCollection()},
+            true);
 }
 
 TEST_F(MeteringTest, DecrCreateValue) {
     testArithmeticCreateValue(
-            ClientOpcode::Decrement, "DecrCreateValue", false);
+            ClientOpcode::Decrement,
+            StoredDocKey{"DecrCreateValue", getTestCollection()},
+            false);
 }
 
 TEST_F(MeteringTest, DecrCreateValue_Durability) {
     testArithmeticCreateValue(
-            ClientOpcode::Decrement, "DecrCreateValue_Durability", true);
+            ClientOpcode::Decrement,
+            StoredDocKey{"DecrCreateValue_Durability", getTestCollection()},
+            true);
 }
 
 TEST_F(MeteringTest, IncrementPlain) {
-    testArithmetic(ClientOpcode::Increment, "IncrementPlain", {}, {}, false);
+    testArithmetic(ClientOpcode::Increment,
+                   StoredDocKey{"IncrementPlain", getTestCollection()},
+                   {},
+                   {},
+                   false);
 }
 
 TEST_F(MeteringTest, IncrementPlain_Durability) {
-    testArithmetic(ClientOpcode::Increment,
-                   "IncrementWithXattr_Durability",
-                   {},
-                   {},
-                   true);
+    testArithmetic(
+            ClientOpcode::Increment,
+            StoredDocKey{"IncrementWithXattr_Durability", getTestCollection()},
+            {},
+            {},
+            true);
 }
 
 TEST_F(MeteringTest, IncrementWithXattr) {
     testArithmetic(ClientOpcode::Increment,
-                   "IncrementWithXattr",
+                   StoredDocKey{"IncrementWithXattr", getTestCollection()},
                    "xattr",
                    getStringValue(),
                    false);
 }
 
 TEST_F(MeteringTest, IncrementWithXattr_Durability) {
-    testArithmetic(ClientOpcode::Increment,
-                   "IncrementWithXattr_Durability",
-                   "xattr",
-                   getStringValue(),
-                   true);
+    testArithmetic(
+            ClientOpcode::Increment,
+            StoredDocKey{"IncrementWithXattr_Durability", getTestCollection()},
+            "xattr",
+            getStringValue(),
+            true);
 }
 
 TEST_F(MeteringTest, DecrementPlain) {
-    testArithmetic(ClientOpcode::Decrement, "DecrementPlain", {}, {}, false);
+    testArithmetic(ClientOpcode::Decrement,
+                   StoredDocKey{"DecrementPlain", getTestCollection()},
+                   {},
+                   {},
+                   false);
 }
 
 TEST_F(MeteringTest, DecrementPlain_Durability) {
-    testArithmetic(ClientOpcode::Decrement,
-                   "DecrementWithXattr_Durability",
-                   {},
-                   {},
-                   true);
+    testArithmetic(
+            ClientOpcode::Decrement,
+            StoredDocKey{"DecrementWithXattr_Durability", getTestCollection()},
+            {},
+            {},
+            true);
 }
 
 TEST_F(MeteringTest, DecrementWithXattr) {
     testArithmetic(ClientOpcode::Decrement,
-                   "DecrementWithXattr",
+                   StoredDocKey{"DecrementWithXattr", getTestCollection()},
                    "xattr",
                    getStringValue(),
                    false);
 }
 
 TEST_F(MeteringTest, DecrementWithXattr_Durability) {
-    testArithmetic(ClientOpcode::Decrement,
-                   "DecrementWithXattr_Durability",
-                   "xattr",
-                   getStringValue(),
-                   true);
+    testArithmetic(
+            ClientOpcode::Decrement,
+            StoredDocKey{"DecrementWithXattr_Durability", getTestCollection()},
+            "xattr",
+            getStringValue(),
+            true);
 }
 
 /// Delete of a non-existing document should be free
 TEST_F(MeteringTest, DeleteNonexistingItem) {
-    const std::string id = "DeleteNonexistingItem";
-    auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::Delete, id};
+    const StoredDocKey id{"DeleteNonexistingItem", getTestCollection()};
+    auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::Delete,
+                                     std::string{id}};
     auto rsp = conn->execute(cmd);
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
     EXPECT_FALSE(rsp.getReadUnits());
@@ -877,7 +918,7 @@ TEST_F(MeteringTest, DeleteNonexistingItem) {
 // Delete of a single document should cost 1WU
 TEST_F(MeteringTest, DeletePlain) {
     testDelete(ClientOpcode::Delete,
-               "DeletePlain",
+               StoredDocKey{"DeletePlain", getTestCollection()},
                getStringValue(),
                {},
                {},
@@ -888,7 +929,7 @@ TEST_F(MeteringTest, DeletePlain) {
 
 TEST_F(MeteringTest, DeletePlain_Durability) {
     testDelete(ClientOpcode::Delete,
-               "DeletePlain_Durability",
+               StoredDocKey{"DeletePlain_Durability", getTestCollection()},
                getStringValue(),
                {},
                {},
@@ -899,7 +940,7 @@ TEST_F(MeteringTest, DeletePlain_Durability) {
 
 TEST_F(MeteringTest, DeleteUserXattr) {
     testDelete(ClientOpcode::Delete,
-               "DeleteUserXattr",
+               StoredDocKey{"DeleteUserXattr", getTestCollection()},
                getStringValue(),
                "xattr",
                getStringValue(),
@@ -910,7 +951,7 @@ TEST_F(MeteringTest, DeleteUserXattr) {
 
 TEST_F(MeteringTest, DeleteUserXattr_Durability) {
     testDelete(ClientOpcode::Delete,
-               "DeleteUserXattr_Durability",
+               StoredDocKey{"DeleteUserXattr_Durability", getTestCollection()},
                getStringValue(),
                "xattr",
                getStringValue(),
@@ -921,7 +962,7 @@ TEST_F(MeteringTest, DeleteUserXattr_Durability) {
 
 TEST_F(MeteringTest, DeleteUserAndSystemXattr) {
     testDelete(ClientOpcode::Delete,
-               "DeleteUserAndSystemXattr",
+               StoredDocKey{"DeleteUserAndSystemXattr", getTestCollection()},
                getStringValue(),
                "xattr",
                getStringValue(),
@@ -932,7 +973,8 @@ TEST_F(MeteringTest, DeleteUserAndSystemXattr) {
 
 TEST_F(MeteringTest, DeleteUserAndSystemXattr_Durability) {
     testDelete(ClientOpcode::Delete,
-               "DeleteUserAndSystemXattr_Durability",
+               StoredDocKey{"DeleteUserAndSystemXattr_Durability",
+                            getTestCollection()},
                getStringValue(),
                "xattr",
                getStringValue(),
@@ -943,7 +985,7 @@ TEST_F(MeteringTest, DeleteUserAndSystemXattr_Durability) {
 
 TEST_F(MeteringTest, DeleteSystemXattr) {
     testDelete(ClientOpcode::Delete,
-               "DeleteSystemXattr",
+               StoredDocKey{"DeleteSystemXattr", getTestCollection()},
                getStringValue(),
                {},
                {},
@@ -953,31 +995,33 @@ TEST_F(MeteringTest, DeleteSystemXattr) {
 }
 
 TEST_F(MeteringTest, DeleteSystemXattr_Durability) {
-    testDelete(ClientOpcode::Delete,
-               "DeleteSystemXattr_Durability",
-               getStringValue(),
-               {},
-               {},
-               "_xattr",
-               getStringValue(),
-               true);
+    testDelete(
+            ClientOpcode::Delete,
+            StoredDocKey{"DeleteSystemXattr_Durability", getTestCollection()},
+            getStringValue(),
+            {},
+            {},
+            "_xattr",
+            getStringValue(),
+            true);
 }
 
 /// Get of a non-existing document should not cost anything
 TEST_F(MeteringTest, GetNonExistingDocument) {
     auto rsp = conn->execute(
             BinprotGenericCommand{ClientOpcode::Get, "GetNonExistingDocument"});
-    EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::UnknownCollection, rsp.getStatus());
     EXPECT_FALSE(rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
 }
 
 /// Get of a single document without xattrs costs the size of the document
 TEST_F(MeteringTest, GetDocumentPlain) {
-    const std::string id = "GetDocumentPlain";
+    const StoredDocKey id{"GetDocumentPlain", getTestCollection()};
     const auto value = getStringValue();
     upsert(id, value);
-    auto rsp = conn->execute(BinprotGenericCommand{ClientOpcode::Get, id});
+    auto rsp = conn->execute(
+            BinprotGenericCommand{ClientOpcode::Get, std::string{id}});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     ASSERT_TRUE(rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
@@ -987,10 +1031,11 @@ TEST_F(MeteringTest, GetDocumentPlain) {
 /// Get of a single document with xattrs costs the size of the document plus
 /// the size of the xattrs
 TEST_F(MeteringTest, GetDocumentWithXAttr) {
-    const std::string id = "GetDocumentWithXAttr";
+    const StoredDocKey id{"GetDocumentWithXAttr", getTestCollection()};
     const auto value = getStringValue();
     upsert(id, value, "xattr", value);
-    auto rsp = conn->execute(BinprotGenericCommand{ClientOpcode::Get, id});
+    auto rsp = conn->execute(
+            BinprotGenericCommand{ClientOpcode::Get, std::string{id}});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     ASSERT_TRUE(rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
@@ -1000,8 +1045,9 @@ TEST_F(MeteringTest, GetDocumentWithXAttr) {
 
 /// Get of a non-existing document should not cost anything
 TEST_F(MeteringTest, GetReplicaNonExistingDocument) {
-    auto rsp = getReplicaConn()->execute(BinprotGenericCommand{
-            ClientOpcode::GetReplica, "GetNonExistingDocument"});
+    const StoredDocKey id{"GetNonExistingDocument", getTestCollection()};
+    auto rsp = getReplicaConn()->execute(
+            BinprotGenericCommand{ClientOpcode::GetReplica, std::string{id}});
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
     EXPECT_FALSE(rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
@@ -1009,15 +1055,15 @@ TEST_F(MeteringTest, GetReplicaNonExistingDocument) {
 
 /// Get of a single document without xattrs costs the size of the document
 TEST_F(MeteringTest, GetReplicaDocumentPlain) {
-    const std::string id = "GetDocumentPlain";
+    const StoredDocKey id{"GetDocumentPlain", getTestCollection()};
     const auto value = getStringValue();
     upsert(id, value);
 
     auto rconn = getReplicaConn();
     BinprotResponse rsp;
     do {
-        rsp = rconn->execute(
-                BinprotGenericCommand{cb::mcbp::ClientOpcode::GetReplica, id});
+        rsp = rconn->execute(BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::GetReplica, std::string{id}});
     } while (rsp.getStatus() == cb::mcbp::Status::KeyEnoent);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     ASSERT_TRUE(rsp.getReadUnits());
@@ -1028,15 +1074,15 @@ TEST_F(MeteringTest, GetReplicaDocumentPlain) {
 /// Get of a single document with xattrs costs the size of the document plus
 /// the size of the xattrs
 TEST_F(MeteringTest, GetReplicaDocumentWithXAttr) {
-    const std::string id = "GetDocumentWithXAttr";
+    const StoredDocKey id{"GetDocumentWithXAttr", getTestCollection()};
     const auto value = getStringValue();
     upsert(id, value, "xattr", value);
 
     auto rconn = getReplicaConn();
     BinprotResponse rsp;
     do {
-        rsp = rconn->execute(
-                BinprotGenericCommand{cb::mcbp::ClientOpcode::GetReplica, id});
+        rsp = rconn->execute(BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::GetReplica, std::string{id}});
     } while (rsp.getStatus() == cb::mcbp::Status::KeyEnoent);
 
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
@@ -1049,8 +1095,8 @@ TEST_F(MeteringTest, GetReplicaDocumentWithXAttr) {
 TEST_F(MeteringTest, MeterDocumentLocking) {
     auto& sconfig = cb::serverless::Config::instance();
 
-    const std::string id = "MeterDocumentLocking";
-    const auto getl = BinprotGetAndLockCommand{id};
+    const StoredDocKey id{"MeterDocumentLocking", getTestCollection()};
+    const auto getl = BinprotGetAndLockCommand{std::string{id}};
     auto rsp = conn->execute(getl);
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
     EXPECT_FALSE(rsp.getReadUnits());
@@ -1068,7 +1114,7 @@ TEST_F(MeteringTest, MeterDocumentLocking) {
               *rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
 
-    auto unl = BinprotUnlockCommand{id, Vbid{0}, rsp.getCas()};
+    auto unl = BinprotUnlockCommand{std::string{id}, Vbid{0}, rsp.getCas()};
     rsp = conn->execute(unl);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits());
@@ -1077,16 +1123,16 @@ TEST_F(MeteringTest, MeterDocumentLocking) {
 
 TEST_F(MeteringTest, MeterDocumentTouch) {
     auto& sconfig = cb::serverless::Config::instance();
-    const std::string id = "MeterDocumentTouch";
+    const StoredDocKey id{"MeterDocumentTouch", getTestCollection()};
 
     // Touch of non-existing document should fail and is free
-    auto rsp = conn->execute(BinprotTouchCommand{id, 0});
+    auto rsp = conn->execute(BinprotTouchCommand{std::string{id}, 0});
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
     EXPECT_FALSE(rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
 
     // Gat should fail and free
-    rsp = conn->execute(BinprotGetAndTouchCommand{id, Vbid{0}, 0});
+    rsp = conn->execute(BinprotGetAndTouchCommand{std::string{id}, Vbid{0}, 0});
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
     EXPECT_FALSE(rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
@@ -1098,14 +1144,14 @@ TEST_F(MeteringTest, MeterDocumentTouch) {
 
     // Touch of a document is a full read and write of the document on the
     // server, but no data returned
-    rsp = conn->execute(BinprotTouchCommand{id, 0});
+    rsp = conn->execute(BinprotTouchCommand{std::string{id}, 0});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
     EXPECT_EQ(sconfig.to_wu(document_value.size() + id.size()),
               *rsp.getWriteUnits());
     EXPECT_TRUE(rsp.getDataString().empty());
-    rsp = conn->execute(BinprotGetAndTouchCommand{id, Vbid{0}, 0});
+    rsp = conn->execute(BinprotGetAndTouchCommand{std::string{id}, Vbid{0}, 0});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
@@ -1117,7 +1163,7 @@ TEST_F(MeteringTest, MeterDocumentTouch) {
 TEST_F(MeteringTest, MeterDocumentSimpleMutations) {
     auto& sconfig = cb::serverless::Config::instance();
 
-    const std::string id = "MeterDocumentSimpleMutations";
+    const StoredDocKey id{"MeterDocumentSimpleMutations", getTestCollection()};
     std::string document_value;
     std::string xattr_path = "xattr";
     std::string xattr_value;
@@ -1129,7 +1175,7 @@ TEST_F(MeteringTest, MeterDocumentSimpleMutations) {
     xattr_value.back() = '"';
 
     BinprotMutationCommand command;
-    command.setKey(id);
+    command.setKey(std::string{id});
     command.addValueBuffer(document_value);
 
     // Set of an nonexistent document shouldn't cost any RUs and the
@@ -1158,7 +1204,7 @@ TEST_F(MeteringTest, MeterDocumentSimpleMutations) {
     EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
 
     // Add of a new document should cost the same as a set (no read, just write)
-    conn->remove(id, Vbid{0});
+    conn->remove(std::string{id}, Vbid{0});
     rsp = conn->execute(command);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
@@ -1200,7 +1246,7 @@ TEST_F(MeteringTest, MeterDocumentSimpleMutations) {
     command.setCas(0);
 
     // Trying to replace a nonexisting document should not cost anything
-    conn->remove(id, Vbid{0});
+    conn->remove(std::string{id}, Vbid{0});
     rsp = conn->execute(command);
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
@@ -1270,11 +1316,16 @@ TEST_F(MeteringTest, MeterGetRandomKey) {
     // with the flush of a commit, to get around that we can store twice, this
     // single connection will then ensure a non zero item count is observed by
     // GetRandomKey
-    upsert("MeterGetRandomKey", "hello");
-    upsert("MeterGetRandomKey", "hello", {}, {}, true);
+    upsert(StoredDocKey{"MeterGetRandomKey", getTestCollection()}, "hello");
+    upsert(StoredDocKey{"MeterGetRandomKey", getTestCollection()},
+           "hello",
+           {},
+           {},
+           true);
 
-    const auto rsp = conn->execute(
-            BinprotGenericCommand{cb::mcbp::ClientOpcode::GetRandomKey});
+    BinprotGenericCommand getRandom{cb::mcbp::ClientOpcode::GetRandomKey};
+    getRandom.setExtrasValue(CollectionIDType{getTestCollection()});
+    const auto rsp = conn->execute(getRandom);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     ASSERT_TRUE(rsp.getReadUnits());
     EXPECT_NE(0, *rsp.getReadUnits());
@@ -1291,11 +1342,16 @@ TEST_F(MeteringTest, MeterGetKeys) {
     // with the flush of a commit, to get around that we can store twice, this
     // single connection will then ensure a non zero item count is observed by
     // GetKeys
-    upsert("MeterGetKeys", "hello");
-    upsert("MeterGetKeys", "hello", {}, {}, true);
+    upsert(StoredDocKey{"MeterGetKeys", getTestCollection()}, "hello");
+    upsert(StoredDocKey{"MeterGetKeys", getTestCollection()},
+           "hello",
+           {},
+           {},
+           true);
 
     const auto rsp = conn->execute(BinprotGenericCommand{
-            cb::mcbp::ClientOpcode::GetKeys, std::string{"\0", 1}});
+            cb::mcbp::ClientOpcode::GetKeys,
+            DocKey::makeWireEncodedString(getTestCollection(), {"\0", 1})});
     ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getData().empty());
     ASSERT_TRUE(rsp.getReadUnits()) << rsp.getDataString();
@@ -1307,8 +1363,9 @@ TEST_F(MeteringTest, MeterGetKeys) {
 /// GetMeta should cost 1 RU (we only look up metadata)
 TEST_F(MeteringTest, GetMetaNonexistentDocument) {
     // Verify cost of nonexistent value
-    const std::string id = "ClientOpcode::GetMeta";
-    const auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::GetMeta, id};
+    const StoredDocKey id{"ClientOpcode::GetMeta", getTestCollection()};
+    const auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::GetMeta,
+                                           std::string{id}};
     auto rsp = conn->execute(cmd);
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits());
@@ -1317,8 +1374,9 @@ TEST_F(MeteringTest, GetMetaNonexistentDocument) {
 
 /// GetMeta should cost 1 RU (we only look up metadata)
 TEST_F(MeteringTest, GetMetaPlainDocument) {
-    const std::string id = "ClientOpcode::GetMeta";
-    const auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::GetMeta, id};
+    const StoredDocKey id{"ClientOpcode::GetMeta", getTestCollection()};
+    const auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::GetMeta,
+                                           std::string{id}};
     upsert(id, getStringValue());
     const auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
@@ -1329,8 +1387,9 @@ TEST_F(MeteringTest, GetMetaPlainDocument) {
 
 /// GetMeta should cost 1 RU (we only look up metadata)
 TEST_F(MeteringTest, GetMetaDocumentWithXattr) {
-    const std::string id = "ClientOpcode::GetMeta";
-    const auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::GetMeta, id};
+    const StoredDocKey id{"ClientOpcode::GetMeta", getTestCollection()};
+    const auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::GetMeta,
+                                           std::string{id}};
     upsert(id, getStringValue(), "xattr", getStringValue());
     const auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
@@ -1341,12 +1400,12 @@ TEST_F(MeteringTest, GetMetaDocumentWithXattr) {
 
 /// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocGetNoSuchPath) {
-    const std::string id = "SubdocGetENoPath";
+    const StoredDocKey id{"SubdocGetENoPath", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
     ASSERT_LT(1, to_ru(calculateDocumentSize(id, value)));
     auto rsp = conn->execute(BinprotSubdocCommand{
-            cb::mcbp::ClientOpcode::SubdocGet, id, "hello"});
+            cb::mcbp::ClientOpcode::SubdocGet, std::string{id}, "hello"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, rsp.getStatus());
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
@@ -1355,11 +1414,11 @@ TEST_F(MeteringTest, SubdocGetNoSuchPath) {
 /// Subdoc get should cost the entire doc read; and not just the returned
 /// path
 TEST_F(MeteringTest, SubdocGet) {
-    const std::string id = "SubdocGet";
+    const StoredDocKey id{"SubdocGet", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
-    auto rsp = conn->execute(
-            BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocGet, id, "v1"});
+    auto rsp = conn->execute(BinprotSubdocCommand{
+            cb::mcbp::ClientOpcode::SubdocGet, std::string{id}, "v1"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     ASSERT_TRUE(rsp.getReadUnits());
     EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
@@ -1369,12 +1428,12 @@ TEST_F(MeteringTest, SubdocGet) {
 /// Subdoc get should cost the entire doc read (including xattr); and not just
 //  the returned path
 TEST_F(MeteringTest, SubdocGetWithXattr) {
-    const std::string id = "SubdocGetXattr";
+    const StoredDocKey id{"SubdocGetXattr", getTestCollection()};
     const auto value = getJsonDoc().dump();
     const auto xattr = getStringValue();
     upsert(id, value, "xattr", xattr);
-    auto rsp = conn->execute(
-            BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocGet, id, "v1"});
+    auto rsp = conn->execute(BinprotSubdocCommand{
+            cb::mcbp::ClientOpcode::SubdocGet, std::string{id}, "v1"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     ASSERT_TRUE(rsp.getReadUnits());
     EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
@@ -1384,11 +1443,11 @@ TEST_F(MeteringTest, SubdocGetWithXattr) {
 
 /// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocExistsNoSuchPath) {
-    const std::string id = "SubdocExistsNoSuchPath";
+    const StoredDocKey id{"SubdocExistsNoSuchPath", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
     auto rsp = conn->execute(BinprotSubdocCommand{
-            cb::mcbp::ClientOpcode::SubdocExists, id, "hello"});
+            cb::mcbp::ClientOpcode::SubdocExists, std::string{id}, "hello"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, rsp.getStatus());
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
@@ -1396,11 +1455,11 @@ TEST_F(MeteringTest, SubdocExistsNoSuchPath) {
 
 /// Subdoc exists should cost the entire doc read
 TEST_F(MeteringTest, SubdocExistsPlainDoc) {
-    const std::string id = "SubdocExistsPlainDoc";
+    const StoredDocKey id{"SubdocExistsPlainDoc", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
     auto rsp = conn->execute(BinprotSubdocCommand{
-            cb::mcbp::ClientOpcode::SubdocExists, id, "v1"});
+            cb::mcbp::ClientOpcode::SubdocExists, std::string{id}, "v1"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     ASSERT_TRUE(rsp.getReadUnits());
     EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
@@ -1409,12 +1468,12 @@ TEST_F(MeteringTest, SubdocExistsPlainDoc) {
 
 /// Subdoc exists should cost the entire doc read (that include xattrs)
 TEST_F(MeteringTest, SubdocExistsWithXattr) {
-    const std::string id = "SubdocExistsWithXattr";
+    const StoredDocKey id{"SubdocExistsWithXattr", getTestCollection()};
     const auto value = getJsonDoc().dump();
     const auto xattr = getStringValue();
     upsert(id, value, "xattr", xattr);
     auto rsp = conn->execute(BinprotSubdocCommand{
-            cb::mcbp::ClientOpcode::SubdocExists, id, "v1"});
+            cb::mcbp::ClientOpcode::SubdocExists, std::string{id}, "v1"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     ASSERT_TRUE(rsp.getReadUnits());
     EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
@@ -1424,12 +1483,15 @@ TEST_F(MeteringTest, SubdocExistsWithXattr) {
 
 /// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocDictAddEExist) {
-    const std::string id = "SubdocDictAddEExist";
+    const StoredDocKey id{"SubdocDictAddEExist", getTestCollection()};
     const auto value = getJsonDoc().dump();
     const auto xattr = getStringValue();
     upsert(id, value, "xattr", xattr);
-    auto rsp = conn->execute(BinprotSubdocCommand{
-            cb::mcbp::ClientOpcode::SubdocDictAdd, id, "v1", "true"});
+    auto rsp = conn->execute(
+            BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocDictAdd,
+                                 std::string{id},
+                                 "v1",
+                                 "true"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEexists, rsp.getStatus());
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
@@ -1437,12 +1499,12 @@ TEST_F(MeteringTest, SubdocDictAddEExist) {
 
 /// Dict add should cost RU for the document, and WUs for the new document
 TEST_F(MeteringTest, SubdocDictAddPlainDoc) {
-    const std::string id = "SubdocDictAddPlainDoc";
+    const StoredDocKey id{"SubdocDictAddPlainDoc", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
     auto v3 = getStringValue();
     auto rsp = conn->execute(BinprotSubdocCommand{
-            cb::mcbp::ClientOpcode::SubdocDictAdd, id, "v3", v3});
+            cb::mcbp::ClientOpcode::SubdocDictAdd, std::string{id}, "v3", v3});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
@@ -1452,12 +1514,13 @@ TEST_F(MeteringTest, SubdocDictAddPlainDoc) {
 
 /// Dict add should cost RU for the document, and 2x WUs for the new document
 TEST_F(MeteringTest, SubdocDictAddPlainDoc_Durability) {
-    const std::string id = "SubdocDictAddPlainDoc_Durability";
+    const StoredDocKey id{"SubdocDictAddPlainDoc_Durability",
+                          getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
     auto v3 = getStringValue();
     BinprotSubdocCommand cmd{
-            cb::mcbp::ClientOpcode::SubdocDictAdd, id, "v3", v3};
+            cb::mcbp::ClientOpcode::SubdocDictAdd, std::string{id}, "v3", v3};
     DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
@@ -1471,14 +1534,15 @@ TEST_F(MeteringTest, SubdocDictAddPlainDoc_Durability) {
 /// Dict add should cost RU for the document, and WUs for the new document
 /// (including the XAttrs copied over)
 TEST_F(MeteringTest, SubdocDictAddPlainDocWithXattr) {
-    const std::string id = "SubdocDictAddPlainDocWithXattr";
+    const StoredDocKey id{"SubdocDictAddPlainDocWithXattr",
+                          getTestCollection()};
     auto json = getJsonDoc();
     auto value = json.dump();
     auto v3 = getStringValue();
     const auto xattr = getStringValue();
     upsert(id, value, "xattr", xattr);
     auto rsp = conn->execute(BinprotSubdocCommand{
-            cb::mcbp::ClientOpcode::SubdocDictAdd, id, "v3", v3});
+            cb::mcbp::ClientOpcode::SubdocDictAdd, std::string{id}, "v3", v3});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
@@ -1490,14 +1554,15 @@ TEST_F(MeteringTest, SubdocDictAddPlainDocWithXattr) {
 /// Dict add should cost RU for the document, and 2x WUs for the new document
 /// (including the XAttrs copied over)
 TEST_F(MeteringTest, SubdocDictAddPlainDocWithXattr_Durability) {
-    const std::string id = "SubdocDictAddPlainDocWithXattr_Durability";
+    const StoredDocKey id{"SubdocDictAddPlainDocWithXattr_Durability",
+                          getTestCollection()};
     auto json = getJsonDoc();
     auto value = json.dump();
     auto v3 = getStringValue();
     const auto xattr = getStringValue();
     upsert(id, value, "xattr", xattr);
     BinprotSubdocCommand cmd{
-            cb::mcbp::ClientOpcode::SubdocDictAdd, id, "v3", v3};
+            cb::mcbp::ClientOpcode::SubdocDictAdd, std::string{id}, "v3", v3};
     DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
@@ -1511,13 +1576,13 @@ TEST_F(MeteringTest, SubdocDictAddPlainDocWithXattr_Durability) {
 
 /// Dict Upsert should cost RU for the document, and WUs for the new document
 TEST_F(MeteringTest, SubdocDictUpsertPlainDoc) {
-    const std::string id = "SubdocDictUpsertPlainDoc";
+    const StoredDocKey id{"SubdocDictUpsertPlainDoc", getTestCollection()};
     auto json = getJsonDoc();
     const auto value = json.dump();
     upsert(id, value);
     auto rsp = conn->execute(
             BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                                 id,
+                                 std::string{id},
                                  "v1",
                                  R"("this is the new value")"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
@@ -1530,12 +1595,14 @@ TEST_F(MeteringTest, SubdocDictUpsertPlainDoc) {
 
 /// Dict Upsert should cost RU for the document, and 2x WUs for the new document
 TEST_F(MeteringTest, SubdocDictUpsertPlainDoc_Durability) {
-    const std::string id = "SubdocDictUpsertPlainDoc_Durability";
+    const StoredDocKey id{"SubdocDictUpsertPlainDoc_Durability",
+                          getTestCollection()};
     auto json = getJsonDoc();
     const auto value = json.dump();
     upsert(id, value);
     BinprotSubdocCommand cmd{cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                             id,
+                             std::string{id},
+
                              "v1",
                              R"("this is the new value")"};
     DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
@@ -1552,14 +1619,15 @@ TEST_F(MeteringTest, SubdocDictUpsertPlainDoc_Durability) {
 /// Dict Upsert should cost RU for the document, and WUs for the new document
 /// (including the XAttrs copied over)
 TEST_F(MeteringTest, SubdocDictUpsertPlainDocWithXattr) {
-    const std::string id = "SubdocDictAddPlainDocWithXattr";
+    const StoredDocKey id{"SubdocDictAddPlainDocWithXattr",
+                          getTestCollection()};
     auto json = getJsonDoc();
     auto value = json.dump();
     const auto xattr = getStringValue();
     upsert(id, value, "xattr", xattr);
     auto rsp = conn->execute(
             BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                                 id,
+                                 std::string{id},
                                  "v1",
                                  R"("this is the new value")"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
@@ -1573,13 +1641,14 @@ TEST_F(MeteringTest, SubdocDictUpsertPlainDocWithXattr) {
 /// Dict Upsert should cost RU for the document, and 2x WUs for the new document
 /// (including the XAttrs copied over)
 TEST_F(MeteringTest, SubdocDictUpsertPlainDocWithXattr_Durability) {
-    const std::string id = "SubdocDictAddPlainDocWithXattr_Durability";
+    const StoredDocKey id{"SubdocDictAddPlainDocWithXattr_Durability",
+                          getTestCollection()};
     auto json = getJsonDoc();
     auto value = json.dump();
     const auto xattr = getStringValue();
     upsert(id, value, "xattr", xattr);
     BinprotSubdocCommand cmd{cb::mcbp::ClientOpcode::SubdocDictUpsert,
-                             id,
+                             std::string{id},
                              "v1",
                              R"("this is the new value")"};
     DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
@@ -1595,11 +1664,11 @@ TEST_F(MeteringTest, SubdocDictUpsertPlainDocWithXattr_Durability) {
 
 /// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocDeleteENoPath) {
-    const std::string id = "SubdocDeleteENoPath";
+    const StoredDocKey id{"SubdocDeleteENoPath", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
     auto rsp = conn->execute(BinprotSubdocCommand{
-            cb::mcbp::ClientOpcode::SubdocDelete, id, "ENOPATH"});
+            cb::mcbp::ClientOpcode::SubdocDelete, std::string{id}, "ENOPATH"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, rsp.getStatus());
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
@@ -1608,12 +1677,12 @@ TEST_F(MeteringTest, SubdocDeleteENoPath) {
 /// Delete should cost the full read, and the write of the full size of the
 /// new document
 TEST_F(MeteringTest, SubdocDeletePlainDoc) {
-    const std::string id = "SubdocDeletePlainDoc";
+    const StoredDocKey id{"SubdocDeletePlainDoc", getTestCollection()};
     auto json = getJsonDoc();
     const auto value = json.dump();
     upsert(id, value);
     auto rsp = conn->execute(BinprotSubdocCommand{
-            cb::mcbp::ClientOpcode::SubdocDelete, id, "fill"});
+            cb::mcbp::ClientOpcode::SubdocDelete, std::string{id}, "fill"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     json.erase("fill");
@@ -1625,11 +1694,13 @@ TEST_F(MeteringTest, SubdocDeletePlainDoc) {
 /// Delete should cost the full read, and the write of the full size of the
 /// new document
 TEST_F(MeteringTest, SubdocDeletePlainDoc_Durability) {
-    const std::string id = "SubdocDeletePlainDoc_Durability";
+    const StoredDocKey id{"SubdocDeletePlainDoc_Durability",
+                          getTestCollection()};
     auto json = getJsonDoc();
     const auto value = json.dump();
     upsert(id, value);
-    BinprotSubdocCommand cmd{cb::mcbp::ClientOpcode::SubdocDelete, id, "fill"};
+    BinprotSubdocCommand cmd{
+            cb::mcbp::ClientOpcode::SubdocDelete, std::string{id}, "fill"};
     DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
@@ -1644,13 +1715,13 @@ TEST_F(MeteringTest, SubdocDeletePlainDoc_Durability) {
 /// Delete should cost the full read (including xattrs), and the write of the
 /// full size of the new document (including the xattrs copied over)
 TEST_F(MeteringTest, SubdocDeletePlainDocWithXattr) {
-    const std::string id = "SubdocDeletePlainDocWithXattr";
+    const StoredDocKey id{"SubdocDeletePlainDocWithXattr", getTestCollection()};
     auto json = getJsonDoc();
     const auto value = json.dump();
     const auto xattr = getStringValue();
     upsert(id, value, "xattr", xattr);
     auto rsp = conn->execute(BinprotSubdocCommand{
-            cb::mcbp::ClientOpcode::SubdocDelete, id, "fill"});
+            cb::mcbp::ClientOpcode::SubdocDelete, std::string{id}, "fill"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
@@ -1662,12 +1733,14 @@ TEST_F(MeteringTest, SubdocDeletePlainDocWithXattr) {
 /// Delete should cost the full read (including xattrs), and the write 2x of the
 /// full size of the new document (including the xattrs copied over)
 TEST_F(MeteringTest, SubdocDeletePlainDocWithXattr_Durability) {
-    const std::string id = "SubdocDeletePlainDocWithXattr_Durability";
+    const StoredDocKey id{"SubdocDeletePlainDocWithXattr_Durability",
+                          getTestCollection()};
     auto json = getJsonDoc();
     const auto value = json.dump();
     const auto xattr = getStringValue();
     upsert(id, value, "xattr", xattr);
-    BinprotSubdocCommand cmd{cb::mcbp::ClientOpcode::SubdocDelete, id, "fill"};
+    BinprotSubdocCommand cmd{
+            cb::mcbp::ClientOpcode::SubdocDelete, std::string{id}, "fill"};
     DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
@@ -1681,11 +1754,14 @@ TEST_F(MeteringTest, SubdocDeletePlainDocWithXattr_Durability) {
 
 /// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocReplaceENoPath) {
-    const std::string id = "SubdocReplaceENoPath";
+    const StoredDocKey id{"SubdocReplaceENoPath", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
-    auto rsp = conn->execute(BinprotSubdocCommand{
-            cb::mcbp::ClientOpcode::SubdocReplace, id, "ENOPATH", "true"});
+    auto rsp = conn->execute(
+            BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocReplace,
+                                 std::string{id},
+                                 "ENOPATH",
+                                 "true"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, rsp.getStatus());
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
@@ -1694,12 +1770,15 @@ TEST_F(MeteringTest, SubdocReplaceENoPath) {
 /// Replace should cost the read of the document, and the write of the
 /// new document
 TEST_F(MeteringTest, SubdocReplacePlainDoc) {
-    const std::string id = "SubdocReplacePlainDoc";
+    const StoredDocKey id{"SubdocReplacePlainDoc", getTestCollection()};
     auto json = getJsonDoc();
     const auto value = json.dump();
     upsert(id, value);
-    auto rsp = conn->execute(BinprotSubdocCommand{
-            cb::mcbp::ClientOpcode::SubdocReplace, id, "fill", "true"});
+    auto rsp = conn->execute(
+            BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocReplace,
+                                 std::string{id},
+                                 "fill",
+                                 "true"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     json["fill"] = true;
@@ -1711,12 +1790,15 @@ TEST_F(MeteringTest, SubdocReplacePlainDoc) {
 /// Replace should cost the read of the document, and the write 2x of the
 /// new document
 TEST_F(MeteringTest, SubdocReplacePlainDoc_Durability) {
-    const std::string id = "SubdocReplacePlainDoc_Durability";
+    const StoredDocKey id{"SubdocReplacePlainDoc_Durability",
+                          getTestCollection()};
     auto json = getJsonDoc();
     const auto value = json.dump();
     upsert(id, value);
-    BinprotSubdocCommand cmd{
-            cb::mcbp::ClientOpcode::SubdocReplace, id, "fill", "true"};
+    BinprotSubdocCommand cmd{cb::mcbp::ClientOpcode::SubdocReplace,
+                             std::string{id},
+                             "fill",
+                             "true"};
     DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
@@ -1731,13 +1813,17 @@ TEST_F(MeteringTest, SubdocReplacePlainDoc_Durability) {
 /// Replace should cost the full read (including xattrs), and the write of the
 /// full size of the new document (including the xattrs copied over)
 TEST_F(MeteringTest, SubdocReplacePlainDocWithXattr) {
-    const std::string id = "SubdocReplacePlainDocWithXattr";
+    const StoredDocKey id{"SubdocReplacePlainDocWithXattr",
+                          getTestCollection()};
     auto json = getJsonDoc();
     const auto value = json.dump();
     const auto xattr = getStringValue();
     upsert(id, value, "xattr", xattr);
-    auto rsp = conn->execute(BinprotSubdocCommand{
-            cb::mcbp::ClientOpcode::SubdocReplace, id, "fill", "true"});
+    auto rsp = conn->execute(
+            BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocReplace,
+                                 std::string{id},
+                                 "fill",
+                                 "true"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
@@ -1749,13 +1835,16 @@ TEST_F(MeteringTest, SubdocReplacePlainDocWithXattr) {
 /// Replace should cost the full read (including xattrs), and the write 2x of
 /// the full size of the new document (including the xattrs copied over)
 TEST_F(MeteringTest, SubdocReplacePlainDocWithXattr_Durability) {
-    const std::string id = "SubdocReplacePlainDocWithXattr_Durability";
+    const StoredDocKey id{"SubdocReplacePlainDocWithXattr_Durability",
+                          getTestCollection()};
     auto json = getJsonDoc();
     const auto value = json.dump();
     const auto xattr = getStringValue();
     upsert(id, value, "xattr", xattr);
-    BinprotSubdocCommand cmd{
-            cb::mcbp::ClientOpcode::SubdocReplace, id, "fill", "true"};
+    BinprotSubdocCommand cmd{cb::mcbp::ClientOpcode::SubdocReplace,
+                             std::string{id},
+                             "fill",
+                             "true"};
     DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
@@ -1769,11 +1858,14 @@ TEST_F(MeteringTest, SubdocReplacePlainDocWithXattr_Durability) {
 
 /// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocCounterENoCounter) {
-    const std::string id = "SubdocCounterENoPath";
+    const StoredDocKey id{"SubdocCounterENoPath", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
-    auto rsp = conn->execute(BinprotSubdocCommand{
-            cb::mcbp::ClientOpcode::SubdocCounter, id, "array", "1"});
+    auto rsp = conn->execute(
+            BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocCounter,
+                                 std::string{id},
+                                 "array",
+                                 "1"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathMismatch, rsp.getStatus());
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
@@ -1782,11 +1874,14 @@ TEST_F(MeteringTest, SubdocCounterENoCounter) {
 /// Counter should cost the read of the full document and the write of
 /// the new document
 TEST_F(MeteringTest, SubdocCounterPlainDoc) {
-    const std::string id = "SubdocCounterPlainDoc";
+    const StoredDocKey id{"SubdocCounterPlainDoc", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
-    auto rsp = conn->execute(BinprotSubdocCommand{
-            cb::mcbp::ClientOpcode::SubdocCounter, id, "counter", "1"});
+    auto rsp = conn->execute(
+            BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocCounter,
+                                 std::string{id},
+                                 "counter",
+                                 "1"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
@@ -1796,11 +1891,14 @@ TEST_F(MeteringTest, SubdocCounterPlainDoc) {
 /// Counter should cost the read of the full document and the write 2x of
 /// the new document
 TEST_F(MeteringTest, SubdocCounterPlainDoc_Durability) {
-    const std::string id = "SubdocCounterPlainDoc_Durability";
+    const StoredDocKey id{"SubdocCounterPlainDoc_Durability",
+                          getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
-    BinprotSubdocCommand cmd{
-            cb::mcbp::ClientOpcode::SubdocCounter, id, "counter", "1"};
+    BinprotSubdocCommand cmd{cb::mcbp::ClientOpcode::SubdocCounter,
+                             std::string{id},
+                             "counter",
+                             "1"};
     DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
@@ -1814,12 +1912,16 @@ TEST_F(MeteringTest, SubdocCounterPlainDoc_Durability) {
 /// Counter should cost the read of the full document including xattr and
 /// write of the new document with the xattrs copied over
 TEST_F(MeteringTest, SubdocCounterPlainDocWithXattr) {
-    const std::string id = "SubdocCounterPlainDocWithXattr";
+    const StoredDocKey id{"SubdocCounterPlainDocWithXattr",
+                          getTestCollection()};
     const auto value = getJsonDoc().dump();
     const auto xattr = getStringValue();
     upsert(id, value, "xattr", xattr);
-    auto rsp = conn->execute(BinprotSubdocCommand{
-            cb::mcbp::ClientOpcode::SubdocCounter, id, "counter", "1"});
+    auto rsp = conn->execute(
+            BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocCounter,
+                                 std::string{id},
+                                 "counter",
+                                 "1"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
@@ -1830,12 +1932,15 @@ TEST_F(MeteringTest, SubdocCounterPlainDocWithXattr) {
 /// Counter should cost the read of the full document including xattr and
 /// write 2x of the new document with the xattrs copied over
 TEST_F(MeteringTest, SubdocCounterPlainDocWithXattr_Durability) {
-    const std::string id = "SubdocCounterPlainDocWithXattr_Durability";
+    const StoredDocKey id{"SubdocCounterPlainDocWithXattr_Durability",
+                          getTestCollection()};
     const auto value = getJsonDoc().dump();
     const auto xattr = getStringValue();
     upsert(id, value, "xattr", xattr);
-    BinprotSubdocCommand cmd{
-            cb::mcbp::ClientOpcode::SubdocCounter, id, "counter", "1"};
+    BinprotSubdocCommand cmd{cb::mcbp::ClientOpcode::SubdocCounter,
+                             std::string{id},
+                             "counter",
+                             "1"};
     DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
@@ -1848,11 +1953,13 @@ TEST_F(MeteringTest, SubdocCounterPlainDocWithXattr_Durability) {
 
 /// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocGetCountENoPath) {
-    const std::string id = "SubdocGetCountENoPath";
+    const StoredDocKey id{"SubdocGetCountENoPath", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
-    auto rsp = conn->execute(BinprotSubdocCommand{
-            cb::mcbp::ClientOpcode::SubdocGetCount, id, "ENOPATH"});
+    auto rsp = conn->execute(
+            BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocGetCount,
+                                 std::string{id},
+                                 "ENOPATH"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, rsp.getStatus());
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
@@ -1860,11 +1967,11 @@ TEST_F(MeteringTest, SubdocGetCountENoPath) {
 
 /// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocGetCountENotArray) {
-    const std::string id = "SubdocGetCountENotArray";
+    const StoredDocKey id{"SubdocGetCountENotArray", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
     auto rsp = conn->execute(BinprotSubdocCommand{
-            cb::mcbp::ClientOpcode::SubdocGetCount, id, "v1"});
+            cb::mcbp::ClientOpcode::SubdocGetCount, std::string{id}, "v1"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathMismatch, rsp.getStatus());
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
@@ -1872,11 +1979,11 @@ TEST_F(MeteringTest, SubdocGetCountENotArray) {
 
 /// GetCount should cost the read of the entire document
 TEST_F(MeteringTest, SubdocGetCountPlainDoc) {
-    const std::string id = "SubdocGetCountPlainDoc";
+    const StoredDocKey id{"SubdocGetCountPlainDoc", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
     auto rsp = conn->execute(BinprotSubdocCommand{
-            cb::mcbp::ClientOpcode::SubdocGetCount, id, "array"});
+            cb::mcbp::ClientOpcode::SubdocGetCount, std::string{id}, "array"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     ASSERT_TRUE(rsp.getReadUnits());
     EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
@@ -1885,12 +1992,13 @@ TEST_F(MeteringTest, SubdocGetCountPlainDoc) {
 
 /// GetCount should cost the read of the entire document including xattrs
 TEST_F(MeteringTest, SubdocGetCountPlainDocWithXattr) {
-    const std::string id = "SubdocGetCountPlainDocWithXattr";
+    const StoredDocKey id{"SubdocGetCountPlainDocWithXattr",
+                          getTestCollection()};
     const auto value = getJsonDoc().dump();
     const auto xattr = getStringValue();
     upsert(id, value, "xattr", xattr);
     auto rsp = conn->execute(BinprotSubdocCommand{
-            cb::mcbp::ClientOpcode::SubdocGetCount, id, "array"});
+            cb::mcbp::ClientOpcode::SubdocGetCount, std::string{id}, "array"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     ASSERT_TRUE(rsp.getReadUnits());
     EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
@@ -1900,12 +2008,12 @@ TEST_F(MeteringTest, SubdocGetCountPlainDocWithXattr) {
 
 /// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocArrayPushLastENoPath) {
-    const std::string id = "SubdocArrayPushLastENoPath";
+    const StoredDocKey id{"SubdocArrayPushLastENoPath", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
     auto rsp = conn->execute(
             BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocArrayPushLast,
-                                 id,
+                                 std::string{id},
                                  "ENOPATH",
                                  "true"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, rsp.getStatus());
@@ -1915,12 +2023,12 @@ TEST_F(MeteringTest, SubdocArrayPushLastENoPath) {
 
 /// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocArrayPushLastENotArray) {
-    const std::string id = "SubdocArrayPushLastENotArray";
+    const StoredDocKey id{"SubdocArrayPushLastENotArray", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
     auto rsp = conn->execute(
             BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocArrayPushLast,
-                                 id,
+                                 std::string{id},
                                  "counter",
                                  "true"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathMismatch, rsp.getStatus());
@@ -1931,11 +2039,14 @@ TEST_F(MeteringTest, SubdocArrayPushLastENotArray) {
 /// ArrayPushLast should cost the read of the document, and then the
 /// write of the new document
 TEST_F(MeteringTest, SubdocArrayPushLastPlainDoc) {
-    const std::string id = "SubdocArrayPushLastPlainDoc";
+    const StoredDocKey id{"SubdocArrayPushLastPlainDoc", getTestCollection()};
     auto json = getJsonDoc();
     upsert(id, json.dump());
-    auto rsp = conn->execute(BinprotSubdocCommand{
-            cb::mcbp::ClientOpcode::SubdocArrayPushLast, id, "array", "true"});
+    auto rsp = conn->execute(
+            BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+                                 std::string{id},
+                                 "array",
+                                 "true"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     json["array"].push_back(true);
@@ -1946,11 +2057,14 @@ TEST_F(MeteringTest, SubdocArrayPushLastPlainDoc) {
 /// ArrayPushLast should cost the read of the document, and then 2x the
 /// write of the new document
 TEST_F(MeteringTest, SubdocArrayPushLastPlainDoc_Durability) {
-    const std::string id = "SubdocArrayPushLastPlainDoc_Durability";
+    const StoredDocKey id{"SubdocArrayPushLastPlainDoc_Durability",
+                          getTestCollection()};
     auto json = getJsonDoc();
     upsert(id, json.dump());
-    BinprotSubdocCommand cmd{
-            cb::mcbp::ClientOpcode::SubdocArrayPushLast, id, "array", "true"};
+    BinprotSubdocCommand cmd{cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+                             std::string{id},
+                             "array",
+                             "true"};
     DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
@@ -1964,12 +2078,16 @@ TEST_F(MeteringTest, SubdocArrayPushLastPlainDoc_Durability) {
 /// ArrayPushLast should cost the read of the document, and then the
 /// write of the new document (including xattrs copied over)
 TEST_F(MeteringTest, SubdocArrayPushLastPlainDocWithXattr) {
-    const std::string id = "SubdocArrayPushLastPlainDocWithXattr";
+    const StoredDocKey id{"SubdocArrayPushLastPlainDocWithXattr",
+                          getTestCollection()};
     auto json = getJsonDoc();
     const auto xattr = getStringValue();
     upsert(id, json.dump(), "xattr", xattr);
-    auto rsp = conn->execute(BinprotSubdocCommand{
-            cb::mcbp::ClientOpcode::SubdocArrayPushLast, id, "array", "true"});
+    auto rsp = conn->execute(
+            BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+                                 std::string{id},
+                                 "array",
+                                 "true"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     json["array"].push_back(true);
@@ -1981,12 +2099,15 @@ TEST_F(MeteringTest, SubdocArrayPushLastPlainDocWithXattr) {
 /// ArrayPushLast should cost the read of the document, and then 2x the
 /// write of the new document (including xattrs copied over)
 TEST_F(MeteringTest, SubdocArrayPushLastPlainDocWithXattr_Durability) {
-    const std::string id = "SubdocArrayPushLastPlainDocWithXattr_Durability";
+    const StoredDocKey id{"SubdocArrayPushLastPlainDocWithXattr_Durability",
+                          getTestCollection()};
     auto json = getJsonDoc();
     const auto xattr = getStringValue();
     upsert(id, json.dump(), "xattr", xattr);
-    BinprotSubdocCommand cmd{
-            cb::mcbp::ClientOpcode::SubdocArrayPushLast, id, "array", "true"};
+    BinprotSubdocCommand cmd{cb::mcbp::ClientOpcode::SubdocArrayPushLast,
+                             std::string{id},
+                             "array",
+                             "true"};
     DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
@@ -2000,12 +2121,12 @@ TEST_F(MeteringTest, SubdocArrayPushLastPlainDocWithXattr_Durability) {
 
 /// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocArrayPushFirstENoPath) {
-    const std::string id = "SubdocArrayPushFirstENoPath";
+    const StoredDocKey id{"SubdocArrayPushFirstENoPath", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
     auto rsp = conn->execute(
             BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
-                                 id,
+                                 std::string{id},
                                  "ENOPATH",
                                  "true"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, rsp.getStatus());
@@ -2015,12 +2136,12 @@ TEST_F(MeteringTest, SubdocArrayPushFirstENoPath) {
 
 /// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocArrayPushFirstENotArray) {
-    const std::string id = "SubdocArrayPushFirstENotArray";
+    const StoredDocKey id{"SubdocArrayPushFirstENotArray", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
     auto rsp = conn->execute(
             BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
-                                 id,
+                                 std::string{id},
                                  "counter",
                                  "true"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathMismatch, rsp.getStatus());
@@ -2031,11 +2152,14 @@ TEST_F(MeteringTest, SubdocArrayPushFirstENotArray) {
 /// ArrayPushFirst should cost the read of the document, and then the
 /// write of the new document
 TEST_F(MeteringTest, SubdocArrayPushFirstPlainDoc) {
-    const std::string id = "SubdocArrayPushFirstPlainDoc";
+    const StoredDocKey id{"SubdocArrayPushFirstPlainDoc", getTestCollection()};
     auto json = getJsonDoc();
     upsert(id, json.dump());
-    auto rsp = conn->execute(BinprotSubdocCommand{
-            cb::mcbp::ClientOpcode::SubdocArrayPushFirst, id, "array", "true"});
+    auto rsp = conn->execute(
+            BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
+                                 std::string{id},
+                                 "array",
+                                 "true"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     json["array"].insert(json["array"].begin(), true);
@@ -2046,11 +2170,14 @@ TEST_F(MeteringTest, SubdocArrayPushFirstPlainDoc) {
 /// ArrayPushFirst should cost the read of the document, and then 2x the
 /// write of the new document
 TEST_F(MeteringTest, SubdocArrayPushFirstPlainDoc_Durability) {
-    const std::string id = "SubdocArrayPushFirstPlainDoc_Durability";
+    const StoredDocKey id{"SubdocArrayPushFirstPlainDoc_Durability",
+                          getTestCollection()};
     auto json = getJsonDoc();
     upsert(id, json.dump());
-    BinprotSubdocCommand cmd{
-            cb::mcbp::ClientOpcode::SubdocArrayPushFirst, id, "array", "true"};
+    BinprotSubdocCommand cmd{cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
+                             std::string{id},
+                             "array",
+                             "true"};
     DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
@@ -2064,12 +2191,16 @@ TEST_F(MeteringTest, SubdocArrayPushFirstPlainDoc_Durability) {
 /// ArrayPushFirst should cost the read of the document, and then the
 /// write of the new document (including xattrs copied over)
 TEST_F(MeteringTest, SubdocArrayPushFirstPlainDocWithXattr) {
-    const std::string id = "SubdocArrayPushFirstPlainDocWithXattr";
+    const StoredDocKey id{"SubdocArrayPushFirstPlainDocWithXattr",
+                          getTestCollection()};
     auto json = getJsonDoc();
     const auto xattr = getStringValue();
     upsert(id, json.dump(), "xattr", xattr);
-    auto rsp = conn->execute(BinprotSubdocCommand{
-            cb::mcbp::ClientOpcode::SubdocArrayPushFirst, id, "array", "true"});
+    auto rsp = conn->execute(
+            BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
+                                 std::string{id},
+                                 "array",
+                                 "true"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     json["array"].insert(json["array"].begin(), true);
@@ -2081,12 +2212,15 @@ TEST_F(MeteringTest, SubdocArrayPushFirstPlainDocWithXattr) {
 /// ArrayPushFirst should cost the read of the document, and then 2x the
 /// write of the new document (including xattrs copied over)
 TEST_F(MeteringTest, SubdocArrayPushFirstPlainDocWithXattr_Durability) {
-    const std::string id = "SubdocArrayPushFirstPlainDocWithXattr_Durability";
+    const StoredDocKey id{"SubdocArrayPushFirstPlainDocWithXattr_Durability",
+                          getTestCollection()};
     auto json = getJsonDoc();
     const auto xattr = getStringValue();
     upsert(id, json.dump(), "xattr", xattr);
-    BinprotSubdocCommand cmd{
-            cb::mcbp::ClientOpcode::SubdocArrayPushFirst, id, "array", "true"};
+    BinprotSubdocCommand cmd{cb::mcbp::ClientOpcode::SubdocArrayPushFirst,
+                             std::string{id},
+                             "array",
+                             "true"};
     DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
@@ -2100,12 +2234,12 @@ TEST_F(MeteringTest, SubdocArrayPushFirstPlainDocWithXattr_Durability) {
 
 /// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocArrayAddUniqueENoPath) {
-    const std::string id = "SubdocArrayAddUniqueENoPath";
+    const StoredDocKey id{"SubdocArrayAddUniqueENoPath", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
     auto rsp = conn->execute(
             BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
-                                 id,
+                                 std::string{id},
                                  "ENOPATH",
                                  "true"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, rsp.getStatus());
@@ -2115,11 +2249,14 @@ TEST_F(MeteringTest, SubdocArrayAddUniqueENoPath) {
 
 /// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocArrayAddUniqueENotArray) {
-    const std::string id = "SubdocArrayAddUniqueENotArray";
+    const StoredDocKey id{"SubdocArrayAddUniqueENotArray", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
-    auto rsp = conn->execute(BinprotSubdocCommand{
-            cb::mcbp::ClientOpcode::SubdocArrayAddUnique, id, "v1", "true"});
+    auto rsp = conn->execute(
+            BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
+                                 std::string{id},
+                                 "v1",
+                                 "true"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathMismatch, rsp.getStatus());
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
@@ -2127,12 +2264,12 @@ TEST_F(MeteringTest, SubdocArrayAddUniqueENotArray) {
 
 /// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocArrayAddUniqueEExists) {
-    const std::string id = "SubdocArrayAddUniqueEExists";
+    const StoredDocKey id{"SubdocArrayAddUniqueEExists", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
     auto rsp = conn->execute(
             BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
-                                 id,
+                                 std::string{id},
                                  "array",
                                  R"("1")"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEexists, rsp.getStatus());
@@ -2143,12 +2280,13 @@ TEST_F(MeteringTest, SubdocArrayAddUniqueEExists) {
 /// ArrayAddUnique should cost the read of the document, and the write
 /// of the size of the new document
 TEST_F(MeteringTest, SubdocArrayAddUniquePlainDoc) {
-    const std::string id = "SubdocArrayAddUniquePlainDocWithXattr";
+    const StoredDocKey id{"SubdocArrayAddUniquePlainDocWithXattr",
+                          getTestCollection()};
     auto json = getJsonDoc();
     upsert(id, json.dump());
     auto rsp = conn->execute(
             BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
-                                 id,
+                                 std::string{id},
                                  "array",
                                  R"("Unique value")"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
@@ -2162,11 +2300,12 @@ TEST_F(MeteringTest, SubdocArrayAddUniquePlainDoc) {
 /// ArrayAddUnique should cost the read of the document, and the write
 /// of the size of the new document
 TEST_F(MeteringTest, SubdocArrayAddUniquePlainDoc_Durability) {
-    const std::string id = "SubdocArrayAddUniquePlainDocWithXattr_Durability";
+    const StoredDocKey id{"SubdocArrayAddUniquePlainDocWithXattr_Durability",
+                          getTestCollection()};
     auto json = getJsonDoc();
     upsert(id, json.dump());
     BinprotSubdocCommand cmd{cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
-                             id,
+                             std::string{id},
                              "array",
                              R"("Unique value")"};
     DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
@@ -2183,13 +2322,14 @@ TEST_F(MeteringTest, SubdocArrayAddUniquePlainDoc_Durability) {
 /// ArrayAddUnique should cost the read of the document, and the write
 /// of the size of the new document including the XATTRs copied over
 TEST_F(MeteringTest, SubdocArrayAddUniquePlainDocWithXattr) {
-    const std::string id = "SubdocArrayAddUniquePlainDocWithXattr";
+    const StoredDocKey id{"SubdocArrayAddUniquePlainDocWithXattr",
+                          getTestCollection()};
     auto json = getJsonDoc();
     const auto xattr = getStringValue();
     upsert(id, json.dump(), "xattr", xattr);
     auto rsp = conn->execute(
             BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
-                                 id,
+                                 std::string{id},
                                  "array",
                                  R"("Unique value")"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
@@ -2203,12 +2343,13 @@ TEST_F(MeteringTest, SubdocArrayAddUniquePlainDocWithXattr) {
 /// ArrayAddUnique should cost the read of the document, and the write
 /// 2x of the size of the new document including the XATTRs copied over
 TEST_F(MeteringTest, SubdocArrayAddUniquePlainDocWithXattr_Durability) {
-    const std::string id = "SubdocArrayAddUniquePlainDocWithXattr_Durability";
+    const StoredDocKey id{"SubdocArrayAddUniquePlainDocWithXattr_Durability",
+                          getTestCollection()};
     auto json = getJsonDoc();
     const auto xattr = getStringValue();
     upsert(id, json.dump(), "xattr", xattr);
     BinprotSubdocCommand cmd{cb::mcbp::ClientOpcode::SubdocArrayAddUnique,
-                             id,
+                             std::string{id},
                              "array",
                              R"("Unique value")"};
     DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
@@ -2224,12 +2365,12 @@ TEST_F(MeteringTest, SubdocArrayAddUniquePlainDocWithXattr_Durability) {
 
 /// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocArrayInsertENoPath) {
-    const std::string id = "SubdocArrayInsertENoPath";
+    const StoredDocKey id{"SubdocArrayInsertENoPath", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
     auto rsp = conn->execute(
             BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocArrayInsert,
-                                 id,
+                                 std::string{id},
                                  "ENOPATH.[0]",
                                  "true"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, rsp.getStatus());
@@ -2239,11 +2380,14 @@ TEST_F(MeteringTest, SubdocArrayInsertENoPath) {
 
 /// MB-53560: Failing operations should not cost read or write
 TEST_F(MeteringTest, SubdocArrayInsertENotArray) {
-    const std::string id = "SubdocArrayInsertENotArray";
+    const StoredDocKey id{"SubdocArrayInsertENotArray", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
-    auto rsp = conn->execute(BinprotSubdocCommand{
-            cb::mcbp::ClientOpcode::SubdocArrayInsert, id, "v1.[0]", "true"});
+    auto rsp = conn->execute(
+            BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocArrayInsert,
+                                 std::string{id},
+                                 "v1.[0]",
+                                 "true"});
     EXPECT_EQ(cb::mcbp::Status::SubdocPathMismatch, rsp.getStatus());
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     EXPECT_FALSE(rsp.getWriteUnits()) << *rsp.getWriteUnits();
@@ -2252,12 +2396,12 @@ TEST_F(MeteringTest, SubdocArrayInsertENotArray) {
 /// ArrayInsert should cost the read of the document, and the write of
 /// the size of the new document
 TEST_F(MeteringTest, SubdocArrayInsertPlainDoc) {
-    const std::string id = "SubdocArrayInsertPlainDoc";
+    const StoredDocKey id{"SubdocArrayInsertPlainDoc", getTestCollection()};
     auto json = getJsonDoc();
     upsert(id, json.dump());
     auto rsp = conn->execute(
             BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocArrayInsert,
-                                 id,
+                                 std::string{id},
                                  "array.[0]",
                                  "true"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
@@ -2271,11 +2415,14 @@ TEST_F(MeteringTest, SubdocArrayInsertPlainDoc) {
 /// ArrayInsert should cost the read of the document, and the write 2x of
 /// the size of the new document
 TEST_F(MeteringTest, SubdocArrayInsertPlainDoc_Durability) {
-    const std::string id = "SubdocArrayInsertPlainDoc_Durability";
+    const StoredDocKey id{"SubdocArrayInsertPlainDoc_Durability",
+                          getTestCollection()};
     auto json = getJsonDoc();
     upsert(id, json.dump());
-    BinprotSubdocCommand cmd{
-            cb::mcbp::ClientOpcode::SubdocArrayInsert, id, "array.[0]", "true"};
+    BinprotSubdocCommand cmd{cb::mcbp::ClientOpcode::SubdocArrayInsert,
+                             std::string{id},
+                             "array.[0]",
+                             "true"};
     DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
@@ -2290,13 +2437,14 @@ TEST_F(MeteringTest, SubdocArrayInsertPlainDoc_Durability) {
 /// ArrayInsert should cost the read of the document, and the write of
 /// the size of the new document (including the xattrs copied over)
 TEST_F(MeteringTest, SubdocArrayInsertPlainDocWithXattr) {
-    const std::string id = "SubdocArrayInsertPlainDocWithXattr";
+    const StoredDocKey id{"SubdocArrayInsertPlainDocWithXattr",
+                          getTestCollection()};
     auto json = getJsonDoc();
     const auto xattr = getStringValue();
     upsert(id, json.dump(), "xattr", xattr);
     auto rsp = conn->execute(
             BinprotSubdocCommand{cb::mcbp::ClientOpcode::SubdocArrayInsert,
-                                 id,
+                                 std::string{id},
                                  "array.[0]",
                                  "true"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
@@ -2310,12 +2458,15 @@ TEST_F(MeteringTest, SubdocArrayInsertPlainDocWithXattr) {
 /// ArrayInsert should cost the read of the document, and the write 2x of
 /// the size of the new document (including the xattrs copied over)
 TEST_F(MeteringTest, SubdocArrayInsertPlainDocWithXattr_Durability) {
-    const std::string id = "SubdocArrayInsertPlainDocWithXattr_Durability";
+    const StoredDocKey id{"SubdocArrayInsertPlainDocWithXattr_Durability",
+                          getTestCollection()};
     auto json = getJsonDoc();
     const auto xattr = getStringValue();
     upsert(id, json.dump(), "xattr", xattr);
-    BinprotSubdocCommand cmd{
-            cb::mcbp::ClientOpcode::SubdocArrayInsert, id, "array.[0]", "true"};
+    BinprotSubdocCommand cmd{cb::mcbp::ClientOpcode::SubdocArrayInsert,
+                             std::string{id},
+                             "array.[0]",
+                             "true"};
     DurabilityFrameInfo fi(cb::durability::Level::MajorityAndPersistOnMaster);
     cmd.addFrameInfo(fi);
     auto rsp = conn->execute(cmd);
@@ -2330,13 +2481,13 @@ TEST_F(MeteringTest, SubdocArrayInsertPlainDocWithXattr_Durability) {
 /// MultiLookup should cost the read of the full document even if no
 /// data gets returned
 TEST_F(MeteringTest, SubdocMultiLookupAllMiss) {
-    const std::string id = "SubdocMultiLookupAllMiss";
+    const StoredDocKey id{"SubdocMultiLookupAllMiss", getTestCollection()};
     auto json = getJsonDoc();
     const auto xattr = getStringValue();
     upsert(id, json.dump(), "xattr", xattr);
 
     auto rsp = conn->execute(BinprotSubdocMultiLookupCommand{
-            id,
+            std::string{id},
             {{cb::mcbp::ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "missing1"},
              {cb::mcbp::ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "missing2"}},
             cb::mcbp::subdoc::doc_flag::None});
@@ -2350,13 +2501,13 @@ TEST_F(MeteringTest, SubdocMultiLookupAllMiss) {
 
 /// MultiLookup should cost the read of the full document
 TEST_F(MeteringTest, SubdocMultiLookup) {
-    const std::string id = "SubdocMultiLookup";
+    const StoredDocKey id{"SubdocMultiLookup", getTestCollection()};
     auto json = getJsonDoc();
     const auto xattr = getStringValue();
     upsert(id, json.dump(), "xattr", xattr);
 
     auto rsp = conn->execute(BinprotSubdocMultiLookupCommand{
-            id,
+            std::string{id},
             {{cb::mcbp::ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "array.[0]"},
              {cb::mcbp::ClientOpcode::SubdocGet, SUBDOC_FLAG_NONE, "counter"}},
             cb::mcbp::subdoc::doc_flag::None});
@@ -2371,13 +2522,13 @@ TEST_F(MeteringTest, SubdocMultiLookup) {
 /// MultiMutation should cost the read of the full document even if no
 /// updates was made
 TEST_F(MeteringTest, SubdocMultiMutationAllFailed) {
-    const std::string id = "SubdocMultiMutationAllFailed";
+    const StoredDocKey id{"SubdocMultiMutationAllFailed", getTestCollection()};
     auto json = getJsonDoc();
     const auto xattr = getStringValue();
     upsert(id, json.dump(), "xattr", xattr);
 
     auto rsp = conn->execute(BinprotSubdocMultiMutationCommand{
-            id,
+            std::string{id},
             {{cb::mcbp::ClientOpcode::SubdocDictUpsert,
               SUBDOC_FLAG_NONE,
               "foo.missing.bar",
@@ -2398,13 +2549,13 @@ TEST_F(MeteringTest, SubdocMultiMutationAllFailed) {
 /// MultiMutation should cost the read of the full document, and write
 /// of the full size (including xattrs copied over)
 TEST_F(MeteringTest, SubdocMultiMutation) {
-    const std::string id = "SubdocMultiMutation";
+    const StoredDocKey id{"SubdocMultiMutation", getTestCollection()};
     auto json = getJsonDoc();
     const auto xattr = getStringValue();
     upsert(id, json.dump(), "xattr", xattr);
 
     auto rsp = conn->execute(BinprotSubdocMultiMutationCommand{
-            id,
+            std::string{id},
             {{cb::mcbp::ClientOpcode::SubdocDictUpsert,
               SUBDOC_FLAG_NONE,
               "foo",
@@ -2427,13 +2578,14 @@ TEST_F(MeteringTest, SubdocMultiMutation) {
 /// MultiMutation should cost the read of the full document, and write 2x
 /// of the full size (including xattrs copied over)
 TEST_F(MeteringTest, SubdocMultiMutation_Durability) {
-    const std::string id = "SubdocMultiMutation_Durability";
+    const StoredDocKey id{"SubdocMultiMutation_Durability",
+                          getTestCollection()};
     auto json = getJsonDoc();
     const auto xattr = getStringValue();
     upsert(id, json.dump(), "xattr", xattr);
 
     BinprotSubdocMultiMutationCommand cmd{
-            id,
+            std::string{id},
             {{cb::mcbp::ClientOpcode::SubdocDictUpsert,
               SUBDOC_FLAG_NONE,
               "foo",
@@ -2460,13 +2612,13 @@ TEST_F(MeteringTest, SubdocMultiMutation_Durability) {
 /// SubdocReplaceBodyWithXattr should cost the read of the full document,
 /// and write of the full size
 TEST_F(MeteringTest, SubdocReplaceBodyWithXattr) {
-    const std::string id = "SubdocReplaceBodyWithXattr";
+    const StoredDocKey id{"SubdocReplaceBodyWithXattr", getTestCollection()};
     const auto new_value = getJsonDoc().dump();
     const auto old_value = getStringValue(false);
     upsert(id, old_value, "tnx.op.staged", new_value);
 
     auto rsp = conn->execute(BinprotSubdocMultiMutationCommand{
-            id,
+            std::string{id},
             {{cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr,
               SUBDOC_FLAG_XATTR_PATH,
               "tnx.op.staged",
@@ -2487,13 +2639,14 @@ TEST_F(MeteringTest, SubdocReplaceBodyWithXattr) {
 /// SubdocReplaceBodyWithXattr should cost the read of the full document,
 /// and write 2x of the full size when durability is enabled
 TEST_F(MeteringTest, SubdocReplaceBodyWithXattr_Durability) {
-    const std::string id = "SubdocReplaceBodyWithXattr_Durability";
+    const StoredDocKey id{"SubdocReplaceBodyWithXattr_Durability",
+                          getTestCollection()};
     const auto new_value = getJsonDoc().dump();
     const auto old_value = getStringValue(false);
     upsert(id, old_value, "tnx.op.staged", new_value);
 
     BinprotSubdocMultiMutationCommand cmd{
-            id,
+            std::string{id},
             {{cb::mcbp::ClientOpcode::SubdocReplaceBodyWithXattr,
               SUBDOC_FLAG_XATTR_PATH,
               "tnx.op.staged",
@@ -2516,12 +2669,12 @@ TEST_F(MeteringTest, SubdocReplaceBodyWithXattr_Durability) {
 }
 
 TEST_F(MeteringTest, TTL_Expiry_Get) {
-    const std::string id = "TTL_Expiry_Get";
+    const StoredDocKey id{"TTL_Expiry_Get", getTestCollection()};
     const auto value = getJsonDoc().dump();
     const auto xattr_value = getStringValue(false);
 
     Document doc;
-    doc.info.id = id;
+    doc.info.id = std::string{id};
     doc.info.expiration = 1;
     doc.value = value;
     conn->mutate(doc, Vbid{0}, MutationType::Set);
@@ -2537,7 +2690,7 @@ TEST_F(MeteringTest, TTL_Expiry_Get) {
     conn->adjustMemcachedClock(
             2, cb::mcbp::request::AdjustTimePayload::TimeType::Uptime);
 
-    auto rsp = conn->execute(BinprotGetCommand{id});
+    auto rsp = conn->execute(BinprotGetCommand{std::string{id}});
     ASSERT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus())
             << "should have been TTL expired";
 
@@ -2566,12 +2719,12 @@ TEST_F(MeteringTest, TTL_Expiry_Get) {
 }
 
 TEST_F(MeteringTest, TTL_Expiry_Compaction) {
-    const std::string id = "TTL_Expiry_Compaction";
+    const StoredDocKey id{"TTL_Expiry_Compaction", getTestCollection()};
     const auto value = getJsonDoc().dump();
     const auto xattr_value = getStringValue(false);
 
     Document doc;
-    doc.info.id = id;
+    doc.info.id = std::string{id};
     doc.info.expiration = 1;
     doc.value = value;
     conn->mutate(doc, Vbid{0}, MutationType::Set);
@@ -2618,7 +2771,7 @@ TEST_F(MeteringTest, TTL_Expiry_Compaction) {
 void MeteringTest::testRangeScan(bool keyOnly) {
     Document doc;
     doc.value = "value";
-    doc.info.id = "key";
+    doc.info.id = DocKey::makeWireEncodedString(getTestCollection(), "key");
     auto mInfo = conn->mutate(doc, Vbid(0), MutationType::Set);
 
     auto start = cb::base64::encode("key", false);
@@ -2632,6 +2785,8 @@ void MeteringTest::testRangeScan(bool keyOnly) {
     if (keyOnly) {
         range["key_only"] = true;
     }
+
+    range["collection"] = fmt::format("{:x}", uint32_t(getTestCollection()));
 
     nlohmann::json before;
     conn->stats(
@@ -2680,9 +2835,9 @@ TEST_F(MeteringTest, RangeScanValue) {
     testRangeScan(false);
 }
 
-void MeteringTest::testWithMeta(cb::mcbp::ClientOpcode opcode, std::string id) {
+void MeteringTest::testWithMeta(cb::mcbp::ClientOpcode opcode, DocKey id) {
     Document doc;
-    doc.info.id = std::move(id);
+    doc.info.id = std::string{id};
     doc.info.cas = 0xdeadbeef;
     doc.info.flags = 0xcafefeed;
     doc.value = getJsonDoc().dump();
@@ -2706,29 +2861,32 @@ void MeteringTest::testWithMeta(cb::mcbp::ClientOpcode opcode, std::string id) {
         // Del with meta strips off value
         EXPECT_EQ(1, *rsp.getWriteUnits());
     } else {
-        EXPECT_EQ(to_wu(calculateDocumentSize(doc.info.id, doc.value)),
+        EXPECT_EQ(to_wu(calculateDocumentSize(id, doc.value)),
                   *rsp.getWriteUnits());
     }
     // @todo add unit tests with / without xattrs
 }
 
 TEST_F(MeteringTest, AddWithMeta) {
-    testWithMeta(cb::mcbp::ClientOpcode::AddWithMeta, "AddWithMeta");
+    testWithMeta(cb::mcbp::ClientOpcode::AddWithMeta,
+                 StoredDocKey{"AddWithMeta", getTestCollection()});
 }
 
 TEST_F(MeteringTest, SetWithMeta) {
-    testWithMeta(cb::mcbp::ClientOpcode::SetWithMeta, "SetWithMeta");
+    testWithMeta(cb::mcbp::ClientOpcode::SetWithMeta,
+                 StoredDocKey{"SetWithMeta", getTestCollection()});
 }
 
 TEST_F(MeteringTest, DelWithMeta) {
-    testWithMeta(cb::mcbp::ClientOpcode::DelWithMeta, "DelWithMeta");
+    testWithMeta(cb::mcbp::ClientOpcode::DelWithMeta,
+                 StoredDocKey{"DelWithMeta", getTestCollection()});
 }
 
 void MeteringTest::testReturnMeta(cb::mcbp::request::ReturnMetaType type,
-                                  std::string id,
+                                  DocKey id,
                                   bool success) {
     Document document;
-    document.info.id = std::move(id);
+    document.info.id = std::string{id};
     document.value = getStringValue();
     if (!success) {
         document.info.cas = 0xdeadbeef;
@@ -2742,8 +2900,7 @@ void MeteringTest::testReturnMeta(cb::mcbp::request::ReturnMetaType type,
         if (type == cb::mcbp::request::ReturnMetaType::Del) {
             EXPECT_EQ(1, *rsp.getWriteUnits());
         } else {
-            EXPECT_EQ(to_wu(calculateDocumentSize(document.info.id,
-                                                  document.value)),
+            EXPECT_EQ(to_wu(calculateDocumentSize(id, document.value)),
                       *rsp.getWriteUnits());
         }
     } else {
@@ -2758,38 +2915,39 @@ void MeteringTest::testReturnMeta(cb::mcbp::request::ReturnMetaType type,
 }
 
 TEST_F(MeteringTest, ReturnMetaAdd) {
-    testReturnMeta(
-            cb::mcbp::request::ReturnMetaType::Add, "ReturnMetaAdd", true);
+    testReturnMeta(cb::mcbp::request::ReturnMetaType::Add,
+                   StoredDocKey{"ReturnMetaAdd", getTestCollection()},
+                   true);
 }
 
 TEST_F(MeteringTest, ReturnMetaAddFailing) {
     testReturnMeta(cb::mcbp::request::ReturnMetaType::Add,
-                   "ReturnMetaAddFailing",
+                   StoredDocKey{"ReturnMetaAddFailing", getTestCollection()},
                    false);
 }
 
 TEST_F(MeteringTest, ReturnMetaSet) {
-    testReturnMeta(
-            cb::mcbp::request::ReturnMetaType::Set, "ReturnMetaSet", true);
+    testReturnMeta(cb::mcbp::request::ReturnMetaType::Set,
+                   StoredDocKey{"ReturnMetaSet", getTestCollection()},
+                   true);
 }
 
 TEST_F(MeteringTest, ReturnMetaSetFailing) {
     testReturnMeta(cb::mcbp::request::ReturnMetaType::Add,
-                   "ReturnMetaSetFailing",
+                   StoredDocKey{"ReturnMetaSetFailing", getTestCollection()},
                    false);
 }
 
 TEST_F(MeteringTest, ReturnMetaDel) {
-    upsert("ReturnMetaDel", getStringValue());
-    testReturnMeta(
-            cb::mcbp::request::ReturnMetaType::Del, "ReturnMetaDel", true);
+    const StoredDocKey id{"ReturnMetaDel", getTestCollection()};
+    upsert(id, getStringValue());
+    testReturnMeta(cb::mcbp::request::ReturnMetaType::Del, id, true);
 }
 
 TEST_F(MeteringTest, ReturnMetaDelFailing) {
-    upsert("ReturnMetaDelFailing", getStringValue());
-    testReturnMeta(cb::mcbp::request::ReturnMetaType::Del,
-                   "ReturnMetaDelFailing",
-                   false);
+    const StoredDocKey id{"ReturnMetaDelFailing", getTestCollection()};
+    upsert(id, getStringValue());
+    testReturnMeta(cb::mcbp::request::ReturnMetaType::Del, id, false);
 }
 
 } // namespace cb::test
