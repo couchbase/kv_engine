@@ -228,7 +228,7 @@ VBucket::VBucket(Vbid i,
                                                             flusherCb)),
       bucket(bucket),
       syncWriteTimeoutFactory(std::move(syncWriteTimeoutFactory)),
-      replicationTopology(std::make_unique<nlohmann::json>()),
+      replicationTopology(nlohmann::json().dump()),
       purge_seqno(purgeSeqno),
       takeover_backed_up(false),
       persistedRange(lastSnapStart, lastSnapEnd),
@@ -274,7 +274,7 @@ VBucket::VBucket(Vbid i,
             purge_seqno,
             getMaxCas(),
             failovers ? std::to_string(failovers->getLatestUUID()) : "<>",
-            replicationTopology.rlock()->dump());
+            getReplicationTopology());
 }
 
 VBucket::~VBucket() {
@@ -597,13 +597,13 @@ void VBucket::setState_UNLOCKED(
 vbucket_transition_state VBucket::getTransitionState() const {
     nlohmann::json topology;
     if (getState() == vbucket_state_active) {
-        topology = getReplicationTopology();
+        topology = nlohmann::json::parse(getReplicationTopology());
     }
 
-    return vbucket_transition_state{failovers->getJSON(), topology, getState()};
+    return {failovers->getJSON(), topology, getState()};
 }
 
-nlohmann::json VBucket::getReplicationTopology() const {
+std::string VBucket::getReplicationTopology() const {
     return *replicationTopology.rlock();
 }
 
@@ -622,9 +622,9 @@ void VBucket::setupSyncReplication(const nlohmann::json* topology) {
                     "topology: " +
                     error);
         }
-        *replicationTopology.wlock() = *topology;
+        *replicationTopology.wlock() = topology->dump();
     } else {
-        *replicationTopology.wlock() = {};
+        *replicationTopology.wlock() = nlohmann::json().dump();
     }
 
     // Then, initialize the DM and propagate the new topology if necessary
@@ -669,7 +669,7 @@ void VBucket::setupSyncReplication(const nlohmann::json* topology) {
         // @todo: We want to support empty-topology in ActiveDM, that's for
         //     Warmup. Deferred to dedicated patch (tracked under MB-33186).
         if (topology) {
-            getActiveDM().setReplicationTopology(*replicationTopology.rlock());
+            getActiveDM().setReplicationTopology(*topology);
         }
         return;
     }
@@ -3270,7 +3270,7 @@ void VBucket::_addStats(VBucketStatsDetailLevel detail,
         // fallthrough
     case VBucketStatsDetailLevel::Durability:
         addStat("high_seqno", getHighSeqno(), add_stat, c);
-        addStat("topology", getReplicationTopology().dump(), add_stat, c);
+        addStat("topology", getReplicationTopology(), add_stat, c);
         addStat("high_prepared_seqno", getHighPreparedSeqno(), add_stat, c);
         // fallthrough
     case VBucketStatsDetailLevel::State:

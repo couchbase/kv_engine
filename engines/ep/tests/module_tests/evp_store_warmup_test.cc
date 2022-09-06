@@ -1220,7 +1220,7 @@ TEST_P(DurabilityWarmupTest, ReplicationTopologyMissing) {
 
     // Check topology is empty.
     auto vb = engine->getKVBucket()->getVBucket(vbid);
-    EXPECT_EQ(nlohmann::json().dump(), vb->getReplicationTopology().dump());
+    EXPECT_EQ(nlohmann::json().dump(), vb->getReplicationTopology());
 }
 
 // Test that replication topology is correctly loaded from disk during warmup.
@@ -1235,7 +1235,7 @@ TEST_P(DurabilityWarmupTest, ReplicationTopologyLoaded) {
 
     // Check topology has been correctly loaded from disk.
     auto vb = engine->getKVBucket()->getVBucket(vbid);
-    EXPECT_EQ(topology.dump(), vb->getReplicationTopology().dump());
+    EXPECT_EQ(topology.dump(), vb->getReplicationTopology());
 }
 
 void DurabilityWarmupTest::setupForPrepareWarmup(VBucket& vb,
@@ -1972,7 +1972,7 @@ TEST_P(DurabilityWarmupTest, ImpossibleTopology) {
 
     // Sanity check - "impossible" topology was loaded.
     auto vb = engine->getKVBucket()->getVBucket(vbid);
-    EXPECT_EQ(topology.dump(), vb->getReplicationTopology().dump());
+    EXPECT_EQ(topology.dump(), vb->getReplicationTopology());
 }
 
 /**

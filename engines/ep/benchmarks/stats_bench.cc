@@ -24,6 +24,7 @@
 #include <collections/manager.h>
 #include <collections/vbucket_manifest.h>
 #include <memcached/server_cookie_iface.h>
+#include <nlohmann/json.hpp>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <utilities/test_manifest.h>
@@ -159,8 +160,46 @@ BENCHMARK_DEFINE_F(MultiVBEngineStatsBench, VBucketDetailsStats)
     }
 }
 
+class VBucketDetailsBench : public EngineFixture {
+public:
+    void SetUp(const benchmark::State& state) override {
+        EngineFixture::SetUp(state);
+        // Warmup the Engine
+        static_cast<EPBucket*>(engine->getKVBucket())->initializeWarmupTask();
+        static_cast<EPBucket*>(engine->getKVBucket())->startWarmupTask();
+        auto& readerQueue = *executorPool->getLpTaskQ()[READER_TASK_IDX];
+        while (!engine->getKVBucket()->isWarmupComplete()) {
+            CheckedExecutor executor(executorPool, readerQueue);
+            // Run the tasks
+            executor.runCurrentTask();
+            executor.completeCurrentTask();
+        }
+        // Set a vbucket with a topology that we can read
+        nlohmann::json top;
+        top["topology"] = nlohmann::json::array(
+                {{"ns_1@lqhhotvgbkkamggk.mbungiljt-jrqoce.nonprod-project-"
+                  "active.com",
+                  "ns_1@lqhhotvgbkkamggk.mbungiljt-jrqoce.nonprod-project-"
+                  "replica1.com",
+                  "ns_1@lqhhotvgbkkamggk.mbungiljt-jrqoce.nonprod-project-"
+                  "replica2.com"}});
+        engine->getKVBucket()->setVBucketState(
+                vbid, vbucket_state_active, &top);
+    }
+};
+
+BENCHMARK_DEFINE_F(VBucketDetailsBench, VBucketDurabilityState)
+(benchmark::State& state) {
+    while (state.KeepRunning()) {
+        engine->getStats(
+                cookie, "vbucket-durability-state 0", "", dummyCallback);
+    }
+}
+
 BENCHMARK_REGISTER_F(EngineStatsBench, EngineStats);
 BENCHMARK_REGISTER_F(EngineStatsBench, Uuid);
 
 BENCHMARK_REGISTER_F(MultiVBEngineStatsBench, VBucketDetailsStats)
         ->Range(1, 1024);
+
+BENCHMARK_REGISTER_F(VBucketDetailsBench, VBucketDurabilityState);

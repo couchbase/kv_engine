@@ -471,7 +471,7 @@ public:
     /**
      * @return the replication topology set for this VBucket
      */
-    nlohmann::json getReplicationTopology() const;
+    std::string getReplicationTopology() const;
 
     /**
      * Enforce timeout for the expired SyncWrites in this VBucket.
@@ -2556,13 +2556,11 @@ protected:
 private:
     /**
      * The replication topology, set as part of SET_VBUCKET_STATE.
-     * It is encoded as nlohmann::json array of (max 2) replication chains.
-     * Each replication chain is itself a nlohmann::json array of nodes
+     * It is encoded as json string with and array of (max 2) replication
+     * chains. Each replication chain is itself a json array of nodes
      * representing the chain.
-     * Using unique_ptr for pimpl (to avoid requiring definition of
-     * nlohmann::json in this header).
      */
-    folly::SynchronizedPtr<std::unique_ptr<nlohmann::json>> replicationTopology;
+    folly::Synchronized<std::string> replicationTopology;
 
     std::mutex                           pendingOpLock;
     std::vector<const CookieIface*> pendingOps;
