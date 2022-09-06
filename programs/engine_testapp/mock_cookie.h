@@ -71,14 +71,6 @@ public:
         return --references;
     }
 
-    void* getEngineStorage() const override {
-        return engine_data;
-    }
-
-    void setEngineStorage(void* value) override {
-        engine_data = value;
-    }
-
     void setConHandler(DcpConnHandlerIface* handler) {
         connHandlerIface = handler;
     }
@@ -153,7 +145,6 @@ protected:
     static CheckForPrivilegeAtLeastInOneCollectionFunction
             checkForPrivilegeAtLeastInOneCollectionFunction;
 
-    std::atomic<void*> engine_data{nullptr};
     uint32_t sfd{};
     bool handle_ewouldblock{true};
     bool handle_mutation_extras{true};

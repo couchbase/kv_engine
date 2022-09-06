@@ -230,7 +230,6 @@ public:
     float getMinCompressionRatio() override {
         return minCompressionRatio;
     }
-
     // DcpIface implementation ////////////////////////////////////////////////
 
     cb::engine_errc step(const CookieIface& cookie,

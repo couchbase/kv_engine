@@ -22,11 +22,13 @@ add_library(mcd_util STATIC
             terminal_size.cc
             terminal_size.h
             config_parser.cc
+            cookie_iface.cc
             dcp_stream_id.cc
             dockey.cc
             durability_spec.cc
             engine_errc_2_mcbp.cc
             engine_errc_2_mcbp.h
+            engine_storage.cc
             io_control.cc
             json_utilities.cc
             json_utilities.h

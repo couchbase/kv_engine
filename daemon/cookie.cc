@@ -71,7 +71,7 @@ nlohmann::json Cookie::toJSON() const {
     ret["aiostat"] = to_string(cb::engine_errc(aiostat));
     ret["throttled"] = throttled.load();
     ret["refcount"] = uint32_t(refcount);
-    ret["engine_storage"] = cb::to_hex(uint64_t(engine_storage.load()));
+    ret["engine_storage"] = cb::to_hex(uint64_t(getEngineStorage()));
     return ret;
 }
 
@@ -794,6 +794,7 @@ Cookie::~Cookie() {
 }
 
 void Cookie::reset() {
+    setEngineStorage({});
     document_bytes_read = 0;
     document_bytes_written = 0;
     total_throttle_time = total_throttle_time.zero();

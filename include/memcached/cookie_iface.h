@@ -10,9 +10,12 @@
 
 #pragma once
 
+#include <folly/Synchronized.h>
+#include <memcached/engine_storage.h>
 #include <memcached/tracer.h>
 #include <atomic>
 #include <memory>
+#include <mutex>
 #include <optional>
 
 namespace cb::mcbp {
@@ -51,12 +54,16 @@ public:
     // data, and the engine must deal with all allocation/deallocation of the
     // memory to avoid any leaks.
 
-    /// Get the value stored for the cookie (or nullptr if nothing was stored).
-    /// The function returns the same value until it is being set to another
-    /// value by callin setEngineStorage
-    virtual void* getEngineStorage() const = 0;
-    /// Set the engine pointer to the provided value
-    virtual void setEngineStorage(void* value) = 0;
+    /// Get the value stored for the cookie (or a null pointer if nothing was
+    /// stored). The function returns the same value until it is being set to
+    /// another value by calling setEngineStorage or until the cookie becomes
+    // disassociated from the engine.
+    const cb::EngineStorageIface* getEngineStorage() const;
+    // Transfer ownership of the value stored for the cookie to the caller,
+    // leaving a null pointer in the cookie.
+    cb::unique_engine_storage_ptr takeEngineStorage();
+    /// Set the engine storage to the provided value.
+    void setEngineStorage(cb::unique_engine_storage_ptr value);
 
     /// Check if mutation extras is supported by the connection.
     virtual bool isMutationExtrasSupported() const = 0;
@@ -112,4 +119,13 @@ public:
 protected:
     std::atomic<size_t> document_bytes_read = 0;
     std::atomic<size_t> document_bytes_written = 0;
+
+private:
+    /**
+     * Pointer to engine-specific data which the engine has requested the server
+     * to persist for the life of the command.
+     * See SERVER_COOKIE_API::{get,store}_engine_specific()
+     */
+    folly::Synchronized<cb::unique_engine_storage_ptr, std::mutex>
+            engine_storage;
 };

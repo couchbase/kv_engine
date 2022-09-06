@@ -36,6 +36,7 @@
 #include "dcp/response.h"
 #include "dcp/stream.h"
 #include "dcp_utils.h"
+#include "ep_engine_storage.h"
 #include "ep_time.h"
 #include "evp_engine_test.h"
 #include "kv_bucket.h"
@@ -1341,13 +1342,15 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete) {
     class MockServerCookieApi : public WrappedServerCookieIface {
     public:
         void scheduleDcpStep(const CookieIface& cookie) override {
-            auto* notify_ptr =
-                    reinterpret_cast<size_t*>(cookie.getEngineStorage());
+            auto* notify_ptr = reinterpret_cast<size_t*>(
+                    dynamic_cast<const EPEngineStorage<void*>*>(
+                            cookie.getEngineStorage())
+                            ->get());
             (*notify_ptr)++;
         }
     } scapi;
 
-    cookie->setEngineStorage(&notify_count);
+    engine->storeEngineSpecific(cookie, &notify_count);
 
     // 0. Should start with no notifications.
     ASSERT_EQ(0, notify_count);
@@ -1394,13 +1397,15 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete_consumer) {
     class MockServerCookieApi : public WrappedServerCookieIface {
     public:
         void scheduleDcpStep(const CookieIface& cookie) override {
-            auto* notify_ptr =
-                    reinterpret_cast<size_t*>(cookie.getEngineStorage());
+            auto* notify_ptr = reinterpret_cast<size_t*>(
+                    dynamic_cast<const EPEngineStorage<void*>*>(
+                            cookie.getEngineStorage())
+                            ->get());
             (*notify_ptr)++;
         }
     } scapi;
 
-    cookie->setEngineStorage(&notify_count);
+    engine->storeEngineSpecific(cookie, &notify_count);
 
     // 0. Should start with no notifications.
     ASSERT_EQ(0, notify_count);
@@ -2047,7 +2052,7 @@ public:
 
         // Save `this` in server-specific so we can retrieve it from
         // dcp_test_notify_io_complete below:
-        cookie->setEngineStorage(this);
+        engine.storeEngineSpecific(cookie, this);
 
         producer = connMap->newProducer(cookie,
                                         "test_producer",
@@ -2069,7 +2074,9 @@ public:
     static void dcp_test_notify_io_complete(const CookieIface& cookie,
                                             cb::engine_errc status) {
         const auto* notifyTest = reinterpret_cast<const ConnMapNotifyTest*>(
-                cookie.getEngineStorage());
+                dynamic_cast<const EPEngineStorage<void*>*>(
+                        cookie.getEngineStorage())
+                        ->get());
         cb_assert(notifyTest != nullptr);
         const_cast<ConnMapNotifyTest*>(notifyTest)->notify();
     }

@@ -28,6 +28,7 @@
 #include "environment.h"
 #include "ep_bucket.h"
 #include "ep_engine_public.h"
+#include "ep_engine_storage.h"
 #include "ep_vb.h"
 #include "ephemeral_bucket.h"
 #include "error_handler.h"
@@ -1842,12 +1843,22 @@ void EventuallyPersistentEngine::releaseCookie(const CookieIface* cookie) {
 
 void EventuallyPersistentEngine::storeEngineSpecific(const CookieIface* cookie,
                                                      void* engine_data) {
-    NonBucketAllocationGuard guard;
-    const_cast<CookieIface*>(cookie)->setEngineStorage(engine_data);
+    cb::unique_engine_storage_ptr p;
+    if (engine_data) {
+        // TODO: We should be able to assert that getCurrentEngine() == this
+        // here, but that is not always true in many of our tests
+        p = cb::unique_engine_storage_ptr(
+                new EPEngineStorage<void*>(engine_data));
+    }
+    const_cast<CookieIface*>(cookie)->setEngineStorage(std::move(p));
 }
 
 void* EventuallyPersistentEngine::getEngineSpecific(const CookieIface* cookie) {
-    return cookie->getEngineStorage();
+    auto es = cookie->getEngineStorage();
+    if (!es) {
+        return nullptr;
+    }
+    return dynamic_cast<const EPEngineStorage<void*>&>(*es).get();
 }
 
 bool EventuallyPersistentEngine::isDatatypeSupported(

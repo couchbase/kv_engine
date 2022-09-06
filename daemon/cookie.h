@@ -448,14 +448,6 @@ public:
         return --refcount;
     }
 
-    void* getEngineStorage() const override {
-        return engine_storage;
-    }
-
-    void setEngineStorage(void* value) override {
-        engine_storage = value;
-    }
-
     void setOpenTracingContext(cb::const_byte_buffer context);
 
     /**
@@ -740,15 +732,6 @@ protected:
      *  Between each command this is deleted and reset to nullptr.
      */
     std::unique_ptr<CommandContext> commandContext;
-
-    /**
-     * Pointer to engine-specific data which the engine has requested the server
-     * to persist for the life of the connection.
-     * See SERVER_COOKIE_API::{get,store}_engine_specific()
-     * Atomic so it can safely be read / updated from engine background threads
-     * in addition to front-end threads.
-     */
-    std::atomic<void*> engine_storage{nullptr};
 
     /**
      * Log a preformatted response text

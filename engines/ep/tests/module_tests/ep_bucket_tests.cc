@@ -1000,5 +1000,6 @@ TEST_F(SingleThreadedEPBucketTest, TestConsumerSendEEXISTSIfOpaqueWrong) {
 TEST_F(SingleThreadedEPBucketTest, CompactionNotMyVB) {
     EXPECT_EQ(cb::engine_errc::not_my_vbucket,
               engine->compactDatabase(*cookie, Vbid(1), 0, 0, false));
-    EXPECT_EQ(nullptr, cookie_to_mock_cookie(cookie)->getEngineStorage());
+    EXPECT_EQ(nullptr,
+              engine->getEngineSpecific(cookie_to_mock_cookie(cookie)));
 }

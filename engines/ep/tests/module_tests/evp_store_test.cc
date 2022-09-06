@@ -2229,7 +2229,7 @@ TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionReschedules) {
     // the task has copied the config and logically compaction is running.
     CompactionConfig config3{300, 3, false, false};
     task->setRunningCallback([this, &config3]() {
-        EXPECT_EQ(nullptr, cookie->getEngineStorage());
+        EXPECT_EQ(nullptr, engine->getEngineSpecific(cookie));
         // Drive via engine API to cover MB-52542
         EXPECT_EQ(cb::engine_errc::would_block,
                   engine->compactDatabase(*cookie,
@@ -2237,7 +2237,7 @@ TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionReschedules) {
                                           config3.purge_before_ts,
                                           config3.purge_before_seq,
                                           config3.drop_deletes));
-        EXPECT_NE(nullptr, cookie->getEngineStorage());
+        EXPECT_NE(nullptr, engine->getEngineSpecific(cookie));
     });
 
     // Now we will manually call run, returns true means executor to run again.
@@ -2259,7 +2259,7 @@ TEST_P(EPBucketTestNoRocksDb, ScheduleCompactionReschedules) {
     EXPECT_EQ(cb::engine_errc::failed, mock_waitfor_cookie(cookie));
 
     // MB-52542: Prior to MB, cookie still had something in the engine-storage
-    EXPECT_EQ(nullptr, cookie->getEngineStorage());
+    EXPECT_EQ(nullptr, engine->getEngineSpecific(cookie));
 }
 
 /**

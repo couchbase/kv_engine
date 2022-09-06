@@ -340,6 +340,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/ep_bucket.cc
             src/ep_vb.cc
             src/ep_engine.cc
+            src/ep_engine_storage.cc
             src/ep_time.cc
             src/ep_types.cc
             src/ephemeral_bucket.cc

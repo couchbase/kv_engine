@@ -1232,7 +1232,8 @@ std::pair<cb::engine_errc, cb::rangescan::Id> EPVBucket::createRangeScan(
     // Obtain the engine specific, which will be null (new create) or a pointer
     // to RangeScanCreateData (I/O complete path of create)
     std::unique_ptr<RangeScanCreateData> rangeScanCreateData(
-            reinterpret_cast<RangeScanCreateData*>(cookie.getEngineStorage()));
+            reinterpret_cast<RangeScanCreateData*>(
+                    bucket->getEPEngine().getEngineSpecific(&cookie)));
 
     if (rangeScanCreateData) {
         // When the data exists, two paths are possible.
@@ -1321,7 +1322,7 @@ void EPVBucket::createRangeScanWait(
             // Capture the unique_ptr and allow it to go out of scope
             std::unique_ptr<RangeScanCreateData> rangeScanCreateData(
                     reinterpret_cast<RangeScanCreateData*>(
-                            cookie->getEngineStorage()));
+                            engine.getEngineSpecific(cookie)));
 
             // Reset back to null
             engine.storeEngineSpecific(cookie, nullptr);
@@ -1341,13 +1342,14 @@ void EPVBucket::createRangeScanWait(
 cb::engine_errc EPVBucket::checkAndCancelRangeScanCreate(
         const CookieIface& cookie) {
     // Nothing to cancel
-    if (!cookie.getEngineStorage()) {
+    if (!bucket->getEPEngine().getEngineSpecific(&cookie)) {
         return cb::engine_errc::success;
     }
 
     // Obtain the data (so it now frees)
     std::unique_ptr<RangeScanCreateData> rangeScanCreateData(
-            reinterpret_cast<RangeScanCreateData*>(cookie.getEngineStorage()));
+            reinterpret_cast<RangeScanCreateData*>(
+                    bucket->getEPEngine().getEngineSpecific(&cookie)));
     Expects(rangeScanCreateData);
 
     // Clear engine specific
