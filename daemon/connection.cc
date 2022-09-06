@@ -1214,6 +1214,15 @@ void Connection::propagateDisconnect() const {
     }
 }
 
+void Connection::resetThrottledCookies() {
+    for (auto& c : cookies) {
+        if (c->isThrottled()) {
+            c->setEwouldblock(false);
+            c->reset();
+        }
+    }
+}
+
 bool Connection::signalIfIdle() {
     for (const auto& c : cookies) {
         if (c && !c->empty() && c->isEwouldblock()) {

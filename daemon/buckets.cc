@@ -246,6 +246,20 @@ void Bucket::tick() {
     });
 }
 
+void Bucket::deleteThrottledCommands() {
+    FrontEndThread::forEach([this](auto& thr) {
+        // Now nuke the throttledConnections belonging to this Bucket
+        std::deque<Connection*> connections;
+        throttledConnections[thr.index].swap(connections);
+
+        for (auto& c : connections) {
+            c->resetThrottledCookies();
+            // Not re-adding this to throttledConnections as we've just
+            // un-throttled everything
+        }
+    });
+}
+
 bool Bucket::shouldThrottleDcp(const Connection& connection) {
     if (throttle_limit == std::numeric_limits<std::size_t>::max() ||
         connection.isUnthrottled()) {
@@ -676,6 +690,7 @@ void BucketManager::waitForEveryoneToDisconnect(Bucket& bucket,
     // Wait until all users disconnected...
     {
         std::unique_lock<std::mutex> guard(bucket.mutex);
+
         if (bucket.clients > 0) {
             LOG_INFO("{}: {} bucket [{}]. Wait for {} clients to disconnect",
                      id,
@@ -685,6 +700,7 @@ void BucketManager::waitForEveryoneToDisconnect(Bucket& bucket,
 
             // Signal clients bound to the bucket before waiting
             guard.unlock();
+            bucket.deleteThrottledCommands();
             iterate_all_connections([&bucket](Connection& connection) {
                 if (&connection.getBucket() == &bucket) {
                     connection.signalIfIdle();
@@ -711,6 +727,7 @@ void BucketManager::waitForEveryoneToDisconnect(Bucket& bucket,
 
             if (steady_clock::now() < nextLog) {
                 guard.unlock();
+                bucket.deleteThrottledCommands();
                 iterate_all_connections([&bucket](Connection& connection) {
                     if (&connection.getBucket() == &bucket) {
                         connection.signalIfIdle();
@@ -729,6 +746,7 @@ void BucketManager::waitForEveryoneToDisconnect(Bucket& bucket,
             guard.unlock();
 
             nlohmann::json currConns;
+            bucket.deleteThrottledCommands();
             iterate_all_connections([&bucket, &currConns](Connection& conn) {
                 if (&conn.getBucket() == &bucket) {
                     conn.signalIfIdle();

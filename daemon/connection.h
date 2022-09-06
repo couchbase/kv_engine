@@ -123,6 +123,14 @@ public:
     bool signalIfIdle();
 
     /**
+     * Reset throttled cookies for the connection.
+     *
+     * Used during bucket deletion to get rid of any throttled operations we
+     * haven't started processing yet.
+     */
+    void resetThrottledCookies();
+
+    /**
      * Is the connection representing a system internal user
      */
     bool isInternal() const {

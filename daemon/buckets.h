@@ -240,8 +240,14 @@ public:
      */
     bool shouldThrottleDcp(const Connection& connection);
 
-    /// move the clock forwards in all buckets
+    /// move the clock forwards in this bucket
     void tick();
+
+    /**
+     * Removes the throttled connection entries as the Bucket is no longer in a
+     * ready state and resets all throttled cookies
+     */
+    void deleteThrottledCommands();
 
     /**
      * Set the throttle limit for the bucket

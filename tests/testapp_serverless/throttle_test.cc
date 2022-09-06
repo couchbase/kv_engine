@@ -10,6 +10,7 @@
 
 #include "serverless_test.h"
 
+#include <cluster_framework/auth_provider_service.h>
 #include <cluster_framework/bucket.h>
 #include <cluster_framework/cluster.h>
 #include <folly/portability/GTest.h>
@@ -91,6 +92,74 @@ TEST(ThrottleTest, NonBlockingThrottlingMode) {
                                                   "NonBlockingThrottlingMode"});
     } while (rsp.isSuccess());
     EXPECT_EQ(cb::mcbp::Status::EWouldThrottle, rsp.getStatus());
+}
+
+TEST(ThrottleTest, DeleteBucketWhileThrottling) {
+    // Setup a new user/Bucket for this test as we want to delete the Bucket at
+    // the end of the test.
+    std::string rbac = R"({
+"buckets": {
+  "testBucket": {
+    "privileges": [
+      "Read",
+      "SimpleStats",
+      "Stats",
+      "Insert",
+      "Delete",
+      "Upsert",
+      "DcpProducer",
+      "DcpStream"
+    ]
+  }
+},
+"privileges": ["Stats"],
+"domain": "external"
+})";
+    cluster->getAuthProviderService().upsertUser(
+            {"testBucket", "testBucket", nlohmann::json::parse(rbac)});
+
+    auto bucket = cluster->createBucket("testBucket",
+                                        {{"replicas", 2}, {"max_vbuckets", 8}});
+    bucket->setThrottleLimit(1);
+
+    auto conn = cluster->getConnection(0);
+    conn->authenticate("testBucket", "testBucket");
+    conn->selectBucket("testBucket");
+    conn->setReadTimeout(std::chrono::seconds{30});
+
+    // store a document (this command may be throttled for a while,
+    // depending on the previous tests)
+    Document document;
+    document.info.id = "document";
+    document.value = std::string(1024, 'x');
+    conn->mutate(document, Vbid{0}, MutationType::Set);
+
+    // Setup a second connection on which we will do our gets. We will have auth
+    // issues when trying to grab stats later otherwise...
+    auto conn1 = cluster->getConnection(0);
+    conn1->authenticate("testBucket", "testBucket");
+    conn1->selectBucket("testBucket");
+
+    // Sent a few gets to the server, don't wait for responses as they should
+    // get throttled
+    for (auto i = 0; i < 10; i++) {
+        BinprotCommand command =
+                BinprotGenericCommand{cb::mcbp::ClientOpcode::Get, "document"};
+        conn1->sendCommand(command);
+    }
+
+    // Sanity stats checks
+    nlohmann::json stats;
+    conn->authenticate("@admin", "password");
+    conn->stats([&stats](const auto& k,
+                         const auto& v) { stats = nlohmann::json::parse(v); },
+                "bucket_details testBucket");
+    ASSERT_FALSE(stats.empty());
+    ASSERT_LT(0, stats["num_throttled"]);
+
+    // This is the test; before the fix we would hang/timeout this call as we
+    // could not delete the Bucket with throttled cookies in the systme
+    cluster->deleteBucket("testBucket");
 }
 
 } // namespace cb::test
