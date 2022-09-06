@@ -561,7 +561,7 @@ bool is_bucket_dying(Connection& c) {
     }
 
     if (disconnect) {
-        LOG_INFO(
+        LOG_DEBUG(
                 "{}: The connected bucket is in state {} - closing connection "
                 "{}",
                 c.getId(),
