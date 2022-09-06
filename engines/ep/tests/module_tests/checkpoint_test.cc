@@ -1753,6 +1753,105 @@ TEST_F(SingleThreadedCheckpointTest,
     testRegisterCursorInCheckpointEmptyByExpel(true);
 }
 
+TEST_F(SingleThreadedCheckpointTest,
+       RegisterCursor_CheckpointEmptyByExpel_MultipleCheckpoints) {
+    // Setup an active vbucket/cm like:
+    //
+    // [disk | e:1 cs:1 x x vbs:3) [memory | e:3 cs:3)
+    //         ^
+    //
+    // Purpose of the test is verifying that we can successfully register a new
+    // cursor in that state.
+    // Desired state reachable by a replica->pending->active transition.
+
+    setVBucketState(vbid, vbucket_state_replica);
+    auto vb = store->getVBuckets().getBucket(vbid);
+    auto& manager = *vb->checkpointManager;
+    ASSERT_EQ(1, manager.getOpenCheckpointId());
+    manager.createNewCheckpoint();
+    flushVBucket(vbid);
+
+    auto consumer =
+            std::make_shared<MockDcpConsumer>(*engine, cookie, "test-consumer");
+    auto passiveStream = std::static_pointer_cast<MockPassiveStream>(
+            consumer->makePassiveStream(*engine,
+                                        consumer,
+                                        "test-passive-stream",
+                                        0,
+                                        0,
+                                        vbid,
+                                        0,
+                                        std::numeric_limits<uint64_t>::max(),
+                                        0,
+                                        0,
+                                        0,
+                                        0,
+                                        Collections::ManifestUid{}));
+    // Receive marker for disk checkpoint
+    SnapshotMarker snapshotMarker(0,
+                                  vbid,
+                                  1, // start
+                                  2, // end
+                                  MARKER_FLAG_DISK,
+                                  0,
+                                  {},
+                                  {},
+                                  {});
+    passiveStream->processMarker(&snapshotMarker);
+    // Receive mutations
+    processMutations(*passiveStream, 1 /*start*/, 2 /*end*/);
+    flushVBucket(vbid);
+
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(manager.getOpenCheckpointType(), CheckpointType::InitialDisk);
+    EXPECT_EQ(3, manager.getNumOpenChkItems());
+    EXPECT_EQ(3, manager.getOpenCheckpointId());
+
+    // Expel
+    ASSERT_EQ(2, manager.expelUnreferencedCheckpointItems().count);
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
+
+    // We have expelled all the mutations
+    // [e:1 cs:1 x x)
+    const auto& checkpoint =
+            CheckpointManagerTestIntrospector::public_getOpenCheckpoint(
+                    manager);
+    EXPECT_EQ(0, checkpoint.getMinimumCursorSeqno());
+    EXPECT_EQ(0, checkpoint.getHighSeqno());
+    EXPECT_EQ(1, manager.getNumOpenChkItems());
+    ASSERT_EQ(2, checkpoint.getHighestExpelledSeqno());
+
+    // Set vb to pending
+    setVBucketState(vbid, vbucket_state_pending);
+    // No change in checkpoint
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(manager.getOpenCheckpointType(), CheckpointType::InitialDisk);
+    EXPECT_EQ(2, manager.getNumOpenChkItems());
+    EXPECT_EQ(3, manager.getOpenCheckpointId());
+
+    // Set vb to active
+    setVBucketState(vbid, vbucket_state_active, {}, TransferVB::Yes);
+    EXPECT_EQ(2, manager.getNumCheckpoints());
+    EXPECT_EQ(manager.getOpenCheckpointType(), CheckpointType::Memory);
+    EXPECT_EQ(2, manager.getNumOpenChkItems());
+    EXPECT_EQ(4, manager.getOpenCheckpointId());
+
+    // Verify that we register the cursor successfully.
+    // Before the fix for MB-53570 this step fails by exception thrown.
+    //
+    // [disk | e:1 cs:1 x x vbs:3) [memory | e:3 cs:3)
+    //                                       ^
+    const auto res = manager.registerCursorBySeqno(
+            "cursor", 2, CheckpointCursor::Droppable::Yes);
+    // @todo MB-53616: We don't need a backfill here
+    EXPECT_TRUE(res.tryBackfill);
+    const auto cursor = res.cursor.lock();
+    EXPECT_EQ(4, (*cursor->getCheckpoint())->getId());
+    EXPECT_EQ(queue_op::empty, (*cursor->getPos())->getOperation());
+    EXPECT_EQ(3, (*cursor->getPos())->getBySeqno());
+    EXPECT_EQ(0, cursor->getDistance());
+}
+
 // Test that when the same client registers twice, the first cursor 'dies'
 TEST_P(CheckpointTest, reRegister) {
     auto dcpCursor1 = manager->registerCursorBySeqno(

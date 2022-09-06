@@ -350,19 +350,8 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
         const bool isLastCkpt = std::next(ckptIt) == checkpointList.end();
         auto& ckpt = **ckptIt;
 
-        // Some important sanity checks
-        if (ckptIt == checkpointList.begin()) {
-            // The case of an initial checkpoint emptied by expel can happen
-            // only if there's just one single checkpoint in CM (and that's
-            // handled above in this function).
-            // That's because:
-            // a) A closed/empty/unref checkpoint would be removed as soon as
-            //    the new open checkpoint is created
-            // b) A closed/empty/ref checkpoint would be made unreferenced (any
-            //   cursor moved away) as soon as the new open checkpoint is
-            //   created, and we'll fall back in (a)
-            Expects(!ckpt.isEmptyByExpel());
-        } else {
+        // Some sanity check
+        if (ckptIt != checkpointList.begin()) {
             // ItemExpel is expected to touch only the oldest checkpoint.
             Expects(!ckpt.modifiedByExpel());
         }
