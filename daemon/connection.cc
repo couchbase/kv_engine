@@ -2312,3 +2312,127 @@ cb::engine_errc Connection::seqno_advanced(uint32_t opaque,
 //               End DCP Message producer interface                       //
 //                                                                        //
 ////////////////////////////////////////////////////////////////////////////
+
+void Connection::onTlsConnect(const SSL* ssl_st) {
+    const auto verifyMode = SSL_get_verify_mode(ssl_st);
+    const auto enabled = ((verifyMode & SSL_VERIFY_PEER) == SSL_VERIFY_PEER);
+
+    bool disconnect = false;
+    cb::openssl::unique_x509_ptr cert(SSL_get_peer_certificate(ssl_st));
+    if (enabled) {
+        const auto mandatory =
+                ((verifyMode & SSL_VERIFY_FAIL_IF_NO_PEER_CERT) ==
+                 SSL_VERIFY_FAIL_IF_NO_PEER_CERT);
+        // Check certificate
+        if (cert) {
+            class ServerAuthMapper {
+            public:
+                static std::pair<cb::x509::Status, std::string> lookup(
+                        X509* cert) {
+                    static ServerAuthMapper inst;
+                    return inst.mapper->lookupUser(cert);
+                }
+
+            protected:
+                ServerAuthMapper() {
+                    mapper = cb::x509::ClientCertConfig::create(R"({
+"prefixes": [
+    {
+        "path": "san.email",
+        "prefix": "",
+        "delimiter": "",
+        "suffix":"@internal.couchbase.com"
+    }
+]
+})"_json);
+                }
+
+                std::unique_ptr<cb::x509::ClientCertConfig> mapper;
+            };
+
+            auto [status, name] = ServerAuthMapper::lookup(cert.get());
+            if (status == cb::x509::Status::Success) {
+                if (name == "internal") {
+                    name = "@internal";
+                } else {
+                    status = cb::x509::Status::NoMatch;
+                }
+            } else {
+                auto pair = Settings::instance().lookupUser(cert.get());
+                status = pair.first;
+                name = std::move(pair.second);
+            }
+
+            switch (status) {
+            case cb::x509::Status::NoMatch:
+                audit_auth_failure(*this,
+                                   {"unknown", cb::sasl::Domain::Local},
+                                   "Failed to map a user from the client "
+                                   "provided X.509 certificate");
+                setTerminationReason(
+                        "Failed to map a user from the client provided X.509 "
+                        "certificate");
+                LOG_WARNING(
+                        "{}: Failed to map a user from the "
+                        "client provided X.509 certificate: [{}]",
+                        getId(),
+                        name);
+                disconnect = true;
+                break;
+            case cb::x509::Status::Error:
+                audit_auth_failure(
+                        *this,
+                        {"unknown", cb::sasl::Domain::Local},
+                        "Failed to use client provided X.509 certificate");
+                setTerminationReason(
+                        "Failed to use client provided X.509 certificate");
+                LOG_WARNING(
+                        "{}: Disconnection client due to error with the X.509 "
+                        "certificate [{}]",
+                        getId(),
+                        name);
+                disconnect = true;
+                break;
+            case cb::x509::Status::NotPresent:
+                // Note: NotPresent in this context is that there is no
+                //       mapper present in the _configuration_ which is
+                //       allowed in "Enabled" mode as it just means that we'll
+                //       try to verify the peer.
+                if (mandatory) {
+                    const char* reason =
+                            "The server does not have any mapping rules "
+                            "configured for certificate authentication";
+                    audit_auth_failure(*this,
+                                       {"unknown", cb::sasl::Domain::Local},
+                                       reason);
+                    setTerminationReason(reason);
+                    disconnect = true;
+                    LOG_WARNING(
+                            "{}: Disconnecting client: {}", getId(), reason);
+                }
+                break;
+            case cb::x509::Status::Success:
+                if (!tryAuthFromSslCert(name, SSL_get_cipher_name(ssl_st))) {
+                    // Already logged
+                    const std::string reason =
+                            "User [" + name + "] not defined in Couchbase";
+                    audit_auth_failure(*this,
+                                       {name, cb::sasl::Domain::Local},
+                                       reason.c_str());
+                    setTerminationReason(reason.c_str());
+                    disconnect = true;
+                }
+            }
+        }
+    }
+
+    if (disconnect) {
+        shutdown();
+    } else if (!authenticated) {
+        // tryAuthFromSslCertificate logged the cipher
+        LOG_INFO("{}: Using cipher '{}', peer certificate {}provided",
+                 getId(),
+                 SSL_get_cipher_name(ssl_st),
+                 cert ? "" : "not ");
+    }
+}

@@ -897,6 +897,14 @@ protected:
     void propagateDisconnect() const;
 
     /**
+     * Callback called right after the TLS handshake to allow us to look
+     * at the provided certificate and possibly authenticate the connection
+     *
+     * @param ssl_st The SSL structure used by the underlying SSL library
+     */
+    void onTlsConnect(const SSL* ssl_st);
+
+    /**
      * Get the next packet available in the stream.
      *
      * The returned reference goes directly into the underlying IO libraries
