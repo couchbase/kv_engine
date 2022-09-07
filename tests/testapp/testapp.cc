@@ -1078,7 +1078,7 @@ void TestappTest::ewouldblock_engine_disable() {
             cb::engine_errc::would_block, EWBEngineMode::Next_N, 0);
 }
 
-void TestappTest::reconfigure() {
+BinprotResponse TestappTest::reconfigure(const nlohmann::json& config) {
     if (!adminConnection) {
         std::cerr << "TestappTest::reconfigure(): Admin connection not "
                      "set up"
@@ -1086,9 +1086,13 @@ void TestappTest::reconfigure() {
         mcd_env->terminate(EXIT_FAILURE);
     }
 
-    write_config_to_file(memcached_cfg.dump(2));
-    auto rsp = adminConnection->execute(BinprotGenericCommand{
+    write_config_to_file(config.dump());
+    return adminConnection->execute(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::ConfigReload, {}, {}});
+}
+
+void TestappTest::reconfigure() {
+    auto rsp = reconfigure(memcached_cfg);
     ASSERT_TRUE(rsp.isSuccess())
             << "Failed to reconfigure server: " << to_string(rsp.getStatus())
             << std::endl

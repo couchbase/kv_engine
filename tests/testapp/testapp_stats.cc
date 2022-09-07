@@ -614,3 +614,31 @@ TEST_P(StatsTest, TestClocksStats) {
                       << value << "'";
     }
 }
+
+TEST_P(StatsTest, TestSettingAndGettingThreadCount) {
+    nlohmann::json cfg;
+    const uint32_t newNumThreads = 10;
+    cfg["num_reader_threads"] = newNumThreads;
+    cfg["num_writer_threads"] = newNumThreads;
+    cfg["num_auxio_threads"] = newNumThreads;
+    cfg["num_nonio_threads"] = newNumThreads;
+
+    EXPECT_TRUE(reconfigure(cfg).isSuccess());
+
+    std::vector<std::pair<std::string, std::string>> stats;
+    adminConnection->stats(
+            [&stats](const std::string& key, const std::string& value) -> void {
+                stats.emplace_back(key, value);
+            },
+            "threads");
+    bool seenThreadsKey = false;
+    for (const auto& [key, value] : stats) {
+        if (key == "num_frontend_threads") {
+            seenThreadsKey = true;
+            EXPECT_GT(std::stol(value), 0);
+            continue;
+        }
+        EXPECT_EQ(newNumThreads, std::stol(value)) << "Stat key:" << key;
+    }
+    EXPECT_TRUE(seenThreadsKey);
+}

@@ -280,7 +280,18 @@ protected:
     /* Disable the ewouldblock_engine. */
     static void ewouldblock_engine_disable();
 
+    /// Write the content of memcached_cfg to disk and tell the server
+    /// to reconfigure
     void reconfigure();
+
+    /**
+     * Write the config to disk and tell the server to reconfigure
+     * and return the response from the server
+     *
+     * @param config The new configuration to use
+     * @return The server response to ConfigReload
+     */
+    BinprotResponse reconfigure(const nlohmann::json& config);
 
     // JSON configuration (as JSON object) memcached was configured with.
     static nlohmann::json memcached_cfg;
