@@ -240,7 +240,7 @@ void TestappTest::doSetUpTestCaseWithConfiguration(
                 {"certificate chain",
                  OBJECT_ROOT "/tests/cert/servers/chain.cert"},
                 {"CA file", OBJECT_ROOT "/tests/cert/root/ca_root.cert"},
-                {"minimum version", "TLS 1"},
+                {"minimum version", "TLS 1.2"},
                 {"cipher list",
                  {{"TLS 1.2", "HIGH"},
                   {"TLS 1.3",
