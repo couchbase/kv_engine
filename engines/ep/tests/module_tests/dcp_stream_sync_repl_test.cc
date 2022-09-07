@@ -26,6 +26,7 @@
 #include <engines/ep/tests/mock/mock_dcp_conn_map.h>
 #include <engines/ep/tests/mock/mock_dcp_producer.h>
 #include <engines/ep/tests/mock/mock_stream.h>
+#include <platform/timeutils.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
 
@@ -560,10 +561,7 @@ void DcpStreamSyncReplTest::testBackfillPrepare(DocumentState docState,
 
     // Wait for the backfill task to have pushed all items to the Stream::readyQ
     // Note: we expect 1 SnapshotMarker + numItems in the readyQ
-    std::chrono::microseconds uSleepTime(128);
-    while (stream->public_readyQSize() < 1 + 1) {
-        uSleepTime = decayingSleep(uSleepTime);
-    }
+    cb::waitForPredicate([&] { return stream->public_readyQSize() == 1 + 1; });
 
     auto item = stream->public_nextQueuedItem(*producer);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, item->getEvent());
@@ -654,10 +652,7 @@ void DcpStreamSyncReplTest::testBackfillPrepareCommit(
 
     // Wait for the backfill task to have pushed all items to the Stream::readyQ
     // Note: we expect 1 SnapshotMarker + numItems in the readyQ
-    std::chrono::microseconds uSleepTime(128);
-    while (stream->public_readyQSize() < 2) {
-        uSleepTime = decayingSleep(uSleepTime);
-    }
+    cb::waitForPredicate([&] { return stream->public_readyQSize() == 2; });
 
     auto item = stream->public_nextQueuedItem(*producer);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, item->getEvent());
@@ -747,10 +742,7 @@ void DcpStreamSyncReplTest::testBackfillPrepareAbort(
 
     // Wait for the backfill task to have pushed all items to the Stream::readyQ
     // Note: we expect 1 SnapshotMarker + numItems in the readyQ
-    std::chrono::microseconds uSleepTime(128);
-    while (stream->public_readyQSize() < 1 + 1) {
-        uSleepTime = decayingSleep(uSleepTime);
-    }
+    cb::waitForPredicate([&] { return stream->public_readyQSize() == 1 + 1; });
 
     auto item = stream->public_nextQueuedItem(*producer);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, item->getEvent());

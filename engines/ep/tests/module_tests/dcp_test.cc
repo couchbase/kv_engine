@@ -52,6 +52,7 @@
 #include <platform/cbassert.h>
 #include <platform/compress.h>
 #include <platform/dirutils.h>
+#include <platform/timeutils.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <statistics/cbstat_collector.h>
@@ -235,7 +236,6 @@ void DCPTest::removeCheckpoint(int numItems) {
 
     /* Wait for removal of the old checkpoint, this also would imply that
        the items are persisted (in case of persistent buckets) */
-    std::chrono::microseconds uSleepTime(128);
 
     // When checkpoints become unreferenced, they will be immediately
     // removed. This will be driven by the persistence cursor moving
@@ -244,9 +244,8 @@ void DCPTest::removeCheckpoint(int numItems) {
     // to be racy - all the checkpoints may have been removed by persistence
     // before this method was called. Instead, just wait while the only
     // checkpoint left is the checkpoint just created.
-    while (ckpt_mgr.getNumCheckpoints() > 1) {
-        uSleepTime = decayingSleep(uSleepTime);
-    };
+    cb::waitForPredicate(
+            [&ckpt_mgr] { return ckpt_mgr.getNumCheckpoints() == 1; });
 }
 int DCPTest::callbackCount = 0;
 

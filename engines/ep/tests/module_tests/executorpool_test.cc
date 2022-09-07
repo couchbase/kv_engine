@@ -27,6 +27,7 @@
 #include <folly/synchronization/Baton.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
+#include <platform/timeutils.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <utility>
 
@@ -1910,7 +1911,7 @@ TYPED_TEST(ExecutorPoolEpEngineTest, cancel_can_schedule) {
 static bool waitForMemUsedToBe(EventuallyPersistentEngine& engine,
                                size_t expected,
                                size_t& actual) {
-    return waitForPredicate(
+    return cb::waitForPredicateUntil(
             [&engine, expected, &actual] {
                 actual = engine.getEpStats().getPreciseTotalMemoryUsed();
                 return expected == actual;

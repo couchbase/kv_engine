@@ -25,6 +25,8 @@
 #include "../mock/mock_stream.h"
 #include "../mock/mock_synchronous_ep_engine.h"
 
+#include <platform/timeutils.h>
+
 /* MB-24159 - Test to confirm a dcp stream backfill from an ephemeral bucket
  * over a range which includes /no/ items doesn't cause the producer to
  * segfault.
@@ -102,12 +104,8 @@ TEST_P(EphemeralStreamTest, EphemeralBackfillSnapshotHasNoDuplicates) {
     stream->transitionStateToBackfilling();
 
     /* Wait for the backfill task to complete */
-    {
-        std::chrono::microseconds uSleepTime(128);
-        while (stream->public_isBackfillTaskRunning()) {
-            uSleepTime = decayingSleep(uSleepTime);
-        }
-    }
+    cb::waitForPredicate(
+            [&] { return !stream->public_isBackfillTaskRunning(); });
 
     /* Verify that only 4 items are read in the backfill (no duplicates) */
     EXPECT_EQ(numItems, stream->getNumBackfillItems());

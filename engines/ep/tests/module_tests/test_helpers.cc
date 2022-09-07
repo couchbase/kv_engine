@@ -23,6 +23,7 @@
 #include <nlohmann/json.hpp>
 #include <platform/compress.h>
 #include <platform/dirutils.h>
+#include <platform/timeutils.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <string_utilities.h>
 #include <xattr/blob.h>
@@ -137,27 +138,6 @@ bool queueNewItem(VBucket& vbucket, DocKey key) {
                                                  GenerateBySeqno::Yes,
                                                  GenerateCas::Yes,
                                                  /*preLinkDocCtx*/ nullptr);
-}
-
-std::chrono::microseconds decayingSleep(std::chrono::microseconds uSeconds) {
-    /* Max sleep time is slightly over a second */
-    static const std::chrono::microseconds maxSleepTime(0x1 << 20);
-    std::this_thread::sleep_for(uSeconds);
-    return std::min(uSeconds * 2, maxSleepTime);
-}
-
-bool waitForPredicate(const std::function<bool()>& pred,
-                      std::chrono::microseconds maxWaitTime) {
-    using namespace std::chrono;
-    auto deadline = steady_clock::now() + maxWaitTime;
-    std::chrono::microseconds sleepTime(128);
-    do {
-        if (pred()) {
-            return true;
-        }
-        sleepTime = decayingSleep(sleepTime);
-    } while (steady_clock::now() < deadline);
-    return false;
 }
 
 std::string createXattrValue(const std::string& body,

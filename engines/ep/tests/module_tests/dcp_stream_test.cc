@@ -45,6 +45,7 @@
 
 #include <engines/ep/tests/mock/mock_dcp_backfill_mgr.h>
 #include <folly/portability/GMock.h>
+#include <platform/timeutils.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
@@ -794,10 +795,8 @@ TEST_P(StreamTest, BackfillOnly) {
     // Note: we expect 1 SnapshotMarker + numItems in the readyQ
     // Note: we need to access the readyQ under streamLock while the backfill
     //     task is running
-    std::chrono::microseconds uSleepTime(128);
-    while (stream->public_readyQSize() < numItems + 1) {
-        uSleepTime = decayingSleep(uSleepTime);
-    }
+    cb::waitForPredicate(
+            [&] { return stream->public_readyQSize() == numItems + 1; });
 
     // Check the content of readyQ
     auto front = stream->public_nextQueuedItem(*producer);
@@ -845,12 +844,7 @@ TEST_P(StreamTest, DiskBackfillFail) {
 
     /* Wait for the backfill task to fail and stream to transition to dead
        state */
-    {
-        std::chrono::microseconds uSleepTime(128);
-        while (stream->isActive()) {
-            uSleepTime = decayingSleep(uSleepTime);
-        }
-    }
+    cb::waitForPredicate([&] { return stream->isDead(); });
 
     EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
@@ -884,20 +878,11 @@ TEST_P(StreamTest, BackfillSmallBuffer) {
     stream->transitionStateToBackfilling();
 
     /* Backfill can only read 1 as its buffer will become full after that */
-    {
-        std::chrono::microseconds uSleepTime(128);
-        while ((numItems - 1) != stream->getLastBackfilledSeqno()) {
-            uSleepTime = decayingSleep(uSleepTime);
-        }
-    }
+    cb::waitForPredicate(
+            [&] { return (numItems - 1) == stream->getLastBackfilledSeqno(); });
 
     /* Wait until backfill is paused to assert the pause count */
-    {
-        std::chrono::microseconds uSleepTime(128);
-        while (stream->getNumBackfillPauses() == 0) {
-            uSleepTime = decayingSleep(uSleepTime);
-        }
-    }
+    cb::waitForPredicate([&] { return stream->getNumBackfillPauses() != 0; });
 
     EXPECT_EQ(stream->getNumBackfillPauses(), 1);
 
@@ -909,12 +894,8 @@ TEST_P(StreamTest, BackfillSmallBuffer) {
     EXPECT_FALSE(producer->getBackfillBufferFullStatus());
 
     /* Finish up with the backilling of the remaining item */
-    {
-        std::chrono::microseconds uSleepTime(128);
-        while (numItems != stream->getLastReadSeqno()) {
-            uSleepTime = decayingSleep(uSleepTime);
-        }
-    }
+    cb::waitForPredicate(
+            [&] { return numItems == stream->getLastReadSeqno(); });
 
     /* Read the other item */
     stream->consumeBackfillItems(*producer, 1);
@@ -946,12 +927,8 @@ TEST_P(StreamTest, CursorDroppingBasicBackfillState) {
        complete/cancel itself */
     ExecutorPool::get()->setNumAuxIO(1);
     /* Finish up with the backilling of the remaining item */
-    {
-        std::chrono::microseconds uSleepTime(128);
-        while (numItems != stream->getLastReadSeqno()) {
-            uSleepTime = decayingSleep(uSleepTime);
-        }
-    }
+    cb::waitForPredicate(
+            [&] { return numItems == stream->getLastReadSeqno(); });
     EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 
@@ -1003,12 +980,8 @@ TEST_P(StreamTest, MB_32329CursorDroppingResetCursor) {
        complete/cancel itself */
     ExecutorPool::get()->setNumAuxIO(1);
     /* Finish up with the backilling of the remaining item */
-    {
-        std::chrono::microseconds uSleepTime(128);
-        while (numItems != stream->getLastReadSeqno()) {
-            uSleepTime = decayingSleep(uSleepTime);
-        }
-    }
+    cb::waitForPredicate(
+            [&] { return numItems == stream->getLastReadSeqno(); });
     EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
 }
 
