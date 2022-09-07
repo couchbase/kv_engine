@@ -34,6 +34,15 @@ public:
         return *manager.checkpointList.back();
     }
 
+    static checkpoint_index& public_getCheckpointIndex(Checkpoint& checkpoint) {
+        return checkpoint.committedKeyIndex;
+    }
+
+    static CheckpointIndexKeyType::allocator_type&
+    public_getCheckpointKeyIndexKeyAllocator(Checkpoint& checkpoint) {
+        return checkpoint.keyIndexKeyAllocator;
+    }
+
     static std::vector<std::string> getNonMetaItemKeys(
             const Checkpoint& checkpoint) {
         std::vector<std::string> keys;
