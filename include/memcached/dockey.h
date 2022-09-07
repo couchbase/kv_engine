@@ -394,6 +394,14 @@ struct DocKey : DocKeyInterface<DocKey> {
         return std::string_view(reinterpret_cast<const char*>(data()), size());
     }
 
+    bool operator==(const DocKey& rhs) const {
+        return buffer == rhs.buffer;
+    }
+
+    bool operator!=(const DocKey& rhs) const {
+        return !(*this == rhs);
+    }
+
     const uint8_t* data() const {
         return buffer.data();
     }

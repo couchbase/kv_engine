@@ -1177,6 +1177,7 @@ TEST_F(MB29369_SingleThreadedEPBucketTest,
     const auto iterationLimit =
             engine->getConfiguration().getDcpProducerSnapshotMarkerYieldLimit();
     std::shared_ptr<MockActiveStream> stream;
+    auto key1 = makeStoredDocKey("key1");
     for (size_t id = 0; id < iterationLimit + 1; id++) {
         Vbid vbid = Vbid(id);
         setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
@@ -1204,7 +1205,7 @@ TEST_F(MB29369_SingleThreadedEPBucketTest,
         //    ActiveStreamCheckpointProcessorTask's queue.
         // b) After cursor is dropped we can remove the previously closed and
         //    flushed checkpoint to force ActiveStream into backfilling state.
-        EXPECT_TRUE(queueNewItem(*vb, "key1"));
+        EXPECT_TRUE(queueNewItem(*vb, key1));
         vb->checkpointManager->createNewCheckpoint();
         EXPECT_EQ(FlushResult(MoreAvailable::No, 1),
                   getEPBucket().flushVBucket(vbid));
@@ -1281,7 +1282,8 @@ TEST_F(MB29369_SingleThreadedEPBucketTest,
             << "Expected Snapshot marker after running backfill task.";
 
     // Add another item to the VBucket; after the cursor has been re-registered.
-    EXPECT_TRUE(queueNewItem(*vb, "key2"));
+    auto key2 = makeStoredDocKey("key2");
+    EXPECT_TRUE(queueNewItem(*vb, key2));
 
     // Now run chkptProcessorTask to complete it's queue. With the bug, this
     // results in us discarding the last item we just added to vBucket.
@@ -1297,7 +1299,7 @@ TEST_F(MB29369_SingleThreadedEPBucketTest,
     result = stream->next(*producer);
     if (result && result->getEvent() == DcpResponse::Event::Mutation) {
         auto* mutation = dynamic_cast<MutationResponse*>(result.get());
-        EXPECT_STREQ("key1", mutation->getItem()->getKey().c_str());
+        EXPECT_EQ(key1, mutation->getItem()->getKey());
     } else {
         FAIL() << "Expected Event::Mutation named 'key1'";
     }
@@ -1320,7 +1322,7 @@ TEST_F(MB29369_SingleThreadedEPBucketTest,
 
     if (result && result->getEvent() == DcpResponse::Event::Mutation) {
         auto* mutation = dynamic_cast<MutationResponse*>(result.get());
-        EXPECT_STREQ("key2", mutation->getItem()->getKey().c_str());
+        EXPECT_EQ(key2, mutation->getItem()->getKey());
     } else {
         FAIL() << "Expected second Event::Mutation named 'key2'";
     }
@@ -1359,7 +1361,8 @@ TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
                                                     /*snap_end_seqno*/ ~0);
 
     // Write an item
-    EXPECT_TRUE(queueNewItem(*vb, "key1"));
+    auto key1 = makeStoredDocKey("key1");
+    EXPECT_TRUE(queueNewItem(*vb, key1));
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1),
               getEPBucket().flushVBucket(vbid));
 
@@ -1388,12 +1391,14 @@ TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
     // cs, vbs, mut, ce
     EXPECT_EQ(4, stats.itemsRemovedFromCheckpoints);
     // Force persistence into new CP
-    queueNewItem(*vb, "key2");
+    auto key2 = makeStoredDocKey("key2");
+    queueNewItem(*vb, key2);
     EXPECT_EQ(FlushResult(MoreAvailable::No, 1),
               getEPBucket().flushVBucket(vbid));
 
     // Now store another item, without MB-29369 fix we would lose this item
-    store_item(vbid, makeStoredDocKey("key3"), "value");
+    auto key3 = makeStoredDocKey("key3");
+    store_item(vbid, key3, "value");
 
     // Re-create the new stream
     stream = producer->mockActiveStreamRequest(/*flags*/ 0,
@@ -1443,14 +1448,15 @@ TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
     checkpointTask.completeCurrentTask();
 
     // Poke another item in
-    store_item(vbid, makeStoredDocKey("key4"), "value");
+    auto key4 = makeStoredDocKey("key4");
+    store_item(vbid, key4, "value");
 
     // Finally read back all the items and we should get two snapshots and
     // key1/key2 key3/key4
     result = stream->next(*producer);
     if (result && result->getEvent() == DcpResponse::Event::Mutation) {
         auto* mutation = dynamic_cast<MutationResponse*>(result.get());
-        EXPECT_STREQ("key1", mutation->getItem()->getKey().c_str());
+        EXPECT_EQ(key1, mutation->getItem()->getKey());
     } else {
         FAIL() << "Expected Event::Mutation named 'key1'";
     }
@@ -1458,7 +1464,7 @@ TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
     result = stream->next(*producer);
     if (result && result->getEvent() == DcpResponse::Event::Mutation) {
         auto* mutation = dynamic_cast<MutationResponse*>(result.get());
-        EXPECT_STREQ("key2", mutation->getItem()->getKey().c_str());
+        EXPECT_EQ(key2, mutation->getItem()->getKey());
     } else {
         FAIL() << "Expected Event::Mutation named 'key2'";
     }
@@ -1474,7 +1480,7 @@ TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
     result = stream->next(*producer);
     if (result && result->getEvent() == DcpResponse::Event::Mutation) {
         auto* mutation = dynamic_cast<MutationResponse*>(result.get());
-        EXPECT_STREQ("key3", mutation->getItem()->getKey().c_str());
+        EXPECT_EQ(key3, mutation->getItem()->getKey());
     } else {
         FAIL() << "Expected Event::Mutation named 'key3'";
     }
@@ -1482,7 +1488,7 @@ TEST_P(STParamPersistentBucketTest, MB29585_backfilling_whilst_snapshot_runs) {
     result = stream->next(*producer);
     if (result && result->getEvent() == DcpResponse::Event::Mutation) {
         auto* mutation = dynamic_cast<MutationResponse*>(result.get());
-        EXPECT_STREQ("key4", mutation->getItem()->getKey().c_str());
+        EXPECT_EQ(key4, mutation->getItem()->getKey());
     } else {
         FAIL() << "Expected Event::Mutation named 'key4'";
     }
@@ -1807,7 +1813,8 @@ TEST_P(STParamPersistentBucketTest,
     EXPECT_EQ(1, ckpt_mgr.getNumOfCursors());
 
     // Add an item and flush to vbucket
-    auto item = make_item(vbid, makeStoredDocKey("key1"), "value");
+    auto key1 = makeStoredDocKey("key1");
+    auto item = make_item(vbid, key1, "value");
     item.setCas(1);
     uint64_t seqno;
     store->setWithMeta(std::ref(item),
@@ -1825,7 +1832,8 @@ TEST_P(STParamPersistentBucketTest,
     ASSERT_EQ(1, ckpt_mgr.getNumCheckpoints());
 
     // Add a second item and flush to bucket
-    auto item2 = make_item(vbid, makeStoredDocKey("key2"), "value");
+    auto key2 = makeStoredDocKey("key2");
+    auto item2 = make_item(vbid, key2, "value");
     item2.setCas(1);
     store->setWithMeta(std::ref(item2),
                        0,
@@ -1922,16 +1930,14 @@ TEST_P(STParamPersistentBucketTest,
     // backfillPhase() - take doc "key1" off the ReadyQ
     resp = mock_stream->next(*producer);
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
-    EXPECT_EQ(std::string("key1"),
-              dynamic_cast<MutationResponse*>(resp.get())->
-              getItem()->getKey().c_str());
+    EXPECT_EQ(key1,
+              dynamic_cast<MutationResponse*>(resp.get())->getItem()->getKey());
 
     // backfillPhase - take doc "key2" off the ReadyQ
     resp = mock_stream->next(*producer);
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
-    EXPECT_EQ(std::string("key2"),
-              dynamic_cast<MutationResponse*>(resp.get())->
-              getItem()->getKey().c_str());
+    EXPECT_EQ(key2,
+              dynamic_cast<MutationResponse*>(resp.get())->getItem()->getKey());
 
     EXPECT_TRUE(mock_stream->isInMemory())
             << "stream state should have transitioned to StreamInMemory";

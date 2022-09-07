@@ -1052,7 +1052,7 @@ void LoadStorageKVPairCallback::callback(GetValue& val) {
                         "Value changed in memory before restore from disk. "
                         "Ignored disk value for: key{{{}}}.",
                         vb->getId(),
-                        i->getKey().c_str());
+                        i->getKey());
                 ++stats.warmDups;
                 succeeded = true;
                 break;

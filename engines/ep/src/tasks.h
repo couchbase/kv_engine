@@ -237,7 +237,7 @@ public:
           bySeqNum(s),
           cookie(c),
           description("Fetching item from disk for vkey stat: key{" +
-                      std::string(key.c_str()) + "} " + vbucket.to_string()) {
+                      key.to_string() + "} " + vbucket.to_string()) {
     }
 
     bool run() override;

@@ -184,7 +184,8 @@ cb::engine_errc MockDcpMessageProducers::handleMutationOrPrepare(
     Item* item = reinterpret_cast<Item*>(itm.get());
     last_op = opcode;
     last_opaque = opaque;
-    last_key.assign(item->getKey().c_str());
+    auto noCollectionKeyView = item->getKey().makeDocKeyWithoutCollectionID();
+    last_key.assign(noCollectionKeyView.getBuffer());
     last_vbucket = vbucket;
     last_byseqno = by_seqno;
     last_revseqno = rev_seqno;
@@ -198,8 +199,7 @@ cb::engine_errc MockDcpMessageProducers::handleMutationOrPrepare(
             (last_stream_id ? sizeof(cb::mcbp::DcpStreamIdFrameInfo) : 0) +
             sizeof(cb::mcbp::request::DcpMutationPayload) + item->getNBytes();
     if (!isCollectionsSupported) {
-        last_packet_size +=
-                item->getKey().makeDocKeyWithoutCollectionID().size();
+        last_packet_size += noCollectionKeyView.size();
     } else {
         last_packet_size += item->getKey().size();
     }
@@ -228,7 +228,8 @@ cb::engine_errc MockDcpMessageProducers::deletionInner(
         last_op = cb::mcbp::ClientOpcode::DcpDeletion;
     }
     last_opaque = opaque;
-    last_key.assign(item->getKey().c_str());
+    auto noCollectionKeyView = item->getKey().makeDocKeyWithoutCollectionID();
+    last_key.assign(noCollectionKeyView.getBuffer());
     last_cas = item->getCas();
     last_vbucket = vbucket;
     last_byseqno = by_seqno;
@@ -239,8 +240,7 @@ cb::engine_errc MockDcpMessageProducers::deletionInner(
                        item->getNBytes() + extlen;
 
     if (!isCollectionsSupported) {
-        last_packet_size +=
-                item->getKey().makeDocKeyWithoutCollectionID().size();
+        last_packet_size += noCollectionKeyView.size();
     } else {
         last_packet_size += item->getKey().size();
     }

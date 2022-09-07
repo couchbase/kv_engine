@@ -7214,7 +7214,9 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
     }
 
     // Set the manifest now that we have created vBuckets - do this on a new
-    // cookie as DCP is on the other one.
+    // cookie as DCP is on the other one. A side affect of this manifest change
+    // is that the new collections all get a high-seqno of > 0, e.g. the first
+    // created collection gets seqno:1 and so on.
     auto* admCookie = testHarness->create_cookie(h);
     checkeq(cb::engine_errc::success,
             h->set_collection_manifest(*admCookie, R"({
@@ -7247,25 +7249,10 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
 
     // Now insert items
     for (int i = 1; i < num_vbuckets; i++) {
-        // Insert into default collection
+        // All inserts are into the default collection, testsuite doesn't yet
+        // have the capability to properly write to collections
         for (int j= 0; j < i; j++) {
             std::string key("key" + std::to_string(i));
-            checkeq(cb::engine_errc::success,
-                    store(h,
-                          cookie,
-                          StoreSemantics::Set,
-                          key.c_str(),
-                          "value",
-                          nullptr,
-                          0,
-                          Vbid(i)),
-                    "Failed to store an item.");
-        }
-
-        // Insert into collection with id 8
-        for (int j = 0; j < i; j++) {
-            std::string str_key("key" + std::to_string(i));
-            StoredDocKey key{str_key, 8};
             checkeq(cb::engine_errc::success,
                     store(h,
                           cookie,

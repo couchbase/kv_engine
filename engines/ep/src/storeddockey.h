@@ -124,12 +124,6 @@ public:
      */
     std::string to_string() const;
 
-    /**
-     * For tests only
-     * @returns the 'key' part of the StoredDocKey
-     */
-    const char* c_str() const;
-
     int compare(const StoredDocKeyT& rhs) const {
         return keydata.compare(rhs.keydata);
     }

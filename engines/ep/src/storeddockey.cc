@@ -82,18 +82,6 @@ std::string StoredDocKeyT<Allocator>::to_string() const {
     return DocKey(*this).to_string();
 }
 
-template <template <class, class...> class Allocator>
-const char* StoredDocKeyT<Allocator>::c_str() const {
-    // Locate the leb128 stop byte, and return pointer after that
-    auto key = cb::mcbp::skip_unsigned_leb128<CollectionIDType>(
-            {reinterpret_cast<const uint8_t*>(keydata.data()), keydata.size()});
-
-    if (!key.empty()) {
-        return &keydata.c_str()[keydata.size() - key.size()];
-    }
-    return nullptr;
-}
-
 template class StoredDocKeyT<std::allocator>;
 template class StoredDocKeyT<MemoryTrackingAllocator>;
 

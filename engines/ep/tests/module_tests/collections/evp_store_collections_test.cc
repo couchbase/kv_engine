@@ -3488,8 +3488,9 @@ TEST_P(CollectionsPersistentParameterizedTest, TestGetVKeyStats) {
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
     // as we got cb::engine_errc::would_block we need to manually call the
     // VKeyStatBGFetchTask task
-    runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
-                "Fetching item from disk for vkey stat: key{defKey} vb:0");
+    runNextTask(
+            *task_executor->getLpTaskQ()[READER_TASK_IDX],
+            "Fetching item from disk for vkey stat: key{cid:0x0:defKey} vb:0");
     EXPECT_EQ(cb::engine_errc::success,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
@@ -3501,8 +3502,9 @@ TEST_P(CollectionsPersistentParameterizedTest, TestGetVKeyStats) {
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
     // as we got cb::engine_errc::would_block we need to manually call the
     // VKeyStatBGFetchTask task
-    runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
-                "Fetching item from disk for vkey stat: key{beef} vb:0");
+    runNextTask(
+            *task_executor->getLpTaskQ()[READER_TASK_IDX],
+            "Fetching item from disk for vkey stat: key{cid:0x8:beef} vb:0");
     EXPECT_EQ(cb::engine_errc::success,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
@@ -3514,8 +3516,9 @@ TEST_P(CollectionsPersistentParameterizedTest, TestGetVKeyStats) {
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
     // as we got cb::engine_errc::would_block we need to manually call the
     // VKeyStatBGFetchTask task
-    runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
-                "Fetching item from disk for vkey stat: key{beef} vb:0");
+    runNextTask(
+            *task_executor->getLpTaskQ()[READER_TASK_IDX],
+            "Fetching item from disk for vkey stat: key{cid:0x8:beef} vb:0");
     EXPECT_EQ(cb::engine_errc::success,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
@@ -3538,7 +3541,8 @@ TEST_P(CollectionsPersistentParameterizedTest, TestGetVKeyStats) {
     if (isFullEviction()) {
         EXPECT_EQ(cb::engine_errc::would_block, ret);
         runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
-                    "Fetching item from disk for vkey stat: key{beef2} vb:0");
+                    "Fetching item from disk for vkey stat: key{cid:0x0:beef2} "
+                    "vb:0");
         EXPECT_EQ(
                 cb::engine_errc::no_such_key,
                 engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
@@ -3713,8 +3717,9 @@ TEST_F(CollectionsRbacTest, TestVKeyStats) {
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     // as we got cb::engine_errc::would_block we need to manually call the
     // VKeyStatBGFetchTask task
-    runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
-                "Fetching item from disk for vkey stat: key{beef} vb:0");
+    runNextTask(
+            *task_executor->getLpTaskQ()[READER_TASK_IDX],
+            "Fetching item from disk for vkey stat: key{cid:0x8:beef} vb:0");
     EXPECT_EQ(cb::engine_errc::success,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
@@ -3725,8 +3730,9 @@ TEST_F(CollectionsRbacTest, TestVKeyStats) {
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     // as we got cb::engine_errc::would_block we need to manually call the
     // VKeyStatBGFetchTask task
-    runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
-                "Fetching item from disk for vkey stat: key{beef} vb:0");
+    runNextTask(
+            *task_executor->getLpTaskQ()[READER_TASK_IDX],
+            "Fetching item from disk for vkey stat: key{cid:0x8:beef} vb:0");
     EXPECT_EQ(cb::engine_errc::success,
               engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);

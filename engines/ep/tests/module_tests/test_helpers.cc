@@ -125,8 +125,8 @@ std::unique_ptr<Item> makeCompressibleItem(Vbid vbid,
                                   vbid);
 }
 
-bool queueNewItem(VBucket& vbucket, const std::string& key) {
-    queued_item qi{new Item(makeStoredDocKey(key),
+bool queueNewItem(VBucket& vbucket, DocKey key) {
+    queued_item qi{new Item(key,
                             vbucket.getId(),
                             queue_op::mutation,
                             /*revSeq*/ 0,

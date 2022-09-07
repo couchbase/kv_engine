@@ -844,11 +844,10 @@ TEST_P(KVStoreParamTest, DelVBucketWhileScanning) {
     auto mockGetCB = std::make_unique<MockGetValueCallback>();
     {
         ::testing::InSequence s;
-        EXPECT_CALL(
-                *mockGetCB,
-                callback(ResultOf(
-                        [](GetValue& gv) { return gv.item->getKey().c_str(); },
-                        StrEq("key1"))))
+        EXPECT_CALL(*mockGetCB,
+                    callback(ResultOf(
+                            [](GetValue& gv) { return gv.item->getKey(); },
+                            Eq(makeStoredDocKey("key1")))))
                 .WillOnce([mock = mockGetCB.get()](GetValue&) {
                     mock->setStatus(cb::engine_errc::success);
                 });
@@ -1114,12 +1113,12 @@ void KVStoreParamTest::testGetRange(ValueFilter filter) {
     ASSERT_EQ(2, results.size());
 
     auto checkItem = [filter](Item& item,
-                              std::string_view expectedKey,
+                              DocKey expectedKey,
                               std::string_view expectedValue) {
         const auto expectedDatatype = filter == ValueFilter::VALUES_COMPRESSED
                                               ? PROTOCOL_BINARY_DATATYPE_SNAPPY
                                               : PROTOCOL_BINARY_RAW_BYTES;
-        EXPECT_EQ(expectedKey, item.getKey().c_str());
+        EXPECT_EQ(expectedKey, item.getKey());
         EXPECT_EQ(expectedDatatype, item.getDataType());
         if (filter == ValueFilter::KEYS_ONLY) {
             EXPECT_FALSE(item.getValue());
@@ -1129,8 +1128,8 @@ void KVStoreParamTest::testGetRange(ValueFilter filter) {
         }
     };
 
-    checkItem(*results.at(0).item, "b", "value_b");
-    checkItem(*results.at(1).item, "c", "value_c");
+    checkItem(*results.at(0).item, makeStoredDocKey("b"), "value_b");
+    checkItem(*results.at(1).item, makeStoredDocKey("c"), "value_c");
 }
 
 // Test the getRange() function
@@ -1185,9 +1184,9 @@ TEST_P(KVStoreParamTest, GetRangeDeleted) {
             ValueFilter::VALUES_DECOMPRESSED,
             [&results](GetValue&& cb) { results.push_back(std::move(cb)); });
     ASSERT_EQ(2, results.size());
-    EXPECT_EQ("c"s, results.at(0).item->getKey().c_str());
+    EXPECT_EQ(makeStoredDocKey("c"), results.at(0).item->getKey());
     EXPECT_EQ("value_c"s, results.at(0).item->getValue()->to_s());
-    EXPECT_EQ("e"s, results.at(1).item->getKey().c_str());
+    EXPECT_EQ(makeStoredDocKey("e"), results.at(1).item->getKey());
     EXPECT_EQ("value_e"s, results.at(1).item->getValue()->to_s());
 }
 

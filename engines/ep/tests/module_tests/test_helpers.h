@@ -97,7 +97,7 @@ DiskDocKey makeDiskDocKey(const std::string& string,
 
 // Creates a new item with the given key and queues it into the given VBucket.
 // manager.
-bool queueNewItem(VBucket& vbucket, const std::string& key);
+bool queueNewItem(VBucket& vbucket, DocKey key);
 
 /**
  * Create an XATTR document using the supplied string as the body

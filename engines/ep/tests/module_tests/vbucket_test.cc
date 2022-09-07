@@ -179,7 +179,7 @@ void VBucketTestBase::setMany(std::vector<StoredDocKey>& keys,
 void VBucketTestBase::softDeleteOne(const StoredDocKey& k,
                                     MutationStatus expect) {
     EXPECT_EQ(expect, public_processSoftDelete(k).first)
-            << "Failed to soft delete key " << k.c_str();
+            << "Failed to soft delete key " << k;
 }
 
 void VBucketTestBase::softDeleteMany(std::vector<StoredDocKey>& keys,
@@ -545,8 +545,8 @@ TEST_P(VBucketTest, GetItemsForCursor_Limit) {
         EXPECT_TRUE(result.moreAvailable);
         EXPECT_EQ(4, result.items.size());
         EXPECT_TRUE(result.items[0]->isCheckPointMetaItem());
-        EXPECT_STREQ("1", result.items[1]->getKey().c_str());
-        EXPECT_STREQ("2", result.items[2]->getKey().c_str());
+        EXPECT_EQ(makeStoredDocKey("1"), result.items[1]->getKey());
+        EXPECT_EQ(makeStoredDocKey("2"), result.items[2]->getKey());
         EXPECT_TRUE(result.items[3]->isCheckPointMetaItem());
         EXPECT_EQ(range.getStart(), result.ranges.front().getStart());
         EXPECT_EQ(range.getEnd() + 2, result.ranges.back().getEnd());
@@ -559,12 +559,12 @@ TEST_P(VBucketTest, GetItemsForCursor_Limit) {
     EXPECT_FALSE(result.moreAvailable);
     EXPECT_EQ(7, result.items.size());
     EXPECT_TRUE(result.items[0]->isCheckPointMetaItem());
-    EXPECT_STREQ("3", result.items[1]->getKey().c_str());
-    EXPECT_STREQ("4", result.items[2]->getKey().c_str());
+    EXPECT_EQ(makeStoredDocKey("3"), result.items[1]->getKey());
+    EXPECT_EQ(makeStoredDocKey("4"), result.items[2]->getKey());
     EXPECT_TRUE(result.items[3]->isCheckPointMetaItem());
     EXPECT_TRUE(result.items[4]->isCheckPointMetaItem());
-    EXPECT_STREQ("5", result.items[5]->getKey().c_str());
-    EXPECT_STREQ("6", result.items[6]->getKey().c_str());
+    EXPECT_EQ(makeStoredDocKey("5"), result.items[5]->getKey());
+    EXPECT_EQ(makeStoredDocKey("6"), result.items[6]->getKey());
     EXPECT_EQ(range.getEnd() + 3, result.ranges.front().getStart());
     EXPECT_EQ(range.getEnd() + 6, result.ranges.back().getEnd());
 }
@@ -599,8 +599,8 @@ TEST_P(VBucketTest, DISABLED_GetItemsToPersist_Limit) {
     auto result = this->vbucket->getItemsToPersist(1 /*approxLimit*/);
     EXPECT_TRUE(result.moreAvailable);
     ASSERT_EQ(3, result.items.size());
-    EXPECT_STREQ("1", result.items[0]->getKey().c_str());
-    EXPECT_STREQ("2", result.items[1]->getKey().c_str());
+    EXPECT_EQ(makeStoredDocKey("1"), result.items[0]->getKey());
+    EXPECT_EQ(makeStoredDocKey("2"), result.items[1]->getKey());
     EXPECT_EQ(queue_op::checkpoint_end, result.items[2]->getOperation());
     EXPECT_EQ(1, result.ranges.size());
     EXPECT_EQ(range.getStart(), result.ranges.front().getStart());
@@ -612,9 +612,9 @@ TEST_P(VBucketTest, DISABLED_GetItemsToPersist_Limit) {
     EXPECT_FALSE(result.moreAvailable);
     EXPECT_EQ(4, result.items.size());
     EXPECT_EQ(queue_op::checkpoint_start, result.items[0]->getOperation());
-    EXPECT_STREQ("3", result.items[1]->getKey().c_str());
-    EXPECT_STREQ("4", result.items[2]->getKey().c_str());
-    EXPECT_STREQ("5", result.items[3]->getKey().c_str());
+    EXPECT_EQ(makeStoredDocKey("3"), result.items[1]->getKey());
+    EXPECT_EQ(makeStoredDocKey("4"), result.items[2]->getKey());
+    EXPECT_EQ(makeStoredDocKey("5"), result.items[3]->getKey());
     EXPECT_EQ(1, result.ranges.size());
     EXPECT_EQ(range.getEnd() + 3, result.ranges.front().getStart());
     EXPECT_EQ(range.getEnd() + 5, result.ranges.back().getEnd());
