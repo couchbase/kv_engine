@@ -1220,7 +1220,7 @@ TEST_F(SingleThreadedCheckpointTest, MemUsageCheckpointCreation) {
 
     const size_t numItems = 5;
     const std::string value(_10MB, '!');
-    for (size_t i = 1; i <= numItems; ++i) {
+    for (size_t i = 0; i < numItems; ++i) {
         auto item = makeCommittedItem(
                 makeStoredDocKey("key" + std::to_string(i)), value, vbid);
         EXPECT_TRUE(manager.queueDirty(
@@ -3573,6 +3573,20 @@ INSTANTIATE_TEST_SUITE_P(
                 ::testing::Values(EvictionPolicy::Value, EvictionPolicy::Full)),
         VBucketTest::PrintToStringParamName);
 
+INSTANTIATE_TEST_SUITE_P(
+        AllKeyLengths,
+        CheckpointMemoryTrackingTest,
+        ::testing::Values(CheckpointMemoryTrackingTest::shortKeyLength,
+                          CheckpointMemoryTrackingTest::longKeyLength),
+        CheckpointMemoryTrackingTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(
+        AllKeyLengths,
+        CheckpointIndexAllocatorMemoryTrackingTest,
+        ::testing::Values(CheckpointMemoryTrackingTest::shortKeyLength,
+                          CheckpointMemoryTrackingTest::longKeyLength),
+        CheckpointMemoryTrackingTest::PrintToStringParamName);
+
 // Test that the CheckpointManager's getMemUsage and EPStats' estimated mem
 // usage both increase and decrease by the size of Checkpoint when a new empty
 // checkpoint is created / destroyed
@@ -3678,13 +3692,11 @@ void CheckpointMemoryTrackingTest::testCheckpointManagerMemUsage() {
     size_t queueAlloc = 0;
     size_t keyIndexAlloc = 0;
     std::string key;
-    for (size_t i = 1; i <= numItems; ++i) {
-        // Evenly populate with long and short keys to test for/not SSO case
-        key = "key" + std::to_string(i);
-        if (i % 2 == 0) {
-            key += longKeyPadding;
-        }
-        auto item = makeCommittedItem(makeStoredDocKey(key), "value", vbid);
+    for (size_t i = 0; i < numItems; ++i) {
+        auto item = makeCommittedItem(
+                makeStoredDocKey(createPaddedKeyString(i, GetParam())),
+                "value",
+                vbid);
         EXPECT_TRUE(vb->checkpointManager->queueDirty(
                 item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr));
         // Our estimated mem-usage must account for the queued item + the
@@ -3738,11 +3750,11 @@ void CheckpointMemoryTrackingTest::testCheckpointManagerMemUsage() {
               initialQueuedOverheadAllocator + queueAlloc);
 }
 
-TEST_F(CheckpointMemoryTrackingTest, CheckpointManagerMemUsage) {
+TEST_P(CheckpointMemoryTrackingTest, CheckpointManagerMemUsage) {
     testCheckpointManagerMemUsage();
 }
 
-TEST_F(CheckpointMemoryTrackingTest,
+TEST_P(CheckpointMemoryTrackingTest,
        CheckpointManagerMemUsageMultipleCheckpoints) {
     int numCheckpoints = 2;
     setVBucketState(vbid, vbucket_state_active);
@@ -3772,7 +3784,7 @@ TEST_F(CheckpointMemoryTrackingTest,
     EXPECT_EQ(memOverheadTotal, manager.getMemOverhead());
 }
 
-TEST_F(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtExpelling) {
+TEST_P(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtExpelling) {
     testCheckpointManagerMemUsage();
 
     auto vb = store->getVBuckets().getBucket(vbid);
@@ -3875,7 +3887,7 @@ TEST_F(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtExpelling) {
               stats.memFreedByCheckpointItemExpel);
 }
 
-TEST_F(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtRemoval) {
+TEST_P(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtRemoval) {
     testCheckpointManagerMemUsage();
 
     // confirm that no items have been removed from the checkpoint manager
@@ -3962,24 +3974,24 @@ TEST_F(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtRemoval) {
               stats.memFreedByCheckpointRemoval);
 }
 
-TEST_F(CheckpointMemoryTrackingTest, Deduplication) {
-    // Queue 10 mutations into the checkpoint
+TEST_P(CheckpointMemoryTrackingTest, Deduplication) {
+    // Queue numItems mutations into the checkpoint
     testCheckpointManagerMemUsage();
 
-    // Pre-condition: key10 is in the queue
+    // Pre-condition: last key is in the queue
     auto vb = store->getVBuckets().getBucket(vbid);
     auto& manager = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
     const auto& checkpoint =
             CheckpointManagerTestIntrospector::public_getOpenCheckpoint(
                     manager);
     const auto ckptId = checkpoint.getId();
-    // cs + vbs + 10 muts
-    ASSERT_EQ(12, checkpoint.getNumItems());
+    // cs + vbs + muts
+    ASSERT_EQ(1 + 1 + numItems, checkpoint.getNumItems());
     const auto& queue =
             CheckpointManagerTestIntrospector::public_getOpenCheckpointQueue(
                     manager);
-    const auto keyTen = "key10" + longKeyPadding;
-    ASSERT_EQ("cid:0x0:" + keyTen, queue.back()->getKey().to_string());
+    const auto lastKey = createPaddedKeyString(numItems - 1, GetParam());
+    ASSERT_EQ("cid:0x0:" + lastKey, queue.back()->getKey().to_string());
     const auto preValueSize = queue.back()->getNBytes();
 
     // Pre-dedup mem state
@@ -3992,8 +4004,9 @@ TEST_F(CheckpointMemoryTrackingTest, Deduplication) {
     EXPECT_GT(initialIndexOverhead, 0);
 
     // Test - deduplicate item
-    auto item = makeCommittedItem(
-            makeStoredDocKey(keyTen), std::string(2 * preValueSize, 'x'), vbid);
+    auto item = makeCommittedItem(makeStoredDocKey(lastKey),
+                                  std::string(2 * preValueSize, 'x'),
+                                  vbid);
     EXPECT_FALSE(manager.queueDirty(
             item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr));
 
@@ -4003,7 +4016,7 @@ TEST_F(CheckpointMemoryTrackingTest, Deduplication) {
             CheckpointManagerTestIntrospector::public_getOpenCheckpoint(manager)
                     .getId());
     // cs + vbs + 10 muts
-    EXPECT_EQ(12, checkpoint.getNumItems());
+    EXPECT_EQ(1 + 1 + numItems, checkpoint.getNumItems());
     EXPECT_EQ(initialTotal + preValueSize, manager.getMemUsage());
     EXPECT_EQ(initialQueued + preValueSize,
               checkpoint.getQueuedItemsMemUsage());
@@ -4011,7 +4024,7 @@ TEST_F(CheckpointMemoryTrackingTest, Deduplication) {
     EXPECT_EQ(initialIndexOverhead, checkpoint.getMemOverheadIndex());
 }
 
-TEST_F(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {
+TEST_P(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {
     // Verify that eager checkpoint removal notifies the CheckpointDestroyerTask
     // to run ASAP.
 
@@ -4029,7 +4042,9 @@ TEST_F(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {
     ASSERT_EQ(2, manager.getNumOpenChkItems());
     for (auto i : {1, 2}) {
         auto item = makeCommittedItem(
-                makeStoredDocKey("key" + std::to_string(i)), "value", vbid);
+                makeStoredDocKey(createPaddedKeyString(i, GetParam())),
+                "value",
+                vbid);
         EXPECT_TRUE(manager.queueDirty(
                 item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr));
     }
@@ -4097,21 +4112,23 @@ TEST_F(CheckpointMemoryTrackingTest, BackgroundTaskIsNotified) {
     EXPECT_EQ(0, task->getNumCheckpoints());
 }
 
-TEST_F(CheckpointIndexAllocatorMemoryTrackingTest,
+TEST_P(CheckpointIndexAllocatorMemoryTrackingTest,
        keyIndexAllocatorAccountsForKey) {
     using Introspector = CheckpointManagerTestIntrospector;
+
+    const auto keyLength = GetParam();
 
     setVBucketState(vbid, vbucket_state_active);
     auto vb = store->getVBuckets().getBucket(vbid);
     auto& manager = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
 
     // Lambda function used to guarantee duplicate item queued is duplicate
-    auto queueLongKeyItem = [this, &manager]() {
-        auto item = makeCommittedItem(
-                makeStoredDocKey(std::string(longKeyLength, 'x'),
-                                 CollectionID::Default),
-                "value",
-                vbid);
+    auto queueItem = [this, &manager, &keyLength]() {
+        auto item =
+                makeCommittedItem(makeStoredDocKey(std::string(keyLength, '0'),
+                                                   CollectionID::Default),
+                                  "value",
+                                  vbid);
         EXPECT_TRUE(manager.queueDirty(
                 item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr));
     };
@@ -4119,20 +4136,20 @@ TEST_F(CheckpointIndexAllocatorMemoryTrackingTest,
     auto& checkpoint = Introspector::public_getOpenCheckpoint(manager);
     EXPECT_EQ(0, checkpoint.getKeyIndexAllocatorBytes());
 
-    queueLongKeyItem();
+    queueItem();
 
     // Expect reasonable values for the keyIndex allocation, which should be:
     // - Greater than or equal to the insertion overhead plus the size of the
     // key allocation on the heap
     EXPECT_GE(checkpoint.getKeyIndexAllocatorBytes(),
-              insertionOverhead + longKeyLength);
+              insertionOverhead + keyLength);
     // - Less than or equal to the insertion overhead + the first element
     // metadata overhead for Folly maps, plus the size of the key. As
     // std::string will likely overallocate for alignment/optimization purposes,
     // upper bound the raw size of the key by some bytes
     EXPECT_LE(checkpoint.getKeyIndexAllocatorBytes(),
               insertionOverhead + firstElemOverhead +
-                      (longKeyLength + alignmentBytes));
+                      (keyLength + alignmentBytes));
 
     const auto beforeOpKeyIndexAlloc = checkpoint.getKeyIndexAllocatorBytes();
     // Now expel the item from the checkpoint. The keyIndex will still contain
@@ -4142,7 +4159,7 @@ TEST_F(CheckpointIndexAllocatorMemoryTrackingTest,
 
     // Queue the same item again. As a duplicate of a key that is already in the
     // keyIndex, the memory usage should not change as nothing is inserted.
-    queueLongKeyItem();
+    queueItem();
     EXPECT_EQ(beforeOpKeyIndexAlloc, checkpoint.getKeyIndexAllocatorBytes());
 }
 

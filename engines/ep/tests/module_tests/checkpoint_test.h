@@ -138,24 +138,42 @@ public:
 
 /**
  * Test fixture dedicated to the memory tracking of internal structures in
- * checkpoint.
+ * checkpoint. Parameterized over key length.
  */
-class CheckpointMemoryTrackingTest : public SingleThreadedCheckpointTest {
+class CheckpointMemoryTrackingTest : public SingleThreadedCheckpointTest,
+                                     public ::testing::WithParamInterface<int> {
 public:
+    // Number of items in the checkpoint for all memUsage tests.
+    static const auto numItems = 10;
+
+    // Small enough such that SSO applies for all platforms
+    static const int shortKeyLength = 5;
+    // Very long key that will be >> any possible non-key allocation; SSO will
+    // definitely not apply.
+    static const int longKeyLength = 1024;
+
     /**
      * Verify that the checkpoints mem-usage is tracked correctly
      * at queueing items into the checkpoints.
      */
     void testCheckpointManagerMemUsage();
 
-protected:
-    // Number of items in the checkpoint for all memUsage tests.
-    static const auto numItems = 10;
+    static std::string PrintToStringParamName(
+            const testing::TestParamInfo<int>& info) {
+        return "keyLength_" + std::to_string(info.param);
+    }
 
-    static const auto longKeyLength = 1024;
-    // Padding to be concatenated onto default short strings to avoid SSO for
-    // all memUsage tests.
-    inline static const auto longKeyPadding = std::string(longKeyLength, 'X');
+    std::string createPaddedKeyString(const size_t& key,
+                                      const int& desiredKeyLength) {
+        const auto keyStr = std::to_string(key);
+
+        EXPECT_GT(desiredKeyLength, keyStr.size())
+                << "key '" << std::to_string(key)
+                << "' cannot be padded to desiredKeyLength "
+                << std::to_string(desiredKeyLength);
+
+        return keyStr + std::string(desiredKeyLength - keyStr.size(), 'x');
+    }
 };
 
 /**
