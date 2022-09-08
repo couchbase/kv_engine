@@ -933,26 +933,28 @@ void ActiveStream::nextCheckpointItemTask() {
 
 void ActiveStream::nextCheckpointItemTask(
         const std::lock_guard<std::mutex>& streamMutex) {
-    VBucketPtr vbucket = engine->getVBucket(vb_);
-    if (vbucket) {
-        auto producer = producerPtr.lock();
-        if (!producer) {
-            return;
-        }
-
-        // MB-29369: only run the task's work if the stream is in an in-memory
-        // phase (of which takeover is a variant).
-        if (isInMemory() || isTakeoverSend()) {
-            auto res = getOutstandingItems(*vbucket);
-            processItems(res, streamMutex);
-        }
-    } else {
-        /* The entity deleting the vbucket must set stream to dead,
-           calling setDead(cb::mcbp::DcpStreamEndStatus::StateChanged) will
-           cause deadlock because it will try to grab streamMutex which is
-           already acquired at this point here */
+    auto vbucket = engine->getVBucket(vb_);
+    if (!vbucket) {
+        // The entity deleting the vbucket must set stream to dead,
+        // calling setDead(cb::mcbp::DcpStreamEndStatus::StateChanged) will
+        // cause deadlock because it will try to grab streamMutex which is
+        // already acquired at this point here
         return;
     }
+
+    if (!producerPtr.lock()) {
+        // Nothing to do, the connection is being shut down
+        return;
+    }
+
+    // MB-29369: only run the task's work if the stream is in an in-memory
+    // phase (of which takeover is a variant).
+    if (!(isInMemory() || isTakeoverSend())) {
+        return;
+    }
+
+    auto res = getOutstandingItems(*vbucket);
+    processItems(res, streamMutex);
 }
 
 ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
