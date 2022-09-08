@@ -24,11 +24,25 @@ import re
 
 print('[')
 first = True
+node = ""
 for line in fileinput.input():
-    m = re.search("WARNING (\d+): Slow operation. (.*)", line)
+    # Check if we're parsing logs from multiple nodes, extracting data for rebasing timestamps if we are.
+    #
+    # Match strings beginning with a cbcollect filepath, such as:
+    # cbcollect_info_ns_1@ip-or-hostname_20220722-111444/memcached.log:[log line from file...]
+    # and capture ip-or-hostname to uniquely identify each node.
+    if node or first:
+        m = re.search("^cbcollect_.*@(.+?)_.*", line)
+        if m:
+            node = m.group(1)
+    # Match ISO 8601 formatted log timestamps. Example:
+    # 2022-07-20T01:58:01.316016+03:00
+    time_regex = "(\d{4}-\d{2}-\d{2}T[0-9:.+-]+)"
+    m = re.search(time_regex + " WARNING (\d+): Slow operation. (.*)", line)
     if m:
-        fd = m.group(1)
-        slow_op = json.loads(m.group(2))
+        time = m.group(1)
+        fd = m.group(2)
+        slow_op = json.loads(m.group(3))
 
         # Set the common fields for all events for this operation
         common = dict()
@@ -61,6 +75,11 @@ for line in fileinput.input():
                                  'peer': slow_op['peer']}
                 event['args']['key'] = slow_op['packet']['key']
                 event['args']['vbucket'] = slow_op['packet']['vbucket']
+                event['args']['time'] = time
+            if node:
+                if 'args' not in event:
+                    event['args'] = dict()
+                event['args']['node'] = node
             if not first:
                 print(',', end=' ')
             first = False
