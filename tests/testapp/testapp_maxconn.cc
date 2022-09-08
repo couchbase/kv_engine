@@ -24,6 +24,25 @@ protected:
         admin->authenticate("@admin", "password", "PLAIN");
         admin->selectBucket(bucketName);
         user = connectionMap.getConnection("ssl").clone();
+        const auto [uc, sc] = getConnectionCounts();
+        idleUser = uc;
+        idleSystem = sc;
+    }
+
+    /**
+     * Close the connections and wait until the server successfully
+     * closed the connections and updated its internal counters.
+     */
+    void TearDown() override {
+        connections.clear();
+        for (;;) {
+            const auto [uc, sc] = getConnectionCounts();
+            if (uc == idleUser && sc == idleSystem) {
+                break;
+            }
+            // back off to avoid busyloop
+            std::this_thread::sleep_for(std::chrono::milliseconds{50});
+        }
     }
 
     /// Return the number of "user" connections and "system" connections
@@ -49,13 +68,14 @@ protected:
 
     std::unique_ptr<MemcachedConnection> admin;
     std::unique_ptr<MemcachedConnection> user;
-
+    int idleUser;
+    int idleSystem;
     std::vector<std::unique_ptr<MemcachedConnection>> connections;
 };
 
 TEST_F(MaxConnectionTest, MaxUserConnectionsConnection) {
     auto current = getConnectionCounts();
-    // Consume all of the user connections
+    // Consume all the user connections
     while (current.first < USER_CONNECTIONS) {
         connections.emplace_back(user->clone());
         connections.back()->getSaslMechanisms();
