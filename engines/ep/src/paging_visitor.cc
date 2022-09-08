@@ -69,6 +69,15 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
         return true;
     }
 
+    if (!currentBucket->canEvict()) {
+        // current vbucket is not permitted to evict (e.g., an ephemeral
+        // replica vbucket).
+        // This may depend on vbucket state, but the state lock is held for
+        // each hash bucket visit (see setUpHashBucketVisit) so no additional
+        // locking is required here.
+        return true;
+    }
+
     // Delete expired items for an active vbucket.
     bool isExpired = (currentBucket->getState() == vbucket_state_active) &&
                      v.isExpired(startTime) && !v.isDeleted();
@@ -132,8 +141,7 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
         evicted = eligibleForPaging = doEviction(lh, &v, isDropped);
     } else {
         // just check eligibility without trying to evict
-        eligibleForPaging = currentBucket->canEvict() &&
-                            currentBucket->isEligibleForEviction(lh, v);
+        eligibleForPaging = currentBucket->isEligibleForEviction(lh, v);
         if (eligibleForPaging) {
             /*
              * MB-29333 - For items that we have visited and did not
