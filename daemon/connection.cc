@@ -517,6 +517,7 @@ void Connection::shutdownIfSendQueueStuck(
 
         // We've not had any progress on the socket for "n" secs
         // Forcibly shut down the connection!
+        cb::net::shutdown(socketDescriptor, SHUT_WR);
         sendQueueInfo.term = true;
         setTerminationReason("Failed to send data to client");
         shutdown();

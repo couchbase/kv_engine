@@ -289,13 +289,18 @@ public:
     }
     void writeErr(size_t bytesWritten,
                   const folly::AsyncSocketException& ex) noexcept override {
-        LOG_WARNING("{} writeErr {}", connection.getId(), ex.what());
-        connection.setTerminationReason(ex.what());
+        if (connection.state != Connection::State::immediate_close) {
+            LOG_WARNING("{} writeErr {}", connection.getId(), ex.what());
+        }
+        if (connection.getTerminationReason().empty()) {
+            connection.setTerminationReason(ex.what());
+        }
         connection.sendQueueInfo.term = true;
         if (connection.state == Connection::State::running) {
             connection.shutdown();
         }
         connection.scheduleExecution();
+        sendq.pop_front();
     }
     std::size_t getSendQueueSize() {
         size_t ret = 0;
@@ -396,7 +401,17 @@ void FollyConnection::scheduleExecution() {
                                   "mutex",
                                   "Connection::scheduleExecution::threadLock",
                                   SlowMutexThreshold);
-            if (!executeCommandsCallback()) {
+            if (state == State::immediate_close) {
+                // we might have a stack of events we're waiting for
+                // notifications on..
+                if (asyncWriteCallback->getSendQueueSize() == 0) {
+                    conn_destroy(this);
+                }
+                return;
+            }
+
+            if (!executeCommandsCallback() &&
+                asyncWriteCallback->getSendQueueSize() == 0) {
                 conn_destroy(this);
             }
         });
