@@ -348,6 +348,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/ephemeral_vb_count_visitor.cc
             src/error_handler.cc
             src/environment.cc
+            src/eviction_ratios.cc
             src/ext_meta_parser.cc
             src/event_driven_timeout_task.cc
             src/failover-table.cc

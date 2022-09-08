@@ -17,6 +17,8 @@
 #include <chrono>
 #include <memory>
 
+#include "eviction_ratios.h"
+
 typedef std::pair<int64_t, int64_t> row_range_t;
 
 // Forward declaration.
@@ -27,42 +29,6 @@ class VBucketFilter;
 namespace cb {
 class Semaphore;
 }
-
-/**
- * Tracks the desired eviction ratios for different vbucket states.
- *
- * PagingVisitor attempts to evict the specified fraction of the items from
- * vbuckets in the given state.
- *
- * Note, deleted vbuckets are not evicted from, and pending vbuckets currently
- * share a ratio with active vbuckets, so only two ratios are tracked.
- */
-class EvictionRatios {
-public:
-    EvictionRatios() = default;
-
-    EvictionRatios(double activeAndPending, double replica)
-        : activeAndPending(activeAndPending), replica(replica) {
-    }
-    /**
-     * Get the fraction of items to be evicted from vbuckets in the given state.
-     */
-    double getForState(vbucket_state_t state) const;
-    /**
-     * Set the fraction of items to be evicted from vbuckets in the given state.
-     *
-     * Active and pending vbuckets share a ratio, setting either will overwrite
-     * the existing value for both states.
-     *
-     * Dead vbuckets are not evicted from, so setting a ratio for dead
-     * will be ignored.
-     */
-    void setForState(vbucket_state_t state, double value);
-
-private:
-    double activeAndPending = 0.0;
-    double replica = 0.0;
-};
 
 /**
  * Dispatcher job responsible for periodically pushing data out of
