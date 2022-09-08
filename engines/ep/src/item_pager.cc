@@ -40,7 +40,7 @@
 
 #include <memory>
 
-double EvictionRatios::getForState(vbucket_state_t state) {
+double EvictionRatios::getForState(vbucket_state_t state) const {
     switch (state) {
     case vbucket_state_replica:
         return replica;

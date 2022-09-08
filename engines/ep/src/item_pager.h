@@ -47,7 +47,7 @@ public:
     /**
      * Get the fraction of items to be evicted from vbuckets in the given state.
      */
-    double getForState(vbucket_state_t state);
+    double getForState(vbucket_state_t state) const;
     /**
      * Set the fraction of items to be evicted from vbuckets in the given state.
      *
