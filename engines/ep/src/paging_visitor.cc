@@ -87,6 +87,20 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
         return true;
     }
 
+    // expiry pager does not need to do anything else
+    if (owner == EXPIRY_PAGER) {
+        return true;
+    }
+
+    // Any dropped documents can be discarded
+    if (readHandle.isLogicallyDeleted(v.getKey(), v.getBySeqno())) {
+        // There is no reason to compute anything further for this item, it can
+        // and will definitely be dropped, regardless of the desired eviction
+        // ratio.
+        doEviction(lh, &v, true /*isDropped*/);
+        return true;
+    }
+
     // We don't skip temp initial items (state_temp_init) here. This means that
     // we could evict one before a BG fetch completes. This is fine as it may be
     // desirable to do so under extremely high memory pressure and this ensures
@@ -97,8 +111,14 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
     const double evictionRatio =
             evictionRatios.getForState(currentBucket->getState());
 
-    // return if not ItemPager which uses valid eviction percentage
-    if (evictionRatio <= 0.0) {
+    // A negative eviction ratio is invalid, and should never be encountered
+    Expects(evictionRatio >= 0.0);
+
+    // but an eviction ratio of exactly 0.0 is permissable (e.g., replica
+    // eviction ratio set to a literal 0.0, but an active vb transitions to
+    // replica after we build the vbucket filter but before we start visiting).
+    if (evictionRatio == 0.0) {
+        // don't want to evict any items, early exit.
         return true;
     }
 
@@ -127,18 +147,12 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
     // For replica vbuckets, young items are not protected from eviction.
     const bool isReplica = currentBucket->getState() == vbucket_state_replica;
 
-    // Any dropped documents can be discarded
-    const bool isDropped =
-            readHandle.isLogicallyDeleted(v.getKey(), v.getBySeqno());
-
-    bool evicted = false;
     bool eligibleForPaging = false;
 
-    if ((belowMFUThreshold && (meetsAgeRequirements || isReplica)) ||
-        isDropped) {
+    if (belowMFUThreshold && (meetsAgeRequirements || isReplica)) {
         // try to evict, may fail if sv is not eligible due to being
         // pending/non-resident/dirty.
-        evicted = eligibleForPaging = doEviction(lh, &v, isDropped);
+        eligibleForPaging = doEviction(lh, &v, false /*isDropped*/);
     } else {
         // just check eligibility without trying to evict
         eligibleForPaging = currentBucket->isEligibleForEviction(lh, v);
@@ -169,22 +183,6 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
                     itemEviction.getThresholds(evictionRatio * 100.0,
                                                agePercentage);
         }
-    }
-
-    if (evicted) {
-        /**
-         * Note: We are not taking a reader lock on the vbucket state.
-         * Therefore it is possible that the stats could be slightly
-         * out.  However given that its just for stats we don't want
-         * to incur any performance cost associated with taking the
-         * lock.
-         */
-        auto& frequencyValuesEvictedHisto =
-                ((currentBucket->getState() == vbucket_state_active) ||
-                 (currentBucket->getState() == vbucket_state_pending))
-                        ? stats.activeOrPendingFrequencyValuesEvictedHisto
-                        : stats.replicaFrequencyValuesEvictedHisto;
-        frequencyValuesEvictedHisto.addValue(storedValueFreqCounter);
     }
 
     return true;
@@ -355,6 +353,10 @@ bool PagingVisitor::doEviction(const HashTable::HashBucketLock& lh,
     auto policy = store.getItemEvictionPolicy();
     StoredDocKey key(v->getKey());
 
+    // We take a copy of the freqCounterValue because pageOut may modify the
+    // stored value.
+    auto storedValueFreqCounter = v->getFreqCounterValue();
+
     if (currentBucket->pageOut(readHandle, lh, v, isDropped)) {
         ++ejected;
 
@@ -366,6 +368,20 @@ bool PagingVisitor::doEviction(const HashTable::HashBucketLock& lh,
         if (!isDropped && policy == ::EvictionPolicy::Full) {
             currentBucket->addToFilter(key);
         }
+
+        /**
+         * Note: We are not taking a reader lock on the vbucket state.
+         * Therefore it is possible that the stats could be slightly
+         * out.  However given that its just for stats we don't want
+         * to incur any performance cost associated with taking the
+         * lock.
+         */
+        auto& frequencyValuesEvictedHisto =
+                ((currentBucket->getState() == vbucket_state_active) ||
+                 (currentBucket->getState() == vbucket_state_pending))
+                        ? stats.activeOrPendingFrequencyValuesEvictedHisto
+                        : stats.replicaFrequencyValuesEvictedHisto;
+        frequencyValuesEvictedHisto.addValue(storedValueFreqCounter);
         // performed eviction so return true
         return true;
     }
