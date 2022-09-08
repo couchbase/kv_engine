@@ -1112,6 +1112,7 @@ Connection::~Connection() {
     }
 
     --stats.conn_structs;
+    stats.curr_conns.fetch_sub(1, std::memory_order_relaxed);
 }
 
 void Connection::setTerminationReason(std::string reason) {

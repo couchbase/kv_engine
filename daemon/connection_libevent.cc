@@ -65,12 +65,7 @@ LibeventConnection::LibeventConnection(SOCKET sfd,
     bufferevent_enable(bev.get(), EV_READ);
 }
 
-LibeventConnection::~LibeventConnection() {
-    if (bev) {
-        bev.reset();
-        stats.curr_conns.fetch_sub(1, std::memory_order_relaxed);
-    }
-}
+LibeventConnection::~LibeventConnection() = default;
 
 std::string LibeventConnection::getOpenSSLErrors() {
     unsigned long err;
