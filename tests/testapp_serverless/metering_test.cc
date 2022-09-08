@@ -30,19 +30,36 @@ using Status = cb::mcbp::Status;
 
 namespace cb::test {
 
-class MeteringTest : public ::testing::Test {
+enum class MeteringType {
+    Metered,
+    UnmeteredByPrivilege,
+};
+
+static std::string to_string(MeteringType type) {
+    switch (type) {
+    case MeteringType::Metered:
+        return "Metered";
+    case MeteringType::UnmeteredByPrivilege:
+        return "UnmeteredByPrivilege";
+    }
+    folly::assume_unreachable();
+}
+
+class MeteringTest : public ::testing::TestWithParam<MeteringType> {
 public:
-    static void SetUpTestCase() {
+    void SetUp() override {
         conn = cluster->getConnection(0);
         conn->authenticate("@admin", "password");
         conn->selectBucket("metering");
-        conn->dropPrivilege(cb::rbac::Privilege::Unmetered);
+        if (GetParam() == MeteringType::Metered) {
+            conn->dropPrivilege(cb::rbac::Privilege::Unmetered);
+        }
         conn->dropPrivilege(cb::rbac::Privilege::NodeSupervisor);
         conn->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
         conn->setFeature(cb::mcbp::Feature::Collections, true);
     }
 
-    static void TearDownTestCase() {
+    void TearDown() override {
         conn.reset();
     }
 
@@ -51,6 +68,10 @@ protected:
     CollectionID getTestCollection() const {
         // All tests currently operate in the default collection
         return CollectionID::Default;
+    }
+
+    bool isUnmetered() const {
+        return GetParam() == MeteringType::UnmeteredByPrivilege;
     }
 
     /**
@@ -70,13 +91,13 @@ protected:
      * @param second_xattr_path An optional second XAttr pair
      * @param second_xattr_value An optional second XAttr value
      */
-    static void upsert(DocKey id,
-                       std::string value,
-                       std::string xattr_path = {},
-                       std::string xattr_value = {},
-                       bool wait_for_persistence = false,
-                       std::string second_xattr_path = {},
-                       std::string second_xattr_value = {});
+    void upsert(DocKey id,
+                std::string value,
+                std::string xattr_path = {},
+                std::string xattr_value = {},
+                bool wait_for_persistence = false,
+                std::string second_xattr_path = {},
+                std::string second_xattr_value = {});
 
     size_t to_ru(size_t size) {
         return cb::serverless::Config::instance().to_ru(size);
@@ -158,8 +179,12 @@ protected:
         auto rconn = bucket->getConnection(Vbid(0), vbucket_state_replica, 1);
         rconn->authenticate("@admin", "password");
         rconn->selectBucket("metering");
-        rconn->dropPrivilege(cb::rbac::Privilege::Unmetered);
         rconn->dropPrivilege(cb::rbac::Privilege::NodeSupervisor);
+
+        if (GetParam() == MeteringType::Metered) {
+            rconn->dropPrivilege(cb::rbac::Privilege::Unmetered);
+        }
+
         rconn->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
         rconn->setFeature(cb::mcbp::Feature::Collections, true);
         return rconn;
@@ -198,11 +223,16 @@ protected:
         auto rsp = conn->execute(cmd);
         EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
         EXPECT_FALSE(rsp.getReadUnits());
-        ASSERT_TRUE(rsp.getWriteUnits());
-        if (durable) {
-            EXPECT_EQ(2, *rsp.getWriteUnits());
+
+        if (isUnmetered()) {
+            EXPECT_FALSE(rsp.getWriteUnits());
         } else {
-            EXPECT_EQ(1, *rsp.getWriteUnits());
+            ASSERT_TRUE(rsp.getWriteUnits());
+            if (durable) {
+                EXPECT_EQ(2, *rsp.getWriteUnits());
+            } else {
+                EXPECT_EQ(1, *rsp.getWriteUnits());
+            }
         }
     }
 
@@ -229,13 +259,18 @@ protected:
         auto rsp = conn->execute(cmd);
         EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
         EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-        const auto expected_wu =
-                to_wu(calculateDocumentSize(id, "10", xattr_path, xattr_value));
-        ASSERT_TRUE(rsp.getWriteUnits());
-        if (durable) {
-            EXPECT_EQ(expected_wu * 2, *rsp.getWriteUnits());
+
+        if (isUnmetered()) {
+            EXPECT_FALSE(rsp.getWriteUnits());
         } else {
-            EXPECT_EQ(expected_wu, *rsp.getWriteUnits());
+            const auto expected_wu = to_wu(
+                    calculateDocumentSize(id, "10", xattr_path, xattr_value));
+            ASSERT_TRUE(rsp.getWriteUnits());
+            if (durable) {
+                EXPECT_EQ(expected_wu * 2, *rsp.getWriteUnits());
+            } else {
+                EXPECT_EQ(expected_wu, *rsp.getWriteUnits());
+            }
         }
     }
 
@@ -269,28 +304,33 @@ protected:
         }
         auto rsp = conn->execute(cmd);
         EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
-        ASSERT_TRUE(rsp.getWriteUnits());
-        if (user_xattr_path.empty()) {
-            EXPECT_FALSE(rsp.getReadUnits());
-            if (durable) {
-                EXPECT_EQ(2, *rsp.getWriteUnits());
-            } else {
-                EXPECT_EQ(1, *rsp.getWriteUnits());
-            }
+        EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
+
+        if (isUnmetered()) {
+            EXPECT_FALSE(rsp.getWriteUnits());
         } else {
-            EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-            if (durable) {
-                EXPECT_EQ(to_wu(calculateDocumentSize(id,
-                                                      {},
-                                                      system_xattr_path,
-                                                      system_xattr_value)) *
-                                  2,
-                          *rsp.getWriteUnits());
+            ASSERT_TRUE(rsp.getWriteUnits());
+            if (user_xattr_path.empty()) {
+                if (durable) {
+                    EXPECT_EQ(2, *rsp.getWriteUnits());
+                } else {
+                    EXPECT_EQ(1, *rsp.getWriteUnits());
+                }
             } else {
-                EXPECT_EQ(
-                        to_wu(calculateDocumentSize(
-                                id, {}, system_xattr_path, system_xattr_value)),
-                        *rsp.getWriteUnits());
+                if (durable) {
+                    EXPECT_EQ(to_wu(calculateDocumentSize(id,
+                                                          {},
+                                                          system_xattr_path,
+                                                          system_xattr_value)) *
+                                      2,
+                              *rsp.getWriteUnits());
+                } else {
+                    EXPECT_EQ(to_wu(calculateDocumentSize(id,
+                                                          {},
+                                                          system_xattr_path,
+                                                          system_xattr_value)),
+                              *rsp.getWriteUnits());
+                }
             }
         }
     }
@@ -327,10 +367,12 @@ protected:
 
     void testRangeScan(bool keyOnly);
 
-    static std::unique_ptr<MemcachedConnection> conn;
+    static int64_t clockShift;
+
+    std::unique_ptr<MemcachedConnection> conn;
 };
 
-std::unique_ptr<MemcachedConnection> MeteringTest::conn;
+int64_t MeteringTest::clockShift{0};
 
 void MeteringTest::upsert(DocKey id,
                           std::string value,
@@ -392,7 +434,7 @@ void MeteringTest::upsert(DocKey id,
 
 /// Verify that the unmetered privilege allows to execute commands
 /// were its usage isn't being metered.
-TEST_F(MeteringTest, UnmeteredPrivilege) {
+TEST_P(MeteringTest, UnmeteredPrivilege) {
     auto admin = cluster->getConnection(0);
     admin->authenticate("@admin", "password");
     admin->selectBucket("metering");
@@ -441,7 +483,7 @@ TEST_F(MeteringTest, UnmeteredPrivilege) {
 /// and call a function which performs a switch (so the compiler will barf
 /// out if we don't handle the case). By doing so one must explicitly think
 /// if the new opcode needs to be metered or not.
-TEST_F(MeteringTest, OpsMetered) {
+TEST_P(MeteringTest, OpsMetered) {
     using namespace cb::mcbp;
     auto admin = cluster->getConnection(0);
     admin->authenticate("@admin", "password");
@@ -776,14 +818,14 @@ TEST_F(MeteringTest, OpsMetered) {
     }
 }
 
-TEST_F(MeteringTest, IncrBadValuePlain) {
+TEST_P(MeteringTest, IncrBadValuePlain) {
     testArithmeticBadValue(
             ClientOpcode::Increment,
             StoredDocKey{"IncrBadValuePlain", getTestCollection()},
             getStringValue());
 }
 
-TEST_F(MeteringTest, IncrBadValueWithXattr) {
+TEST_P(MeteringTest, IncrBadValueWithXattr) {
     testArithmeticBadValue(
             ClientOpcode::Increment,
             StoredDocKey{"IncrBadValueWithXattr", getTestCollection()},
@@ -792,14 +834,14 @@ TEST_F(MeteringTest, IncrBadValueWithXattr) {
             getStringValue());
 }
 
-TEST_F(MeteringTest, DecrBadValuePlain) {
+TEST_P(MeteringTest, DecrBadValuePlain) {
     testArithmeticBadValue(
             ClientOpcode::Decrement,
             StoredDocKey{"DecrBadValuePlain", getTestCollection()},
             getStringValue());
 }
 
-TEST_F(MeteringTest, DecrBadValueWithXattr) {
+TEST_P(MeteringTest, DecrBadValueWithXattr) {
     testArithmeticBadValue(
             ClientOpcode::Decrement,
             StoredDocKey{"DecrBadValueWithXattr", getTestCollection()},
@@ -808,35 +850,35 @@ TEST_F(MeteringTest, DecrBadValueWithXattr) {
             getStringValue());
 }
 
-TEST_F(MeteringTest, IncrCreateValue) {
+TEST_P(MeteringTest, IncrCreateValue) {
     testArithmeticCreateValue(
             ClientOpcode::Increment,
             StoredDocKey{"IncrCreateValue", getTestCollection()},
             false);
 }
 
-TEST_F(MeteringTest, IncrCreateValue_Durability) {
+TEST_P(MeteringTest, IncrCreateValue_Durability) {
     testArithmeticCreateValue(
             ClientOpcode::Increment,
             StoredDocKey{"IncrCreateValue_Durability", getTestCollection()},
             true);
 }
 
-TEST_F(MeteringTest, DecrCreateValue) {
+TEST_P(MeteringTest, DecrCreateValue) {
     testArithmeticCreateValue(
             ClientOpcode::Decrement,
             StoredDocKey{"DecrCreateValue", getTestCollection()},
             false);
 }
 
-TEST_F(MeteringTest, DecrCreateValue_Durability) {
+TEST_P(MeteringTest, DecrCreateValue_Durability) {
     testArithmeticCreateValue(
             ClientOpcode::Decrement,
             StoredDocKey{"DecrCreateValue_Durability", getTestCollection()},
             true);
 }
 
-TEST_F(MeteringTest, IncrementPlain) {
+TEST_P(MeteringTest, IncrementPlain) {
     testArithmetic(ClientOpcode::Increment,
                    StoredDocKey{"IncrementPlain", getTestCollection()},
                    {},
@@ -844,7 +886,7 @@ TEST_F(MeteringTest, IncrementPlain) {
                    false);
 }
 
-TEST_F(MeteringTest, IncrementPlain_Durability) {
+TEST_P(MeteringTest, IncrementPlain_Durability) {
     testArithmetic(
             ClientOpcode::Increment,
             StoredDocKey{"IncrementWithXattr_Durability", getTestCollection()},
@@ -853,7 +895,7 @@ TEST_F(MeteringTest, IncrementPlain_Durability) {
             true);
 }
 
-TEST_F(MeteringTest, IncrementWithXattr) {
+TEST_P(MeteringTest, IncrementWithXattr) {
     testArithmetic(ClientOpcode::Increment,
                    StoredDocKey{"IncrementWithXattr", getTestCollection()},
                    "xattr",
@@ -861,7 +903,7 @@ TEST_F(MeteringTest, IncrementWithXattr) {
                    false);
 }
 
-TEST_F(MeteringTest, IncrementWithXattr_Durability) {
+TEST_P(MeteringTest, IncrementWithXattr_Durability) {
     testArithmetic(
             ClientOpcode::Increment,
             StoredDocKey{"IncrementWithXattr_Durability", getTestCollection()},
@@ -870,7 +912,7 @@ TEST_F(MeteringTest, IncrementWithXattr_Durability) {
             true);
 }
 
-TEST_F(MeteringTest, DecrementPlain) {
+TEST_P(MeteringTest, DecrementPlain) {
     testArithmetic(ClientOpcode::Decrement,
                    StoredDocKey{"DecrementPlain", getTestCollection()},
                    {},
@@ -878,7 +920,7 @@ TEST_F(MeteringTest, DecrementPlain) {
                    false);
 }
 
-TEST_F(MeteringTest, DecrementPlain_Durability) {
+TEST_P(MeteringTest, DecrementPlain_Durability) {
     testArithmetic(
             ClientOpcode::Decrement,
             StoredDocKey{"DecrementWithXattr_Durability", getTestCollection()},
@@ -887,7 +929,7 @@ TEST_F(MeteringTest, DecrementPlain_Durability) {
             true);
 }
 
-TEST_F(MeteringTest, DecrementWithXattr) {
+TEST_P(MeteringTest, DecrementWithXattr) {
     testArithmetic(ClientOpcode::Decrement,
                    StoredDocKey{"DecrementWithXattr", getTestCollection()},
                    "xattr",
@@ -895,7 +937,7 @@ TEST_F(MeteringTest, DecrementWithXattr) {
                    false);
 }
 
-TEST_F(MeteringTest, DecrementWithXattr_Durability) {
+TEST_P(MeteringTest, DecrementWithXattr_Durability) {
     testArithmetic(
             ClientOpcode::Decrement,
             StoredDocKey{"DecrementWithXattr_Durability", getTestCollection()},
@@ -905,7 +947,7 @@ TEST_F(MeteringTest, DecrementWithXattr_Durability) {
 }
 
 /// Delete of a non-existing document should be free
-TEST_F(MeteringTest, DeleteNonexistingItem) {
+TEST_P(MeteringTest, DeleteNonexistingItem) {
     const StoredDocKey id{"DeleteNonexistingItem", getTestCollection()};
     auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::Delete,
                                      std::string{id}};
@@ -916,7 +958,7 @@ TEST_F(MeteringTest, DeleteNonexistingItem) {
 }
 
 // Delete of a single document should cost 1WU
-TEST_F(MeteringTest, DeletePlain) {
+TEST_P(MeteringTest, DeletePlain) {
     testDelete(ClientOpcode::Delete,
                StoredDocKey{"DeletePlain", getTestCollection()},
                getStringValue(),
@@ -927,7 +969,7 @@ TEST_F(MeteringTest, DeletePlain) {
                false);
 }
 
-TEST_F(MeteringTest, DeletePlain_Durability) {
+TEST_P(MeteringTest, DeletePlain_Durability) {
     testDelete(ClientOpcode::Delete,
                StoredDocKey{"DeletePlain_Durability", getTestCollection()},
                getStringValue(),
@@ -938,7 +980,7 @@ TEST_F(MeteringTest, DeletePlain_Durability) {
                true);
 }
 
-TEST_F(MeteringTest, DeleteUserXattr) {
+TEST_P(MeteringTest, DeleteUserXattr) {
     testDelete(ClientOpcode::Delete,
                StoredDocKey{"DeleteUserXattr", getTestCollection()},
                getStringValue(),
@@ -949,7 +991,7 @@ TEST_F(MeteringTest, DeleteUserXattr) {
                false);
 }
 
-TEST_F(MeteringTest, DeleteUserXattr_Durability) {
+TEST_P(MeteringTest, DeleteUserXattr_Durability) {
     testDelete(ClientOpcode::Delete,
                StoredDocKey{"DeleteUserXattr_Durability", getTestCollection()},
                getStringValue(),
@@ -960,7 +1002,7 @@ TEST_F(MeteringTest, DeleteUserXattr_Durability) {
                true);
 }
 
-TEST_F(MeteringTest, DeleteUserAndSystemXattr) {
+TEST_P(MeteringTest, DeleteUserAndSystemXattr) {
     testDelete(ClientOpcode::Delete,
                StoredDocKey{"DeleteUserAndSystemXattr", getTestCollection()},
                getStringValue(),
@@ -971,7 +1013,7 @@ TEST_F(MeteringTest, DeleteUserAndSystemXattr) {
                false);
 }
 
-TEST_F(MeteringTest, DeleteUserAndSystemXattr_Durability) {
+TEST_P(MeteringTest, DeleteUserAndSystemXattr_Durability) {
     testDelete(ClientOpcode::Delete,
                StoredDocKey{"DeleteUserAndSystemXattr_Durability",
                             getTestCollection()},
@@ -983,7 +1025,7 @@ TEST_F(MeteringTest, DeleteUserAndSystemXattr_Durability) {
                true);
 }
 
-TEST_F(MeteringTest, DeleteSystemXattr) {
+TEST_P(MeteringTest, DeleteSystemXattr) {
     testDelete(ClientOpcode::Delete,
                StoredDocKey{"DeleteSystemXattr", getTestCollection()},
                getStringValue(),
@@ -994,7 +1036,7 @@ TEST_F(MeteringTest, DeleteSystemXattr) {
                false);
 }
 
-TEST_F(MeteringTest, DeleteSystemXattr_Durability) {
+TEST_P(MeteringTest, DeleteSystemXattr_Durability) {
     testDelete(
             ClientOpcode::Delete,
             StoredDocKey{"DeleteSystemXattr_Durability", getTestCollection()},
@@ -1007,7 +1049,7 @@ TEST_F(MeteringTest, DeleteSystemXattr_Durability) {
 }
 
 /// Get of a non-existing document should not cost anything
-TEST_F(MeteringTest, GetNonExistingDocument) {
+TEST_P(MeteringTest, GetNonExistingDocument) {
     auto rsp = conn->execute(
             BinprotGenericCommand{ClientOpcode::Get, "GetNonExistingDocument"});
     EXPECT_EQ(cb::mcbp::Status::UnknownCollection, rsp.getStatus());
@@ -1016,35 +1058,45 @@ TEST_F(MeteringTest, GetNonExistingDocument) {
 }
 
 /// Get of a single document without xattrs costs the size of the document
-TEST_F(MeteringTest, GetDocumentPlain) {
+TEST_P(MeteringTest, GetDocumentPlain) {
     const StoredDocKey id{"GetDocumentPlain", getTestCollection()};
     const auto value = getStringValue();
     upsert(id, value);
     auto rsp = conn->execute(
             BinprotGenericCommand{ClientOpcode::Get, std::string{id}});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, value)), *rsp.getReadUnits());
+
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getReadUnits());
+    } else {
+        ASSERT_TRUE(rsp.getReadUnits());
+        EXPECT_EQ(to_ru(calculateDocumentSize(id, value)), *rsp.getReadUnits());
+    }
 }
 
 /// Get of a single document with xattrs costs the size of the document plus
 /// the size of the xattrs
-TEST_F(MeteringTest, GetDocumentWithXAttr) {
+TEST_P(MeteringTest, GetDocumentWithXAttr) {
     const StoredDocKey id{"GetDocumentWithXAttr", getTestCollection()};
     const auto value = getStringValue();
     upsert(id, value, "xattr", value);
     auto rsp = conn->execute(
             BinprotGenericCommand{ClientOpcode::Get, std::string{id}});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", value)),
-              *rsp.getReadUnits());
+
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getReadUnits());
+    } else {
+        ASSERT_TRUE(rsp.getReadUnits());
+        EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", value)),
+                  *rsp.getReadUnits());
+    }
 }
 
 /// Get of a non-existing document should not cost anything
-TEST_F(MeteringTest, GetReplicaNonExistingDocument) {
+TEST_P(MeteringTest, GetReplicaNonExistingDocument) {
     const StoredDocKey id{"GetNonExistingDocument", getTestCollection()};
     auto rsp = getReplicaConn()->execute(
             BinprotGenericCommand{ClientOpcode::GetReplica, std::string{id}});
@@ -1054,7 +1106,7 @@ TEST_F(MeteringTest, GetReplicaNonExistingDocument) {
 }
 
 /// Get of a single document without xattrs costs the size of the document
-TEST_F(MeteringTest, GetReplicaDocumentPlain) {
+TEST_P(MeteringTest, GetReplicaDocumentPlain) {
     const StoredDocKey id{"GetDocumentPlain", getTestCollection()};
     const auto value = getStringValue();
     upsert(id, value);
@@ -1066,14 +1118,19 @@ TEST_F(MeteringTest, GetReplicaDocumentPlain) {
                 cb::mcbp::ClientOpcode::GetReplica, std::string{id}});
     } while (rsp.getStatus() == cb::mcbp::Status::KeyEnoent);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, value)), *rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
+
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getReadUnits());
+    } else {
+        ASSERT_TRUE(rsp.getReadUnits());
+        EXPECT_EQ(to_ru(calculateDocumentSize(id, value)), *rsp.getReadUnits());
+    }
 }
 
 /// Get of a single document with xattrs costs the size of the document plus
 /// the size of the xattrs
-TEST_F(MeteringTest, GetReplicaDocumentWithXAttr) {
+TEST_P(MeteringTest, GetReplicaDocumentWithXAttr) {
     const StoredDocKey id{"GetDocumentWithXAttr", getTestCollection()};
     const auto value = getStringValue();
     upsert(id, value, "xattr", value);
@@ -1086,16 +1143,22 @@ TEST_F(MeteringTest, GetReplicaDocumentWithXAttr) {
     } while (rsp.getStatus() == cb::mcbp::Status::KeyEnoent);
 
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", value)),
-              *rsp.getReadUnits());
+
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getReadUnits());
+    } else {
+        ASSERT_TRUE(rsp.getReadUnits());
+        EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", value)),
+                  *rsp.getReadUnits());
+    }
 }
 
-TEST_F(MeteringTest, MeterDocumentLocking) {
+TEST_P(MeteringTest, MeterDocumentLocking) {
     auto& sconfig = cb::serverless::Config::instance();
 
-    const StoredDocKey id{"MeterDocumentLocking", getTestCollection()};
+    const StoredDocKey id{"MeterDocumentLocking/" + to_string(GetParam()),
+                          getTestCollection()};
     const auto getl = BinprotGetAndLockCommand{std::string{id}};
     auto rsp = conn->execute(getl);
     EXPECT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
@@ -1109,10 +1172,15 @@ TEST_F(MeteringTest, MeterDocumentLocking) {
     upsert(id, document_value);
     rsp = conn->execute(getl);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(sconfig.to_ru(document_value.size() + id.size()),
-              *rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
+
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getReadUnits());
+    } else {
+        ASSERT_TRUE(rsp.getReadUnits());
+        EXPECT_EQ(sconfig.to_ru(document_value.size() + id.size()),
+                  *rsp.getReadUnits());
+    }
 
     auto unl = BinprotUnlockCommand{std::string{id}, Vbid{0}, rsp.getCas()};
     rsp = conn->execute(unl);
@@ -1121,9 +1189,10 @@ TEST_F(MeteringTest, MeterDocumentLocking) {
     EXPECT_FALSE(rsp.getWriteUnits());
 }
 
-TEST_F(MeteringTest, MeterDocumentTouch) {
+TEST_P(MeteringTest, MeterDocumentTouch) {
     auto& sconfig = cb::serverless::Config::instance();
-    const StoredDocKey id{"MeterDocumentTouch", getTestCollection()};
+    const StoredDocKey id{"MeterDocumentTouch/" + to_string(GetParam()),
+                          getTestCollection()};
 
     // Touch of non-existing document should fail and is free
     auto rsp = conn->execute(BinprotTouchCommand{std::string{id}, 0});
@@ -1147,20 +1216,31 @@ TEST_F(MeteringTest, MeterDocumentTouch) {
     rsp = conn->execute(BinprotTouchCommand{std::string{id}, 0});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(sconfig.to_wu(document_value.size() + id.size()),
-              *rsp.getWriteUnits());
+
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(sconfig.to_wu(document_value.size() + id.size()),
+                  *rsp.getWriteUnits());
+    }
     EXPECT_TRUE(rsp.getDataString().empty());
+
     rsp = conn->execute(BinprotGetAndTouchCommand{std::string{id}, Vbid{0}, 0});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(sconfig.to_wu(document_value.size() + id.size()),
-              *rsp.getWriteUnits());
+
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(sconfig.to_wu(document_value.size() + id.size()),
+                  *rsp.getWriteUnits());
+    }
     EXPECT_EQ(document_value, rsp.getDataString());
 }
 
-TEST_F(MeteringTest, MeterDocumentSimpleMutations) {
+TEST_P(MeteringTest, MeterDocumentSimpleMutations) {
     auto& sconfig = cb::serverless::Config::instance();
 
     const StoredDocKey id{"MeterDocumentSimpleMutations", getTestCollection()};
@@ -1184,10 +1264,13 @@ TEST_F(MeteringTest, MeterDocumentSimpleMutations) {
     auto rsp = conn->execute(command);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(sconfig.to_wu(id.size() + document_value.size()),
-              *rsp.getWriteUnits());
-
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(sconfig.to_wu(id.size() + document_value.size()),
+                  *rsp.getWriteUnits());
+    }
     // Using Set on an existing document is a replace and will be tested
     // later on.
 
@@ -1208,9 +1291,13 @@ TEST_F(MeteringTest, MeterDocumentSimpleMutations) {
     rsp = conn->execute(command);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(sconfig.to_wu(id.size() + document_value.size()),
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(sconfig.to_wu(id.size() + document_value.size()),
+                  *rsp.getWriteUnits());
+    }
 
     // Replace of the document should cost 1 ru (for the metadata read)
     // then X WUs
@@ -1219,9 +1306,13 @@ TEST_F(MeteringTest, MeterDocumentSimpleMutations) {
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     // @todo it currently don't cost the 1 ru for the metadata read!
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(sconfig.to_wu(id.size() + document_value.size()),
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(sconfig.to_wu(id.size() + document_value.size()),
+                  *rsp.getWriteUnits());
+    }
 
     // But if we try to replace a document containing XATTRs we would
     // need to read the full document in order to replace, and it should
@@ -1231,10 +1322,14 @@ TEST_F(MeteringTest, MeterDocumentSimpleMutations) {
     rsp = conn->execute(command);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(sconfig.to_wu(id.size() + document_value.size() +
-                            xattr_path.size() + xattr_value.size()),
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(sconfig.to_wu(id.size() + document_value.size() +
+                                xattr_path.size() + xattr_value.size()),
+                  *rsp.getWriteUnits());
+    }
 
     // Trying to replace a document with incorrect CAS should cost 1 RU and
     // no WU
@@ -1269,44 +1364,57 @@ TEST_F(MeteringTest, MeterDocumentSimpleMutations) {
     rsp = conn->execute(command);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(sconfig.to_wu(id.size() + document_value.size() * 2),
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(sconfig.to_wu(id.size() + document_value.size() * 2),
+                  *rsp.getWriteUnits());
+    }
 
     upsert(id, document_value);
     command.setMutationType(MutationType::Prepend);
     rsp = conn->execute(command);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(sconfig.to_wu(id.size() + document_value.size() * 2),
-              *rsp.getWriteUnits());
-
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(sconfig.to_wu(id.size() + document_value.size() * 2),
+                  *rsp.getWriteUnits());
+    }
     // And if we have XATTRs they should be copied as well
     upsert(id, document_value, xattr_path, xattr_value);
     command.setMutationType(MutationType::Append);
     rsp = conn->execute(command);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(sconfig.to_wu(id.size() + document_value.size() * 2 +
-                            xattr_path.size() + xattr_value.size()),
-              *rsp.getWriteUnits());
-
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(sconfig.to_wu(id.size() + document_value.size() * 2 +
+                                xattr_path.size() + xattr_value.size()),
+                  *rsp.getWriteUnits());
+    }
     upsert(id, document_value, xattr_path, xattr_value);
     command.setMutationType(MutationType::Prepend);
     rsp = conn->execute(command);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(sconfig.to_wu(id.size() + document_value.size() * 2 +
-                            xattr_path.size() + xattr_value.size()),
-              *rsp.getWriteUnits());
-
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(sconfig.to_wu(id.size() + document_value.size() * 2 +
+                                xattr_path.size() + xattr_value.size()),
+                  *rsp.getWriteUnits());
+    }
     // @todo add test cases for durability
 }
 
-TEST_F(MeteringTest, MeterGetRandomKey) {
+TEST_P(MeteringTest, MeterGetRandomKey) {
     // Random key needs at least one key to be stored in the bucket so that
     // it may return the key. To make sure that the unit tests doesn't depend
     // on other tests lets store a document in vbucket 0.
@@ -1327,12 +1435,17 @@ TEST_F(MeteringTest, MeterGetRandomKey) {
     getRandom.setExtrasValue(CollectionIDType{getTestCollection()});
     const auto rsp = conn->execute(getRandom);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_NE(0, *rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
+
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getReadUnits());
+    } else {
+        ASSERT_TRUE(rsp.getReadUnits());
+        EXPECT_NE(0, *rsp.getReadUnits());
+    }
 }
 
-TEST_F(MeteringTest, MeterGetKeys) {
+TEST_P(MeteringTest, MeterGetKeys) {
     // GetKeys needs at least one key to be stored in the bucket so that
     // it may return the key. To make sure that the unit tests doesn't depend
     // on other tests lets store a document in vbucket 0.
@@ -1354,14 +1467,19 @@ TEST_F(MeteringTest, MeterGetKeys) {
             DocKey::makeWireEncodedString(getTestCollection(), {"\0", 1})});
     ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getData().empty());
-    ASSERT_TRUE(rsp.getReadUnits()) << rsp.getDataString();
-    // Depending on how many keys we've got in the database..
-    EXPECT_LE(1, *rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
+
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getReadUnits());
+    } else {
+        ASSERT_TRUE(rsp.getReadUnits()) << rsp.getDataString();
+        // Depending on how many keys we've got in the database..
+        EXPECT_LE(1, *rsp.getReadUnits());
+    }
 }
 
 /// GetMeta should cost 1 RU (we only look up metadata)
-TEST_F(MeteringTest, GetMetaNonexistentDocument) {
+TEST_P(MeteringTest, GetMetaNonexistentDocument) {
     // Verify cost of nonexistent value
     const StoredDocKey id{"ClientOpcode::GetMeta", getTestCollection()};
     const auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::GetMeta,
@@ -1373,33 +1491,43 @@ TEST_F(MeteringTest, GetMetaNonexistentDocument) {
 }
 
 /// GetMeta should cost 1 RU (we only look up metadata)
-TEST_F(MeteringTest, GetMetaPlainDocument) {
+TEST_P(MeteringTest, GetMetaPlainDocument) {
     const StoredDocKey id{"ClientOpcode::GetMeta", getTestCollection()};
     const auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::GetMeta,
                                            std::string{id}};
     upsert(id, getStringValue());
     const auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(1, *rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
+
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getReadUnits());
+    } else {
+        ASSERT_TRUE(rsp.getReadUnits());
+        EXPECT_EQ(1, *rsp.getReadUnits());
+    }
 }
 
 /// GetMeta should cost 1 RU (we only look up metadata)
-TEST_F(MeteringTest, GetMetaDocumentWithXattr) {
+TEST_P(MeteringTest, GetMetaDocumentWithXattr) {
     const StoredDocKey id{"ClientOpcode::GetMeta", getTestCollection()};
     const auto cmd = BinprotGenericCommand{cb::mcbp::ClientOpcode::GetMeta,
                                            std::string{id}};
     upsert(id, getStringValue(), "xattr", getStringValue());
     const auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(1, *rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
+
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getReadUnits());
+    } else {
+        ASSERT_TRUE(rsp.getReadUnits());
+        EXPECT_EQ(1, *rsp.getReadUnits());
+    }
 }
 
 /// MB-53560: Failing operations should not cost read or write
-TEST_F(MeteringTest, SubdocGetNoSuchPath) {
+TEST_P(MeteringTest, SubdocGetNoSuchPath) {
     const StoredDocKey id{"SubdocGetENoPath", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
@@ -1413,21 +1541,26 @@ TEST_F(MeteringTest, SubdocGetNoSuchPath) {
 
 /// Subdoc get should cost the entire doc read; and not just the returned
 /// path
-TEST_F(MeteringTest, SubdocGet) {
+TEST_P(MeteringTest, SubdocGet) {
     const StoredDocKey id{"SubdocGet", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
     auto rsp = conn->execute(BinprotSubdocCommand{
             cb::mcbp::ClientOpcode::SubdocGet, std::string{id}, "v1"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
+
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getReadUnits());
+    } else {
+        ASSERT_TRUE(rsp.getReadUnits());
+        EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    }
 }
 
 /// Subdoc get should cost the entire doc read (including xattr); and not just
 //  the returned path
-TEST_F(MeteringTest, SubdocGetWithXattr) {
+TEST_P(MeteringTest, SubdocGetWithXattr) {
     const StoredDocKey id{"SubdocGetXattr", getTestCollection()};
     const auto value = getJsonDoc().dump();
     const auto xattr = getStringValue();
@@ -1435,14 +1568,19 @@ TEST_F(MeteringTest, SubdocGetWithXattr) {
     auto rsp = conn->execute(BinprotSubdocCommand{
             cb::mcbp::ClientOpcode::SubdocGet, std::string{id}, "v1"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
-              *rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
+
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getReadUnits());
+    } else {
+        ASSERT_TRUE(rsp.getReadUnits());
+        EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
+                  *rsp.getReadUnits());
+    }
 }
 
 /// MB-53560: Failing operations should not cost read or write
-TEST_F(MeteringTest, SubdocExistsNoSuchPath) {
+TEST_P(MeteringTest, SubdocExistsNoSuchPath) {
     const StoredDocKey id{"SubdocExistsNoSuchPath", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
@@ -1454,20 +1592,25 @@ TEST_F(MeteringTest, SubdocExistsNoSuchPath) {
 }
 
 /// Subdoc exists should cost the entire doc read
-TEST_F(MeteringTest, SubdocExistsPlainDoc) {
+TEST_P(MeteringTest, SubdocExistsPlainDoc) {
     const StoredDocKey id{"SubdocExistsPlainDoc", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
     auto rsp = conn->execute(BinprotSubdocCommand{
             cb::mcbp::ClientOpcode::SubdocExists, std::string{id}, "v1"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
+
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getReadUnits());
+    } else {
+        ASSERT_TRUE(rsp.getReadUnits());
+        EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    }
 }
 
 /// Subdoc exists should cost the entire doc read (that include xattrs)
-TEST_F(MeteringTest, SubdocExistsWithXattr) {
+TEST_P(MeteringTest, SubdocExistsWithXattr) {
     const StoredDocKey id{"SubdocExistsWithXattr", getTestCollection()};
     const auto value = getJsonDoc().dump();
     const auto xattr = getStringValue();
@@ -1475,14 +1618,19 @@ TEST_F(MeteringTest, SubdocExistsWithXattr) {
     auto rsp = conn->execute(BinprotSubdocCommand{
             cb::mcbp::ClientOpcode::SubdocExists, std::string{id}, "v1"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
-              *rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
+
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getReadUnits());
+    } else {
+        ASSERT_TRUE(rsp.getReadUnits());
+        EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
+                  *rsp.getReadUnits());
+    }
 }
 
 /// MB-53560: Failing operations should not cost read or write
-TEST_F(MeteringTest, SubdocDictAddEExist) {
+TEST_P(MeteringTest, SubdocDictAddEExist) {
     const StoredDocKey id{"SubdocDictAddEExist", getTestCollection()};
     const auto value = getJsonDoc().dump();
     const auto xattr = getStringValue();
@@ -1498,7 +1646,7 @@ TEST_F(MeteringTest, SubdocDictAddEExist) {
 }
 
 /// Dict add should cost RU for the document, and WUs for the new document
-TEST_F(MeteringTest, SubdocDictAddPlainDoc) {
+TEST_P(MeteringTest, SubdocDictAddPlainDoc) {
     const StoredDocKey id{"SubdocDictAddPlainDoc", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
@@ -1507,13 +1655,18 @@ TEST_F(MeteringTest, SubdocDictAddPlainDoc) {
             cb::mcbp::ClientOpcode::SubdocDictAdd, std::string{id}, "v3", v3});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(to_wu(id.size() + value.size() + v3.size()),
-              *rsp.getWriteUnits());
+
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(to_wu(id.size() + value.size() + v3.size()),
+                  *rsp.getWriteUnits());
+    }
 }
 
 /// Dict add should cost RU for the document, and 2x WUs for the new document
-TEST_F(MeteringTest, SubdocDictAddPlainDoc_Durability) {
+TEST_P(MeteringTest, SubdocDictAddPlainDoc_Durability) {
     const StoredDocKey id{"SubdocDictAddPlainDoc_Durability",
                           getTestCollection()};
     const auto value = getJsonDoc().dump();
@@ -1526,14 +1679,19 @@ TEST_F(MeteringTest, SubdocDictAddPlainDoc_Durability) {
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(to_wu(id.size() + value.size() + v3.size()) * 2,
-              *rsp.getWriteUnits());
+
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(to_wu(id.size() + value.size() + v3.size()) * 2,
+                  *rsp.getWriteUnits());
+    }
 }
 
 /// Dict add should cost RU for the document, and WUs for the new document
 /// (including the XAttrs copied over)
-TEST_F(MeteringTest, SubdocDictAddPlainDocWithXattr) {
+TEST_P(MeteringTest, SubdocDictAddPlainDocWithXattr) {
     const StoredDocKey id{"SubdocDictAddPlainDocWithXattr",
                           getTestCollection()};
     auto json = getJsonDoc();
@@ -1545,15 +1703,20 @@ TEST_F(MeteringTest, SubdocDictAddPlainDocWithXattr) {
             cb::mcbp::ClientOpcode::SubdocDictAdd, std::string{id}, "v3", v3});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    ASSERT_TRUE(rsp.getWriteUnits());
-    json["v3"] = v3;
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
-              *rsp.getWriteUnits());
+
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        ASSERT_TRUE(rsp.getWriteUnits());
+        json["v3"] = v3;
+        EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+                  *rsp.getWriteUnits());
+    }
 }
 
 /// Dict add should cost RU for the document, and 2x WUs for the new document
 /// (including the XAttrs copied over)
-TEST_F(MeteringTest, SubdocDictAddPlainDocWithXattr_Durability) {
+TEST_P(MeteringTest, SubdocDictAddPlainDocWithXattr_Durability) {
     const StoredDocKey id{"SubdocDictAddPlainDocWithXattr_Durability",
                           getTestCollection()};
     auto json = getJsonDoc();
@@ -1568,14 +1731,21 @@ TEST_F(MeteringTest, SubdocDictAddPlainDocWithXattr_Durability) {
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    ASSERT_TRUE(rsp.getWriteUnits());
-    json["v3"] = v3;
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) * 2,
-              *rsp.getWriteUnits());
+
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        ASSERT_TRUE(rsp.getWriteUnits());
+        json["v3"] = v3;
+        EXPECT_EQ(
+                to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) *
+                        2,
+                *rsp.getWriteUnits());
+    }
 }
 
 /// Dict Upsert should cost RU for the document, and WUs for the new document
-TEST_F(MeteringTest, SubdocDictUpsertPlainDoc) {
+TEST_P(MeteringTest, SubdocDictUpsertPlainDoc) {
     const StoredDocKey id{"SubdocDictUpsertPlainDoc", getTestCollection()};
     auto json = getJsonDoc();
     const auto value = json.dump();
@@ -1587,14 +1757,19 @@ TEST_F(MeteringTest, SubdocDictUpsertPlainDoc) {
                                  R"("this is the new value")"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    ASSERT_TRUE(rsp.getWriteUnits());
-    json["v1"] = "this is the new value";
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())),
-              *rsp.getWriteUnits());
+
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        ASSERT_TRUE(rsp.getWriteUnits());
+        json["v1"] = "this is the new value";
+        EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())),
+                  *rsp.getWriteUnits());
+    }
 }
 
 /// Dict Upsert should cost RU for the document, and 2x WUs for the new document
-TEST_F(MeteringTest, SubdocDictUpsertPlainDoc_Durability) {
+TEST_P(MeteringTest, SubdocDictUpsertPlainDoc_Durability) {
     const StoredDocKey id{"SubdocDictUpsertPlainDoc_Durability",
                           getTestCollection()};
     auto json = getJsonDoc();
@@ -1610,15 +1785,19 @@ TEST_F(MeteringTest, SubdocDictUpsertPlainDoc_Durability) {
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    ASSERT_TRUE(rsp.getWriteUnits());
-    json["v1"] = "this is the new value";
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())) * 2,
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        ASSERT_TRUE(rsp.getWriteUnits());
+        json["v1"] = "this is the new value";
+        EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())) * 2,
+                  *rsp.getWriteUnits());
+    }
 }
 
 /// Dict Upsert should cost RU for the document, and WUs for the new document
 /// (including the XAttrs copied over)
-TEST_F(MeteringTest, SubdocDictUpsertPlainDocWithXattr) {
+TEST_P(MeteringTest, SubdocDictUpsertPlainDocWithXattr) {
     const StoredDocKey id{"SubdocDictAddPlainDocWithXattr",
                           getTestCollection()};
     auto json = getJsonDoc();
@@ -1632,15 +1811,19 @@ TEST_F(MeteringTest, SubdocDictUpsertPlainDocWithXattr) {
                                  R"("this is the new value")"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    ASSERT_TRUE(rsp.getWriteUnits());
-    json["v1"] = "this is the new value";
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        ASSERT_TRUE(rsp.getWriteUnits());
+        json["v1"] = "this is the new value";
+        EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+                  *rsp.getWriteUnits());
+    }
 }
 
 /// Dict Upsert should cost RU for the document, and 2x WUs for the new document
 /// (including the XAttrs copied over)
-TEST_F(MeteringTest, SubdocDictUpsertPlainDocWithXattr_Durability) {
+TEST_P(MeteringTest, SubdocDictUpsertPlainDocWithXattr_Durability) {
     const StoredDocKey id{"SubdocDictAddPlainDocWithXattr_Durability",
                           getTestCollection()};
     auto json = getJsonDoc();
@@ -1656,14 +1839,20 @@ TEST_F(MeteringTest, SubdocDictUpsertPlainDocWithXattr_Durability) {
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    ASSERT_TRUE(rsp.getWriteUnits());
-    json["v1"] = "this is the new value";
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) * 2,
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        ASSERT_TRUE(rsp.getWriteUnits());
+        json["v1"] = "this is the new value";
+        EXPECT_EQ(
+                to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) *
+                        2,
+                *rsp.getWriteUnits());
+    }
 }
 
 /// MB-53560: Failing operations should not cost read or write
-TEST_F(MeteringTest, SubdocDeleteENoPath) {
+TEST_P(MeteringTest, SubdocDeleteENoPath) {
     const StoredDocKey id{"SubdocDeleteENoPath", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
@@ -1676,7 +1865,7 @@ TEST_F(MeteringTest, SubdocDeleteENoPath) {
 
 /// Delete should cost the full read, and the write of the full size of the
 /// new document
-TEST_F(MeteringTest, SubdocDeletePlainDoc) {
+TEST_P(MeteringTest, SubdocDeletePlainDoc) {
     const StoredDocKey id{"SubdocDeletePlainDoc", getTestCollection()};
     auto json = getJsonDoc();
     const auto value = json.dump();
@@ -1685,15 +1874,19 @@ TEST_F(MeteringTest, SubdocDeletePlainDoc) {
             cb::mcbp::ClientOpcode::SubdocDelete, std::string{id}, "fill"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    json.erase("fill");
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())),
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        ASSERT_TRUE(rsp.getWriteUnits());
+        json.erase("fill");
+        EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())),
+                  *rsp.getWriteUnits());
+    }
 }
 
 /// Delete should cost the full read, and the write of the full size of the
 /// new document
-TEST_F(MeteringTest, SubdocDeletePlainDoc_Durability) {
+TEST_P(MeteringTest, SubdocDeletePlainDoc_Durability) {
     const StoredDocKey id{"SubdocDeletePlainDoc_Durability",
                           getTestCollection()};
     auto json = getJsonDoc();
@@ -1706,15 +1899,19 @@ TEST_F(MeteringTest, SubdocDeletePlainDoc_Durability) {
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    json.erase("fill");
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())) * 2,
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        ASSERT_TRUE(rsp.getWriteUnits());
+        json.erase("fill");
+        EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())) * 2,
+                  *rsp.getWriteUnits());
+    }
 }
 
 /// Delete should cost the full read (including xattrs), and the write of the
 /// full size of the new document (including the xattrs copied over)
-TEST_F(MeteringTest, SubdocDeletePlainDocWithXattr) {
+TEST_P(MeteringTest, SubdocDeletePlainDocWithXattr) {
     const StoredDocKey id{"SubdocDeletePlainDocWithXattr", getTestCollection()};
     auto json = getJsonDoc();
     const auto value = json.dump();
@@ -1724,15 +1921,19 @@ TEST_F(MeteringTest, SubdocDeletePlainDocWithXattr) {
             cb::mcbp::ClientOpcode::SubdocDelete, std::string{id}, "fill"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    ASSERT_TRUE(rsp.getWriteUnits());
-    json.erase("fill");
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        ASSERT_TRUE(rsp.getWriteUnits());
+        json.erase("fill");
+        EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+                  *rsp.getWriteUnits());
+    }
 }
 
 /// Delete should cost the full read (including xattrs), and the write 2x of the
 /// full size of the new document (including the xattrs copied over)
-TEST_F(MeteringTest, SubdocDeletePlainDocWithXattr_Durability) {
+TEST_P(MeteringTest, SubdocDeletePlainDocWithXattr_Durability) {
     const StoredDocKey id{"SubdocDeletePlainDocWithXattr_Durability",
                           getTestCollection()};
     auto json = getJsonDoc();
@@ -1746,14 +1947,20 @@ TEST_F(MeteringTest, SubdocDeletePlainDocWithXattr_Durability) {
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    ASSERT_TRUE(rsp.getWriteUnits());
-    json.erase("fill");
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) * 2,
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        ASSERT_TRUE(rsp.getWriteUnits());
+        json.erase("fill");
+        EXPECT_EQ(
+                to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) *
+                        2,
+                *rsp.getWriteUnits());
+    }
 }
 
 /// MB-53560: Failing operations should not cost read or write
-TEST_F(MeteringTest, SubdocReplaceENoPath) {
+TEST_P(MeteringTest, SubdocReplaceENoPath) {
     const StoredDocKey id{"SubdocReplaceENoPath", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
@@ -1769,7 +1976,7 @@ TEST_F(MeteringTest, SubdocReplaceENoPath) {
 
 /// Replace should cost the read of the document, and the write of the
 /// new document
-TEST_F(MeteringTest, SubdocReplacePlainDoc) {
+TEST_P(MeteringTest, SubdocReplacePlainDoc) {
     const StoredDocKey id{"SubdocReplacePlainDoc", getTestCollection()};
     auto json = getJsonDoc();
     const auto value = json.dump();
@@ -1781,15 +1988,20 @@ TEST_F(MeteringTest, SubdocReplacePlainDoc) {
                                  "true"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    json["fill"] = true;
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())),
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        ASSERT_TRUE(rsp.getWriteUnits());
+        json["fill"] = true;
+
+        EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())),
+                  *rsp.getWriteUnits());
+    }
 }
 
 /// Replace should cost the read of the document, and the write 2x of the
 /// new document
-TEST_F(MeteringTest, SubdocReplacePlainDoc_Durability) {
+TEST_P(MeteringTest, SubdocReplacePlainDoc_Durability) {
     const StoredDocKey id{"SubdocReplacePlainDoc_Durability",
                           getTestCollection()};
     auto json = getJsonDoc();
@@ -1804,15 +2016,19 @@ TEST_F(MeteringTest, SubdocReplacePlainDoc_Durability) {
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    json["fill"] = true;
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())) * 2,
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        json["fill"] = true;
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())) * 2,
+                  *rsp.getWriteUnits());
+    }
 }
 
 /// Replace should cost the full read (including xattrs), and the write of the
 /// full size of the new document (including the xattrs copied over)
-TEST_F(MeteringTest, SubdocReplacePlainDocWithXattr) {
+TEST_P(MeteringTest, SubdocReplacePlainDocWithXattr) {
     const StoredDocKey id{"SubdocReplacePlainDocWithXattr",
                           getTestCollection()};
     auto json = getJsonDoc();
@@ -1826,15 +2042,19 @@ TEST_F(MeteringTest, SubdocReplacePlainDocWithXattr) {
                                  "true"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    ASSERT_TRUE(rsp.getWriteUnits());
-    json["fill"] = true;
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        json["fill"] = true;
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+                  *rsp.getWriteUnits());
+    }
 }
 
 /// Replace should cost the full read (including xattrs), and the write 2x of
 /// the full size of the new document (including the xattrs copied over)
-TEST_F(MeteringTest, SubdocReplacePlainDocWithXattr_Durability) {
+TEST_P(MeteringTest, SubdocReplacePlainDocWithXattr_Durability) {
     const StoredDocKey id{"SubdocReplacePlainDocWithXattr_Durability",
                           getTestCollection()};
     auto json = getJsonDoc();
@@ -1850,14 +2070,20 @@ TEST_F(MeteringTest, SubdocReplacePlainDocWithXattr_Durability) {
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    ASSERT_TRUE(rsp.getWriteUnits());
-    json["fill"] = true;
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) * 2,
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        json["fill"] = true;
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(
+                to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) *
+                        2,
+                *rsp.getWriteUnits());
+    }
 }
 
 /// MB-53560: Failing operations should not cost read or write
-TEST_F(MeteringTest, SubdocCounterENoCounter) {
+TEST_P(MeteringTest, SubdocCounterENoCounter) {
     const StoredDocKey id{"SubdocCounterENoPath", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
@@ -1873,7 +2099,7 @@ TEST_F(MeteringTest, SubdocCounterENoCounter) {
 
 /// Counter should cost the read of the full document and the write of
 /// the new document
-TEST_F(MeteringTest, SubdocCounterPlainDoc) {
+TEST_P(MeteringTest, SubdocCounterPlainDoc) {
     const StoredDocKey id{"SubdocCounterPlainDoc", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
@@ -1884,13 +2110,18 @@ TEST_F(MeteringTest, SubdocCounterPlainDoc) {
                                  "1"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, value)), *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(to_wu(calculateDocumentSize(id, value)),
+                  *rsp.getWriteUnits());
+    }
 }
 
 /// Counter should cost the read of the full document and the write 2x of
 /// the new document
-TEST_F(MeteringTest, SubdocCounterPlainDoc_Durability) {
+TEST_P(MeteringTest, SubdocCounterPlainDoc_Durability) {
     const StoredDocKey id{"SubdocCounterPlainDoc_Durability",
                           getTestCollection()};
     const auto value = getJsonDoc().dump();
@@ -1904,14 +2135,18 @@ TEST_F(MeteringTest, SubdocCounterPlainDoc_Durability) {
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, value)) * 2,
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(to_wu(calculateDocumentSize(id, value)) * 2,
+                  *rsp.getWriteUnits());
+    }
 }
 
 /// Counter should cost the read of the full document including xattr and
 /// write of the new document with the xattrs copied over
-TEST_F(MeteringTest, SubdocCounterPlainDocWithXattr) {
+TEST_P(MeteringTest, SubdocCounterPlainDocWithXattr) {
     const StoredDocKey id{"SubdocCounterPlainDocWithXattr",
                           getTestCollection()};
     const auto value = getJsonDoc().dump();
@@ -1924,14 +2159,18 @@ TEST_F(MeteringTest, SubdocCounterPlainDocWithXattr) {
                                  "1"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, value, "xattr", xattr)),
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(to_wu(calculateDocumentSize(id, value, "xattr", xattr)),
+                  *rsp.getWriteUnits());
+    }
 }
 
 /// Counter should cost the read of the full document including xattr and
 /// write 2x of the new document with the xattrs copied over
-TEST_F(MeteringTest, SubdocCounterPlainDocWithXattr_Durability) {
+TEST_P(MeteringTest, SubdocCounterPlainDocWithXattr_Durability) {
     const StoredDocKey id{"SubdocCounterPlainDocWithXattr_Durability",
                           getTestCollection()};
     const auto value = getJsonDoc().dump();
@@ -1946,13 +2185,17 @@ TEST_F(MeteringTest, SubdocCounterPlainDocWithXattr_Durability) {
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, value, "xattr", xattr)) * 2,
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(to_wu(calculateDocumentSize(id, value, "xattr", xattr)) * 2,
+                  *rsp.getWriteUnits());
+    }
 }
 
 /// MB-53560: Failing operations should not cost read or write
-TEST_F(MeteringTest, SubdocGetCountENoPath) {
+TEST_P(MeteringTest, SubdocGetCountENoPath) {
     const StoredDocKey id{"SubdocGetCountENoPath", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
@@ -1966,7 +2209,7 @@ TEST_F(MeteringTest, SubdocGetCountENoPath) {
 }
 
 /// MB-53560: Failing operations should not cost read or write
-TEST_F(MeteringTest, SubdocGetCountENotArray) {
+TEST_P(MeteringTest, SubdocGetCountENotArray) {
     const StoredDocKey id{"SubdocGetCountENotArray", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
@@ -1978,20 +2221,25 @@ TEST_F(MeteringTest, SubdocGetCountENotArray) {
 }
 
 /// GetCount should cost the read of the entire document
-TEST_F(MeteringTest, SubdocGetCountPlainDoc) {
+TEST_P(MeteringTest, SubdocGetCountPlainDoc) {
     const StoredDocKey id{"SubdocGetCountPlainDoc", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
     auto rsp = conn->execute(BinprotSubdocCommand{
             cb::mcbp::ClientOpcode::SubdocGetCount, std::string{id}, "array"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
+
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getReadUnits());
+    } else {
+        ASSERT_TRUE(rsp.getReadUnits());
+        EXPECT_EQ(to_ru(id.size() + value.size()), *rsp.getReadUnits());
+    }
 }
 
 /// GetCount should cost the read of the entire document including xattrs
-TEST_F(MeteringTest, SubdocGetCountPlainDocWithXattr) {
+TEST_P(MeteringTest, SubdocGetCountPlainDocWithXattr) {
     const StoredDocKey id{"SubdocGetCountPlainDocWithXattr",
                           getTestCollection()};
     const auto value = getJsonDoc().dump();
@@ -2000,14 +2248,17 @@ TEST_F(MeteringTest, SubdocGetCountPlainDocWithXattr) {
     auto rsp = conn->execute(BinprotSubdocCommand{
             cb::mcbp::ClientOpcode::SubdocGetCount, std::string{id}, "array"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
-              *rsp.getReadUnits());
-    EXPECT_FALSE(rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getReadUnits());
+    } else {
+        ASSERT_TRUE(rsp.getReadUnits());
+        EXPECT_EQ(to_ru(calculateDocumentSize(id, value, "xattr", xattr)),
+                  *rsp.getReadUnits());
+    }
 }
 
 /// MB-53560: Failing operations should not cost read or write
-TEST_F(MeteringTest, SubdocArrayPushLastENoPath) {
+TEST_P(MeteringTest, SubdocArrayPushLastENoPath) {
     const StoredDocKey id{"SubdocArrayPushLastENoPath", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
@@ -2022,7 +2273,7 @@ TEST_F(MeteringTest, SubdocArrayPushLastENoPath) {
 }
 
 /// MB-53560: Failing operations should not cost read or write
-TEST_F(MeteringTest, SubdocArrayPushLastENotArray) {
+TEST_P(MeteringTest, SubdocArrayPushLastENotArray) {
     const StoredDocKey id{"SubdocArrayPushLastENotArray", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
@@ -2038,7 +2289,7 @@ TEST_F(MeteringTest, SubdocArrayPushLastENotArray) {
 
 /// ArrayPushLast should cost the read of the document, and then the
 /// write of the new document
-TEST_F(MeteringTest, SubdocArrayPushLastPlainDoc) {
+TEST_P(MeteringTest, SubdocArrayPushLastPlainDoc) {
     const StoredDocKey id{"SubdocArrayPushLastPlainDoc", getTestCollection()};
     auto json = getJsonDoc();
     upsert(id, json.dump());
@@ -2049,14 +2300,18 @@ TEST_F(MeteringTest, SubdocArrayPushLastPlainDoc) {
                                  "true"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    json["array"].push_back(true);
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(to_wu(id.size() + json.dump().size()), *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        json["array"].push_back(true);
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(to_wu(id.size() + json.dump().size()), *rsp.getWriteUnits());
+    }
 }
 
 /// ArrayPushLast should cost the read of the document, and then 2x the
 /// write of the new document
-TEST_F(MeteringTest, SubdocArrayPushLastPlainDoc_Durability) {
+TEST_P(MeteringTest, SubdocArrayPushLastPlainDoc_Durability) {
     const StoredDocKey id{"SubdocArrayPushLastPlainDoc_Durability",
                           getTestCollection()};
     auto json = getJsonDoc();
@@ -2070,14 +2325,19 @@ TEST_F(MeteringTest, SubdocArrayPushLastPlainDoc_Durability) {
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    json["array"].push_back(true);
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(to_wu(id.size() + json.dump().size()) * 2, *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        json["array"].push_back(true);
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(to_wu(id.size() + json.dump().size()) * 2,
+                  *rsp.getWriteUnits());
+    }
 }
 
 /// ArrayPushLast should cost the read of the document, and then the
 /// write of the new document (including xattrs copied over)
-TEST_F(MeteringTest, SubdocArrayPushLastPlainDocWithXattr) {
+TEST_P(MeteringTest, SubdocArrayPushLastPlainDocWithXattr) {
     const StoredDocKey id{"SubdocArrayPushLastPlainDocWithXattr",
                           getTestCollection()};
     auto json = getJsonDoc();
@@ -2090,15 +2350,19 @@ TEST_F(MeteringTest, SubdocArrayPushLastPlainDocWithXattr) {
                                  "true"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    json["array"].push_back(true);
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        json["array"].push_back(true);
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+                  *rsp.getWriteUnits());
+    }
 }
 
 /// ArrayPushLast should cost the read of the document, and then 2x the
 /// write of the new document (including xattrs copied over)
-TEST_F(MeteringTest, SubdocArrayPushLastPlainDocWithXattr_Durability) {
+TEST_P(MeteringTest, SubdocArrayPushLastPlainDocWithXattr_Durability) {
     const StoredDocKey id{"SubdocArrayPushLastPlainDocWithXattr_Durability",
                           getTestCollection()};
     auto json = getJsonDoc();
@@ -2113,14 +2377,20 @@ TEST_F(MeteringTest, SubdocArrayPushLastPlainDocWithXattr_Durability) {
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    json["array"].push_back(true);
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) * 2,
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        json["array"].push_back(true);
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(
+                to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) *
+                        2,
+                *rsp.getWriteUnits());
+    }
 }
 
 /// MB-53560: Failing operations should not cost read or write
-TEST_F(MeteringTest, SubdocArrayPushFirstENoPath) {
+TEST_P(MeteringTest, SubdocArrayPushFirstENoPath) {
     const StoredDocKey id{"SubdocArrayPushFirstENoPath", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
@@ -2135,7 +2405,7 @@ TEST_F(MeteringTest, SubdocArrayPushFirstENoPath) {
 }
 
 /// MB-53560: Failing operations should not cost read or write
-TEST_F(MeteringTest, SubdocArrayPushFirstENotArray) {
+TEST_P(MeteringTest, SubdocArrayPushFirstENotArray) {
     const StoredDocKey id{"SubdocArrayPushFirstENotArray", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
@@ -2151,7 +2421,7 @@ TEST_F(MeteringTest, SubdocArrayPushFirstENotArray) {
 
 /// ArrayPushFirst should cost the read of the document, and then the
 /// write of the new document
-TEST_F(MeteringTest, SubdocArrayPushFirstPlainDoc) {
+TEST_P(MeteringTest, SubdocArrayPushFirstPlainDoc) {
     const StoredDocKey id{"SubdocArrayPushFirstPlainDoc", getTestCollection()};
     auto json = getJsonDoc();
     upsert(id, json.dump());
@@ -2162,14 +2432,18 @@ TEST_F(MeteringTest, SubdocArrayPushFirstPlainDoc) {
                                  "true"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    json["array"].insert(json["array"].begin(), true);
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(to_wu(id.size() + json.dump().size()), *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        json["array"].insert(json["array"].begin(), true);
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(to_wu(id.size() + json.dump().size()), *rsp.getWriteUnits());
+    }
 }
 
 /// ArrayPushFirst should cost the read of the document, and then 2x the
 /// write of the new document
-TEST_F(MeteringTest, SubdocArrayPushFirstPlainDoc_Durability) {
+TEST_P(MeteringTest, SubdocArrayPushFirstPlainDoc_Durability) {
     const StoredDocKey id{"SubdocArrayPushFirstPlainDoc_Durability",
                           getTestCollection()};
     auto json = getJsonDoc();
@@ -2183,14 +2457,19 @@ TEST_F(MeteringTest, SubdocArrayPushFirstPlainDoc_Durability) {
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    json["array"].insert(json["array"].begin(), true);
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(to_wu(id.size() + json.dump().size()) * 2, *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        json["array"].insert(json["array"].begin(), true);
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(to_wu(id.size() + json.dump().size()) * 2,
+                  *rsp.getWriteUnits());
+    }
 }
 
 /// ArrayPushFirst should cost the read of the document, and then the
 /// write of the new document (including xattrs copied over)
-TEST_F(MeteringTest, SubdocArrayPushFirstPlainDocWithXattr) {
+TEST_P(MeteringTest, SubdocArrayPushFirstPlainDocWithXattr) {
     const StoredDocKey id{"SubdocArrayPushFirstPlainDocWithXattr",
                           getTestCollection()};
     auto json = getJsonDoc();
@@ -2203,15 +2482,19 @@ TEST_F(MeteringTest, SubdocArrayPushFirstPlainDocWithXattr) {
                                  "true"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    json["array"].insert(json["array"].begin(), true);
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        json["array"].insert(json["array"].begin(), true);
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+                  *rsp.getWriteUnits());
+    }
 }
 
 /// ArrayPushFirst should cost the read of the document, and then 2x the
 /// write of the new document (including xattrs copied over)
-TEST_F(MeteringTest, SubdocArrayPushFirstPlainDocWithXattr_Durability) {
+TEST_P(MeteringTest, SubdocArrayPushFirstPlainDocWithXattr_Durability) {
     const StoredDocKey id{"SubdocArrayPushFirstPlainDocWithXattr_Durability",
                           getTestCollection()};
     auto json = getJsonDoc();
@@ -2226,14 +2509,20 @@ TEST_F(MeteringTest, SubdocArrayPushFirstPlainDocWithXattr_Durability) {
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    json["array"].insert(json["array"].begin(), true);
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) * 2,
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        json["array"].insert(json["array"].begin(), true);
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(
+                to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) *
+                        2,
+                *rsp.getWriteUnits());
+    }
 }
 
 /// MB-53560: Failing operations should not cost read or write
-TEST_F(MeteringTest, SubdocArrayAddUniqueENoPath) {
+TEST_P(MeteringTest, SubdocArrayAddUniqueENoPath) {
     const StoredDocKey id{"SubdocArrayAddUniqueENoPath", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
@@ -2248,7 +2537,7 @@ TEST_F(MeteringTest, SubdocArrayAddUniqueENoPath) {
 }
 
 /// MB-53560: Failing operations should not cost read or write
-TEST_F(MeteringTest, SubdocArrayAddUniqueENotArray) {
+TEST_P(MeteringTest, SubdocArrayAddUniqueENotArray) {
     const StoredDocKey id{"SubdocArrayAddUniqueENotArray", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
@@ -2263,7 +2552,7 @@ TEST_F(MeteringTest, SubdocArrayAddUniqueENotArray) {
 }
 
 /// MB-53560: Failing operations should not cost read or write
-TEST_F(MeteringTest, SubdocArrayAddUniqueEExists) {
+TEST_P(MeteringTest, SubdocArrayAddUniqueEExists) {
     const StoredDocKey id{"SubdocArrayAddUniqueEExists", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
@@ -2279,7 +2568,7 @@ TEST_F(MeteringTest, SubdocArrayAddUniqueEExists) {
 
 /// ArrayAddUnique should cost the read of the document, and the write
 /// of the size of the new document
-TEST_F(MeteringTest, SubdocArrayAddUniquePlainDoc) {
+TEST_P(MeteringTest, SubdocArrayAddUniquePlainDoc) {
     const StoredDocKey id{"SubdocArrayAddUniquePlainDocWithXattr",
                           getTestCollection()};
     auto json = getJsonDoc();
@@ -2291,15 +2580,19 @@ TEST_F(MeteringTest, SubdocArrayAddUniquePlainDoc) {
                                  R"("Unique value")"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    json["array"].push_back("Unique value");
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())),
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        json["array"].push_back("Unique value");
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())),
+                  *rsp.getWriteUnits());
+    }
 }
 
 /// ArrayAddUnique should cost the read of the document, and the write
 /// of the size of the new document
-TEST_F(MeteringTest, SubdocArrayAddUniquePlainDoc_Durability) {
+TEST_P(MeteringTest, SubdocArrayAddUniquePlainDoc_Durability) {
     const StoredDocKey id{"SubdocArrayAddUniquePlainDocWithXattr_Durability",
                           getTestCollection()};
     auto json = getJsonDoc();
@@ -2313,15 +2606,19 @@ TEST_F(MeteringTest, SubdocArrayAddUniquePlainDoc_Durability) {
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    json["array"].push_back("Unique value");
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())) * 2,
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        json["array"].push_back("Unique value");
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())) * 2,
+                  *rsp.getWriteUnits());
+    }
 }
 
 /// ArrayAddUnique should cost the read of the document, and the write
 /// of the size of the new document including the XATTRs copied over
-TEST_F(MeteringTest, SubdocArrayAddUniquePlainDocWithXattr) {
+TEST_P(MeteringTest, SubdocArrayAddUniquePlainDocWithXattr) {
     const StoredDocKey id{"SubdocArrayAddUniquePlainDocWithXattr",
                           getTestCollection()};
     auto json = getJsonDoc();
@@ -2334,15 +2631,19 @@ TEST_F(MeteringTest, SubdocArrayAddUniquePlainDocWithXattr) {
                                  R"("Unique value")"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    json["array"].push_back("Unique value");
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        json["array"].push_back("Unique value");
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+                  *rsp.getWriteUnits());
+    }
 }
 
 /// ArrayAddUnique should cost the read of the document, and the write
 /// 2x of the size of the new document including the XATTRs copied over
-TEST_F(MeteringTest, SubdocArrayAddUniquePlainDocWithXattr_Durability) {
+TEST_P(MeteringTest, SubdocArrayAddUniquePlainDocWithXattr_Durability) {
     const StoredDocKey id{"SubdocArrayAddUniquePlainDocWithXattr_Durability",
                           getTestCollection()};
     auto json = getJsonDoc();
@@ -2357,14 +2658,20 @@ TEST_F(MeteringTest, SubdocArrayAddUniquePlainDocWithXattr_Durability) {
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    json["array"].push_back("Unique value");
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) * 2,
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        json["array"].push_back("Unique value");
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(
+                to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) *
+                        2,
+                *rsp.getWriteUnits());
+    }
 }
 
 /// MB-53560: Failing operations should not cost read or write
-TEST_F(MeteringTest, SubdocArrayInsertENoPath) {
+TEST_P(MeteringTest, SubdocArrayInsertENoPath) {
     const StoredDocKey id{"SubdocArrayInsertENoPath", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
@@ -2379,7 +2686,7 @@ TEST_F(MeteringTest, SubdocArrayInsertENoPath) {
 }
 
 /// MB-53560: Failing operations should not cost read or write
-TEST_F(MeteringTest, SubdocArrayInsertENotArray) {
+TEST_P(MeteringTest, SubdocArrayInsertENotArray) {
     const StoredDocKey id{"SubdocArrayInsertENotArray", getTestCollection()};
     const auto value = getJsonDoc().dump();
     upsert(id, value);
@@ -2395,7 +2702,7 @@ TEST_F(MeteringTest, SubdocArrayInsertENotArray) {
 
 /// ArrayInsert should cost the read of the document, and the write of
 /// the size of the new document
-TEST_F(MeteringTest, SubdocArrayInsertPlainDoc) {
+TEST_P(MeteringTest, SubdocArrayInsertPlainDoc) {
     const StoredDocKey id{"SubdocArrayInsertPlainDoc", getTestCollection()};
     auto json = getJsonDoc();
     upsert(id, json.dump());
@@ -2406,15 +2713,19 @@ TEST_F(MeteringTest, SubdocArrayInsertPlainDoc) {
                                  "true"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    json["array"].insert(json["array"].begin(), true);
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())),
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        json["array"].insert(json["array"].begin(), true);
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())),
+                  *rsp.getWriteUnits());
+    }
 }
 
 /// ArrayInsert should cost the read of the document, and the write 2x of
 /// the size of the new document
-TEST_F(MeteringTest, SubdocArrayInsertPlainDoc_Durability) {
+TEST_P(MeteringTest, SubdocArrayInsertPlainDoc_Durability) {
     const StoredDocKey id{"SubdocArrayInsertPlainDoc_Durability",
                           getTestCollection()};
     auto json = getJsonDoc();
@@ -2428,15 +2739,19 @@ TEST_F(MeteringTest, SubdocArrayInsertPlainDoc_Durability) {
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    json["array"].insert(json["array"].begin(), true);
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())) * 2,
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        json["array"].insert(json["array"].begin(), true);
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump())) * 2,
+                  *rsp.getWriteUnits());
+    }
 }
 
 /// ArrayInsert should cost the read of the document, and the write of
 /// the size of the new document (including the xattrs copied over)
-TEST_F(MeteringTest, SubdocArrayInsertPlainDocWithXattr) {
+TEST_P(MeteringTest, SubdocArrayInsertPlainDocWithXattr) {
     const StoredDocKey id{"SubdocArrayInsertPlainDocWithXattr",
                           getTestCollection()};
     auto json = getJsonDoc();
@@ -2449,15 +2764,19 @@ TEST_F(MeteringTest, SubdocArrayInsertPlainDocWithXattr) {
                                  "true"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    json["array"].insert(json["array"].begin(), true);
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        json["array"].insert(json["array"].begin(), true);
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+                  *rsp.getWriteUnits());
+    }
 }
 
 /// ArrayInsert should cost the read of the document, and the write 2x of
 /// the size of the new document (including the xattrs copied over)
-TEST_F(MeteringTest, SubdocArrayInsertPlainDocWithXattr_Durability) {
+TEST_P(MeteringTest, SubdocArrayInsertPlainDocWithXattr_Durability) {
     const StoredDocKey id{"SubdocArrayInsertPlainDocWithXattr_Durability",
                           getTestCollection()};
     auto json = getJsonDoc();
@@ -2472,15 +2791,21 @@ TEST_F(MeteringTest, SubdocArrayInsertPlainDocWithXattr_Durability) {
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    json["array"].insert(json["array"].begin(), true);
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) * 2,
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        json["array"].insert(json["array"].begin(), true);
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(
+                to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) *
+                        2,
+                *rsp.getWriteUnits());
+    }
 }
 
 /// MultiLookup should cost the read of the full document even if no
 /// data gets returned
-TEST_F(MeteringTest, SubdocMultiLookupAllMiss) {
+TEST_P(MeteringTest, SubdocMultiLookupAllMiss) {
     const StoredDocKey id{"SubdocMultiLookupAllMiss", getTestCollection()};
     auto json = getJsonDoc();
     const auto xattr = getStringValue();
@@ -2493,14 +2818,19 @@ TEST_F(MeteringTest, SubdocMultiLookupAllMiss) {
             cb::mcbp::subdoc::doc_flag::None});
 
     EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailure, rsp.getStatus());
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
-              *rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
+
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getReadUnits());
+    } else {
+        ASSERT_TRUE(rsp.getReadUnits());
+        EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+                  *rsp.getReadUnits());
+    }
 }
 
 /// MultiLookup should cost the read of the full document
-TEST_F(MeteringTest, SubdocMultiLookup) {
+TEST_P(MeteringTest, SubdocMultiLookup) {
     const StoredDocKey id{"SubdocMultiLookup", getTestCollection()};
     auto json = getJsonDoc();
     const auto xattr = getStringValue();
@@ -2513,15 +2843,21 @@ TEST_F(MeteringTest, SubdocMultiLookup) {
             cb::mcbp::subdoc::doc_flag::None});
 
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
-              *rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
+
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getReadUnits());
+    } else {
+        ASSERT_TRUE(rsp.getReadUnits());
+
+        EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+                  *rsp.getReadUnits());
+    }
 }
 
 /// MultiMutation should cost the read of the full document even if no
 /// updates was made
-TEST_F(MeteringTest, SubdocMultiMutationAllFailed) {
+TEST_P(MeteringTest, SubdocMultiMutationAllFailed) {
     const StoredDocKey id{"SubdocMultiMutationAllFailed", getTestCollection()};
     auto json = getJsonDoc();
     const auto xattr = getStringValue();
@@ -2540,15 +2876,20 @@ TEST_F(MeteringTest, SubdocMultiMutationAllFailed) {
             cb::mcbp::subdoc::doc_flag::None});
 
     EXPECT_EQ(cb::mcbp::Status::SubdocMultiPathFailure, rsp.getStatus());
-    ASSERT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
-              *rsp.getReadUnits());
     EXPECT_FALSE(rsp.getWriteUnits());
+
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getReadUnits());
+    } else {
+        ASSERT_TRUE(rsp.getReadUnits());
+        EXPECT_EQ(to_ru(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+                  *rsp.getReadUnits());
+    }
 }
 
 /// MultiMutation should cost the read of the full document, and write
 /// of the full size (including xattrs copied over)
-TEST_F(MeteringTest, SubdocMultiMutation) {
+TEST_P(MeteringTest, SubdocMultiMutation) {
     const StoredDocKey id{"SubdocMultiMutation", getTestCollection()};
     auto json = getJsonDoc();
     const auto xattr = getStringValue();
@@ -2568,16 +2909,20 @@ TEST_F(MeteringTest, SubdocMultiMutation) {
 
     EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    json["foo"] = true;
-    json["bar"] = true;
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        json["foo"] = true;
+        json["bar"] = true;
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)),
+                  *rsp.getWriteUnits());
+    }
 }
 
 /// MultiMutation should cost the read of the full document, and write 2x
 /// of the full size (including xattrs copied over)
-TEST_F(MeteringTest, SubdocMultiMutation_Durability) {
+TEST_P(MeteringTest, SubdocMultiMutation_Durability) {
     const StoredDocKey id{"SubdocMultiMutation_Durability",
                           getTestCollection()};
     auto json = getJsonDoc();
@@ -2602,16 +2947,22 @@ TEST_F(MeteringTest, SubdocMultiMutation_Durability) {
 
     EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    json["foo"] = true;
-    json["bar"] = true;
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) * 2,
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        json["foo"] = true;
+        json["bar"] = true;
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(
+                to_wu(calculateDocumentSize(id, json.dump(), "xattr", xattr)) *
+                        2,
+                *rsp.getWriteUnits());
+    }
 }
 
 /// SubdocReplaceBodyWithXattr should cost the read of the full document,
 /// and write of the full size
-TEST_F(MeteringTest, SubdocReplaceBodyWithXattr) {
+TEST_P(MeteringTest, SubdocReplaceBodyWithXattr) {
     const StoredDocKey id{"SubdocReplaceBodyWithXattr", getTestCollection()};
     const auto new_value = getJsonDoc().dump();
     const auto old_value = getStringValue(false);
@@ -2631,14 +2982,18 @@ TEST_F(MeteringTest, SubdocReplaceBodyWithXattr) {
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
 
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, new_value)),
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(to_wu(calculateDocumentSize(id, new_value)),
+                  *rsp.getWriteUnits());
+    }
 }
 
-/// SubdocReplaceBodyWithXattr should cost the read of the full document,
-/// and write 2x of the full size when durability is enabled
-TEST_F(MeteringTest, SubdocReplaceBodyWithXattr_Durability) {
+/// SubdocReplaceBodyWithXattr should cost the read of the full
+/// document, and write 2x of the full size when durability is enabled
+TEST_P(MeteringTest, SubdocReplaceBodyWithXattr_Durability) {
     const StoredDocKey id{"SubdocReplaceBodyWithXattr_Durability",
                           getTestCollection()};
     const auto new_value = getJsonDoc().dump();
@@ -2663,12 +3018,16 @@ TEST_F(MeteringTest, SubdocReplaceBodyWithXattr_Durability) {
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
 
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
-    ASSERT_TRUE(rsp.getWriteUnits());
-    EXPECT_EQ(to_wu(calculateDocumentSize(id, new_value)) * 2,
-              *rsp.getWriteUnits());
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+    } else {
+        ASSERT_TRUE(rsp.getWriteUnits());
+        EXPECT_EQ(to_wu(calculateDocumentSize(id, new_value)) * 2,
+                  *rsp.getWriteUnits());
+    }
 }
 
-TEST_F(MeteringTest, TTL_Expiry_Get) {
+TEST_P(MeteringTest, TTL_Expiry_Get) {
     const StoredDocKey id{"TTL_Expiry_Get", getTestCollection()};
     const auto value = getJsonDoc().dump();
     const auto xattr_value = getStringValue(false);
@@ -2686,9 +3045,11 @@ TEST_F(MeteringTest, TTL_Expiry_Get) {
             "bucket_details metering");
     size_t expiredBefore = std::stoull(getStatForKey("vb_active_expired"));
 
-    // fast forward 2 second and the document should have been expired
+    // fast forward 2 second and the document should have been
+    // expired
+    clockShift += 2;
     conn->adjustMemcachedClock(
-            2, cb::mcbp::request::AdjustTimePayload::TimeType::Uptime);
+            clockShift, cb::mcbp::request::AdjustTimePayload::TimeType::Uptime);
 
     auto rsp = conn->execute(BinprotGetCommand{std::string{id}});
     ASSERT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus())
@@ -2706,19 +3067,20 @@ TEST_F(MeteringTest, TTL_Expiry_Get) {
 
     EXPECT_EQ(1,
               after["wu"].get<std::size_t>() - before["wu"].get<std::size_t>());
-    // We can't reset the offset as that would cause ep-engine to disconnect
-    // the DCP stream as it doesn't look like it handle the clock going
-    // backwards very well:
+    // We can't reset the offset as that would cause ep-engine to
+    // disconnect the DCP stream as it doesn't look like it handle
+    // the clock going backwards very well:
     //
-    //  eq_dcpq:n_0->n_2 - Disconnecting because a message has not been
-    //  received for the DCP idle timeout of 360s. Sent last message (e.g.
-    //  mutation/noop/streamEnd) 4294967276s ago.
-    //  Received last message 4294967276s ago. DCP noop [lastSent:4294967276s,
-    //  lastRecv:4294967276s, interval:1s, opaque:10000008, pendingRecv:false],
-    //  paused:true, pausedReason:ReadyListEmpty
+    //  eq_dcpq:n_0->n_2 - Disconnecting because a message has not
+    //  been received for the DCP idle timeout of 360s. Sent last
+    //  message (e.g. mutation/noop/streamEnd) 4294967276s ago.
+    //  Received last message 4294967276s ago. DCP noop
+    //  [lastSent:4294967276s, lastRecv:4294967276s, interval:1s,
+    //  opaque:10000008, pendingRecv:false], paused:true,
+    //  pausedReason:ReadyListEmpty
 }
 
-TEST_F(MeteringTest, TTL_Expiry_Compaction) {
+TEST_P(MeteringTest, TTL_Expiry_Compaction) {
     const StoredDocKey id{"TTL_Expiry_Compaction", getTestCollection()};
     const auto value = getJsonDoc().dump();
     const auto xattr_value = getStringValue(false);
@@ -2736,9 +3098,11 @@ TEST_F(MeteringTest, TTL_Expiry_Compaction) {
             "bucket_details metering");
     size_t expiredBefore = std::stoull(getStatForKey("vb_active_expired"));
 
-    // fast forward another 2 seconds and the document should have been expired
+    // fast forward another 2 seconds and the document should have
+    // been expired
+    clockShift += 2;
     conn->adjustMemcachedClock(
-            4, cb::mcbp::request::AdjustTimePayload::TimeType::Uptime);
+            clockShift, cb::mcbp::request::AdjustTimePayload::TimeType::Uptime);
 
     auto admin = cluster->getConnection(0);
     admin->authenticate("@admin", "password");
@@ -2756,16 +3120,17 @@ TEST_F(MeteringTest, TTL_Expiry_Compaction) {
 
     size_t expiredAfter = std::stoull(getStatForKey("vb_active_expired"));
     EXPECT_NE(expiredBefore, expiredAfter);
-    // We can't reset the offset as that would cause ep-engine to disconnect
-    // the DCP stream as it doesn't look like it handle the clock going
-    // backwards very well:
+    // We can't reset the offset as that would cause ep-engine to
+    // disconnect the DCP stream as it doesn't look like it handle
+    // the clock going backwards very well:
     //
-    //  eq_dcpq:n_0->n_2 - Disconnecting because a message has not been
-    //  received for the DCP idle timeout of 360s. Sent last message (e.g.
-    //  mutation/noop/streamEnd) 4294967276s ago.
-    //  Received last message 4294967276s ago. DCP noop [lastSent:4294967276s,
-    //  lastRecv:4294967276s, interval:1s, opaque:10000008, pendingRecv:false],
-    //  paused:true, pausedReason:ReadyListEmpty
+    //  eq_dcpq:n_0->n_2 - Disconnecting because a message has not
+    //  been received for the DCP idle timeout of 360s. Sent last
+    //  message (e.g. mutation/noop/streamEnd) 4294967276s ago.
+    //  Received last message 4294967276s ago. DCP noop
+    //  [lastSent:4294967276s, lastRecv:4294967276s, interval:1s,
+    //  opaque:10000008, pendingRecv:false], paused:true,
+    //  pausedReason:ReadyListEmpty
 }
 
 void MeteringTest::testRangeScan(bool keyOnly) {
@@ -2796,18 +3161,25 @@ void MeteringTest::testRangeScan(bool keyOnly) {
     BinprotRangeScanCreate create(Vbid(0), range);
     auto resp = conn->execute(create);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
-    ASSERT_TRUE(resp.getReadUnits());
-    ASSERT_EQ(1, *resp.getReadUnits());
     EXPECT_FALSE(resp.getWriteUnits());
-    cb::rangescan::Id id;
-    std::memcpy(id.data, resp.getData().data(), resp.getData().size());
 
     nlohmann::json after;
     conn->stats([&after](auto k, auto v) { after = nlohmann::json::parse(v); },
                 "bucket_details metering");
 
-    // ru should increase when creating a scan
-    EXPECT_GT(after["ru"].get<std::size_t>(), before["ru"].get<std::size_t>());
+    if (isUnmetered()) {
+        EXPECT_FALSE(resp.getReadUnits());
+        EXPECT_EQ(after["ru"].get<std::size_t>(),
+                  before["ru"].get<std::size_t>());
+    } else {
+        ASSERT_TRUE(resp.getReadUnits());
+        ASSERT_EQ(1, *resp.getReadUnits());
+        // ru should increase when creating a scan
+        EXPECT_GT(after["ru"].get<std::size_t>(),
+                  before["ru"].get<std::size_t>());
+    }
+    cb::rangescan::Id id;
+    std::memcpy(id.data, resp.getData().data(), resp.getData().size());
 
     // 1 key in scan, issue 1 continue
     BinprotRangeScanContinue scanContinue(
@@ -2818,20 +3190,22 @@ void MeteringTest::testRangeScan(bool keyOnly) {
             0 /*no byte limit*/);
     resp = conn->execute(scanContinue);
     ASSERT_EQ(cb::mcbp::Status::RangeScanComplete, resp.getStatus());
+    EXPECT_FALSE(resp.getWriteUnits());
 
-    if (keyOnly) {
+    if (isUnmetered()) {
+        EXPECT_FALSE(resp.getReadUnits());
+    } else if (keyOnly) {
         EXPECT_EQ(to_ru(doc.info.id.size()), *resp.getReadUnits());
-
     } else {
         EXPECT_EQ(to_ru(doc.info.id.size() + doc.value.size()),
                   *resp.getReadUnits());
     }
 }
 
-TEST_F(MeteringTest, RangeScanKey) {
+TEST_P(MeteringTest, RangeScanKey) {
     testRangeScan(true);
 }
-TEST_F(MeteringTest, RangeScanValue) {
+TEST_P(MeteringTest, RangeScanValue) {
     testRangeScan(false);
 }
 
@@ -2854,6 +3228,11 @@ void MeteringTest::testWithMeta(cb::mcbp::ClientOpcode opcode, DocKey id) {
     auto rsp = conn->execute(cmd);
 
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    if (isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+        EXPECT_FALSE(rsp.getReadUnits());
+        return;
+    }
 
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
     ASSERT_TRUE(rsp.getWriteUnits());
@@ -2867,17 +3246,18 @@ void MeteringTest::testWithMeta(cb::mcbp::ClientOpcode opcode, DocKey id) {
     // @todo add unit tests with / without xattrs
 }
 
-TEST_F(MeteringTest, AddWithMeta) {
+TEST_P(MeteringTest, AddWithMeta) {
     testWithMeta(cb::mcbp::ClientOpcode::AddWithMeta,
-                 StoredDocKey{"AddWithMeta", getTestCollection()});
+                 StoredDocKey{"AddWithMeta/" + to_string(GetParam()),
+                              getTestCollection()});
 }
 
-TEST_F(MeteringTest, SetWithMeta) {
+TEST_P(MeteringTest, SetWithMeta) {
     testWithMeta(cb::mcbp::ClientOpcode::SetWithMeta,
                  StoredDocKey{"SetWithMeta", getTestCollection()});
 }
 
-TEST_F(MeteringTest, DelWithMeta) {
+TEST_P(MeteringTest, DelWithMeta) {
     testWithMeta(cb::mcbp::ClientOpcode::DelWithMeta,
                  StoredDocKey{"DelWithMeta", getTestCollection()});
 }
@@ -2893,7 +3273,10 @@ void MeteringTest::testReturnMeta(cb::mcbp::request::ReturnMetaType type,
     }
 
     auto rsp = conn->execute(BinprotReturnMetaCommand{type, document});
-    if (success) {
+    if (success && isUnmetered()) {
+        EXPECT_FALSE(rsp.getWriteUnits());
+        EXPECT_FALSE(rsp.getReadUnits());
+    } else if (success) {
         ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
         EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
         ASSERT_TRUE(rsp.getWriteUnits());
@@ -2914,40 +3297,52 @@ void MeteringTest::testReturnMeta(cb::mcbp::request::ReturnMetaType type,
     }
 }
 
-TEST_F(MeteringTest, ReturnMetaAdd) {
+TEST_P(MeteringTest, ReturnMetaAdd) {
     testReturnMeta(cb::mcbp::request::ReturnMetaType::Add,
                    StoredDocKey{"ReturnMetaAdd", getTestCollection()},
                    true);
 }
 
-TEST_F(MeteringTest, ReturnMetaAddFailing) {
+TEST_P(MeteringTest, ReturnMetaAddFailing) {
     testReturnMeta(cb::mcbp::request::ReturnMetaType::Add,
                    StoredDocKey{"ReturnMetaAddFailing", getTestCollection()},
                    false);
 }
 
-TEST_F(MeteringTest, ReturnMetaSet) {
+TEST_P(MeteringTest, ReturnMetaSet) {
     testReturnMeta(cb::mcbp::request::ReturnMetaType::Set,
                    StoredDocKey{"ReturnMetaSet", getTestCollection()},
                    true);
 }
 
-TEST_F(MeteringTest, ReturnMetaSetFailing) {
+TEST_P(MeteringTest, ReturnMetaSetFailing) {
     testReturnMeta(cb::mcbp::request::ReturnMetaType::Add,
                    StoredDocKey{"ReturnMetaSetFailing", getTestCollection()},
                    false);
 }
 
-TEST_F(MeteringTest, ReturnMetaDel) {
+TEST_P(MeteringTest, ReturnMetaDel) {
     const StoredDocKey id{"ReturnMetaDel", getTestCollection()};
     upsert(id, getStringValue());
     testReturnMeta(cb::mcbp::request::ReturnMetaType::Del, id, true);
 }
 
-TEST_F(MeteringTest, ReturnMetaDelFailing) {
+TEST_P(MeteringTest, ReturnMetaDelFailing) {
     const StoredDocKey id{"ReturnMetaDelFailing", getTestCollection()};
     upsert(id, getStringValue());
     testReturnMeta(cb::mcbp::request::ReturnMetaType::Del, id, false);
 }
+
+static std::string MeteringTypeToString(
+        const ::testing::TestParamInfo<MeteringTest::ParamType>& info) {
+    return to_string(info.param);
+}
+
+INSTANTIATE_TEST_SUITE_P(MeteringTest,
+                         MeteringTest,
+
+                         ::testing::Values(MeteringType::Metered,
+                                           MeteringType::UnmeteredByPrivilege),
+                         MeteringTypeToString);
 
 } // namespace cb::test
