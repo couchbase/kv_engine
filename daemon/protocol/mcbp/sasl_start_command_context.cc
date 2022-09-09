@@ -96,10 +96,7 @@ void SaslStartCommandContext::doSaslStart() {
 
     auto& server = *connection.getSaslServerContext();
     try {
-        std::string avail =
-                cookie.getConnection().isSslEnabled()
-                        ? Settings::instance().getSslSaslMechanisms()
-                        : Settings::instance().getSaslMechanisms();
+        auto avail = cookie.getConnection().getSaslMechanisms();
         auto [e, p] = server.start(mechanism, avail, challenge);
         error = e;
         payload = p;

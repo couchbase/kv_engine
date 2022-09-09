@@ -582,12 +582,13 @@ public:
         return saslAuthEnabled;
     }
 
-    /**
-     * Disable the ability for the connected client to perform SASL AUTH
-     */
+    /// Disable the ability for the connected client to perform SASL AUTH
     void disableSaslAuth() {
         saslAuthEnabled = false;
     }
+
+    /// Get the list of SASL mechanisms this connection may use
+    std::string getSaslMechanisms() const;
 
     bool selectedBucketIsXattrEnabled() const;
 

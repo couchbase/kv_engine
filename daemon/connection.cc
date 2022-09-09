@@ -2439,3 +2439,20 @@ void Connection::onTlsConnect(const SSL* ssl_st) {
                  cert ? "" : "not ");
     }
 }
+
+std::string Connection::getSaslMechanisms() const {
+    if (!saslAuthEnabled) {
+        return {};
+    }
+
+    if (isSslEnabled() && Settings::instance().has.ssl_sasl_mechanisms) {
+        return Settings::instance().getSslSaslMechanisms();
+    }
+
+    if (!isSslEnabled() && Settings::instance().has.sasl_mechanisms) {
+        return Settings::instance().getSaslMechanisms();
+    }
+
+    // None configured, return the full list
+    return cb::sasl::server::listmech();
+}

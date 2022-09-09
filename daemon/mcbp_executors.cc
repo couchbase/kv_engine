@@ -218,40 +218,14 @@ static void quitq_executor(Cookie& cookie) {
 }
 
 static void sasl_list_mech_executor(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
-    if (!connection.isSaslAuthEnabled()) {
+    auto mech = cookie.getConnection().getSaslMechanisms();
+    if (mech.empty()) {
         cookie.sendResponse(cb::mcbp::Status::NotSupported);
-        return;
-    }
-
-    if (connection.isSslEnabled() &&
-        Settings::instance().has.ssl_sasl_mechanisms) {
-        const auto& mechs = Settings::instance().getSslSaslMechanisms();
-        cookie.sendResponse(cb::mcbp::Status::Success,
-                            {},
-                            {},
-                            mechs,
-                            cb::mcbp::Datatype::Raw,
-                            0);
-    } else if (!connection.isSslEnabled() &&
-               Settings::instance().has.sasl_mechanisms) {
-        const auto& mechs = Settings::instance().getSaslMechanisms();
-        cookie.sendResponse(cb::mcbp::Status::Success,
-                            {},
-                            {},
-                            mechs,
-                            cb::mcbp::Datatype::Raw,
-                            0);
     } else {
-        /*
-         * The administrator did not configure any SASL mechanisms.
-         * Go ahead and use whatever we've got in cbsasl
-         */
-        const auto mechs = cb::sasl::server::listmech();
         cookie.sendResponse(cb::mcbp::Status::Success,
                             {},
                             {},
-                            mechs,
+                            mech,
                             cb::mcbp::Datatype::Raw,
                             0);
     }
