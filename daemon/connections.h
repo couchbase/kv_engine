@@ -28,14 +28,11 @@ class Bucket;
  * @param sfd the socket descriptor
  * @param thread The front end thread the connection should be bound to
  * @param descr Descriotion of the port accepting the connection
- * @param ssl The SSL structure to use if the connection is connecting
- *            over a port marked as SSL
  * @return a connection object on success, nullptr otherwise
  */
 Connection* conn_new(SOCKET sfd,
                      FrontEndThread& thread,
-                     std::shared_ptr<ListeningPort> descr,
-                     uniqueSslPtr ssl);
+                     std::shared_ptr<ListeningPort> descr);
 
 /**
  * Destroy the connection

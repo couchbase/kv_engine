@@ -375,21 +375,16 @@ protected:
 FollyConnection::FollyConnection(SOCKET sfd,
                                  FrontEndThread& thr,
                                  std::shared_ptr<ListeningPort> descr,
-                                 uniqueSslPtr sslStructure)
+                                 std::shared_ptr<folly::SSLContext> ssl_context)
     : Connection(sfd, thr, std::move(descr)) {
     using cb::daemon::AsyncReadCallback;
     using cb::daemon::AsyncWriteCallback;
     asyncReadCallback = std::make_unique<AsyncReadCallback>(*this);
     asyncWriteCallback = std::make_unique<AsyncWriteCallback>(*this);
 
-    if (sslStructure) {
-        auto context = networkInterfaceManager->getSslContext();
-        if (!context) {
-            throw std::runtime_error(
-                    "FollyConnection: Failed to get SSL Context");
-        }
+    if (ssl_context) {
         auto* ss = new folly::AsyncSSLSocket(
-                context, &thread.eventBase, folly::NetworkSocket(sfd));
+                ssl_context, &thread.eventBase, folly::NetworkSocket(sfd));
         asyncSocket.reset(ss);
         ss->sslAccept(this);
     } else {

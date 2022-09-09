@@ -34,7 +34,7 @@ public:
     FollyConnection(SOCKET sfd,
                     FrontEndThread& thr,
                     std::shared_ptr<ListeningPort> descr,
-                    uniqueSslPtr sslStructure);
+                    std::shared_ptr<folly::SSLContext> ssl_context);
     ~FollyConnection() override;
     void copyToOutputStream(std::string_view data) override;
     void copyToOutputStream(gsl::span<std::string_view> data) override;

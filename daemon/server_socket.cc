@@ -233,32 +233,7 @@ void LibeventServerSocketImpl::acceptNewClient() {
         return;
     }
 
-    uniqueSslPtr ssl;
-    bool failed = false;
-    if (interface->tls) {
-        try {
-            ssl = networkInterfaceManager->createClientSslHandle();
-            if (!ssl) {
-                failed = true;
-            }
-        } catch (const std::exception&) {
-            failed = true;
-        }
-    }
-
-    if (failed) {
-        LOG_WARNING(
-                "{} Failed to create OpenSSL SSL structure, "
-                "closing connection",
-                client);
-        if (interface->system) {
-            --stats.system_conns;
-        }
-        safe_close(client);
-        return;
-    }
-
-    FrontEndThread::dispatch(client, interface, std::move(ssl));
+    FrontEndThread::dispatch(client, interface);
 }
 
 nlohmann::json LibeventServerSocketImpl::toJson() const {

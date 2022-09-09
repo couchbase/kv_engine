@@ -49,11 +49,9 @@ FrontEndThread::ConnectionQueue::~ConnectionQueue() {
     });
 }
 
-void FrontEndThread::ConnectionQueue::push(SOCKET sock,
-                                           std::shared_ptr<ListeningPort> descr,
-                                           uniqueSslPtr ssl) {
-    connections.lock()->emplace_back(
-            Entry{sock, std::move(descr), std::move(ssl)});
+void FrontEndThread::ConnectionQueue::push(
+        SOCKET sock, std::shared_ptr<ListeningPort> descr) {
+    connections.lock()->emplace_back(Entry{sock, std::move(descr)});
 }
 
 void FrontEndThread::ConnectionQueue::swap(std::vector<Entry>& other) {
@@ -168,10 +166,7 @@ void FrontEndThread::dispatch_new_connections() {
 
     for (auto& entry : connections) {
         const bool system = entry.descr->system;
-        if (conn_new(entry.sock,
-                     *this,
-                     std::move(entry.descr),
-                     std::move(entry.ssl)) == nullptr) {
+        if (conn_new(entry.sock, *this, std::move(entry.descr)) == nullptr) {
             if (system) {
                 --stats.system_conns;
             }
@@ -222,8 +217,7 @@ void scheduleDcpStep(Cookie& cookie) {
 }
 
 void FrontEndThread::dispatch(SOCKET sfd,
-                              std::shared_ptr<ListeningPort> descr,
-                              uniqueSslPtr ssl) {
+                              std::shared_ptr<ListeningPort> descr) {
     // Which thread we assigned a connection to most recently.
     static std::atomic<size_t> last_thread = 0;
     size_t tid = (last_thread + 1) % Settings::instance().getNumWorkerThreads();
@@ -231,7 +225,7 @@ void FrontEndThread::dispatch(SOCKET sfd,
     last_thread = tid;
 
     try {
-        thread.new_conn_queue.push(sfd, std::move(descr), move(ssl));
+        thread.new_conn_queue.push(sfd, std::move(descr));
         thread.eventBase.runInEventBaseThread([&thread]() {
             if (is_memcached_shutting_down()) {
                 if (signal_idle_clients(thread, false) == 0) {

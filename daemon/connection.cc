@@ -19,6 +19,7 @@
 #include "mc_time.h"
 #include "mcaudit.h"
 #include "memcached.h"
+#include "network_interface_manager.h"
 #include "sendbuffer.h"
 #include "settings.h"
 #include "ssl_utils.h"
@@ -1068,21 +1069,44 @@ Connection::Connection(FrontEndThread& thr)
 }
 
 std::unique_ptr<Connection> Connection::create(
-        SOCKET sfd,
-        FrontEndThread& thr,
-        std::shared_ptr<ListeningPort> descr,
-        uniqueSslPtr sslStructure) {
+        SOCKET sfd, FrontEndThread& thr, std::shared_ptr<ListeningPort> descr) {
     static bool force_folly_backend = getenv("CB_USE_FOLLY_IO");
     const auto folly =
             (force_folly_backend ||
              Settings::instance().getEventFramework() == EventFramework::Folly);
     if (folly) {
+        std::shared_ptr<folly::SSLContext> context;
+        if (descr->tls) {
+            try {
+                context = networkInterfaceManager->getSslContext();
+            } catch (const std::exception&) {
+                if (descr->system) {
+                    --stats.system_conns;
+                }
+                safe_close(sfd);
+                throw;
+            }
+        }
+
         return std::make_unique<FollyConnection>(
-                sfd, thr, std::move(descr), std::move(sslStructure));
+                sfd, thr, std::move(descr), std::move(context));
+    }
+
+    uniqueSslPtr context;
+    if (descr->tls) {
+        try {
+            context = networkInterfaceManager->createClientSslHandle();
+        } catch (const std::exception&) {
+            if (descr->system) {
+                --stats.system_conns;
+            }
+            safe_close(sfd);
+            throw;
+        }
     }
 
     return std::make_unique<LibeventConnection>(
-            sfd, thr, std::move(descr), std::move(sslStructure));
+            sfd, thr, std::move(descr), std::move(context));
 }
 
 Connection::Connection(SOCKET sfd,

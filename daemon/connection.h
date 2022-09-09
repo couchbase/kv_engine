@@ -79,8 +79,7 @@ public:
     static std::unique_ptr<Connection> create(
             SOCKET sfd,
             FrontEndThread& thr,
-            std::shared_ptr<ListeningPort> descr,
-            uniqueSslPtr sslStructure);
+            std::shared_ptr<ListeningPort> descr);
 
     enum class Type : uint8_t { Normal, Producer, Consumer };
     Connection(const Connection&) = delete;

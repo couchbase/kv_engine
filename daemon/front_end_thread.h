@@ -52,12 +52,8 @@ struct FrontEndThread {
      *
      * @param sfd the socket to use
      * @param descr The description of the port it is listening to
-     * @param ssl the OpenSSL SSL structure to use (if this is a connection
-     *            using SSL)
      */
-    static void dispatch(SOCKET sfd,
-                         std::shared_ptr<ListeningPort> descr,
-                         uniqueSslPtr ssl);
+    static void dispatch(SOCKET sfd, std::shared_ptr<ListeningPort> descr);
 
     /// Mutex to lock protect access to this object.
     std::mutex mutex;
@@ -149,19 +145,14 @@ protected:
     class ConnectionQueue {
     public:
         struct Entry {
-            Entry(SOCKET sock,
-                  std::shared_ptr<ListeningPort> descr,
-                  uniqueSslPtr ssl)
-                : sock(sock), descr(std::move(descr)), ssl(std::move(ssl)) {
+            Entry(SOCKET sock, std::shared_ptr<ListeningPort> descr)
+                : sock(sock), descr(std::move(descr)) {
             }
             SOCKET sock;
             std::shared_ptr<ListeningPort> descr;
-            uniqueSslPtr ssl;
         };
         ~ConnectionQueue();
-        void push(SOCKET sock,
-                  std::shared_ptr<ListeningPort> descr,
-                  uniqueSslPtr ssl);
+        void push(SOCKET sock, std::shared_ptr<ListeningPort> descr);
         void swap(std::vector<Entry>& other);
 
     protected:
