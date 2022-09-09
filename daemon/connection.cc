@@ -1010,13 +1010,13 @@ bool Connection::isSslEnabled() const {
     return listening_port->tls;
 }
 
-bool Connection::tryAuthFromSslCert(const std::string& userName,
-                                    std::string_view cipherName) {
+bool Connection::tryAuthUserFromX509Cert(std::string_view userName,
+                                         std::string_view cipherName) {
     try {
-        auto context = cb::rbac::createInitialContext(
-                {userName, cb::sasl::Domain::Local});
-        setAuthenticated(
-                true, context.second, {userName, cb::sasl::Domain::Local});
+        cb::rbac::UserIdent user{std::string{userName.data(), userName.size()},
+                                 cb::sasl::Domain::Local};
+        auto context = cb::rbac::createInitialContext(user);
+        setAuthenticated(true, context.second, user);
         audit_auth_success(*this);
         LOG_INFO(
                 "{}: Client {} using cipher '{}' authenticated as '{}' via "
@@ -1026,7 +1026,7 @@ bool Connection::tryAuthFromSslCert(const std::string& userName,
                 cipherName,
                 cb::UserDataView(user.name));
         // External users authenticated by using X.509 certificates should not
-        // be able to use SASL to change it's identity.
+        // be able to use SASL to change its identity.
         saslAuthEnabled = internal;
     } catch (const cb::rbac::NoSuchUserException& e) {
         setAuthenticated(false);
@@ -2414,7 +2414,8 @@ void Connection::onTlsConnect(const SSL* ssl_st) {
                 }
                 break;
             case cb::x509::Status::Success:
-                if (!tryAuthFromSslCert(name, SSL_get_cipher_name(ssl_st))) {
+                if (!tryAuthUserFromX509Cert(name,
+                                             SSL_get_cipher_name(ssl_st))) {
                     // Already logged
                     const std::string reason =
                             "User [" + name + "] not defined in Couchbase";

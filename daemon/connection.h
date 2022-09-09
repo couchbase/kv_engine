@@ -534,13 +534,21 @@ public:
     bool isSslEnabled() const;
 
     /**
-     * Try to find RBAC user from the client ssl cert
+     * Try to authenticate the provided user found in an X.509 certificate
+     * by trying to create a Couchbase user context for the provided
+     * username. Normal users authenticated via an X.509 certificate can
+     * no longer authenticate via SASL (to change their identity).
+     * The Couchbase internal clients may however do so (they use the
+     * internal user "unknown" initially (with no privileges) and
+     * later SASL authenticate as their real users.
      *
-     * @return true if username has been linked to RBAC or ssl cert was not
-     * presented by the client.
+     * @param userName the username found in the X.509 certificate
+     * @param cipherName the cipher in use (for logging only)
+     *
+     * @return true if username has been linked to RBAC
      */
-    bool tryAuthFromSslCert(const std::string& userName,
-                            std::string_view cipherName);
+    bool tryAuthUserFromX509Cert(std::string_view userName,
+                                 std::string_view cipherName);
 
     /**
      * Get the number of cookies currently bound to this connection
