@@ -101,7 +101,7 @@ nlohmann::json Connection::toJSON() const {
     ret["protocol"] = "memcached";
     ret["peername"] = getPeername().c_str();
     ret["sockname"] = getSockname().c_str();
-    ret["parent_port"] = parent_port;
+    ret["parent_port"] = listening_port->port;
     ret["bucket_index"] = getBucketIndex();
     ret["internal"] = isInternal();
 
@@ -209,7 +209,7 @@ nlohmann::json Connection::toJSON() const {
         break;
     }
 
-    ret["ssl"] = ssl;
+    ret["ssl"] = isSslEnabled();
     ret["total_recv"] = totalRecv;
     ret["total_queued_send"] = totalSend;
     ret["total_send"] = totalSend - getSendQueueSize();
@@ -1006,6 +1006,10 @@ void Connection::setAuthenticated(bool authenticated_,
     updatePrivilegeContext();
 }
 
+bool Connection::isSslEnabled() const {
+    return listening_port->tls;
+}
+
 bool Connection::tryAuthFromSslCert(const std::string& userName,
                                     std::string_view cipherName) {
     try {
@@ -1052,11 +1056,11 @@ Connection::Connection(FrontEndThread& thr)
     : peername(R"({"ip":"unknown","port":0})"),
       sockname(R"({"ip":"unknown","port":0})"),
       thread(thr),
+      listening_port(std::make_shared<ListeningPort>(
+              "dummy", "127.0.0.1", 11210, AF_INET, false, false)),
       max_reqs_per_event(Settings::instance().getRequestsPerEventNotification(
               EventPriority::Default)),
-      socketDescriptor(INVALID_SOCKET),
-      connectedToSystemPort(false),
-      ssl(false) {
+      socketDescriptor(INVALID_SOCKET) {
     updateDescription();
     cookies.emplace_back(std::make_unique<Cookie>(*this));
     setConnectionId("unknown:0");
@@ -1083,18 +1087,14 @@ std::unique_ptr<Connection> Connection::create(
 
 Connection::Connection(SOCKET sfd,
                        FrontEndThread& thr,
-                       std::shared_ptr<ListeningPort> descr,
-                       bool sslStructure)
+                       std::shared_ptr<ListeningPort> descr)
     : peername(cb::net::getPeerNameAsJson(sfd).dump()),
       sockname(cb::net::getSockNameAsJson(sfd).dump()),
       thread(thr),
       listening_port(std::move(descr)),
       max_reqs_per_event(Settings::instance().getRequestsPerEventNotification(
               EventPriority::Default)),
-      socketDescriptor(sfd),
-      parent_port(listening_port->port),
-      connectedToSystemPort(listening_port->system),
-      ssl(sslStructure) {
+      socketDescriptor(sfd) {
     setTcpNoDelay(true);
     updateDescription();
     cookies.emplace_back(std::make_unique<Cookie>(*this));
@@ -1105,7 +1105,7 @@ Connection::Connection(SOCKET sfd,
 Connection::~Connection() {
     cb::audit::addSessionTerminated(*this);
 
-    if (connectedToSystemPort) {
+    if (listening_port->system) {
         --stats.system_conns;
     }
     if (authenticated && user.domain == cb::sasl::Domain::External) {

@@ -376,7 +376,7 @@ FollyConnection::FollyConnection(SOCKET sfd,
                                  FrontEndThread& thr,
                                  std::shared_ptr<ListeningPort> descr,
                                  uniqueSslPtr sslStructure)
-    : Connection(sfd, thr, std::move(descr), sslStructure ? true : false) {
+    : Connection(sfd, thr, std::move(descr)) {
     using cb::daemon::AsyncReadCallback;
     using cb::daemon::AsyncWriteCallback;
     asyncReadCallback = std::make_unique<AsyncReadCallback>(*this);

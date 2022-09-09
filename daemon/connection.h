@@ -531,9 +531,7 @@ public:
      *
      * @return true if the connection is running over SSL, false otherwise
      */
-    bool isSslEnabled() const {
-        return ssl;
-    }
+    bool isSslEnabled() const;
 
     /**
      * Try to find RBAC user from the client ssl cert
@@ -874,8 +872,7 @@ protected:
     /// Protected constructor so that it may only be used from create();
     Connection(SOCKET sfd,
                FrontEndThread& thr,
-               std::shared_ptr<ListeningPort> descr,
-               bool sslStructure);
+               std::shared_ptr<ListeningPort> descr);
 
     /**
      * Protected constructor so that it may only be used by MockSubclasses
@@ -1067,11 +1064,6 @@ protected:
     /// The cluster map revision used by this client
     ClustermapVersion pushed_clustermap;
 
-    /// Listening port that creates this connection instance
-    const in_port_t parent_port{0};
-
-    const bool connectedToSystemPort;
-
     /// Is this a system internal connection
     bool internal{false};
 
@@ -1182,11 +1174,6 @@ protected:
 
     /// The size of the current Dcp flow control buffer (0 = unlimited)
     std::size_t dcpFlowControlBufferSize = 0;
-
-    /**
-     * Is this connection over SSL or not
-     */
-    const bool ssl;
 
     /**
      * Given that we "ack" the writing once we drain the write buffer in

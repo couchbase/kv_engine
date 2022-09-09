@@ -30,7 +30,7 @@ LibeventConnection::LibeventConnection(SOCKET sfd,
                                        FrontEndThread& thr,
                                        std::shared_ptr<ListeningPort> descr,
                                        uniqueSslPtr sslStructure)
-    : Connection(sfd, thr, std::move(descr), sslStructure ? true : false) {
+    : Connection(sfd, thr, std::move(descr)) {
     // We need to use BEV_OPT_UNLOCK_CALLBACKS (which again require
     // BEV_OPT_DEFER_CALLBACKS) to avoid lock ordering problem (and
     // potential deadlock) because otherwise we'll hold the internal mutex
@@ -40,7 +40,7 @@ LibeventConnection::LibeventConnection(SOCKET sfd,
     // libevent.
     const auto options = BEV_OPT_THREADSAFE | BEV_OPT_UNLOCK_CALLBACKS |
                          BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS;
-    if (ssl) {
+    if (sslStructure) {
         bev.reset(
                 bufferevent_openssl_socket_new(thr.eventBase.getLibeventBase(),
                                                sfd,
