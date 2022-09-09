@@ -404,10 +404,6 @@ public:
         checkpointType = type;
     }
 
-    void setHighCompletedSeqno(std::optional<uint64_t> seqno) {
-        highCompletedSeqno = seqno;
-    }
-
     std::optional<uint64_t> getHighCompletedSeqno() const {
         return highCompletedSeqno;
     }
@@ -733,7 +729,7 @@ private:
     // only necessary for Disk snapshot (due to de-dupe) and the way we retrieve
     // items from the CheckpointManager for memory snapshots makes it
     // non-trivial to send the HCS in memory snapshot markers.
-    std::optional<uint64_t> highCompletedSeqno;
+    const std::optional<uint64_t> highCompletedSeqno;
 
     // Tracks the seqno of the most recently queued prepare. Once this entire
     // checkpoint has been persisted, the state on disk definitely has a
