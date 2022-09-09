@@ -209,7 +209,7 @@ nlohmann::json Connection::toJSON() const {
         break;
     }
 
-    ret["ssl"] = isSslEnabled();
+    ret["ssl"] = isTlsEnabled();
     ret["total_recv"] = totalRecv;
     ret["total_queued_send"] = totalSend;
     ret["total_send"] = totalSend - getSendQueueSize();
@@ -1006,7 +1006,7 @@ void Connection::setAuthenticated(bool authenticated_,
     updatePrivilegeContext();
 }
 
-bool Connection::isSslEnabled() const {
+bool Connection::isTlsEnabled() const {
     return listening_port->tls;
 }
 
@@ -1039,7 +1039,7 @@ bool Connection::tryAuthUserFromX509Cert(std::string_view userName,
 }
 
 bool Connection::dcpUseWriteBuffer(size_t size) const {
-    return isSslEnabled() && size < thread.scratch_buffer.size();
+    return isTlsEnabled() && size < thread.scratch_buffer.size();
 }
 
 void Connection::updateSendBytes(size_t nbytes) {
@@ -2444,12 +2444,12 @@ std::string Connection::getSaslMechanisms() const {
     if (!saslAuthEnabled) {
         return {};
     }
-
-    if (isSslEnabled() && Settings::instance().has.ssl_sasl_mechanisms) {
+    const auto tls = isTlsEnabled();
+    if (tls && Settings::instance().has.ssl_sasl_mechanisms) {
         return Settings::instance().getSslSaslMechanisms();
     }
 
-    if (!isSslEnabled() && Settings::instance().has.sasl_mechanisms) {
+    if (!tls && Settings::instance().has.sasl_mechanisms) {
         return Settings::instance().getSaslMechanisms();
     }
 

@@ -527,13 +527,6 @@ public:
     }
 
     /**
-     * Is SSL enabled for this connection or not?
-     *
-     * @return true if the connection is running over SSL, false otherwise
-     */
-    bool isSslEnabled() const;
-
-    /**
      * Try to authenticate the provided user found in an X.509 certificate
      * by trying to create a Couchbase user context for the provided
      * username. Normal users authenticated via an X.509 certificate can
@@ -887,6 +880,9 @@ protected:
      * Protected constructor so that it may only be used by MockSubclasses
      */
     explicit Connection(FrontEndThread& thr);
+
+    /// connected to a TLS enabled port or not
+    bool isTlsEnabled() const;
 
     /**
      * Close the connection. If there is any references to the connection

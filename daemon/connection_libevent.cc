@@ -98,7 +98,7 @@ std::string LibeventConnection::getOpenSSLErrors() {
 }
 
 void LibeventConnection::read_callback() {
-    if (isSslEnabled()) {
+    if (isTlsEnabled()) {
         const auto ssl_errors = getOpenSSLErrors();
         if (!ssl_errors.empty()) {
             LOG_INFO("{} - OpenSSL errors reported: {}",
@@ -122,7 +122,7 @@ void LibeventConnection::read_callback(bufferevent*, void* ctx) {
 }
 
 void LibeventConnection::write_callback() {
-    if (isSslEnabled()) {
+    if (isTlsEnabled()) {
         const auto ssl_errors = getOpenSSLErrors();
         if (!ssl_errors.empty()) {
             LOG_INFO("{} - OpenSSL errors reported: {}", getId(), ssl_errors);
@@ -186,7 +186,7 @@ void LibeventConnection::event_callback(bufferevent* bev,
     bool term = false;
 
     std::string ssl_errors;
-    if (instance.isSslEnabled()) {
+    if (instance.isTlsEnabled()) {
         ssl_errors = instance.getOpenSSLErrors();
     }
 
