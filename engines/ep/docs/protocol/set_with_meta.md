@@ -1,10 +1,15 @@
 
-## Set With Meta (setwithmeta) v4.6
+## Set With Meta (setwithmeta) and Add With Meta (addwithmeta) v4.6
 
-The set with meta command is used to set data and metadata for a key. The
+The `SetWithMeta` and `AddWithMeta` commands are used to set data and metadata for a key. The
 minimum meta data passed is CAS, revision sequence number, flags and expiration.
 The command can also include an extended meta data section which allows for many
 more fields to be specified.
+
+`SetWithMeta` and `AddWithMeta` are identical in operation apart from the fact
+that `AddWithMeta` operates with _Add_ aka Insert semantics - if a document
+with the specified key already exists then the request fails (with
+`PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS`.
 
 ### Conflict Resolution
 
@@ -112,10 +117,10 @@ All set_with_meta requests:
     54|       75      |       65      |
       +---------------+---------------+
 
-    SET_WITH_META command
+    SET_WITH_META / ADD_WITH_META command
     Field         (offset) (value)
     Magic         (0)    : 0x80 (Request)
-    Opcode        (1)    : 0xA2 (setwithmeta)
+    Opcode        (1)    : 0xA2 (setwithmeta) or 0xA4 (addwithmeta)
     Key length    (2,3)  : 0x0005 (5)
     Extra length  (4)    : 0x1E (30)
     Data type     (5)    : 0x00
@@ -153,10 +158,10 @@ All set_with_meta requests:
     20|       00      |       00      |       00      |       01      |
       +---------------+---------------+---------------+---------------+
 
-    SET_WITH_META command
+    SET_WITH_META / ADD_WITH_META command
     Field        (offset) (value)
     Magic        (0)    : 0x81 (Response)
-    Opcode       (1)    : 0xA2 (setwithmeta)
+    Opcode       (1)    : 0xA2 (setwithmeta) or 0xA4 (addwithmeta)
     Key length   (2,3)  : 0x0000
     Extra length (4)    : 0x00
     Data type    (5)    : 0x00
@@ -247,7 +252,8 @@ Here,
 
 **PROTOCOL_BINARY_RESPONSE_KEY_ENOENT (0x01)**
 
-If a the key does not exist.
+If the specified key does not exist, and a non-zero `request.CAS` value was
+specified.
 
 **PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS (0x02)**
 
