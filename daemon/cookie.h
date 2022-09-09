@@ -571,6 +571,11 @@ public:
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) const override;
 
+    cb::rbac::PrivilegeAccess testPrivilege(
+            cb::rbac::Privilege privilege) const {
+        return testPrivilege(privilege, {}, {});
+    }
+
     cb::rbac::PrivilegeAccess checkForPrivilegeAtLeastInOneCollection(
             cb::rbac::Privilege privilege) const override;
 

@@ -204,8 +204,20 @@ void Bucket::documentExpired(size_t nbytes) {
 
 void Bucket::commandExecuted(const Cookie& cookie) {
     ++num_commands;
-    if (cookie.getConnection().isNodeSupervisor()) {
-        return;
+    auto& connection = cookie.getConnection();
+
+    if (connection.isNodeSupervisor()) {
+        // The node supervisor should not be metered or subject to throttling
+        // unless it tries to use an effective user
+        if (cookie.getEffectiveUser()) {
+            // but it may still run with euid which may be metered
+            if (cookie.testPrivilege(cb::rbac::Privilege::Unmetered)
+                        .success()) {
+                return;
+            }
+        } else {
+            return;
+        }
     }
 
     auto& inst = cb::serverless::Config::instance();
@@ -218,10 +230,10 @@ void Bucket::commandExecuted(const Cookie& cookie) {
         }
         throttle_gauge.increment(ru + wu);
         throttle_wait_time += cookie.getTotalThrottleTime();
-        if (cookie.getConnection().isSubjectToMetering()) {
-            const auto [nr, nw] = cookie.getDocumentMeteringRWUnits();
-            read_units_used += nr;
-            write_units_used += nw;
+        const auto [nr, nw] = cookie.getDocumentMeteringRWUnits();
+        read_units_used += nr;
+        write_units_used += nw;
+        if (nr || nw) {
             ++num_commands_with_metered_units;
         }
     }

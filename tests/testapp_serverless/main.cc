@@ -111,6 +111,24 @@ void startCluster(int verbosity, std::string_view backend) {
 
         // Make sure we don't throttle the metering tests
         bucket->setThrottleLimit(0);
+        cluster->getAuthProviderService().upsertUser(
+                {"metering", "metering", nlohmann::json::parse(R"({
+"buckets": {
+  "metering": {
+    "privileges": [
+      "Read",
+      "SimpleStats",
+      "Insert",
+      "Delete",
+      "Upsert",
+      "DcpProducer",
+      "DcpStream"
+    ]
+  }
+},
+"privileges": [],
+"domain": "external"
+})")});
 
         bucket = cluster->createBucket("dcp", bucketConfig);
         if (!bucket) {

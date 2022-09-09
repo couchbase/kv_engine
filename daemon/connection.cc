@@ -1346,8 +1346,7 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
     response.setCas(cookie.getCas());
 
     const auto tracing = isTracingEnabled() && cookie.isTracingEnabled();
-    auto cutracing =
-            isReportUnitUsage() && isSubjectToMetering() && !isNodeSupervisor();
+    auto cutracing = isReportUnitUsage();
     size_t ru = 0;
     size_t wu = 0;
     if (cutracing) {
@@ -1357,9 +1356,6 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
         } else {
             ru = nru;
             wu = nwu;
-            if (!ru && !wu) {
-                cutracing = false;
-            }
         }
     }
 
@@ -1367,7 +1363,7 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
         using namespace cb::mcbp::response;
         response.setMagic(cb::mcbp::Magic::AltClientResponse);
         // We can't use a 16 bits key length when using the alternative
-        // response header.. Verify that the key fits in a single byte.
+        // response header. Verify that the key fits in a single byte.
         if (key_len > 255) {
             throw std::runtime_error(
                     "formatResponseHeaders: The provided key can't be put in "

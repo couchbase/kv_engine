@@ -1171,7 +1171,8 @@ bool Cookie::isDatatypeSupported(protocol_binary_datatype_t datatype) const {
 
 std::pair<size_t, size_t> Cookie::getDocumentMeteringRWUnits() const {
     if (!cb::mcbp::isStatusSuccess(responseStatus) ||
-        !currentCollectionInfo.metered) {
+        !currentCollectionInfo.metered ||
+        testPrivilege(cb::rbac::Privilege::Unmetered).success()) {
         return {size_t{0}, {0}};
     }
     auto& inst = cb::serverless::Config::instance();

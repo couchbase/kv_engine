@@ -3365,6 +3365,43 @@ static std::string MeteringTypeToString(
     return to_string(info.param);
 }
 
+TEST_P(MeteringTest, ImposedUsersMayMeter) {
+    upsert(StoredDocKey{"ImposedUsersMayMeter", getTestCollection()},
+           getStringValue());
+
+    auto admin = cluster->getConnection(0);
+    admin->authenticate("@admin", "password");
+    admin->selectBucket("metering");
+    admin->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
+
+    nlohmann::json before;
+    admin->stats(
+            [&before](auto k, auto v) { before = nlohmann::json::parse(v); },
+            "bucket_details metering");
+
+    // Verify that we don't meter
+    BinprotGetCommand cmd("ImposedUsersMayMeter");
+    auto rsp = admin->execute(cmd);
+    ASSERT_TRUE(rsp.isSuccess());
+    EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
+
+    nlohmann::json after;
+    admin->stats([&after](auto k, auto v) { after = nlohmann::json::parse(v); },
+                 "bucket_details metering");
+    EXPECT_EQ(before["ru"].get<int>(), after["ru"].get<int>());
+
+    ImpersonateUserFrameInfo fi("^metering");
+    cmd.addFrameInfo(fi);
+    rsp = admin->execute(cmd);
+    ASSERT_TRUE(rsp.isSuccess());
+    EXPECT_TRUE(rsp.getReadUnits());
+    EXPECT_EQ(2, *rsp.getReadUnits());
+
+    admin->stats([&after](auto k, auto v) { after = nlohmann::json::parse(v); },
+                 "bucket_details metering");
+    EXPECT_EQ(before["ru"].get<int>() + 2, after["ru"].get<int>());
+}
+
 INSTANTIATE_TEST_SUITE_P(MeteringTest,
                          MeteringTest,
 
