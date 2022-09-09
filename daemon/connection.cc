@@ -1711,7 +1711,7 @@ cb::engine_errc Connection::mutation(uint32_t opaque,
         const auto ret =
                 add_packet_to_send_pipe(builder.getFrame()->getFrame());
         if (ret == cb::engine_errc::success) {
-            getBucket().recordMeteringReadBytes(*this, doc_read_bytes);
+            getBucket().recordDcpMeteringReadBytes(*this, doc_read_bytes);
         }
         return ret;
     }
@@ -1762,7 +1762,7 @@ cb::engine_errc Connection::mutation(uint32_t opaque,
         return cb::engine_errc::disconnect;
     }
 
-    getBucket().recordMeteringReadBytes(*this, doc_read_bytes);
+    getBucket().recordDcpMeteringReadBytes(*this, doc_read_bytes);
     return cb::engine_errc::success;
 }
 
@@ -1824,7 +1824,7 @@ cb::engine_errc Connection::deletion(uint32_t opaque,
         const auto ret =
                 add_packet_to_send_pipe(builder.getFrame()->getFrame());
         if (ret == cb::engine_errc::success) {
-            getBucket().recordMeteringReadBytes(*this, doc_read_bytes);
+            getBucket().recordDcpMeteringReadBytes(*this, doc_read_bytes);
         }
         return ret;
     }
@@ -1865,7 +1865,7 @@ cb::engine_errc Connection::deletion(uint32_t opaque,
 
     const auto ret = deletionInner(*it, packetBuffer, key);
     if (ret == cb::engine_errc::success) {
-        getBucket().recordMeteringReadBytes(*this, doc_read_bytes);
+        getBucket().recordDcpMeteringReadBytes(*this, doc_read_bytes);
     }
     return ret;
 }
@@ -1911,7 +1911,7 @@ cb::engine_errc Connection::deletion_v2(uint32_t opaque,
         const auto ret =
                 add_packet_to_send_pipe(builder.getFrame()->getFrame());
         if (ret == cb::engine_errc::success) {
-            getBucket().recordMeteringReadBytes(*this, doc_read_bytes);
+            getBucket().recordDcpMeteringReadBytes(*this, doc_read_bytes);
         }
         return ret;
     }
@@ -1952,7 +1952,7 @@ cb::engine_errc Connection::deletion_v2(uint32_t opaque,
 
     const auto ret = deletionInner(*it, {blob.data(), size}, key);
     if (ret == cb::engine_errc::success) {
-        getBucket().recordMeteringReadBytes(*this, doc_read_bytes);
+        getBucket().recordDcpMeteringReadBytes(*this, doc_read_bytes);
     }
     return ret;
 }
@@ -1998,7 +1998,7 @@ cb::engine_errc Connection::expiration(uint32_t opaque,
         const auto ret =
                 add_packet_to_send_pipe(builder.getFrame()->getFrame());
         if (ret == cb::engine_errc::success) {
-            getBucket().recordMeteringReadBytes(*this, doc_read_bytes);
+            getBucket().recordDcpMeteringReadBytes(*this, doc_read_bytes);
         }
         return ret;
     }
@@ -2039,7 +2039,7 @@ cb::engine_errc Connection::expiration(uint32_t opaque,
 
     const auto ret = deletionInner(*it, {blob.data(), size}, key);
     if (ret == cb::engine_errc::success) {
-        getBucket().recordMeteringReadBytes(*this, doc_read_bytes);
+        getBucket().recordDcpMeteringReadBytes(*this, doc_read_bytes);
     }
     return ret;
 }

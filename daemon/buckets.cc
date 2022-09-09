@@ -173,8 +173,8 @@ void Bucket::setEngine(unique_engine_ptr engine_) {
     bucketDcp = dynamic_cast<DcpIface*>(engine.get());
 }
 
-void Bucket::recordMeteringReadBytes(const Connection& conn,
-                                     std::size_t nread) {
+void Bucket::recordDcpMeteringReadBytes(const Connection& conn,
+                                        std::size_t nread) {
     // The node supervisor runs for free
     if (conn.isNodeSupervisor()) {
         return;

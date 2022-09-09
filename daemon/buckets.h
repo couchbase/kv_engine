@@ -216,7 +216,7 @@ public:
 
     /// Update the bucket metering data that we've read (used when pushing
     /// DCP messages)
-    void recordMeteringReadBytes(const Connection& conn, std::size_t nread);
+    void recordDcpMeteringReadBytes(const Connection& conn, std::size_t nread);
 
     /// A document expired in the bucket
     void documentExpired(size_t nbytes);
