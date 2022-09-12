@@ -36,7 +36,8 @@ public:
           ht(stats,
              std::make_unique<Factory>(stats),
              /*size*/ 47,
-             /*locks*/ 1),
+             /*locks*/ 1,
+             /*freqCounterIncFactor*/ 0.012),
           item(make_item(Vbid(0), makeStoredDocKey("key"), "value")) {
     }
 

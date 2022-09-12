@@ -30,29 +30,6 @@ static std::array<const ssize_t, 31> prime_size_table{
          50331653, 100663291, 201326611, 402653189, 805306357, 1610612741,
          -1}};
 
-/**
- * Define the increment factor for the ProbabilisticCounter being used for
- * the frequency counter.  The value is set such that it allows an 8-bit
- * ProbabilisticCounter to mimic a uint16 counter.
- *
- * The value was reached by running the following code using a variety of
- * incFactor values.
- *
- * ProbabilisticCounter<uint8_t> probabilisticCounter(incFactor);
- * uint64_t iterationCount{0};
- * uint8_t counter{0};
- *     while (counter != std::numeric_limits<uint8_t>::max()) {
- *         counter = probabilisticCounter.generateValue(counter);
- *         iterationCount++;
- *     }
- * std::cerr << "iterationCount=" <<  iterationCount << std::endl;
- *
- * To mimic a uint16 counter, iterationCount needs to be ~65000 (the maximum
- * value of a uint16_t is 65,536).  Through experimentation this was found to be
- * achieved with an incFactor of 0.012.
- */
-static const double freqCounterIncFactor = 0.012;
-
 std::string to_string(MutationStatus status) {
     switch (status) {
     case MutationStatus::NotFound:
@@ -149,7 +126,8 @@ StoredValue* HashTable::FindUpdateResult::selectSVForRead(
 HashTable::HashTable(EPStats& st,
                      std::unique_ptr<AbstractStoredValueFactory> svFactory,
                      size_t initialSize,
-                     size_t locks)
+                     size_t locks,
+                     double freqCounterIncFactor)
     : initialSize(initialSize),
       size(initialSize),
       mutexes(locks),

@@ -28,7 +28,8 @@ public:
         : ht(stats,
              std::make_unique<StoredValueFactory>(stats),
              Configuration().getHtSize(),
-             Configuration().getHtLocks()) {
+             Configuration().getHtLocks(),
+             Configuration().getFreqCounterIncrementFactor()) {
     }
 
     void SetUp(benchmark::State& state) override {

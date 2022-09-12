@@ -400,11 +400,14 @@ public:
      * @param svFactory Factory to use for constructing stored values
      * @param initialSize the number of hash table buckets to initially create.
      * @param locks the number of locks in the hash table
+     * @param freqCounterIncFactor The increment factor for the frequency
+     *        counters
      */
     HashTable(EPStats& st,
               std::unique_ptr<AbstractStoredValueFactory> svFactory,
               size_t initialSize,
-              size_t locks);
+              size_t locks,
+              double freqCounterIncFactor);
 
     ~HashTable();
     HashTable(const HashTable&) = delete;

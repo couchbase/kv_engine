@@ -26,7 +26,7 @@ class HashTablePerspectiveTest : public HashTableTest,
                                  public ::testing::WithParamInterface<bool> {
 public:
     HashTablePerspectiveTest()
-        : ht(global_stats, makeFactory(GetParam()), 5, 1),
+        : ht(global_stats, makeFactory(GetParam()), 5, 1, 0),
           key("key", CollectionID::Default) {
     }
 

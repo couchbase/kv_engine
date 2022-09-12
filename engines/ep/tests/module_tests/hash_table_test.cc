@@ -142,7 +142,8 @@ TEST_F(HashTableTest, Size) {
     HashTable h(global_stats,
                 makeFactory(),
                 defaultHtSize,
-                /*locks*/ 1);
+                /*locks*/ 1,
+                0);
     ASSERT_EQ(0, count(h));
 
     store(h, makeStoredDocKey("testkey"));
@@ -154,7 +155,8 @@ TEST_F(HashTableTest, SizeTwo) {
     HashTable h(global_stats,
                 makeFactory(),
                 defaultHtSize,
-                /*locks*/ 1);
+                /*locks*/ 1,
+                0);
     ASSERT_EQ(0, count(h));
 
     auto keys = generateKeys(5);
@@ -167,7 +169,7 @@ TEST_F(HashTableTest, SizeTwo) {
 
 TEST_F(HashTableTest, ReverseDeletions) {
     size_t initialSize = global_stats.getCurrentSize();
-    HashTable h(global_stats, makeFactory(), 5, 1);
+    HashTable h(global_stats, makeFactory(), 5, 1, 0);
     ASSERT_EQ(0, count(h));
     const int nkeys = 1000;
 
@@ -187,7 +189,7 @@ TEST_F(HashTableTest, ReverseDeletions) {
 
 TEST_F(HashTableTest, ForwardDeletions) {
     size_t initialSize = global_stats.getCurrentSize();
-    HashTable h(global_stats, makeFactory(), 5, 1);
+    HashTable h(global_stats, makeFactory(), 5, 1, 0);
     ASSERT_EQ(5, h.getSize());
     ASSERT_EQ(1, h.getNumLocks());
     ASSERT_EQ(0, count(h));
@@ -223,12 +225,12 @@ static void testFind(HashTable &h) {
 }
 
 TEST_F(HashTableTest, Find) {
-    HashTable h(global_stats, makeFactory(), 5, 1);
+    HashTable h(global_stats, makeFactory(), 5, 1, 0);
     testFind(h);
 }
 
 TEST_F(HashTableTest, Resize) {
-    HashTable h(global_stats, makeFactory(), 5, 3);
+    HashTable h(global_stats, makeFactory(), 5, 3, 0);
 
     auto keys = generateKeys(1000);
     storeMany(h, keys);
@@ -283,7 +285,7 @@ private:
 };
 
 TEST_F(HashTableTest, ConcurrentAccessResize) {
-    HashTable h(global_stats, makeFactory(), 5, 3);
+    HashTable h(global_stats, makeFactory(), 5, 3, 0);
 
     auto keys = generateKeys(2000);
     h.resize(keys.size());
@@ -297,7 +299,7 @@ TEST_F(HashTableTest, ConcurrentAccessResize) {
 }
 
 TEST_F(HashTableTest, AutoResize) {
-    HashTable h(global_stats, makeFactory(), 5, 3);
+    HashTable h(global_stats, makeFactory(), 5, 3, 0);
 
     ASSERT_EQ(5, h.getSize());
 
@@ -312,7 +314,7 @@ TEST_F(HashTableTest, AutoResize) {
 }
 
 TEST_F(HashTableTest, DepthCounting) {
-    HashTable h(global_stats, makeFactory(), 5, 1);
+    HashTable h(global_stats, makeFactory(), 5, 1, 0);
     const int nkeys = 5000;
 
     auto keys = generateKeys(nkeys);
@@ -325,7 +327,7 @@ TEST_F(HashTableTest, DepthCounting) {
 }
 
 TEST_F(HashTableTest, PoisonKey) {
-    HashTable h(global_stats, makeFactory(), 5, 1);
+    HashTable h(global_stats, makeFactory(), 5, 1, 0);
 
     store(h, makeStoredDocKey("A\\NROBs_oc)$zqJ1C.9?XU}Vn^(LW\"`+K/4lykF[ue0{ram;fvId6h=p&Zb3T~SQ]82'ixDP"));
     EXPECT_EQ(1, count(h));
@@ -337,7 +339,7 @@ class HashTableStatsTest
       public ::testing::WithParamInterface<std::tuple<EvictionPolicy, bool>> {
 protected:
     HashTableStatsTest()
-        : ht(stats, makeFactory(), 5, 1),
+        : ht(stats, makeFactory(), 5, 1, 0),
           initialSize(0),
           key(makeStoredDocKey("somekey")),
           itemSize(16 * 1024),
@@ -830,7 +832,7 @@ INSTANTIATE_TEST_SUITE_P(
 
 TEST_F(HashTableTest, ItemAge) {
     // Setup
-    HashTable ht(global_stats, makeFactory(), 5, 1);
+    HashTable ht(global_stats, makeFactory(), 5, 1, 0);
     StoredDocKey key = makeStoredDocKey("key");
     Item item(key, 0, 0, "value", strlen("value"));
     EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
@@ -863,7 +865,7 @@ TEST_F(HashTableTest, ItemAge) {
 /* Test release from HT (but not deletion) of an (HT) element */
 TEST_F(HashTableTest, ReleaseItem) {
     /* Setup with 2 hash buckets and 1 lock */
-    HashTable ht(global_stats, makeFactory(), 2, 1);
+    HashTable ht(global_stats, makeFactory(), 2, 1, 0);
 
     /* Write 5 items (there are 2 hash buckets, we want to test removing a head
        element and a non-head element) */
@@ -925,7 +927,7 @@ TEST_F(HashTableTest, CopyItem) {
     /* Setup with 2 hash buckets and 1 lock. Note: Copying is allowed only on
        OrderedStoredValues and hence hash table must have
        OrderedStoredValueFactory */
-    HashTable ht(global_stats, makeFactory(true), 2, 1);
+    HashTable ht(global_stats, makeFactory(true), 2, 1, 0);
 
     /* Write 3 items */
     const int numItems = 3;
@@ -967,7 +969,7 @@ TEST_F(HashTableTest, CopyDeletedItem) {
     /* Setup with 2 hash buckets and 1 lock. Note: Copying is allowed only on
        OrderedStoredValues and hence hash table must have
        OrderedStoredValueFactory */
-    HashTable ht(global_stats, makeFactory(true), 2, 1);
+    HashTable ht(global_stats, makeFactory(true), 2, 1, 0);
 
     /* Write 3 items */
     const int numItems = 3;
@@ -1019,7 +1021,7 @@ TEST_F(HashTableTest, CopyDeletedItem) {
 // deleted time).
 TEST_F(HashTableTest, LockAfterDelete) {
     /* Setup OSVFactory with 2 hash buckets and 1 lock. */
-    HashTable ht(global_stats, makeFactory(true), 2, 1);
+    HashTable ht(global_stats, makeFactory(true), 2, 1, 0);
 
     // Delete a key, giving it a non-zero delete time.
     auto key = makeStoredDocKey("key");
@@ -1052,7 +1054,7 @@ TEST_F(HashTableTest, LockAfterDelete) {
 // Check that pauseResumeVisit calls with the correct Hash bucket.
 TEST_F(HashTableTest, PauseResumeHashBucket) {
     // Two buckets, one lock.
-    HashTable ht(global_stats, makeFactory(true), 2, 1);
+    HashTable ht(global_stats, makeFactory(true), 2, 1, 0);
 
     // Store keys to both hash buckets - need keys which hash to bucket 0 and 1.
     StoredDocKey key0("c", CollectionID::Default);
@@ -1092,7 +1094,7 @@ TEST_F(HashTableTest, PauseResumeHashBucket) {
 // then visit each document and decay it by 50%.  The test checks that the
 // frequency count of each document has been decayed by 50%.
 TEST_F(HashTableTest, ItemFreqDecayerVisitorTest) {
-    HashTable ht(global_stats, makeFactory(true), 128, 1);
+    HashTable ht(global_stats, makeFactory(true), 128, 1, 0.012);
     auto keys = generateKeys(256);
     // Add 256 documents to the hash table
     storeMany(ht, keys);
@@ -1131,9 +1133,9 @@ TEST_F(HashTableTest, ItemFreqDecayerVisitorTest) {
 // Check it can reallocate and also ignores bogus input
 TEST_F(HashTableTest, reallocateStoredValue) {
     // 3 hash-tables, 2 will be filled, the other left empty
-    HashTable ht1(global_stats, makeFactory(true), 1, 1);
-    HashTable ht2(global_stats, makeFactory(true), 2, 2);
-    HashTable ht3(global_stats, makeFactory(true), 2, 2);
+    HashTable ht1(global_stats, makeFactory(true), 1, 1, 0);
+    HashTable ht2(global_stats, makeFactory(true), 2, 2, 0);
+    HashTable ht3(global_stats, makeFactory(true), 2, 2, 0);
 
     // Fill 1 and 2
     auto keys = generateKeys(10);
@@ -1169,7 +1171,7 @@ TEST_F(HashTableTest, reallocateStoredValue) {
 // loaded it).
 TEST_F(HashTableTest, InsertFromWarmupAlreadyResident) {
     // Setup - store a key into HashTable.
-    HashTable ht(global_stats, makeFactory(), 5, 1);
+    HashTable ht(global_stats, makeFactory(), 5, 1, 0);
     auto key = makeStoredDocKey("key");
     auto item = store(ht, key);
     {
@@ -1188,7 +1190,7 @@ TEST_F(HashTableTest, InsertFromWarmupAlreadyResident) {
 }
 
 TEST_F(HashTableTest, ReplaceValueAndDatatype) {
-    HashTable ht(global_stats, makeFactory(), 1, 1);
+    HashTable ht(global_stats, makeFactory(), 1, 1, 0);
 
     // Store a deleted item
     StoredDocKey key = makeStoredDocKey("key");
@@ -1240,8 +1242,13 @@ public:
     GetRandomHashTable(EPStats& st,
                        std::unique_ptr<AbstractStoredValueFactory> svFactory,
                        size_t initialSize,
-                       size_t locks)
-        : HashTable(st, std::move(svFactory), initialSize, locks) {
+                       size_t locks,
+                       double freqCounterIncFactor)
+        : HashTable(st,
+                    std::move(svFactory),
+                    initialSize,
+                    locks,
+                    freqCounterIncFactor) {
     }
 
     void testIntialiseVisitor(size_t size, int random) {
@@ -1339,7 +1346,7 @@ public:
 
 class GetRandomHashTableTest : public HashTableTest {
 public:
-    GetRandomHashTable h{global_stats, makeFactory(), 1, 1};
+    GetRandomHashTable h{global_stats, makeFactory(), 1, 1, 0};
 };
 
 TEST_F(GetRandomHashTableTest, TestInitRandomKeyVisitor) {

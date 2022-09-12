@@ -44,10 +44,22 @@ struct ProbabilisticCounterImpl {
  * - approx 800 to mimic a u32int counter (max value of 4,294,967,295)
  * - approx 0.012 to mimic a u16int counter (max value of 65,535)
  *
+ * These values were found by running the following code using a variety of
+ * incFactor values.
+ *
+ * ProbabilisticCounter<uint8_t> probabilisticCounter(incFactor);
+ * uint64_t iterationCount{0};
+ * uint8_t counter{0};
+ *     while (counter != std::numeric_limits<uint8_t>::max()) {
+ *         counter = probabilisticCounter.generateValue(counter);
+ *         iterationCount++;
+ *     }
+ * std::cerr << "iterationCount=" <<  iterationCount << std::endl;
+ *
  * For example to replace a u16int counter with a probabilistic counter that
  * only requires 8-bits of storage, you would need to construct a
  * ProbabilisticCounter as follows:
- * ProbabilisticCounter<uint8_t> probabilisticCounter(2.0);
+ * ProbabilisticCounter<uint8_t> probabilisticCounter(0.012);
  *
  * It would be used as follows:
  *

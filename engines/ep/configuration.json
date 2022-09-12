@@ -567,6 +567,17 @@
             "dynamic": true,
             "type": "size_t"
         },
+        "freq_counter_increment_factor": {
+            "default": "0.012",
+            "descr": "The increment factor of the ProbabilisticCounter being used for the frequency counter. The default value of 0.012 is set such that it allows an 8-bit ProbabilisticCounter to mimic a uint16 counter. See the comment on the ProbabilisticCounter class for more information.",
+            "dynamic": false,
+            "type": "float",
+            "validator": {
+                "range": {
+                    "min": 0
+                }
+            }
+        },
         "getl_default_timeout": {
             "default": "15",
             "descr": "The default timeout for a getl lock in (s)",
