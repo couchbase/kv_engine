@@ -248,7 +248,7 @@ public:
         collections_support = enable;
     }
 
-    DocKey makeDocKey(cb::const_byte_buffer key) {
+    DocKey makeDocKey(cb::const_byte_buffer key) const {
         return DocKey{key.data(),
                       key.size(),
                       isCollectionsSupported() ? DocKeyEncodesCollectionId::Yes
@@ -362,7 +362,6 @@ public:
     bool isDcpDeleteV2() const {
         return isCollectionsSupported() || isDcpDeleteTimeEnabled();
     }
-
 
     bool isDcpNoValue() const {
         return dcpNoValue;
@@ -604,7 +603,7 @@ public:
     /**
      * Get the Identifier specified for this connection.
      */
-    const std::array<char, MaxSavedConnectionId>& getConnectionId() {
+    const std::array<char, MaxSavedConnectionId>& getConnectionId() const {
         return connectionId;
     }
 
