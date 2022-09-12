@@ -91,7 +91,7 @@ cb::engine_errc BucketManagementCommandContext::remove() {
         try {
             bool invalid_arguments = false;
 
-            if (config.front() == '{') {
+            try {
                 auto json = nlohmann::json::parse(config);
                 auto v = cb::getOptionalJsonObject(
                         json, "force", nlohmann::json::value_t::boolean);
@@ -107,16 +107,8 @@ cb::engine_errc BucketManagementCommandContext::remove() {
                         invalid_arguments = true;
                     }
                 }
-            } else {
-                cb::config::tokenize(
-                        config, [&force, &invalid_arguments](auto k, auto v) {
-                            using namespace std::string_view_literals;
-                            if (k == "force"sv) {
-                                force = cb::config::value_as_bool(v);
-                            } else {
-                                invalid_arguments = true;
-                            }
-                        });
+            } catch (const std::exception&) {
+                invalid_arguments = true;
             }
             if (invalid_arguments) {
                 LOG_WARNING(
