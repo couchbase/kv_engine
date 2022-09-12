@@ -593,9 +593,9 @@ protected:
      * getItemsForCursor but not from anywhere else (as it will return an entire
      * checkpoint and never leave a cursor placed at the checkpoint_end).
      *
-     * Note: This function skips empty items. If the cursor moves into a new
-     * checkpoint, then after this call it will point to the checkpoint_start
-     * item into the new checkpoint.
+     * Note: This function might also move the cursor across checkpoints.
+     *  When the cursor jumps into a new checkpoint it is placed at empty item.
+     *  That ensures that the checkpoint_start item isn't missed.
      *
      * @return true if advanced, false otherwise
      */
