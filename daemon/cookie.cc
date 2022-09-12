@@ -779,6 +779,20 @@ cb::mcbp::Status Cookie::validate() {
     return cb::mcbp::Status::Success;
 }
 
+Cookie::~Cookie() {
+    if (ewouldblock) {
+        LOG_CRITICAL(
+                "{} ewouldblock should NOT be set in the destructor as that "
+                "indicates that someone is using the cookie. This cookie: {}, "
+                "Connection: {}",
+                getConnectionId(),
+                toJSON().dump(),
+                connection.toJSON().dump());
+        cb::logger::flush();
+        std::terminate();
+    }
+}
+
 void Cookie::reset() {
     document_bytes_read = 0;
     document_bytes_written = 0;

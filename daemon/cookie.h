@@ -50,6 +50,8 @@ class Cookie : public CookieIface {
 public:
     explicit Cookie(Connection& conn);
 
+    ~Cookie() override;
+
     /**
      * Initialize this cookie.
      *
