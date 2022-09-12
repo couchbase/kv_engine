@@ -11,10 +11,8 @@
 
 #pragma once
 
-#include "ep_types.h"
-#include "item.h"
-
 #include <cstdint>
+#include <iosfwd>
 
 /**
  * Captures the result of a rollback request.

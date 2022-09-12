@@ -448,6 +448,10 @@ void KVStore::addTimingStats(const AddStatFn& add_stat,
     add_prefixed_stat(prefix, "getAllKeys", st.getAllKeysHisto, add_stat, c);
 }
 
+GetValue KVStore::get(const DiskDocKey& key, Vbid vb) const {
+    return get(key, vb, ValueFilter::VALUES_DECOMPRESSED);
+}
+
 void KVStore::prepareForDeduplication(std::vector<queued_item>& items) {
     if (items.empty()) {
         return;

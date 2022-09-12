@@ -17,6 +17,7 @@
 #include "configuration.h"
 #include "kvstore/kvstore.h"
 #include "kvstore/kvstore_transaction_context.h"
+#include "kvstore/rollback_callback.h"
 #include "vb_commit.h"
 
 #include <folly/portability/GMock.h>

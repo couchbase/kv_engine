@@ -27,6 +27,7 @@
 #include "kvstore/kvstore.h"
 #include "kvstore/kvstore_transaction_context.h"
 #include "kvstore/persistence_callback.h"
+#include "kvstore/rollback_callback.h"
 #include "range_scans/range_scan_callbacks.h"
 #include "replicationthrottle.h"
 #include "rollback_result.h"

@@ -10,13 +10,13 @@
 
 #pragma once
 
-#include "callbacks.h"
-
+#include "diskdockey.h"
 #include <folly/Synchronized.h>
+#include <memcached/engine_error.h>
 #include <memcached/range_scan.h>
 #include <memcached/range_scan_id.h>
 #include <memcached/storeddockey.h>
-
+#include <memcached/vbucket.h>
 #include <atomic>
 #include <chrono>
 #include <iostream>

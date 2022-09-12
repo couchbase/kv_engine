@@ -376,6 +376,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/mutation_log_entry.cc
             src/paging_visitor.cc
         src/kvstore/persistence_callback.cc
+            src/kvstore/rollback_callback.cc
             src/pid_controller.cc
             src/pre_link_document_context.cc
             src/pre_link_document_context.h

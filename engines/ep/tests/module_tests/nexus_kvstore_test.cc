@@ -16,6 +16,7 @@
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "item.h"
 #include "kvstore/nexus-kvstore/nexus-kvstore.h"
+#include "kvstore/rollback_callback.h"
 #include "test_helpers.h"
 #include "test_manifest.h"
 #include "tests/module_tests/thread_gate.h"

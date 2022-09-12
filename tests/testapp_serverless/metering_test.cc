@@ -12,6 +12,7 @@
 
 #include <cluster_framework/bucket.h>
 #include <cluster_framework/cluster.h>
+#include <folly/lang/Assume.h>
 #include <folly/portability/GTest.h>
 #include <memcached/storeddockey.h>
 #include <platform/base64.h>

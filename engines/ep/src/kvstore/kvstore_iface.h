@@ -11,18 +11,20 @@
 
 #pragma once
 
-#include "callbacks.h"
+#include "callbacks_fwd.h"
 #include "collections/kvstore.h"
 #include "ep_types.h"
 #include "persistence_callback.h"
 #include "vbucket_state.h"
 
 #include <memcached/engine_common.h>
+#include <memcached/engine_error.h>
 #include <memcached/thread_pool_config.h>
 
 class ByIdScanContext;
 class BySeqnoScanContext;
 class CookieIface;
+class GetValue;
 class KVFileHandle;
 class KVStoreConfig;
 class KVStoreStats;

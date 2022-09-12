@@ -15,6 +15,7 @@
 #include "kvstore/kvstore.h"
 #include "kvstore/kvstore_config.h"
 #include "kvstore/kvstore_transaction_context.h"
+#include "kvstore/rollback_callback.h"
 #include "rollback_result.h"
 #include "vb_commit.h"
 #include "vbucket_bgfetch_item.h"

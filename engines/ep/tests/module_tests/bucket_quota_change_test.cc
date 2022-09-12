@@ -14,7 +14,9 @@
 #include "dcp/consumer.h"
 #include "dcp/flow-control-manager.h"
 #include "ep_engine.h"
+#include "item.h"
 #include "kv_bucket.h"
+#include "kvstore/kvstore_iface.h"
 #include "test_helpers.h"
 #include "vbucket.h"
 

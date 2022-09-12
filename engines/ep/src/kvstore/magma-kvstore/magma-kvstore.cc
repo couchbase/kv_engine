@@ -19,6 +19,7 @@
 #include "item.h"
 #include "kv_magma_common/magma-kvstore_metadata.h"
 #include "kvstore/kvstore_transaction_context.h"
+#include "kvstore/rollback_callback.h"
 #include "kvstore/storage_common/storage_common/local_doc_constants.h"
 #include "magma-kvstore_config.h"
 #include "magma-kvstore_iorequest.h"

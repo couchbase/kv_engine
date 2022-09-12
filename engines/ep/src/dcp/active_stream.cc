@@ -17,6 +17,7 @@
 #include "dcp/response.h"
 #include "ep_time.h"
 #include "kv_bucket.h"
+#include "kvstore/kvstore_iface.h"
 #include "vbucket.h"
 
 #include <fmt/chrono.h>

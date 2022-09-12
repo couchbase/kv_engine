@@ -13,6 +13,7 @@
 #include "collections/vbucket_manifest_handles.h"
 #include "ep_bucket.h"
 #include "ep_engine.h"
+#include "item.h"
 #include "objectregistry.h"
 #include "range_scans/range_scan.h"
 #include "vbucket.h"

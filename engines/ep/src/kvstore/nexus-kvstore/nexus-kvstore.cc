@@ -21,6 +21,7 @@
 #ifdef EP_USE_MAGMA
 #include "kvstore/magma-kvstore/magma-kvstore.h"
 #endif
+#include "kvstore/rollback_callback.h"
 #include "nexus-kvstore-config.h"
 #include "nexus-kvstore-persistence-callback.h"
 #include "nexus-kvstore-transaction-context.h"

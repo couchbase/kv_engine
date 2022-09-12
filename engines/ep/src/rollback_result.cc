@@ -11,6 +11,7 @@
 
 #include "rollback_result.h"
 #include <gsl/gsl-lite.hpp>
+#include <ostream>
 
 RollbackResult::RollbackResult(bool success)
     : success(success), highSeqno(0), snapStartSeqno(0), snapEndSeqno(0) {

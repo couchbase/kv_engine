@@ -8,22 +8,18 @@
  *   the file licenses/APL2.txt.
  */
 
-#include "engine_fixture.h"
-
-#include "module_tests/test_helpers.h"
-
 #include "checkpoint_manager.h"
-
+#include "engine_fixture.h"
+#include "item.h"
+#include "module_tests/test_helpers.h"
 #include <benchmark/benchmark.h>
 #include <executor/fake_executorpool.h>
+#include <folly/portability/GTest.h>
 #include <kv_bucket.h>
 #include <paging_visitor.h>
 #include <platform/cb_arena_malloc.h>
 #include <platform/semaphore.h>
 #include <vbucket.h>
-
-#include <folly/portability/GTest.h>
-
 #include <random>
 
 class PagingVisitorBench : public EngineFixture {

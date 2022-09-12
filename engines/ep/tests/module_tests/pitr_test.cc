@@ -13,6 +13,7 @@
 #include "collections/collections_test_helpers.h"
 #include "item.h"
 #include "kv_bucket.h"
+#include "kvstore/kvstore_iface.h"
 #include "test_helpers.h"
 #include "test_manifest.h"
 #include "vbucket.h"

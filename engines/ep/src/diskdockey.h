@@ -10,7 +10,6 @@
  */
 #pragma once
 
-#include <memcached/dockey.h>
 #include <string>
 
 struct DocKey;

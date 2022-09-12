@@ -15,6 +15,7 @@
 #include "ep_bucket.h"
 #include "ep_engine.h"
 #include "failover-table.h"
+#include "item.h"
 #include "kvstore/kvstore.h"
 #include "range_scans/range_scan_callbacks.h"
 #include "vbucket.h"

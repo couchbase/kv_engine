@@ -16,11 +16,10 @@
 #include "collections/vbucket_manifest_handles.h"
 #include "collections_dcp_test.h"
 #include "ep_engine.h"
-#include "kv_bucket.h"
+#include "item.h"
 #include "tests/mock/mock_dcp_consumer.h"
 #include "tests/module_tests/collections/collections_test.h"
 #include "tests/module_tests/test_helpers.h"
-#include "vbucket.h"
 
 #include <utilities/test_manifest.h>
 

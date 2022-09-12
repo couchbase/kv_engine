@@ -155,3 +155,10 @@ public:
 private:
     cb::engine_errc myStatus;
 };
+
+/// CacheLookup callback which does nothing when called.
+class NoLookupCallback : public StatusCallback<CacheLookup> {
+public:
+    void callback(CacheLookup&) override {
+    }
+};

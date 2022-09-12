@@ -11,9 +11,10 @@
 
 #pragma once
 
-#include "callbacks.h"
+#include "callbacks_fwd.h"
 #include "collections/eraser_context.h"
 #include "collections/kvstore.h"
+#include "diskdockey.h"
 #include "ep_time.h"
 #include "kvstore_fwd.h"
 #include "kvstore_iface.h"
@@ -38,7 +39,6 @@
 /* Forward declarations */
 class BucketLogger;
 class CookieIface;
-class DiskDocKey;
 class EPStats;
 class Item;
 class KVStore;
@@ -323,12 +323,6 @@ struct kvstats_ctx {
      * the persisted VB state before commit.
      */
     ssize_t onDiskPrepareBytesDelta = 0;
-};
-
-class NoLookupCallback : public StatusCallback<CacheLookup> {
-public:
-    void callback(CacheLookup&) override {
-    }
 };
 
 struct DBFileInfo {
@@ -795,9 +789,7 @@ public:
     /**
      * Convenience version of get() which fetches the value uncompressed.
      */
-    GetValue get(const DiskDocKey& key, Vbid vb) const {
-        return get(key, vb, ValueFilter::VALUES_DECOMPRESSED);
-    }
+    GetValue get(const DiskDocKey& key, Vbid vb) const;
 
     /**
      * Set the max bucket quota to the given size.
@@ -1053,27 +1045,6 @@ public:
      * @param config engine configuration
      */
     static std::unique_ptr<KVStoreIface> create(KVStoreConfig& config);
-};
-
-/**
- * Callback class used by DcpConsumer, for rollback operation
- */
-class RollbackCB : public StatusCallback<GetValue> {
-public:
-    void callback(GetValue& val) override = 0;
-
-    virtual void setKVFileHandle(std::unique_ptr<KVFileHandle> handle) {
-        kvFileHandle = std::move(handle);
-    }
-
-    virtual const KVFileHandle* getKVFileHandle() const {
-        return kvFileHandle.get();
-    }
-
-protected:
-    /// The database handle to use when lookup up items in the new, rolled back
-    /// database.
-    std::unique_ptr<KVFileHandle> kvFileHandle;
 };
 
 std::ostream& operator<<(std::ostream& os, const ValueFilter& vf);

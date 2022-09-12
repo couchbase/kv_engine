@@ -22,6 +22,7 @@
 #include "kvstore/kvstore_config.h"
 #include "kvstore/kvstore_transaction_context.h"
 #include "kvstore/persistence_callback.h"
+#include "kvstore/rollback_callback.h"
 #include "kvstore/storage_common/storage_common/local_doc_constants.h"
 #include "rollback_result.h"
 #include "statistics/cbstat_collector.h"

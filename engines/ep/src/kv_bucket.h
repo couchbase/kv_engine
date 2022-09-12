@@ -11,12 +11,10 @@
 
 #pragma once
 
-#include "callbacks.h"
-#include "checkpoint_types.h"
+#include "collections/collections_types.h"
 #include "dcp/backfill.h"
 #include "ep_types.h"
 #include "kv_bucket_iface.h"
-#include "kvstore/kvstore_iface.h"
 #include "locked_vbucket_ptr.h"
 #include "stored-value.h"
 #include "utility.h"

@@ -15,6 +15,7 @@
 
 #include "collections/vbucket_manifest_handles.h"
 #include "kv_bucket.h"
+#include "kvstore/kvstore_iface.h"
 #include "programs/engine_testapp/mock_cookie.h"
 #include "tests/mock/mock_dcp_producer.h"
 #include "tests/module_tests/collections/collections_dcp_test.h"

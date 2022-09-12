@@ -16,7 +16,6 @@
 #include "rollback_result.h"
 #include "vbucket_fwd.h"
 #include "vbucket_notify_context.h"
-#include <executor/globaltask.h>
 #include <folly/SharedMutex.h>
 #include <memcached/engine.h>
 #include <memcached/range_scan.h>
@@ -51,6 +50,7 @@ class BucketStatCollector;
 class RangeScanDataHandlerIFace;
 class StatCollector;
 class StorageProperties;
+enum class TaskId;
 class Warmup;
 class VBucketFilter;
 namespace Collections {

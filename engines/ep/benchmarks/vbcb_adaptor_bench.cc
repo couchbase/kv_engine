@@ -9,6 +9,7 @@
  */
 
 #include "engine_fixture.h"
+#include "item.h"
 
 #include <benchmark/benchmark.h>
 #include <executor/fake_executorpool.h>
