@@ -11,11 +11,17 @@
 
 #pragma once
 
+#include "item_eviction_strategy.h"
+
+#include "eviction_ratios.h"
+
 #include <hdrhistogram/hdrhistogram.h>
 
 #include <cstdlib> // Required due to the use of free
 #include <limits>
 #include <utility>
+
+class EPStats;
 
 /**
  * A container for data structures that are used in the algorithm for
@@ -46,20 +52,58 @@
  * frequency count at or below the threshold.
  *
  */
-class ItemEviction {
-
+class ItemEviction : public ItemEvictionStrategy {
 public:
-    ItemEviction();
+    ItemEviction() = default;
+    /**
+     * Construct a "learning" ItemEviction, which can be used to decide which
+     * values to attempt to evict, in order to remove a fraction (from
+     * evictionRatios) of the coldest items from a vbucket.
+     *
+     * "Young" items (age determined from HLC cas) are protected from eviction,
+     * based on @p agePercentage.
+     *
+     * This implementation learns an approximation of the MFU/freqCounter and
+     * age distributions of items within a vb as it visits them. As a result,
+     * the distributions used while visiting the first few items in a vbucket
+     * may not be very precise. This is only significant with very small
+     * datasets (e.g., synthetic sets in unit tests), where the decision to
+     * evict a single item or not may noticably change the memory recovered.
+     *
+     * @param evictionRatios fraction of items to evict from
+     *                       active+pending/replica vbuckets
+     * @param agePercentage percentage of the "youngest" items to skip evicting
+     * @param freqCounterAgeThreshold freq counter below which age should be
+     *                                ignored. Ensures items will eventually be
+     *                                evicted if repeatedly visited.
+     * @param stats epstats in which per-vbucket visit stats will be recorded.
+     *              Pointer, may be null to avoid tests which are not concerned
+     *              with stats needing an EPStats instance anyway.
+     */
+    ItemEviction(EvictionRatios evictionRatios,
+                 size_t agePercentage,
+                 uint16_t freqCounterAgeThreshold,
+                 EPStats* stats);
+
+    // Clears the frequency histogram and sets the requiredToUpdateInterval
+    // back to 1.
+    void setupVBucketVisit(uint64_t numExpectedItems) override;
+
+    void tearDownVBucketVisit(vbucket_state_t state) override;
+
+    bool shouldTryEvict(uint8_t freq,
+                        uint64_t age,
+                        vbucket_state_t state) override;
+
+    void eligibleItemSeen(uint8_t freq,
+                          uint64_t age,
+                          vbucket_state_t state) override;
 
     // Adds a frequency and age to the respective histograms.
     void addFreqAndAgeToHistograms(uint8_t freq, uint64_t age);
 
     // Returns the number of values added to the frequency histogram.
     uint64_t getFreqHistogramValueCount() const;
-
-    // Clears the frequency histogram and sets the requiredToUpdateInterval
-    // back to 1.
-    void reset();
 
     // StatCounter: Returns the values held in the frequency and age
     // histograms at the percentiles defined by the input parameters.
@@ -76,11 +120,6 @@ public:
     // threshold, else return false
     bool isRequiredToUpdate() const {
         return (getFreqHistogramValueCount() % requiredToUpdateInterval == 0);
-    }
-
-    // StatCounter: Update the requiredToUpdateInterval
-    void setUpdateInterval(uint64_t interval) {
-        requiredToUpdateInterval = interval;
     }
 
     // StatCounter:: Copies the contents of the frequency histogram into
@@ -103,6 +142,16 @@ public:
 
     static const uint64_t casBitsNotTime = 16;
 
+    /**
+     * Directly set the freqCounterThreshold.
+     *
+     * Used only in tests, and will be removed once usages have been updated to
+     * construct ItemEviction and inject it.
+     */
+    void setFreqCounterThreshold(uint16_t threshold) {
+        freqCounterThreshold = threshold;
+    }
+
 private:
     // The maximum value that can be added to the age histogram
     static const uint64_t maxAgeValue = std::numeric_limits<uint64_t>::max() >> casBitsNotTime;
@@ -121,6 +170,22 @@ private:
     // track these in an array rather than a HdrHistogram as it saves space
     // (~2040 bytes vs 16600 bytes) and time as we do not need atomicity.
     std::array<size_t, 256> freqCounters{};
+
+    // ratio of active+pending and replica values to evict
+    const EvictionRatios evictionRatios = {};
+
+    // The age percent used to select the age threshold.  The value is
+    // read by the ItemPager from a configuration parameter.
+    const size_t agePercentage = 0;
+
+    // The threshold for determining at what execution frequency should we
+    // consider age when selecting items for eviction.  The value is
+    // read by the ItemPager from a configuration parameter.
+    const uint16_t freqCounterAgeThreshold = 0;
+
+    // epstats ptr may be null for ease of testing; unit tests specifically
+    // for learning behaviour don't necessarily need an EPStats instance.
+    EPStats* const epstats = nullptr;
 
     // To find our value at a given percentile we also track the total number of
     // items we are tracking freq counter values for. With this we can
@@ -143,4 +208,13 @@ private:
     // frequency histogram before it is necessary to update the frequency
     // threshold.
     uint64_t requiredToUpdateInterval{1};
+
+    // The frequency counter threshold that is used to determine whether we
+    // should evict items from the hash table. Computed from freqCounters
+    // periodically.
+    uint16_t freqCounterThreshold = 0;
+
+    // The age threshold that is used to determine whether we should evict
+    // items from the hash table. Computed from ageHistogram periodically
+    uint64_t ageThreshold = 0;
 };

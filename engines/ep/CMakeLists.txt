@@ -362,6 +362,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/item_compressor.cc
             src/item_compressor_visitor.cc
             src/item_eviction.cc
+            src/item_eviction_strategy.cc
             src/item_freq_decayer.cc
             src/item_freq_decayer_visitor.cc
             src/item_pager.cc

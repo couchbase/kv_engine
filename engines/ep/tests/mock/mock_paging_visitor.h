@@ -56,7 +56,7 @@ public:
     }
 
     void setFreqCounterThreshold(uint16_t threshold) {
-        freqCounterThreshold = threshold;
+        itemEviction.setFreqCounterThreshold(threshold);
     }
 
     void setCurrentBucket(VBucket& _currentBucket) {

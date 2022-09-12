@@ -113,14 +113,6 @@ protected:
     // Only valid while inside visitBucket().
     VBucket* currentBucket{nullptr};
 
-    // The frequency counter threshold that is used to determine whether we
-    // should evict items from the hash table.
-    uint16_t freqCounterThreshold;
-
-    // The age threshold that is used to determine whether we should evict
-    // items from the hash table.
-    uint64_t ageThreshold;
-
 private:
     bool doEviction(const HashTable::HashBucketLock& lh,
                     StoredValue* v,
@@ -148,7 +140,6 @@ private:
 
     KVBucket& store;
     EPStats& stats;
-    EvictionRatios evictionRatios;
     time_t startTime;
     std::shared_ptr<cb::Semaphore> pagerSemaphore;
     pager_type_t owner;
@@ -165,15 +156,6 @@ private:
     bool wasAboveBackfillThreshold;
 
     std::chrono::steady_clock::time_point taskStart;
-
-    // The age percent used to select the age threshold.  The value is
-    // read by the ItemPager from a configuration parameter.
-    size_t agePercentage;
-
-    // The threshold for determining at what execution frequency should we
-    // consider age when selecting items for eviction.  The value is
-    // read by the ItemPager from a configuration parameter.
-    uint16_t freqCounterAgeThreshold;
 
     // Holds the current vbucket's maxCas value at the point just before we
     // visit all items in the vbucket.

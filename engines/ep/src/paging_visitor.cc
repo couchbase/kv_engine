@@ -43,12 +43,10 @@ PagingVisitor::PagingVisitor(KVBucket& s,
                              const VBucketFilter& vbFilter,
                              size_t agePercentage,
                              size_t freqCounterAgeThreshold)
-    : ejected(0),
-      freqCounterThreshold(0),
-      ageThreshold(0),
+    : itemEviction(evictionRatios, agePercentage, freqCounterAgeThreshold, &st),
+      ejected(0),
       store(s),
       stats(st),
-      evictionRatios(evictionRatios),
       startTime(ep_real_time()),
       pagerSemaphore(std::move(pagerSemaphore)),
       owner(caller),
@@ -56,8 +54,6 @@ PagingVisitor::PagingVisitor(KVBucket& s,
       isBelowLowWaterMark(false),
       wasAboveBackfillThreshold(s.isMemUsageAboveBackfillThreshold()),
       taskStart(std::chrono::steady_clock::now()),
-      agePercentage(agePercentage),
-      freqCounterAgeThreshold(freqCounterAgeThreshold),
       maxCas(0) {
     setVBucketFilter(vbFilter);
 }
@@ -78,8 +74,10 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
         return true;
     }
 
+    auto vbState = currentBucket->getState();
+
     // Delete expired items for an active vbucket.
-    bool isExpired = (currentBucket->getState() == vbucket_state_active) &&
+    bool isExpired = (vbState == vbucket_state_active) &&
                      v.isExpired(startTime) && !v.isDeleted();
     if (isExpired) {
         std::unique_ptr<Item> it = v.toItem(currentBucket->getId());
@@ -101,27 +99,6 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
         return true;
     }
 
-    // We don't skip temp initial items (state_temp_init) here. This means that
-    // we could evict one before a BG fetch completes. This is fine as it may be
-    // desirable to do so under extremely high memory pressure and this ensures
-    // that they are cleaned up should a BG fetch fail or get stuck for whatever
-    // reason. Should a BG fetch complete after eviction of a temp initial item
-    // it will return SUCCESS and notify the client to run the op again which
-    // will rerun the BG fetch.
-    const double evictionRatio =
-            evictionRatios.getForState(currentBucket->getState());
-
-    // A negative eviction ratio is invalid, and should never be encountered
-    Expects(evictionRatio >= 0.0);
-
-    // but an eviction ratio of exactly 0.0 is permissable (e.g., replica
-    // eviction ratio set to a literal 0.0, but an active vb transitions to
-    // replica after we build the vbucket filter but before we start visiting).
-    if (evictionRatio == 0.0) {
-        // don't want to evict any items, early exit.
-        return true;
-    }
-
     /*
      * We take a copy of the freqCounterValue because calling
      * doEviction can modify the value, and when we want to
@@ -131,25 +108,9 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
 
     auto age = casToAge(v.getCas());
 
-    const bool belowMFUThreshold =
-            storedValueFreqCounter <= freqCounterThreshold;
-    // age exceeds threshold (from age histogram, set by config param
-    // item_eviction_age_percentage
-    // OR
-    // MFU is below threshold set by config param
-    // item_eviction_freq_counter_age_threshold
-    // Below this threshold the item is considered "cold" enough
-    // to be evicted even if it is "young".
-    const bool meetsAgeRequirements =
-            age >= ageThreshold ||
-            storedValueFreqCounter < freqCounterAgeThreshold;
-
-    // For replica vbuckets, young items are not protected from eviction.
-    const bool isReplica = currentBucket->getState() == vbucket_state_replica;
-
     bool eligibleForPaging = false;
 
-    if (belowMFUThreshold && (meetsAgeRequirements || isReplica)) {
+    if (itemEviction.shouldTryEvict(storedValueFreqCounter, age, vbState)) {
         // try to evict, may fail if sv is not eligible due to being
         // pending/non-resident/dirty.
         eligibleForPaging = doEviction(lh, &v, false /*isDropped*/);
@@ -173,16 +134,7 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
     }
 
     if (eligibleForPaging) {
-        itemEviction.addFreqAndAgeToHistograms(storedValueFreqCounter, age);
-
-        // Whilst we are learning it is worth always updating the
-        // threshold. We also want to update the threshold at periodic
-        // intervals.
-        if (itemEviction.isLearning() || itemEviction.isRequiredToUpdate()) {
-            std::tie(freqCounterThreshold, ageThreshold) =
-                    itemEviction.getThresholds(evictionRatio * 100.0,
-                                               agePercentage);
-        }
+        itemEviction.eligibleItemSeen(storedValueFreqCounter, age, vbState);
     }
 
     return true;
@@ -217,44 +169,13 @@ void PagingVisitor::visitBucket(VBucket& vb) {
     }
 
     maxCas = vb.getMaxCas();
-    itemEviction.reset();
-    freqCounterThreshold = 0;
-
-    // Percent of items in the hash table to be visited
-    // between updating the interval.
-    const double percentOfItems = 0.1;
-    // Calculate the number of items to visit before updating
-    // the interval
-    uint64_t noOfItems = std::ceil(vb.getNumItems() * (percentOfItems * 0.01));
-    uint64_t interval = (noOfItems > ItemEviction::learningPopulation)
-                                ? noOfItems
-                                : ItemEviction::learningPopulation;
-    itemEviction.setUpdateInterval(interval);
+    itemEviction.setupVBucketVisit(vb.getNumItems());
 
     currentBucket = &vb;
     vb.ht.visit(*this);
     currentBucket = nullptr;
 
-    /**
-     * Note: We are not taking a reader lock on the vbucket state.
-     * Therefore it is possible that the stats could be slightly
-     * out.  However given that its just for stats we don't want
-     * to incur any performance cost associated with taking the
-     * lock.
-     */
-    const bool isActiveOrPending = ((vb.getState() == vbucket_state_active) ||
-                                    (vb.getState() == vbucket_state_pending));
-
-    // Take a snapshot of the latest frequency histogram
-    if (isActiveOrPending) {
-        stats.activeOrPendingFrequencyValuesSnapshotHisto.reset();
-        itemEviction.copyFreqHistogram(
-                stats.activeOrPendingFrequencyValuesSnapshotHisto);
-    } else {
-        stats.replicaFrequencyValuesSnapshotHisto.reset();
-        itemEviction.copyFreqHistogram(
-                stats.replicaFrequencyValuesSnapshotHisto);
-    }
+    itemEviction.tearDownVBucketVisit(vb.getState());
 }
 
 void PagingVisitor::update() {
