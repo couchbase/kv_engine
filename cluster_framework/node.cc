@@ -23,6 +23,8 @@
 #include <mutex>
 #include <thread>
 
+using namespace std::chrono_literals;
+
 namespace cb::test {
 
 Node::~Node() = default;
@@ -158,8 +160,10 @@ void NodeImpl::startMemcachedServer() {
     });
 
     if (getenv("MEMCACHED_UNIT_TESTS")) {
-        // The test _SHOULD_ complete under 120 seconds..
-        child->setTimeoutHander(std::chrono::seconds{120}, [this]() {
+        // The test _SHOULD_ complete under 120 seconds in base runs,
+        // takes longer under TSan.
+        const auto timeout = folly::kIsSanitizeThread ? 300s : 120s;
+        child->setTimeoutHander(timeout, [this]() {
             static std::mutex mutex;
             std::lock_guard<std::mutex> guard(mutex);
             std::cerr << "memcached process on " << directory.generic_string()
