@@ -537,14 +537,17 @@ void RangeScan::incrementValueFromDisk() {
 }
 
 bool RangeScan::areLimitsExceeded() const {
-    if (continueRunState.cState.limits.itemLimit) {
-        return continueRunState.itemCount >=
-               continueRunState.cState.limits.itemLimit;
-    } else if (continueRunState.cState.limits.timeLimit.count()) {
-        return now() >= continueRunState.scanContinueDeadline;
-    } else if (continueRunState.cState.limits.byteLimit) {
-        return continueRunState.byteCount >=
-               continueRunState.cState.limits.byteLimit;
+    if (continueRunState.cState.limits.itemLimit &&
+        continueRunState.itemCount >=
+                continueRunState.cState.limits.itemLimit) {
+        return true;
+    } else if (continueRunState.cState.limits.timeLimit.count() &&
+               now() >= continueRunState.scanContinueDeadline) {
+        return true;
+    } else if (continueRunState.cState.limits.byteLimit &&
+               continueRunState.byteCount >=
+                       continueRunState.cState.limits.byteLimit) {
+        return true;
     }
     return false;
 }

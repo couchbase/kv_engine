@@ -485,6 +485,19 @@ TEST_P(RangeScanTest, user_prefix_with_item_limit_2) {
                   expectedKeys.size() / 2);
 }
 
+// Test has a smaller byte-limit which must take affect before the item count
+TEST_P(RangeScanTest, user_prefix_with_two_limits) {
+    auto expectedKeys = getUserKeys();
+    testRangeScan(expectedKeys,
+                  scanCollection,
+                  {"user"},
+                  {"user\xFF"},
+                  2, // 2 items
+                  std::chrono::milliseconds(0),
+                  1, // 1 byte
+                  expectedKeys.size());
+}
+
 TEST_P(RangeScanTest, user_prefix_with_time_limit) {
     // Replace time with a function that ticks per call, forcing the scan to
     // yield for every item
