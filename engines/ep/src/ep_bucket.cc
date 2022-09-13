@@ -2198,7 +2198,7 @@ void EPBucket::notifyNewSeqno(const Vbid vbid, const VBNotifyCtx& notifyCtx) {
         notifyFlusher(vbid);
     }
     if (notifyCtx.notifyReplication) {
-        notifyReplication(vbid, notifyCtx.bySeqno, notifyCtx.syncWrite);
+        notifyReplication(vbid, notifyCtx.syncWrite);
     }
 }
 

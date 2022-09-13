@@ -353,7 +353,7 @@ void EphemeralBucket::notifyNewSeqno(const Vbid vbid,
         notifyFlusher(vbid);
     }
     if (notifyCtx.notifyReplication) {
-        notifyReplication(vbid, notifyCtx.bySeqno, notifyCtx.syncWrite);
+        notifyReplication(vbid, notifyCtx.syncWrite);
     }
 
     /* In ephemeral buckets we must notify high priority requests as well.
