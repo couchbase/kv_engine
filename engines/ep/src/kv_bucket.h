@@ -1004,12 +1004,10 @@ protected:
      * Notify replication of a new seqno being added in the vbucket
      *
      * @param vbid vBucket ID
-     * @param bySeqno new high seqno
      * @param syncWriteOnly is this a SyncWrite operation (we don't notify
      *        producers that do not care about SyncWrites of prepares).
      */
     void notifyReplication(const Vbid vbid,
-                           const int64_t bySeqno,
                            SyncWriteOperation syncWrite);
 
     /// Helper method from initialize() to setup the expiry pager
