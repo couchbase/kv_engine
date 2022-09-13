@@ -2477,8 +2477,7 @@ TEST_F(ReplicaRollbackDcpTest, ReplicaRollbackClosesStreams) {
     ASSERT_TRUE(stream->isActive());
     ASSERT_TRUE(stream->isBackfilling());
 
-    producer->notifySeqnoAvailable(
-            vb->getId(), vb->getHighSeqno(), SyncWriteOperation::None);
+    producer->notifySeqnoAvailable(vb->getId(), SyncWriteOperation::None);
 
     auto& bfm = producer->getBFM();
     for (uint8_t i = 0; i < 3; ++i) {

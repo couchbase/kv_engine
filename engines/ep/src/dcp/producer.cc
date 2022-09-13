@@ -1624,7 +1624,6 @@ void DcpProducer::aggregateQueueStats(ConnCounter& aggregator) const {
 }
 
 void DcpProducer::notifySeqnoAvailable(Vbid vbucket,
-                                       uint64_t seqno,
                                        SyncWriteOperation syncWrite) {
     if (!isSyncWritesEnabled() &&
         ((!isSeqnoAdvancedEnabled() && syncWrite != SyncWriteOperation::None) ||

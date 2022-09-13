@@ -196,8 +196,7 @@ void DCPTest::prepareCheckpointItemsForStep(
         DcpMessageProducersIface& msgProducers,
         MockDcpProducer& producer,
         VBucket& vb) {
-    producer.notifySeqnoAvailable(
-            vb.getId(), vb.getHighSeqno(), SyncWriteOperation::Prepare);
+    producer.notifySeqnoAvailable(vb.getId(), SyncWriteOperation::Prepare);
     ASSERT_EQ(cb::engine_errc::would_block, producer.step(msgProducers));
     ASSERT_EQ(1, producer.getCheckpointSnapshotTask()->queueSize());
     producer.getCheckpointSnapshotTask()->run();

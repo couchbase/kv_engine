@@ -133,9 +133,7 @@ public:
      */
     void setDisconnect() override;
 
-    void notifySeqnoAvailable(Vbid vbucket,
-                              uint64_t seqno,
-                              SyncWriteOperation syncWriteOnly);
+    void notifySeqnoAvailable(Vbid vbucket, SyncWriteOperation syncWriteOnly);
 
     /**
      * @param vbucket
