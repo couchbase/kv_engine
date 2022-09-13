@@ -357,8 +357,12 @@ class MemcachedClient(object):
         """Decrement or create the named counter."""
         return self.__incrdecr(memcacheConstants.CMD_DECR, key, amt, init, exp, collection)
 
-    def _doMetaCmd(self, cmd, key, value, cas, exp, flags, seqno, remote_cas, collection):
-        extra = struct.pack('>IIQQ', flags, exp, seqno, remote_cas)
+    def _doMetaCmd(self, cmd, key, value, cas, exp, flags, seqno, remote_cas, collection, options=None):
+        extra = b''
+        if options is not None:
+            extra = struct.pack('>IIQQI', flags, exp, seqno, remote_cas, options)
+        else:
+            extra = struct.pack('>IIQQ', flags, exp, seqno, remote_cas)
         return self._doCmd(cmd, key, value, extra, cas, collection)
 
     def set(self, key, exp, flags, val, collection=None):
@@ -373,14 +377,34 @@ class MemcachedClient(object):
         return self._mutateDurable(memcacheConstants.CMD_SET, key, exp, flags,
                                    0, val, level, timeout, collection)
 
-    def setWithMeta(self, key, value, exp, flags, seqno, remote_cas, collection=None):
-        """Set a value and its meta data in the memcached server."""
-        return self._doMetaCmd(memcacheConstants.CMD_SET_WITH_META,
-                               key, value, 0, exp, flags, seqno, remote_cas, collection)
+    def setWithMeta(self, key, value, exp, flags, seqno, remote_cas, collection=None, options=None):
+        """Set a value and its meta data in the memcached server.
 
-    def delWithMeta(self, key, exp, flags, seqno, remote_cas, collection=None):
+        The behaviour of the command may be changed by specifying any of the
+        following options as a bitmask.
+        * `FORCE_WITH_META_OP`
+        * `FORCE_ACCEPT_WITH_META_OPS` - required for LWW, not supported for rev
+        seqno conflict resolution buckets
+        * `REGENERATE_CAS`
+        * `SKIP_CONFLICT_RESOLUTION_FLAG`
+        """
+        return self._doMetaCmd(memcacheConstants.CMD_SET_WITH_META,
+                               key, value, 0, exp, flags, seqno, remote_cas, collection, options)
+
+    def delWithMeta(self, key, exp, flags, seqno, remote_cas, collection=None, options=None):
+        """Delete a value with its meta data in the memcached server.
+
+        The behaviour of the command may be changed by specifying any of the
+        following options as a bitmask.
+        * `FORCE_WITH_META_OP`
+        * `FORCE_ACCEPT_WITH_META_OPS` - required for LWW, not supported for rev
+        seqno conflict resolution buckets
+        * `REGENERATE_CAS`
+        * `SKIP_CONFLICT_RESOLUTION_FLAG`
+        * `IS_EXPIRATION`
+        """
         return self._doMetaCmd(memcacheConstants.CMD_DELETE_WITH_META,
-                               key, '', 0, exp, flags, seqno, remote_cas, collection)
+                               key, '', 0, exp, flags, seqno, remote_cas, collection, options)
 
     def add(self, key, exp, flags, val, collection=None):
         """Add a value in the memcached server iff it doesn't already exist."""
