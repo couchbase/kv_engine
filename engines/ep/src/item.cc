@@ -11,7 +11,6 @@
 
 #include "item.h"
 #include "ep_time.h"
-#include "item_eviction.h"
 #include "logtags.h"
 #include "objectregistry.h"
 
@@ -20,8 +19,8 @@
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 #include <chrono>
-
-#include  <iomanip>
+#include <iomanip>
+#include <sstream>
 
 std::atomic<uint64_t> Item::casCounter(1);
 
@@ -88,7 +87,7 @@ Item::Item(const DocKey& k,
            const uint64_t revSeq,
            const int64_t bySeq)
     : metaData(),
-      value(TaggedPtr<Blob>(nullptr, ItemEviction::initialFreqCount)),
+      value(TaggedPtr<Blob>(nullptr, initialFreqCount)),
       key(k),
       bySeqno(bySeq),
       vbucketId(vb),
