@@ -58,7 +58,6 @@ public:
                              const std::string& consumerName = {});
 
     void notifyVBConnections(Vbid vbid,
-                             uint64_t bySeqno,
                              SyncWriteOperation syncWrite);
 
     /**
