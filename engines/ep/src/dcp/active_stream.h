@@ -478,12 +478,12 @@ protected:
      * Given a set of queued items, create mutation response for each item,
      * and pass onto the producer associated with this stream.
      *
+     * @param lg Lock on streamMutex
      * @param outstandingItemsResult vector of Items and Checkpoint type from
-     * which they came
-     * @param streamMutex Lock
+     *  which they came
      */
-    void processItems(OutstandingItemsResult& outstandingItemsResult,
-                      const std::lock_guard<std::mutex>& streamMutex);
+    void processItems(const std::lock_guard<std::mutex>& lg,
+                      OutstandingItemsResult& outstandingItemsResult);
 
     /**
      * Should the given item be sent out across this stream?
@@ -787,6 +787,15 @@ private:
      * @return the snapshot start to use
      */
     uint64_t adjustStartIfFirstSnapshot(uint64_t start);
+
+    /**
+     * See processItems() for details.
+     *
+     * @param lg Lock on streamMutex
+     * @param outstandingItemsResult Items to process
+     */
+    void processItemsInner(const std::lock_guard<std::mutex>& lg,
+                           OutstandingItemsResult& outstandingItemsResult);
 
     //! Number of times a backfill is paused.
     cb::RelaxedAtomic<uint64_t> numBackfillPauses{0};

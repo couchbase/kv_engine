@@ -47,8 +47,8 @@ public:
     }
 
     void public_processItems(OutstandingItemsResult& result) {
-        std::lock_guard<std::mutex> lh(streamMutex);
-        processItems(result, lh);
+        std::lock_guard<std::mutex> lg(streamMutex);
+        processItems(lg, result);
     }
 
     bool public_nextCheckpointItem(DcpProducer& producer) {

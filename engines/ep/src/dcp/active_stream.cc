@@ -954,7 +954,7 @@ void ActiveStream::nextCheckpointItemTask(
     }
 
     auto res = getOutstandingItems(*vbucket);
-    processItems(res, streamMutex);
+    processItems(streamMutex, res);
 }
 
 ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
@@ -1171,194 +1171,199 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
     return SystemEventProducerMessage::make(opaque_, item, sid);
 }
 
-void ActiveStream::processItems(
-        OutstandingItemsResult& outstandingItemsResult,
-        const std::lock_guard<std::mutex>& streamMutex) {
-    if (!outstandingItemsResult.items.empty()) {
-        // Transform the sequence of items from the CheckpointManager into
-        // a sequence of DCP messages which this stream should receive. There
-        // are a couple of sublties to watch out for here:
-        //
-        // 1. Unlike CheckpointManager, In DCP there are no individual 'start' /
-        // end messages book-ending mutations - instead we prefix a sequence of
-        // mutations with a snapshot_marker{start, end, flags}. However, we do
-        // not know the end seqno until we get to the end of the checkpoint. To
-        // handle this we accumulate the set of mutations which will make up a
-        // snapshot into 'mutations', and when we encounter the next
-        // checkpoint_start message we call snapshot() on our mutations to
-        // prepend the snapshot_marker; followed by the mutations it contains.
-        //
-        // 2. For each checkpoint_start item we need to create a snapshot with
-        // the MARKER_FLAG_CHK set - so the destination knows this represents
-        // a consistent point and should create it's own checkpoint on this
-        // boundary.
-        // However, a snapshot marker must contain at least 1
-        // (non-snapshot_start) item, but if the last item in `items` is a
-        // checkpoint_marker then it is not possible to create a valid snapshot
-        // (yet). We must instead defer calling snapshot() until we have at
-        // least one item - i.e on a later call to processItems.
-        // Therefore we record the pending MARKER_FLAG_CHK as part of the
-        // object's state in nextSnapshotIsCheckpoint. When we subsequently
-        // receive at least one more mutation (and hence can enqueue a
-        // SnapshotMarker), we can use nextSnapshotIsCheckpoint to snapshot
-        // it correctly.
-        std::deque<std::unique_ptr<DcpResponse>> mutations;
+void ActiveStream::processItemsInner(
+        const std::lock_guard<std::mutex>& lg,
+        OutstandingItemsResult& outstandingItemsResult) {
+    if (outstandingItemsResult.items.empty()) {
+        return;
+    }
 
-        // Initialise to the first visibleSeqno of the batch of items
-        uint64_t visibleSeqno = outstandingItemsResult.visibleSeqno;
-        /*
-         * highNonVisibleSeqno is used to track the current seqno of non visible
-         * seqno of a snapshot before we filter them out. This is only used when
-         * collections is enabled on a stream and sync write support is not.
-         * This allows us to inform the consumer of the high seqno of a
-         * collection regardless if it is committed or not. By sending a
-         * SeqnoAdvanced op. This solves the problem where a snapshot would be
-         * sent to a non sync write aware client with the last mutation of the
-         * snapshot was a prepare or abort and the final seqno would never be
-         * sent meaning the snapshot was never completed.
-         */
-        std::optional<uint64_t> highNonVisibleSeqno;
-        for (auto& qi : outstandingItemsResult.items) {
-            if (qi->getOperation() == queue_op::checkpoint_end) {
-                // At the end of each checkpoint remove its snapshot range, so
-                // we don't use it to set nextSnapStart for the next checkpoint.
-                // We can just erase the range at the head of ranges as every
-                // time as CheckpointManager::getItemsForCursor() will always
-                // ensure there is a snapshot range for if there is a
-                // queue_op::checkpoint_end in the items it returns.
-                auto rangeItr = outstandingItemsResult.ranges.begin();
-                outstandingItemsResult.ranges.erase(rangeItr);
-            }
+    // Transform the sequence of items from the CheckpointManager into
+    // a sequence of DCP messages which this stream should receive. There
+    // are a couple of sublties to watch out for here:
+    //
+    // 1. Unlike CheckpointManager, In DCP there are no individual 'start' /
+    // end messages book-ending mutations - instead we prefix a sequence of
+    // mutations with a snapshot_marker{start, end, flags}. However, we do
+    // not know the end seqno until we get to the end of the checkpoint. To
+    // handle this we accumulate the set of mutations which will make up a
+    // snapshot into 'mutations', and when we encounter the next
+    // checkpoint_start message we call snapshot() on our mutations to
+    // prepend the snapshot_marker; followed by the mutations it contains.
+    //
+    // 2. For each checkpoint_start item we need to create a snapshot with
+    // the MARKER_FLAG_CHK set - so the destination knows this represents
+    // a consistent point and should create it's own checkpoint on this
+    // boundary.
+    // However, a snapshot marker must contain at least 1
+    // (non-snapshot_start) item, but if the last item in `items` is a
+    // checkpoint_marker then it is not possible to create a valid snapshot
+    // (yet). We must instead defer calling snapshot() until we have at
+    // least one item - i.e on a later call to processItems.
+    // Therefore we record the pending MARKER_FLAG_CHK as part of the
+    // object's state in nextSnapshotIsCheckpoint. When we subsequently
+    // receive at least one more mutation (and hence can enqueue a
+    // SnapshotMarker), we can use nextSnapshotIsCheckpoint to snapshot
+    // it correctly.
+    std::deque<std::unique_ptr<DcpResponse>> mutations;
 
-            if (qi->getOperation() == queue_op::checkpoint_start) {
-                /* if there are already other mutations, then they belong to the
-                   previous checkpoint and hence we must create a snapshot and
-                   put them onto readyQ */
-                if (!mutations.empty()) {
-                    snapshot(outstandingItemsResult.checkpointType,
-                             mutations,
-                             outstandingItemsResult.diskCheckpointState,
-                             visibleSeqno,
-                             highNonVisibleSeqno);
-                    /* clear out all the mutations since they are already put
-                       onto the readyQ */
-                    mutations.clear();
-                    highNonVisibleSeqno = std::nullopt;
-                }
-                /* mark true as it indicates a new checkpoint snapshot */
-                nextSnapshotIsCheckpoint = true;
-
-                if (outstandingItemsResult.ranges.empty()) {
-                    throw std::logic_error(
-                            "ActiveStream::processItems: found "
-                            "no snapshot ranges but we have a "
-                            "checkpoint start with seqno:" +
-                            std::to_string(qi->getBySeqno()));
-                }
-
-                nextSnapStart =
-                        outstandingItemsResult.ranges.begin()->getStart();
-
-                continue;
-            }
-
-            if (!qi->isCheckPointMetaItem()) {
-                curChkSeqno = qi->getBySeqno();
-            }
-
-            if (shouldProcessItem(*qi)) {
-                lastReadSeqnoUnSnapshotted = qi->getBySeqno();
-                // Check if the item is allowed on the stream, note the filter
-                // updates itself for collection deletion events
-                if (filter.checkAndUpdate(*qi)) {
-                    if (qi->isVisible()) {
-                        visibleSeqno = qi->getBySeqno();
-                    }
-                    mutations.push_back(makeResponseFromItem(
-                            qi, SendCommitSyncWriteAs::Commit));
-                }
-
-            } else if (isSeqnoAdvancedEnabled()) {
-                /*
-                 * If we're a collection stream that does not support sync
-                 * writes then we want to be able to send a SeqnoAdvanced op.
-                 * Thus, if we see a non visible mutation i.e. an abort or
-                 * prepare then up highNonVisibleSeqno with the items seqno only
-                 * if the item is for the streaming collections.
-                 */
-                if ((qi->isPending() || qi->isAbort()) &&
-                    filter.checkAndUpdate(*qi)) {
-                    highNonVisibleSeqno = qi->getBySeqno();
-                }
-            }
+    // Initialise to the first visibleSeqno of the batch of items
+    uint64_t visibleSeqno = outstandingItemsResult.visibleSeqno;
+    /*
+     * highNonVisibleSeqno is used to track the current seqno of non visible
+     * seqno of a snapshot before we filter them out. This is only used when
+     * collections is enabled on a stream and sync write support is not.
+     * This allows us to inform the consumer of the high seqno of a
+     * collection regardless if it is committed or not. By sending a
+     * SeqnoAdvanced op. This solves the problem where a snapshot would be
+     * sent to a non sync write aware client with the last mutation of the
+     * snapshot was a prepare or abort and the final seqno would never be
+     * sent meaning the snapshot was never completed.
+     */
+    std::optional<uint64_t> highNonVisibleSeqno;
+    for (auto& qi : outstandingItemsResult.items) {
+        if (qi->getOperation() == queue_op::checkpoint_end) {
+            // At the end of each checkpoint remove its snapshot range, so
+            // we don't use it to set nextSnapStart for the next checkpoint.
+            // We can just erase the range at the head of ranges as every
+            // time as CheckpointManager::getItemsForCursor() will always
+            // ensure there is a snapshot range for if there is a
+            // queue_op::checkpoint_end in the items it returns.
+            auto rangeItr = outstandingItemsResult.ranges.begin();
+            outstandingItemsResult.ranges.erase(rangeItr);
         }
 
-        if (!mutations.empty()) {
-            snapshot(outstandingItemsResult.checkpointType,
-                     mutations,
-                     outstandingItemsResult.diskCheckpointState,
-                     visibleSeqno,
-                     highNonVisibleSeqno);
+        if (qi->getOperation() == queue_op::checkpoint_start) {
+            /* if there are already other mutations, then they belong to the
+               previous checkpoint and hence we must create a snapshot and
+               put them onto readyQ */
+            if (!mutations.empty()) {
+                snapshot(outstandingItemsResult.checkpointType,
+                         mutations,
+                         outstandingItemsResult.diskCheckpointState,
+                         visibleSeqno,
+                         highNonVisibleSeqno);
+                /* clear out all the mutations since they are already put
+                   onto the readyQ */
+                mutations.clear();
+                highNonVisibleSeqno = std::nullopt;
+            }
+            /* mark true as it indicates a new checkpoint snapshot */
+            nextSnapshotIsCheckpoint = true;
+
+            if (outstandingItemsResult.ranges.empty()) {
+                throw std::logic_error(
+                        "ActiveStream::processItems: found "
+                        "no snapshot ranges but we have a "
+                        "checkpoint start with seqno:" +
+                        std::to_string(qi->getBySeqno()));
+            }
+
+            nextSnapStart = outstandingItemsResult.ranges.begin()->getStart();
+
+            continue;
+        }
+
+        if (!qi->isCheckPointMetaItem()) {
+            curChkSeqno = qi->getBySeqno();
+        }
+
+        if (shouldProcessItem(*qi)) {
+            lastReadSeqnoUnSnapshotted = qi->getBySeqno();
+            // Check if the item is allowed on the stream, note the filter
+            // updates itself for collection deletion events
+            if (filter.checkAndUpdate(*qi)) {
+                if (qi->isVisible()) {
+                    visibleSeqno = qi->getBySeqno();
+                }
+                mutations.push_back(makeResponseFromItem(
+                        qi, SendCommitSyncWriteAs::Commit));
+            }
+
         } else if (isSeqnoAdvancedEnabled()) {
-            // Note that we cannot enter this case if supportSyncReplication()
-            // returns true (see isSeqnoAdvancedEnabled). This means that we
-            // do not need to set the HCS/MVS or timestamp parameters of the
-            // snapshot marker. MB-47877 tracks enabling sync-writes+filtering
-            if (!firstMarkerSent && lastReadSeqno < snap_end_seqno_) {
-                // MB-47009: This first snapshot has been completely filtered
-                // away. The remaining items must not of been for this client.
-                // We must still send a snapshot marker so that the client is
-                // moved to their end seqno - so a snapshot + seqno advance is
-                // needed.
-                sendSnapshotAndSeqnoAdvanced(
-                        outstandingItemsResult.checkpointType,
-                        snap_start_seqno_,
-                        snap_end_seqno_);
-                firstMarkerSent = true;
-            } else if (isSeqnoGapAtEndOfSnapshot(curChkSeqno)) {
-                auto vb = engine->getVBucket(getVBucket());
-                if (vb) {
-                    if (vb->getState() == vbucket_state_replica) {
-                        /*
-                         * If this is a collection stream and we're not sending
-                         * any mutations from memory and we haven't queued a
-                         * snapshot and we're a replica. Then our snapshot
-                         * covers backfill and in memory. So we have one
-                         * snapshot marker for both items on disk and in memory.
-                         * Thus, we need to send a SeqnoAdvanced to push the
-                         * consumer's seqno to the end of the snapshot. This is
-                         * needed when no items for the collection we're
-                         * streaming are present in memory.
-                         */
-                        queueSeqnoAdvanced();
-                    }
-                } else {
-                    log(spdlog::level::level_enum::warn,
-                        "{} processItems() for vbucket which does not "
-                        "exist",
-                        logPrefix);
-                }
-            } else if (highNonVisibleSeqno &&
-                       curChkSeqno >= highNonVisibleSeqno.value()) {
-                // MB-48368: Nothing directly available for the stream, but a
-                // non-visible item was available - bring the client up-to-date
-                sendSnapshotAndSeqnoAdvanced(
-                        outstandingItemsResult.checkpointType,
-                        highNonVisibleSeqno.value(),
-                        highNonVisibleSeqno.value());
+            /*
+             * If we're a collection stream that does not support sync
+             * writes then we want to be able to send a SeqnoAdvanced op.
+             * Thus, if we see a non visible mutation i.e. an abort or
+             * prepare then up highNonVisibleSeqno with the items seqno only
+             * if the item is for the streaming collections.
+             */
+            if ((qi->isPending() || qi->isAbort()) &&
+                filter.checkAndUpdate(*qi)) {
+                highNonVisibleSeqno = qi->getBySeqno();
             }
-        }
-        // if we've processed past the stream's end seqno then transition to the
-        // stream to the dead state and add a stream end to the ready queue
-        if (curChkSeqno >= getEndSeqno()) {
-            endStream(cb::mcbp::DcpStreamEndStatus::Ok);
         }
     }
 
-    // After the snapshot has been processed, check if the filter is now empty
-    // a stream with an empty filter does nothing but self close
+    if (!mutations.empty()) {
+        snapshot(outstandingItemsResult.checkpointType,
+                 mutations,
+                 outstandingItemsResult.diskCheckpointState,
+                 visibleSeqno,
+                 highNonVisibleSeqno);
+    } else if (isSeqnoAdvancedEnabled()) {
+        // Note that we cannot enter this case if supportSyncReplication()
+        // returns true (see isSeqnoAdvancedEnabled). This means that we
+        // do not need to set the HCS/MVS or timestamp parameters of the
+        // snapshot marker. MB-47877 tracks enabling sync-writes+filtering
+        if (!firstMarkerSent && lastReadSeqno < snap_end_seqno_) {
+            // MB-47009: This first snapshot has been completely filtered
+            // away. The remaining items must not of been for this client.
+            // We must still send a snapshot marker so that the client is
+            // moved to their end seqno - so a snapshot + seqno advance is
+            // needed.
+            sendSnapshotAndSeqnoAdvanced(outstandingItemsResult.checkpointType,
+                                         snap_start_seqno_,
+                                         snap_end_seqno_);
+            firstMarkerSent = true;
+        } else if (isSeqnoGapAtEndOfSnapshot(curChkSeqno)) {
+            auto vb = engine->getVBucket(getVBucket());
+            if (vb) {
+                if (vb->getState() == vbucket_state_replica) {
+                    /*
+                     * If this is a collection stream and we're not sending
+                     * any mutations from memory and we haven't queued a
+                     * snapshot and we're a replica. Then our snapshot
+                     * covers backfill and in memory. So we have one
+                     * snapshot marker for both items on disk and in memory.
+                     * Thus, we need to send a SeqnoAdvanced to push the
+                     * consumer's seqno to the end of the snapshot. This is
+                     * needed when no items for the collection we're
+                     * streaming are present in memory.
+                     */
+                    queueSeqnoAdvanced();
+                }
+            } else {
+                log(spdlog::level::level_enum::warn,
+                    "{} processItems() for vbucket which does not "
+                    "exist",
+                    logPrefix);
+            }
+        } else if (highNonVisibleSeqno &&
+                   curChkSeqno >= highNonVisibleSeqno.value()) {
+            // MB-48368: Nothing directly available for the stream, but a
+            // non-visible item was available - bring the client up-to-date
+            sendSnapshotAndSeqnoAdvanced(outstandingItemsResult.checkpointType,
+                                         highNonVisibleSeqno.value(),
+                                         highNonVisibleSeqno.value());
+        }
+    }
+
+    // if we've processed past the stream's end seqno then transition to the
+    // stream to the dead state and add a stream end to the ready queue
+    if (curChkSeqno >= getEndSeqno()) {
+        endStream(cb::mcbp::DcpStreamEndStatus::Ok);
+    }
+}
+
+void ActiveStream::processItems(
+        const std::lock_guard<std::mutex>& lg,
+        OutstandingItemsResult& outstandingItemsResult) {
+    processItemsInner(lg, outstandingItemsResult);
+
+    // After the snapshot has been processed, check if the filter is now
+    // empty. A stream with an empty filter does nothing but self close.
     if (filter.empty()) {
-        // Filter is now empty empty, so endStream
         endStream(cb::mcbp::DcpStreamEndStatus::FilterEmpty);
     }
 
