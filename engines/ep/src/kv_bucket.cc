@@ -997,7 +997,7 @@ void KVBucket::setVBucketState_UNLOCKED(
          * collectionsManager to ensure that it did not miss a manifest
          * that was not replicated via DCP.
          */
-        collectionsManager->maybeUpdate(*vb);
+        collectionsManager->maybeUpdate(vbStateLock, *vb);
 
         // MB-37917: The vBucket is becoming an active and can no longer be
         // receiving an initial disk snapshot. It is now the source of truth so
@@ -1074,7 +1074,8 @@ cb::engine_errc KVBucket::createVBucket_UNLOCKED(
     // Note: Must be done /before/ adding the new VBucket to vbMap so that
     // it has the correct collections state when it is exposed to operations
     if (to == vbucket_state_active) {
-        collectionsManager->maybeUpdate(*newvb);
+        folly::SharedMutex::ReadHolder rlh(newvb->getStateLock());
+        collectionsManager->maybeUpdate(rlh, *newvb);
     }
 
     if (vbMap.addBucket(newvb) == cb::engine_errc::out_of_range) {
@@ -1116,6 +1117,19 @@ void KVBucket::scheduleVBStatePersist(Vbid vbid) {
     }
 
     vb->checkpointManager->queueSetVBState();
+}
+
+VBucketStateLockMap<folly::SharedMutex::ReadHolder>
+KVBucket::lockAllVBucketStates() {
+    VBucketStateLockMap<folly::SharedMutex::ReadHolder> vbStateLocks;
+    vbStateLocks.reserve(getVBuckets().getSize());
+    for (Vbid::id_type i = 0; i < getVBuckets().getSize(); i++) {
+        auto vb = getVBuckets().getBucket(Vbid(i));
+        if (vb) {
+            vbStateLocks.emplace(Vbid(i), vb->getStateLock());
+        }
+    }
+    return vbStateLocks;
 }
 
 cb::engine_errc KVBucket::deleteVBucket(Vbid vbid, const CookieIface* c) {
@@ -2514,7 +2528,8 @@ TaskStatus KVBucket::rollback(Vbid vbid, uint64_t rollbackSeqno) {
                     const auto loadResult = loadPreparedSyncWrites(*vb);
                     if (loadResult.success) {
                         auto& epVb = static_cast<EPVBucket&>(*vb.getVB());
-                        epVb.postProcessRollback(result, prevHighSeqno, *this);
+                        epVb.postProcessRollback(
+                                wlh, result, prevHighSeqno, *this);
                         engine.getDcpConnMap().closeStreamsDueToRollback(vbid);
                         return TaskStatus::Complete;
                     }
@@ -2657,8 +2672,16 @@ cb::engine_error KVBucket::setCollections(std::string_view manifest,
 
     // Inhibit VB state changes whilst updating the vbuckets
     std::lock_guard<std::mutex> lh(vbsetMutex);
+    // Lock all VB states individually. While the VB state cannot be changed
+    // under the vbsetMutex lock, we do need to take all locks here so that we
+    // pass the locks down to functions that expect a VBucketStateLockRef.
+    // In addition, we take these locks here because:
+    // 1) vbStateLock must be locked after vbsetMutex
+    // 2) vbStateLock must be locked before the manifest is locked in update()
+    auto vbStateLocks = lockAllVBucketStates();
 
-    auto status = collectionsManager->update(*this, manifest, cookie);
+    auto status =
+            collectionsManager->update(vbStateLocks, *this, manifest, cookie);
     if (status.code() != cb::engine_errc::success &&
         status.code() != cb::engine_errc::would_block) {
         EP_LOG_WARN("KVBucket::setCollections error:{} {}",

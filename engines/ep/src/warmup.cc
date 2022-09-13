@@ -1501,7 +1501,8 @@ void Warmup::loadCollectionStatsForShard(uint16_t shardId) {
             return;
         }
 
-        auto wh = itr->second->getManifest().wlock();
+        folly::SharedMutex::WriteHolder wlh(itr->second->getStateLock());
+        auto wh = itr->second->getManifest().wlock(wlh);
         // For each collection in the VB, get its stats
         for (auto& collection : wh) {
             // start tracking in-memory stats before items are warmed up.
@@ -1609,8 +1610,11 @@ void Warmup::loadPreparedSyncWrites(uint16_t shardId) {
         auto& epStats = store.getEPEngine().getEpStats();
         epStats.warmupItemsVisitedWhilstLoadingPrepares += itemsVisited;
         epStats.warmedUpPrepares += preparesLoaded;
-        vb.getManifest().wlock().setDefaultCollectionMaxVisibleSeqnoFromWarmup(
-                defaultCollectionMVS);
+        folly::SharedMutex::WriteHolder wlh(vb.getStateLock());
+        vb.getManifest()
+                .wlock(wlh)
+                .setDefaultCollectionMaxVisibleSeqnoFromWarmup(
+                        defaultCollectionMVS);
     }
 
     if (++threadtask_count == store.vbMap.getNumShards()) {
@@ -1648,7 +1652,7 @@ void Warmup::populateVBucketMap(uint16_t shardId) {
                 if (vbPtr->getState() == vbucket_state_active) {
                     // For all active vbuckets, call through to the manager so
                     // that they are made 'current' with the manifest.
-                    store.getCollectionsManager().maybeUpdate(*vbPtr);
+                    store.getCollectionsManager().maybeUpdate(rlh, *vbPtr);
                 }
             }
 

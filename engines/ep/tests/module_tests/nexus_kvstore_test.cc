@@ -428,7 +428,7 @@ TEST_P(NexusKVStoreTest, DropCollectionMidFlush) {
     auto vb = store->getVBucket(vbid);
 
     CollectionsManifest cm;
-    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::meat)));
+    setCollections(cookie, cm.add(CollectionEntry::meat));
     flushVBucketToDiskIfPersistent(vbid, 1);
     store_item(vbid,
                makeStoredDocKey("keyA", CollectionEntry::meat.getId()),
@@ -441,7 +441,9 @@ TEST_P(NexusKVStoreTest, DropCollectionMidFlush) {
     // collection in the manifest but assumed it was there and segfaulted
     auto* kvstore = store->getRWUnderlying(vbid);
     kvstore->setPostFlushHook([&vb, &cm]() {
-        vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::meat)));
+        vb->updateFromManifest(
+                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                makeManifest(cm.remove(CollectionEntry::meat)));
     });
 
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -519,7 +521,9 @@ void NexusKVStoreTest::implicitCompactionLogicalDeleteTest(
         CollectionsManifest cm;
         cm.add(CollectionEntry::fruit);
 
-        vb->updateFromManifest(makeManifest(cm));
+        vb->updateFromManifest(
+                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                makeManifest(cm));
 
         store_item(vbid, purgedKey, "value");
         purgedKeySeqno = vb->getHighSeqno();
@@ -527,7 +531,9 @@ void NexusKVStoreTest::implicitCompactionLogicalDeleteTest(
         flushVBucketToDiskIfPersistent(vbid, 2);
         cm.remove(CollectionEntry::fruit);
 
-        vb->updateFromManifest(makeManifest(cm));
+        vb->updateFromManifest(
+                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                makeManifest(cm));
 
         flushVBucketToDiskIfPersistent(vbid, 1);
     });
@@ -721,7 +727,7 @@ TEST_P(NexusKVStoreTest, ConcurrentCompactionLogicalDeletionToOneKVStore) {
 
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
 
     auto purgedKey = makeStoredDocKey("key", CollectionEntry::fruit.getId());
     store_item(vbid, purgedKey, "value");
@@ -735,7 +741,9 @@ TEST_P(NexusKVStoreTest, ConcurrentCompactionLogicalDeletionToOneKVStore) {
                 }
 
                 cm.remove(CollectionEntry::fruit);
-                vb->updateFromManifest(makeManifest(cm));
+                vb->updateFromManifest(
+                        folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                        makeManifest(cm));
                 flushVBucketToDiskIfPersistent(vbid, 1);
             };
 
@@ -756,14 +764,14 @@ TEST_P(NexusKVStoreTest, ConcurrentCompactionFlushResurrection) {
 
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
 
     auto purgedKey = makeStoredDocKey("key", CollectionEntry::fruit.getId());
     store_item(vbid, purgedKey, "value");
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     cm.remove(CollectionEntry::fruit);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     auto& nexusKVStore = dynamic_cast<NexusKVStore&>(*kvstore);
@@ -777,7 +785,9 @@ TEST_P(NexusKVStoreTest, ConcurrentCompactionFlushResurrection) {
                 auto gv = kvstore->get(DiskDocKey(purgedKey), vbid);
 
                 cm.add(CollectionEntry::fruit);
-                vb->updateFromManifest(makeManifest(cm));
+                vb->updateFromManifest(
+                        folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                        makeManifest(cm));
                 store_item(vbid, purgedKey, "value");
                 flushVBucketToDiskIfPersistent(vbid, 2);
             };
@@ -867,7 +877,7 @@ TEST_P(NexusKVStoreTest, PausingCacheLookupScanHighPurgeSeqno) {
     // we handle that correctly
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
 
     auto purgedKey = makeStoredDocKey("k", CollectionEntry::fruit.getId());
     store_item(vbid, purgedKey, "value");
@@ -885,7 +895,7 @@ TEST_P(NexusKVStoreTest, PausingCacheLookupScanHighPurgeSeqno) {
                                             SnapshotSource::Head);
 
     cm.remove(CollectionEntry::fruit);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     runCollectionsEraser(vbid);
@@ -910,7 +920,7 @@ TEST_P(NexusKVStoreTest, PausingScanCallbackScanHighPurgeSeqno) {
     // we handle that correctly
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
 
     auto purgedKey = makeStoredDocKey("k", CollectionEntry::fruit.getId());
     store_item(vbid, purgedKey, "value");
@@ -928,7 +938,7 @@ TEST_P(NexusKVStoreTest, PausingScanCallbackScanHighPurgeSeqno) {
                                             SnapshotSource::Head);
 
     cm.remove(CollectionEntry::fruit);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     runCollectionsEraser(vbid);

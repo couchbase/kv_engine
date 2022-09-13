@@ -22,6 +22,7 @@
 #include "vb_visitors.h"
 #include "vbucket.h"
 
+#include <folly/container/F14Map.h>
 #include <memcached/collections.h>
 #include <nlohmann/json.hpp>
 #include <spdlog/fmt/ostr.h>
@@ -32,9 +33,11 @@
 
 Collections::Manager::Manager() = default;
 
-cb::engine_error Collections::Manager::update(KVBucket& bucket,
-                                              std::string_view manifestString,
-                                              const CookieIface* cookie) {
+cb::engine_error Collections::Manager::update(
+        const VBucketStateRLockMap& vbStateLocks,
+        KVBucket& bucket,
+        std::string_view manifestString,
+        const CookieIface* cookie) {
     auto lockedUpdateCookie = updateInProgress.wlock();
     if (*lockedUpdateCookie != nullptr && *lockedUpdateCookie != cookie) {
         // log this as it's very unexpected, only ever 1 manager
@@ -68,7 +71,10 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
         // Take ownership back of the manifest so it destructs/frees on return
         std::unique_ptr<Manifest> newManifest(
                 reinterpret_cast<Manifest*>(manifest));
-        return updateFromIOComplete(bucket, std::move(newManifest), cookie);
+        return updateFromIOComplete(std::move(vbStateLocks),
+                                    bucket,
+                                    std::move(newManifest),
+                                    cookie);
     }
 
     // Construct a new Manifest (ctor will throw if JSON was illegal)
@@ -103,7 +109,10 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
     cb::engine_errc status = cb::engine_errc::success;
     if (!bucket.maybeScheduleManifestPersistence(cookie, newManifest)) {
         // Ephemeral case, apply immediately
-        return applyNewManifest(bucket, current, std::move(newManifest));
+        return applyNewManifest(std::move(vbStateLocks),
+                                bucket,
+                                current,
+                                std::move(newManifest));
     } else {
         *lockedUpdateCookie = cookie;
         status = cb::engine_errc::would_block;
@@ -113,19 +122,23 @@ cb::engine_error Collections::Manager::update(KVBucket& bucket,
 }
 
 cb::engine_error Collections::Manager::updateFromIOComplete(
+        const VBucketStateRLockMap& vbStateLocks,
         KVBucket& bucket,
         std::unique_ptr<Manifest> newManifest,
         const CookieIface* cookie) {
     auto current = currentManifest.ulock(); // Will update to newManifest
-    return applyNewManifest(bucket, current, std::move(newManifest));
+    return applyNewManifest(
+            std::move(vbStateLocks), bucket, current, std::move(newManifest));
 }
 
 // common to ephemeral/persistent, this does the update
 cb::engine_error Collections::Manager::applyNewManifest(
+        const VBucketStateRLockMap& vbStateLocks,
         KVBucket& bucket,
         folly::Synchronized<Manifest>::UpgradeLockedPtr& current,
         std::unique_ptr<Manifest> newManifest) {
-    auto updated = updateAllVBuckets(bucket, *newManifest);
+    auto updated =
+            updateAllVBuckets(std::move(vbStateLocks), bucket, *newManifest);
     if (updated.has_value()) {
         return {cb::engine_errc::cannot_apply_collections_manifest,
                 "Collections::Manager::update aborted on " +
@@ -140,15 +153,30 @@ cb::engine_error Collections::Manager::applyNewManifest(
 }
 
 std::optional<Vbid> Collections::Manager::updateAllVBuckets(
-        KVBucket& bucket, const Manifest& newManifest) {
+        const VBucketStateRLockMap& vbStateLocks,
+        KVBucket& bucket,
+        const Manifest& newManifest) {
     for (Vbid::id_type i = 0; i < bucket.getVBuckets().getSize(); i++) {
         auto vb = bucket.getVBuckets().getBucket(Vbid(i));
+        auto vbStateLockIt = vbStateLocks.find(Vbid(i));
+
+        // We should have a vbstatelock iff the corresponding vbucket is present
+        bool hasVbStateLock = vbStateLockIt != vbStateLocks.end();
+        if (bool(vb) != hasVbStateLock) {
+            throw std::logic_error(
+                    fmt::format("updateAllVBuckets(): {} is {}present, but the "
+                                "corresponding lock is{}",
+                                Vbid(i),
+                                vb ? "" : "not ",
+                                hasVbStateLock ? "" : " not"));
+        }
 
         // We took a lock on the vbsetMutex (all vBucket states) to guard state
         // changes here) in KVBucket::setCollections.
         if (vb && vb->getState() == vbucket_state_active) {
             bool abort = false;
-            auto status = vb->updateFromManifest(newManifest);
+            auto status =
+                    vb->updateFromManifest(vbStateLockIt->second, newManifest);
             using namespace Collections;
             switch (status) {
             case VB::ManifestUpdateStatus::EqualUidWithDifferences:
@@ -290,10 +318,12 @@ bool Collections::Manager::needsUpdating(const VBucket& vb) const {
            vb.getManifest().lock().getManifestUid();
 }
 
-void Collections::Manager::maybeUpdate(VBucket& vb) const {
+void Collections::Manager::maybeUpdate(VBucketStateLockRef vbStateLock,
+                                       VBucket& vb) const {
     // Lock manager updates, errors are logged by VB::Manifest
-    currentManifest.withRLock(
-            [&vb](const auto& manifest) { vb.updateFromManifest(manifest); });
+    currentManifest.withRLock([&vb, vbStateLock](const auto& manifest) {
+        vb.updateFromManifest(vbStateLock, manifest);
+    });
 }
 
 // This method is really to aid development and allow the dumping of the VB

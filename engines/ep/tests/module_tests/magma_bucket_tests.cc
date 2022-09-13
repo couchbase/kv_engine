@@ -350,7 +350,9 @@ TEST_P(STParamMagmaBucketTest, ImplicitCompactionDoesNotDropCollectionItems) {
                 expectedPurgeSeqno = vb->getHighSeqno();
 
                 cm.add(CollectionEntry::fruit);
-                vb->updateFromManifest(makeManifest(cm));
+                vb->updateFromManifest(
+                        folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                        makeManifest(cm));
                 store_item(vbid, purgedKey, "value");
                 flushVBucketToDiskIfPersistent(vbid, 2);
             },
@@ -360,7 +362,9 @@ TEST_P(STParamMagmaBucketTest, ImplicitCompactionDoesNotDropCollectionItems) {
                 // the purge seqno and invalidates the test
                 auto vb = store->getVBucket(vbid);
                 cm.remove(CollectionEntry::fruit);
-                vb->updateFromManifest(makeManifest(cm));
+                vb->updateFromManifest(
+                        folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                        makeManifest(cm));
                 flushVBucketToDiskIfPersistent(vbid, 1);
             });
 
@@ -395,7 +399,7 @@ TEST_P(STParamMagmaBucketTest,
     // and later it will be dropped
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     store_item(vbid,
                makeStoredDocKey("f1", CollectionEntry::fruit.getId()),
                "value");
@@ -446,7 +450,8 @@ TEST_P(STParamMagmaBucketTest,
     // Drop the fruit collection and run compaction - explicit compaction runs
     // and will interleave an implicit compaction from the completion hook
     cm.remove(CollectionEntry::fruit);
-    vb->updateFromManifest(makeManifest(cm));
+    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                           makeManifest(cm));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     runCollectionsEraser(vbid);
@@ -718,7 +723,7 @@ TEST_P(STParamMagmaBucketTest, UpdateDroppCollStatAfterReadBeforeCompact) {
 
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     auto* kvstore = store->getRWUnderlying(vbid);
@@ -741,7 +746,7 @@ TEST_P(STParamMagmaBucketTest, UpdateDroppCollStatAfterReadBeforeCompact) {
     ASSERT_TRUE(magmaKVStore.newCheckpoint(vbid));
 
     cm.remove(CollectionEntry::fruit);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     flushVBucketToDiskIfPersistent(vbid, 1);
     EXPECT_EQ(1, magmaKVStore.getItemCount(vbid));
     ASSERT_EQ(1, vb->getNumTotalItems());
@@ -757,7 +762,9 @@ TEST_P(STParamMagmaBucketTest, UpdateDroppCollStatAfterReadBeforeCompact) {
                 // a "logical" insert which needs to adjust the dropped
                 // stats
                 cm.add(CollectionEntry::fruit);
-                vb->updateFromManifest(makeManifest(cm));
+                vb->updateFromManifest(
+                        folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                        makeManifest(cm));
                 flushVBucketToDiskIfPersistent(vbid, 1);
                 EXPECT_EQ(2, magmaKVStore.getItemCount(vbid));
                 EXPECT_EQ(1, vb->getNumTotalItems());
@@ -784,7 +791,7 @@ TEST_P(STParamMagmaBucketTest, UpdateDroppCollStatAfterReadBeforeCompact) {
     // Remove the collection again, we should be able to clean up everything
     // and get the item count back down to 0.
     cm.remove(CollectionEntry::fruit);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     flushVBucketToDiskIfPersistent(vbid, 1);
     EXPECT_EQ(1, magmaKVStore.getItemCount(vbid));
 

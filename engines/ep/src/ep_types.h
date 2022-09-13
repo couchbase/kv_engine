@@ -13,6 +13,7 @@
 
 #include "utilities/lock_utilities.h"
 
+#include <folly/container/F14Map-fwd.h>
 #include <memcached/vbucket.h>
 #include <chrono>
 #include <memory>
@@ -288,6 +289,12 @@ struct VBucketStateLockTag;
  * An opaque reference to a lock on the state of the VBucket.
  */
 using VBucketStateLockRef = cb::SharedLockRef<internal::VBucketStateLockTag>;
+
+/**
+ * A mapping from Vbid to a state lock held on that VBucket.
+ */
+template <typename Lock>
+using VBucketStateLockMap = folly::F14FastMap<Vbid, Lock>;
 
 namespace cb {
 

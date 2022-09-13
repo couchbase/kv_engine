@@ -564,7 +564,9 @@ void STItemPagerTest::pagerEvictsSomething(bool dropCollection) {
 
     if (dropCollection) {
         CollectionsManifest cm(NoDefault{});
-        vb->updateFromManifest(makeManifest(cm));
+        vb->updateFromManifest(
+                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                makeManifest(cm));
     }
 
     auto memUsed = engine->getEpStats().getPreciseTotalMemoryUsed();

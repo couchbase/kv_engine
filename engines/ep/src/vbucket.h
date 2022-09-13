@@ -780,11 +780,12 @@ public:
      * Adds SystemEvents for the create and delete of collections into the
      * checkpoint.
      *
+     * @param vbStateLock A lock on the vbucket state.
      * @param m A Collections::Manifest to apply to the VB::Manifest
      * @param true if the update was successful
      */
     Collections::VB::ManifestUpdateStatus updateFromManifest(
-            const Collections::Manifest& m);
+            VBucketStateLockRef vbStateLock, const Collections::Manifest& m);
 
     /**
      * Add a collection to this vbucket with a pre-assigned seqno. I.e.

@@ -88,7 +88,9 @@ public:
     void applyEvents(TransactionContext& txnCtx,
                      VB::Commit& commitData,
                      const CollectionsManifest& cm) {
-        manifest.update(*vbucket, makeManifest(cm));
+        manifest.update(folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
+                        *vbucket,
+                        makeManifest(cm));
 
         std::vector<queued_item> events;
         getEventsFromCheckpoint(events);
@@ -399,14 +401,18 @@ void CollectionsKVStoreTest::failForDuplicate() {
 TEST_P(CollectionsKVStoreTest, failForDuplicateCollection) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
-    manifest.update(*vbucket, makeManifest(cm));
+    manifest.update(folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
+                    *vbucket,
+                    makeManifest(cm));
     failForDuplicate();
 }
 
 TEST_P(CollectionsKVStoreTest, failForDuplicateScope) {
     CollectionsManifest cm;
     cm.add(ScopeEntry::shop1);
-    manifest.update(*vbucket, makeManifest(cm));
+    manifest.update(folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
+                    *vbucket,
+                    makeManifest(cm));
     failForDuplicate();
 }
 

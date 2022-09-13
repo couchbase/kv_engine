@@ -160,6 +160,7 @@ TEST_F(EphemeralVBucketTest, PageOutAfterCollectionsDrop) {
     // Drop the collection
     CollectionsManifest cm;
     vbucket->updateFromManifest(
+            folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
             makeManifest(cm.remove(CollectionEntry::defaultC)));
 
     auto readHandle = vbucket->lockCollections();
@@ -682,6 +683,7 @@ TEST_F(EphTombstoneTest, ImmediateDeletedPurge) {
 TEST_F(EphTombstoneTest, CollectionErasureDoesNotMovePurgeSeqno) {
     CollectionsManifest cm;
     vbucket->updateFromManifest(
+            folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
             makeManifest(cm.remove(CollectionEntry::defaultC)));
 
     EXPECT_EQ(3, mockEpheVB->purgeStaleItems());
@@ -697,6 +699,7 @@ TEST_F(EphTombstoneTest, CollectionDeletionErasureDoesNotMovePurgeSeqno) {
 
     CollectionsManifest cm;
     vbucket->updateFromManifest(
+            folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
             makeManifest(cm.remove(CollectionEntry::defaultC)));
 
     EXPECT_EQ(3, mockEpheVB->purgeStaleItems());

@@ -113,8 +113,9 @@ public:
     // Wire through to private method
     std::optional<Manifest::CollectionCreation> public_applyCreates(
             ::VBucket& vb, Manifest::ManifestChanges& changes) {
-        auto wHandle = wlock();
-        return applyCreates(wHandle, vb, changes.collectionsToCreate);
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        auto wHandle = wlock(rlh);
+        return applyCreates(rlh, wHandle, vb, changes.collectionsToCreate);
     }
 
     std::optional<std::vector<CollectionID>> public_getCollectionsForScope(
@@ -229,7 +230,8 @@ public:
 
     ::testing::AssertionResult update(const std::string& json) {
         try {
-            active.update(*vbA, Collections::Manifest{json});
+            folly::SharedMutex::ReadHolder rlh(vbA->getStateLock());
+            active.update(rlh, *vbA, Collections::Manifest{json});
         } catch (std::exception& e) {
             return ::testing::AssertionFailure()
                    << "Exception thrown for update with " << json
@@ -352,15 +354,17 @@ public:
                                 Collections::VB::Manifest::getDropEventData(
                                         {qi->getData(), qi->getNBytes()});
                         // A deleted create means beginDelete collection
-                        replica.wlock().replicaDrop(*vbR,
-                                                    dcpData.manifestUid,
-                                                    dcpData.cid,
-                                                    qi->getBySeqno());
+                        folly::SharedMutex::ReadHolder rlh(vbR->getStateLock());
+                        replica.wlock(rlh).replicaDrop(*vbR,
+                                                       dcpData.manifestUid,
+                                                       dcpData.cid,
+                                                       qi->getBySeqno());
                     } else {
                         auto dcpData =
                                 Collections::VB::Manifest::getCreateEventData(
                                         {qi->getData(), qi->getNBytes()});
-                        replica.wlock().replicaCreate(
+                        folly::SharedMutex::ReadHolder rlh(vbR->getStateLock());
+                        replica.wlock(rlh).replicaCreate(
                                 *vbR,
                                 dcpData.manifestUid,
                                 {dcpData.metaData.sid, dcpData.metaData.cid},
@@ -376,15 +380,17 @@ public:
                                 getDropScopeEventData(
                                         {qi->getData(), qi->getNBytes()});
                         // A deleted create means beginDelete collection
-                        replica.wlock().replicaDropScope(*vbR,
-                                                         dcpData.manifestUid,
-                                                         dcpData.sid,
-                                                         qi->getBySeqno());
+                        folly::SharedMutex::ReadHolder rlh(vbR->getStateLock());
+                        replica.wlock(rlh).replicaDropScope(*vbR,
+                                                            dcpData.manifestUid,
+                                                            dcpData.sid,
+                                                            qi->getBySeqno());
                     } else {
                         auto dcpData = Collections::VB::Manifest::
                                 getCreateScopeEventData(
                                         {qi->getData(), qi->getNBytes()});
-                        replica.wlock().replicaCreateScope(
+                        folly::SharedMutex::ReadHolder rlh(vbR->getStateLock());
+                        replica.wlock(rlh).replicaCreateScope(
                                 *vbR,
                                 dcpData.manifestUid,
                                 dcpData.metaData.sid,
@@ -982,8 +988,11 @@ TEST_F(VBucketManifestTest, doubleDelete) {
     // Apply same manifest (different revision). Nothing will be created or
     // deleted. Apply direct to vbm, not via manifest.update as that would
     // complain about the lack of events
-    manifest.getActiveManifest().update(manifest.getActiveVB(),
-                                        makeManifest(cm));
+    manifest.getActiveManifest().update(
+            folly::SharedMutex::ReadHolder(
+                    manifest.getActiveVB().getStateLock()),
+            manifest.getActiveVB(),
+            makeManifest(cm));
 
     EXPECT_EQ(seqno, manifest.getActiveVB().getHighSeqno());
     seqno = manifest.getActiveVB().getHighSeqno();
@@ -995,8 +1004,11 @@ TEST_F(VBucketManifestTest, doubleDelete) {
     seqno = manifest.getActiveVB().getHighSeqno();
 
     // same again, should have nothing created or deleted
-    manifest.getActiveManifest().update(manifest.getActiveVB(),
-                                        makeManifest(cm));
+    manifest.getActiveManifest().update(
+            folly::SharedMutex::ReadHolder(
+                    manifest.getActiveVB().getStateLock()),
+            manifest.getActiveVB(),
+            makeManifest(cm));
 
     EXPECT_EQ(seqno, manifest.getActiveVB().getHighSeqno());
 }
@@ -1133,10 +1145,15 @@ TEST_F(VBucketManifestTest, scope_limits_corrected_by_update_drop_one_scope) {
     EXPECT_FALSE(manifest.getReplicaManifest().doesScopeWithDataLimitExist());
     EXPECT_EQ(Collections::VB::ManifestUpdateStatus::Success,
               manifest.getReplicaManifest().update(
-                      *manifest.vbR, Collections::Manifest{std::string{cm}}));
+                      folly::SharedMutex::ReadHolder(
+                              manifest.vbR->getStateLock()),
+                      *manifest.vbR,
+                      Collections::Manifest{std::string{cm}}));
     EXPECT_TRUE(manifest.getReplicaManifest().doesScopeWithDataLimitExist());
     EXPECT_EQ(Collections::VB::ManifestUpdateStatus::Success,
               manifest.getReplicaManifest().update(
+                      folly::SharedMutex::ReadHolder(
+                              manifest.vbR->getStateLock()),
                       *manifest.vbR,
                       Collections::Manifest{
                               std::string{cm.remove(ScopeEntry::shop2)}}));
@@ -1157,12 +1174,16 @@ TEST_F(VBucketManifestTest, scope_limits_corrected_by_update_drop_two_scopes) {
     EXPECT_FALSE(manifest.getReplicaManifest().doesScopeWithDataLimitExist());
     EXPECT_EQ(Collections::VB::ManifestUpdateStatus::Success,
               manifest.getReplicaManifest().update(
+                      folly::SharedMutex::ReadHolder(
+                              manifest.vbR->getStateLock()),
                       *manifest.vbR,
                       Collections::Manifest{
                               std::string{cm.remove(ScopeEntry::shop1)}}));
     EXPECT_TRUE(manifest.getReplicaManifest().doesScopeWithDataLimitExist());
     EXPECT_EQ(Collections::VB::ManifestUpdateStatus::Success,
               manifest.getReplicaManifest().update(
+                      folly::SharedMutex::ReadHolder(
+                              manifest.vbR->getStateLock()),
                       *manifest.vbR,
                       Collections::Manifest{
                               std::string{cm.remove(ScopeEntry::shop2)}}));

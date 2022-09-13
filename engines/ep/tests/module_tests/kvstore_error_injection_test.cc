@@ -255,7 +255,7 @@ TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPersistingCollectionChange) {
 
     CollectionsManifest cm(CollectionEntry::dairy);
     auto vb = engine->getKVBucket()->getVBucket(vbid);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
 
     // Check nothing persisted to disk, only default collection exists
     auto* kvstore = store->getRWUnderlying(vbid);

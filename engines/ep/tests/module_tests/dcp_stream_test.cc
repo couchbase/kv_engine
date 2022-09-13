@@ -3959,7 +3959,8 @@ TEST_P(SingleThreadedActiveStreamTest, NoValueStreamBackfillsFullSystemEvent) {
     CollectionsManifest cm;
     const auto& collection = CollectionEntry::fruit;
     cm.add(collection);
-    vb.updateFromManifest(makeManifest(cm));
+    vb.updateFromManifest(folly::SharedMutex::ReadHolder(vb.getStateLock()),
+                          makeManifest(cm));
     EXPECT_EQ(2, vb.getHighSeqno());
 
     // Ensure backfill

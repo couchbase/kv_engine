@@ -137,7 +137,6 @@ void DurabilityMonitorTest::addSyncDelete(int64_t seqno,
     }
 
     mutation_descr_t mutation_descr;
-    auto cHandle = vb->lockCollections(item.getKey());
     ASSERT_EQ(cb::engine_errc::sync_write_pending,
               vb->deleteItem(cas,
                              cookie,
@@ -145,7 +144,7 @@ void DurabilityMonitorTest::addSyncDelete(int64_t seqno,
                              req,
                              nullptr,
                              mutation_descr,
-                             cHandle));
+                             vb->lockCollections(item.getKey())));
     vb->notifyActiveDMOfLocalSyncWrite();
     vb->processResolvedSyncWrites();
 }

@@ -13,6 +13,7 @@
 
 #include "collections/manifest.h"
 #include "collections/shared_metadata_table.h"
+#include "ep_types.h"
 
 #include <folly/Synchronized.h>
 #include <memcached/engine.h>
@@ -26,6 +27,10 @@ class StatCollector;
 class BucketStatCollector;
 class KVBucket;
 class VBucket;
+
+/// A convenience typedef for a map of read locks on the VBucket states.
+using VBucketStateRLockMap =
+        VBucketStateLockMap<folly::SharedMutex::ReadHolder>;
 
 namespace Collections {
 
@@ -101,11 +106,13 @@ public:
      * Note that a mutex ensures that this update method works serially, no
      * concurrent admin updates allowed.
      *
+     * @param vbStateLocks a mapping to locks on all vbucket states.
      * @param bucket the bucket receiving a set-collections command.
      * @param manifest the json manifest form a set-collections command.
      * @returns engine_error indicating why the update failed.
      */
-    cb::engine_error update(KVBucket& bucket,
+    cb::engine_error update(const VBucketStateRLockMap& vbStateLocks,
+                            KVBucket& bucket,
                             std::string_view manifest,
                             const CookieIface* cookie);
 
@@ -187,8 +194,11 @@ public:
      * if they are equal.
      * The Manager is locked to prevent current changing whilst this update
      * occurs.
+     *
+     * @param vbStateLock A lock on the VBucket state.
+     * @param vb The VBucket whose manifest to update.
      */
-    void maybeUpdate(VBucket& vb) const;
+    void maybeUpdate(VBucketStateLockRef vbStateLock, VBucket& vb) const;
 
     /**
      * Do 'add_stat' calls for the bucket to retrieve summary collection stats
@@ -304,26 +314,32 @@ private:
      * Apply newManifest to all active vbuckets
      * @return uninitialized if success, else the vbid which triggered failure.
      */
-    std::optional<Vbid> updateAllVBuckets(KVBucket& bucket,
-                                          const Manifest& newManifest);
+    std::optional<Vbid> updateAllVBuckets(
+            const VBucketStateRLockMap& vbStateLocks,
+            KVBucket& bucket,
+            const Manifest& newManifest);
 
     /**
      * This method handles the IO complete path and allows ::update to
      * correctly call applyNewManifest
      */
-    cb::engine_error updateFromIOComplete(KVBucket& bucket,
-                                          std::unique_ptr<Manifest> newManifest,
-                                          const CookieIface* cookie);
+    cb::engine_error updateFromIOComplete(
+            const VBucketStateRLockMap& vbStateLocks,
+            KVBucket& bucket,
+            std::unique_ptr<Manifest> newManifest,
+            const CookieIface* cookie);
 
     /**
      * Final stage of the manifest update is to roll the new manifest out to
      * the active vbuckets.
      *
+     * @param vbStateLocks a mapping to locks on all vbucket states.
      * @param bucket The bucket to work on
      * @param current The locked, current manifest (which will be replaced)
      * @param newManifest The new manifest to apply
      */
     cb::engine_error applyNewManifest(
+            const VBucketStateRLockMap& vbStateLocks,
             KVBucket& bucket,
             folly::Synchronized<Manifest>::UpgradeLockedPtr& current,
             std::unique_ptr<Manifest> newManifest);

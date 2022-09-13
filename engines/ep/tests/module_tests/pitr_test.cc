@@ -35,14 +35,14 @@ TEST_P(PiTRTest, PitrCompactionPurgesCollection) {
 
     CollectionsManifest cm(CollectionEntry::dairy);
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
 
     auto key = makeStoredDocKey("milk", CollectionEntry::dairy);
     store_item(vbid, key, "value");
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     cm.remove(CollectionEntry::dairy);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // @TODO Sleeping in tests is pretty rubbish, but the couchstore side of

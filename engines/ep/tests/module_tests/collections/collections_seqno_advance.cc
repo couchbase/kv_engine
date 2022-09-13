@@ -75,7 +75,9 @@ public:
         CollectionsManifest cm;
         cm.add(CollectionEntry::vegetable);
         cm.add(CollectionEntry::fruit);
-        vb->updateFromManifest(makeManifest(cm));
+        vb->updateFromManifest(
+                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                makeManifest(cm));
         stream =
                 std::make_shared<MockActiveStream>(engine.get(),
                                                    producer,

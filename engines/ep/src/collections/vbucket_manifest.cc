@@ -89,7 +89,7 @@ Manifest::~Manifest() {
 
 Manifest::Manifest(Manifest& other) : manager(other.manager) {
     // Prevent other from being modified while we copy.
-    auto wlock = other.wlock();
+    Manifest::mutex_type::WriteHolder wlock(other.rwlock);
 
     // Collection/Scope maps are not trivially copyable, so we do it manually
     for (auto& [cid, entry] : other.map) {
@@ -143,6 +143,7 @@ Manifest::Manifest(Manifest& other) : manager(other.manager) {
 // Finally the changes are cleared and the 0 or 1 we copied earlier is returned.
 //
 std::optional<CollectionID> Manifest::applyDrops(
+        VBucketStateLockRef vbStateLock,
         WriteHandle& wHandle,
         ::VBucket& vb,
         std::vector<CollectionID>& changes) {
@@ -152,14 +153,19 @@ std::optional<CollectionID> Manifest::applyDrops(
         changes.pop_back();
     }
     for (CollectionID cid : changes) {
-        dropCollection(
-                wHandle, vb, manifestUid, cid, OptionalSeqno{/*no-seqno*/});
+        dropCollection(vbStateLock,
+                       wHandle,
+                       vb,
+                       manifestUid,
+                       cid,
+                       OptionalSeqno{/*no-seqno*/});
     }
     changes.clear();
     return rv;
 }
 
 std::optional<Manifest::CollectionCreation> Manifest::applyCreates(
+        VBucketStateLockRef vbStateLock,
         const WriteHandle& wHandle,
         ::VBucket& vb,
         std::vector<CollectionCreation>& changes) {
@@ -169,7 +175,8 @@ std::optional<Manifest::CollectionCreation> Manifest::applyCreates(
         changes.pop_back();
     }
     for (const auto& creation : changes) {
-        createCollection(wHandle,
+        createCollection(vbStateLock,
+                         wHandle,
                          vb,
                          manifestUid,
                          creation.identifiers,
@@ -183,6 +190,7 @@ std::optional<Manifest::CollectionCreation> Manifest::applyCreates(
 }
 
 std::optional<ScopeID> Manifest::applyScopeDrops(
+        VBucketStateLockRef vbStateLock,
         const WriteHandle& wHandle,
         ::VBucket& vb,
         std::vector<ScopeID>& changes) {
@@ -192,7 +200,12 @@ std::optional<ScopeID> Manifest::applyScopeDrops(
         changes.pop_back();
     }
     for (ScopeID sid : changes) {
-        dropScope(wHandle, vb, manifestUid, sid, OptionalSeqno{/*no-seqno*/});
+        dropScope(vbStateLock,
+                  wHandle,
+                  vb,
+                  manifestUid,
+                  sid,
+                  OptionalSeqno{/*no-seqno*/});
     }
 
     changes.clear();
@@ -200,6 +213,7 @@ std::optional<ScopeID> Manifest::applyScopeDrops(
 }
 
 std::optional<Manifest::ScopeCreation> Manifest::applyScopeCreates(
+        VBucketStateLockRef vbStateLock,
         const WriteHandle& wHandle,
         ::VBucket& vb,
         std::vector<ScopeCreation>& changes) {
@@ -209,7 +223,8 @@ std::optional<Manifest::ScopeCreation> Manifest::applyScopeCreates(
         changes.pop_back();
     }
     for (const auto& creation : changes) {
-        createScope(wHandle,
+        createScope(vbStateLock,
+                    wHandle,
                     vb,
                     manifestUid,
                     creation.sid,
@@ -234,7 +249,8 @@ void Manifest::updateUid(ManifestUid uid, bool reset) {
 // 2) Applying the change(s) (need write lock)
 // We utilise the upgrade feature of our mutex so that we can switch from
 // read (using UpgradeHolder) to write
-ManifestUpdateStatus Manifest::update(VBucket& vb,
+ManifestUpdateStatus Manifest::update(VBucketStateLockRef vbStateLock,
+                                      VBucket& vb,
                                       const Collections::Manifest& manifest) {
     mutex_type::UpgradeHolder upgradeLock(rwlock);
     auto status = canUpdate(manifest);
@@ -274,7 +290,7 @@ ManifestUpdateStatus Manifest::update(VBucket& vb,
                 changes.changeScopeWithDataLimitExists);
     }
 
-    completeUpdate(std::move(upgradeLock), vb, changes);
+    completeUpdate(vbStateLock, std::move(upgradeLock), vb, changes);
     return ManifestUpdateStatus::Success;
 }
 
@@ -316,11 +332,12 @@ void Manifest::applyFlusherStats(
 // As the function runs it also has to decide at each point which manifest-UID
 // to associate with the system-events. The new manifest UID is only "exposed"
 // for the final event of the changeset.
-void Manifest::completeUpdate(mutex_type::UpgradeHolder&& upgradeLock,
+void Manifest::completeUpdate(VBucketStateLockRef vbStateLock,
+                              mutex_type::UpgradeHolder&& upgradeLock,
                               ::VBucket& vb,
                               Manifest::ManifestChanges& changeset) {
     // Write Handle now needed
-    WriteHandle wHandle(*this, std::move(upgradeLock));
+    WriteHandle wHandle(*this, vbStateLock, std::move(upgradeLock));
 
     // Capture the UID
     if (changeset.none()) {
@@ -339,21 +356,24 @@ void Manifest::completeUpdate(mutex_type::UpgradeHolder&& upgradeLock,
                 changeset.changeScopeWithDataLimitExists.value();
     }
 
-    auto finalDeletion = applyDrops(wHandle, vb, changeset.collectionsToDrop);
+    auto finalDeletion =
+            applyDrops(vbStateLock, wHandle, vb, changeset.collectionsToDrop);
     if (finalDeletion) {
         // if the changeset is now 'drained' of create/drop, then this is final
         // the final change to make - so use changeset.uid
-        dropCollection(wHandle,
+        dropCollection(vbStateLock,
+                       wHandle,
                        vb,
                        changeset.getUidForChange(manifestUid),
                        *finalDeletion,
                        OptionalSeqno{/*no-seqno*/});
     }
 
-    auto finalScopeCreate =
-            applyScopeCreates(wHandle, vb, changeset.scopesToCreate);
+    auto finalScopeCreate = applyScopeCreates(
+            vbStateLock, wHandle, vb, changeset.scopesToCreate);
     if (finalScopeCreate) {
-        createScope(wHandle,
+        createScope(vbStateLock,
+                    wHandle,
                     vb,
                     changeset.getUidForChange(manifestUid),
                     finalScopeCreate.value().sid,
@@ -362,11 +382,12 @@ void Manifest::completeUpdate(mutex_type::UpgradeHolder&& upgradeLock,
                     OptionalSeqno{/*no-seqno*/});
     }
 
-    auto finalAddition =
-            applyCreates(wHandle, vb, changeset.collectionsToCreate);
+    auto finalAddition = applyCreates(
+            vbStateLock, wHandle, vb, changeset.collectionsToCreate);
 
     if (finalAddition) {
-        createCollection(wHandle,
+        createCollection(vbStateLock,
+                         wHandle,
                          vb,
                          changeset.getUidForChange(manifestUid),
                          finalAddition.value().identifiers,
@@ -378,10 +399,12 @@ void Manifest::completeUpdate(mutex_type::UpgradeHolder&& upgradeLock,
 
     // This is done last so the scope deletion follows any collection
     // deletions
-    auto finalScopeDrop = applyScopeDrops(wHandle, vb, changeset.scopesToDrop);
+    auto finalScopeDrop =
+            applyScopeDrops(vbStateLock, wHandle, vb, changeset.scopesToDrop);
 
     if (finalScopeDrop) {
-        dropScope(wHandle,
+        dropScope(vbStateLock,
+                  wHandle,
                   vb,
                   changeset.uid,
                   *finalScopeDrop,
@@ -444,7 +467,8 @@ ManifestUpdateStatus Manifest::canUpdate(
     return ManifestUpdateStatus::Success;
 }
 
-void Manifest::createCollection(const WriteHandle& wHandle,
+void Manifest::createCollection(VBucketStateLockRef vbStateLock,
+                                const WriteHandle& wHandle,
                                 ::VBucket& vb,
                                 ManifestUid newManUid,
                                 ScopeCollectionPair identifiers,
@@ -463,7 +487,8 @@ void Manifest::createCollection(const WriteHandle& wHandle,
 
     // 2. Queue a system event, this will take a copy of the manifest ready
     //    for persistence into the vb state file.
-    auto seqno = queueCollectionSystemEvent(wHandle,
+    auto seqno = queueCollectionSystemEvent(vbStateLock,
+                                            wHandle,
                                             vb,
                                             identifiers.second,
                                             collectionName,
@@ -540,7 +565,8 @@ ScopeEntry& Manifest::addNewScopeEntry(
     return itr->second;
 }
 
-void Manifest::dropCollection(WriteHandle& wHandle,
+void Manifest::dropCollection(VBucketStateLockRef vbStateLock,
+                              WriteHandle& wHandle,
                               ::VBucket& vb,
                               ManifestUid newManUid,
                               CollectionID cid,
@@ -576,6 +602,7 @@ void Manifest::dropCollection(WriteHandle& wHandle,
     updateUid(newManUid, optionalSeqno.has_value());
 
     auto seqno = queueCollectionSystemEvent(
+            vbStateLock,
             wHandle,
             vb,
             cid,
@@ -653,7 +680,8 @@ const ScopeEntry& Manifest::getScopeEntry(ScopeID sid) const {
     return itr->second;
 }
 
-void Manifest::createScope(const WriteHandle& wHandle,
+void Manifest::createScope(VBucketStateLockRef vbStateLock,
+                           const WriteHandle& wHandle,
                            ::VBucket& vb,
                            ManifestUid newManUid,
                            ScopeID sid,
@@ -724,7 +752,8 @@ void Manifest::modifyScope(const WriteHandle& wHandle,
                     : "");
 }
 
-void Manifest::dropScope(const WriteHandle& wHandle,
+void Manifest::dropScope(VBucketStateLockRef vbStateLock,
+                         const WriteHandle& wHandle,
                          ::VBucket& vb,
                          ManifestUid newManUid,
                          ScopeID sid,
@@ -964,6 +993,7 @@ std::unique_ptr<Item> Manifest::makeCollectionSystemEvent(
 }
 
 uint64_t Manifest::queueCollectionSystemEvent(
+        VBucketStateLockRef vbStateLock,
         const WriteHandle& wHandle,
         ::VBucket& vb,
         CollectionID cid,
@@ -1657,8 +1687,8 @@ StatsReadHandle Manifest::lock(CollectionID cid) const {
     return {this, rwlock, cid};
 }
 
-WriteHandle Manifest::wlock() {
-    return {*this, rwlock};
+WriteHandle Manifest::wlock(VBucketStateLockRef vbStateLock) {
+    return {*this, vbStateLock, rwlock};
 }
 
 std::ostream& operator<<(std::ostream& os, const ReadHandle& readHandle) {

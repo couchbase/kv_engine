@@ -49,7 +49,7 @@ TEST_F(CollectionsDcpStreamsTest, request_validation) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
 
     // Cannot do this without enabling the feature
     createDcpStream({{R"({"collections":["9"], "sid":99})"}},
@@ -92,7 +92,8 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackSeqnoAdvanced) {
     cm.add(CollectionEntry::meat);
     cm.add(CollectionEntry::fruit);
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(Collections::Manifest{std::string{cm}});
+    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                           Collections::Manifest{std::string{cm}});
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     ASSERT_TRUE(store_items(
@@ -144,7 +145,8 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackNoSeqnoAdvanced) {
     CollectionsManifest cm(CollectionEntry::meat);
     cm.add(CollectionEntry::fruit);
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(Collections::Manifest{std::string{cm}});
+    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                           Collections::Manifest{std::string{cm}});
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     ASSERT_TRUE(store_items(
@@ -217,7 +219,8 @@ TEST_F(CollectionsDcpStreamsTest,
     CollectionsManifest cm(CollectionEntry::meat);
     cm.add(CollectionEntry::fruit);
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(Collections::Manifest{std::string{cm}});
+    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                           Collections::Manifest{std::string{cm}});
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     ASSERT_TRUE(store_items(
@@ -271,7 +274,8 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackMultiCollection) {
     CollectionsManifest cm(CollectionEntry::meat);
     cm.add(CollectionEntry::fruit);
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(Collections::Manifest{std::string{cm}});
+    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                           Collections::Manifest{std::string{cm}});
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     ASSERT_TRUE(store_items(
@@ -347,7 +351,8 @@ TEST_F(CollectionsDcpStreamsTest, streamRequestRollbackMultiCollection) {
     CollectionsManifest cm(CollectionEntry::meat);
     cm.add(CollectionEntry::fruit);
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(Collections::Manifest{std::string{cm}});
+    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                           Collections::Manifest{std::string{cm}});
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     ASSERT_TRUE(store_items(
@@ -464,7 +469,7 @@ TEST_F(CollectionsDcpStreamsTest, close_stream_validation1) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     producer->enableMultipleStreamRequests();
     createDcpStream({{R"({"collections":["9"], "sid":99})"}}, vbid);
 
@@ -476,7 +481,7 @@ TEST_F(CollectionsDcpStreamsTest, close_stream_validation2) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
 
     createDcpStream({{R"({"collections":["9"]})"}}, vbid);
 
@@ -488,7 +493,7 @@ TEST_F(CollectionsDcpStreamsTest, end_stream_for_state_change) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     producer->enableMultipleStreamRequests();
     createDcpStream({{R"({"collections":["9"], "sid":42})"}}, vbid);
     createDcpStream({{R"({"collections":["0"], "sid":1984})"}}, vbid);
@@ -519,7 +524,7 @@ void CollectionsDcpStreamsTest::close_stream_by_id_test(bool enableStreamEnd,
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     if (enableStreamEnd) {
         producer->enableStreamEndOnClientStreamClose();
     }
@@ -605,7 +610,7 @@ TEST_F(CollectionsDcpStreamsTest, two_streams) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     store_item(vbid, StoredDocKey{"orange", CollectionEntry::fruit}, "nice");
 
     producer->enableMultipleStreamRequests();
@@ -691,7 +696,7 @@ TEST_F(CollectionsDcpStreamsTest, two_streams_different) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit).add(CollectionEntry::dairy);
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
 
     producer->enableMultipleStreamRequests();
 

@@ -105,7 +105,7 @@ TEST_P(CollectionsPersistentParameterizedTest, namespace_separation) {
     // Add the meat collection
     VBucketPtr vb = store->getVBucket(vbid);
     CollectionsManifest cm(CollectionEntry::meat);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
 
     EXPECT_EQ(1, vb->dirtyQueueSize);
     EXPECT_NE(0, vb->dirtyQueueAge);
@@ -142,7 +142,7 @@ TEST_P(CollectionsParameterizedTest, collections_basic) {
 
     // Add the meat collection
     CollectionsManifest cm(CollectionEntry::meat);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
 
     EXPECT_EQ(0, vb->getManifest().lock(CollectionEntry::meat).getDiskSize());
     EXPECT_EQ(0, vb->getManifest().lock(CollectionID::Default).getDiskSize());
@@ -209,7 +209,7 @@ TEST_P(CollectionsParameterizedTest, collections_basic) {
               checkKeyExists(key1, vbid, options));
 
     // Begin the deletion
-    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::meat)));
+    setCollections(cookie, cm.remove(CollectionEntry::meat));
 
     // We should have deleted the create marker
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -229,7 +229,7 @@ TEST_P(CollectionsParameterizedTest, unknown_collection_errors) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     // Trigger a flush to disk. Flushes the dairy create event.
     flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -251,10 +251,10 @@ TEST_P(CollectionsParameterizedTest, unknown_collection_errors) {
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Delete the dairy collection (so all dairy keys become logically deleted)
-    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::dairy)));
+    setCollections(cookie, cm.remove(CollectionEntry::dairy));
 
     // Re-add the dairy collection
-    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::dairy2)));
+    setCollections(cookie, cm.add(CollectionEntry::dairy2));
 
     // Trigger a flush to disk. Flushes the dairy2 create event, dairy delete.
     flushVBucketToDiskIfPersistent(vbid, 2);
@@ -360,7 +360,7 @@ TEST_P(CollectionsParameterizedTest, GET_unknown_collection_errors) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     // Trigger a flush to disk. Flushes the dairy create event.
     flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -373,10 +373,10 @@ TEST_P(CollectionsParameterizedTest, GET_unknown_collection_errors) {
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Delete the dairy collection (so all dairy keys become logically deleted)
-    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::dairy)));
+    setCollections(cookie, cm.remove(CollectionEntry::dairy));
 
     // Re-add the dairy collection
-    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::dairy2)));
+    setCollections(cookie, cm.add(CollectionEntry::dairy2));
 
     // Trigger a flush to disk. Flushes the dairy2 create event, dairy delete
     flushVBucketToDiskIfPersistent(vbid, 2);
@@ -555,7 +555,7 @@ TEST_P(CollectionsPersistentParameterizedTest, PersistedHighSeqno) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     // Trigger a flush to disk. Flushes the dairy create event.
     flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -612,7 +612,7 @@ TEST_P(CollectionsPersistentParameterizedTest,
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     // Trigger a flush to disk. Flushes the dairy create event.
     flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -633,7 +633,7 @@ TEST_P(CollectionsPersistentParameterizedTest,
 
     // Add the meat collection
     cm.add(CollectionEntry::meat);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     // Trigger a flush to disk. Flushes the dairy create event.
     flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -684,7 +684,7 @@ TEST_P(CollectionsParameterizedTest, HighSeqno) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
 
     // Flushing the manifest to disk guarantees that the database file
     // is written and exists, any subsequent bgfetches (e.g. during
@@ -735,7 +735,7 @@ TEST_P(CollectionsParameterizedTest, HighSeqnoMultipleCollections) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
 
     // Flushing the manifest to disk guarantees that the database file
     // is written and exists, any subsequent bgfetches (e.g. during
@@ -758,7 +758,7 @@ TEST_P(CollectionsParameterizedTest, HighSeqnoMultipleCollections) {
 
     // Add the meat collection
     cm.add(CollectionEntry::meat);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
 
     EXPECT_EQ(3,
               vb->getManifest().lock().getHighSeqno(
@@ -870,7 +870,8 @@ Collections::KVStore::Manifest CollectionsFlushTest::createCollectionAndFlush(
     VBucketPtr vb = store->getVBucket(vbid);
     // cannot write to collection
     storeItems(collection, items, cb::engine_errc::unknown_collection);
-    vb->updateFromManifest(Collections::Manifest{json});
+    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                           Collections::Manifest{json});
     storeItems(collection, items);
     flushVBucketToDiskIfPersistent(vbid, 1 + items); // create event + items
     EXPECT_EQ(items, vb->lockCollections().getItemCount(collection));
@@ -881,7 +882,8 @@ Collections::KVStore::Manifest CollectionsFlushTest::dropCollectionAndFlush(
         const std::string& json, CollectionID collection, int items) {
     VBucketPtr vb = store->getVBucket(vbid);
     storeItems(collection, items);
-    vb->updateFromManifest(Collections::Manifest(json));
+    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                           Collections::Manifest(json));
     // cannot write to collection
     storeItems(collection, items, cb::engine_errc::unknown_collection);
     flushVBucketToDiskIfPersistent(vbid,
@@ -1015,7 +1017,7 @@ TEST_P(CollectionsParameterizedTest, MB_31212) {
     CollectionsManifest cm;
     auto vb = store->getVBucket(vbid);
 
-    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::meat)));
+    setCollections(cookie, cm.add(CollectionEntry::meat));
     auto key = StoredDocKey{"beef", CollectionEntry::meat};
     // Now we can write to meat
     store_item(vbid, key, "value");
@@ -1047,7 +1049,9 @@ TEST_F(CollectionsWarmupTest, warmup) {
         auto vb = store->getVBucket(vbid);
 
         // add performs a +1 on the manifest uid
-        vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::meat)));
+        vb->updateFromManifest(
+                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                makeManifest(cm.add(CollectionEntry::meat)));
 
         // Trigger a flush to disk. Flushes the meat create event
         flushVBucketToDiskIfPersistent(vbid, 1);
@@ -1075,7 +1079,9 @@ TEST_F(CollectionsWarmupTest, warmup) {
                           CollectionEntry::meat));
 
         // create an extra collection which we do not write to (note uid++)
-        vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
+        vb->updateFromManifest(
+                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                makeManifest(cm.add(CollectionEntry::fruit)));
         flushVBucketToDiskIfPersistent(vbid, 1);
 
         // The high-seqno of the collection is the start, the seqno of the
@@ -1170,7 +1176,9 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeleted) {
 
         // Add the meat collection
         CollectionsManifest cm(CollectionEntry::meat);
-        vb->updateFromManifest(makeManifest(cm));
+        vb->updateFromManifest(
+                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                makeManifest(cm));
 
         // Trigger a flush to disk. Flushes the meat create event
         flushVBucketToDiskIfPersistent(vbid, 1);
@@ -1184,7 +1192,9 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeleted) {
         flushVBucketToDiskIfPersistent(vbid, nitems);
 
         // Remove the meat collection
-        vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::meat)));
+        vb->updateFromManifest(
+                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                makeManifest(cm.remove(CollectionEntry::meat)));
 
         flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -1215,7 +1225,9 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeletedDefault) {
 
         // Add the meat collection
         CollectionsManifest cm(CollectionEntry::meat);
-        vb->updateFromManifest(makeManifest(cm));
+        vb->updateFromManifest(
+                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                makeManifest(cm));
 
         // Trigger a flush to disk. Flushes the meat create event
         flushVBucketToDiskIfPersistent(vbid, 1);
@@ -1231,6 +1243,7 @@ TEST_F(CollectionsWarmupTest, warmupIgnoreLogicallyDeletedDefault) {
 
         // Remove the default collection
         vb->updateFromManifest(
+                folly::SharedMutex::ReadHolder(vb->getStateLock()),
                 makeManifest(cm.remove(CollectionEntry::defaultC)));
 
         flushVBucketToDiskIfPersistent(vbid, 1);
@@ -1264,7 +1277,9 @@ TEST_F(CollectionsWarmupTest, warmupManifestUidLoadsOnCreate) {
         // Add the meat collection
         CollectionsManifest cm;
         cm.setUid(0xface2); // cm.add will +1 this uid
-        vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::meat)));
+        vb->updateFromManifest(
+                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                makeManifest(cm.add(CollectionEntry::meat)));
 
         flushVBucketToDiskIfPersistent(vbid, 1);
     } // VBucketPtr scope ends
@@ -1286,6 +1301,7 @@ TEST_F(CollectionsWarmupTest, warmupManifestUidLoadsOnDelete) {
         CollectionsManifest cm;
         cm.setUid(0xface2); // cm.remove will +1 this uid
         vb->updateFromManifest(
+                folly::SharedMutex::ReadHolder(vb->getStateLock()),
                 makeManifest(cm.remove(CollectionEntry::defaultC)));
 
         flushVBucketToDiskIfPersistent(vbid, 1);
@@ -1391,12 +1407,12 @@ TEST_P(CollectionsPersistentParameterizedTest,
 
     // Add the meat collection + 1 item with TTL (and flush it all out)
     CollectionsManifest cm(CollectionEntry::meat);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     StoredDocKey key{"lamb", CollectionEntry::meat};
     store_item(vbid, key, "value", ep_real_time() + 100);
     flushVBucketToDiskIfPersistent(vbid, 2);
     // And now drop the meat collection
-    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::meat)));
+    setCollections(cookie, cm.remove(CollectionEntry::meat));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Time travel
@@ -1429,7 +1445,7 @@ TEST_P(CollectionsPersistentParameterizedTest,
 
     // Add the dairy collection, but don't flush it just yet.
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
 
     // set a hook to be called immediately before the flusher commits to disk.
     // This is after items have been read from the checkpoint manager, but
@@ -1440,7 +1456,9 @@ TEST_P(CollectionsPersistentParameterizedTest,
         // now remove the collection. This will remove it from the vb manifest
         // _before_ the creation event tries to call setPersistedHighSeqno()
         cm.remove(CollectionEntry::dairy);
-        vb->updateFromManifest(makeManifest(cm));
+        vb->updateFromManifest(
+                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                makeManifest(cm));
     });
     // flushing the creation to disk should not throw, even though the
     // collection was not found in the manifest
@@ -1460,7 +1478,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactNewPrepare) {
     cm.remove(CollectionEntry::defaultC);
 
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     flushVBucketToDiskIfPersistent(vbid, 3);
 
     // We add dairy and a key to it just to ensure that we're not breaking
@@ -1558,7 +1576,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactPrepareAbort) {
     cm.add(CollectionEntry::meat);
 
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     // We add dairy and a key to it just to ensure that we're not breaking
@@ -1651,7 +1669,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactAbortPrepare) {
     cm.add(CollectionEntry::meat);
 
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     // We add dairy and a key to it just to ensure that we're not breaking
@@ -1752,7 +1770,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactDropCollection) {
     cm.add(CollectionEntry::meat);
 
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     auto& kvstore =
@@ -1776,7 +1794,9 @@ TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactDropCollection) {
 
         // And drop the collection to check that we don't try to update the size
         cm.remove(CollectionEntry::meat);
-        vb->updateFromManifest(makeManifest(cm));
+        vb->updateFromManifest(
+                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                makeManifest(cm));
         flushVBucketToDiskIfPersistent(vbid, 1);
     });
 
@@ -1807,7 +1827,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
     cm.add(CollectionEntry::fruit);
 
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     auto& kvstore =
@@ -1851,7 +1871,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
     cm.add(CollectionEntry::fruit);
 
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "v1");
@@ -1860,7 +1880,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
 
     // Now remove the fruit collection
     cm.remove(CollectionEntry::fruit);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Store an item, so that the fruit tombstone is not high-seqno
@@ -1876,7 +1896,9 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
             [&vb, &cm, this](auto& compactionKey) {
                 // Drop a collection during flush
                 cm.remove(CollectionEntry::vegetable);
-                vb->updateFromManifest(makeManifest(cm));
+                vb->updateFromManifest(
+                        folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                        makeManifest(cm));
                 flushVBucketToDiskIfPersistent(vbid, 1);
             });
 
@@ -1997,7 +2019,10 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
     auto key1 = StoredDocKey{"mb47460", CollectionEntry::defaultC};
     auto key2 = StoredDocKey{"mb47460", CollectionEntry::vegetable};
     cm.add(CollectionEntry::vegetable);
-    store->getVBucket(vbid)->updateFromManifest(makeManifest(cm));
+    store->getVBucket(vbid)->updateFromManifest(
+            folly::SharedMutex::ReadHolder(
+                    store->getVBucket(vbid)->getStateLock()),
+            makeManifest(cm));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     auto value = std::string{
@@ -2046,7 +2071,10 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
     auto key1 = StoredDocKey{"mb47460", CollectionEntry::defaultC};
     auto key2 = StoredDocKey{"mb47460", CollectionEntry::vegetable};
     cm.add(CollectionEntry::vegetable);
-    store->getVBucket(vbid)->updateFromManifest(makeManifest(cm));
+    store->getVBucket(vbid)->updateFromManifest(
+            folly::SharedMutex::ReadHolder(
+                    store->getVBucket(vbid)->getStateLock()),
+            makeManifest(cm));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     store_item(vbid, key1, "Small value");
@@ -2094,7 +2122,10 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
     auto key1 = StoredDocKey{"mb47460", CollectionEntry::defaultC};
     auto key2 = StoredDocKey{"mb47460", CollectionEntry::vegetable};
     cm.add(CollectionEntry::vegetable);
-    store->getVBucket(vbid)->updateFromManifest(makeManifest(cm));
+    store->getVBucket(vbid)->updateFromManifest(
+            folly::SharedMutex::ReadHolder(
+                    store->getVBucket(vbid)->getStateLock()),
+            makeManifest(cm));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     auto value = std::string{
@@ -2113,7 +2144,10 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
         store_item(vbid, key2, "Small value");
         cm.remove(CollectionEntry::defaultC);
         cm.remove(CollectionEntry::vegetable);
-        store->getVBucket(vbid)->updateFromManifest(makeManifest(cm));
+        store->getVBucket(vbid)->updateFromManifest(
+                folly::SharedMutex::ReadHolder(
+                        store->getVBucket(vbid)->getStateLock()),
+                makeManifest(cm));
         flushVBucketToDiskIfPersistent(vbid, 4);
     };
 
@@ -2150,7 +2184,10 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
     auto key1 = StoredDocKey{"mb47460", CollectionEntry::defaultC};
     auto key2 = StoredDocKey{"mb47460", CollectionEntry::vegetable};
     cm.add(CollectionEntry::vegetable);
-    store->getVBucket(vbid)->updateFromManifest(makeManifest(cm));
+    store->getVBucket(vbid)->updateFromManifest(
+            folly::SharedMutex::ReadHolder(
+                    store->getVBucket(vbid)->getStateLock()),
+            makeManifest(cm));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     store_item(vbid, key1, "Small value");
@@ -2165,7 +2202,10 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
         store_item(vbid, key2, value);
         cm.remove(CollectionEntry::defaultC);
         cm.remove(CollectionEntry::vegetable);
-        store->getVBucket(vbid)->updateFromManifest(makeManifest(cm));
+        store->getVBucket(vbid)->updateFromManifest(
+                folly::SharedMutex::ReadHolder(
+                        store->getVBucket(vbid)->getStateLock()),
+                makeManifest(cm));
         flushVBucketToDiskIfPersistent(vbid, 4);
     };
 
@@ -2197,7 +2237,10 @@ TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactResurrectCollection) {
     auto key_2b = StoredDocKey{"key_2", CollectionEntry::vegetable};
 
     cm.add(CollectionEntry::vegetable);
-    store->getVBucket(vbid)->updateFromManifest(makeManifest(cm));
+    store->getVBucket(vbid)->updateFromManifest(
+            folly::SharedMutex::ReadHolder(
+                    store->getVBucket(vbid)->getStateLock()),
+            makeManifest(cm));
     flushVBucketToDiskIfPersistent(vbid, 1);
     // Store 2 items to each collection, this will help validation at the end
     store_item(vbid, key_1a, "Value to replace with something smaller");
@@ -2223,12 +2266,18 @@ TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactResurrectCollection) {
 
         cm.remove(CollectionEntry::defaultC);
         cm.remove(CollectionEntry::vegetable);
-        store->getVBucket(vbid)->updateFromManifest(makeManifest(cm));
+        store->getVBucket(vbid)->updateFromManifest(
+                folly::SharedMutex::ReadHolder(
+                        store->getVBucket(vbid)->getStateLock()),
+                makeManifest(cm));
         flushVBucketToDiskIfPersistent(vbid, 2);
 
         cm.add(CollectionEntry::defaultC);
         cm.add(CollectionEntry::vegetable);
-        store->getVBucket(vbid)->updateFromManifest(makeManifest(cm));
+        store->getVBucket(vbid)->updateFromManifest(
+                folly::SharedMutex::ReadHolder(
+                        store->getVBucket(vbid)->getStateLock()),
+                makeManifest(cm));
         store_item(vbid, key_1a, "Still smaller value");
         store_item(vbid, key_2a, "Still smaller value");
         flushVBucketToDiskIfPersistent(vbid, 4);
@@ -2295,7 +2344,7 @@ TEST_P(ConcurrentCompactPurge, ConcCompactPurgeTombstones) {
     // 1) Add a collection, flush it and record the diskSize
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     flushVBucketToDiskIfPersistent(vbid, 1);
     auto diskSizeAtCreation =
             vb->getManifest().lock(CollectionEntry::fruit).getDiskSize();
@@ -2392,12 +2441,12 @@ TEST_P(CollectionsPersistentParameterizedTest,
 
     // Add the meat collection + 1 item with TTL (and flush it all out)
     CollectionsManifest cm(CollectionEntry::meat);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     StoredDocKey key{"lamb", CollectionEntry::meat};
     store_item(vbid, key, "value", ep_real_time() + 100);
     flushVBucketToDiskIfPersistent(vbid, 2);
     // And now drop the meat collection
-    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::meat)));
+    setCollections(cookie, cm.remove(CollectionEntry::meat));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Time travel
@@ -2469,7 +2518,9 @@ void CollectionsExpiryLimitTest::operation_test(
 
     {
         VBucketPtr vb = store->getVBucket(vbid);
-        vb->updateFromManifest(makeManifest(cm));
+        vb->updateFromManifest(
+                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                makeManifest(cm));
     }
 
     flushVBucketToDiskIfPersistent(vbid, 4);
@@ -2587,7 +2638,7 @@ TEST_P(CollectionsParameterizedTest, item_counting) {
 
     // Add the meat collection
     CollectionsManifest cm(CollectionEntry::meat);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
 
     // Default collection is open for business
     store_item(vbid, StoredDocKey{"key", CollectionEntry::defaultC}, "value");
@@ -2696,7 +2747,7 @@ TEST_P(CollectionsParameterizedTest, PerCollectionMemUsed) {
 
     // Add the meat collection
     CollectionsManifest cm(CollectionEntry::meat);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
 
     KVBucketTest::flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -2765,7 +2816,7 @@ TEST_P(CollectionsPersistentParameterizedTest, PerCollectionDiskSize) {
 
     // Add the meat collection
     CollectionsManifest cm(CollectionEntry::meat);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
 
     KVBucketTest::flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -2843,7 +2894,7 @@ TEST_P(CollectionsPersistentParameterizedTest, PerCollectionDiskSizeRollback) {
 
     // Add the meat collection
     CollectionsManifest cm(CollectionEntry::meat);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
 
     KVBucketTest::flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -3033,7 +3084,7 @@ TEST_P(CollectionsParameterizedTest, GetScopeIdForGivenKeyAndVbucket) {
     CollectionsManifest cmDairyVb;
     cmDairyVb.add(ScopeEntry::shop1)
             .add(CollectionEntry::dairy, ScopeEntry::shop1);
-    vb->updateFromManifest(makeManifest(cmDairyVb));
+    setCollections(cookie, cmDairyVb);
 
     // Trigger a flush to disk. Flushes the dairy create event.
     flushVBucketToDiskIfPersistent(vbid, 2);
@@ -3886,7 +3937,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactReplayNewNonPrepare) {
     cm.add(CollectionEntry::meat);
 
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     auto& kvstore =
@@ -3922,7 +3973,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
     cm.add(CollectionEntry::meat);
 
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     StoredDocKey meatKey{"beef", CollectionEntry::meat};
@@ -3964,7 +4015,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
     cm.add(CollectionEntry::meat);
 
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     StoredDocKey meatKey{"beef", CollectionEntry::meat};
@@ -4013,7 +4064,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest,
     cm.add(CollectionEntry::meat);
 
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     StoredDocKey meatKey{"beef", CollectionEntry::meat};
@@ -4064,7 +4115,7 @@ TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactReplayDeleteDelete) {
     cm.add(CollectionEntry::meat);
 
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     StoredDocKey key{"beef", CollectionEntry::meat};
@@ -4101,7 +4152,7 @@ TEST_P(CollectionsEphemeralParameterizedTest, TrackSystemEventSize) {
 
     // Add the meat collection
     CollectionsManifest cm(CollectionEntry::meat);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     // No system event for default
     EXPECT_EQ(0, getCollectionMemUsed(vb, CollectionID::Default));
     EXPECT_NE(0, getCollectionMemUsed(vb, CollectionEntry::meat.getId()));
@@ -4111,7 +4162,7 @@ TEST_P(CollectionsPersistentParameterizedTest, TombstonePurge) {
     auto vb = store->getVBucket(vbid);
     // add two collections
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
 
     auto compareDiskStatMemoryVsPersisted = [vb]() {
         auto kvs = vb->getShard()->getRWUnderlying();
@@ -4206,7 +4257,7 @@ TEST_P(CollectionsPersistentParameterizedTest, TombstonePurge) {
 TEST_P(CollectionsPersistentParameterizedTest, DeleteDelete) {
     auto vb = store->getVBucket(vbid);
     CollectionsManifest cm;
-    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
     flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
 
     const auto& manifest = vb->getManifest();
@@ -4283,8 +4334,10 @@ TEST_P(CollectionsParameterizedTest, MB_45899) {
     vb0->lockCollections().accumulateStats(collections, summary);
     EXPECT_EQ(1, summary.count(CollectionID::Default));
     auto copyStats = summary.find(CollectionID::Default)->second;
-    vb0->updateFromManifest(makeManifest(cm));
-    vb1->updateFromManifest(makeManifest(cm));
+    vb0->updateFromManifest(folly::SharedMutex::ReadHolder(vb0->getStateLock()),
+                            makeManifest(cm));
+    vb1->updateFromManifest(folly::SharedMutex::ReadHolder(vb1->getStateLock()),
+                            makeManifest(cm));
     vb1->lockCollections().accumulateStats(collections, summary);
 
     // No changes made, collection doesn't exist in vb1
@@ -4306,7 +4359,7 @@ TEST_P(CollectionsMagmaParameterizedTest, DropDuringPurge) {
     cm.add(CollectionEntry::fruit);
     cm.add(CollectionEntry::meat);
 
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "value");
@@ -4314,7 +4367,7 @@ TEST_P(CollectionsMagmaParameterizedTest, DropDuringPurge) {
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     cm.remove(CollectionEntry::fruit);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
 
     flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -4334,7 +4387,9 @@ TEST_P(CollectionsMagmaParameterizedTest, DropDuringPurge) {
                     // Drop a collection and flush so that the dropped
                     // collections local doc gets updated
                     cm.remove(CollectionEntry::meat);
-                    vb->updateFromManifest(makeManifest(cm));
+                    vb->updateFromManifest(
+                            folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                            makeManifest(cm));
                     flushVBucketToDiskIfPersistent(vbid, 1);
 
                     // Meat should be now too
@@ -4414,7 +4469,7 @@ TEST_P(CollectionsParameterizedTest, WriteToScopeWithLimit) {
     cm.add(ScopeEntry::shop2, 10000); // 10000  data limit
     cm.add(CollectionEntry::vegetable, ScopeEntry::shop2);
     auto vb = store->getVBucket(vbid);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
 
     // Cat write to vegetable
     store_item(vbid, StoredDocKey{"k1", CollectionEntry::vegetable}, "v1");

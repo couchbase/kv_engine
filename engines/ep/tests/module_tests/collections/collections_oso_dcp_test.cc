@@ -55,7 +55,7 @@ std::pair<CollectionsManifest, uint64_t>
 CollectionsOSODcpTest::setupTwoCollections(bool endOnTarget) {
     VBucketPtr vb = store->getVBucket(vbid);
     CollectionsManifest cm(CollectionEntry::fruit);
-    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::vegetable)));
+    setCollections(cookie, cm.add(CollectionEntry::vegetable));
 
     // Interleave the writes to two collections and then OSO backfill one
     store_item(vbid, makeStoredDocKey("b", CollectionEntry::fruit), "q");
@@ -154,7 +154,9 @@ void CollectionsOSODcpTest::emptyDiskSnapshot(OutOfOrderSnapshots osoMode) {
         VBucketPtr vb = store->getVBucket(vbid);
         // Create a collection so we can get a stream, but don't flush it
         CollectionsManifest cm(CollectionEntry::fruit);
-        vb->updateFromManifest(makeManifest(cm));
+        vb->updateFromManifest(
+                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                makeManifest(cm));
 
         // Filter on fruit collection (this will request from seqno:0)
         createDcpObjects({{R"({"collections":["9"]})"}}, osoMode, flag);
@@ -378,6 +380,7 @@ TEST_P(CollectionsOSODcpTest, dropped_collection) {
     // items in the OSO snapshot
     VBucketPtr vb = store->getVBucket(vbid);
     vb->updateFromManifest(
+            folly::SharedMutex::ReadHolder(vb->getStateLock()),
             makeManifest(setup.first.remove(CollectionEntry::vegetable)));
     flush_vbucket_to_disk(vbid, 1);
 
@@ -684,7 +687,7 @@ TEST_P(CollectionsOSODcpTest, MB_43700) {
 TEST_P(CollectionsOSODcpTest, cursor_dropped) {
     CollectionsManifest cm(CollectionEntry::fruit);
     VBucketPtr vb = store->getVBucket(vbid);
-    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::vegetable)));
+    setCollections(cookie, cm.add(CollectionEntry::vegetable));
     flushVBucketToDiskIfPersistent(vbid, 2);
     // Put data into 2 collections, we will stream the first data which has the
     // lower high-seqno

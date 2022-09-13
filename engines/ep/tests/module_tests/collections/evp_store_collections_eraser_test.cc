@@ -103,7 +103,7 @@ public:
 TEST_P(CollectionsEraserTest, basic) {
     // add a collection
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
 
     flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
 
@@ -149,7 +149,7 @@ TEST_P(CollectionsEraserTest, basic) {
     store_item(vbid, StoredDocKey{"cheese", CollectionEntry::dairy}, "blue");
 
     // delete the collection
-    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::dairy)));
+    setCollections(cookie, cm.remove(CollectionEntry::dairy));
 
     if (!persistent()) {
         EXPECT_EQ(1, vb->getNumSystemItems());
@@ -191,7 +191,7 @@ TEST_P(CollectionsEraserTest, basic) {
 TEST_P(CollectionsEraserTest, basic_2_collections) {
     // add two collections
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
 
     flushVBucketToDiskIfPersistent(vbid, 2 /* 2 x system */);
 
@@ -212,8 +212,10 @@ TEST_P(CollectionsEraserTest, basic_2_collections) {
     EXPECT_EQ(4, vb->getNumItems());
 
     // delete the collections
-    vb->updateFromManifest(makeManifest(
-            cm.remove(CollectionEntry::dairy).remove(CollectionEntry::fruit)));
+    vb->updateFromManifest(
+            folly::SharedMutex::ReadHolder(vb->getStateLock()),
+            makeManifest(cm.remove(CollectionEntry::dairy)
+                                 .remove(CollectionEntry::fruit)));
 
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
@@ -231,7 +233,7 @@ TEST_P(CollectionsEraserTest, basic_2_collections) {
 TEST_P(CollectionsEraserTest, basic_3_collections) {
     // Add two collections
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
 
     flushVBucketToDiskIfPersistent(vbid, 2 /* 1x system */);
 
@@ -252,7 +254,7 @@ TEST_P(CollectionsEraserTest, basic_3_collections) {
     EXPECT_EQ(4, vb->getNumItems());
 
     // delete one of the 3 collections
-    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::fruit)));
+    setCollections(cookie, cm.remove(CollectionEntry::fruit));
 
     EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::dairy));
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
@@ -270,7 +272,7 @@ TEST_P(CollectionsEraserTest, basic_3_collections) {
 TEST_P(CollectionsEraserTest, basic_4_collections) {
     // Add two collections
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
 
     flushVBucketToDiskIfPersistent(vbid, 2 /* 1x system */);
 
@@ -289,7 +291,8 @@ TEST_P(CollectionsEraserTest, basic_4_collections) {
     flushVBucketToDiskIfPersistent(vbid, 4 /* 2x items */);
 
     // delete the collections and re-add a new dairy
-    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::fruit)
+    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                           makeManifest(cm.remove(CollectionEntry::fruit)
                                                 .remove(CollectionEntry::dairy)
                                                 .add(CollectionEntry::dairy2)));
 
@@ -329,7 +332,7 @@ TEST_P(CollectionsEraserTest, default_Destroy) {
 
     // delete the default collection
     CollectionsManifest cm;
-    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::defaultC)));
+    setCollections(cookie, cm.remove(CollectionEntry::defaultC));
 
     flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
 
@@ -338,7 +341,7 @@ TEST_P(CollectionsEraserTest, default_Destroy) {
     EXPECT_EQ(0, vb->getNumItems());
 
     // Add default back - so we don't get collection unknown errors
-    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::defaultC)));
+    setCollections(cookie, cm.add(CollectionEntry::defaultC));
 
     auto key1 = makeStoredDocKey("dairy:milk", CollectionEntry::defaultC);
     auto options = static_cast<get_options_t>(
@@ -354,7 +357,7 @@ TEST_P(CollectionsEraserTest, default_Destroy) {
 TEST_P(CollectionsEraserTest, erase_and_reset) {
     // Add two collections
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
 
     flushVBucketToDiskIfPersistent(vbid, 2 /* 1x system */);
 
@@ -373,7 +376,8 @@ TEST_P(CollectionsEraserTest, erase_and_reset) {
     flushVBucketToDiskIfPersistent(vbid, 4 /* 2x items */);
 
     // delete the collections and re-add a new dairy
-    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::fruit)
+    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                           makeManifest(cm.remove(CollectionEntry::fruit)
                                                 .remove(CollectionEntry::dairy)
                                                 .add(CollectionEntry::dairy2)));
 
@@ -411,7 +415,7 @@ TEST_P(CollectionsEraserTest, erase_and_reset) {
 TEST_P(CollectionsEraserTest, basic_deleted_items) {
     // add a collection
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
 
     flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
 
@@ -428,7 +432,7 @@ TEST_P(CollectionsEraserTest, basic_deleted_items) {
     EXPECT_EQ(1, vb->getNumItems());
 
     // delete the collection
-    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::dairy)));
+    setCollections(cookie, cm.remove(CollectionEntry::dairy));
 
     // @todo MB-26334: persistent buckets don't track the system event counts
     if (!persistent()) {
@@ -457,7 +461,7 @@ TEST_P(CollectionsEraserTest, basic_deleted_items) {
 TEST_P(CollectionsEraserTest, tombstone_cleaner) {
     // add a collection
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
 
     flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
 
@@ -473,7 +477,7 @@ TEST_P(CollectionsEraserTest, tombstone_cleaner) {
     EXPECT_EQ(2, vb->getNumItems());
 
     // delete the collection
-    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::dairy)));
+    setCollections(cookie, cm.remove(CollectionEntry::dairy));
 
     // @todo MB-26334: persistent buckets don't track the system event counts
     if (!persistent()) {
@@ -523,7 +527,7 @@ TEST_P(CollectionsEraserTest, erase_after_warmup) {
 
     // add a collection
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
 
     flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
 
@@ -542,7 +546,7 @@ TEST_P(CollectionsEraserTest, erase_after_warmup) {
     evict_key(vbid, StoredDocKey{"dairy:butter", CollectionEntry::dairy});
 
     // delete the collection
-    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::dairy)));
+    setCollections(cookie, cm.remove(CollectionEntry::dairy));
 
     flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
     vb.reset();
@@ -591,7 +595,7 @@ TEST_P(CollectionsEraserTest, MB_39113) {
     }
     // add two collections
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
 
     // add some items
     store_item(
@@ -600,7 +604,7 @@ TEST_P(CollectionsEraserTest, MB_39113) {
                StoredDocKey{"dairy:butter", CollectionEntry::dairy},
                "lovely");
 
-    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
     store_item(
             vbid, StoredDocKey{"fruit:apple", CollectionEntry::fruit}, "nice");
     store_item(vbid,
@@ -618,7 +622,7 @@ TEST_P(CollectionsEraserTest, MB_39113) {
     EXPECT_EQ(0, vb->getNumItems());
 
     // delete the collections
-    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::dairy)));
+    setCollections(cookie, cm.remove(CollectionEntry::dairy));
 
     EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
     EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::fruit));
@@ -628,7 +632,7 @@ TEST_P(CollectionsEraserTest, MB_39113) {
 
     EXPECT_EQ(0, vb->getNumItems());
 
-    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::fruit)));
+    setCollections(cookie, cm.remove(CollectionEntry::fruit));
 
     // Purge deleted items with lower seqnos
     EXPECT_NO_THROW(runCollectionsEraser(vbid););
@@ -647,7 +651,7 @@ TEST_P(CollectionsEraserTest, MB_38313) {
         return;
     }
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
 
     // add some items
     store_item(vbid, StoredDocKey{"milk", CollectionEntry::dairy}, "nice");
@@ -655,7 +659,7 @@ TEST_P(CollectionsEraserTest, MB_38313) {
     flushVBucketToDiskIfPersistent(vbid, 2 /* 1x system 2x items */);
 
     // delete the collection
-    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::dairy)));
+    setCollections(cookie, cm.remove(CollectionEntry::dairy));
     flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
 
     // A drop sets compaction with a future run time, poke it forwards
@@ -682,7 +686,7 @@ TEST_P(CollectionsEraserTest, MB_50747_ItemCountOvercount) {
             {{"topology", nlohmann::json::array({{"active", "replica"}})}});
 
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     auto* kvStore = store->getRWUnderlying(vbid);
@@ -715,7 +719,7 @@ TEST_P(CollectionsEraserTest, MB_50747_ItemCountOvercount) {
     }
 
     // Drop the collection
-    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::dairy)));
+    setCollections(cookie, cm.remove(CollectionEntry::dairy));
     flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
 
     runCollectionsEraser(vbid);
@@ -736,7 +740,7 @@ TEST_P(CollectionsEraserTest, PrepareCountCorrectAfterErase) {
             {{"topology", nlohmann::json::array({{"active", "replica"}})}});
 
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     auto* kvStore = store->getRWUnderlying(vbid);
@@ -802,7 +806,7 @@ TEST_P(CollectionsEraserTest, PrepareCountCorrectAfterErase) {
     }
 
     // delete the collection
-    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::dairy)));
+    setCollections(cookie, cm.remove(CollectionEntry::dairy));
     flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
 
     runCollectionsEraser(vbid);
@@ -835,7 +839,7 @@ void CollectionsEraserTest::testCollectionPurgedItemsCorrectAfterDrop(
     // Need to update manifest uid so that we don't fail to flush due to going
     // backwards
     cm.updateUid(4);
-    vb->updateFromManifest(makeManifest(cm.remove(collection)));
+    setCollections(cookie, cm.remove(collection));
     flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
 
     if (isPersistent()) {
@@ -892,7 +896,7 @@ TEST_P(CollectionsEraserTest, CollectionPurgedItemsCorrectAfterDropDefaultC) {
 
 TEST_P(CollectionsEraserTest, CollectionPurgedItemsCorrectAfterDrop) {
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     testCollectionPurgedItemsCorrectAfterDrop(
@@ -901,10 +905,10 @@ TEST_P(CollectionsEraserTest, CollectionPurgedItemsCorrectAfterDrop) {
 
 TEST_P(CollectionsEraserTest, DropEmptyCollection) {
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::dairy)));
+    setCollections(cookie, cm.remove(CollectionEntry::dairy));
     flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
 
     if (persistent()) {
@@ -930,7 +934,7 @@ void CollectionsEraserTest::testScopePurgedItemsCorrectAfterDrop(
 
     // Need to update manifest uid so that we don't fail to flush due to going
     // backwards
-    vb->updateFromManifest(makeManifest(cm.remove(scope)));
+    setCollections(cookie, cm.remove(scope));
     flushVBucketToDiskIfPersistent(
             vbid, 2 /* 1 x scope drop and 1 x collection drop */);
 
@@ -985,7 +989,7 @@ TEST_P(CollectionsEraserTest, ScopePurgedItemsCorrectAfterDrop) {
     CollectionsManifest cm;
     cm.add(ScopeEntry::shop1);
     cm.add(CollectionEntry::dairy, cb::ExpiryLimit{0}, ScopeEntry::shop1);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     testScopePurgedItemsCorrectAfterDrop(
@@ -995,7 +999,8 @@ TEST_P(CollectionsEraserTest, ScopePurgedItemsCorrectAfterDrop) {
 void CollectionsEraserTest::expiryResurrectionTestSetup(Item& item) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::dairy);
-    vb->updateFromManifest(makeManifest(cm));
+    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                           makeManifest(cm));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Add the item that we want to expire
@@ -1005,12 +1010,14 @@ void CollectionsEraserTest::expiryResurrectionTestSetup(Item& item) {
 
     // Drop the old gen collection
     cm.remove(CollectionEntry::dairy);
-    vb->updateFromManifest(makeManifest(cm));
+    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                           makeManifest(cm));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Add new gen
     cm.add(CollectionEntry::dairy);
-    vb->updateFromManifest(makeManifest(cm));
+    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                           makeManifest(cm));
     flushVBucketToDiskIfPersistent(vbid, 1);
 }
 
@@ -1123,13 +1130,17 @@ public:
 protected:
     void addCollection() {
         cm.add(CollectionEntry::dairy);
-        vb->updateFromManifest(makeManifest(cm));
+        vb->updateFromManifest(
+                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                makeManifest(cm));
         flushVBucketToDiskIfPersistent(vbid, 1);
     }
 
     void dropCollection() {
         cm.remove(CollectionEntry::dairy);
-        vb->updateFromManifest(makeManifest(cm));
+        vb->updateFromManifest(
+                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                makeManifest(cm));
         flushVBucketToDiskIfPersistent(vbid, 1);
     }
 
@@ -1503,7 +1514,7 @@ TEST_P(CollectionsEraserSyncWriteTest, EraserFindsPrepares) {
             {{"topology", nlohmann::json::array({{"active", "replica"}})}});
 
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Do our SyncWrite
@@ -1525,7 +1536,7 @@ TEST_P(CollectionsEraserSyncWriteTest, EraserFindsPrepares) {
     flushVBucketToDiskIfPersistent(vbid, 1 /* 1x items */);
 
     // delete the collection
-    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::dairy)));
+    setCollections(cookie, cm.remove(CollectionEntry::dairy));
     flushVBucketToDiskIfPersistent(vbid, 1 /* 1 x system */);
 
     runCollectionsEraser(vbid);
@@ -1561,7 +1572,7 @@ void CollectionsEraserPersistentOnly::testEmptyCollectionsWithPending(
 
     // Create two collections
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
 
     // 2x collection creates
     int waitingForFlush = 2;
@@ -1601,8 +1612,10 @@ void CollectionsEraserPersistentOnly::testEmptyCollectionsWithPending(
     }
 
     // Delete the collections
-    vb->updateFromManifest(makeManifest(
-            cm.remove(CollectionEntry::dairy).remove(CollectionEntry::fruit)));
+    vb->updateFromManifest(
+            folly::SharedMutex::ReadHolder(vb->getStateLock()),
+            makeManifest(cm.remove(CollectionEntry::dairy)
+                                 .remove(CollectionEntry::fruit)));
     waitingForFlush += 2;
 
     auto flusherDedupe = !store->getOneROUnderlying()
@@ -1652,7 +1665,7 @@ void CollectionsEraserPersistentOnly::testEmptyCollections(
         bool flushInTheMiddle) {
     // Create two collections
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
     auto& kvs = *vb->getShard()->getRWUnderlying();
 
     // The flusher will see the drop as a separate event or in the same batch
@@ -1688,8 +1701,10 @@ void CollectionsEraserPersistentOnly::testEmptyCollections(
     EXPECT_EQ(0, vb->getNumItems());
 
     // Drop the collections
-    vb->updateFromManifest(makeManifest(
-            cm.remove(CollectionEntry::dairy).remove(CollectionEntry::fruit)));
+    vb->updateFromManifest(
+            folly::SharedMutex::ReadHolder(vb->getStateLock()),
+            makeManifest(cm.remove(CollectionEntry::dairy)
+                                 .remove(CollectionEntry::fruit)));
 
     auto expected = 2; // 2 system
     auto flusherDedupe = !store->getOneROUnderlying()
@@ -1739,15 +1754,15 @@ TEST_P(CollectionsEraserPersistentOnly, DropManyCompactOnce) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::fruit);
     cm.add(CollectionEntry::vegetable);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "red");
     store_item(vbid, StoredDocKey{"sprout", CollectionEntry::vegetable}, "yum");
     flushVBucketToDiskIfPersistent(vbid, 4);
 
-    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::fruit)));
+    setCollections(cookie, cm.remove(CollectionEntry::fruit));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
-    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::vegetable)));
+    setCollections(cookie, cm.remove(CollectionEntry::vegetable));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     EXPECT_EQ(1,
@@ -1778,7 +1793,7 @@ TEST_P(CollectionsEraserPersistentOnly, DropManyCompactOnce) {
 TEST_P(CollectionsEraserPersistentOnly, DocAliveCollRecreateDocAliveCollPurge) {
     // Flush the initial create
     CollectionsManifest cm;
-    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // DocAlive
@@ -1786,11 +1801,11 @@ TEST_P(CollectionsEraserPersistentOnly, DocAliveCollRecreateDocAliveCollPurge) {
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Collection Drop
-    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::fruit)));
+    setCollections(cookie, cm.remove(CollectionEntry::fruit));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Collection Create
-    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // DocAlive
@@ -1819,7 +1834,7 @@ TEST_P(CollectionsEraserPersistentOnly,
        DocAliveCollRecreateDocDeleteCollPurge) {
     // Flush the create
     CollectionsManifest cm;
-    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // DocAlive
@@ -1827,11 +1842,11 @@ TEST_P(CollectionsEraserPersistentOnly,
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Collection Drop
-    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::fruit)));
+    setCollections(cookie, cm.remove(CollectionEntry::fruit));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Collection Create
-    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // DocDelete
@@ -1863,7 +1878,7 @@ TEST_P(CollectionsEraserPersistentOnly,
        DocDeleteCollRecreateDocAliveCollPurge) {
     // Flush the create
     CollectionsManifest cm;
-    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // DocDelete
@@ -1878,11 +1893,11 @@ TEST_P(CollectionsEraserPersistentOnly,
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Collection Drop
-    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::fruit)));
+    setCollections(cookie, cm.remove(CollectionEntry::fruit));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Collection Create
-    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // DocAlive
@@ -1902,7 +1917,7 @@ TEST_P(CollectionsEraserPersistentOnly,
        DocDeleteCollRecreateDocDeleteCollPurge) {
     // Flush the create
     CollectionsManifest cm;
-    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // DocDelete
@@ -1917,11 +1932,11 @@ TEST_P(CollectionsEraserPersistentOnly,
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Collection Drop
-    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::fruit)));
+    setCollections(cookie, cm.remove(CollectionEntry::fruit));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Collection Create
-    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // DocDelete
@@ -2121,14 +2136,14 @@ public:
 TEST_P(CollectionsEraserPersistentWithFailure, FailAndRetry) {
     // Flush the create
     CollectionsManifest cm;
-    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "red");
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Collection Drop
-    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::fruit)));
+    setCollections(cookie, cm.remove(CollectionEntry::fruit));
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     size_t preFailure = engine->getEpStats().compactionFailed;
@@ -2152,13 +2167,13 @@ TEST_P(CollectionsEraserPersistentWithFailure, FailAndRetry) {
 TEST_P(CollectionsEraserTest, MB_50747_delete_and_drop) {
     // add a collection
     CollectionsManifest cm(CollectionEntry::fruit);
-    vb->updateFromManifest(makeManifest(cm));
+    setCollections(cookie, cm);
     auto key = makeStoredDocKey("peach", CollectionEntry::fruit);
     store_item(vbid, key, "value");
     flushVBucketToDiskIfPersistent(vbid, 2);
 
     delete_item(vbid, key);
-    vb->updateFromManifest(makeManifest(cm.remove(CollectionEntry::fruit)));
+    setCollections(cookie, cm.remove(CollectionEntry::fruit));
 
     flushVBucketToDiskIfPersistent(vbid, 2);
     runCollectionsEraser(vbid);

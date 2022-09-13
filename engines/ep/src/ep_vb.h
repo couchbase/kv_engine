@@ -250,6 +250,7 @@ public:
      * Update failovers, checkpoint mgr and other vBucket members after
      * rollback.
      *
+     * @param vbStateLock a lock on the VBucket state
      * @param rollbackResult contains high seqno of the vBucket after rollback,
      *                       snapshot start seqno of the last snapshot in the
      *                       vBucket after the rollback,
@@ -258,7 +259,8 @@ public:
      * @param prevHighSeqno high seqno before the rollback
      * @param bucket The KVBucket which logically owns the VBucket
      */
-    void postProcessRollback(const RollbackResult& rollbackResult,
+    void postProcessRollback(VBucketStateLockRef vbStateLock,
+                             const RollbackResult& rollbackResult,
                              uint64_t prevHighSeqno,
                              KVBucket& bucket);
 
@@ -441,9 +443,11 @@ private:
     /**
      * Update collections following a rollback
      *
+     * @param vbStateLock A lock on the VBucket state
      * @param bucket The KVBucket which logically owns the VBucket
      */
-    void collectionsRolledBack(KVBucket& bucket);
+    void collectionsRolledBack(VBucketStateLockRef vbStateLock,
+                               KVBucket& bucket);
 
     /**
      * Clears all checkpoints and high-seqno in CM and resets the DWQ counters.

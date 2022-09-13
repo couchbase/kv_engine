@@ -43,7 +43,7 @@ public:
         CollectionsTest::SetUp();
         vb = store->getVBucket(vbid);
         auto m = makeManifest(cm);
-        vbm.update(*vb, m);
+        vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
         cookie = create_mock_cookie();
     }
 
@@ -151,7 +151,7 @@ TEST_F(CollectionsVBFilterTest, validation1) {
             .add(CollectionEntry::fruit)
             .add(CollectionEntry::dairy);
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     std::vector<std::string> inputs = {R"({"uid":"a"})",
                                        R"({"collections":["0"]})",
@@ -176,7 +176,7 @@ TEST_F(CollectionsVBFilterTest, validation1_scope) {
     cm.add(CollectionEntry::fruit);
     cm.add(ScopeEntry::shop1).add(CollectionEntry::meat, ScopeEntry::shop1);
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     std::vector<std::string> inputs = {
             R"({"scope":"0"})",
@@ -202,7 +202,7 @@ TEST_F(CollectionsVBFilterTest, validation2) {
             .add(CollectionEntry::fruit)
             .add(CollectionEntry::dairy);
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     std::vector<std::string> inputs = {
             // wrong UID inputs
@@ -228,7 +228,7 @@ TEST_F(CollectionsVBFilterTest, validation2) {
  */
 TEST_F(CollectionsVBFilterTest, validation2_scope) {
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     std::vector<std::string> inputs = {
             R"({"scope":"9"})" // one unknown SID
@@ -254,7 +254,7 @@ TEST_F(CollectionsVBFilterTest, validation2_collections_and_scope) {
     cm.add(CollectionEntry::meat);
     cm.add(ScopeEntry::shop1);
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     std::vector<std::string> inputs = {
             R"({"scope":"8",
@@ -276,7 +276,7 @@ TEST_F(CollectionsVBFilterTest, validation2_collections_and_scope) {
 TEST_F(CollectionsVBFilterTest, validation2_empty_scope) {
     cm.add(ScopeEntry::shop1);
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     std::string input = R"({"scope":"8"})";
     std::optional<std::string_view> json(input);
@@ -300,7 +300,7 @@ TEST_F(CollectionsVBFilterTest, validation_no_default) {
             .add(CollectionEntry::fruit)
             .add(CollectionEntry::dairy);
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     std::optional<std::string_view> json;
     try {
@@ -352,7 +352,7 @@ TEST_F(CollectionsVBFilterTest, filter_basic1) {
             .add(CollectionEntry::fruit)
             .add(CollectionEntry::dairy);
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     std::string jsonFilter = R"({"collections":["0", "8", "9"]})";
     std::optional<std::string_view> json(jsonFilter);
@@ -377,7 +377,7 @@ TEST_F(CollectionsVBFilterTest, filter_basic1) {
 TEST_F(CollectionsVBFilterTest, filter_basic1_default_scope) {
     cm.add(CollectionEntry::meat);
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     std::string jsonFilter = R"({"scope":"0"})";
     std::optional<std::string_view> json(jsonFilter);
@@ -396,7 +396,7 @@ TEST_F(CollectionsVBFilterTest, filter_basic1_default_scope) {
 TEST_F(CollectionsVBFilterTest, filter_basic1_non_default_scope) {
     cm.add(ScopeEntry::shop1).add(CollectionEntry::meat, ScopeEntry::shop1);
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     std::string jsonFilter = R"({"scope":"8"})";
     std::optional<std::string_view> json(jsonFilter);
@@ -420,7 +420,7 @@ TEST_F(CollectionsVBFilterTest, filter_basic2) {
             .add(CollectionEntry::fruit)
             .add(CollectionEntry::dairy);
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     std::string jsonFilter; // empty string creates a pass through
     std::optional<std::string_view> json(jsonFilter);
@@ -444,7 +444,7 @@ TEST_F(CollectionsVBFilterTest, filter_legacy) {
             .add(CollectionEntry::fruit)
             .add(CollectionEntry::dairy);
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     // No string...
     std::optional<std::string_view> json;
@@ -471,7 +471,7 @@ TEST_F(CollectionsVBFilterTest, basic_allow) {
             .add(CollectionEntry::fruit)
             .add(CollectionEntry::dairy);
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     std::string jsonFilter = R"({"collections":["0", "8", "9"]})";
     std::optional<std::string_view> json(jsonFilter);
@@ -526,7 +526,7 @@ TEST_F(CollectionsVBFilterTest, basic_allow_default_scope) {
             .add(ScopeEntry::shop1)
             .add(CollectionEntry::dairy2, ScopeEntry::shop1);
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     std::string jsonFilter = R"({"scope":"0"})";
     std::optional<std::string_view> json(jsonFilter);
@@ -566,7 +566,7 @@ TEST_F(CollectionsVBFilterTest, basic_allow_non_default_scope) {
             .add(ScopeEntry::shop1)
             .add(CollectionEntry::dairy2, ScopeEntry::shop1);
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     std::string jsonFilter = R"({"scope":"8"})";
     std::optional<std::string_view> json(jsonFilter);
@@ -606,7 +606,7 @@ TEST_F(CollectionsVBFilterTest, basic_allow_non_default_scope) {
 TEST_F(CollectionsVBFilterTest, legacy_filter) {
     cm.add(CollectionEntry::meat);
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     std::optional<std::string_view> json;
 
@@ -634,7 +634,7 @@ TEST_F(CollectionsVBFilterTest, legacy_filter) {
 TEST_F(CollectionsVBFilterTest, passthrough) {
     cm.add(CollectionEntry::meat);
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     std::string filterJson; // empty string
     std::optional<std::string_view> json(filterJson);
@@ -687,7 +687,7 @@ TEST_F(CollectionsVBFilterTest, no_default) {
             .add(CollectionEntry::fruit)
             .add(CollectionEntry::dairy);
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     std::string jsonFilter = R"({"collections":["8", "9"]})";
     std::optional<std::string_view> json(jsonFilter);
@@ -743,7 +743,7 @@ TEST_F(CollectionsVBFilterTest, remove1) {
             .add(CollectionEntry::dairy);
 
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     std::string jsonFilter = R"({"collections":["8", "9"]})";
     std::optional<std::string_view> json(jsonFilter);
@@ -809,7 +809,7 @@ TEST_F(CollectionsVBFilterTest, remove2) {
             .add(CollectionEntry::dairy);
 
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     std::string jsonFilter = R"({"collections":["0", "8"]})";
     std::optional<std::string_view> json(jsonFilter);
@@ -883,7 +883,7 @@ TEST_F(CollectionsVBFilterTest, system_events1) {
     cm.add(CollectionEntry::meat).add(CollectionEntry::fruit);
 
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     std::string jsonFilter;
     std::optional<std::string_view> json(jsonFilter);
@@ -917,7 +917,7 @@ TEST_F(CollectionsVBFilterTest, system_events2) {
             .add(CollectionEntry::fruit)
             .add(CollectionEntry::dairy);
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     // only events for default and meat are allowed
     std::string jsonFilter = R"({"collections":["0", "8"]})";
@@ -965,7 +965,7 @@ TEST_F(CollectionsVBFilterTest, system_events2_default_scope) {
             .add(ScopeEntry::shop1)
             .add(CollectionEntry::meat, ScopeEntry::shop1);
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     // Only events for defaultC and dairy are allowed
     std::string jsonFilter = R"({"scope":"0"})";
@@ -1013,7 +1013,7 @@ TEST_F(CollectionsVBFilterTest, system_events2_non_default_scope) {
             .add(ScopeEntry::shop1)
             .add(CollectionEntry::meat, ScopeEntry::shop1);
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     // Only events for meat are allowed
     std::string jsonFilter = R"({"scope":"8"})";
@@ -1063,7 +1063,7 @@ TEST_F(CollectionsVBFilterTest, system_events3) {
             .add(CollectionEntry::dairy);
 
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     std::optional<std::string_view> json;
 
@@ -1089,7 +1089,7 @@ TEST_F(CollectionsVBFilterTest, add_collection_to_scope_filter) {
     // Initially shop1 has the meat collection
     cm.add(ScopeEntry::shop1).add(CollectionEntry::meat, ScopeEntry::shop1);
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     std::string jsonFilter = R"({"scope":"8"})";
     std::optional<std::string_view> json(jsonFilter);
@@ -1120,7 +1120,7 @@ TEST_F(CollectionsVBFilterTest, remove_collection_from_scope_filter) {
             .add(CollectionEntry::meat, ScopeEntry::shop1)
             .add(CollectionEntry::dairy, ScopeEntry::shop1);
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     // scope 8 is shop1
     std::string jsonFilter = R"({"scope":"8"})";
@@ -1162,7 +1162,7 @@ TEST_F(CollectionsVBFilterTest, empty_scope_filter) {
     // Initially shop1 has no collections
     cm.add(ScopeEntry::shop1);
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     std::string jsonFilter = R"({"scope":"8"})";
     std::optional<std::string_view> json(jsonFilter);
@@ -1174,7 +1174,7 @@ TEST_F(CollectionsVBFilterTest, empty_scope_filter) {
     // Now add a new collection
     cm.add(CollectionEntry::meat, ScopeEntry::shop1);
     m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     // Meat system events are allowed
     auto ev = Collections::VB::Manifest::makeCollectionSystemEvent(
@@ -1196,7 +1196,7 @@ TEST_F(CollectionsVBFilterTest, snappy_event) {
     cm.remove(CollectionEntry::defaultC).add(CollectionEntry::fruit);
 
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     std::string jsonFilter = R"({"collections":["9"]})";
     std::optional<std::string_view> json(jsonFilter);
@@ -1255,7 +1255,7 @@ TEST_F(CollectionsVBFilterAccessControlTest, no_privilege_for_passthrough) {
             });
 
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
     std::string input;
     std::optional<std::string_view> json(input);
 
@@ -1285,7 +1285,7 @@ TEST_F(CollectionsVBFilterAccessControlTest, privilege_for_passthrough) {
             });
 
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
     std::string input;
     std::optional<std::string_view> json(input);
     Collections::VB::Filter f(json, vbm, *cookie, *engine);
@@ -1314,7 +1314,7 @@ TEST_F(CollectionsVBFilterAccessControlTest, privilege_check_for_collection) {
 
     cm.add(CollectionEntry::dairy).add(CollectionEntry::fruit);
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     // No access to fruit
     std::string input = R"({"collections":["9"]})";
@@ -1355,7 +1355,7 @@ TEST_F(CollectionsVBFilterAccessControlTest, privilege_check_for_collections) {
 
     cm.add(CollectionEntry::dairy).add(CollectionEntry::fruit);
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     // Multi collection request, but no access to fruit
     std::string input = R"({"collections":["c", "9"]})";
@@ -1394,7 +1394,7 @@ TEST_F(CollectionsVBFilterAccessControlTest, privilege_check_for_scope) {
 
     cm.add(ScopeEntry::shop1).add(ScopeEntry::shop2);
     auto m = makeManifest(cm);
-    vbm.update(*vb, m);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
 
     std::string input = R"({"scope":"8"})";
     std::optional<std::string_view> json(input);

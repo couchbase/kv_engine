@@ -417,8 +417,10 @@ protected:
         CollectionsManifest cm;
         // the roll back function will rewind disk to this collection state.
         // note: we add 'meat' and keep it empty, this reproduces MB-37940
-        vb->updateFromManifest(makeManifest(
-                cm.add(CollectionEntry::dairy).add(CollectionEntry::meat)));
+        vb->updateFromManifest(
+                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                makeManifest(cm.add(CollectionEntry::dairy)
+                                     .add(CollectionEntry::meat)));
 
         nlohmann::json htState;
         if (rollbackCollectionCreate) {
@@ -454,7 +456,9 @@ protected:
                   getEPBucket().flushVBucket(vbid));
 
         cm.remove(CollectionEntry::dairy);
-        vb->updateFromManifest(makeManifest(cm));
+        vb->updateFromManifest(
+                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                makeManifest(cm));
 
         // Expect failure to store
         store_item(vbid,

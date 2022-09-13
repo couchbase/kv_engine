@@ -1114,7 +1114,8 @@ std::function<void(int64_t)> EPVBucket::getSaveDroppedCollectionCallback(
     };
 }
 
-void EPVBucket::postProcessRollback(const RollbackResult& rollbackResult,
+void EPVBucket::postProcessRollback(VBucketStateLockRef vbStateLock,
+                                    const RollbackResult& rollbackResult,
                                     uint64_t prevHighSeqno,
                                     KVBucket& bucket) {
     const auto seqno = rollbackResult.highSeqno;
@@ -1129,12 +1130,13 @@ void EPVBucket::postProcessRollback(const RollbackResult& rollbackResult,
     setPersistenceSeqno(kvstore.getLastPersistedSeqno(getId()));
 
     // And update collections post rollback
-    collectionsRolledBack(bucket);
+    collectionsRolledBack(vbStateLock, bucket);
 
     setNumTotalItems(kvstore);
 }
 
-void EPVBucket::collectionsRolledBack(KVBucket& bucket) {
+void EPVBucket::collectionsRolledBack(VBucketStateLockRef vbStateLock,
+                                      KVBucket& bucket) {
     auto& kvstore = *bucket.getRWUnderlying(getId());
     auto [getManifestStatus, persistedManifest] =
             kvstore.getCollectionsManifest(getId());
@@ -1148,7 +1150,7 @@ void EPVBucket::collectionsRolledBack(KVBucket& bucket) {
 
     manifest = std::make_unique<Collections::VB::Manifest>(
             bucket.getSharedCollectionsManager(), persistedManifest);
-    auto wh = manifest->wlock();
+    auto wh = manifest->wlock(vbStateLock);
     // For each collection in the VB, reload the stats to the point before
     // the rollback seqno
     for (auto& collection : wh) {

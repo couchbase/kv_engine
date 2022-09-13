@@ -13,6 +13,8 @@
 
 #include "collections/vbucket_manifest.h"
 
+#include <utility>
+
 class CookieIface;
 class EventuallyPersistentEngine;
 class StatCollector;
@@ -652,17 +654,26 @@ protected:
  */
 class WriteHandle {
 public:
-    WriteHandle(Manifest& m, Manifest::mutex_type& lock)
-        : writeLock(lock), manifest(m) {
+    WriteHandle(Manifest& m,
+                // NOLINTNEXTLINE(modernize-pass-by-value)
+                VBucketStateLockRef vbStateLock,
+                Manifest::mutex_type& lock)
+        : vbStateLock(vbStateLock), writeLock(lock), manifest(m) {
     }
 
     WriteHandle(WriteHandle&& rhs)
-        : writeLock(std::move(rhs.writeLock)), manifest(rhs.manifest) {
+        : vbStateLock(rhs.vbStateLock),
+          writeLock(std::move(rhs.writeLock)),
+          manifest(rhs.manifest) {
     }
 
     WriteHandle(Manifest& m,
+                // NOLINTNEXTLINE(modernize-pass-by-value)
+                VBucketStateLockRef vbStateLock,
                 Manifest::mutex_type::UpgradeHolder&& upgradeHolder)
-        : writeLock(std::move(upgradeHolder)), manifest(m) {
+        : vbStateLock(vbStateLock),
+          writeLock(std::move(upgradeHolder)),
+          manifest(m) {
     }
 
     /**
@@ -685,7 +696,8 @@ public:
                        int64_t startSeqno) {
         // note: metered set to 'yes' and will later be checked/corrected if a
         // change to active occurs
-        manifest.createCollection(*this,
+        manifest.createCollection(vbStateLock,
+                                  *this,
                                   vb,
                                   manifestUid,
                                   identifiers,
@@ -709,8 +721,12 @@ public:
                      ManifestUid manifestUid,
                      CollectionID cid,
                      int64_t endSeqno) {
-        manifest.dropCollection(
-                *this, vb, manifestUid, cid, OptionalSeqno{endSeqno});
+        manifest.dropCollection(vbStateLock,
+                                *this,
+                                vb,
+                                manifestUid,
+                                cid,
+                                OptionalSeqno{endSeqno});
     }
 
     /**
@@ -727,7 +743,8 @@ public:
                             ScopeID sid,
                             std::string_view scopeName,
                             int64_t startSeqno) {
-        manifest.createScope(*this,
+        manifest.createScope(vbStateLock,
+                             *this,
                              vb,
                              manifestUid,
                              sid,
@@ -748,8 +765,12 @@ public:
                           ManifestUid manifestUid,
                           ScopeID sid,
                           int64_t endSeqno) {
-        manifest.dropScope(
-                *this, vb, manifestUid, sid, OptionalSeqno{endSeqno});
+        manifest.dropScope(vbStateLock,
+                           *this,
+                           vb,
+                           manifestUid,
+                           sid,
+                           OptionalSeqno{endSeqno});
     }
 
     /**
@@ -820,6 +841,7 @@ public:
     void dump();
 
 private:
+    VBucketStateLockRef vbStateLock;
     Manifest::mutex_type::WriteHolder writeLock;
     Manifest& manifest;
 };

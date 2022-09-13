@@ -1865,8 +1865,8 @@ Collections::VB::CachingReadHandle VBucket::lockCollections(
 }
 
 Collections::VB::ManifestUpdateStatus VBucket::updateFromManifest(
-        const Collections::Manifest& m) {
-    return manifest->update(*this, m);
+        VBucketStateLockRef vbStateLock, const Collections::Manifest& m) {
+    return manifest->update(vbStateLock, *this, m);
 }
 
 void VBucket::replicaCreateCollection(Collections::ManifestUid uid,
@@ -1880,7 +1880,7 @@ void VBucket::replicaCreateCollection(Collections::ManifestUid uid,
     // function is only called from PassiveStream, so the lock is not
     // technically required for now.
     folly::SharedMutex::ReadHolder rlh(stateLock);
-    manifest->wlock().replicaCreate(
+    manifest->wlock(rlh).replicaCreate(
             *this, uid, identifiers, collectionName, maxTtl, bySeqno);
 }
 
@@ -1893,7 +1893,7 @@ void VBucket::replicaDropCollection(Collections::ManifestUid uid,
     // function is only called from PassiveStream, so the lock is not
     // technically required for now.
     folly::SharedMutex::ReadHolder rlh(stateLock);
-    manifest->wlock().replicaDrop(*this, uid, cid, bySeqno);
+    manifest->wlock(rlh).replicaDrop(*this, uid, cid, bySeqno);
 }
 
 void VBucket::replicaCreateScope(Collections::ManifestUid uid,
@@ -1906,7 +1906,8 @@ void VBucket::replicaCreateScope(Collections::ManifestUid uid,
     // function is only called from PassiveStream, so the lock is not
     // technically required for now.
     folly::SharedMutex::ReadHolder rlh(stateLock);
-    manifest->wlock().replicaCreateScope(*this, uid, sid, scopeName, bySeqno);
+    manifest->wlock(rlh).replicaCreateScope(
+            *this, uid, sid, scopeName, bySeqno);
 }
 
 void VBucket::replicaDropScope(Collections::ManifestUid uid,
@@ -1918,7 +1919,7 @@ void VBucket::replicaDropScope(Collections::ManifestUid uid,
     // function is only called from PassiveStream, so the lock is not
     // technically required for now.
     folly::SharedMutex::ReadHolder rlh(stateLock);
-    manifest->wlock().replicaDropScope(*this, uid, sid, bySeqno);
+    manifest->wlock(rlh).replicaDropScope(*this, uid, sid, bySeqno);
 }
 
 cb::engine_errc VBucket::prepare(

@@ -186,7 +186,7 @@ public:
 
     CachingReadHandle lock(StoredDocKey&&, AllowSystemKeys tag) const = delete;
 
-    WriteHandle wlock();
+    WriteHandle wlock(VBucketStateLockRef vbStateLock);
 
     /**
      * Update from a Collections::Manifest
@@ -197,12 +197,14 @@ public:
      * Creation and deletion of a collection are pushed into the VBucket and
      * the seqno of updates is recorded in the manifest.
      *
+     * @param vbStateLock A read lock on the VBucket state.
      * @param vb The VBucket to update (queue data into).
      * @param manifest The incoming manifest to compare this object with.
      * @return ManifestUpdateStatus describing outcome (success or failed
      * reason)
      */
-    ManifestUpdateStatus update(VBucket& vb,
+    ManifestUpdateStatus update(VBucketStateLockRef vbStateLock,
+                                VBucket& vb,
                                 const Collections::Manifest& manifest);
 
     /**
@@ -382,7 +384,8 @@ protected:
      * @param vb Vbucket to apply update to
      * @param changes Set of changes to make
      */
-    void completeUpdate(mutex_type::UpgradeHolder&& upgradeLock,
+    void completeUpdate(VBucketStateLockRef vbStateLock,
+                        mutex_type::UpgradeHolder&& upgradeLock,
                         ::VBucket& vb,
                         ManifestChanges& changes);
 
@@ -406,20 +409,24 @@ protected:
      * @return the last element which has been removed from the changes vector
      */
     std::optional<CollectionCreation> applyCreates(
+            VBucketStateLockRef vbStateLock,
             const WriteHandle& wHandle,
             ::VBucket& vb,
             std::vector<CollectionCreation>& changes);
 
-    std::optional<CollectionID> applyDrops(WriteHandle& wHandle,
+    std::optional<CollectionID> applyDrops(VBucketStateLockRef vbStateLock,
+                                           WriteHandle& wHandle,
                                            ::VBucket& vb,
                                            std::vector<CollectionID>& changes);
 
     std::optional<ScopeCreation> applyScopeCreates(
+            VBucketStateLockRef vbStateLock,
             const WriteHandle& wHandle,
             ::VBucket& vb,
             std::vector<ScopeCreation>& changes);
 
-    std::optional<ScopeID> applyScopeDrops(const WriteHandle& wHandle,
+    std::optional<ScopeID> applyScopeDrops(VBucketStateLockRef vbStateLock,
+                                           const WriteHandle& wHandle,
                                            ::VBucket& vb,
                                            std::vector<ScopeID>& scopesToDrop);
 
@@ -438,7 +445,8 @@ protected:
      * @param optionalSeqno Either a seqno to assign to the new collection or
      *        none (none means the checkpoint will assign a seqno).
      */
-    void createCollection(const WriteHandle& wHandle,
+    void createCollection(VBucketStateLockRef vbStateLock,
+                          const WriteHandle& wHandle,
                           ::VBucket& vb,
                           ManifestUid newManUid,
                           ScopeCollectionPair identifiers,
@@ -459,7 +467,8 @@ protected:
      * @param optionalSeqno Either a seqno to assign to the delete of the
      *        collection or none (none means the checkpoint assigns the seqno).
      */
-    void dropCollection(WriteHandle& wHandle,
+    void dropCollection(VBucketStateLockRef vbStateLock,
+                        WriteHandle& wHandle,
                         ::VBucket& vb,
                         ManifestUid newManUid,
                         CollectionID cid,
@@ -483,6 +492,7 @@ protected:
     /**
      * Create a scope in the vbucket.
      *
+     * @param vbStateLock read lock on the vBucket state.
      * @param wHandle The manifest write handle under which this operation is
      *        currently locked. Required to ensure we lock correctly around
      *        VBucket::notifyNewSeqno
@@ -494,7 +504,8 @@ protected:
      * @param optionalSeqno Either a seqno to assign to the new collection or
      *        none (none means the checkpoint will assign a seqno).
      */
-    void createScope(const WriteHandle& wHandle,
+    void createScope(VBucketStateLockRef vbStateLock,
+                     const WriteHandle& wHandle,
                      ::VBucket& vb,
                      ManifestUid newManUid,
                      ScopeID sid,
@@ -528,7 +539,8 @@ protected:
      * @param optionalSeqno Either a seqno to assign to the drop of the
      *        scope or none (none means the checkpoint will assign the seqno)
      */
-    void dropScope(const WriteHandle& wHandle,
+    void dropScope(VBucketStateLockRef vbStateLock,
+                   const WriteHandle& wHandle,
                    ::VBucket& vb,
                    ManifestUid newManUid,
                    ScopeID sid,
@@ -993,6 +1005,7 @@ protected:
      * @returns The sequence number of the queued Item.
      */
     uint64_t queueCollectionSystemEvent(
+            VBucketStateLockRef vbStateLock,
             const WriteHandle& wHandle,
             ::VBucket& vb,
             CollectionID cid,

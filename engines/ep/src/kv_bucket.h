@@ -364,6 +364,12 @@ public:
         return vbsetMutex;
     }
 
+    /**
+     * Takes a read lock on all vbucket states.
+     * Must always be called after locking vbsetMutex.
+     */
+    VBucketStateLockMap<folly::SharedMutex::ReadHolder> lockAllVBucketStates();
+
     cb::engine_errc deleteVBucket(Vbid vbid,
                                   const CookieIface* c = nullptr) override;
 
