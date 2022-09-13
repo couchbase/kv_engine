@@ -11,21 +11,17 @@
 #pragma once
 
 #include <folly/SharedMutex.h>
-#include <gsl/gsl-lite.hpp>
 
 namespace cb {
 
 /**
- * An opaque reference to a lock holder. This could be any of:
- * - folly::SharedMutex::ReadHolder
- * - folly::SharedMutex::WriteHolder
- * - std::lock_guard<std::mutex>
- * - std::unique_lock<std::mutex>
+ * An opaque reference to either of SharedMutex::ReadHolder or
+ * SharedMutex::WriteHolder.
  *
  * The intention is to provide the same level of assurance that a lock is held
- * as that achieved by passing the lock holder by const& into functions. The
- * user of this struct needs to make sure that the proper locks are used and
- * that the lock used to initialize this object outlives this tag.
+ * as that achieved by passing the ReadHolder/WriteHolder by const& into
+ * functions. The user of this struct needs to make sure that the proper locks
+ * are used and that the lock used to initialize this object outlives this tag.
  *
  * Caveat: Cannot unlock(), upgrade/downgrade the locks. This type has the
  * semantics of a _const_ reference.
@@ -37,13 +33,6 @@ namespace cb {
 template <typename Tag = void>
 class SharedLockRef {
 public:
-    SharedLockRef(const std::unique_lock<std::mutex>& uhl) : ptr(&uhl) {
-        Expects(uhl.owns_lock());
-    }
-
-    SharedLockRef(const std::lock_guard<std::mutex>& lg) : ptr(&lg) {
-    }
-
     SharedLockRef(const folly::SharedMutex::ReadHolder& rhl) : ptr(&rhl) {
     }
 
