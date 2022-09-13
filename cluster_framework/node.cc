@@ -159,40 +159,6 @@ void NodeImpl::startMemcachedServer() {
         }
     });
 
-    if (getenv("MEMCACHED_UNIT_TESTS")) {
-        // The test _SHOULD_ complete under 120 seconds in base runs,
-        // takes longer under TSan.
-        const auto timeout = folly::kIsSanitizeThread ? 300s : 120s;
-        child->setTimeoutHander(timeout, [this]() {
-            static std::mutex mutex;
-            std::lock_guard<std::mutex> guard(mutex);
-            std::cerr << "memcached process on " << directory.generic_string()
-                      << " might be stuck." << std::endl;
-
-            // We've set the cycle size to be 200M so we should expect
-            // only a single log file (but for simplicity just iterate
-            // over them all and print the last 8k of each file
-            std::cerr << "Last 8k of the log files" << std::endl
-                      << "========================" << std::endl;
-            for (const auto& p :
-                 std::filesystem::directory_iterator(directory / "log")) {
-                if (is_regular_file(p)) {
-                    auto content = cb::io::loadFile(p.path().generic_string());
-                    if (content.size() > 8192) {
-                        content = content.substr(
-                                content.find('\n', content.size() - 8192));
-                    }
-                    std::cerr << p.path().generic_string() << std::endl
-                              << content << std::endl
-                              << "-----------------------------" << std::endl;
-                }
-            }
-            // Wait 2 secs before terminating so that the other nodes also
-            // may have their timouts fire and dump the logs..
-            std::this_thread::sleep_for(std::chrono::seconds{2});
-            std::exit(EXIT_FAILURE);
-        });
-    }
     // wait and read the portnumber file
     parsePortnumberFile();
 }
