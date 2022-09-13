@@ -401,7 +401,7 @@ void DcpConnMap::notifyVBConnections(Vbid vbid,
     for (auto& vbConn : connStore->getConnsForVBHandle(vbid)) {
         auto* producer = dynamic_cast<DcpProducer*>(&vbConn.connHandler);
         if (producer) {
-            producer->notifySeqnoAvailable(vbid, bySeqno, syncWrite);
+            producer->notifySeqnoAvailable(vbid, syncWrite);
         }
     }
 }
