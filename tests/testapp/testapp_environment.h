@@ -115,8 +115,7 @@ class McdEnvironment {
 public:
     virtual ~McdEnvironment() = default;
 
-    static McdEnvironment* create(bool manageSSL_,
-                                  const std::string& engineName,
+    static McdEnvironment* create(const std::string& engineName,
                                   const std::string& engineConfig);
 
     /**

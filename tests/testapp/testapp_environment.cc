@@ -19,7 +19,6 @@
 #include <platform/strerror.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
-#include <utilities/openssl_utils.h>
 #include <utilities/string_utilities.h>
 #include <filesystem>
 #include <fstream>
@@ -340,8 +339,7 @@ public:
 
 class McdEnvironmentImpl : public McdEnvironment {
 public:
-    McdEnvironmentImpl(bool manageSSL_,
-                       const std::string& engineName,
+    McdEnvironmentImpl(const std::string& engineName,
                        const std::string& engineConfig)
         : test_directory(absolute(std::filesystem::path(
                   cb::io::mkdtemp("memcached_testapp.")))),
@@ -353,14 +351,9 @@ public:
           audit_log_dir(test_directory / "audittrail"),
           minidump_dir(test_directory / "crash"),
           log_dir(test_directory / "log"),
-          manageSSL(manageSSL_),
           ipaddresses(cb::net::getIpAddresses(false)) {
         create_directories(minidump_dir);
         create_directories(log_dir);
-
-        if (manageSSL) {
-            initialize_openssl();
-        }
 
         // We need to set MEMCACHED_UNIT_TESTS to enable the use of
         // the ewouldblock engine..
@@ -455,10 +448,6 @@ public:
     }
 
     void terminate(int exitcode) override {
-        if (manageSSL) {
-            shutdown_openssl();
-        }
-
         unsetenv("MEMCACHED_UNIT_TESTS");
         unsetenv("MEMCACHED_TOP_KEYS");
         unsetenv("CBSASL_PWFILE");
@@ -623,7 +612,6 @@ private:
     const std::filesystem::path audit_log_dir;
     const std::filesystem::path minidump_dir;
     const std::filesystem::path log_dir;
-    const bool manageSSL;
     /// first entry is IPv4 addresses, second is IPv6
     /// (see cb::net::getIPAdresses)
     const std::pair<std::vector<std::string>, std::vector<std::string>>
@@ -635,8 +623,7 @@ private:
     cb::sasl::pwdb::MutablePasswordDatabase passwordDatabase;
 };
 
-McdEnvironment* McdEnvironment::create(bool manageSSL_,
-                                       const std::string& engineName,
+McdEnvironment* McdEnvironment::create(const std::string& engineName,
                                        const std::string& engineConfig) {
-    return new McdEnvironmentImpl(manageSSL_, engineName, engineConfig);
+    return new McdEnvironmentImpl(engineName, engineConfig);
 }
