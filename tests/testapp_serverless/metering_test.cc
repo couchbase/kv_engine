@@ -3211,12 +3211,7 @@ void MeteringTest::testRangeScan(bool keyOnly) {
     EXPECT_FALSE(resp.getWriteUnits());
 
     if (isUnmetered()) {
-        // @todo: The continue/metering doesn't yet know the collection so will
-        // return usage. KV needs to update the metering state as the cookie
-        // is passed to RangeScan
-        if (GetParam() == MeteringType::UnmeteredByPrivilege) {
-            EXPECT_FALSE(resp.getReadUnits());
-        }
+        EXPECT_FALSE(resp.getReadUnits());
     } else if (keyOnly) {
         EXPECT_EQ(to_ru(doc.info.id.size()), *resp.getReadUnits());
     } else {

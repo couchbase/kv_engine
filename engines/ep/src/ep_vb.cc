@@ -1368,13 +1368,38 @@ cb::engine_errc EPVBucket::addNewRangeScan(std::shared_ptr<RangeScan> scan) {
             std::move(scan), *this, bucket->getEPEngine().getTaskable());
 }
 
+cb::engine_errc EPVBucket::setupCookieForRangeScan(cb::rangescan::Id id,
+                                                   CookieIface& cookie) {
+    CollectionID cid;
+    {
+        auto scan = rangeScans.getScan(id);
+        if (!scan) {
+            return cb::engine_errc::no_such_key;
+        }
+        cid = scan->getCollectionID();
+    }
+
+    auto [uid, entry] = bucket->getCollectionEntry(cid);
+    if (!entry) {
+        bucket->getEPEngine().setUnknownCollectionErrorContext(&cookie, uid);
+        return cb::engine_errc::unknown_collection;
+    }
+    cookie.setCurrentCollectionInfo(
+            entry->sid, cid, uid, entry->metered == Collections::Metered::Yes);
+    return cb::engine_errc::success;
+}
+
 cb::engine_errc EPVBucket::continueRangeScan(
         cb::rangescan::Id id,
         const CookieIface& cookie,
         size_t itemLimit,
         std::chrono::milliseconds timeLimit,
         size_t byteLimit) {
-    auto status = rangeScans.hasPrivilege(id, cookie, bucket->getEPEngine());
+    auto status = setupCookieForRangeScan(id, const_cast<CookieIface&>(cookie));
+    if (status == cb::engine_errc::success) {
+        status = rangeScans.hasPrivilege(id, cookie, bucket->getEPEngine());
+    }
+
     if (status != cb::engine_errc::success) {
         // continue of a dropped collection detected, cancel the scan now as
         // this may sooner free resources than waiting for another path to

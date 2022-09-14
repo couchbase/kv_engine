@@ -227,6 +227,10 @@ public:
 
     /// dump the object to the ostream (default of cerr)
     void dump(std::ostream& os = std::cerr) const;
+
+    /// @return the collection being scanned
+    CollectionID getCollectionID() const;
+
     /**
      * To facilitate testing, the now function, which returns a time point can
      * be replaced

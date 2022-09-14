@@ -459,6 +459,14 @@ private:
                          StoredValue& value);
 
     /**
+     * Sets the collection info on the cookie for the given scan.
+     * @return no_such_key if the scan does not exist, unknown_collection if the
+     *         scan's collection no longer exists or success.
+     */
+    cb::engine_errc setupCookieForRangeScan(cb::rangescan::Id id,
+                                            CookieIface& cookie);
+
+    /**
      * Total number of alive (non-deleted), Committed items on-disk in this
      * vBucket (excludes Prepares).
      * Initially populated during warmup as the number of items on disk;

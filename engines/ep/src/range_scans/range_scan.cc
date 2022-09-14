@@ -668,6 +668,10 @@ void RangeScan::dump(std::ostream& os) const {
     fmt::print(os, "\n");
 }
 
+CollectionID RangeScan::getCollectionID() const {
+    return start.getDocKey().getCollectionID();
+}
+
 void RangeScan::ContinueState::setupForIdle() {
     *this = {};
     state = State::Idle;
