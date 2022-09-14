@@ -14,7 +14,6 @@
 #include "collections/vbucket_manifest.h"
 #include "configuration.h"
 #include "environment.h"
-#include "item.h"
 #include "kvstore/kvstore_config.h"
 #include "kvstore/kvstore_iface.h"
 #include "kvstore/kvstore_transaction_context.h"
@@ -24,7 +23,6 @@
 #endif
 #include "tests/module_tests/test_helpers.h"
 #include "vbucket_state.h"
-
 #include <benchmark/benchmark.h>
 #include <executor/workload.h>
 #include <folly/portability/GTest.h>
@@ -35,21 +33,19 @@ using namespace std::string_literals;
 
 enum Storage {
     COUCHSTORE = 0
+#ifdef EP_USE_MAGMA
+    ,
+    MAGMA
+#endif
 #ifdef EP_USE_ROCKSDB
     ,
     ROCKSDB
 #endif
 };
 
-class MockWriteCallback {
-public:
-    void operator()(TransactionContext&, FlushStateMutation) {
-    }
-};
-
 class MockCacheCallback : public StatusCallback<CacheLookup> {
 public:
-    MockCacheCallback(){};
+    MockCacheCallback() = default;
     void callback(CacheLookup& lookup) override {
         // I want to simulate DGM scenarios where we have a HT-miss most times.
         // So, here I return what KVStore understands as "Item not in the
@@ -100,9 +96,15 @@ protected:
         case COUCHSTORE: {
             state.SetLabel("Couchstore");
             config.parseConfiguration(configStr + ";backend=couchdb");
-
             break;
         }
+#ifdef EP_USE_MAGMA
+        case MAGMA: {
+            state.SetLabel("Magma");
+            config.parseConfiguration(configStr + ";backend=magma");
+            break;
+        }
+#endif
 #ifdef EP_USE_ROCKSDB
         case ROCKSDB: {
             state.SetLabel("CouchRocks");
@@ -129,7 +131,6 @@ protected:
         // Load some data
         const std::string key = "key";
         std::string value = "value";
-        Vbid vbid = Vbid(0);
         auto ctx =
                 kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
         for (int i = 1; i <= numItems; i++) {
@@ -170,7 +171,7 @@ private:
 protected:
     std::unique_ptr<KVStoreConfig> kvstoreConfig;
     std::unique_ptr<KVStoreIface> kvstore;
-    Vbid vbid = Vbid(0);
+    Vbid vbid{0};
     int numItems;
 };
 
@@ -210,6 +211,9 @@ const int NUM_ITEMS = 100000;
 
 BENCHMARK_REGISTER_F(KVStoreBench, Scan)
         ->Args({NUM_ITEMS, COUCHSTORE})
+#ifdef EP_USE_MAGMA
+        ->Args({NUM_ITEMS, MAGMA})
+#endif
 #ifdef EP_USE_ROCKSDB
         ->Args({NUM_ITEMS, ROCKSDB})
 #endif
