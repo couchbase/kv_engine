@@ -3531,11 +3531,9 @@ DBFileInfo MagmaKVStore::getDbFileInfo(Vbid vbid) {
 }
 
 DBFileInfo MagmaKVStore::getAggrDbFileInfo() {
-    auto stats = magma->GetStats();
+    auto dataSizes = magma->GetDBSizeInfo();
     // @todo MB-42900: Track on-disk-prepare-bytes
-    DBFileInfo vbinfo{
-            stats->ActiveDiskUsage, stats->ActiveDataSize, 0 /*prepareBytes*/};
-    return vbinfo;
+    return {dataSizes.DiskSize, dataSizes.LogicalSize, 0};
 }
 
 Status MagmaKVStore::writeVBStateToDisk(Vbid vbid,

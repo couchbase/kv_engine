@@ -284,6 +284,11 @@ MagmaMemoryTrackingProxy::GetKVStoreStats(const magma::Magma::KVStoreID kvid) {
     return magma->GetKVStoreStats(kvid);
 }
 
+magma::DBSizeInfo MagmaMemoryTrackingProxy::GetDBSizeInfo() {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return magma->GetDBSizeInfo();
+}
+
 DomainAwareUniquePtr<magma::UserStats>
 MagmaMemoryTrackingProxy::GetKVStoreUserStats(
         const magma::Magma::KVStoreID kvid) {

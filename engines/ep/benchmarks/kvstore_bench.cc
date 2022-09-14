@@ -207,9 +207,25 @@ BENCHMARK_DEFINE_F(KVStoreBench, Scan)(benchmark::State& state) {
     state.SetItemsProcessed(itemCountTotal);
 }
 
+BENCHMARK_DEFINE_F(KVStoreBench, GetAggrDbFileInfo)(benchmark::State& state) {
+    while (state.KeepRunning()) {
+        kvstore->getAggrDbFileInfo();
+    }
+}
+
 const int NUM_ITEMS = 100000;
 
 BENCHMARK_REGISTER_F(KVStoreBench, Scan)
+        ->Args({NUM_ITEMS, COUCHSTORE})
+#ifdef EP_USE_MAGMA
+        ->Args({NUM_ITEMS, MAGMA})
+#endif
+#ifdef EP_USE_ROCKSDB
+        ->Args({NUM_ITEMS, ROCKSDB})
+#endif
+        ;
+
+BENCHMARK_REGISTER_F(KVStoreBench, GetAggrDbFileInfo)
         ->Args({NUM_ITEMS, COUCHSTORE})
 #ifdef EP_USE_MAGMA
         ->Args({NUM_ITEMS, MAGMA})

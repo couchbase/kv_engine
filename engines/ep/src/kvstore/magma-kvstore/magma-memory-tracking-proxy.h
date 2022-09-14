@@ -156,6 +156,8 @@ public:
     std::tuple<magma::Status, magma::KVStoreStats> GetKVStoreStats(
             const magma::Magma::KVStoreID kvid);
 
+    magma::DBSizeInfo GetDBSizeInfo();
+
     DomainAwareUniquePtr<magma::UserStats> GetKVStoreUserStats(
             const magma::Magma::KVStoreID kvid);
     DomainAwareUniquePtr<magma::UserStats> GetKVStoreUserStats(
