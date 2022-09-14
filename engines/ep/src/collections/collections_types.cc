@@ -159,7 +159,7 @@ std::ostream& operator<<(std::ostream& os,
     if (meta.maxTtl) {
         os << ", maxTtl:" << meta.maxTtl.value().count();
     }
-    os << ", metered:" << meta.metered;
+    os << ", " << meta.metered;
     return os;
 }
 

@@ -869,7 +869,7 @@ std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
                << ", ttl:" << (collection.maxTtl.has_value() ? "yes" : "no")
                << ":"
                << collection.maxTtl.value_or(std::chrono::seconds(0)).count()
-               << ", metered:" << to_string(collection.metered) << "}";
+               << ", " << to_string(collection.metered) << "}";
         }
         os << "]\n";
     }
