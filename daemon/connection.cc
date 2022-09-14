@@ -530,7 +530,7 @@ bool Connection::reEvaluateThrottledCookies() {
     bool throttled = false;
     for (auto& c : cookies) {
         if (c->isThrottled()) {
-            if (getBucket().shouldThrottle(*c, false)) {
+            if (getBucket().shouldThrottle(*c, false, 0)) {
                 throttled = true;
             } else {
                 c->setThrottled(false);
@@ -638,7 +638,7 @@ void Connection::executeCommandPipeline() {
                 //  * We don't have any ongoing commands
                 //  * We have an ongoing command and this command allows
                 //    for reorder
-                if (getBucket().shouldThrottle(cookie, true)) {
+                if (getBucket().shouldThrottle(cookie, true, 0)) {
                     if (isNonBlockingThrottlingMode()) {
                         using namespace std::chrono;
                         const auto now = steady_clock::now();

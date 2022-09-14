@@ -86,6 +86,14 @@ public:
                                   bool metered) override {
     }
 
+    bool checkThrottle(size_t pendingRBytes, size_t pendingWBytes) override {
+        return false;
+    }
+
+    void sendResponse(cb::engine_errc status, std::string_view value) override {
+        throw std::runtime_error("AuditMockCookie::sendResponse unimplemented");
+    }
+
     /// Wait for the cookie to be notified
     void wait() {
         // we have to wait

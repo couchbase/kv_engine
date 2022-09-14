@@ -641,6 +641,10 @@ public:
      */
     std::pair<size_t, size_t> getDocumentMeteringRWUnits() const;
 
+    /// Cookie implementation checks the bucket throttle
+    bool checkThrottle(size_t pendingRBytes, size_t pendingWBytes) override;
+    void sendResponse(cb::engine_errc status, std::string_view value) override;
+
 protected:
     /**
      * Log the current connection if its execution time exceeds the

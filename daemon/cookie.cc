@@ -1214,3 +1214,18 @@ void Cookie::notifyIoComplete(cb::engine_errc status) {
         getConnection().processNotifiedCookie(*this, status);
     });
 }
+
+bool Cookie::checkThrottle(size_t pendingRBytes, size_t pendingWBytes) {
+    return connection.getBucket().shouldThrottle(
+            *this, true, pendingRBytes + pendingWBytes);
+}
+
+void Cookie::sendResponse(cb::engine_errc status, std::string_view value) {
+    connection.sendResponse(*this,
+                            cb::mcbp::to_status(status),
+                            {},
+                            {},
+                            value,
+                            uint8_t(cb::mcbp::Datatype::Raw),
+                            {});
+}

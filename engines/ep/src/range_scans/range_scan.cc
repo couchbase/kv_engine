@@ -490,7 +490,8 @@ std::chrono::seconds RangeScan::getRemainingTime(
 void RangeScan::handleKey(DocKey key) {
     incrementItemCounters(key.size());
     Expects(continueRunState.cState.cookie);
-    handler->handleKey(*continueRunState.cState.cookie, key);
+    continueRunState.limitByThrottle =
+            handler->handleKey(*continueRunState.cState.cookie, key);
 }
 
 void RangeScan::handleItem(std::unique_ptr<Item> item, Source source) {
@@ -501,7 +502,8 @@ void RangeScan::handleItem(std::unique_ptr<Item> item, Source source) {
     }
     incrementItemCounters(item->getNBytes() + item->getKey().size());
     Expects(continueRunState.cState.cookie);
-    handler->handleItem(*continueRunState.cState.cookie, std::move(item));
+    continueRunState.limitByThrottle = handler->handleItem(
+            *continueRunState.cState.cookie, std::move(item));
 }
 
 void RangeScan::handleStatus(cb::engine_errc status) {
@@ -541,15 +543,19 @@ bool RangeScan::areLimitsExceeded() const {
         continueRunState.itemCount >=
                 continueRunState.cState.limits.itemLimit) {
         return true;
-    } else if (continueRunState.cState.limits.timeLimit.count() &&
-               now() >= continueRunState.scanContinueDeadline) {
-        return true;
-    } else if (continueRunState.cState.limits.byteLimit &&
-               continueRunState.byteCount >=
-                       continueRunState.cState.limits.byteLimit) {
+    }
+
+    if (continueRunState.cState.limits.timeLimit.count() &&
+        now() >= continueRunState.scanContinueDeadline) {
         return true;
     }
-    return false;
+
+    if (continueRunState.cState.limits.byteLimit &&
+        continueRunState.byteCount >=
+                continueRunState.cState.limits.byteLimit) {
+        return true;
+    }
+    return continueRunState.limitByThrottle;
 }
 
 bool RangeScan::skipItem() {
@@ -702,7 +708,8 @@ RangeScan::ContinueRunState::ContinueRunState() = default;
 RangeScan::ContinueRunState::ContinueRunState(const ContinueState& cs)
     : cState(cs),
       itemCount(0),
-      scanContinueDeadline(now() + cs.limits.timeLimit) {
+      scanContinueDeadline(now() + cs.limits.timeLimit),
+      limitByThrottle(false) {
 }
 
 std::ostream& operator<<(std::ostream& os, const RangeScan::State& state) {

@@ -21,7 +21,6 @@
 #include <mcbp/codec/range_scan_continue_codec.h>
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <memcached/cookie_iface.h>
-#include <memcached/server_cookie_iface.h>
 #include <statistics/cbstat_collector.h>
 
 RangeScanDataHandler::RangeScanDataHandler(EventuallyPersistentEngine& engine)
@@ -30,18 +29,26 @@ RangeScanDataHandler::RangeScanDataHandler(EventuallyPersistentEngine& engine)
               engine.getConfiguration().getRangeScanReadBufferSendSize()) {
 }
 
-void RangeScanDataHandler::checkAndSend(const CookieIface& cookie) {
+bool RangeScanDataHandler::checkAndSend(const CookieIface& cookie) {
+    bool scanMustThrottle{false};
+    {
+        NonBucketAllocationGuard guard;
+        scanMustThrottle = const_cast<CookieIface&>(cookie).checkThrottle(
+                pendingReadBytes, 0);
+    }
+
     if (responseBuffer.size() >= sendTriggerThreshold) {
         send(cookie);
     }
+
+    return scanMustThrottle;
 }
 
 void RangeScanDataHandler::send(const CookieIface& cookie,
                                 cb::engine_errc status) {
     {
         NonBucketAllocationGuard guard;
-        engine.getServerApi()->cookie->send_response(
-                cookie,
+        const_cast<CookieIface&>(cookie).sendResponse(
                 status,
                 {reinterpret_cast<const char*>(responseBuffer.data()),
                  responseBuffer.size()});
@@ -49,20 +56,19 @@ void RangeScanDataHandler::send(const CookieIface& cookie,
     responseBuffer.clear();
 }
 
-void RangeScanDataHandler::handleKey(const CookieIface& cookie, DocKey key) {
+bool RangeScanDataHandler::handleKey(const CookieIface& cookie, DocKey key) {
+    pendingReadBytes += key.size();
     cb::mcbp::response::RangeScanContinueKeyPayload::encode(responseBuffer,
                                                             key);
-    checkAndSend(cookie);
-    const_cast<CookieIface&>(cookie).addDocumentReadBytes(key.size());
+    return checkAndSend(cookie);
 }
 
-void RangeScanDataHandler::handleItem(const CookieIface& cookie,
+bool RangeScanDataHandler::handleItem(const CookieIface& cookie,
                                       std::unique_ptr<Item> item) {
+    pendingReadBytes += item->getKey().size() + item->getNBytes();
     cb::mcbp::response::RangeScanContinueValuePayload::encode(
             responseBuffer, item->toItemInfo(0, false));
-    checkAndSend(cookie);
-    const_cast<CookieIface&>(cookie).addDocumentReadBytes(
-            item->getKey().size() + item->getNBytes());
+    return checkAndSend(cookie);
 }
 
 void RangeScanDataHandler::handleStatus(const CookieIface& cookie,
@@ -70,6 +76,11 @@ void RangeScanDataHandler::handleStatus(const CookieIface& cookie,
     // send the 'final' status along with any outstanding data
     // The status must be range_scan_{more/complete} or an error
     Expects(status != cb::engine_errc::success);
+
+    // The final status includes (when enabled) the read cost
+    const_cast<CookieIface&>(cookie).addDocumentReadBytes(pendingReadBytes);
+    pendingReadBytes = 0;
+
     send(cookie, status);
 
     NonBucketAllocationGuard guard;

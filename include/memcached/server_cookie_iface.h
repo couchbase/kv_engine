@@ -221,12 +221,4 @@ struct ServerCookieIface {
     /// Validate the JSON. This method must NOT be called from a background
     /// thread as it use the front-end-threads instance for a JSON validator
     virtual bool is_valid_json(CookieIface& cookie, std::string_view) = 0;
-
-    /**
-     * Send a response to the client (cookie) including the given status and
-     * value.
-     */
-    virtual void send_response(const CookieIface& cookieIface,
-                               cb::engine_errc status,
-                               std::string_view view) = 0;
 };

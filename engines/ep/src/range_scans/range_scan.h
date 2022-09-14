@@ -437,6 +437,8 @@ protected:
         size_t byteCount{0};
         /// deadline for the continue (only enforced if a time limit is set)
         std::chrono::steady_clock::time_point scanContinueDeadline;
+        /// Written after each key/doc is read from cookie->checkThrottle
+        bool limitByThrottle{false};
     } continueRunState;
 
     cb::rangescan::KeyOnly keyOnly{cb::rangescan::KeyOnly::No};

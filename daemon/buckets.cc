@@ -290,7 +290,8 @@ bool Bucket::shouldThrottleDcp(const Connection& connection) {
 }
 
 bool Bucket::shouldThrottle(const Cookie& cookie,
-                            bool addConnectionToThrottleList) {
+                            bool addConnectionToThrottleList,
+                            size_t pendingBytes) {
     if (throttle_limit == std::numeric_limits<std::size_t>::max() ||
         cookie.getConnection().isUnthrottled()) {
         // No limit specified, so we don't need to do any further inspection
@@ -305,7 +306,7 @@ bool Bucket::shouldThrottle(const Cookie& cookie,
     }
 
     if (is_subject_for_throttling(header.getRequest().getClientOpcode()) &&
-        !throttle_gauge.isBelow(throttle_limit)) {
+        !throttle_gauge.isBelow(throttle_limit, pendingBytes)) {
         if (cookie.getConnection().isNonBlockingThrottlingMode()) {
             num_rejected++;
         } else {

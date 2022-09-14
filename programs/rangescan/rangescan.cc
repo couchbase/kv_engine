@@ -221,7 +221,8 @@ public:
                   << " bytes received (overhead "
                   << total_bytes - mutation_bytes << ") ("
                   << calculateThroughput(total_bytes, duration.count() / 1000)
-                  << ")" << std::endl;
+                  << ") total range-scan-continues:" << continueCount
+                  << std::endl;
     }
 
 protected:
@@ -286,6 +287,7 @@ protected:
         auto id = ++opaque;
         opaques.emplace(id, vb);
 
+        continueCount++;
         BinprotRangeScanContinue rangeScanContinue(Vbid(vb),
                                                    scans[vb],
                                                    continueItemLimit,
@@ -379,6 +381,7 @@ protected:
     size_t continueItemLimit{0};
     std::chrono::milliseconds continueTimeLimit{0};
     size_t continueByteLimit{0};
+    size_t continueCount{0};
 };
 
 static unsigned long strtoul(const char* arg) {

@@ -40,17 +40,21 @@ public:
      * Callback method invoked for each key that is read from the snapshot. This
      * is only invoked for a KeyOnly::Yes scan.
      *
-     *  @param key A key read from a Key only scan
+     * @param cookie The cookie which triggered the range-scan-continue
+     * @param key A key read from a Key only scan
+     * @return true if the current continue should now yield
      */
-    virtual void handleKey(const CookieIface& cookie, DocKey key) = 0;
+    virtual bool handleKey(const CookieIface& cookie, DocKey key) = 0;
 
     /**
      * Callback method invoked for each Item that is read from the snapshot.
      * This is only invoked for a KeyOnly::No scan.
      *
-     *  @param item An Item read from a Key/Value scan
+     * @param cookie The cookie which triggered the range-scan-continue
+     * @param item An Item read from a Key/Value scan
+     * @return true if the current continue should now yield
      */
-    virtual void handleItem(const CookieIface& cookie,
+    virtual bool handleItem(const CookieIface& cookie,
                             std::unique_ptr<Item> item) = 0;
 
     /**
@@ -59,6 +63,7 @@ public:
      * an error or successfully because it has reached the end of the scan or
      * a limit.
      *
+     * @param cookie The cookie which triggered the range-scan-continue
      * @param status The status of the just completed continue
      */
     virtual void handleStatus(const CookieIface& cookie,
@@ -79,9 +84,9 @@ class RangeScanDataHandler : public RangeScanDataHandlerIFace {
 public:
     RangeScanDataHandler(EventuallyPersistentEngine& engine);
 
-    void handleKey(const CookieIface& cookie, DocKey key) override;
+    bool handleKey(const CookieIface& cookie, DocKey key) override;
 
-    void handleItem(const CookieIface& cookie,
+    bool handleItem(const CookieIface& cookie,
                     std::unique_ptr<Item> item) override;
 
     void handleStatus(const CookieIface& cookie,
@@ -91,7 +96,7 @@ public:
                   const StatCollector& collector) override;
 
 private:
-    void checkAndSend(const CookieIface& cookie);
+    bool checkAndSend(const CookieIface& cookie);
     void send(const CookieIface& cookie,
               cb::engine_errc = cb::engine_errc::success);
 
@@ -105,6 +110,13 @@ private:
 
     /// the trigger for pushing data to send, set from engine configuration
     size_t sendTriggerThreshold{0};
+
+    /**
+     * As the scan continues, and reads data it accumulates how many bytes
+     * are read in this member for use in checking the bucket throttle and
+     * updating the metering counter.
+     */
+    size_t pendingReadBytes{0};
 };
 
 /**

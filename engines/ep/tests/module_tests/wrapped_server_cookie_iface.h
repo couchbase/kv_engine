@@ -105,11 +105,6 @@ public:
     bool is_valid_json(CookieIface& cookie, std::string_view view) override {
         return wrapped->is_valid_json(cookie, view);
     }
-    void send_response(const CookieIface& cookie,
-                       cb::engine_errc status,
-                       std::string_view view) override {
-        wrapped->send_response(cookie, status, view);
-    }
 
 protected:
     ServerCookieIface* wrapped;

@@ -29,9 +29,13 @@ public:
     /// Bump the number of units used for the current slot
     void increment(std::size_t used);
 
-    /// Check to see if the current cu_count for the current slot
-    /// is below the provided limits
-    bool isBelow(std::size_t limit) const;
+    /// Check to see if the current cu_count + pendingBytes for the current slot
+    /// is below the provided limit
+    /// @param limit value+pendingBytes is checked against this input
+    /// @param pendingBytes used in the check to allow partially complete
+    ///        commands to check the gauge
+    /// @return true if value + pendingBytes is below limit
+    bool isBelow(std::size_t limit, std::size_t pendingBytes = 0) const;
 
     /// move the clock forward, and carry everything above max forward
     /// into the next slot. The motivation is that we don't want someone

@@ -14,8 +14,8 @@ void SloppyGauge::increment(std::size_t used) {
     value += used;
 }
 
-bool SloppyGauge::isBelow(std::size_t limit) const {
-    return value < limit;
+bool SloppyGauge::isBelow(std::size_t limit, std::size_t pendingBytes) const {
+    return (value + pendingBytes) < limit;
 }
 
 void SloppyGauge::tick(size_t max) {

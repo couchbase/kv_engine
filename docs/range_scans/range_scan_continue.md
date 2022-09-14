@@ -1,15 +1,17 @@
 # Range Scan Continue (0xDB)
 
-Requests that the server continues an existing range scan, returning to the 
+Requests that the server continues an existing range scan, returning to the
 client a sequence of keys or documents. The client can limit how many documents
 are returned and/or how much time the continue request can run for.
+Alternatively in throttled environments the server may limit how many keys or
+documents are returned, which could be less than the client requested limit.
 
 The request:
 * Must contain extras
 * No key
 * No value
 
-Each continue request will return at least 1 key/document unless:
+Note that each continue request always returns at least 1 key/document unless:
 
 * The scan reaches the end
 * An error occurs
@@ -219,7 +221,8 @@ alignment.
 A range-scan-continue response sequence indicates success using status codes
 
 * Status::Success 0x00: Used for intermediate responses making up a larger response.
-* Status::RangeScanMore 0xA6: Scan has not reached the end key, more data maybe available, client should issue another continue.
+* Status::RangeScanMore 0xA6: Scan has reached a limit and has not reached the end
+key, more data maybe available and the client must issue another continue.
 * Status::RangeScanComplete 0xA7: Scan has reached the end of the range.
 
 ### Errors

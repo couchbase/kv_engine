@@ -19,6 +19,9 @@
 #include <mutex>
 #include <optional>
 
+namespace cb {
+enum class engine_errc;
+}
 namespace cb::mcbp {
 class Header;
 enum class Status : uint16_t;
@@ -132,6 +135,24 @@ public:
                                           CollectionID cid,
                                           uint64_t manifestUid,
                                           bool metered) = 0;
+
+    /**
+     * Return true if throttling is required.
+     *
+     * The input pendingRBytes/pendingWBytes are considered in the check but do
+     * not update the bucket ru/wu cost variables.
+     *
+     * @param pendingRBytes any pending read bytes
+     * @param pendingWBytes any pending write bytes
+     * @return if the connection should now be throttled
+     */
+    virtual bool checkThrottle(size_t pendingRBytes, size_t pendingWBytes) = 0;
+
+    /**
+     * Send a status/value in a response message
+     */
+    virtual void sendResponse(cb::engine_errc status,
+                              std::string_view value) = 0;
 
 protected:
     std::atomic<size_t> document_bytes_read = 0;

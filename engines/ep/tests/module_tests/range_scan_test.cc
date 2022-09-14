@@ -38,23 +38,23 @@ public:
     TestRangeScanHandler(std::vector<std::unique_ptr<Item>>& items,
                          std::vector<StoredDocKey>& keys,
                          cb::engine_errc& status,
-                         std::function<void(size_t)>& hook)
+                         std::function<bool(size_t)>& hook)
         : scannedItems(items),
           scannedKeys(keys),
           status(status),
           testHook(hook) {
     }
 
-    void handleKey(const CookieIface&, DocKey key) override {
+    bool handleKey(const CookieIface&, DocKey key) override {
         checkKeyIsUnique(key);
         scannedKeys.emplace_back(key);
-        testHook(scannedKeys.size());
+        return testHook(scannedKeys.size());
     }
 
-    void handleItem(const CookieIface&, std::unique_ptr<Item> item) override {
+    bool handleItem(const CookieIface&, std::unique_ptr<Item> item) override {
         checkKeyIsUnique(item->getKey());
         scannedItems.emplace_back(std::move(item));
-        testHook(scannedItems.size());
+        return testHook(scannedItems.size());
     }
 
     void handleStatus(const CookieIface& cookie,
@@ -82,7 +82,7 @@ public:
     std::vector<StoredDocKey>& scannedKeys;
     std::unordered_set<StoredDocKey> allKeys;
     cb::engine_errc& status;
-    std::function<void(size_t)>& testHook;
+    std::function<bool(size_t)>& testHook;
 };
 
 class RangeScanTest
@@ -269,7 +269,7 @@ public:
 
     // default to some status RangeScan won't use
     cb::engine_errc status{cb::engine_errc::sync_write_ambiguous};
-    std::function<void(size_t)> testHook = [](size_t) {};
+    std::function<bool(size_t)> testHook = [](size_t) { return false; };
     std::unique_ptr<TestRangeScanHandler> handler{
             std::make_unique<TestRangeScanHandler>(
                     scannedItems, scannedKeys, status, testHook)};
@@ -545,6 +545,21 @@ TEST_P(RangeScanTest, user_prefix_evicted) {
                   expectedKeys.size() / 2);
 }
 
+TEST_P(RangeScanTest, scan_is_throttled) {
+    testHook = [](size_t) { return true; };
+    // Scan with no continue limits, but the scan will yield for every key
+    // as the testHook returns true meaning "throttle"
+    auto expectedKeys = getUserKeys();
+    testRangeScan(expectedKeys,
+                  scanCollection,
+                  {"user"},
+                  {"user\xFF"},
+                  0,
+                  std::chrono::milliseconds(0),
+                  0,
+                  expectedKeys.size());
+}
+
 // Run a >= user scan by setting the keys to user and the end (255)
 TEST_P(RangeScanTest, greater_than_or_equal) {
     auto expectedKeys = getUserKeys();
@@ -802,6 +817,7 @@ TEST_P(RangeScanTest, create_continue_is_cancelled_2) {
             EXPECT_EQ(cb::engine_errc::success,
                       vb->cancelRangeScan(uuid, cookie, true));
         }
+        return false;
     };
 
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
@@ -1340,6 +1356,7 @@ TEST_P(RangeScanTest, cancel_when_yielding) {
         // Cancel after the first key has been read
         EXPECT_EQ(cb::engine_errc::success,
                   vb->cancelRangeScan(uuid, cookie, true));
+        return false;
     };
 
     // scan!
@@ -1366,12 +1383,14 @@ public:
         : callbackCounter(callbackCounter) {
     }
 
-    void handleKey(const CookieIface&, DocKey key) override {
+    bool handleKey(const CookieIface&, DocKey key) override {
         ++callbackCounter;
+        return false;
     }
 
-    void handleItem(const CookieIface&, std::unique_ptr<Item>) override {
+    bool handleItem(const CookieIface&, std::unique_ptr<Item>) override {
         ++callbackCounter;
+        return false;
     }
 
     void handleStatus(const CookieIface&, cb::engine_errc) override {

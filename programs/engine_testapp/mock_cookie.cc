@@ -148,6 +148,14 @@ void MockCookie::notifyIoComplete(cb::engine_errc status) {
     }
 }
 
+bool MockCookie::checkThrottle(size_t, size_t) {
+    return false;
+}
+
+void MockCookie::sendResponse(cb::engine_errc, std::string_view) {
+    // do nothing
+}
+
 MockCookie* cookie_to_mock_cookie(const CookieIface* cookie) {
     auto* ret =
             const_cast<MockCookie*>(dynamic_cast<const MockCookie*>(cookie));
