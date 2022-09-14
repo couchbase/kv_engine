@@ -5104,7 +5104,7 @@ TEST_P(DurabilityEphemeralBucketTest, GetRandomCompletedPrepare) {
     ASSERT_EQ(cb::engine_errc::success,
               store->deleteItem(key, cas, vbid, cookie, {}, nullptr, delInfo));
 
-    auto gv = store->getRandomKey(CollectionID::Default, cookie);
+    auto gv = store->getRandomKey(CollectionID::Default, *cookie);
     EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
 }
 

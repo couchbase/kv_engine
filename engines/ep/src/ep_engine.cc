@@ -6268,7 +6268,7 @@ cb::engine_errc EventuallyPersistentEngine::getRandomKey(
         return cb::engine_errc(priv);
     }
 
-    GetValue gv(kvBucket->getRandomKey(cid, cookie));
+    GetValue gv(kvBucket->getRandomKey(cid, const_cast<CookieIface&>(*cookie)));
     cb::engine_errc ret = gv.getStatus();
 
     if (ret == cb::engine_errc::success) {

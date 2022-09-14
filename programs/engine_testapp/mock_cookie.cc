@@ -112,6 +112,13 @@ cb::rbac::PrivilegeAccess MockCookie::checkForPrivilegeAtLeastInOneCollection(
     return cb::rbac::PrivilegeAccessOk;
 }
 
+void MockCookie::setCurrentCollectionInfo(ScopeID sid,
+                                          CollectionID cid,
+                                          uint64_t manifestUid,
+                                          bool metered) {
+    // do nothing
+}
+
 MockCookie* cookie_to_mock_cookie(const CookieIface* cookie) {
     auto* ret =
             const_cast<MockCookie*>(dynamic_cast<const MockCookie*>(cookie));

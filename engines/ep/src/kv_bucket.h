@@ -146,7 +146,7 @@ public:
                  const CookieIface* cookie,
                  get_options_t options) override;
 
-    GetValue getRandomKey(CollectionID cid, const CookieIface* cookie) override;
+    GetValue getRandomKey(CollectionID cid, CookieIface& cookie) override;
 
     GetValue getReplica(const DocKey& key,
                         Vbid vbucket,

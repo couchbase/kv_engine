@@ -1429,10 +1429,6 @@ TEST_P(MeteringTest, MeterDocumentSimpleMutations) {
 }
 
 TEST_P(MeteringTest, MeterGetRandomKey) {
-    // @todo: MB-51979: GetRandomKey doesn't yet work for UnmeteredByCollection
-    if (GetParam() == MeteringType::UnmeteredByCollection) {
-        GTEST_SKIP();
-    }
     // Random key needs at least one key to be stored in the bucket so that
     // it may return the key. To make sure that the unit tests doesn't depend
     // on other tests lets store a document in vbucket 0.

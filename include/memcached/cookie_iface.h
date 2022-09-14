@@ -104,6 +104,11 @@ public:
                 document_bytes_written.load(std::memory_order_acquire)};
     }
 
+    virtual void setCurrentCollectionInfo(ScopeID sid,
+                                          CollectionID cid,
+                                          uint64_t manifestUid,
+                                          bool metered) = 0;
+
 protected:
     std::atomic<size_t> document_bytes_read = 0;
     std::atomic<size_t> document_bytes_written = 0;

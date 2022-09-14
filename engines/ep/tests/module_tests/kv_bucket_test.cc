@@ -1877,7 +1877,7 @@ TEST_P(KVBucketParamTest, MB31495_GetRandomKey) {
     setRandomFunction(returnZero);
 
     // Try with am empty hash table
-    auto gv = store->getRandomKey(CollectionID::Default, cookie);
+    auto gv = store->getRandomKey(CollectionID::Default, *cookie);
     EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
 
     Item item = store_item(
@@ -1885,7 +1885,7 @@ TEST_P(KVBucketParamTest, MB31495_GetRandomKey) {
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Try with a non-empty hash table
-    gv = store->getRandomKey(CollectionID::Default, cookie);
+    gv = store->getRandomKey(CollectionID::Default, *cookie);
     EXPECT_EQ(cb::engine_errc::success, gv.getStatus());
 }
 

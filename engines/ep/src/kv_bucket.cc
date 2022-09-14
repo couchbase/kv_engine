@@ -51,6 +51,7 @@
 #include <executor/notifiable_task.h>
 
 #include <memcached/collections.h>
+#include <memcached/cookie_iface.h>
 #include <memcached/range_scan_optional_configuration.h>
 #include <memcached/server_document_iface.h>
 #include <nlohmann/json.hpp>
@@ -1551,11 +1552,24 @@ GetValue KVBucket::getInternal(const DocKey& key,
     }
 }
 
-GetValue KVBucket::getRandomKey(CollectionID cid, const CookieIface* cookie) {
+GetValue KVBucket::getRandomKey(CollectionID cid, CookieIface& cookie) {
     size_t max = vbMap.getSize();
     const Vbid::id_type start = labs(getRandom()) % max;
     Vbid::id_type curr = start;
     std::unique_ptr<Item> itm;
+
+    // Must setup cookie metering state, do this by checking the Manifest
+    auto [uid, entry] = getCollectionEntry(cid);
+    if (!entry) {
+        engine.setUnknownCollectionErrorContext(&cookie, uid);
+        return GetValue(nullptr, cb::engine_errc::unknown_collection);
+    } else {
+        cookie.setCurrentCollectionInfo(
+                entry->sid,
+                cid,
+                uid,
+                entry->metered == Collections::Metered::Yes);
+    }
 
     while (itm == nullptr) {
         VBucketPtr vb = getVBucket(Vbid(curr++));
@@ -1564,8 +1578,11 @@ GetValue KVBucket::getRandomKey(CollectionID cid, const CookieIface* cookie) {
             if (vb->getState() == vbucket_state_active) {
                 auto cHandle = vb->lockCollections();
                 if (!cHandle.exists(cid)) {
+                    // even after successfully checking the manifest, the vb
+                    // may not know the collection (could be dropped after the
+                    // getCollectionEntry check)
                     engine.setUnknownCollectionErrorContext(
-                            cookie, cHandle.getManifestUid());
+                            &cookie, cHandle.getManifestUid());
                     return GetValue(nullptr,
                                     cb::engine_errc::unknown_collection);
                 }

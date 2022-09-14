@@ -172,8 +172,7 @@ public:
      * @param cookie the connection cookie
      * @return a GetValue representing the value retrieved
      */
-    virtual GetValue getRandomKey(CollectionID cid,
-                                  const CookieIface* cookie) = 0;
+    virtual GetValue getRandomKey(CollectionID cid, CookieIface& cookie) = 0;
 
     /**
      * Retrieve a value from a vbucket in replica state.

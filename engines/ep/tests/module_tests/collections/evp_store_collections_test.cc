@@ -804,13 +804,13 @@ TEST_P(CollectionsParameterizedTest, GetRandomKey) {
     VBucketPtr vb = store->getVBucket(vbid);
     // Add the dairy collection
     CollectionsManifest cm(CollectionEntry::dairy);
-    vb->updateFromManifest(makeManifest(cm));
+    EXPECT_EQ(setCollections(cookie, cm), cb::engine_errc::success);
     flushVBucketToDiskIfPersistent(vbid, 1);
     StoredDocKey key{"milk", CollectionEntry::dairy};
     auto item = store_item(vbid, key, "1", 0);
     store_item(vbid, StoredDocKey{"stuff", CollectionEntry::defaultC}, "2", 0);
     flushVBucketToDiskIfPersistent(vbid, 2);
-    auto gv = store->getRandomKey(CollectionEntry::dairy.getId(), cookie);
+    auto gv = store->getRandomKey(CollectionEntry::dairy.getId(), *cookie);
     ASSERT_EQ(cb::engine_errc::success, gv.getStatus());
     EXPECT_EQ(item, *gv.item);
 }

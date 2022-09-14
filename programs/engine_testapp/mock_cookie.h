@@ -143,6 +143,11 @@ public:
     cb::rbac::PrivilegeAccess checkForPrivilegeAtLeastInOneCollection(
             cb::rbac::Privilege privilege) const override;
 
+    void setCurrentCollectionInfo(ScopeID sid,
+                                  CollectionID cid,
+                                  uint64_t manifestUid,
+                                  bool metered) override;
+
 protected:
     static CheckPrivilegeFunction checkPrivilegeFunction;
     static CheckForPrivilegeAtLeastInOneCollectionFunction
