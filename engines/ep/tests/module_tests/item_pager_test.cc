@@ -1133,9 +1133,6 @@ TEST_P(STItemPagerTest, ReplicaEvictedBeforeActive) {
                 return store->getVBucket(replicaVb)->getPageableMemUsage() >
                        watermarkDiff;
             });
-
-    // We don't care exactly how many were stored, just that it is a
-    // "large enough" number for percentages to be somewhat useful
     EXPECT_GT(replicaItemCount, 0);
 
     // Now fill the active VB until the high watermark is reached
@@ -1199,7 +1196,6 @@ TEST_P(STItemPagerTest, ActiveEvictedIfReplicaEvictionInsufficient) {
     auto replicaVB = Vbid(1);
 
     setVBucketStateAndRunPersistTask(activeVB, vbucket_state_active);
-
     // Set replicaVB as active initially (so we can populate it).
     setVBucketStateAndRunPersistTask(replicaVB, vbucket_state_active);
 
@@ -1220,11 +1216,10 @@ TEST_P(STItemPagerTest, ActiveEvictedIfReplicaEvictionInsufficient) {
                 EXPECT_LT(stats.getPreciseTotalMemoryUsed(),
                           stats.mem_high_wat.load());
 
-                size_t pageableMem =
-                        store->getVBucket(replicaVB)->getPageableMemUsage();
-
-                return pageableMem > watermarkDiff * 0.9;
+                return store->getVBucket(replicaVB)->getPageableMemUsage() >
+                       watermarkDiff * 0.5;
             });
+    EXPECT_GT(replicaItemCount, 0);
 
     setVBucketStateAndRunPersistTask(replicaVB, vbucket_state_replica);
 
@@ -1234,7 +1229,7 @@ TEST_P(STItemPagerTest, ActiveEvictedIfReplicaEvictionInsufficient) {
 
     // Now fill the active VB until the high watermark is reached
     auto activeItemCount =
-            populateVbsUntil({activeVB}, [&stats, &store = store] {
+            populateVbsUntil({activeVB}, [&stats] {
                 return stats.getPreciseTotalMemoryUsed() >
                        stats.mem_high_wat.load();
             });
