@@ -247,4 +247,9 @@ public:
     MockBucketLogger& public_getLogger() const;
 
     void setOutOfOrderSnapshots(OutOfOrderSnapshots oso);
+
+    /**
+     * Proxy to DcpProducer::getNextItem()
+     */
+    std::unique_ptr<DcpResponse> public_getNextItem();
 };

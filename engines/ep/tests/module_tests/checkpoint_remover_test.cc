@@ -968,6 +968,91 @@ TEST_P(CheckpointRemoverTest, CursorMoveWakesDestroyer) {
     EXPECT_EQ(0, destroyer->getNumCheckpoints());
 }
 
+TEST_P(CheckpointRemoverTest, CheckpointCreationSchedulesDcpStep) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    scheduleCheckpointRemoverTask();
+
+    // We set checkpoint max size = CM upper-mark.
+    //
+    // That's for simplifying setting up the required scenario.
+    // We need to end up in a state where:
+    //  1. Some items are queued and fill up the open checkpoint
+    //  2. The next item queued would create a new checkpoint and queue there
+    //  3. But, step (1) has pushed the CM mem-usage to the upper-mark, so
+    //     checkpoint mem recovery triggers
+    //  4. Step (3) finds that the open checkpoint is full and creates a new
+    //     checkpoint.
+    //
+    // In this test we need to verify that step (4) notifies the DCP frontend
+    // if related cursors have jumped into the new open checkpoint.
+
+    const auto& stats = engine->getEpStats();
+    auto& config = engine->getConfiguration();
+    config.setCheckpointMaxSize(store->getCMRecoveryUpperMarkBytes());
+    ASSERT_EQ(store->getCMRecoveryUpperMarkBytes(),
+              engine->getCheckpointConfig().getCheckpointMaxSize());
+
+    auto vb = engine->getVBucket(vbid);
+    auto& cm = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
+
+    // The test covers both persistent/ephemeral
+    ASSERT_EQ(persistent() ? 1 : 0, cm.getNumOfCursors());
+    auto producer = createDcpProducer(cookie, IncludeDeleteTime::Yes);
+    createDcpStream(*producer);
+    ASSERT_EQ(persistent() ? 2 : 1, cm.getNumOfCursors());
+    auto stream = producer->findStream(vbid);
+    ASSERT_TRUE(stream);
+    auto dcpCursor = stream->getCursor().lock();
+    ASSERT_TRUE(dcpCursor);
+
+    // Store items until checkpoint mem recovery required
+    ASSERT_FALSE(store->isCheckpointMemoryReductionRequired());
+    const std::string value(
+            engine->getCheckpointConfig().getCheckpointMaxSize() / 10, 'v');
+    for (size_t i = 0; !store->isCheckpointMemoryReductionRequired(); ++i) {
+        auto item = make_item(
+                vbid, makeStoredDocKey("key" + std::to_string(i)), value);
+        EXPECT_EQ(cb::engine_errc::success, store->set(item, cookie));
+    }
+    ASSERT_EQ(1, cm.getNumCheckpoints());
+    const auto ckptId = cm.getOpenCheckpointId();
+    ASSERT_EQ(ckptId, (*dcpCursor->getCheckpoint())->getId());
+
+    // Move DCP cursor to end of checkpoint and push to stream readyQ
+    stream->nextCheckpointItemTask();
+
+    // Move the Producer to settled
+    ASSERT_TRUE(producer->getReadyQueue().exists(vbid));
+    while (producer->public_getNextItem()) {
+    }
+    ASSERT_FALSE(producer->getReadyQueue().exists(vbid));
+
+    // Move persistence cursor
+    if (persistent()) {
+        flushVBucket(vbid);
+    }
+
+    // The next queued item would trigger checkpoint creation, but memory
+    // recovery runs first and creates the checkpoint
+    ASSERT_EQ(0, stats.itemsRemovedFromCheckpoints);
+    store->wakeUpCheckpointMemRecoveryTask();
+    auto& nonIO = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    runNextTask(nonIO, "CheckpointMemRecoveryTask:0");
+    runNextTask(nonIO, "CheckpointMemRecoveryTask:1");
+    ASSERT_GT(stats.itemsRemovedFromCheckpoints, 0);
+
+    // New checkpoint created
+    EXPECT_EQ(1, cm.getNumCheckpoints());
+    EXPECT_EQ(ckptId + 1, cm.getOpenCheckpointId());
+    // Cursor has moved into the new checkpoint
+    EXPECT_EQ(ckptId + 1, (*dcpCursor->getCheckpoint())->getId());
+    EXPECT_EQ(queue_op::empty, (*dcpCursor->getPos())->getOperation());
+    EXPECT_EQ(0, dcpCursor->getDistance());
+
+    // Verify that the stream has been notified.
+    EXPECT_TRUE(producer->getReadyQueue().exists(vbid));
+}
+
 INSTANTIATE_TEST_SUITE_P(
         EphemeralOrPersistent,
         CheckpointRemoverTest,

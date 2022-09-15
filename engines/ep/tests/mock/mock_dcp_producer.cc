@@ -174,3 +174,7 @@ MockBucketLogger& MockDcpProducer::public_getLogger() const {
 void MockDcpProducer::setOutOfOrderSnapshots(OutOfOrderSnapshots oso) {
     outOfOrderSnapshots = oso;
 }
+
+std::unique_ptr<DcpResponse> MockDcpProducer::public_getNextItem() {
+    return getNextItem();
+}

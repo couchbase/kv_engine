@@ -57,8 +57,14 @@ public:
                              const std::string& name,
                              const std::string& consumerName = {});
 
-    void notifyVBConnections(Vbid vbid,
-                             SyncWriteOperation syncWrite);
+    /**
+     * Notify all DCP Producers that own stream for the given vbucket.
+     *
+     * @param vbucket
+     * @param syncWrite Whether connections must be notified only if ther
+     *  support SyncRepl.
+     */
+    void notifyVBConnections(Vbid vbid, SyncWriteOperation syncWrite);
 
     /**
      * Send a SeqnoAck message over the PassiveStream for the given VBucket.

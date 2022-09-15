@@ -107,6 +107,25 @@ CheckpointMemRecoveryTask::attemptNewCheckpointCreation() {
         // the CM and given to the Destroyer for deallocation.
         vb->checkpointManager->maybeCreateNewCheckpoint();
 
+        // We might have created a new checkpoint and moved cursors into it at
+        // checkpoint begin (the empty item).
+        // We need to notify the related streams of that, DCP items_remaining
+        // stats wouldn't drop to zero otherwise (as in that state surely a
+        // cursor has at least the checkpoint_start item to process).
+        //
+        // @todo MB-53778: Currently we potentially notify unnecessary streams.
+        //   The side effect isn't expected to cause any major issue. An idle
+        //   DCP Producer might be unnecessarily woken up, but immediately put
+        //   again to sleep at the first step(). Less of a problem for busy DCP
+        //   Producers: they are in their step() loop anyway, so any attempt of
+        //   notification is actually a NOP.
+        //
+        // Note: Predicating this call on whether a new checkpoint was created
+        //   doesn't prevent unnecessary notification. That's because checkpoint
+        //   creation doesn't imply that some cursor has jumped into the new
+        //   open checkpoint.
+        bucket.notifyReplication(vbid, SyncWriteOperation::No);
+
         if (bucket.getRequiredCheckpointMemoryReduction() == 0) {
             // All done
             return ReductionRequired::No;
