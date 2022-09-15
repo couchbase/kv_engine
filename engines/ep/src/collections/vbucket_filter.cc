@@ -389,17 +389,22 @@ void Filter::addStats(const AddStatFn& add_stat,
 
         checked_snprintf(buffer,
                          bsize,
-                         "%s:filter_%d_default_allowed",
-                         prefix.c_str(),
-                         vb.get());
-        add_casted_stat(buffer, defaultAllowed, add_stat, c);
-
-        checked_snprintf(buffer,
-                         bsize,
                          "%s:filter_%d_system_allowed",
                          prefix.c_str(),
                          vb.get());
         add_casted_stat(buffer, systemEventsAllowed, add_stat, c);
+
+        // Skip adding the rest of the state as they only apply for !passthrough
+        if (passthrough) {
+            return;
+        }
+
+        checked_snprintf(buffer,
+                         bsize,
+                         "%s:filter_%d_default_allowed",
+                         prefix.c_str(),
+                         vb.get());
+        add_casted_stat(buffer, defaultAllowed, add_stat, c);
 
         if (scopeID) {
             checked_snprintf(buffer,
