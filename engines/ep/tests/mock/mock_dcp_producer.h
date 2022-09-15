@@ -248,4 +248,9 @@ public:
     void setOutOfOrderSnapshots(OutOfOrderSnapshots oso);
 
     void public_enableSyncReplication();
+
+    /**
+     * Proxy to DcpProducer::getNextItem()
+     */
+    std::unique_ptr<DcpResponse> public_getNextItem();
 };

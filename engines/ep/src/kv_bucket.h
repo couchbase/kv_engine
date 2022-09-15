@@ -983,6 +983,16 @@ public:
      */
     bool isCompactionExpiryFetchInline() const;
 
+    /**
+     * Notify frontend of a new item added to the replication queue for the
+     * given vbucket.
+     *
+     * @param vbid vbucket id
+     * @param syncWrite Whether the new item is a SyncWrite operation (we don't
+     *  notify producers that do not care about SyncWrite).
+     */
+    void notifyReplication(const Vbid vbid, SyncWriteOperation syncWrite);
+
 protected:
     /**
      * Get the checkpoint destroyer task responsible for checkpoints from the
@@ -1001,16 +1011,6 @@ protected:
 
     /* Notify flusher of a new seqno being added in the vbucket */
     virtual void notifyFlusher(const Vbid vbid);
-
-    /**
-     * Notify replication of a new seqno being added in the vbucket
-     *
-     * @param vbid vBucket ID
-     * @param syncWriteOnly is this a SyncWrite operation (we don't notify
-     *        producers that do not care about SyncWrites of prepares).
-     */
-    void notifyReplication(const Vbid vbid,
-                           SyncWriteOperation syncWrite);
 
     /// Helper method from initialize() to setup the expiry pager
     void initializeExpiryPager(Configuration& config);

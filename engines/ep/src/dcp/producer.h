@@ -133,7 +133,14 @@ public:
      */
     void setDisconnect() override;
 
-    void notifySeqnoAvailable(Vbid vbucket, SyncWriteOperation syncWriteOnly);
+    /**
+     * Notify this producer that the streams for the given vbucket are ready.
+     *
+     * @param vbucket
+     * @param syncWrite Whether this connection must be notified only if it
+     *  supports SyncRepl.
+     */
+    void notifySeqnoAvailable(Vbid vbucket, SyncWriteOperation syncWrite);
 
     /**
      * @param vbucket

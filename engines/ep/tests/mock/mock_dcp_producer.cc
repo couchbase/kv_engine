@@ -175,3 +175,7 @@ void MockDcpProducer::setOutOfOrderSnapshots(OutOfOrderSnapshots oso) {
 void MockDcpProducer::public_enableSyncReplication() {
     supportsSyncReplication = SyncReplication::SyncReplication;
 }
+
+std::unique_ptr<DcpResponse> MockDcpProducer::public_getNextItem() {
+    return getNextItem();
+}
