@@ -1620,9 +1620,7 @@ void DcpProducer::notifySeqnoAvailable(Vbid vbucket,
     if (rv != streams->end()) {
         auto handle = rv->second->rlock();
         for (; !handle.end(); handle.next()) {
-            if (handle.get()->isActive()) {
-                handle.get()->notifySeqnoAvailable(*this);
-            }
+            handle.get()->notifySeqnoAvailable(*this);
         }
     }
 }
