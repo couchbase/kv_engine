@@ -107,12 +107,12 @@ ScamShaFallbackSalt::ScamShaFallbackSalt() {
     set(encoded);
 }
 
-User UserFactory::create(const std::string& unm,
-                         const std::string& passwd,
+User UserFactory::create(const std::string& name,
+                         const std::vector<std::string>& passwords,
                          std::function<bool(crypto::Algorithm)> callback,
                          std::string_view password_hash_type) {
     using namespace std::string_view_literals;
-    User ret{unm, false};
+    User ret{name, false};
 
     // The format of the plain password encoding is that we're appending the
     // generated hmac to the salt (which should be 16 bytes). This makes
@@ -127,23 +127,33 @@ User UserFactory::create(const std::string& unm,
 
     if (password_hash_type.empty()) {
         if (callback(Algorithm::DeprecatedPlain)) {
-            ret.generatePasswordHash("SHA-1"sv, passwd);
+            ret.generatePasswordHash("SHA-1"sv, passwords);
         }
 
         if (callback(Algorithm::Argon2id13)) {
-            ret.generatePasswordHash("argon2id"sv, passwd);
+            ret.generatePasswordHash("argon2id"sv, passwords);
         }
     } else {
-        ret.generatePasswordHash(password_hash_type, passwd);
+        ret.generatePasswordHash(password_hash_type, passwords);
     }
 
     for (const auto& alg : std::vector<Algorithm>{
                  {Algorithm::SHA1, Algorithm::SHA256, Algorithm::SHA512}}) {
         if (callback(alg)) {
-            ret.generateSecrets(alg, passwd);
+            ret.generateSecrets(alg, passwords);
         }
     }
     return ret;
+}
+
+User UserFactory::create(const std::string& unm,
+                         const std::string& passwd,
+                         std::function<bool(crypto::Algorithm)> callback,
+                         std::string_view password_hash_type) {
+    return create(unm,
+                  std::vector<std::string>{{passwd}},
+                  callback,
+                  password_hash_type);
 }
 
 User UserFactory::createDummy(const std::string& unm, Algorithm algorithm) {
@@ -176,8 +186,9 @@ User UserFactory::createDummy(const std::string& unm, Algorithm algorithm) {
     }
 
     generateSalt(salt, passwd);
+
     // Generate the secrets by using that random password
-    ret.generateSecrets(algorithm, passwd);
+    ret.generateSecrets(algorithm, {{passwd}});
 
     return ret;
 }
@@ -190,10 +201,11 @@ void UserFactory::setScramshaFallbackSalt(const std::string& salt) {
     ScamShaFallbackSalt::instance().set(salt);
 }
 
-static ScramPasswordMetaData generateShaSecrets(Algorithm algorithm,
-                                                std::string_view passwd,
-                                                std::string_view unm,
-                                                bool dummy) {
+static ScramPasswordMetaData generateShaSecrets(
+        Algorithm algorithm,
+        const std::vector<std::string>& passwords,
+        std::string_view unm,
+        bool dummy) {
     std::vector<uint8_t> salt;
     std::string encodedSalt;
 
@@ -222,25 +234,31 @@ static ScramPasswordMetaData generateShaSecrets(Algorithm algorithm,
         generateSalt(salt, encodedSalt);
     }
 
-    auto digest = cb::crypto::pwhash(
-            algorithm,
-            passwd,
-            {reinterpret_cast<const char*>(salt.data()), salt.size()},
-            nlohmann::json{{"iterations", IterationCount.load()}});
+    nlohmann::json hashes = nlohmann::json::array();
+    for (const auto& pw : passwords) {
+        auto digest = cb::crypto::pwhash(
+                algorithm,
+                pw,
+                {reinterpret_cast<const char*>(salt.data()), salt.size()},
+                nlohmann::json{{"iterations", IterationCount.load()}});
 
-    const auto server_key = cb::crypto::HMAC(algorithm, digest, "Server Key");
-    const auto stored_key = cb::crypto::digest(
-            algorithm, cb::crypto::HMAC(algorithm, digest, "Client Key"));
+        hashes.emplace_back(nlohmann::json{
+                {"server_key",
+                 cb::base64::encode(
+                         cb::crypto::HMAC(algorithm, digest, "Server Key"))},
+                {"stored_key",
+                 cb::base64::encode(cb::crypto::digest(
+                         algorithm,
+                         cb::crypto::HMAC(algorithm, digest, "Client Key")))}});
+    }
 
-    return ScramPasswordMetaData(
-            {{"server_key", cb::base64::encode(server_key)},
-             {"stored_key", cb::base64::encode(stored_key)},
-             {"salt", encodedSalt},
-             {"iterations", IterationCount.load()}});
+    return ScramPasswordMetaData({{"hashes", hashes},
+                                  {"salt", encodedSalt},
+                                  {"iterations", IterationCount.load()}});
 }
 
 static User::PasswordMetaData generateArgon2id13Secret(
-        std::string_view passwd) {
+        const std::vector<std::string>& passwords) {
     std::string encodedSalt;
     std::vector<uint8_t> salt(crypto_pwhash_argon2id_saltbytes());
     generateSalt(salt, encodedSalt);
@@ -252,34 +270,38 @@ static User::PasswordMetaData generateArgon2id13Secret(
                                ? crypto_pwhash_memlimit_min()
                                : crypto_pwhash_argon2i_memlimit_moderate();
 
-    auto generated = cb::crypto::pwhash(
-            Algorithm::Argon2id13,
-            passwd,
-            {reinterpret_cast<const char*>(salt.data()), salt.size()},
-            {{"time", ops}, {"memory", mcost}});
+    std::vector<std::string> hashes;
+    for (const auto& pw : passwords) {
+        auto generated = cb::crypto::pwhash(
+                Algorithm::Argon2id13,
+                pw,
+                {reinterpret_cast<const char*>(salt.data()), salt.size()},
+                {{"time", ops}, {"memory", mcost}});
+        hashes.emplace_back(cb::base64::encode(generated));
+    }
 
-    return User::PasswordMetaData(
-            nlohmann::json{{"algorithm", "argon2id"},
-                           {"hash", cb::base64::encode(generated)},
-                           {"salt", encodedSalt},
-                           {"time", ops},
-                           {"memory", mcost},
-                           {"parallelism", 1}});
+    return User::PasswordMetaData(nlohmann::json{{"algorithm", "argon2id"},
+                                                 {"hashes", hashes},
+                                                 {"salt", encodedSalt},
+                                                 {"time", ops},
+                                                 {"memory", mcost},
+                                                 {"parallelism", 1}});
 }
 
-void User::generateSecrets(Algorithm algo, std::string_view passwd) {
+void User::generateSecrets(Algorithm algo,
+                           const std::vector<std::string>& passwords) {
     switch (algo) {
     case Algorithm::SHA1:
         scram_sha_1 = generateShaSecrets(
-                algo, passwd, getUsername().getRawValue(), dummy);
+                algo, passwords, getUsername().getRawValue(), dummy);
         return;
     case Algorithm::SHA256:
         scram_sha_256 = generateShaSecrets(
-                algo, passwd, getUsername().getRawValue(), dummy);
+                algo, passwords, getUsername().getRawValue(), dummy);
         return;
     case Algorithm::SHA512:
         scram_sha_512 = generateShaSecrets(
-                algo, passwd, getUsername().getRawValue(), dummy);
+                algo, passwords, getUsername().getRawValue(), dummy);
         return;
 
     case Algorithm::Argon2id13:
@@ -290,37 +312,48 @@ void User::generateSecrets(Algorithm algo, std::string_view passwd) {
 }
 
 void User::generatePasswordHash(std::string_view password_hash_type,
-                                std::string_view passwd) {
+                                const std::vector<std::string>& passwords) {
     using namespace std::string_view_literals;
     if (password_hash_type == "pbkdf2-hmac-sha512"sv) {
         std::vector<uint8_t> salt(cb::crypto::SHA512_DIGEST_SIZE);
         std::string saltstring;
         generateSalt(salt, saltstring);
         const auto iterations = IterationCount.load();
-        auto digest = cb::crypto::pwhash(
-                Algorithm::SHA512,
-                passwd,
-                {reinterpret_cast<const char*>(salt.data()), salt.size()},
-                nlohmann::json{{"iterations", iterations}});
+
+        std::vector<std::string> hashes;
+        for (const auto& pw : passwords) {
+            auto digest = cb::crypto::pwhash(
+                    Algorithm::SHA512,
+                    pw,
+                    {reinterpret_cast<const char*>(salt.data()), salt.size()},
+                    nlohmann::json{{"iterations", iterations}});
+            hashes.emplace_back(cb::base64::encode(digest));
+        }
+
         password_hash = User::PasswordMetaData{
                 nlohmann::json{{"algorithm", "pbkdf2-hmac-sha512"},
-                               {"hash", cb::base64::encode(digest)},
+                               {"hashes", hashes},
                                {"salt", saltstring},
                                {"iterations", iterations}}};
     } else if (password_hash_type == "argon2id"sv) {
-        password_hash = generateArgon2id13Secret(passwd);
+        password_hash = generateArgon2id13Secret(passwords);
     } else if (password_hash_type == "SHA-1"sv) {
         std::vector<uint8_t> salt(16);
         std::string saltstring;
         generateSalt(salt, saltstring);
-        auto mystr = cb::crypto::pwhash(
-                Algorithm::DeprecatedPlain,
-                passwd,
-                {reinterpret_cast<const char*>(salt.data()), salt.size()});
-        password_hash = User::PasswordMetaData{
-                nlohmann::json{{"algorithm", "SHA-1"},
-                               {"hash", cb::base64::encode(mystr)},
-                               {"salt", saltstring}}};
+
+        std::vector<std::string> hashes;
+        for (const auto& pw : passwords) {
+            auto digest = cb::crypto::pwhash(
+                    Algorithm::DeprecatedPlain,
+                    pw,
+                    {reinterpret_cast<const char*>(salt.data()), salt.size()});
+            hashes.emplace_back(cb::base64::encode(digest));
+        }
+        password_hash =
+                User::PasswordMetaData{nlohmann::json{{"algorithm", "SHA-1"},
+                                                      {"hashes", hashes},
+                                                      {"salt", saltstring}}};
     } else {
         throw std::invalid_argument("Unsupported password hash type");
     }
@@ -348,7 +381,17 @@ User::PasswordMetaData::PasswordMetaData(const nlohmann::json& obj) {
                 throw std::invalid_argument(
                         "PasswordMetaData(): hash must be a string");
             }
-            password = cb::base64::decode(it->get<std::string>());
+            passwords.emplace_back(cb::base64::decode(it->get<std::string>()));
+        } else if (label == "hashes") {
+            if (!it->is_array()) {
+                throw std::invalid_argument(
+                        "PasswordMetaData(): hashes must be an array");
+            }
+
+            for (const auto& ii : *it) {
+                passwords.emplace_back(
+                        cb::base64::decode(ii.get<std::string>()));
+            }
         } else if (label == "salt") {
             if (!it->is_string()) {
                 throw std::invalid_argument(
@@ -459,7 +502,7 @@ User::PasswordMetaData::PasswordMetaData(const nlohmann::json& obj) {
                 "PasswordMetaData(): salt must be specified");
     }
 
-    if (password.empty()) {
+    if (passwords.empty()) {
         throw std::invalid_argument(
                 "PasswordMetaData(): hash must be specified");
     }
@@ -468,7 +511,10 @@ User::PasswordMetaData::PasswordMetaData(const nlohmann::json& obj) {
 nlohmann::json User::PasswordMetaData::to_json() const {
     auto ret = properties;
     ret["algorithm"] = algorithm;
-    ret["hash"] = cb::base64::encode(password);
+    ret["hashes"] = nlohmann::json::array();
+    for (const auto& pw : passwords) {
+        ret["hashes"].emplace_back(cb::base64::encode(pw));
+    }
     ret["salt"] = cb::base64::encode(salt);
     return ret;
 }

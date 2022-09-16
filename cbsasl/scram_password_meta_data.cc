@@ -19,8 +19,23 @@ ScramPasswordMetaData::ScramPasswordMetaData(const nlohmann::json& obj) {
                 "ScramPasswordMetaData(): must be an object");
     }
 
+    std::string stored_key;
+    std::string server_key;
+
     for (const auto& [label, value] : obj.items()) {
-        if (label == "stored_key") {
+        if (label == "hashes") {
+            for (const auto& it : value) {
+                if (!it.is_object()) {
+                    throw std::invalid_argument(
+                            "ScramPasswordMetaData(): hashes entry must be "
+                            "object");
+                }
+                keys.emplace_back(Keys{
+                        cb::base64::decode(it["stored_key"].get<std::string>()),
+                        cb::base64::decode(
+                                it["server_key"].get<std::string>())});
+            }
+        } else if (label == "stored_key") {
             stored_key = cb::base64::decode(value.get<std::string>());
         } else if (label == "server_key") {
             server_key = cb::base64::decode(value.get<std::string>());
@@ -37,14 +52,16 @@ ScramPasswordMetaData::ScramPasswordMetaData(const nlohmann::json& obj) {
         }
     }
 
-    if (stored_key.empty()) {
-        throw std::invalid_argument(
-                "ScramPasswordMetaData(): stored_key must be present");
+    if (!stored_key.empty() && !server_key.empty()) {
+        keys.emplace_back(Keys{std::move(stored_key), std::move(server_key)});
     }
-    if (server_key.empty()) {
+
+    if (keys.empty()) {
         throw std::invalid_argument(
-                "ScramPasswordMetaData(): server_key must be present");
+                "ScramPasswordMetaData(): stored-key and server-key must be "
+                "present");
     }
+
     if (salt.empty()) {
         throw std::invalid_argument(
                 "ScramPasswordMetaData(): salt must be present");
@@ -56,10 +73,14 @@ ScramPasswordMetaData::ScramPasswordMetaData(const nlohmann::json& obj) {
 }
 
 nlohmann::json ScramPasswordMetaData::to_json() const {
-    return {{"iterations", iteration_count},
-            {"salt", salt},
-            {"server_key", cb::base64::encode(server_key)},
-            {"stored_key", cb::base64::encode(stored_key)}};
+    auto ret = nlohmann::json{{"iterations", iteration_count}, {"salt", salt}};
+    ret["hashes"] = nlohmann::json::array();
+    for (const auto& key : keys) {
+        ret["hashes"].push_back(nlohmann::json{
+                {"server_key", cb::base64::encode(key.server_key)},
+                {"stored_key", cb::base64::encode(key.stored_key)}});
+    }
+    return ret;
 }
 
 } // namespace cb::sasl::pwdb

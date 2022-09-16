@@ -54,8 +54,8 @@ public:
             return salt;
         }
 
-        const std::string& getPassword() const {
-            return password;
+        const std::vector<std::string>& getPasswords() const {
+            return passwords;
         }
 
         const std::string& getAlgorithm() const {
@@ -74,8 +74,8 @@ public:
         /// The salt in raw format
         std::string salt;
 
-        /// The password hash in raw format
-        std::string password;
+        /// The password(s) hash in raw format
+        std::vector<std::string> passwords;
 
         /// The algorithm in play (not used by SCRAM)
         std::string algorithm;
@@ -142,9 +142,10 @@ public:
 protected:
     friend class UserFactory;
 
-    void generateSecrets(crypto::Algorithm algo, std::string_view passwd);
+    void generateSecrets(crypto::Algorithm algo,
+                         const std::vector<std::string>& passwords);
     void generatePasswordHash(std::string_view password_hash_type,
-                              std::string_view passwd);
+                              const std::vector<std::string>& passwords);
 
     std::optional<ScramPasswordMetaData> scram_sha_512;
     std::optional<ScramPasswordMetaData> scram_sha_256;
@@ -185,6 +186,11 @@ public:
      */
     static User create(const std::string& name,
                        const std::string& pw,
+                       std::function<bool(crypto::Algorithm)> callback = {},
+                       std::string_view password_hash_type = {});
+
+    static User create(const std::string& name,
+                       const std::vector<std::string>& passwords,
                        std::function<bool(crypto::Algorithm)> callback = {},
                        std::string_view password_hash_type = {});
 

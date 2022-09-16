@@ -15,6 +15,8 @@
 #include <folly/portability/GTest.h>
 #include <memory>
 
+using namespace std::string_view_literals;
+
 class SaslClientServerTest : public ::testing::Test {
 protected:
     static void SetUpTestCase() {
@@ -25,18 +27,16 @@ protected:
                 std::make_unique<cb::sasl::pwdb::MutablePasswordDatabase>();
         passwordDatabase->upsert(UserFactory::create(
                 "mikewied",
-                " mik epw ",
+                {{" mik epw "}, {"second_password"}},
                 [](cb::crypto::Algorithm) { return true; },
                 "pbkdf2-hmac-sha512"));
         swap_password_database(std::move(passwordDatabase));
     }
 
-    // You may set addNonce to true to have it use a fixed nonce
-    // for debugging purposes
-    void test_auth(const std::string& mech) {
+    void test_auth(const std::string& mech, std::string_view password) {
         cb::sasl::client::ClientContext client(
                 []() -> std::string { return std::string{"mikewied"}; },
-                []() -> std::string { return std::string{" mik epw "}; },
+                [&password]() -> std::string { return std::string{password}; },
                 mech);
 
         auto client_data = client.start();
@@ -54,7 +54,6 @@ protected:
 
         ASSERT_EQ(cb::sasl::Error::CONTINUE, server_data.first);
 
-        // jeg må da avslutte med en client step?
         do {
             client_data = client.step(server_data.second);
             ASSERT_EQ(cb::sasl::Error::CONTINUE, client_data.first);
@@ -66,21 +65,41 @@ protected:
 };
 
 TEST_F(SaslClientServerTest, PLAIN) {
-    test_auth("PLAIN");
+    test_auth("PLAIN", " mik epw "sv);
 }
 
 TEST_F(SaslClientServerTest, SCRAM_SHA1) {
-    test_auth("SCRAM-SHA1");
+    test_auth("SCRAM-SHA1", " mik epw "sv);
 }
 
 TEST_F(SaslClientServerTest, SCRAM_SHA256) {
-    test_auth("SCRAM-SHA256");
+    test_auth("SCRAM-SHA256", " mik epw "sv);
 }
 
 TEST_F(SaslClientServerTest, SCRAM_SHA512) {
-    test_auth("SCRAM-SHA512");
+    test_auth("SCRAM-SHA512", " mik epw "sv);
 }
 
 TEST_F(SaslClientServerTest, AutoSelectMechamism) {
-    test_auth(cb::sasl::server::listmech());
+    test_auth(cb::sasl::server::listmech(), " mik epw "sv);
+}
+
+TEST_F(SaslClientServerTest, PLAIN_AlternativePassword) {
+    test_auth("PLAIN", "second_password"sv);
+}
+
+TEST_F(SaslClientServerTest, SCRAM_SHA1_AlternativePassword) {
+    test_auth("SCRAM-SHA1", "second_password"sv);
+}
+
+TEST_F(SaslClientServerTest, SCRAM_SHA256_AlternativePassword) {
+    test_auth("SCRAM-SHA256", "second_password"sv);
+}
+
+TEST_F(SaslClientServerTest, SCRAM_SHA512_AlternativePassword) {
+    test_auth("SCRAM-SHA512", "second_password"sv);
+}
+
+TEST_F(SaslClientServerTest, AutoSelectMechamism_AlternativePassword) {
+    test_auth(cb::sasl::server::listmech(), "second_password"sv);
 }

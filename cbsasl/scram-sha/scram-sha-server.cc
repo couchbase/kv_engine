@@ -53,7 +53,7 @@ std::pair<Error, std::string_view> ServerBackend::start(
                      logging::Level::Error,
                      "Invalid arguments provided to "
                      "ScramShaServerBackend::start");
-        return std::make_pair<Error, std::string_view>(Error::BAD_PARAM, {});
+        return {Error::BAD_PARAM, {}};
     }
 
     // the "client-first-message" message should contain a gs2-header
@@ -68,7 +68,7 @@ std::pair<Error, std::string_view> ServerBackend::start(
         logging::log(&context,
                      logging::Level::Error,
                      "SCRAM: client should not try to ask for channel binding");
-        return std::make_pair<Error, std::string_view>(Error::BAD_PARAM, {});
+        return {Error::BAD_PARAM, {}};
     }
 
     // next up is an optional authzid which we completely ignore...
@@ -77,7 +77,7 @@ std::pair<Error, std::string_view> ServerBackend::start(
         logging::log(&context,
                      logging::Level::Error,
                      "SCRAM: Format error on client-first-message");
-        return std::make_pair<Error, std::string_view>(Error::BAD_PARAM, {});
+        return {Error::BAD_PARAM, {}};
     }
 
     client_first_message_bare = client_first_message.substr(idx + 1);
@@ -87,7 +87,7 @@ std::pair<Error, std::string_view> ServerBackend::start(
         logging::log(&context,
                      logging::Level::Error,
                      "SCRAM: Failed to decode client-first-message-bare");
-        return std::make_pair<Error, std::string_view>(Error::BAD_PARAM, {});
+        return {Error::BAD_PARAM, {}};
     }
 
     for (const auto& attribute : attributes) {
@@ -111,8 +111,7 @@ std::pair<Error, std::string_view> ServerBackend::start(
             logging::log(&context,
                          logging::Level::Error,
                          "Unsupported key supplied");
-            return std::make_pair<Error, std::string_view>(Error::BAD_PARAM,
-                                                           {});
+            return {Error::BAD_PARAM, {}};
         }
     }
 
@@ -120,7 +119,7 @@ std::pair<Error, std::string_view> ServerBackend::start(
         // mandatory fields!!!
         logging::log(
                 &context, logging::Level::Error, "Unsupported key supplied");
-        return std::make_pair<Error, std::string_view>(Error::BAD_PARAM, {});
+        return {Error::BAD_PARAM, {}};
     }
 
     try {
@@ -129,7 +128,7 @@ std::pair<Error, std::string_view> ServerBackend::start(
         logging::log(&context,
                      logging::Level::Error,
                      "Invalid character in username detected");
-        return std::make_pair<Error, std::string_view>(Error::BAD_PARAM, {});
+        return {Error::BAD_PARAM, {}};
     }
 
     if (!find_user(username, user)) {
@@ -150,13 +149,12 @@ std::pair<Error, std::string_view> ServerBackend::start(
     addAttribute(out, 'i', passwordMeta.iteration_count, false);
     server_first_message = out.str();
 
-    return std::make_pair<Error, std::string_view>(Error::CONTINUE,
-                                                   server_first_message);
+    return {Error::CONTINUE, server_first_message};
 }
 
 std::pair<Error, std::string_view> ServerBackend::step(std::string_view input) {
     if (input.empty()) {
-        return std::make_pair<Error, std::string_view>(Error::BAD_PARAM, {});
+        return {Error::BAD_PARAM, {}};
     }
 
     std::string client_final_message(input.data(), input.size());
@@ -165,7 +163,7 @@ std::pair<Error, std::string_view> ServerBackend::step(std::string_view input) {
         logging::log(&context,
                      logging::Level::Error,
                      "SCRAM: Failed to decode client_final_message");
-        return std::make_pair<Error, std::string_view>(Error::BAD_PARAM, {});
+        return {Error::BAD_PARAM, {}};
     }
 
     auto iter = attributes.find('p');
@@ -174,66 +172,66 @@ std::pair<Error, std::string_view> ServerBackend::step(std::string_view input) {
                 &context,
                 logging::Level::Error,
                 "SCRAM: client_final_message does not contain client proof");
-        return std::make_pair<Error, std::string_view>(Error::BAD_PARAM, {});
+        return {Error::BAD_PARAM, {}};
     }
 
     auto idx = client_final_message.find(",p=");
     client_final_message_without_proof = client_final_message.substr(0, idx);
 
-    // Generate the server signature
-    std::stringstream out;
-    auto serverSignature =
-            getServerSignature(user.getScramMetaData(algorithm).server_key);
-    addAttribute(out, 'v', serverSignature, false);
-    server_final_message = out.str();
+    int success = 0;
+    for (const auto& key : user.getScramMetaData(algorithm).keys) {
+        // Generate the server signature
+        std::stringstream out;
+        auto serverSignature = getServerSignature(key.server_key);
+        addAttribute(out, 'v', serverSignature, false);
+        server_final_message = out.str();
 
-    const auto clientproof = cb::base64::decode(iter->second);
-    const auto client_signature =
-            getClientSignature(user.getScramMetaData(algorithm).stored_key);
-    if (clientproof.size() != client_signature.size()) {
-        logging::log(&context,
-                     logging::Level::Error,
-                     "SCRAM: client proof has a different width than client "
-                     "signature");
-        return std::make_pair<Error, std::string_view>(Error::BAD_PARAM, {});
-    }
-    // ClientKey is Client Proof XOR ClientSignature
-    const auto* cp = clientproof.data();
-    const auto* cs = client_signature.data();
-    std::string ck;
-    ck.resize(clientproof.size());
+        const auto clientproof = cb::base64::decode(iter->second);
+        const auto client_signature = getClientSignature(key.stored_key);
+        if (clientproof.size() != client_signature.size()) {
+            logging::log(
+                    &context,
+                    logging::Level::Error,
+                    "SCRAM: client proof has a different width than client "
+                    "signature");
+            return {Error::BAD_PARAM, {}};
+        }
+        // ClientKey is Client Proof XOR ClientSignature
+        const auto* cp = clientproof.data();
+        const auto* cs = client_signature.data();
+        std::string ck;
+        ck.resize(clientproof.size());
 
-    auto total = ck.size();
-    for (std::size_t ii = 0; ii < total; ++ii) {
-        ck[ii] = cp[ii] ^ cs[ii];
-    }
+        auto total = ck.size();
+        for (std::size_t ii = 0; ii < total; ++ii) {
+            ck[ii] = cp[ii] ^ cs[ii];
+        }
 
-    const auto sh = cb::crypto::digest(algorithm, ck);
-    auto storedKey = user.getScramMetaData(algorithm).stored_key;
+        const auto sh = cb::crypto::digest(algorithm, ck);
+        auto storedKey = key.stored_key;
 
-    int fail =
-            cbsasl_secure_compare(
-                    sh.data(), sh.size(), storedKey.data(), storedKey.size()) ^
-            gsl::narrow_cast<int>(user.isDummy());
-
-    if (fail != 0) {
-        if (user.isDummy()) {
-            logging::log(&context,
-                         logging::Level::Fail,
-                         "No such user [" + username + "]");
-            return std::make_pair<Error, std::string_view>(
-                    Error::NO_USER, server_final_message);
-        } else {
-            logging::log(&context,
-                         logging::Level::Fail,
-                         "Authentication fail for [" + username + "]");
-            return std::make_pair<Error, std::string_view>(
-                    Error::PASSWORD_ERROR, server_final_message);
+        if ((cbsasl_secure_compare(
+                     sh.data(), sh.size(), storedKey.data(), storedKey.size()) ^
+             gsl::narrow_cast<int>(user.isDummy())) == 0) {
+            success = 1;
         }
     }
-    logging::log(&context, logging::Level::Trace, server_final_message);
-    return std::make_pair<Error, std::string_view>(Error::OK,
-                                                   server_final_message);
+
+    if (success) {
+        logging::log(&context, logging::Level::Trace, server_final_message);
+        return {Error::OK, server_final_message};
+    }
+
+    if (user.isDummy()) {
+        logging::log(&context,
+                     logging::Level::Fail,
+                     "No such user [" + username + "]");
+        return {Error::NO_USER, server_final_message};
+    }
+    logging::log(&context,
+                 logging::Level::Fail,
+                 "Authentication fail for [" + username + "]");
+    return {Error::PASSWORD_ERROR, server_final_message};
 }
 
 } // namespace cb::sasl::mechanism::scram

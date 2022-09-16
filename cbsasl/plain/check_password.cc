@@ -39,25 +39,28 @@ Error check_password(Context* context,
                 Algorithm::DeprecatedPlain, password, metadata.getSalt());
     }
 
-    const auto& original = metadata.getPassword();
-    if (original.size() != generated.size()) {
-        return Error::FAIL;
-    }
+    bool success = false;
+    const auto& originals = metadata.getPasswords();
+    for (const auto& pw : originals) {
+        if (pw.size() != generated.size()) {
+            return Error::FAIL;
+        }
 
-    // Compare the generated with the stored
-    bool same = !user.isDummy();
-    for (std::size_t ii = 0; ii < original.size(); ++ii) {
-        if (generated[ii] != original[ii]) {
-            // we don't want an early exit...
-            same = false;
+        // Compare the generated with the stored
+        bool same = !user.isDummy();
+        for (std::size_t ii = 0; ii < pw.size(); ++ii) {
+            if (generated[ii] != pw[ii]) {
+                // we don't want an early exit...
+                same = false;
+            }
+        }
+
+        if (same) {
+            success = true;
         }
     }
 
-    if (same) {
-        return Error::OK;
-    }
-
-    return Error::PASSWORD_ERROR;
+    return success ? Error::OK : Error::PASSWORD_ERROR;
 }
 
 } // namespace cb::sasl::plain

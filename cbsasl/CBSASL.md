@@ -15,14 +15,12 @@ implementation does not perform the SASLPrep on the username as specified
 in https://www.ietf.org/rfc/rfc4013.txt, but we don't really need to
 given the username/password restrictions in Couchbase.
 
-SCRAM-SHA512 and SCRAM-SHA256 is not supported on all platforms.
-
 ### PLAIN
 
 The PLAIN authentication allows users for authenticating by providing
 the username and password in plain text. The server does however not
-store the plain text password, so we'll calculate a salted HMAC hash
-of the password and compare with what we've got stored internally.
+store the plain text password, so we'll calculate the appropriate hash
+of the provided password and compare with the hashed version on the server.
 
 ## Server
 
@@ -39,6 +37,9 @@ The user database is stored in JSON format with the following syntax:
              "hash": {
                  "algorithm": "[argon2id/SHA-1/pbkdf2-hmac-sha512]",
                  "hash": "base64 encoded salted hash of the password",
+                 "hashes": [ "base64 encoded salted hash of the password 1",
+                             "base64 encoded salted hash of the password 2",
+                             ...],
                  "memory": memory-cost,
                  "parallelism": parallel-cost,
                  "salt": "base64 encoded salt"
@@ -48,31 +49,49 @@ The user database is stored in JSON format with the following syntax:
              "scram-sha-512" : {
                  "server_key" : "base64 encoded ",
                  "stored_key" : "base64 encoded",
+                 "hashes" : [ {"server_key": "b64 enc", "stored_key" : "b64 enc" },
+                              {"server_key": "b64 enc", "stored_key" : "b64 enc" },
+                              ... ],
                  "salt": "base64 encoded salt"
                  "iterations" : iteration-count
              },
              "scram-sha-256" : {
                  "server_key" : "base64 encoded ",
                  "stored_key" : "base64 encoded",
+                 "hashes" : [ {"server_key": "b64 enc", "stored_key" : "b64 enc" },
+                              {"server_key": "b64 enc", "stored_key" : "b64 enc" },
+                              ... ],
                  "salt": "base64 encoded salt"
                  "iterations" : iteration-count
              },
              "scram-sha-1" : {
                  "server_key" : "base64 encoded ",
                  "stored_key" : "base64 encoded",
+                 "hashes" : [ {"server_key": "b64 enc", "stored_key" : "b64 enc" },
+                              {"server_key": "b64 enc", "stored_key" : "b64 enc" },
+                              ... ],
                  "salt": "base64 encoded salt"
                  "iterations" : iteration-count
              }
          }
      }
 
-The `hash` entry controls the legal attributes:
+Each components `hash` entry is deprecated and will be removed in a followup
+patch once ns_server provides `hashes`. To allow for password rotation without
+being unavailable for some services while getting the new password the `hashes`
+array contains the old and new password during the migration window for
+password rotation.
+
+The top level `hash` entry controls the legal attributes:
 
 *Argon2id*:
 
      "hash": {
          "algorithm": "argon2id",
          "hash": "base64 encoded salted hash of the password",
+         "hashes": [ "base64 encoded salted hash of the password 1",
+                     "base64 encoded salted hash of the password 2",
+                     ...],
          "memory": memory-cost,
          "parallelism": parallel-cost,
          "salt": "base64 encoded salt"
@@ -86,6 +105,9 @@ The `hash` entry controls the legal attributes:
      "hash": {
          "algorithm": "SHA-1",
          "hash": "base64 encoded salted hash of the password",
+         "hashes": [ "base64 encoded salted hash of the password 1",
+                     "base64 encoded salted hash of the password 2",
+                     ...],
          "salt": "base64 encoded salt"
      }
 
@@ -94,6 +116,9 @@ The `hash` entry controls the legal attributes:
      "hash": {
          "algorithm": "pbkdf2-hmac-sha512",
          "hash": "base64 encoded salted hash of the password",
+         "hashes": [ "base64 encoded salted hash of the password 1",
+                     "base64 encoded salted hash of the password 2",
+                     ...],
          "iterations": iteration-count,
          "salt": "base64 encoded salt"
      }

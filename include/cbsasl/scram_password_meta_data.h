@@ -13,6 +13,7 @@
 #include <cbsasl/cbcrypto.h>
 #include <nlohmann/json_fwd.hpp>
 #include <string>
+#include <vector>
 
 namespace cb::sasl::pwdb {
 
@@ -30,10 +31,18 @@ public:
     /// salt (kept base64 encoded in memory) as it is only to the
     /// client
     std::string salt;
-    /// stored key kept in raw format
-    std::string stored_key;
-    /// server key kept in raw format
-    std::string server_key;
+
+    struct Keys {
+        Keys(std::string stored, std::string server)
+            : stored_key(std::move(stored)), server_key(std::move(server)) {
+        }
+        /// stored key kept in raw format
+        std::string stored_key;
+        /// server key kept in raw format
+        std::string server_key;
+    };
+    std::vector<Keys> keys;
+
     /// number of iterations
     std::size_t iteration_count = 0;
 };
