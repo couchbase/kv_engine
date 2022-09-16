@@ -1348,18 +1348,18 @@ void ActiveStream::processItemsInner(
                                          highNonVisibleSeqno.value());
         }
     }
-
-    // if we've processed past the stream's end seqno then transition to the
-    // stream to the dead state and add a stream end to the ready queue
-    if (curChkSeqno >= getEndSeqno()) {
-        endStream(cb::mcbp::DcpStreamEndStatus::Ok);
-    }
 }
 
 void ActiveStream::processItems(
         const std::lock_guard<std::mutex>& lg,
         OutstandingItemsResult& outstandingItemsResult) {
     processItemsInner(lg, outstandingItemsResult);
+
+    // If we've processed past the stream's end seqno then transition to the
+    // stream to the dead state and add a stream end to the ready queue
+    if (curChkSeqno >= getEndSeqno()) {
+        endStream(cb::mcbp::DcpStreamEndStatus::Ok);
+    }
 
     // After the snapshot has been processed, check if the filter is now
     // empty. A stream with an empty filter does nothing but self close.
