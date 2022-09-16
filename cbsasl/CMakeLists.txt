@@ -14,6 +14,8 @@ add_library(cbsasl STATIC
             pwfile.cc
             pwfile.h
             scram_password_meta_data.cc
+            scram-sha/scram-sha-client.cc
+            scram-sha/scram-sha-server.cc
             scram-sha/scram-sha.cc
             scram-sha/scram-sha.h
             scram-sha/stringutils.cc

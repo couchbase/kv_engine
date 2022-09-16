@@ -55,6 +55,20 @@ protected:
                              const std::string& value,
                              bool more);
 
+    using AttributeMap = std::map<char, std::string>;
+
+    /**
+     * Decode the attribute list into a set. The attribute list looks like:
+     * "k=value,y=value" etc
+     *
+     * @param list the list to parse
+     * @param attributes where to store the attributes
+     * @return true if success, false otherwise
+     */
+    static bool decodeAttributeList(Context& context,
+                                    std::string_view list,
+                                    AttributeMap& attributes);
+
     /**
      * Add a property to the message list according to
      * https://www.ietf.org/rfc/rfc5802.txt section 5.1
@@ -71,11 +85,28 @@ protected:
      */
     static void addAttribute(std::ostream& out, char key, int value, bool more);
 
-    std::string getServerSignature();
-    std::string getClientSignature();
+    /**
+     * Generate the Server Signature. It is computed as:
+     *
+     * SaltedPassword  := Hi(Normalize(password), salt, i)
+     * ServerKey       := HMAC(SaltedPassword, "Server Key")
+     * ServerSignature := HMAC(ServerKey, AuthMessage)
+     *
+     * @param server_key the server key to use
+     */
+    std::string getServerSignature(std::string_view server_key);
 
-    virtual std::string getStoredKey() = 0;
-    virtual std::string getServerKey() = 0;
+    /**
+     * Generate the ClientSignature. It is computed as:
+     *
+     * AuthMessage     := client-first-message-bare + "," +
+     *                    server-first-message + "," +
+     *                    client-final-message-without-proof
+     * ClientSignature := HMAC(StoredKey, AuthMessage)
+     *
+     * @param stored_key the stored key to use
+     */
+    std::string getClientSignature(std::string_view stored_key);
 
     /**
      * Get the AUTH message (as specified in the RFC)
@@ -114,13 +145,6 @@ public:
     }
 
 protected:
-    std::string getStoredKey() override {
-        return user.getScramMetaData(algorithm).stored_key;
-    }
-    std::string getServerKey() override {
-        return user.getScramMetaData(algorithm).server_key;
-    }
-
     pwdb::User user;
 };
 
@@ -182,8 +206,6 @@ public:
     }
 
 protected:
-    std::string getStoredKey() override;
-    std::string getServerKey() override;
     std::string getClientKey();
     std::string getClientProof();
 
