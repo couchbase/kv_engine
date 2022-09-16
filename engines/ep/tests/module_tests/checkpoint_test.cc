@@ -4205,7 +4205,7 @@ TEST_P(CheckpointIndexAllocatorMemoryTrackingTest,
     // Lambda function used to guarantee duplicate item queued is duplicate
     auto queueItem = [this, &manager, &keyLength]() {
         auto item =
-                makeCommittedItem(makeStoredDocKey(std::string(keyLength, '0'),
+                makeCommittedItem(makeStoredDocKey(std::string(keyLength, 'x'),
                                                    CollectionID::Default),
                                   "value",
                                   vbid);
@@ -4219,29 +4219,30 @@ TEST_P(CheckpointIndexAllocatorMemoryTrackingTest,
     queueItem();
 
     // Expect reasonable values for the keyIndex allocation, which should be:
-    // - Greater than or equal to the insertion overhead plus the size of the
+    // 1. Greater than or equal to the insertion overhead plus the size of the
     // key allocation on the heap
     EXPECT_GE(checkpoint.getKeyIndexAllocatorBytes(),
               checkpointIndexInsertionOverhead + keyLength);
-    // - Less than or equal to the platform-specific overhead + insertion
+    // 2. Less than or equal to the platform-specific overhead + insertion
     // overhead + the first element metadata overhead for Folly maps, plus the
     // size of the key. As std::string will likely overallocate for
     // alignment/optimization purposes, upper bound the raw size of the key by
-    // some bytes
+    // some bytes.
     EXPECT_LE(checkpoint.getKeyIndexAllocatorBytes(),
               checkpointIndexInsertionOverhead + firstElemOverhead +
                       (keyLength + alignmentBytes));
 
-    const auto beforeOpKeyIndexAlloc = checkpoint.getKeyIndexAllocatorBytes();
-    // Now expel the item from the checkpoint. The keyIndex will still contain
+    // Expel the item from the checkpoint. The keyIndex will still contain
     // the key/value, so its size should not change - expect the same value.
+    const auto beforeExpel = checkpoint.getKeyIndexAllocatorBytes();
     checkpoint.expelItems(std::prev(checkpoint.end()), 3);
-    EXPECT_EQ(beforeOpKeyIndexAlloc, checkpoint.getKeyIndexAllocatorBytes());
+    EXPECT_EQ(beforeExpel, checkpoint.getKeyIndexAllocatorBytes());
 
     // Queue the same item again. As a duplicate of a key that is already in the
     // keyIndex, the memory usage should not change as nothing is inserted.
+    const auto beforeDuplicateItem = checkpoint.getKeyIndexAllocatorBytes();
     queueItem();
-    EXPECT_EQ(beforeOpKeyIndexAlloc, checkpoint.getKeyIndexAllocatorBytes());
+    EXPECT_EQ(beforeDuplicateItem, checkpoint.getKeyIndexAllocatorBytes());
 }
 
 void ShardedCheckpointDestructionTest::SetUp() {
