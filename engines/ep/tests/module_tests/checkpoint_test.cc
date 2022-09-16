@@ -3735,7 +3735,23 @@ void CheckpointMemoryTrackingTest::testCheckpointManagerMemUsage() {
     size_t itemsAlloc = 0;
     size_t itemOverheadAlloc = 0;
     size_t queueAlloc = 0;
-    size_t keyIndexAlloc = 0;
+
+    // The allocator accounts for
+    // sizeof(StoredDocKeyT<MemoryTrackingAllocator>) + sizeof(IndexEntry)
+    // for each item, manual stats only account for the latter.
+    const size_t allocatorInsertionOverhead =
+            checkpointIndexInsertionOverhead * numItems;
+    const size_t manualInsertionOverhead = sizeof(IndexEntry) * numItems;
+
+    // Manual stats account for SSO, but only the key.size() portion and not
+    // sizeof(std::string). The allocator accounts for heap allocations only.
+    size_t totalKeySize = 0;
+    size_t totalKeyHeapAlloc = 0; // Subset of totalKeySize; only counts keys
+                                  // that require heap allocation
+    // In this way, the expected key sizes for the current behaviour of:
+    // * Manual = totalKeySize
+    // * Allocator = totalKeyHeapAlloc, plus some bytes for possible
+    // overallocation as (capacity >= size)
     std::string key;
     for (size_t i = 0; i < numItems; ++i) {
         auto item = makeCommittedItem(
@@ -3744,13 +3760,22 @@ void CheckpointMemoryTrackingTest::testCheckpointManagerMemUsage() {
                 vbid);
         EXPECT_TRUE(vb->checkpointManager->queueDirty(
                 item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr));
-        // Our estimated mem-usage must account for the queued item + the
-        // allocation for the key-index
+
         itemsAlloc += item->size();
         itemOverheadAlloc += (item->size() - item->getValMemSize());
         queueAlloc += Checkpoint::per_item_queue_overhead;
-        keyIndexAlloc += item->getKey().size() + sizeof(IndexEntry);
+
+        const auto keySize = item->getKey().size();
+        totalKeySize += keySize;
+        if (GetParam() == CheckpointMemoryTrackingTest::longKeyLength) {
+            totalKeyHeapAlloc += keySize;
+        }
     }
+
+    const size_t manuallyTrackedKeyIndexAlloc =
+            totalKeySize + manualInsertionOverhead;
+    const size_t allocatorTrackedKeyIndexAlloc =
+            totalKeyHeapAlloc + allocatorInsertionOverhead;
 
     // Load post-conditions
     ASSERT_EQ(1, manager.getNumCheckpoints());
@@ -3771,10 +3796,10 @@ void CheckpointMemoryTrackingTest::testCheckpointManagerMemUsage() {
 
     EXPECT_EQ(initialQueued + itemsAlloc, queued);
     EXPECT_EQ(initialQueueOverhead + queueAlloc, queueOverhead);
-    EXPECT_EQ(initialIndex + keyIndexAlloc, index);
-    EXPECT_EQ(
-            initialMemOverhead + queueAlloc + keyIndexAlloc + itemOverheadAlloc,
-            stats.getMemOverhead());
+    EXPECT_EQ(initialIndex + manuallyTrackedKeyIndexAlloc, index);
+    EXPECT_EQ(initialMemOverhead + queueAlloc + manuallyTrackedKeyIndexAlloc +
+                      itemOverheadAlloc,
+              stats.getMemOverhead());
     EXPECT_EQ(queued + index + queueOverhead + checkpointOverhead,
               stats.getCheckpointManagerEstimatedMemUsage());
     EXPECT_EQ(queued + index + queueOverhead + checkpointOverhead,
@@ -3793,6 +3818,16 @@ void CheckpointMemoryTrackingTest::testCheckpointManagerMemUsage() {
               sizeof(Checkpoint) + queuedOverheadAllocator + indexAllocator);
     EXPECT_EQ(queuedOverheadAllocator,
               initialQueuedOverheadAllocator + queueAlloc);
+
+    // We cannot easily pinpoint the exact allocation made by the allocator, but
+    // we can expect a reasonable minimum value:
+    // Memory allocated should increase by more than the sum of the key sizes
+    // and the insertion overhead times the number of items.
+    EXPECT_GE(indexAllocator,
+              initialIndexAllocator + allocatorTrackedKeyIndexAlloc);
+    // We can't upper bound this value without tightly coupling to the
+    // underlying implementation of the checkpoint index structure, which isn't
+    // suitable for this test.
 }
 
 TEST_P(CheckpointMemoryTrackingTest, CheckpointManagerMemUsage) {
@@ -4187,13 +4222,14 @@ TEST_P(CheckpointIndexAllocatorMemoryTrackingTest,
     // - Greater than or equal to the insertion overhead plus the size of the
     // key allocation on the heap
     EXPECT_GE(checkpoint.getKeyIndexAllocatorBytes(),
-              insertionOverhead + keyLength);
-    // - Less than or equal to the insertion overhead + the first element
-    // metadata overhead for Folly maps, plus the size of the key. As
-    // std::string will likely overallocate for alignment/optimization purposes,
-    // upper bound the raw size of the key by some bytes
+              checkpointIndexInsertionOverhead + keyLength);
+    // - Less than or equal to the platform-specific overhead + insertion
+    // overhead + the first element metadata overhead for Folly maps, plus the
+    // size of the key. As std::string will likely overallocate for
+    // alignment/optimization purposes, upper bound the raw size of the key by
+    // some bytes
     EXPECT_LE(checkpoint.getKeyIndexAllocatorBytes(),
-              insertionOverhead + firstElemOverhead +
+              checkpointIndexInsertionOverhead + firstElemOverhead +
                       (keyLength + alignmentBytes));
 
     const auto beforeOpKeyIndexAlloc = checkpoint.getKeyIndexAllocatorBytes();

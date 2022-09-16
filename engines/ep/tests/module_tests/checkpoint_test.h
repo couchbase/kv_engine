@@ -143,15 +143,6 @@ public:
 class CheckpointMemoryTrackingTest : public SingleThreadedCheckpointTest,
                                      public ::testing::WithParamInterface<int> {
 public:
-    // Number of items in the checkpoint for all memUsage tests.
-    static const auto numItems = 10;
-
-    // Small enough such that SSO applies for all platforms
-    static const int shortKeyLength = 5;
-    // Very long key that will be >> any possible non-key allocation; SSO will
-    // definitely not apply.
-    static const int longKeyLength = 1024;
-
     /**
      * Verify that the checkpoints mem-usage is tracked correctly
      * at queueing items into the checkpoints.
@@ -174,6 +165,18 @@ public:
 
         return keyStr + std::string(desiredKeyLength - keyStr.size(), 'x');
     }
+
+    // Number of items in the checkpoint for all memUsage tests.
+    static const auto numItems = 10;
+
+    // Small enough such that SSO applies for all platforms
+    static const int shortKeyLength = 5;
+    // Very long key that will be >> any possible non-key allocation; SSO will
+    // definitely not apply.
+    static const int longKeyLength = 1024;
+
+    static constexpr size_t checkpointIndexInsertionOverhead =
+            sizeof(StoredDocKeyT<MemoryTrackingAllocator>) + sizeof(IndexEntry);
 };
 
 /**
@@ -182,9 +185,6 @@ public:
 class CheckpointIndexAllocatorMemoryTrackingTest
     : public CheckpointMemoryTrackingTest {
 protected:
-    static constexpr size_t insertionOverhead =
-            sizeof(StoredDocKeyT<MemoryTrackingAllocator>) + sizeof(IndexEntry);
-
     // When the first element is inserted into a Folly map, there’s a small
     // overhead for the metadata of items which share the same
     // row. We cannot easily predict which row different items will be assigned
