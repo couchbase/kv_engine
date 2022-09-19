@@ -133,7 +133,7 @@ cb::engine_errc RemoveCommandContext::storeItem() {
 
     if (ret == cb::engine_errc::success) {
         item_info info;
-        if (!bucket_get_item_info(connection, deleted.get(), &info)) {
+        if (!bucket_get_item_info(connection, *deleted, info)) {
             return cb::engine_errc::failed;
         }
 

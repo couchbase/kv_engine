@@ -25,7 +25,7 @@ cb::engine_errc GetLockedCommandContext::getAndLockItem() {
             cookie, cookie.getRequestKey(), vbucket, lock_timeout);
     if (ret.first == cb::engine_errc::success) {
         it = std::move(ret.second);
-        if (!bucket_get_item_info(connection, it.get(), &info)) {
+        if (!bucket_get_item_info(connection, *it, info)) {
             LOG_WARNING(
                     "{}: GetLockedCommandContext::"
                     "getAndLockItem Failed to get item info",

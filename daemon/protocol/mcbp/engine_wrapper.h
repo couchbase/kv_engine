@@ -35,8 +35,8 @@ cb::engine_errc bucket_unknown_command(Cookie& cookie,
 void bucket_reset_stats(Cookie& cookie);
 
 bool bucket_get_item_info(Connection& c,
-                          gsl::not_null<const ItemIface*> item_,
-                          gsl::not_null<item_info*> item_info_);
+                          const ItemIface& item_,
+                          item_info& item_info_);
 
 cb::EngineErrorMetadataPair bucket_get_meta(Cookie& cookie,
                                             const DocKey& key,

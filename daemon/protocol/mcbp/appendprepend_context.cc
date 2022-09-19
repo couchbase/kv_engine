@@ -68,7 +68,7 @@ cb::engine_errc AppendPrependCommandContext::getItem() {
     auto ret = bucket_get(cookie, cookie.getRequestKey(), vbucket);
     if (ret.first == cb::engine_errc::success) {
         olditem = std::move(ret.second);
-        if (!bucket_get_item_info(connection, olditem.get(), &oldItemInfo)) {
+        if (!bucket_get_item_info(connection, *olditem, oldItemInfo)) {
             return cb::engine_errc::failed;
         }
 
@@ -185,8 +185,7 @@ cb::engine_errc AppendPrependCommandContext::storeItem() {
         cookie.setCas(ncas);
         if (connection.isSupportsMutationExtras()) {
             item_info newItemInfo;
-            if (!bucket_get_item_info(
-                        connection, newitem.get(), &newItemInfo)) {
+            if (!bucket_get_item_info(connection, *newitem, newItemInfo)) {
                 return cb::engine_errc::failed;
             }
             mutation_descr_t extras = {};

@@ -47,7 +47,7 @@ cb::engine_errc GatCommandContext::getAndTouchItem() {
             cookie.getRequest().getDurabilityRequirements());
     if (ret.first == cb::engine_errc::success) {
         it = std::move(ret.second);
-        if (!bucket_get_item_info(connection, it.get(), &info)) {
+        if (!bucket_get_item_info(connection, *it, info)) {
             LOG_WARNING("{}: Failed to get item info", connection.getId());
             return cb::engine_errc::failed;
         }

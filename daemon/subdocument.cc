@@ -1161,8 +1161,7 @@ static cb::engine_errc subdoc_update(SubdocCmdContext& context,
                 context.sequence_no = mdt.seqno;
             } else {
                 item_info info;
-                if (!bucket_get_item_info(
-                            connection, context.out_doc.get(), &info)) {
+                if (!bucket_get_item_info(connection, *context.out_doc, info)) {
                     LOG_WARNING("{}: Subdoc: Failed to get item info",
                                 connection.getId());
                     cookie.sendResponse(cb::mcbp::Status::Einternal);

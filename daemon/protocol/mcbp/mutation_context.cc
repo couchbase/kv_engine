@@ -165,7 +165,7 @@ cb::engine_errc MutationCommandContext::getExistingItemToPreserveXattr() {
         return cb::engine_errc::success;
     }
 
-    if (!bucket_get_item_info(connection, existing.get(), &existing_info)) {
+    if (!bucket_get_item_info(connection, *existing, existing_info)) {
         return cb::engine_errc::failed;
     }
 
@@ -323,7 +323,7 @@ cb::engine_errc MutationCommandContext::sendResponse() {
 
     if (connection.isSupportsMutationExtras()) {
         item_info newitem_info;
-        if (!bucket_get_item_info(connection, newitem.get(), &newitem_info)) {
+        if (!bucket_get_item_info(connection, *newitem, newitem_info)) {
             return cb::engine_errc::failed;
         }
 

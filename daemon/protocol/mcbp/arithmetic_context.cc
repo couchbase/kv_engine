@@ -36,7 +36,7 @@ cb::engine_errc ArithmeticCommandContext::getItem() {
     if (ret.first == cb::engine_errc::success) {
         olditem = std::move(ret.second);
 
-        if (!bucket_get_item_info(connection, olditem.get(), &oldItemInfo)) {
+        if (!bucket_get_item_info(connection, *olditem, oldItemInfo)) {
             return cb::engine_errc::failed;
         }
 
@@ -247,7 +247,7 @@ cb::engine_errc ArithmeticCommandContext::sendResult() {
 
     if (connection.isSupportsMutationExtras()) {
         item_info newItemInfo;
-        if (!bucket_get_item_info(connection, newitem.get(), &newItemInfo)) {
+        if (!bucket_get_item_info(connection, *newitem, newItemInfo)) {
             return cb::engine_errc::failed;
         }
 
