@@ -1142,7 +1142,7 @@ static cb::engine_errc subdoc_update(SubdocCmdContext& context,
             }
 
             ret = bucket_store(cookie,
-                               context.out_doc.get(),
+                               *context.out_doc,
                                new_cas,
                                new_op,
                                cookie.getRequest().getDurabilityRequirements(),

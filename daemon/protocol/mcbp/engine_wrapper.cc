@@ -80,7 +80,7 @@ cb::EngineErrorMetadataPair bucket_get_meta(Cookie& cookie,
 
 cb::engine_errc bucket_store(
         Cookie& cookie,
-        gsl::not_null<ItemIface*> item_,
+        ItemIface& item_,
         uint64_t& cas,
         StoreSemantics operation,
         std::optional<cb::durability::Requirements> durability,
@@ -88,7 +88,7 @@ cb::engine_errc bucket_store(
         bool preserveTtl) {
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine().store(cookie,
-                                         *item_,
+                                         item_,
                                          cas,
                                          operation,
                                          durability,
@@ -98,7 +98,7 @@ cb::engine_errc bucket_store(
     LOG_TRACE(
             "bucket_store() item:{} cas:{} op:{} durability:{} doc_state:{} -> "
             "{}",
-            *item_,
+            item_,
             cas,
             operation,
             (durability ? to_string(*durability) : "--"),
@@ -110,8 +110,8 @@ cb::engine_errc bucket_store(
         add(cookie,
             document_state == DocumentState::Alive ? Operation::Modify
                                                    : Operation::Delete);
-        cookie.addDocumentWriteBytes(item_->getValueView().size() +
-                                     item_->getDocKey().size());
+        cookie.addDocumentWriteBytes(item_.getValueView().size() +
+                                     item_.getDocKey().size());
     } else if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} bucket_store return cb::engine_errc::disconnect",
                     c.getId(),
@@ -124,7 +124,7 @@ cb::engine_errc bucket_store(
 
 cb::EngineErrorCasPair bucket_store_if(
         Cookie& cookie,
-        gsl::not_null<ItemIface*> item_,
+        ItemIface& item_,
         uint64_t cas,
         StoreSemantics operation,
         cb::StoreIfPredicate predicate,
@@ -133,7 +133,7 @@ cb::EngineErrorCasPair bucket_store_if(
         bool preserveTtl) {
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine().store_if(cookie,
-                                            *item_,
+                                            item_,
                                             cas,
                                             operation,
                                             predicate,
@@ -145,8 +145,8 @@ cb::EngineErrorCasPair bucket_store_if(
         add(cookie,
             document_state == DocumentState::Alive ? Operation::Modify
                                                    : Operation::Delete);
-        cookie.addDocumentWriteBytes(item_->getValueView().size() +
-                                     item_->getDocKey().size());
+        cookie.addDocumentWriteBytes(item_.getValueView().size() +
+                                     item_.getDocKey().size());
     } else if (ret.status == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} store_if return cb::engine_errc::disconnect",
                     c.getId(),

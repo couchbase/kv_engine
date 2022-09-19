@@ -124,7 +124,7 @@ cb::engine_errc RemoveCommandContext::allocateDeletedItem() {
 cb::engine_errc RemoveCommandContext::storeItem() {
     uint64_t new_cas;
     auto ret = bucket_store(cookie,
-                            deleted.get(),
+                            *deleted,
                             new_cas,
                             StoreSemantics::CAS,
                             {},

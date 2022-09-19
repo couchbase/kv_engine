@@ -272,7 +272,7 @@ cb::engine_errc MutationCommandContext::allocateNewItem() {
 cb::engine_errc MutationCommandContext::storeItem() {
     const auto& request = cookie.getRequest();
     auto ret = bucket_store_if(cookie,
-                               newitem.get(),
+                               *newitem,
                                input_cas,
                                operation,
                                store_if_predicate,

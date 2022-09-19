@@ -174,7 +174,7 @@ cb::engine_errc AppendPrependCommandContext::allocateNewItem() {
 cb::engine_errc AppendPrependCommandContext::storeItem() {
     uint64_t ncas = cas;
     auto ret = bucket_store(cookie,
-                            newitem.get(),
+                            *newitem,
                             ncas,
                             StoreSemantics::CAS,
                             cookie.getRequest().getDurabilityRequirements(),

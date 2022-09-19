@@ -44,7 +44,7 @@ cb::EngineErrorMetadataPair bucket_get_meta(Cookie& cookie,
 
 cb::engine_errc bucket_store(
         Cookie& cookie,
-        gsl::not_null<ItemIface*> item_,
+        ItemIface& item_,
         uint64_t& cas,
         StoreSemantics operation,
         std::optional<cb::durability::Requirements> durability,
@@ -53,7 +53,7 @@ cb::engine_errc bucket_store(
 
 cb::EngineErrorCasPair bucket_store_if(
         Cookie& cookie,
-        gsl::not_null<ItemIface*> item_,
+        ItemIface& item_,
         uint64_t cas,
         StoreSemantics operation,
         cb::StoreIfPredicate predicate,

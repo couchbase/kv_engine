@@ -96,7 +96,7 @@ cb::engine_errc ArithmeticCommandContext::createNewItem() {
 cb::engine_errc ArithmeticCommandContext::storeNewItem() {
     uint64_t ncas = cas;
     auto ret = bucket_store(cookie,
-                            newitem.get(),
+                            *newitem,
                             ncas,
                             StoreSemantics::Add,
                             cookie.getRequest().getDurabilityRequirements(),
@@ -201,7 +201,7 @@ cb::engine_errc ArithmeticCommandContext::allocateNewItem() {
 cb::engine_errc ArithmeticCommandContext::storeItem() {
     uint64_t ncas = cas;
     auto ret = bucket_store(cookie,
-                            newitem.get(),
+                            *newitem,
                             ncas,
                             StoreSemantics::CAS,
                             cookie.getRequest().getDurabilityRequirements(),
