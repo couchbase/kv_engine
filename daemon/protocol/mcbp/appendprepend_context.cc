@@ -165,11 +165,9 @@ cb::engine_errc AppendPrependCommandContext::allocateNewItem() {
             old.size() + value.size()};
     // Update the documents's datatype and CAS values
     setDatatypeJSONFromValue(buf, datatype);
-    bucket_item_set_datatype(connection, newitem.get(), datatype);
+    newitem->setDataType(datatype);
     newitem->setCas(oldItemInfo.cas);
-
     state = State::StoreItem;
-
     return cb::engine_errc::success;
 }
 

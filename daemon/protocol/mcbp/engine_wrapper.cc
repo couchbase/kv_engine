@@ -39,12 +39,6 @@ cb::engine_errc bucket_unknown_command(Cookie& cookie,
     return ret;
 }
 
-void bucket_item_set_datatype(Connection& c,
-                              gsl::not_null<ItemIface*> it,
-                              protocol_binary_datatype_t datatype) {
-    c.getBucketEngine().item_set_datatype(*it, datatype);
-}
-
 void bucket_reset_stats(Cookie& cookie) {
     auto& c = cookie.getConnection();
     c.getBucketEngine().reset_stats(cookie);

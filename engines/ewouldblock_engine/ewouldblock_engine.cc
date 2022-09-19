@@ -131,6 +131,9 @@ public:
         return PROTOCOL_BINARY_DATATYPE_XATTR;
     }
 
+    void setDataType(protocol_binary_datatype_t) override {
+    }
+
     uint64_t getCas() const override {
         return 0;
     }
@@ -670,13 +673,6 @@ public:
                 return real_engine->unknown_command(cookie, req, response);
             }
         }
-    }
-
-    void item_set_datatype(ItemIface& itm,
-                           protocol_binary_datatype_t datatype) override {
-        // function cannot return EWOULDBLOCK, simply call the real_engine's
-        // function directly.
-        real_engine->item_set_datatype(itm, datatype);
     }
 
     bool get_item_info(const ItemIface& item, item_info& item_info) override {

@@ -1211,11 +1211,6 @@ cb::engine_errc EventuallyPersistentEngine::unknown_command(
     return ret;
 }
 
-void EventuallyPersistentEngine::item_set_datatype(
-        ItemIface& itm, protocol_binary_datatype_t datatype) {
-    static_cast<Item&>(itm).setDataType(datatype);
-}
-
 cb::engine_errc EventuallyPersistentEngine::step(
         const CookieIface& cookie,
         bool throttled,

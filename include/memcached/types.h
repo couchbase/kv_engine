@@ -59,6 +59,9 @@ public:
     /// Return the Item's datatype.
     virtual protocol_binary_datatype_t getDataType() const = 0;
 
+    /// Set the Item's datatype
+    virtual void setDataType(protocol_binary_datatype_t val) = 0;
+
     /// Return the Item's CAS.
     virtual uint64_t getCas() const = 0;
 

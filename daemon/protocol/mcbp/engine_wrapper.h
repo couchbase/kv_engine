@@ -32,10 +32,6 @@
 cb::engine_errc bucket_unknown_command(Cookie& cookie,
                                        const AddResponseFn& response);
 
-void bucket_item_set_datatype(Connection& c,
-                              gsl::not_null<ItemIface*> it,
-                              protocol_binary_datatype_t datatype);
-
 void bucket_reset_stats(Cookie& cookie);
 
 bool bucket_get_item_info(Connection& c,

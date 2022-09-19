@@ -236,7 +236,7 @@ public:
         return datatype;
     }
 
-    void setDataType(protocol_binary_datatype_t datatype_) {
+    void setDataType(protocol_binary_datatype_t datatype_) override {
         datatype = datatype_;
     }
 

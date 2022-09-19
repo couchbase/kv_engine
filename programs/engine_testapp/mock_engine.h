@@ -104,9 +104,6 @@ struct MockEngine : public EngineIface, public DcpIface {
                                     const cb::mcbp::Request& request,
                                     const AddResponseFn& response) override;
 
-    void item_set_datatype(ItemIface& item,
-                           protocol_binary_datatype_t datatype) override;
-
     bool get_item_info(const ItemIface& item, item_info& item_info) override;
 
     cb::engine_errc set_collection_manifest(const CookieIface& cookie,

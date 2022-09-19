@@ -188,8 +188,6 @@ struct default_engine : public EngineIface {
 
     void item_set_datatype(hash_item* item,
                            protocol_binary_datatype_t datatype);
-    void item_set_datatype(ItemIface& item,
-                           protocol_binary_datatype_t datatype) override;
 
     bool get_item_info(const hash_item* item,
                        gsl::not_null<item_info*> item_info);

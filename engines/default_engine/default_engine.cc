@@ -59,6 +59,10 @@ struct ItemHolder : public ItemIface {
         return item->datatype;
     }
 
+    void setDataType(protocol_binary_datatype_t val) override {
+        item->datatype = val;
+    }
+
     uint64_t getCas() const override {
         // This may potentially open up for a race, but:
         // 1) If the item isn't linked anymore we don't need to mask
@@ -842,11 +846,6 @@ cb::engine_errc default_engine::unknown_command(
 
 void default_engine::item_set_cas(hash_item* item, uint64_t val) {
     item->cas = val;
-}
-
-void default_engine::item_set_datatype(ItemIface& item,
-                                       protocol_binary_datatype_t val) {
-    item_set_datatype(get_real_item(&item)->item, val);
 }
 
 void default_engine::item_set_datatype(hash_item* item,

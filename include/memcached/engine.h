@@ -551,12 +551,6 @@ struct EngineIface {
     }
 
     /**
-     * Set the data type on an item.
-     */
-    virtual void item_set_datatype(ItemIface& item,
-                                   protocol_binary_datatype_t datatype) = 0;
-
-    /**
      * Get information about an item.
      *
      * The loader of the module may need the pointers to the actual data within
