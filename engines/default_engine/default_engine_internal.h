@@ -185,7 +185,6 @@ struct default_engine : public EngineIface {
                                     const AddResponseFn& response) override;
 
     void item_set_cas(hash_item* item, uint64_t cas);
-    void item_set_cas(ItemIface& item, uint64_t cas) override;
 
     void item_set_datatype(hash_item* item,
                            protocol_binary_datatype_t datatype);

@@ -196,9 +196,6 @@ public:
     void reset_stats(const CookieIface&) override {
     }
 
-    void item_set_cas(ItemIface&, uint64_t) override {
-    }
-
     void item_set_datatype(ItemIface&, protocol_binary_datatype_t) override {
     }
 

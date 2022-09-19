@@ -1202,7 +1202,7 @@ cb::EngineErrorItemPair storeCasVb11(
 
     cb_assert(info.value[0].iov_len == vlen);
     std::copy(value, value + vlen, reinterpret_cast<char*>(info.value[0].iov_base));
-    h->item_set_cas(*rv.second.get(), casIn);
+    rv.second->setCas(casIn);
 
     bool create_cookie = false;
     if (cookie == nullptr) {
@@ -1245,7 +1245,7 @@ cb::engine_errc replace(EngineIface* h,
     if (!h->get_item_info(*item.get(), info)) {
         abort();
     }
-    h->item_set_cas(*allocRes.second.get(), 0);
+    allocRes.second->setCas(0);
 
     // A predicate that allows the replace.
     // This simulates the behaviour of replace when the doc being updated does

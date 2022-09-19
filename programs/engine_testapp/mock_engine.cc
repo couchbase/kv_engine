@@ -363,10 +363,6 @@ cb::engine_errc MockEngine::unknown_command(const CookieIface* cookie,
     return ret;
 }
 
-void MockEngine::item_set_cas(ItemIface& item, uint64_t val) {
-    the_engine->item_set_cas(item, val);
-}
-
 void MockEngine::item_set_datatype(ItemIface& item,
                                    protocol_binary_datatype_t datatype) {
     the_engine->item_set_datatype(item, datatype);

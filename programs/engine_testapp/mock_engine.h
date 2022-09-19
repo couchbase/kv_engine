@@ -104,8 +104,6 @@ struct MockEngine : public EngineIface, public DcpIface {
                                     const cb::mcbp::Request& request,
                                     const AddResponseFn& response) override;
 
-    void item_set_cas(ItemIface& item, uint64_t val) override;
-
     void item_set_datatype(ItemIface& item,
                            protocol_binary_datatype_t datatype) override;
 

@@ -244,7 +244,7 @@ public:
         metaData.cas = nextCas();
     }
 
-    void setCas(uint64_t ncas) {
+    void setCas(uint64_t ncas) override {
         metaData.cas = ncas;
     }
 

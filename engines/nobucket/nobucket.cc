@@ -146,12 +146,6 @@ public:
         return cb::engine_errc::no_bucket;
     }
 
-    void item_set_cas(ItemIface&, uint64_t) override {
-        throw std::logic_error(
-                "NoBucket::item_set_cas: no items should have"
-                " been allocated from this engine");
-    }
-
     void item_set_datatype(ItemIface&, protocol_binary_datatype_t) override {
         throw std::logic_error(
                 "NoBucket::item_set_datatype: no items should have"

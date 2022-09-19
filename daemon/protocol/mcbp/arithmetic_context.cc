@@ -192,7 +192,7 @@ cb::engine_errc ArithmeticCommandContext::allocateNewItem() {
     // copy the xattr over;
     memcpy(body.data(), src, xattrsize);
     memcpy(body.data() + xattrsize, value.data(), value.size());
-    bucket_item_set_cas(connection, newitem.get(), oldItemInfo.cas);
+    newitem->setCas(oldItemInfo.cas);
 
     state = State::StoreItem;
     return cb::engine_errc::success;

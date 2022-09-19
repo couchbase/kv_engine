@@ -1211,10 +1211,6 @@ cb::engine_errc EventuallyPersistentEngine::unknown_command(
     return ret;
 }
 
-void EventuallyPersistentEngine::item_set_cas(ItemIface& itm, uint64_t cas) {
-    static_cast<Item&>(itm).setCas(cas);
-}
-
 void EventuallyPersistentEngine::item_set_datatype(
         ItemIface& itm, protocol_binary_datatype_t datatype) {
     static_cast<Item&>(itm).setDataType(datatype);

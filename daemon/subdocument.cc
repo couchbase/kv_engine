@@ -1080,7 +1080,7 @@ static cb::engine_errc subdoc_update(SubdocCmdContext& context,
 
         // To ensure we only replace the version of the document we
         // just appended to; set the CAS to the one retrieved from.
-        bucket_item_set_cas(connection, context.out_doc.get(), context.in_cas);
+        context.out_doc->setCas(context.in_cas);
 
         // Obtain the item info (and it's iovectors)
         if (!context.in_doc.view.empty()) {
@@ -1144,7 +1144,7 @@ static cb::engine_errc subdoc_update(SubdocCmdContext& context,
                 // As a workaround for now just clear the cas field and
                 // do add (which will fail if someone created a new _LIVE_
                 // document since we read the document).
-                bucket_item_set_cas(connection, context.out_doc.get(), 0);
+                context.out_doc->setCas(0);
                 new_op = StoreSemantics::Add;
 
                 // this is a revive, so we want to create an alive document

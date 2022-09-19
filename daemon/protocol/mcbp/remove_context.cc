@@ -107,9 +107,9 @@ cb::engine_errc RemoveCommandContext::allocateDeletedItem() {
                               vbucket);
 
     if (input_cas == 0) {
-        bucket_item_set_cas(connection, deleted.get(), existing_cas);
+        deleted->setCas(existing_cas);
     } else {
-        bucket_item_set_cas(connection, deleted.get(), input_cas);
+        deleted->setCas(input_cas);
     }
 
     if (!xattr.empty()) {

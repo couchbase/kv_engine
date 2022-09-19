@@ -135,6 +135,10 @@ public:
         return 0;
     }
 
+    void setCas(uint64_t) override {
+        /// these items don't have cas
+    }
+
     uint32_t getFlags() const override {
         return 0;
     }
@@ -666,12 +670,6 @@ public:
                 return real_engine->unknown_command(cookie, req, response);
             }
         }
-    }
-
-    void item_set_cas(ItemIface& item, uint64_t cas) override {
-        // function cannot return EWOULDBLOCK, simply call the real_engine's
-        // function directly.
-        real_engine->item_set_cas(item, cas);
     }
 
     void item_set_datatype(ItemIface& itm,
@@ -2053,8 +2051,7 @@ cb::engine_errc EWB_Engine::setItemCas(const CookieIface* cookie,
         return cb::engine_errc(rv.first);
     }
 
-    // item_set_cas has no return value!
-    real_engine->item_set_cas(*rv.second.get(), cas64);
+    rv.second->setCas(cas64);
     response({},
              {},
              {},

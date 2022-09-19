@@ -445,7 +445,7 @@ TEST_F(BasicEngineTestsuite, ItemSetCas) {
                             DocumentState::Alive,
                             false));
     newcas = cas + 1;
-    engine->item_set_cas(*ret.second.get(), newcas);
+    ret.second->setCas(newcas);
     ASSERT_TRUE(engine->get_item_info(*ret.second.get(), ii));
     ASSERT_EQ(ii.cas, newcas);
 }

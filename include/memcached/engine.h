@@ -551,11 +551,6 @@ struct EngineIface {
     }
 
     /**
-     * Set the CAS id on an item.
-     */
-    virtual void item_set_cas(ItemIface& item, uint64_t cas) = 0;
-
-    /**
      * Set the data type on an item.
      */
     virtual void item_set_datatype(ItemIface& item,

@@ -244,12 +244,12 @@ cb::engine_errc MutationCommandContext::allocateNewItem() {
     }
 
     if (operation == StoreSemantics::Add || input_cas != 0) {
-        bucket_item_set_cas(connection, newitem.get(), input_cas);
+        newitem->setCas(input_cas);
     } else {
         if (existing) {
-            bucket_item_set_cas(connection, newitem.get(), existing_info.cas);
+            newitem->setCas(existing_info.cas);
         } else {
-            bucket_item_set_cas(connection, newitem.get(), input_cas);
+            newitem->setCas(input_cas);
         }
     }
 

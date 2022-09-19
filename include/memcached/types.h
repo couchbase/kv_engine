@@ -62,6 +62,9 @@ public:
     /// Return the Item's CAS.
     virtual uint64_t getCas() const = 0;
 
+    /// Set the Item's CAS
+    virtual void setCas(uint64_t val) = 0;
+
     /// Return the user flags.
     virtual uint32_t getFlags() const = 0;
 
