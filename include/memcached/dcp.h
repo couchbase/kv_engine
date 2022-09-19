@@ -17,7 +17,6 @@
 #include <memcached/engine_error.h>
 #include <memcached/types.h>
 #include <memcached/vbucket.h>
-#include <memcached/visibility.h>
 
 class CookieIface;
 struct DocKey;
@@ -366,7 +365,7 @@ struct DcpMessageProducersIface {
 using dcp_add_failover_log =
         std::function<cb::engine_errc(const std::vector<vbucket_failover_t>&)>;
 
-struct MEMCACHED_PUBLIC_CLASS DcpIface {
+struct DcpIface {
     /**
      * Called from the memcached core for a DCP connection to allow it to
      * inject new messages on the stream.

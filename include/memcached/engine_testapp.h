@@ -39,7 +39,7 @@ enum test_result {
  * be caught by any catch() statements in the engine and is propogated
  * back to the test harness.
  */
-struct MEMCACHED_PUBLIC_CLASS TestExpectationFailed {};
+struct TestExpectationFailed {};
 
 typedef struct test engine_test_t;
 

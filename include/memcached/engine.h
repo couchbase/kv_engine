@@ -17,7 +17,6 @@
 #include <memcached/thread_pool_config.h>
 #include <memcached/types.h>
 #include <memcached/vbucket.h>
-#include <memcached/visibility.h>
 #include <sys/types.h>
 #include <functional>
 #include <memory>
@@ -165,7 +164,7 @@ public:
 /**
  * Definition of the first version of the engine interface
  */
-struct MEMCACHED_PUBLIC_CLASS EngineIface {
+struct EngineIface {
     virtual ~EngineIface() = default;
 
     /**

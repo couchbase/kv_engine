@@ -114,12 +114,11 @@ std::string Tracer::to_string() const {
 
 } // namespace cb::tracing
 
-MEMCACHED_PUBLIC_API std::ostream& operator<<(
-        std::ostream& os, const cb::tracing::Tracer& tracer) {
+std::ostream& operator<<(std::ostream& os, const cb::tracing::Tracer& tracer) {
     return os << tracer.to_string();
 }
 
-MEMCACHED_PUBLIC_API std::string to_string(const cb::tracing::Code tracecode) {
+std::string to_string(const cb::tracing::Code tracecode) {
     using cb::tracing::Code;
     switch (tracecode) {
     case Code::Request:

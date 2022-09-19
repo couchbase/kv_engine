@@ -17,7 +17,5 @@
  */
 #pragma once
 #include <memcached/engine.h>
-#include <memcached/visibility.h>
 
-MEMCACHED_PUBLIC_API
 unique_engine_ptr create_crash_engine_instance();

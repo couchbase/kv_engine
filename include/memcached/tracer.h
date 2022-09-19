@@ -11,7 +11,6 @@
 #pragma once
 
 #include <folly/Synchronized.h>
-#include <memcached/visibility.h>
 #include <chrono>
 #include <string>
 #include <vector>
@@ -80,7 +79,7 @@ enum class Code : uint8_t {
 using SpanId = std::size_t;
 using Clock = std::chrono::steady_clock;
 
-class MEMCACHED_PUBLIC_CLASS Span {
+class Span {
 public:
     /// Type used for storing durations - 32bit microsecond.
     /// gives maximum duration of 35.79minutes.
@@ -100,7 +99,7 @@ public:
  * Tracer maintains an ordered vector of tracepoints
  * with name:time(micros)
  */
-class MEMCACHED_PUBLIC_CLASS Tracer {
+class Tracer {
 public:
     /// Begin a Span starting from the specified time point (defaults to now)
     SpanId begin(Code tracecode, Clock::time_point startTime = Clock::now());
@@ -134,7 +133,7 @@ protected:
     folly::Synchronized<std::vector<Span>, std::mutex> vecSpans;
 };
 
-class MEMCACHED_PUBLIC_CLASS Traceable {
+class Traceable {
 public:
     virtual ~Traceable() = default;
     bool isTracingEnabled() const {
@@ -170,7 +169,7 @@ protected:
  * a client-specific context it is possible to specify nullptr as the traceable
  * and this is a "noop".
  */
-class MEMCACHED_PUBLIC_CLASS SpanStopwatch {
+class SpanStopwatch {
 public:
     SpanStopwatch(Traceable& traceable, Code code, bool alwaysInclude = false)
         : traceable(&traceable), code(code), alwaysInclude(alwaysInclude) {
@@ -265,6 +264,5 @@ private:
 
 } // namespace cb::tracing
 
-MEMCACHED_PUBLIC_API std::ostream& operator<<(
-        std::ostream& os, const cb::tracing::Tracer& tracer);
-MEMCACHED_PUBLIC_API std::string to_string(cb::tracing::Code tracecode);
+std::ostream& operator<<(std::ostream& os, const cb::tracing::Tracer& tracer);
+std::string to_string(cb::tracing::Code tracecode);

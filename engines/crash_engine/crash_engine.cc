@@ -21,9 +21,14 @@
 #include <thread>
 
 #include <folly/lang/Assume.h>
-#include <memcached/config_parser.h>
 #include <memcached/engine.h>
 #include <platform/exceptions.h>
+
+#if defined __GNUC__
+#define MEMCACHED_PUBLIC_API __attribute__((visibility("default")))
+#else
+#define MEMCACHED_PUBLIC_API
+#endif
 
 // How do I crash thee? Let me count the ways.
 enum class CrashMode {

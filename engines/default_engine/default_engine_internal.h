@@ -9,7 +9,6 @@
 
 #include <memcached/engine.h>
 #include <memcached/util.h>
-#include <memcached/visibility.h>
 #include <relaxed_atomic.h>
 
 #include <atomic>
