@@ -96,18 +96,16 @@ cb::engine_errc RemoveCommandContext::allocateDeletedItem() {
     } else {
         datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
     }
-    auto pair =
-            bucket_allocate_ex(cookie,
-                               cookie.getRequestKey(),
-                               xattr.size(),
-                               xattr.size(), // Only system xattrs
-                               0, // MB-25273: 0 flags when deleting the body
-                               0, // Tombstone item, reset expiry time as will
-                                  // be removed during purge
-                               datatype,
-                               vbucket);
+    deleted = bucket_allocate(cookie,
+                              cookie.getRequestKey(),
+                              xattr.size(),
+                              xattr.size(), // Only system xattrs
+                              0, // MB-25273: 0 flags when deleting the body
+                              0, // Tombstone item, reset expiry time as will
+                                 // be removed during purge
+                              datatype,
+                              vbucket);
 
-    deleted = std::move(pair.first);
     if (input_cas == 0) {
         bucket_item_set_cas(connection, deleted.get(), existing_cas);
     } else {
@@ -115,7 +113,8 @@ cb::engine_errc RemoveCommandContext::allocateDeletedItem() {
     }
 
     if (!xattr.empty()) {
-        std::memcpy(pair.second.value[0].iov_base, xattr.data(), xattr.size());
+        std::copy(
+                xattr.begin(), xattr.end(), deleted->getValueBuffer().begin());
     }
 
     state = State::StoreItem;

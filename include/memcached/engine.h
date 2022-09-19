@@ -8,7 +8,6 @@
  *   the file licenses/APL2.txt.
  */
 #pragma once
-#define MEMCACHED_ENGINE_H
 
 #include <memcached/engine_common.h>
 #include <memcached/engine_error.h>
@@ -248,7 +247,7 @@ struct EngineIface {
      * @param flags the item's flags
      * @param exptime the maximum lifetime of this item
      * @param vbucket virtual bucket to request allocation from
-     * @return pair containing the item and the items information
+     * @return allocated item
      * @thows cb::engine_error with:
      *
      *   * `cb::engine_errc::no_bucket` The client is bound to the dummy
@@ -271,15 +270,14 @@ struct EngineIface {
      *   * `cb::engine_errc::too_busy` Too busy to serve the request,
      *                                 back off and try again.
      */
-    virtual std::pair<cb::unique_item_ptr, item_info> allocateItem(
-            const CookieIface& cookie,
-            const DocKey& key,
-            size_t nbytes,
-            size_t priv_nbytes,
-            int flags,
-            rel_time_t exptime,
-            uint8_t datatype,
-            Vbid vbucket) = 0;
+    virtual cb::unique_item_ptr allocateItem(const CookieIface& cookie,
+                                             const DocKey& key,
+                                             size_t nbytes,
+                                             size_t priv_nbytes,
+                                             int flags,
+                                             rel_time_t exptime,
+                                             uint8_t datatype,
+                                             Vbid vbucket) = 0;
 
     /**
      * Remove an item.

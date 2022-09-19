@@ -46,15 +46,15 @@ protected:
                                                 uint8_t datatype,
                                                 Vbid vbucket) {
         try {
-            auto pair = engine.allocateItem(cookie,
-                                            key,
-                                            nbytes,
-                                            0, // No privileged bytes
-                                            flags,
-                                            exptime,
-                                            datatype,
-                                            vbucket);
-            return {cb::engine_errc::success, std::move(pair.first)};
+            return {cb::engine_errc::success,
+                    engine.allocateItem(cookie,
+                                        key,
+                                        nbytes,
+                                        0, // No privileged bytes
+                                        flags,
+                                        exptime,
+                                        datatype,
+                                        vbucket)};
         } catch (const cb::engine_error& error) {
             return cb::makeEngineErrorItemPair(
                     cb::engine_errc(error.code().value()));

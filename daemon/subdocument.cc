@@ -1045,21 +1045,15 @@ static cb::engine_errc subdoc_update(SubdocCmdContext& context,
 
             // Calculate the updated document length - use the last operation result.
             try {
-                auto r = bucket_allocate_ex(cookie,
-                                            allocate_key,
-                                            context.out_doc_len,
-                                            priv_bytes,
-                                            context.in_flags,
-                                            expiration,
-                                            context.in_datatype,
-                                            context.vbucket);
-                if (r.first) {
-                    // Save the allocated document in the cmd context.
-                    context.out_doc = std::move(r.first);
-                    ret = cb::engine_errc::success;
-                } else {
-                    ret = cb::engine_errc::no_memory;
-                }
+                context.out_doc = bucket_allocate(cookie,
+                                                  allocate_key,
+                                                  context.out_doc_len,
+                                                  priv_bytes,
+                                                  context.in_flags,
+                                                  expiration,
+                                                  context.in_datatype,
+                                                  context.vbucket);
+                ret = cb::engine_errc::success;
             } catch (const cb::engine_error& e) {
                 ret = cb::engine_errc(e.code().value());
                 ret = context.connection.remapErrorCode(ret);

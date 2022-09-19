@@ -147,6 +147,10 @@ public:
         return {reinterpret_cast<const char*>(value.data()), value.size()};
     }
 
+    cb::byte_buffer getValueBuffer() override {
+        return {value.data(), value.size()};
+    }
+
     std::string key;
     std::vector<uint8_t> value;
 };
@@ -314,15 +318,14 @@ public:
         delete this;
     }
 
-    std::pair<cb::unique_item_ptr, item_info> allocateItem(
-            const CookieIface& cookie,
-            const DocKey& key,
-            size_t nbytes,
-            size_t priv_nbytes,
-            int flags,
-            rel_time_t exptime,
-            uint8_t datatype,
-            Vbid vbucket) override {
+    cb::unique_item_ptr allocateItem(const CookieIface& cookie,
+                                     const DocKey& key,
+                                     size_t nbytes,
+                                     size_t priv_nbytes,
+                                     int flags,
+                                     rel_time_t exptime,
+                                     uint8_t datatype,
+                                     Vbid vbucket) override {
         cb::engine_errc err = cb::engine_errc::success;
         if (should_inject_error(Cmd::ALLOCATE, &cookie, err)) {
             throw cb::engine_error(cb::engine_errc(err), "ewb: injecting error");

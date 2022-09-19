@@ -70,6 +70,9 @@ public:
 
     /// Return a read-only view of the Item's raw value.
     virtual std::string_view getValueView() const = 0;
+
+    /// Return a Read-Write "view" of the Items raw value
+    virtual cb::byte_buffer getValueBuffer() = 0;
 };
 
 std::ostream& operator<<(std::ostream& os, const ItemIface& item);

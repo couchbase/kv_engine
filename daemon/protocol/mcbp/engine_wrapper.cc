@@ -318,20 +318,19 @@ cb::engine_errc bucket_unlock(Cookie& cookie,
     return ret;
 }
 
-std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(
-        Cookie& cookie,
-        const DocKey& key,
-        const size_t nbytes,
-        const size_t priv_nbytes,
-        const int flags,
-        const rel_time_t exptime,
-        uint8_t datatype,
-        Vbid vbucket) {
+cb::unique_item_ptr bucket_allocate(Cookie& cookie,
+                                    const DocKey& key,
+                                    const size_t nbytes,
+                                    const size_t priv_nbytes,
+                                    const int flags,
+                                    const rel_time_t exptime,
+                                    uint8_t datatype,
+                                    Vbid vbucket) {
     // MB-25650 - We've got a document of 0 byte value and claims to contain
-    //            xattrs.. that's not possible.
+    //            xattrs... that's not possible.
     if (nbytes == 0 && !cb::mcbp::datatype::is_raw(datatype)) {
         throw cb::engine_error(cb::engine_errc::invalid_arguments,
-                               "bucket_allocate_ex: Can't set datatype to " +
+                               "bucket_allocate: Can't set datatype to " +
                                        cb::mcbp::datatype::to_string(datatype) +
                                        " for a 0 sized body");
     }
@@ -339,7 +338,7 @@ std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(
     if (priv_nbytes > cb::limits::PrivilegedBytes) {
         throw cb::engine_error(
                 cb::engine_errc::too_big,
-                "bucket_allocate_ex: privileged bytes " +
+                "bucket_allocate: privileged bytes " +
                         std::to_string(priv_nbytes) + " exeeds max limit of " +
                         std::to_string(cb::limits::PrivilegedBytes));
     }
@@ -347,7 +346,7 @@ std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(
     auto& c = cookie.getConnection();
     try {
         LOG_TRACE(
-                "bucket_allocate_ex() key:{} nbytes:{} flags:{} exptime:{} "
+                "bucket_allocate() key:{} nbytes:{} flags:{} exptime:{} "
                 "datatype:{} vbucket:{}",
                 cb::UserDataView(std::string_view(key)),
                 nbytes,
@@ -356,19 +355,23 @@ std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(
                 datatype,
                 vbucket);
 
-        return c.getBucketEngine().allocateItem(cookie,
-                                                key,
-                                                nbytes,
-                                                priv_nbytes,
-                                                flags,
-                                                exptime,
-                                                datatype,
-                                                vbucket);
+        auto it = c.getBucketEngine().allocateItem(cookie,
+                                                   key,
+                                                   nbytes,
+                                                   priv_nbytes,
+                                                   flags,
+                                                   exptime,
+                                                   datatype,
+                                                   vbucket);
+        if (!it) {
+            throw cb::engine_error(cb::engine_errc::no_memory,
+                                   "bucket_allocate: engine returned no item");
+        }
+        return it;
     } catch (const cb::engine_error& err) {
         if (err.code() == cb::engine_errc::disconnect) {
             LOG_WARNING(
-                    "{}: {} bucket_allocate_ex return "
-                    "cb::engine_errc::disconnect",
+                    "{}: {} bucket_allocate return cb::engine_errc::disconnect",
                     c.getId(),
                     c.getDescription());
             c.setTerminationReason("Engine forced disconnect");

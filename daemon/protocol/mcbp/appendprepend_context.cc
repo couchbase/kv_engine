@@ -136,19 +136,15 @@ cb::engine_errc AppendPrependCommandContext::allocateNewItem() {
     // If the client sent a compressed value we should use the one
     // we inflated
     const auto value = cookie.getInflatedInputPayload();
-    auto pair = bucket_allocate_ex(cookie,
-                                   cookie.getRequestKey(),
-                                   old.size() + value.size(),
-                                   priv_size,
-                                   oldItemInfo.flags,
-                                   (rel_time_t)oldItemInfo.exptime,
-                                   datatype,
-                                   vbucket);
-
-    newitem = std::move(pair.first);
-    cb::byte_buffer body{static_cast<uint8_t*>(pair.second.value[0].iov_base),
-                         pair.second.value[0].iov_len};
-
+    newitem = bucket_allocate(cookie,
+                              cookie.getRequestKey(),
+                              old.size() + value.size(),
+                              priv_size,
+                              oldItemInfo.flags,
+                              (rel_time_t)oldItemInfo.exptime,
+                              datatype,
+                              vbucket);
+    auto body = newitem->getValueBuffer();
     // copy the data over..
     if (mode == Mode::Append) {
         memcpy(body.data(), old.data(), old.size());

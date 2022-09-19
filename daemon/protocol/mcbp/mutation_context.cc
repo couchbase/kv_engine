@@ -230,22 +230,15 @@ cb::engine_errc MutationCommandContext::allocateNewItem() {
         total_size = inflated.size() + existingXattrs.size();
     }
 
-    item_info newitem_info;
     try {
-        auto ret = bucket_allocate_ex(cookie,
-                                      cookie.getRequestKey(),
-                                      total_size,
-                                      existingXattrs.get_system_size(),
-                                      extras.getFlagsInNetworkByteOrder(),
-                                      extras.getExpiration(),
-                                      dtype,
-                                      vbucket);
-        if (!ret.first) {
-            return cb::engine_errc::no_memory;
-        }
-
-        newitem = std::move(ret.first);
-        newitem_info = ret.second;
+        newitem = bucket_allocate(cookie,
+                                  cookie.getRequestKey(),
+                                  total_size,
+                                  existingXattrs.get_system_size(),
+                                  extras.getFlagsInNetworkByteOrder(),
+                                  extras.getExpiration(),
+                                  dtype,
+                                  vbucket);
     } catch (const cb::engine_error &e) {
         return cb::engine_errc(e.code().value());
     }
@@ -260,7 +253,7 @@ cb::engine_errc MutationCommandContext::allocateNewItem() {
         }
     }
 
-    auto* root = reinterpret_cast<uint8_t*>(newitem_info.value[0].iov_base);
+    auto* root = reinterpret_cast<uint8_t*>(newitem->getValueBuffer().data());
     if (existingXattrs.size() > 0) {
         // Preserve the xattrs
         std::copy(existingXattrs.data(),

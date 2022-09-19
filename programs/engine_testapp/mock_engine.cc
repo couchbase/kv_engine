@@ -127,15 +127,14 @@ void MockEngine::destroy(const bool force) {
     delete this;
 }
 
-std::pair<cb::unique_item_ptr, item_info> MockEngine::allocateItem(
-        const CookieIface& cookie,
-        const DocKey& key,
-        size_t nbytes,
-        size_t priv_nbytes,
-        int flags,
-        rel_time_t exptime,
-        uint8_t datatype,
-        Vbid vbucket) {
+cb::unique_item_ptr MockEngine::allocateItem(const CookieIface& cookie,
+                                             const DocKey& key,
+                                             size_t nbytes,
+                                             size_t priv_nbytes,
+                                             int flags,
+                                             rel_time_t exptime,
+                                             uint8_t datatype,
+                                             Vbid vbucket) {
     auto* c = cookie_to_mock_cookie(&cookie);
 
     std::unique_lock<std::mutex> lock(c->getMutex());

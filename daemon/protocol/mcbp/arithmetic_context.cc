@@ -80,19 +80,16 @@ cb::engine_errc ArithmeticCommandContext::createNewItem() {
     const std::string value{std::to_string(extras.getInitial())};
     result = extras.getInitial();
 
-    auto pair = bucket_allocate_ex(cookie,
-                                   cookie.getRequestKey(),
-                                   value.size(),
-                                   0, // no privileged bytes
-                                   0, // Empty flags
-                                   extras.getExpiration(),
-                                   PROTOCOL_BINARY_DATATYPE_JSON,
-                                   vbucket);
-    newitem = std::move(pair.first);
-
-    memcpy(pair.second.value[0].iov_base, value.data(), value.size());
+    newitem = bucket_allocate(cookie,
+                              cookie.getRequestKey(),
+                              value.size(),
+                              0, // no privileged bytes
+                              0, // Empty flags
+                              extras.getExpiration(),
+                              PROTOCOL_BINARY_DATATYPE_JSON,
+                              vbucket);
+    std::copy(value.begin(), value.end(), newitem->getValueBuffer().begin());
     state = State::StoreNewItem;
-
     return cb::engine_errc::success;
 }
 
@@ -175,18 +172,16 @@ cb::engine_errc ArithmeticCommandContext::allocateNewItem() {
 
     // In order to be backwards compatible with old Couchbase server we
     // continue to use the old expiry time:
-    auto pair = bucket_allocate_ex(cookie,
-                                   cookie.getRequestKey(),
-                                   xattrsize + value.size(),
-                                   priv_bytes,
-                                   oldItemInfo.flags,
-                                   rel_time_t(oldItemInfo.exptime),
-                                   datatype,
-                                   vbucket);
+    newitem = bucket_allocate(cookie,
+                              cookie.getRequestKey(),
+                              xattrsize + value.size(),
+                              priv_bytes,
+                              oldItemInfo.flags,
+                              rel_time_t(oldItemInfo.exptime),
+                              datatype,
+                              vbucket);
 
-    newitem = std::move(pair.first);
-    cb::byte_buffer body{static_cast<uint8_t*>(pair.second.value[0].iov_base),
-                         pair.second.value[0].iov_len};
+    auto body = newitem->getValueBuffer();
 
     // copy the data over..
     const auto* src = (const char*)oldItemInfo.value[0].iov_base;

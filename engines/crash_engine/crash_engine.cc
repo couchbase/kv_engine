@@ -109,14 +109,14 @@ public:
         delete this;
     }
 
-    std::pair<cb::unique_item_ptr, item_info> allocateItem(const CookieIface&,
-                                                           const DocKey&,
-                                                           size_t,
-                                                           size_t,
-                                                           int,
-                                                           rel_time_t,
-                                                           uint8_t,
-                                                           Vbid) override {
+    cb::unique_item_ptr allocateItem(const CookieIface&,
+                                     const DocKey&,
+                                     size_t,
+                                     size_t,
+                                     int,
+                                     rel_time_t,
+                                     uint8_t,
+                                     Vbid) override {
         throw cb::engine_error{cb::engine_errc::failed, "crash_engine"};
     }
 

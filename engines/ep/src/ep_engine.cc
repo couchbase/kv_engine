@@ -212,30 +212,25 @@ void EventuallyPersistentEngine::destroy(const bool force) {
     delete eng.get();
 }
 
-std::pair<cb::unique_item_ptr, item_info>
-EventuallyPersistentEngine::allocateItem(const CookieIface& cookie,
-                                         const DocKey& key,
-                                         size_t nbytes,
-                                         size_t priv_nbytes,
-                                         int flags,
-                                         rel_time_t exptime,
-                                         uint8_t datatype,
-                                         Vbid vbucket) {
+cb::unique_item_ptr EventuallyPersistentEngine::allocateItem(
+        const CookieIface& cookie,
+        const DocKey& key,
+        size_t nbytes,
+        size_t priv_nbytes,
+        int flags,
+        rel_time_t exptime,
+        uint8_t datatype,
+        Vbid vbucket) {
     auto [status, item] = acquireEngine(this)->itemAllocate(
             key, nbytes, priv_nbytes, flags, exptime, datatype, vbucket);
 
     if (status != cb::engine_errc::success) {
         throw cb::engine_error(status,
-                               "EvpItemAllocateEx: failed to allocate memory");
+                               "EventuallyPersistentEngine::allocateItem: "
+                               "failed to allocate item");
     }
 
-    item_info info;
-    if (!get_item_info(*item, info)) {
-        throw cb::engine_error(cb::engine_errc::failed,
-                               "EvpItemAllocateEx: EvpGetItemInfo failed");
-    }
-
-    return std::make_pair(std::move(item), info);
+    return std::move(item);
 }
 
 cb::engine_errc EventuallyPersistentEngine::remove(

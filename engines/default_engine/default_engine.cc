@@ -97,6 +97,10 @@ struct ItemHolder : public ItemIface {
         return {item_get_data(item), item->nbytes};
     }
 
+    cb::byte_buffer getValueBuffer() override {
+        return {reinterpret_cast<uint8_t*>(item_get_data(item)), item->nbytes};
+    }
+
     default_engine* const engine;
     hash_item* const item;
 };
@@ -230,36 +234,35 @@ void destroy_engine_instance(struct default_engine* engine) {
     }
 }
 
-std::pair<cb::unique_item_ptr, item_info> default_engine::allocateItem(
-        const CookieIface& cookie,
-        const DocKey& key,
-        size_t nbytes,
-        size_t priv_nbytes,
-        int flags,
-        rel_time_t exptime,
-        uint8_t datatype,
-        Vbid vbucket) {
+cb::unique_item_ptr default_engine::allocateItem(const CookieIface& cookie,
+                                                 const DocKey& key,
+                                                 size_t nbytes,
+                                                 size_t priv_nbytes,
+                                                 int flags,
+                                                 rel_time_t exptime,
+                                                 uint8_t datatype,
+                                                 Vbid vbucket) {
     if (!handled_vbucket(this, vbucket)) {
         throw cb::engine_error(cb::engine_errc::not_my_vbucket,
-                               "default_item_allocate_ex");
+                               "default_engine::allocateItem");
     }
 
     // MB-35696: Only the default collection is permitted
     if (!key.getCollectionID().isDefaultCollection()) {
         generate_unknown_collection_response(&cookie);
         throw cb::engine_error(cb::engine_errc::unknown_collection,
-                               "default_item_allocate_ex: only default "
+                               "default_engine::allocateItem: only default "
                                "collection is supported");
     }
 
     if (slabs_clsid(this, sizeof(hash_item) + key.size() + nbytes) == 0) {
         throw cb::engine_error(cb::engine_errc::too_big,
-                               "default_item_allocate_ex: no slab class");
+                               "default_engine::allocateItem: no slab class");
     }
 
     if ((nbytes - priv_nbytes) > config.item_size_max) {
         throw cb::engine_error(cb::engine_errc::too_big,
-                               "default_item_allocate_ex");
+                               "default_engine::allocateItem");
     }
 
     auto* const it = item_alloc(this,
@@ -270,23 +273,12 @@ std::pair<cb::unique_item_ptr, item_info> default_engine::allocateItem(
                                 &cookie,
                                 datatype);
 
-    if (it != nullptr) {
-        item_info info;
-        if (!get_item_info(it, &info)) {
-            // This should never happen (unless we provide invalid
-            // arguments)
-            item_release(this, it);
-            throw cb::engine_error(cb::engine_errc::failed,
-                                   "default_item_allocate_ex");
-        }
-
-        return std::make_pair(cb::unique_item_ptr(new ItemHolder(this, it),
-                                                  cb::ItemDeleter{this}),
-                              info);
-    } else {
-        throw cb::engine_error(cb::engine_errc::no_memory,
-                               "default_item_allocate_ex");
+    if (it) {
+        return cb::unique_item_ptr(new ItemHolder(this, it),
+                                   cb::ItemDeleter{this});
     }
+    throw cb::engine_error(cb::engine_errc::no_memory,
+                           "default_engine::allocateItem");
 }
 
 cb::engine_errc default_engine::remove(

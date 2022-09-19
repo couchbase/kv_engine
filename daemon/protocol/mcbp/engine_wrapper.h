@@ -112,14 +112,14 @@ cb::engine_errc bucket_unlock(Cookie& cookie,
                               Vbid vbucket,
                               uint64_t cas);
 
-std::pair<cb::unique_item_ptr, item_info> bucket_allocate_ex(Cookie& cookie,
-                                                             const DocKey& key,
-                                                             size_t nbytes,
-                                                             size_t priv_nbytes,
-                                                             int flags,
-                                                             rel_time_t exptime,
-                                                             uint8_t datatype,
-                                                             Vbid vbucket);
+cb::unique_item_ptr bucket_allocate(Cookie& cookie,
+                                    const DocKey& key,
+                                    size_t nbytes,
+                                    size_t priv_nbytes,
+                                    int flags,
+                                    rel_time_t exptime,
+                                    uint8_t datatype,
+                                    Vbid vbucket);
 
 cb::engine_errc bucket_flush(Cookie& cookie);
 

@@ -21,15 +21,14 @@ struct MockEngine : public EngineIface, public DcpIface {
     cb::engine_errc initialize(std::string_view config_str) override;
     void destroy(bool force) override;
     void disconnect(const CookieIface& cookie) override;
-    std::pair<cb::unique_item_ptr, item_info> allocateItem(
-            const CookieIface& cookie,
-            const DocKey& key,
-            size_t nbytes,
-            size_t priv_nbytes,
-            int flags,
-            rel_time_t exptime,
-            uint8_t datatype,
-            Vbid vbucket) override;
+    cb::unique_item_ptr allocateItem(const CookieIface& cookie,
+                                     const DocKey& key,
+                                     size_t nbytes,
+                                     size_t priv_nbytes,
+                                     int flags,
+                                     rel_time_t exptime,
+                                     uint8_t datatype,
+                                     Vbid vbucket) override;
 
     cb::engine_errc remove(
             const CookieIface& cookie,
