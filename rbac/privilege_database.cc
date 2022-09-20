@@ -59,7 +59,7 @@ struct DatabaseContext {
 };
 
 /// We keep one context for the local scope, and one for the external
-DatabaseContext contexts[2];
+std::array<DatabaseContext, 2> contexts;
 
 static std::vector<std::string> privilegeMask2Vector(
         const PrivilegeMask& mask) {
@@ -461,7 +461,7 @@ PrivilegeContext PrivilegeDatabase::createContext(
         const std::string& bucket) const {
     const auto& ue = lookup(user);
     if (bucket.empty()) {
-        return PrivilegeContext(generation, domain, ue.getPrivileges(), {});
+        return {generation, domain, ue.getPrivileges(), {}};
     }
 
     // Add the bucket specific privileges
@@ -474,8 +474,7 @@ PrivilegeContext PrivilegeDatabase::createContext(
         }
     }
 
-    return PrivilegeContext(
-            generation, domain, ue.getPrivileges(), iter->second);
+    return {generation, domain, ue.getPrivileges(), iter->second};
 }
 
 std::pair<PrivilegeContext, bool> PrivilegeDatabase::createInitialContext(
