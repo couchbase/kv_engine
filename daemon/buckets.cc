@@ -113,13 +113,6 @@ void Bucket::addMeteringMetrics(const BucketStatCollector& collector) const {
     getEngine().get_prometheus_stats(
             collector, cb::prometheus::MetricGroup::Metering);
 
-    // metering
-    collector.addStat(Key::meter_ru_total, read_units_used);
-    collector.addStat(Key::meter_wu_total, write_units_used);
-    // kv does not currently account for actual compute (i.e., CPU) units
-    // but other components do. Expose it for consistency and ease of use
-    collector.addStat(Key::meter_cu_total, 0);
-
     collector.addStat(Key::op_count_total, num_commands);
 
     // the spec declares that some components may need to perform some
@@ -128,6 +121,13 @@ void Bucket::addMeteringMetrics(const BucketStatCollector& collector) const {
     // For now, simply report such metrics as "for kv", until we have
     // more information recorded internally to support this.
     auto forKV = collector.withLabel("for", "kv");
+
+    // metering
+    forKV.addStat(Key::meter_ru_total, read_units_used);
+    forKV.addStat(Key::meter_wu_total, write_units_used);
+    // kv does not currently account for actual compute (i.e., CPU) units
+    // but other components do. Expose it for consistency and ease of use
+    forKV.addStat(Key::meter_cu_total, 0);
 
     // credits
     forKV.addStat(Key::credit_ru_total, 0);
