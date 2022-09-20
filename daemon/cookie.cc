@@ -825,14 +825,14 @@ void Cookie::reset() {
 
 void Cookie::setThrottled(bool val) {
     throttled.store(val, std::memory_order_release);
-    if (tracingEnabled) {
-        const auto now = std::chrono::steady_clock::now();
-        if (val) {
-            throttle_start = now;
-        } else {
-            total_throttle_time +=
-                    std::chrono::duration_cast<std::chrono::microseconds>(
-                            now - start);
+    const auto now = std::chrono::steady_clock::now();
+    if (val) {
+        throttle_start = now;
+    } else {
+        total_throttle_time +=
+                std::chrono::duration_cast<std::chrono::microseconds>(now -
+                                                                      start);
+        if (tracingEnabled) {
             tracer.record(cb::tracing::Code::Throttled, throttle_start, now);
         }
     }
