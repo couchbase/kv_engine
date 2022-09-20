@@ -414,15 +414,13 @@ void Cookie::setCommandContext(CommandContext* ctx) {
 
 void Cookie::maybeLogSlowCommand(
         std::chrono::steady_clock::duration elapsed) const {
-    if (total_throttle_time.count()) {
-        // @todo we don't want to flood the logs, but we should only
-        // mute if we've reported it back to the clients
-        return;
-    }
-
     const auto opcode = getRequest().getClientOpcode();
     const auto limit = cb::mcbp::sla::getSlowOpThreshold(opcode);
-    if (elapsed > limit) {
+
+    // We don't want to spam the logs with slow ops entries just because
+    // the system throttled the operation due to the user pushing too many
+    // operations at the system.
+    if ((elapsed - total_throttle_time) > limit) {
         std::chrono::nanoseconds timings(elapsed);
         auto& c = getConnection();
 
