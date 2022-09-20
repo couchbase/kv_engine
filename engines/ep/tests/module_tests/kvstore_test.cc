@@ -1528,14 +1528,13 @@ public:
     void callback(GetValue& result) override {
         EXPECT_LE(startSeqno, result.item->getBySeqno());
         EXPECT_LE(result.item->getBySeqno(), endSeqno);
+        nItems++;
         if (!didEnomem && result.item->getBySeqno() == enomemSeqno) {
             yield();
             didEnomem = true;
             return;
         }
-        nItems++;
         setStatus(cb::engine_errc::success);
-        return;
     }
 
     uint32_t nItems{0};
@@ -1564,7 +1563,7 @@ TEST_P(KVStoreParamTest, reuseSeqIterator) {
 
     kvstore->commit(std::move(ctx), flush);
 
-    auto cb = std::make_unique<ReuseSnapshotCallback>(1, 2, 2);
+    auto cb = std::make_unique<ReuseSnapshotCallback>(1, 2, 1);
     auto cl = std::make_unique<KVStoreTestCacheCallback>(1, 2, vbid);
     auto callback = cb.get();
     auto scanCtx =
