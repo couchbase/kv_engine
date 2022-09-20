@@ -14,6 +14,7 @@
 #include "item_eviction_strategy.h"
 
 #include "eviction_ratios.h"
+#include "eviction_utils.h"
 
 #include <hdrhistogram/hdrhistogram.h>
 
@@ -127,20 +128,10 @@ public:
     // @param hist  the destination histogram for the copy
     void copyFreqHistogram(HdrHistogram& hist);
 
-    // Map from the 8-bit probabilistic counter (256 states) to NRU (4 states).
-    static uint8_t convertFreqCountToNRUValue(uint8_t statCounter);
-
-    // The initial frequency count that items should be set to when first
-    // added to the hash table.  It is not 0, as we want to ensure that we
-    // do not immediately evict items that we have just added.
-    static const uint8_t initialFreqCount = 4;
-
     // StatCounter: The number of frequencies that need to be added to the
     // frequency histogram before it is not necessary to recalculate the
     // threshold every time we visit an item in the hash table.
     static const uint64_t learningPopulation = 100;
-
-    static const uint64_t casBitsNotTime = 16;
 
     /**
      * Directly set the freqCounterThreshold.
@@ -153,9 +144,6 @@ public:
     }
 
 private:
-    // The maximum value that can be added to the age histogram
-    static const uint64_t maxAgeValue = std::numeric_limits<uint64_t>::max() >> casBitsNotTime;
-
     // The level of precision for the age histogram.  The value must be
     // between 1 and 5 (inclusive).
     static const int ageSignificantFigures = 1;
@@ -201,8 +189,9 @@ private:
     // therefore we shift the age by casBitsNotTime.  This allows us
     // to have an age histogram with a reduced maximum value and
     // therefore reduces the memory requirements.
-    HdrHistogram ageHistogram{
-            1 /* minDiscernibleValue */, maxAgeValue, ageSignificantFigures};
+    HdrHistogram ageHistogram{1 /* minDiscernibleValue */,
+                              cb::eviction::maxAgeValue,
+                              ageSignificantFigures};
 
     // StatCounter: The number of frequencies that need to be added to the
     // frequency histogram before it is necessary to update the frequency

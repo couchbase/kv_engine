@@ -312,7 +312,7 @@ bool PagingVisitor::doEviction(const HashTable::HashBucketLock& lh,
 
 uint64_t PagingVisitor::casToAge(uint64_t cas) const {
     uint64_t age = (maxCas > cas) ? (maxCas - cas) : 0;
-    age = age >> ItemEviction::casBitsNotTime;
+    age = age >> cb::eviction::casBitsNotTime;
     return age;
 }
 

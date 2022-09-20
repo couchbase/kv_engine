@@ -14,6 +14,7 @@
 #include "blob.h"
 #include "dcp/dcp-types.h"
 #include "ep_types.h"
+#include "eviction_utils.h"
 #include "queue_op.h"
 #include <platform/atomic.h>
 
@@ -24,13 +25,6 @@
 #include <platform/n_byte_integer.h>
 
 #include <string>
-
-// Max Value for NRU bits
-const uint8_t MAX_NRU_VALUE = 3;
-// Initial value for NRU bits
-const uint8_t INITIAL_NRU_VALUE = 2;
-//Min value for NRU bits
-const uint8_t MIN_NRU_VALUE = 0;
 
 
 const uint64_t DEFAULT_REV_SEQ_NUM = 1;

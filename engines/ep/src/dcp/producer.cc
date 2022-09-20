@@ -25,6 +25,7 @@
 #include "dcp/backfill-manager.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/response.h"
+#include "eviction_utils.h"
 #include "failover-table.h"
 #include "item_eviction.h"
 #include "kv_bucket.h"
@@ -619,7 +620,7 @@ uint8_t DcpProducer::encodeItemHotness(const Item& item) const {
     // The consumer does not support the hifi_mfu
     // eviction policy, therefore map from the 8-bit
     // probabilistic counter (256 states) to NRU (4 states).
-    return ItemEviction::convertFreqCountToNRUValue(freqCount);
+    return cb::eviction::convertFreqCountToNRUValue(freqCount);
 }
 
 cb::unique_item_ptr DcpProducer::toUniqueItemPtr(

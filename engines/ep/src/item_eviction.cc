@@ -140,28 +140,6 @@ std::pair<uint16_t, uint64_t> ItemEviction::getThresholds(
     return std::make_pair(freqThreshold, ageThreshold);
 }
 
-uint8_t ItemEviction::convertFreqCountToNRUValue(uint8_t probCounter) {
-    /*
-     * The probabilistic counter has a range form 0 to 255, however the
-     * increments are not linear - it gets more difficult to increment the
-     * counter as its increases value.  Therefore incrementing from 0 to 1 is
-     * much easier than incrementing from 254 to 255.
-     *
-     * Therefore when mapping to the 4 NRU values we do not simply want to
-     * map 0-63 => 3, 64-127 => 2 etc.  Instead we want to reflect the bias
-     * in the 4 NRU states.  Therefore we map as follows:
-     * 0-3 => 3 (coldest), 4-31 => 2, 32->63 => 1, 64->255 => 0 (hottest),
-     */
-    if (probCounter >= 64) {
-        return MIN_NRU_VALUE; /* 0 - the hottest */
-    } else if (probCounter >= 32) {
-        return 1;
-    } else if (probCounter >= 4) {
-        return INITIAL_NRU_VALUE; /* 2 */
-    }
-    return MAX_NRU_VALUE; /* 3 - the coldest */
-}
-
 void ItemEviction::copyFreqHistogram(HdrHistogram& hist) {
     for (size_t i = 0; i < freqCounters.size(); i++) {
         hist.addValueAndCount(i, freqCounters[i]);
