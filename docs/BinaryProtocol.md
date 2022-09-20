@@ -305,6 +305,24 @@ FrameInfo encoded as:
       +---------------+---------------+---------------+
      0|  ID:2 | Len:2 | Number of write units         |
 
+##### ID:3 - Throttle duration
+
+Time (in microseconds) the command was throttled on the server.
+Size: 2 bytes; encoded as variable-precision value (see below)
+
+FrameInfo encoded as:
+
+    Byte/     0       |       1       |       2       |
+       /              |               |               |
+      |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+      +---------------+---------------+---------------+
+     0|  ID:3 | Len:2 |       Throttle Duration       |
+
+The duration in micros is encoded as:
+
+    encoded =  (micros * 2) ^ (1.0 / 1.74)
+    decoded =  (encoded ^ 1.74) / 2
+
 ### Header fields description
 
 * Magic: Magic number identifying the package (See [Magic_Byte](#magic-byte))
@@ -1906,7 +1924,8 @@ The following features is defined:
   determine if the server supports the command SubdocReplaceBodyWithXattr.
 * `ReportUnitUsage` When enabled the server will insert frame info field(s)
   in the response containing the amount of read and write units the
-  command used on the server.
+  command used on the server, and the time the command spent throttled on
+  the server. The fields will only be inserted if non-zero.
 * `NonBlockingThrottlingMode` cause the server to return ewouldthrottle on a request
   instead of throttle the command.
 
@@ -1916,7 +1935,7 @@ Response:
 * MUST NOT have key.
 * MAY have value.
 
-The server replies with all of the features the client requested that
+The server replies with all the features the client requested that
 the server agreed to enable.
 
 #### Example

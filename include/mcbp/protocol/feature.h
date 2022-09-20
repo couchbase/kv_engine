@@ -87,7 +87,8 @@ enum class Feature : uint16_t {
     /// Cheshire-Cat
     SubdocReplaceBodyWithXattr = 0x19,
 
-    /// Include [RW]U units as part of the response (if non-zero)
+    /// Include [RW]U units and throttle time as part of the response
+    /// (if non-zero)
     ReportUnitUsage = 0x1a,
 
     /// Return ewouldthrottle instead of block on throttling

@@ -416,6 +416,24 @@ std::optional<size_t> BinprotResponse::getWriteUnits() const {
     return ret;
 }
 
+std::optional<std::chrono::microseconds> BinprotResponse::getThrottledDuration()
+        const {
+    std::optional<std::chrono::microseconds> ret;
+    try {
+        getResponse().parseFrameExtras([&ret](auto id, auto val) -> bool {
+            if (id == cb::mcbp::response::FrameInfoId::ThrottleDuration) {
+                ret = cb::tracing::Tracer::decodeMicros(ntohs(to_uint16(val)));
+                return false;
+            }
+            return true;
+        });
+    } catch (const std::invalid_argument& e) {
+        throw std::runtime_error(std::string{"ThrottledDuration frame info: "} +
+                                 e.what());
+    }
+    return ret;
+}
+
 cb::mcbp::ClientOpcode BinprotResponse::getOp() const {
     return getResponse().getClientOpcode();
 }

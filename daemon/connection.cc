@@ -1349,9 +1349,14 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
     auto cutracing = isReportUnitUsage();
     size_t ru = 0;
     size_t wu = 0;
+    uint16_t throttled = 0;
+
     if (cutracing) {
         auto [nru, nwu] = cookie.getDocumentMeteringRWUnits();
-        if (!nru && !nwu) {
+        throttled = cb::tracing::Tracer::encodeMicros(
+                cookie.getTotalThrottleTime());
+        if (!nru && !nwu && !throttled) {
+            // no values to report
             cutracing = false;
         } else {
             ru = nru;
@@ -1380,6 +1385,9 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
         if (wu) {
             framing_extras_size += WriteUnitsFrameInfoSize;
         }
+        if (throttled) {
+            framing_extras_size += ThrottleDurationFrameInfoSize;
+        }
         response.setFramingExtraslen(framing_extras_size);
         response.setBodylen(value_len + extras_len + key_len +
                             framing_extras_size);
@@ -1407,6 +1415,10 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
         if (wu) {
             add_frame_info(WriteUnitsFrameInfoMagic,
                            gsl::narrow_cast<uint16_t>(wu));
+        }
+
+        if (throttled) {
+            add_frame_info(ThrottleDurationFrameInfoMagic, throttled);
         }
 
         wbuf = {wbuf.data(), sizeof(cb::mcbp::Response) + framing_extras_size};

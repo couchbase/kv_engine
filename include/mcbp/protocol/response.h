@@ -28,7 +28,8 @@ namespace response {
 enum class FrameInfoId : uint8_t {
     ServerRecvSendDuration = 0,
     ReadUnits = 1,
-    WriteUnits = 2
+    WriteUnits = 2,
+    ThrottleDuration = 3,
 };
 
 /// ServerRecvSendDuration use 1 byte header and 2 byte value
@@ -43,6 +44,10 @@ static constexpr uint8_t ReadUnitsFrameInfoMagic = 0x12;
 /// WriteUnits use 1 byte header and 2 byte value
 static constexpr size_t WriteUnitsFrameInfoSize = 3;
 static constexpr uint8_t WriteUnitsFrameInfoMagic = 0x22;
+
+/// ThrottleDuration use 1 byte header and 2 byte value
+static constexpr size_t ThrottleDurationFrameInfoSize = 3;
+static constexpr uint8_t ThrottleDurationFrameInfoMagic = 0x32;
 } // namespace response
 
 /**
