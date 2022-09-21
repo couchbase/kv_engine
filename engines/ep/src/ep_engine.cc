@@ -1798,9 +1798,7 @@ cb::engine::FeatureSet EventuallyPersistentEngine::getFeatures() {
     // guard regardless to make this explicit because we only call this once per
     // bucket creation
     NonBucketAllocationGuard guard;
-    cb::engine::FeatureSet ret;
-    ret.emplace(cb::engine::Feature::Collections);
-    return ret;
+    return {cb::engine::Feature::Collections};
 }
 
 bool EventuallyPersistentEngine::isXattrEnabled() {
@@ -6236,8 +6234,7 @@ cb::engine_errc EventuallyPersistentEngine::getAllKeys(
 ConnectionPriority EventuallyPersistentEngine::getDCPPriority(
         const CookieIface* cookie) {
     NonBucketAllocationGuard guard;
-    auto priority = serverApi->cookie->get_priority(*cookie);
-    return priority;
+    return serverApi->cookie->get_priority(*cookie);
 }
 
 void EventuallyPersistentEngine::setDCPPriority(const CookieIface* cookie,
