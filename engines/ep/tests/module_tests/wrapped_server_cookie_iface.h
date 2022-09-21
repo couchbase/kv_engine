@@ -66,9 +66,6 @@ public:
     ConnectionPriority get_priority(const CookieIface& cookie) override {
         return wrapped->get_priority(cookie);
     }
-    uint64_t get_connection_id(const CookieIface& cookie) override {
-        return wrapped->get_connection_id(cookie);
-    }
     cb::rbac::PrivilegeAccess check_privilege(
             const CookieIface& cookie,
             cb::rbac::Privilege privilege,

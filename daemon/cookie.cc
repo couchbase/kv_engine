@@ -1199,3 +1199,7 @@ std::pair<size_t, size_t> Cookie::getDocumentMeteringRWUnits() const {
     return {inst.to_ru(document_bytes_read.load(std::memory_order_acquire)),
             size_t{0}};
 }
+
+const ConnectionIface& Cookie::getConnectionIface() const {
+    return connection;
+}

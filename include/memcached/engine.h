@@ -47,6 +47,7 @@ struct SnapshotRequirements;
 struct SamplingConfiguration;
 } // namespace cb::rangescan
 
+class ConnectionIface;
 class CookieIface;
 class BucketStatCollector;
 class StatCollector;
@@ -184,8 +185,13 @@ struct EngineIface {
      */
     virtual void destroy(bool force) = 0;
 
-    /// Callback that a cookie will be disconnected
+    /// Callback that a cookie will be disconnected (this method is
+    /// deprecated and will go away once we change the internals of DCP
+    /// to store the ConnectionIface and not the cookie
     virtual void disconnect(const CookieIface& cookie){};
+
+    /// Callback that a connection will be disconnected
+    virtual void disconnect(const ConnectionIface& connection){};
 
     /**
      * Initiate the bucket shutdown logic (disconnect clients etc)

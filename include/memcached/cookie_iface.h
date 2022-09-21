@@ -31,6 +31,7 @@ enum class Privilege;
 class CollectionID;
 class ScopeID;
 using protocol_binary_datatype_t = uint8_t;
+class ConnectionIface;
 
 /**
  * The CookieIface is an abstract class representing a single command
@@ -45,6 +46,9 @@ using protocol_binary_datatype_t = uint8_t;
  */
 class CookieIface : public cb::tracing::Traceable {
 public:
+    /// Get the Connection this cookie belongs to
+    virtual const ConnectionIface& getConnectionIface() const = 0;
+
     /// Get the identifier user for logging for all cookies bound to this
     /// connection.
     virtual uint32_t getConnectionId() const = 0;

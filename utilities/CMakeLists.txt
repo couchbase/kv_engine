@@ -22,6 +22,7 @@ add_library(mcd_util STATIC
             terminal_size.cc
             terminal_size.h
             config_parser.cc
+            connection_iface.cc
             cookie_iface.cc
             dcp_stream_id.cc
             dockey.cc

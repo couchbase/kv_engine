@@ -20,6 +20,7 @@
 #include <cbsasl/server.h>
 #include <daemon/protocol/mcbp/command_context.h>
 #include <mcbp/protocol/unsigned_leb128.h>
+#include <memcached/connection_iface.h>
 #include <memcached/dcp.h>
 #include <memcached/openssl.h>
 #include <memcached/rbac.h>
@@ -59,7 +60,7 @@ const size_t MaxSavedConnectionId = 34;
 /**
  * The structure representing a connection in memcached.
  */
-class Connection : public DcpMessageProducersIface {
+class Connection : public ConnectionIface, public DcpMessageProducersIface {
 public:
     /// A class representing the states the connection may be in
     enum class State : int8_t {

@@ -21,6 +21,7 @@
 
 class DcpConnHandlerIface;
 struct EngineIface;
+class ConnectionIface;
 
 class MockCookie : public CookieIface {
 public:
@@ -39,6 +40,8 @@ public:
     explicit MockCookie(EngineIface* e);
 
     ~MockCookie() override;
+
+    const ConnectionIface& getConnectionIface() const override;
 
     /// Is the current cookie blocked?
     bool isEwouldblock() const {
@@ -158,6 +161,7 @@ protected:
 
     cb::compression::Buffer inflated_payload;
     EngineIface* engine = nullptr;
+    std::unique_ptr<ConnectionIface> connection;
 };
 
 MockCookie* create_mock_cookie(EngineIface* engine = nullptr);

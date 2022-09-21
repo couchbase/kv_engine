@@ -9,8 +9,8 @@
  */
 #include "mock_cookie.h"
 #include "mock_server.h"
-
 #include <mcbp/protocol/status.h>
+#include <memcached/connection_iface.h>
 
 MockCookie::CheckPrivilegeFunction MockCookie::checkPrivilegeFunction;
 MockCookie::CheckForPrivilegeAtLeastInOneCollectionFunction
@@ -18,6 +18,7 @@ MockCookie::CheckForPrivilegeAtLeastInOneCollectionFunction
 
 MockCookie::MockCookie(EngineIface* e) : engine(e) {
     mock_register_cookie(*this);
+    connection = std::make_unique<ConnectionIface>();
 }
 
 MockCookie::~MockCookie() {
@@ -117,6 +118,10 @@ void MockCookie::setCurrentCollectionInfo(ScopeID sid,
                                           uint64_t manifestUid,
                                           bool metered) {
     // do nothing
+}
+
+const ConnectionIface& MockCookie::getConnectionIface() const {
+    return *connection;
 }
 
 MockCookie* cookie_to_mock_cookie(const CookieIface* cookie) {

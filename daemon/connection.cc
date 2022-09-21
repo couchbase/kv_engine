@@ -1255,6 +1255,7 @@ void Connection::propagateDisconnect() const {
             engine.disconnect(*cookie);
         }
     }
+    engine.disconnect(*this);
 }
 
 void Connection::resetThrottledCookies() {

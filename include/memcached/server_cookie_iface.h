@@ -106,14 +106,6 @@ struct ServerCookieIface {
     virtual ConnectionPriority get_priority(const CookieIface& cookie) = 0;
 
     /**
-     * Get connection id
-     *
-     * @param cookie the cookie sent to the engine for an operation
-     * @return a unique identifier for a connection
-     */
-    virtual uint64_t get_connection_id(const CookieIface& cookie) = 0;
-
-    /**
      * Check if the cookie have the specified privilege in it's active set.
      *
      * @param cookie the cookie sent to the engine for an operation

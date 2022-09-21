@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2015-Present Couchbase, Inc.
  *
@@ -57,8 +56,8 @@
 
 #include "ewouldblock_engine.h"
 #include "ewouldblock_engine_public.h"
-
 #include <gsl/gsl-lite.hpp>
+#include <memcached/cookie_iface.h>
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -227,7 +226,7 @@ public:
     void initiate_shutdown() override;
 
     void disconnect(const CookieIface& cookie) override {
-        uint64_t id = real_api->cookie->get_connection_id(cookie);
+        const auto id = uint64_t(&cookie.getConnectionIface());
         {
             std::lock_guard<std::mutex> guard(cookie_map_mutex);
             connection_map.erase(id);
@@ -251,7 +250,7 @@ public:
             return true;
         }
 
-        uint64_t id = real_api->cookie->get_connection_id(*cookie);
+        const auto id = uint64_t(&cookie->getConnectionIface());
 
         std::lock_guard<std::mutex> guard(cookie_map_mutex);
 
@@ -644,8 +643,7 @@ public:
                             new_mode->to_string(),
                             static_cast<const void*>(cookie));
 
-                    uint64_t id = real_api->cookie->get_connection_id(*cookie);
-
+                    const auto id = uint64_t(&cookie->getConnectionIface());
                     {
                         std::lock_guard<std::mutex> guard(cookie_map_mutex);
                         connection_map.erase(id);

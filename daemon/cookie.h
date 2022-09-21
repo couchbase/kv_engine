@@ -171,6 +171,8 @@ public:
      */
     std::string getErrorJson();
 
+    const ConnectionIface& getConnectionIface() const override;
+
     /**
      * Get the connection object the cookie is bound to.
      *

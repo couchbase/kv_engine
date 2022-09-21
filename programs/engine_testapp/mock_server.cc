@@ -265,10 +265,6 @@ struct MockServerCookieApi : public ServerCookieIface {
         return ConnectionPriority::Medium;
     }
 
-    uint64_t get_connection_id(const CookieIface& cookie) override {
-        return cookie_to_mock_cookie(cookie).getConnectionId();
-    }
-
     cb::rbac::PrivilegeAccess check_privilege(
             const CookieIface& cookie,
             cb::rbac::Privilege privilege,

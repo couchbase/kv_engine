@@ -139,11 +139,6 @@ struct ServerCookieApi : public ServerCookieIface {
         return cookie.getConnection().getPriority();
     }
 
-    uint64_t get_connection_id(const CookieIface& void_cookie) override {
-        auto& cookie = dynamic_cast<const Cookie&>(void_cookie);
-        return uint64_t(&cookie.getConnection());
-    }
-
     cb::rbac::PrivilegeAccess check_privilege(
             const CookieIface& cookie,
             cb::rbac::Privilege privilege,
