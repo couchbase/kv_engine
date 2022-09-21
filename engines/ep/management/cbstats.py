@@ -162,116 +162,131 @@ def tasks_stats_formatter(stats, sort_by=None, reverse=False, *args):
         if output_json:
             stats_formatter(stats)
         else:
-            cur_time = int(stats.pop("ep_tasks:cur_time"))
 
-            total_tasks = {"Reader":0,
-                           "Writer":0,
-                           "AuxIO":0,
-                           "NonIO":0}
+            for key in stats.keys():
+                if key.find("ep_tasks:cur_time") != -1:
+                    cur_time = int(stats[key])
+                    break
 
-            running_tasks = total_tasks.copy()
+            buckets = []
+            for key in stats.keys():
+                if key.find("ep_tasks:tasks") != -1:
+                    buckets.append(stats[key])
 
-            states = ["R", "S", "D"]
+            for bucket in buckets:
+                tasks_json = json.loads(bucket)
+                tasks_stats_formatter_one_bucket(tasks_json,
+                                                 cur_time,
+                                                 sort_by,
+                                                 reverse)
+                """New line to make output prettier """
+                print ("")
+
+def tasks_stats_formatter_one_bucket(tasks, cur_time, sort_by=None,
+                                     reverse=False):
+    total_tasks = {"Reader":0,
+                   "Writer":0,
+                   "AuxIO":0,
+                   "NonIO":0}
+
+    running_tasks = total_tasks.copy()
+
+    for task in tasks:
+        total_tasks[task["type"]]+=1
+
+        task["waketime_ns"] = (ps_time_stat(
+                                (task["waketime_ns"] - cur_time))
+                            if task["waketime_ns"] < BIG_VALUE
+                            else TaskStat("inf", task["waketime_ns"]))
+
+        task["total_runtime_ns"] = ps_time_stat(
+                                           task["total_runtime_ns"])
+
+        if task["last_starttime_ns"] != 0:
+            # task is running (currently executing).
+            runtime = ps_time_stat(cur_time - task["last_starttime_ns"])
+
+            #  Mark runtime of running tasks with asterisk
+            runtime.display_value = ("*" + runtime.display_value)
+            task["runtime"] = runtime
+
+            task["waketime_ns"] = ps_time_stat(0)
+            running_tasks[task["type"]]+=1
+        else:
+            task["runtime"] = ps_time_stat(task["previous_runtime_ns"])
+
+        task["state"] = task["state"][0]
 
 
-            tasks = json.loads(stats["ep_tasks:tasks"])
+    running_tasks["Total"] = sum(running_tasks.values())
+    total_tasks["Total"] = len(tasks)
 
-            for task in tasks:
-                total_tasks[task["type"]]+=1
+    headers = (
+        "Tasks     Writer Reader AuxIO  NonIO  Total      \n"
+        "Running   {Writer:<6} {Reader:<6} "
+        "{AuxIO:<6} {NonIO:<6} {Total:<6}\n"
+            .format(**running_tasks) +
+        "All       {Writer:<6} {Reader:<6} "
+        "{AuxIO:<6} {NonIO:<6} {Total:<6}\n"
+            .format(**total_tasks)
+    )
 
-                task["waketime_ns"] = (ps_time_stat(
-                                        (task["waketime_ns"] - cur_time))
-                                    if task["waketime_ns"] < BIG_VALUE
-                                    else TaskStat("inf", task["waketime_ns"]))
+    print(headers)
 
-                task["total_runtime_ns"] = ps_time_stat(
-                                                   task["total_runtime_ns"])
+    table_columns = [
+            (key, Column(*options)) for key, options in (
+            # Stat            Display Name, Invert Sort, Right Align
+            ('tid',              ('TID',      False, True )),
+            ('priority',         ('Pri',      False, True )),
+            ('state',            ('St',       False, False)),
+            ('bucket',           ('Bucket',   False, False)),
+            ('waketime_ns',      ('SleepFor', True,  True )),
+            ('runtime',          ('Runtime',  True,  True )),
+            ('total_runtime_ns', ('TotalRun', True,  True )),
+            ('num_runs',         ('#Runs',    True,  True )),
+            ('type',             ('Type',     False, False)),
+            ('name',             ('Name',     False, False)),
+            ('this',             ('Addr',     False, False)),
+            ('description',      ('Descr.',   False, False)),
+        )]
 
-                if task["last_starttime_ns"] != 0:
-                    # task is running (currently executing).
-                    runtime = ps_time_stat(cur_time - task["last_starttime_ns"])
+    table_column_keys = [x[0] for x in table_columns]
+    table_column_values = [x[1] for x in table_columns]
 
-                    #  Mark runtime of running tasks with asterisk
-                    runtime.display_value = ("*" + runtime.display_value)
-                    task["runtime"] = runtime
+    table_data = []
 
-                    task["waketime_ns"] = ps_time_stat(0)
-                    running_tasks[task["type"]]+=1
-                else:
-                    task["runtime"] = ps_time_stat(task["previous_runtime_ns"])
+    for row in tasks:
+        table_data.append(tuple(row[key]
+                                for key in table_column_keys))
 
-                task["state"] = task["state"][0]
+    sort_key = None
+    if sort_by is not None:
+        if isinstance(sort_by, int):
+            sort_key = itemgetter(sort_by)
 
+        elif isinstance(sort_by, str):
+            if sort_by.isdigit():
+                sort_key = itemgetter(int(sort_by))
+            else:
+                # Find which column has the lowest string distance
+                # to the requested sort value.
+                sort_by = sort_by.lower()
 
-            running_tasks["Total"] = sum(running_tasks.values())
-            total_tasks["Total"] = len(tasks)
+                similarity = lambda s: (
+                    SequenceMatcher(None,
+                                    sort_by,
+                                    s.display_name.lower()).ratio())
 
-            headers = (
-                "Tasks     Writer Reader AuxIO  NonIO  Total      \n"
-                "Running   {Writer:<6} {Reader:<6} "
-                "{AuxIO:<6} {NonIO:<6} {Total:<6}\n"
-                    .format(**running_tasks) +
-                "All       {Writer:<6} {Reader:<6} "
-                "{AuxIO:<6} {NonIO:<6} {Total:<6}\n"
-                    .format(**total_tasks)
-            )
+                closest = sorted(table_column_values,
+                                 key=similarity,
+                                 reverse=True)[0]
 
-            print(headers)
+                index = table_column_values.index(closest)
+                sort_key = itemgetter(index)
+                reverse ^= closest.invert_sort
 
-            table_columns = [
-                    (key, Column(*options)) for key, options in (
-                    # Stat            Display Name, Invert Sort, Right Align
-                    ('tid',              ('TID',      False, True )),
-                    ('priority',         ('Pri',      False, True )),
-                    ('state',            ('St',       False, False)),
-                    ('bucket',           ('Bucket',   False, False)),
-                    ('waketime_ns',      ('SleepFor', True,  True )),
-                    ('runtime',          ('Runtime',  True,  True )),
-                    ('total_runtime_ns', ('TotalRun', True,  True )),
-                    ('num_runs',         ('#Runs',    True,  True )),
-                    ('type',             ('Type',     False, False)),
-                    ('name',             ('Name',     False, False)),
-                    ('this',             ('Addr',     False, False)),
-                    ('description',      ('Descr.',   False, False)),
-                )]
-
-            table_column_keys = [x[0] for x in table_columns]
-            table_column_values = [x[1] for x in table_columns]
-
-            table_data = []
-
-            for row in tasks:
-                table_data.append(tuple(row[key]
-                                        for key in table_column_keys))
-
-            sort_key = None
-            if sort_by is not None:
-                if isinstance(sort_by, int):
-                    sort_key = itemgetter(sort_by)
-
-                elif isinstance(sort_by, str):
-                    if sort_by.isdigit():
-                        sort_key = itemgetter(int(sort_by))
-                    else:
-                        # Find which column has the lowest string distance
-                        # to the requested sort value.
-                        sort_by = sort_by.lower()
-
-                        similarity = lambda s: (
-                            SequenceMatcher(None,
-                                            sort_by,
-                                            s.display_name.lower()).ratio())
-
-                        closest = sorted(table_column_values,
-                                         key=similarity,
-                                         reverse=True)[0]
-
-                        index = table_column_values.index(closest)
-                        sort_key = itemgetter(index)
-                        reverse ^= closest.invert_sort
-
-            table_formatter(table_column_values, table_data,
-                            sort_key, reverse=reverse)
+    table_formatter(table_column_values, table_data,
+                    sort_key, reverse=reverse)
 
 
 def ps_time_label(microseconds):
@@ -946,6 +961,10 @@ def stats_tasks(mc, *args):
     tasks_stats_formatter(stats_perform(mc, 'tasks'), *args)
 
 @cmd
+def stats_tasks_all(mc, *args):
+    tasks_stats_formatter(stats_perform(mc, 'tasks-all'), *args)
+
+@cmd
 def stats_responses(mc, all=''):
     resps = json.loads(stats_perform(mc, 'responses')['responses'])
     c = mc.get_error_map()['errors']
@@ -989,6 +1008,7 @@ def main():
     c.addCommand('runtimes', stats_runtimes, 'runtimes')
     c.addCommand('dispatcher', stats_dispatcher, 'dispatcher [logs]')
     c.addCommand('tasks', stats_tasks, 'tasks [sort column]')
+    c.addCommand('tasksall', stats_tasks_all, 'tasksall [sort column]')
     c.addCommand('workload', stats_workload, 'workload')
     c.addCommand('failovers', stats_failovers, 'failovers [vbid]')
     c.addCommand('hash', stats_hash, 'hash [detail]')

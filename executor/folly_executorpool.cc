@@ -1045,8 +1045,11 @@ void FollyExecutorPool::doTasksStat(Taskable& taskable,
         list.push_back(obj);
     }
 
-    add_casted_stat("ep_tasks:tasks", list.dump(), add_stat, cookie);
-    add_casted_stat("ep_tasks:cur_time",
+    add_casted_stat(fmt::format("ep_tasks:tasks:{}", taskable.getName()),
+                    list.dump(),
+                    add_stat,
+                    cookie);
+    add_casted_stat(fmt::format("ep_tasks:cur_time:{}", taskable.getName()),
                     to_ns_since_epoch(std::chrono::steady_clock::now()).count(),
                     add_stat,
                     cookie);

@@ -426,6 +426,31 @@ TEST_P(StatsTest, TestBucketDetailsSingleBucket) {
     ASSERT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus());
 }
 
+TEST_P(StatsTest, TestTasksAllInfo) {
+    auto stats = adminConnection->stats("tasks-all");
+    ASSERT_NE(stats.end(), stats.find("ep_tasks:cur_time:No bucket"));
+
+    // Set up a config only bucket too to ensure that things work with that
+    // present
+    const std::string config = R"({"rev":1000})";
+    auto rsp = adminConnection->execute(BinprotSetClusterConfigCommand{
+            token, config, 1, 1000, "cluster-config"});
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus() << std::endl
+                                 << rsp.getDataJson();
+
+    // Verify that the bucket is there
+    rsp = adminConnection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::SelectBucket, bucketName});
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+
+    // Need to reset the adminConnection bucket selection to be a good
+    // neighbour to the other tests in the suite.
+    adminConnection->unselectBucket();
+
+    stats = adminConnection->stats("tasks-all");
+    EXPECT_NE(stats.end(), stats.find("ep_tasks:cur_time:No bucket"));
+}
+
 TEST_P(StatsTest, TestSchedulerInfo) {
     auto stats = adminConnection->stats("worker_thread_info");
     // We should at least have an entry for the first thread

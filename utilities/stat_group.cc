@@ -103,6 +103,12 @@ StatsGroupManager::StatsGroupManager()
                 "all vbuckets",
                 false,
                 true},
+               {StatGroupId::TasksAll,
+                "tasks-all",
+                "Get information from the tasks in the executor pool for all "
+                "Taskables",
+                true,
+                false},
 
                {StatGroupId::Uuid,
                 "uuid",
@@ -177,7 +183,8 @@ StatsGroupManager::StatsGroupManager()
                 true},
                {StatGroupId::Tasks,
                 "tasks",
-                "Get information from the tasks in the executor pool",
+                "Get information from the tasks in the executor pool for the "
+                "given Bucket",
                 false,
                 true},
                {StatGroupId::Scheduler,

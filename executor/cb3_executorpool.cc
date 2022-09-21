@@ -760,9 +760,6 @@ void CB3ExecutorPool::doTasksStat(Taskable& taskable,
         taskLocatorCopy = taskLocator;
     }
 
-    std::array<char, 80> statname{};
-    const char* prefix = "ep_tasks";
-
     nlohmann::json list = nlohmann::json::array();
 
     for (auto& pair : taskLocatorCopy) {
@@ -792,11 +789,13 @@ void CB3ExecutorPool::doTasksStat(Taskable& taskable,
         list.push_back(obj);
     }
 
-    checked_snprintf(statname.data(), statname.size(), "%s:tasks", prefix);
-    add_casted_stat(statname.data(), list.dump(), add_stat, cookie);
+    const char* prefix = "ep_tasks";
+    add_casted_stat(fmt::format("{}:tasks:{}", prefix, taskable.getName()),
+                    list.dump(),
+                    add_stat,
+                    cookie);
 
-    checked_snprintf(statname.data(), statname.size(), "%s:cur_time", prefix);
-    add_casted_stat(statname.data(),
+    add_casted_stat(fmt::format("{}:cur_time:{}", prefix, taskable.getName()),
                     to_ns_since_epoch(std::chrono::steady_clock::now()).count(),
                     add_stat,
                     cookie);

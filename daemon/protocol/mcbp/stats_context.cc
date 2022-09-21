@@ -19,6 +19,7 @@
 #include <daemon/mc_time.h>
 #include <daemon/mcaudit.h>
 #include <daemon/memcached.h>
+#include <daemon/nobucket_taskable.h>
 #include <daemon/settings.h>
 #include <daemon/stats.h>
 #include <daemon/stats_tasks.h>
@@ -589,6 +590,36 @@ static cb::engine_errc stat_threads_executor(const std::string& key,
     return cb::engine_errc::success;
 }
 
+static cb::engine_errc stat_tasks_all_executor(const std::string& key,
+                                               Cookie& cookie) {
+    // BucketManager.forEach() isn't perfect, it only gathers stats for
+    // Buckets in the Ready state, but it's a pain to touch non-ready Buckets...
+    BucketManager::instance().forEach([&cookie](Bucket& bucket) {
+        if (bucket.type == BucketType::ClusterConfigOnly ||
+            bucket.type == BucketType::NoBucket) {
+            // continue - the other Buckets don't necessarily have engines
+            return true;
+        }
+
+        auto value = cookie.getRequest().getValue();
+        bucket.getEngine().get_stats(
+                cookie,
+                "tasks",
+                {reinterpret_cast<const char*>(value.data()), value.size()},
+                appendStatsFn);
+
+        // continue
+        return true;
+    });
+
+    // We have a bunch of tasks associated to the NoBucketTaskable and we should
+    // grab stats for those too as it may prove useful.
+    ExecutorPool::get()->doTasksStat(
+            NoBucketTaskable::instance(), &cookie, appendStatsFn);
+
+    return cb::engine_errc::success;
+}
+
 /***************************** STAT HANDLERS *****************************/
 
 struct command_stat_handler {
@@ -633,7 +664,8 @@ static std::unordered_map<StatGroupId, struct command_stat_handler>
                 {StatGroupId::CollectionsById,
                  {false, stat_bucket_collections_stats}},
                 {StatGroupId::StatTimings, {true, stat_timings_executor}},
-                {StatGroupId::Threads, {true, stat_threads_executor}}};
+                {StatGroupId::Threads, {true, stat_threads_executor}},
+                {StatGroupId::TasksAll, {false, stat_tasks_all_executor}}};
 
 /**
  * For a given key, try and return the handler for it
