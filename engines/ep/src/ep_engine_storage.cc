@@ -8,9 +8,6 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-
-#pragma once
-
 #include "ep_engine_storage.h"
 #include "objectregistry.h"
 
