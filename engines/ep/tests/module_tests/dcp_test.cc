@@ -2048,12 +2048,10 @@ public:
         : connMap(new MockDcpConnMap(engine)),
           callbacks(0),
           cookie(create_mock_cookie(&engine)) {
+        cookie->setUserNotifyIoComplete(
+                [this](cb::engine_errc status) { notify(); });
+
         connMap->initialize();
-
-        // Save `this` in server-specific so we can retrieve it from
-        // dcp_test_notify_io_complete below:
-        engine.storeEngineSpecific(cookie, this);
-
         producer = connMap->newProducer(cookie,
                                         "test_producer",
                                         /*flags*/ 0);
@@ -2071,38 +2069,23 @@ public:
         return callbacks;
     }
 
-    static void dcp_test_notify_io_complete(const CookieIface& cookie,
-                                            cb::engine_errc status) {
-        const auto* notifyTest = reinterpret_cast<const ConnMapNotifyTest*>(
-                dynamic_cast<const EPEngineStorage<void*>*>(
-                        cookie.getEngineStorage())
-                        ->get());
-        cb_assert(notifyTest != nullptr);
-        const_cast<ConnMapNotifyTest*>(notifyTest)->notify();
-    }
-
     std::unique_ptr<MockDcpConnMap> connMap;
     DcpProducer* producer;
 
 private:
     int callbacks;
-    CookieIface* cookie = nullptr;
+    MockCookie* cookie = nullptr;
 };
 
 
 TEST_F(NotifyTest, test_mb19503_connmap_notify) {
     ConnMapNotifyTest notifyTest(*engine);
 
-    // Hook into notify_io_complete
+    // Hook into scheduleDcpStep
     class MockServerCookieApi : public WrappedServerCookieIface {
     public:
-        void notify_io_complete(const CookieIface& cookie,
-                                cb::engine_errc status) override {
-            ConnMapNotifyTest::dcp_test_notify_io_complete(cookie, status);
-        }
         void scheduleDcpStep(const CookieIface& cookie) override {
-            ConnMapNotifyTest::dcp_test_notify_io_complete(
-                    cookie, cb::engine_errc::success);
+            cookie.notifyIoComplete(cb::engine_errc::success);
         }
     } scapi;
 
@@ -2128,16 +2111,11 @@ TEST_F(NotifyTest, test_mb19503_connmap_notify) {
 TEST_F(NotifyTest, test_mb19503_connmap_notify_paused) {
     ConnMapNotifyTest notifyTest(*engine);
 
-    // Hook into notify_io_complete
+    // Hook into scheduleDcpStep
     class MockServerCookieApi : public WrappedServerCookieIface {
     public:
-        void notify_io_complete(const CookieIface& cookie,
-                                cb::engine_errc status) override {
-            ConnMapNotifyTest::dcp_test_notify_io_complete(cookie, status);
-        }
         void scheduleDcpStep(const CookieIface& cookie) override {
-            ConnMapNotifyTest::dcp_test_notify_io_complete(
-                    cookie, cb::engine_errc::success);
+            cookie.notifyIoComplete(cb::engine_errc::success);
         }
     } scapi;
 

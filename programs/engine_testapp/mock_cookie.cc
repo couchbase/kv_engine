@@ -125,7 +125,11 @@ const ConnectionIface& MockCookie::getConnectionIface() const {
 }
 
 void MockCookie::notifyIoComplete(cb::engine_errc status) {
-    mock_notify_io_complete(*this, status);
+    if (userNotifyIoComplete) {
+        userNotifyIoComplete(status);
+    } else {
+        mock_notify_io_complete(*this, status);
+    }
 }
 
 MockCookie* cookie_to_mock_cookie(const CookieIface* cookie) {

@@ -247,7 +247,7 @@ public:
 
     void notify_io_complete(const CookieIface* cookie,
                             cb::engine_errc status) override {
-        get_mock_server_api()->cookie->notify_io_complete(*cookie, status);
+        cookie->notifyIoComplete(status);
     }
 
 private:

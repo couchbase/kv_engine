@@ -101,11 +101,6 @@ struct ServerCookieApi : public ServerCookieIface {
         getCookie(cookie).getConnection().setDcpFlowControlBufferSize(size);
     }
 
-    void notify_io_complete(const CookieIface& cookie,
-                            cb::engine_errc status) override {
-        notifyIoComplete(getCookie(cookie), status);
-    }
-
     void scheduleDcpStep(const CookieIface& cookie) override {
         ::scheduleDcpStep(getCookie(cookie));
     }

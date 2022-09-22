@@ -1873,7 +1873,7 @@ void EventuallyPersistentEngine::notifyIOComplete(T cookies,
                                                   cb::engine_errc status) {
     NonBucketAllocationGuard guard;
     for (auto& cookie : cookies) {
-        serverApi->cookie->notify_io_complete(cookie, status);
+        cookie.notifyIoComplete(status);
     }
 }
 
@@ -6238,7 +6238,7 @@ void EventuallyPersistentEngine::notifyIOComplete(const CookieIface* cookie,
     } else {
         HdrMicroSecBlockTimer bt(&stats.notifyIOHisto);
         NonBucketAllocationGuard guard;
-        serverApi->cookie->notify_io_complete(*cookie, status);
+        cookie->notifyIoComplete(status);
     }
 }
 

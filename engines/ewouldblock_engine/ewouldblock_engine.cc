@@ -1902,7 +1902,6 @@ const char* EWB_Engine::to_string(const Cmd cmd) {
 }
 
 void EWB_Engine::process_notifications() {
-    ServerApi* server = gsa();
     LOG_DEBUG("EWB_Engine: notification thread running for engine {}",
               (void*)this);
     std::unique_lock<std::mutex> lk(mutex);
@@ -1917,7 +1916,7 @@ void EWB_Engine::process_notifications() {
             LOG_DEBUG("EWB_Engine: notify {} status:{}",
                       static_cast<const void*>(op.cookie),
                       op.status);
-            server->cookie->notify_io_complete(*op.cookie, op.status);
+            op.cookie->notifyIoComplete(op.status);
             lk.lock();
         }
     }

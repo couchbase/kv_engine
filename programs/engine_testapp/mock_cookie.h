@@ -145,6 +145,11 @@ public:
                                   uint64_t manifestUid,
                                   bool metered) override;
 
+    /// An alternative function to call for notifyIoComplete
+    void setUserNotifyIoComplete(std::function<void(cb::engine_errc)> func) {
+        userNotifyIoComplete = std::move(func);
+    }
+
 protected:
     static CheckPrivilegeFunction checkPrivilegeFunction;
     static CheckForPrivilegeAtLeastInOneCollectionFunction
@@ -164,6 +169,7 @@ protected:
     cb::compression::Buffer inflated_payload;
     EngineIface* engine = nullptr;
     std::unique_ptr<ConnectionIface> connection;
+    std::function<void(cb::engine_errc)> userNotifyIoComplete;
 };
 
 MockCookie* create_mock_cookie(EngineIface* engine = nullptr);

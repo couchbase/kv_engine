@@ -325,13 +325,8 @@ struct MockServerCookieApi : public ServerCookieIface {
                                               uint64_t manifestUid) override {
     }
 
-    void notify_io_complete(const CookieIface& cookie,
-                            cb::engine_errc status) override {
-        mock_notify_io_complete(cookie, status);
-    }
-
     void scheduleDcpStep(const CookieIface& cookie) override {
-        notify_io_complete(cookie, cb::engine_errc::success);
+        cookie.notifyIoComplete(cb::engine_errc::success);
     }
 
     bool is_valid_json(CookieIface&, std::string_view view) override {

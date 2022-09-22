@@ -46,10 +46,6 @@ public:
                                      std::size_t size) override {
         wrapped->setDcpFlowControlBufferSize(cookie, size);
     }
-    void notify_io_complete(const CookieIface& cookie,
-                            cb::engine_errc status) override {
-        return wrapped->notify_io_complete(cookie, status);
-    }
     void scheduleDcpStep(const CookieIface& cookie) override {
         wrapped->scheduleDcpStep(cookie);
     }

@@ -64,14 +64,6 @@ struct ServerCookieIface {
             const CookieIface& cookie) = 0;
 
     /**
-     * Let a connection know that IO has completed.
-     * @param cookie cookie representing the connection
-     * @param status the status for the io operation
-     */
-    virtual void notify_io_complete(const CookieIface& cookie,
-                                    cb::engine_errc status) = 0;
-
-    /**
      * Request the core to schedule a new call to dcp_step() as soon as
      * possible as the underlying engine has data to send.
      *
