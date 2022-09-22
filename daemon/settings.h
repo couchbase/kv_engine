@@ -948,7 +948,7 @@ protected:
     std::atomic<DeploymentModel> deployment_model{DeploymentModel::Normal};
 
     /// The event framework to use
-    std::atomic<EventFramework> event_framework{EventFramework::Bufferevent};
+    std::atomic<EventFramework> event_framework{EventFramework::Folly};
 
     std::atomic_bool enable_deprecated_bucket_autoselect{false};
 
