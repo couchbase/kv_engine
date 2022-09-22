@@ -1082,21 +1082,11 @@ static cb::engine_errc subdoc_update(SubdocCmdContext& context,
         // just appended to; set the CAS to the one retrieved from.
         context.out_doc->setCas(context.in_cas);
 
-        // Obtain the item info (and it's iovectors)
         if (!context.in_doc.view.empty()) {
-            item_info new_doc_info;
-            if (!bucket_get_item_info(
-                        connection, context.out_doc.get(), &new_doc_info)) {
-                cookie.sendResponse(cb::mcbp::Status::Einternal);
-                return cb::engine_errc::failed;
-            }
-
             // Copy the new document into the item.
-            char* write_ptr =
-                    static_cast<char*>(new_doc_info.value[0].iov_base);
             std::copy(context.in_doc.view.begin(),
                       context.in_doc.view.end(),
-                      write_ptr);
+                      context.out_doc->getValueBuffer().begin());
         }
     }
 
