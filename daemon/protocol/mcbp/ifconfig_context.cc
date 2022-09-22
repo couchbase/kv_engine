@@ -32,7 +32,7 @@ cb::engine_errc IfconfigCommandContext::scheduleTask() {
                             networkInterfaceManager->doDefineInterface(json);
                     status = s;
                     payload = std::move(p);
-                    ::notifyIoComplete(cookie, cb::engine_errc::success);
+                    cookie.notifyIoComplete(cb::engine_errc::success);
                 }));
     } else if (key == "delete") {
         ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
@@ -43,7 +43,7 @@ cb::engine_errc IfconfigCommandContext::scheduleTask() {
                             networkInterfaceManager->doDeleteInterface(uuid);
                     status = s;
                     payload = std::move(p);
-                    ::notifyIoComplete(cookie, cb::engine_errc::success);
+                    cookie.notifyIoComplete(cb::engine_errc::success);
                 }));
     } else if (key == "list") {
         ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
@@ -51,7 +51,7 @@ cb::engine_errc IfconfigCommandContext::scheduleTask() {
                     auto [s, p] = networkInterfaceManager->doListInterface();
                     status = s;
                     payload = std::move(p);
-                    ::notifyIoComplete(cookie, cb::engine_errc::success);
+                    cookie.notifyIoComplete(cb::engine_errc::success);
                 }));
     } else if (key == "tls") {
         if (value.empty()) {
@@ -62,7 +62,7 @@ cb::engine_errc IfconfigCommandContext::scheduleTask() {
                         auto [s, p] = networkInterfaceManager->doGetTlsConfig();
                         status = s;
                         payload = std::move(p);
-                        ::notifyIoComplete(cookie, cb::engine_errc::success);
+                        cookie.notifyIoComplete(cb::engine_errc::success);
                     }));
         } else {
             ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
@@ -74,7 +74,7 @@ cb::engine_errc IfconfigCommandContext::scheduleTask() {
                                 networkInterfaceManager->doTlsReconfigure(json);
                         status = s;
                         payload = std::move(p);
-                        ::notifyIoComplete(cookie, cb::engine_errc::success);
+                        cookie.notifyIoComplete(cb::engine_errc::success);
                     }));
         }
     } else {

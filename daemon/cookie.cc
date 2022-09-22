@@ -15,6 +15,7 @@
 #include "connection.h"
 #include "cookie_trace_context.h"
 #include "external_auth_manager_thread.h"
+#include "front_end_thread.h"
 #include "get_authorization_task.h"
 #include "mcaudit.h"
 #include "mcbp_executors.h"
@@ -22,6 +23,7 @@
 #include "memcached.h"
 #include "opentelemetry.h"
 #include "settings.h"
+#include "tracing.h"
 
 #include <logger/logger.h>
 #include <mcbp/mcbp.h>
@@ -1205,5 +1207,12 @@ const ConnectionIface& Cookie::getConnectionIface() const {
 }
 
 void Cookie::notifyIoComplete(cb::engine_errc status) {
-    ::notifyIoComplete(*this, status);
+    auto& thr = getConnection().getThread();
+    thr.eventBase.runInEventBaseThreadAlwaysEnqueue([this, status]() {
+        TRACE_LOCKGUARD_TIMED(getConnection().getThread().mutex,
+                              "mutex",
+                              "notifyIoComplete",
+                              SlowMutexThreshold);
+        getConnection().processNotifiedCookie(*this, status);
+    });
 }

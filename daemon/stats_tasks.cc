@@ -52,7 +52,7 @@ bool StatsTaskBucketStats::run() {
     // returned then the engine would have scheduled its own background task
     // which will call notifyIoComplete() itself when it is complete.
     if (command_error != cb::engine_errc::would_block) {
-        notifyIoComplete(cookie, cb::engine_errc::success);
+        cookie.notifyIoComplete(cb::engine_errc::success);
     }
     return false;
 }
@@ -89,7 +89,7 @@ bool StatsTaskConnectionStats::run() {
         command_error = cb::engine_errc::failed;
     }
 
-    notifyIoComplete(cookie, cb::engine_errc::success);
+    cookie.notifyIoComplete(cb::engine_errc::success);
     return false;
 }
 

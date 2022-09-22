@@ -63,9 +63,9 @@ cb::engine_errc SaslRefreshCommandContext::reload() {
     ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
             TaskId::Core_SaslRefreshTask, "Refresh SASL database", [this]() {
                 try {
-                    ::notifyIoComplete(cookie, doSaslRefresh());
+                    cookie.notifyIoComplete(doSaslRefresh());
                 } catch (const std::bad_alloc&) {
-                    ::notifyIoComplete(cookie, cb::engine_errc::no_memory);
+                    cookie.notifyIoComplete(cb::engine_errc::no_memory);
                 }
             }));
 

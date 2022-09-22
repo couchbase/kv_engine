@@ -50,5 +50,5 @@ void GetAuthorizationTask::externalResponse(cb::mcbp::Status statusCode,
             status = cb::sasl::Error::FAIL;
         }
     }
-    ::notifyIoComplete(cookie, cb::engine_errc::success);
+    cookie.notifyIoComplete(cb::engine_errc::success);
 }

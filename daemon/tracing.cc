@@ -179,11 +179,11 @@ public:
                         &formatted[formatted.size() - chunksize], chunksize);
             } while (!exporter.done());
             formatted.resize(formatted.size() - (chunksize - last_wrote));
-            notifyIoComplete(cookie, cb::engine_errc::success);
+            cookie.notifyIoComplete(cb::engine_errc::success);
         } catch (const std::exception& e) {
             LOG_WARNING("TraceFormatterTask::execute: Received exception: {}",
                         e.what());
-            notifyIoComplete(cookie, cb::engine_errc::failed);
+            cookie.notifyIoComplete(cb::engine_errc::failed);
         }
         return false;
     }

@@ -49,9 +49,9 @@ cb::engine_errc RbacReloadCommandContext::reload() {
     ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
             TaskId::Core_RbacReloadTask, "Refresh RBAC database", [this]() {
                 try {
-                    ::notifyIoComplete(cookie, doRbacReload());
+                    cookie.notifyIoComplete(doRbacReload());
                 } catch (const std::bad_alloc&) {
-                    ::notifyIoComplete(cookie, cb::engine_errc::no_memory);
+                    cookie.notifyIoComplete(cb::engine_errc::no_memory);
                 }
             }));
 

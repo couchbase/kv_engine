@@ -44,7 +44,7 @@ void StartSaslAuthTask::externalResponse(cb::mcbp::Status status,
         unsuccessfull_external_auth(status, payload);
     }
 
-    ::notifyIoComplete(cookie, cb::engine_errc::success);
+    cookie.notifyIoComplete(cb::engine_errc::success);
 }
 
 void StartSaslAuthTask::successfull_external_auth() {

@@ -78,7 +78,7 @@ cb::engine_errc BucketManagementCommandContext::create() {
                             error.what());
                     status = cb::engine_errc::failed;
                 }
-                ::notifyIoComplete(*client, status);
+                client->notifyIoComplete(status);
             },
             std::chrono::seconds(10)));
 
@@ -163,7 +163,7 @@ cb::engine_errc BucketManagementCommandContext::remove() {
                             error.what());
                     status = cb::engine_errc::failed;
                 }
-                ::notifyIoComplete(*client, status);
+                client->notifyIoComplete(status);
             },
             std::chrono::seconds(30)));
 

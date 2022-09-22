@@ -282,7 +282,7 @@ cb::engine_errc SettingsReloadCommandContext::doSettingsReload() {
 cb::engine_errc SettingsReloadCommandContext::reload() {
     ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
             TaskId::Core_SettingsReloadTask, "Reload memcached.json", [this]() {
-                ::notifyIoComplete(cookie, doSettingsReload());
+                cookie.notifyIoComplete(doSettingsReload());
             }));
     return cb::engine_errc::would_block;
 }

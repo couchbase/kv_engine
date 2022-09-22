@@ -533,7 +533,7 @@ bool Connection::reEvaluateThrottledCookies() {
                 throttled = true;
             } else {
                 c->setThrottled(false);
-                notifyIoComplete(*c, cb::engine_errc::success);
+                c->notifyIoComplete(cb::engine_errc::success);
             }
         }
     }

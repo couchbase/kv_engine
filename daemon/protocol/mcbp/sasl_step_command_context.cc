@@ -39,7 +39,7 @@ cb::engine_errc SaslStepCommandContext::initial() {
                 doSaslStep();
                 // We need to notify with success here to avoid having the
                 // framework report the error
-                ::notifyIoComplete(cookie, cb::engine_errc::success);
+                cookie.notifyIoComplete(cb::engine_errc::success);
             }));
     return cb::engine_errc::would_block;
 }
