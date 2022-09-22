@@ -17,9 +17,9 @@
 struct FrontEndThread;
 
 /// A mock connection which doesn't own a socket and isn't bound to libevent
-class MockConnection : public Connection {
+class McbpMockConnection : public Connection {
 public:
-    explicit MockConnection(struct FrontEndThread& thr) : Connection(thr) {
+    explicit McbpMockConnection(struct FrontEndThread& thr) : Connection(thr) {
     }
 
     void copyToOutputStream(std::string_view data) override {

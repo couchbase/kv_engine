@@ -14,7 +14,7 @@
 /*
  * Memcached binary protocol validator tests.
  */
-#include "mock_connection.h"
+#include "mcbp_mock_connection.h"
 
 #include <daemon/connection.h>
 #include <daemon/front_end_thread.h>
@@ -50,7 +50,7 @@ protected:
     FrontEndThread thread;
     McbpValidator validatorChains;
 
-    MockConnection connection;
+    McbpMockConnection connection;
 
     // backing store which may be used for the request
     protocol_binary_request_no_extras &request;

@@ -9,7 +9,7 @@
  *   the file licenses/APL2.txt.
  */
 
-#include "mock_connection.h"
+#include "mcbp_mock_connection.h"
 #include <benchmark/benchmark.h>
 #include <daemon/cookie.h>
 #include <daemon/front_end_thread.h>
@@ -35,7 +35,7 @@ public:
 
 protected:
     McbpValidator validator;
-    MockConnection connection;
+    McbpMockConnection connection;
 
     union {
         protocol_binary_request_no_extras request;

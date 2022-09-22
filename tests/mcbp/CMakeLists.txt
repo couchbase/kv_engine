@@ -10,7 +10,7 @@ cb_add_test_executable(memcached_mcbp_test
                mcbp_test_meta.cc
                mcbp_test_subdoc.cc
                mcbp_test_subdoc_xattr.cc
-               mock_connection.h
+               mcbp_mock_connection.h
                set_vbucket_validator_test.cc
                xattr_blob_test.cc
                xattr_blob_validator_test.cc
