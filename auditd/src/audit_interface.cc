@@ -18,16 +18,15 @@
 
 namespace cb::audit {
 
-UniqueAuditPtr create_audit_daemon(const std::string& config_file,
-                                   ServerCookieIface* server_cookie_api) {
+UniqueAuditPtr create_audit_daemon(std::string config_file) {
     if (!cb::logger::isInitialized()) {
         throw std::invalid_argument(
                 "create_audit_daemon: logger must have been created");
     }
 
     try {
-        return std::make_unique<AuditImpl>(
-                config_file, server_cookie_api, cb::net::getHostname());
+        return std::make_unique<AuditImpl>(std::move(config_file),
+                                           cb::net::getHostname());
     } catch (std::runtime_error& err) {
         LOG_WARNING("{}", err.what());
     } catch (std::bad_alloc&) {

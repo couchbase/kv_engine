@@ -57,6 +57,14 @@ public:
     /// Notify the cookie that the engine completed its work for the cookie
     /// so the cookie is no longer blocked.
     virtual void notifyIoComplete(cb::engine_errc status) = 0;
+    /// The engines gets passed a const reference and they're the ones
+    /// to call notifyIoComplete.. cast away the constness to avoid
+    /// having to clutter the code everywhere with a const cast (and at
+    /// some point we should stop passing it as a const reference from the
+    /// engine as they're allowed to call some methods
+    void notifyIoComplete(cb::engine_errc status) const {
+        const_cast<CookieIface*>(this)->notifyIoComplete(status);
+    }
 
     // The underlying engine may store information bound to the given cookie
     // in an opaque pointer. The framework will _NOT_ take ownership of the

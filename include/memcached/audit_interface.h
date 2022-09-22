@@ -15,7 +15,6 @@
 
 class StatCollector;
 class CookieIface;
-struct ServerCookieIface;
 
 namespace cb::audit {
 namespace document {
@@ -100,13 +99,11 @@ using UniqueAuditPtr = std::unique_ptr<Audit>;
  * create a new instance of the Audit subsystem
  *
  * @param config_file where to read the configuration
- * @param server_cookie_api the server cookie api to operate on the cookies
  * @return The newly created audit daemon handle upon success
  * @throws std::runtime_error if there is a failure allocating a daemon thread
  * @throws std::logic_error if there is something wrong with the config file
  * @throws std::bad_alloc for allocation failures
  */
-UniqueAuditPtr create_audit_daemon(const std::string& config_file,
-                                   ServerCookieIface* server_cookie_api);
+UniqueAuditPtr create_audit_daemon(std::string config_file);
 
 } // namespace cb::audit

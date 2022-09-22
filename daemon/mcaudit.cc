@@ -397,8 +397,8 @@ static void event_state_listener(uint32_t id, bool enabled) {
 
 void initialize_audit() {
     /* Start the audit daemon */
-    auto audit = cb::audit::create_audit_daemon(
-            Settings::instance().getAuditFile(), get_server_api()->cookie);
+    auto audit =
+            cb::audit::create_audit_daemon(Settings::instance().getAuditFile());
     if (!audit) {
         FATAL_ERROR(EXIT_FAILURE, "FATAL: Failed to start audit daemon");
     }

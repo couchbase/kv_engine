@@ -38,9 +38,7 @@ public:
                                const CookieIface& cookie) override;
     // End public API
 
-    explicit AuditImpl(std::string config_file,
-                       ServerCookieIface* sapi,
-                       const std::string& host);
+    explicit AuditImpl(std::string config_file, std::string host);
     ~AuditImpl() override;
 
     /**
@@ -58,8 +56,6 @@ public:
      * @return true if success, false otherwise
      */
     bool configure();
-
-    void notify_io_complete(const CookieIface& cookie, cb::engine_errc status);
 
     /**
      * The entry point for the thread used to drain the generated audit events
@@ -129,8 +125,6 @@ protected:
 
     /// The number of events currently dropped.
     std::atomic<uint32_t> dropped_events = {0};
-
-    ServerCookieIface* cookie_api;
 
     /// The hostname we want to inject to the audit events
     const std::string hostname;

@@ -13,14 +13,15 @@
 #include "audit.h"
 
 #include <logger/logger.h>
+#include <memcached/cookie_iface.h>
 
 bool ConfigureEvent::process(AuditImpl& audit) {
     if (audit.reconfigure(file)) {
-        audit.notify_io_complete(cookie, cb::engine_errc::success);
+        cookie.notifyIoComplete(cb::engine_errc::success);
         return true;
     }
 
     LOG_WARNING_RAW("Audit: error performing configuration");
-    audit.notify_io_complete(cookie, cb::engine_errc::failed);
+    cookie.notifyIoComplete(cb::engine_errc::failed);
     return false;
 }

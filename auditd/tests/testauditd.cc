@@ -12,8 +12,9 @@
 #include <getopt.h>
 #include <logger/logger.h>
 #include <memcached/audit_interface.h>
-#include <memcached/isotime.h>
-#include <memcached/server_cookie_iface.h>
+#include <memcached/connection_iface.h>
+#include <memcached/cookie_iface.h>
+#include <memcached/rbac.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <platform/socket.h>
@@ -24,7 +25,6 @@
 #include <iostream>
 #include <limits>
 #include <mutex>
-#include <sstream>
 #include <thread>
 
 #include "auditd/src/audit.h"
@@ -32,100 +32,68 @@
 #include "auditd/tests/mock_auditconfig.h"
 
 // The event descriptor file is normally stored in the directory named
-// auditd relative to the binary.. let's just use that as the default
+// auditd relative to the binary... let's just use that as the default
 // and allow the user to override it with -e
 static std::string event_descriptor("auditd");
 
-static std::mutex mutex;
-static std::condition_variable cond;
-static bool ready = false;
-
-class AuditMockServerCookieApi : public ServerCookieIface {
+class AuditMockCookie : public CookieIface {
 public:
-    void setDcpConnHandler(const CookieIface& cookie,
-                           DcpConnHandlerIface* handler) override {
-        throw std::runtime_error("Not implemented");
+    const ConnectionIface& getConnectionIface() const override {
+        return connection;
     }
-    DcpConnHandlerIface* getDcpConnHandler(const CookieIface& cookie) override {
-        throw std::runtime_error("Not implemented");
+    uint32_t getConnectionId() const override {
+        return 0;
     }
-    void setDcpFlowControlBufferSize(const CookieIface& cookie,
-                                     std::size_t size) override {
-    }
-    void notify_io_complete(const CookieIface& cookie,
-                            cb::engine_errc status) override {
+    void notifyIoComplete(cb::engine_errc status) override {
         std::lock_guard<std::mutex> lock(mutex);
         ready = true;
         cond.notify_one();
     }
-    void scheduleDcpStep(const CookieIface& cookie) override {
-        throw std::runtime_error("Not implemented");
+    bool isMutationExtrasSupported() const override {
+        return false;
     }
-
-    void reserve(const CookieIface& cookie) override {
-        throw std::runtime_error("Not implemented");
+    bool isCollectionsSupported() const override {
+        return false;
     }
-    void release(const CookieIface& cookie) override {
-        throw std::runtime_error("Not implemented");
+    bool isDatatypeSupported(
+            protocol_binary_datatype_t datatype) const override {
+        return false;
     }
-    void set_priority(const CookieIface& cookie,
-                      ConnectionPriority priority) override {
-        throw std::runtime_error("Not implemented");
-    }
-    ConnectionPriority get_priority(const CookieIface& cookie) override {
-        throw std::runtime_error("Not implemented");
-    }
-    cb::rbac::PrivilegeAccess check_privilege(
-            const CookieIface& cookie,
+    cb::rbac::PrivilegeAccess testPrivilege(
             cb::rbac::Privilege privilege,
             std::optional<ScopeID> sid,
-            std::optional<CollectionID> cid) override {
-        throw std::runtime_error("Not implemented");
+            std::optional<CollectionID> cid) const override {
+        return cb::rbac::PrivilegeAccess(cb::rbac::PrivilegeAccess::Status::Ok);
     }
-    cb::rbac::PrivilegeAccess check_for_privilege_at_least_in_one_collection(
-            const CookieIface&, cb::rbac::Privilege) override {
-        throw std::runtime_error("Not implemented");
+    cb::rbac::PrivilegeAccess checkForPrivilegeAtLeastInOneCollection(
+            cb::rbac::Privilege privilege) const override {
+        return cb::rbac::PrivilegeAccess(cb::rbac::PrivilegeAccess::Status::Ok);
     }
-    uint32_t get_privilege_context_revision(
-            const CookieIface& cookie) override {
-        throw std::runtime_error("Not implemented");
+    std::string_view getInflatedInputPayload() const override {
+        return {};
     }
-    cb::mcbp::Status engine_error2mcbp(const CookieIface& cookie,
-                                       cb::engine_errc code) override {
-        throw std::runtime_error("Not implemented");
+    void setCurrentCollectionInfo(ScopeID sid,
+                                  CollectionID cid,
+                                  uint64_t manifestUid,
+                                  bool metered) override {
     }
-    std::pair<uint32_t, std::string> get_log_info(
-            const CookieIface& cookie) override {
-        throw std::runtime_error("Not implemented");
+
+    /// Wait for the cookie to be notified
+    void wait() {
+        // we have to wait
+        std::unique_lock<std::mutex> lk(mutex);
+        if (ready) {
+            return;
+        }
+        cond.wait(lk, [this] { return ready; });
+        ready = false;
     }
-    std::string get_authenticated_user(const CookieIface& cookie) override {
-        throw std::runtime_error("Not implemented");
-    }
-    in_port_t get_connected_port(const CookieIface& cookie) override {
-        throw std::runtime_error("Not implemented");
-    }
-    void set_error_context(CookieIface& cookie,
-                           std::string_view message) override {
-        throw std::runtime_error("Not implemented");
-    }
-    void set_error_json_extras(CookieIface& cookie,
-                               const nlohmann::json& json) override {
-        throw std::runtime_error("set_error_json_extras not implemented");
-    }
-    void set_unknown_collection_error_context(CookieIface& cookie,
-                                              uint64_t manifestUid) override {
-        throw std::runtime_error(
-                "set_unknown_collection_error_context not implemented");
-    }
-    bool is_valid_json(CookieIface&, std::string_view) override {
-        throw std::runtime_error(
-                "set_unknown_collection_error_context not implemented");
-    }
-    void send_response(const CookieIface&,
-                       cb::engine_errc,
-                       std::string_view) override {
-        throw std::runtime_error("send_response not implemented");
-    }
+
+protected:
+    ConnectionIface connection;
+    std::mutex mutex;
+    std::condition_variable cond;
+    bool ready = false;
 };
 
 class AuditDaemonTest
@@ -154,7 +122,7 @@ public:
         }
 
         // Start the audit daemon
-        auditHandle = cb::audit::create_audit_daemon({}, &sapi);
+        auditHandle = cb::audit::create_audit_daemon({});
 
         if (!auditHandle) {
             throw std::runtime_error(
@@ -171,17 +139,9 @@ public:
 
 protected:
     void config_auditd(const std::string& fname) {
-        // We don't have a real cookie, but configure_auditdaemon won't call
-        // notify_io_complete unless it's set to a non-null value..
-        // just pass on the ready variable
-        const auto& cookie = (const CookieIface&)ready;
+        AuditMockCookie cookie;
         if (auditHandle->configure_auditdaemon(fname, cookie)) {
-            {
-                // we have to wait
-                std::unique_lock<std::mutex> lk(mutex);
-                cond.wait(lk, [] { return ready; });
-            }
-            ready = false;
+            cookie.wait();
         } else {
             std::cerr << "initialize audit daemon: FAILED" << std::endl;
             exit(EXIT_FAILURE);
@@ -246,14 +206,11 @@ protected:
         return false;
     }
 
-    static AuditMockServerCookieApi sapi;
     MockAuditConfig config;
     static cb::audit::UniqueAuditPtr auditHandle;
     static std::string testdir;
     static std::string cfgfile;
 };
-
-AuditMockServerCookieApi AuditDaemonTest::sapi;
 
 std::string AuditDaemonTest::testdir;
 std::string AuditDaemonTest::cfgfile;

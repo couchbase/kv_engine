@@ -31,14 +31,11 @@
 
 using namespace std::string_view_literals;
 
-AuditImpl::AuditImpl(std::string config_file,
-                     ServerCookieIface* sapi,
-                     const std::string& host)
+AuditImpl::AuditImpl(std::string config_file, std::string host)
     : Audit(),
       auditfile(host),
       configfile(std::move(config_file)),
-      cookie_api(sapi),
-      hostname(host) {
+      hostname(std::move(host)) {
     if (!configfile.empty() && !configure()) {
         throw std::runtime_error(
                 "Audit::Audit(): Failed to configure audit daemon");
@@ -379,11 +376,6 @@ void AuditImpl::notify_event_state_changed(uint32_t id, bool enabled) const {
     for (const auto& func : event_state_listener.clients) {
         func(id, enabled);
     }
-}
-
-void AuditImpl::notify_io_complete(const CookieIface& cookie,
-                                   cb::engine_errc status) {
-    cookie_api->notify_io_complete(cookie, status);
 }
 
 void AuditImpl::stats(const StatCollector& collector) {
