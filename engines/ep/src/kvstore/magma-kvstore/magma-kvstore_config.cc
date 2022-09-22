@@ -95,6 +95,8 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     magmaMaxLevel0TTL =
             std::chrono::seconds(1s * config.getMagmaMaxLevel0Ttl());
     magmaMaxDefaultStorageThreads = config.getMagmaMaxDefaultStorageThreads();
+    magmaMinValueBlockSizeThreshold =
+            config.getMagmaMinValueBlockSizeThreshold();
     metadataPurgeAge = config.getPersistentMetadataPurgeAge();
     magmaBloomFilterAccuracy = config.getMagmaBloomFilterAccuracy();
     magmaBloomFilterAccuracyForBottomLevel =

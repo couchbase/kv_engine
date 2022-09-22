@@ -130,6 +130,11 @@ public:
     size_t getMagmaMaxDefaultStorageThreads() const {
         return magmaMaxDefaultStorageThreads;
     }
+
+    size_t getMagmaMinValueBlockSizeThreshold() const {
+        return magmaMinValueBlockSizeThreshold;
+    }
+
     size_t getMagmaMaxRecoveryBytes() const {
         return magmaMaxRecoveryBytes;
     }
@@ -349,6 +354,16 @@ private:
      * determine the ratio of flusher and compactor threads.
      */
     size_t magmaMaxDefaultStorageThreads{20};
+
+    /**
+     * Magma creates value blocks for values larger than this size. Value
+     * blocks only contain a single KV item and their reads/writes are
+     * optimised for memory as it avoids many value copies. Right now
+     * compression is turned off for value blocks to reduce memory consumption
+     * while building them. This setting should be at least as large as the
+     * SeqIndex block size.
+     */
+    size_t magmaMinValueBlockSizeThreshold;
 
     /**
      * Cached copy of the persistent_metadata_purge_age. Used in

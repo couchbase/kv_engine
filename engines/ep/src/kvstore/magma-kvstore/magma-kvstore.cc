@@ -563,6 +563,8 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
             configuration.getMagmaValueSeparationSize();
     configuration.magmaCfg.MaxWriteCacheSize =
             configuration.getMagmaMaxWriteCache();
+    configuration.magmaCfg.MinValueBlockSizeThreshold =
+            configuration.getMagmaMinValueBlockSizeThreshold();
     configuration.magmaCfg.WALBufferSize =
             configuration.getMagmaInitialWalBufferSize();
     configuration.magmaCfg.EnableWAL = configuration.getMagmaEnableWAL();

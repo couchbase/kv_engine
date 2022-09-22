@@ -1212,13 +1212,19 @@
             "descr": "Couchstore generates a commit point at the end of every batch of items. During normal operation, Magma checkpoints are taken at every magma_checkpoint_interval. Many of the tests require more frequent checkpoints so this configuration parameter makes sure every batch generates a checkpoint. Each checkpoint generated in this way is a \"Sync\" checkpoint and isn't going to be useful for rollback as it only the latest checkpoint is a \"Sync\" checkpoiont. A \"Rollback\" checkpoint will be made instead if we set magma_checkpoint_interval to 0. The \"Rollback\" checkpoints are stored in the checkpoint queue as potential rollback points. Should be used for testing only!",
             "type": "bool"
         },
+        "magma_min_value_block_size_threshold": {
+            "default": "(64 * 1024)",
+            "dynamic": false,
+            "descr": "Magma creates value blocks for values larger than this size. Value blocks only contain a single KV item and their reads/writes are optimised for memory as it avoids many value copies. Right now compression is turned off for value blocks to reduce memory consumption while building them. This setting should be at least as large as the SeqIndex block size.", 
+            "type": "size_t"
+        },
         "magma_enable_memory_optimized_writes": {
             "default": {
                 "on-prem": "false",
                 "serverless": "true"
             },
             "dynamic": false,
-	    "descr": "When enabled, if copying a write batch into memtable results in exceeding the write cache quota, Magma avoids the copy and instead flushes the batch to disk on the writer thread itself. This tradeoffs an increase in write latency for reduced memory consumption and obeys quota limits. If copying a batch keeps us under the quota, Magma will to continue to copy and do the flush in background.",
+            "descr": "When enabled, if copying a write batch into memtable results in exceeding the write cache quota, Magma avoids the copy and instead flushes the batch to disk on the writer thread itself. This tradeoffs an increase in write latency for reduced memory consumption and obeys quota limits. If copying a batch keeps us under the quota, Magma will to continue to copy and do the flush in background.",
             "type": "bool"
         },
         "magma_enable_wal": {
