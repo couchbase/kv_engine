@@ -803,10 +803,6 @@ protected:
      */
     void decrementItemCount(CollectionID collection) const;
 
-    container::const_iterator end() const {
-        return map.end();
-    }
-
     /**
      * @return iterator for the collections map
      */
@@ -822,6 +818,20 @@ protected:
     }
 
     /**
+     * @return iterator for the collections map
+     */
+    container::const_iterator begin() const {
+        return map.begin();
+    }
+
+    /**
+     * @return end iterator for the collections map
+     */
+    container::const_iterator end() const {
+        return map.end();
+    }
+
+    /**
      * @return iterator for the scopes map
      */
     scopesContainer::iterator beginScopes() {
@@ -832,6 +842,20 @@ protected:
      * @return end iterator for the scopes map
      */
     scopesContainer::iterator endScopes() {
+        return scopes.end();
+    }
+
+    /**
+     * @return iterator for the scopes map
+     */
+    scopesContainer::const_iterator beginScopes() const {
+        return scopes.begin();
+    }
+
+    /**
+     * @return end iterator for the scopes map
+     */
+    scopesContainer::const_iterator endScopes() const {
         return scopes.end();
     }
 

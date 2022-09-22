@@ -180,21 +180,21 @@ size_t NexusKVStore::getMemFootPrint() const {
 
 Collections::VB::Manifest NexusKVStore::generateSecondaryVBManifest(
         Vbid vbid, const VB::Commit& primaryCommitData) {
-    // Need to create the manifest for the secondary KVStore
+    // Create a copy of the primary manifest for the secondary KVStore
     auto secondaryManifest = primaryCommitData.collections.getManifest();
 
     // Having generated the Manifest object we now need to correct the disk
     // sizes as they may differ between KVStores. We'll load the disk sizes of
     // each collection now...
+
+    // First each scope's dataSize must begin at zero
     {
-        auto collections = secondaryManifest.wlock();
-        // Scope dataSize must begin at zero for the next loop
-        for (auto itr = collections.beginScopes();
-             itr != collections.endScopes();
+        auto secondary = secondaryManifest.lock();
+        for (auto itr = secondary.beginScopes(); itr != secondary.endScopes();
              ++itr) {
             itr->second.setDataSize(0);
         }
-    }
+    } // end locking scope
 
     // Check if vbucket state is on disk, if not it will cause secondary
     // KVStore::getCollectionStats() to log a warning message for each
@@ -208,15 +208,17 @@ Collections::VB::Manifest NexusKVStore::generateSecondaryVBManifest(
         return secondaryManifest;
     }
 
-    {
-        auto collections = secondaryManifest.wlock();
-        for (auto& itr : collections) {
-            auto& [cid, entry] = itr;
-            auto [status, stats] = secondary->getCollectionStats(vbid, cid);
-            if (status == GetCollectionStatsStatus::Success) {
-                collections.setDiskSize(cid, stats.diskSize);
-                collections.updateDataSize(entry.getScopeID(), stats.diskSize);
-            }
+    // read lock the primary so we can iterate all collections
+    auto rHandle = primaryCommitData.collections.getManifest().lock();
+
+    // iterate over the primary collections and update the copy with the
+    // diskSizes read from secondary kvstore
+    for (const auto& entry : rHandle) {
+        auto [status, stats] = secondary->getCollectionStats(vbid, entry.first);
+        if (status == GetCollectionStatsStatus::Success) {
+            auto statsHandle = secondaryManifest.lock(entry.first);
+            statsHandle.setDiskSize(stats.diskSize);
+            statsHandle.updateScopeDataSize(stats.diskSize);
         }
     }
 

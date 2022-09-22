@@ -51,6 +51,26 @@ public:
         return *this;
     }
 
+    /// @return iterator to the beginning of the underlying collection map
+    Manifest::container::const_iterator begin() const {
+        return manifest->begin();
+    }
+
+    /// @return iterator to the end of the underlying collection map
+    Manifest::container::const_iterator end() const {
+        return manifest->end();
+    }
+
+    /// @return iterator to the beginning of the underlying collection map
+    Manifest::scopesContainer::const_iterator beginScopes() const {
+        return manifest->beginScopes();
+    }
+
+    /// @return iterator to the end of the underlying collection map
+    Manifest::scopesContainer::const_iterator endScopes() const {
+        return manifest->endScopes();
+    }
+
     /**
      * Does the key contain a valid collection?
      *
