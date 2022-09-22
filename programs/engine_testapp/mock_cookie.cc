@@ -124,6 +124,10 @@ const ConnectionIface& MockCookie::getConnectionIface() const {
     return *connection;
 }
 
+void MockCookie::notifyIoComplete(cb::engine_errc status) {
+    mock_notify_io_complete(*this, status);
+}
+
 MockCookie* cookie_to_mock_cookie(const CookieIface* cookie) {
     auto* ret =
             const_cast<MockCookie*>(dynamic_cast<const MockCookie*>(cookie));

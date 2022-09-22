@@ -29,6 +29,8 @@ void mock_register_cookie(CookieIface& cookie);
 /// Unregister the given cookie for notifications via notify_io_complete().
 void mock_unregister_cookie(CookieIface& cookie);
 
+void mock_notify_io_complete(const CookieIface& cookie, cb::engine_errc status);
+
 /**
  * Wait for at least one call to notify_io_complete to have been made
  * for the given cookie.

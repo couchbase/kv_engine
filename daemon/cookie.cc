@@ -1203,3 +1203,7 @@ std::pair<size_t, size_t> Cookie::getDocumentMeteringRWUnits() const {
 const ConnectionIface& Cookie::getConnectionIface() const {
     return connection;
 }
+
+void Cookie::notifyIoComplete(cb::engine_errc status) {
+    ::notifyIoComplete(*this, status);
+}

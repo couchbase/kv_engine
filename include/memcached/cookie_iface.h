@@ -11,6 +11,7 @@
 #pragma once
 
 #include <folly/Synchronized.h>
+#include <memcached/engine_error.h>
 #include <memcached/engine_storage.h>
 #include <memcached/tracer.h>
 #include <atomic>
@@ -52,6 +53,10 @@ public:
     /// Get the identifier user for logging for all cookies bound to this
     /// connection.
     virtual uint32_t getConnectionId() const = 0;
+
+    /// Notify the cookie that the engine completed its work for the cookie
+    /// so the cookie is no longer blocked.
+    virtual void notifyIoComplete(cb::engine_errc status) = 0;
 
     // The underlying engine may store information bound to the given cookie
     // in an opaque pointer. The framework will _NOT_ take ownership of the

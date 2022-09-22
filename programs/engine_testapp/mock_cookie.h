@@ -95,6 +95,8 @@ public:
         return sfd;
     }
 
+    void notifyIoComplete(cb::engine_errc status) override;
+
     std::mutex& getMutex();
     void lock();
     void unlock();

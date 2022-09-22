@@ -619,6 +619,8 @@ public:
     bool isDatatypeSupported(
             protocol_binary_datatype_t datatype) const override;
 
+    void notifyIoComplete(cb::engine_errc status) override;
+
     /// Mark this cookie as a durable request
     void setDurable() {
         durable = true;

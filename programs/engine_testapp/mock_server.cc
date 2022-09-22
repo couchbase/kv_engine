@@ -80,6 +80,14 @@ static rel_time_t mock_get_current_time() {
     return result;
 }
 
+void mock_notify_io_complete(const CookieIface& cookie,
+                             cb::engine_errc status) {
+    // Using at() here as the cookie should have been registered in
+    // cookieNotifications when it was created.
+    cookieNotifications.lock()->at(&cookie).push(status);
+    cookieNotificationSignal.notify_all();
+}
+
 static rel_time_t mock_realtime(rel_time_t exptime) {
     /* no. of seconds in 30 days - largest possible delta exptime */
 
@@ -319,13 +327,7 @@ struct MockServerCookieApi : public ServerCookieIface {
 
     void notify_io_complete(const CookieIface& cookie,
                             cb::engine_errc status) override {
-        {
-            auto locked = cookieNotifications.lock();
-            // Using at() here as the cookie should have been registered in
-            // cookieNotifications when it was created.
-            locked->at(&cookie).push(status);
-        }
-        cookieNotificationSignal.notify_all();
+        mock_notify_io_complete(cookie, status);
     }
 
     void scheduleDcpStep(const CookieIface& cookie) override {
