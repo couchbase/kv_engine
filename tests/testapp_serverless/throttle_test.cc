@@ -92,6 +92,10 @@ TEST(ThrottleTest, NonBlockingThrottlingMode) {
                                                   "NonBlockingThrottlingMode"});
     } while (rsp.isSuccess());
     EXPECT_EQ(cb::mcbp::Status::EWouldThrottle, rsp.getStatus());
+    // We should have an indication for how long we should wait until
+    // the next "tick"
+    EXPECT_LT(0, rsp.getDataJson()["next_tick_us"].get<int>());
+    EXPECT_GT(1000000, rsp.getDataJson()["next_tick_us"].get<int>());
 }
 
 TEST(ThrottleTest, DeleteBucketWhileThrottling) {

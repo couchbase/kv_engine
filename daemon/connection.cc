@@ -633,6 +633,17 @@ void Connection::executeCommandPipeline() {
                 //    for reorder
                 if (getBucket().shouldThrottle(cookie, true)) {
                     if (isNonBlockingThrottlingMode()) {
+                        using namespace std::chrono;
+                        const auto now = steady_clock::now();
+                        const auto sec =
+                                duration_cast<seconds>(now.time_since_epoch());
+                        const auto usec = duration_cast<microseconds>(
+                                                  now.time_since_epoch()) -
+                                          sec;
+                        const auto delta =
+                                duration_cast<microseconds>(seconds{1}) - usec;
+                        cookie.setErrorJsonExtras(nlohmann::json{
+                                {"next_tick_us", delta.count()}});
                         cookie.sendResponse(cb::mcbp::Status::EWouldThrottle);
                         cookie.reset();
                     } else {
