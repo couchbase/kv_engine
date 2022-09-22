@@ -176,36 +176,6 @@ void FrontEndThread::dispatch_new_connections() {
     }
 }
 
-void scheduleDcpStep(Cookie& cookie) {
-    auto& connection = cookie.getConnection();
-    if (!connection.isDCP()) {
-        LOG_ERROR(
-                "scheduleDcpStep: Must only be called with a DCP "
-                "connection: {}",
-                connection.to_json().dump());
-        throw std::logic_error(
-                "scheduleDcpStep(): Provided cookie is not bound to a "
-                "connection set up for DCP");
-    }
-
-    if (cookie.getRefcount() == 0) {
-        LOG_ERROR(
-                "scheduleDcpStep: DCP connection did not reserve the "
-                "cookie: {}",
-                cookie.getConnection().to_json().dump());
-        throw std::logic_error("scheduleDcpStep: cookie must be reserved!");
-    }
-
-    connection.getThread().eventBase.runInEventBaseThreadAlwaysEnqueue(
-            [&connection]() {
-                TRACE_LOCKGUARD_TIMED(connection.getThread().mutex,
-                                      "mutex",
-                                      "scheduleDcpStep",
-                                      SlowMutexThreshold);
-                connection.triggerCallback();
-            });
-}
-
 void FrontEndThread::dispatch(SOCKET sfd,
                               std::shared_ptr<ListeningPort> descr) {
     // Which thread we assigned a connection to most recently.

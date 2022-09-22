@@ -36,6 +36,14 @@
 // and allow the user to override it with -e
 static std::string event_descriptor("auditd");
 
+class AuditMockConnection : public ConnectionIface {
+public:
+    void scheduleDcpStep() override {
+        throw std::runtime_error(
+                "AuditMockConnection::scheduleDcpStep not implemented");
+    }
+};
+
 class AuditMockCookie : public CookieIface {
 public:
     const ConnectionIface& getConnectionIface() const override {
@@ -90,7 +98,7 @@ public:
     }
 
 protected:
-    ConnectionIface connection;
+    AuditMockConnection connection;
     std::mutex mutex;
     std::condition_variable cond;
     bool ready = false;

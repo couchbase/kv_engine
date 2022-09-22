@@ -668,6 +668,8 @@ public:
     /// should use an IOVector to do so
     bool dcpUseWriteBuffer(size_t total) const;
 
+    void scheduleDcpStep() override;
+
     // Implementation of DcpMessageProducersIface interface
     // //////////////////////
 

@@ -101,10 +101,6 @@ struct ServerCookieApi : public ServerCookieIface {
         getCookie(cookie).getConnection().setDcpFlowControlBufferSize(size);
     }
 
-    void scheduleDcpStep(const CookieIface& cookie) override {
-        ::scheduleDcpStep(getCookie(cookie));
-    }
-
     void reserve(const CookieIface& void_cookie) override {
         getCookie(void_cookie).incrementRefcount();
     }

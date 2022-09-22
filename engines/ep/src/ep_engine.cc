@@ -56,6 +56,7 @@
 #include <logger/logger.h>
 #include <memcached/audit_interface.h>
 #include <memcached/collections.h>
+#include <memcached/connection_iface.h>
 #include <memcached/cookie_iface.h>
 #include <memcached/engine.h>
 #include <memcached/limits.h>
@@ -6244,7 +6245,7 @@ void EventuallyPersistentEngine::notifyIOComplete(const CookieIface* cookie,
 
 void EventuallyPersistentEngine::scheduleDcpStep(const CookieIface& cookie) {
     NonBucketAllocationGuard guard;
-    serverApi->cookie->scheduleDcpStep(cookie);
+    cookie.getConnectionIface().scheduleDcpStep();
 }
 
 cb::engine_errc EventuallyPersistentEngine::getRandomKey(

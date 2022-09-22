@@ -325,10 +325,6 @@ struct MockServerCookieApi : public ServerCookieIface {
                                               uint64_t manifestUid) override {
     }
 
-    void scheduleDcpStep(const CookieIface& cookie) override {
-        cookie.notifyIoComplete(cb::engine_errc::success);
-    }
-
     bool is_valid_json(CookieIface&, std::string_view view) override {
         auto validator = cb::json::SyntaxValidator::New();
         return validator->validate(view);

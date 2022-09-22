@@ -1338,18 +1338,8 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete) {
     // We (ab)use the engine_specific API to pass a pointer to a count of
     // how many times notify_io_complete has been called.
     size_t notify_count = 0;
-    class MockServerCookieApi : public WrappedServerCookieIface {
-    public:
-        void scheduleDcpStep(const CookieIface& cookie) override {
-            auto* notify_ptr = reinterpret_cast<size_t*>(
-                    dynamic_cast<const EPEngineStorage<void*>*>(
-                            cookie.getEngineStorage())
-                            ->get());
-            (*notify_ptr)++;
-        }
-    } scapi;
-
-    engine->storeEngineSpecific(cookie, &notify_count);
+    cookie->getConnection().setUserScheduleDcpStep(
+            [&notify_count]() { notify_count++; });
 
     // 0. Should start with no notifications.
     ASSERT_EQ(0, notify_count);
@@ -1388,23 +1378,9 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete_consumer) {
     // Check preconditions.
     EXPECT_TRUE(consumer.isPaused());
 
-    // Hook into notify_io_complete.
-    // We (ab)use the engine_specific API to pass a pointer to a count of
-    // how many times notify_io_complete has been called.
     size_t notify_count = 0;
-
-    class MockServerCookieApi : public WrappedServerCookieIface {
-    public:
-        void scheduleDcpStep(const CookieIface& cookie) override {
-            auto* notify_ptr = reinterpret_cast<size_t*>(
-                    dynamic_cast<const EPEngineStorage<void*>*>(
-                            cookie.getEngineStorage())
-                            ->get());
-            (*notify_ptr)++;
-        }
-    } scapi;
-
-    engine->storeEngineSpecific(cookie, &notify_count);
+    cookie->getConnection().setUserScheduleDcpStep(
+            [&notify_count]() { notify_count++; });
 
     // 0. Should start with no notifications.
     ASSERT_EQ(0, notify_count);
@@ -2049,7 +2025,7 @@ public:
           cookie(create_mock_cookie(&engine)) {
         cookie->setUserNotifyIoComplete(
                 [this](cb::engine_errc status) { notify(); });
-
+        cookie->getConnection().setUserScheduleDcpStep([this]() { notify(); });
         connMap->initialize();
         producer = connMap->newProducer(cookie,
                                         "test_producer",
@@ -2080,14 +2056,6 @@ private:
 TEST_F(NotifyTest, test_mb19503_connmap_notify) {
     ConnMapNotifyTest notifyTest(*engine);
 
-    // Hook into scheduleDcpStep
-    class MockServerCookieApi : public WrappedServerCookieIface {
-    public:
-        void scheduleDcpStep(const CookieIface& cookie) override {
-            cookie.notifyIoComplete(cb::engine_errc::success);
-        }
-    } scapi;
-
     // Should be 0 when we begin
     ASSERT_EQ(0, notifyTest.getCallbacks());
     ASSERT_TRUE(notifyTest.producer->isPaused());
@@ -2109,14 +2077,6 @@ TEST_F(NotifyTest, test_mb19503_connmap_notify) {
 // when notifiable is not paused.
 TEST_F(NotifyTest, test_mb19503_connmap_notify_paused) {
     ConnMapNotifyTest notifyTest(*engine);
-
-    // Hook into scheduleDcpStep
-    class MockServerCookieApi : public WrappedServerCookieIface {
-    public:
-        void scheduleDcpStep(const CookieIface& cookie) override {
-            cookie.notifyIoComplete(cb::engine_errc::success);
-        }
-    } scapi;
 
     // Should be 0 when we begin
     ASSERT_EQ(notifyTest.getCallbacks(), 0);

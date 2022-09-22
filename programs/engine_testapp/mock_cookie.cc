@@ -7,10 +7,22 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
+
 #include "mock_cookie.h"
 #include "mock_server.h"
-#include <mcbp/protocol/status.h>
-#include <memcached/connection_iface.h>
+
+void MockConnection::scheduleDcpStep() {
+    if (userScheduleDcpStep) {
+        userScheduleDcpStep();
+    } else {
+        throw std::runtime_error(
+                "MockConnection::scheduleDcpStep no user callback specified");
+    }
+}
+
+void MockConnection::setUserScheduleDcpStep(std::function<void()> func) {
+    userScheduleDcpStep = std::move(func);
+}
 
 MockCookie::CheckPrivilegeFunction MockCookie::checkPrivilegeFunction;
 MockCookie::CheckForPrivilegeAtLeastInOneCollectionFunction
@@ -18,7 +30,11 @@ MockCookie::CheckForPrivilegeAtLeastInOneCollectionFunction
 
 MockCookie::MockCookie(EngineIface* e) : engine(e) {
     mock_register_cookie(*this);
-    connection = std::make_unique<ConnectionIface>();
+    connection = std::make_unique<MockConnection>();
+    // Restore the old behavior by default until we get the tests
+    // fixed
+    connection->setUserScheduleDcpStep(
+            [this]() { notifyIoComplete(cb::engine_errc::success); });
 }
 
 MockCookie::~MockCookie() {

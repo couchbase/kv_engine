@@ -23,6 +23,7 @@
 #include "sendbuffer.h"
 #include "settings.h"
 #include "ssl_utils.h"
+#include "tracing.h"
 
 #include <gsl/gsl-lite.hpp>
 #include <logger/logger.h>
@@ -32,6 +33,7 @@
 #include <mcbp/protocol/header.h>
 #include <memcached/durability_spec.h>
 #include <nlohmann/json.hpp>
+#include <phosphor/phosphor.h>
 #include <platform/backtrace.h>
 #include <platform/checked_snprintf.h>
 #include <platform/exceptions.h>
@@ -2505,4 +2507,34 @@ std::string Connection::getSaslMechanisms() const {
 
     // None configured, return the full list
     return cb::sasl::server::listmech();
+}
+
+void Connection::scheduleDcpStep() {
+    if (!isDCP()) {
+        LOG_ERROR(
+                "Connection::scheduleDcpStep: Must only be called with a DCP "
+                "connection: {}",
+                to_json().dump());
+        throw std::logic_error(
+                "Connection::scheduleDcpStep(): Provided cookie is not bound "
+                "to a connection set up for DCP");
+    }
+
+    // @todo we've not switched the backed off the logic with the first
+    //       cookie
+    if (cookies.front()->getRefcount() == 0) {
+        LOG_ERROR(
+                "scheduleDcpStep: DCP connection did not reserve the "
+                "cookie: {}",
+                to_json().dump());
+        throw std::logic_error("scheduleDcpStep: cookie must be reserved!");
+    }
+
+    getThread().eventBase.runInEventBaseThreadAlwaysEnqueue([this]() {
+        TRACE_LOCKGUARD_TIMED(getThread().mutex,
+                              "mutex",
+                              "scheduleDcpStep",
+                              SlowMutexThreshold);
+        triggerCallback();
+    });
 }

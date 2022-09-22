@@ -46,9 +46,6 @@ public:
                                      std::size_t size) override {
         wrapped->setDcpFlowControlBufferSize(cookie, size);
     }
-    void scheduleDcpStep(const CookieIface& cookie) override {
-        wrapped->scheduleDcpStep(cookie);
-    }
     void reserve(const CookieIface& cookie) override {
         wrapped->reserve(cookie);
     }

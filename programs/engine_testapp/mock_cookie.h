@@ -9,6 +9,7 @@
  */
 #pragma once
 
+#include <memcached/connection_iface.h>
 #include <memcached/cookie_iface.h>
 #include <memcached/engine_error.h>
 #include <memcached/tracer.h>
@@ -21,7 +22,13 @@
 
 class DcpConnHandlerIface;
 struct EngineIface;
-class ConnectionIface;
+
+class MockConnection : public ConnectionIface {
+public:
+    void scheduleDcpStep() override;
+    void setUserScheduleDcpStep(std::function<void()> func);
+    std::function<void()> userScheduleDcpStep;
+};
 
 class MockCookie : public CookieIface {
 public:
@@ -42,6 +49,11 @@ public:
     ~MockCookie() override;
 
     const ConnectionIface& getConnectionIface() const override;
+
+    // Get the actual connection we've got
+    MockConnection& getConnection() {
+        return *connection;
+    };
 
     /// Is the current cookie blocked?
     bool isEwouldblock() const {
@@ -168,7 +180,7 @@ protected:
 
     cb::compression::Buffer inflated_payload;
     EngineIface* engine = nullptr;
-    std::unique_ptr<ConnectionIface> connection;
+    std::unique_ptr<MockConnection> connection;
     std::function<void(cb::engine_errc)> userNotifyIoComplete;
 };
 
