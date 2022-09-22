@@ -104,7 +104,7 @@ protected:
     // Protected for testing purposes
     // Holds the data structures used during the selection of documents to
     // evict from the hash table.
-    ItemEviction itemEviction;
+    std::unique_ptr<ItemEvictionStrategy> itemEviction;
 
     // The number of documents that were evicted.
     size_t ejected;

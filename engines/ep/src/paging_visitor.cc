@@ -43,7 +43,8 @@ PagingVisitor::PagingVisitor(KVBucket& s,
                              const VBucketFilter& vbFilter,
                              size_t agePercentage,
                              size_t freqCounterAgeThreshold)
-    : itemEviction(evictionRatios, agePercentage, freqCounterAgeThreshold, &st),
+    : itemEviction(std::make_unique<ItemEviction>(
+              evictionRatios, agePercentage, freqCounterAgeThreshold, &st)),
       ejected(0),
       store(s),
       stats(st),
@@ -110,7 +111,7 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
 
     bool eligibleForPaging = false;
 
-    if (itemEviction.shouldTryEvict(storedValueFreqCounter, age, vbState)) {
+    if (itemEviction->shouldTryEvict(storedValueFreqCounter, age, vbState)) {
         // try to evict, may fail if sv is not eligible due to being
         // pending/non-resident/dirty.
         eligibleForPaging = doEviction(lh, &v, false /*isDropped*/);
@@ -134,7 +135,7 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
     }
 
     if (eligibleForPaging) {
-        itemEviction.eligibleItemSeen(storedValueFreqCounter, age, vbState);
+        itemEviction->eligibleItemSeen(storedValueFreqCounter, age, vbState);
     }
 
     return true;
@@ -169,13 +170,13 @@ void PagingVisitor::visitBucket(VBucket& vb) {
     }
 
     maxCas = vb.getMaxCas();
-    itemEviction.setupVBucketVisit(vb.getNumItems());
+    itemEviction->setupVBucketVisit(vb.getNumItems());
 
     currentBucket = &vb;
     vb.ht.visit(*this);
     currentBucket = nullptr;
 
-    itemEviction.tearDownVBucketVisit(vb.getState());
+    itemEviction->tearDownVBucketVisit(vb.getState());
 }
 
 void PagingVisitor::update() {

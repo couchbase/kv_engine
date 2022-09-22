@@ -47,8 +47,8 @@ public:
                 }));
     }
 
-    ItemEviction& getItemEviction() {
-        return itemEviction;
+    ItemEvictionStrategy& getItemEvictionStrategy() {
+        return *itemEviction;
     }
 
     size_t getEjected() const {
@@ -56,7 +56,11 @@ public:
     }
 
     void setFreqCounterThreshold(uint16_t threshold) {
-        itemEviction.setFreqCounterThreshold(threshold);
+        // TODO: once tests are updated to inject the ItemEviction object
+        //       into PagingVisitors when constructing them, this casting
+        //       will no longer be necessary, and the freqCounter can be
+        static_cast<ItemEviction&>(*itemEviction)
+                .setFreqCounterThreshold(threshold);
     }
 
     void setCurrentBucket(VBucket& _currentBucket) {

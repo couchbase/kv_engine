@@ -893,9 +893,10 @@ TEST_P(STItemPagerTest, isEligible) {
     VBucketPtr vb = store->getVBucket(vbid);
     pv->visitBucket(*vb);
     auto initialCount = Item::initialFreqCount;
-    EXPECT_NE(initialCount,
-              pv->getItemEviction().getThresholds(100.0, 0.0).first);
-    EXPECT_NE(255, pv->getItemEviction().getThresholds(100.0, 0.0).first);
+    auto& itemEviction =
+            static_cast<ItemEviction&>(pv->getItemEvictionStrategy());
+    EXPECT_NE(initialCount, itemEviction.getThresholds(100.0, 0.0).first);
+    EXPECT_NE(255, itemEviction.getThresholds(100.0, 0.0).first);
 }
 
 /**
@@ -965,12 +966,14 @@ TEST_P(STItemPagerTest, doNotDecayIfCannotEvict) {
 
     pv->setCurrentBucket(*engine->getKVBucket()->getVBucket(vbid));
     store->setVBucketState(vbid, vbucket_state_replica);
+
+    auto& evictionStrat = pv->getItemEvictionStrategy();
     for (int ii = 0; ii <= Item::initialFreqCount; ii++) {
         pv->setFreqCounterThreshold(0);
         VBucketPtr vb = store->getVBucket(vbid);
-        pv->getItemEviction().setupVBucketVisit(vb->getNumItems());
+        evictionStrat.setupVBucketVisit(vb->getNumItems());
         vb->ht.visit(*pv);
-        pv->getItemEviction().tearDownVBucketVisit(vb->getState());
+        evictionStrat.tearDownVBucketVisit(vb->getState());
     }
 
     // Now make the document eligible for eviction.
@@ -981,14 +984,15 @@ TEST_P(STItemPagerTest, doNotDecayIfCannotEvict) {
     // at Item::initialFreqCount
     pv->setFreqCounterThreshold(0);
     VBucketPtr vb = store->getVBucket(vbid);
-    pv->getItemEviction().setupVBucketVisit(vb->getNumItems());
+    evictionStrat.setupVBucketVisit(vb->getNumItems());
     vb->ht.visit(*pv);
-    pv->getItemEviction().tearDownVBucketVisit(vb->getState());
+    evictionStrat.tearDownVBucketVisit(vb->getState());
     auto initialFreqCount = Item::initialFreqCount;
     EXPECT_EQ(initialFreqCount,
-              pv->getItemEviction().getThresholds(100.0, 0.0).first);
+              static_cast<ItemEviction&>(evictionStrat)
+                      .getThresholds(100.0, 0.0)
+                      .first);
     EXPECT_EQ(0, pv->getEjected());
-
 }
 
 /**
