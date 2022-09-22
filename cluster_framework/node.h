@@ -35,6 +35,9 @@ public:
 
     const std::filesystem::path directory;
 
+    /// Get the identifier for this node
+    virtual std::string_view getId() const = 0;
+
     /**
      * Get the map of connections to the node. Given that the node was
      * started with just ephemereal ports the cluster needs the ability

@@ -32,10 +32,21 @@ Bucket::Bucket(const Cluster& cluster,
     auto nodes = cluster.size();
     vbucketmap.resize(vbuckets);
     int ii = 0;
-    for (size_t vb = 0; vb < vbuckets; ++vb) {
-        vbucketmap[vb].resize(replicas + 1);
-        for (size_t n = 0; n < (replicas + 1); ++n) {
-            vbucketmap[vb][n] = ii++ % nodes;
+    if ((nodes % (replicas + 1)) == 0) {
+        // In this situation we'll end up putting all the active
+        // vbuckets on the same node, make sure we don't do that
+        for (size_t vb = 0; vb < vbuckets; ++vb) {
+            vbucketmap[vb].resize(replicas + 1);
+            for (size_t n = 0; n < (replicas + 1); ++n) {
+                vbucketmap[vb][n] = (vb + ii++) % nodes;
+            }
+        }
+    } else {
+        for (size_t vb = 0; vb < vbuckets; ++vb) {
+            vbucketmap[vb].resize(replicas + 1);
+            for (size_t n = 0; n < (replicas + 1); ++n) {
+                vbucketmap[vb][n] = ii++ % nodes;
+            }
         }
     }
 

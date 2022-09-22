@@ -593,6 +593,10 @@ bool Connection::processAllReadyCookies() {
 }
 
 void Connection::executeCommandPipeline() {
+    // We don't want to look up if this is a serverless deployment every
+    // time (as it can't change).
+    static const auto serverless = isServerlessDeployment();
+
     numEvents = max_reqs_per_event;
     const auto maxActiveCommands =
             Settings::instance().getMaxConcurrentCommandsPerConnection();
@@ -619,7 +623,9 @@ void Connection::executeCommandPipeline() {
             }
 
             auto& cookie = *cookies.back();
-            cookie.initialize(getPacket(), isTracingEnabled());
+            // We always want to collect trace information if we're running
+            // for a serverless configuration
+            cookie.initialize(getPacket(), serverless || isTracingEnabled());
             auto drainSize = cookie.getPacket().size();
 
             updateRecvBytes(drainSize);

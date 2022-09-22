@@ -41,7 +41,9 @@ public:
     const ConnectionMap& getConnectionMap() const override {
         return connectionMap;
     }
-
+    std::string_view getId() const override {
+        return id;
+    }
     nlohmann::json& getConfig() override {
         return config;
     }

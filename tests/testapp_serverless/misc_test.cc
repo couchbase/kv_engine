@@ -12,11 +12,17 @@
 
 #include <cluster_framework/bucket.h>
 #include <cluster_framework/cluster.h>
+#include <cluster_framework/node.h>
 #include <folly/portability/GTest.h>
+#include <platform/dirutils.h>
+#include <platform/split_string.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <serverless/config.h>
 #include <deque>
+#include <thread>
+
+using namespace std::string_view_literals;
 
 namespace cb::test {
 
@@ -174,6 +180,54 @@ TEST(MiscTest, MemcachedBucketNotSupported) {
     auto rsp = admin->execute(BinprotCreateBucketCommand{
             "NotSupported", "default_engine.so", ""});
     EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus());
+}
+
+TEST(MiscTest, TraceInfoEnabled) {
+    auto admin = cluster->getConnection(2);
+    admin->authenticate("@admin", "password");
+    admin->selectBucket("bucket-1");
+    Document doc;
+    doc.info.id = "TraceInfoEnabled";
+    auto vbmap = cluster->getBucket("bucket-1")->getVbucketMap();
+    admin->mutate(doc, Vbid{2}, MutationType::Add);
+
+    const auto timeout =
+            std::chrono::steady_clock::now() + std::chrono::seconds{10};
+    std::string filename;
+    cluster->iterateNodes([&filename](const Node& node) {
+        if (node.getId() == "n_2") {
+            filename = (node.directory / "log" / "memcached_log.000000.txt")
+                               .generic_string();
+        };
+    });
+
+    nlohmann::json entry;
+    do {
+        auto content = cb::io::loadFile(filename);
+        auto lines = cb::string::split(content, '\n');
+        for (const auto& line : lines) {
+            const auto keyword = " Slow operation: "sv;
+            auto index = line.find(keyword);
+            if (index != std::string_view::npos) {
+                try {
+                    auto json = nlohmann::json::parse(
+                            line.substr(index + keyword.size()));
+                    if (json["packet"]["key"] == "<ud>TraceInfoEnabled</ud>") {
+                        entry = std::move(json);
+                    }
+                } catch (const std::exception&) {
+                }
+            }
+        }
+        if (entry.empty()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds{50});
+        }
+    } while (entry.empty() && std::chrono::steady_clock::now() < timeout);
+    ASSERT_FALSE(entry.empty())
+            << "Timed out searching for the slow command log entry";
+    ASSERT_NE(entry.end(), entry.find("trace"));
+    EXPECT_NE(std::string::npos,
+              entry["trace"].get<std::string>().find("json_validate"));
 }
 
 } // namespace cb::test

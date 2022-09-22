@@ -36,12 +36,23 @@ std::unique_ptr<cb::test::Cluster> cluster;
 /// A bucket named dcp to be used for DCP drain tests
 void startCluster(int verbosity, std::string_view backend) {
     cluster = cb::test::Cluster::create(
-            3, {}, [verbosity](std::string_view, nlohmann::json& config) {
+            3, {}, [verbosity](std::string_view id, nlohmann::json& config) {
                 config["deployment_model"] = "serverless";
                 // the cluster_test framework use folly io by default, but
                 // the serverless test in elixir should be as close as how
                 // we want to deploy it.
                 config.erase("event_framework");
+                // serverless configurations should _always_ collect trace
+                // no matter what memcached.json setting say
+                config["always_collect_trace_info"] = false;
+
+                // We don't want the system to keep make a ton of "slow command"
+                // entries so only override on node 2 (which we don't use much)
+                if (id == "n_2") {
+                    config["opcode_attributes_override"]["ADD"] = {
+                            {"slow", "1us"}};
+                }
+
                 if (verbosity) {
                     config["verbosity"] = verbosity - 1;
                     config["logger"]["unit_test"] = true;
