@@ -72,7 +72,7 @@ void DcpDrain::onResponse(const cb::mcbp::Response& res) {
         }
     } else {
         error = "onResponse(): Unexpected message received: " +
-                res.toJSON(false).dump();
+                res.to_json(false).dump();
         base.terminateLoopSoon();
     }
 }
@@ -125,7 +125,7 @@ void DcpDrain::onRequest(const cb::mcbp::Request& req) {
     case cb::mcbp::ClientOpcode::DcpOsoSnapshot:
         // fallthrough
     default:
-        error = "Received unexpected message: " + req.toJSON(false).dump();
+        error = "Received unexpected message: " + req.to_json(false).dump();
         base.terminateLoopSoon();
     }
 }

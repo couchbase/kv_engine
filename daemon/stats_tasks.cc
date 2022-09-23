@@ -75,7 +75,7 @@ bool StatsTaskConnectionStats::run() {
         iterate_all_connections([&vec, this](Connection& c) -> void {
             if (fd == -1 || c.getId() == fd) {
                 vec.emplace_back(std::make_pair<std::string, std::string>(
-                        {}, c.toJSON().dump()));
+                        {}, c.to_json().dump()));
             }
         });
         stats.swap(vec);

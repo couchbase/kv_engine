@@ -1827,7 +1827,7 @@ void MemcachedConnection::recvDcpBufferAck(uint32_t expected) {
         throw std::logic_error(
                 "MemcachedConnection::recvDcpBufferAck not a buffer ack "
                 "opcode request:" +
-                request->toJSON(request->isValid()).dump());
+                request->to_json(request->isValid()).dump());
     }
     auto* dcpBufferAck =
             reinterpret_cast<const cb::mcbp::request::DcpBufferAckPayload*>(

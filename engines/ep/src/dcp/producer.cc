@@ -1273,7 +1273,7 @@ bool DcpProducer::handleResponse(const cb::mcbp::Response& response) {
                     "affect "
                     "only one stream:{}",
                     to_string(responseStatus),
-                    response.toJSON(true).dump(),
+                    response.to_json(true).dump(),
                     streamInfo);
             return true;
         }
@@ -1281,7 +1281,7 @@ bool DcpProducer::handleResponse(const cb::mcbp::Response& response) {
                 "DcpProducer::handleResponse disconnecting, received "
                 "unexpected "
                 "response:{} for stream:{}",
-                response.toJSON(true).dump(),
+                response.to_json(true).dump(),
                 streamInfo);
         return false;
     };
@@ -1340,7 +1340,7 @@ bool DcpProducer::handleResponse(const cb::mcbp::Response& response) {
         std::string errorMsg(
                 "DcpProducer::handleResponse received an unknown client "
                 "opcode: ");
-        errorMsg += response.toJSON(true).dump();
+        errorMsg += response.to_json(true).dump();
         throw std::logic_error(errorMsg);
     }
 }

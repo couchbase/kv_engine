@@ -270,7 +270,7 @@ public:
     /**
      * @returns this manifest as nlohmann::json object
      */
-    nlohmann::json toJson(
+    nlohmann::json to_json(
             const Collections::IsVisibleFunction& isVisible) const;
 
     /**

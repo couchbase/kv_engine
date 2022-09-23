@@ -154,7 +154,7 @@ public:
     /**
      * Create a JSON representation of the members of the connection
      */
-    nlohmann::json toJSON() const;
+    nlohmann::json to_json() const;
 
     /**
      * Enable or disable TCP NoDelay on the underlying socket

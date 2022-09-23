@@ -384,9 +384,9 @@ std::string printableString(cb::const_byte_buffer buffer) {
     return ret;
 }
 
-nlohmann::json Request::toJSON(bool validated) const {
+nlohmann::json Request::to_json(bool validated) const {
     if (!validated && !isValid()) {
-        throw std::logic_error("Request::toJSON(): Invalid packet");
+        throw std::logic_error("Request::to_json(): Invalid packet");
     }
 
     nlohmann::json ret;
@@ -455,7 +455,7 @@ nlohmann::json Request::toJSON(bool validated) const {
 
     ret["keylen"] = getKeylen();
     ret["extlen"] = getExtlen();
-    ret["datatype"] = ::toJSON(getDatatype());
+    ret["datatype"] = ::to_json(getDatatype());
     ret["vbucket"] = getVBucket().get();
     ret["bodylen"] = getBodylen();
     ret["opaque"] = getOpaque();

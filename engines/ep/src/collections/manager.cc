@@ -193,7 +193,7 @@ void Collections::Manager::updatePersistManifestTaskDone(
 std::pair<cb::mcbp::Status, nlohmann::json> Collections::Manager::getManifest(
         const Collections::IsVisibleFunction& isVisible) const {
     return {cb::mcbp::Status::Success,
-            currentManifest.rlock()->toJson(isVisible)};
+            currentManifest.rlock()->to_json(isVisible)};
 }
 
 bool Collections::Manager::validateGetCollectionIDPath(std::string_view path) {

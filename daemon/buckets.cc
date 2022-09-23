@@ -762,7 +762,7 @@ void BucketManager::waitForEveryoneToDisconnect(Bucket& bucket,
             iterate_all_connections([&bucket, &currConns](Connection& conn) {
                 if (&conn.getBucket() == &bucket) {
                     conn.signalIfIdle();
-                    currConns[std::to_string(conn.getId())] = conn.toJSON();
+                    currConns[std::to_string(conn.getId())] = conn.to_json();
                 }
             });
 

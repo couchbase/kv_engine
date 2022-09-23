@@ -66,7 +66,7 @@ public:
      * Get the details for this connection to put in the portnumber
      * file so that the test framework may pick up the port numbers
      */
-    nlohmann::json toJson() const override;
+    nlohmann::json to_json() const override;
 
     const std::string& getUuid() const override {
         return uuid;
@@ -236,7 +236,7 @@ void LibeventServerSocketImpl::acceptNewClient() {
     FrontEndThread::dispatch(client, interface);
 }
 
-nlohmann::json LibeventServerSocketImpl::toJson() const {
+nlohmann::json LibeventServerSocketImpl::to_json() const {
     nlohmann::json ret;
 
     const auto sockinfo = cb::net::getSockNameAsJson(sfd);

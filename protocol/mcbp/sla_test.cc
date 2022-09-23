@@ -214,7 +214,7 @@ TEST(McbpSlaReconfig, ReconfigureFiles) {
             cb::mcbp::sla::getSlowOpThreshold(cb::mcbp::ClientOpcode::Observe));
 }
 
-TEST(McbpSlaReconfig, toJSON) {
+TEST(McbpSlaReconfig, to_json) {
     // Verify that we try to print the number as easy to read for
     // a human
     auto doc = R"({"version": 1, "get": {"slow": "1000000 ns"}})"_json;

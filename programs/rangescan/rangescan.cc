@@ -191,7 +191,7 @@ public:
         connection->enterMessagePumpMode(
                 [this](const cb::mcbp::Header& header) {
                     if (verbose) {
-                        std::cout << header.toJSON(true).dump() << std::endl;
+                        std::cout << header.to_json(true).dump() << std::endl;
                     }
                     if (header.isRequest()) {
                         Expects(false); // no requests
@@ -263,7 +263,7 @@ protected:
             response.getClientOpcode() !=
                     cb::mcbp::ClientOpcode::RangeScanCreate) {
             std::cerr << "handleCreateResponse failure"
-                      << response.toJSON(false).dump() << std::endl;
+                      << response.to_json(false).dump() << std::endl;
             std::exit(EXIT_FAILURE);
         }
 
@@ -306,7 +306,7 @@ protected:
         if (response.getStatus() != cb::mcbp::Status::Success &&
             response.getStatus() != cb::mcbp::Status::RangeScanMore &&
             response.getStatus() != cb::mcbp::Status::RangeScanComplete) {
-            std::cerr << "Failure of a scan " << response.toJSON(false).dump()
+            std::cerr << "Failure of a scan " << response.to_json(false).dump()
                       << std::endl;
             return false;
         }

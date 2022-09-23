@@ -40,7 +40,7 @@
 #include <cctype>
 #include <chrono>
 
-nlohmann::json Cookie::toJSON() const {
+nlohmann::json Cookie::to_json() const {
     nlohmann::json ret;
 
     if (packet == nullptr) {
@@ -48,7 +48,7 @@ nlohmann::json Cookie::toJSON() const {
     } else {
         const auto& header = getHeader();
         try {
-            ret["packet"] = header.toJSON(validated);
+            ret["packet"] = header.to_json(validated);
         } catch (const std::exception& e) {
             ret["packet"]["error"] = e.what();
         }
@@ -443,7 +443,7 @@ void Cookie::maybeLogSlowCommand(
                 {"command", to_string(opcode)},
                 {"peer", nlohmann::json::parse(c.getPeername())},
                 {"bucket", c.getBucket().name},
-                {"packet", getHeader().toJSON(validated)},
+                {"packet", getHeader().to_json(validated)},
                 {"worker_tid", folly::getCurrentThreadID()}};
         if (responseStatus != cb::mcbp::Status::COUNT) {
             details["response"] = to_string(responseStatus);
@@ -468,7 +468,7 @@ void Cookie::initialize(const cb::mcbp::Header& header, bool tracing_enabled) {
         try {
             LOG_TRACE(">{} Read command {}",
                       connection.getId(),
-                      header.toJSON(false).dump());
+                      header.to_json(false).dump());
         } catch (const std::exception&) {
             // Failed to decode the header.. do a raw dump instead
             LOG_TRACE(">{} Read command {}",
@@ -573,7 +573,7 @@ cb::mcbp::Status Cookie::validate() {
                     connection.getId(),
                     to_string(opcode),
                     to_string(result),
-                    request.toJSON(false).dump(),
+                    request.to_json(false).dump(),
                     getErrorJson());
             audit_invalid_packet(getConnection(), getPacket());
         }
@@ -784,8 +784,8 @@ Cookie::~Cookie() {
                 "indicates that someone is using the cookie. This cookie: {}, "
                 "Connection: {}",
                 getConnectionId(),
-                toJSON().dump(),
-                connection.toJSON().dump());
+                to_json().dump(),
+                connection.to_json().dump());
         cb::logger::flush();
         std::terminate();
     }

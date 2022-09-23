@@ -292,7 +292,7 @@ static cb::engine_errc stat_connections_executor(const std::string& arg,
 
     if (!arg.empty()) {
         if (arg == "self") {
-            append_stats({}, cookie.getConnection().toJSON().dump(), &cookie);
+            append_stats({}, cookie.getConnection().to_json().dump(), &cookie);
             return cb::engine_errc::success;
         } else {
             try {

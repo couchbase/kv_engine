@@ -36,7 +36,7 @@ int signal_idle_clients(FrontEndThread& me, bool dumpConnection) {
             &me, [index, &connected, dumpConnection](Connection& connection) {
                 ++connected;
                 if (!connection.signalIfIdle() && dumpConnection) {
-                    auto details = connection.toJSON().dump();
+                    auto details = connection.to_json().dump();
                     LOG_INFO("Worker thread {}: {}", index, details);
                 }
             });

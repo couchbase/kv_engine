@@ -254,7 +254,7 @@ void CollectionsManifest::setForce(bool force) {
     json["force"] = force;
 }
 
-std::string CollectionsManifest::toJson() const {
+std::string CollectionsManifest::to_json() const {
     return json.dump();
 }
 

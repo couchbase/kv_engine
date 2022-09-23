@@ -229,7 +229,7 @@ public:
      * @param validated If the request is validated or not
      * @return A JSON representation of the packet
      */
-    nlohmann::json toJSON(bool validated) const;
+    nlohmann::json to_json(bool validated) const;
 
     /**
      * Validate that the header is "sane" (correct magic, and extlen+keylen

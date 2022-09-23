@@ -47,7 +47,7 @@ public:
      * Get the details for this connection to put in the portnumber
      * file so that the test framework may pick up the port numbers
      */
-    virtual nlohmann::json toJson() const = 0;
+    virtual nlohmann::json to_json() const = 0;
 
     virtual const std::string& getUuid() const = 0;
 

@@ -219,7 +219,7 @@ public:
 
     /// Most interfaces require std::string manifest
     operator std::string() const {
-        return toJson();
+        return to_json();
     }
 
     const nlohmann::json& getJson() const {
@@ -228,7 +228,7 @@ public:
 
 private:
     void updateUid();
-    std::string toJson() const;
+    std::string to_json() const;
     nlohmann::json json;
     uint64_t uid = 0;
 };

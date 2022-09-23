@@ -129,7 +129,7 @@ void NetworkInterfaceManager::writeInterfaceFile(bool terminate) {
         json["ports"] = nlohmann::json::array();
 
         for (const auto& connection : listen_conn) {
-            json["ports"].push_back(connection->toJson());
+            json["ports"].push_back(connection->to_json());
         }
 
         {
@@ -364,7 +364,7 @@ NetworkInterfaceManager::createInterface(
                 description.isTls());
         listen_conn.emplace_back(ServerSocket::create(sfd, eventBase, inter));
         stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
-        ret.push_back(listen_conn.back()->toJson());
+        ret.push_back(listen_conn.back()->to_json());
     }
 
     freeaddrinfo(ai);
@@ -458,7 +458,7 @@ NetworkInterfaceManager::doListInterface() {
     nlohmann::json ret = nlohmann::json::array();
 
     for (const auto& connection : listen_conn) {
-        ret.push_back(connection->toJson());
+        ret.push_back(connection->to_json());
     }
 
     auto prometheus = cb::prometheus::getRunningConfigAsJson();

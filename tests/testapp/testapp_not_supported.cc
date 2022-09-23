@@ -57,6 +57,6 @@ TEST_F(NotSupportedTest, VerifyNotSupported) {
         const auto rsp = userConnection->execute(BinprotGenericCommand(opcode));
         ASSERT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus())
                 << "Unexpected response packet: "
-                << rsp.getResponse().toJSON(false);
+                << rsp.getResponse().to_json(false);
     }
 }

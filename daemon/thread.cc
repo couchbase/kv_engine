@@ -192,7 +192,7 @@ void scheduleDcpStep(Cookie& cookie) {
         LOG_ERROR(
                 "scheduleDcpStep: Must only be called with a DCP "
                 "connection: {}",
-                connection.toJSON().dump());
+                connection.to_json().dump());
         throw std::logic_error(
                 "scheduleDcpStep(): Provided cookie is not bound to a "
                 "connection set up for DCP");
@@ -202,7 +202,7 @@ void scheduleDcpStep(Cookie& cookie) {
         LOG_ERROR(
                 "scheduleDcpStep: DCP connection did not reserve the "
                 "cookie: {}",
-                cookie.getConnection().toJSON().dump());
+                cookie.getConnection().to_json().dump());
         throw std::logic_error("scheduleDcpStep: cookie must be reserved!");
     }
 

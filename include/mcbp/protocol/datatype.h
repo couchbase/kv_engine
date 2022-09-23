@@ -50,7 +50,7 @@ using protocol_binary_datatype_t = uint8_t;
 #define RESIDENT_DATATYPE_MASK uint8_t(5);
 
 std::string to_string(cb::mcbp::Datatype datatype);
-nlohmann::json toJSON(cb::mcbp::Datatype datatype);
+nlohmann::json to_json(cb::mcbp::Datatype datatype);
 
 // Create a namespace to handle the Datatypes
 namespace cb::mcbp::datatype {

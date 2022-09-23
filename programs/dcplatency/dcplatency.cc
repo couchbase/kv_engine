@@ -49,7 +49,7 @@ bool isPacketAvailable(evbuffer* input) {
     }
 
     if (!header->isValid()) {
-        std::cerr << header->toJSON(false) << std::endl;
+        std::cerr << header->to_json(false) << std::endl;
         throw std::runtime_error(
                 "isPacketAvailable(): Invalid packet header detected");
     }

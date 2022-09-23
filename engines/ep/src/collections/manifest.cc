@@ -344,7 +344,7 @@ bool Manifest::invalidCollectionID(CollectionID identifier) {
     return identifier == CollectionID::System;
 }
 
-nlohmann::json Manifest::toJson(
+nlohmann::json Manifest::to_json(
         const Collections::IsVisibleFunction& isVisible) const {
     nlohmann::json manifest;
     manifest["uid"] = fmt::format("{0:x}", uid);

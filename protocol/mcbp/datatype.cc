@@ -13,10 +13,10 @@
 #include <sstream>
 
 std::string to_string(cb::mcbp::Datatype datatype) {
-    return toJSON(datatype).dump();
+    return to_json(datatype).dump();
 }
 
-nlohmann::json toJSON(cb::mcbp::Datatype datatype) {
+nlohmann::json to_json(cb::mcbp::Datatype datatype) {
     if (datatype == cb::mcbp::Datatype::Raw) {
         return nlohmann::json("raw");
     }

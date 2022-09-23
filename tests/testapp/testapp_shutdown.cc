@@ -22,7 +22,7 @@ void ShutdownTest::SetUp() {
     auto rsp = conn.execute(BinprotSetControlTokenCommand{token, 0ull});
     if (!rsp.isSuccess()) {
         std::cerr << "Failed to set control token: " << rsp.getStatus()
-                  << rsp.getResponse().toJSON(false) << std::endl
+                  << rsp.getResponse().to_json(false) << std::endl
                   << "Exit program";
         mcd_env->terminate(EXIT_FAILURE);
     }

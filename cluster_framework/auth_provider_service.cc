@@ -170,8 +170,8 @@ void AuthProviderService::onRequest(bufferevent* bev,
     switch (req.getMagic()) {
     case mcbp::Magic::ClientRequest:
     case mcbp::Magic::AltClientRequest:
-        std::cerr << "Unexpected message received: " << req.toJSON(true).dump(2)
-                  << std::endl;
+        std::cerr << "Unexpected message received: "
+                  << req.to_json(true).dump(2) << std::endl;
         break;
     case mcbp::Magic::ServerRequest:
         switch (req.getServerOpcode()) {
@@ -196,7 +196,7 @@ void AuthProviderService::onRequest(bufferevent* bev,
 }
 
 void AuthProviderService::onResponse(bufferevent*, const mcbp::Response& res) {
-    std::cerr << "Unexpected message received: " << res.toJSON(true).dump(2)
+    std::cerr << "Unexpected message received: " << res.to_json(true).dump(2)
               << std::endl;
 }
 

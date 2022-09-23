@@ -27,16 +27,16 @@ bool Header::isValid() const {
     return false;
 }
 
-nlohmann::json Header::toJSON(bool validated) const {
+nlohmann::json Header::to_json(bool validated) const {
     if (isRequest()) {
-        return getRequest().toJSON(validated);
+        return getRequest().to_json(validated);
     }
 
     if (isResponse()) {
-        return getResponse().toJSON(validated);
+        return getResponse().to_json(validated);
     }
 
-    throw std::logic_error("Header::toJSON(): Invalid packet");
+    throw std::logic_error("Header::to_json(): Invalid packet");
 }
 
 std::ostream& operator<<(std::ostream& os, const Header& header) {

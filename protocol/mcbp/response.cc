@@ -17,9 +17,9 @@
 
 namespace cb::mcbp {
 
-nlohmann::json Response::toJSON(bool validated) const {
+nlohmann::json Response::to_json(bool validated) const {
     if (!validated && !isValid()) {
-        throw std::logic_error("Response::toJSON(): Invalid packet");
+        throw std::logic_error("Response::to_json(): Invalid packet");
     }
 
     nlohmann::json ret;
@@ -40,7 +40,7 @@ nlohmann::json Response::toJSON(bool validated) const {
         ret["framingextra"] = getFramingExtras().size();
     }
 
-    ret["datatype"] = ::toJSON(getDatatype());
+    ret["datatype"] = ::to_json(getDatatype());
     ret["status"] = ::to_string(Status(getStatus()));
     ret["bodylen"] = getBodylen();
     ret["opaque"] = getOpaque();

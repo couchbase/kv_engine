@@ -201,7 +201,7 @@ public:
         connection->enterMessagePumpMode(
                 [this](const cb::mcbp::Header& header) {
                     if (verbose) {
-                        std::cout << header.toJSON(true).dump() << std::endl;
+                        std::cout << header.to_json(true).dump() << std::endl;
                     }
                     if (header.isRequest()) {
                         handleRequest(header.getRequest());
@@ -310,7 +310,7 @@ protected:
             break;
 
         default:
-            std::cerr << "Received unexpected message: " << req.toJSON(false)
+            std::cerr << "Received unexpected message: " << req.to_json(false)
                       << std::endl;
         }
 
@@ -330,7 +330,7 @@ protected:
 
         if (response.getClientOpcode() ==
             cb::mcbp::ClientOpcode::DcpStreamReq) {
-            std::cerr << TerminalColor::Red << response.toJSON(true).dump()
+            std::cerr << TerminalColor::Red << response.to_json(true).dump()
                       << TerminalColor::Reset << std::endl;
             stream_end++;
             if (stream_end == vbuckets.size()) {

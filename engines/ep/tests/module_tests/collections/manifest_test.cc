@@ -562,9 +562,9 @@ TEST(ManifestTest, findCollection) {
 // MB-30547: Initialization of `input` below fails on Clang 7 - temporarily
 // skip to fix build breakage.
 #if !defined(__clang_major__) || __clang_major__ > 7
-// validate we can construct from JSON, call toJSON and get back valid JSON
+// validate we can construct from JSON, call to_json and get back valid JSON
 // containing what went in.
-TEST(ManifestTest, toJson) {
+TEST(ManifestTest, to_json) {
     struct TestInput {
         CollectionEntry::Entry collection;
         ScopeEntry::Entry scope;
@@ -620,7 +620,7 @@ TEST(ManifestTest, toJson) {
         Collections::Manifest m = makeManifest(cm);
 
         nlohmann::json input;
-        auto output = m.toJson(isVisible);
+        auto output = m.to_json(isVisible);
         std::string s(cm);
         try {
             input = nlohmann::json::parse(s);

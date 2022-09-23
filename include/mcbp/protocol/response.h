@@ -199,7 +199,7 @@ public:
         return reinterpret_cast<const Header*>(this)->getFrame();
     }
 
-    nlohmann::json toJSON(bool validated) const;
+    nlohmann::json to_json(bool validated) const;
 
     /**
      * Validate that the header is "sane" (correct magic, and extlen+keylen

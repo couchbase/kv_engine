@@ -102,7 +102,7 @@ public:
     /**
      * Get a representation of the object in JSON
      */
-    nlohmann::json toJSON() const;
+    nlohmann::json to_json() const;
 
     /**
      * Get the unique event identifier created for this command. It should

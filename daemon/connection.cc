@@ -87,7 +87,7 @@ bool Connection::setTcpNoDelay(bool enable) {
     return true;
 }
 
-nlohmann::json Connection::toJSON() const {
+nlohmann::json Connection::to_json() const {
     nlohmann::json ret;
 
     ret["connection"] = cb::to_hex(uint64_t(this));
@@ -164,7 +164,7 @@ nlohmann::json Connection::toJSON() const {
 
     nlohmann::json arr = nlohmann::json::array();
     for (const auto& c : cookies) {
-        arr.push_back(c->toJSON());
+        arr.push_back(c->to_json());
     }
     ret["cookies"] = arr;
 
@@ -869,7 +869,7 @@ void Connection::logExecutionException(const std::string_view where,
         auto array = nlohmann::json::array();
         for (const auto& c : cookies) {
             if (c && !c->empty()) {
-                array.push_back(c->toJSON());
+                array.push_back(c->to_json());
             }
         }
         auto callstack = nlohmann::json::array();
@@ -1443,7 +1443,7 @@ std::string_view Connection::formatResponseHeaders(Cookie& cookie,
     if (Settings::instance().getVerbose() > 1) {
         auto* header = reinterpret_cast<const cb::mcbp::Header*>(wbuf.data());
         try {
-            LOG_TRACE("<{} Sending: {}", getId(), header->toJSON(true).dump());
+            LOG_TRACE("<{} Sending: {}", getId(), header->to_json(true).dump());
         } catch (const std::exception&) {
             // Failed.. do a raw dump instead
             LOG_TRACE("<{} Sending: {}",
