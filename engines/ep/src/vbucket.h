@@ -1825,6 +1825,11 @@ public:
             // persistence
     };
 
+    /**
+     * Proxy to KVBucket::notifyReplication
+     */
+    void notifyReplication();
+
 protected:
     /**
      * This function checks for the various states of the value & depending on

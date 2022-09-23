@@ -4261,3 +4261,9 @@ void VBucket::failAllSeqnoPersistenceReqs(EventuallyPersistentEngine& engine) {
         engine.notifyIOComplete(notify.first, notify.second);
     }
 }
+
+void VBucket::notifyReplication() {
+    if (bucket) {
+        bucket->notifyReplication(getId(), SyncWriteOperation::No);
+    }
+}

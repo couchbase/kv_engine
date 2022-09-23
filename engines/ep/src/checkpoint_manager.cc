@@ -878,41 +878,57 @@ void CheckpointManager::queueSetVBState() {
     // Grab the vbstate before the queueLock (avoid a lock inversion)
     auto vbstate = vb.getTransitionState();
 
-    // Take lock to serialize use of {lastBySeqno} and to queue op.
-    std::lock_guard<std::mutex> lh(queueLock);
+    {
+        // Take lock to serialize use of {lastBySeqno} and to queue op.
+        std::lock_guard<std::mutex> lh(queueLock);
 
-    // Create the setVBState operation, and enqueue it.
-    queued_item item = createCheckpointMetaItem(0, queue_op::set_vbucket_state);
+        // Create the setVBState operation, and enqueue it.
+        queued_item item =
+                createCheckpointMetaItem(0, queue_op::set_vbucket_state);
 
-    // We need to set the cas of the item as two subsequent set_vbucket_state
-    // items will have the same seqno and the flusher needs a way to determine
-    // which is the latest so that we persist the correct state.
-    // We do this 'atomically' as we are holding the ::queueLock.
-    item->setCas(vb.nextHLCCas());
+        // We need to set the cas of the item as two subsequent
+        // set_vbucket_state items will have the same seqno and the flusher
+        // needs a way to determine which is the latest so that we persist the
+        // correct state. We do this 'atomically' as we are holding the
+        // ::queueLock.
+        item->setCas(vb.nextHLCCas());
 
-    // MB-43528: To ensure that we have a reasonable queue_age stat we need to
-    // set the queue time here.
-    item->setQueuedTime();
+        // MB-43528: To ensure that we have a reasonable queue_age stat we need
+        // to set the queue time here.
+        item->setQueuedTime();
 
-    // Store a JSON version of the vbucket transition data in the value
-    vbstate.toItem(*item);
+        // Store a JSON version of the vbucket transition data in the value
+        vbstate.toItem(*item);
 
-    auto& openCkpt = getOpenCheckpoint(lh);
-    const auto result = openCkpt.queueDirty(item);
+        auto& openCkpt = getOpenCheckpoint(lh);
+        const auto result = openCkpt.queueDirty(item);
 
-    if (result.status == QueueDirtyStatus::SuccessNewItem) {
-        ++numItems;
-        updateStatsForNewQueuedItem(lh, item);
-    } else {
-        auto msg = fmt::format(
-                "CheckpointManager::queueSetVBState: {} "
-                "expected: SuccessNewItem, got: {} with byte "
-                "diff of: {} after queueDirty.",
-                vb.getId().to_string(),
-                to_string(result.status),
-                result.successExistingByteDiff);
-        throw std::logic_error(msg);
+        if (result.status == QueueDirtyStatus::SuccessNewItem) {
+            ++numItems;
+            updateStatsForNewQueuedItem(lh, item);
+        } else {
+            auto msg = fmt::format(
+                    "CheckpointManager::queueSetVBState: {} "
+                    "expected: SuccessNewItem, got: {} with byte "
+                    "diff of: {} after queueDirty.",
+                    vb.getId().to_string(),
+                    to_string(result.status),
+                    result.successExistingByteDiff);
+            throw std::logic_error(msg);
+        }
     }
+
+    // IMPORTANT: queueLock already released when we called into ActiveStream.
+    // We would introduce potential deadlock-by-lock-inversion with the many
+    // code paths that acquire streamLock->queueLock otherwise.
+    //
+    // @todo MB-53778: Currently we potentially notify unnecessary streams.
+    //   The side effect isn't expected to cause any major issue. An idle
+    //   DCP Producer might be unnecessarily woken up, but immediately put
+    //   again to sleep at the first step(). Less of a problem for busy DCP
+    //   Producers: they are in their step() loop anyway, so any attempt of
+    //   notification is actually a NOP.
+    vb.notifyReplication();
 }
 
 CheckpointManager::ItemsForCursor CheckpointManager::getNextItemsForCursor(

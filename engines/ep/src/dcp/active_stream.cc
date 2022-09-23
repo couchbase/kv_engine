@@ -557,37 +557,37 @@ void ActiveStream::setVBucketStateAckRecieved(DcpProducer& producer) {
     }
 
     {
-        /* Order in which the below 3 locks are acquired is important to avoid
-           any potential lock inversion problems */
+        // Order in which the below 3 locks are acquired is important to avoid
+        // any potential lock inversion problems.
+        //
+        // Plus, CheckpointManager::queueSetVBState() notifies streams. We need
+        // to make that call after releasing the streamMutex, we might deadlock
+        // by lock-inversion or double-lock otherwise.
         std::unique_lock<std::mutex> epVbSetLh(
                 engine->getKVBucket()->getVbSetMutexLock());
         folly::SharedMutex::WriteHolder vbStateLh(vbucket->getStateLock());
-        std::unique_lock<std::mutex> lh(streamMutex);
-        if (isTakeoverWait()) {
+
+        bool needToSetVbState = false;
+        {
+            std::unique_lock<std::mutex> lh(streamMutex);
+            if (!isTakeoverWait()) {
+                log(spdlog::level::level_enum::warn,
+                    "{} Unexpected ack for set vbucket op on "
+                    "stream '{}' state '{}'",
+                    logPrefix,
+                    name_,
+                    to_string(state_.load()));
+                return;
+            }
+
             if (takeoverState == vbucket_state_pending) {
                 log(spdlog::level::level_enum::debug,
                     "{} Receive ack for set vbucket state to "
                     "pending message",
                     logPrefix);
-
                 takeoverState = vbucket_state_active;
                 transitionState(StreamState::TakeoverSend);
-
-                engine->getKVBucket()->setVBucketState_UNLOCKED(
-                        vbucket,
-                        vbucket_state_dead,
-                        {},
-                        TransferVB::No,
-                        false /* notify_dcp */,
-                        epVbSetLh,
-                        vbStateLh);
-
-                log(spdlog::level::level_enum::info,
-                    "{} Vbucket marked as dead, last sent "
-                    "seqno: {}, high seqno: {}",
-                    logPrefix,
-                    lastSentSeqno.load(),
-                    vbucket->getHighSeqno());
+                needToSetVbState = true;
             } else {
                 log(spdlog::level::level_enum::info,
                     "{} Receive ack for set vbucket state to "
@@ -595,14 +595,24 @@ void ActiveStream::setVBucketStateAckRecieved(DcpProducer& producer) {
                     logPrefix);
                 endStream(cb::mcbp::DcpStreamEndStatus::Ok);
             }
-        } else {
-            log(spdlog::level::level_enum::warn,
-                "{} Unexpected ack for set vbucket op on "
-                "stream '{}' state '{}'",
+        }
+
+        if (needToSetVbState) {
+            // Note: streamMutex released when making the call
+            engine->getKVBucket()->setVBucketState_UNLOCKED(
+                    vbucket,
+                    vbucket_state_dead,
+                    {},
+                    TransferVB::No,
+                    false /* notify_dcp */,
+                    epVbSetLh,
+                    vbStateLh);
+            log(spdlog::level::level_enum::info,
+                "{} Vbucket marked as dead, last sent "
+                "seqno: {}, high seqno: {}",
                 logPrefix,
-                name_,
-                to_string(state_.load()));
-            return;
+                lastSentSeqno.load(),
+                vbucket->getHighSeqno());
         }
     }
 
