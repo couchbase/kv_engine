@@ -2905,6 +2905,9 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
     couchstore_free_document(doc);
 
     if (cb.shouldYield()) {
+        // Scan is yielding _after_ successfully processing this doc.
+        // Resume at next item.
+        sctx->lastReadSeqno = byseqno;
         return COUCHSTORE_ERROR_SCAN_YIELD;
     } else if (cb.getStatus() != cb::engine_errc::success) {
         return COUCHSTORE_ERROR_SCAN_CANCELLED;

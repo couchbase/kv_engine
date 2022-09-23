@@ -1632,6 +1632,7 @@ ScanStatus RocksDBKVStore::scan(BySeqnoScanContext& ctx) const {
         auto status = ctx.getValueCallback().getStatus();
 
         if (ctx.getValueCallback().shouldYield()) {
+            ctx.lastReadSeqno = byseqno;
             return ScanStatus::Yield;
         } else if (status != cb::engine_errc::success) {
             return ScanStatus::Cancelled;

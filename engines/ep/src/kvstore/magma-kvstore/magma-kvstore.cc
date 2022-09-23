@@ -2093,6 +2093,9 @@ MagmaScanResult MagmaKVStore::scanOne(
     if (callbackStatus == cb::engine_errc::success) {
         return MagmaScanResult::Next();
     } else if (ctx.getValueCallback().shouldYield()) {
+        // Scan is yielding _after_ successfully processing this doc.
+        // Resume at next item.
+        ctx.lastReadSeqno = seqno;
         if (logger->should_log(spdlog::level::TRACE)) {
             logger->TRACE(
                     "MagmaKVStore::scanOne callback {} "
