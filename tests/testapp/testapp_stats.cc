@@ -508,6 +508,36 @@ TEST_P(StatsTest, TestUnprivilegedConnections) {
 #endif
 }
 
+TEST_P(StatsTest, TestUnprivilegedConnectionsWithSpecificFd) {
+    auto conn1 = getConnection().clone();
+    conn1->authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn1->setFeatures({cb::mcbp::Feature::XERROR});
+    auto stats1 = conn1->stats("connections");
+    ASSERT_EQ(1, stats1.size());
+
+    auto conn2 = conn1->clone();
+    conn2->authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn2->setFeatures({cb::mcbp::Feature::XERROR});
+    auto stats2 = conn2->stats("connections");
+    ASSERT_EQ(1, stats2.size());
+
+    auto conn1sock = stats1.front()["socket"].get<size_t>();
+    auto conn2sock = stats2.front()["socket"].get<size_t>();
+    EXPECT_NE(conn1sock, conn2sock);
+
+    // verify that I can request my own stat by providing my own socket
+    stats1 = conn1->stats("connections " + std::to_string(conn1sock));
+    ASSERT_EQ(1, stats1.size());
+    EXPECT_EQ(conn1sock, stats1.front()["socket"].get<size_t>());
+
+    // verify that an unprivileged connection can't get another connection
+    // stat
+    auto rsp = conn1->execute(
+            BinprotGenericCommand(cb::mcbp::ClientOpcode::Stat,
+                                  "connections " + std::to_string(conn2sock)));
+    EXPECT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus());
+}
+
 TEST_P(StatsTest, TestConnectionsInvalidNumber) {
     try {
         auto stats = adminConnection->stats("connections xxx");

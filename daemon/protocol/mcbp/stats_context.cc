@@ -289,29 +289,49 @@ static cb::engine_errc stat_clocks_executor(const std::string& arg,
 static cb::engine_errc stat_connections_executor(const std::string& arg,
                                                  Cookie& cookie) {
     int64_t fd = -1;
+    bool me = false;
 
     if (!arg.empty()) {
         if (arg == "self") {
-            append_stats({}, cookie.getConnection().to_json().dump(), &cookie);
-            return cb::engine_errc::success;
+            me = true;
         } else {
             try {
                 fd = std::stoll(arg);
+                if (fd < 0) {
+                    cookie.setErrorContext(
+                            "Connection must be a positive number");
+                    return cb::engine_errc::invalid_arguments;
+                }
             } catch (...) {
                 return cb::engine_errc::invalid_arguments;
             }
         }
     }
 
-    if (fd == -1 || fd != int64_t(cookie.getConnectionId())) {
-        if (cookie.checkPrivilege(cb::rbac::Privilege::Stats).failed()) {
-            if (fd != -1) {
-                // The client asked for a given file descriptor.
-                return cb::engine_errc::no_access;
-            }
-            // The client didn't specify a connection, so return "self"
-            fd = int64_t(cookie.getConnectionId());
-        }
+    if (!me) {
+        // The client is asking for itself, that's ok
+        me = fd == int64_t(cookie.getConnectionId());
+    }
+
+    if (!me && fd == -1 &&
+        cookie.testPrivilege(cb::rbac::Privilege::Stats).failed()) {
+        // The client didn't ask for given connection and does not have
+        // access to see all connections.
+        //
+        // Limit to _this_ connection.
+        me = true;
+    }
+
+    if (me) {
+        append_stats({}, cookie.getConnection().to_json().dump(), &cookie);
+        return cb::engine_errc::success;
+    }
+
+    // The client wants all clients OR a given (other) connection.
+    // The client must hold the stats privilege. Use checkPrivilege here
+    // as it'll log on failure and injects extra info in the response
+    if (cookie.checkPrivilege(cb::rbac::Privilege::Stats).failed()) {
+        return cb::engine_errc::no_access;
     }
 
     std::shared_ptr<StatsTask> task =
