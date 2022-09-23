@@ -167,17 +167,20 @@ bool ItemPager::run() {
         // distribute the vbuckets that should be visited among multiple
         // paging visitors.
         for (const auto& partFilter : filter.split(numConcurrentPagers)) {
+            auto evictionStrategy = std::make_unique<ItemEviction>(
+                    EvictionRatios{activeAndPendingEvictionRatio,
+                                   replicaEvictionRatio},
+                    cfg.getItemEvictionAgePercentage(),
+                    cfg.getItemEvictionFreqCounterAgeThreshold(),
+                    &stats);
             auto pv = std::make_unique<PagingVisitor>(
                     *kvBucket,
                     stats,
-                    EvictionRatios{activeAndPendingEvictionRatio,
-                                   replicaEvictionRatio},
+                    std::move(evictionStrategy),
                     pagerSemaphore,
                     ITEM_PAGER,
                     true, /* allow pausing between vbuckets */
-                    partFilter,
-                    cfg.getItemEvictionAgePercentage(),
-                    cfg.getItemEvictionFreqCounterAgeThreshold());
+                    partFilter);
 
             kvBucket->visitAsync(std::move(pv),
                                  "Item pager",
@@ -346,17 +349,20 @@ bool ExpiredItemPager::run() {
         // distribute the vbuckets that should be visited among multiple
         // paging visitors.
         for (const auto& partFilter : filter.split(concurrentVisitors)) {
-            auto pv = std::make_unique<PagingVisitor>(
-                    *kvBucket,
-                    stats,
+            auto evictionStrategy = std::make_unique<ItemEviction>(
                     EvictionRatios{0.0 /* active&pending */,
                                    0.0 /* replica */}, // evict nothing
-                    pagerSemaphore,
-                    EXPIRY_PAGER,
-                    true,
-                    partFilter,
                     cfg.getItemEvictionAgePercentage(),
-                    cfg.getItemEvictionFreqCounterAgeThreshold());
+                    cfg.getItemEvictionFreqCounterAgeThreshold(),
+                    &stats);
+            auto pv =
+                    std::make_unique<PagingVisitor>(*kvBucket,
+                                                    stats,
+                                                    std::move(evictionStrategy),
+                                                    pagerSemaphore,
+                                                    EXPIRY_PAGER,
+                                                    true,
+                                                    partFilter);
 
             // p99.99 is ~50ms (same as ItemPager).
             const auto maxExpectedDurationForVisitorTask =

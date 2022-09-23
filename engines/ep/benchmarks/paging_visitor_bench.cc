@@ -205,19 +205,23 @@ BENCHMARK_DEFINE_F(PagingVisitorBench, SingleVBucket)
 
         populateUntilFull(vbid);
 
-        auto pv = std::make_unique<PagingVisitor>(
-                *engine->getKVBucket(),
-                engine->getEpStats(),
+        auto evictionStrategy = std::make_unique<ItemEviction>(
                 EvictionRatios{
                         1 /* active&pending */,
                         1 /* replica */}, // evict everything (but this will
                 // not be run)
+                cfg.getItemEvictionAgePercentage(),
+                cfg.getItemEvictionFreqCounterAgeThreshold(),
+                &engine->getEpStats());
+
+        auto pv = std::make_unique<PagingVisitor>(
+                *engine->getKVBucket(),
+                engine->getEpStats(),
+                std::move(evictionStrategy),
                 semaphore,
                 ITEM_PAGER,
                 false,
-                VBucketFilter(std::vector<Vbid>{vbid}),
-                cfg.getItemEvictionAgePercentage(),
-                cfg.getItemEvictionFreqCounterAgeThreshold());
+                VBucketFilter(std::vector<Vbid>{vbid}));
         ObjectRegistry::onSwitchThread(engine.get());
 
         state.ResumeTiming();
@@ -251,19 +255,23 @@ BENCHMARK_DEFINE_F(PagingVisitorBench, PagerIteration)
         });
         vb->ht.visit(ev);
 
-        auto pv = std::make_unique<PagingVisitor>(
-                *engine->getKVBucket(),
-                engine->getEpStats(),
+        auto evictionStrategy = std::make_unique<ItemEviction>(
                 EvictionRatios{
                         0.000000001 /* active&pending */,
                         1 /* replica */}, // evict everything (but this will
                 // not be run)
+                cfg.getItemEvictionAgePercentage(),
+                cfg.getItemEvictionFreqCounterAgeThreshold(),
+                &engine->getEpStats());
+
+        auto pv = std::make_unique<PagingVisitor>(
+                *engine->getKVBucket(),
+                engine->getEpStats(),
+                std::move(evictionStrategy),
                 semaphore,
                 ITEM_PAGER,
                 false,
-                VBucketFilter(std::vector<Vbid>{vbid}),
-                cfg.getItemEvictionAgePercentage(),
-                cfg.getItemEvictionFreqCounterAgeThreshold());
+                VBucketFilter(std::vector<Vbid>{vbid}));
         ObjectRegistry::onSwitchThread(engine.get());
 
         state.ResumeTiming();

@@ -119,19 +119,22 @@ BENCHMARK_DEFINE_F(VBCBAdaptorBench, VBCBAdaptorCreation)
 
     while (state.KeepRunning()) {
         state.PauseTiming();
-        std::unique_ptr<PagingVisitor> pv = std::make_unique<PagingVisitor>(
-                *engine->getKVBucket(),
-                engine->getEpStats(),
+        auto evictionStrategy = std::make_unique<ItemEviction>(
                 EvictionRatios{
                         1 /* active&pending */,
                         1 /* replica */}, // evict everything (but this will
                 // not be run)
-                semaphore,
-                EXPIRY_PAGER,
-                false,
-                VBucketFilter(vbids),
                 cfg.getItemEvictionAgePercentage(),
-                cfg.getItemEvictionFreqCounterAgeThreshold());
+                cfg.getItemEvictionFreqCounterAgeThreshold(),
+                &engine->getEpStats());
+        std::unique_ptr<PagingVisitor> pv =
+                std::make_unique<PagingVisitor>(*engine->getKVBucket(),
+                                                engine->getEpStats(),
+                                                std::move(evictionStrategy),
+                                                semaphore,
+                                                EXPIRY_PAGER,
+                                                false,
+                                                VBucketFilter(vbids));
         state.ResumeTiming();
 
         auto task = std::make_shared<VBCBAdaptor>(engine->getKVBucket(),

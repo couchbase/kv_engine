@@ -22,6 +22,8 @@
  */
 class MockPagingVisitor : public PagingVisitor {
 public:
+    // Temporary constructor, creates a learning ItemEviction instance.
+    // Used while tests are updated.
     MockPagingVisitor(KVBucket& s,
                       EPStats& st,
                       EvictionRatios evictionRatios,
@@ -31,15 +33,32 @@ public:
                       const VBucketFilter& vbFilter,
                       size_t agePercentage,
                       size_t freqCounterAgeThreshold)
+        : MockPagingVisitor(
+                  s,
+                  st,
+                  std::make_unique<ItemEviction>(evictionRatios,
+                                                 agePercentage,
+                                                 freqCounterAgeThreshold,
+                                                 &st),
+                  std::move(pagerSemaphore),
+                  caller,
+                  pause,
+                  vbFilter) {
+    }
+    MockPagingVisitor(KVBucket& s,
+                      EPStats& st,
+                      std::unique_ptr<ItemEvictionStrategy> strategy,
+                      std::shared_ptr<cb::Semaphore> pagerSemaphore,
+                      pager_type_t caller,
+                      bool pause,
+                      const VBucketFilter& vbFilter)
         : PagingVisitor(s,
                         st,
-                        evictionRatios,
+                        std::move(strategy),
                         std::move(pagerSemaphore),
                         caller,
                         pause,
-                        vbFilter,
-                        agePercentage,
-                        freqCounterAgeThreshold) {
+                        vbFilter) {
         using namespace testing;
         ON_CALL(*this, visitBucket(_))
                 .WillByDefault(Invoke([this](VBucket& vb) {

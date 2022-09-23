@@ -36,15 +36,12 @@ static const size_t MAX_PERSISTENCE_QUEUE_SIZE = 1000000;
 
 PagingVisitor::PagingVisitor(KVBucket& s,
                              EPStats& st,
-                             EvictionRatios evictionRatios,
+                             std::unique_ptr<ItemEvictionStrategy> strategy,
                              std::shared_ptr<cb::Semaphore> pagerSemaphore,
                              pager_type_t caller,
                              bool pause,
-                             const VBucketFilter& vbFilter,
-                             size_t agePercentage,
-                             size_t freqCounterAgeThreshold)
-    : itemEviction(std::make_unique<ItemEviction>(
-              evictionRatios, agePercentage, freqCounterAgeThreshold, &st)),
+                             const VBucketFilter& vbFilter)
+    : itemEviction(std::move(strategy)),
       ejected(0),
       store(s),
       stats(st),

@@ -5280,16 +5280,18 @@ TEST_P(STParameterizedBucketTest,
 
         auto pagerSemaphore = std::make_shared<cb::Semaphore>();
         auto& config = engine->getConfiguration();
-        auto visitor =
-                PagingVisitor(*store,
-                              engine->getEpStats(),
-                              EvictionRatios{1.0 /*active*/, 1.0 /*replica*/},
-                              pagerSemaphore,
-                              ITEM_PAGER,
-                              false,
-                              VBucketFilter(),
-                              config.getItemEvictionAgePercentage(),
-                              config.getItemEvictionFreqCounterAgeThreshold());
+        auto evictionStrategy = std::make_unique<ItemEviction>(
+                EvictionRatios{1.0 /*active*/, 1.0 /*replica*/},
+                config.getItemEvictionAgePercentage(),
+                config.getItemEvictionFreqCounterAgeThreshold(),
+                &engine->getEpStats());
+        auto visitor = PagingVisitor(*store,
+                                     engine->getEpStats(),
+                                     std::move(evictionStrategy),
+                                     pagerSemaphore,
+                                     ITEM_PAGER,
+                                     false,
+                                     VBucketFilter());
         store->visit(visitor);
         visitor.complete();
     };

@@ -60,13 +60,11 @@ public:
      */
     PagingVisitor(KVBucket& s,
                   EPStats& st,
-                  EvictionRatios evictionRatios,
+                  std::unique_ptr<ItemEvictionStrategy> strategy,
                   std::shared_ptr<cb::Semaphore> pagerSemaphore,
                   pager_type_t caller,
                   bool pause,
-                  const VBucketFilter& vbFilter,
-                  size_t _agePercentage,
-                  size_t _freqCounterAgeThreshold);
+                  const VBucketFilter& vbFilter);
 
     bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) override;
 
