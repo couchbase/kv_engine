@@ -4304,3 +4304,9 @@ void VBucket::forceMaxCas(uint64_t cas) {
     hlc.forceMaxHLC(cas);
     checkpointManager->queueSetVBState();
 }
+
+void VBucket::notifyReplication() {
+    if (bucket) {
+        bucket->notifyReplication(getId(), SyncWriteOperation::None);
+    }
+}

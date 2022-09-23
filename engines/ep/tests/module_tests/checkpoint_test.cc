@@ -14,6 +14,7 @@
 
 #include "../mock/mock_checkpoint_manager.h"
 #include "../mock/mock_dcp_consumer.h"
+#include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_stream.h"
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint.h"
@@ -2054,6 +2055,50 @@ TEST_F(SingleThreadedCheckpointTest,
     EXPECT_EQ(queue_op::empty, (*cursor->getPos())->getOperation());
     EXPECT_EQ(3, (*cursor->getPos())->getBySeqno());
     EXPECT_EQ(0, cursor->getDistance());
+}
+
+TEST_F(SingleThreadedCheckpointTest, QueueSetVBStateSchedulesDcpStep) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto vb = engine->getVBucket(vbid);
+    auto& cm = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
+
+    ASSERT_EQ(1, cm.getNumOfCursors());
+    auto producer = createDcpProducer(cookie, IncludeDeleteTime::Yes);
+    createDcpStream(*producer);
+    ASSERT_EQ(2, cm.getNumOfCursors());
+    auto stream = producer->findStream(vbid);
+    ASSERT_TRUE(stream);
+    auto dcpCursor = stream->getCursor().lock();
+    ASSERT_TRUE(dcpCursor);
+
+    ASSERT_EQ(1, cm.getNumCheckpoints());
+    ASSERT_EQ(1, (*dcpCursor->getCheckpoint())->getId());
+    EXPECT_EQ(queue_op::empty, (*dcpCursor->getPos())->getOperation());
+    EXPECT_EQ(0, dcpCursor->getDistance());
+
+    // NOTE: DCP stream created *after* cs+vbs queued in checkpoint.
+    //   When this test is instroduced that part works already fine. Core test
+    //   follows.
+    ASSERT_EQ(2, stream->getItemsRemaining());
+    EXPECT_TRUE(producer->getReadyQueue().exists(vbid));
+
+    // Move DCP cursor to end of checkpoint and push to stream readyQ
+    stream->nextCheckpointItemTask();
+    // Move the Producer to settled
+    ASSERT_TRUE(producer->getReadyQueue().exists(vbid));
+    while (producer->public_getNextItem()) {
+    }
+    ASSERT_FALSE(producer->getReadyQueue().exists(vbid));
+    ASSERT_EQ(0, stream->getItemsRemaining());
+
+    // Core test
+    // Queue another set-vbstate and verify that stream notified again
+    setVBucketState(vbid,
+                    vbucket_state_active,
+                    {{"topology", nlohmann::json::array({{"n0", "n1"}})}});
+    EXPECT_EQ(1, stream->getItemsRemaining());
+    EXPECT_TRUE(producer->getReadyQueue().exists(vbid));
 }
 
 // Test that when the same client registers twice, the first cursor 'dies'
