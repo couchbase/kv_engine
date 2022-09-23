@@ -66,7 +66,6 @@ nlohmann::json Cookie::to_json() const {
         ret["cas"] = std::to_string(cas);
     }
 
-    ret["connection"] = connection.getDescription();
     ret["ewouldblock"] = ewouldblock;
     ret["aiostat"] = to_string(cb::engine_errc(aiostat));
     ret["throttled"] = throttled.load();
@@ -438,6 +437,7 @@ void Cookie::maybeLogSlowCommand(
                  fmt::format("{}/{:x}",
                              c.getConnectionId().data(),
                              ntohl(getHeader().getOpaque()))},
+                {"connection", c.getDescription()},
                 {"duration", cb::time2text(timings)},
                 {"trace", tracer.to_string()},
                 {"command", to_string(opcode)},
