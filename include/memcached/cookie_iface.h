@@ -120,7 +120,6 @@ protected:
     std::atomic<size_t> document_bytes_read = 0;
     std::atomic<size_t> document_bytes_written = 0;
 
-private:
     /**
      * Pointer to engine-specific data which the engine has requested the server
      * to persist for the life of the command.

@@ -10,6 +10,7 @@
  */
 #pragma once
 
+#include <nlohmann/json_fwd.hpp>
 #include <memory>
 #include <typeinfo>
 
@@ -28,6 +29,11 @@ public:
     EngineStorageIface(EngineStorageIface&&) = delete;
     EngineStorageIface& operator=(const EngineStorageIface&) = delete;
     EngineStorageIface& operator=(EngineStorageIface&&) = delete;
+
+    /// Allow the subclass to provide a dump of its content (to be
+    /// dumped as part of "stats connections" or other error
+    /// situations where we dump the cookie)
+    virtual nlohmann::json to_json() const;
 
 protected:
     friend struct EngineStorageDeleter;

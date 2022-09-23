@@ -10,10 +10,15 @@
  */
 
 #include <memcached/engine_storage.h>
+#include <nlohmann/json.hpp>
 
 void cb::EngineStorageDeleter::operator()(
         const cb::EngineStorageIface* engine_storage) const {
     if (engine_storage) {
         engine_storage->deallocate();
     }
+}
+
+nlohmann::json cb::EngineStorageIface::to_json() const {
+    return {};
 }

@@ -70,7 +70,19 @@ nlohmann::json Cookie::to_json() const {
     ret["aiostat"] = to_string(cb::engine_errc(aiostat));
     ret["throttled"] = throttled.load();
     ret["refcount"] = uint32_t(refcount);
-    ret["engine_storage"] = cb::to_hex(uint64_t(getEngineStorage()));
+
+    auto es = engine_storage.withLock([](const auto& ptr) -> nlohmann::json {
+        if (ptr) {
+            auto json = ptr->to_json();
+            if (json.empty()) {
+                return cb::to_hex(uint64_t(ptr.get()));
+            }
+        }
+        return {};
+    });
+    if (!es.empty()) {
+        ret["engine_storage"] = es;
+    }
     return ret;
 }
 
