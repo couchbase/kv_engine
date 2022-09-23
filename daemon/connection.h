@@ -96,11 +96,11 @@ public:
         return uint32_t(socketDescriptor);
     }
 
-    const std::string& getPeername() const {
+    const nlohmann::json& getPeername() const {
         return peername;
     }
 
-    const std::string& getSockname() const {
+    const nlohmann::json& getSockname() const {
         return sockname;
     }
 
@@ -1007,10 +1007,10 @@ protected:
     std::string description;
 
     /// Name of the peer if known
-    const std::string peername;
+    const nlohmann::json peername;
 
     /// Name of the local socket if known
-    const std::string sockname;
+    const nlohmann::json sockname;
 
     /// The reason why the session was terminated
     std::string terminationReason;

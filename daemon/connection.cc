@@ -102,8 +102,8 @@ nlohmann::json Connection::to_json() const {
     ret["socket"] = socketDescriptor;
     ret["yields"] = yields.load();
     ret["protocol"] = "memcached";
-    ret["peername"] = getPeername().c_str();
-    ret["sockname"] = getSockname().c_str();
+    ret["peername"] = peername;
+    ret["sockname"] = sockname;
     ret["bucket_index"] = getBucketIndex();
     ret["internal"] = isInternal();
 
@@ -420,7 +420,7 @@ cb::engine_errc Connection::remapErrorCode(cb::engine_errc code) {
 }
 
 void Connection::updateDescription() {
-    description.assign("[ " + getPeername() + " - " + getSockname());
+    description.assign("[ " + peername.dump() + " - " + sockname.dump());
     if (authenticated) {
         description += " (";
         if (isInternal()) {
@@ -931,12 +931,12 @@ void Connection::reEvaluateParentPort() {
 
     bool localhost = false;
     if (Settings::instance().isLocalhostInterfaceAllowed()) {
+        using namespace std::string_view_literals;
         // Make sure we don't tear down localhost connections
         if (listening_port->family == AF_INET) {
-            localhost =
-                    peername.find(R"("ip":"127.0.0.1")") != std::string::npos;
+            localhost = peername["ip"].get<std::string_view>() == "127.0.0.1"sv;
         } else {
-            localhost = peername.find(R"("ip":"::1")") != std::string::npos;
+            localhost = peername["ip"].get<std::string_view>() == "::1"sv;
         }
     }
 
@@ -1041,7 +1041,7 @@ bool Connection::tryAuthUserFromX509Cert(std::string_view userName,
                 "{}: Client {} using cipher '{}' authenticated as '{}' via "
                 "X.509 certificate",
                 getId(),
-                getPeername(),
+                getPeername().dump(),
                 cipherName,
                 cb::UserDataView(user.name));
         // External users authenticated by using X.509 certificates should not
@@ -1072,8 +1072,8 @@ void Connection::updateRecvBytes(size_t nbytes) {
 }
 
 Connection::Connection(FrontEndThread& thr)
-    : peername(R"({"ip":"unknown","port":0})"),
-      sockname(R"({"ip":"unknown","port":0})"),
+    : peername({{"ip", "unknown"}, {"port", 0}}),
+      sockname({{"ip", "unknown"}, {"port", 0}}),
       thread(thr),
       listening_port(std::make_shared<ListeningPort>(
               "dummy", "127.0.0.1", 11210, AF_INET, false, false)),
@@ -1130,8 +1130,8 @@ std::unique_ptr<Connection> Connection::create(
 Connection::Connection(SOCKET sfd,
                        FrontEndThread& thr,
                        std::shared_ptr<ListeningPort> descr)
-    : peername(cb::net::getPeerNameAsJson(sfd).dump()),
-      sockname(cb::net::getSockNameAsJson(sfd).dump()),
+    : peername(cb::net::getPeerNameAsJson(sfd)),
+      sockname(cb::net::getSockNameAsJson(sfd)),
       thread(thr),
       listening_port(std::move(descr)),
       max_reqs_per_event(Settings::instance().getRequestsPerEventNotification(
