@@ -30,31 +30,17 @@ public:
         using cb::sasl::pwdb::User;
         using cb::sasl::pwdb::UserFactory;
 
-        auto passwordDatabase = std::make_unique<
-                cb::sasl::pwdb::PasswordDatabase>(nlohmann::json{
+        auto json = nlohmann::json{
                 {"@@version@@", 2},
                 {"username",
                  {{"scram-sha-1",
-                   {{"server_key", "pg2ct27hONTiHZUVqSmrvqTygFU="},
-                    {"stored_key", "jzKB1UWP22qrj7GnDSHB2ZFuC2o="},
-                    {"salt", "ZP8Dc+4BGCAMitu9B7qSbjaB2fs="},
+                   {{"salt", "ZP8Dc+4BGCAMitu9B7qSbjaB2fs="},
                     {"iterations", 4096}}},
                   {"scram-sha-256",
-                   {{"server_key",
-                     "DB7sPHIaX5lM/Hjl4+DUVlzyMXuQWKVpnPiLkpjSI4E="},
-                    {"stored_key",
-                     "gGb47OHwfK7cH8Gf9HIcPAGu/nPSH4CvYp5VHI/lxZc="},
-                    {"salt", "PxxruqJ4/CL3QR2fEH0ZDNqq56u8qf0eZm6YLK1aoTQ="},
+                   {{"salt", "PxxruqJ4/CL3QR2fEH0ZDNqq56u8qf0eZm6YLK1aoTQ="},
                     {"iterations", 4096}}},
                   {"scram-sha-512",
-                   {{"server_key",
-                     "GrAxYN148LHbEyNBlG0gihZAF1VVUbi3nYlxwKhQY9v6K5hRLd3ksO0Ac"
-                     "flVX9BrcaEt5NGj0q2vX6kF+gxFlQ=="},
-                    {"stored_key",
-                     "ZiPWL4pApW5k/"
-                     "tXCTNV1Zbdephtdmh8PrtjUO+"
-                     "feSjbRPf7bkMNUhPBHqqpclLiBpNIjAUnhmHVEyk85un/jmg=="},
-                    {"salt",
+                   {{"salt",
                      "PU0/"
                      "GpqaHx9+XsECIYGuGnN9o65two+"
                      "E5l3BAbisQn3smkGOIlL2OJ6hB8b5pfOETGG1v4X9/"
@@ -65,9 +51,28 @@ public:
                     {"time", 3},
                     {"memory", 134217728},
                     {"parallelism", 1},
-                    {"salt", "lEyxVOIleyw2vzrajlqAlA=="},
-                    {"hash",
-                     "k14HWFzYHGX2YhN1u/vI+W3m9dJSbu6SsKPEd4BQoJg="}}}}}});
+                    {"salt", "lEyxVOIleyw2vzrajlqAlA=="}}}}}};
+
+        json["username"]["scram-sha-1"]["hashes"].emplace_back(
+                nlohmann::json{{"server_key", "pg2ct27hONTiHZUVqSmrvqTygFU="},
+                               {"stored_key", "jzKB1UWP22qrj7GnDSHB2ZFuC2o="}});
+
+        json["username"]["scram-sha-256"]["hashes"].emplace_back(nlohmann::json{
+                {"server_key", "DB7sPHIaX5lM/Hjl4+DUVlzyMXuQWKVpnPiLkpjSI4E="},
+                {"stored_key",
+                 "gGb47OHwfK7cH8Gf9HIcPAGu/nPSH4CvYp5VHI/lxZc="}});
+        json["username"]["scram-sha-512"]["hashes"].emplace_back(nlohmann::json{
+                {"server_key",
+                 "GrAxYN148LHbEyNBlG0gihZAF1VVUbi3nYlxwKhQY9v6K5hRLd3ksO0Ac"
+                 "flVX9BrcaEt5NGj0q2vX6kF+gxFlQ=="},
+                {"stored_key",
+                 "ZiPWL4pApW5k/"
+                 "tXCTNV1Zbdephtdmh8PrtjUO+"
+                 "feSjbRPf7bkMNUhPBHqqpclLiBpNIjAUnhmHVEyk85un/jmg=="}});
+        json["username"]["hash"]["hashes"].emplace_back(
+                "k14HWFzYHGX2YhN1u/vI+W3m9dJSbu6SsKPEd4BQoJg=");
+        auto passwordDatabase =
+                std::make_unique<cb::sasl::pwdb::PasswordDatabase>(json);
         swap_password_database(std::move(passwordDatabase));
     }
 

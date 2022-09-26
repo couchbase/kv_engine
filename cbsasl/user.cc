@@ -376,13 +376,7 @@ User::PasswordMetaData::PasswordMetaData(const nlohmann::json& obj) {
 
     for (auto it = obj.begin(); it != obj.end(); ++it) {
         const std::string label = it.key();
-        if (label == "hash") {
-            if (!it->is_string()) {
-                throw std::invalid_argument(
-                        "PasswordMetaData(): hash must be a string");
-            }
-            passwords.emplace_back(cb::base64::decode(it->get<std::string>()));
-        } else if (label == "hashes") {
+        if (label == "hashes") {
             if (!it->is_array()) {
                 throw std::invalid_argument(
                         "PasswordMetaData(): hashes must be an array");
@@ -504,7 +498,7 @@ User::PasswordMetaData::PasswordMetaData(const nlohmann::json& obj) {
 
     if (passwords.empty()) {
         throw std::invalid_argument(
-                "PasswordMetaData(): hash must be specified");
+                "PasswordMetaData(): hashes must be specified");
     }
 }
 

@@ -23,22 +23,22 @@ using cb::sasl::pwdb::User;
 class PasswordMetaTest : public ::testing::Test {
 public:
     void SetUp() override {
-        sha1_blueprint["hash"] = "NP0b1Ji5jWG/ZV6hPzOIk3lmTmw=";
+        sha1_blueprint["hashes"].emplace_back("NP0b1Ji5jWG/ZV6hPzOIk3lmTmw=");
         sha1_blueprint["salt"] = "iiU7hLv7l3yOoEgXusJvT2i1J2A=";
         sha1_blueprint["algorithm"] = "SHA-1";
 
         argon2id_blueprint["algorithm"] = "argon2id";
-        argon2id_blueprint["hash"] =
-                "fehlwuE2N30W336KzLvLJEe6Z32XhHURSP9W6ayhoDU=";
+        argon2id_blueprint["hashes"].emplace_back(
+                "fehlwuE2N30W336KzLvLJEe6Z32XhHURSP9W6ayhoDU=");
         argon2id_blueprint["memory"] = 134217728;
         argon2id_blueprint["parallelism"] = 1;
         argon2id_blueprint["salt"] = "wkhDB1DVlfeqZ10PnV4VJA==";
         argon2id_blueprint["time"] = 3;
 
-        pbkdf2_hmac_sha512_blueprint["hash"] =
+        pbkdf2_hmac_sha512_blueprint["hashes"].emplace_back(
                 "c5iK5+3NiSiW/"
                 "ozSG21I2NdBzthWkNNwgLswNpEQR3Twhk7IXtRbJ5+"
-                "xw9QWaJ9185ilSien6yxV/DoJ+yoVVw==";
+                "xw9QWaJ9185ilSien6yxV/DoJ+yoVVw==");
         pbkdf2_hmac_sha512_blueprint["algorithm"] = "pbkdf2-hmac-sha512";
         pbkdf2_hmac_sha512_blueprint["salt"] =
                 "AmnjC0g996UsYo6ED046UKsPhh4IzozEsPUryQl5QEOWTkIM2iMRS74iyh054k"
@@ -73,13 +73,13 @@ TEST_F(PasswordMetaTest, UnknownLabel) {
 }
 
 TEST_F(PasswordMetaTest, TestMissingHash) {
-    sha1_blueprint.erase("hash");
+    sha1_blueprint.erase("hashes");
     bool failed = false;
     try {
         User::PasswordMetaData md(sha1_blueprint);
     } catch (const std::exception& e) {
         failed = true;
-        EXPECT_STREQ("PasswordMetaData(): hash must be specified", e.what());
+        EXPECT_STREQ("PasswordMetaData(): hashes must be specified", e.what());
     }
     EXPECT_TRUE(failed);
 }
@@ -110,13 +110,13 @@ TEST_F(PasswordMetaTest, TestMissingAlgorithm) {
 }
 
 TEST_F(PasswordMetaTest, TestInvalidDatatypeForHash) {
-    sha1_blueprint["hash"] = 5;
+    sha1_blueprint["hashes"] = 5;
     bool failed = false;
     try {
         User::PasswordMetaData md(sha1_blueprint);
     } catch (const std::exception& e) {
         failed = true;
-        EXPECT_STREQ("PasswordMetaData(): hash must be a string", e.what());
+        EXPECT_STREQ("PasswordMetaData(): hashes must be an array", e.what());
     }
     EXPECT_TRUE(failed);
 }
@@ -134,7 +134,7 @@ TEST_F(PasswordMetaTest, TestInvalidDatatypeForSalt) {
 }
 
 TEST_F(PasswordMetaTest, TestInvalidBase64EncodingForHash) {
-    sha1_blueprint["hash"] = "!@#$%^&*";
+    sha1_blueprint["hashes"].emplace_back("!@#$%^&*");
     bool failed = false;
     try {
         User::PasswordMetaData md(sha1_blueprint);
@@ -304,25 +304,13 @@ class UserTest : public ::testing::Test {
 public:
     void SetUp() override {
         root = {{"scram-sha-1",
-                 {{"server_key", "xlmIdzh5718/323JcFbA9oxz2N4="},
-                  {"stored_key", "/xBUzh1cpAxZ6mClwSJpWISt8g4="},
-                  {"salt", "iiU7hLv7l3yOoEgXusJvT2i1J2A="},
+                 {{"salt", "iiU7hLv7l3yOoEgXusJvT2i1J2A="},
                   {"iterations", 10}}},
                 {"scram-sha-256",
-                 {{"server_key",
-                   "AIBEwCV3hyZTM/sWiS2llpYmIJSrue6o3xOBSKqi7J4="},
-                  {"stored_key",
-                   "nenK/vukVml9UAqTyrfD5EziUKVL4HRLqJ9xB7LD7vk="},
-                  {"salt", "i5Jn//LLM0245cscYnldCjM/HMC7Hj2U1HT6iXqCC0E="},
+                 {{"salt", "i5Jn//LLM0245cscYnldCjM/HMC7Hj2U1HT6iXqCC0E="},
                   {"iterations", 10}}},
                 {"scram-sha-512",
-                 {{"server_key",
-                   "XqUk1GEK2VEi+QNxCxJQNO6Bxm4j4zMPjKu/"
-                   "SA2I+OSpeXZGt3J6BVGguDaQC2Zo7p2J6aqwHQNf0kDiYqG4VA=="},
-                  {"stored_key",
-                   "qA3MP+EMTSn8pfyYailyCs6maoAJWu1FGhVJYhlD+Dew9+"
-                   "kt8XRs1ljQYnXprHzwRfKWIqHyOgQMVqWgVyVEHA=="},
-                  {"salt",
+                 {{"salt",
                    "nUNk2ZbAZTabxboF+OBQws3zNJpxePtnuF8KwcylC3h/"
                    "NnQQ9FqU0YYohjJhvGRNbxjPTTSuYOgxBG4FMV1W3A=="},
                   {"iterations", 10}}},
@@ -331,8 +319,24 @@ public:
                   {"time", 3},
                   {"memory", 134217728},
                   {"parallelism", 1},
-                  {"salt", "wkhDB1DVlfeqZ10PnV4VJA=="},
-                  {"hash", "fehlwuE2N30W336KzLvLJEe6Z32XhHURSP9W6ayhoDU="}}}};
+                  {"salt", "wkhDB1DVlfeqZ10PnV4VJA=="}}}};
+
+        root["scram-sha-1"]["hashes"].emplace_back(
+                nlohmann::json{{"server_key", "xlmIdzh5718/323JcFbA9oxz2N4="},
+                               {"stored_key", "/xBUzh1cpAxZ6mClwSJpWISt8g4="}});
+        root["scram-sha-256"]["hashes"].emplace_back(nlohmann::json{
+                {"server_key", "AIBEwCV3hyZTM/sWiS2llpYmIJSrue6o3xOBSKqi7J4="},
+                {"stored_key",
+                 "nenK/vukVml9UAqTyrfD5EziUKVL4HRLqJ9xB7LD7vk="}});
+        root["scram-sha-512"]["hashes"].emplace_back(nlohmann::json{
+                {"server_key",
+                 "XqUk1GEK2VEi+QNxCxJQNO6Bxm4j4zMPjKu/"
+                 "SA2I+OSpeXZGt3J6BVGguDaQC2Zo7p2J6aqwHQNf0kDiYqG4VA=="},
+                {"stored_key",
+                 "qA3MP+EMTSn8pfyYailyCs6maoAJWu1FGhVJYhlD+Dew9+"
+                 "kt8XRs1ljQYnXprHzwRfKWIqHyOgQMVqWgVyVEHA=="}});
+        root["hash"]["hashes"].emplace_back(
+                "fehlwuE2N30W336KzLvLJEe6Z32XhHURSP9W6ayhoDU=");
     }
 
     nlohmann::json root;

@@ -19,9 +19,6 @@ ScramPasswordMetaData::ScramPasswordMetaData(const nlohmann::json& obj) {
                 "ScramPasswordMetaData(): must be an object");
     }
 
-    std::string stored_key;
-    std::string server_key;
-
     for (const auto& [label, value] : obj.items()) {
         if (label == "hashes") {
             for (const auto& it : value) {
@@ -35,10 +32,6 @@ ScramPasswordMetaData::ScramPasswordMetaData(const nlohmann::json& obj) {
                         cb::base64::decode(
                                 it["server_key"].get<std::string>())});
             }
-        } else if (label == "stored_key") {
-            stored_key = cb::base64::decode(value.get<std::string>());
-        } else if (label == "server_key") {
-            server_key = cb::base64::decode(value.get<std::string>());
         } else if (label == "iterations") {
             iteration_count = value.get<std::size_t>();
         } else if (label == "salt") {
@@ -52,14 +45,9 @@ ScramPasswordMetaData::ScramPasswordMetaData(const nlohmann::json& obj) {
         }
     }
 
-    if (!stored_key.empty() && !server_key.empty()) {
-        keys.emplace_back(Keys{std::move(stored_key), std::move(server_key)});
-    }
-
     if (keys.empty()) {
         throw std::invalid_argument(
-                "ScramPasswordMetaData(): stored-key and server-key must be "
-                "present");
+                "ScramPasswordMetaData(): hashes must be present");
     }
 
     if (salt.empty()) {
