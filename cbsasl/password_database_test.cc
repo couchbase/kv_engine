@@ -44,5 +44,5 @@ TEST_F(PasswordDatabaseTest, TestInvalidVersion) {
         EXPECT_STREQ("PasswordDatabase(): Unknown version: 3", e.what());
         failed = true;
     }
-    EXPECT_TRUE(failed) << "Unknonw version should have been detected";
+    EXPECT_TRUE(failed) << "Unknown version should have been detected";
 }
