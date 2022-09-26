@@ -3443,18 +3443,16 @@ TEST_P(DurabilityEphemeralBucketTest, CompletedPreparesNotExpired) {
 
     auto pagerSemaphore = std::make_shared<cb::Semaphore>();
 
-    Configuration& cfg = engine->getConfiguration();
     std::unique_ptr<MockPagingVisitor> pv = std::make_unique<MockPagingVisitor>(
             *engine->getKVBucket(),
             engine->getEpStats(),
-            EvictionRatios{0.0 /* active&pending */,
-                           0.0 /* replica */}, // evict nothing
+            // don't want anything to be _evicted_, that's not what this test
+            // is trying to cover.
+            ItemEvictionStrategy::evict_nothing(),
             pagerSemaphore,
             EXPIRY_PAGER,
             false,
-            VBucketFilter(),
-            cfg.getItemEvictionAgePercentage(),
-            cfg.getItemEvictionFreqCounterAgeThreshold());
+            VBucketFilter());
 
     {
         auto pending = vb->ht.findForUpdate(key).pending;
@@ -3465,7 +3463,6 @@ TEST_P(DurabilityEphemeralBucketTest, CompletedPreparesNotExpired) {
 
     pv->setCurrentBucket(*vb);
     for (int ii = 0; ii <= Item::initialFreqCount; ii++) {
-        pv->setFreqCounterThreshold(0);
         vb->ht.visit(*pv);
         pv->update();
     }

@@ -344,25 +344,21 @@ bool ExpiredItemPager::run() {
         for (auto vbid : kvBucket->getVBuckets().getBuckets()) {
             filter.addVBucket(vbid);
         }
-        Configuration& cfg = engine->getConfiguration();
 
         // distribute the vbuckets that should be visited among multiple
         // paging visitors.
         for (const auto& partFilter : filter.split(concurrentVisitors)) {
-            auto evictionStrategy = std::make_unique<ItemEviction>(
-                    EvictionRatios{0.0 /* active&pending */,
-                                   0.0 /* replica */}, // evict nothing
-                    cfg.getItemEvictionAgePercentage(),
-                    cfg.getItemEvictionFreqCounterAgeThreshold(),
-                    &stats);
-            auto pv =
-                    std::make_unique<PagingVisitor>(*kvBucket,
-                                                    stats,
-                                                    std::move(evictionStrategy),
-                                                    pagerSemaphore,
-                                                    EXPIRY_PAGER,
-                                                    true,
-                                                    partFilter);
+            // TODO MB-53980: consider splitting a simpler expiry visitor out of
+            //       paging visitor. Expiry behaviour is shared, but it
+            //       may be cleaner to introduce a subtype for eviction.
+            auto pv = std::make_unique<PagingVisitor>(
+                    *kvBucket,
+                    stats,
+                    ItemEvictionStrategy::evict_nothing(),
+                    pagerSemaphore,
+                    EXPIRY_PAGER,
+                    true,
+                    partFilter);
 
             // p99.99 is ~50ms (same as ItemPager).
             const auto maxExpectedDurationForVisitorTask =

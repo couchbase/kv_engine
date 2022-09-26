@@ -98,4 +98,18 @@ public:
     virtual void eligibleItemSeen(uint8_t freq,
                                   uint64_t age,
                                   vbucket_state_t state) = 0;
+
+    /**
+     * Construct an ItemEvictionStrategy which will not attempt
+     * to evict anything.
+     *
+     * Useable as a default or for expiry-only paging visitors.
+     */
+    static std::unique_ptr<ItemEvictionStrategy> evict_nothing();
+
+    /**
+     * Construct an ItemEvictionStrategy which will attempt
+     * to evict everything, regardless of age of MFU.
+     */
+    static std::unique_ptr<ItemEvictionStrategy> evict_everything();
 };

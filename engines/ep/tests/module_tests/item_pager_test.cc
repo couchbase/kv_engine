@@ -472,14 +472,11 @@ TEST_P(STItemPagerTest, MB_50423_ItemPagerCleansUpDeletedStoredValues) {
     auto pv = std::make_unique<MockPagingVisitor>(
             *engine->getKVBucket(),
             engine->getEpStats(),
-            EvictionRatios{1.0 /* active&pending */,
-                           1.0 /* replica */}, // try evict everything
+            ItemEvictionStrategy::evict_everything(),
             pagerSemaphore,
             ITEM_PAGER,
             false,
-            VBucketFilter(),
-            0 /* "protected" age percentage */,
-            255 /* mfu age threshold */);
+            VBucketFilter());
 
     // Drop the lwn ensure memory usage is above it so paging proceeds.
     auto& config = engine->getConfiguration();
@@ -879,17 +876,20 @@ TEST_P(STItemPagerTest, isEligible) {
     }
     auto pagerSemaphore = std::make_shared<cb::Semaphore>();
     Configuration& cfg = engine->getConfiguration();
-    std::unique_ptr<MockPagingVisitor> pv = std::make_unique<MockPagingVisitor>(
-            *engine->getKVBucket(),
-            engine->getEpStats(),
+    auto evictionStrategy = std::make_unique<ItemEviction>(
             EvictionRatios{0.0 /* active&pending */,
                            0.0 /* replica */}, // evict nothing
-            pagerSemaphore,
-            ITEM_PAGER,
-            false,
-            VBucketFilter(),
             cfg.getItemEvictionAgePercentage(),
-            cfg.getItemEvictionFreqCounterAgeThreshold());
+            cfg.getItemEvictionFreqCounterAgeThreshold(),
+            nullptr /* epstats */);
+    std::unique_ptr<MockPagingVisitor> pv =
+            std::make_unique<MockPagingVisitor>(*engine->getKVBucket(),
+                                                engine->getEpStats(),
+                                                std::move(evictionStrategy),
+                                                pagerSemaphore,
+                                                ITEM_PAGER,
+                                                false,
+                                                VBucketFilter());
 
     VBucketPtr vb = store->getVBucket(vbid);
     pv->visitBucket(*vb);
@@ -912,25 +912,22 @@ TEST_P(STItemPagerTest, decayByOne) {
     storeItem(item);
 
     auto pagerSemaphore = std::make_shared<cb::Semaphore>();
-    Configuration& cfg = engine->getConfiguration();
     std::unique_ptr<MockPagingVisitor> pv = std::make_unique<MockPagingVisitor>(
             *engine->getKVBucket(),
             engine->getEpStats(),
-            EvictionRatios{1.0 /* active&pending */,
-                           1.0 /* replica */}, // try evict everything
+            // try evict everything, hotness/age eviction behaviour is not
+            // under test here.
+            ItemEvictionStrategy::evict_everything(),
             pagerSemaphore,
             ITEM_PAGER,
             false,
-            VBucketFilter(),
-            cfg.getItemEvictionAgePercentage(),
-            cfg.getItemEvictionFreqCounterAgeThreshold());
+            VBucketFilter());
 
     pv->setCurrentBucket(*engine->getKVBucket()->getVBucket(vbid));
     flushVBucketToDiskIfPersistent(vbid);
     int iterationCount = 0;
     while ((pv->getEjected() == 0) &&
            iterationCount <= Item::initialFreqCount) {
-        pv->setFreqCounterThreshold(0);
         VBucketPtr vb = store->getVBucket(vbid);
         vb->ht.visit(*pv);
         iterationCount++;
@@ -952,48 +949,38 @@ TEST_P(STItemPagerTest, doNotDecayIfCannotEvict) {
     storeItem(item);
 
     auto pagerSemaphore = std::make_shared<cb::Semaphore>();
-    Configuration& cfg = engine->getConfiguration();
     std::unique_ptr<MockPagingVisitor> pv = std::make_unique<MockPagingVisitor>(
             *engine->getKVBucket(),
             engine->getEpStats(),
-            EvictionRatios{1.0 /* active&pending */,
-                           1.0 /* replica */}, // try evict everything
+            // try evict everything, hotness/age eviction behaviour is not
+            // under test here.
+            ItemEvictionStrategy::evict_everything(),
             pagerSemaphore,
             ITEM_PAGER,
             false,
-            VBucketFilter(),
-            cfg.getItemEvictionAgePercentage(),
-            cfg.getItemEvictionFreqCounterAgeThreshold());
+            VBucketFilter());
 
     pv->setCurrentBucket(*engine->getKVBucket()->getVBucket(vbid));
     store->setVBucketState(vbid, vbucket_state_replica);
 
-    auto& evictionStrat = pv->getItemEvictionStrategy();
+    VBucketPtr vb = store->getVBucket(vbid);
     for (int ii = 0; ii <= Item::initialFreqCount; ii++) {
-        pv->setFreqCounterThreshold(0);
-        VBucketPtr vb = store->getVBucket(vbid);
-        evictionStrat.setupVBucketVisit(vb->getNumItems());
         vb->ht.visit(*pv);
-        evictionStrat.tearDownVBucketVisit(vb->getState());
     }
 
-    // Now make the document eligible for eviction.
-    store->setVBucketState(vbid, vbucket_state_active);
-    flushVBucketToDiskIfPersistent(vbid);
-
-    // Check still not be able to evict, because the frequency count is still
-    // at Item::initialFreqCount
-    pv->setFreqCounterThreshold(0);
-    VBucketPtr vb = store->getVBucket(vbid);
-    evictionStrat.setupVBucketVisit(vb->getNumItems());
-    vb->ht.visit(*pv);
-    evictionStrat.tearDownVBucketVisit(vb->getState());
-    auto initialFreqCount = Item::initialFreqCount;
-    EXPECT_EQ(initialFreqCount,
-              static_cast<ItemEviction&>(evictionStrat)
-                      .getThresholds(100.0, 0.0)
-                      .first);
+    // no items were ejected.
     EXPECT_EQ(0, pv->getEjected());
+
+    {
+        const auto* sv =
+                vb->ht.findForRead(key, TrackReference::No, WantsDeleted::Yes)
+                        .storedValue;
+
+        // stored value should still be in the HT
+        EXPECT_TRUE(sv);
+        // freq counter value was not decayed, despite being visited
+        EXPECT_EQ(Item::initialFreqCount, sv->getFreqCounterValue());
+    }
 }
 
 /**
@@ -1318,18 +1305,14 @@ TEST_P(STItemPagerTest, ItemPagerEvictionOrder) {
 
     auto& stats = engine->getEpStats();
     auto pagerSemaphore = std::make_shared<cb::Semaphore>();
-    auto& config = engine->getConfiguration();
-
     auto pv = std::make_unique<MockPagingVisitor>(
             *store,
             stats,
-            EvictionRatios{1.0 /*active*/, 1.0 /*replica*/},
+            ItemEvictionStrategy::evict_everything(),
             pagerSemaphore,
             ITEM_PAGER,
             false,
-            VBucketFilter(ephemeral() ? activeVBs : allVBs),
-            config.getItemEvictionAgePercentage(),
-            config.getItemEvictionFreqCounterAgeThreshold());
+            VBucketFilter(ephemeral() ? activeVBs : allVBs));
 
     using namespace testing;
     InSequence s;
@@ -1458,13 +1441,11 @@ TEST_P(STItemPagerTest, MB43559_EvictionWithoutReplicasReachesLWM) {
     auto pv = std::make_unique<MockPagingVisitor>(
             *store,
             stats,
-            EvictionRatios{1.0 /* active&pending */, 1.0 /* replica */},
+            ItemEvictionStrategy::evict_everything(),
             pagerSemaphore,
             ITEM_PAGER,
             false,
-            VBucketFilter(vbids),
-            config.getItemEvictionAgePercentage(),
-            config.getItemEvictionFreqCounterAgeThreshold());
+            VBucketFilter(vbids));
 
     auto label = "Item pager";
     auto taskid = TaskId::ItemPagerVisitor;
@@ -1520,14 +1501,15 @@ TEST_P(STItemPagerTest, ItemPagerUpdatesMFUHistogram) {
     MockPagingVisitor visitor(
             *engine->getKVBucket(),
             engine->getEpStats(),
-            EvictionRatios{1.0 /* active&pending */,
-                           1.0 /* replica */}, // try evict everything
+            // testing items which are visited but _not_ evicted so have their
+            // MFU decreased - use a dummy strategy which does not try to
+            // evict anything to simulate all items being over the target
+            // MFU threshold.
+            ItemEvictionStrategy::evict_nothing(),
             pagerSemaphore,
             ITEM_PAGER,
             false,
-            VBucketFilter(),
-            0 /* "protected" age percentage */,
-            255 /* mfu age threshold */);
+            VBucketFilter());
 
     visitor.setCurrentBucket(vbucket);
 
@@ -1952,18 +1934,15 @@ TEST_P(STItemPagerTest, ItemPagerEvictionOrderIsSafe) {
 
     auto& stats = engine->getEpStats();
     auto pagerSemaphore = std::make_shared<cb::Semaphore>();
-    auto& config = engine->getConfiguration();
 
     auto pv = std::make_unique<MockPagingVisitor>(
             *store,
             stats,
-            EvictionRatios{1.0 /*active*/, 1.0 /*replica*/},
+            ItemEvictionStrategy::evict_everything(),
             pagerSemaphore,
             ITEM_PAGER,
             false,
-            VBucketFilter(allVBs),
-            config.getItemEvictionAgePercentage(),
-            config.getItemEvictionFreqCounterAgeThreshold());
+            VBucketFilter(allVBs));
 
     // now test that even with state changes, the comparator sorts the vbuckets
     // acceptably

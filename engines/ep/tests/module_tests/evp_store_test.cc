@@ -2044,14 +2044,11 @@ void EPBucketFullEvictionNoBloomFilterTest::MB_52067(bool forceCasMismatch) {
     auto pv = std::make_unique<MockPagingVisitor>(
             *engine->getKVBucket(),
             engine->getEpStats(),
-            EvictionRatios{1.0 /* active&pending */,
-                           1.0 /* replica */}, // try evict everything
+            ItemEvictionStrategy::evict_everything(), // try evict everything
             pagerSemaphore,
             ITEM_PAGER,
             false,
-            VBucketFilter(),
-            0 /* "protected" age percentage */,
-            255 /* mfu age threshold */);
+            VBucketFilter());
 
     // Drop the low watermark to ensure paging removes everything
     engine->getConfiguration().setMemLowWat(0);
