@@ -1406,8 +1406,9 @@ private:
 
     // Vector to keep track of the threads we've started to ensure
     // we don't leak memory ;-)
-    std::mutex threads_mutex;
-    std::vector<std::unique_ptr<Couchbase::Thread> > threads;
+    folly::Synchronized<std::vector<std::unique_ptr<Couchbase::Thread>>,
+                        std::mutex>
+            threads;
 };
 
 EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
@@ -1418,7 +1419,7 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 }
 
 EWB_Engine::~EWB_Engine() {
-    threads.clear();
+    threads.lock()->clear();
     stop_notification_thread = true;
     condvar.notify_all();
     notify_io_thread->waitForState(Couchbase::ThreadState::Zombie);
@@ -1958,8 +1959,7 @@ cb::engine_errc EWB_Engine::handleBlockMonitorFile(
         std::unique_ptr<Couchbase::Thread> thread(
                 new BlockMonitorThread(*this, id, file));
         thread->start();
-        std::lock_guard<std::mutex> guard(threads_mutex);
-        threads.emplace_back(thread.release());
+        threads.lock()->emplace_back(thread.release());
     } catch (std::exception& e) {
         LOG_WARNING(
                 "EWB_Engine::handleBlockMonitorFile(): Failed to create "
