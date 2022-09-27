@@ -1347,53 +1347,52 @@ private:
     std::map<const CookieIface*, std::pair<bool, uint64_t>> dcp_stream;
 
     friend class BlockMonitorThread;
-    std::map<uint32_t, const CookieIface*> suspended_map;
-    std::mutex suspended_map_mutex;
+
+    /// A map from connection id to cookies which are suspended
+    folly::Synchronized<std::unordered_map<uint32_t, const CookieIface*>,
+                        std::mutex>
+            suspended_map;
 
     bool suspendConn(const CookieIface* cookie, uint32_t id) {
-        {
-            std::lock_guard<std::mutex> guard(suspended_map_mutex);
-            auto iter = suspended_map.find(id);
-            if (iter == suspended_map.cend()) {
-                suspended_map[id] = cookie;
-                return true;
-            }
-        }
-
-        return false;
+        return suspended_map.withLock([id, cookie](auto& map) {
+            auto [iter, inserted] = map.insert({id, cookie});
+            return inserted;
+        });
     }
 
     bool resumeConn(uint32_t id) {
         const CookieIface* cookie = nullptr;
-        {
-            std::lock_guard<std::mutex> guard(suspended_map_mutex);
-            auto iter = suspended_map.find(id);
-            if (iter == suspended_map.cend()) {
-                return false;
-            }
-            cookie = iter->second;
-            suspended_map.erase(iter);
+        if (suspended_map.withLock([id, &cookie](auto& map) {
+                auto iter = map.find(id);
+                if (iter == map.cend()) {
+                    return false;
+                }
+                cookie = iter->second;
+                map.erase(iter);
+                return true;
+            })) {
+            schedule_notification(cookie, cb::engine_errc::success);
+            return true;
         }
-
-        schedule_notification(cookie, cb::engine_errc::success);
-        return true;
+        return false;
     }
 
     bool is_connection_suspended(const CookieIface* cookie) {
-        std::lock_guard<std::mutex> guard(suspended_map_mutex);
-        for (const auto& c : suspended_map) {
-            if (c.second == cookie) {
-                LOG_DEBUG(
-                        "Connection {} with id {} should be suspended for "
-                        "engine {}",
-                        static_cast<const void*>(c.second),
-                        c.first,
-                        (void*)this);
+        return suspended_map.withLock([cookie, this](const auto& map) {
+            for (const auto& [id, c] : map) {
+                if (c == cookie) {
+                    LOG_DEBUG(
+                            "Connection {} with id {} should be suspended for "
+                            "engine {}",
+                            static_cast<const void*>(c),
+                            id,
+                            (void*)this);
 
-                return true;
+                    return true;
+                }
             }
-        }
-        return false;
+            return false;
+        });
     }
 
     void schedule_notification(const CookieIface* cookie,
