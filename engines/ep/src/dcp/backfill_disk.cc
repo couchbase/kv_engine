@@ -95,7 +95,8 @@ void CacheCallback::callback(CacheLookup& lookup) {
     } else {
         auto gv = get(*vb, lookup, *stream_);
         // If we could not retrieve the value or the Item seqNo does not match,
-        // return success so the stream continues onto the next key; no backfill
+        // return success so the stream continues onto backfilling from the
+        // storage.
         if (gv.getStatus() != cb::engine_errc::success ||
             gv.item->getBySeqno() != lookup.getBySeqno()) {
             setStatus(cb::engine_errc::success);

@@ -2843,12 +2843,20 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
 
         if (cl.shouldYield()) {
             return COUCHSTORE_ERROR_SCAN_YIELD;
-        } else if (cl.getStatus() == cb::engine_errc::key_already_exists) {
+        }
+        if (cl.getStatus() == cb::engine_errc::key_already_exists) {
+            // Seqno found in memory and pushed to the stream, done.
             sctx->lastReadSeqno = byseqno;
             return COUCHSTORE_SUCCESS;
-        } else if (cl.getStatus() != cb::engine_errc::success) {
+        }
+        if (cl.getStatus() != cb::engine_errc::success) {
+            // Any error code different than 'success' has the semantic of some
+            // state that requires to cancel the scan.
             return COUCHSTORE_ERROR_SCAN_CANCELLED;
         }
+        // NOTE: cb::engine_errc::success returned from CacheCallback for
+        //   informing the caller that seqno wasn't found in memory.
+        //   Scan needs to proceed with a disk lookup.
     }
 
     auto metadata = MetaDataFactory::createMetaData(docinfo->rev_meta);
