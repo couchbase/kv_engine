@@ -14,6 +14,7 @@
 #include "collections/vbucket_manifest.h"
 #include "configuration.h"
 #include "environment.h"
+#include "item.h"
 #include "kvstore/kvstore_config.h"
 #include "kvstore/kvstore_iface.h"
 #include "kvstore/kvstore_transaction_context.h"
