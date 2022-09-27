@@ -299,6 +299,7 @@ TEST_P(StatsTest, MB37147_TestEWBReturnFromStat) {
                                               sequence);
         auto stats = connection.stats("vbucket");
         EXPECT_FALSE(stats.empty());
+        connection.disableEwouldBlockEngine();
     });
 }
 
@@ -336,6 +337,7 @@ TEST_P(StatsTest, MB52728_TestEWBReturnFromStatBGTask) {
                                               /*unused*/ {},
                                               sequence);
         auto stats = connection.stats(statKey);
+        connection.disableEwouldBlockEngine();
     });
 }
 
