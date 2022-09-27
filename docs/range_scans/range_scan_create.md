@@ -232,8 +232,7 @@ number which must exist, i.e. `"seqno_exists":true`, was not found.
 
 **Status::NotMyVbucket (0x07)**
 
-Additional to the usual cause of this status (e.g. vb is replica or not on this
-node), a vb-uuid mismatch will result in this status.
+Server does not own an active copy of the vbucket.
 
 **Status::Erange (0x22)**
 
@@ -256,3 +255,8 @@ and it is unlikely that a retry will succeed.
 The server is busy and cannot open a new disk snapshot. The server has an upper
 bound on how many disk scans can be concurrently on-going, both Range Scans and
 DCP perform scans.
+
+**Status::VbUuidNotEqual (0xa8)**
+
+This status is returned when snapshot requirements are requested and the value
+of "vb_uuid" does not match the value from the server's vbucket.

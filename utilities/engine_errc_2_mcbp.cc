@@ -84,6 +84,8 @@ cb::mcbp::Status cb::mcbp::to_status(cb::engine_errc code) {
         return Status::RangeScanMore;
     case engine_errc::range_scan_complete:
         return Status::RangeScanComplete;
+    case cb::engine_errc::vbuuid_not_equal:
+        return Status::VbUuidNotEqual;
     case engine_errc::too_many_connections:
         return Status::RateLimitedMaxConnections;
 

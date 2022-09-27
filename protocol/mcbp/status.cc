@@ -63,6 +63,7 @@ bool is_known(Status status) {
     case Status::RangeScanCancelled:
     case Status::RangeScanMore:
     case Status::RangeScanComplete:
+    case Status::VbUuidNotEqual:
     case Status::SubdocPathEnoent:
     case Status::SubdocPathMismatch:
     case Status::SubdocPathEinval:
@@ -149,6 +150,7 @@ bool isStatusSuccess(Status status) {
     case Status::SyncWriteAmbiguous:
     case Status::SyncWriteReCommitInProgress:
     case Status::RangeScanCancelled:
+    case Status::VbUuidNotEqual:
     case Status::SubdocPathEnoent:
     case Status::SubdocPathMismatch:
     case Status::SubdocPathEinval:
@@ -304,6 +306,8 @@ std::string to_string(cb::mcbp::Status status, bool shortname) {
             return "RangeScanMore";
         case Status::RangeScanComplete:
             return "RangeScanComplete";
+        case Status::VbUuidNotEqual:
+            return "VbUuidNotEqual";
         case Status::SubdocPathEnoent:
             return "SubdocPathEnoent";
         case Status::SubdocPathMismatch:
@@ -453,6 +457,8 @@ std::string to_string(cb::mcbp::Status status, bool shortname) {
             return "RangeScan has more data available";
         case Status::RangeScanComplete:
             return "RangeScan has completed";
+        case Status::VbUuidNotEqual:
+            return "VBucket uuid does not match";
         case Status::SubdocPathEnoent:
             return "Subdoc: Path not does not exist";
         case Status::SubdocPathMismatch:

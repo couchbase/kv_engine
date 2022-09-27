@@ -161,7 +161,7 @@ cb::rangescan::Id RangeScan::createScan(
                          bucket.getEPEngine().getMaxFailoverEntries(),
                          state.state.highSeqno);
         if (ft.getLatestUUID() != snapshotReqs->vbUuid) {
-            throw cb::engine_error(cb::engine_errc::not_my_vbucket,
+            throw cb::engine_error(cb::engine_errc::vbuuid_not_equal,
                                    fmt::format("RangeScan::createScan {} "
                                                "snapshotReqs vbUuid mismatch "
                                                "res:{} vs vbstate:{}",

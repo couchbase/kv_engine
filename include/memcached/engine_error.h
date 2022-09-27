@@ -136,11 +136,14 @@ enum class engine_errc {
     /// RangeScan has completed, successfully, no more data.
     range_scan_complete = 0x28,
 
+    /// RangeScan create failed due to vb-uuid mismatch
+    vbuuid_not_equal = 0x29,
+
     /// Too many connections
-    too_many_connections = 0x29,
+    too_many_connections = 0x2a,
 
     /// Throttled for some reason
-    throttled = 0x2a,
+    throttled = 0x2b,
 
     /** Generic failue. */
     failed = 0xff

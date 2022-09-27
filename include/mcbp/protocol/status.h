@@ -172,6 +172,9 @@ enum class Status : uint16_t {
     /// A RangeScan has completed successfully
     RangeScanComplete = 0xa7,
 
+    /// A RangeScan create failed because of vb-uuid mismatch
+    VbUuidNotEqual = 0xa8,
+
     /*
      * Sub-document specific responses.
      */

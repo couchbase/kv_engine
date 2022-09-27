@@ -367,6 +367,13 @@
                 "success"
             ]
         },
+        "a8": {
+            "name": "VbUuidNotEqual",
+            "desc": "The provided vbucket uuid does not equal the server's vbucket uuid",
+            "attrs": [
+                 "invalid-input"
+            ]
+        },
         "c0": {
             "name": "SUBDOC_PATH_ENOENT",
             "desc": "Subdoc: Path not found in document",

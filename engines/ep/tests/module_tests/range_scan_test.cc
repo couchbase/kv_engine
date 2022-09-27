@@ -948,7 +948,7 @@ TEST_P(RangeScanTest, vb_uuid_check) {
             1, uint64_t(vb->getHighSeqno()), std::nullopt, false};
     // This error is detected on first invocation, no need for ewouldblock
     // uuid check occurs in EPBucket, so don't test via VBucket
-    EXPECT_EQ(cb::engine_errc::not_my_vbucket,
+    EXPECT_EQ(cb::engine_errc::vbuuid_not_equal,
               store->createRangeScan(vbid,
                                      scanCollection,
                                      {"user"},
@@ -1196,7 +1196,7 @@ TEST_P(RangeScanTest, scan_detects_vbucket_change) {
                 "RangeScanCreateTask");
 
     // task detected the vbucket has changed and aborted
-    EXPECT_EQ(cb::engine_errc::not_my_vbucket, mock_waitfor_cookie(cookie));
+    EXPECT_EQ(cb::engine_errc::vbuuid_not_equal, mock_waitfor_cookie(cookie));
 }
 
 // Test that if the vbucket changes after during the continue phase, the scan
@@ -1747,6 +1747,7 @@ bool TestRangeScanHandler::validateStatus(cb::engine_errc code) {
     case cb::engine_errc::stream_not_found:
     case cb::engine_errc::opaque_no_match:
     case cb::engine_errc::scope_size_limit_exceeded:
+    case cb::engine_errc::vbuuid_not_equal:
         return false;
     };
     throw std::invalid_argument(
