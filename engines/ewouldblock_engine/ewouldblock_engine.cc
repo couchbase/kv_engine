@@ -89,9 +89,6 @@
 
 class EWB_Engine;
 
-// Mapping from wrapped handle to EWB handles.
-static std::map<EngineIface*, EWB_Engine*> engine_map;
-
 class NotificationThread : public Couchbase::Thread {
 public:
     explicit NotificationThread(EWB_Engine& engine_)
@@ -314,7 +311,6 @@ public:
 
         real_engine_dcp = dynamic_cast<DcpIface*>(real_engine.get());
 
-        engine_map[real_engine.get()] = this;
         return real_engine->initialize(real_engine_config);
     }
 
