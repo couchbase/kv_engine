@@ -16,6 +16,7 @@
 #include <folly/portability/GTest.h>
 #include <memcached/storeddockey.h>
 #include <platform/base64.h>
+#include <platform/timeutils.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <protocol/connection/frameinfo.h>
@@ -382,12 +383,8 @@ protected:
 
     void testRangeScan(bool keyOnly);
 
-    static int64_t clockShift;
-
     std::unique_ptr<MemcachedConnection> conn;
 };
-
-int64_t MeteringTest::clockShift{0};
 
 void MeteringTest::upsert(DocKey id,
                           std::string value,
@@ -3062,13 +3059,14 @@ TEST_P(MeteringTest, TTL_Expiry_Get) {
             "bucket_details metering");
     size_t expiredBefore = std::stoull(getStatForKey("vb_active_expired"));
 
-    // fast forward 2 second and the document should have been
-    // expired
-    clockShift += 2;
-    conn->adjustMemcachedClock(
-            clockShift, cb::mcbp::request::AdjustTimePayload::TimeType::Uptime);
+    BinprotResponse rsp;
+    waitForPredicateUntil(
+            [&rsp, &id, this]() {
+                rsp = conn->execute(BinprotGetCommand{std::string{id}});
+                return !rsp.isSuccess();
+            },
+            std::chrono::seconds{3});
 
-    auto rsp = conn->execute(BinprotGetCommand{std::string{id}});
     ASSERT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus())
             << "should have been TTL expired";
 
@@ -3085,17 +3083,6 @@ TEST_P(MeteringTest, TTL_Expiry_Get) {
     // @todo: MB-51979 expiry in an unmetered collection is updating wu
     EXPECT_EQ(1,
               after["wu"].get<std::size_t>() - before["wu"].get<std::size_t>());
-    // We can't reset the offset as that would cause ep-engine to
-    // disconnect the DCP stream as it doesn't look like it handle
-    // the clock going backwards very well:
-    //
-    //  eq_dcpq:n_0->n_2 - Disconnecting because a message has not
-    //  been received for the DCP idle timeout of 360s. Sent last
-    //  message (e.g. mutation/noop/streamEnd) 4294967276s ago.
-    //  Received last message 4294967276s ago. DCP noop
-    //  [lastSent:4294967276s, lastRecv:4294967276s, interval:1s,
-    //  opaque:10000008, pendingRecv:false], paused:true,
-    //  pausedReason:ReadyListEmpty
 }
 
 TEST_P(MeteringTest, TTL_Expiry_Compaction) {
@@ -3116,11 +3103,8 @@ TEST_P(MeteringTest, TTL_Expiry_Compaction) {
             "bucket_details metering");
     size_t expiredBefore = std::stoull(getStatForKey("vb_active_expired"));
 
-    // fast forward another 2 seconds and the document should have
-    // been expired
-    clockShift += 2;
-    conn->adjustMemcachedClock(
-            clockShift, cb::mcbp::request::AdjustTimePayload::TimeType::Uptime);
+    // wait 2 seconds and the document should be expired
+    std::this_thread::sleep_for(std::chrono::seconds{2});
 
     auto admin = cluster->getConnection(0);
     admin->authenticate("@admin", "password");
@@ -3139,17 +3123,6 @@ TEST_P(MeteringTest, TTL_Expiry_Compaction) {
 
     size_t expiredAfter = std::stoull(getStatForKey("vb_active_expired"));
     EXPECT_NE(expiredBefore, expiredAfter);
-    // We can't reset the offset as that would cause ep-engine to
-    // disconnect the DCP stream as it doesn't look like it handle
-    // the clock going backwards very well:
-    //
-    //  eq_dcpq:n_0->n_2 - Disconnecting because a message has not
-    //  been received for the DCP idle timeout of 360s. Sent last
-    //  message (e.g. mutation/noop/streamEnd) 4294967276s ago.
-    //  Received last message 4294967276s ago. DCP noop
-    //  [lastSent:4294967276s, lastRecv:4294967276s, interval:1s,
-    //  opaque:10000008, pendingRecv:false], paused:true,
-    //  pausedReason:ReadyListEmpty
 }
 
 void MeteringTest::testRangeScan(bool keyOnly) {
