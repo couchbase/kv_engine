@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -9,6 +8,7 @@
  *   the file licenses/APL2.txt.
  */
 #include "audit.h"
+#include "audit_event_filter.h"
 #include "auditd_audit_events.h"
 #include "configureevent.h"
 #include "event.h"
@@ -30,6 +30,8 @@
 #include <string>
 
 using namespace std::string_view_literals;
+
+std::atomic<uint64_t> AuditImpl::generation = {0};
 
 AuditImpl::AuditImpl(std::string config_file, std::string host)
     : Audit(),
@@ -184,6 +186,7 @@ bool AuditImpl::configure() {
 
     try {
         config.initialize_config(config_json);
+        ++generation;
     } catch (const nlohmann::json::exception& e) {
         LOG_WARNING(
                 R"(Audit::configure:: Configuration error in "{}". Error: {}.)"
@@ -424,4 +427,8 @@ void AuditImpl::consume_events() {
 
     // close the auditfile
     auditfile.close();
+}
+
+std::unique_ptr<AuditEventFilter> AuditImpl::createAuditEventFilter() {
+    return config.createAuditEventFilter(generation);
 }

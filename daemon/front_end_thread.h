@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -11,6 +10,7 @@
 
 #pragma once
 
+#include "auditd/src/audit_event_filter.h"
 #include "ssl_utils.h"
 #include <folly/Synchronized.h>
 #include <folly/io/async/EventBase.h>
@@ -132,6 +132,18 @@ struct FrontEndThread {
     void iterateThrottleableDcpConnections(
             std::function<void(Connection&)> callback);
 
+    /**
+     * Check to see if the provided event should be filtered out for the
+     * provided user.
+     *
+     * @param id The event to check
+     * @param user The user to check
+     * @return true if the event should be dropped, false if it should be
+     *              submitted to the audit daemon.
+     */
+    bool is_audit_event_filtered_out(uint32_t id,
+                                     const cb::rbac::UserIdent& user);
+
 protected:
     void dispatch_new_connections();
 
@@ -165,6 +177,9 @@ protected:
 
     /// A list of all DCP connections bound this thread
     std::deque<std::reference_wrapper<Connection>> dcp_connections;
+
+    /// The audit event filter used by this thread
+    std::unique_ptr<AuditEventFilter> auditEventFilter;
 };
 
 class Hdr1sfMicroSecHistogram;
