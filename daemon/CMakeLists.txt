@@ -25,8 +25,6 @@ add_library(memcached_daemon STATIC
             external_auth_manager_thread.h
             server_socket.cc
             server_socket.h
-            connections.cc
-            connections.h
             cookie.cc
             cookie.h
             datatype_filter.cc

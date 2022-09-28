@@ -11,7 +11,6 @@
  */
 #include "buckets.h"
 #include "connection.h"
-#include "connections.h"
 #include "cookie.h"
 #include "front_end_thread.h"
 #include "listening_port.h"
@@ -139,7 +138,7 @@ void iterate_all_connections(std::function<void(Connection&)> callback) {
                                   "mutex",
                                   "iterate_all_connections::threadLock",
                                   SlowMutexThreshold);
-            iterate_thread_connections(&thr, callback);
+            thr.iterate_connections(callback);
         });
     }
 }
@@ -162,18 +161,62 @@ static void worker_libevent(void *arg) {
 }
 
 void FrontEndThread::dispatch_new_connections() {
-    std::vector<ConnectionQueue::Entry> connections;
-    new_conn_queue.swap(connections);
+    std::vector<ConnectionQueue::Entry> accept_connections;
+    new_conn_queue.swap(accept_connections);
 
-    for (auto& entry : connections) {
+    for (auto& entry : accept_connections) {
         const bool system = entry.descr->system;
-        if (conn_new(entry.sock, *this, std::move(entry.descr)) == nullptr) {
+        bool success = false;
+        try {
+            auto connection = Connection::create(
+                    entry.sock, *this, std::move(entry.descr));
+            auto* c = connection.get();
+            connections.insert({c, std::move(connection)});
+            stats.total_conns++;
+            associate_initial_bucket(*c);
+            success = true;
+        } catch (const std::bad_alloc&) {
+            LOG_WARNING_RAW("Failed to allocate memory for connection");
+        } catch (const std::exception& error) {
+            LOG_WARNING("Failed to create connection: {}", error.what());
+        } catch (...) {
+            LOG_WARNING_RAW("Failed to create connection");
+        }
+
+        if (!success) {
             if (system) {
                 --stats.system_conns;
             }
             safe_close(entry.sock);
         }
     }
+}
+
+void FrontEndThread::destroy_connection(Connection& connection) {
+    auto node = connections.extract(&connection);
+    if (node.key() != &connection) {
+        throw std::logic_error("destroy_connection: Connection not found");
+    }
+}
+
+void FrontEndThread::iterate_connections(
+        std::function<void(Connection&)> callback) {
+    for (const auto& [c, conn] : connections) {
+        callback(*c);
+    }
+}
+
+int FrontEndThread::signal_idle_clients(bool dumpConnection) {
+    int connected = 0;
+    iterate_connections(
+            [this, &connected, dumpConnection](Connection& connection) {
+                ++connected;
+                if (!connection.signalIfIdle() && dumpConnection) {
+                    auto details = connection.to_json().dump();
+                    LOG_INFO("Worker thread {}: {}", index, details);
+                }
+            });
+    return connected;
 }
 
 void FrontEndThread::dispatch(SOCKET sfd,
@@ -188,7 +231,7 @@ void FrontEndThread::dispatch(SOCKET sfd,
         thread.new_conn_queue.push(sfd, std::move(descr));
         thread.eventBase.runInEventBaseThread([&thread]() {
             if (is_memcached_shutting_down()) {
-                if (signal_idle_clients(thread, false) == 0) {
+                if (thread.signal_idle_clients(false) == 0) {
                     LOG_INFO("Stopping worker thread {}", thread.index);
                     thread.eventBase.terminateLoopSoon();
                     return;
@@ -264,10 +307,10 @@ void worker_threads_init() {
 }
 
 void threads_shutdown() {
-    // Notify all of the threads and let them shut down
+    // Notify all the threads and let them shut down
     for (auto& thread : threads) {
         thread.eventBase.runInEventBaseThread([&thread]() {
-            if (signal_idle_clients(thread, false) == 0) {
+            if (thread.signal_idle_clients(false) == 0) {
                 LOG_INFO("Stopping worker thread {}", thread.index);
                 thread.eventBase.terminateLoopSoon();
                 return;
@@ -283,7 +326,7 @@ void threads_shutdown() {
         // connections could be "stuck" for another round in the event loop.
         while (thread.running) {
             thread.eventBase.runInEventBaseThread([&thread]() {
-                if (signal_idle_clients(thread, false) == 0) {
+                if (thread.signal_idle_clients(false) == 0) {
                     LOG_INFO("Stopping worker thread {}", thread.index);
                     thread.eventBase.terminateLoopSoon();
                     return;

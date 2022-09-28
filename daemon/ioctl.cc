@@ -11,7 +11,6 @@
 #include "ioctl.h"
 
 #include "connection.h"
-#include "connections.h"
 #include "cookie.h"
 #include "settings.h"
 #include "tracing.h"

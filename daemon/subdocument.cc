@@ -12,7 +12,6 @@
 #include "subdocument.h"
 
 #include "buckets.h"
-#include "connections.h"
 #include "front_end_thread.h"
 #include "mcaudit.h"
 #include "protocol/mcbp/engine_wrapper.h"

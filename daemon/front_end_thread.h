@@ -144,6 +144,26 @@ struct FrontEndThread {
     bool is_audit_event_filtered_out(uint32_t id,
                                      const cb::rbac::UserIdent& user);
 
+    /// Destroy (delete) the connection
+    void destroy_connection(Connection& c);
+
+    /**
+     * Signal all of the idle clients bound to the specified front
+     * end thread
+     *
+     * @return The number of clients connections bound to this thread
+     */
+    int signal_idle_clients(bool dumpConnection);
+
+    /**
+     * Iterate over all of the connections and call the callback function
+     * for each of the connections.
+     *
+     * @param callback the callback function to be called for each of the
+     *                 connections
+     */
+    void iterate_connections(std::function<void(Connection&)> callback);
+
 protected:
     void dispatch_new_connections();
 
@@ -180,6 +200,9 @@ protected:
 
     /// The audit event filter used by this thread
     std::unique_ptr<AuditEventFilter> auditEventFilter;
+
+    /// All connections bound to this connection
+    std::unordered_map<Connection*, std::unique_ptr<Connection>> connections;
 };
 
 class Hdr1sfMicroSecHistogram;

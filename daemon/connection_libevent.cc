@@ -10,7 +10,6 @@
 #include "connection_libevent.h"
 
 #include "buckets.h"
-#include "connections.h"
 #include "cookie.h"
 #include "front_end_thread.h"
 #include "listening_port.h"
@@ -113,7 +112,7 @@ void LibeventConnection::read_callback() {
                           SlowMutexThreshold);
 
     if (!executeCommandsCallback()) {
-        conn_destroy(this);
+        thread.destroy_connection(*this);
     }
 }
 
@@ -135,7 +134,7 @@ void LibeventConnection::write_callback() {
                           SlowMutexThreshold);
 
     if (!executeCommandsCallback()) {
-        conn_destroy(this);
+        thread.destroy_connection(*this);
     }
 }
 
@@ -263,7 +262,7 @@ void LibeventConnection::event_callback(bufferevent* bev,
         }
 
         if (!instance.executeCommandsCallback()) {
-            conn_destroy(&instance);
+            thread.destroy_connection(instance);
         }
     }
 }

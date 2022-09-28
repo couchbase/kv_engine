@@ -9,7 +9,6 @@
  */
 #include "connection_folly.h"
 #include "buckets.h"
-#include "connections.h"
 #include "cookie.h"
 #include "front_end_thread.h"
 #include "mcaudit.h"
@@ -431,14 +430,14 @@ void FollyConnection::scheduleExecution() {
                 // we might have a stack of events we're waiting for
                 // notifications on..
                 if (asyncWriteCallback->getSendQueueSize() == 0) {
-                    conn_destroy(this);
+                    thread.destroy_connection(*this);
                 }
                 return;
             }
 
             if (!executeCommandsCallback() &&
                 asyncWriteCallback->getSendQueueSize() == 0) {
-                conn_destroy(this);
+                thread.destroy_connection(*this);
             }
         });
     }
