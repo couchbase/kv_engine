@@ -306,8 +306,7 @@ void CollectionsOSODcpTest::testTwoCollections(bool backfillWillPause,
     }
 
     // Backfill will now have completed
-    EXPECT_EQ(cb::engine_errc::success,
-              producer->stepWithBorderGuard(*producers));
+    step();
 
     if (osoMode == OutOfOrderSnapshots::YesWithSeqnoAdvanced &&
         txHighSeqno != highSeqno) {

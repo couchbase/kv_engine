@@ -343,9 +343,8 @@ cb::engine_errc RangeScan::continueScan(KVStoreIface& kvstore) {
         // Set to idle, which will send success to the handler
         auto status = tryAndSetStateIdle(cb::engine_errc::range_scan_more);
 
-        // For RangeScan we have already consumed the last key, which is
-        // different to DCP scans where the last key is read and 'rejected', so
-        // must be read again. We adjust the startKey so we continue from next
+        // For RangeScan we have already consumed the last key, so we adjust the
+        // startKey so we continue from next.
         scanCtx->ranges[0].startKey.append(0);
 
         // return range_scan_more status so scan can continue

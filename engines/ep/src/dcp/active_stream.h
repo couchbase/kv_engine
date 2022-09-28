@@ -232,7 +232,15 @@ public:
      */
     bool markOSODiskSnapshot(uint64_t endSeqno);
 
-    bool backfillReceived(std::unique_ptr<Item> itm,
+    /**
+     * Pushes the backfilled item into the stream readyQ.
+     *
+     * @param item
+     * @param backfill_source Memory/Disk depending on whether we had a cache
+     *   hit/miss
+     * @return true if the backfill can continue, false otherwise.
+     */
+    bool backfillReceived(std::unique_ptr<Item> item,
                           backfill_source_t backfill_source);
 
     /**

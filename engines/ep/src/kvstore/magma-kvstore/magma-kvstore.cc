@@ -1881,7 +1881,9 @@ ScanStatus MagmaKVStore::scan(ByIdScanContext& ctx) const {
             range.rangeScanSuccess = true;
             continue;
         case ScanStatus::Yield:
+            // Set the resume point
             range.startKey = ctx.lastReadKey;
+            range.startKey.append(0);
             return status;
         case ScanStatus::Failed:
             // deeper calls log details
@@ -1915,9 +1917,8 @@ ScanStatus MagmaKVStore::scan(ByIdScanContext& ctx,
                 });
         switch (result.code) {
         case MagmaScanResult::Status::Yield:
-            // Only need to update lastReadKey for a Yield, this is the resume
-            // point for the scan. Doing this here to avoid unnecessary alloc +
-            // copy on every key scanned.
+            // Only need to update lastReadKey for a Yield.
+            // Doing this here to avoid unneeded alloc+copy on every key scanned
             ctx.lastReadKey = makeDiskDocKey(keySlice);
         case MagmaScanResult::Status::Success:
         case MagmaScanResult::Status::Cancelled:
@@ -2015,6 +2016,8 @@ MagmaScanResult MagmaKVStore::scanOne(
             }
             return MagmaScanResult::Next();
         } else if (ctx.getCacheCallback().shouldYield()) {
+            // Scan yields after successfully processing this seqno
+            ctx.lastReadSeqno = seqno;
             if (logger->should_log(spdlog::level::TRACE)) {
                 logger->TRACE(
                         "MagmaKVStore::scanOne lookup->callback {} "

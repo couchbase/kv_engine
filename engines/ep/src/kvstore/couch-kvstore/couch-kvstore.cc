@@ -2404,8 +2404,10 @@ ScanStatus CouchKVStore::scan(ByIdScanContext& ctx) const {
                                               static_cast<void*>(&ctx));
         if (errorCode != COUCHSTORE_SUCCESS) {
             if (errorCode == COUCHSTORE_ERROR_SCAN_YIELD) {
-                // Update the startKey so backfill can resume from lastReadKey
+                // Update the startKey so backfill can resume from the key next
+                // to lastReadKey
                 range.startKey = ctx.lastReadKey;
+                range.startKey.append(0);
             }
             break;
         } else {
@@ -2842,6 +2844,8 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
         cl.callback(lookup);
 
         if (cl.shouldYield()) {
+            // Scan yields after successfully processing this seqno
+            sctx->lastReadSeqno = byseqno;
             return COUCHSTORE_ERROR_SCAN_YIELD;
         }
         if (cl.getStatus() == cb::engine_errc::key_already_exists) {
@@ -2930,7 +2934,7 @@ static int byIdScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
     auto status = couchstore_error_t(bySeqnoScanCallback(db, docinfo, ctx));
     if (status == COUCHSTORE_ERROR_SCAN_YIELD) {
         auto* sctx = static_cast<ByIdScanContext*>(ctx);
-        // save the resume point
+        // Save the last processed key
         sctx->lastReadKey = makeDiskDocKey(docinfo->id);
     }
     return int(status);

@@ -116,7 +116,6 @@ BackfillManager::BackfillManager(KVBucket& kvBucket,
 
     buffer.bytesRead = 0;
     buffer.maxBytes = backfillByteLimit;
-    buffer.nextReadSize = 0;
     buffer.full = false;
 }
 
@@ -137,8 +136,6 @@ void BackfillManager::addStats(DcpProducer& conn,
                                const CookieIface* c) {
     std::lock_guard<std::mutex> lh(lock);
     conn.addStat("backfill_buffer_bytes_read", buffer.bytesRead, add_stat, c);
-    conn.addStat(
-            "backfill_buffer_next_read_size", buffer.nextReadSize, add_stat, c);
     conn.addStat("backfill_buffer_max_bytes", buffer.maxBytes, add_stat, c);
     conn.addStat("backfill_buffer_full", buffer.full, add_stat, c);
     conn.addStat("backfill_num_initializing",
@@ -217,6 +214,10 @@ BackfillManager::ScheduleResult BackfillManager::schedule(
 bool BackfillManager::bytesCheckAndRead(size_t bytes) {
     std::lock_guard<std::mutex> lh(lock);
 
+    buffer.bytesRead += bytes;
+    scanBuffer.itemsRead++;
+    scanBuffer.bytesRead += bytes;
+
     // Note: For both backfill/scan buffers, the logic allows reading bytes when
     // 'bytesRead == 0'. That is for ensuring that we allow DCP streaming in a
     // scenario where 'buffer-size < data-size' (eg, imagine 10MB buffer-size
@@ -224,10 +225,9 @@ bool BackfillManager::bytesCheckAndRead(size_t bytes) {
 
     // Space available in the backfill buffer?
     const bool bufferAvailable = buffer.bytesRead == 0 ||
-                                 buffer.bytesRead + bytes <= buffer.maxBytes;
+                                 buffer.bytesRead < buffer.maxBytes;
     if (!bufferAvailable) {
         buffer.full = true;
-        buffer.nextReadSize = bytes;
         return false;
     }
 
@@ -235,14 +235,10 @@ bool BackfillManager::bytesCheckAndRead(size_t bytes) {
     const bool scanAvailable =
             (scanBuffer.itemsRead < scanBuffer.maxItems) &&
             (scanBuffer.bytesRead == 0 ||
-             scanBuffer.bytesRead + bytes <= scanBuffer.maxBytes);
+             scanBuffer.bytesRead < scanBuffer.maxBytes);
     if (!scanAvailable) {
         return false;
     }
-
-    buffer.bytesRead += bytes;
-    scanBuffer.itemsRead++;
-    scanBuffer.bytesRead += bytes;
 
     return true;
 }
@@ -260,26 +256,11 @@ void BackfillManager::bytesSent(size_t bytes) {
     }
     buffer.bytesRead -= bytes;
 
-    if (buffer.full) {
-        /* We can have buffer.bytesRead > buffer.maxBytes */
-        size_t unfilledBufferSize = (buffer.maxBytes > buffer.bytesRead)
-                                            ? buffer.maxBytes - buffer.bytesRead
-                                            : buffer.maxBytes;
-
-        /* If buffer.bytesRead == 0 we want to fit the next read into the
-           backfill buffer irrespective of its size */
-        bool canFitNext = (buffer.bytesRead == 0) ||
-                          (unfilledBufferSize >= buffer.nextReadSize);
-
-        /* <= implicitly takes care of the case where
-           buffer.bytesRead == (buffer.maxBytes * 3 / 4) == 0 */
-        bool enoughCleared = buffer.bytesRead <= (buffer.maxBytes * 3 / 4);
-        if (canFitNext && enoughCleared) {
-            buffer.nextReadSize = 0;
-            buffer.full = false;
-            if (managerTask) {
-                ExecutorPool::get()->wake(managerTask->getId());
-            }
+    // Clear the full-flag if the buffer usage has dropped below the limit
+    if (buffer.full && buffer.bytesRead < buffer.maxBytes) {
+        buffer.full = false;
+        if (managerTask) {
+            ExecutorPool::get()->wake(managerTask->getId());
         }
     }
 }
@@ -289,8 +270,7 @@ backfill_status_t BackfillManager::backfill() {
 
     // If no backfills remaining in any of the queues then we can
     // stop the background task and finish.
-    if (initializingBackfills.empty() && activeBackfills.empty() &&
-        snoozingBackfills.empty() && pendingBackfills.empty()) {
+    if (emptyQueues(lh)) {
         managerTask.reset();
         return backfill_finished;
     }
@@ -441,4 +421,9 @@ std::string BackfillManager::to_string(BackfillManager::ScheduleOrder order) {
         return "sequential";
     }
     folly::assume_unreachable();
+}
+
+bool BackfillManager::emptyQueues(std::unique_lock<std::mutex>& lock) const {
+    return initializingBackfills.empty() && activeBackfills.empty() &&
+           snoozingBackfills.empty() && pendingBackfills.empty();
 }

@@ -275,20 +275,23 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
             return backfill_snooze;
         }
 
-        int64_t seqnoDbg = item->getBySeqno();
+        // Note: The call in ActiveStream informs the caller to yield *after*
+        //   processing the item. Let's move on to the next item unconditionally
+        ++rangeItr;
+
+        const auto seqnoDbg = item->getBySeqno();
         if (!stream->backfillReceived(std::move(item), BACKFILL_FROM_MEMORY)) {
             /* Try backfill again later; here we do not snooze because we
                want to check if other backfills can be run by the
                backfillMgr */
             TRACE_INSTANT1("dcp/backfill", "ScanDefer", "seqno", seqnoDbg);
             stream->log(spdlog::level::level_enum::debug,
-                        "{} Deferring backfill at seqno:{} "
+                        "{} Backfill yields after processing seqno:{} "
                         "as scan buffer or backfill buffer is full",
                         getVBucketId(),
                         seqnoDbg);
             return backfill_success;
         }
-        ++rangeItr;
     }
 
     stream->setBackfillScanLastRead(endSeqno);

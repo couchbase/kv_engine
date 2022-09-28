@@ -775,13 +775,11 @@ void SingleThreadedEPBucketTest::producerReadyQLimitOnBackfill(
             ASSERT_LT(scanBuffer.itemsRead, scanBuffer.maxItems / 2);
         }
 
-        if (ret) {
-            ASSERT_EQ(seqno, stream->public_readyQ().size());
-            expectedLastSeqno = seqno;
-            seqno++;
-        } else {
-            ASSERT_EQ(seqno - 1, stream->public_readyQ().size());
-        }
+        // Note: ActiveStream tells the caller to yield after processign the
+        // item. So item pushed to the readyQ regardless of ret's value
+        ASSERT_EQ(seqno, stream->public_readyQ().size());
+        expectedLastSeqno = seqno;
+        seqno++;
     } while (ret);
 
     // Check that we have pushed some items to the Stream::readyQ

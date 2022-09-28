@@ -1435,11 +1435,9 @@ TEST_P(CacheCallbackTest, CacheCallback_engine_enomem) {
     // This is the same test
     EXPECT_TRUE(callback.shouldYield());
 
-    /* Verify that the item is not read in the backfill */
-    EXPECT_EQ(0, stream->getNumBackfillItems());
-
-    /* Verify do not have the backfill item sitting in the readyQ */
-    EXPECT_EQ(0, stream->public_readyQ().size());
+    // Callback yields after processing the item
+    EXPECT_EQ(1, stream->getNumBackfillItems());
+    EXPECT_EQ(1, stream->public_readyQ().size());
 }
 
 // Test cases which run in both Full and Value eviction
@@ -1929,8 +1927,11 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSequential) {
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ2.front()->getEvent());
     EXPECT_EQ(DcpResponse::Event::Mutation, readyQ2.back()->getEvent());
 
-    // To drive a single vBucket's backfill to completion requires 2 steps
-    const int backfillSteps = 1;
+    // To drive a single vBucket's backfill to completion in this test requires
+    // further 2 steps:
+    // 1. For pushing the last itam over the stream
+    // 2. For settling, as the backfill yields after (1)
+    const int backfillSteps = 2;
     for (int i = 0; i < backfillSteps; i++) {
         ASSERT_EQ(backfill_success, bfm.backfill());
     }
@@ -4023,6 +4024,7 @@ protected:
         store_item(vbid, makeStoredDocKey("key1"), "value");
         store_item(vbid, makeStoredDocKey("key2"), "value");
         store_item(vbid, makeStoredDocKey("key3"), "value");
+        ASSERT_EQ(3, vb->getHighSeqno());
         ckptMgr.createNewCheckpoint();
 
         const auto& stats = engine->getEpStats();
@@ -4063,6 +4065,7 @@ protected:
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
         EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+        EXPECT_EQ(1, producers.last_byseqno);
 
         // Second item
         EXPECT_EQ(backfill_status_t::backfill_success, bfm.backfill());
@@ -4071,6 +4074,7 @@ protected:
         // Step the second mutation
         EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+        EXPECT_EQ(2, producers.last_byseqno);
 
         // Third item
         EXPECT_EQ(backfill_status_t::backfill_success, bfm.backfill());
@@ -4079,6 +4083,11 @@ protected:
         // Step the third mutation
         EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+        EXPECT_EQ(3, producers.last_byseqno);
+
+        // By MB-53806 backfill first pushes over the stream then yields. So,
+        // we need an extra run after the last item for settling.
+        EXPECT_EQ(backfill_status_t::backfill_success, bfm.backfill());
 
         // No more backfills
         EXPECT_EQ(backfill_status_t::backfill_finished, bfm.backfill());
@@ -4606,6 +4615,90 @@ TEST_P(SingleThreadedActiveStreamTest,
     EXPECT_EQ(2, snapMarker.getStartSeqno());
     EXPECT_EQ(3, snapMarker.getEndSeqno());
     EXPECT_EQ(DcpResponse::Event::Mutation, readyQ.back()->getEvent());
+}
+
+TEST_P(SingleThreadedActiveStreamTest, MB_53806) {
+    auto& vb = *engine->getVBucket(vbid);
+    ASSERT_EQ(0, vb.getHighSeqno());
+
+    const auto keyA = makeStoredDocKey("keyA");
+    const auto keyB = makeStoredDocKey("keyB");
+    const auto keyC = makeStoredDocKey("keyC");
+    for (const auto& key : {keyA, keyB, keyC}) {
+        store_item(vbid, key, "value");
+    }
+    ASSERT_EQ(3, vb.getHighSeqno());
+
+    // In the test we need to re-create streams in a condition that triggers
+    // backfill. So get rid of the DCP cursor and move the persistence cursor to
+    // a new checkpoint, that removes the old checkpoint that contains items.
+    stream.reset();
+    producer.reset();
+    auto& manager = *vb.checkpointManager;
+    ASSERT_EQ(5, manager.getNumOpenChkItems()); // cs, vbs, 3 muts
+    manager.createNewCheckpoint();
+    flushVBucketToDiskIfPersistent(vbid, 3 /*expected_num_flushed*/);
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
+
+    // We need backfill flowing in the DiskCallback path, so ensure no cache hit
+    // by ejecting everything from the HashTable
+    if (persistent()) {
+        for (const auto& key : {keyA, keyB, keyC}) {
+            evict_key(vbid, key);
+        }
+    }
+
+    // Re-create the old producer and stream
+    recreateProducerAndStream(vb, 0 /*flags*/);
+    ASSERT_TRUE(producer);
+    producer->createCheckpointProcessorTask();
+    ASSERT_TRUE(stream);
+    ASSERT_TRUE(stream->isBackfilling());
+
+    // Simulate backfill buffer full for triggering backfill-yield
+    auto& bfm = dynamic_cast<MockDcpBackfillManager&>(producer->getBFM());
+    ASSERT_EQ(1, bfm.getNumBackfills());
+    bfm.setBackfillBufferSize(1);
+
+    // Run backfill.
+    // First call pushes the SnapMarker + Mut:1, then the backfill yields.
+    // Note: Backfill buffer guarantees that the first item is always pushed to
+    //   the readyQ. See BackfillManager for details.
+    ASSERT_EQ(backfill_success, bfm.backfill());
+    const auto& readyQ = stream->public_readyQ();
+    ASSERT_EQ(2, readyQ.size());
+    auto resp = stream->next(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    EXPECT_EQ(1, readyQ.size());
+    resp = stream->next(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    EXPECT_EQ(1, resp->getBySeqno());
+    EXPECT_EQ(0, readyQ.size());
+
+    // Time to run again for the backfill.
+    // We expect Mut:2 and Mut:3 pushed to the stream.
+    // Before the fix we skip seqno:2 and proceed to seqno:3.
+    bfm.setBackfillBufferSize(1024 * 1024);
+    ASSERT_EQ(backfill_success, bfm.backfill());
+
+    EXPECT_EQ(2, readyQ.size());
+    resp = stream->next(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    EXPECT_EQ(2, resp->getBySeqno());
+
+    EXPECT_EQ(1, readyQ.size());
+    resp = stream->next(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    EXPECT_EQ(3, resp->getBySeqno());
+
+    EXPECT_EQ(0, readyQ.size());
+
+    EXPECT_EQ(backfill_finished, bfm.backfill());
 }
 
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,

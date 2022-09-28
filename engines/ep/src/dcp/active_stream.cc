@@ -454,28 +454,11 @@ bool ActiveStream::markOSODiskSnapshot(uint64_t endSeqno) {
     return true;
 }
 
-bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
+bool ActiveStream::backfillReceived(std::unique_ptr<Item> item,
                                     backfill_source_t backfill_source) {
-    if (!itm) {
+    if (!item) {
         return false;
     }
-
-    // Should the item replicate?
-    if (!shouldProcessItem(*itm)) {
-        return true; // skipped, but return true as it's not a failure
-    }
-
-    // Is the item accepted by the stream filter (e.g matching collection?)
-    if (!filter.checkAndUpdate(*itm)) {
-        // Skip this item, but continue backfill at next item.
-        return true;
-    }
-
-    queued_item qi(std::move(itm));
-    // We need to send a mutation instead of a commit if this Item is a
-    // commit as we may have de-duped the preceding prepare and the replica
-    // needs to know what to commit.
-    auto resp = makeResponseFromItem(qi, SendCommitSyncWriteAs::Mutation);
 
     auto producer = producerPtr.lock();
     if (!producer) {
@@ -484,6 +467,20 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
         return false;
     }
 
+    // Should the item replicate?
+    // Is the item accepted by the stream filter (e.g matching collection) ?
+    if (!shouldProcessItem(*item) || !filter.checkAndUpdate(*item)) {
+        // Skip this item, but continue backfill at next item.
+        return true;
+    }
+
+    queued_item qi(std::move(item));
+    // We need to send a mutation instead of a commit if this Item is a
+    // commit as we may have de-duped the preceding prepare and the replica
+    // needs to know what to commit.
+    auto resp = makeResponseFromItem(qi, SendCommitSyncWriteAs::Mutation);
+
+    bool buffersFull = false;
     {
         // Locked scope for ActiveStream state reads / writes. Note
         // streamMutex is heavily contended - frontend thread must acquire it
@@ -498,22 +495,27 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
             return false;
         }
 
-        // recordBackfillManagerBytesRead requires a valid backillMgr hence
-        // must occur after isBackfilling check (and hence must be in locked
-        // region) :(
-        if (!producer->recordBackfillManagerBytesRead(
-                    resp->getApproximateSize())) {
-            return false;
-        }
+        // Note: ActiveStream and Producer/BackfillManager buffer bytes counters
+        // need to be both updated under streamMutex. That's because the
+        // end-stream path uses stream counters for updating prod/bm counters,
+        // so they need to be consistent.
 
         // Passed all checks, item will be added to ready queue now.
-        bufferedBackfill.bytes.fetch_add(resp->getApproximateSize());
+        const auto respSize = resp->getApproximateSize();
+        bufferedBackfill.bytes.fetch_add(respSize);
         bufferedBackfill.items++;
         lastBackfilledSeqno = std::max<uint64_t>(lastBackfilledSeqno,
                                                  uint64_t(*resp->getBySeqno()));
         pushToReadyQ(std::move(resp));
+
+        // Note: recordBackfillManagerBytesRead requires a valid backillMgr
+        // hence must occur after isBackfilling check (and hence must be in
+        // locked region) :(
+        buffersFull = !producer->recordBackfillManagerBytesRead(respSize);
     }
 
+    // Note: The call locks on streamMutex, so this needs to be executed without
+    //  holding the lock.
     notifyStreamReady(false /*force*/, producer.get());
 
     if (backfill_source == BACKFILL_FROM_MEMORY) {
@@ -522,7 +524,9 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
         backfillItems.disk++;
     }
 
-    return true;
+    // We have processed this item but now the backfill buffers are full.
+    // We need to inform the caller that this backfill has to yield.
+    return !buffersFull;
 }
 
 void ActiveStream::completeBackfill(std::chrono::steady_clock::duration runtime,

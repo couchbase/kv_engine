@@ -240,7 +240,6 @@ protected:
     struct {
         size_t bytesRead;
         size_t maxBytes;
-        size_t nextReadSize;
         bool full;
     } buffer;
 
@@ -280,6 +279,12 @@ protected:
      */
     std::pair<UniqueDCPBackfillPtr, Source> dequeueNextBackfill(
             std::unique_lock<std::mutex>&);
+
+    /**
+     * @param lock Ref to this BackfillManager lock
+     * @return Whether all backfill queues are empty
+     */
+    bool emptyQueues(std::unique_lock<std::mutex>& lock) const;
 
     std::mutex lock;
 
