@@ -44,7 +44,10 @@ public:
      */
     void setForState(vbucket_state_t state, double value);
 
-private:
+    // intentionally public; getForState/setForState are convenient when the
+    // state is a variable but some uses specifically refer to either ratio.
+    // It looks misleading to ask for the active OR the pending ratio
+    // when specifically trying to extract the active AND pending ratio.
     double activeAndPending = 0.0;
     double replica = 0.0;
 };

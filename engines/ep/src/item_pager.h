@@ -24,6 +24,7 @@ typedef std::pair<int64_t, int64_t> row_range_t;
 // Forward declaration.
 class EPStats;
 class EventuallyPersistentEngine;
+class ItemEvictionStrategy;
 class VBucketFilter;
 
 namespace cb {
@@ -66,6 +67,16 @@ public:
     void scheduleNow();
 
 private:
+    /**
+     * Get a factory which can create multiple matching eviction strategy
+     * instances based on the engine configuration.
+     *
+     * The constructed strategies will be consistent with each other, and
+     * expensive but shareable work will only be done once.
+     */
+    std::function<std::unique_ptr<ItemEvictionStrategy>()>
+    getEvictionStrategyFactory(EvictionRatios evictionRatios);
+
     /**
      * Get how many bytes could theoretically be reclaimed from
      * vbuckets matching the given filter, if all resident items were evicted.

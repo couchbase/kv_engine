@@ -649,6 +649,8 @@ std::string STParameterizedBucketTest::PrintToStringParamName(
     boost::replace_all(config, "pitr_granularity=", "pitr_granularity_");
     boost::replace_all(
             config, "pitr_max_history_age=", "pitr_max_history_age_");
+    boost::replace_all(
+            config, "item_eviction_strategy=", "item_eviction_strategy_");
     return config;
 }
 

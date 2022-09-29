@@ -381,17 +381,6 @@ TEST_P(BucketQuotaChangeTest, QuotaChangeDownMemoryUsageHigh) {
         return;
     }
 
-    auto diffKey = makeStoredDocKey("diffKey");
-    store_item(vbid, diffKey, "value");
-    flushVBucketToDiskIfPersistent(vbid, 1);
-
-    // Poke the item and the pager setting to ensure that we will evict it
-    store->getVBucket(vbid)
-            ->ht.findOnlyCommitted(key)
-            .storedValue->setFreqCounterValue(0);
-    engine->getConfiguration().setItemEvictionAgePercentage(0);
-    engine->getConfiguration().setItemEvictionFreqCounterAgeThreshold(255);
-
     // ItemPager will have been woken by the BucketQuotaChangeTask after it sets
     // the new watermark values. ItemPager is a multi-phase task though and it
     // will schedule the next stages now (which actually do the eviction).

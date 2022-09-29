@@ -675,6 +675,18 @@
                 }
             }
         },
+        "item_eviction_strategy": {
+            "default": "upfront_mfu_only",
+            "descr": "Strategy used by eviction to select items to evict. May be based solely on item hotness (upfront_mfu_only) or may learn the distribution of age and hotness (learning_age_and_mfu)",
+            "dynamic": true,
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                    "upfront_mfu_only",
+                    "learning_age_and_mfu"
+                ]
+            }
+        },
         "item_freq_decayer_chunk_duration": {
             "default": "20",
             "descr": "Maximum time (in ms) itemFreqDecayer task will run for before being paused.",

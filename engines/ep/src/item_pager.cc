@@ -21,6 +21,7 @@
 #include "kv_bucket.h"
 #include "kv_bucket_iface.h"
 #include "learning_age_and_mfu_based_eviction.h"
+#include "mfu_only_item_eviction.h"
 #include "paging_visitor.h"
 #include "vbucket.h"
 #include <executor/executorpool.h>
@@ -157,27 +158,20 @@ bool ItemPager::run() {
             filter = filter.filter_union(activePendingFilter);
         }
 
-        // compute active vbuckets evicition bias factor
-        const Configuration& cfg = engine.getConfiguration();
-
         // p99.99 is ~200ms
         const auto maxExpectedDurationForVisitorTask =
                 std::chrono::milliseconds(200);
 
+        auto makeEvictionStrategy = getEvictionStrategyFactory(
+                {activeAndPendingEvictionRatio, replicaEvictionRatio});
+
         // distribute the vbuckets that should be visited among multiple
         // paging visitors.
         for (const auto& partFilter : filter.split(numConcurrentPagers)) {
-            auto evictionStrategy =
-                    std::make_unique<LearningAgeAndMFUBasedEviction>(
-                            EvictionRatios{activeAndPendingEvictionRatio,
-                                           replicaEvictionRatio},
-                            cfg.getItemEvictionAgePercentage(),
-                            cfg.getItemEvictionFreqCounterAgeThreshold(),
-                            &stats);
             auto pv = std::make_unique<ItemPagingVisitor>(
                     *kvBucket,
                     stats,
-                    std::move(evictionStrategy),
+                    makeEvictionStrategy(),
                     pagerSemaphore,
                     true, /* allow pausing between vbuckets */
                     partFilter);
@@ -190,6 +184,65 @@ bool ItemPager::run() {
     }
 
     return true;
+}
+
+std::function<std::unique_ptr<ItemEvictionStrategy>()>
+ItemPager::getEvictionStrategyFactory(EvictionRatios evictionRatios) {
+    const auto& cfg = engine.getConfiguration();
+
+    auto strategy = cfg.getItemEvictionStrategy();
+
+    if (strategy == "upfront_mfu_only") {
+        MFUHistogram activePendingMFUHist;
+        MFUHistogram replicaMFUHist;
+
+        KVBucket* kvBucket = engine.getKVBucket();
+        for (auto& vbucket : kvBucket->getVBuckets()) {
+            switch (vbucket.getState()) {
+            case vbucket_state_active:
+            case vbucket_state_pending:
+                activePendingMFUHist += vbucket.getEvictableMFUHistogram();
+                break;
+            case vbucket_state_replica:
+                replicaMFUHist += vbucket.getEvictableMFUHistogram();
+                break;
+            case vbucket_state_dead:
+                break;
+            }
+        }
+        MFUOnlyItemEviction::Thresholds thresholds;
+
+        if (evictionRatios.activeAndPending) {
+            // if the ratio is _exactly_ zero, we don't want to evict anything,
+            // so don't set the (optional) threshold. Note that this is
+            // distinct from setting the threshold to 0, which would still evict
+            // items with MFU == 0.
+            thresholds.activePending =
+                    activePendingMFUHist.getValueAtPercentile(
+                            evictionRatios.activeAndPending * 100);
+        }
+
+        if (evictionRatios.replica) {
+            thresholds.replica = replicaMFUHist.getValueAtPercentile(
+                    evictionRatios.replica * 100);
+        }
+
+        return [thresholds] {
+            return std::make_unique<MFUOnlyItemEviction>(thresholds);
+        };
+    } else if (strategy == "learning_age_and_mfu") {
+        auto agePercentage = cfg.getItemEvictionAgePercentage();
+        auto ageThreshold = cfg.getItemEvictionFreqCounterAgeThreshold();
+
+        return [evictionRatios, agePercentage, ageThreshold, &stats = stats] {
+            return std::make_unique<LearningAgeAndMFUBasedEviction>(
+                    evictionRatios, agePercentage, ageThreshold, &stats);
+        };
+    }
+
+    throw std::logic_error(
+            "ItemPager::getEvictionStrategyFactory: Invalid eviction strategy "
+            "in config");
 }
 
 void ItemPager::scheduleNow() {

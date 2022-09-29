@@ -358,6 +358,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/getkeys.cc
             src/hash_table.cc
             src/hlc.cc
+            src/mfu_only_item_eviction.cc
             src/htresizer.cc
             src/item.cc
             src/item_compressor.cc

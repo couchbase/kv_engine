@@ -865,6 +865,8 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setRangeScanReadBufferSendSize(std::stoull(val));
         } else if (key == "range_scan_max_lifetime") {
             configuration.setRangeScanMaxLifetime(std::stoull(val));
+        } else if (key == "item_eviction_strategy") {
+            getConfiguration().setItemEvictionStrategy(val);
         } else {
             msg = "Unknown config param";
             rv = cb::engine_errc::invalid_arguments;
