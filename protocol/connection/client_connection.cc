@@ -280,8 +280,9 @@ MemcachedConnection::MemcachedConnection(std::string host,
         // cluster
         timeout = std::chrono::minutes{30};
     } else {
-        // When running in unit tests we want it to fail fast
-        timeout = std::chrono::seconds{2};
+        // When running in unit tests we want it to fail fast, but not
+        // too fast as the CV builders are sometimes heavily loaded
+        timeout = std::chrono::seconds{10};
     }
 
     if (ssl) {
