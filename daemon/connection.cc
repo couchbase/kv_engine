@@ -104,7 +104,6 @@ nlohmann::json Connection::to_json() const {
     ret["protocol"] = "memcached";
     ret["peername"] = getPeername().c_str();
     ret["sockname"] = getSockname().c_str();
-    ret["parent_port"] = listening_port->port;
     ret["bucket_index"] = getBucketIndex();
     ret["internal"] = isInternal();
 
