@@ -29,7 +29,7 @@ public:
 
     void SetUp() override {
         config_string += "collections_enabled=true";
-        SingleThreadedKVBucketTest::SetUp();
+        CollectionsDcpParameterizedTest::SetUp();
         producers = std::make_unique<CollectionsDcpTestProducers>();
         // Start vbucket as active to allow us to store items directly to it.
         store->setVBucketState(vbid, vbucket_state_active);
