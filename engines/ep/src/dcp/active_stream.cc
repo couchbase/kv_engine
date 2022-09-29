@@ -866,7 +866,7 @@ void ActiveStream::addTakeoverStats(const AddStatFn& add_stat,
     size_t chk_items = 0;
     auto sp = cursor.lock();
     if (vb_items > 0 && sp) {
-        chk_items = vb.checkpointManager->getNumItemsForCursor(sp.get());
+        chk_items = vb.checkpointManager->getNumItemsForCursor(*sp);
     }
 
     size_t del_items = 0;
@@ -2214,7 +2214,7 @@ size_t ActiveStream::getItemsRemaining() {
     // (b) Items pending in our readyQ
     size_t ckptItems = 0;
     if (auto sp = cursor.lock()) {
-        ckptItems = vbucket->checkpointManager->getNumItemsForCursor(sp.get());
+        ckptItems = vbucket->checkpointManager->getNumItemsForCursor(*sp);
     }
 
     // Note: concurrent access to readyQ guarded by streamMutex

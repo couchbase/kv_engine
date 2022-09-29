@@ -1190,32 +1190,33 @@ size_t CheckpointManager::getNumOpenChkItems() const {
 }
 
 size_t CheckpointManager::getNumItemsForCursor(
-        const CheckpointCursor* cursor) const {
+        const CheckpointCursor& cursor) const {
     std::lock_guard<std::mutex> lh(queueLock);
     return getNumItemsForCursor(lh, cursor);
 }
 
 size_t CheckpointManager::getNumItemsForCursor(
         const std::lock_guard<std::mutex>& lh,
-        const CheckpointCursor* cursor) const {
-    if (cursor && cursor->valid()) {
-        size_t items = cursor->getRemainingItemsInCurrentCheckpoint();
-        CheckpointList::const_iterator chkptIterator(cursor->getCheckpoint());
-        if (chkptIterator != checkpointList.end()) {
-            ++chkptIterator;
-        }
-
-        // Now add the item counts for all the subsequent checkpoints
-        auto result = std::accumulate(
-                chkptIterator,
-                checkpointList.end(),
-                items,
-                [](size_t a, const std::unique_ptr<Checkpoint>& b) {
-                    return a + b->getNumItems();
-                });
-        return result;
+        const CheckpointCursor& cursor) const {
+    if (!cursor.valid()) {
+        return 0;
     }
-    return 0;
+
+    // Items from the current checkpoint..
+    size_t items = cursor.getRemainingItemsInCurrentCheckpoint();
+    CheckpointList::const_iterator chkptIterator(cursor.getCheckpoint());
+    if (chkptIterator != checkpointList.end()) {
+        ++chkptIterator;
+    }
+    // .. plus the items for all the subsequent checkpoints
+    auto result =
+            std::accumulate(chkptIterator,
+                            checkpointList.end(),
+                            items,
+                            [](size_t a, const std::unique_ptr<Checkpoint>& b) {
+                                return a + b->getNumItems();
+                            });
+    return result;
 }
 
 void CheckpointManager::clear(std::optional<uint64_t> seqno) {
@@ -1494,7 +1495,7 @@ void CheckpointManager::addStats(const AddStatFn& add_stat,
                              vbucketId.get(),
                              cursor.second->getName().c_str());
             add_casted_stat(buf.data(),
-                            getNumItemsForCursor(lh, cursor.second.get()),
+                            getNumItemsForCursor(lh, *cursor.second),
                             add_stat,
                             cookie);
         }

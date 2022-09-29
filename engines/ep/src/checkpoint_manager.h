@@ -345,14 +345,16 @@ public:
     size_t getNumOpenChkItems() const;
 
     /**
-     * Returns the count of all items (empty item excluded) that the given
-     * cursor has yet to process (i.e. between the cursor's current position and
-     * the end of the last checkpoint).
+     * @param cursor
+     * @return the count of all items (empty item excluded) that the given
+     *  cursor has yet to process (i.e. between the cursor's current position
+     *  and the end of the last checkpoint).
      */
-    size_t getNumItemsForCursor(const CheckpointCursor* cursor) const;
+    size_t getNumItemsForCursor(const CheckpointCursor& cursor) const;
 
     size_t getNumItemsForPersistence() const {
-        return getNumItemsForCursor(persistenceCursor);
+        Expects(persistenceCursor);
+        return getNumItemsForCursor(*persistenceCursor);
     }
 
     /**
@@ -685,7 +687,7 @@ protected:
      * @return number of items to be processed
      */
     size_t getNumItemsForCursor(const std::lock_guard<std::mutex>& lh,
-                                const CheckpointCursor* cursor) const;
+                                const CheckpointCursor& cursor) const;
 
     /**
      * Clears this CM, effectively removing all checkpoints in the list and
