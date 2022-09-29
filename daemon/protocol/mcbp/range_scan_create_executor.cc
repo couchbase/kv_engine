@@ -49,12 +49,16 @@ static cb::rangescan::SamplingConfiguration getSamplingConfig(
                                      "samples",
                                      nlohmann::json::value_t::number_unsigned,
                                      "getSamplingConfig");
-    auto seed = cb::getJsonObject(samplingConfig,
-                                  "seed",
-                                  nlohmann::json::value_t::number_unsigned,
-                                  "getSamplingConfig");
+    auto seed = cb::getOptionalJsonObject(
+            samplingConfig, "seed", nlohmann::json::value_t::number_unsigned);
+
+    // seed is 0 if the client provides no value
+    uint32_t seedValue{0};
+    if (seed) {
+        seedValue = seed.value().get<uint32_t>();
+    }
     return cb::rangescan::SamplingConfiguration{samples.get<size_t>(),
-                                                seed.get<uint32_t>()};
+                                                seedValue};
 }
 
 static cb::rangescan::SnapshotRequirements getSnapshotRequirements(
