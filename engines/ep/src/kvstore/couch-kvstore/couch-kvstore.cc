@@ -3579,6 +3579,9 @@ static int getMultiCallback(Db* db, DocInfo* docinfo, void* ctx) {
     const auto valueFilter = bg_itm_ctx.getValueFilter();
     couchstore_error_t errCode = cbCtx->cks.fetchDoc(
             db, docinfo, bg_itm_ctx.value, cbCtx->vbId, valueFilter);
+    using namespace std::chrono;
+    auto fetDocEndTime = steady_clock::now();
+
     if (errCode != COUCHSTORE_SUCCESS &&
         (valueFilter != ValueFilter::KEYS_ONLY)) {
         st.numGetFailure++;
@@ -3590,8 +3593,7 @@ static int getMultiCallback(Db* db, DocInfo* docinfo, void* ctx) {
     for (auto& fetch : bg_itm_ctx.getRequests()) {
         return_val_ownership_transferred = true;
         st.readTimeHisto.add(
-                std::chrono::duration_cast<std::chrono::microseconds>(
-                        std::chrono::steady_clock::now() - fetch->initTime));
+                duration_cast<microseconds>(fetDocEndTime - fetch->initTime));
         if (errCode == COUCHSTORE_SUCCESS) {
             st.readSizeHisto.add(bg_itm_ctx.value.item->getKey().size() +
                                  bg_itm_ctx.value.item->getNBytes());
