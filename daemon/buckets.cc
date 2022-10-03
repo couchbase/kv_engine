@@ -256,6 +256,10 @@ void Bucket::tick() {
             }
         }
     });
+
+    if (isServerlessDeployment() && mc_time_get_current_time() % 60 == 0) {
+        LOG_INFO("Bucket usage: {}", to_json().dump());
+    }
 }
 
 void Bucket::deleteThrottledCommands() {
