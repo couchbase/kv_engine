@@ -77,7 +77,7 @@ class CheckpointManager {
 public:
     using FlusherCallback = std::shared_ptr<Callback<Vbid>>;
 
-    /// Return type of getNextItemsForCursor()
+    /// Return type of getItemsForCursor()
     struct ItemsForCursor {
         ItemsForCursor() = default;
         ItemsForCursor(CheckpointType checkpointType,
@@ -94,7 +94,7 @@ public:
 
         /**
          * The natural place for this is CheckpointSnapshotRange, as this is per
-         * snapshot. Originally placed here as CM::getNextItemsForCursor() never
+         * snapshot. Originally placed here as CM::getItemsForCursor() never
          * returns multiple snapshots of different types.
          */
         CheckpointType checkpointType = CheckpointType::Memory;
@@ -113,7 +113,7 @@ public:
          *   use this member
          *
          * The correctness of the latter is ensured by the fact that
-         * CM::getNextItemsForCursor() never returns multiple Disk Checkpoints.
+         * CM::getItemsForCursor() never returns multiple Disk Checkpoints.
          *
          * @todo: This member should be removed (and the one in SnapRange used)
          * as soon as we refactor the DCP stream code in CheckpointManager and
@@ -252,29 +252,35 @@ public:
     void queueSetVBState();
 
     /**
-     * Add all outstanding items for the given cursor name to the vector. Only
-     * fetches items for contiguous Checkpoints of the same type.
+     * Advances the given cursor and generates consistent snapshots.
+     * Items are appended onto the [out] vector.
      *
-     * @param cursor CheckpointCursor to read items from and advance
-     * @param items container which items will be appended to.
-     * @return The low/high sequence number added to `items` on success,
-     *         or (0,0) if no items were added.
+     * The total size of returned snapshots is limited to at most
+     * (2 * checkpoint_max_size_bytes), checkpoint_max_size_bytes on average.
+     *
+     * The func only fetches items for contiguous Checkpoints of the same type.
+     *
+     * @param cursor
+     * @param [out] items container which items will be appended to.
+     * @return ItemsForCursor - See struct for details.
      */
-    CheckpointManager::ItemsForCursor getNextItemsForCursor(
+    CheckpointManager::ItemsForCursor getNextItemsForDcp(
             CheckpointCursor& cursor, std::vector<queued_item>& items);
 
     /**
      * Add all outstanding items for persistence to the vector. Only fetches
      * items for contiguous Checkpoints of the same type.
      *
-     * @param items container which items will be appended to.
-     * @return The low/high sequence number added to `items` on success,
-     *         or (0,0) if no items were added.
+     * @param [out] items container which items will be appended to.
+     * @return ItemsForCursor - See struct for details.
      */
     CheckpointManager::ItemsForCursor getNextItemsForPersistence(
             std::vector<queued_item>& items) {
         Expects(persistenceCursor != nullptr);
-        return getNextItemsForCursor(*persistenceCursor, items);
+        return getItemsForCursor(*persistenceCursor,
+                                 items,
+                                 std::numeric_limits<size_t>::max(),
+                                 std::numeric_limits<size_t>::max());
     }
 
     /**

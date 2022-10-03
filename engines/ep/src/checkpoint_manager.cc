@@ -931,12 +931,13 @@ void CheckpointManager::queueSetVBState() {
     vb.notifyReplication();
 }
 
-CheckpointManager::ItemsForCursor CheckpointManager::getNextItemsForCursor(
+CheckpointManager::ItemsForCursor CheckpointManager::getNextItemsForDcp(
         CheckpointCursor& cursor, std::vector<queued_item>& items) {
+    Expects(&cursor != persistenceCursor);
     return getItemsForCursor(cursor,
                              items,
                              std::numeric_limits<size_t>::max(),
-                             std::numeric_limits<size_t>::max());
+                             checkpointConfig.getCheckpointMaxSize());
 }
 
 CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(

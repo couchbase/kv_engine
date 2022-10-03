@@ -72,7 +72,7 @@ protected:
     }
 
     /**
-     * Construct a cursor, and call getNextItemsForCursor.
+     * Construct a cursor, and call getItemsForCursor.
      *
      * @param name
      * @param startBySeqno

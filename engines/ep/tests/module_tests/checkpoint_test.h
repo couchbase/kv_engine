@@ -86,7 +86,7 @@ protected:
     // Tests that the extract-items step at ItemExpel registers the expel-cursor
     CheckpointManager::ExtractItemsResult testExpelCursorRegistered();
 
-    // Calls getNextItemsForCursor() to advance the cursor to the end of the
+    // Calls getItemsForCursor() to advance the cursor to the end of the
     // checkpoints
     void advanceCursorToEndOfCheckpoints();
 

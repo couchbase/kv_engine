@@ -982,8 +982,8 @@ ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
     CheckpointManager::ItemsForCursor itemsForCursor{};
     auto cursorPtr = cursor.lock();
     if (cursorPtr) {
-        itemsForCursor = vb.checkpointManager->getNextItemsForCursor(
-                *cursorPtr, result.items);
+        itemsForCursor = vb.checkpointManager->getNextItemsForDcp(*cursorPtr,
+                                                                  result.items);
     }
     engine->getEpStats().dcpCursorsGetItemsHisto.add(
             std::chrono::duration_cast<std::chrono::microseconds>(

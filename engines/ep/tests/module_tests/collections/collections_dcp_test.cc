@@ -61,7 +61,7 @@ void CollectionsDcpTest::internalSetUp() {
 
 void CollectionsDcpTest::moveHelperCursorToCMEnd() {
     std::vector<queued_item> items;
-    store->getVBucket(vbid)->checkpointManager->getNextItemsForCursor(
+    store->getVBucket(vbid)->checkpointManager->getNextItemsForDcp(
             *helperCursor, items);
 }
 

@@ -1282,7 +1282,7 @@ TEST_P(StreamTest, MB38356_DuplicateStreamRequest) {
     auto& vb = *engine->getVBucket(vbid);
     auto& cm = *vb.checkpointManager;
     std::vector<queued_item> qis;
-    cm.getNextItemsForCursor(*cursorPtr, qis);
+    cm.getNextItemsForDcp(*cursorPtr, qis);
     // Copy to plain Item vector to aid in checking expected value.
     std::vector<Item> items;
     std::transform(qis.begin(),
@@ -4700,6 +4700,64 @@ TEST_P(SingleThreadedActiveStreamTest, MB_53806) {
     EXPECT_EQ(0, readyQ.size());
 
     EXPECT_EQ(backfill_finished, bfm.backfill());
+}
+
+TEST_P(SingleThreadedActiveStreamTest, ReadyQLimit) {
+    auto& vb = *engine->getVBucket(vbid);
+    ASSERT_EQ(0, vb.getHighSeqno());
+
+    const size_t checkpointMaxSize = 1024 * 1024;
+    engine->getCheckpointConfig().setCheckpointMaxSize(checkpointMaxSize);
+    auto& manager = *vb.checkpointManager;
+    ASSERT_EQ(checkpointMaxSize,
+              manager.getCheckpointConfig().getCheckpointMaxSize());
+
+    const auto value = std::string(checkpointMaxSize / 2, 'v');
+    size_t numItems = 6;
+    for (size_t i = 0; i < numItems; ++i) {
+        store_item(vbid, makeStoredDocKey("key" + std::to_string(i)), value);
+    }
+    ASSERT_EQ(numItems, vb.getHighSeqno());
+    const auto numCheckpoints = manager.getNumCheckpoints();
+    ASSERT_EQ(numItems / 2, numCheckpoints);
+    const size_t numMutationsPerCkpt = numItems / numCheckpoints;
+    ASSERT_EQ(numMutationsPerCkpt + 1, manager.getNumOpenChkItems()); // cs + ..
+
+    // Stream in memory and readYQ empty
+    ASSERT_TRUE(stream->isInMemory());
+    const auto& readyQ = stream->public_readyQ();
+    ASSERT_EQ(0, readyQ.size());
+
+    // Test - StreamTask pulls from CM and pushes into the readyQ
+    // At each run the task is allowed to push checkpoint_max_size_bytes into
+    // the readyQ. In the scenario under test that means 1 full checkpoint at a
+    // time.
+    for (size_t i = 0; i < numCheckpoints; ++i) {
+        stream->nextCheckpointItemTask();
+
+        ASSERT_EQ(3, readyQ.size());
+        auto resp = stream->next(*producer);
+        ASSERT_TRUE(resp);
+        EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+
+        ASSERT_EQ(2, readyQ.size());
+        resp = stream->next(*producer);
+        ASSERT_TRUE(resp);
+        EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+        EXPECT_EQ(i * numMutationsPerCkpt + 1, resp->getBySeqno());
+
+        ASSERT_EQ(1, readyQ.size());
+        resp = stream->next(*producer);
+        ASSERT_TRUE(resp);
+        EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+        EXPECT_EQ(i * numMutationsPerCkpt + 2, resp->getBySeqno());
+
+        ASSERT_EQ(0, readyQ.size());
+    }
+
+    // All streamed
+    stream->nextCheckpointItemTask();
+    ASSERT_EQ(0, readyQ.size());
 }
 
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,

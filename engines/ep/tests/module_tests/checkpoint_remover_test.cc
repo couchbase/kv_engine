@@ -331,7 +331,7 @@ void CheckpointRemoverTest::testExpellingOccursBeforeCursorDropping(
     if (mode == MemRecoveryMode::ItemExpelWithCursor) {
         // Advance cursor so ItemExpel can occur.
         std::vector<queued_item> items;
-        manager->getNextItemsForCursor(*cursor, items);
+        manager->getNextItemsForDcp(*cursor, items);
     }
 
     const auto remover = std::make_shared<CheckpointMemRecoveryTask>(
@@ -530,7 +530,7 @@ std::vector<queued_item> CheckpointRemoverEPTest::getItemsWithCursor(
     auto cursor = regRes.cursor.lock();
 
     std::vector<queued_item> items;
-    cm->getNextItemsForCursor(*cursor, items);
+    cm->getNextItemsForDcp(*cursor, items);
 
     cm->removeCursor(*cursor);
 
@@ -864,7 +864,7 @@ TEST_P(CheckpointRemoverEPTest, DISABLED_CheckpointRemovalWithoutCursorDrop) {
     // dropping the cursor
     {
         std::vector<queued_item> items;
-        manager.getNextItemsForCursor(*cursor, items);
+        manager.getNextItemsForDcp(*cursor, items);
     }
 
     ASSERT_NE(0, store->getRequiredCheckpointMemoryReduction());
@@ -935,7 +935,7 @@ TEST_P(CheckpointRemoverTest, CursorMoveWakesDestroyer) {
     // a few line down here.
     {
         std::vector<queued_item> items;
-        cm.getNextItemsForCursor(*dcpCursor, items);
+        cm.getNextItemsForDcp(*dcpCursor, items);
     }
     flushVBucketToDiskIfPersistent(vbid, 1);
     EXPECT_EQ(1, cm.getNumCheckpoints());
