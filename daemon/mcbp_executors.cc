@@ -496,9 +496,10 @@ static void set_bucket_data_limit_exceeded_executor(Cookie& cookie) {
                                               auto& bucket) -> bool {
         if (bucket.name == name) {
             if (bucket.bucket_quota_exceeded != payload->isEnabled()) {
-                LOG_INFO("{} {}able client document ingress",
+                LOG_INFO("{} {}able client document ingress for bucket {}",
                          cookie.getConnectionId(),
-                         payload->isEnabled() ? "En" : "Dis");
+                         payload->isEnabled() ? "En" : "Dis",
+                         name);
                 bucket.bucket_quota_exceeded = payload->isEnabled();
             }
             found = true;
