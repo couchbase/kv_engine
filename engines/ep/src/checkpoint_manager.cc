@@ -933,14 +933,24 @@ void CheckpointManager::queueSetVBState() {
 
 CheckpointManager::ItemsForCursor CheckpointManager::getNextItemsForCursor(
         CheckpointCursor& cursor, std::vector<queued_item>& items) {
-    return getItemsForCursor(cursor, items, std::numeric_limits<size_t>::max());
+    return getItemsForCursor(cursor,
+                             items,
+                             std::numeric_limits<size_t>::max(),
+                             std::numeric_limits<size_t>::max());
 }
 
 CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
         CheckpointCursor& cursor,
         std::vector<queued_item>& items,
-        size_t approxLimit) {
-    Expects(approxLimit > 0);
+        size_t approxNumItemsLimit,
+        size_t approxBytesLimit) {
+    if (approxNumItemsLimit == 0 || approxBytesLimit == 0) {
+        throw std::invalid_argument(
+                "CheckpointManager::getItemsForCursor: Limits must be > 0. "
+                "approxNumItemsLimit:" +
+                std::to_string(approxNumItemsLimit) +
+                " approxBytesLimit:" + std::to_string(approxBytesLimit));
+    }
 
     std::lock_guard<std::mutex> lh(queueLock);
 
@@ -967,9 +977,19 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
         result.flushHandle = std::make_unique<FlushHandle>(*this);
     }
 
-    size_t itemCount = 0;
+    const auto withinLimits = [approxNumItemsLimit, approxBytesLimit](
+                                      size_t itemsCount,
+                                      size_t bytesCount) -> bool {
+        return itemsCount < approxNumItemsLimit &&
+               bytesCount < approxBytesLimit;
+    };
+
+    size_t itemsCount = 0;
+    size_t bytesCount = 0;
+
     bool enteredNewCp = true;
-    while ((!hardLimit || itemCount < approxLimit) &&
+
+    while ((!hardLimit || withinLimits(itemsCount, bytesCount)) &&
            (result.moreAvailable = incrCursor(cursor))) {
         if (enteredNewCp) {
             const auto& checkpoint = **cursor.getCheckpoint();
@@ -991,14 +1011,17 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
 
         queued_item& qi = *(cursor.getPos());
         items.push_back(qi);
-        itemCount++;
+
+        // Update limit counters
+        ++itemsCount;
+        bytesCount += qi->size();
 
         if (qi->getOperation() == queue_op::checkpoint_end) {
             enteredNewCp = true; // the next incrCuror will move to a new CP
 
             // Reached the end of a checkpoint; check if we have exceeded
             // our limit (soft limit check only returns complete checkpoints).
-            if (itemCount >= approxLimit) {
+            if (!withinLimits(itemsCount, bytesCount)) {
                 // Reached our limit - don't want any more items.
 
                 // However, we *do* want to move the cursor into the next
@@ -1059,7 +1082,7 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
                 "cursor:{} result:{{items:{} ranges:size:{} {} "
                 "moreAvailable:{}}}",
                 cursor.getName(),
-                uint64_t(itemCount),
+                uint64_t(itemsCount),
                 result.ranges.size(),
                 ranges,
                 result.moreAvailable);

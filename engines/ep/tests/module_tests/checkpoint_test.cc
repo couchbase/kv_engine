@@ -556,7 +556,8 @@ TEST_P(CheckpointTest, ItemsForCheckpointCursorLimited) {
      * fetch the first checkpoints' worth.
      */
     std::vector<queued_item> items;
-    auto result = manager->getItemsForCursor(*cursor, items, 1);
+    auto result = manager->getItemsForCursor(
+            *cursor, items, 1, std::numeric_limits<size_t>::max());
     EXPECT_EQ(1, result.ranges.size());
     EXPECT_EQ(1000, result.ranges.front().getStart());
     EXPECT_EQ(1000 + numItemsCkpt1, result.ranges.front().getEnd());
@@ -598,7 +599,8 @@ TEST_P(CheckpointTest, DiskCheckpointStrictItemLimit) {
      * fetch the first item
      */
     std::vector<queued_item> items;
-    auto result = manager->getItemsForCursor(*cursor, items, 1);
+    auto result = manager->getItemsForCursor(
+            *cursor, items, 1, std::numeric_limits<size_t>::max());
     EXPECT_EQ(1, result.ranges.size());
     EXPECT_EQ(1000, result.ranges.front().getStart());
     EXPECT_EQ(1000 + numItemsCkpt1, result.ranges.front().getEnd());
@@ -1898,6 +1900,59 @@ TEST_F(SingleThreadedCheckpointTest, QueueSetVBStateSchedulesDcpStep) {
     EXPECT_TRUE(producer->getReadyQueue().exists(vbid));
 }
 
+TEST_F(SingleThreadedCheckpointTest, GetItemsForCursor_BytesLimit) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto vb = engine->getVBucket(vbid);
+    auto& cm = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
+
+    ASSERT_EQ(1, cm.getNumOfCursors());
+    auto producer = createDcpProducer(cookie, IncludeDeleteTime::Yes);
+    createDcpStream(*producer);
+    ASSERT_EQ(2, cm.getNumOfCursors());
+    auto stream = producer->findStream(vbid);
+    ASSERT_TRUE(stream);
+    auto dcpCursor = stream->getCursor().lock();
+    ASSERT_TRUE(dcpCursor);
+
+    ASSERT_EQ(1, cm.getNumCheckpoints());
+    ASSERT_EQ(1, (*dcpCursor->getCheckpoint())->getId());
+    EXPECT_EQ(queue_op::empty, (*dcpCursor->getPos())->getOperation());
+    EXPECT_EQ(0, dcpCursor->getDistance());
+    EXPECT_EQ(2, cm.getNumItemsForCursor(*dcpCursor)); // cs, vbs
+
+    // [e:1 vbs:1 cs:1 m:1 m:2)
+    const std::string value("value");
+    store_item(vbid, makeStoredDocKey("key1"), value);
+    store_item(vbid, makeStoredDocKey("key2"), value);
+    ASSERT_EQ(2, cm.getHighSeqno());
+    ASSERT_EQ(4, cm.getNumOpenChkItems());
+    EXPECT_EQ(4, cm.getNumItemsForCursor(*dcpCursor)); // cs, vbs, m, m
+
+    // [e:1 vbs:1 cs:1 m:1 m:2 ce:3] [e:3 cs:3 m:3 m:4)
+    cm.createNewCheckpoint();
+    ASSERT_EQ(2, cm.getNumCheckpoints());
+    store_item(vbid, makeStoredDocKey("key3"), value);
+    store_item(vbid, makeStoredDocKey("key4"), value);
+    ASSERT_EQ(4, cm.getHighSeqno());
+    ASSERT_EQ(3, cm.getNumOpenChkItems());
+    // cs, vbs, m, m, ce, cs, m, m
+    EXPECT_EQ(8, cm.getNumItemsForCursor(*dcpCursor));
+    EXPECT_EQ(1, (*dcpCursor->getCheckpoint())->getId());
+
+    // Test - The next call returns only items from the first checkpoint
+    std::vector<queued_item> items;
+    const auto res = cm.getItemsForCursor(
+            *dcpCursor, items, std::numeric_limits<size_t>::max(), 1);
+    ASSERT_EQ(1, res.ranges.size());
+    const auto range = res.ranges.at(0);
+    EXPECT_EQ(0, range.getStart());
+    EXPECT_EQ(2, range.getEnd());
+    EXPECT_EQ(5, items.size()); // cs, vbs, m, m, ce
+    // Also, cursor moved to the open checkpoint
+    EXPECT_EQ(2, (*dcpCursor->getCheckpoint())->getId());
+}
+
 // Test that when the same client registers twice, the first cursor 'dies'
 TEST_P(CheckpointTest, reRegister) {
     auto dcpCursor1 = manager->registerCursorBySeqno(
@@ -3140,7 +3195,8 @@ TEST_P(CheckpointRemovalTest, OnlyOldestCkptIsRemoved) {
         // be removed, should trigger callback.
         {
             std::vector<queued_item> items;
-            manager->getItemsForCursor(*cursor, items, 2);
+            manager->getItemsForCursor(
+                    *cursor, items, 2, std::numeric_limits<size_t>::max());
         }
         EXPECT_EQ(2, this->manager->getNumCheckpoints());
         EXPECT_EQ(openId + 2, manager->getOpenCheckpointId());

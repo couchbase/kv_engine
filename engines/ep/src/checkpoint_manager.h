@@ -278,34 +278,29 @@ public:
     }
 
     /**
-     * Add items for the given cursor to the vector, stopping on a checkpoint
-     * boundary which is greater or equal to `approxLimit`. The cursor is
-     * advanced to point after the items fetched.
+     * Get checkpoint items for the given cursor.
      *
-     * Can fetch items of contiguous Memory Checkpoints.
-     * Never fetches (1) items of contiguous Disk checkpoints or (2) items of
+     * Cursor is always moved at checkpoint boundaries. That is necessary for
+     * ensuring that the caller always gets consistent snapshots.
+     * That is why the function accepts limits in input that are only
+     * approximate, as the cursor stops on a checkpoint boundary which is
+     * greater or equal to those approx limits.
+     * After the call the cursor is placed at the last item fetched.
+     *
+     * The function can fetch items of contiguous Memory Checkpoints.
+     * It never fetches (a) items of contiguous Disk checkpoints or (b) items of
      * checkpoints of different types.
      *
-     * Note: It is only valid to fetch complete checkpoints; as such we cannot
-     * limit to a precise number of items.
-     *
      * @param cursor CheckpointCursor to read items from and advance
-     * @param[in/out] items container which items will be appended to.
-     * @param approxLimit Approximate number of items to add.
-     * @return An ItemsForCursor object containing:
-     * range: the low/high sequence number of the checkpoints(s) added to
-     * `items`;
-     * moreAvailable: true if there are still items available for this
-     * checkpoint (i.e. the limit was hit).
-     * maxDeletedRevSeqno for the items returned
-     * highCompletedSeqno for the items returned
-     * maxVisibleSeqno initialised to that of the first checkpoint, this works
-     *                 for the ActiveStream use-case who just needs a single
-     *                 value to seed it's snapshot loop.
+     * @param [out] items container which items will be appended to
+     * @param approxNumItemsLimit Approx limit on the number of items to return
+     * @param approxBytesLimit Approx limit on the number of bytes to return
+     * @return ItemsForCursor - See struct for details.
      */
     ItemsForCursor getItemsForCursor(CheckpointCursor& cursor,
                                      std::vector<queued_item>& items,
-                                     size_t approxLimit);
+                                     size_t approxNumItemsLimit,
+                                     size_t approxBytesLimit);
 
     /**
      * Add items for persistence to the vector, stopping on a checkpoint
@@ -317,7 +312,7 @@ public:
      * limit to a precise number of items.
      *
      * @param[in/out] items container which items will be appended to.
-     * @param approxLimit Approximate number of items to add.
+     * @param approxNumItemsLimit Approximate number of items to add.
      * @return An ItemsForCursor object containing:
      * range: the low/high sequence number of the checkpoints(s) added to
      * `items`;
@@ -325,9 +320,12 @@ public:
      * checkpoint (i.e. the limit was hit).
      */
     ItemsForCursor getItemsForPersistence(std::vector<queued_item>& items,
-                                          size_t approxLimit) {
+                                          size_t approxNumItemsLimit) {
         Expects(persistenceCursor);
-        return getItemsForCursor(*persistenceCursor, items, approxLimit);
+        return getItemsForCursor(*persistenceCursor,
+                                 items,
+                                 approxNumItemsLimit,
+                                 std::numeric_limits<size_t>::max());
     }
 
     /**
