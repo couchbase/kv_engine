@@ -479,8 +479,7 @@ private:
      */
     cb::AtomicNonNegativeCounter<size_t> onDiskTotalItems;
 
-    std::mutex pendingBGFetchesLock;
-    vb_bgfetch_queue_t pendingBGFetches;
+    folly::Synchronized<vb_bgfetch_queue_t, std::mutex> pendingBGFetches;
 
     /* Pointer to the shard to which this VBucket belongs to */
     KVShard* shard;

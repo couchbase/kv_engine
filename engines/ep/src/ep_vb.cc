@@ -104,9 +104,10 @@ EPVBucket::EPVBucket(Vbid i,
 }
 
 EPVBucket::~EPVBucket() {
-    if (!pendingBGFetches.empty()) {
+    auto size = pendingBGFetches.lock()->size();
+    if (size > 0) {
         EP_LOG_WARN("Have {} pending BG fetches while destroying vbucket",
-                    pendingBGFetches.size());
+                    size);
     }
 }
 
@@ -342,14 +343,12 @@ void EPVBucket::completeCompactionExpiryBgFetch(
 
 vb_bgfetch_queue_t EPVBucket::getBGFetchItems() {
     vb_bgfetch_queue_t fetches;
-    std::lock_guard<std::mutex> lh(pendingBGFetchesLock);
-    fetches.swap(pendingBGFetches);
+    pendingBGFetches.lock()->swap(fetches);
     return fetches;
 }
 
 bool EPVBucket::hasPendingBGFetchItems() {
-    std::lock_guard<std::mutex> lh(pendingBGFetchesLock);
-    return !pendingBGFetches.empty();
+    return !pendingBGFetches.lock()->empty();
 }
 
 HighPriorityVBReqStatus EPVBucket::checkAddHighPriorityVBEntry(
@@ -370,21 +369,20 @@ void EPVBucket::notifyAllPendingConnsFailed(EventuallyPersistentEngine& e) {
 
     // Add all the pendingBGFetches to the toNotify map
     {
-        std::lock_guard<std::mutex> lh(pendingBGFetchesLock);
+        auto lockedQueue = pendingBGFetches.lock();
         size_t num_of_deleted_pending_fetches = 0;
-        for (auto& bgf : pendingBGFetches) {
-            vb_bgfetch_item_ctx_t& bg_itm_ctx = bgf.second;
-            for (auto& bgitem : bg_itm_ctx.getRequests()) {
+        for (auto& [_, ctx] : *lockedQueue) {
+            for (auto& bgitem : ctx.getRequests()) {
                 bgitem->abort(e, cb::engine_errc::not_my_vbucket, toNotify);
                 ++num_of_deleted_pending_fetches;
             }
         }
         stats.numRemainingBgItems.fetch_sub(num_of_deleted_pending_fetches);
-        pendingBGFetches.clear();
+        lockedQueue->clear();
     }
 
-    for (auto& notify : toNotify) {
-        e.notifyIOComplete(notify.first, notify.second);
+    for (auto& [cookie, status] : toNotify) {
+        e.notifyIOComplete(cookie, status);
     }
 
     fireAllOps(e);
@@ -640,12 +638,10 @@ size_t EPVBucket::queueBGFetchItem(const DocKey& key,
     // we don't allow bgfetching from Prepared namespace - so just construct
     // DiskDocKey with pending unconditionally false.
     DiskDocKey diskKey{key, /*pending*/ false};
-    std::lock_guard<std::mutex> lh(pendingBGFetchesLock);
-    vb_bgfetch_item_ctx_t& bgfetch_itm_ctx = pendingBGFetches[diskKey];
-    bgfetch_itm_ctx.addBgFetch(std::move(fetch));
-
+    auto lockedQueue = pendingBGFetches.lock();
+    (*lockedQueue)[diskKey].addBgFetch(std::move(fetch));
     bgFetcher.addPendingVB(getId());
-    return pendingBGFetches.size();
+    return lockedQueue->size();
 }
 
 std::tuple<StoredValue*, MutationStatus, VBNotifyCtx>
