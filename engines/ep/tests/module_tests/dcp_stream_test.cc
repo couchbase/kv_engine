@@ -1282,7 +1282,7 @@ TEST_P(StreamTest, MB38356_DuplicateStreamRequest) {
     auto& vb = *engine->getVBucket(vbid);
     auto& cm = *vb.checkpointManager;
     std::vector<queued_item> qis;
-    cm.getItemsForCursor(*cursorPtr, qis, std::numeric_limits<uint64_t>::max());
+    cm.getNextItemsForCursor(*cursorPtr, qis);
     // Copy to plain Item vector to aid in checking expected value.
     std::vector<Item> items;
     std::transform(qis.begin(),

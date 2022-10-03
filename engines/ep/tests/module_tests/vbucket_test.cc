@@ -738,7 +738,7 @@ public:
     void fakePersistenceForKey(const StoredDocKey& key) {
         auto* pCursor = vbucket->checkpointManager->getPersistenceCursor();
         std::vector<queued_item> items;
-        vbucket->checkpointManager->getItemsForCursor(*pCursor, items, 999);
+        vbucket->checkpointManager->getNextItemsForCursor(*pCursor, items);
         for (const auto& item : items) {
             if (item->isNonEmptyCheckpointMetaItem()) {
                 continue;

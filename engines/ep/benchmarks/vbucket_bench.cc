@@ -477,8 +477,7 @@ BENCHMARK_DEFINE_F(CheckpointBench, GetLowestCursor)
     std::vector<queued_item> items;
     auto cursor = resisterResult.cursor.lock();
     ASSERT_TRUE(cursor);
-    manager.getItemsForCursor(
-            *cursor, items, std::numeric_limits<size_t>::max());
+    manager.getNextItemsForCursor(*cursor, items);
 
     // Benchmark: Request the lowest cursor. Before the fix this was O(numItems)
     while (state.KeepRunning()) {
