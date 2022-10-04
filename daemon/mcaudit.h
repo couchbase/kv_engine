@@ -19,6 +19,11 @@
 class Cookie;
 class Connection;
 class StatCollector;
+class AuditEventFilter;
+
+/// Create an audit event filter to be used for filtering
+/// before pushing the event to the audit daemon
+std::unique_ptr<AuditEventFilter> create_audit_event_filter();
 
 /**
  * Send an audit event for an authentication failure

@@ -46,6 +46,10 @@ struct UserIdent {
     Domain domain{cb::rbac::Domain::Local};
 };
 
+inline bool operator==(const UserIdent& lhs, const UserIdent& rhs) {
+    return lhs.domain == rhs.domain && lhs.name == rhs.name;
+}
+
 /**
  * An array containing all of the possible privileges we've got. It is
  * tightly coupled with the Privilege enum class, and when entries is

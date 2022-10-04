@@ -9,6 +9,7 @@
  *   the file licenses/APL2.txt.
  */
 #include "audit.h"
+#include "audit_event_filter.h"
 #include "auditd_audit_events.h"
 #include "configureevent.h"
 #include "event.h"
@@ -30,6 +31,7 @@
 #include <string>
 
 using namespace std::string_view_literals;
+std::atomic<uint64_t> AuditImpl::generation = {0};
 
 AuditImpl::AuditImpl(std::string config_file,
                      ServerCookieIface* sapi,
@@ -189,6 +191,7 @@ bool AuditImpl::configure() {
     bool failure = false;
     try {
         config.initialize_config(config_json);
+        ++generation;
     } catch (std::string &msg) {
         LOG_WARNING("Audit::configure: Invalid input: {}", msg);
         failure = true;
@@ -431,4 +434,8 @@ void AuditImpl::consume_events() {
 
     // close the auditfile
     auditfile.close();
+}
+
+std::unique_ptr<AuditEventFilter> AuditImpl::createAuditEventFilter() {
+    return config.createAuditEventFilter(generation);
 }

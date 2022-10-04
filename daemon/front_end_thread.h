@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "auditd/src/audit_event_filter.h"
 #include "ssl_utils.h"
 #include <JSON_checker.h>
 #include <event.h>
@@ -34,6 +35,20 @@ class ListeningPort;
 struct thread_stats;
 
 struct FrontEndThread {
+    /**
+     * Check to see if the provided event should be filtered out for the
+     * provided user.
+     *
+     * @param id The event to check
+     * @param user The user
+     * @return true if the event should be dropped, false if it should be
+     *              submitted to the audit daemon.
+     */
+    bool is_audit_event_filtered_out(uint32_t id,
+                                     const cb::rbac::UserIdent& user);
+    /// The audit event filter used by this thread
+    std::unique_ptr<AuditEventFilter> auditEventFilter;
+
     /**
      * Pending IO requests for this thread. Maps each pending Connection to
      * the IO status to be notified.
