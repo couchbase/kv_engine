@@ -377,6 +377,14 @@ public:
          */
         void removeMFU(uint8_t mfu);
 
+        /**
+         * Get the histogram tracking MFU values of items which are currently
+         * evictable.
+         */
+        const auto& getEvictableMFUHistogram() const {
+            return evictableMFUHist;
+        }
+
     private:
         // Histogram used to record the MFU values of all evictable items.
         // Contains a flat array of uint64_t counts for every possible MFU
@@ -1391,6 +1399,14 @@ public:
      * ensures the MFU histogram is also updated.
      */
     void markSVClean(const HashBucketLock& lh, StoredValue& v);
+
+    /**
+     * Get the histogram tracking MFU values of items which are currently
+     * evictable.
+     */
+    const auto& getEvictableMFUHistogram() const {
+        return valueStats.getEvictableMFUHistogram();
+    }
 
 protected:
     // The container for actually holding the StoredValues.

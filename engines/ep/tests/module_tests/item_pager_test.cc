@@ -22,7 +22,6 @@
 #include "ep_bucket.h"
 #include "ep_time.h"
 #include "evp_store_single_threaded_test.h"
-#include "hashtable_utils.h"
 #include "item.h"
 #include "item_eviction.h"
 #include "kv_bucket.h"
@@ -1499,7 +1498,7 @@ TEST_P(STItemPagerTest, ItemPagerUpdatesMFUHistogram) {
     // prepare for the test by storing an item
     auto& vbucket = *store->getVBucket(vbid);
     auto& ht = vbucket.ht;
-    auto& hist = HashTableIntrospector::getEvictableMFUHistogram(ht);
+    const auto& hist = ht.getEvictableMFUHistogram();
     ASSERT_TRUE(hist.empty());
 
     StoredDocKey key = makeStoredDocKey("key");

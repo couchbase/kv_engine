@@ -1831,6 +1831,14 @@ public:
      */
     void notifyReplication();
 
+    /**
+     * Get the histogram tracking MFU values of items which are currently
+     * evictable.
+     */
+    const auto& getEvictableMFUHistogram() const {
+        return ht.getEvictableMFUHistogram();
+    }
+
 protected:
     /**
      * This function checks for the various states of the value & depending on

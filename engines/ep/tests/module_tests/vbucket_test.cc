@@ -19,7 +19,6 @@
 #include "ep_vb.h"
 #include "ephemeral_vb.h"
 #include "failover-table.h"
-#include "hashtable_utils.h"
 #include "item.h"
 #include "item_freq_decayer_visitor.h"
 #include "kvstore/kvstore.h"
@@ -731,8 +730,8 @@ TEST_P(VBucketEvictionTest, Durability_PendingNeverEjected) {
 
 class MFUTrackingTest : public VBucketTest {
 public:
-    auto& getHist() {
-        return HashTableIntrospector::getEvictableMFUHistogram(vbucket->ht);
+    const auto& getHist() {
+        return vbucket->ht.getEvictableMFUHistogram();
     }
 
     void fakePersistenceForKey(const StoredDocKey& key) {
