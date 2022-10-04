@@ -123,39 +123,41 @@ bool BucketQuotaChangeTask::setNewQuotaIfMemoryUsageAcceptable(
 
 void BucketQuotaChangeTask::checkForNewQuotaChange() {
     size_t newQuotaChangeValue = latestDesiredQuota;
-    if (newQuotaChangeValue != 0) {
-        const auto desiredQuota =
-                engine->getEpStats().desiredMaxDataSize.load();
-        bool quotaChangeWasInProgress = desiredQuota != 0;
-        if (quotaChangeWasInProgress) {
-            EP_LOG_INFO(
-                    "Aborting quota change to {} to start quota change "
-                    "to {}",
-                    desiredQuota,
-                    newQuotaChangeValue);
 
-            // We have some new quota change to process, stop what we're doing
-            // and start making the new change...
-            engine->getConfiguration().setMemLowWat(previousLowWatermark);
-            engine->getConfiguration().setMemHighWat(previousHighWatermark);
-        } else {
-            EP_LOG_INFO("Starting quota change from {} to {}",
-                        getCurrentBucketQuota(),
-                        newQuotaChangeValue);
-        }
-
-        // Loop compare exchange to ensure that we grab the latest value when
-        // we are resetting the atomic which also acts as our notification
-        // method
-        while (!latestDesiredQuota.compare_exchange_strong(newQuotaChangeValue,
-                                                           0)) {
-        }
-
-        state = ChangeState::ApplyingWatermarkChanges;
-        engine->getEpStats().desiredMaxDataSize = newQuotaChangeValue;
-        previousLowWatermark = 0;
-        previousHighWatermark = 0;
+    if (newQuotaChangeValue == 0) {
+        return;
     }
+
+    const auto desiredQuota = engine->getEpStats().desiredMaxDataSize.load();
+    bool quotaChangeWasInProgress = desiredQuota != 0;
+    if (quotaChangeWasInProgress) {
+        EP_LOG_INFO(
+                "Aborting quota change to {} to start quota change "
+                "to {}",
+                desiredQuota,
+                newQuotaChangeValue);
+
+        // We have some new quota change to process, stop what we're doing
+        // and start making the new change...
+        engine->getConfiguration().setMemLowWat(previousLowWatermark);
+        engine->getConfiguration().setMemHighWat(previousHighWatermark);
+    } else {
+        EP_LOG_INFO("Starting quota change from {} to {}",
+                    getCurrentBucketQuota(),
+                    newQuotaChangeValue);
+    }
+
+    // Loop compare exchange to ensure that we grab the latest value when
+    // we are resetting the atomic which also acts as our notification
+    // method
+    while (!latestDesiredQuota.compare_exchange_strong(newQuotaChangeValue,
+                                                       0)) {
+    }
+
+    state = ChangeState::ApplyingWatermarkChanges;
+    engine->getEpStats().desiredMaxDataSize = newQuotaChangeValue;
+    previousLowWatermark = 0;
+    previousHighWatermark = 0;
 }
 
 void BucketQuotaChangeTask::finishProcessingQuotaChange() {
