@@ -261,7 +261,7 @@ public:
     /**
      * Set the throttle limit for the bucket
      *
-     * @param limit Number of compute units to use before throttle commands
+     * @param limit Number of units (RU+WU) to use before throttle commands
      */
     void setThrottleLimit(std::size_t limit);
 
@@ -288,10 +288,10 @@ protected:
     /// The gauge to use for throttling of commands.
     SloppyGauge throttle_gauge;
 
-    /// The number of CUs consumed before we should start throttle
+    /// The number of units (RU+WU) consumed before we should start throttle
     std::atomic<std::size_t> throttle_limit{0};
 
-    /// The number of times we've throttled due to running out of CUs
+    /// The number of times we've throttled due to reaching the throttle limit
     std::atomic<std::size_t> num_throttled{0};
 
     /// The total time (in usec) spent in a throttled state

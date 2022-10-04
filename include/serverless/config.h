@@ -44,17 +44,17 @@ struct Config {
 
     /// Calculate the number of Read Units from a byte value
     size_t to_ru(size_t nbytes) {
-        return calc_cu(nbytes, readUnitSize.load(std::memory_order_acquire));
+        return calc_units(nbytes, readUnitSize.load(std::memory_order_acquire));
     }
 
     /// Calculate the number of Write Units from a byte value
     size_t to_wu(size_t nbytes) {
-        return calc_cu(nbytes, writeUnitSize.load(std::memory_order_acquire));
+        return calc_units(nbytes,
+                          writeUnitSize.load(std::memory_order_acquire));
     }
 
-    /// Calculate the number of compute units with the provided size a value
-    /// represents
-    static inline size_t calc_cu(size_t value, size_t size) {
+    /// Calculate the number of units with the provided size a value represents
+    static inline size_t calc_units(size_t value, size_t size) {
         if (size == 0) {
             // Disabled
             return 0;

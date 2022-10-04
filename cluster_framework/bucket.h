@@ -86,8 +86,8 @@ public:
         return manifest;
     }
 
-    /// Set the number of CU's to use before starting to throttle
-    void setThrottleLimit(size_t cu);
+    /// Set the number of units (RU+WU) to use before starting to throttle
+    void setThrottleLimit(size_t limit);
 
     /**
      * Get a connection to the node which is responsible for the specified

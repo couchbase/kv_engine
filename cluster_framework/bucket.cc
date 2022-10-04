@@ -176,8 +176,8 @@ void Bucket::setCollectionManifest(nlohmann::json next) {
     collectionManifest = std::move(next);
 }
 
-void Bucket::setThrottleLimit(size_t cu) {
-    cluster.iterateNodes([this, limit = cu](const auto& node) {
+void Bucket::setThrottleLimit(size_t limit) {
+    cluster.iterateNodes([this, limit](const auto& node) {
         auto conn = node.getConnection();
         conn->authenticate("@admin", "password");
         auto rsp =
