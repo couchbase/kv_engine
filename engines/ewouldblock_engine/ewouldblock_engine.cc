@@ -57,50 +57,30 @@
 #include "ewouldblock_engine.h"
 #include "ewouldblock_engine_public.h"
 #include <gsl/gsl-lite.hpp>
-#include <memcached/cookie_iface.h>
-#include <atomic>
-#include <chrono>
-#include <condition_variable>
-#include <cstring>
-#include <iostream>
-#include <map>
-#include <memory>
-#include <mutex>
-#include <queue>
-#include <random>
-#include <sstream>
-#include <string>
-#include <thread>
-#include <utility>
-
 #include <logger/logger.h>
 #include <memcached/collections.h>
+#include <memcached/cookie_iface.h>
 #include <memcached/dcp.h>
 #include <memcached/durability_spec.h>
 #include <memcached/engine.h>
 #include <memcached/range_scan_optional_configuration.h>
 #include <memcached/server_bucket_iface.h>
 #include <memcached/server_cookie_iface.h>
-#include <platform/cb_malloc.h>
-#include <platform/cbassert.h>
 #include <platform/dirutils.h>
 #include <platform/thread.h>
 #include <xattr/blob.h>
+#include <atomic>
+#include <chrono>
+#include <iostream>
+#include <map>
+#include <memory>
+#include <queue>
+#include <random>
+#include <string>
+#include <thread>
+#include <utility>
 
 class EWB_Engine;
-
-class NotificationThread : public Couchbase::Thread {
-public:
-    explicit NotificationThread(EWB_Engine& engine_)
-        : Thread("ewb:pendingQ"), engine(engine_) {
-    }
-
-protected:
-    void run() override;
-
-protected:
-    EWB_Engine& engine;
-};
 
 // Current DCP mutation `item`. We return an instance of this
 // (in the dcp step() function) back to the server, and then in
@@ -996,14 +976,6 @@ public:
 
     std::atomic_int clustermap_revno{1};
 
-    /**
-     * The method responsible for pushing all of the notify_io_complete
-     * to the frontend. It is run by notify_io_thread and not intended to
-     * be called by anyone else!.
-     */
-    void process_notifications();
-    std::unique_ptr<Couchbase::Thread> notify_io_thread;
-
 protected:
     /**
      * Handle the control message for block monitor file
@@ -1062,18 +1034,6 @@ protected:
                                    const AddResponseFn& response);
 
 private:
-    // Shared state between the main thread of execution and the background
-    // thread processing pending io ops.
-    std::mutex mutex;
-    std::condition_variable condvar;
-    struct PendingIO {
-        const CookieIface* cookie;
-        cb::engine_errc status;
-    };
-    std::queue<PendingIO> pending_io_ops;
-
-    std::atomic<bool> stop_notification_thread{false};
-
     // Base class for all fault injection modes.
     struct FaultInjectMode {
         virtual ~FaultInjectMode() = default;
@@ -1393,15 +1353,7 @@ private:
 
     void schedule_notification(const CookieIface* cookie,
                                cb::engine_errc status) {
-        {
-            std::lock_guard<std::mutex> guard(mutex);
-            pending_io_ops.push({cookie, status});
-        }
-        LOG_DEBUG("EWB_Engine: connection {} should be resumed for engine {}",
-                  (void*)cookie,
-                  (void*)this);
-
-        condvar.notify_one();
+        cookie->notifyIoComplete(status);
     }
 
     // Vector to keep track of the threads we've started to ensure
@@ -1411,18 +1363,11 @@ private:
             threads;
 };
 
-EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
-    : gsa(gsa_),
-      real_api(gsa()),
-      notify_io_thread(new NotificationThread(*this)) {
-    notify_io_thread->start();
+EWB_Engine::EWB_Engine(GET_SERVER_API gsa_) : gsa(gsa_), real_api(gsa()) {
 }
 
 EWB_Engine::~EWB_Engine() {
     threads.lock()->clear();
-    stop_notification_thread = true;
-    condvar.notify_all();
-    notify_io_thread->waitForState(Couchbase::ThreadState::Zombie);
 }
 
 cb::engine_errc EWB_Engine::step(const CookieIface& cookie,
@@ -1903,35 +1848,6 @@ const char* EWB_Engine::to_string(const Cmd cmd) {
         return "UNLOCK";
     }
     throw std::invalid_argument("EWB_Engine::to_string() Unknown command");
-}
-
-void EWB_Engine::process_notifications() {
-    LOG_DEBUG("EWB_Engine: notification thread running for engine {}",
-              (void*)this);
-    std::unique_lock<std::mutex> lk(mutex);
-    while (!stop_notification_thread) {
-        condvar.wait(lk, [this] {
-            return (!pending_io_ops.empty()) || stop_notification_thread;
-        });
-        while (!pending_io_ops.empty()) {
-            const auto op = pending_io_ops.front();
-            pending_io_ops.pop();
-            lk.unlock();
-            LOG_DEBUG("EWB_Engine: notify {} status:{}",
-                      static_cast<const void*>(op.cookie),
-                      op.status);
-            op.cookie->notifyIoComplete(op.status);
-            lk.lock();
-        }
-    }
-
-    LOG_DEBUG("EWB_Engine: notification thread stopping for engine {}",
-              (void*)this);
-}
-
-void NotificationThread::run() {
-    setRunning();
-    engine.process_notifications();
 }
 
 cb::engine_errc EWB_Engine::handleBlockMonitorFile(
