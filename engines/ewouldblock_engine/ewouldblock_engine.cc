@@ -72,12 +72,12 @@
 #include <atomic>
 #include <chrono>
 #include <iostream>
-#include <map>
 #include <memory>
 #include <queue>
 #include <random>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <utility>
 
 class EWB_Engine;
@@ -203,11 +203,7 @@ public:
     void initiate_shutdown() override;
 
     void disconnect(const CookieIface& cookie) override {
-        const auto id = uint64_t(&cookie.getConnectionIface());
-        {
-            std::lock_guard<std::mutex> guard(cookie_map_mutex);
-            connection_map.erase(id);
-        }
+        connection_map.lock()->erase(uint64_t(&cookie.getConnectionIface()));
 
         if (real_engine) {
             real_engine->disconnect(cookie);
@@ -227,43 +223,42 @@ public:
             return true;
         }
 
-        const auto id = uint64_t(&cookie->getConnectionIface());
+        return connection_map.withLock([&err, cmd, cookie, this](auto& map) {
+            auto iter = map.find(uint64_t(&cookie->getConnectionIface()));
+            if (iter == map.end()) {
+                return false;
+            }
 
-        std::lock_guard<std::mutex> guard(cookie_map_mutex);
+            if (iter->second.first != cookie) {
+                // The cookie is different so it represents a different command
+                map.erase(iter);
+                return false;
+            }
 
-        auto iter = connection_map.find(id);
-        if (iter == connection_map.end()) {
-            return false;
-        }
+            const bool inject =
+                    iter->second.second->should_inject_error(cmd, err);
 
-        if (iter->second.first != cookie) {
-            // The cookie is different so it represents a different command
-            connection_map.erase(iter);
-            return false;
-        }
+            if (inject) {
+                LOG_DEBUG("EWB_Engine: injecting error:{} for cmd:{}",
+                          err,
+                          to_string(cmd));
 
-        const bool inject = iter->second.second->should_inject_error(cmd, err);
-
-        if (inject) {
-            LOG_DEBUG("EWB_Engine: injecting error:{} for cmd:{}",
-                      err,
-                      to_string(cmd));
-
-            if (err == cb::engine_errc::would_block) {
-                const auto add_to_pending_io_ops =
-                        iter->second.second->add_to_pending_io_ops();
-                if (add_to_pending_io_ops) {
-                    // The server expects that if EWOULDBLOCK is returned then
-                    // the server should be notified in the future when the
-                    // operation is ready - so add this op to the pending IO
-                    // queue.
-                    schedule_notification(iter->second.first,
-                                          *add_to_pending_io_ops);
+                if (err == cb::engine_errc::would_block) {
+                    const auto add_to_pending_io_ops =
+                            iter->second.second->add_to_pending_io_ops();
+                    if (add_to_pending_io_ops) {
+                        // The server expects that if EWOULDBLOCK is returned
+                        // then the server should be notified in the future when
+                        // the operation is ready - so add this op to the
+                        // pending IO queue.
+                        schedule_notification(iter->second.first,
+                                              *add_to_pending_io_ops);
+                    }
                 }
             }
-        }
 
-        return inject;
+            return inject;
+        });
     }
 
     /* Implementation of all the engine functions. ***************************/
@@ -619,13 +614,10 @@ public:
                             new_mode->to_string(),
                             static_cast<const void*>(cookie));
 
-                    const auto id = uint64_t(&cookie->getConnectionIface());
-                    {
-                        std::lock_guard<std::mutex> guard(cookie_map_mutex);
-                        connection_map.erase(id);
-                        connection_map.emplace(
-                                id, std::make_pair(cookie, new_mode));
-                    }
+                    connection_map.withLock([cookie, new_mode](auto& map) {
+                        map[uint64_t(&cookie->getConnectionIface())] = {
+                                cookie, new_mode};
+                    });
 
                     response({},
                              {},
@@ -1286,11 +1278,12 @@ private:
     };
 
     // Map of connections (aka cookies) to their current mode.
-    std::map<uint64_t,
-             std::pair<const CookieIface*, std::shared_ptr<FaultInjectMode>>>
+    folly::Synchronized<
+            std::unordered_map<uint64_t,
+                               std::pair<const CookieIface*,
+                                         std::shared_ptr<FaultInjectMode>>>,
+            std::mutex>
             connection_map;
-    // Mutex for above map.
-    std::mutex cookie_map_mutex;
 
     /**
      * The dcp_stream map is used to map a cookie to the count of objects
