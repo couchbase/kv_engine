@@ -36,7 +36,7 @@ bool BucketQuotaChangeTask::run() {
             // quota.
             engine->setMaxDataSize(desiredQuota);
         }
-        finishProcessingQuotaChange();
+        finishProcessingQuotaChange(cb::engine_errc::success);
         return true;
     }
 
@@ -57,7 +57,15 @@ bool BucketQuotaChangeTask::run() {
 
         // To reduce memory usage we need to adjust watermarks to start
         // recovering memory
-        prepareToReduceMemoryUsage(desiredQuota);
+        if (const auto ret = prepareToReduceMemoryUsage(desiredQuota);
+            ret != cb::engine_errc::success) {
+            EP_LOG_ERR(
+                    "Aborting quota change to {} - Couldn't prepare to reduce "
+                    "memory usage - Configuration reverted to initial values",
+                    desiredQuota);
+            finishProcessingQuotaChange(ret);
+            break;
+        }
 
         if (!setNewQuotaIfMemoryUsageAcceptable(desiredQuota)) {
             EP_LOG_INFO(
@@ -114,7 +122,7 @@ bool BucketQuotaChangeTask::setNewQuotaIfMemoryUsageAcceptable(
         size_t desiredQuota) {
     if (checkMemoryState()) {
         setDesiredQuota(desiredQuota);
-        finishProcessingQuotaChange();
+        finishProcessingQuotaChange(cb::engine_errc::success);
         return true;
     }
 
@@ -160,48 +168,95 @@ void BucketQuotaChangeTask::checkForNewQuotaChange() {
     previousHighWatermark = 0;
 }
 
-void BucketQuotaChangeTask::finishProcessingQuotaChange() {
-    EP_LOG_INFO("Completed quota change to: {}",
-                engine->getEpStats().desiredMaxDataSize);
+void BucketQuotaChangeTask::finishProcessingQuotaChange(cb::engine_errc code) {
+    EP_LOG_INFO("Quota change completed: desiredQuota:{} status:{}",
+                engine->getEpStats().desiredMaxDataSize,
+                to_string(code));
     state = ChangeState::Done;
     engine->getEpStats().desiredMaxDataSize = 0;
     previousLowWatermark = 0;
     previousHighWatermark = 0;
 }
 
-void BucketQuotaChangeTask::prepareToReduceMemoryUsage(size_t desiredQuota) {
+cb::engine_errc BucketQuotaChangeTask::prepareToReduceMemoryUsage(
+        size_t desiredQuota) {
+    const auto initQuota = getCurrentBucketQuota();
+    auto& bucket = *engine->getKVBucket();
+    const auto initCkptLower = bucket.getCheckpointMemoryRecoveryLowerMark();
+    const auto initCkptUpper = bucket.getCheckpointMemoryRecoveryUpperMark();
+
+    const auto cleanupHandler = [&]() -> void {
+        engine->configureStorageMemoryForQuota(initQuota);
+        bucket.setCheckpointMemoryRecoveryLowerMark(initCkptLower);
+        bucket.setCheckpointMemoryRecoveryUpperMark(initCkptUpper);
+        bucket.getKVStoreScanTracker().updateMaxRunningScans(initQuota);
+        engine->configureMemWatermarksForQuota(initQuota);
+    };
+
     // Step 1
     engine->configureStorageMemoryForQuota(desiredQuota);
 
     // Step 2
-    auto checkpointLowWatRatio =
-            engine->getKVBucket()->getCheckpointMemoryRecoveryLowerMark();
-    auto checkpointUpperWatRatio =
-            engine->getKVBucket()->getCheckpointMemoryRecoveryUpperMark();
-
-    auto currentQuota = getCurrentBucketQuota();
-    double changeRatio = static_cast<double>(currentQuota) /
-                         static_cast<double>(desiredQuota);
-
-    auto desiredCheckpointLowWat = checkpointLowWatRatio * changeRatio;
-    auto desiredCheckpointUpperWat = checkpointUpperWatRatio * changeRatio;
-
-    engine->getKVBucket()->setCheckpointMemoryRecoveryLowerMark(
-            desiredCheckpointLowWat);
-    engine->getKVBucket()->setCheckpointMemoryRecoveryUpperMark(
-            desiredCheckpointUpperWat);
-    engine->getKVBucket()->verifyCheckpointMemoryState();
+    if (const auto ret = prepareToReduceCheckpointMemoryUsage(desiredQuota);
+        ret != cb::engine_errc::success) {
+        cleanupHandler();
+        return ret;
+    }
 
     // Step 3
-    engine->getKVBucket()->getKVStoreScanTracker().updateMaxRunningScans(
-            desiredQuota);
+    bucket.getKVStoreScanTracker().updateMaxRunningScans(desiredQuota);
 
     // Step 4
     engine->configureMemWatermarksForQuota(desiredQuota);
 
     // Step 5 (also triggers expiry pager if applicable for ephemeral
     // fail_new_data)
-    engine->getKVBucket()->checkAndMaybeFreeMemory();
+    bucket.checkAndMaybeFreeMemory();
+
+    return cb::engine_errc::success;
+}
+
+cb::engine_errc BucketQuotaChangeTask::prepareToReduceCheckpointMemoryUsage(
+        size_t desiredQuota) {
+    // We need to possibly trigger checkpoint mem-recovery as if CMQuota was
+    // reduced immediately but before actually reducing it.
+    // Given that we can't touch the CMQuota yet, then we reduce the checkpoint
+    // upper/lower marks for making mem-recovery behave as it would by reducing
+    // the CMQuota.
+
+    const auto initQuota = getCurrentBucketQuota();
+    if (desiredQuota >= initQuota) {
+        EP_LOG_ERR(
+                "BucketQuotaChangeTask::prepareToReduceCheckpointMemoryUsage: "
+                "desiredQuota ({}) >= initQuota ({})",
+                desiredQuota,
+                initQuota);
+        return cb::engine_errc::invalid_arguments;
+    }
+    Expects(initQuota > 0);
+    // Note: desiredQuota < currentQuota implies changeRatio in [0.0, 1.0)
+    const float changeRatio = static_cast<float>(desiredQuota) / initQuota;
+    // Which implies tempMarks in [0.0, originalMarks)
+    auto& bucket = *engine->getKVBucket();
+    const auto tempCheckpointLowerMark =
+            bucket.getCheckpointMemoryRecoveryLowerMark() * changeRatio;
+    const auto tempCheckpointUpperMark =
+            bucket.getCheckpointMemoryRecoveryUpperMark() * changeRatio;
+
+    if (const auto ret = bucket.setCheckpointMemoryRecoveryLowerMark(
+                tempCheckpointLowerMark);
+        ret != cb::engine_errc::success) {
+        return ret;
+    }
+    if (const auto ret = bucket.setCheckpointMemoryRecoveryUpperMark(
+                tempCheckpointUpperMark);
+        ret != cb::engine_errc::success) {
+        return ret;
+    }
+    // Trigger checkpoint mem recovery if necessary
+    bucket.verifyCheckpointMemoryState();
+
+    return cb::engine_errc::success;
 }
 
 void BucketQuotaChangeTask::setDesiredQuota(size_t desiredQuota) {

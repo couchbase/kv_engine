@@ -11,6 +11,7 @@
 #pragma once
 
 #include <executor/globaltask.h>
+#include <memcached/engine_error.h>
 
 #include <climits>
 
@@ -32,9 +33,11 @@
  *
  * 1) Set the storage quota to the new value (to kick off any background memory
  *    reclamation)
- * 2) Set the checkpoint manager watermarks (kicks in memory recovery if
- *    necessary but does not reduce the quota so new mutations are not any more
- *    likely to be blocked due ot the quota).
+ * 2) Set the checkpoint manager watermarks to some temporary values so that
+ *    checkpoint memory recovery kicks in (if necessary) without reducing the
+ *    CMQuota. That way we kind of 'anticipate' checkpoint mem-recovery and
+ *    incoming mutations are not any more likely to be blocked by the new
+ *    CMQuota once it is set.
  * 3) Decrease our memory determined backfill limit
  * 4) Set the low and high watermark values
  * 5) Wake the ItemPager/ExpiryPager to recover memory from the HashTable
@@ -95,8 +98,18 @@ private:
      * Set watermark values for the desiredQuota to start memory reclamation.
      *
      * @param desiredQuota new quota
+     * @return Success, some internal error otherwise
      */
-    void prepareToReduceMemoryUsage(size_t desiredQuota);
+    cb::engine_errc prepareToReduceMemoryUsage(size_t desiredQuota);
+
+    /**
+     * Set checkpoint watermarks to temporary ad-hoc values for attempting
+     * checkpoint mem-recovery (if necessary.
+     *
+     * @param desiredQuota New quota, used for computing the temp marks
+     * @return Success, some internal error otherwise
+     */
+    cb::engine_errc prepareToReduceCheckpointMemoryUsage(size_t desiredQuota);
 
     /**
      * Phase 2:
@@ -126,8 +139,10 @@ private:
 
     /**
      * Cleans up any state set while processing the quota change.
+     *
+     * @param code Errcode, logged in the function
      */
-    void finishProcessingQuotaChange();
+    void finishProcessingQuotaChange(cb::engine_errc code);
 
     // State of the current quota change
     enum class ChangeState {
