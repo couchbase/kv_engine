@@ -167,4 +167,11 @@ private:
     // Watermarks values for the old quota. They are stored
     size_t previousLowWatermark{0};
     size_t previousHighWatermark{0};
+
+    // Used for storing the initial checkpoint mem-recovery ratios.
+    // EPEngine ratios are set to temp values during the mem-recovery phase and
+    // then needs to be reset to their original values at quota-reduction
+    // completion.
+    float previousCkptLowerMark{0};
+    float previousCkptUpperMark{0};
 };

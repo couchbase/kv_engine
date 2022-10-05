@@ -47,6 +47,13 @@ public:
         initialMemLowWatPercent = engine->getEpStats().mem_low_wat_percent;
         initialMemHighWatPercent = engine->getEpStats().mem_high_wat_percent;
 
+        // Save original checkpoint mem-recovery ratios.
+        // They are set to temp values during the mem-recovery phase. Then at
+        // quota-reduction completion they are expected to be reset to their
+        // original values.
+        initialCkptLowerMark = store->getCheckpointMemoryRecoveryLowerMark();
+        initialCkptUpperMark = store->getCheckpointMemoryRecoveryUpperMark();
+
         // Test setup doesn't call KVBucket::initialize (which creates the quota
         // change task) so we have to do that manually here.
         store->createAndScheduleBucketQuotaChangeTask();
@@ -191,6 +198,13 @@ public:
         checkDcpConsumerBuffer(quotaValue);
     }
 
+    void checkCkptMarksResetToInitialValues() const {
+        EXPECT_EQ(initialCkptLowerMark,
+                  store->getCheckpointMemoryRecoveryLowerMark());
+        EXPECT_EQ(initialCkptUpperMark,
+                  store->getCheckpointMemoryRecoveryUpperMark());
+    }
+
     void testQuotaChangeUp() {
         SCOPED_TRACE("");
         auto currentQuota = getCurrentBucketQuota();
@@ -286,10 +300,21 @@ public:
         checkStorageEngineQuota(newQuota);
 
         checkQuota(oldQuota);
+
+        // Checkpoint mem-recovery marks changed to temp ratios
+        const float changeRatio = static_cast<float>(newQuota) / oldQuota;
+        ASSERT_GT(changeRatio, 0.0f);
+        EXPECT_EQ(initialCkptLowerMark * changeRatio,
+                  store->getCheckpointMemoryRecoveryLowerMark());
+        EXPECT_EQ(initialCkptUpperMark * changeRatio,
+                  store->getCheckpointMemoryRecoveryUpperMark());
     }
 
     double initialMemLowWatPercent;
     double initialMemHighWatPercent;
+
+    float initialCkptLowerMark;
+    float initialCkptUpperMark;
 
     // Used for test DCP Consumers buffers resizing at bucket quota changes.
     // Raw ptr, owned by the engine for proper cleanup at test tear-down.
@@ -426,6 +451,7 @@ TEST_P(BucketQuotaChangeTest, QuotaChangeDownMemoryUsageHigh) {
     {
         SCOPED_TRACE("");
         checkBucketQuotaAndRelatedValues(newQuota);
+        checkCkptMarksResetToInitialValues();
     }
 }
 

@@ -180,6 +180,8 @@ void BucketQuotaChangeTask::finishProcessingQuotaChange(cb::engine_errc code) {
 
 cb::engine_errc BucketQuotaChangeTask::prepareToReduceMemoryUsage(
         size_t desiredQuota) {
+    Expects(desiredQuota > 0);
+
     const auto initQuota = getCurrentBucketQuota();
     auto& bucket = *engine->getKVBucket();
     const auto initCkptLower = bucket.getCheckpointMemoryRecoveryLowerMark();
@@ -225,6 +227,12 @@ cb::engine_errc BucketQuotaChangeTask::prepareToReduceCheckpointMemoryUsage(
     // the CMQuota.
 
     const auto initQuota = getCurrentBucketQuota();
+    // First, save initial values for reapplying them later at quota-reduction
+    // completion.
+    auto& bucket = *engine->getKVBucket();
+    previousCkptLowerMark = bucket.getCheckpointMemoryRecoveryLowerMark();
+    previousCkptUpperMark = bucket.getCheckpointMemoryRecoveryUpperMark();
+
     if (desiredQuota >= initQuota) {
         EP_LOG_ERR(
                 "BucketQuotaChangeTask::prepareToReduceCheckpointMemoryUsage: "
@@ -237,11 +245,8 @@ cb::engine_errc BucketQuotaChangeTask::prepareToReduceCheckpointMemoryUsage(
     // Note: desiredQuota < currentQuota implies changeRatio in [0.0, 1.0)
     const float changeRatio = static_cast<float>(desiredQuota) / initQuota;
     // Which implies tempMarks in [0.0, originalMarks)
-    auto& bucket = *engine->getKVBucket();
-    const auto tempCheckpointLowerMark =
-            bucket.getCheckpointMemoryRecoveryLowerMark() * changeRatio;
-    const auto tempCheckpointUpperMark =
-            bucket.getCheckpointMemoryRecoveryUpperMark() * changeRatio;
+    const auto tempCheckpointLowerMark = previousCkptLowerMark * changeRatio;
+    const auto tempCheckpointUpperMark = previousCkptUpperMark * changeRatio;
 
     if (const auto ret = bucket.setCheckpointMemoryRecoveryLowerMark(
                 tempCheckpointLowerMark);
@@ -269,7 +274,10 @@ void BucketQuotaChangeTask::setDesiredQuota(size_t desiredQuota) {
     stats.setLowWaterMark(stats.mem_low_wat);
     stats.setHighWaterMark(stats.mem_high_wat);
 
-    engine->getKVBucket()->autoConfigCheckpointMaxSize();
+    auto& bucket = *engine->getKVBucket();
+    bucket.autoConfigCheckpointMaxSize();
+    bucket.setCheckpointMemoryRecoveryUpperMark(previousCkptUpperMark);
+    bucket.setCheckpointMemoryRecoveryLowerMark(previousCkptLowerMark);
 
     engine->updateArenaAllocThresholdForQuota(desiredQuota);
 
