@@ -38,7 +38,7 @@ bool add_response(std::string_view key,
                   uint8_t datatype,
                   cb::mcbp::Status status,
                   uint64_t cas,
-                  const void* cookie);
+                  const CookieIface& cookie);
 
 void add_stats(std::string_view key, std::string_view value, const void* ctx);
 

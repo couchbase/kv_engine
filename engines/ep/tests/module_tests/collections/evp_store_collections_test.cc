@@ -2482,7 +2482,7 @@ TEST_P(CollectionsParameterizedTest,
                             uint8_t datatype,
                             cb::mcbp::Status status,
                             uint64_t cas,
-                            const void* cookie) -> bool {
+                            const CookieIface& cookie) -> bool {
         // This callback should run in the memcached-context - there should be
         // no associated engine.
         EXPECT_FALSE(ObjectRegistry::getCurrentEngine());
@@ -3185,7 +3185,7 @@ bool getAllKeysResponseHandler(std::string_view key,
                                uint8_t datatype,
                                cb::mcbp::Status status,
                                uint64_t cas,
-                               const void* cookie) {
+                               const CookieIface& cookie) {
     lastGetKeysResult.clear();
 
     const char* strPtr = body.data();

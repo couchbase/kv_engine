@@ -287,7 +287,7 @@ public:
                             uint8_t datatype,
                             cb::mcbp::Status status,
                             uint64_t pcas,
-                            const void* cookie);
+                            const CookieIface& cookie);
 
     static cb::mcbp::Status getAddResponseStatus(
             cb::mcbp::Status newval = cb::mcbp::Status::Success);

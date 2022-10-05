@@ -228,7 +228,7 @@ bool add_response(std::string_view key,
                   uint8_t datatype,
                   cb::mcbp::Status status,
                   uint64_t cas,
-                  const void* cookie) {
+                  const CookieIface& cookie) {
     (void)cookie;
     static std::mutex m;
     std::lock_guard<std::mutex> lg(m);
@@ -247,7 +247,7 @@ bool add_response_set_del_meta(std::string_view key,
                                uint8_t datatype,
                                cb::mcbp::Status status,
                                uint64_t cas,
-                               const void* cookie) {
+                               const CookieIface& cookie) {
     if (!extras.empty()) {
         const auto* ext_bytes = reinterpret_cast<const uint8_t*>(extras.data());
         uint64_t vb_uuid;
@@ -267,7 +267,7 @@ bool add_response_ret_meta(std::string_view key,
                            uint8_t datatype,
                            cb::mcbp::Status status,
                            uint64_t cas,
-                           const void* cookie) {
+                           const CookieIface& cookie) {
     if (extras.size() == 16) {
         const auto* ext_bytes = reinterpret_cast<const uint8_t*>(extras.data());
         memcpy(&last_meta.flags, ext_bytes, 4);

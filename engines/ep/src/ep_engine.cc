@@ -154,7 +154,7 @@ static cb::engine_errc sendResponse(const AddResponseFn& response,
                                     cb::mcbp::Status status,
                                     uint64_t cas,
                                     const CookieIface* cookie) {
-    if (response(key, ext, body, datatype, status, cas, cookie)) {
+    if (response(key, ext, body, datatype, status, cas, *cookie)) {
         return cb::engine_errc::success;
     }
     return cb::engine_errc::failed;
@@ -178,7 +178,7 @@ static cb::engine_errc sendResponse(const AddResponseFn& response,
                  datatype,
                  status,
                  cas,
-                 cookie)) {
+                 *cookie)) {
         return cb::engine_errc::success;
     }
 

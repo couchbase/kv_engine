@@ -2409,7 +2409,7 @@ private:
                                         protocol_binary_datatype_t datatype,
                                         cb::mcbp::Status status,
                                         uint64_t cas,
-                                        const void* void_cookie) -> bool {
+                                        const CookieIface& cookie) -> bool {
         return true;
     };
 };

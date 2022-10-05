@@ -4501,7 +4501,9 @@ TEST_P(DurabilityBucketTest, ObserveReturnsErrorIfRecommitInProgress) {
                                      uint8_t datatype,
                                      cb::mcbp::Status status,
                                      uint64_t cas,
-                                     const void* cookie) { return true; };
+                                     const CookieIface& cookie) {
+        return true;
+    };
 
     auto requestPtr = createObserveRequest({keyCommitted});
     auto res = engine->observe(cookie, *requestPtr, dummyAddResponse);

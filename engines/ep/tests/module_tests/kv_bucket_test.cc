@@ -490,7 +490,7 @@ bool KVBucketTest::addResponse(std::string_view key,
                                uint8_t datatype,
                                cb::mcbp::Status status,
                                uint64_t pcas,
-                               const void* cookie) {
+                               const CookieIface& cookie) {
     addResponseStatus = status;
     return true;
 }

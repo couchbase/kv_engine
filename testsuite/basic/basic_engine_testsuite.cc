@@ -925,7 +925,7 @@ TEST_F(CollectionsTest, SetGetCollections) {
                                             uint8_t datatype,
                                             cb::mcbp::Status status,
                                             uint64_t cas,
-                                            const void* cookie) -> bool {
+                                            const CookieIface& cookie) -> bool {
         std::copy(body.begin(), body.end(), std::back_inserter(returnedData));
         returnedStatus = status;
         return true;

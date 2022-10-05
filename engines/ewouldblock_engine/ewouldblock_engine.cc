@@ -1291,7 +1291,7 @@ cb::engine_errc EWB_Engine::unknown_command(const CookieIface* cookie,
                      PROTOCOL_BINARY_RAW_BYTES,
                      cb::mcbp::Status::Einval,
                      /*cas*/ 0,
-                     cookie);
+                     *cookie);
             return cb::engine_errc::failed;
         } else {
             try {
@@ -1313,7 +1313,7 @@ cb::engine_errc EWB_Engine::unknown_command(const CookieIface* cookie,
                          PROTOCOL_BINARY_RAW_BYTES,
                          cb::mcbp::Status::Success,
                          /*cas*/ 0,
-                         cookie);
+                         *cookie);
                 return cb::engine_errc::success;
             } catch (std::bad_alloc&) {
                 return cb::engine_errc::no_memory;
@@ -1985,7 +1985,7 @@ cb::engine_errc EWB_Engine::handleBlockMonitorFile(
              PROTOCOL_BINARY_RAW_BYTES,
              cb::mcbp::Status::Success,
              /*cas*/ 0,
-             cookie);
+             *cookie);
     return cb::engine_errc::success;
 }
 
@@ -2002,7 +2002,7 @@ cb::engine_errc EWB_Engine::handleSuspend(const CookieIface* cookie,
                  PROTOCOL_BINARY_RAW_BYTES,
                  cb::mcbp::Status::Success,
                  /*cas*/ 0,
-                 cookie);
+                 *cookie);
         return cb::engine_errc::success;
     } else {
         LOG_WARNING("EWB_Engine::handleSuspend(): Id {} already registered",
@@ -2022,7 +2022,7 @@ cb::engine_errc EWB_Engine::handleResume(const CookieIface* cookie,
                  PROTOCOL_BINARY_RAW_BYTES,
                  cb::mcbp::Status::Success,
                  /*cas*/ 0,
-                 cookie);
+                 *cookie);
         return cb::engine_errc::success;
     } else {
         LOG_WARNING(
@@ -2057,7 +2057,7 @@ cb::engine_errc EWB_Engine::setItemCas(const CookieIface* cookie,
              PROTOCOL_BINARY_RAW_BYTES,
              cb::mcbp::Status::Success,
              0,
-             cookie);
+             *cookie);
     return cb::engine_errc::success;
 }
 
@@ -2073,7 +2073,7 @@ cb::engine_errc EWB_Engine::checkLogLevels(const CookieIface* cookie,
              PROTOCOL_BINARY_RAW_BYTES,
              rsp ? cb::mcbp::Status::Success : cb::mcbp::Status::Einval,
              0,
-             cookie);
+             *cookie);
     return cb::engine_errc::success;
 }
 

@@ -771,7 +771,7 @@ static bool scrub_cmd(struct default_engine* e,
         res = cb::mcbp::Status::Ebusy;
     }
 
-    return response({}, {}, {}, PROTOCOL_BINARY_RAW_BYTES, res, 0, cookie);
+    return response({}, {}, {}, PROTOCOL_BINARY_RAW_BYTES, res, 0, *cookie);
 }
 
 cb::engine_errc default_engine::setParameter(const CookieIface& cookie,
@@ -833,7 +833,7 @@ cb::engine_errc default_engine::unknown_command(
                         PROTOCOL_BINARY_RAW_BYTES,
                         cb::mcbp::Status::UnknownCommand,
                         0,
-                        cookie);
+                        *cookie);
         break;
     }
 
@@ -967,7 +967,7 @@ cb::engine_errc default_engine::get_collection_manifest(
                        PROTOCOL_BINARY_DATATYPE_JSON,
                        cb::mcbp::Status::Success,
                        0,
-                       &cookie);
+                       cookie);
     return ok ? cb::engine_errc::success : cb::engine_errc::failed;
 }
 

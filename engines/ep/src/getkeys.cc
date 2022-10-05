@@ -97,7 +97,7 @@ bool FetchAllKeysTask::run() {
                        PROTOCOL_BINARY_RAW_BYTES,
                        cb::mcbp::Status::Success,
                        0,
-                       cookie)
+                       *cookie)
                       ? cb::engine_errc::success
                       : cb::engine_errc::failed;
     } else {
@@ -113,7 +113,7 @@ bool FetchAllKeysTask::run() {
                            PROTOCOL_BINARY_RAW_BYTES,
                            cb::mcbp::Status::Success,
                            0,
-                           cookie)
+                           *cookie)
                           ? cb::engine_errc::success
                           : cb::engine_errc::failed;
         }
