@@ -795,8 +795,16 @@ void Connection::logSslErrorInfo(const std::string& method, int rval) {
     }
 }
 
-int Connection::sslAcceptWithRetry() {
-    while (true) {
+int Connection::sslAccept() {
+    // if the SSLContext is now in an error state, give up and disconnect
+    if (ssl.hasError()) {
+        cb::net::set_econnreset();
+        return -1;
+    }
+
+    bool acceptAgain = true;
+
+    do {
         int r = ssl.accept();
         if (r == 1) {
             // handshake completed.
@@ -804,41 +812,48 @@ int Connection::sslAcceptWithRetry() {
         }
 
         auto sslError = ssl.getError(r);
-        if (sslError == SSL_ERROR_WANT_READ ||
-            sslError == SSL_ERROR_WANT_WRITE) {
-            // Drain send and receive pipes.
-            // Note: This is somewhat of a naive implementation - ideally we
-            // would only drain the specific pipe direction based on the status
-            // code, repeating any drains until there is no more data ready
-            // to transfer. However that requires a more expressive interface on
-            // drainBio{Send,Recv}Pipe. Given SSL_accept() only occurs once
-            // per connect at the start, having a simpler (but technically
-            // sub-optimal) handing of errors here seems reasonable.
-            ssl.drainBioSendPipe(socketDescriptor);
-            if (ssl.hasError()) {
-                cb::net::set_econnreset();
-                return -1;
+        switch (sslError) {
+        case SSL_ERROR_WANT_READ:
+            // SSL_accept needs more data from the client to continue. That data
+            // may have been read from the socket or not, we check
+            // moreInputAvailable to determine if we can proceed
+
+            if (!ssl.moreInputAvailable()) {
+                // Fall-out of the loop, we will enter blocking state and await
+                // data from the socket
+                acceptAgain = false;
+            } else {
+                // more data is in the input pipe, move that to the BIO and
+                // run accept again. Here no call to drainBioReadPipe is used
+                // as we don't want to speculatively issue a recv() syscall
+                acceptAgain = ssl.drainInputSocketBuf();
             }
-            ssl.drainBioRecvPipe(socketDescriptor);
-            if (ssl.hasError()) {
-                cb::net::set_econnreset();
-                return -1;
+            // However SSL_accept could also of generated some response data
+            // which must be sent. Fall-through to the write handler to ensure
+            // the output BIO is checked and drained.
+        case SSL_ERROR_WANT_WRITE:
+            // SSL_accept generates this status when it has written enough
+            // data to fill the BIO, thus the BIO must be drained (send to
+            // client) and SSL_accept retried.
+            if (ssl.bio_pending()) {
+                ssl.drainBioSendPipe(socketDescriptor);
             }
-            // Continue SSL accept handshake.
-            continue;
-        } else {
+            break;
+        default:
             logSslErrorInfo("SSL_accept", r);
             cb::net::set_econnreset();
             return -1;
         }
-    }
-    folly::assume_unreachable();
+    } while (acceptAgain);
+
+    cb::net::set_ewouldblock();
+    return -1;
 }
 
 int Connection::sslPreConnection() {
-    int r = sslAcceptWithRetry();
+    int r = sslAccept();
     if (r == 1) {
-        ssl.drainBioSendPipe(socketDescriptor);
+        auto startCert = std::chrono::steady_clock::now();
         ssl.setConnected();
         auto certResult = ssl.getCertUserName();
         bool disconnect = false;
@@ -886,7 +901,17 @@ int Connection::sslPreConnection() {
         }
 
         LOG_INFO(
-                "{}: Using SSL cipher:{}", getId(), ssl.getCurrentCipherName());
+                "{}: Using SSL cipher:{}, accept-duration:{}us "
+                "total-accept-duration:{}us, accepts:{}, certificate "
+                "duration:{}us ",
+                getId(),
+                ssl.getCurrentCipherName(),
+                ssl.getAcceptDuration().count(),
+                ssl.getTotalAcceptDuration().count(),
+                ssl.getAcceptCalls(),
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                        std::chrono::steady_clock::now() - startCert)
+                        .count());
     }
     return r;
 }

@@ -19,6 +19,7 @@
 #include "testapp_client_test.h"
 
 #include <platform/compress.h>
+#include <platform/dirutils.h>
 #include <protocol/mcbp/ewb_encode.h>
 #include <algorithm>
 
@@ -34,6 +35,16 @@ protected:
         memcached_cfg["ssl_cipher_list"]["tls 1.3"] =
                 "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_"
                 "128_GCM_SHA256";
+
+        // MB-51498: Change to the larger certificate to force more cycles of
+        // SSL_accept
+        const std::string cwd = cb::io::getcwd();
+        const std::string pem_path = cwd + CERTIFICATE_PATH("16k_testapp.pem");
+        const std::string cert_path =
+                cwd + CERTIFICATE_PATH("16k_testapp.cert");
+        memcached_cfg["interfaces"][1]["ssl"] = {{"key", pem_path},
+                                                 {"cert", cert_path}};
+
         reloadConfig();
         setTlsMinimumSpec("tlsv1");
         connection = connectionMap.getConnection(true, AF_INET).clone();

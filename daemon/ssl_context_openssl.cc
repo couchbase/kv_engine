@@ -23,6 +23,7 @@
 
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
+#include <phosphor/phosphor.h>
 #include <platform/socket.h>
 #include <platform/strerror.h>
 #include <utilities/logtags.h>
@@ -34,7 +35,27 @@ SslContext::~SslContext() {
 }
 
 int SslContext::accept() {
-    return SSL_accept(client);
+    TRACE_EVENT0("SslContext", "accept");
+    auto startTime = std::chrono::steady_clock::now();
+    int rv = SSL_accept(client);
+    auto endTime = std::chrono::steady_clock::now();
+
+    ++accepts;
+
+    if (!firstAccept) {
+        firstAccept = startTime;
+    }
+
+    if (rv == 1) {
+        // Record duration to obtain success
+        totalAcceptDuration =
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                        endTime - firstAccept.value());
+    }
+    // accumulate total time spent executing SSL_accept
+    acceptDuration += std::chrono::duration_cast<std::chrono::microseconds>(
+            endTime - startTime);
+    return rv;
 }
 
 int SslContext::getError(int errormask) const {
@@ -73,11 +94,11 @@ bool SslContext::enable(const std::string& cert, const std::string& pkey) {
                              SSL_MODE_ENABLE_PARTIAL_WRITE);
 
     /* @todo don't read files, but use in-memory-copies */
-    if (!SSL_CTX_use_certificate_chain_file(ctx, cert.c_str()) ||
-        !SSL_CTX_use_PrivateKey_file(ctx, pkey.c_str(), SSL_FILETYPE_PEM)) {
-        LOG_WARNING("Failed to use SSL cert {} and pkey {}",
-                    cb::UserDataView(cert),
-                    cb::UserDataView(pkey));
+    if (!SSL_CTX_use_certificate_chain_file(ctx, cert.c_str())) {
+        LOG_WARNING("Failed to use SSL cert {}", cb::UserDataView(cert));
+    }
+    if (!SSL_CTX_use_PrivateKey_file(ctx, pkey.c_str(), SSL_FILETYPE_PEM)) {
+        LOG_WARNING("Failed to use SSL pkey {}", cb::UserDataView(pkey));
         return false;
     }
 
@@ -298,4 +319,12 @@ nlohmann::json SslContext::toJSON() const {
 
 const char* SslContext::getCurrentCipherName() const {
     return SSL_get_cipher_name(client);
+}
+
+std::chrono::microseconds SslContext::getTotalAcceptDuration() const {
+    return totalAcceptDuration;
+}
+
+std::chrono::microseconds SslContext::getAcceptDuration() const {
+    return acceptDuration;
 }

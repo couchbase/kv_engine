@@ -18,10 +18,12 @@
 
 #include "client_cert_config.h"
 
+#include <boost/optional/optional.hpp>
 #include <memcached/openssl.h>
 #include <nlohmann/json_fwd.hpp>
 #include <platform/pipe.h>
 #include <platform/socket.h>
+#include <chrono>
 #include <cstdint>
 #include <vector>
 
@@ -154,9 +156,28 @@ public:
     /// Get the name of the cipher in use
     const char* getCurrentCipherName() const;
 
-protected:
+    /**
+     * If the context has now return 1 from accept, this function returns the
+     * total duration to obtain success from the very first call to SSL_accept
+     * to the last.
+     * @return microseconds duration
+     */
+    std::chrono::microseconds getTotalAcceptDuration() const;
+
+    /**
+     * @return how much time has been spent executing SSL_accept
+     */
+    std::chrono::microseconds getAcceptDuration() const;
+
+    /// @return how many calls to accept have been made
+    int getAcceptCalls() const {
+        return accepts;
+    }
+
+    // move data from the inputPipe to the BIO
     bool drainInputSocketBuf();
 
+protected:
     bool enabled = false;
     bool connected = false;
     bool error = false;
@@ -176,4 +197,15 @@ protected:
     size_t totalRecv = 0;
     // Total number of bytes sent to the network
     size_t totalSend = 0;
+
+    boost::optional<std::chrono::steady_clock::time_point> firstAccept;
+
+    /// This duration covers total time spent executing SSL_accept
+    std::chrono::microseconds acceptDuration;
+
+    /// This duration covers total time from the first accept until SSL_accept
+    /// returns 1 (success)
+    std::chrono::microseconds totalAcceptDuration;
+
+    int accepts{0};
 };
