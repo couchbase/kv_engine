@@ -85,14 +85,31 @@ void PrometheusStatCollector::addStat(const cb::stats::StatDef& spec,
     if (!spec.isPrometheusStat()) {
         return;
     }
-    if (spec.type == prometheus::MetricType::Histogram) {
+    prometheus::ClientMetric metric;
+    auto scaledValue = spec.unit.toBaseUnit(v);
+
+    using prometheus::MetricType;
+    switch (spec.type) {
+    case MetricType::Untyped:
+        metric.untyped.value = scaledValue;
+        break;
+    case MetricType::Counter:
+        metric.counter.value = scaledValue;
+        break;
+    case MetricType::Gauge:
+        metric.gauge.value = scaledValue;
+        break;
+    case MetricType::Histogram:
         throw std::logic_error(
                 fmt::format("PrometheusStatCollector: metricFamily:{} cannot "
                             "expose a scalar value as metric of type histogram",
                             spec.metricFamily));
+    case MetricType::Summary:
+        throw std::logic_error(
+                fmt::format("PrometheusStatCollector: metricFamily:{} "
+                            "summary metrics are not supported",
+                            spec.metricFamily));
     }
-    prometheus::ClientMetric metric;
-    metric.untyped.value = spec.unit.toBaseUnit(v);
     addClientMetric(spec, additionalLabels, std::move(metric), spec.type);
 }
 

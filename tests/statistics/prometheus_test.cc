@@ -25,6 +25,9 @@
 #include <statistics/labelled_collector.h>
 #include <statistics/prometheus.h>
 #include <statistics/prometheus_collector.h>
+#include <statistics/statdef.h>
+
+#include <vector>
 
 PrometheusStatTest::EndpointMetrics PrometheusStatTest::getMetrics() const {
     EndpointMetrics metrics;
@@ -189,4 +192,55 @@ kv_audit_dropped_events 0.000000
 )";
 
     EXPECT_EQ(expected, metricStr);
+}
+
+TEST_F(PrometheusStatTest, counterGaugeValuesExposed) {
+    // Check that the value provided for a counter/gauge is correctly exposed
+
+    using namespace cb::stats;
+
+    StatMap stats;
+    PrometheusStatCollector collector(stats);
+
+    collector.addStat(StatDef("some_counter",
+                              units::none,
+                              prometheus::MetricType::Counter,
+                              {/* no labels*/},
+                              StatDef::PrometheusOnlyTag{}),
+                      12345);
+
+    collector.addStat(StatDef("some_gauge",
+                              units::none,
+                              prometheus::MetricType::Gauge,
+                              {/* no labels */},
+                              StatDef::PrometheusOnlyTag{}),
+                      54321);
+
+    // check that each is serialised as expected
+
+    ::prometheus::TextSerializer serialiser;
+
+    {
+        std::string metricStr =
+                serialiser.Serialize({stats.at("some_counter")});
+
+        std::string expected = R"(# TYPE some_counter counter
+some_counter 12345.000000
+)";
+
+        // Prior to MB-53979, this would fail as gauges/counters erroneously set
+        // the "untyped" value in prometheus::ClientMetric, but exposed the
+        // gauge/counter value - defaulting to 0.
+        EXPECT_EQ(expected, metricStr);
+    }
+
+    {
+        std::string metricStr = serialiser.Serialize({stats.at("some_gauge")});
+
+        std::string expected = R"(# TYPE some_gauge gauge
+some_gauge 54321.000000
+)";
+
+        EXPECT_EQ(expected, metricStr);
+    }
 }
