@@ -694,7 +694,9 @@ VBNotifyCtx EphemeralVBucket::commitStoredValue(
     auto& osv = *(newCommitted->toOrderedStoredValue());
     osv.setPrepareSeqno(prepareSeqno);
 
-    values.pending.setCommitted(CommittedState::PrepareCommitted);
+    ht.unlocked_setCommitted(values.pending.getHBL(),
+                             *values.pending.getSV(),
+                             CommittedState::PrepareCommitted);
     return notifyCtx;
 }
 
@@ -977,7 +979,8 @@ bool EphemeralVBucket::isValidDurabilityLevel(cb::durability::Level level) {
 
 void EphemeralVBucket::processImplicitlyCompletedPrepare(
         HashTable::StoredValueProxy& v) {
-    v.setCommitted(CommittedState::PrepareCommitted);
+    ht.unlocked_setCommitted(
+            v.getHBL(), *v.getSV(), CommittedState::PrepareCommitted);
 
     std::lock_guard<std::mutex> lh(sequenceLock);
     std::lock_guard<std::mutex> listWriteLg(seqList->getListWriteLock());

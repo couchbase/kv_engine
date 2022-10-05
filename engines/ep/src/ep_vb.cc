@@ -605,7 +605,9 @@ VBNotifyCtx EPVBucket::commitStoredValue(HashTable::FindUpdateResult& values,
         ht.unlocked_del(values.pending.getHBL(), values.committed);
     }
 
-    values.pending.setCommitted(CommittedState::CommittedViaPrepare);
+    ht.unlocked_setCommitted(values.pending.getHBL(),
+                             *values.pending.getSV(),
+                             CommittedState::CommittedViaPrepare);
 
     if (commitSeqno) {
         Expects(queueItmCtx.genBySeqno == GenerateBySeqno::No);
