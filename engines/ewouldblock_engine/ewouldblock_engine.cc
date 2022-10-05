@@ -175,126 +175,16 @@ private:
 class EWB_Engine : public EngineIface,
                    public DcpIface,
                    public DcpConnHandlerIface {
-private:
-    enum class Cmd {
-        NONE,
-        GET_INFO,
-        ALLOCATE,
-        REMOVE,
-        GET,
-        STORE,
-        CAS,
-        ARITHMETIC,
-        LOCK,
-        UNLOCK,
-        FLUSH,
-        GET_STATS,
-        GET_META,
-        UNKNOWN_COMMAND
-    };
-
-    const char* to_string(Cmd cmd);
-
 public:
     explicit EWB_Engine(GET_SERVER_API gsa_);
 
     ~EWB_Engine() override;
 
-    void initiate_shutdown() override;
-
-    void disconnect(const CookieIface& cookie) override {
-        connection_map.lock()->erase(uint64_t(&cookie.getConnectionIface()));
-
-        if (real_engine) {
-            real_engine->disconnect(cookie);
-        }
-    }
-
-    /* Returns true if the next command should have a fake error code injected.
-     * @param func Address of the command function (get, store, etc).
-     * @param cookie The cookie for the user's request.
-     * @param[out] Error code to return.
-     */
-    bool should_inject_error(Cmd cmd,
-                             const CookieIface* cookie,
-                             cb::engine_errc& err) {
-        if (is_connection_suspended(cookie)) {
-            err = cb::engine_errc::would_block;
-            return true;
-        }
-
-        return connection_map.withLock([&err, cmd, cookie, this](auto& map) {
-            auto iter = map.find(uint64_t(&cookie->getConnectionIface()));
-            if (iter == map.end()) {
-                return false;
-            }
-
-            if (iter->second.first != cookie) {
-                // The cookie is different so it represents a different command
-                map.erase(iter);
-                return false;
-            }
-
-            const bool inject =
-                    iter->second.second->should_inject_error(cmd, err);
-
-            if (inject) {
-                LOG_DEBUG("EWB_Engine: injecting error:{} for cmd:{}",
-                          err,
-                          to_string(cmd));
-
-                if (err == cb::engine_errc::would_block) {
-                    const auto add_to_pending_io_ops =
-                            iter->second.second->add_to_pending_io_ops();
-                    if (add_to_pending_io_ops) {
-                        // The server expects that if EWOULDBLOCK is returned
-                        // then the server should be notified in the future when
-                        // the operation is ready - so add this op to the
-                        // pending IO queue.
-                        schedule_notification(iter->second.first,
-                                              *add_to_pending_io_ops);
-                    }
-                }
-            }
-
-            return inject;
-        });
-    }
-
     /* Implementation of all the engine functions. ***************************/
-
-    cb::engine_errc initialize(std::string_view config_str) override {
-        // Extract the name of the real engine we will be proxying; then
-        // create and initialize it.
-        std::string config(config_str);
-        auto seperator = config.find(";");
-        std::string real_engine_name(config.substr(0, seperator));
-        std::string real_engine_config;
-        if (seperator != std::string::npos) {
-            real_engine_config = config.substr(seperator + 1);
-        }
-
-        real_engine = real_api->bucket->createBucket(real_engine_name, gsa);
-
-        if (!real_engine) {
-            LOG_CRITICAL(
-                    "ERROR: EWB_Engine::initialize(): Failed create "
-                    "engine instance '{}'",
-                    real_engine_name);
-            std::abort();
-        }
-
-        real_engine_dcp = dynamic_cast<DcpIface*>(real_engine.get());
-
-        return real_engine->initialize(real_engine_config);
-    }
-
-    void destroy(bool force) override {
-        real_engine->destroy(force);
-        (void)real_engine.release();
-        delete this;
-    }
-
+    void initiate_shutdown() override;
+    void disconnect(const CookieIface& cookie) override;
+    cb::engine_errc initialize(std::string_view config_str) override;
+    void destroy(bool force) override;
     cb::unique_item_ptr allocateItem(const CookieIface& cookie,
                                      const DocKey& key,
                                      size_t nbytes,
@@ -302,125 +192,42 @@ public:
                                      int flags,
                                      rel_time_t exptime,
                                      uint8_t datatype,
-                                     Vbid vbucket) override {
-        cb::engine_errc err = cb::engine_errc::success;
-        if (should_inject_error(Cmd::ALLOCATE, &cookie, err)) {
-            throw cb::engine_error(cb::engine_errc(err), "ewb: injecting error");
-        } else {
-            return real_engine->allocateItem(cookie,
-                                             key,
-                                             nbytes,
-                                             priv_nbytes,
-                                             flags,
-                                             exptime,
-                                             datatype,
-                                             vbucket);
-        }
-    }
-
+                                     Vbid vbucket) override;
     cb::engine_errc remove(
             const CookieIface& cookie,
             const DocKey& key,
             uint64_t& cas,
             Vbid vbucket,
             const std::optional<cb::durability::Requirements>& durability,
-            mutation_descr_t& mut_info) override {
-        cb::engine_errc err = cb::engine_errc::success;
-        if (should_inject_error(Cmd::REMOVE, &cookie, err)) {
-            return err;
-        } else {
-            return real_engine->remove(
-                    cookie, key, cas, vbucket, durability, mut_info);
-        }
-    }
-
-    void release(ItemIface& item) override {
-        LOG_DEBUG_RAW("EWB_Engine: release");
-        if (dynamic_cast<EwbDcpMutationItem*>(&item)) {
-            delete &item;
-        } else {
-            return real_engine->release(item);
-        }
-    }
-
+            mutation_descr_t& mut_info) override;
+    void release(ItemIface& item) override;
     cb::EngineErrorItemPair get(const CookieIface& cookie,
                                 const DocKey& key,
                                 Vbid vbucket,
-                                DocStateFilter documentStateFilter) override {
-        cb::engine_errc err = cb::engine_errc::success;
-        if (should_inject_error(Cmd::GET, &cookie, err)) {
-            return std::make_pair(
-                    cb::engine_errc(err),
-                    cb::unique_item_ptr{nullptr, cb::ItemDeleter{this}});
-        } else {
-            return real_engine->get(cookie, key, vbucket, documentStateFilter);
-        }
-    }
-
+                                DocStateFilter documentStateFilter) override;
     cb::EngineErrorItemPair get_if(
             const CookieIface& cookie,
             const DocKey& key,
             Vbid vbucket,
-            std::function<bool(const item_info&)> filter) override {
-        cb::engine_errc err = cb::engine_errc::success;
-        if (should_inject_error(Cmd::GET, &cookie, err)) {
-            return cb::makeEngineErrorItemPair(cb::engine_errc::would_block);
-        } else {
-            return real_engine->get_if(cookie, key, vbucket, filter);
-        }
-    }
-
+            std::function<bool(const item_info&)> filter) override;
     cb::EngineErrorItemPair get_and_touch(
             const CookieIface& cookie,
             const DocKey& key,
             Vbid vbucket,
             uint32_t exptime,
             const std::optional<cb::durability::Requirements>& durability)
-            override {
-        cb::engine_errc err = cb::engine_errc::success;
-        if (should_inject_error(Cmd::GET, &cookie, err)) {
-            return cb::makeEngineErrorItemPair(cb::engine_errc::would_block);
-        } else {
-            return real_engine->get_and_touch(
-                    cookie, key, vbucket, exptime, durability);
-        }
-    }
-
+            override;
     cb::EngineErrorItemPair get_locked(const CookieIface& cookie,
                                        const DocKey& key,
                                        Vbid vbucket,
-                                       uint32_t lock_timeout) override {
-        cb::engine_errc err = cb::engine_errc::success;
-        if (should_inject_error(Cmd::LOCK, &cookie, err)) {
-            return cb::makeEngineErrorItemPair(cb::engine_errc(err));
-        } else {
-            return real_engine->get_locked(cookie, key, vbucket, lock_timeout);
-        }
-    }
-
+                                       uint32_t lock_timeout) override;
     cb::engine_errc unlock(const CookieIface& cookie,
                            const DocKey& key,
                            Vbid vbucket,
-                           uint64_t cas) override {
-        cb::engine_errc err = cb::engine_errc::success;
-        if (should_inject_error(Cmd::UNLOCK, &cookie, err)) {
-            return err;
-        } else {
-            return real_engine->unlock(cookie, key, vbucket, cas);
-        }
-    }
-
+                           uint64_t cas) override;
     cb::EngineErrorMetadataPair get_meta(const CookieIface& cookie,
                                          const DocKey& key,
-                                         Vbid vbucket) override {
-        cb::engine_errc err = cb::engine_errc::success;
-        if (should_inject_error(Cmd::GET_META, &cookie, err)) {
-            return std::make_pair(cb::engine_errc(err), item_info());
-        } else {
-            return real_engine->get_meta(cookie, key, vbucket);
-        }
-    }
-
+                                         Vbid vbucket) override;
     cb::engine_errc store(
             const CookieIface& cookie,
             ItemIface& item,
@@ -428,22 +235,7 @@ public:
             StoreSemantics operation,
             const std::optional<cb::durability::Requirements>& durability,
             DocumentState document_state,
-            bool preserveTtl) override {
-        cb::engine_errc err = cb::engine_errc::success;
-        Cmd opcode = (operation == StoreSemantics::CAS) ? Cmd::CAS : Cmd::STORE;
-        if (should_inject_error(opcode, &cookie, err)) {
-            return err;
-        } else {
-            return real_engine->store(cookie,
-                                      item,
-                                      cas,
-                                      operation,
-                                      durability,
-                                      document_state,
-                                      preserveTtl);
-        }
-    }
-
+            bool preserveTtl) override;
     cb::EngineErrorCasPair store_if(
             const CookieIface& cookie,
             ItemIface& item,
@@ -452,219 +244,17 @@ public:
             const cb::StoreIfPredicate& predicate,
             const std::optional<cb::durability::Requirements>& durability,
             DocumentState document_state,
-            bool preserveTtl) override {
-        cb::engine_errc err = cb::engine_errc::success;
-        Cmd opcode = (operation == StoreSemantics::CAS) ? Cmd::CAS : Cmd::STORE;
-        if (should_inject_error(opcode, &cookie, err)) {
-            return {cb::engine_errc(err), 0};
-        } else {
-            return real_engine->store_if(cookie,
-                                         item,
-                                         cas,
-                                         operation,
-                                         predicate,
-                                         durability,
-                                         document_state,
-                                         preserveTtl);
-        }
-    }
-
-    cb::engine_errc flush(const CookieIface& cookie) override {
-        // Flush is a little different - it often returns EWOULDBLOCK, and
-        // notify_io_complete() just tells the server it can issue it's *next*
-        // command (i.e. no need to re-flush). Therefore just pass Flush
-        // straight through for now.
-        return real_engine->flush(cookie);
-    }
-
+            bool preserveTtl) override;
+    cb::engine_errc flush(const CookieIface& cookie) override;
     cb::engine_errc get_stats(const CookieIface& cookie,
                               std::string_view key,
                               std::string_view value,
-                              const AddStatFn& add_stat) override {
-        cb::engine_errc err = cb::engine_errc::success;
-        if (should_inject_error(Cmd::GET_STATS, &cookie, err)) {
-            return err;
-        } else {
-            return real_engine->get_stats(cookie, key, value, add_stat);
-        }
-    }
-
-    void reset_stats(const CookieIface& cookie) override {
-        return real_engine->reset_stats(cookie);
-    }
-
-    /* Handle 'unknown_command'. In additional to wrapping calls to the
-     * underlying real engine, this is also used to configure
-     * ewouldblock_engine itself using he CMD_EWOULDBLOCK_CTL opcode.
-     */
+                              const AddStatFn& add_stat) override;
+    void reset_stats(const CookieIface& cookie) override;
     cb::engine_errc unknown_command(const CookieIface* cookie,
                                     const cb::mcbp::Request& req,
-                                    const AddResponseFn& response) override {
-        const auto opcode = req.getClientOpcode();
-        if (opcode == cb::mcbp::ClientOpcode::EwouldblockCtl) {
-            using cb::mcbp::request::EWB_Payload;
-            const auto& payload = req.getCommandSpecifics<EWB_Payload>();
-            const auto mode = static_cast<EWBEngineMode>(payload.getMode());
-            const auto value = payload.getValue();
-            const auto injected_error =
-                    static_cast<cb::engine_errc>(payload.getInjectError());
-            auto k = req.getKey();
-            const std::string key(reinterpret_cast<const char*>(k.data()),
-                                  k.size());
-            std::shared_ptr<FaultInjectMode> new_mode = nullptr;
-
-            // Validate mode, and construct new fault injector.
-            switch (mode) {
-                case EWBEngineMode::Next_N:
-                    new_mode = std::make_shared<ErrOnNextN>(injected_error, value);
-                    break;
-
-                case EWBEngineMode::Random:
-                    new_mode = std::make_shared<ErrRandom>(injected_error, value);
-                    break;
-
-                case EWBEngineMode::First:
-                    new_mode = std::make_shared<ErrOnFirst>(injected_error);
-                    break;
-
-                case EWBEngineMode::Sequence: {
-                    std::vector<cb::engine_errc> decoded;
-                    for (unsigned int ii = 0;
-                         ii < key.size() / sizeof(cb::engine_errc);
-                         ii++) {
-                        auto status = *reinterpret_cast<const uint32_t*>(
-                                key.data() + (ii * sizeof(cb::engine_errc)));
-                        status = ntohl(status);
-                        decoded.emplace_back(cb::engine_errc(status));
-                    }
-                    new_mode = std::make_shared<ErrSequence>(decoded);
-                    break;
-                }
-
-                case EWBEngineMode::No_Notify:
-                    new_mode = std::make_shared<ErrOnNoNotify>(injected_error);
-                    break;
-
-                case EWBEngineMode::CasMismatch:
-                    new_mode = std::make_shared<CASMismatch>(value);
-                    break;
-
-                case EWBEngineMode::IncrementClusterMapRevno:
-                    clustermap_revno++;
-                    response({},
-                             {},
-                             {},
-                             PROTOCOL_BINARY_RAW_BYTES,
-                             cb::mcbp::Status::Success,
-                             0,
-                             cookie);
-                    return cb::engine_errc::success;
-
-                case EWBEngineMode::BlockMonitorFile:
-                    return handleBlockMonitorFile(cookie, value, key, response);
-
-                case EWBEngineMode::Suspend:
-                    return handleSuspend(cookie, value, response);
-
-                case EWBEngineMode::Resume:
-                    return handleResume(cookie, value, response);
-
-                case EWBEngineMode::SetItemCas:
-                    return setItemCas(cookie, key, value, response);
-
-                case EWBEngineMode::CheckLogLevels:
-                    return checkLogLevels(cookie, value, response);
-
-                case EWBEngineMode::ThrowException:
-                    // Reserve the cookie and schedule a release of the
-                    // cookie and throw an exception for the cookie
-                    {
-                        auto* cookie_api = gsa()->cookie;
-                        cookie_api->reserve(*cookie);
-                        std::thread release{[cookie_api, cookie]() {
-                            // This will block on the thread mutex
-                            cookie_api->release(*cookie);
-                        }};
-                        release.detach();
-                    }
-                    throw std::runtime_error(
-                            "EWB::unknown_command: you told me to throw an "
-                            "exception");
-            }
-
-            if (new_mode == nullptr) {
-                LOG_WARNING(
-                        "EWB_Engine::unknown_command(): "
-                        "Got unexpected mode={} for EWOULDBLOCK_CTL, ",
-                        (unsigned int)mode);
-                response({},
-                         {},
-                         {},
-                         PROTOCOL_BINARY_RAW_BYTES,
-                         cb::mcbp::Status::Einval,
-                         /*cas*/ 0,
-                         cookie);
-                return cb::engine_errc::failed;
-            } else {
-                try {
-                    LOG_DEBUG(
-                            "EWB_Engine::unknown_command(): Setting EWB mode "
-                            "to "
-                            "{} for cookie {}",
-                            new_mode->to_string(),
-                            static_cast<const void*>(cookie));
-
-                    connection_map.withLock([cookie, new_mode](auto& map) {
-                        map[uint64_t(&cookie->getConnectionIface())] = {
-                                cookie, new_mode};
-                    });
-
-                    response({},
-                             {},
-                             {},
-                             PROTOCOL_BINARY_RAW_BYTES,
-                             cb::mcbp::Status::Success,
-                             /*cas*/ 0,
-                             cookie);
-                    return cb::engine_errc::success;
-                } catch (std::bad_alloc&) {
-                    return cb::engine_errc::no_memory;
-                }
-            }
-        } else {
-            cb::engine_errc err = cb::engine_errc::success;
-            if (should_inject_error(Cmd::UNKNOWN_COMMAND, cookie, err)) {
-                return err;
-            } else {
-                return real_engine->unknown_command(cookie, req, response);
-            }
-        }
-    }
-
-    bool get_item_info(const ItemIface& item, item_info& item_info) override {
-        LOG_DEBUG_RAW("EWB_Engine: get_item_info");
-
-        // This function cannot return EWOULDBLOCK - just chain to the real
-        // engine's function, unless it is a request for our special DCP item.
-        const auto* ewbitem = dynamic_cast<const EwbDcpMutationItem*>(&item);
-        if (ewbitem) {
-            item_info.cas = 0;
-            item_info.vbucket_uuid = 0;
-            item_info.seqno = 0;
-            item_info.exptime = 0;
-            item_info.nbytes = gsl::narrow<uint32_t>(ewbitem->value.size());
-            item_info.flags = 0;
-            item_info.datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
-            item_info.key = {ewbitem->key, DocKeyEncodesCollectionId::No};
-            item_info.value[0].iov_base = const_cast<void*>(
-                    static_cast<const void*>(ewbitem->value.data()));
-            item_info.value[0].iov_len = item_info.nbytes;
-            return true;
-        } else {
-            return real_engine->get_item_info(item, item_info);
-        }
-    }
-
+                                    const AddResponseFn& response) override;
+    bool get_item_info(const ItemIface& item, item_info& item_info) override;
     cb::engine_errc set_collection_manifest(const CookieIface& cookie,
                                             std::string_view json) override;
     cb::engine_errc get_collection_manifest(
@@ -677,67 +267,32 @@ public:
             const CookieIface& cookie,
             CollectionID cid,
             std::optional<Vbid> vbid) const override;
-
-    cb::engine::FeatureSet getFeatures() override {
-        return real_engine->getFeatures();
-    }
-
-    bool isXattrEnabled() override {
-        return real_engine->isXattrEnabled();
-    }
-
-    cb::HlcTime getVBucketHlcNow(Vbid vbucket) override {
-        return real_engine->getVBucketHlcNow(vbucket);
-    }
-
-    BucketCompressionMode getCompressionMode() override {
-        return real_engine->getCompressionMode();
-    }
-
-    size_t getMaxItemSize() override {
-        return real_engine->getMaxItemSize();
-    }
-
-    float getMinCompressionRatio() override {
-        return real_engine->getMinCompressionRatio();
-    }
-
+    cb::engine::FeatureSet getFeatures() override;
+    bool isXattrEnabled() override;
+    cb::HlcTime getVBucketHlcNow(Vbid vbucket) override;
+    BucketCompressionMode getCompressionMode() override;
+    size_t getMaxItemSize() override;
+    float getMinCompressionRatio() override;
     cb::engine_errc setParameter(const CookieIface& cookie,
                                  EngineParamCategory category,
                                  std::string_view key,
                                  std::string_view value,
-                                 Vbid vbucket) override {
-        return real_engine->setParameter(cookie, category, key, value, vbucket);
-    }
-
+                                 Vbid vbucket) override;
     cb::engine_errc compactDatabase(const CookieIface& cookie,
                                     Vbid vbid,
                                     uint64_t purge_before_ts,
                                     uint64_t purge_before_seq,
-                                    bool drop_deletes) override {
-        return real_engine->compactDatabase(
-                cookie, vbid, purge_before_ts, purge_before_seq, drop_deletes);
-    }
-
+                                    bool drop_deletes) override;
     std::pair<cb::engine_errc, vbucket_state_t> getVBucket(
-            const CookieIface& cookie, Vbid vbid) override {
-        return real_engine->getVBucket(cookie, vbid);
-    }
-
+            const CookieIface& cookie, Vbid vbid) override;
     cb::engine_errc setVBucket(const CookieIface& cookie,
                                Vbid vbid,
                                uint64_t cas,
                                vbucket_state_t state,
-                               nlohmann::json* meta) override {
-        return real_engine->setVBucket(cookie, vbid, cas, state, meta);
-    }
-
+                               nlohmann::json* meta) override;
     cb::engine_errc deleteVBucket(const CookieIface& cookie,
                                   Vbid vbid,
-                                  bool sync) override {
-        return real_engine->deleteVBucket(cookie, vbid, sync);
-    }
-
+                                  bool sync) override;
     std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScan(
             const CookieIface& cookie,
             Vbid vbid,
@@ -747,40 +302,18 @@ public:
             cb::rangescan::KeyOnly keyOnly,
             std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
             std::optional<cb::rangescan::SamplingConfiguration> samplingConfig)
-            override {
-        return real_engine->createRangeScan(cookie,
-                                            vbid,
-                                            cid,
-                                            start,
-                                            end,
-                                            keyOnly,
-                                            snapshotReqs,
-                                            samplingConfig);
-    }
-
+            override;
     cb::engine_errc continueRangeScan(const CookieIface& cookie,
                                       Vbid vbid,
                                       cb::rangescan::Id uuid,
                                       size_t itemLimit,
                                       std::chrono::milliseconds timeLimit,
-                                      size_t byteLimit) override {
-        return real_engine->continueRangeScan(
-                cookie, vbid, uuid, itemLimit, timeLimit, byteLimit);
-    }
-
+                                      size_t byteLimit) override;
     cb::engine_errc cancelRangeScan(const CookieIface& cookie,
                                     Vbid vbid,
-                                    cb::rangescan::Id uuid) override {
-        return real_engine->cancelRangeScan(cookie, vbid, uuid);
-    }
-
-    cb::engine_errc pause() override {
-        return real_engine->pause();
-    }
-
-    cb::engine_errc resume() override {
-        return real_engine->resume();
-    }
+                                    cb::rangescan::Id uuid) override;
+    cb::engine_errc pause() override;
+    cb::engine_errc resume() override;
 
     ///////////////////////////////////////////////////////////////////////////
     //             All of the methods used in the DCP interface              //
@@ -791,24 +324,20 @@ public:
     cb::engine_errc step(const CookieIface& cookie,
                          bool throttled,
                          DcpMessageProducersIface& producers) override;
-
     cb::engine_errc open(const CookieIface& cookie,
                          uint32_t opaque,
                          uint32_t seqno,
                          uint32_t flags,
                          std::string_view name,
                          std::string_view value) override;
-
     cb::engine_errc add_stream(const CookieIface& cookie,
                                uint32_t opaque,
                                Vbid vbucket,
                                uint32_t flags) override;
-
     cb::engine_errc close_stream(const CookieIface& cookie,
                                  uint32_t opaque,
                                  Vbid vbucket,
                                  cb::mcbp::DcpStreamId sid) override;
-
     cb::engine_errc stream_req(const CookieIface& cookie,
                                uint32_t flags,
                                uint32_t opaque,
@@ -821,17 +350,14 @@ public:
                                uint64_t* rollback_seqno,
                                dcp_add_failover_log callback,
                                std::optional<std::string_view> json) override;
-
     cb::engine_errc get_failover_log(const CookieIface& cookie,
                                      uint32_t opaque,
                                      Vbid vbucket,
                                      dcp_add_failover_log callback) override;
-
     cb::engine_errc stream_end(const CookieIface& cookie,
                                uint32_t opaque,
                                Vbid vbucket,
                                cb::mcbp::DcpStreamEndStatus status) override;
-
     cb::engine_errc snapshot_marker(
             const CookieIface& cookie,
             uint32_t opaque,
@@ -841,7 +367,6 @@ public:
             uint32_t flags,
             std::optional<uint64_t> high_completed_seqno,
             std::optional<uint64_t> max_visible_seqno) override;
-
     cb::engine_errc mutation(const CookieIface& cookie,
                              uint32_t opaque,
                              const DocKey& key,
@@ -857,7 +382,6 @@ public:
                              uint32_t lock_time,
                              cb::const_byte_buffer meta,
                              uint8_t nru) override;
-
     cb::engine_errc deletion(const CookieIface& cookie,
                              uint32_t opaque,
                              const DocKey& key,
@@ -869,7 +393,6 @@ public:
                              uint64_t by_seqno,
                              uint64_t rev_seqno,
                              cb::const_byte_buffer meta) override;
-
     cb::engine_errc deletion_v2(const CookieIface& cookie,
                                 uint32_t opaque,
                                 const DocKey& key,
@@ -881,7 +404,6 @@ public:
                                 uint64_t by_seqno,
                                 uint64_t rev_seqno,
                                 uint32_t delete_time) override;
-
     cb::engine_errc expiration(const CookieIface& cookie,
                                uint32_t opaque,
                                const DocKey& key,
@@ -893,27 +415,21 @@ public:
                                uint64_t by_seqno,
                                uint64_t rev_seqno,
                                uint32_t deleteTime) override;
-
     cb::engine_errc set_vbucket_state(const CookieIface& cookie,
                                       uint32_t opaque,
                                       Vbid vbucket,
                                       vbucket_state_t state) override;
-
     cb::engine_errc noop(const CookieIface& cookie, uint32_t opaque) override;
-
     cb::engine_errc buffer_acknowledgement(const CookieIface& cookie,
                                            uint32_t opaque,
                                            uint32_t buffer_bytes) override;
-
     cb::engine_errc control(const CookieIface& cookie,
                             uint32_t opaque,
                             std::string_view key,
                             std::string_view value) override;
-
     cb::engine_errc response_handler(
             const CookieIface& cookie,
             const cb::mcbp::Response& response) override;
-
     cb::engine_errc system_event(const CookieIface& cookie,
                                  uint32_t opaque,
                                  Vbid vbucket,
@@ -922,7 +438,6 @@ public:
                                  mcbp::systemevent::version version,
                                  cb::const_byte_buffer key,
                                  cb::const_byte_buffer eventData) override;
-
     cb::engine_errc prepare(const CookieIface& cookie,
                             uint32_t opaque,
                             const DocKey& key,
@@ -956,6 +471,7 @@ public:
                           uint64_t prepared_seqno,
                           uint64_t abort_seqno) override;
 
+protected:
     GET_SERVER_API gsa;
     ServerApi* real_api;
 
@@ -968,7 +484,6 @@ public:
 
     std::atomic_int clustermap_revno{1};
 
-protected:
     /**
      * Handle the control message for block monitor file
      *
@@ -1026,6 +541,35 @@ protected:
                                    const AddResponseFn& response);
 
 private:
+    enum class Cmd {
+        NONE,
+        GET_INFO,
+        ALLOCATE,
+        REMOVE,
+        GET,
+        STORE,
+        CAS,
+        ARITHMETIC,
+        LOCK,
+        UNLOCK,
+        FLUSH,
+        GET_STATS,
+        GET_META,
+        UNKNOWN_COMMAND
+    };
+
+    const char* to_string(Cmd cmd);
+
+    /**
+     * Returns true if the next command should have a fake error code injected.
+     * @param func Address of the command function (get, store, etc).
+     * @param cookie The cookie for the user's request.
+     * @param[out] Error code to return.
+     */
+    bool should_inject_error(Cmd cmd,
+                             const CookieIface* cookie,
+                             cb::engine_errc& err);
+
     // Base class for all fault injection modes.
     struct FaultInjectMode {
         virtual ~FaultInjectMode() = default;
@@ -1361,6 +905,569 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_) : gsa(gsa_), real_api(gsa()) {
 
 EWB_Engine::~EWB_Engine() {
     threads.lock()->clear();
+}
+
+void EWB_Engine::disconnect(const CookieIface& cookie) {
+    connection_map.lock()->erase(uint64_t(&cookie.getConnectionIface()));
+
+    if (real_engine) {
+        real_engine->disconnect(cookie);
+    }
+}
+
+/* Returns true if the next command should have a fake error code injected.
+ * @param func Address of the command function (get, store, etc).
+ * @param cookie The cookie for the user's request.
+ * @param[out] Error code to return.
+ */
+bool EWB_Engine::should_inject_error(Cmd cmd,
+                                     const CookieIface* cookie,
+                                     cb::engine_errc& err) {
+    if (is_connection_suspended(cookie)) {
+        err = cb::engine_errc::would_block;
+        return true;
+    }
+
+    return connection_map.withLock([&err, cmd, cookie, this](auto& map) {
+        auto iter = map.find(uint64_t(&cookie->getConnectionIface()));
+        if (iter == map.end()) {
+            return false;
+        }
+
+        if (iter->second.first != cookie) {
+            // The cookie is different so it represents a different command
+            map.erase(iter);
+            return false;
+        }
+
+        const bool inject = iter->second.second->should_inject_error(cmd, err);
+
+        if (inject) {
+            LOG_DEBUG("EWB_Engine: injecting error:{} for cmd:{}",
+                      err,
+                      to_string(cmd));
+
+            if (err == cb::engine_errc::would_block) {
+                const auto add_to_pending_io_ops =
+                        iter->second.second->add_to_pending_io_ops();
+                if (add_to_pending_io_ops) {
+                    // The server expects that if EWOULDBLOCK is returned
+                    // then the server should be notified in the future when
+                    // the operation is ready - so add this op to the
+                    // pending IO queue.
+                    schedule_notification(iter->second.first,
+                                          *add_to_pending_io_ops);
+                }
+            }
+        }
+
+        return inject;
+    });
+}
+
+cb::engine_errc EWB_Engine::initialize(std::string_view config_str) {
+    // Extract the name of the real engine we will be proxying; then
+    // create and initialize it.
+    std::string config(config_str);
+    auto seperator = config.find(";");
+    std::string real_engine_name(config.substr(0, seperator));
+    std::string real_engine_config;
+    if (seperator != std::string::npos) {
+        real_engine_config = config.substr(seperator + 1);
+    }
+
+    real_engine = real_api->bucket->createBucket(real_engine_name, gsa);
+
+    if (!real_engine) {
+        LOG_CRITICAL(
+                "ERROR: EWB_Engine::initialize(): Failed create "
+                "engine instance '{}'",
+                real_engine_name);
+        std::abort();
+    }
+
+    real_engine_dcp = dynamic_cast<DcpIface*>(real_engine.get());
+
+    return real_engine->initialize(real_engine_config);
+}
+
+void EWB_Engine::destroy(bool force) {
+    real_engine->destroy(force);
+    (void)real_engine.release();
+    delete this;
+}
+
+cb::unique_item_ptr EWB_Engine::allocateItem(const CookieIface& cookie,
+                                             const DocKey& key,
+                                             size_t nbytes,
+                                             size_t priv_nbytes,
+                                             int flags,
+                                             rel_time_t exptime,
+                                             uint8_t datatype,
+                                             Vbid vbucket) {
+    cb::engine_errc err = cb::engine_errc::success;
+    if (should_inject_error(Cmd::ALLOCATE, &cookie, err)) {
+        throw cb::engine_error(cb::engine_errc(err), "ewb: injecting error");
+    } else {
+        return real_engine->allocateItem(cookie,
+                                         key,
+                                         nbytes,
+                                         priv_nbytes,
+                                         flags,
+                                         exptime,
+                                         datatype,
+                                         vbucket);
+    }
+}
+
+cb::engine_errc EWB_Engine::remove(
+        const CookieIface& cookie,
+        const DocKey& key,
+        uint64_t& cas,
+        Vbid vbucket,
+        const std::optional<cb::durability::Requirements>& durability,
+        mutation_descr_t& mut_info) {
+    cb::engine_errc err = cb::engine_errc::success;
+    if (should_inject_error(Cmd::REMOVE, &cookie, err)) {
+        return err;
+    } else {
+        return real_engine->remove(
+                cookie, key, cas, vbucket, durability, mut_info);
+    }
+}
+
+void EWB_Engine::release(ItemIface& item) {
+    LOG_DEBUG_RAW("EWB_Engine: release");
+    if (dynamic_cast<EwbDcpMutationItem*>(&item)) {
+        delete &item;
+    } else {
+        return real_engine->release(item);
+    }
+}
+
+cb::EngineErrorItemPair EWB_Engine::get(const CookieIface& cookie,
+                                        const DocKey& key,
+                                        Vbid vbucket,
+                                        DocStateFilter documentStateFilter) {
+    cb::engine_errc err = cb::engine_errc::success;
+    if (should_inject_error(Cmd::GET, &cookie, err)) {
+        return std::make_pair(
+                cb::engine_errc(err),
+                cb::unique_item_ptr{nullptr, cb::ItemDeleter{this}});
+    } else {
+        return real_engine->get(cookie, key, vbucket, documentStateFilter);
+    }
+}
+
+cb::EngineErrorItemPair EWB_Engine::get_if(
+        const CookieIface& cookie,
+        const DocKey& key,
+        Vbid vbucket,
+        std::function<bool(const item_info&)> filter) {
+    cb::engine_errc err = cb::engine_errc::success;
+    if (should_inject_error(Cmd::GET, &cookie, err)) {
+        return cb::makeEngineErrorItemPair(cb::engine_errc::would_block);
+    } else {
+        return real_engine->get_if(cookie, key, vbucket, filter);
+    }
+}
+
+cb::EngineErrorItemPair EWB_Engine::get_and_touch(
+        const CookieIface& cookie,
+        const DocKey& key,
+        Vbid vbucket,
+        uint32_t exptime,
+        const std::optional<cb::durability::Requirements>& durability) {
+    cb::engine_errc err = cb::engine_errc::success;
+    if (should_inject_error(Cmd::GET, &cookie, err)) {
+        return cb::makeEngineErrorItemPair(cb::engine_errc::would_block);
+    } else {
+        return real_engine->get_and_touch(
+                cookie, key, vbucket, exptime, durability);
+    }
+}
+
+cb::EngineErrorItemPair EWB_Engine::get_locked(const CookieIface& cookie,
+                                               const DocKey& key,
+                                               Vbid vbucket,
+                                               uint32_t lock_timeout) {
+    cb::engine_errc err = cb::engine_errc::success;
+    if (should_inject_error(Cmd::LOCK, &cookie, err)) {
+        return cb::makeEngineErrorItemPair(cb::engine_errc(err));
+    } else {
+        return real_engine->get_locked(cookie, key, vbucket, lock_timeout);
+    }
+}
+
+cb::engine_errc EWB_Engine::unlock(const CookieIface& cookie,
+                                   const DocKey& key,
+                                   Vbid vbucket,
+                                   uint64_t cas) {
+    cb::engine_errc err = cb::engine_errc::success;
+    if (should_inject_error(Cmd::UNLOCK, &cookie, err)) {
+        return err;
+    } else {
+        return real_engine->unlock(cookie, key, vbucket, cas);
+    }
+}
+
+cb::EngineErrorMetadataPair EWB_Engine::get_meta(const CookieIface& cookie,
+                                                 const DocKey& key,
+                                                 Vbid vbucket) {
+    cb::engine_errc err = cb::engine_errc::success;
+    if (should_inject_error(Cmd::GET_META, &cookie, err)) {
+        return std::make_pair(cb::engine_errc(err), item_info());
+    } else {
+        return real_engine->get_meta(cookie, key, vbucket);
+    }
+}
+
+cb::engine_errc EWB_Engine::store(
+        const CookieIface& cookie,
+        ItemIface& item,
+        uint64_t& cas,
+        StoreSemantics operation,
+        const std::optional<cb::durability::Requirements>& durability,
+        DocumentState document_state,
+        bool preserveTtl) {
+    cb::engine_errc err = cb::engine_errc::success;
+    Cmd opcode = (operation == StoreSemantics::CAS) ? Cmd::CAS : Cmd::STORE;
+    if (should_inject_error(opcode, &cookie, err)) {
+        return err;
+    } else {
+        return real_engine->store(cookie,
+                                  item,
+                                  cas,
+                                  operation,
+                                  durability,
+                                  document_state,
+                                  preserveTtl);
+    }
+}
+
+cb::EngineErrorCasPair EWB_Engine::store_if(
+        const CookieIface& cookie,
+        ItemIface& item,
+        uint64_t cas,
+        StoreSemantics operation,
+        const cb::StoreIfPredicate& predicate,
+        const std::optional<cb::durability::Requirements>& durability,
+        DocumentState document_state,
+        bool preserveTtl) {
+    cb::engine_errc err = cb::engine_errc::success;
+    Cmd opcode = (operation == StoreSemantics::CAS) ? Cmd::CAS : Cmd::STORE;
+    if (should_inject_error(opcode, &cookie, err)) {
+        return {cb::engine_errc(err), 0};
+    } else {
+        return real_engine->store_if(cookie,
+                                     item,
+                                     cas,
+                                     operation,
+                                     predicate,
+                                     durability,
+                                     document_state,
+                                     preserveTtl);
+    }
+}
+
+cb::engine_errc EWB_Engine::flush(const CookieIface& cookie) {
+    // Flush is a little different - it often returns EWOULDBLOCK, and
+    // notify_io_complete() just tells the server it can issue it's *next*
+    // command (i.e. no need to re-flush). Therefore just pass Flush
+    // straight through for now.
+    return real_engine->flush(cookie);
+}
+
+cb::engine_errc EWB_Engine::get_stats(const CookieIface& cookie,
+                                      std::string_view key,
+                                      std::string_view value,
+                                      const AddStatFn& add_stat) {
+    cb::engine_errc err = cb::engine_errc::success;
+    if (should_inject_error(Cmd::GET_STATS, &cookie, err)) {
+        return err;
+    } else {
+        return real_engine->get_stats(cookie, key, value, add_stat);
+    }
+}
+
+void EWB_Engine::reset_stats(const CookieIface& cookie) {
+    return real_engine->reset_stats(cookie);
+}
+
+/**
+ * Handle 'unknown_command'. In additional to wrapping calls to the
+ * underlying real engine, this is also used to configure
+ * ewouldblock_engine itself using he CMD_EWOULDBLOCK_CTL opcode.
+ */
+cb::engine_errc EWB_Engine::unknown_command(const CookieIface* cookie,
+                                            const cb::mcbp::Request& req,
+                                            const AddResponseFn& response) {
+    const auto opcode = req.getClientOpcode();
+    if (opcode == cb::mcbp::ClientOpcode::EwouldblockCtl) {
+        using cb::mcbp::request::EWB_Payload;
+        const auto& payload = req.getCommandSpecifics<EWB_Payload>();
+        const auto mode = static_cast<EWBEngineMode>(payload.getMode());
+        const auto value = payload.getValue();
+        const auto injected_error =
+                static_cast<cb::engine_errc>(payload.getInjectError());
+        auto k = req.getKey();
+        const std::string key(reinterpret_cast<const char*>(k.data()),
+                              k.size());
+        std::shared_ptr<FaultInjectMode> new_mode = nullptr;
+
+        // Validate mode, and construct new fault injector.
+        switch (mode) {
+        case EWBEngineMode::Next_N:
+            new_mode = std::make_shared<ErrOnNextN>(injected_error, value);
+            break;
+
+        case EWBEngineMode::Random:
+            new_mode = std::make_shared<ErrRandom>(injected_error, value);
+            break;
+
+        case EWBEngineMode::First:
+            new_mode = std::make_shared<ErrOnFirst>(injected_error);
+            break;
+
+        case EWBEngineMode::Sequence: {
+            std::vector<cb::engine_errc> decoded;
+            for (unsigned int ii = 0; ii < key.size() / sizeof(cb::engine_errc);
+                 ii++) {
+                auto status = *reinterpret_cast<const uint32_t*>(
+                        key.data() + (ii * sizeof(cb::engine_errc)));
+                status = ntohl(status);
+                decoded.emplace_back(cb::engine_errc(status));
+            }
+            new_mode = std::make_shared<ErrSequence>(decoded);
+            break;
+        }
+
+        case EWBEngineMode::No_Notify:
+            new_mode = std::make_shared<ErrOnNoNotify>(injected_error);
+            break;
+
+        case EWBEngineMode::CasMismatch:
+            new_mode = std::make_shared<CASMismatch>(value);
+            break;
+
+        case EWBEngineMode::IncrementClusterMapRevno:
+            clustermap_revno++;
+            response({},
+                     {},
+                     {},
+                     PROTOCOL_BINARY_RAW_BYTES,
+                     cb::mcbp::Status::Success,
+                     0,
+                     cookie);
+            return cb::engine_errc::success;
+
+        case EWBEngineMode::BlockMonitorFile:
+            return handleBlockMonitorFile(cookie, value, key, response);
+
+        case EWBEngineMode::Suspend:
+            return handleSuspend(cookie, value, response);
+
+        case EWBEngineMode::Resume:
+            return handleResume(cookie, value, response);
+
+        case EWBEngineMode::SetItemCas:
+            return setItemCas(cookie, key, value, response);
+
+        case EWBEngineMode::CheckLogLevels:
+            return checkLogLevels(cookie, value, response);
+
+        case EWBEngineMode::ThrowException:
+            // Reserve the cookie and schedule a release of the
+            // cookie and throw an exception for the cookie
+            {
+                auto* cookie_api = gsa()->cookie;
+                cookie_api->reserve(*cookie);
+                std::thread release{[cookie_api, cookie]() {
+                    // This will block on the thread mutex
+                    cookie_api->release(*cookie);
+                }};
+                release.detach();
+            }
+            throw std::runtime_error(
+                    "EWB::unknown_command: you told me to throw an "
+                    "exception");
+        }
+
+        if (new_mode == nullptr) {
+            LOG_WARNING(
+                    "EWB_Engine::unknown_command(): "
+                    "Got unexpected mode={} for EWOULDBLOCK_CTL, ",
+                    (unsigned int)mode);
+            response({},
+                     {},
+                     {},
+                     PROTOCOL_BINARY_RAW_BYTES,
+                     cb::mcbp::Status::Einval,
+                     /*cas*/ 0,
+                     cookie);
+            return cb::engine_errc::failed;
+        } else {
+            try {
+                LOG_DEBUG(
+                        "EWB_Engine::unknown_command(): Setting EWB mode "
+                        "to "
+                        "{} for cookie {}",
+                        new_mode->to_string(),
+                        static_cast<const void*>(cookie));
+
+                connection_map.withLock([cookie, new_mode](auto& map) {
+                    map[uint64_t(&cookie->getConnectionIface())] = {cookie,
+                                                                    new_mode};
+                });
+
+                response({},
+                         {},
+                         {},
+                         PROTOCOL_BINARY_RAW_BYTES,
+                         cb::mcbp::Status::Success,
+                         /*cas*/ 0,
+                         cookie);
+                return cb::engine_errc::success;
+            } catch (std::bad_alloc&) {
+                return cb::engine_errc::no_memory;
+            }
+        }
+    } else {
+        cb::engine_errc err = cb::engine_errc::success;
+        if (should_inject_error(Cmd::UNKNOWN_COMMAND, cookie, err)) {
+            return err;
+        } else {
+            return real_engine->unknown_command(cookie, req, response);
+        }
+    }
+}
+
+bool EWB_Engine::get_item_info(const ItemIface& item, item_info& item_info) {
+    LOG_DEBUG_RAW("EWB_Engine: get_item_info");
+
+    // This function cannot return EWOULDBLOCK - just chain to the real
+    // engine's function, unless it is a request for our special DCP item.
+    const auto* ewbitem = dynamic_cast<const EwbDcpMutationItem*>(&item);
+    if (ewbitem) {
+        item_info.cas = 0;
+        item_info.vbucket_uuid = 0;
+        item_info.seqno = 0;
+        item_info.exptime = 0;
+        item_info.nbytes = gsl::narrow<uint32_t>(ewbitem->value.size());
+        item_info.flags = 0;
+        item_info.datatype = PROTOCOL_BINARY_DATATYPE_XATTR;
+        item_info.key = {ewbitem->key, DocKeyEncodesCollectionId::No};
+        item_info.value[0].iov_base = const_cast<void*>(
+                static_cast<const void*>(ewbitem->value.data()));
+        item_info.value[0].iov_len = item_info.nbytes;
+        return true;
+    } else {
+        return real_engine->get_item_info(item, item_info);
+    }
+}
+
+cb::engine::FeatureSet EWB_Engine::getFeatures() {
+    return real_engine->getFeatures();
+}
+
+bool EWB_Engine::isXattrEnabled() {
+    return real_engine->isXattrEnabled();
+}
+
+cb::HlcTime EWB_Engine::getVBucketHlcNow(Vbid vbucket) {
+    return real_engine->getVBucketHlcNow(vbucket);
+}
+
+BucketCompressionMode EWB_Engine::getCompressionMode() {
+    return real_engine->getCompressionMode();
+}
+
+size_t EWB_Engine::getMaxItemSize() {
+    return real_engine->getMaxItemSize();
+}
+
+float EWB_Engine::getMinCompressionRatio() {
+    return real_engine->getMinCompressionRatio();
+}
+
+cb::engine_errc EWB_Engine::setParameter(const CookieIface& cookie,
+                                         EngineParamCategory category,
+                                         std::string_view key,
+                                         std::string_view value,
+                                         Vbid vbucket) {
+    return real_engine->setParameter(cookie, category, key, value, vbucket);
+}
+
+cb::engine_errc EWB_Engine::compactDatabase(const CookieIface& cookie,
+                                            Vbid vbid,
+                                            uint64_t purge_before_ts,
+                                            uint64_t purge_before_seq,
+                                            bool drop_deletes) {
+    return real_engine->compactDatabase(
+            cookie, vbid, purge_before_ts, purge_before_seq, drop_deletes);
+}
+
+std::pair<cb::engine_errc, vbucket_state_t> EWB_Engine::getVBucket(
+        const CookieIface& cookie, Vbid vbid) {
+    return real_engine->getVBucket(cookie, vbid);
+}
+
+cb::engine_errc EWB_Engine::setVBucket(const CookieIface& cookie,
+                                       Vbid vbid,
+                                       uint64_t cas,
+                                       vbucket_state_t state,
+                                       nlohmann::json* meta) {
+    return real_engine->setVBucket(cookie, vbid, cas, state, meta);
+}
+
+cb::engine_errc EWB_Engine::deleteVBucket(const CookieIface& cookie,
+                                          Vbid vbid,
+                                          bool sync) {
+    return real_engine->deleteVBucket(cookie, vbid, sync);
+}
+
+std::pair<cb::engine_errc, cb::rangescan::Id> EWB_Engine::createRangeScan(
+        const CookieIface& cookie,
+        Vbid vbid,
+        CollectionID cid,
+        cb::rangescan::KeyView start,
+        cb::rangescan::KeyView end,
+        cb::rangescan::KeyOnly keyOnly,
+        std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
+        std::optional<cb::rangescan::SamplingConfiguration> samplingConfig) {
+    return real_engine->createRangeScan(cookie,
+                                        vbid,
+                                        cid,
+                                        start,
+                                        end,
+                                        keyOnly,
+                                        snapshotReqs,
+                                        samplingConfig);
+}
+
+cb::engine_errc EWB_Engine::continueRangeScan(
+        const CookieIface& cookie,
+        Vbid vbid,
+        cb::rangescan::Id uuid,
+        size_t itemLimit,
+        std::chrono::milliseconds timeLimit,
+        size_t byteLimit) {
+    return real_engine->continueRangeScan(
+            cookie, vbid, uuid, itemLimit, timeLimit, byteLimit);
+}
+
+cb::engine_errc EWB_Engine::cancelRangeScan(const CookieIface& cookie,
+                                            Vbid vbid,
+                                            cb::rangescan::Id uuid) {
+    return real_engine->cancelRangeScan(cookie, vbid, uuid);
+}
+
+cb::engine_errc EWB_Engine::pause() {
+    return real_engine->pause();
+}
+
+cb::engine_errc EWB_Engine::resume() {
+    return real_engine->resume();
 }
 
 cb::engine_errc EWB_Engine::step(const CookieIface& cookie,
