@@ -95,13 +95,6 @@ static PrivilegeMask parsePrivileges(const nlohmann::json& privs,
         const std::string str{priv.get<std::string>()};
         if (str == "all") {
             ret.set();
-        } else if (str == "BucketManagement" || str == "SessionManagement" ||
-                   str == "AuditManagement" || str == "SecurityManagement" ||
-                   str == "NodeManagement") {
-            // Backwards compat.. if you ha one of the old ones you'll get the
-            // new ones (as we've shuffled some things between them there
-            // isn't a 1-1 mapping anymore)
-            ret.set(int(Privilege::Administrator), true);
         } else {
             ret[int(to_privilege(str))] = true;
         }
@@ -364,18 +357,8 @@ UserEntry::UserEntry(const std::string& username,
 
     iter = json.find("privileges");
     if (iter != json.end()) {
-        static const bool unit_tests =
-                getenv("MEMCACHED_UNIT_TESTS") != nullptr;
         // Parse the privileges
         privilegeMask = parsePrivileges(*iter, false);
-        if (!unit_tests && username != "@ns_server") {
-            // ns_server currently populate the internal users with "all",
-            // but they should not have the unthrottled and unmetered
-            // privileges
-            privilegeMask.set(int(Privilege::Unthrottled), false);
-            privilegeMask.set(int(Privilege::Unmetered), false);
-            privilegeMask.set(int(Privilege::NodeSupervisor), false);
-        }
     }
 
     iter = json.find("buckets");
