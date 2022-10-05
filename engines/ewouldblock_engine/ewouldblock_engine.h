@@ -50,10 +50,6 @@ enum class EWBEngineMode : uint32_t {
     // KEY_EEXISTS. N specified by the {value} field.
     CasMismatch = 4,
 
-    // Increment the cluster map sequence number. Value and inject_error is
-    // ignored for this opcode
-    IncrementClusterMapRevno = 5,
-
     // Make a single call into engine and return {inject_error}.  In addition
     // do not add the operation to the processing queue and so a
     // notify_io_complete is never sent.

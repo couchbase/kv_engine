@@ -482,8 +482,6 @@ protected:
     // nullptr if it doesn't implement DcpIface;
     DcpIface* real_engine_dcp = nullptr;
 
-    std::atomic_int clustermap_revno{1};
-
     /**
      * Handle the control message for block monitor file
      *
@@ -1249,17 +1247,6 @@ cb::engine_errc EWB_Engine::unknown_command(const CookieIface* cookie,
         case EWBEngineMode::CasMismatch:
             new_mode = std::make_shared<CASMismatch>(value);
             break;
-
-        case EWBEngineMode::IncrementClusterMapRevno:
-            clustermap_revno++;
-            response({},
-                     {},
-                     {},
-                     PROTOCOL_BINARY_RAW_BYTES,
-                     cb::mcbp::Status::Success,
-                     0,
-                     cookie);
-            return cb::engine_errc::success;
 
         case EWBEngineMode::BlockMonitorFile:
             return handleBlockMonitorFile(cookie, value, key, response);
