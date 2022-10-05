@@ -81,9 +81,7 @@ void add_stat(Cookie& cookie,
 
 static void append_stats(std::string_view key,
                          std::string_view value,
-                         const void* ctx) {
-    auto& cookie = *const_cast<Cookie*>(reinterpret_cast<const Cookie*>(ctx));
-
+                         Cookie& cookie) {
     cb::mcbp::Response header = {};
     header.setMagic(cb::mcbp::Magic::ClientResponse);
     header.setOpcode(cb::mcbp::ClientOpcode::Stat);
@@ -101,12 +99,21 @@ static void append_stats(std::string_view key,
             value);
 }
 
+/// Wrapper function for the _external_ functions which still use const
+/// void* in the call signature.
+static void external_append_stats(std::string_view key,
+                                  std::string_view value,
+                                  const void* ctx) {
+    auto& cookie = *const_cast<Cookie*>(reinterpret_cast<const Cookie*>(ctx));
+    append_stats(key, value, cookie);
+}
+
 // Create a static std::function to wrap append_stats, instead of creating a
 // temporary object every time we need to call into an engine.
 // This also avoids problems where the stack-allocated AddStatFn could go
 // out of scope if someone needs to take a copy of it and run it on another
 // thread.
-static AddStatFn appendStatsFn = append_stats;
+static AddStatFn appendStatsFn = external_append_stats;
 
 /**
  * Handler for the <code>stats reset</code> command.
@@ -156,7 +163,7 @@ static cb::engine_errc stat_sched_executor(const std::string& arg,
              ++ii) {
             auto hist = scheduler_info[ii].to_string();
             std::string key = std::to_string(ii);
-            append_stats(key, hist, &cookie);
+            append_stats(key, hist, cookie);
         }
         return cb::engine_errc::success;
     }
@@ -169,7 +176,7 @@ static cb::engine_errc stat_sched_executor(const std::string& arg,
         }
         // Add the stat
         auto hist = histogram.to_string();
-        append_stats(key, hist, &cookie);
+        append_stats(key, hist, cookie);
         return cb::engine_errc::success;
     }
 
@@ -219,8 +226,7 @@ static cb::engine_errc stat_bucket_details_executor(const std::string& arg,
         nlohmann::json json;
         json["buckets"] = array;
         const auto stats_str = json.dump();
-        append_stats(
-                "bucket details"sv, stats_str, static_cast<void*>(&cookie));
+        append_stats("bucket details"sv, stats_str, cookie);
         return cb::engine_errc::success;
     }
 
@@ -234,7 +240,7 @@ static cb::engine_errc stat_bucket_details_executor(const std::string& arg,
         auto json = bucket.to_json();
         if (!json.empty() && json["name"] == arg) {
             const auto stats_str = json.dump();
-            append_stats(arg, stats_str, static_cast<void*>(&cookie));
+            append_stats(arg, stats_str, cookie);
             return cb::engine_errc::success;
         }
     }
@@ -323,7 +329,7 @@ static cb::engine_errc stat_connections_executor(const std::string& arg,
     }
 
     if (me) {
-        append_stats({}, cookie.getConnection().to_json().dump(), &cookie);
+        append_stats({}, cookie.getConnection().to_json().dump(), cookie);
         return cb::engine_errc::success;
     }
 
@@ -364,7 +370,7 @@ static cb::engine_errc stat_histogram_executor(
             auto& bucket = cookie.getConnection().getBucket();
             json_str = (bucket.*histogram).to_string();
         }
-        append_stats({}, json_str, &cookie);
+        append_stats({}, json_str, cookie);
         return cb::engine_errc::success;
     } else {
         return cb::engine_errc::invalid_arguments;
@@ -425,7 +431,7 @@ static cb::engine_errc stat_responses_json_executor(const std::string& arg,
             }
         }
 
-        append_stats("responses"sv, json.dump(), &cookie);
+        append_stats("responses"sv, json.dump(), cookie);
         return cb::engine_errc::success;
     } catch (const std::bad_alloc&) {
         return cb::engine_errc::no_memory;
@@ -442,25 +448,25 @@ static cb::engine_errc stat_tracing_executor(const std::string& arg,
         void operator()(gsl_p::cstring_span key,
                         gsl_p::cstring_span value) override {
             append_stats(
-                    {key.data(), key.size()}, {value.data(), value.size()}, &c);
+                    {key.data(), key.size()}, {value.data(), value.size()}, c);
         }
 
         void operator()(gsl_p::cstring_span key, bool value) override {
             const auto svalue = value ? "true"sv : "false"sv;
-            append_stats({key.data(), key.size()}, svalue.data(), &c);
+            append_stats({key.data(), key.size()}, svalue.data(), c);
         }
 
         void operator()(gsl_p::cstring_span key, size_t value) override {
-            append_stats({key.data(), key.size()}, std::to_string(value), &c);
+            append_stats({key.data(), key.size()}, std::to_string(value), c);
         }
 
         void operator()(gsl_p::cstring_span key,
                         phosphor::ssize_t value) override {
-            append_stats({key.data(), key.size()}, std::to_string(value), &c);
+            append_stats({key.data(), key.size()}, std::to_string(value), c);
         }
 
         void operator()(gsl_p::cstring_span key, double value) override {
-            append_stats({key.data(), key.size()}, std::to_string(value), &c);
+            append_stats({key.data(), key.size()}, std::to_string(value), c);
         }
 
     private:
@@ -543,8 +549,7 @@ static cb::engine_errc stat_allocator_executor(const std::string&,
                      });
 
         if (newlineFound) {
-            append_stats(
-                    "allocator", {buf.data(), buf.size()}, &cbdata->cookie);
+            append_stats("allocator", {buf.data(), buf.size()}, cbdata->cookie);
             buf.clear();
         }
     };
@@ -567,19 +572,19 @@ static cb::engine_errc stat_threads_executor(const std::string& key,
 
     append_stats(std::string{"num_frontend_threads"},
                  std::to_string(setting.getNumWorkerThreads()),
-                 static_cast<void*>(&cookie));
+                 cookie);
     append_stats(std::string{"num_reader_threads"},
                  std::to_string(setting.getNumReaderThreads()),
-                 static_cast<void*>(&cookie));
+                 cookie);
     append_stats(std::string{"num_writer_threads"},
                  std::to_string(setting.getNumWriterThreads()),
-                 static_cast<void*>(&cookie));
+                 cookie);
     append_stats(std::string{"num_auxio_threads"},
                  std::to_string(setting.getNumAuxIoThreads()),
-                 static_cast<void*>(&cookie));
+                 cookie);
     append_stats(std::string{"num_nonio_threads"},
                  std::to_string(setting.getNumNonIoThreads()),
-                 static_cast<void*>(&cookie));
+                 cookie);
 
     return cb::engine_errc::success;
 }
@@ -785,9 +790,7 @@ cb::engine_errc StatsCommandContext::getTaskResult() {
         state = State::CommandComplete;
         if (command_exit_code == cb::engine_errc::success) {
             for (const auto& s : stats_task.getStats()) {
-                append_stats(s.first,
-                             s.second,
-                             static_cast<const CookieIface*>(&cookie));
+                append_stats(s.first, s.second, cookie);
             }
         }
     }
@@ -799,7 +802,7 @@ cb::engine_errc StatsCommandContext::commandComplete() {
     auto& bucket = connection.getBucket();
     switch (command_exit_code) {
     case cb::engine_errc::success:
-        append_stats({}, {}, static_cast<CookieIface*>(&cookie));
+        append_stats({}, {}, cookie);
 
         // We just want to record this once rather than for each packet sent
         ++bucket.responseCounters[int(cb::mcbp::Status::Success)];
