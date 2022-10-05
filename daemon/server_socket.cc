@@ -233,6 +233,44 @@ void LibeventServerSocketImpl::acceptNewClient() {
         return;
     }
 
+    auto& settings = Settings::instance();
+    const auto idle = settings.getTcpKeepAliveIdle();
+    if (idle.count() != 0) {
+        uint32_t t = idle.count();
+#ifdef __APPLE__
+#define TCP_KEEPIDLE TCP_KEEPALIVE
+#endif
+        if (cb::net::setsockopt(
+                    client, IPPROTO_TCP, TCP_KEEPIDLE, &t, sizeof(t)) == -1) {
+            LOG_WARNING("{} Failed to set TCP_KEEPIDLE: {}",
+                        client,
+                        cb_strerror(cb::net::get_socket_error()));
+        }
+    }
+    const auto interval = settings.getTcpKeepAliveInterval();
+    if (interval.count() != 0) {
+        uint32_t val = interval.count();
+        if (cb::net::setsockopt(
+                    client, IPPROTO_TCP, TCP_KEEPINTVL, &val, sizeof(val)) ==
+            -1) {
+            LOG_WARNING("{} Failed to set TCP_KEEPINTVL: {}",
+                        client,
+                        cb_strerror(cb::net::get_socket_error()));
+        }
+    }
+    const auto probes = settings.getTcpKeepAliveProbes();
+    if (probes) {
+        if (cb::net::setsockopt(client,
+                                IPPROTO_TCP,
+                                TCP_KEEPCNT,
+                                &probes,
+                                sizeof(probes)) == -1) {
+            LOG_WARNING("{} Failed to set TCP_KEEPCNT: {}",
+                        client,
+                        cb_strerror(cb::net::get_socket_error()));
+        }
+    }
+
     FrontEndThread::dispatch(client, interface);
 }
 

@@ -594,6 +594,42 @@ public:
         notify_changed("xattr_enabled");
     }
 
+    /// Set time until the first probe is sent
+    void setTcpKeepAliveIdle(std::chrono::seconds val) {
+        tcp_keepalive_idle.store(val, std::memory_order_release);
+        has.tcp_keepalive_idle = true;
+        notify_changed("tcp_keepalive_idle");
+    }
+
+    /// Get the time before the first probe is sent
+    std::chrono::seconds getTcpKeepAliveIdle() const {
+        return tcp_keepalive_idle.load(std::memory_order_acquire);
+    }
+
+    /// Set the interval between the probes is sent
+    void setTcpKeepAliveInterval(std::chrono::seconds val) {
+        tcp_keepalive_interval.store(val, std::memory_order_release);
+        has.tcp_keepalive_interval = true;
+        notify_changed("tcp_keepalive_interval");
+    }
+
+    /// Get the interval between the probes is sent
+    std::chrono::seconds getTcpKeepAliveInterval() const {
+        return tcp_keepalive_interval.load(std::memory_order_acquire);
+    }
+
+    /// Set the number of probes sent before the connection is marked as dead
+    void setTcpKeepAliveProbes(uint32_t val) {
+        tcp_keepalive_probes.store(val, std::memory_order_release);
+        has.tcp_keepalive_probes = true;
+        notify_changed("tcp_keepalive_probes");
+    }
+
+    /// Get the number of probes sent before the connection is marked as dead
+    uint32_t getTcpKeepAliveProbes() const {
+        return tcp_keepalive_probes.load(std::memory_order_acquire);
+    }
+
     /**
      * Collections prototype means certain work-in-progress parts of collections
      * are enabled/disabled and also means DCP auto-enables collections for
@@ -910,6 +946,15 @@ protected:
     /// Number of storage backend threads
     std::atomic<int> num_storage_threads{0};
 
+    /// The number of seconds before keepalive kicks in
+    std::atomic<std::chrono::seconds> tcp_keepalive_idle{
+            std::chrono::seconds{360}};
+    /// The number of seconds between each probe sent in keepalive
+    std::atomic<std::chrono::seconds> tcp_keepalive_interval{
+            std::chrono::seconds{10}};
+    /// The number of missing probes before the connection is considered dead
+    std::atomic<uint32_t> tcp_keepalive_probes{3};
+
     /// Should the server always collect trace information for commands
     std::atomic_bool always_collect_trace_info{false};
 
@@ -995,6 +1040,9 @@ public:
         bool stdin_listener = false;
         bool scramsha_fallback_salt = false;
         bool external_auth_service = false;
+        bool tcp_keepalive_idle = false;
+        bool tcp_keepalive_interval = false;
+        bool tcp_keepalive_probes = false;
         bool active_external_users_push_interval = false;
         bool max_connections = false;
         bool system_connections = false;
