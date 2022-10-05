@@ -145,11 +145,10 @@ std::array<SOCKET, 2> createNotificationPipe() {
 
     for (auto sock : ret) {
         int flags = 1;
-        const auto* flag_ptr = reinterpret_cast<const void*>(&flags);
         cb::net::setsockopt(
-                sock, IPPROTO_TCP, TCP_NODELAY, flag_ptr, sizeof(flags));
+                sock, IPPROTO_TCP, TCP_NODELAY, &flags, sizeof(flags));
         cb::net::setsockopt(
-                sock, SOL_SOCKET, SO_REUSEADDR, flag_ptr, sizeof(flags));
+                sock, SOL_SOCKET, SO_REUSEADDR, &flags, sizeof(flags));
 
         if (evutil_make_socket_nonblocking(sock) == -1) {
             throw std::runtime_error("Failed to enable non-blocking: " +

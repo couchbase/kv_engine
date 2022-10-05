@@ -71,11 +71,8 @@ bool Connection::setTcpNoDelay(bool enable) {
     }
 
     const int flags = enable ? 1 : 0;
-    int error = cb::net::setsockopt(socketDescriptor,
-                                    IPPROTO_TCP,
-                                    TCP_NODELAY,
-                                    reinterpret_cast<const void*>(&flags),
-                                    sizeof(flags));
+    int error = cb::net::setsockopt(
+            socketDescriptor, IPPROTO_TCP, TCP_NODELAY, &flags, sizeof(flags));
 
     if (error != 0) {
         std::string errmsg = cb_strerror(cb::net::get_socket_error());

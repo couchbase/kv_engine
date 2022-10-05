@@ -186,11 +186,8 @@ static void maximize_sndbuf(const SOCKET sfd) {
     int old_size;
 
     /* Start with the default size. */
-    if (cb::net::getsockopt(sfd,
-                            SOL_SOCKET,
-                            SO_SNDBUF,
-                            reinterpret_cast<void*>(&old_size),
-                            &intsize) != 0) {
+    if (cb::net::getsockopt(sfd, SOL_SOCKET, SO_SNDBUF, &old_size, &intsize) !=
+        0) {
         LOG_WARNING("getsockopt(SO_SNDBUF): {}", strerror(errno));
         return;
     }
@@ -201,11 +198,8 @@ static void maximize_sndbuf(const SOCKET sfd) {
 
     while (min <= max) {
         int avg = ((unsigned int)(min + max)) / 2;
-        if (cb::net::setsockopt(sfd,
-                                SOL_SOCKET,
-                                SO_SNDBUF,
-                                reinterpret_cast<void*>(&avg),
-                                intsize) == 0) {
+        if (cb::net::setsockopt(sfd, SOL_SOCKET, SO_SNDBUF, &avg, intsize) ==
+            0) {
             last_good = avg;
             min = avg + 1;
         } else {
@@ -235,11 +229,8 @@ static SOCKET new_server_socket(struct addrinfo* ai) {
 
 #ifdef IPV6_V6ONLY
     if (ai->ai_family == AF_INET6) {
-        error = cb::net::setsockopt(sfd,
-                                    IPPROTO_IPV6,
-                                    IPV6_V6ONLY,
-                                    reinterpret_cast<const void*>(&flags),
-                                    sizeof(flags));
+        error = cb::net::setsockopt(
+                sfd, IPPROTO_IPV6, IPV6_V6ONLY, &flags, sizeof(flags));
         if (error != 0) {
             LOG_WARNING("setsockopt(IPV6_V6ONLY): {}", strerror(errno));
             safe_close(sfd);
@@ -248,38 +239,26 @@ static SOCKET new_server_socket(struct addrinfo* ai) {
     }
 #endif
 
-    if (cb::net::setsockopt(sfd,
-                            SOL_SOCKET,
-                            SO_REUSEADDR,
-                            reinterpret_cast<const void*>(&flags),
-                            sizeof(flags)) != 0) {
+    if (cb::net::setsockopt(
+                sfd, SOL_SOCKET, SO_REUSEADDR, &flags, sizeof(flags)) != 0) {
         LOG_WARNING("setsockopt(SO_REUSEADDR): {}",
                     cb_strerror(cb::net::get_socket_error()));
     }
 
-    if (cb::net::setsockopt(sfd,
-                            SOL_SOCKET,
-                            SO_REUSEPORT,
-                            reinterpret_cast<const void*>(&flags),
-                            sizeof(flags)) != 0) {
+    if (cb::net::setsockopt(
+                sfd, SOL_SOCKET, SO_REUSEPORT, &flags, sizeof(flags)) != 0) {
         LOG_WARNING("setsockopt(SO_REUSEPORT): {}",
                     cb_strerror(cb::net::get_socket_error()));
     }
 
-    if (cb::net::setsockopt(sfd,
-                            SOL_SOCKET,
-                            SO_KEEPALIVE,
-                            reinterpret_cast<const void*>(&flags),
-                            sizeof(flags)) != 0) {
+    if (cb::net::setsockopt(
+                sfd, SOL_SOCKET, SO_KEEPALIVE, &flags, sizeof(flags)) != 0) {
         LOG_WARNING("setsockopt(SO_KEEPALIVE): {}",
                     cb_strerror(cb::net::get_socket_error()));
     }
 
-    if (cb::net::setsockopt(sfd,
-                            SOL_SOCKET,
-                            SO_LINGER,
-                            reinterpret_cast<const char*>(&ling),
-                            sizeof(ling)) != 0) {
+    if (cb::net::setsockopt(sfd, SOL_SOCKET, SO_LINGER, &ling, sizeof(ling)) !=
+        0) {
         LOG_WARNING("setsockopt(SO_LINGER): {}",
                     cb_strerror(cb::net::get_socket_error()));
     }
