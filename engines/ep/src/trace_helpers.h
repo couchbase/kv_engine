@@ -12,10 +12,11 @@
 
 #include "objectregistry.h"
 
+#include <memcached/cookie_iface.h>
 #include <memcached/tracer.h>
 
-static inline cb::tracing::Traceable* cookie2traceable(const void* cc) {
-    return reinterpret_cast<cb::tracing::Traceable*>(const_cast<void*>(cc));
+static inline cb::tracing::Traceable* cookie2traceable(const CookieIface* cc) {
+    return const_cast<CookieIface*>(cc);
 }
 
 /**
@@ -36,8 +37,8 @@ public:
         }
     }
 
-    /// Constructor from Cookie (void*)
-    ScopedTracer(const void* cookie, cb::tracing::Code code)
+    /// Constructor from const CookieIface
+    ScopedTracer(const CookieIface* cookie, cb::tracing::Code code)
         : ScopedTracer(*cookie2traceable(cookie), code) {
     }
 
@@ -69,8 +70,8 @@ public:
         : traceable(traceable), code(code) {
     }
 
-    /// Constructor from Cookie (void*)
-    TracerStopwatch(const void* cookie, const cb::tracing::Code code)
+    /// Constructor from const CookieIface
+    TracerStopwatch(const CookieIface* cookie, const cb::tracing::Code code)
         : TracerStopwatch(cookie2traceable(cookie), code) {
     }
 
