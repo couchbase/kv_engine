@@ -136,47 +136,6 @@ public:
     std::vector<uint8_t> value;
 };
 
-/**
- * The BlockMonitorThread represents the thread that is
- * monitoring the "lock" file. Once the file is no longer
- * there it will call the provided callback function.
- */
-class BlockMonitorThread : public Couchbase::Thread {
-public:
-    BlockMonitorThread(std::string file_, std::function<void()> callback)
-        : Thread("ewb:BlockMon"),
-          file(std::move(file_)),
-          callback(std::move(callback)) {
-    }
-
-    /**
-     * Wait for the underlying thread to reach the zombie state
-     * (== terminated, but not reaped)
-     */
-    ~BlockMonitorThread() override {
-        waitForState(Couchbase::ThreadState::Zombie);
-    }
-
-protected:
-    void run() override {
-        setRunning();
-
-        LOG_DEBUG("Block monitor for file {} started", file);
-
-        // @todo Use the file monitoring APIs to avoid this "busy" loop
-        while (cb::io::isFile(file)) {
-            std::this_thread::sleep_for(std::chrono::microseconds(100));
-        }
-
-        LOG_DEBUG("Block monitor for file {} stopping (file is gone)", file);
-        callback();
-    }
-
-private:
-    const std::string file;
-    std::function<void()> callback;
-};
-
 /** ewouldblock_engine class */
 class EWB_Engine : public EngineIface,
                    public DcpIface,
@@ -1963,6 +1922,49 @@ cb::engine_errc EWB_Engine::handleBlockMonitorFile(
     }
 
     try {
+        /**
+         * The BlockMonitorThread represents the thread that is
+         * monitoring the "lock" file. Once the file is no longer
+         * there it will call the provided callback function.
+         */
+        class BlockMonitorThread : public Couchbase::Thread {
+        public:
+            BlockMonitorThread(std::string file_,
+                               std::function<void()> callback)
+                : Thread("ewb:BlockMon"),
+                  file(std::move(file_)),
+                  callback(std::move(callback)) {
+            }
+
+            /**
+             * Wait for the underlying thread to reach the zombie state
+             * (== terminated, but not reaped)
+             */
+            ~BlockMonitorThread() override {
+                waitForState(Couchbase::ThreadState::Zombie);
+            }
+
+        protected:
+            void run() override {
+                setRunning();
+
+                LOG_DEBUG("Block monitor for file {} started", file);
+
+                // @todo Use the file monitoring APIs to avoid this "busy" loop
+                while (cb::io::isFile(file)) {
+                    std::this_thread::sleep_for(std::chrono::microseconds(100));
+                }
+
+                LOG_DEBUG("Block monitor for file {} stopping (file is gone)",
+                          file);
+                callback();
+            }
+
+        private:
+            const std::string file;
+            std::function<void()> callback;
+        };
+
         std::unique_ptr<Couchbase::Thread> thread(
                 new BlockMonitorThread(file, [this, id]() { resumeConn(id); }));
         thread->start();
