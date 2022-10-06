@@ -4449,7 +4449,9 @@ EventuallyPersistentEngine::getValidVBucketFromString(std::string_view vbNum) {
         return {cb::engine_errc::invalid_arguments, {}};
     }
     uint16_t vbucket_id;
-    if (!parseUint16(vbNum.data(), &vbucket_id)) {
+    // parseUint16 expects a null-terminated string
+    std::string vbNumString(vbNum);
+    if (!parseUint16(vbNumString.data(), &vbucket_id)) {
         return {cb::engine_errc::invalid_arguments, {}};
     }
     Vbid vbid = Vbid(vbucket_id);
