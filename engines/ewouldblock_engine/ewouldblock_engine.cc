@@ -80,8 +80,6 @@
 #include <unordered_map>
 #include <utility>
 
-class EWB_Engine;
-
 // Current DCP mutation `item`. We return an instance of this
 // (in the dcp step() function) back to the server, and then in
 // get_item_info we check if the requested item is this one.
@@ -141,18 +139,15 @@ public:
 /**
  * The BlockMonitorThread represents the thread that is
  * monitoring the "lock" file. Once the file is no longer
- * there it will resume the client specified with the given
- * id.
+ * there it will call the provided callback function.
  */
 class BlockMonitorThread : public Couchbase::Thread {
 public:
-    BlockMonitorThread(EWB_Engine& engine_,
-                       uint32_t id_,
-                       const std::string file_)
+    BlockMonitorThread(std::string file_, std::function<void()> callback)
         : Thread("ewb:BlockMon"),
-          engine(engine_),
-          id(id_),
-          file(file_) {}
+          file(std::move(file_)),
+          callback(std::move(callback)) {
+    }
 
     /**
      * Wait for the underlying thread to reach the zombie state
@@ -163,12 +158,23 @@ public:
     }
 
 protected:
-    void run() override;
+    void run() override {
+        setRunning();
+
+        LOG_DEBUG("Block monitor for file {} started", file);
+
+        // @todo Use the file monitoring APIs to avoid this "busy" loop
+        while (cb::io::isFile(file)) {
+            std::this_thread::sleep_for(std::chrono::microseconds(100));
+        }
+
+        LOG_DEBUG("Block monitor for file {} stopping (file is gone)", file);
+        callback();
+    }
 
 private:
-    EWB_Engine& engine;
-    const uint32_t id;
     const std::string file;
+    std::function<void()> callback;
 };
 
 /** ewouldblock_engine class */
@@ -836,8 +842,6 @@ private:
      * return data
      */
     std::map<const CookieIface*, std::pair<bool, uint64_t>> dcp_stream;
-
-    friend class BlockMonitorThread;
 
     /// A map from connection id to cookies which are suspended
     folly::Synchronized<std::unordered_map<uint32_t, const CookieIface*>,
@@ -1960,7 +1964,7 @@ cb::engine_errc EWB_Engine::handleBlockMonitorFile(
 
     try {
         std::unique_ptr<Couchbase::Thread> thread(
-                new BlockMonitorThread(*this, id, file));
+                new BlockMonitorThread(file, [this, id]() { resumeConn(id); }));
         thread->start();
         threads.lock()->emplace_back(thread.release());
     } catch (std::exception& e) {
@@ -2108,18 +2112,4 @@ cb::EngineErrorGetCollectionMetaResult EWB_Engine::get_collection_meta(
         CollectionID cid,
         std::optional<Vbid> vbid) const {
     return real_engine->get_collection_meta(cookie, cid, std::optional<Vbid>());
-}
-
-void BlockMonitorThread::run() {
-    setRunning();
-
-    LOG_DEBUG("Block monitor for file {} started", file);
-
-    // @todo Use the file monitoring API's to avoid this "busy" loop
-    while (cb::io::isFile(file)) {
-        std::this_thread::sleep_for(std::chrono::microseconds(100));
-    }
-
-    LOG_DEBUG("Block monitor for file {} stopping (file is gone)", file);
-    engine.resumeConn(id);
 }
