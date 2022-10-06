@@ -136,9 +136,10 @@ public:
      * back to the client
      * @param prefix prefix to use for the stats
      * @param add_stat the callback function to add statistics
-     * @param c the cookie to pass to the callback function
+     * @param cookie the cookie to pass to the callback function
      */
-    virtual void addStats(const AddStatFn& add_stat, const void* c) const = 0;
+    virtual void addStats(const AddStatFn& add_stat,
+                          const CookieIface* cookie) const = 0;
 
     /**
      * Request the specified statistic name from the kvstore.

@@ -4799,11 +4799,10 @@ cb::engine_errc EventuallyPersistentEngine::doPrivilegedStats(
 }
 
 cb::engine_errc EventuallyPersistentEngine::getStats(
-        const void* cookie,
+        const CookieIface* c,
         std::string_view key,
         std::string_view value,
         const AddStatFn& add_stat) {
-    const auto* c = reinterpret_cast<const CookieIface*>(cookie);
     ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
             std::forward_as_tuple(stats.getStatsCmdHisto),
             std::forward_as_tuple(c, cb::tracing::Code::GetStats));
@@ -4889,7 +4888,7 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
         return doMemoryStats(c, add_stat);
     }
     if (key == "uuid"sv) {
-        add_casted_stat("uuid", configuration.getUuid(), add_stat, cookie);
+        add_casted_stat("uuid", configuration.getUuid(), add_stat, c);
         return cb::engine_errc::success;
     }
     if (cb_isPrefix(key, "key ") || cb_isPrefix(key, "key-byid ")) {
@@ -4916,7 +4915,7 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
         return cb::engine_errc::no_such_key;
     }
     if (key == "info"sv) {
-        add_casted_stat("info", get_stats_info(), add_stat, cookie);
+        add_casted_stat("info", get_stats_info(), add_stat, c);
         return cb::engine_errc::success;
     }
     if (key == "config"sv) {

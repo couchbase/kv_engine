@@ -427,9 +427,9 @@ void ConnHandler::scheduleNotify() {
     }
 }
 
-// Explicit instantition of addStat() used outside of ConnHandler and
+// Explicit instantiation of addStat() used outside ConnHandler and
 // derived classes - for example from BackfillManager::addStats().
-template void ConnHandler::addStat<std::string>(const char *nm,
-                                                const std::string &val,
-                                                const AddStatFn &add_stat,
-                                                const void *c) const;
+template void ConnHandler::addStat<std::string>(const char* nm,
+                                                const std::string& val,
+                                                const AddStatFn& add_stat,
+                                                const CookieIface* c) const;

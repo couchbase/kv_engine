@@ -283,7 +283,7 @@ public:
     void addStats(const AddStatFn& add_stat, const CookieIface* c) override;
 
     void addTakeoverStats(const AddStatFn& add_stat,
-                          const void* c,
+                          const CookieIface* c,
                           const VBucket& vb);
 
     /* Returns a count of how many items are outstanding to be sent for this

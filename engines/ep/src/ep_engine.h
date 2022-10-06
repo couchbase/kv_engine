@@ -465,7 +465,7 @@ public:
         return name;
     }
 
-    cb::engine_errc getStats(const void* cookie,
+    cb::engine_errc getStats(const CookieIface* cookie,
                              std::string_view key,
                              std::string_view value,
                              const AddStatFn& add_stat);

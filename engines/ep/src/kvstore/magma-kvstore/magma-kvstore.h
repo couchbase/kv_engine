@@ -514,7 +514,8 @@ public:
     /**
      * Populate kvstore stats with magma specific stats
      */
-    void addStats(const AddStatFn& add_stat, const void* c) const override;
+    void addStats(const AddStatFn& add_stat,
+                  const CookieIface* cookie) const override;
 
     /**
      * Populate magma specific timing stats.

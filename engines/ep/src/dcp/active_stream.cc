@@ -825,7 +825,7 @@ void ActiveStream::addStats(const AddStatFn& add_stat, const CookieIface* c) {
 }
 
 void ActiveStream::addTakeoverStats(const AddStatFn& add_stat,
-                                    const void* cookie,
+                                    const CookieIface* cookie,
                                     const VBucket& vb) {
     std::lock_guard<std::mutex> lh(streamMutex);
 

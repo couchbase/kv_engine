@@ -1819,7 +1819,8 @@ size_t RocksDBKVStore::getVBucketsCount(
     return count;
 }
 
-void RocksDBKVStore::addStats(const AddStatFn& add_stat, const void* c) const {
+void RocksDBKVStore::addStats(const AddStatFn& add_stat,
+                              const CookieIface* c) const {
     KVStore::addStats(add_stat, c);
     const auto prefix = getStatsPrefix();
 

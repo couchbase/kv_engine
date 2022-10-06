@@ -203,7 +203,8 @@ public:
 
     void resetStats() override;
 
-    void addStats(const AddStatFn& add_stat, const void* c) const override;
+    void addStats(const AddStatFn& add_stat,
+                  const CookieIface* cookie) const override;
 
     GetValue getWithHeader(const KVFileHandle& kvFileHandle,
                            const DiskDocKey& key,

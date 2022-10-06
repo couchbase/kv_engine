@@ -734,9 +734,10 @@ public:
      * back to the client
      * @param prefix prefix to use for the stats
      * @param add_stat the callback function to add statistics
-     * @param c the cookie to pass to the callback function
+     * @param cookie the cookie to pass to the callback function
      */
-    void addStats(const AddStatFn& add_stat, const void* c) const override;
+    void addStats(const AddStatFn& add_stat,
+                  const CookieIface* cookie) const override;
 
     /**
      * Request the specified statistic name from the kvstore.

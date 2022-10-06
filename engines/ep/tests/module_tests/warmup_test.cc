@@ -21,6 +21,7 @@
 #include "../mock/mock_add_stat_fn.h"
 #include <folly/portability/GTest.h>
 #include <memcached/tracer.h>
+#include <programs/engine_testapp/mock_cookie.h>
 
 class WarmupDisabledTest : public EventuallyPersistentEngineTest {
 
@@ -33,10 +34,10 @@ class WarmupDisabledTest : public EventuallyPersistentEngineTest {
 // Check we get the expected stats (i.e. none) when Warmup is disabled.
 TEST_F(WarmupDisabledTest, Stats) {
     MockAddStat add_stat;
-    cb::tracing::Traceable cookie;
+    auto* cookie = create_mock_cookie();
     using ::testing::_;
     EXPECT_CALL(add_stat, callback("ep_warmup", _, _)).Times(0);
-    EXPECT_EQ(
-            cb::engine_errc::no_such_key,
-            engine->getStats(&cookie, "warmup", {}, add_stat.asStdFunction()));
+    EXPECT_EQ(cb::engine_errc::no_such_key,
+              engine->getStats(cookie, "warmup", {}, add_stat.asStdFunction()));
+    destroy_mock_cookie(cookie);
 }

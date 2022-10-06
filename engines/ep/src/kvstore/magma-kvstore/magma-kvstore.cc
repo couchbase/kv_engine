@@ -3444,7 +3444,8 @@ GetStatsMap MagmaKVStore::getStats(
     return stats;
 }
 
-void MagmaKVStore::addStats(const AddStatFn& add_stat, const void* c) const {
+void MagmaKVStore::addStats(const AddStatFn& add_stat,
+                            const CookieIface* c) const {
     KVStore::addStats(add_stat, c);
     const auto prefix = getStatsPrefix();
 

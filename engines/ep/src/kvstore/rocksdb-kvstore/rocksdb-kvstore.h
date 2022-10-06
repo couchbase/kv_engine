@@ -136,7 +136,8 @@ public:
     bool commit(std::unique_ptr<TransactionContext> txnCtx,
                 VB::Commit& commitData) override;
 
-    void addStats(const AddStatFn& add_stat, const void* c) const override;
+    void addStats(const AddStatFn& add_stat,
+                  const CookieIface* cookie) const override;
 
     /*
      * Get a RocksDBKVStore specific stat

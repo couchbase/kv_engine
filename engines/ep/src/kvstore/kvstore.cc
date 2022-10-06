@@ -380,7 +380,7 @@ GetStatsMap KVStore::getStats(gsl::span<const std::string_view> keys) const {
     return stats;
 }
 
-void KVStore::addStats(const AddStatFn& add_stat, const void* c) const {
+void KVStore::addStats(const AddStatFn& add_stat, const CookieIface* c) const {
     const char* backend = getConfig().getBackend().c_str();
     const auto prefix = getStatsPrefix();
 
