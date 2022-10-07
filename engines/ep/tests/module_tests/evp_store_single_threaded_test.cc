@@ -652,6 +652,46 @@ std::string STParameterizedBucketTest::PrintToStringParamName(
     return config;
 }
 
+TEST_F(SingleThreadedKVBucketTest, VBMapIterator) {
+    // verify that iterating the vbmap correctly finds only valid vbuckets
+    ASSERT_EQ(cb::engine_errc::success,
+              store->setVBucketState(Vbid(1), vbucket_state_active));
+    ASSERT_EQ(cb::engine_errc::success,
+              store->setVBucketState(Vbid(3), vbucket_state_dead));
+
+    using namespace ::testing;
+    StrictMock<MockFunction<void(Vbid)>> cb;
+
+    {
+        InSequence s;
+
+        // check that it skips vbid 0 correctly (mild edge case of being the
+        // first vbid) finds vbid 1
+        EXPECT_CALL(cb, Call(Vbid(1))).Times(1);
+        // skips missing vbid 2
+        // and reaches vbid 3 (mild edge case of being the last vb (test config
+        // sets max 4 vbuckets)
+        ASSERT_EQ(store->getVBMapSize(), 4);
+        EXPECT_CALL(cb, Call(Vbid(3))).Times(1);
+
+        for (auto& vbucket : store->getVBuckets()) {
+            cb.Call(vbucket.getId());
+        }
+    }
+
+    // and again binding to a const Vbucket&, just for rigour.
+    {
+        InSequence s;
+
+        EXPECT_CALL(cb, Call(Vbid(1))).Times(1);
+        EXPECT_CALL(cb, Call(Vbid(3))).Times(1);
+
+        for (const auto& vbucket : store->getVBuckets()) {
+            cb.Call(vbucket.getId());
+        }
+    }
+}
+
 /**
  * Regression test for MB-45255 - a crash due to a dereference of a null
  * DcpProducer::backfillMgr if a streamRequest occurs during bucket shutdown:

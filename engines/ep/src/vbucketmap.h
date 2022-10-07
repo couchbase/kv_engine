@@ -16,6 +16,7 @@
 
 #include <folly/SharedMutex.h>
 #include <platform/non_negative_counter.h>
+#include <iterator>
 #include <vector>
 
 class KVBucket;
@@ -45,6 +46,49 @@ friend class Warmup;
 
 public:
     VBucketMap(KVBucket& bucket);
+
+    /**
+     * Iterator for walking over valid vbuckets in the map, in vbid order.
+     */
+    class Iterator {
+    public:
+        using iterator_category = std::input_iterator_tag;
+        using value_type = VBucket;
+        using difference_type = ssize_t;
+        using pointer = value_type*;
+        using reference = value_type&;
+
+        Iterator(const VBucketMap& map);
+
+        // tag type used for end(). Can be replaced with default_sentinel_t
+        // once C++20 is in use.
+        struct EndSentinel {};
+
+        /**
+         * Compare with end sentinel (e.g., implement `iter == map.end()` )
+         */
+        bool operator==(EndSentinel) const;
+        bool operator!=(EndSentinel) const;
+
+        pointer operator->() const;
+        reference operator*() const;
+
+        Iterator& operator++();
+
+    private:
+        // vbucket map being iterated
+        const VBucketMap& map;
+        // current vb ptr. Could be re-fetched on every dereference, but
+        // that would risk the vbucket being deleted between two
+        // dereferences of the same iterator, which would be inconvenient.
+        VBucketPtr vbPtr;
+        // current vbid
+        size_t vbid = 0;
+    };
+
+    Iterator begin() const;
+
+    Iterator::EndSentinel end() const;
 
     /**
      * Add the VBucket to the map - extending the lifetime of the object until

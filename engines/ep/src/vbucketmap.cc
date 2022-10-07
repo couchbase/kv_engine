@@ -17,6 +17,44 @@
 #include <memory>
 #include <vector>
 
+VBucketMap::Iterator::Iterator(const VBucketMap& map) : map(map) {
+    vbPtr = map.getBucket(Vbid(0));
+    while (!vbPtr && ++vbid < map.size) {
+        vbPtr = map.getBucket(Vbid(vbid));
+    }
+}
+
+bool VBucketMap::Iterator::operator==(EndSentinel) const {
+    return vbid == map.size;
+}
+
+bool VBucketMap::Iterator::operator!=(EndSentinel) const {
+    return !(*this == EndSentinel());
+}
+
+VBucket* VBucketMap::Iterator::operator->() const {
+    return vbPtr.get();
+}
+VBucket& VBucketMap::Iterator::operator*() const {
+    return *vbPtr;
+}
+
+VBucketMap::Iterator& VBucketMap::Iterator::operator++() {
+    vbPtr = nullptr;
+    while (!vbPtr && ++vbid < map.size) {
+        vbPtr = map.getBucket(Vbid(vbid));
+    }
+    return *this;
+}
+
+VBucketMap::Iterator VBucketMap::begin() const {
+    return {*this};
+}
+
+VBucketMap::Iterator::EndSentinel VBucketMap::end() const {
+    return {};
+}
+
 VBucketMap::VBucketMap(KVBucket& bucket)
     : size(bucket.getEPEngine().getConfiguration().getMaxVbuckets()),
       bucket(bucket) {
