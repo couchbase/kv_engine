@@ -8,7 +8,7 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-#include "item_eviction.h"
+#include "learning_age_and_mfu_based_eviction.h"
 
 #include <folly/portability/GTest.h>
 #include <limits>
@@ -20,13 +20,13 @@
 // Test that we can construct an instance of HashTable::Eviction, and the
 // histogram can be accessed, with the value count being zero.
 TEST(ItemEvictionClassTest, initialisation) {
-    ItemEviction itemEv;
+    LearningAgeAndMFUBasedEviction itemEv;
     EXPECT_EQ(0, itemEv.getFreqHistogramValueCount());
 }
 
 // Test the addValueToHistogram function
 TEST(ItemEvictionClassTest, addValue) {
-    ItemEviction itemEv;
+    LearningAgeAndMFUBasedEviction itemEv;
     for (uint16_t ii = 0; ii < 256; ii++) {
         itemEv.addFreqAndAgeToHistograms(ii, ii);
     }
@@ -35,7 +35,7 @@ TEST(ItemEvictionClassTest, addValue) {
 
 // Test the getFreqThreshold function
 TEST(ItemEvictionClassTest, freqThreshold) {
-    ItemEviction itemEv;
+    LearningAgeAndMFUBasedEviction itemEv;
     for (uint16_t ii = 0; ii < 256; ii++) {
         itemEv.addFreqAndAgeToHistograms(ii, ii * 2);
     }

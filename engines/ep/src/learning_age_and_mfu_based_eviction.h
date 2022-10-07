@@ -53,12 +53,12 @@ class EPStats;
  * frequency count at or below the threshold.
  *
  */
-class ItemEviction : public ItemEvictionStrategy {
+class LearningAgeAndMFUBasedEviction : public ItemEvictionStrategy {
 public:
-    ItemEviction() = default;
+    LearningAgeAndMFUBasedEviction() = default;
     /**
-     * Construct a "learning" ItemEviction, which can be used to decide which
-     * values to attempt to evict, in order to remove a fraction (from
+     * Construct a "learning" eviction strategy, which can be used to decide
+     * which values to attempt to evict, in order to remove a fraction (from
      * evictionRatios) of the coldest items from a vbucket.
      *
      * "Young" items (age determined from HLC cas) are protected from eviction,
@@ -81,10 +81,10 @@ public:
      *              Pointer, may be null to avoid tests which are not concerned
      *              with stats needing an EPStats instance anyway.
      */
-    ItemEviction(EvictionRatios evictionRatios,
-                 size_t agePercentage,
-                 uint16_t freqCounterAgeThreshold,
-                 EPStats* stats);
+    LearningAgeAndMFUBasedEviction(EvictionRatios evictionRatios,
+                                   size_t agePercentage,
+                                   uint16_t freqCounterAgeThreshold,
+                                   EPStats* stats);
 
     // Clears the frequency histogram and sets the requiredToUpdateInterval
     // back to 1.

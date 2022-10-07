@@ -44,7 +44,7 @@ public:
     }
 
     ItemEvictionStrategy& getItemEvictionStrategy() {
-        return *itemEviction;
+        return *evictionStrategy;
     }
 
     size_t getEjected() const {
@@ -55,7 +55,7 @@ public:
         // TODO: once tests are updated to inject the ItemEviction object
         //       into PagingVisitors when constructing them, this casting
         //       will no longer be necessary, and the freqCounter can be
-        static_cast<ItemEviction&>(*itemEviction)
+        static_cast<LearningAgeAndMFUBasedEviction&>(*evictionStrategy)
                 .setFreqCounterThreshold(threshold);
     }
 

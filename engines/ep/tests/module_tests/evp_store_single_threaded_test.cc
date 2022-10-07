@@ -5319,11 +5319,12 @@ TEST_P(STParameterizedBucketTest,
 
         auto pagerSemaphore = std::make_shared<cb::Semaphore>();
         auto& config = engine->getConfiguration();
-        auto evictionStrategy = std::make_unique<ItemEviction>(
-                EvictionRatios{1.0 /*active*/, 1.0 /*replica*/},
-                config.getItemEvictionAgePercentage(),
-                config.getItemEvictionFreqCounterAgeThreshold(),
-                &engine->getEpStats());
+        auto evictionStrategy =
+                std::make_unique<LearningAgeAndMFUBasedEviction>(
+                        EvictionRatios{1.0 /*active*/, 1.0 /*replica*/},
+                        config.getItemEvictionAgePercentage(),
+                        config.getItemEvictionFreqCounterAgeThreshold(),
+                        &engine->getEpStats());
         auto visitor = PagingVisitor(*store,
                                      engine->getEpStats(),
                                      std::move(evictionStrategy),

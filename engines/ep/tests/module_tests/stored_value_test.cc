@@ -15,7 +15,7 @@
 
 #include "hash_table.h"
 #include "item.h"
-#include "item_eviction.h"
+#include "learning_age_and_mfu_based_eviction.h"
 #include "stats.h"
 #include "stored_value_factories.h"
 #include "tests/module_tests/test_helpers.h"

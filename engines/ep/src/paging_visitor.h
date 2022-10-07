@@ -13,8 +13,8 @@
 
 #include "collections/vbucket_manifest_handles.h"
 #include "hash_table.h"
-#include "item_eviction.h"
 #include "item_pager.h"
+#include "learning_age_and_mfu_based_eviction.h"
 #include "vb_visitors.h"
 
 #include <atomic>
@@ -102,7 +102,7 @@ protected:
     // Protected for testing purposes
     // Holds the data structures used during the selection of documents to
     // evict from the hash table.
-    std::unique_ptr<ItemEvictionStrategy> itemEviction;
+    std::unique_ptr<ItemEvictionStrategy> evictionStrategy;
 
     // The number of documents that were evicted.
     size_t ejected;

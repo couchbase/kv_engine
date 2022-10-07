@@ -23,9 +23,9 @@
 #include "ep_time.h"
 #include "evp_store_single_threaded_test.h"
 #include "item.h"
-#include "item_eviction.h"
 #include "kv_bucket.h"
 #include "kvstore/kvstore.h"
+#include "learning_age_and_mfu_based_eviction.h"
 #include "test_helpers.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
@@ -876,16 +876,17 @@ TEST_P(STItemPagerTest, isEligible) {
     }
     auto pagerSemaphore = std::make_shared<cb::Semaphore>();
     Configuration& cfg = engine->getConfiguration();
-    auto evictionStrategy = std::make_unique<ItemEviction>(
+    auto strategyPtr = std::make_unique<LearningAgeAndMFUBasedEviction>(
             EvictionRatios{0.0 /* active&pending */,
                            0.0 /* replica */}, // evict nothing
             cfg.getItemEvictionAgePercentage(),
             cfg.getItemEvictionFreqCounterAgeThreshold(),
             nullptr /* epstats */);
+    auto& strategy = *strategyPtr;
     std::unique_ptr<MockPagingVisitor> pv =
             std::make_unique<MockPagingVisitor>(*engine->getKVBucket(),
                                                 engine->getEpStats(),
-                                                std::move(evictionStrategy),
+                                                std::move(strategyPtr),
                                                 pagerSemaphore,
                                                 ITEM_PAGER,
                                                 false,
@@ -894,10 +895,8 @@ TEST_P(STItemPagerTest, isEligible) {
     VBucketPtr vb = store->getVBucket(vbid);
     pv->visitBucket(*vb);
     auto initialCount = Item::initialFreqCount;
-    auto& itemEviction =
-            static_cast<ItemEviction&>(pv->getItemEvictionStrategy());
-    EXPECT_NE(initialCount, itemEviction.getThresholds(100.0, 0.0).first);
-    EXPECT_NE(255, itemEviction.getThresholds(100.0, 0.0).first);
+    EXPECT_NE(initialCount, strategy.getThresholds(100.0, 0.0).first);
+    EXPECT_NE(255, strategy.getThresholds(100.0, 0.0).first);
 }
 
 /**

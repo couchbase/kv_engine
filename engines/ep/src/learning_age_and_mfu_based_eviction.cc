@@ -9,26 +9,27 @@
  *   the file licenses/APL2.txt.
  */
 
-#include "item_eviction.h"
+#include "learning_age_and_mfu_based_eviction.h"
 #include "item.h"
 
 #include "stats.h"
 
 #include <gsl/gsl-lite.hpp>
 
-ItemEviction::ItemEviction(EvictionRatios evictionRatios,
-                           size_t agePercentage,
-                           uint16_t freqCounterAgeThreshold,
-                           EPStats* stats)
+LearningAgeAndMFUBasedEviction::LearningAgeAndMFUBasedEviction(
+        EvictionRatios evictionRatios,
+        size_t agePercentage,
+        uint16_t freqCounterAgeThreshold,
+        EPStats* stats)
     : evictionRatios(evictionRatios),
       agePercentage(agePercentage),
       freqCounterAgeThreshold(freqCounterAgeThreshold),
       epstats(stats) {
 }
 
-bool ItemEviction::shouldTryEvict(uint8_t freq,
-                                  uint64_t age,
-                                  vbucket_state_t state) {
+bool LearningAgeAndMFUBasedEviction::shouldTryEvict(uint8_t freq,
+                                                    uint64_t age,
+                                                    vbucket_state_t state) {
     const double evictionRatio = evictionRatios.getForState(state);
 
     // A negative eviction ratio is invalid, and should never be encountered
@@ -58,9 +59,9 @@ bool ItemEviction::shouldTryEvict(uint8_t freq,
     return belowMFUThreshold && (meetsAgeRequirements || isReplica);
 }
 
-void ItemEviction::eligibleItemSeen(uint8_t freq,
-                                    uint64_t age,
-                                    vbucket_state_t state) {
+void LearningAgeAndMFUBasedEviction::eligibleItemSeen(uint8_t freq,
+                                                      uint64_t age,
+                                                      vbucket_state_t state) {
     addFreqAndAgeToHistograms(freq, age);
 
     // Whilst we are learning it is worth always updating the
@@ -72,17 +73,19 @@ void ItemEviction::eligibleItemSeen(uint8_t freq,
     }
 }
 
-void ItemEviction::addFreqAndAgeToHistograms(uint8_t freq, uint64_t age) {
+void LearningAgeAndMFUBasedEviction::addFreqAndAgeToHistograms(uint8_t freq,
+                                                               uint64_t age) {
     freqCounters[freq]++;
     totalFreqCounterValues++;
     ageHistogram.addValue(age);
 }
 
-uint64_t ItemEviction::getFreqHistogramValueCount() const {
+uint64_t LearningAgeAndMFUBasedEviction::getFreqHistogramValueCount() const {
     return totalFreqCounterValues;
 }
 
-void ItemEviction::setupVBucketVisit(uint64_t numExpectedItems) {
+void LearningAgeAndMFUBasedEviction::setupVBucketVisit(
+        uint64_t numExpectedItems) {
     freqCounters.fill(0);
     totalFreqCounterValues = 0;
     ageHistogram.reset();
@@ -97,7 +100,8 @@ void ItemEviction::setupVBucketVisit(uint64_t numExpectedItems) {
             (noOfItems > learningPopulation) ? noOfItems : learningPopulation;
 }
 
-void ItemEviction::tearDownVBucketVisit(vbucket_state_t state) {
+void LearningAgeAndMFUBasedEviction::tearDownVBucketVisit(
+        vbucket_state_t state) {
     /**
      * Note: We are not taking a reader lock on the vbucket state.
      * Therefore it is possible that the stats could be slightly
@@ -122,7 +126,7 @@ void ItemEviction::tearDownVBucketVisit(vbucket_state_t state) {
     }
 }
 
-std::pair<uint16_t, uint64_t> ItemEviction::getThresholds(
+std::pair<uint16_t, uint64_t> LearningAgeAndMFUBasedEviction::getThresholds(
         double freqPercentage, double agePercentage) const {
     size_t runningTotal = 0;
     uint16_t freqThreshold;
@@ -140,7 +144,7 @@ std::pair<uint16_t, uint64_t> ItemEviction::getThresholds(
     return std::make_pair(freqThreshold, ageThreshold);
 }
 
-void ItemEviction::copyFreqHistogram(HdrHistogram& hist) {
+void LearningAgeAndMFUBasedEviction::copyFreqHistogram(HdrHistogram& hist) {
     for (size_t i = 0; i < freqCounters.size(); i++) {
         hist.addValueAndCount(i, freqCounters[i]);
     }

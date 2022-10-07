@@ -208,14 +208,15 @@ BENCHMARK_DEFINE_F(PagingVisitorBench, SingleVBucket)
 
         populateUntilFull(vbid);
 
-        auto evictionStrategy = std::make_unique<ItemEviction>(
-                EvictionRatios{
-                        1 /* active&pending */,
-                        1 /* replica */}, // evict everything (but this will
-                // not be run)
-                cfg.getItemEvictionAgePercentage(),
-                cfg.getItemEvictionFreqCounterAgeThreshold(),
-                &engine->getEpStats());
+        auto evictionStrategy =
+                std::make_unique<LearningAgeAndMFUBasedEviction>(
+                        EvictionRatios{1 /* active&pending */,
+                                       1 /* replica */}, // evict everything
+                                                         // (but this will
+                        // not be run)
+                        cfg.getItemEvictionAgePercentage(),
+                        cfg.getItemEvictionFreqCounterAgeThreshold(),
+                        &engine->getEpStats());
 
         auto pv = std::make_unique<PagingVisitor>(
                 *engine->getKVBucket(),
@@ -258,14 +259,15 @@ BENCHMARK_DEFINE_F(PagingVisitorBench, PagerIteration)
         });
         vb->ht.visit(ev);
 
-        auto evictionStrategy = std::make_unique<ItemEviction>(
-                EvictionRatios{
-                        0.000000001 /* active&pending */,
-                        1 /* replica */}, // evict everything (but this will
-                // not be run)
-                cfg.getItemEvictionAgePercentage(),
-                cfg.getItemEvictionFreqCounterAgeThreshold(),
-                &engine->getEpStats());
+        auto evictionStrategy =
+                std::make_unique<LearningAgeAndMFUBasedEviction>(
+                        EvictionRatios{0.000000001 /* active&pending */,
+                                       1 /* replica */}, // evict everything
+                                                         // (but this will
+                        // not be run)
+                        cfg.getItemEvictionAgePercentage(),
+                        cfg.getItemEvictionFreqCounterAgeThreshold(),
+                        &engine->getEpStats());
 
         auto pv = std::make_unique<PagingVisitor>(
                 *engine->getKVBucket(),

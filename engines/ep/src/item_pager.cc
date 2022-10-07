@@ -18,9 +18,9 @@
 #include "ep_engine.h"
 #include "ep_time.h"
 #include "item.h"
-#include "item_eviction.h"
 #include "kv_bucket.h"
 #include "kv_bucket_iface.h"
+#include "learning_age_and_mfu_based_eviction.h"
 #include "paging_visitor.h"
 #include "vbucket.h"
 #include <executor/executorpool.h>
@@ -167,12 +167,13 @@ bool ItemPager::run() {
         // distribute the vbuckets that should be visited among multiple
         // paging visitors.
         for (const auto& partFilter : filter.split(numConcurrentPagers)) {
-            auto evictionStrategy = std::make_unique<ItemEviction>(
-                    EvictionRatios{activeAndPendingEvictionRatio,
-                                   replicaEvictionRatio},
-                    cfg.getItemEvictionAgePercentage(),
-                    cfg.getItemEvictionFreqCounterAgeThreshold(),
-                    &stats);
+            auto evictionStrategy =
+                    std::make_unique<LearningAgeAndMFUBasedEviction>(
+                            EvictionRatios{activeAndPendingEvictionRatio,
+                                           replicaEvictionRatio},
+                            cfg.getItemEvictionAgePercentage(),
+                            cfg.getItemEvictionFreqCounterAgeThreshold(),
+                            &stats);
             auto pv = std::make_unique<PagingVisitor>(
                     *kvBucket,
                     stats,

@@ -119,14 +119,15 @@ BENCHMARK_DEFINE_F(VBCBAdaptorBench, VBCBAdaptorCreation)
 
     while (state.KeepRunning()) {
         state.PauseTiming();
-        auto evictionStrategy = std::make_unique<ItemEviction>(
-                EvictionRatios{
-                        1 /* active&pending */,
-                        1 /* replica */}, // evict everything (but this will
-                // not be run)
-                cfg.getItemEvictionAgePercentage(),
-                cfg.getItemEvictionFreqCounterAgeThreshold(),
-                &engine->getEpStats());
+        auto evictionStrategy =
+                std::make_unique<LearningAgeAndMFUBasedEviction>(
+                        EvictionRatios{1 /* active&pending */,
+                                       1 /* replica */}, // evict everything
+                                                         // (but this will
+                        // not be run)
+                        cfg.getItemEvictionAgePercentage(),
+                        cfg.getItemEvictionFreqCounterAgeThreshold(),
+                        &engine->getEpStats());
         std::unique_ptr<PagingVisitor> pv =
                 std::make_unique<PagingVisitor>(*engine->getKVBucket(),
                                                 engine->getEpStats(),

@@ -362,7 +362,6 @@ ADD_LIBRARY(ep_objs OBJECT
             src/item.cc
             src/item_compressor.cc
             src/item_compressor_visitor.cc
-            src/item_eviction.cc
             src/item_eviction_strategy.cc
             src/item_freq_decayer.cc
             src/item_freq_decayer_visitor.cc
@@ -373,6 +372,7 @@ ADD_LIBRARY(ep_objs OBJECT
         src/kvstore/kvstore_config.cc
             src/kv_bucket.cc
             src/kvshard.cc
+            src/learning_age_and_mfu_based_eviction.cc
         src/limited_concurrency_task.cc
             src/mutation_log.cc
             src/mutation_log_entry.cc
