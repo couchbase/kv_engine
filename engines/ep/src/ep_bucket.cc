@@ -1480,7 +1480,7 @@ bool EPBucket::doCompact(Vbid vbid,
         // code returned in notifyIOComplete is != success so we need to
         // do all of the clean-up here.
         for (const auto& cookie : cookies) {
-            engine.storeEngineSpecific(cookie, nullptr);
+            engine.clearEngineSpecific(cookie);
         }
     }
 

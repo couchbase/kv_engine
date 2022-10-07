@@ -404,6 +404,57 @@ TEST_P(DurabilityTest, DurabilityStateStats) {
     expectStatsForVB(vb);
 }
 
+namespace {
+struct ESTestDestructor {
+    static int instances;
+    ESTestDestructor() {
+        ++instances;
+    }
+    ESTestDestructor(const ESTestDestructor&) {
+        ++instances;
+    }
+    ESTestDestructor(ESTestDestructor&&) {
+        ++instances;
+    }
+    ~ESTestDestructor() {
+        --instances;
+    }
+};
+int ESTestDestructor::instances{0};
+} // namespace
+
+TEST_P(EPEnginePersistentTest, EngineSpecificStorageGetsReleased) {
+    {
+        ESTestDestructor test;
+        EXPECT_EQ(1, ESTestDestructor::instances);
+        MockCookie cookie(engine);
+        engine->storeEngineSpecific(&cookie, test);
+        EXPECT_EQ(2, ESTestDestructor::instances);
+    }
+    EXPECT_EQ(0, ESTestDestructor::instances);
+}
+
+TEST_P(EPEnginePersistentTest, EngineSpecificStorageCanBeReadBack) {
+    MockCookie cookie(engine);
+    engine->storeEngineSpecific(&cookie, 1);
+    EXPECT_EQ(1, *engine->getEngineSpecific<int>(&cookie));
+}
+
+TEST_P(EPEnginePersistentTest, EngineSpecificStorageCanBeCleared) {
+    MockCookie cookie(engine);
+    engine->storeEngineSpecific(&cookie, 1);
+    ASSERT_TRUE(engine->getEngineSpecific<int>(&cookie).has_value());
+    engine->clearEngineSpecific(&cookie);
+    EXPECT_FALSE(engine->getEngineSpecific<int>(&cookie).has_value());
+}
+
+TEST_P(EPEnginePersistentTest, EngineSpecificStorageThrowsBadCast) {
+    MockCookie cookie(engine);
+    engine->storeEngineSpecific(&cookie, 1);
+    ASSERT_TRUE(engine->getEngineSpecific<int>(&cookie).has_value());
+    EXPECT_THROW(engine->getEngineSpecific<char>(&cookie), std::bad_cast);
+}
+
 TEST_P(EPEnginePersistentTest, ShardCountsOnSecondBucketInit) {
     auto originalShardCount = engine->getWorkLoadPolicy().getNumShards();
     auto newShardCount = originalShardCount + 1;

@@ -4078,7 +4078,7 @@ VBucket::tmpFailAndGetAllHpNotifies(EventuallyPersistentEngine& engine) {
 
     for (auto& entry : hpVBReqs) {
         toNotify[entry->cookie] = cb::engine_errc::temporary_failure;
-        engine.storeEngineSpecific(entry->cookie, nullptr);
+        engine.clearEngineSpecific(entry->cookie);
     }
     hpVBReqs.clear();
 

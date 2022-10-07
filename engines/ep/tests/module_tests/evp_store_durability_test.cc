@@ -2662,9 +2662,9 @@ TEST_P(DurabilityBucketTest, MutationAfterTimeoutCorrect) {
                             pending->getDurabilityReqs(),
                             DocumentState::Alive,
                             false));
-    ASSERT_TRUE(engine->getEngineSpecific(cookie))
-            << "Expected engine specific to be set for cookie after "
-               "EWOULDBLOCK";
+    ASSERT_TRUE(engine->getEngineSpecific<uint64_t>(cookie))
+            << "Expected engine specific to be set to item cas for cookie "
+               "after EWOULDBLOCK";
 
     auto& vb = *store->getVBucket(vbid);
     ASSERT_EQ(cb::engine_errc::success,
@@ -4781,7 +4781,7 @@ void DurabilityBucketTest::testUpgradeToMinDurabilityLevel(
     }
 
     // * POST-CONDITIONS - item must be queued in CM with the expected DurReqs *
-    ASSERT_TRUE(engine->getEngineSpecific(cookie));
+    ASSERT_TRUE(engine->getEngineSpecific<uint64_t>(cookie));
     {
         const auto res = ht.findForUpdate(key);
         ASSERT_EQ(engineOp != EngineOp::Remove, res.committed == nullptr);

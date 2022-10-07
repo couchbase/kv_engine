@@ -48,16 +48,16 @@ cb::engine_error Collections::Manager::update(
 
     // Now getEngineSpecific - if that is null this is a new command, else
     // it's the IO complete command
-    void* manifest = bucket.getEPEngine().getEngineSpecific(cookie);
+    auto manifest = bucket.getEPEngine().takeEngineSpecific<Manifest*>(cookie);
 
-    if (manifest) {
+    if (manifest.has_value()) {
         // I/O complete path?
         if (!*lockedUpdateCookie) {
             // This can occur for a DCP connection, cookie is 'reserved'.
             EP_LOG_WARN(
                     "Collections::Manager::update aborted as we have found a "
                     "manifest:{} but updateInProgress:{}",
-                    manifest,
+                    static_cast<const void*>(*manifest),
                     static_cast<const void*>(*lockedUpdateCookie));
             return {cb::engine_errc::failed,
                     "Collections::Manager::update failure"};
@@ -66,11 +66,9 @@ cb::engine_error Collections::Manager::update(
         // Final stage of update now happening, clear the cookie and engine
         // specific so the next update can start after this one returns.
         *lockedUpdateCookie = nullptr;
-        bucket.getEPEngine().storeEngineSpecific(cookie, nullptr);
 
         // Take ownership back of the manifest so it destructs/frees on return
-        std::unique_ptr<Manifest> newManifest(
-                reinterpret_cast<Manifest*>(manifest));
+        std::unique_ptr<Manifest> newManifest(*manifest);
         return updateFromIOComplete(std::move(vbStateLocks),
                                     bucket,
                                     std::move(newManifest),
@@ -214,7 +212,7 @@ void Collections::Manager::updatePersistManifestTaskDone(
     if (status != cb::engine_errc::success) {
         auto lockedUpdateCookie = updateInProgress.wlock();
         *lockedUpdateCookie = nullptr;
-        engine.storeEngineSpecific(cookie, nullptr);
+        engine.clearEngineSpecific(cookie);
     }
 }
 

@@ -13,12 +13,14 @@
 
 #include "configuration.h"
 #include "ep_engine_public.h"
+#include "ep_engine_storage.h"
 #include "ep_types.h"
 #include "permitted_vb_states.h"
 #include "stats.h"
 #include "vbucket_fwd.h"
 
 #include <executor/taskable.h>
+#include <memcached/cookie_iface.h>
 #include <memcached/dcp.h>
 #include <memcached/engine.h>
 #include <memcached/rbac/privileges.h>
@@ -527,9 +529,58 @@ public:
     void reserveCookie(const CookieIface* cookie);
     void releaseCookie(const CookieIface* cookie);
 
-    void storeEngineSpecific(const CookieIface* cookie, void* engine_data);
+    /**
+     * Returns a copy of the stored value or nullopt, if there is no value
+     * stored in the engine specific.
+     * @throws std::bad_cast if the stored value is not of type T.
+     */
+    template <typename T>
+    std::optional<T> getEngineSpecific(const CookieIface* cookie) {
+        Expects(cookie);
+        auto* es = cookie->getEngineStorage();
+        if (!es) {
+            return {};
+        }
+        return dynamic_cast<const EPEngineStorage<T>&>(*es).get();
+    }
 
-    void* getEngineSpecific(const CookieIface* cookie);
+    /**
+     * Returns the contained value of type T from the engine storage and clears
+     * the engine storage.
+     * @throws std::bad_cast if the stored value is not of type T. The stored
+     * value is lost in this case.
+     */
+    template <typename T>
+    std::optional<T> takeEngineSpecific(const CookieIface* cookie) {
+        Expects(cookie);
+        auto es = const_cast<CookieIface*>(cookie)->takeEngineStorage();
+        if (!es) {
+            return {};
+        }
+
+        return dynamic_cast<EPEngineStorage<T>&>(*es).take();
+    }
+
+    /**
+     * Stores the value in the engine specific storage.
+     */
+    template <typename T>
+    void storeEngineSpecific(const CookieIface* cookie, T&& value) {
+        Expects(cookie);
+        // TODO: We should be able to assert that getCurrentEngine() == this
+        // here, but that is not always true in many of our tests
+        cb::unique_engine_storage_ptr p(
+                new EPEngineStorage<std::decay_t<T>>(std::forward<T>(value)));
+        const_cast<CookieIface*>(cookie)->setEngineStorage(std::move(p));
+    }
+
+    /**
+     * Clears the engine specific storage.
+     */
+    void clearEngineSpecific(const CookieIface* cookie) {
+        Expects(cookie);
+        const_cast<CookieIface*>(cookie)->setEngineStorage({});
+    }
 
     bool isDatatypeSupported(const CookieIface* cookie,
                              protocol_binary_datatype_t datatype);

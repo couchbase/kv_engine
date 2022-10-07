@@ -1231,8 +1231,9 @@ std::pair<cb::engine_errc, cb::rangescan::Id> EPVBucket::createRangeScan(
     // Obtain the engine specific, which will be null (new create) or a pointer
     // to RangeScanCreateData (I/O complete path of create)
     std::unique_ptr<RangeScanCreateData> rangeScanCreateData(
-            reinterpret_cast<RangeScanCreateData*>(
-                    bucket->getEPEngine().getEngineSpecific(&cookie)));
+            bucket->getEPEngine()
+                    .getEngineSpecific<RangeScanCreateData*>(&cookie)
+                    .value_or(nullptr));
 
     if (rangeScanCreateData) {
         // When the data exists, two paths are possible.
@@ -1264,7 +1265,7 @@ std::pair<cb::engine_errc, cb::rangescan::Id> EPVBucket::createRangeScan(
             rangeScanCreateData.release();
             return {cb::engine_errc::would_block, {}};
         } else {
-            bucket->getEPEngine().storeEngineSpecific(&cookie, nullptr);
+            bucket->getEPEngine().clearEngineSpecific(&cookie);
             // No timeout, fail command here. This is the same return code as
             // an expired SeqnoPersistenceRequest
             return {cb::engine_errc::temporary_failure, {}};
@@ -1301,7 +1302,7 @@ EPVBucket::createRangeScanComplete(
         std::unique_ptr<RangeScanCreateData> rangeScanCreateData,
         const CookieIface& cookie) {
     Expects(rangeScanCreateData);
-    bucket->getEPEngine().storeEngineSpecific(&cookie, nullptr);
+    bucket->getEPEngine().clearEngineSpecific(&cookie);
     return {cb::engine_errc::success, rangeScanCreateData->uuid};
 }
 
@@ -1320,11 +1321,8 @@ void EPVBucket::createRangeScanWait(
         void expired() const override {
             // Capture the unique_ptr and allow it to go out of scope
             std::unique_ptr<RangeScanCreateData> rangeScanCreateData(
-                    reinterpret_cast<RangeScanCreateData*>(
-                            engine.getEngineSpecific(cookie)));
-
-            // Reset back to null
-            engine.storeEngineSpecific(cookie, nullptr);
+                    engine.takeEngineSpecific<RangeScanCreateData*>(cookie)
+                            .value_or(nullptr));
         }
 
         EventuallyPersistentEngine& engine;
@@ -1340,19 +1338,15 @@ void EPVBucket::createRangeScanWait(
 
 cb::engine_errc EPVBucket::checkAndCancelRangeScanCreate(
         const CookieIface& cookie) {
+    // Obtain the data (so it now frees if not null)
+    std::unique_ptr<RangeScanCreateData> rangeScanCreateData(
+            bucket->getEPEngine()
+                    .takeEngineSpecific<RangeScanCreateData*>(&cookie)
+                    .value_or(nullptr));
     // Nothing to cancel
-    if (!bucket->getEPEngine().getEngineSpecific(&cookie)) {
+    if (!rangeScanCreateData) {
         return cb::engine_errc::success;
     }
-
-    // Obtain the data (so it now frees)
-    std::unique_ptr<RangeScanCreateData> rangeScanCreateData(
-            reinterpret_cast<RangeScanCreateData*>(
-                    bucket->getEPEngine().getEngineSpecific(&cookie)));
-    Expects(rangeScanCreateData);
-
-    // Clear engine specific
-    bucket->getEPEngine().storeEngineSpecific(&cookie, nullptr);
 
     if (rangeScanCreateData->state == RangeScanCreateState::Creating) {
         return cancelRangeScan(rangeScanCreateData->uuid, nullptr, true);

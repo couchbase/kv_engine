@@ -2784,7 +2784,7 @@ SyncWriteCompleteCallback KVBucket::makeSyncWriteCompleteCB() {
             // as the operation is now complete. This ensures that any
             // subsequent call by the same cookie to store() is treated as a new
             // operation (and not the completion of the previous one).
-            engine.storeEngineSpecific(cookie, nullptr);
+            engine.clearEngineSpecific(cookie);
         }
         engine.notifyIOComplete(cookie, status);
     };
