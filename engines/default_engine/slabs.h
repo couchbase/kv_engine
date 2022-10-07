@@ -91,9 +91,9 @@ void slabs_adjust_mem_requested(struct default_engine *engine, unsigned int id, 
 /** Fill buffer with stats */ /*@null@*/
 void slabs_stats(struct default_engine* engine,
                  const AddStatFn& add_stats,
-                 const CookieIface* c);
+                 const CookieIface& c);
 
-void add_statistics(const CookieIface* cookie,
+void add_statistics(const CookieIface& cookie,
                     const AddStatFn& add_stats,
                     const char* prefix,
                     int num,

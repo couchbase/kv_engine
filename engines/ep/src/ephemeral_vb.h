@@ -15,6 +15,7 @@
 #include "stats.h"
 #include "vbucket.h"
 
+#include <mcbp/protocol/status.h>
 #include <optional>
 
 class EphemeralVBucket : public VBucket {
@@ -110,7 +111,7 @@ public:
 
     void addStats(VBucketStatsDetailLevel detail,
                   const AddStatFn& add_stat,
-                  const CookieIface* c) override;
+                  const CookieIface& c) override;
 
     KVShard* getShard() override {
         return nullptr;

@@ -625,7 +625,7 @@ void CB3ExecutorPool::unregisterTaskable(Taskable& taskable, bool force) {
 }
 
 void CB3ExecutorPool::doTaskQStat(Taskable& taskable,
-                                  const CookieIface* cookie,
+                                  const CookieIface& cookie,
                                   const AddStatFn& add_stat) {
     if (taskable.isShutdown()) {
         return;
@@ -682,7 +682,7 @@ void CB3ExecutorPool::doTaskQStat(Taskable& taskable,
 
 static void addWorkerStats(const char* prefix,
                            CB3ExecutorThread& t,
-                           const CookieIface* cookie,
+                           const CookieIface& cookie,
                            const AddStatFn& add_stat) {
     std::array<char, 80> statname{};
 
@@ -726,7 +726,7 @@ static void addWorkerStats(const char* prefix,
 }
 
 void CB3ExecutorPool::doWorkerStat(Taskable& taskable,
-                                   const CookieIface* cookie,
+                                   const CookieIface& cookie,
                                    const AddStatFn& add_stat) {
     if (taskable.isShutdown()) {
         return;
@@ -741,7 +741,7 @@ void CB3ExecutorPool::doWorkerStat(Taskable& taskable,
 }
 
 void CB3ExecutorPool::doTasksStat(Taskable& taskable,
-                                  const CookieIface* cookie,
+                                  const CookieIface& cookie,
                                   const AddStatFn& add_stat) {
     if (taskable.isShutdown()) {
         return;

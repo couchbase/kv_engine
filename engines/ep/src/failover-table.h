@@ -163,7 +163,7 @@ public:
      * @param vbid the vbucket id to use in the stats output
      * @param add_stat the callback used to add stats
      */
-    void addStats(const CookieIface* cookie,
+    void addStats(const CookieIface& cookie,
                   Vbid vbid,
                   const AddStatFn& add_stat);
 

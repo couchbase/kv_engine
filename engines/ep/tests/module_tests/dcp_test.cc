@@ -268,11 +268,13 @@ void DCPTest::runCheckpointProcessor(DcpMessageProducersIface& producers) {
  */
 TEST_F(DCPTest, MB30189_addStats) {
     create_dcp_producer();
+    auto* cookie = create_mock_cookie();
     producer->addStats(
-            [](std::string_view key, std::string_view val, const void* ctx) {
+            [](std::string_view key, std::string_view val, const auto&) {
                 // do nothing
             },
-            nullptr);
+            *cookie);
+    destroy_mock_cookie(cookie);
 }
 
 std::string decompressValue(std::string compressedValue) {
@@ -1308,12 +1310,12 @@ TEST_P(ConnectionTest, test_mb20645_stats_after_closeAllStreams) {
     // Disconnect the producer connection
     connMap.disconnect(cookie);
 
+    auto* cookie2 = create_mock_cookie();
     // Try to read stats. Shouldn't crash.
     producer->addStats(
-            [](std::string_view key, std::string_view value, const void* ctx) {
-            },
-            nullptr);
-
+            [](std::string_view key, std::string_view value, const auto&) {},
+            *cookie2);
+    destroy_mock_cookie(cookie2);
     destroy_mock_cookie(cookie);
 }
 
@@ -1895,13 +1897,13 @@ TEST_F(DcpConnMapTest, ConnAggStats) {
 
     auto addStat = [&statsOutput](std::string_view key,
                                   std::string_view value,
-                                  const void* ctx) {
+                                  const CookieIface&) {
         statsOutput.emplace(std::string(key), std::string(value));
     };
 
     // get the conn aggregated stats
     engine->doConnAggStats(
-            CBStatCollector(addStat, statsCookie).forBucket("default"), ":");
+            CBStatCollector(addStat, *statsCookie).forBucket("default"), ":");
 
     // expect output for each of the connection "types" and
     // a total output.

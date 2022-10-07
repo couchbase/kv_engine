@@ -434,7 +434,7 @@ void ActiveDurabilityMonitor::notifyLocalPersistence() {
 }
 
 void ActiveDurabilityMonitor::addStats(const AddStatFn& addStat,
-                                       const CookieIface* cookie) const {
+                                       const CookieIface& cookie) const {
     try {
         const auto vbid = vb.getId().get();
 
@@ -487,7 +487,7 @@ void ActiveDurabilityMonitor::addStats(const AddStatFn& addStat,
 
 void ActiveDurabilityMonitor::addStatsForChain(
         const AddStatFn& addStat,
-        const CookieIface* cookie,
+        const CookieIface& cookie,
         const ReplicationChain& chain) const {
     fmt::memory_buffer buff;
     const auto vbid = vb.getId().get();

@@ -43,7 +43,7 @@ public:
 
     bool isBufferSufficientlyDrained();
 
-    void addStats(const AddStatFn& add_stat, const CookieIface* c) const;
+    void addStats(const AddStatFn& add_stat, const CookieIface& c) const;
 
     uint64_t getFreedBytes() const {
         return freedBytes.load();

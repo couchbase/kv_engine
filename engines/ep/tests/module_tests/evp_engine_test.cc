@@ -367,7 +367,7 @@ TEST_P(DurabilityTest, DurabilityStateStats) {
 
     auto dummyAddStats = [&stats](std::string_view key,
                                   std::string_view value,
-                                  const void* ctx) {
+                                  const auto&) {
         stats[std::string(key.data(), key.size())] =
                 std::string(value.data(), value.size());
     };

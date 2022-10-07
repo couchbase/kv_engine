@@ -48,7 +48,7 @@ public:
 
     /* Allow us to call normally protected methods */
 
-    cb::engine_errc public_doDcpVbTakeoverStats(const CookieIface* cookie,
+    cb::engine_errc public_doDcpVbTakeoverStats(const CookieIface& cookie,
                                                 const AddStatFn& add_stat,
                                                 std::string& key,
                                                 Vbid vbid) {

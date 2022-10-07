@@ -2722,12 +2722,12 @@ TEST_P(CollectionsParameterizedTest, CollectionStatsIncludesScope) {
     std::map<std::string, std::string> actual;
     const auto addStat = [&actual](std::string_view key,
                                    std::string_view value,
-                                   const void* ctx) {
+                                   const auto&) {
         actual[std::string(key)] = value;
     };
 
     auto cookie = create_mock_cookie();
-    engine->doCollectionStats(cookie, addStat, "collections");
+    engine->doCollectionStats(*cookie, addStat, "collections");
     destroy_mock_cookie(cookie);
 
     using namespace testing;
@@ -3434,7 +3434,7 @@ TEST_P(CollectionsPersistentParameterizedTest, GetAllKeysCollectionConnection) {
 static bool wasKeyStatsResponseHandlerCalled = false;
 bool getKeyStatsResponseHandler(std::string_view key,
                                 std::string_view value,
-                                const void* ctx) {
+                                const CookieIface&) {
     wasKeyStatsResponseHandlerCalled = true;
     return true;
 }
@@ -3448,22 +3448,22 @@ TEST_P(CollectionsParameterizedTest, TestGetKeyStatsBadVbids) {
     wasKeyStatsResponseHandlerCalled = false;
     std::string key("key-byid defKey -1");
     EXPECT_EQ(cb::engine_errc::invalid_arguments,
-              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+              engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 
     key = "key-byid defKey asd";
     EXPECT_EQ(cb::engine_errc::invalid_arguments,
-              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+              engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 
     key = "key-byid defKey 1000000";
     EXPECT_EQ(cb::engine_errc::invalid_arguments,
-              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+              engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 
     key = "key-byid defKey 1";
     EXPECT_EQ(cb::engine_errc::not_my_vbucket,
-              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+              engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 }
 
@@ -3485,36 +3485,36 @@ TEST_P(CollectionsParameterizedTest, TestGetKeyStats) {
     // non collection style request with trailing whitespace
     std::string key("key-byid defKey 0   ");
     EXPECT_EQ(cb::engine_errc::success,
-              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+              engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "key-byid beef 0 0x8";
     EXPECT_EQ(cb::engine_errc::success,
-              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+              engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "key beef 0 _default.meat";
     EXPECT_EQ(cb::engine_errc::success,
-              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+              engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "key beef 0 _default.fruit";
     EXPECT_EQ(cb::engine_errc::unknown_collection,
-              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+              engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "key-byid beef 0 0x9";
     EXPECT_EQ(cb::engine_errc::unknown_collection,
-              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+              engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "key beef2 0 _default._default";
-    auto ret = engine->getStats(cookie, key, {}, getKeyStatsResponseHandler);
+    auto ret = engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler);
     if (!isFullEviction() || isBloomFilterEnabled()) {
         EXPECT_EQ(cb::engine_errc::no_such_key, ret);
     } else {
@@ -3522,7 +3522,7 @@ TEST_P(CollectionsParameterizedTest, TestGetKeyStats) {
         runBGFetcherTask();
         EXPECT_EQ(
                 cb::engine_errc::no_such_key,
-                engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+                engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
     }
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 }
@@ -3545,7 +3545,7 @@ TEST_P(CollectionsPersistentParameterizedTest, TestGetVKeyStats) {
     // non collection style request with trailing whitespace
     std::string key("vkey defKey 0   ");
     EXPECT_EQ(cb::engine_errc::would_block,
-              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+              engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
     // as we got cb::engine_errc::would_block we need to manually call the
     // VKeyStatBGFetchTask task
@@ -3553,13 +3553,13 @@ TEST_P(CollectionsPersistentParameterizedTest, TestGetVKeyStats) {
             *task_executor->getLpTaskQ()[READER_TASK_IDX],
             "Fetching item from disk for vkey stat: key{cid:0x0:defKey} vb:0");
     EXPECT_EQ(cb::engine_errc::success,
-              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+              engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "vkey-byid beef 0 0x8";
     EXPECT_EQ(cb::engine_errc::would_block,
-              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+              engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
     // as we got cb::engine_errc::would_block we need to manually call the
     // VKeyStatBGFetchTask task
@@ -3567,13 +3567,13 @@ TEST_P(CollectionsPersistentParameterizedTest, TestGetVKeyStats) {
             *task_executor->getLpTaskQ()[READER_TASK_IDX],
             "Fetching item from disk for vkey stat: key{cid:0x8:beef} vb:0");
     EXPECT_EQ(cb::engine_errc::success,
-              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+              engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "vkey beef 0 _default.meat";
     EXPECT_EQ(cb::engine_errc::would_block,
-              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+              engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
     // as we got cb::engine_errc::would_block we need to manually call the
     // VKeyStatBGFetchTask task
@@ -3581,24 +3581,24 @@ TEST_P(CollectionsPersistentParameterizedTest, TestGetVKeyStats) {
             *task_executor->getLpTaskQ()[READER_TASK_IDX],
             "Fetching item from disk for vkey stat: key{cid:0x8:beef} vb:0");
     EXPECT_EQ(cb::engine_errc::success,
-              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+              engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "vkey beef 0 _default.fruit";
     EXPECT_EQ(cb::engine_errc::unknown_collection,
-              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+              engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "vkey-byid beef 0 0x9";
     EXPECT_EQ(cb::engine_errc::unknown_collection,
-              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+              engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "vkey beef2 0 _default._default";
-    auto ret = engine->getStats(cookie, key, {}, getKeyStatsResponseHandler);
+    auto ret = engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler);
     if (isFullEviction()) {
         EXPECT_EQ(cb::engine_errc::would_block, ret);
         runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
@@ -3606,7 +3606,7 @@ TEST_P(CollectionsPersistentParameterizedTest, TestGetVKeyStats) {
                     "vb:0");
         EXPECT_EQ(
                 cb::engine_errc::no_such_key,
-                engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+                engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
     } else {
         EXPECT_EQ(cb::engine_errc::no_such_key, ret);
     }
@@ -3728,31 +3728,31 @@ TEST_F(CollectionsRbacTest, TestKeyStats) {
     wasKeyStatsResponseHandlerCalled = false;
     std::string key("key-byid beef 0 0x8");
     EXPECT_EQ(cb::engine_errc::success,
-              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+              engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "key beef 0 _default.meat";
     EXPECT_EQ(cb::engine_errc::success,
-              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+              engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "key-byid defKey 0 0x0";
     EXPECT_EQ(cb::engine_errc::unknown_collection,
-              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+              engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "key defKey 0 _default._default";
     EXPECT_EQ(cb::engine_errc::unknown_collection,
-              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+              engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "key defKey 0 rubbish_scope._default";
     EXPECT_EQ(cb::engine_errc::unknown_scope,
-              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+              engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 }
 
@@ -3775,45 +3775,45 @@ TEST_F(CollectionsRbacTest, TestVKeyStats) {
     wasKeyStatsResponseHandlerCalled = false;
     std::string key("vkey-byid beef 0 0x8");
     EXPECT_EQ(cb::engine_errc::would_block,
-              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+              engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
     // as we got cb::engine_errc::would_block we need to manually call the
     // VKeyStatBGFetchTask task
     runNextTask(
             *task_executor->getLpTaskQ()[READER_TASK_IDX],
             "Fetching item from disk for vkey stat: key{cid:0x8:beef} vb:0");
     EXPECT_EQ(cb::engine_errc::success,
-              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+              engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "vkey beef 0 _default.meat";
     EXPECT_EQ(cb::engine_errc::would_block,
-              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+              engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
     // as we got cb::engine_errc::would_block we need to manually call the
     // VKeyStatBGFetchTask task
     runNextTask(
             *task_executor->getLpTaskQ()[READER_TASK_IDX],
             "Fetching item from disk for vkey stat: key{cid:0x8:beef} vb:0");
     EXPECT_EQ(cb::engine_errc::success,
-              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+              engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_TRUE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "vkey-byid defKey 0 0x0";
     EXPECT_EQ(cb::engine_errc::unknown_collection,
-              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+              engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "vkey defKey 0 _default._default";
     EXPECT_EQ(cb::engine_errc::unknown_collection,
-              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+              engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 
     wasKeyStatsResponseHandlerCalled = false;
     key = "vkey defKey 0 rubbish_scope._default";
     EXPECT_EQ(cb::engine_errc::unknown_scope,
-              engine->getStats(cookie, key, {}, getKeyStatsResponseHandler));
+              engine->getStats(*cookie, key, {}, getKeyStatsResponseHandler));
     EXPECT_FALSE(wasKeyStatsResponseHandlerCalled);
 }
 
@@ -3871,7 +3871,7 @@ TEST_P(CollectionsParameterizedTest, ScopeIDIsValid) {
 
 static void append_stat(std::string_view key,
                         std::string_view value,
-                        const void* ctx) {
+                        const CookieIface& ctx) {
 }
 
 TEST_P(CollectionsParameterizedTest, OneScopeStatsByIdParsing) {
@@ -3883,7 +3883,7 @@ TEST_P(CollectionsParameterizedTest, OneScopeStatsByIdParsing) {
 
     auto& manager = getCollectionsManager();
     auto kv = engine->getKVBucket();
-    CBStatCollector cbcollector(append_stat, cookie);
+    CBStatCollector cbcollector(append_stat, *cookie);
     auto collector = cbcollector.forBucket("bucket-name");
     auto result = manager.doScopeStats(*kv, collector, "scopes-byid 0x0");
     EXPECT_EQ(cb::engine_errc::success, result.result);

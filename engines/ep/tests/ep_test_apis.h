@@ -40,7 +40,9 @@ bool add_response(std::string_view key,
                   uint64_t cas,
                   const CookieIface& cookie);
 
-void add_stats(std::string_view key, std::string_view value, const void* ctx);
+void add_stats(std::string_view key,
+               std::string_view value,
+               const CookieIface&);
 
 const uint8_t dcp_stream_end_resp_base_msg_bytes = 28;
 const uint8_t dcp_snapshot_marker_base_msg_bytes = 44;

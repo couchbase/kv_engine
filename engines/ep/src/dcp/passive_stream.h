@@ -98,7 +98,7 @@ public:
     cb::engine_errc messageReceived(std::unique_ptr<DcpResponse> response,
                                     UpdateFlowControl& ackSize);
 
-    void addStats(const AddStatFn& add_stat, const CookieIface* c) override;
+    void addStats(const AddStatFn& add_stat, const CookieIface& c) override;
 
     /**
      * Push a SeqnoAck message over this stream.

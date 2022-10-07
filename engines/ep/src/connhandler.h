@@ -276,9 +276,9 @@ public:
     void addStat(const char* nm,
                  const T& val,
                  const AddStatFn& add_stat,
-                 const CookieIface* c) const;
+                 const CookieIface& c) const;
 
-    virtual void addStats(const AddStatFn& add_stat, const CookieIface* c);
+    virtual void addStats(const AddStatFn& add_stat, const CookieIface& c);
 
     virtual void aggregateQueueStats(ConnCounter& stats_aggregator) const {
         // Empty

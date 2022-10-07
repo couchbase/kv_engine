@@ -240,7 +240,7 @@ public:
      * @param cookie
      */
     void addStats(const AddStatFn& addStat,
-                  const CookieIface* cookie) const override;
+                  const CookieIface& cookie) const override;
 
     size_t getNumTracked() const override;
 
@@ -420,7 +420,7 @@ protected:
      * @param chain reference to the chain to output stats for
      */
     void addStatsForChain(const AddStatFn& addStat,
-                          const CookieIface* cookie,
+                          const CookieIface& cookie,
                           const ReplicationChain& chain) const;
 
     /**

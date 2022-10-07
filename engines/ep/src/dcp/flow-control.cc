@@ -98,7 +98,7 @@ bool FlowControl::isBufferSufficientlyDrained() {
 }
 
 void FlowControl::addStats(const AddStatFn& add_stat,
-                           const CookieIface* c) const {
+                           const CookieIface& c) const {
     consumerConn.addStat("total_acked_bytes", ackedBytes, add_stat, c);
     consumerConn.addStat(
             "max_buffer_bytes", buffer.rlock()->getSize(), add_stat, c);

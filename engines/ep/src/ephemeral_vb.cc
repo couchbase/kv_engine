@@ -187,7 +187,7 @@ bool EphemeralVBucket::areDeletedItemsAlwaysResident() const {
 
 void EphemeralVBucket::addStats(VBucketStatsDetailLevel detail,
                                 const AddStatFn& add_stat,
-                                const CookieIface* c) {
+                                const CookieIface& c) {
     // Include base class statistics:
     _addStats(detail, add_stat, c);
 

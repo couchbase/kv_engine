@@ -338,7 +338,7 @@ BucketLogger& ConnHandler::getLogger() {
     return *logger;
 }
 
-void ConnHandler::addStats(const AddStatFn& add_stat, const CookieIface* c) {
+void ConnHandler::addStats(const AddStatFn& add_stat, const CookieIface& c) {
     using namespace std::chrono;
 
     addStat("type", getType(), add_stat, c);
@@ -432,4 +432,4 @@ void ConnHandler::scheduleNotify() {
 template void ConnHandler::addStat<std::string>(const char* nm,
                                                 const std::string& val,
                                                 const AddStatFn& add_stat,
-                                                const CookieIface* c) const;
+                                                const CookieIface& c) const;

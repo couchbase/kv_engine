@@ -706,7 +706,7 @@ public:
 
     virtual void addStats(VBucketStatsDetailLevel detail,
                           const AddStatFn& add_stat,
-                          const CookieIface* c) = 0;
+                          const CookieIface& c) = 0;
 
     /**
      * Output DurabiltyMonitor stats.
@@ -715,7 +715,7 @@ public:
      * @param cookie
      */
     void addDurabilityMonitorStats(const AddStatFn& addStat,
-                                   const CookieIface* cookie) const;
+                                   const CookieIface& cookie) const;
 
     /// Dump the internal state of the durabilityMonitor to the given stream.
     void dumpDurabilityMonitor(std::ostream& os) const;
@@ -2133,13 +2133,13 @@ protected:
 
     void _addStats(VBucketStatsDetailLevel detail,
                    const AddStatFn& add_stat,
-                   const CookieIface* c);
+                   const CookieIface& c);
 
     template <typename T>
     void addStat(const char* nm,
                  const T& val,
                  const AddStatFn& add_stat,
-                 const CookieIface* c);
+                 const CookieIface& c);
 
     /* This member holds the eviction policy used */
     const EvictionPolicy eviction;

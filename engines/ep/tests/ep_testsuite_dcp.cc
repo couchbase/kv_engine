@@ -7473,7 +7473,7 @@ static enum test_result test_mb19153(EngineIface* h) {
 
 static void mb19982_add_stat(std::string_view key,
                              std::string_view value,
-                             const void* ctx) {
+                             const CookieIface& ctx) {
     // do nothing
 }
 

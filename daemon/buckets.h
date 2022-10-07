@@ -15,6 +15,7 @@
 #include "timings.h"
 
 #include <hdrhistogram/hdrhistogram.h>
+#include <mcbp/protocol/status.h>
 #include <memcached/bucket_type.h>
 #include <memcached/engine.h>
 #include <memcached/limits.h>

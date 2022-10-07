@@ -272,7 +272,7 @@ void FailoverTable::cacheTableJSON() {
     cachedTableJSON = json;
 }
 
-void FailoverTable::addStats(const CookieIface* cookie,
+void FailoverTable::addStats(const CookieIface& cookie,
                              Vbid vbid,
                              const AddStatFn& add_stat) {
     std::lock_guard<std::mutex> lh(lock);

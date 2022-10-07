@@ -467,7 +467,7 @@ public:
         return name;
     }
 
-    cb::engine_errc getStats(const CookieIface* cookie,
+    cb::engine_errc getStats(const CookieIface& cookie,
                              std::string_view key,
                              std::string_view value,
                              const AddStatFn& add_stat);
@@ -1073,113 +1073,113 @@ protected:
     cb::engine_errc doEngineStatsHighCardinality(
             const BucketStatCollector& collector);
 
-    cb::engine_errc doMemoryStats(const CookieIface* cookie,
+    cb::engine_errc doMemoryStats(const CookieIface& cookie,
                                   const AddStatFn& add_stat);
-    cb::engine_errc doVBucketStats(const CookieIface* cookie,
+    cb::engine_errc doVBucketStats(const CookieIface& cookie,
                                    const AddStatFn& add_stat,
                                    const char* stat_key,
                                    int nkey,
                                    VBucketStatsDetailLevel detail);
-    cb::engine_errc doHashStats(const CookieIface* cookie,
+    cb::engine_errc doHashStats(const CookieIface& cookie,
                                 const AddStatFn& add_stat);
-    cb::engine_errc doHashDump(const CookieIface* cookie,
+    cb::engine_errc doHashDump(const CookieIface& cookie,
                                const AddStatFn& addStat,
                                std::string_view keyArgs);
-    cb::engine_errc doCheckpointStats(const CookieIface* cookie,
+    cb::engine_errc doCheckpointStats(const CookieIface& cookie,
                                       const AddStatFn& add_stat,
                                       const char* stat_key,
                                       int nkey);
-    cb::engine_errc doCheckpointDump(const CookieIface* cookie,
+    cb::engine_errc doCheckpointDump(const CookieIface& cookie,
                                      const AddStatFn& addStat,
                                      std::string_view keyArgs);
-    cb::engine_errc doDurabilityMonitorStats(const CookieIface* cookie,
+    cb::engine_errc doDurabilityMonitorStats(const CookieIface& cookie,
                                              const AddStatFn& add_stat,
                                              const char* stat_key,
                                              int nkey);
-    cb::engine_errc doDurabilityMonitorDump(const CookieIface* cookie,
+    cb::engine_errc doDurabilityMonitorDump(const CookieIface& cookie,
                                             const AddStatFn& addStat,
                                             std::string_view keyArgs);
-    cb::engine_errc doVBucketDump(const CookieIface* cookie,
+    cb::engine_errc doVBucketDump(const CookieIface& cookie,
                                   const AddStatFn& addStat,
                                   std::string_view keyArgs);
     /**
      * Immediately collect DCP stats, without scheduling a background task.
      */
-    cb::engine_errc doDcpStats(const CookieIface* cookie,
+    cb::engine_errc doDcpStats(const CookieIface& cookie,
                                const AddStatFn& add_stat,
                                std::string_view value);
 
     void addAggregatedProducerStats(const BucketStatCollector& collector,
                                     const ConnCounter& aggregator);
-    cb::engine_errc doEvictionStats(const CookieIface* cookie,
+    cb::engine_errc doEvictionStats(const CookieIface& cookie,
                                     const AddStatFn& add_stat);
     cb::engine_errc doConnAggStats(const BucketStatCollector& collector,
                                    std::string_view sep);
     void doTimingStats(const BucketStatCollector& collector);
-    cb::engine_errc doSchedulerStats(const CookieIface* cookie,
+    cb::engine_errc doSchedulerStats(const CookieIface& cookie,
                                      const AddStatFn& add_stat);
-    cb::engine_errc doRunTimeStats(const CookieIface* cookie,
+    cb::engine_errc doRunTimeStats(const CookieIface& cookie,
                                    const AddStatFn& add_stat);
-    cb::engine_errc doDispatcherStats(const CookieIface* cookie,
+    cb::engine_errc doDispatcherStats(const CookieIface& cookie,
                                       const AddStatFn& add_stat);
-    cb::engine_errc doTasksStats(const CookieIface* cookie,
+    cb::engine_errc doTasksStats(const CookieIface& cookie,
                                  const AddStatFn& add_stat);
-    cb::engine_errc doKeyStats(const CookieIface* cookie,
+    cb::engine_errc doKeyStats(const CookieIface& cookie,
                                const AddStatFn& add_stat,
                                Vbid vbid,
                                const DocKey& key,
                                bool validate = false);
 
-    cb::engine_errc doDcpVbTakeoverStats(const CookieIface* cookie,
+    cb::engine_errc doDcpVbTakeoverStats(const CookieIface& cookie,
                                          const AddStatFn& add_stat,
                                          std::string& key,
                                          Vbid vbid);
-    cb::engine_errc doVbIdFailoverLogStats(const CookieIface* cookie,
+    cb::engine_errc doVbIdFailoverLogStats(const CookieIface& cookie,
                                            const AddStatFn& add_stat,
                                            Vbid vbid);
-    cb::engine_errc doAllFailoverLogStats(const CookieIface* cookie,
+    cb::engine_errc doAllFailoverLogStats(const CookieIface& cookie,
                                           const AddStatFn& add_stat);
-    cb::engine_errc doWorkloadStats(const CookieIface* cookie,
+    cb::engine_errc doWorkloadStats(const CookieIface& cookie,
                                     const AddStatFn& add_stat);
-    cb::engine_errc doSeqnoStats(const CookieIface* cookie,
+    cb::engine_errc doSeqnoStats(const CookieIface& cookie,
                                  const AddStatFn& add_stat,
                                  const char* stat_key,
                                  int nkey);
-    void addSeqnoVbStats(const CookieIface* cookie,
+    void addSeqnoVbStats(const CookieIface& cookie,
                          const AddStatFn& add_stat,
                          const VBucketPtr& vb);
 
-    cb::engine_errc doCollectionStats(const CookieIface* cookie,
+    cb::engine_errc doCollectionStats(const CookieIface& cookie,
                                       const AddStatFn& add_stat,
                                       const std::string& statKey);
 
-    cb::engine_errc doScopeStats(const CookieIface* cookie,
+    cb::engine_errc doScopeStats(const CookieIface& cookie,
                                  const AddStatFn& add_stat,
                                  const std::string& statKey);
 
-    cb::engine_errc doKeyStats(const CookieIface* cookie,
+    cb::engine_errc doKeyStats(const CookieIface& cookie,
                                const AddStatFn& add_stat,
                                std::string_view statKey);
 
-    cb::engine_errc doVKeyStats(const CookieIface* cookie,
+    cb::engine_errc doVKeyStats(const CookieIface& cookie,
                                 const AddStatFn& add_stat,
                                 std::string_view statKey);
 
-    cb::engine_errc doDcpVbTakeoverStats(const CookieIface* cookie,
+    cb::engine_errc doDcpVbTakeoverStats(const CookieIface& cookie,
                                          const AddStatFn& add_stat,
                                          std::string_view statKey);
 
-    cb::engine_errc doFailoversStats(const CookieIface* cookie,
+    cb::engine_errc doFailoversStats(const CookieIface& cookie,
                                      const AddStatFn& add_stat,
                                      std::string_view statKey);
 
-    cb::engine_errc doDiskinfoStats(const CookieIface* cookie,
+    cb::engine_errc doDiskinfoStats(const CookieIface& cookie,
                                     const AddStatFn& add_stat,
                                     std::string_view statKey);
 
     void doDiskFailureStats(const BucketStatCollector& collector);
 
-    cb::engine_errc doPrivilegedStats(const CookieIface* cookie,
+    cb::engine_errc doPrivilegedStats(const CookieIface& cookie,
                                       const AddStatFn& add_stat,
                                       std::string_view statKey);
 

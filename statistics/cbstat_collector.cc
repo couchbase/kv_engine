@@ -131,8 +131,7 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
 cb::engine_errc CBStatCollector::testPrivilegeForStat(
         std::optional<ScopeID> sid, std::optional<CollectionID> cid) const {
     try {
-        switch (cookie->testPrivilege(
-                              cb::rbac::Privilege::SimpleStats, sid, cid)
+        switch (cookie.testPrivilege(cb::rbac::Privilege::SimpleStats, sid, cid)
                         .getStatus()) {
         case cb::rbac::PrivilegeAccess::Status::Ok:
             return cb::engine_errc::success;

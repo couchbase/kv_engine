@@ -29,6 +29,7 @@
 #include <executor/workload.h>
 #include <folly/portability/GTest.h>
 #include <platform/dirutils.h>
+#include <programs/engine_testapp/mock_cookie.h>
 #include <filesystem>
 #include <fstream>
 #include <thread>
@@ -1333,8 +1334,8 @@ TEST_P(KVStoreParamTestSkipRocks, GetAllKeysSanity) {
     kvstore->getAllKeys(Vbid(0), start, 20, cb);
     EXPECT_EQ(keys, int(cb->getProcessedCount()));
 
-    NiceMock<
-            MockFunction<void(std::string_view, std::string_view, const void*)>>
+    NiceMock<MockFunction<void(
+            std::string_view, std::string_view, const CookieIface&)>>
             addStatCb;
 
     auto cbFunc = addStatCb.AsStdFunction();
@@ -1343,7 +1344,10 @@ TEST_P(KVStoreParamTestSkipRocks, GetAllKeysSanity) {
     EXPECT_CALL(addStatCb, Call(HasSubstr("rw_0:getAllKeys"sv), _, _))
             .Times(AtLeast(1));
 
-    kvstore->addTimingStats(cbFunc, nullptr /*cookie*/);
+    auto* cookie = create_mock_cookie();
+    ;
+    kvstore->addTimingStats(cbFunc, *cookie);
+    destroy_mock_cookie(cookie);
 }
 
 TEST_P(KVStoreParamTestSkipRocks, GetCollectionStatsNoStats) {

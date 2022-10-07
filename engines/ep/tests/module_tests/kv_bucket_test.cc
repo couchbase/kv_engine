@@ -1292,12 +1292,12 @@ TEST_F(KVBucketTest, DataRaceInDoWorkerStat) {
     // nop callback to serve as add_stat
     auto dummy_cb = [](std::string_view key,
                        std::string_view value,
-                       const void* ctx) {};
-
+                       const CookieIface& ctx) {};
+    auto* cookie = create_mock_cookie();
     for (uint64_t i = 0; i < 10; ++i) {
-        pool->doWorkerStat(engine->getTaskable(), nullptr, dummy_cb);
+        pool->doWorkerStat(engine->getTaskable(), *cookie, dummy_cb);
     }
-
+    destroy_mock_cookie(cookie);
     pool->cancel(task->getId());
 }
 
@@ -1980,13 +1980,14 @@ TEST_P(KVBucketParamTest, VBucketDiskStatsENOENT) {
     bool addStatsCalled = false;
     auto mockStatFn = [&addStatsCalled](std::string_view key,
                                         std::string_view value,
-                                        const void* ctx) {
+                                        const CookieIface&) {
         addStatsCalled = true;
     };
 
     auto expected = (isPersistent()) ? cb::engine_errc::success
                                      : cb::engine_errc::no_such_key;
-    EXPECT_EQ(expected, store->getPerVBucketDiskStats({}, mockStatFn));
+    MockCookie cookie;
+    EXPECT_EQ(expected, store->getPerVBucketDiskStats(cookie, mockStatFn));
     EXPECT_EQ(isPersistent(), addStatsCalled);
 }
 

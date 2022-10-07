@@ -137,7 +137,7 @@ public:
                 VB::Commit& commitData) override;
 
     void addStats(const AddStatFn& add_stat,
-                  const CookieIface* cookie) const override;
+                  const CookieIface& cookie) const override;
 
     /*
      * Get a RocksDBKVStore specific stat

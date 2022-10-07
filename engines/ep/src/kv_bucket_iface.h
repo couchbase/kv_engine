@@ -17,6 +17,7 @@
 #include "vbucket_fwd.h"
 #include "vbucket_notify_context.h"
 #include <folly/SharedMutex.h>
+#include <gsl/gsl-lite.hpp>
 #include <memcached/engine.h>
 #include <memcached/range_scan.h>
 #include <memcached/range_scan_id.h>
@@ -407,7 +408,7 @@ public:
      * available from the store.
      */
     virtual cb::engine_errc getPerVBucketDiskStats(
-            const CookieIface* cookie, const AddStatFn& add_stat) = 0;
+            const CookieIface& cookie, const AddStatFn& add_stat) = 0;
 
     /**
      * Complete a batch of background fetch of a non resident value or metadata.
@@ -698,10 +699,10 @@ public:
     virtual bool isMemUsageAboveBackfillThreshold() = 0;
 
     virtual void addKVStoreStats(const AddStatFn& add_stat,
-                                 const CookieIface* cookie) = 0;
+                                 const CookieIface& cookie) = 0;
 
     virtual void addKVStoreTimingStats(const AddStatFn& add_stat,
-                                       const CookieIface* cookie) = 0;
+                                       const CookieIface& cookie) = 0;
 
     /* Given a named KVStore statistic, return the value of that statistic,
      * accumulated across any shards.

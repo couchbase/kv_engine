@@ -36,7 +36,7 @@ public:
     using Collections::VB::Manifest::Manifest;
 };
 
-void dummyCallback(std::string_view, std::string_view, const void*) {
+void dummyCallback(std::string_view, std::string_view, const CookieIface&) {
 }
 /**
  * Fixture for stat collection benchmarks
@@ -75,7 +75,7 @@ protected:
 BENCHMARK_DEFINE_F(StatsBench, CollectionStats)(benchmark::State& state) {
     // Benchmark - measure how long it takes to add stats for N collections
 
-    CBStatCollector collector(dummyCallback, cookie);
+    CBStatCollector collector(dummyCallback, *cookie);
     while (state.KeepRunning()) {
         vbManifest->addCollectionStats(Vbid(0), collector);
     }
@@ -137,7 +137,7 @@ public:
 };
 
 BENCHMARK_DEFINE_F(EngineStatsBench, EngineStats)(benchmark::State& state) {
-    CBStatCollector collector(dummyCallback, cookie);
+    CBStatCollector collector(dummyCallback, *cookie);
     auto bucketCollector = collector.forBucket("foobar");
     while (state.KeepRunning()) {
         engine->doEngineStats(bucketCollector);
@@ -148,13 +148,13 @@ BENCHMARK_DEFINE_F(EngineStatsBench, Uuid)(benchmark::State& state) {
     // UUID stat group generates a single response. This is a reasonable
     // example of a "small" stat group.
     while (state.KeepRunning()) {
-        engine->getStats(cookie, "uuid", "", dummyCallback);
+        engine->getStats(*cookie, "uuid", "", dummyCallback);
     }
 }
 
 BENCHMARK_DEFINE_F(MultiVBEngineStatsBench, VBucketDetailsStats)
 (benchmark::State& state) {
-    CBStatCollector collector(dummyCallback, cookie);
+    CBStatCollector collector(dummyCallback, *cookie);
     auto bucketCollector = collector.forBucket("foobar");
     while (state.KeepRunning()) {
         engine->doEngineStats(bucketCollector);
@@ -193,7 +193,7 @@ BENCHMARK_DEFINE_F(VBucketDetailsBench, VBucketDurabilityState)
 (benchmark::State& state) {
     while (state.KeepRunning()) {
         engine->getStats(
-                cookie, "vbucket-durability-state 0", "", dummyCallback);
+                *cookie, "vbucket-durability-state 0", "", dummyCallback);
     }
 }
 

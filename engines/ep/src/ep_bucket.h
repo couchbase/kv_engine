@@ -169,7 +169,7 @@ public:
 
     cb::engine_errc getFileStats(const BucketStatCollector& collector) override;
 
-    cb::engine_errc getPerVBucketDiskStats(const CookieIface* cookie,
+    cb::engine_errc getPerVBucketDiskStats(const CookieIface& cookie,
                                            const AddStatFn& add_stat) override;
 
     size_t getPageableMemCurrent() const override;

@@ -301,13 +301,13 @@ void NexusKVStoreTest::implicitCompactionPrepareTest(StoredDocKey purgedKey) {
     uint64_t skippedChecksBefore = 0;
     auto getSkippedChecks = [&skippedChecksBefore](std::string_view key,
                                                    std::string_view value,
-                                                   const void* cookie) {
+                                                   const auto&) {
         if (key == "nexus_0:skipped_checks_due_to_purge") {
             skippedChecksBefore = std::stoull(std::string(value));
         }
     };
     auto* kvstore = store->getRWUnderlying(vbid);
-    kvstore->addStats(getSkippedChecks, cookie);
+    kvstore->addStats(getSkippedChecks, *cookie);
 
     auto gv = kvstore->get(key, vbid);
     gv = kvstore->getWithHeader(*kvstore->makeFileHandle(vbid),
@@ -317,12 +317,12 @@ void NexusKVStoreTest::implicitCompactionPrepareTest(StoredDocKey purgedKey) {
 
     auto checkSkippedChecks = [&skippedChecksBefore](std::string_view key,
                                                      std::string_view value,
-                                                     const void* cookie) {
+                                                     const auto&) {
         if (key == "nexus_0:skipped_checks_due_to_purge") {
             EXPECT_NE(skippedChecksBefore, std::stoull(std::string(value)));
         }
     };
-    kvstore->addStats(checkSkippedChecks, cookie);
+    kvstore->addStats(checkSkippedChecks, *cookie);
 }
 
 void NexusKVStoreTest::implicitCompactionTestChecks(DiskDocKey key,
@@ -800,8 +800,8 @@ TEST_P(NexusKVStoreTest, PrimarySecondaryStats) {
     using namespace testing;
 
     // create a collector to which stats will be added
-    NiceMock<
-            MockFunction<void(std::string_view, std::string_view, const void*)>>
+    NiceMock<MockFunction<void(
+            std::string_view, std::string_view, const CookieIface&)>>
             cb;
 
     auto cbFunc = cb.AsStdFunction();
@@ -819,7 +819,7 @@ TEST_P(NexusKVStoreTest, PrimarySecondaryStats) {
         EXPECT_CALL(cb, Call("secondary:rw_0:magma"sv, _, _));
     }
 
-    store->getRWUnderlying(vbid)->addStats(cbFunc, cookie);
+    store->getRWUnderlying(vbid)->addStats(cbFunc, *cookie);
 }
 
 TEST_P(NexusKVStoreTest, PrimarySecondaryTimingStats) {
@@ -832,8 +832,8 @@ TEST_P(NexusKVStoreTest, PrimarySecondaryTimingStats) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
     // create a collector to which stats will be added
-    NiceMock<
-            MockFunction<void(std::string_view, std::string_view, const void*)>>
+    NiceMock<MockFunction<void(
+            std::string_view, std::string_view, const CookieIface&)>>
             cb;
 
     auto cbFunc = cb.AsStdFunction();
@@ -855,7 +855,7 @@ TEST_P(NexusKVStoreTest, PrimarySecondaryTimingStats) {
                 .Times(AtLeast(1));
     }
 
-    store->getRWUnderlying(vbid)->addTimingStats(cbFunc, cookie);
+    store->getRWUnderlying(vbid)->addTimingStats(cbFunc, *cookie);
 }
 
 TEST_P(NexusKVStoreTest, PausingCacheLookupScanHighPurgeSeqno) {

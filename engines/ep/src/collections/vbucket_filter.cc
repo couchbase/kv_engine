@@ -374,7 +374,7 @@ void Filter::disableDefaultCollection() {
 }
 
 void Filter::addStats(const AddStatFn& add_stat,
-                      const CookieIface* c,
+                      const CookieIface& c,
                       const std::string& prefix,
                       Vbid vb) const {
     try {

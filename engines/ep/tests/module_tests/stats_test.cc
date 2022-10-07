@@ -52,7 +52,7 @@ std::map<std::string, std::string> StatTest::get_stat(const char* statkey) {
     std::map<std::string, std::string> stats;
     auto add_stats = [&stats](std::string_view key,
                               std::string_view value,
-                              const void* ctx) {
+                              const auto&) {
         std::string k(key.data(), key.size());
         std::string v(value.data(), value.size());
         stats[k] = v;
@@ -131,7 +131,7 @@ TEST_F(StatTest, HashStatsMemUsed) {
     int addStats_calls = 0;
     auto callback = [&addStats_calls](std::string_view key,
                                       std::string_view value,
-                                      const void* ctx) {
+                                      const auto&) {
         addStats_calls++;
 
         // This callback should run in the memcached-context so no engine should
@@ -166,8 +166,8 @@ TEST_F(StatTest, HistogramStatExpansion) {
     using namespace testing;
     using namespace std::literals::string_view_literals;
 
-    NiceMock<
-            MockFunction<void(std::string_view, std::string_view, const void*)>>
+    NiceMock<MockFunction<void(
+            std::string_view, std::string_view, const CookieIface&)>>
             cb;
 
     EXPECT_CALL(cb, Call("test_histogram_mean"sv, "2052741737"sv, _));
@@ -179,7 +179,7 @@ TEST_F(StatTest, HistogramStatExpansion) {
     EXPECT_CALL(cb, Call("test_histogram_16,32"sv, "0"sv, _));
     EXPECT_CALL(cb, Call("test_histogram_32,4294967295"sv, "6500"sv, _));
 
-    add_casted_stat("test_histogram"sv, histogram, asStdFunction(cb), cookie);
+    add_casted_stat("test_histogram"sv, histogram, asStdFunction(cb), *cookie);
 
     destroy_mock_cookie(cookie);
 }
@@ -199,8 +199,8 @@ TEST_F(StatTest, HdrHistogramStatExpansion) {
     using namespace testing;
     using namespace std::literals::string_view_literals;
 
-    NiceMock<
-            MockFunction<void(std::string_view, std::string_view, const void*)>>
+    NiceMock<MockFunction<void(
+            std::string_view, std::string_view, const CookieIface&)>>
             cb;
 
     EXPECT_CALL(cb, Call("test_histogram_mean"sv, "9544"sv, _));
@@ -208,7 +208,7 @@ TEST_F(StatTest, HdrHistogramStatExpansion) {
     EXPECT_CALL(cb, Call("test_histogram_1,15"sv, "200"sv, _));
     EXPECT_CALL(cb, Call("test_histogram_15,9728"sv, "6500"sv, _));
 
-    add_casted_stat("test_histogram"sv, histogram, asStdFunction(cb), cookie);
+    add_casted_stat("test_histogram"sv, histogram, asStdFunction(cb), *cookie);
 
     destroy_mock_cookie(cookie);
 }
@@ -506,13 +506,13 @@ TEST_F(StatTest, CBStatsScopeCollectionPrefix) {
     auto cookie = create_mock_cookie(engine.get());
 
     // mock addStatFn
-    NiceMock<
-            MockFunction<void(std::string_view, std::string_view, const void*)>>
+    NiceMock<MockFunction<void(
+            std::string_view, std::string_view, const CookieIface&)>>
             cb;
 
     auto cbFunc = cb.AsStdFunction();
     // create a collector to which stats will be added
-    CBStatCollector collector(cbFunc, cookie);
+    CBStatCollector collector(cbFunc, *cookie);
 
     auto bucket = collector.forBucket("BucketName");
     auto scope = bucket.forScope("scope-name", ScopeID(0x0));
@@ -545,13 +545,13 @@ TEST_F(StatTest, CBStatsNameSeparateFromEnum) {
     auto cookie = create_mock_cookie(engine.get());
 
     // mock addStatFn
-    NiceMock<
-            MockFunction<void(std::string_view, std::string_view, const void*)>>
+    NiceMock<MockFunction<void(
+            std::string_view, std::string_view, const CookieIface&)>>
             cb;
 
     auto cbFunc = cb.AsStdFunction();
     // create a collector to which stats will be added
-    CBStatCollector collector(cbFunc, cookie);
+    CBStatCollector collector(cbFunc, *cookie);
 
     auto bucket = collector.forBucket("BucketName");
     InSequence s;
@@ -580,13 +580,13 @@ TEST_F(StatTest, LegacyStatsAreNotFormatted) {
     auto cookie = create_mock_cookie(engine.get());
 
     // mock addStatFn
-    NiceMock<
-            MockFunction<void(std::string_view, std::string_view, const void*)>>
+    NiceMock<MockFunction<void(
+            std::string_view, std::string_view, const CookieIface&)>>
             cb;
 
     auto cbFunc = cb.AsStdFunction();
 
-    CBStatCollector collector(cbFunc, cookie);
+    CBStatCollector collector(cbFunc, *cookie);
 
     auto bucket = collector.forBucket("BucketName");
     InSequence s;
@@ -602,7 +602,7 @@ TEST_F(StatTest, LegacyStatsAreNotFormatted) {
 
     // but add_casted_stat does _not_.
     EXPECT_CALL(cb, Call("{bucket}:some_stat_key"sv, _, _));
-    add_casted_stat("{bucket}:some_stat_key", "value", cbFunc, cookie);
+    add_casted_stat("{bucket}:some_stat_key", "value", cbFunc, *cookie);
 
     destroy_mock_cookie(cookie);
 }
@@ -614,8 +614,8 @@ TEST_F(StatTest, WarmupStats) {
     using namespace testing;
 
     // create a collector to which stats will be added
-    NiceMock<
-            MockFunction<void(std::string_view, std::string_view, const void*)>>
+    NiceMock<MockFunction<void(
+            std::string_view, std::string_view, const CookieIface&)>>
             cb;
 
     auto cbFunc = cb.AsStdFunction();
@@ -639,7 +639,7 @@ TEST_F(StatTest, WarmupStats) {
     // ep_warmup_estimate_time.
     EXPECT_CALL(cb, Call("ep_warmup_estimate_time"sv, _, _)).Times(AtMost(1));
 
-    CBStatCollector collector(cbFunc, cookie);
+    CBStatCollector collector(cbFunc, *cookie);
     store->getWarmup()->addStats(collector);
 }
 
@@ -650,8 +650,8 @@ TEST_F(StatTest, EngineStatsWarmup) {
     using namespace testing;
 
     // create a collector to which stats will be added
-    NiceMock<
-            MockFunction<void(std::string_view, std::string_view, const void*)>>
+    NiceMock<MockFunction<void(
+            std::string_view, std::string_view, const CookieIface&)>>
             cb;
 
     auto cbFunc = cb.AsStdFunction();
@@ -668,7 +668,7 @@ TEST_F(StatTest, EngineStatsWarmup) {
             .Times(1)
             .RetiresOnSaturation();
 
-    CBStatCollector collector(cbFunc, cookie);
+    CBStatCollector collector(cbFunc, *cookie);
     auto bucketCollector = collector.forBucket("");
     engine->doEngineStats(bucketCollector);
 }

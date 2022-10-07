@@ -1726,7 +1726,7 @@ TEST_P(SingleThreadedActiveStreamTest, DiskBackfillInitializingItemsRemaining) {
     std::string expectedKey;
     auto checkStatusFn = [&statusFound, &expectedKey](std::string_view key,
                                                       std::string_view value,
-                                                      const void* ctx) {
+                                                      const CookieIface&) {
         if (key == "status"sv) {
             EXPECT_EQ(expectedKey, std::string(value.data(), value.size()));
             statusFound = true;
@@ -1736,7 +1736,8 @@ TEST_P(SingleThreadedActiveStreamTest, DiskBackfillInitializingItemsRemaining) {
     // Should report status == "calculating_item_count" before backfill
     // scan has occurred.
     expectedKey = "calculating-item-count";
-    stream->addTakeoverStats(checkStatusFn, nullptr, *vb);
+    auto* cookie = create_mock_cookie();
+    stream->addTakeoverStats(checkStatusFn, *cookie, *vb);
     EXPECT_TRUE(statusFound);
 
     // Run the backfill we scheduled when we transitioned to the backfilling
@@ -1747,7 +1748,7 @@ TEST_P(SingleThreadedActiveStreamTest, DiskBackfillInitializingItemsRemaining) {
     // Should report status == "backfilling"
     statusFound = false;
     expectedKey = "backfilling";
-    stream->addTakeoverStats(checkStatusFn, nullptr, *vb);
+    stream->addTakeoverStats(checkStatusFn, *cookie, *vb);
     EXPECT_TRUE(statusFound);
 
     // Run again to actually scan (items remaining unchanged).
@@ -1755,7 +1756,7 @@ TEST_P(SingleThreadedActiveStreamTest, DiskBackfillInitializingItemsRemaining) {
     EXPECT_EQ(3, *stream->getNumBackfillItemsRemaining());
     statusFound = false;
     expectedKey = "backfilling";
-    stream->addTakeoverStats(checkStatusFn, nullptr, *vb);
+    stream->addTakeoverStats(checkStatusFn, *cookie, *vb);
     EXPECT_TRUE(statusFound);
 
     // Finally run again to complete backfill (so it is shutdown in a clean
@@ -1768,8 +1769,9 @@ TEST_P(SingleThreadedActiveStreamTest, DiskBackfillInitializingItemsRemaining) {
     EXPECT_EQ(0, *stream->getNumBackfillItemsRemaining());
     statusFound = false;
     expectedKey = "in-memory";
-    stream->addTakeoverStats(checkStatusFn, nullptr, *vb);
+    stream->addTakeoverStats(checkStatusFn, *cookie, *vb);
     EXPECT_TRUE(statusFound);
+    destroy_mock_cookie(cookie);
 }
 
 /// Test that backfill is correctly cancelled if the VBucket is deleted

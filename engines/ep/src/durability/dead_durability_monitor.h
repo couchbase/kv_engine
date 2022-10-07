@@ -43,7 +43,7 @@ public:
     }
 
     void addStats(const AddStatFn& addStat,
-                  const CookieIface* cookie) const override;
+                  const CookieIface& cookie) const override;
 
     int64_t getHighPreparedSeqno() const override {
         return highPreparedSeqno;

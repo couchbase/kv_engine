@@ -522,7 +522,7 @@ bool EPVBucket::areDeletedItemsAlwaysResident() const {
 
 void EPVBucket::addStats(VBucketStatsDetailLevel detail,
                          const AddStatFn& add_stat,
-                         const CookieIface* c) {
+                         const CookieIface& c) {
     _addStats(detail, add_stat, c);
 
     if (detail == VBucketStatsDetailLevel::Full) {

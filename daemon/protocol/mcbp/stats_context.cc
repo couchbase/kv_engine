@@ -57,16 +57,14 @@ void add_stat(Cookie& cookie,
               const AddStatFn& add_stat_callback,
               const char* name,
               const std::string& value) {
-    add_stat_callback(name, value, &cookie);
+    add_stat_callback(name, value, cookie);
 }
 
 void add_stat(Cookie& cookie,
               const AddStatFn& add_stat_callback,
               const char* name,
               const char* value) {
-    add_stat_callback(name,
-                      value,
-                      &cookie);
+    add_stat_callback(name, value, cookie);
 }
 
 void add_stat(Cookie& cookie,
@@ -100,12 +98,11 @@ static void append_stats(std::string_view key,
             value);
 }
 
-/// Wrapper function for the _external_ functions which still use const
-/// void* in the call signature.
+/// Wrapper function for the _external_ functions.
 static void external_append_stats(std::string_view key,
                                   std::string_view value,
-                                  const void* ctx) {
-    auto& cookie = *const_cast<Cookie*>(reinterpret_cast<const Cookie*>(ctx));
+                                  const CookieIface& ctx) {
+    auto& cookie = *const_cast<Cookie*>(reinterpret_cast<const Cookie*>(&ctx));
     append_stats(key, value, cookie);
 }
 
@@ -194,7 +191,7 @@ static cb::engine_errc stat_sched_executor(const std::string& arg,
 static cb::engine_errc stat_audit_executor(const std::string& arg,
                                            Cookie& cookie) {
     if (arg.empty()) {
-        CBStatCollector collector(appendStatsFn, &cookie);
+        CBStatCollector collector(appendStatsFn, cookie);
         stats_audit(collector, &cookie);
         return cb::engine_errc::success;
     } else {
@@ -259,7 +256,7 @@ static cb::engine_errc stat_bucket_details_executor(const std::string& arg,
 static cb::engine_errc stat_aggregate_executor(const std::string& arg,
                                                Cookie& cookie) {
     if (arg.empty()) {
-        CBStatCollector collector(appendStatsFn, &cookie);
+        CBStatCollector collector(appendStatsFn, cookie);
         return server_stats(collector, cookie.getConnection().getBucket());
     } else {
         return cb::engine_errc::invalid_arguments;
@@ -279,7 +276,7 @@ static cb::engine_errc stat_clocks_executor(const std::string& arg,
         return cb::engine_errc::invalid_arguments;
     }
 
-    CBStatCollector collector(appendStatsFn, &cookie);
+    CBStatCollector collector(appendStatsFn, cookie);
     server_clock_stats(collector);
     return cb::engine_errc::success;
 }
@@ -490,7 +487,7 @@ static cb::engine_errc stat_all_stats(const std::string& arg, Cookie& cookie) {
         return ret;
     }
 
-    CBStatCollector collector(appendStatsFn, &cookie);
+    CBStatCollector collector(appendStatsFn, cookie);
     return server_stats(collector, cookie.getConnection().getBucket());
 }
 
@@ -562,7 +559,7 @@ static cb::engine_errc stat_timings_executor(const std::string&,
                                              Cookie& cookie) {
     auto& bucket = cookie.getConnection().getBucket();
     bucket.statTimings.addStats(
-            CBStatCollector(appendStatsFn, &cookie).forBucket(bucket.name));
+            CBStatCollector(appendStatsFn, cookie).forBucket(bucket.name));
 
     return cb::engine_errc::success;
 }
@@ -615,7 +612,7 @@ static cb::engine_errc stat_tasks_all_executor(const std::string& key,
     // We have a bunch of tasks associated to the NoBucketTaskable and we should
     // grab stats for those too as it may prove useful.
     ExecutorPool::get()->doTasksStat(
-            NoBucketTaskable::instance(), &cookie, appendStatsFn);
+            NoBucketTaskable::instance(), cookie, appendStatsFn);
 
     return cb::engine_errc::success;
 }

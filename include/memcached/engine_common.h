@@ -10,26 +10,27 @@
 
 #pragma once
 
-#include <gsl/gsl-lite.hpp>
-#include <mcbp/protocol/status.h>
 #include <cstdint>
 #include <functional>
+#include <string_view>
 
 struct EngineIface;
 class CookieIface;
 
+namespace cb::mcbp {
+enum class Status : uint16_t;
+}
+
 /**
- * Callback for any function producing stats. To return data the function
- * should use a lambda and close over a local variable. However, for legacy
- * reasons we also allow a context to be passed to the function using a
- * const void*
+ * Callback for any function producing stats.
  *
  * @param key the stat's key
  * @param value the stat's value in an ascii form (e.g. text form of a number)
- * @param ctx pointer to user supplied ctx
+ * @param cookie the cookie provided by the frontend
  */
-using AddStatFn = std::function<void(
-        std::string_view key, std::string_view value, const void* ctx)>;
+using AddStatFn = std::function<void(std::string_view key,
+                                     std::string_view value,
+                                     const CookieIface& cookie)>;
 
 /**
  * Callback for adding a response backet

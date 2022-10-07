@@ -34,7 +34,7 @@ public:
      * @param addStatFn callback called for each stat
      * @param cookie passed to addStatFn for each call
      */
-    CBStatCollector(AddStatFn addStatFn, const CookieIface* cookie)
+    CBStatCollector(AddStatFn addStatFn, const CookieIface& cookie)
         : addStatFn(std::move(addStatFn)), cookie(cookie) {
     }
 
@@ -75,7 +75,7 @@ public:
      * Get the wrapped cookie and addStatFn. Useful while code is
      * being transitioned to the StatCollector interface.
      */
-    std::pair<const CookieIface*, const AddStatFn&> getCookieAndAddFn() const {
+    std::pair<const CookieIface&, const AddStatFn&> getCookieAndAddFn() const {
         return {cookie, addStatFn};
     }
 
@@ -111,7 +111,7 @@ private:
     std::string formatKey(std::string_view key, const Labels& labels) const;
 
     const AddStatFn addStatFn;
-    const CookieIface* cookie;
+    const CookieIface& cookie;
 };
 
 // Convenience method which maintain the existing add_casted_stat interface
@@ -120,11 +120,10 @@ template <typename T>
 void add_casted_stat(std::string_view k,
                      T&& v,
                      const AddStatFn& add_stat,
-                     const void* cookie) {
+                     const CookieIface& cookie) {
     // the collector is used _immediately_ for addStat and then destroyed,
     // so testPrivilegeForStat is never called, so the server api can be null
-    CBStatCollector collector(add_stat,
-                              static_cast<const CookieIface*>(cookie));
+    CBStatCollector collector(add_stat, cookie);
     collector.addStat(k, std::forward<T>(v));
 }
 
@@ -133,7 +132,7 @@ void add_prefixed_stat(P prefix,
                        std::string_view name,
                        const T& val,
                        const AddStatFn& add_stat,
-                       const void* cookie) {
+                       const CookieIface& cookie) {
     fmt::memory_buffer buf;
     format_to(std::back_inserter(buf), "{}:{}", prefix, name);
     add_casted_stat({buf.data(), buf.size()}, val, add_stat, cookie);

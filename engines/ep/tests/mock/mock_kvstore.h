@@ -38,7 +38,7 @@ public:
     MOCK_METHOD(void, deinitialize, (), (override));
     MOCK_METHOD(void,
                 addStats,
-                (const AddStatFn& add_stat, const CookieIface* c),
+                (const AddStatFn& add_stat, const CookieIface& c),
                 (const, override));
     MOCK_METHOD(bool,
                 getStat,
@@ -50,7 +50,7 @@ public:
                 (const, override));
     MOCK_METHOD(void,
                 addTimingStats,
-                (const AddStatFn& add_stat, const CookieIface* c),
+                (const AddStatFn& add_stat, const CookieIface& c),
                 (const, override));
     MOCK_METHOD(bool,
                 commit,

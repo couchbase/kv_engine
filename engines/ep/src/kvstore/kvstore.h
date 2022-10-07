@@ -737,7 +737,7 @@ public:
      * @param cookie the cookie to pass to the callback function
      */
     void addStats(const AddStatFn& add_stat,
-                  const CookieIface* cookie) const override;
+                  const CookieIface& cookie) const override;
 
     /**
      * Request the specified statistic name from the kvstore.
@@ -767,7 +767,7 @@ public:
      * @param c the cookie to pass to the callback function
      */
     void addTimingStats(const AddStatFn& add_stat,
-                        const CookieIface* c) const override;
+                        const CookieIface& c) const override;
 
     /**
      * Resets kvstore specific stats

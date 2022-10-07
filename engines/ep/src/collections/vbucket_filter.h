@@ -161,7 +161,7 @@ public:
      * Add statistics for this filter, currently just depicts the object's state
      */
     void addStats(const AddStatFn& add_stat,
-                  const CookieIface* c,
+                  const CookieIface& c,
                   const std::string& prefix,
                   Vbid vb) const;
 

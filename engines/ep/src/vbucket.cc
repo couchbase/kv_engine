@@ -826,7 +826,7 @@ template <typename T>
 void VBucket::addStat(const char* nm,
                       const T& val,
                       const AddStatFn& add_stat,
-                      const CookieIface* c) {
+                      const CookieIface& c) {
     std::string stat = statPrefix;
     if (nm != nullptr) {
         add_prefixed_stat(statPrefix, nm, val, add_stat, c);
@@ -1847,7 +1847,7 @@ cb::engine_errc VBucket::replace(
 }
 
 void VBucket::addDurabilityMonitorStats(const AddStatFn& addStat,
-                                        const CookieIface* cookie) const {
+                                        const CookieIface& cookie) const {
     durabilityMonitor->addStats(addStat, cookie);
 }
 
@@ -3200,7 +3200,7 @@ bool VBucket::hasMemoryForStoredValue(EPStats& st, const Item& item) {
 
 void VBucket::_addStats(VBucketStatsDetailLevel detail,
                         const AddStatFn& add_stat,
-                        const CookieIface* c) {
+                        const CookieIface& c) {
     switch (detail) {
     case VBucketStatsDetailLevel::Full: {
         size_t numItems = getNumItems();

@@ -997,7 +997,7 @@ bool FollyExecutorPool::snoozeAndWait(size_t taskId, double toSleep) {
 }
 
 void FollyExecutorPool::doWorkerStat(Taskable& taskable,
-                                     const CookieIface* cookie,
+                                     const CookieIface& cookie,
                                      const AddStatFn& add_stat) {
     // It's not possible directly introspect what a Folly ExecutorThread
     // is running.
@@ -1009,7 +1009,7 @@ void FollyExecutorPool::doWorkerStat(Taskable& taskable,
 }
 
 void FollyExecutorPool::doTasksStat(Taskable& taskable,
-                                    const CookieIface* cookie,
+                                    const CookieIface& cookie,
                                     const AddStatFn& add_stat) {
     NonBucketAllocationGuard guard;
 
@@ -1066,7 +1066,7 @@ void FollyExecutorPool::doTasksStat(Taskable& taskable,
 }
 
 void FollyExecutorPool::doTaskQStat(Taskable& taskable,
-                                    const CookieIface* cookie,
+                                    const CookieIface& cookie,
                                     const AddStatFn& add_stat) {
     NonBucketAllocationGuard guard;
 

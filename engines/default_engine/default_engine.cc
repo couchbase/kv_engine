@@ -544,34 +544,34 @@ cb::engine_errc default_engine::get_stats(const CookieIface& cookie,
     cb::engine_errc ret = cb::engine_errc::success;
 
     if (key.empty()) {
-        do_engine_stats(CBStatCollector(add_stat, &cookie));
+        do_engine_stats(CBStatCollector(add_stat, cookie));
     } else if (key == "slabs"sv) {
-        slabs_stats(this, add_stat, &cookie);
+        slabs_stats(this, add_stat, cookie);
     } else if (key == "items"sv) {
-        item_stats(this, add_stat, &cookie);
+        item_stats(this, add_stat, cookie);
     } else if (key == "sizes"sv) {
-        item_stats_sizes(this, add_stat, &cookie);
+        item_stats_sizes(this, add_stat, cookie);
     } else if (key == "uuid"sv) {
-        add_stat("uuid"sv, config.uuid, &cookie);
+        add_stat("uuid"sv, config.uuid, cookie);
     } else if (key == "scrub"sv) {
         std::lock_guard<std::mutex> guard(scrubber.lock);
         if (scrubber.running) {
-            add_stat("scrubber:status"sv, "running"sv, &cookie);
+            add_stat("scrubber:status"sv, "running"sv, cookie);
         } else {
-            add_stat("scrubber:status"sv, "stopped"sv, &cookie);
+            add_stat("scrubber:status"sv, "stopped"sv, cookie);
         }
 
         if (scrubber.started != 0) {
             if (scrubber.stopped != 0) {
                 time_t diff = scrubber.started - scrubber.stopped;
-                add_stat("scrubber:last_run"sv, std::to_string(diff), &cookie);
+                add_stat("scrubber:last_run"sv, std::to_string(diff), cookie);
             }
             add_stat("scrubber:visited"sv,
                      std::to_string(scrubber.visited),
-                     &cookie);
+                     cookie);
             add_stat("scrubber:cleaned"sv,
                      std::to_string(scrubber.cleaned),
-                     &cookie);
+                     cookie);
         }
     } else {
         ret = cb::engine_errc::no_such_key;

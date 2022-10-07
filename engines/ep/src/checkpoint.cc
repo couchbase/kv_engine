@@ -569,7 +569,7 @@ CheckpointIndexKeyType Checkpoint::makeIndexKey(const queued_item& item) const {
 }
 
 void Checkpoint::addStats(const AddStatFn& add_stat,
-                          const CookieIface* cookie) {
+                          const CookieIface& cookie) {
     std::array<char, 256> buf;
 
     checked_snprintf(buf.data(),

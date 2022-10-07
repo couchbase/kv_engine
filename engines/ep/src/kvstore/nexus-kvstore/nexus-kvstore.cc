@@ -111,7 +111,7 @@ void NexusKVStore::deinitialize() {
 }
 
 void NexusKVStore::addStats(const AddStatFn& add_stat,
-                            const CookieIface* c) const {
+                            const CookieIface& c) const {
     // We want to print both sets of stats here for debug-ability, but we don't
     // want to break anything relying on these stats so print primary stats
     // as-is and the secondary stats with an additional prefix
@@ -119,7 +119,7 @@ void NexusKVStore::addStats(const AddStatFn& add_stat,
 
     auto prefixedAddStatFn = [&add_stat](std::string_view key,
                                          std::string_view value,
-                                         const void* c) {
+                                         const auto& c) {
         add_prefixed_stat("secondary", key, value, add_stat, c);
     };
     secondary->addStats(prefixedAddStatFn, c);
@@ -160,12 +160,12 @@ GetStatsMap NexusKVStore::getStats(
 }
 
 void NexusKVStore::addTimingStats(const AddStatFn& add_stat,
-                                  const CookieIface* c) const {
+                                  const CookieIface& c) const {
     primary->addTimingStats(add_stat, c);
 
     auto prefixedAddStatFn = [&add_stat](std::string_view key,
                                          std::string_view value,
-                                         const void* c) {
+                                         const auto& c) {
         add_prefixed_stat("secondary", key, value, add_stat, c);
     };
     secondary->addTimingStats(prefixedAddStatFn, c);

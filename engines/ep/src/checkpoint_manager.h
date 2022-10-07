@@ -19,10 +19,10 @@
 #include "stats.h"
 #include "utilities/testing_hook.h"
 #include "vbucket_types.h"
-#include <platform/monotonic.h>
-
+#include <gsl/gsl-lite.hpp>
 #include <memcached/engine_common.h>
 #include <memcached/vbucket.h>
+#include <platform/monotonic.h>
 #include <memory>
 #include <optional>
 #include <unordered_map>
@@ -375,7 +375,7 @@ public:
         return checkpointConfig;
     }
 
-    void addStats(const AddStatFn& add_stat, const CookieIface* cookie);
+    void addStats(const AddStatFn& add_stat, const CookieIface& cookie);
 
     /**
      * Create a new open checkpoint by force.

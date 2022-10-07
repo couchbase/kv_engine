@@ -7746,7 +7746,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                           {entry.first.empty() ? nullptr : entry.first.data(),
                            entry.first.size()},
                           {},
-                          [&actual](auto key, auto value, auto ctx) {
+                          [&actual](auto key, auto value, const auto&) {
                               actual.emplace_back(key);
                           }),
                 ("Failed to get stats: "s + std::string{entry.first}).c_str());

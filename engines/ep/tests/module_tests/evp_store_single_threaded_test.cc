@@ -2095,17 +2095,15 @@ TEST_P(STParamPersistentBucketTest, MB19815_doDcpVbTakeoverStats) {
     // Dummy callback to pass into the stats function below.
     auto dummy_cb = [](std::string_view key,
                        std::string_view value,
-                       const void* ctx) {};
+                       const CookieIface& ctx) {};
     std::string key{"MB19815_doDCPVbTakeoverStats"};
-
+    auto* cookie = create_mock_cookie();
     // We can't call stats with a nullptr as the cookie. Given that
     // the callback don't use the cookie "at all" we can just use the key
     // as the cookie
-    EXPECT_NO_THROW(engine->public_doDcpVbTakeoverStats(
-            reinterpret_cast<const CookieIface*>(key.c_str()),
-            dummy_cb,
-            key,
-            vbid));
+    EXPECT_NO_THROW(
+            engine->public_doDcpVbTakeoverStats(*cookie, dummy_cb, key, vbid));
+    destroy_mock_cookie(cookie);
 
     // Cleanup - run flusher.
     EXPECT_EQ(FlushResult(MoreAvailable::No, 0),
@@ -5966,7 +5964,7 @@ TEST_P(STParamPersistentBucketTest, EWouldBlockedVKeyStatsDontLeakItems) {
     auto args = "vkey-byid test " + std::to_string(vbid.get());
     ASSERT_EQ(cb::engine_errc::would_block,
               engine->getStats(
-                      vkeyCookie.get(), args, {}, [](auto, auto, auto) {}));
+                      *vkeyCookie, args, {}, [](auto, auto, const auto&) {}));
 
     // Fetch the item from disk
     auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];

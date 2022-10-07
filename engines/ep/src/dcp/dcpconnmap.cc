@@ -428,7 +428,7 @@ void DcpConnMap::notifyBackfillManagerTasks() {
     }
 }
 
-void DcpConnMap::addStats(const AddStatFn& add_stat, const CookieIface* c) {
+void DcpConnMap::addStats(const AddStatFn& add_stat, const CookieIface& c) {
     std::lock_guard<std::mutex> lh(connsLock);
     add_casted_stat("ep_dcp_dead_conn_count", deadConnections.size(), add_stat,
                     c);

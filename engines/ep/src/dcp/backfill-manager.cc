@@ -133,7 +133,7 @@ BackfillManager::BackfillManager(KVBucket& kvBucket,
 
 void BackfillManager::addStats(DcpProducer& conn,
                                const AddStatFn& add_stat,
-                               const CookieIface* c) {
+                               const CookieIface& c) {
     std::lock_guard<std::mutex> lh(lock);
     conn.addStat("backfill_buffer_bytes_read", buffer.bytesRead, add_stat, c);
     conn.addStat("backfill_buffer_max_bytes", buffer.maxBytes, add_stat, c);

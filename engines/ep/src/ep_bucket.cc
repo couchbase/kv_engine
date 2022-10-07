@@ -1543,11 +1543,11 @@ cb::engine_errc EPBucket::getFileStats(const BucketStatCollector& collector) {
     return cb::engine_errc::success;
 }
 
-cb::engine_errc EPBucket::getPerVBucketDiskStats(const CookieIface* cookie,
+cb::engine_errc EPBucket::getPerVBucketDiskStats(const CookieIface& cookie,
                                                  const AddStatFn& add_stat) {
     class DiskStatVisitor : public VBucketVisitor {
     public:
-        DiskStatVisitor(const CookieIface* c, AddStatFn a)
+        DiskStatVisitor(const CookieIface& c, AddStatFn a)
             : cookie(c), add_stat(std::move(a)) {
         }
 
@@ -1582,7 +1582,7 @@ cb::engine_errc EPBucket::getPerVBucketDiskStats(const CookieIface* cookie,
         }
 
     private:
-        const CookieIface* cookie;
+        const CookieIface& cookie;
         AddStatFn add_stat;
     };
 

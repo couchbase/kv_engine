@@ -413,7 +413,7 @@ int do_item_replace(struct default_engine* engine,
 
 static void do_item_stats(struct default_engine* engine,
                           const AddStatFn& add_stats,
-                          const CookieIface* c) {
+                          const CookieIface& c) {
     int i;
     rel_time_t current_time = engine->server.core->get_current_time();
     for (i = 0; i < POWER_LARGEST; i++) {
@@ -463,7 +463,7 @@ static void do_item_stats(struct default_engine* engine,
 /*@null@*/
 static void do_item_stats_sizes(struct default_engine* engine,
                                 const AddStatFn& add_stats,
-                                const CookieIface* c) {
+                                const CookieIface& c) {
     /* max 1MB object, divided into 32 bytes size buckets */
     const int num_buckets = 32768;
     auto* histogram = static_cast<unsigned int*>
@@ -1035,14 +1035,14 @@ void item_flush_expired(struct default_engine *engine) {
 
 void item_stats(struct default_engine* engine,
                 const AddStatFn& add_stat,
-                const CookieIface* cookie) {
+                const CookieIface& cookie) {
     std::lock_guard<std::mutex> guard(engine->items.lock);
     do_item_stats(engine, add_stat, cookie);
 }
 
 void item_stats_sizes(struct default_engine* engine,
                       const AddStatFn& add_stat,
-                      const CookieIface* cookie) {
+                      const CookieIface& cookie) {
     std::lock_guard<std::mutex> guard(engine->items.lock);
     do_item_stats_sizes(engine, add_stat, cookie);
 }

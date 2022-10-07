@@ -115,10 +115,10 @@ public:
      */
     bool handleResponse(const cb::mcbp::Response& resp) override;
 
-    void addStats(const AddStatFn& add_stat, const CookieIface* c) override;
+    void addStats(const AddStatFn& add_stat, const CookieIface& c) override;
 
     void addTakeoverStats(const AddStatFn& add_stat,
-                          const CookieIface* c,
+                          const CookieIface& c,
                           const VBucket& vb);
 
     void aggregateQueueStats(ConnCounter& aggregator) const override;
@@ -288,7 +288,7 @@ public:
          */
         void setBufferSize(size_t maxBytes);
 
-        void addStats(const AddStatFn& add_stat, const CookieIface* c);
+        void addStats(const AddStatFn& add_stat, const CookieIface& c);
 
         /**
          * Insert N bytes into the buffer.

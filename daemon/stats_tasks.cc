@@ -37,7 +37,7 @@ bool StatsTaskBucketStats::run() {
             cb::const_byte_buffer(
                     reinterpret_cast<const uint8_t*>(value.data()),
                     value.size()),
-            [&vec](std::string_view k, std::string_view v, const void* ctx) {
+            [&vec](std::string_view k, std::string_view v, const CookieIface&) {
                 vec.emplace_back(k, v);
             });
 

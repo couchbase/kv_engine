@@ -554,7 +554,7 @@ public:
         return keyIndexMemUsage;
     }
 
-    void addStats(const AddStatFn& add_stat, const CookieIface* cookie);
+    void addStats(const AddStatFn& add_stat, const CookieIface& cookie);
 
     /**
      * Remove association with a CheckpointManager.

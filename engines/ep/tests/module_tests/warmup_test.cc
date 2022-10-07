@@ -37,7 +37,8 @@ TEST_F(WarmupDisabledTest, Stats) {
     auto* cookie = create_mock_cookie();
     using ::testing::_;
     EXPECT_CALL(add_stat, callback("ep_warmup", _, _)).Times(0);
-    EXPECT_EQ(cb::engine_errc::no_such_key,
-              engine->getStats(cookie, "warmup", {}, add_stat.asStdFunction()));
+    EXPECT_EQ(
+            cb::engine_errc::no_such_key,
+            engine->getStats(*cookie, "warmup", {}, add_stat.asStdFunction()));
     destroy_mock_cookie(cookie);
 }

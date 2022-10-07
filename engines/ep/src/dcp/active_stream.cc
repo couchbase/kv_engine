@@ -780,7 +780,7 @@ bool ActiveStream::isCompressionEnabled() const {
     return false;
 }
 
-void ActiveStream::addStats(const AddStatFn& add_stat, const CookieIface* c) {
+void ActiveStream::addStats(const AddStatFn& add_stat, const CookieIface& c) {
     Stream::addStats(add_stat, c);
 
     try {
@@ -788,7 +788,7 @@ void ActiveStream::addStats(const AddStatFn& add_stat, const CookieIface* c) {
         fmt::format_to(
                 std::back_inserter(keyBuff), "{}:stream_{}_", name_, vb_.get());
         const auto prefixLen = keyBuff.size();
-        const auto addStat = [&keyBuff, prefixLen, add_stat, c](
+        const auto addStat = [&keyBuff, prefixLen, add_stat, &c](
                                      const auto& statKey, auto statValue) {
             keyBuff.resize(prefixLen);
             fmt::format_to(std::back_inserter(keyBuff), "{}", statKey);
@@ -825,7 +825,7 @@ void ActiveStream::addStats(const AddStatFn& add_stat, const CookieIface* c) {
 }
 
 void ActiveStream::addTakeoverStats(const AddStatFn& add_stat,
-                                    const CookieIface* cookie,
+                                    const CookieIface& cookie,
                                     const VBucket& vb) {
     std::lock_guard<std::mutex> lh(streamMutex);
 

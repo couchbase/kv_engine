@@ -164,7 +164,7 @@ public:
 
     void addStats(DcpProducer& conn,
                   const AddStatFn& add_stat,
-                  const CookieIface* c);
+                  const CookieIface& c);
 
     /// The scheduling order for DCPBackfills
     enum class ScheduleOrder {

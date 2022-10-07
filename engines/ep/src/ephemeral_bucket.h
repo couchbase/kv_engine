@@ -11,6 +11,7 @@
 #pragma once
 
 #include "kv_bucket.h"
+#include <mcbp/protocol/status.h>
 
 /* Forward declarations */
 class RollbackResult;
@@ -58,7 +59,7 @@ public:
     }
 
     /// Disk stats not supported for Ephemeral buckets.
-    cb::engine_errc getPerVBucketDiskStats(const CookieIface* cookie,
+    cb::engine_errc getPerVBucketDiskStats(const CookieIface& cookie,
                                            const AddStatFn& add_stat) override {
         return cb::engine_errc::no_such_key;
     }

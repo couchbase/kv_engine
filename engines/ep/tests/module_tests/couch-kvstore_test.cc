@@ -37,6 +37,7 @@
 #include <folly/portability/GMock.h>
 #include <platform/dirutils.h>
 
+#include <programs/engine_testapp/mock_cookie.h>
 #include <fstream>
 #include <memory>
 
@@ -84,11 +85,13 @@ TEST_F(CouchKVStoreTest, StatsTest) {
     std::map<std::string, std::string> stats;
     auto add_stat_callback = [&stats](std::string_view key,
                                       std::string_view value,
-                                      const void*) {
+                                      const CookieIface&) {
         stats.insert(std::make_pair(std::string(key.data(), key.size()),
                                     std::string(value.data(), value.size())));
     };
-    kvstore->addStats(add_stat_callback, nullptr);
+    auto* cookie = create_mock_cookie();
+    kvstore->addStats(add_stat_callback, *cookie);
+    destroy_mock_cookie(cookie);
     EXPECT_EQ("1", stats["rw_0:io_num_write"]);
     const size_t io_write_bytes = stoul(stats["rw_0:io_document_write_bytes"]);
     // 1 (for the namespace)
@@ -131,11 +134,13 @@ TEST_F(CouchKVStoreTest, CompactStatsTest) {
     std::map<std::string, std::string> stats;
     auto add_stat_callback = [&stats](std::string_view key,
                                       std::string_view value,
-                                      const void* ctx) {
+                                      const CookieIface&) {
         stats.insert(std::make_pair(std::string(key.data(), key.size()),
                                     std::string(value.data(), value.size())));
     };
-    kvstore->addStats(add_stat_callback, nullptr);
+    auto* cookie = create_mock_cookie();
+    kvstore->addStats(add_stat_callback, *cookie);
+    destroy_mock_cookie(cookie);
     EXPECT_EQ("1", stats["rw_0:io_num_write"]);
     const size_t io_write_bytes = stoul(stats["rw_0:io_document_write_bytes"]);
 

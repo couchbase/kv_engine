@@ -8,6 +8,7 @@ target_link_libraries(memcached_statistics_test
                 GTest::gtest_main
                 memcached_daemon
                 memcached_logger
+                mock_server
                 statistics)
 
 add_sanitizers(memcached_statistics_test)

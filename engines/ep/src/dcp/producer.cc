@@ -151,7 +151,7 @@ void DcpProducer::BufferLog::acknowledge(size_t bytes) {
 }
 
 void DcpProducer::BufferLog::addStats(const AddStatFn& add_stat,
-                                      const CookieIface* c) {
+                                      const CookieIface& c) {
     std::shared_lock<folly::SharedMutex> rhl(logLock);
     if (isEnabled_UNLOCKED()) {
         producer.addStat("max_buffer_bytes", maxBytes, add_stat, c);
@@ -1476,7 +1476,7 @@ bool DcpProducer::scheduleBackfillManager(VBucket& vb,
     return true;
 }
 
-void DcpProducer::addStats(const AddStatFn& add_stat, const CookieIface* c) {
+void DcpProducer::addStats(const AddStatFn& add_stat, const CookieIface& c) {
     ConnHandler::addStats(add_stat, c);
 
     addStat("items_sent", getItemsSent(), add_stat, c);
@@ -1547,7 +1547,7 @@ void DcpProducer::addStats(const AddStatFn& add_stat, const CookieIface* c) {
 }
 
 void DcpProducer::addTakeoverStats(const AddStatFn& add_stat,
-                                   const CookieIface* c,
+                                   const CookieIface& c,
                                    const VBucket& vb) {
     // Only do takeover stats on 'traditional' streams
     if (multipleStreamRequests == MultipleStreamRequests::Yes) {

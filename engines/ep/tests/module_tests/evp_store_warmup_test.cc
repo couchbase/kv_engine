@@ -293,7 +293,7 @@ void WarmupTest::testOperationsInterlockedWithWarmup(bool abortWarmup) {
                                               statsCookie3,
                                               delVbCookie}};
 
-    auto dummyAddStats = [](std::string_view, std::string_view, const void*) {
+    auto dummyAddStats = [](std::string_view, std::string_view, const auto&) {
 
     };
 
@@ -2820,7 +2820,7 @@ TEST_F(WarmupTest, ConsumerDuringWarmup) {
         bool threadStatAdded;
         auto dummyAddStats = [&threadStatAdded](std::string_view key,
                                                 std::string_view value,
-                                                const void*) {
+                                                const CookieIface&) {
             if (key == "ep_warmup_thread") {
                 EXPECT_EQ("running", value);
                 threadStatAdded = true;
@@ -2854,7 +2854,7 @@ TEST_F(WarmupTest, ConsumerDuringWarmup) {
         bool threadStatAdded;
         auto dummyAddStats = [&threadStatAdded](std::string_view key,
                                                 std::string_view value,
-                                                const void*) {
+                                                const CookieIface&) {
             if (key == "ep_warmup_thread") {
                 EXPECT_EQ("complete", value);
                 threadStatAdded = true;

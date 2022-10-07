@@ -11,6 +11,7 @@
 
 #include "collector_test.h"
 
+#include <programs/engine_testapp/mock_cookie.h>
 #include <statistics/cbstat_collector.h>
 #include <statistics/collector.h>
 
@@ -23,8 +24,9 @@ TEST_F(CollectorTest, FloatValueStringRepresentation) {
     // Verify simple float values are formatted as expected
 
     using namespace testing;
-    StrictMock<MockFunction<void(
-            std::string_view key, std::string_view value, const void* ctx)>>
+    StrictMock<MockFunction<void(std::string_view key,
+                                 std::string_view value,
+                                 const CookieIface& ctx)>>
             mockAddStat;
 
     using namespace std::string_view_literals;
@@ -36,7 +38,8 @@ TEST_F(CollectorTest, FloatValueStringRepresentation) {
     EXPECT_CALL(mockAddStat, Call(key, "0.1"sv, _)).Times(1);
     EXPECT_CALL(mockAddStat, Call(key, "0.9"sv, _)).Times(1);
 
-    CBStatCollector collector(mockAddStat.AsStdFunction(), nullptr);
+    MockCookie cookie;
+    CBStatCollector collector(mockAddStat.AsStdFunction(), cookie);
 
     collector.addStat(key, 0.001f);
     collector.addStat(key, 0.01f);

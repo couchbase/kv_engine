@@ -266,7 +266,7 @@ void item_stats_reset(struct default_engine *engine);
  */
 void item_stats(struct default_engine* engine,
                 const AddStatFn& add_stat,
-                const CookieIface* cookie);
+                const CookieIface& cookie);
 
 /**
  * Get detaild item statitistics
@@ -277,7 +277,7 @@ void item_stats(struct default_engine* engine,
  */
 void item_stats_sizes(struct default_engine* engine,
                       const AddStatFn& add_stat,
-                      const CookieIface* cookie);
+                      const CookieIface& cookie);
 
 /**
  * Flush expired items from the cache

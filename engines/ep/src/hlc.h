@@ -182,7 +182,7 @@ public:
 
     void addStats(const std::string& prefix,
                   const AddStatFn& add_stat,
-                  const CookieIface* c) const;
+                  const CookieIface& c) const;
 
     void resetStats();
 

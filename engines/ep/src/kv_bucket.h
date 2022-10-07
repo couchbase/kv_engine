@@ -583,10 +583,10 @@ public:
     void checkAndMaybeFreeMemory();
 
     void addKVStoreStats(const AddStatFn& add_stat,
-                         const CookieIface* cookie) override;
+                         const CookieIface& cookie) override;
 
     void addKVStoreTimingStats(const AddStatFn& add_stat,
-                               const CookieIface* cookie) override;
+                               const CookieIface& cookie) override;
 
     GetStatsMap getKVStoreStats(
             gsl::span<const std::string_view> keys) override;
