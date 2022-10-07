@@ -154,6 +154,118 @@ def extract_failed_builds(details):
                 info['url'] + " Result:" + info['result'])
     return failures
 
+class Template:
+    def __init__(self, template, variables):
+        self.template = template
+        self.variables = variables
+
+def make_template(strings):
+    """
+    Create a template from the provided strings by replacing non-matching
+    spans with variables.
+    """
+
+    variables = collections.defaultdict(list)
+
+    strings_to_matches = [list(re.finditer(r'\d+', s)) for s in strings]
+    # All strings should have the same number of matches
+    assert(len(set(len(matches) for matches in strings_to_matches)) == 1)
+    matches_per_string = len(strings_to_matches[0])
+
+    # Match index to matches in the strings
+    all_matches = list(zip(*strings_to_matches))
+
+    variable_matches = collections.defaultdict(list)
+
+    for cur_match_in_strings in all_matches:
+        cur_group_in_strings = (match.group() for match in cur_match_in_strings)
+
+        if len(set(cur_group_in_strings)) == 1:
+            # The i-th number is the same in all strings; we don't need to
+            # turn it into a variable
+            continue
+        else:
+            variable_name = f'{{Var{len(variables) + 1}}}'
+            for s_idx, match in enumerate(cur_match_in_strings):
+                # Replace that match with a variable name
+                variables[variable_name].append(match.group())
+                variable_matches[s_idx].append((match, variable_name))
+
+    # Replace all matched spans in all strings with the assigned variables
+    for s_idx, s in enumerate(strings):
+        new_s = ''
+        last_idx = 0
+        for match, variable_name in variable_matches[s_idx]:
+            begin, end = match.span()
+            new_s += s[last_idx:begin]
+            new_s += '{' + variable_name + '}'
+            last_idx = end
+        new_s += s[last_idx:]
+        strings[s_idx] = new_s
+
+    # Make sure we've done the job of turning all strings into a template
+    # without losing any info
+    assert(len(set(strings)) == 1)
+    return Template(strings[0], variables)
+
+def erase_possible_variables(s):
+    """
+    Erases all spans which would be considered for replacement with a variable.
+    This allows us to identify groups of strings which can be turned into a
+    template.
+    """
+    return re.sub('\d+', '\0', s)
+
+def preprocess_output(key):
+    # Replace all hex addresses with a single sanitized value.
+    def mask(matchobj):
+        return '0x' + ('X' * len(matchobj.group(1)))
+
+    key = re.sub(r'0x([0-9a-fA-F]+)', mask, key)
+    # Strip out pipeline build  timestamps of the form
+    # '[2020-11-26T15:30:05.571Z] ' - non-pipeline builds don't include
+    # them.
+    key = re.sub(r'\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z\] ', '',
+                    key)
+    # Filter timings of the form '2 ms'
+    key = re.sub(r'\d+ ms', 'X ms', key)
+    # Filter exact test order / test number - e.g.
+    #    13/398 Test #181: ep-engine_ep_unit_tests.
+    key = re.sub(r'\s+\d+/\d+ Test\s+#\d+:', ' N/M Test X:', key)
+    # Filter engine_testapp exact order / test number - e.g.
+    #     Running [0007/0047]: multi se
+    key = re.sub(r'Running \[\d+/\d+]:', 'Running [X/Y]:', key)
+    # Replace long '....' strings used for padding / alignment
+    key = re.sub(r'\.\.\.+', '...', key)
+    # Normalise file paths across Windows & *ix.
+    key = key.replace('\\', '/')
+    # Normalise GTest failure messages across Windows & *ix
+    # (don't know why GTest TestPartResultTypeToString() prints differently:
+    """
+        case TestPartResult::kNonFatalFailure:
+        case TestPartResult::kFatalFailure:
+    #ifdef _MSC_VER
+                return "error: ";
+    #else
+                return "Failure\n";
+    #endif
+    """
+    key = re.sub(r"\berror: ", r"Failure\n", key)
+    # Normalise source file/line number printing across Windows & *ix.
+    key = re.sub(r'(\w+\.cc)\((\d+)\)', r'\1:\2', key)
+    # Merge value-only and full-eviction failures
+    key = key.replace('value_only', '<EVICTION_MODE>')
+    key = key.replace('full_eviction', '<EVICTION_MODE>')
+    # Merge passive and active compression modes.
+    key = key.replace('comp_active', '<COMPRESSION_MODE>')
+    key = key.replace('comp_passive', '<COMPRESSION_MODE>')
+    # Merge couchstore filenames
+    key = re.sub(r'\d+\.couch\.\d+', 'VBID.couch.REV', key)
+    # Filter local ephemeral port numbers
+    key = re.sub(r'127\.0\.0\.1(.)\d{5}', r'127.0.0.1\1<PORT>', key)
+    key = re.sub(r'localhost(.)\d{5}', r'localhost\1<PORT>', key)
+
+    return key
 
 def filter_failed_builds(details):
     """Discard any failures which are not of interest, and collapse effectively
@@ -173,65 +285,25 @@ def filter_failed_builds(details):
                 return False
         return True
 
-    filtered = dict(filter(include, details.items()))
+    included = filter(include, details.items())
 
-    # Replace all hex addresses with a single sanitized value.
-    def mask(matchobj):
-        return '0x' + ('X' * len(matchobj.group(1)))
+    filtered = [
+        (preprocess_output(key), value) for key, value in included
+    ]
 
-    merged = collections.defaultdict(list)
-    for key, value in filtered.items():
-        key = re.sub(r'0x([0-9a-fA-F]+)', mask, key)
-        # Strip out pipeline build  timestamps of the form
-        # '[2020-11-26T15:30:05.571Z] ' - non-pipeline builds don't include
-        # them.
-        key = re.sub(r'\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z\] ', '',
-                     key)
-        # Filter timings of the form '2 ms'
-        key = re.sub(r'\d+ ms', 'X ms', key)
-        # Filter exact test order / test number - e.g.
-        #    13/398 Test #181: ep-engine_ep_unit_tests.
-        key = re.sub(r'\s+\d+/\d+ Test\s+#\d+:', ' N/M Test X:', key)
-        # Filter engine_testapp exact order / test number - e.g.
-        #     Running [0007/0047]: multi se
-        key = re.sub(r'Running \[\d+/\d+]:', 'Running [X/Y]:', key)
-        # Replace long '....' strings used for padding / alignment
-        key = re.sub(r'\.\.\.+', '...', key)
-        # Filter expected / actual values
-        key = re.sub(r'last value:\d+', 'last value:XXX', key)
-        key = re.sub(r"Expected `(\d+)', got `\d+'",
-                     r"Expected `\1', got `YYY'", key)
-        key = re.sub(r"Expected `\d+' to be greater than or equal to `(\d+)'",
-                     r"Expected `XXX' to be greater than or equal to `\1'", key)
-        # Normalise file paths across Windows & *ix.
-        key = key.replace('\\', '/')
-        # Normalise GTest failure messages across Windows & *ix
-        # (don't know why GTest TestPartResultTypeToString() prints differently:
-        """
-            case TestPartResult::kNonFatalFailure:
-            case TestPartResult::kFatalFailure:
-        #ifdef _MSC_VER
-                 return "error: ";
-        #else
-                 return "Failure\n";
-        #endif
-        """
-        key = re.sub(r"\berror: ", r"Failure\n", key)
-        # Normalise source file/line number printing across Windows & *ix.
-        key = re.sub(r'(\w+\.cc)\((\d+)\)', r'\1:\2', key)
-        # Merge value-only and full-eviction failures
-        key = key.replace('value_only', '<EVICTION_MODE>')
-        key = key.replace('full_eviction', '<EVICTION_MODE>')
-        # Merge passive and active compression modes.
-        key = key.replace('comp_active', '<COMPRESSION_MODE>')
-        key = key.replace('comp_passive', '<COMPRESSION_MODE>')
-        # Merge couchstore filenames
-        key = re.sub(r'\d+\.couch\.\d+', 'VBID.couch.REV', key)
-        # Filter local ephemeral port numbers
-        key = re.sub(r'127\.0\.0\.1(.)\d{5}', r'127.0.0.1\1<PORT>', key)
-        key = re.sub(r'localhost(.)\d{5}', r'localhost\1<PORT>', key)
+    # Groups of outputs which can be turned into templates. Items are indexes
+    # into the filtered list.
+    generic_strings = [erase_possible_variables(s) for s in [s for s, _ in filtered]]
+    groups = collections.defaultdict(list)
+    for i, s in enumerate(generic_strings):
+        groups[s].append(i)
 
-        merged[key] += value
+    merged = {}
+    # Each group becomes one template
+    for group in groups.values():
+        template = make_template([filtered[i][0] for i in group])
+        details = [dict(filtered[i][1][0], variables=template.variables) for i in group]
+        merged[template.template] = details
 
     # For each failure, determine the time range it has occurred over, and
     # for which patches.
@@ -308,12 +380,17 @@ if __name__ == '__main__':
             '{} instances of this failure ({:.1f}% of sampled failures):'.format(
                 num_failures,
                 (num_failures * 100.0) / total_failures))
-        for d in details[:10]:
+        for d_idx, d in enumerate(details[:10]):
             human_time = d['timestamp'].strftime('%Y-%m-%d %H:%M:%S')
             print("* Time: {}, Jenkins job: {}, patch: {}".format(human_time,
                                                                   d['url'],
                                                                   d[
                                                                       'gerrit_patch']))
+            if len(d['variables']) > 0:
+                print(' `- where ', end='')
+                for name, value in d['variables'].items():
+                    print(f'{name} = `{value[d_idx]}`;', end='')
+                print()
         if len(details) > 10:
             print(
                 "<cut> - only showing details of first 10/{} instances.".format(
