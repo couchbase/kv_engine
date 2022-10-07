@@ -1449,7 +1449,7 @@ cb::engine_errc EPVBucket::cancelRangeScan(cb::rangescan::Id id,
     Expects(cancelStatus == cb::engine_errc::success ||
             cancelStatus == cb::engine_errc::no_such_key);
 
-    if (cancelStatus == cb::engine_errc::success) {
+    if (cancelStatus == cb::engine_errc::success && schedule) {
         EP_LOG_INFO("{} RangeScan {} cancelled by request", getId(), id);
     }
 

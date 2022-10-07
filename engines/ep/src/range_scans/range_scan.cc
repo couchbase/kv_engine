@@ -58,7 +58,7 @@ RangeScan::RangeScan(
                        snapshotReqs->seqnoMustBeInSnapshot);
         if (snapshotReqs->timeout) {
             fmt::format_to(std::back_inserter(snapshotLog),
-                           "timeout:",
+                           ", timeout:{}",
                            snapshotReqs->timeout.value());
         }
     }
@@ -361,7 +361,7 @@ cb::engine_errc RangeScan::continueScan(KVStoreIface& kvstore) {
         handleStatus(cb::engine_errc::failed);
     case ScanStatus::Cancelled:
         // Scan cannot continue, it has been cancelled, e.g. the "handler"
-        // spotted the vbucket is no loner compatible. In this case an
+        // spotted the vbucket is no longer compatible. In this case an
         // appropriate engine_errc has already been passed to
         // handler::handleStatus at the point it detected the issue.
 
