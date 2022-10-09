@@ -89,10 +89,6 @@ public:
     in_port_t get_connected_port(const CookieIface& cookie) override {
         return wrapped->get_connected_port(cookie);
     }
-    void set_error_json_extras(CookieIface& cookie,
-                               const nlohmann::json& json) override {
-        wrapped->set_error_json_extras(cookie, json);
-    }
     bool is_valid_json(CookieIface& cookie, std::string_view view) override {
         return wrapped->is_valid_json(cookie, view);
     }

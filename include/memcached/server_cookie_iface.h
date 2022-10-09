@@ -163,25 +163,6 @@ struct ServerCookieIface {
 
     virtual in_port_t get_connected_port(const CookieIface& cookie) = 0;
 
-    /**
-     * Set a JSON object to be included in an error response (along side
-     * anything set by set_error_context).
-     *
-     * The json object cannot include "error" as a top-level key
-     *
-     * Note this has no affect for the following response codes.
-     *   cb::mcbp::Status::Success
-     *   cb::mcbp::Status::SubdocSuccessDeleted
-     *   cb::mcbp::Status::SubdocMultiPathFailure
-     *   cb::mcbp::Status::Rollback
-     *   cb::mcbp::Status::NotMyVbucket
-     *
-     * @param cookie the client cookie (to look up client connection)
-     * @param json extra json object to include in a error response.
-     */
-    virtual void set_error_json_extras(CookieIface& cookie,
-                                       const nlohmann::json& json) = 0;
-
     /// Validate the JSON. This method must NOT be called from a background
     /// thread as it use the front-end-threads instance for a JSON validator
     virtual bool is_valid_json(CookieIface& cookie, std::string_view) = 0;

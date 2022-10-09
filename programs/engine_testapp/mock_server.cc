@@ -313,10 +313,6 @@ struct MockServerCookieApi : public ServerCookieIface {
         return cookie_to_mock_cookie(cookie).getParentPort();
     }
 
-    void set_error_json_extras(CookieIface& cookie,
-                               const nlohmann::json& json) override {
-    }
-
     bool is_valid_json(CookieIface&, std::string_view view) override {
         auto validator = cb::json::SyntaxValidator::New();
         return validator->validate(view);
