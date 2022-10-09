@@ -1033,7 +1033,7 @@ cb::engine_errc EventuallyPersistentEngine::setParameterInner(
     }
 
     if (ret != cb::engine_errc::success && !msg.empty()) {
-        setErrorContext(&cookie, msg);
+        setErrorContext(cookie, msg);
     }
 
     return ret;
@@ -1671,7 +1671,7 @@ cb::engine_errc EventuallyPersistentEngine::set_collection_manifest(
     auto status = cb::engine_errc(rv.code().value());
     if (cb::engine_errc::success != status &&
         status != cb::engine_errc::would_block) {
-        engine->setErrorContext(&cookie, rv.what());
+        engine->setErrorContext(cookie, rv.what());
     }
 
     return status;
@@ -1839,11 +1839,10 @@ bool EventuallyPersistentEngine::isXattrEnabled(const CookieIface* cookie) {
     return cookie->isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_XATTR);
 }
 
-void EventuallyPersistentEngine::setErrorContext(const CookieIface* cookie,
+void EventuallyPersistentEngine::setErrorContext(const CookieIface& cookie,
                                                  std::string_view message) {
     NonBucketAllocationGuard guard;
-    serverApi->cookie->set_error_context(const_cast<CookieIface&>(*cookie),
-                                         message);
+    const_cast<CookieIface&>(cookie).setErrorContext(std::string{message});
 }
 
 void EventuallyPersistentEngine::setUnknownCollectionErrorContext(
@@ -5084,7 +5083,7 @@ cb::engine_errc EventuallyPersistentEngine::observe(
 
         // Parse a key
         if (value.size() - offset < 4) {
-            setErrorContext(cookie, "Requires vbid and keylen.");
+            setErrorContext(*cookie, "Requires vbid and keylen.");
             return cb::engine_errc::invalid_arguments;
         }
 
@@ -5099,7 +5098,7 @@ cb::engine_errc EventuallyPersistentEngine::observe(
         offset += sizeof(uint16_t);
 
         if (value.size() - offset < keylen) {
-            setErrorContext(cookie, "Incorrect keylen");
+            setErrorContext(*cookie, "Incorrect keylen");
             return cb::engine_errc::invalid_arguments;
         }
 
@@ -5593,14 +5592,14 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
                 std::make_unique<ExtendedMetaData>(emd.data(), emd.size());
         if (extendedMetaData->getStatus() ==
             cb::engine_errc::invalid_arguments) {
-            setErrorContext(cookie, "Invalid extended metadata");
+            setErrorContext(*cookie, "Invalid extended metadata");
             return cb::engine_errc::invalid_arguments;
         }
     }
 
     if (cb::mcbp::datatype::is_snappy(datatype) &&
         !isDatatypeSupported(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY)) {
-        setErrorContext(cookie, "Client did not negotiate Snappy support");
+        setErrorContext(*cookie, "Client did not negotiate Snappy support");
         return cb::engine_errc::invalid_arguments;
     }
 
@@ -5621,7 +5620,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
             if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
                                           payload,
                                           uncompressedValue)) {
-                setErrorContext(cookie, "Failed to inflate document");
+                setErrorContext(*cookie, "Failed to inflate document");
                 return cb::engine_errc::invalid_arguments;
             }
 
@@ -5647,7 +5646,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
                     cb::xattr::get_system_xattr_size(inflatedDatatype, xattr);
             if (system_xattr_size > cb::limits::PrivilegedBytes) {
                 setErrorContext(
-                        cookie,
+                        *cookie,
                         "System XATTR (" + std::to_string(system_xattr_size) +
                                 ") exceeds the max limit for system "
                                 "xattrs: " +
@@ -5754,7 +5753,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
                         {reinterpret_cast<const char*>(value.data()),
                          value.size()},
                         uncompressedValue)) {
-                setErrorContext(cookie, "Failed to inflate data");
+                setErrorContext(*cookie, "Failed to inflate data");
                 return cb::engine_errc::invalid_arguments;
             }
             value = uncompressedValue;
@@ -5782,7 +5781,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
                         datatype,
                         {reinterpret_cast<const char*>(value.data()),
                          value.size()}) > 0) {
-                setErrorContext(cookie,
+                setErrorContext(*cookie,
                                 "It is only possible to specify Xattrs as a "
                                 "value to DeleteWithMeta");
                 return cb::engine_errc::invalid_arguments;
@@ -5873,7 +5872,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
                 std::make_unique<ExtendedMetaData>(emd.data(), emd.size());
         if (extendedMetaData->getStatus() ==
             cb::engine_errc::invalid_arguments) {
-            setErrorContext(cookie, "Invalid extended metadata");
+            setErrorContext(*cookie, "Invalid extended metadata");
             return cb::engine_errc::invalid_arguments;
         }
     }
@@ -5901,20 +5900,20 @@ cb::engine_errc EventuallyPersistentEngine::handleTrafficControlCmd(
     case cb::mcbp::ClientOpcode::EnableTraffic:
         if (kvBucket->isWarmupLoadingData()) {
             // engine is still warming up, do not turn on data traffic yet
-            setErrorContext(cookie, "Persistent engine is still warming up!");
+            setErrorContext(*cookie, "Persistent engine is still warming up!");
             return cb::engine_errc::temporary_failure;
         } else if (configuration.isFailpartialwarmup() &&
                    kvBucket->isWarmupOOMFailure()) {
             // engine has completed warm up, but data traffic cannot be
             // turned on due to an OOM failure
             setErrorContext(
-                    cookie,
+                    *cookie,
                     "Data traffic to persistent engine cannot be enabled"
                     " due to out of memory failures during warmup");
             return cb::engine_errc::no_memory;
         } else if (kvBucket->hasWarmupSetVbucketStateFailed()) {
             setErrorContext(
-                    cookie,
+                    *cookie,
                     "Data traffic to persistent engine cannot be enabled"
                     " due to write failures when persisting vbucket state to "
                     "disk");
@@ -5922,10 +5921,10 @@ cb::engine_errc EventuallyPersistentEngine::handleTrafficControlCmd(
         } else {
             if (enableTraffic(true)) {
                 setErrorContext(
-                        cookie,
+                        *cookie,
                         "Data traffic to persistence engine is enabled");
             } else {
-                setErrorContext(cookie,
+                setErrorContext(*cookie,
                                 "Data traffic to persistence engine was "
                                 "already enabled");
             }
@@ -5933,11 +5932,11 @@ cb::engine_errc EventuallyPersistentEngine::handleTrafficControlCmd(
         break;
     case cb::mcbp::ClientOpcode::DisableTraffic:
         if (enableTraffic(false)) {
-            setErrorContext(cookie,
+            setErrorContext(*cookie,
                             "Data traffic to persistence engine is disabled");
         } else {
             setErrorContext(
-                    cookie,
+                    *cookie,
                     "Data traffic to persistence engine was already disabled");
         }
         break;
@@ -6429,7 +6428,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteVBucketInner(
                 "state",
                 vbid);
         setErrorContext(
-                &cookie,
+                cookie,
                 "Failed to delete vbucket.  Must be in the dead state.");
         break;
     case cb::engine_errc::would_block:
@@ -6443,7 +6442,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteVBucketInner(
         break;
     default:
         EP_LOG_WARN("Deletion of {} failed because of unknown reasons", vbid);
-        setErrorContext(&cookie, "Failed to delete vbucket.  Unknown reason.");
+        setErrorContext(cookie, "Failed to delete vbucket.  Unknown reason.");
         status = cb::engine_errc::failed;
         break;
     }
@@ -6722,7 +6721,7 @@ cb::engine_errc EventuallyPersistentEngine::setVBucketState(
         uint64_t cas) {
     auto status = kvBucket->setVBucketState(vbid, to, meta, transfer, cookie);
     if (status == cb::engine_errc::out_of_range) {
-        setErrorContext(cookie, "VBucket number too big");
+        setErrorContext(*cookie, "VBucket number too big");
     }
 
     return cb::engine_errc(status);

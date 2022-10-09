@@ -978,7 +978,7 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
             backfillMgr->setBackfillOrder(ScheduleOrder::Sequential);
         } else {
             engine_.setErrorContext(
-                    getCookie(),
+                    *getCookie(),
                     "Unsupported value '" + keyStr +
                             "' for ctrl parameter 'backfill_order'");
             return cb::engine_errc::invalid_arguments;
@@ -1010,9 +1010,11 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
         return cb::engine_errc::success;
     } else if (strncmp(param, "force_value_compression", key.size()) == 0) {
         if (!isSnappyEnabled()) {
-            engine_.setErrorContext(getCookie(), "The ctrl parameter "
-                  "force_value_compression is only supported if datatype "
-                  "snappy is enabled on the connection");
+            engine_.setErrorContext(
+                    *getCookie(),
+                    "The ctrl parameter "
+                    "force_value_compression is only supported if datatype "
+                    "snappy is enabled on the connection");
             return cb::engine_errc::invalid_arguments;
         }
         if (valueStr == "true") {

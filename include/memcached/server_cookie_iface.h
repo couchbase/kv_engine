@@ -164,24 +164,6 @@ struct ServerCookieIface {
     virtual in_port_t get_connected_port(const CookieIface& cookie) = 0;
 
     /**
-     * Set the error context string to be sent in response. This should not
-     * contain security sensitive information. If sensitive information needs to
-     * be preserved, log it with a UUID and send the UUID.
-     *
-     * Note this has no affect for the following response codes.
-     *   cb::mcbp::Status::Success
-     *   cb::mcbp::Status::SubdocSuccessDeleted
-     *   cb::mcbp::Status::SubdocMultiPathFailure
-     *   cb::mcbp::Status::Rollback
-     *   cb::mcbp::Status::NotMyVbucket
-     *
-     * @param cookie the client cookie (to look up client connection)
-     * @param message the message string to be set as the error context
-     */
-    virtual void set_error_context(CookieIface& cookie,
-                                   std::string_view message) = 0;
-
-    /**
      * Set a JSON object to be included in an error response (along side
      * anything set by set_error_context).
      *

@@ -55,7 +55,7 @@ bool RangeScanCreateTask::run() {
     } catch (const cb::engine_error& e) {
         // Failure induced by KV will have logged, e.g. KVStore open failures.
         // Failure induced by the user (e.g. empty range) has no need to log
-        engine->setErrorContext(&cookie, e.what());
+        engine->setErrorContext(cookie, e.what());
         status = cb::engine_errc(e.code().value());
         // create failure, clear out cookie (this object will free the data
         // which was "there")

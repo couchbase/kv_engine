@@ -155,6 +155,24 @@ public:
                               std::string_view value) = 0;
 
     /**
+     * Set the error context string to be sent in response. This should not
+     * contain security sensitive information. If sensitive information needs to
+     * be preserved, log it with a UUID and send the UUID.
+     *
+     * Note this has no affect for the following response codes.
+     *   cb::mcbp::Status::Success
+     *   cb::mcbp::Status::SubdocSuccessDeleted
+     *   cb::mcbp::Status::SubdocMultiPathFailure
+     *   cb::mcbp::Status::Rollback
+     *   cb::mcbp::Status::NotMyVbucket
+     *
+     * @param cookie the client cookie (to look up client connection)
+     * @param message the message string to be set as the error context
+     */
+    virtual void setErrorContext(std::string message) {
+    }
+
+    /**
      * Set the cookie state ready for an unknown collection (scope)
      * response. This ensures the manifestUid is added as extra state
      * to the response in a consistent format.

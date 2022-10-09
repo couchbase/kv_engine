@@ -313,10 +313,6 @@ struct MockServerCookieApi : public ServerCookieIface {
         return cookie_to_mock_cookie(cookie).getParentPort();
     }
 
-    void set_error_context(CookieIface& cookie,
-                           std::string_view message) override {
-    }
-
     void set_error_json_extras(CookieIface& cookie,
                                const nlohmann::json& json) override {
     }

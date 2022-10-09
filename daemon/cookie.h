@@ -138,7 +138,7 @@ public:
      * @param message a string which will become the value of the "context" key
      *        in the JSON response object
      */
-    void setErrorContext(std::string message) {
+    void setErrorContext(std::string message) override {
         error_context = std::move(message);
     }
 

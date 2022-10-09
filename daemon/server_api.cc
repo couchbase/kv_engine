@@ -177,11 +177,6 @@ struct ServerCookieApi : public ServerCookieIface {
         return getCookie(cookie).getConnection().getParentPort();
     }
 
-    void set_error_context(CookieIface& cookie,
-                           std::string_view message) override {
-        getCookie(cookie).setErrorContext(std::string{message});
-    }
-
     void set_error_json_extras(CookieIface& cookie,
                                const nlohmann::json& json) override {
         getCookie(cookie).setErrorJsonExtras(json);
