@@ -7,6 +7,7 @@
 #include <daemon/log_macros.h>
 #include <memcached/collections.h>
 #include <memcached/config_parser.h>
+#include <memcached/cookie_iface.h>
 #include <memcached/durability_spec.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/server_cookie_iface.h>
@@ -1030,8 +1031,7 @@ void default_engine::generate_unknown_collection_response(
         const CookieIface* cookie) const {
     // Default engine does not support collection changes, so is always
     // reporting 'unknown collection' against the epoch manifest (uid 0)
-    server.cookie->set_unknown_collection_error_context(
-            const_cast<CookieIface&>(*cookie), 0);
+    const_cast<CookieIface*>(cookie)->setUnknownCollectionErrorContext(0);
 }
 
 std::pair<cb::engine_errc, vbucket_state_t> default_engine::getVBucket(

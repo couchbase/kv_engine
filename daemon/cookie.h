@@ -528,7 +528,7 @@ public:
     void setUnknownCollectionErrorContext();
 
     /// Set the JSON extras to return the manifestId
-    void setUnknownCollectionErrorContext(uint64_t manifestUid);
+    void setUnknownCollectionErrorContext(uint64_t manifestUid) override;
 
     /// Check if the current command have the requested privilege
     cb::rbac::PrivilegeAccess checkPrivilege(cb::rbac::Privilege privilege) {

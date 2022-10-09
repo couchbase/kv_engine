@@ -91,7 +91,7 @@ Filter::Filter(std::optional<std::string_view> jsonFilter,
         break;
     case cb::engine_errc::unknown_scope:
     case cb::engine_errc::unknown_collection:
-        engine.setUnknownCollectionErrorContext(&cookie, manifestUid);
+        engine.setUnknownCollectionErrorContext(cookie, manifestUid);
         [[fallthrough]];
     default:
         throw cb::engine_error(

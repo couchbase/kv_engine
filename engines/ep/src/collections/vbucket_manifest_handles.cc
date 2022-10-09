@@ -65,7 +65,7 @@ cb::engine_errc CachingReadHandle::handleWriteStatus(
         size_t nBytes) {
     // Collection not found
     if (!valid()) {
-        engine.setUnknownCollectionErrorContext(cookie, getManifestUid());
+        engine.setUnknownCollectionErrorContext(*cookie, getManifestUid());
         return cb::engine_errc::unknown_collection;
     }
 
@@ -80,7 +80,7 @@ cb::engine_errc CachingReadHandle::handleWriteStatus(
         size_t nBytes) {
     // Collection not found
     if (!valid()) {
-        engine.setUnknownCollectionErrorContext(cookie, getManifestUid());
+        engine.setUnknownCollectionErrorContext(*cookie, getManifestUid());
         return cb::engine_errc::unknown_collection;
     }
 

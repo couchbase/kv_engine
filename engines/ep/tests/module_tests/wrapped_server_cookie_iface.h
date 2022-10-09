@@ -97,11 +97,6 @@ public:
                                const nlohmann::json& json) override {
         wrapped->set_error_json_extras(cookie, json);
     }
-    void set_unknown_collection_error_context(CookieIface& cookie,
-                                              uint64_t manifestUid) override {
-        wrapped->set_unknown_collection_error_context(cookie, manifestUid);
-    }
-
     bool is_valid_json(CookieIface& cookie, std::string_view view) override {
         return wrapped->is_valid_json(cookie, view);
     }

@@ -589,7 +589,7 @@ public:
 
     void setErrorContext(const CookieIface* cookie, std::string_view message);
 
-    void setUnknownCollectionErrorContext(const CookieIface* cookie,
+    void setUnknownCollectionErrorContext(const CookieIface& cookie,
                                           uint64_t manifestUid) const;
 
     template <typename T>

@@ -2411,7 +2411,7 @@ std::pair<cb::engine_errc, cb::rangescan::Id> EPBucket::createRangeScan(
     auto handle = vb->getManifest().lock(cid);
     cb::engine_errc status = cb::engine_errc::success;
     if (!handle.valid()) {
-        engine.setUnknownCollectionErrorContext(&cookie,
+        engine.setUnknownCollectionErrorContext(cookie,
                                                 handle.getManifestUid());
 
         status = cb::engine_errc::unknown_collection;

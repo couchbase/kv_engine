@@ -321,10 +321,6 @@ struct MockServerCookieApi : public ServerCookieIface {
                                const nlohmann::json& json) override {
     }
 
-    void set_unknown_collection_error_context(CookieIface& cookie,
-                                              uint64_t manifestUid) override {
-    }
-
     bool is_valid_json(CookieIface&, std::string_view view) override {
         auto validator = cb::json::SyntaxValidator::New();
         return validator->validate(view);

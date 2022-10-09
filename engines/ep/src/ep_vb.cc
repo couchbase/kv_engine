@@ -1376,7 +1376,7 @@ cb::engine_errc EPVBucket::setupCookieForRangeScan(cb::rangescan::Id id,
 
     auto [uid, entry] = bucket->getCollectionEntry(cid);
     if (!entry) {
-        bucket->getEPEngine().setUnknownCollectionErrorContext(&cookie, uid);
+        bucket->getEPEngine().setUnknownCollectionErrorContext(cookie, uid);
         return cb::engine_errc::unknown_collection;
     }
     cookie.setCurrentCollectionInfo(

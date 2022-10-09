@@ -187,11 +187,6 @@ struct ServerCookieApi : public ServerCookieIface {
         getCookie(cookie).setErrorJsonExtras(json);
     }
 
-    void set_unknown_collection_error_context(CookieIface& cookie,
-                                              uint64_t manifestUid) override {
-        getCookie(cookie).setUnknownCollectionErrorContext(manifestUid);
-    }
-
     bool is_valid_json(CookieIface& cookieIface,
                        std::string_view view) override {
         auto& cookie = getCookie(cookieIface);

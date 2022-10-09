@@ -1726,7 +1726,7 @@ EventuallyPersistentEngine::get_collection_id(const CookieIface& cookie,
     }
     if (rv.result == cb::engine_errc::unknown_collection ||
         rv.result == cb::engine_errc::unknown_scope) {
-        engine->setUnknownCollectionErrorContext(&cookie, rv.getManifestId());
+        engine->setUnknownCollectionErrorContext(cookie, rv.getManifestId());
     }
     return rv;
 }
@@ -1748,7 +1748,7 @@ cb::EngineErrorGetScopeIDResult EventuallyPersistentEngine::get_scope_id(
     }
 
     if (rv.result == cb::engine_errc::unknown_scope) {
-        engine->setUnknownCollectionErrorContext(&cookie, rv.getManifestId());
+        engine->setUnknownCollectionErrorContext(cookie, rv.getManifestId());
     }
     return rv;
 }
@@ -1847,10 +1847,10 @@ void EventuallyPersistentEngine::setErrorContext(const CookieIface* cookie,
 }
 
 void EventuallyPersistentEngine::setUnknownCollectionErrorContext(
-        const CookieIface* cookie, uint64_t manifestUid) const {
+        const CookieIface& cookie, uint64_t manifestUid) const {
     NonBucketAllocationGuard guard;
-    serverApi->cookie->set_unknown_collection_error_context(
-            const_cast<CookieIface&>(*cookie), manifestUid);
+    const_cast<CookieIface&>(cookie).setUnknownCollectionErrorContext(
+            manifestUid);
 }
 
 template <typename T>
@@ -4501,7 +4501,7 @@ cb::engine_errc EventuallyPersistentEngine::doCollectionStats(
             *kvBucket, bucketCollector, statKey);
     if (res.result == cb::engine_errc::unknown_collection ||
         res.result == cb::engine_errc::unknown_scope) {
-        setUnknownCollectionErrorContext(&cookie, res.getManifestId());
+        setUnknownCollectionErrorContext(cookie, res.getManifestId());
     }
     return cb::engine_errc(res.result);
 }
@@ -4515,7 +4515,7 @@ cb::engine_errc EventuallyPersistentEngine::doScopeStats(
     auto res = Collections::Manager::doScopeStats(
             *kvBucket, bucketCollector, statKey);
     if (res.result == cb::engine_errc::unknown_scope) {
-        setUnknownCollectionErrorContext(&cookie, res.getManifestId());
+        setUnknownCollectionErrorContext(cookie, res.getManifestId());
     }
     return cb::engine_errc(res.result);
 }
@@ -4608,7 +4608,7 @@ EventuallyPersistentEngine::parseStatKeyArg(const CookieIface* cookie,
                 parseKeyStatCollection(statKeyPrefix, args[0], args[3]);
         if (cidResult.result != cb::engine_errc::success) {
             if (cidResult.result == cb::engine_errc::unknown_collection) {
-                setUnknownCollectionErrorContext(cookie,
+                setUnknownCollectionErrorContext(*cookie,
                                                  cidResult.getManifestId());
             }
             return {cb::engine_errc(cidResult.result),
@@ -4966,8 +4966,7 @@ cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
     case cb::engine_errc::no_access:
         break;
     case cb::engine_errc::unknown_collection:
-        setUnknownCollectionErrorContext(cookie,
-                                         manifestUid);
+        setUnknownCollectionErrorContext(*cookie, manifestUid);
         break;
     default:
         EP_LOG_ERR(

@@ -1546,7 +1546,7 @@ GetValue KVBucket::getInternal(const DocKey& key,
     { // hold collections read handle for duration of get
         auto cHandle = vb->lockCollections(key);
         if (!cHandle.valid()) {
-            engine.setUnknownCollectionErrorContext(cookie,
+            engine.setUnknownCollectionErrorContext(*cookie,
                                                     cHandle.getManifestUid());
             return GetValue(nullptr, cb::engine_errc::unknown_collection);
         }
@@ -1574,7 +1574,7 @@ GetValue KVBucket::getRandomKey(CollectionID cid, CookieIface& cookie) {
     // Must setup cookie metering state, do this by checking the Manifest
     auto [uid, entry] = getCollectionEntry(cid);
     if (!entry) {
-        engine.setUnknownCollectionErrorContext(&cookie, uid);
+        engine.setUnknownCollectionErrorContext(cookie, uid);
         return GetValue(nullptr, cb::engine_errc::unknown_collection);
     } else {
         cookie.setCurrentCollectionInfo(
@@ -1595,7 +1595,7 @@ GetValue KVBucket::getRandomKey(CollectionID cid, CookieIface& cookie) {
                     // may not know the collection (could be dropped after the
                     // getCollectionEntry check)
                     engine.setUnknownCollectionErrorContext(
-                            &cookie, cHandle.getManifestUid());
+                            cookie, cHandle.getManifestUid());
                     return GetValue(nullptr,
                                     cb::engine_errc::unknown_collection);
                 }
@@ -1644,7 +1644,7 @@ cb::engine_errc KVBucket::getMetaData(const DocKey& key,
     { // collections read scope
         auto cHandle = vb->lockCollections(key);
         if (!cHandle.valid()) {
-            engine.setUnknownCollectionErrorContext(cookie,
+            engine.setUnknownCollectionErrorContext(*cookie,
                                                     cHandle.getManifestUid());
             return cb::engine_errc::unknown_collection;
         }
@@ -1793,7 +1793,7 @@ GetValue KVBucket::getAndUpdateTtl(const DocKey& key,
     { // collections read scope
         auto cHandle = vb->lockCollections(key);
         if (!cHandle.valid()) {
-            engine.setUnknownCollectionErrorContext(cookie,
+            engine.setUnknownCollectionErrorContext(*cookie,
                                                     cHandle.getManifestUid());
             return GetValue(nullptr, cb::engine_errc::unknown_collection);
         }
@@ -1831,7 +1831,7 @@ GetValue KVBucket::getLocked(const DocKey& key,
 
     auto cHandle = vb->lockCollections(key);
     if (!cHandle.valid()) {
-        engine.setUnknownCollectionErrorContext(cookie,
+        engine.setUnknownCollectionErrorContext(*cookie,
                                                 cHandle.getManifestUid());
         return GetValue(nullptr, cb::engine_errc::unknown_collection);
     }
@@ -1863,7 +1863,7 @@ cb::engine_errc KVBucket::unlockKey(const DocKey& key,
 
     auto cHandle = vb->lockCollections(key);
     if (!cHandle.valid()) {
-        engine.setUnknownCollectionErrorContext(cookie,
+        engine.setUnknownCollectionErrorContext(*cookie,
                                                 cHandle.getManifestUid());
         return cb::engine_errc::unknown_collection;
     }
@@ -1918,7 +1918,7 @@ cb::engine_errc KVBucket::getKeyStats(const DocKey& key,
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     auto cHandle = vb->lockCollections(key);
     if (!cHandle.valid()) {
-        engine.setUnknownCollectionErrorContext(cookie,
+        engine.setUnknownCollectionErrorContext(*cookie,
                                                 cHandle.getManifestUid());
         return cb::engine_errc::unknown_collection;
     }
@@ -2002,7 +2002,7 @@ cb::engine_errc KVBucket::deleteItem(
     { // collections read scope
         auto cHandle = vb->lockCollections(key);
         if (!cHandle.valid()) {
-            engine.setUnknownCollectionErrorContext(cookie,
+            engine.setUnknownCollectionErrorContext(*cookie,
                                                     cHandle.getManifestUid());
             return cb::engine_errc::unknown_collection;
         }
@@ -2064,7 +2064,7 @@ cb::engine_errc KVBucket::deleteWithMeta(const DocKey& key,
     { // hold collections read lock for duration of delete
         auto cHandle = vb->lockCollections(key);
         if (!cHandle.valid()) {
-            engine.setUnknownCollectionErrorContext(cookie,
+            engine.setUnknownCollectionErrorContext(*cookie,
                                                     cHandle.getManifestUid());
             return cb::engine_errc::unknown_collection;
         }

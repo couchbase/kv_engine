@@ -154,6 +154,23 @@ public:
     virtual void sendResponse(cb::engine_errc status,
                               std::string_view value) = 0;
 
+    /**
+     * Set the cookie state ready for an unknown collection (scope)
+     * response. This ensures the manifestUid is added as extra state
+     * to the response in a consistent format.
+     *
+     * Note this has no affect for the following response codes.
+     *   cb::mcbp::Status::Success
+     *   cb::mcbp::Status::SubdocSuccessDeleted
+     *   cb::mcbp::Status::SubdocMultiPathFailure
+     *   cb::mcbp::Status::Rollback
+     *   cb::mcbp::Status::NotMyVbucket
+     *
+     * @param manifestUid id to include in response
+     */
+    virtual void setUnknownCollectionErrorContext(uint64_t manifestUid) {
+    }
+
 protected:
     std::atomic<size_t> document_bytes_read = 0;
     std::atomic<size_t> document_bytes_written = 0;
