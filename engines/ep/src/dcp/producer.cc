@@ -210,7 +210,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
                       : IncludeDeleteTime::No),
       createChkPtProcessorTsk(startTask),
       connectionSupportsSnappy(
-              e.isDatatypeSupported(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY)) {
+              cookie->isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_SNAPPY)) {
     setSupportAck(true);
     pause(PausedReason::Initializing);
     setLogHeader("DCP (Producer) " + getName() + " -");

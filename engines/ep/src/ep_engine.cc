@@ -1830,15 +1830,6 @@ void EventuallyPersistentEngine::releaseCookie(const CookieIface& cookie) {
     serverApi->cookie->release(cookie);
 }
 
-bool EventuallyPersistentEngine::isDatatypeSupported(
-        const CookieIface* cookie, protocol_binary_datatype_t datatype) {
-    return cookie->isDatatypeSupported(datatype);
-}
-
-bool EventuallyPersistentEngine::isXattrEnabled(const CookieIface* cookie) {
-    return cookie->isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_XATTR);
-}
-
 void EventuallyPersistentEngine::setErrorContext(const CookieIface& cookie,
                                                  std::string_view message) {
     NonBucketAllocationGuard guard;
@@ -5428,7 +5419,7 @@ protocol_binary_datatype_t EventuallyPersistentEngine::checkForDatatypeJson(
         const CookieIface* cookie,
         protocol_binary_datatype_t datatype,
         std::string_view body) {
-    if (!isDatatypeSupported(cookie, PROTOCOL_BINARY_DATATYPE_JSON)) {
+    if (!cookie->isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_JSON)) {
         // JSON check the body if xattr's are enabled
         if (cb::mcbp::datatype::is_xattr(datatype)) {
             body = cb::xattr::get_body(body);
@@ -5598,7 +5589,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
     }
 
     if (cb::mcbp::datatype::is_snappy(datatype) &&
-        !isDatatypeSupported(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY)) {
+        !cookie->isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_SNAPPY)) {
         setErrorContext(*cookie, "Client did not negotiate Snappy support");
         return cb::engine_errc::invalid_arguments;
     }

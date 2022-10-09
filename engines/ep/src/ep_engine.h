@@ -582,11 +582,6 @@ public:
         const_cast<CookieIface*>(cookie)->setEngineStorage({});
     }
 
-    bool isDatatypeSupported(const CookieIface* cookie,
-                             protocol_binary_datatype_t datatype);
-
-    bool isXattrEnabled(const CookieIface* cookie);
-
     void setErrorContext(const CookieIface& cookie, std::string_view message);
 
     void setUnknownCollectionErrorContext(const CookieIface& cookie,

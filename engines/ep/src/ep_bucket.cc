@@ -2149,7 +2149,7 @@ ValueFilter EPBucket::getValueFilterForCompressionMode(
         filter = ValueFilter::VALUES_DECOMPRESSED;
     }
     if (cookie &&
-        !engine.isDatatypeSupported(cookie, PROTOCOL_BINARY_DATATYPE_SNAPPY)) {
+        !cookie->isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_SNAPPY)) {
         filter = ValueFilter::VALUES_DECOMPRESSED;
     }
     return filter;
