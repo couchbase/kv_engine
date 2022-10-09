@@ -6350,8 +6350,8 @@ ConnHandler& EventuallyPersistentEngine::getConnHandler(
     return *handle;
 }
 
-void EventuallyPersistentEngine::handleDisconnect(const CookieIface* cookie) {
-    dcpConnMap_->disconnect(cookie);
+void EventuallyPersistentEngine::handleDisconnect(const CookieIface& cookie) {
+    dcpConnMap_->disconnect(&cookie);
 }
 
 void EventuallyPersistentEngine::initiate_shutdown() {
@@ -6899,7 +6899,7 @@ void EventuallyPersistentEngine::set_num_storage_threads(
 }
 
 void EventuallyPersistentEngine::disconnect(const CookieIface& cookie) {
-    acquireEngine(this)->handleDisconnect(&cookie);
+    acquireEngine(this)->handleDisconnect(cookie);
 }
 
 cb::engine_errc EventuallyPersistentEngine::compactDatabase(

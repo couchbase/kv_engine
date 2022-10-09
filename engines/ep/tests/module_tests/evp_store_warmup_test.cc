@@ -533,7 +533,7 @@ TEST_F(WarmupTest, MB_32577) {
                       CollectionID::Default));
 
     // Close stream before deleting the connection
-    engine->handleDisconnect(cookie);
+    engine->handleDisconnect(*cookie);
 
     shutdownAndPurgeTasks(engine.get());
 }

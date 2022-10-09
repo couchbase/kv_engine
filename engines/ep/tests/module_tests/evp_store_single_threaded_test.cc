@@ -817,7 +817,7 @@ TEST_P(STParameterizedBucketTest,
         ASSERT_TRUE(stream->isBackfilling());
 
         mockCookie->lock();
-        engine->handleDisconnect(cookie);
+        engine->handleDisconnect(*cookie);
         mockCookie->unlock();
     }};
 

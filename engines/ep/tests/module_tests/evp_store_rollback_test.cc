@@ -797,7 +797,7 @@ TEST_P(RollbackTest, MB21784) {
     // Close stream
     ASSERT_EQ(cb::engine_errc::success,
               producer->closeStream(/*opaque*/ 0, vbid));
-    engine->handleDisconnect(cookie);
+    engine->handleDisconnect(*cookie);
 }
 
 TEST_P(RollbackTest, RollbackOnActive) {

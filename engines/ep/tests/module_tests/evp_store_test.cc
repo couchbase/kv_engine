@@ -99,7 +99,7 @@ TEST_P(EPBucketTest, test_mb20751_deadlock_on_disconnect_delete) {
             auto* mockCookie = cookie_to_mock_cookie(cookie);
             Expects(cookie);
             mockCookie->lock();
-            engine->handleDisconnect(cookie);
+            engine->handleDisconnect(*cookie);
             mockCookie->unlock();
         }};
 

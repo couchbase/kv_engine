@@ -595,7 +595,7 @@ public:
     template <typename T>
     void notifyIOComplete(T cookies, cb::engine_errc status);
 
-    void handleDisconnect(const CookieIface* cookie);
+    void handleDisconnect(const CookieIface& cookie);
     void initiate_shutdown() override;
     void cancel_all_operations_in_ewb_state() override;
 
