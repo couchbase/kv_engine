@@ -1820,14 +1820,14 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     serverApi = getServerApiFunc();
 }
 
-void EventuallyPersistentEngine::reserveCookie(const CookieIface* cookie) {
+void EventuallyPersistentEngine::reserveCookie(const CookieIface& cookie) {
     NonBucketAllocationGuard guard;
-    serverApi->cookie->reserve(*cookie);
+    serverApi->cookie->reserve(cookie);
 }
 
-void EventuallyPersistentEngine::releaseCookie(const CookieIface* cookie) {
+void EventuallyPersistentEngine::releaseCookie(const CookieIface& cookie) {
     NonBucketAllocationGuard guard;
-    serverApi->cookie->release(*cookie);
+    serverApi->cookie->release(cookie);
 }
 
 bool EventuallyPersistentEngine::isDatatypeSupported(

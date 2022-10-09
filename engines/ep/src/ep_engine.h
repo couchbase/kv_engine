@@ -526,8 +526,8 @@ public:
     void notifyIOComplete(const CookieIface* cookie, cb::engine_errc status);
     void scheduleDcpStep(const CookieIface& cookie);
 
-    void reserveCookie(const CookieIface* cookie);
-    void releaseCookie(const CookieIface* cookie);
+    void reserveCookie(const CookieIface& cookie);
+    void releaseCookie(const CookieIface& cookie);
 
     /**
      * Returns a copy of the stored value or nullopt, if there is no value

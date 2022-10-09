@@ -57,7 +57,7 @@ ConnHandler::ConnHandler(EventuallyPersistentEngine& e,
     cookie_api->setDcpConnHandler(*c, this);
     logger->setConnectionId(c->getConnectionId());
 
-    engine_.reserveCookie(cookie);
+    engine_.reserveCookie(*cookie);
 }
 
 ConnHandler::~ConnHandler() {
@@ -94,7 +94,7 @@ ConnHandler::~ConnHandler() {
             cb::time2text(totalDuration),
             std::string_view{buf.data(), buf.size()});
     logger->unregister();
-    engine_.releaseCookie(cookie);
+    engine_.releaseCookie(*cookie);
 }
 
 cb::engine_errc ConnHandler::addStream(uint32_t opaque, Vbid, uint32_t flags) {

@@ -105,7 +105,7 @@ void CollectionsDcpTest::createDcpConsumer() {
     auto& mockConnMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
     if (consumer) {
         mockConnMap.removeConn(consumer->getCookie());
-        engine->releaseCookie(cookieC);
+        engine->releaseCookie(*cookieC);
         cookieC = create_mock_cookie();
     }
 
