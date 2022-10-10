@@ -600,7 +600,8 @@ void KVBucket::runPreExpiryHook(VBucket& vb, Item& it) {
 
 void KVBucket::processExpiredItem(Item& it, time_t startTime, ExpireBy source) {
     // Yield if checkpoint's full - The call also wakes up the mem recovery task
-    if (verifyCheckpointMemoryState() == CheckpointMemoryState::Full) {
+    if (verifyCheckpointMemoryState() ==
+        CheckpointMemoryState::FullAndNeedsRecovery) {
         return;
     }
 
@@ -2013,7 +2014,8 @@ cb::engine_errc KVBucket::deleteItem(
     }
 
     // Yield if checkpoint's full - The call also wakes up the mem recovery task
-    if (verifyCheckpointMemoryState() == CheckpointMemoryState::Full) {
+    if (verifyCheckpointMemoryState() ==
+        CheckpointMemoryState::FullAndNeedsRecovery) {
         return cb::engine_errc::temporary_failure;
     }
 
@@ -2991,7 +2993,7 @@ KVBucket::CheckpointMemoryState KVBucket::getCheckpointMemoryState() const {
     } else if (usage < checkpointQuota) {
         return CheckpointMemoryState::HighAndNeedsRecovery;
     } else {
-        return CheckpointMemoryState::Full;
+        return CheckpointMemoryState::FullAndNeedsRecovery;
     }
 
     folly::assume_unreachable();
@@ -3003,7 +3005,7 @@ KVBucket::CheckpointMemoryState KVBucket::verifyCheckpointMemoryState() {
     case CheckpointMemoryState::Available:
         break;
     case CheckpointMemoryState::HighAndNeedsRecovery:
-    case CheckpointMemoryState::Full:
+    case CheckpointMemoryState::FullAndNeedsRecovery:
         wakeUpCheckpointMemRecoveryTask();
         break;
     }
