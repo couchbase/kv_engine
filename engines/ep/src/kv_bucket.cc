@@ -2989,7 +2989,7 @@ KVBucket::CheckpointMemoryState KVBucket::getCheckpointMemoryState() const {
     if (usage < recoveryThreshold) {
         return CheckpointMemoryState::Available;
     } else if (usage < checkpointQuota) {
-        return CheckpointMemoryState::NeedsRecovery;
+        return CheckpointMemoryState::HighAndNeedsRecovery;
     } else {
         return CheckpointMemoryState::Full;
     }
@@ -3002,7 +3002,7 @@ KVBucket::CheckpointMemoryState KVBucket::verifyCheckpointMemoryState() {
     switch (state) {
     case CheckpointMemoryState::Available:
         break;
-    case CheckpointMemoryState::NeedsRecovery:
+    case CheckpointMemoryState::HighAndNeedsRecovery:
     case CheckpointMemoryState::Full:
         wakeUpCheckpointMemRecoveryTask();
         break;

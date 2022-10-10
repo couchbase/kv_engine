@@ -866,7 +866,7 @@ public:
 
     enum class CheckpointMemoryState : uint8_t {
         Available,
-        NeedsRecovery,
+        HighAndNeedsRecovery,
         Full
     };
 
