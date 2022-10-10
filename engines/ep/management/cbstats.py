@@ -1008,7 +1008,7 @@ def main():
     c.addCommand('runtimes', stats_runtimes, 'runtimes')
     c.addCommand('dispatcher', stats_dispatcher, 'dispatcher [logs]')
     c.addCommand('tasks', stats_tasks, 'tasks [sort column]')
-    c.addCommand('tasksall', stats_tasks_all, 'tasksall [sort column]')
+    c.addCommand('tasks-all', stats_tasks_all, 'tasks-all [sort column]')
     c.addCommand('workload', stats_workload, 'workload')
     c.addCommand('failovers', stats_failovers, 'failovers [vbid]')
     c.addCommand('hash', stats_hash, 'hash [detail]')
