@@ -369,15 +369,13 @@ bool MockEngine::get_item_info(const ItemIface& item, item_info& item_info) {
 
 cb::engine_errc MockEngine::set_collection_manifest(const CookieIface& cookie,
                                                     std::string_view json) {
-    auto* c = get_or_create_mock_connstruct(&cookie, this);
-
+    auto* c = cookie_to_mock_cookie(&cookie);
     auto engine_fn = [this, &cookie, json]() {
         return the_engine->set_collection_manifest(cookie, json);
     };
-    auto status = call_engine_and_handle_EWOULDBLOCK(c, engine_fn);
-    check_and_destroy_mock_connstruct(c, &cookie);
-    return status;
+    return call_engine_and_handle_EWOULDBLOCK(c, engine_fn);
 }
+
 cb::engine_errc MockEngine::get_collection_manifest(
         const CookieIface& cookie, const AddResponseFn& response) {
     return the_engine->get_collection_manifest(cookie, response);
