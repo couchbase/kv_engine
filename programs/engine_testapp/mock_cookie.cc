@@ -157,15 +157,14 @@ void MockCookie::sendResponse(cb::engine_errc, std::string_view) {
 }
 
 MockCookie* cookie_to_mock_cookie(const CookieIface* cookie) {
-    auto* ret =
-            const_cast<MockCookie*>(dynamic_cast<const MockCookie*>(cookie));
-    if (ret == nullptr) {
-        throw std::runtime_error(
-                "cookie_to_mock_cookie(): provided cookie is not a MockCookie");
-    }
-    return ret;
+    return &asMockCookie(*cookie);
 }
 
-MockCookie& cookie_to_mock_cookie(const CookieIface& cookie) {
-    return *cookie_to_mock_cookie(&cookie);
+MockCookie& asMockCookie(const CookieIface& cookie) {
+    auto* mc = dynamic_cast<MockCookie*>(const_cast<CookieIface*>(&cookie));
+    if (mc == nullptr) {
+        throw std::runtime_error(
+                "asMockCookie(): provided cookie is not a MockCookie");
+    }
+    return *mc;
 }

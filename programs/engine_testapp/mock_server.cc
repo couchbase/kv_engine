@@ -242,34 +242,34 @@ bool mock_cookie_notified(const CookieIface* cookie) {
 struct MockServerCookieApi : public ServerCookieIface {
     void setDcpConnHandler(const CookieIface& cookie,
                            DcpConnHandlerIface* handler) override {
-        cookie_to_mock_cookie(cookie).setConHandler(handler);
+        asMockCookie(cookie).setConHandler(handler);
     }
     DcpConnHandlerIface* getDcpConnHandler(const CookieIface& cookie) override {
-        return cookie_to_mock_cookie(cookie).getConHandler();
+        return asMockCookie(cookie).getConHandler();
     }
     void setDcpFlowControlBufferSize(const CookieIface& cookie,
                                      std::size_t size) override {
     }
 
     void reserve(const CookieIface& cookie) override {
-        cookie_to_mock_cookie(cookie).incrementRefcount();
+        asMockCookie(cookie).incrementRefcount();
     }
 
     void release(const CookieIface& cookie) override {
-        auto* c = cookie_to_mock_cookie(&cookie);
-        if (c->decrementRefcount() == 0) {
-            delete c;
+        auto& c = asMockCookie(cookie);
+        if (c.decrementRefcount() == 0) {
+            delete &c;
         }
     }
 
     void set_priority(const CookieIface& cookie, ConnectionPriority) override {
         // Just verify the cookie type
-        cookie_to_mock_cookie(cookie);
+        asMockCookie(cookie);
     }
 
     ConnectionPriority get_priority(const CookieIface& cookie) override {
         // Just verify the cookie type
-        cookie_to_mock_cookie(cookie);
+        asMockCookie(cookie);
         return ConnectionPriority::Medium;
     }
 
@@ -306,11 +306,11 @@ struct MockServerCookieApi : public ServerCookieIface {
     }
 
     std::string get_authenticated_user(const CookieIface& cookie) override {
-        return cookie_to_mock_cookie(cookie).getAuthedUser();
+        return asMockCookie(cookie).getAuthedUser();
     }
 
     in_port_t get_connected_port(const CookieIface& cookie) override {
-        return cookie_to_mock_cookie(cookie).getParentPort();
+        return asMockCookie(cookie).getParentPort();
     }
 
     bool is_valid_json(CookieIface&, std::string_view view) override {

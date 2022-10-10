@@ -191,4 +191,4 @@ MockCookie* create_mock_cookie(EngineIface* engine = nullptr);
 void destroy_mock_cookie(CookieIface* cookie);
 
 MockCookie* cookie_to_mock_cookie(const CookieIface* cookie);
-MockCookie& cookie_to_mock_cookie(const CookieIface& cookie);
+MockCookie& asMockCookie(const CookieIface& cookie);
