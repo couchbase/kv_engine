@@ -12,6 +12,10 @@
 #pragma once
 #include "callbacks.h"
 
+namespace Collections::VB {
+class CachingReadHandle;
+}
+
 class CookieIface;
 class EventuallyPersistentEngine;
 class EPBucket;
@@ -69,6 +73,14 @@ public:
     virtual void handleStatus(CookieIface& cookie, cb::engine_errc status) = 0;
 
     /**
+     * Callback method specific to unknown collection which has extra work todo
+     * for the error response.
+     * @param cookie The cookie which triggered the failure
+     * @param manifestUid the manifest-ID that triggered the unknown collection
+     */
+    virtual void handleUnknownCollection(CookieIface& cookie,
+                                         uint64_t manifestUid) = 0;
+    /**
      * Generate stats from the handler
      */
     virtual void addStats(std::string_view prefix,
@@ -89,12 +101,18 @@ public:
 
     void handleStatus(CookieIface& cookie, cb::engine_errc status) override;
 
+    void handleUnknownCollection(CookieIface& cookie,
+                                 uint64_t manifestUid) override;
+
     void addStats(std::string_view prefix,
                   const StatCollector& collector) override;
 
 private:
     bool checkAndSend(CookieIface& cookie);
     void send(CookieIface& cookie, cb::engine_errc = cb::engine_errc::success);
+
+    /// @return true if the status can be sent directly from this handler
+    bool handleStatusCanRespond(cb::engine_errc status);
 
     EventuallyPersistentEngine& engine;
     /**
@@ -126,6 +144,7 @@ public:
 
     void callback(CacheLookup& lookup) override;
 
+protected:
     /**
      * setScanErrorStatus is used for any !success status that the callback
      * concludes. The status will bring the scan to a halt and channel the
@@ -133,8 +152,16 @@ public:
      */
     void setScanErrorStatus(cb::engine_errc status);
 
-protected:
-    GetValue get(VBucket& vb, CacheLookup& lookup);
+    /**
+     * setUnknownCollection is a special case error path for unknown collection
+     * which needs to pass the manifestUid of the failed collection lookup to
+     * the response message.
+     */
+    void setUnknownCollection(uint64_t manifestUid);
+
+    GetValue get(VBucket& vb,
+                 Collections::VB::CachingReadHandle& cHandle,
+                 CacheLookup& lookup);
     RangeScan& scan;
     EPBucket& bucket;
 };

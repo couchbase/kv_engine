@@ -87,6 +87,7 @@ target_link_libraries(memcached_testapp PRIVATE
     memcached_daemon
     memcached_logger
     mcd_util
+    mcd_test_util
     mc_client_connection
     cbsasl
     json_validator

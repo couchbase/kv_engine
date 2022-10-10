@@ -58,8 +58,15 @@ public:
     }
 
     void handleStatus(CookieIface& cookie, cb::engine_errc status) override {
-        EXPECT_TRUE(validateStatus(status));
+        EXPECT_TRUE(validateContinueStatus(status));
         this->status = status;
+    }
+
+    void handleUnknownCollection(CookieIface& cookie,
+                                 uint64_t manifestUid) override {
+        throw std::runtime_error(
+                "TestRangeScanHandler::handleUnknownCollection"
+                " unimplemented");
     }
 
     void addStats(std::string_view prefix,
@@ -74,8 +81,8 @@ public:
         EXPECT_TRUE(emplaced) << "Duplicate key returned " << key.to_string();
     }
 
-    // check for allowed/expected status code
-    static bool validateStatus(cb::engine_errc code);
+    // return true if this code is an expected code from a continue
+    static bool validateContinueStatus(cb::engine_errc code);
 
     std::vector<std::unique_ptr<Item>>& scannedItems;
     std::vector<StoredDocKey>& scannedKeys;
@@ -813,8 +820,11 @@ TEST_P(RangeScanTest, create_continue_is_cancelled_2) {
     testHook = [&vb, uuid, this](size_t count) {
         EXPECT_LT(count, 3); // never reach third key
         if (count == 2) {
+            // cancel with no cookie so there is no privilege check. This avoids
+            // a double lock of the collection manifest which is locked by the
+            // scan loop
             EXPECT_EQ(cb::engine_errc::success,
-                      vb->cancelRangeScan(uuid, cookie, true));
+                      vb->cancelRangeScan(uuid, nullptr, true));
         }
         return false;
     };
@@ -1354,7 +1364,7 @@ TEST_P(RangeScanTest, cancel_when_yielding) {
     testHook = [&vb, uuid, this](size_t count) {
         // Cancel after the first key has been read
         EXPECT_EQ(cb::engine_errc::success,
-                  vb->cancelRangeScan(uuid, cookie, true));
+                  vb->cancelRangeScan(uuid, nullptr, true));
         return false;
     };
 
@@ -1394,6 +1404,12 @@ public:
 
     void handleStatus(CookieIface&, cb::engine_errc) override {
         ++callbackCounter;
+    }
+
+    void handleUnknownCollection(CookieIface& cookie,
+                                 uint64_t manifestUid) override {
+        EXPECT_FALSE(true) << "DummyRangeScanHandler::handleUnknownCollection "
+                           << "unimplemented";
     }
 
     void addStats(std::string_view prefix,
@@ -1702,16 +1718,17 @@ TEST_P(RangeScanTest, cancel_scans_due_to_time_limit) {
                 "RangeScanContinueTask");
 }
 
-bool TestRangeScanHandler::validateStatus(cb::engine_errc code) {
+bool TestRangeScanHandler::validateContinueStatus(cb::engine_errc code) {
     switch (code) {
-    case cb::engine_errc::success:
-    case cb::engine_errc::not_my_vbucket:
-    case cb::engine_errc::unknown_collection:
-    case cb::engine_errc::range_scan_cancelled:
     case cb::engine_errc::range_scan_more:
     case cb::engine_errc::range_scan_complete:
-    case cb::engine_errc::failed:
+    case cb::engine_errc::range_scan_cancelled:
+    case cb::engine_errc::failed: // scan() failure
+    case cb::engine_errc::not_my_vbucket:
+    case cb::engine_errc::unknown_collection:
+        // A RangeScan continue can end with any of the above status codes
         return true;
+    case cb::engine_errc::success: // more/complete are used instead of success
     case cb::engine_errc::no_such_key:
     case cb::engine_errc::key_already_exists:
     case cb::engine_errc::no_memory:
@@ -1751,8 +1768,8 @@ bool TestRangeScanHandler::validateStatus(cb::engine_errc code) {
         return false;
     };
     throw std::invalid_argument(
-            "TestRangeScanHandler::validateStatus: code does not represent a "
-            "legal error code: " +
+            "TestRangeScanHandler::validateContinueStatus: code does not "
+            "represent a legal error code: " +
             std::to_string(int(code)));
 }
 
@@ -1959,6 +1976,11 @@ public:
 
     void handleStatus(CookieIface&, cb::engine_errc status) override {
         callback(status);
+    }
+
+    void handleUnknownCollection(CookieIface&, uint64_t) override {
+        throw std::runtime_error(
+                "MB_54053Handler::handleUnknownCollection unexpected call");
     }
 
     void addStats(std::string_view prefix,

@@ -131,13 +131,15 @@ RangeScan::~RangeScan() {
                             now() - createTime)
                             .count();
 
-    EP_LOG_INFO("{} RangeScan {} finished in state:{}, after {}ms, keys:{}{}",
-                getVBucketId(),
-                uuid,
-                continueState.rlock()->state,
-                duration,
-                totalKeys,
-                std::string_view{valueScanStats.data(), valueScanStats.size()});
+    EP_LOG_INFO(
+            "{} RangeScan {} finished in state:{} {}, after {}ms, keys:{}{}",
+            getVBucketId(),
+            uuid,
+            continueState.rlock()->state,
+            continueState.rlock()->finalStatus,
+            duration,
+            totalKeys,
+            std::string_view{valueScanStats.data(), valueScanStats.size()});
 }
 
 cb::rangescan::Id RangeScan::createScan(
@@ -552,6 +554,7 @@ void RangeScan::handleStatus(cb::engine_errc status) {
         // unnecessary but it is a safer approach for any future change or
         // missed test coverage
         continueRunState.cState.cookie = nullptr;
+        continueState.wlock()->finalStatus = status;
     } else {
         // No other error should be here. handleStatus maybe called when
         // continue task detects the task is in state cancelled and it
@@ -559,6 +562,12 @@ void RangeScan::handleStatus(cb::engine_errc status) {
         // continue (no cookie) the status can be dropped
         Expects(status == cb::engine_errc::range_scan_cancelled);
     }
+}
+
+void RangeScan::handleUnknownCollection(uint64_t manifestUid) {
+    Expects(continueRunState.cState.cookie);
+    handler->handleUnknownCollection(*continueRunState.cState.cookie,
+                                     manifestUid);
 }
 
 void RangeScan::incrementItemCounters(size_t size) {

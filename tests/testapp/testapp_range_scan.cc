@@ -18,7 +18,9 @@
 
 #include <mcbp/codec/range_scan_continue_codec.h>
 #include <memcached/range_scan_id.h>
+#include <memcached/storeddockey.h>
 #include <platform/base64.h>
+#include <utilities/test_manifest.h>
 
 #include <unordered_set>
 
@@ -29,6 +31,37 @@ public:
             GTEST_SKIP();
         }
         TestappXattrClientTest::SetUp();
+
+        // We will be using collections directly
+        userConnection->setFeature(cb::mcbp::Feature::Collections, true);
+
+        // Ensure vb is active as some tests change this
+        adminConnection->executeInBucket(bucketName, [](auto& connection) {
+            connection.setVbucket(Vbid(0), vbucket_state_active, {});
+        });
+
+        // Create a new collection for the test
+        if (!manifest) {
+            // There's a static init fiasco to be fixed with the test code so
+            // create on demand
+            manifest = std::make_unique<CollectionsManifest>();
+        }
+
+        if (!manifest->exists(
+                    CollectionEntry::Entry{"RangeScanTest", collectionId})) {
+            ++collectionId;
+            manifest->add(
+                    CollectionEntry::Entry{"RangeScanTest", collectionId});
+
+            adminConnection->executeInBucket(bucketName, [this](auto& conn) {
+                auto response = conn.execute(BinprotGenericCommand{
+                        cb::mcbp::ClientOpcode::CollectionsSetManifest,
+                        {},
+                        std::string{*manifest}});
+                EXPECT_TRUE(response.isSuccess()) << response.getStatus();
+            });
+        }
+
         auto mInfo = storeTestKeys();
 
         start = cb::base64::encode("user", false);
@@ -36,14 +69,14 @@ public:
 
         // if snappy evict so values comes from disk and we can validate snappy
         if (::testing::get<3>(GetParam()) == ClientSnappySupport::Yes) {
-            adminConnection->executeInBucket(
-                    bucketName, [this](auto& connection) {
-                        for (const auto& key : userKeys) {
-                            connection.evict(key, Vbid(0));
-                        }
-                    });
+            adminConnection->executeInBucket(bucketName, [this](auto& conn) {
+                conn.setFeature(cb::mcbp::Feature::Collections, true);
+                for (const auto& key : userKeys) {
+                    StoredDocKey collectionKey{key, CollectionID{collectionId}};
+                    conn.evict(std::string{collectionKey}, Vbid(0));
+                }
+            });
         }
-
         // Reduce the max-scan lifetime to give coverage of the dynamic change
         adminConnection->executeInBucket(bucketName, [&](auto& connection) {
             // Encode a set_flush_param (like cbepctl)
@@ -62,6 +95,7 @@ public:
         // Setup to scan for user prefixed docs. Utilise wait_for_seqno so the
         // tests should be stable (have data ready to scan)
         config = {{"range", {{"start", start}, {"end", end}}},
+                  {"collection", fmt::format("{0:x}", collectionId)},
                   {"snapshot_requirements",
                    {{"seqno", mInfo.seqno},
                     {"vb_uuid", std::to_string(mInfo.vbucketuuid)},
@@ -75,7 +109,7 @@ public:
                                                 "user::zoe",
                                                 "user:aaaaaaaa",
                                                 "users"};
-    std::unordered_map<std::string, GetMetaResponse> userKeysMeta;
+    std::unordered_map<StoredDocKey, GetMetaResponse> userKeysMeta;
 
     // Other keys that get stored in the bucket
     std::vector<std::string> otherKeys = {
@@ -84,31 +118,44 @@ public:
     std::unordered_set<std::string> sequential = {"0", "1", "2", "3"};
 
     MutationInfo storeTestKeys() {
+        // collection changes per test (as it can get dropped/recreated)
+        std::vector<std::pair<StoredDocKey, std::string>> keysForTest;
         for (const auto& key : userKeys) {
-            nlohmann::json value = {{"key", key}};
-            store_document(key, value.dump(), docFlags /* non-zero flags */);
+            keysForTest.emplace_back(
+                    StoredDocKey{key, CollectionID{collectionId}}, key);
         }
 
-        for (const auto& key : userKeys) {
-            // So we can validate that RangeScan matches GetMeta
-            auto meta =
-                    userConnection->getMeta(key, Vbid(0), GetMetaVersion::V2);
+        for (const auto& kv : keysForTest) {
+            nlohmann::json value = {{"key", kv.second}};
+            store_document(std::string{kv.first},
+                           value.dump(),
+                           docFlags /* non-zero flags */);
+        }
+
+        for (const auto& kv : keysForTest) {
+            // So we can validate that RangeScan meta matches GetMeta
+            auto meta = userConnection->getMeta(
+                    std::string{kv.first}, Vbid(0), GetMetaVersion::V2);
             EXPECT_EQ(cb::mcbp::Status::Success, meta.first);
-            auto [itr, emplaced] = userKeysMeta.try_emplace(key, meta.second);
+            auto [itr, emplaced] =
+                    userKeysMeta.try_emplace(kv.first, meta.second);
             EXPECT_TRUE(emplaced);
         }
 
         for (const auto& key : otherKeys) {
-            store_document(key, key);
+            StoredDocKey collectionKey(key, CollectionID{collectionId});
+            store_document(std::string{collectionKey}, key);
         }
 
         for (const auto& key : sequential) {
-            store_document(key, key);
+            StoredDocKey collectionKey(key, CollectionID{collectionId});
+            store_document(std::string{collectionKey}, key);
         }
 
         Document doc;
+        StoredDocKey finalKey("final", CollectionID{collectionId});
         doc.value = "persist me";
-        doc.info.id = "final";
+        doc.info.id = std::string{finalKey};
         return userConnection->mutate(doc, Vbid(0), MutationType::Set);
     }
 
@@ -125,12 +172,19 @@ public:
                      size_t itemLimit,
                      const std::unordered_set<std::string> expectedKeySet);
 
+    void testErrorsDuringContinue(cb::mcbp::Status error);
+
     const uint32_t docFlags = 0xAABBCCDD;
     std::string start;
     std::string end;
     nlohmann::json config;
     std::unordered_set<std::string> allKeys;
+    static std::unique_ptr<CollectionsManifest> manifest;
+    static uint32_t collectionId;
 };
+
+std::unique_ptr<CollectionsManifest> RangeScanTest::manifest;
+uint32_t RangeScanTest::collectionId = 8;
 
 INSTANTIATE_TEST_SUITE_P(
         TransportProtocols,
@@ -273,10 +327,12 @@ size_t RangeScanTest::drainItemResponse(
             value = record.value;
         }
         nlohmann::json jsonValue = nlohmann::json::parse(value);
-        EXPECT_EQ(1, expectedKeySet.count(jsonValue["key"]));
+        EXPECT_EQ(1, expectedKeySet.count(jsonValue["key"]))
+                << jsonValue["key"];
 
         // Check meta matches
-        const auto& meta = userKeysMeta.at(std::string{record.key});
+        StoredDocKey collectionKey(record.key, CollectionID{collectionId});
+        const auto& meta = userKeysMeta.at(collectionKey);
         EXPECT_EQ(meta.flags, record.meta.getFlags());
         EXPECT_EQ(meta.expiry, record.meta.getExpiry());
         // compare and ignore snappy as it varies based on test
@@ -326,10 +382,14 @@ size_t RangeScanTest::drainScan(
 
         // Don't expect any errors in this scan. It should return only the
         // following status codes for each response.
-        EXPECT_TRUE(resp.getStatus() == cb::mcbp::Status::Success ||
-                    resp.getStatus() == cb::mcbp::Status::RangeScanMore ||
-                    resp.getStatus() == cb::mcbp::Status::RangeScanComplete)
-                << resp.getStatus();
+        if (!(resp.getStatus() == cb::mcbp::Status::Success ||
+              resp.getStatus() == cb::mcbp::Status::RangeScanMore ||
+              resp.getStatus() == cb::mcbp::Status::RangeScanComplete)) {
+            // stop the loop or it could run for ever
+            throw std::runtime_error(
+                    "RangeScanTest::drainScan unexpected status:" +
+                    to_string(resp.getStatus()));
+        }
     } while (resp.getStatus() != cb::mcbp::Status::RangeScanComplete);
     return recordsReturned;
 }
@@ -359,7 +419,6 @@ TEST_P(RangeScanTest, ValueScan) {
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     cb::rangescan::Id id;
     std::memcpy(id.data, resp.getData().data(), resp.getData().size());
-
     EXPECT_EQ(userKeys.size(),
               drainScan(id, false, 2, userKeys)); // 2 items per continue
 }
@@ -423,4 +482,126 @@ TEST_P(RangeScanTest, TestStats) {
     auto statsAll = userConnection->stats("range-scans");
     // With only one vb in use, all == vbid0
     EXPECT_EQ(stats, statsAll);
+}
+
+// This test case is not ideal as it doesn't guarantee that we will force the
+// error to occur whilst the continue is executing (which was the source of the
+// MB that lead to this test being added)
+void RangeScanTest::testErrorsDuringContinue(cb::mcbp::Status error) {
+    BinprotRangeScanCreate create(Vbid(0), config);
+    userConnection->sendCommand(create);
+
+    BinprotResponse resp;
+    userConnection->recvResponse(resp);
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    cb::rangescan::Id id;
+    std::memcpy(id.data, resp.getData().data(), resp.getData().size());
+
+    BinprotRangeScanContinue scanContinue(
+            Vbid(0),
+            id,
+            2,
+            std::chrono::milliseconds(0) /* no time limit*/,
+            0 /*no byte limit*/);
+    userConnection->sendCommand(scanContinue);
+
+    // On the admin connection, make a change to force an error path
+    if (error == cb::mcbp::Status::NotMyVbucket) {
+        // Drop the VB
+        adminConnection->executeInBucket(bucketName, [](auto& connection) {
+            connection.setVbucket(Vbid(0), vbucket_state_replica, {});
+        });
+    } else if (error == cb::mcbp::Status::UnknownCollection) {
+        // Drop the collection
+        manifest->remove(CollectionEntry::Entry{"RangeScanTest", collectionId});
+        adminConnection->executeInBucket(bucketName, [this](auto& conn) {
+            auto response = conn.execute(BinprotGenericCommand{
+                    cb::mcbp::ClientOpcode::CollectionsSetManifest,
+                    {},
+                    std::string{*manifest}});
+
+            // The manifest sticks, so if we set it again with the same uid,
+            // that is invalid, just assert erange and carry on
+            if (!response.isSuccess()) {
+                ASSERT_EQ(cb::mcbp::Status::Erange, response.getStatus());
+            }
+        });
+    } else if (error == cb::mcbp::Status::RangeScanCancelled) {
+        adminConnection->executeInBucket(bucketName, [&id](auto& conn) {
+            BinprotRangeScanCancel cancel(Vbid(0), id);
+            auto resp = conn.execute(cancel);
+            ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+        });
+    } else {
+        FAIL() << error;
+    }
+
+    // Drain the scan to completion.
+    // 1) Continue detects error immediately
+    // 2) Continue detects error during the scan - so we may see a mix of
+    ///   success{key}, range-scan-more{key}, error
+    /// 3) Continue runs to completion no error is seen
+    bool scanCanContinue = true;
+    do {
+        userConnection->recvResponse(resp);
+        if (resp.getStatus() == cb::mcbp::Status::NotMyVbucket) {
+            // Expect no keys/values attached to this error. A cluster would
+            // attach vbmap
+            ASSERT_EQ(0, resp.getData().size());
+            scanCanContinue = false;
+        } else if (resp.getStatus() == cb::mcbp::Status::UnknownCollection) {
+            scanCanContinue = false;
+            // Expect to find the collection manifest id
+            nlohmann::json parsed;
+            try {
+                parsed = nlohmann::json::parse(resp.getDataString());
+            } catch (const nlohmann::json::exception& e) {
+                FAIL() << "Cannot parse json resp:" << resp.getDataString()
+                       << " e:" << e.what();
+            }
+
+            auto itr = parsed.find("manifest_uid");
+            EXPECT_NE(parsed.end(), itr);
+            EXPECT_EQ(manifest->getUidString(), itr->get<std::string>());
+        } else if (resp.getStatus() == cb::mcbp::Status::RangeScanCancelled) {
+            // Expect no keys/values attached to this error.
+            ASSERT_EQ(0, resp.getData().size());
+            scanCanContinue = false;
+        } else if (resp.getStatus() == cb::mcbp::Status::RangeScanMore) {
+            // range-scan-more
+            BinprotRangeScanContinue scanContinue(
+                    Vbid(0),
+                    id,
+                    2, // 2 keys per continue
+                    std::chrono::milliseconds(0) /* no time limit*/,
+                    0 /*no byte limit*/);
+            userConnection->sendCommand(scanContinue);
+        } else if (resp.getStatus() == cb::mcbp::Status::Success) {
+            // keys/values - next packet should be status
+            ASSERT_NE(0, resp.getData().size());
+        } else if (resp.getStatus() == cb::mcbp::Status::RangeScanComplete ||
+                   resp.getStatus() == cb::mcbp::Status::KeyEnoent) {
+            scanCanContinue = false;
+        } else {
+            FAIL() << "Unexpected/unhandled status code " << resp.getStatus();
+        }
+    } while (scanCanContinue);
+
+    // And now cancel which fails but ensures no other responses were in the
+    // pipe. Prior to fixing the bug, a second NMVB/UnknownCollection/Cancel
+    // may be sent which would be detected here rather than KeyEnoent
+    BinprotRangeScanCancel cancel(Vbid(0), id);
+    userConnection->sendCommand(cancel);
+    userConnection->recvResponse(resp);
+    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, resp.getStatus());
+}
+
+TEST_P(RangeScanTest, ErrorNMVB) {
+    testErrorsDuringContinue(cb::mcbp::Status::NotMyVbucket);
+}
+TEST_P(RangeScanTest, ErrorUnknownCollection) {
+    testErrorsDuringContinue(cb::mcbp::Status::UnknownCollection);
+}
+TEST_P(RangeScanTest, ErrorRangeScanCancelled) {
+    testErrorsDuringContinue(cb::mcbp::Status::RangeScanCancelled);
 }

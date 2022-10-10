@@ -21,6 +21,7 @@
 #include <mcbp/codec/range_scan_continue_codec.h>
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <memcached/cookie_iface.h>
+#include <memcached/range_scan_status.h>
 #include <statistics/cbstat_collector.h>
 
 RangeScanDataHandler::RangeScanDataHandler(EventuallyPersistentEngine& engine)
@@ -71,19 +72,30 @@ bool RangeScanDataHandler::handleItem(CookieIface& cookie,
 
 void RangeScanDataHandler::handleStatus(CookieIface& cookie,
                                         cb::engine_errc status) {
-    // send the 'final' status along with any outstanding data
-    // The status must be range_scan_{more/complete} or an error
-    Expects(status != cb::engine_errc::success);
-
     // The final status includes (when enabled) the read cost
     cookie.addDocumentReadBytes(pendingReadBytes);
     pendingReadBytes = 0;
 
-    send(cookie, status);
+    if (handleStatusCanRespond(status)) {
+        // Send a response that will include any buffered data as the value
+        send(cookie, status);
+    } else {
+        // handleStatus cannot respond to this. These are error conditions
+        // and particularly not-my-vbucket scanned data cannot be included.
+        // Clear the buffer now as this data is no longer required.
+        responseBuffer.clear();
+    }
 
     NonBucketAllocationGuard guard;
     // Wake-up front-end to complete the command
     engine.notifyIOComplete(&cookie, status);
+}
+
+void RangeScanDataHandler::handleUnknownCollection(CookieIface& cookie,
+                                                   uint64_t manifestUid) {
+    // For unknown collection, the error context must be generated
+    engine.setUnknownCollectionErrorContext(cookie, manifestUid);
+    handleStatus(cookie, cb::engine_errc::unknown_collection);
 }
 
 void RangeScanDataHandler::addStats(std::string_view prefix,
@@ -98,19 +110,29 @@ void RangeScanDataHandler::addStats(std::string_view prefix,
     addStat("send_threshold", sendTriggerThreshold);
 }
 
+bool RangeScanDataHandler::handleStatusCanRespond(cb::engine_errc status) {
+    switch (cb::rangescan::getContinueHandlingStatus(status)) {
+    case cb::rangescan::HandlingStatus::TaskSends:
+        return true;
+    case cb::rangescan::HandlingStatus::ExecutorSends:
+        return false;
+    }
+    folly::assume_unreachable();
+}
+
 RangeScanCacheCallback::RangeScanCacheCallback(RangeScan& scan,
                                                EPBucket& bucket)
     : scan(scan), bucket(bucket) {
 }
 
 // Do a get and restrict the collections lock scope to just these checks.
-GetValue RangeScanCacheCallback::get(VBucket& vb, CacheLookup& lookup) {
+GetValue RangeScanCacheCallback::get(
+        VBucket& vb,
+        Collections::VB::CachingReadHandle& cHandle,
+        CacheLookup& lookup) {
     // getInternal may generate expired items and thus may for example need to
-    // update a collection high-seqno, get a handle on the collection manifest
-    auto cHandle = vb.lockCollections(lookup.getKey().getDocKey());
-    if (!cHandle.valid()) {
-        return GetValue{nullptr, cb::engine_errc::unknown_collection};
-    }
+    // update a collection high-seqno, so requires a handle on the collection
+    // manifest
     return vb.getInternal(nullptr,
                           bucket.getEPEngine(),
                           /*options*/ NONE,
@@ -133,6 +155,14 @@ void RangeScanCacheCallback::callback(CacheLookup& lookup) {
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (!scan.isVbucketScannable(*vb)) {
         setScanErrorStatus(cb::engine_errc::not_my_vbucket);
+        return;
+    }
+
+    // For key or value scan, collection lock can be obtained and checked
+    auto cHandle = vb->lockCollections(lookup.getKey().getDocKey());
+    if (!cHandle.valid()) {
+        // This scan is done - collection was dropped.
+        setUnknownCollection(cHandle.getManifestUid());
         return;
     }
 
@@ -159,7 +189,7 @@ void RangeScanCacheCallback::callback(CacheLookup& lookup) {
         return;
     }
 
-    auto gv = get(*vb, lookup);
+    auto gv = get(*vb, cHandle, lookup);
     if (gv.getStatus() == cb::engine_errc::success &&
         gv.item->getBySeqno() == lookup.getBySeqno()) {
         // RangeScans do not transmit xattrs
@@ -185,6 +215,11 @@ void RangeScanCacheCallback::setScanErrorStatus(cb::engine_errc status) {
     StatusCallback<CacheLookup>::setStatus(status);
     // Calling handleStatus will make the status visible to the client
     scan.handleStatus(status);
+}
+
+void RangeScanCacheCallback::setUnknownCollection(uint64_t manifestUid) {
+    StatusCallback<CacheLookup>::setStatus(cb::engine_errc::unknown_collection);
+    scan.handleUnknownCollection(manifestUid);
 }
 
 RangeScanDiskCallback::RangeScanDiskCallback(RangeScan& scan) : scan(scan) {

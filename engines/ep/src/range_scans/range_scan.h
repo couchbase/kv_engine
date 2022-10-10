@@ -219,6 +219,15 @@ public:
     void handleStatus(cb::engine_errc status);
 
     /**
+     * Callback method for when a scan encounters an unknown collection during
+     * the continue
+     *
+     * @param manifestUid The uid of the manifest in which the collection was
+     *        not found.
+     */
+    void handleUnknownCollection(uint64_t manifestUid);
+
+    /**
      * Increment the scan's itemCount/byteCount/totalCount for an something
      * read by the scan
      * @param size value to increment byteCount by
@@ -447,6 +456,7 @@ protected:
         CookieIface* cookie{nullptr};
         State state{State::Idle};
         ContinueLimits limits;
+        cb::engine_errc finalStatus{cb::engine_errc::success};
     };
     folly::Synchronized<ContinueState> continueState;
 
