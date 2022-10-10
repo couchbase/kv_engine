@@ -88,29 +88,6 @@ static cb::engine_errc call_engine_and_handle_EWOULDBLOCK(
     return ret;
 }
 
-/**
- * Helper function to return a mock_connstruct, either a new one or
- * an existng one.
- **/
-MockCookie* get_or_create_mock_connstruct(const CookieIface* cookie,
-                                          EngineIface* engine) {
-    if (cookie == nullptr) {
-        return create_mock_cookie(engine);
-    }
-    return cookie_to_mock_cookie(cookie);
-}
-
-/**
- * Helper function to destroy a mock_connstruct if get_or_create_mock_connstruct
- * created one.
- **/
-void check_and_destroy_mock_connstruct(MockCookie* c,
-                                       const CookieIface* cookie) {
-    if (c != cookie) {
-        destroy_mock_cookie(c);
-    }
-}
-
 cb::engine_errc MockEngine::initialize(std::string_view config_str) {
     return the_engine->initialize(config_str);
 }
@@ -348,19 +325,16 @@ void MockEngine::reset_stats(const CookieIface& cookie) {
     the_engine->reset_stats(cookie);
 }
 
-cb::engine_errc MockEngine::unknown_command(const CookieIface* cookie,
+cb::engine_errc MockEngine::unknown_command(const CookieIface& cookie,
                                             const cb::mcbp::Request& request,
                                             const AddResponseFn& response) {
-    auto* c = get_or_create_mock_connstruct(cookie, this);
+    auto* c = cookie_to_mock_cookie(&cookie);
     auto engine_fn =
             [this, c, req = std::cref(request), res = std::cref(response)]() {
-                return the_engine->unknown_command(c, req, res);
+                return the_engine->unknown_command(*c, req, res);
             };
 
-    cb::engine_errc ret = call_engine_and_handle_EWOULDBLOCK(c, engine_fn);
-
-    check_and_destroy_mock_connstruct(c, cookie);
-    return ret;
+    return call_engine_and_handle_EWOULDBLOCK(c, engine_fn);
 }
 
 bool MockEngine::get_item_info(const ItemIface& item, item_info& item_info) {

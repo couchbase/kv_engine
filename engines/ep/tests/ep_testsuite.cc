@@ -245,7 +245,7 @@ static int checkCurrItemsAfterShutdown(EngineIface* h,
     // stop flusher before loading new items
     auto pkt = createPacket(cb::mcbp::ClientOpcode::StopPersistence);
     checkeq(cb::engine_errc::success,
-            h->unknown_command(cookie.get(), *pkt, add_response),
+            h->unknown_command(*cookie, *pkt, add_response),
             "CMD_STOP_PERSISTENCE failed!");
     checkeq(cb::mcbp::Status::Success,
             last_status.load(),
@@ -274,7 +274,7 @@ static int checkCurrItemsAfterShutdown(EngineIface* h,
     // resume flusher before shutdown + warmup
     pkt = createPacket(cb::mcbp::ClientOpcode::StartPersistence);
     checkeq(cb::engine_errc::success,
-            h->unknown_command(cookie.get(), *pkt, add_response),
+            h->unknown_command(*cookie, *pkt, add_response),
             "CMD_START_PERSISTENCE failed!");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Failed to start persistence!");
@@ -1299,7 +1299,7 @@ static enum test_result test_get_replica_active_state(EngineIface* h) {
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     auto pkt = prepare_get_replica(h, vbucket_state_active);
     checkeq(cb::engine_errc::not_my_vbucket,
-            h->unknown_command(cookie.get(), *pkt, add_response),
+            h->unknown_command(*cookie, *pkt, add_response),
             "Get Replica Failed");
 
     return SUCCESS;
@@ -1310,7 +1310,7 @@ static enum test_result test_get_replica_pending_state(EngineIface* h) {
     testHarness->set_ewouldblock_handling(cookie, false);
     auto pkt = prepare_get_replica(h, vbucket_state_pending);
     checkeq(cb::engine_errc::not_my_vbucket,
-            h->unknown_command(cookie, *pkt, add_response),
+            h->unknown_command(*cookie, *pkt, add_response),
             "Should have returned NOT_MY_VBUCKET for pending state");
     checkeq(1, get_int_stat(h, "ep_num_not_my_vbuckets"), "Expected 1 get");
     testHarness->destroy_cookie(cookie);
@@ -1321,7 +1321,7 @@ static enum test_result test_get_replica_dead_state(EngineIface* h) {
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     auto pkt = prepare_get_replica(h, vbucket_state_dead);
     checkeq(cb::engine_errc::not_my_vbucket,
-            h->unknown_command(cookie.get(), *pkt, add_response),
+            h->unknown_command(*cookie, *pkt, add_response),
             "Get Replica Failed");
     return SUCCESS;
 }
@@ -1330,7 +1330,7 @@ static enum test_result test_get_replica(EngineIface* h) {
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     auto pkt = prepare_get_replica(h, vbucket_state_replica);
     checkeq(cb::engine_errc::success,
-            h->unknown_command(cookie.get(), *pkt, add_response),
+            h->unknown_command(*cookie, *pkt, add_response),
             "Get Replica Failed");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
             "Expected cb::mcbp::Status::Success response.");
@@ -1364,7 +1364,7 @@ static enum test_result test_get_replica_invalid_key(EngineIface* h) {
     bool makeinvalidkey = true;
     auto pkt = prepare_get_replica(h, vbucket_state_replica, makeinvalidkey);
     checkeq(cb::engine_errc::not_my_vbucket,
-            h->unknown_command(cookie.get(), *pkt, add_response),
+            h->unknown_command(*cookie, *pkt, add_response),
             "Get Replica Failed");
     return SUCCESS;
 }
@@ -3701,7 +3701,7 @@ static enum test_result test_warmup_oom(EngineIface* h) {
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     auto pkt = createPacket(cb::mcbp::ClientOpcode::EnableTraffic);
     checkeq(cb::engine_errc::no_memory,
-            h->unknown_command(cookie.get(), *pkt, add_response),
+            h->unknown_command(*cookie, *pkt, add_response),
             "Data traffic command should have failed with enomem");
 
     return SUCCESS;
@@ -3892,13 +3892,13 @@ static enum test_result test_all_keys_api(EngineIface* h) {
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     if (isPersistentBucket(h)) {
         checkeq(cb::engine_errc::success,
-                h->unknown_command(cookie.get(), *pkt1, add_response),
+                h->unknown_command(*cookie, *pkt1, add_response),
                 "Failed to get all_keys, sort: ascending");
     } else {
         /* We intend to support cb::mcbp::ClientOpcode::GetKeys in ephemeral
            buckets in the future */
         checkeq(cb::engine_errc::not_supported,
-                h->unknown_command(cookie.get(), *pkt1, add_response),
+                h->unknown_command(*cookie, *pkt1, add_response),
                 "Should return not supported");
         return SUCCESS;
     }
@@ -3942,13 +3942,13 @@ static enum test_result test_all_keys_api_during_bucket_creation(
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     if (isPersistentBucket(h)) {
         checkeq(cb::engine_errc::success,
-                h->unknown_command(cookie.get(), *pkt1, add_response),
+                h->unknown_command(*cookie, *pkt1, add_response),
                 "Unexpected return code from all_keys_api");
     } else {
         /* We intend to support cb::mcbp::ClientOpcode::GetKeys in ephemeral
            buckets in the future */
         checkeq(cb::engine_errc::not_supported,
-                h->unknown_command(cookie.get(), *pkt1, add_response),
+                h->unknown_command(*cookie, *pkt1, add_response),
                 "Should return not supported");
         return SUCCESS;
     }
@@ -4108,7 +4108,7 @@ static enum test_result test_value_eviction(EngineIface* h) {
 
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     checkeq(cb::engine_errc::success,
-            h->unknown_command(cookie.get(), *pkt, add_response),
+            h->unknown_command(*cookie, *pkt, add_response),
             "Failed to evict key.");
 
     checkeq(cb::engine_errc::success,
@@ -4752,7 +4752,7 @@ static enum test_result test_observe_seqno_error(EngineIface* h) {
                                 invalid_data.str());
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     checkeq(cb::engine_errc::no_such_key,
-            h->unknown_command(cookie.get(), *request, add_response),
+            h->unknown_command(*cookie, *request, add_response),
             "Expected vb uuid not found");
 
     return SUCCESS;
@@ -5180,13 +5180,13 @@ static enum test_result test_observe_errors(EngineIface* h) {
             cb::mcbp::ClientOpcode::Observe, Vbid(0), 0, {}, {}, {"0", 1});
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     checkeq(cb::engine_errc::invalid_arguments,
-            h->unknown_command(cookie.get(), *pkt, add_response),
+            h->unknown_command(*cookie, *pkt, add_response),
             "Observe failed.");
 
     pkt = createPacket(
             cb::mcbp::ClientOpcode::Observe, Vbid(0), 0, {}, {}, {"0000", 4});
     checkeq(cb::engine_errc::invalid_arguments,
-            h->unknown_command(cookie.get(), *pkt, add_response),
+            h->unknown_command(*cookie, *pkt, add_response),
             "Observe failed.");
 
     return SUCCESS;
@@ -5200,7 +5200,7 @@ static enum test_result test_control_data_traffic(EngineIface* h) {
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     auto pkt = createPacket(cb::mcbp::ClientOpcode::DisableTraffic);
     checkeq(cb::engine_errc::success,
-            h->unknown_command(cookie.get(), *pkt, add_response),
+            h->unknown_command(*cookie, *pkt, add_response),
             "Failed to send data traffic command to the server");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Faile to disable data traffic");
@@ -5211,7 +5211,7 @@ static enum test_result test_control_data_traffic(EngineIface* h) {
 
     pkt = createPacket(cb::mcbp::ClientOpcode::EnableTraffic);
     checkeq(cb::engine_errc::success,
-            h->unknown_command(cookie.get(), *pkt, add_response),
+            h->unknown_command(*cookie, *pkt, add_response),
             "Failed to send data traffic command to the server");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Faile to enable data traffic");
@@ -6166,7 +6166,7 @@ static enum test_result test_get_random_key(EngineIface* h) {
     auto pkt = createPacket(cb::mcbp::ClientOpcode::GetRandomKey);
 
     checkeq(cb::engine_errc::no_such_key,
-            h->unknown_command(cookie, *pkt, add_response),
+            h->unknown_command(*cookie, *pkt, add_response),
             "Database should be empty");
 
     StoredDocKey key("key", CollectionID::Default);
@@ -6193,7 +6193,7 @@ static enum test_result test_get_random_key(EngineIface* h) {
 
     // We should be able to get one if there is something in there
     checkeq(cb::engine_errc::success,
-            h->unknown_command(cookie, *pkt, add_response),
+            h->unknown_command(*cookie, *pkt, add_response),
             "get random should work");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
     checkeq(PROTOCOL_BINARY_DATATYPE_JSON,
@@ -8425,16 +8425,15 @@ static enum test_result test_sync_write_timeout(EngineIface* h) {
 
 // Test that seqnoPersistence times out whilst idle
 static enum test_result test_seqno_persistence_timeout(EngineIface* h) {
-    auto* cookie1 = testHarness->create_cookie(h);
     const int num_items = 2;
     write_items(h, num_items, 0, "key", "somevalue");
     wait_for_flusher_to_settle(h);
 
     // Should timeout
+    MockCookie cookie;
     checkeq(cb::engine_errc::temporary_failure,
-            seqnoPersistence(h, nullptr, Vbid(0), /*seqno*/ num_items * 2),
+            seqnoPersistence(h, cookie, Vbid(0), /*seqno*/ num_items * 2),
             "Expected success for seqno persistence request");
-    testHarness->destroy_cookie(cookie1);
     return SUCCESS;
 }
 

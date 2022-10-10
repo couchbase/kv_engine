@@ -550,7 +550,7 @@ struct EngineIface {
      *
      * @return cb::engine_errc::success if all goes well
      */
-    virtual cb::engine_errc unknown_command(const CookieIface* cookie,
+    virtual cb::engine_errc unknown_command(const CookieIface& cookie,
                                             const cb::mcbp::Request& request,
                                             const AddResponseFn& response) {
         return cb::engine_errc::not_supported;

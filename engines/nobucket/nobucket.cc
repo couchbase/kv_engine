@@ -140,7 +140,7 @@ public:
     void reset_stats(const CookieIface& cookie) override {
     }
 
-    cb::engine_errc unknown_command(const CookieIface*,
+    cb::engine_errc unknown_command(const CookieIface&,
                                     const cb::mcbp::Request& request,
                                     const AddResponseFn&) override {
         return cb::engine_errc::no_bucket;

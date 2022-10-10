@@ -216,7 +216,7 @@ public:
                               std::string_view value,
                               const AddStatFn& add_stat) override;
     void reset_stats(const CookieIface& cookie) override;
-    cb::engine_errc unknown_command(const CookieIface* cookie,
+    cb::engine_errc unknown_command(const CookieIface& cookie,
                                     const cb::mcbp::Request& req,
                                     const AddResponseFn& response) override;
     bool get_item_info(const ItemIface& item, item_info& item_info) override;
@@ -1160,7 +1160,7 @@ void EWB_Engine::reset_stats(const CookieIface& cookie) {
  * underlying real engine, this is also used to configure
  * ewouldblock_engine itself using he CMD_EWOULDBLOCK_CTL opcode.
  */
-cb::engine_errc EWB_Engine::unknown_command(const CookieIface* cookie,
+cb::engine_errc EWB_Engine::unknown_command(const CookieIface& cookie,
                                             const cb::mcbp::Request& req,
                                             const AddResponseFn& response) {
     const auto opcode = req.getClientOpcode();
@@ -1212,29 +1212,29 @@ cb::engine_errc EWB_Engine::unknown_command(const CookieIface* cookie,
             break;
 
         case EWBEngineMode::BlockMonitorFile:
-            return handleBlockMonitorFile(cookie, value, key, response);
+            return handleBlockMonitorFile(&cookie, value, key, response);
 
         case EWBEngineMode::Suspend:
-            return handleSuspend(cookie, value, response);
+            return handleSuspend(&cookie, value, response);
 
         case EWBEngineMode::Resume:
-            return handleResume(cookie, value, response);
+            return handleResume(&cookie, value, response);
 
         case EWBEngineMode::SetItemCas:
-            return setItemCas(cookie, key, value, response);
+            return setItemCas(&cookie, key, value, response);
 
         case EWBEngineMode::CheckLogLevels:
-            return checkLogLevels(cookie, value, response);
+            return checkLogLevels(&cookie, value, response);
 
         case EWBEngineMode::ThrowException:
             // Reserve the cookie and schedule a release of the
             // cookie and throw an exception for the cookie
             {
                 auto* cookie_api = gsa()->cookie;
-                cookie_api->reserve(*cookie);
-                std::thread release{[cookie_api, cookie]() {
+                cookie_api->reserve(cookie);
+                std::thread release{[cookie_api, &cookie]() {
                     // This will block on the thread mutex
-                    cookie_api->release(*cookie);
+                    cookie_api->release(cookie);
                 }};
                 release.detach();
             }
@@ -1254,20 +1254,19 @@ cb::engine_errc EWB_Engine::unknown_command(const CookieIface* cookie,
                      PROTOCOL_BINARY_RAW_BYTES,
                      cb::mcbp::Status::Einval,
                      /*cas*/ 0,
-                     *cookie);
+                     cookie);
             return cb::engine_errc::failed;
         } else {
             try {
                 LOG_DEBUG(
                         "EWB_Engine::unknown_command(): Setting EWB mode "
-                        "to "
-                        "{} for cookie {}",
+                        "to {} for cookie {}",
                         new_mode->to_string(),
-                        static_cast<const void*>(cookie));
+                        static_cast<const void*>(&cookie));
 
-                connection_map.withLock([cookie, new_mode](auto& map) {
-                    map[uint64_t(&cookie->getConnectionIface())] = {cookie,
-                                                                    new_mode};
+                connection_map.withLock([&cookie, new_mode](auto& map) {
+                    map[uint64_t(&cookie.getConnectionIface())] = {&cookie,
+                                                                   new_mode};
                 });
 
                 response({},
@@ -1276,7 +1275,7 @@ cb::engine_errc EWB_Engine::unknown_command(const CookieIface* cookie,
                          PROTOCOL_BINARY_RAW_BYTES,
                          cb::mcbp::Status::Success,
                          /*cas*/ 0,
-                         *cookie);
+                         cookie);
                 return cb::engine_errc::success;
             } catch (std::bad_alloc&) {
                 return cb::engine_errc::no_memory;
@@ -1284,7 +1283,7 @@ cb::engine_errc EWB_Engine::unknown_command(const CookieIface* cookie,
         }
     } else {
         cb::engine_errc err = cb::engine_errc::success;
-        if (should_inject_error(Cmd::UNKNOWN_COMMAND, cookie, err)) {
+        if (should_inject_error(Cmd::UNKNOWN_COMMAND, &cookie, err)) {
             return err;
         } else {
             return real_engine->unknown_command(cookie, req, response);

@@ -27,7 +27,7 @@ cb::engine_errc bucket_unknown_command(Cookie& cookie,
                                        const AddResponseFn& response) {
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine().unknown_command(
-            &cookie, cookie.getRequest(), response);
+            cookie, cookie.getRequest(), response);
     if (ret == cb::engine_errc::disconnect) {
         const auto request = cookie.getRequest();
         LOG_WARNING("{}: {} {} return cb::engine_errc::disconnect",

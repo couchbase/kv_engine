@@ -352,7 +352,7 @@ void sendDcpAck(EngineIface* h,
                 uint32_t opaque);
 
 cb::engine_errc seqnoPersistence(EngineIface* h,
-                                 CookieIface* cookie,
+                                 CookieIface& cookie,
                                  Vbid vbucket,
                                  uint64_t seqno);
 

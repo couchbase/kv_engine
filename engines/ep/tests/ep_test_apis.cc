@@ -521,7 +521,7 @@ cb::engine_errc del_with_meta(EngineIface* h,
         cookie = cookieHolder.get();
     }
 
-    return h->unknown_command(cookie, *pkt, add_response_set_del_meta);
+    return h->unknown_command(*cookie, *pkt, add_response_set_del_meta);
 }
 
 void evict_key(EngineIface* h,
@@ -538,7 +538,7 @@ void evict_key(EngineIface* h,
                             {key, strlen(key)});
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     checkeq(cb::engine_errc::success,
-            h->unknown_command(cookie.get(), *pkt, add_response),
+            h->unknown_command(*cookie, *pkt, add_response),
             "Failed to perform CMD_EVICT_KEY.");
 
     if (expectError) {
@@ -568,7 +568,7 @@ void evict_key(EngineIface* h,
 }
 
 cb::engine_errc seqnoPersistence(EngineIface* h,
-                                 CookieIface* cookie,
+                                 CookieIface& cookie,
                                  Vbid vbucket,
                                  uint64_t seqno) {
     seqno = htonll(seqno);
@@ -675,7 +675,7 @@ cb::engine_errc observe(EngineIface* h, std::map<std::string, Vbid> obskeys) {
     auto request = createPacket(
             cb::mcbp::ClientOpcode::Observe, Vbid(0), 0, {}, {}, value.str());
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    return h->unknown_command(cookie.get(), *request, add_response);
+    return h->unknown_command(*cookie, *request, add_response);
 }
 
 cb::engine_errc observe_seqno(EngineIface* h, Vbid vb_id, uint64_t uuid) {
@@ -686,7 +686,7 @@ cb::engine_errc observe_seqno(EngineIface* h, Vbid vb_id, uint64_t uuid) {
     auto request = createPacket(
             cb::mcbp::ClientOpcode::ObserveSeqno, vb_id, 0, {}, {}, data.str());
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    return h->unknown_command(cookie.get(), *request, add_response);
+    return h->unknown_command(*cookie, *request, add_response);
 }
 
 void get_replica(EngineIface* h, const char* key, Vbid vbid) {
@@ -697,7 +697,7 @@ void get_replica(EngineIface* h, const char* key, Vbid vbid) {
                                 {key, strlen(key)});
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     checkeq(cb::engine_errc::success,
-            h->unknown_command(cookie.get(), *request, add_response),
+            h->unknown_command(*cookie, *request, add_response),
             "Get Replica Failed");
 }
 
@@ -791,7 +791,7 @@ bool get_all_vb_seqnos(EngineIface* h,
     }
 
     checkeq(cb::engine_errc(expectedStatus),
-            h->unknown_command(cookie, *pkt, add_response),
+            h->unknown_command(*cookie, *pkt, add_response),
             "Error in getting all vb info");
 
     return last_status == cb::mcbp::Status::Success;
@@ -888,7 +888,7 @@ static cb::engine_errc store_with_meta(EngineIface* h,
         cookie = cookieHolder.get();
     }
 
-    return h->unknown_command(cookie, *request, add_response_set_del_meta);
+    return h->unknown_command(*cookie, *request, add_response_set_del_meta);
 }
 
 cb::engine_errc set_with_meta(EngineIface* h,
@@ -976,7 +976,7 @@ static cb::engine_errc return_meta(EngineIface* h,
                          {key, keylen},
                          {val, vallen},
                          datatype);
-    return h->unknown_command(cookie, *pkt, add_response_ret_meta);
+    return h->unknown_command(*cookie, *pkt, add_response_ret_meta);
 }
 
 cb::engine_errc set_ret_meta(EngineIface* h,
@@ -1053,7 +1053,7 @@ void disable_traffic(EngineIface* h) {
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     auto pkt = createPacket(cb::mcbp::ClientOpcode::DisableTraffic);
     checkeq(cb::engine_errc::success,
-            h->unknown_command(cookie.get(), *pkt, add_response),
+            h->unknown_command(*cookie, *pkt, add_response),
             "Failed to send data traffic command to the server");
     checkeq(cb::mcbp::Status::Success,
             last_status.load(),
@@ -1064,7 +1064,7 @@ void enable_traffic(EngineIface* h) {
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     auto pkt = createPacket(cb::mcbp::ClientOpcode::EnableTraffic);
     checkeq(cb::engine_errc::success,
-            h->unknown_command(cookie.get(), *pkt, add_response),
+            h->unknown_command(*cookie, *pkt, add_response),
             "Failed to send data traffic command to the server");
     checkeq(cb::mcbp::Status::Success,
             last_status.load(),
@@ -1080,7 +1080,7 @@ void start_persistence(EngineIface* h) {
     auto pkt = createPacket(cb::mcbp::ClientOpcode::StartPersistence);
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     checkeq(cb::engine_errc::success,
-            h->unknown_command(cookie.get(), *pkt, add_response),
+            h->unknown_command(*cookie, *pkt, add_response),
             "Failed to stop persistence.");
     checkeq(cb::mcbp::Status::Success,
             last_status.load(),
@@ -1103,7 +1103,7 @@ void stop_persistence(EngineIface* h) {
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     auto pkt = createPacket(cb::mcbp::ClientOpcode::StopPersistence);
     checkeq(cb::engine_errc::success,
-            h->unknown_command(cookie.get(), *pkt, add_response),
+            h->unknown_command(*cookie, *pkt, add_response),
             "Failed to stop persistence.");
     checkeq(cb::mcbp::Status::Success,
             last_status.load(),

@@ -5825,18 +5825,17 @@ static enum test_result test_dcp_persistence_seqno(EngineIface* h) {
     write_items(h, num_items, 0, "key", "somevalue");
 
     wait_for_flusher_to_settle(h);
-
+    auto* cookie = testHarness->create_cookie(h);
     checkeq(cb::engine_errc::success,
-            seqnoPersistence(h, nullptr, Vbid(0), /*seqno*/ num_items),
+            seqnoPersistence(h, *cookie, Vbid(0), /*seqno*/ num_items),
             "Expected success for seqno persistence request");
 
     /* the test chooses to handle the EWOULDBLOCK here */
-    auto* cookie = testHarness->create_cookie(h);
     testHarness->set_ewouldblock_handling(cookie, false);
 
     /* seqno 'num_items + 1' is not yet seen buy the vbucket */
     checkeq(cb::engine_errc::would_block,
-            seqnoPersistence(h, cookie, Vbid(0), /*seqno*/ num_items + 1),
+            seqnoPersistence(h, *cookie, Vbid(0), /*seqno*/ num_items + 1),
             "Expected temp failure for seqno persistence request");
     checkeq(1,
             get_int_stat(h, "vb_0:hp_vb_req_size", "vbucket-details 0"),
@@ -5913,7 +5912,7 @@ static enum test_result test_dcp_persistence_seqno_backfillItems(
 
     /* seqno 'num_items + 1' is not yet seen by the vbucket */
     checkeq(cb::engine_errc::would_block,
-            seqnoPersistence(h, cookie, Vbid(0), /*seqno*/ num_items),
+            seqnoPersistence(h, *cookie, Vbid(0), /*seqno*/ num_items),
             "Expected temp failure for seqno persistence request");
     checkeq(1,
             get_int_stat(h, "vb_0:hp_vb_req_size", "vbucket-details 0"),

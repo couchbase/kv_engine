@@ -1136,7 +1136,7 @@ cb::engine_errc EventuallyPersistentEngine::compactDatabaseInner(
 }
 
 cb::engine_errc EventuallyPersistentEngine::processUnknownCommandInner(
-        const CookieIface* cookie,
+        const CookieIface& cookie,
         const cb::mcbp::Request& request,
         const AddResponseFn& response) {
     auto res = cb::mcbp::Status::UnknownCommand;
@@ -1146,7 +1146,7 @@ cb::engine_errc EventuallyPersistentEngine::processUnknownCommandInner(
 
     switch (request.getClientOpcode()) {
     case cb::mcbp::ClientOpcode::GetAllVbSeqnos:
-        return getAllVBucketSequenceNumbers(cookie, request, response);
+        return getAllVBucketSequenceNumbers(&cookie, request, response);
     case cb::mcbp::ClientOpcode::StopPersistence:
         res = stopFlusher(&msg, &msg_size);
         break;
@@ -1154,33 +1154,33 @@ cb::engine_errc EventuallyPersistentEngine::processUnknownCommandInner(
         res = startFlusher(&msg, &msg_size);
         break;
     case cb::mcbp::ClientOpcode::EvictKey:
-        res = evictKey(cookie, request, &msg);
+        res = evictKey(&cookie, request, &msg);
         break;
     case cb::mcbp::ClientOpcode::Observe:
-        return observe(cookie, request, response);
+        return observe(&cookie, request, response);
     case cb::mcbp::ClientOpcode::ObserveSeqno:
-        return observe_seqno(cookie, request, response);
+        return observe_seqno(&cookie, request, response);
     case cb::mcbp::ClientOpcode::SeqnoPersistence:
-        return handleSeqnoPersistence(cookie, request, response);
+        return handleSeqnoPersistence(&cookie, request, response);
     case cb::mcbp::ClientOpcode::SetWithMeta:
     case cb::mcbp::ClientOpcode::SetqWithMeta:
     case cb::mcbp::ClientOpcode::AddWithMeta:
     case cb::mcbp::ClientOpcode::AddqWithMeta:
-        return setWithMeta(cookie, request, response);
+        return setWithMeta(&cookie, request, response);
     case cb::mcbp::ClientOpcode::DelWithMeta:
     case cb::mcbp::ClientOpcode::DelqWithMeta:
-        return deleteWithMeta(cookie, request, response);
+        return deleteWithMeta(&cookie, request, response);
     case cb::mcbp::ClientOpcode::ReturnMeta:
-        return returnMeta(cookie, request, response);
+        return returnMeta(&cookie, request, response);
     case cb::mcbp::ClientOpcode::GetReplica:
-        return getReplicaCmd(request, response, cookie);
+        return getReplicaCmd(request, response, &cookie);
     case cb::mcbp::ClientOpcode::EnableTraffic:
     case cb::mcbp::ClientOpcode::DisableTraffic:
-        return handleTrafficControlCmd(cookie, request, response);
+        return handleTrafficControlCmd(&cookie, request, response);
     case cb::mcbp::ClientOpcode::GetRandomKey:
-        return getRandomKey(cookie, request, response);
+        return getRandomKey(&cookie, request, response);
     case cb::mcbp::ClientOpcode::GetKeys:
-        return getAllKeys(cookie, request, response);
+        return getAllKeys(&cookie, request, response);
     default:
         res = cb::mcbp::Status::UnknownCommand;
     }
@@ -1193,11 +1193,11 @@ cb::engine_errc EventuallyPersistentEngine::processUnknownCommandInner(
                         PROTOCOL_BINARY_RAW_BYTES,
                         res,
                         0,
-                        cookie);
+                        &cookie);
 }
 
 cb::engine_errc EventuallyPersistentEngine::unknown_command(
-        const CookieIface* cookie,
+        const CookieIface& cookie,
         const cb::mcbp::Request& request,
         const AddResponseFn& response) {
     auto engine = acquireEngine(this);

@@ -818,14 +818,14 @@ cb::engine_errc default_engine::setParameter(const CookieIface& cookie,
 }
 
 cb::engine_errc default_engine::unknown_command(
-        const CookieIface* cookie,
+        const CookieIface& cookie,
         const cb::mcbp::Request& request,
         const AddResponseFn& response) {
     bool sent;
 
     switch (request.getClientOpcode()) {
     case cb::mcbp::ClientOpcode::Scrub:
-        sent = scrub_cmd(this, cookie, response);
+        sent = scrub_cmd(this, &cookie, response);
         break;
     default:
         sent = response({},
@@ -834,7 +834,7 @@ cb::engine_errc default_engine::unknown_command(
                         PROTOCOL_BINARY_RAW_BYTES,
                         cb::mcbp::Status::UnknownCommand,
                         0,
-                        *cookie);
+                        cookie);
         break;
     }
 

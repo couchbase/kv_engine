@@ -190,7 +190,7 @@ public:
 
     void reset_stats(const CookieIface& cookie) override;
 
-    cb::engine_errc unknown_command(const CookieIface* cookie,
+    cb::engine_errc unknown_command(const CookieIface& cookie,
                                     const cb::mcbp::Request& request,
                                     const AddResponseFn& response) override;
 
@@ -1382,7 +1382,7 @@ protected:
      */
     DocKey makeDocKey(const CookieIface* cookie, cb::const_byte_buffer key);
 
-    cb::engine_errc processUnknownCommandInner(const CookieIface* cookie,
+    cb::engine_errc processUnknownCommandInner(const CookieIface& cookie,
                                                const cb::mcbp::Request& request,
                                                const AddResponseFn& response);
 
