@@ -515,7 +515,7 @@ public:
                                const cb::mcbp::Request& req,
                                const AddResponseFn& response);
 
-    cb::engine_errc getAllKeys(const CookieIface* cookie,
+    cb::engine_errc getAllKeys(const CookieIface& cookie,
                                const cb::mcbp::Request& request,
                                const AddResponseFn& response);
 
@@ -523,6 +523,7 @@ public:
 
     void setDCPPriority(const CookieIface* cookie, ConnectionPriority priority);
 
+    void notifyIOComplete(const CookieIface& cookie, cb::engine_errc status);
     void notifyIOComplete(const CookieIface* cookie, cb::engine_errc status);
     void scheduleDcpStep(const CookieIface& cookie);
 
@@ -786,7 +787,7 @@ public:
      * @param cookie the cookie that the getAllKeys() was processed for
      * @param err Engine error code of the result of getAllKeys()
      */
-    void addLookupAllKeys(const CookieIface* cookie, cb::engine_errc err);
+    void addLookupAllKeys(const CookieIface& cookie, cb::engine_errc err);
 
     /*
      * Explicitly trigger the defragmenter task. Provided to facilitate

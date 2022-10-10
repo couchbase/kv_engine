@@ -1180,7 +1180,7 @@ cb::engine_errc EventuallyPersistentEngine::processUnknownCommandInner(
     case cb::mcbp::ClientOpcode::GetRandomKey:
         return getRandomKey(&cookie, request, response);
     case cb::mcbp::ClientOpcode::GetKeys:
-        return getAllKeys(&cookie, request, response);
+        return getAllKeys(cookie, request, response);
     default:
         res = cb::mcbp::Status::UnknownCommand;
     }
@@ -4463,10 +4463,10 @@ cb::engine_errc EventuallyPersistentEngine::doSeqnoStats(
     return cb::engine_errc::success;
 }
 
-void EventuallyPersistentEngine::addLookupAllKeys(const CookieIface* cookie,
+void EventuallyPersistentEngine::addLookupAllKeys(const CookieIface& cookie,
                                                   cb::engine_errc err) {
     std::lock_guard<std::mutex> lh(lookupMutex);
-    allKeysLookups[cookie] = err;
+    allKeysLookups[&cookie] = err;
 }
 
 void EventuallyPersistentEngine::runDefragmenterTask() {
@@ -6118,7 +6118,7 @@ cb::engine_errc EventuallyPersistentEngine::returnMeta(
 }
 
 cb::engine_errc EventuallyPersistentEngine::getAllKeys(
-        const CookieIface* cookie,
+        const CookieIface& cookie,
         const cb::mcbp::Request& request,
         const AddResponseFn& response) {
     if (!getKVBucket()->isGetAllKeysSupported()) {
@@ -6127,7 +6127,7 @@ cb::engine_errc EventuallyPersistentEngine::getAllKeys(
 
     {
         std::lock_guard<std::mutex> lh(lookupMutex);
-        auto it = allKeysLookups.find(cookie);
+        auto it = allKeysLookups.find(&cookie);
         if (it != allKeysLookups.end()) {
             cb::engine_errc err = it->second;
             allKeysLookups.erase(it);
@@ -6152,15 +6152,15 @@ cb::engine_errc EventuallyPersistentEngine::getAllKeys(
         count = ntohl(*reinterpret_cast<const uint32_t*>(extras.data()));
     }
 
-    DocKey start_key = makeDocKey(cookie, request.getKey());
+    DocKey start_key = makeDocKey(&cookie, request.getKey());
     auto privTestResult =
-            checkPrivilege(cookie, cb::rbac::Privilege::Read, start_key);
+            checkPrivilege(&cookie, cb::rbac::Privilege::Read, start_key);
     if (privTestResult != cb::engine_errc::success) {
         return privTestResult;
     }
 
     std::optional<CollectionID> keysCollection;
-    if (cookie->isCollectionsSupported()) {
+    if (cookie.isCollectionsSupported()) {
         keysCollection = start_key.getCollectionID();
     }
 
@@ -6191,11 +6191,16 @@ void EventuallyPersistentEngine::notifyIOComplete(const CookieIface* cookie,
                                                   cb::engine_errc status) {
     if (cookie == nullptr) {
         EP_LOG_WARN_RAW("Tried to signal a NULL cookie!");
-    } else {
-        HdrMicroSecBlockTimer bt(&stats.notifyIOHisto);
-        NonBucketAllocationGuard guard;
-        cookie->notifyIoComplete(status);
+        return;
     }
+    notifyIOComplete(*cookie, status);
+}
+
+void EventuallyPersistentEngine::notifyIOComplete(const CookieIface& cookie,
+                                                  cb::engine_errc status) {
+    HdrMicroSecBlockTimer bt(&stats.notifyIOHisto);
+    NonBucketAllocationGuard guard;
+    cookie.notifyIoComplete(status);
 }
 
 void EventuallyPersistentEngine::scheduleDcpStep(const CookieIface& cookie) {

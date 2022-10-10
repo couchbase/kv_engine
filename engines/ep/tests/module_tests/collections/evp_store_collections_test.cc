@@ -3220,7 +3220,7 @@ cb::engine_errc CollectionsTest::sendGetKeys(std::string startKey,
     }
 
     auto request = createPacket(ClientOpcode::GetKeys, vbid, 0, exts, startKey);
-    return engine->getAllKeys(cookie, *request, response);
+    return engine->getAllKeys(*cookie, *request, response);
 }
 
 std::set<std::string> CollectionsTest::generateExpectedKeys(
