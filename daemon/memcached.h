@@ -74,10 +74,3 @@ void disconnect_bucket(Bucket& bucket, Cookie* cookie);
 void iterate_all_connections(std::function<void(Connection&)> callback);
 
 void start_stdin_listener(std::function<void()> function);
-
-/**
- * Initialise Prometheus metric server with the provided config, and enable
- * all required endpoints.
- */
-nlohmann::json prometheus_init(const std::pair<in_port_t, sa_family_t>& config,
-                               cb::prometheus::AuthCallback authCB);

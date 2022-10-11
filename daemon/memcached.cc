@@ -250,32 +250,6 @@ static bool prometheus_auth_callback(const std::string& user,
     }
 }
 
-nlohmann::json prometheus_init(const std::pair<in_port_t, sa_family_t>& config,
-                               cb::prometheus::AuthCallback authCB) {
-    auto port = cb::prometheus::initialize(config, std::move(authCB));
-
-    using cb::prometheus::IncludeTimestamps;
-    cb::prometheus::addEndpoint("/_prometheusMetrics",
-                                IncludeTimestamps::Yes,
-                                server_prometheus_stats_low);
-    cb::prometheus::addEndpoint("/_prometheusMetricsNoTS",
-                                IncludeTimestamps::No,
-                                server_prometheus_stats_low);
-    cb::prometheus::addEndpoint("/_prometheusMetricsHigh",
-                                IncludeTimestamps::Yes,
-                                server_prometheus_stats_high);
-    cb::prometheus::addEndpoint("/_prometheusMetricsHighNoTS",
-                                IncludeTimestamps::No,
-                                server_prometheus_stats_high);
-    if (isServerlessDeployment()) {
-        cb::prometheus::addEndpoint("/_metering",
-                                    IncludeTimestamps::No,
-                                    server_prometheus_metering);
-    }
-
-    return port;
-}
-
 struct thread_stats* get_thread_stats(Connection* c) {
     auto& independent_stats = c->getBucket().stats;
     return &independent_stats.at(c->getThread().index);
@@ -966,18 +940,6 @@ int memcached_main(int argc, char** argv) {
         ErrorMapManager::initialize(errormapPath);
     } catch (const std::exception& e) {
         FATAL_ERROR(EXIT_FAILURE, "Failed to load error maps: {}", e.what());
-    }
-
-    if (Settings::instance().has.prometheus_config) {
-        try {
-            prometheus_init(Settings::instance().getPrometheusConfig(),
-                            prometheus_auth_callback);
-        } catch (const std::exception& exception) {
-            // Error message already formatted in the exception
-            FATAL_ERROR(EXIT_FAILURE, "{}", exception.what());
-        }
-    } else {
-        LOG_WARNING_RAW("Prometheus config not specified");
     }
 
     LOG_INFO_RAW("Starting external authentication manager");

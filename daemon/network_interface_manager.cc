@@ -25,6 +25,37 @@
 #include <platform/strerror.h>
 #include <statistics/prometheus.h>
 
+/**
+ * Initialise Prometheus metric server with the provided config, and enable
+ * all required endpoints.
+ */
+static nlohmann::json prometheus_init(
+        const std::pair<in_port_t, sa_family_t>& config,
+        cb::prometheus::AuthCallback authCB) {
+    auto port = cb::prometheus::initialize(config, std::move(authCB));
+
+    using cb::prometheus::IncludeTimestamps;
+    cb::prometheus::addEndpoint("/_prometheusMetrics",
+                                IncludeTimestamps::Yes,
+                                server_prometheus_stats_low);
+    cb::prometheus::addEndpoint("/_prometheusMetricsNoTS",
+                                IncludeTimestamps::No,
+                                server_prometheus_stats_low);
+    cb::prometheus::addEndpoint("/_prometheusMetricsHigh",
+                                IncludeTimestamps::Yes,
+                                server_prometheus_stats_high);
+    cb::prometheus::addEndpoint("/_prometheusMetricsHighNoTS",
+                                IncludeTimestamps::No,
+                                server_prometheus_stats_high);
+    if (isServerlessDeployment()) {
+        cb::prometheus::addEndpoint("/_metering",
+                                    IncludeTimestamps::No,
+                                    server_prometheus_metering);
+    }
+
+    return port;
+}
+
 std::unique_ptr<NetworkInterfaceManager> networkInterfaceManager;
 
 NetworkInterfaceManager::NetworkInterfaceManager(
@@ -111,10 +142,16 @@ void NetworkInterfaceManager::createBootstrapInterface() {
         }
     }
 
-    if (settings.has.prometheus_config) {
-        prometheus_init(settings.getPrometheusConfig(), authCallback);
-    } else {
-        prometheus_init({0, ipv4.empty() ? AF_INET6 : AF_INET}, authCallback);
+    try {
+        if (settings.has.prometheus_config) {
+            prometheus_init(settings.getPrometheusConfig(), authCallback);
+        } else {
+            prometheus_init({0, ipv4.empty() ? AF_INET6 : AF_INET},
+                            authCallback);
+        }
+    } catch (const std::exception& exception) {
+        // Error message already formatted in the exception
+        FATAL_ERROR(EXIT_FAILURE, "{}", exception.what());
     }
 
     writeInterfaceFile(true);
