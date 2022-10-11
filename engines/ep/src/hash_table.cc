@@ -1398,6 +1398,9 @@ bool HashTable::unlocked_restoreValue(const HashBucketLock& hbl,
     const auto preProps = valueStats.prologue(hbl, &v);
 
     v.restoreValue(itm);
+    // Set the initial MFU so that the item is not immediately eligible for
+    // eviction.
+    v.setFreqCounterValue(getInitialMFU());
 
     valueStats.epilogue(hbl, preProps, &v);
 
@@ -1422,6 +1425,9 @@ void HashTable::unlocked_restoreMeta(const HashBucketLock& hbl,
     const auto preProps = valueStats.prologue(hbl, &v);
 
     v.restoreMeta(itm);
+    // Set the initial MFU so that the item is not immediately eligible for
+    // eviction.
+    v.setFreqCounterValue(getInitialMFU());
 
     valueStats.epilogue(hbl, preProps, &v);
 }
