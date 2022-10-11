@@ -59,16 +59,6 @@ struct test_harness {
     std::string bucket_type;
 
     /**
-     * The method to call notify_io_complete if one don't have a copy
-     * of the server API
-     *
-     * @param cookie the cookie to notify
-     * @param status the status code to set for the cookie
-     */
-    virtual void notify_io_complete(const CookieIface* cookie,
-                                    cb::engine_errc status) = 0;
-
-    /**
      * Create a new cookie instance
      */
     virtual CookieIface* create_cookie(EngineIface* engine) = 0;

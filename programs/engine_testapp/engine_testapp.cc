@@ -245,11 +245,6 @@ public:
         currentEngineHandle = *h = create_bucket(init, cfg);
     }
 
-    void notify_io_complete(const CookieIface* cookie,
-                            cb::engine_errc status) override {
-        cookie->notifyIoComplete(status);
-    }
-
 private:
     engine_test_t* current_testcase = nullptr;
 };

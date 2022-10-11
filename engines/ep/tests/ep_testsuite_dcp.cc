@@ -2564,7 +2564,7 @@ static enum test_result test_dcp_producer_keep_stream_open(EngineIface* h) {
     /* Before closing the connection stop the thread that continuously polls
        for dcp data */
     cdc.dcpConsumer->stop();
-    testHarness->notify_io_complete(cookie, cb::engine_errc::success);
+    cookie->notifyIoComplete(cb::engine_errc::success);
     dcp_thread.join();
     testHarness->destroy_cookie(cookie);
 
@@ -2700,7 +2700,7 @@ static enum test_result test_dcp_producer_keep_stream_open_replica(
     /* Before closing the connection stop the thread that continuously polls
        for dcp data */
     cdc.dcpConsumer->stop();
-    testHarness->notify_io_complete(cookie1, cb::engine_errc::success);
+    cookie1->notifyIoComplete(cb::engine_errc::success);
     dcp_thread.join();
 
     testHarness->destroy_cookie(cookie);
@@ -2762,7 +2762,7 @@ static enum test_result test_dcp_producer_stream_cursor_movement(
     /* Before closing the connection stop the thread that continuously polls
        for dcp data */
     cdc.dcpConsumer->stop();
-    testHarness->notify_io_complete(cookie, cb::engine_errc::success);
+    cookie->notifyIoComplete(cb::engine_errc::success);
     dcp_thread.join();
     testHarness->destroy_cookie(cookie);
 
