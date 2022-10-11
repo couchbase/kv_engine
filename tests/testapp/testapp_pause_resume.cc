@@ -111,7 +111,9 @@ TEST_P(PauseResumeTest, DeleteWhenPaused) {
 }
 
 /// Cannot Pause a bucket when already paused.
-TEST_P(PauseResumeTest, PauseFailsWhenPaused) {
+/// MB-53914: Disabled due to raciness in test / Pause command behaviour - see
+/// MB for details.
+TEST_P(PauseResumeTest, DISABLED_PauseFailsWhenPaused) {
     // Pause the bucket
     auto rsp = adminConnection->execute(BinprotPauseBucketCommand{bucketName});
     ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus()) << rsp.getDataView();
