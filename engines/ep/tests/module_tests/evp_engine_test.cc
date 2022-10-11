@@ -102,12 +102,23 @@ void EventuallyPersistentEngineTest::initializeEngine() {
 void EventuallyPersistentEngineTest::TearDown() {
     shutdownEngine();
     ExecutorPool::shutdown();
-    // Cleanup any files we created - ignore if they don't exist
-    try {
-        cb::io::rmrf(test_dbname);
-    } catch (std::system_error& e) {
-        if (e.code() != std::error_code(ENOENT, std::system_category())) {
-            throw e;
+
+    // We've seen sporadic CV failures on windows like:
+    // "cb::io::rmrf: remove of directory <directory>b\test.752202 failed:
+    // unknown error" thrown in TearDown()
+    std::filesystem::path path(test_dbname);
+    if (exists(path)) {
+        int retry = 0;
+        for (;;) {
+            try {
+                std::filesystem::remove_all(path);
+                break;
+            } catch (const std::exception& e) {
+                if (++retry == 100) {
+                    throw;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds{50});
+            }
         }
     }
 }
