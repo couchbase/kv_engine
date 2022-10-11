@@ -977,10 +977,10 @@ cb::engine_errc EventuallyPersistentEngine::setVbucketParam(
 }
 
 cb::mcbp::Status EventuallyPersistentEngine::evictKey(
-        const CookieIface* cookie,
+        const CookieIface& cookie,
         const cb::mcbp::Request& request,
         const char** msg) {
-    const auto key = makeDocKey(*cookie, request.getKey());
+    const auto key = makeDocKey(cookie, request.getKey());
     EP_LOG_DEBUG("Manually evicting object with key {}",
                  cb::UserDataView(key.to_string()));
     auto rv = kvBucket->evictKey(key, request.getVBucket(), msg);
@@ -1154,7 +1154,7 @@ cb::engine_errc EventuallyPersistentEngine::processUnknownCommandInner(
         res = startFlusher(&msg, &msg_size);
         break;
     case cb::mcbp::ClientOpcode::EvictKey:
-        res = evictKey(&cookie, request, &msg);
+        res = evictKey(cookie, request, &msg);
         break;
     case cb::mcbp::ClientOpcode::Observe:
         return observe(&cookie, request, response);

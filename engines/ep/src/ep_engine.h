@@ -604,7 +604,7 @@ public:
                                        const CompactionConfig& c,
                                        const CookieIface* cookie);
 
-    cb::mcbp::Status evictKey(const CookieIface* cookie,
+    cb::mcbp::Status evictKey(const CookieIface& cookie,
                               const cb::mcbp::Request& request,
                               const char** msg);
 
