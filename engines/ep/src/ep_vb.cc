@@ -1358,8 +1358,7 @@ std::shared_ptr<RangeScan> EPVBucket::getRangeScan(cb::rangescan::Id id) const {
 }
 
 cb::engine_errc EPVBucket::addNewRangeScan(std::shared_ptr<RangeScan> scan) {
-    return rangeScans.addNewScan(
-            std::move(scan), *this, bucket->getEPEngine().getTaskable());
+    return rangeScans.addNewScan(std::move(scan), *this, bucket->getEPEngine());
 }
 
 cb::engine_errc EPVBucket::setupCookieForRangeScan(cb::rangescan::Id id,

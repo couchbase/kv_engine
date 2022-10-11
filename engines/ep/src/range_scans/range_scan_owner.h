@@ -137,13 +137,12 @@ public:
      * @param scan to add
      * @param vb timeout task is created on demand, this is required to
      *                 create that task.
-     * @param taskable timeout task is created on demand, this is required to
-     *                 create that task.
+     * @param engine required by the timeout task
      * @return success if added
      */
     cb::engine_errc addNewScan(std::shared_ptr<RangeScan> scan,
                                EPVBucket& vb,
-                               EpEngineTaskable& taskable);
+                               EventuallyPersistentEngine& engine);
 
     /**
      * Handler for a range-scan-continue operation. Method will locate the

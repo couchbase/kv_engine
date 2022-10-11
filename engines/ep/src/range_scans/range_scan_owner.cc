@@ -112,10 +112,10 @@ void ReadyRangeScans::addStats(const StatCollector& collector) const {
 // exceed.
 class RangeScanTimeoutTask : public GlobalTask {
 public:
-    RangeScanTimeoutTask(Taskable& taskable,
+    RangeScanTimeoutTask(EventuallyPersistentEngine& engine,
                          EPVBucket& vBucket,
                          std::chrono::seconds initialSleep)
-        : GlobalTask(taskable,
+        : GlobalTask(engine,
                      TaskId::DurabilityTimeoutTask,
                      initialSleep.count(),
                      false),
@@ -168,11 +168,12 @@ VB::RangeScanOwner::~RangeScanOwner() {
     }
 }
 
-cb::engine_errc VB::RangeScanOwner::addNewScan(std::shared_ptr<RangeScan> scan,
-                                               EPVBucket& vb,
-                                               EpEngineTaskable& taskable) {
+cb::engine_errc VB::RangeScanOwner::addNewScan(
+        std::shared_ptr<RangeScan> scan,
+        EPVBucket& vb,
+        EventuallyPersistentEngine& engine) {
     Expects(readyScans);
-    if (syncData.withWLock([&scan, &vb, &taskable, this](auto& syncData) {
+    if (syncData.withWLock([&scan, &vb, &engine, this](auto& syncData) {
             auto [itr, emplaced] = syncData.rangeScans.try_emplace(
                     scan->getUuid(), std::move(scan));
             if (!syncData.timeoutTask) {
@@ -182,7 +183,7 @@ cb::engine_errc VB::RangeScanOwner::addNewScan(std::shared_ptr<RangeScan> scan,
                 // if it still exists.
                 syncData.timeoutTask = std::make_unique<EventDrivenTimeoutTask>(
                         std::make_shared<RangeScanTimeoutTask>(
-                                taskable, vb, readyScans->getMaxDuration()));
+                                engine, vb, readyScans->getMaxDuration()));
             }
 
             return emplaced;

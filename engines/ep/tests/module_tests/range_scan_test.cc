@@ -1822,7 +1822,7 @@ public:
         EXPECT_EQ(cb::engine_errc::success,
                   rangeScans.addNewScan(std::make_shared<RangeScan>(udoc),
                                         getEPVBucket(),
-                                        store->getEPEngine().getTaskable()));
+                                        store->getEPEngine()));
         return udoc;
     }
 
