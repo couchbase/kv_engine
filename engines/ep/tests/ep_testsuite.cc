@@ -8443,11 +8443,20 @@ static enum test_result test_seqno_persistence_timeout(EngineIface* h) {
 static enum test_result test_bucket_quota_reduction(EngineIface* h) {
     // Hack number 1 - We want to disable the item pager to ensure that
     // memory usage can remain high while we attempt to write a new key but
-    // we don't expose that anywhere (probably for good reason). We can get a
-    // little creative though and set NonIO threads to 0 to effectively do that.
+    // we don't expose that anywhere (probably for good reason).
     // We don't strictly need to do this before loading the data, but it does
-    // make the test less racey as memory shouldn't drop before we expect it to
-    ExecutorPool::get()->setNumNonIO(0);
+    // make the test less racey as memory shouldn't drop before we expect it to.
+    //
+    // For doing that, it is enough to disable the ItemPager periodic run at
+    // this point in the test. We are loading the system up to the LWM, so that
+    // won't trigger eviction.
+    // Note: At this point in the test we can't disable the NonIO pool for
+    // disabling the Pager, as the write_items_upto_mem_perc() call that follows
+    // relies on running the CheckpointDestroyerTask
+    set_param(h,
+              EngineParamCategory::Flush,
+              "pager_sleep_time_ms",
+              std::to_string(1000 * 60 * 60).c_str());
 
     // Write up to 75%, we need to be more than 93% (mem_mutation_threshold)
     // of the new quota (50% of the current) so anything above 50% of the
@@ -8494,6 +8503,7 @@ static enum test_result test_bucket_quota_reduction(EngineIface* h) {
     // We want to store our item now and check the return result, set NonIO
     // back to 0 to avoid ItemPager runs and the vBucket back to active.
     ExecutorPool::get()->setNumNonIO(0);
+
     set_vbucket_state(h, Vbid(0), vbucket_state_active);
     checkeq(cb::engine_errc::success,
             storeItem(),

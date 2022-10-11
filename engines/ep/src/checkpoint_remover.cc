@@ -126,7 +126,7 @@ CheckpointMemRecoveryTask::attemptNewCheckpointCreation() {
         //   open checkpoint.
         bucket.notifyReplication(vbid, SyncWriteOperation::No);
 
-        if (bucket.getRequiredCheckpointMemoryReduction() == 0) {
+        if (bucket.getRequiredCMMemoryReduction() == 0) {
             // All done
             return ReductionRequired::No;
         }
@@ -156,7 +156,7 @@ CheckpointMemRecoveryTask::attemptItemExpelling() {
                 vbid,
                 expelResult.memory);
 
-        if (bucket.getRequiredCheckpointMemoryReduction() == 0) {
+        if (bucket.getRequiredCMMemoryReduction() == 0) {
             // All done
             return ReductionRequired::No;
         }
@@ -189,7 +189,7 @@ CheckpointMemRecoveryTask::attemptCursorDropping() {
             }
             ++stats.cursorsDropped;
 
-            if (bucket.getRequiredCheckpointMemoryReduction() == 0) {
+            if (bucket.getRequiredCMMemoryReduction() == 0) {
                 // All done
                 return ReductionRequired::No;
             }
@@ -202,10 +202,14 @@ bool CheckpointMemRecoveryTask::runInner() {
     TRACE_EVENT0("ep-engine/task", "CheckpointMemRecoveryTask");
 
     auto& bucket = *engine->getKVBucket();
-
-    if (!bucket.isCheckpointMemoryReductionRequired()) {
+    const auto bytesToFree = bucket.getRequiredCMMemoryReduction();
+    if (bytesToFree == 0) {
         return true;
     }
+
+    EP_LOG_DEBUG("{} Triggering CM memory recovery - attempting to free {} MB",
+                 getDescription(),
+                 bytesToFree / (1024 * 1024));
 
     const auto wasAboveBackfillThreshold =
             bucket.isMemUsageAboveBackfillThreshold();
@@ -218,14 +222,6 @@ bool CheckpointMemRecoveryTask::runInner() {
             engine->getDcpConnMap().notifyBackfillManagerTasks();
         }
     });
-
-    const auto bytesToFree = bucket.getRequiredCheckpointMemoryReduction();
-
-    EP_LOG_DEBUG(
-            "{} Triggering checkpoint memory recovery - attempting to free {} "
-            "MB",
-            getDescription(),
-            bytesToFree / (1024 * 1024));
 
     if (attemptNewCheckpointCreation() == ReductionRequired::No) {
         // Recovered enough, done

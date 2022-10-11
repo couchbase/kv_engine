@@ -1848,7 +1848,7 @@ int write_items_upto_mem_perc(EngineIface* h,
             /* Persist all items written so far. */
             wait_for_flusher_to_settle(h);
             wait_for_stat_to_be(
-                    h, "ep_checkpoint_memory_pending_destruction", false);
+                    h, "ep_checkpoint_memory_pending_destruction", 0);
             continue;
         }
         std::string key("key" + std::to_string(num_items + start_seqno));
@@ -1861,7 +1861,7 @@ int write_items_upto_mem_perc(EngineIface* h,
             ret == cb::engine_errc::no_memory) {
             wait_for_flusher_to_settle(h);
             wait_for_stat_to_be(
-                    h, "ep_checkpoint_memory_pending_destruction", false);
+                    h, "ep_checkpoint_memory_pending_destruction", 0);
         }
         num_items++;
     }

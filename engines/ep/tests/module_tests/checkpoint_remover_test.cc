@@ -24,6 +24,8 @@
 #include "test_helpers.h"
 #include "vbucket.h"
 
+#include <folly/portability/GMock.h>
+
 void CheckpointRemoverTest::SetUp() {
     if (!config_string.empty()) {
         config_string += ";";
@@ -159,7 +161,7 @@ TEST_P(CheckpointRemoverEPTest, MemoryRecoveryTrigger) {
     EXPECT_LT(stats.getCheckpointManagerEstimatedMemUsage(),
               checkpointMemoryLimit);
     EXPECT_LT(stats.getEstimatedTotalMemoryUsed(), stats.mem_low_wat);
-    EXPECT_EQ(0, store->getRequiredCheckpointMemoryReduction());
+    EXPECT_EQ(0, store->getRequiredCMMemoryReduction());
 
     // Place a cursor to prevent eager checkpoint removal
     auto& manager = static_cast<MockCheckpointManager&>(
@@ -197,7 +199,7 @@ TEST_P(CheckpointRemoverEPTest, MemoryRecoveryTrigger) {
     EXPECT_LT(stats.getEstimatedTotalMemoryUsed(), stats.mem_low_wat);
 
     // Checkpoint mem-recovery must trigger (regardless of any LWM)
-    EXPECT_GT(store->getRequiredCheckpointMemoryReduction(), 0);
+    EXPECT_GT(store->getRequiredCMMemoryReduction(), 0);
 }
 
 // Test that we correctly determine when to stop memory recovery.
@@ -223,7 +225,7 @@ TEST_P(CheckpointRemoverEPTest, MemoryRecoveryEnd) {
     ASSERT_LT(stats.getCheckpointManagerEstimatedMemUsage(),
               checkpointMemoryLimit);
     ASSERT_LT(stats.getEstimatedTotalMemoryUsed(), stats.mem_low_wat);
-    ASSERT_EQ(0, store->getRequiredCheckpointMemoryReduction());
+    ASSERT_EQ(0, store->getRequiredCMMemoryReduction());
 
     // Now store some items so that the mem-usage in checkpoint crosses the
     // Checkpoint Quota
@@ -249,7 +251,7 @@ TEST_P(CheckpointRemoverEPTest, MemoryRecoveryEnd) {
               checkpointMemoryLimit);
     ASSERT_LT(stats.getEstimatedTotalMemoryUsed(), stats.mem_low_wat);
 
-    ASSERT_TRUE(store->isCheckpointMemoryReductionRequired());
+    ASSERT_TRUE(store->isCMMemoryReductionRequired());
 
     ASSERT_EQ(stats.itemsExpelledFromCheckpoints, 0);
 
@@ -271,7 +273,7 @@ TEST_P(CheckpointRemoverEPTest, MemoryRecoveryEnd) {
     EXPECT_LE(usage, lowerMark);
 
     // and no longer need to reduce checkpoint memory
-    EXPECT_EQ(0, store->getRequiredCheckpointMemoryReduction());
+    EXPECT_EQ(0, store->getRequiredCMMemoryReduction());
 }
 
 void CheckpointRemoverTest::testExpellingOccursBeforeCursorDropping(
@@ -325,7 +327,7 @@ void CheckpointRemoverTest::testExpellingOccursBeforeCursorDropping(
     const auto inititalNumCheckpoints = stats.getNumCheckpoints();
     EXPECT_GT(inititalNumCheckpoints, 0);
 
-    const auto memToClear = store->getRequiredCheckpointMemoryReduction();
+    const auto memToClear = store->getRequiredCMMemoryReduction();
     EXPECT_GT(memToClear, 0);
 
     if (mode == MemRecoveryMode::ItemExpelWithCursor) {
@@ -352,7 +354,7 @@ void CheckpointRemoverTest::testExpellingOccursBeforeCursorDropping(
         break;
     }
 
-    EXPECT_EQ(0, store->getRequiredCheckpointMemoryReduction());
+    EXPECT_EQ(0, store->getRequiredCMMemoryReduction());
 }
 
 // Test that we correctly apply expelling before cursor dropping.
@@ -406,7 +408,7 @@ TEST_P(CheckpointRemoverTest, MemRecoveryByCheckpointCreation) {
     config.setChkExpelEnabled(true);
     config.setMaxSize(1024 * 1024 * 100);
 
-    ASSERT_EQ(0, store->getRequiredCheckpointMemoryReduction());
+    ASSERT_EQ(0, store->getRequiredCMMemoryReduction());
 
     // Compute paylaod size such that we enter a TempOOM phase when we store
     // the second item.
@@ -417,10 +419,10 @@ TEST_P(CheckpointRemoverTest, MemRecoveryByCheckpointCreation) {
     const auto value = std::string(valueSize, 'x');
     // Store first item, no checkpoint OOM yet
     store_item(Vbid(0), makeStoredDocKey("keyA"), value);
-    EXPECT_EQ(0, store->getRequiredCheckpointMemoryReduction());
+    EXPECT_EQ(0, store->getRequiredCMMemoryReduction());
     // Store second item, Checkpoint OOM
     store_item(Vbid(1), makeStoredDocKey("keyB"), value);
-    ASSERT_GT(store->getRequiredCheckpointMemoryReduction(), 0);
+    ASSERT_GT(store->getRequiredCMMemoryReduction(), 0);
 
     // Move the cursors to the end of the open checkpoint. Step required to
     // allow checkpoint creation + cursor jumping into the new checkpoints in
@@ -448,7 +450,7 @@ TEST_P(CheckpointRemoverTest, MemRecoveryByCheckpointCreation) {
     // required at this point
     EXPECT_EQ(0, stats.itemsExpelledFromCheckpoints);
     EXPECT_GT(stats.itemsRemovedFromCheckpoints, initialRemoved);
-    EXPECT_EQ(0, store->getRequiredCheckpointMemoryReduction());
+    EXPECT_EQ(0, store->getRequiredCMMemoryReduction());
 }
 
 // Test written for MB-36366. With the fix removed this test failed because
@@ -871,12 +873,12 @@ TEST_P(CheckpointRemoverEPTest, DISABLED_CheckpointRemovalWithoutCursorDrop) {
         manager.getNextItemsForDcp(*cursor, items);
     }
 
-    ASSERT_NE(0, store->getRequiredCheckpointMemoryReduction());
+    ASSERT_NE(0, store->getRequiredCMMemoryReduction());
     ASSERT_EQ(0, engine->getEpStats().itemsExpelledFromCheckpoints);
     ASSERT_EQ(0, engine->getEpStats().itemsRemovedFromCheckpoints);
     ASSERT_EQ(0, engine->getEpStats().cursorsDropped);
 
-    ASSERT_GT(store->getRequiredCheckpointMemoryReduction(), 0);
+    ASSERT_GT(store->getRequiredCMMemoryReduction(), 0);
     const auto remover = std::make_shared<CheckpointMemRecoveryTask>(
             *engine,
             engine->getEpStats(),
@@ -885,7 +887,7 @@ TEST_P(CheckpointRemoverEPTest, DISABLED_CheckpointRemovalWithoutCursorDrop) {
     remover->run();
     getCkptDestroyerTask(vbid)->run();
 
-    EXPECT_EQ(0, store->getRequiredCheckpointMemoryReduction());
+    EXPECT_EQ(0, store->getRequiredCMMemoryReduction());
     EXPECT_EQ(0, engine->getEpStats().itemsExpelledFromCheckpoints);
     EXPECT_EQ(initialNumItems,
               engine->getEpStats().itemsRemovedFromCheckpoints);
@@ -1010,14 +1012,16 @@ TEST_P(CheckpointRemoverTest, CheckpointCreationSchedulesDcpStep) {
     ASSERT_TRUE(dcpCursor);
 
     // Store items until checkpoint mem recovery required
-    ASSERT_FALSE(store->isCheckpointMemoryReductionRequired());
+    ASSERT_FALSE(store->isCMMemoryReductionRequired());
+    // Note: Sizing the value so that surely one single queued items makes the
+    // checkpoint logically full. That ensures that we exit the for-loop in a
+    // state where the following CheckpointMemRecoveryTask run (see below) will
+    // trigger checkpoint creation.
     const std::string value(
-            engine->getCheckpointConfig().getCheckpointMaxSize() / 10, 'v');
-    for (size_t i = 0; !store->isCheckpointMemoryReductionRequired(); ++i) {
-        auto item = make_item(
-                vbid, makeStoredDocKey("key" + std::to_string(i)), value);
-        EXPECT_EQ(cb::engine_errc::success, store->set(item, cookie));
-    }
+            engine->getCheckpointConfig().getCheckpointMaxSize(), 'v');
+    auto item = make_item(vbid, makeStoredDocKey("key"), value);
+    EXPECT_EQ(cb::engine_errc::success, store->set(item, cookie));
+    ASSERT_TRUE(store->isCMMemoryReductionRequired());
     ASSERT_EQ(1, cm.getNumCheckpoints());
     const auto ckptId = cm.getOpenCheckpointId();
     ASSERT_EQ(ckptId, (*dcpCursor->getCheckpoint())->getId());
@@ -1055,6 +1059,113 @@ TEST_P(CheckpointRemoverTest, CheckpointCreationSchedulesDcpStep) {
 
     // Verify that the stream has been notified.
     EXPECT_TRUE(producer->getReadyQueue().exists(vbid));
+}
+
+TEST_P(CheckpointRemoverTest, NoCMRecoveryIfPendingDeallocEnough) {
+    // We setup a state where checkpoint mem-usage hits the CMQuota upper_mark,
+    // so checkpoint mem-releasing is necessary for exiting the TempOOM phase.
+    // But, memory usage is split half in CM and half in Destroyer. That means
+    // that deallocating checkpoints owned by Destroyers is enough for pushing
+    // the overall checkpoint mem-usage below the lower_mark.
+    // In that scenario we don't want to perform any emergency mem-recovery in
+    // CM.
+
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    // Note: We make both tasks available to run in the ExecutorPool, then in
+    // the following we can verify what's woken up and what's not.
+    scheduleCheckpointRemoverTask();
+    scheduleCheckpointDestroyerTasks();
+
+    auto vb = engine->getVBucket(vbid);
+    auto& cm = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
+    ASSERT_EQ(1, cm.getNumCheckpoints());
+
+    // The test covers both persistent/ephemeral
+    ASSERT_EQ(persistent() ? 1 : 0, cm.getNumOfCursors());
+    auto producer = createDcpProducer(cookie, IncludeDeleteTime::Yes);
+    createDcpStream(*producer);
+    ASSERT_EQ(persistent() ? 2 : 1, cm.getNumOfCursors());
+    auto stream = producer->findStream(vbid);
+    ASSERT_TRUE(stream);
+    auto dcpCursor = stream->getCursor().lock();
+    ASSERT_TRUE(dcpCursor);
+
+    // Store items until checkpoint mem recovery required
+    ASSERT_FALSE(store->isCMMemoryReductionRequired());
+    const auto& ckptConfig = engine->getCheckpointConfig();
+    ASSERT_EQ(2, ckptConfig.getMaxCheckpoints());
+    const auto valueSize = ckptConfig.getCheckpointMaxSize();
+    ASSERT_GT(valueSize, 0);
+    const std::string value(valueSize, 'v');
+    for (size_t i = 0; !store->isCMMemoryReductionRequired(); ++i) {
+        auto item = make_item(
+                vbid, makeStoredDocKey("key" + std::to_string(i)), value);
+        EXPECT_EQ(cb::engine_errc::success, store->set(item, cookie));
+    }
+    ASSERT_EQ(2, cm.getNumCheckpoints());
+
+    // Move persistence cursor - In the following we'll play with only the DCP
+    // cursor for setting up the required memory state
+    if (persistent()) {
+        flushVBucket(vbid);
+    }
+
+    // DCP cursor hasn't move yet
+    ASSERT_LT((*dcpCursor->getCheckpoint())->getId(), cm.getOpenCheckpointId());
+    // No checkpoint removed
+    ASSERT_EQ(2, cm.getNumCheckpoints());
+    const auto& bucket = *engine->getKVBucket();
+    ASSERT_EQ(0, bucket.getNumCheckpointsPendingDestruction());
+
+    // Run DCP - cursor processes the full first checkpoint and jumps into the
+    // second one
+    stream->nextCheckpointItemTask();
+    EXPECT_EQ(cm.getOpenCheckpointId(), (*dcpCursor->getCheckpoint())->getId());
+    EXPECT_EQ(queue_op::empty, (*dcpCursor->getPos())->getOperation());
+    EXPECT_EQ(0, dcpCursor->getDistance());
+
+    // DCP cursor jump has removed the closed/unref checkpoint from CM to
+    // Destroyer
+    ASSERT_EQ(1, cm.getNumCheckpoints());
+    ASSERT_EQ(1, bucket.getNumCheckpointsPendingDestruction());
+
+    // *Test mem-recovery behaviour*
+    // CM + Destroyer mem usage has hit the upper_mark, but half of the
+    // allocation is in Destroyer. That means that the amount releasable by
+    // Destroyer is enough for pushing the overall checkpoint mem-usage down to
+    // lower_mark. Thus, we don't need to run any CM mem-recovery.
+    const auto& stats = engine->getEpStats();
+    ASSERT_GE(stats.getCheckpointManagerEstimatedMemUsage() +
+                      bucket.getCheckpointPendingDestructionMemoryUsage(),
+              bucket.getCMRecoveryUpperMarkBytes());
+    ASSERT_GT(bucket.getCheckpointPendingDestructionMemoryUsage(),
+              bucket.getCMRecoveryUpperMarkBytes() -
+                      bucket.getCMRecoveryLowerMarkBytes());
+    ASSERT_EQ(0, bucket.getRequiredCMMemoryReduction());
+
+    // *Test frontend behaviour*
+    // We hit CMQuota and we are waiting for checkpoint deallocation. We have to
+    // reject operations.
+    auto item = make_item(vbid, makeStoredDocKey("rejected-key"), value);
+    EXPECT_EQ(cb::engine_errc::no_memory, store->set(item, cookie));
+
+    // Recover
+    auto& nonIO = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    ASSERT_GT(bucket.getCheckpointPendingDestructionMemoryUsage(), 0);
+    runNextTask(nonIO, "Destroying closed unreferenced checkpoints");
+    ASSERT_EQ(0, bucket.getCheckpointPendingDestructionMemoryUsage());
+
+    // Note: There was only the Destroyer in the queue, no CM recovery task
+    // woken up in the previous steps
+    try {
+        runNextTask(nonIO);
+        FAIL() << "Expected nothing ready to run in the NonIO queue";
+    } catch (const std::logic_error& e) {
+        EXPECT_THAT(e.what(), testing::HasSubstr("failed fetchNextTask"));
+    }
+
+    // Now we have recovered from TempOOM
+    EXPECT_EQ(cb::engine_errc::success, store->set(item, cookie));
 }
 
 INSTANTIATE_TEST_SUITE_P(

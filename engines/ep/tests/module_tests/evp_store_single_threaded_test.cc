@@ -5301,6 +5301,7 @@ void SingleThreadedKVBucketTest::testExpiryObservesCMQuota(
     }
     flushAndRemoveCheckpoints(vbid);
     flushAndExpelFromCheckpoints(vbid);
+    runCheckpointDestroyer(vbid);
     EXPECT_EQ(KVBucket::CheckpointMemoryState::Available,
               store->getCheckpointMemoryState());
 
@@ -5411,6 +5412,7 @@ TEST_P(STParameterizedBucketTest, CheckpointMemThresholdEnforced_Del) {
     }
     flushAndRemoveCheckpoints(vbid);
     flushAndExpelFromCheckpoints(vbid);
+    runCheckpointDestroyer(vbid);
     EXPECT_EQ(KVBucket::CheckpointMemoryState::Available,
               store->getCheckpointMemoryState());
 

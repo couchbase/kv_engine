@@ -2984,14 +2984,19 @@ KVBucket::CheckpointMemoryState KVBucket::getCheckpointMemoryState() const {
     const auto checkpointQuota = stats.getMaxDataSize() * checkpointMemoryRatio;
     const auto recoveryThreshold =
             checkpointQuota * checkpointMemoryRecoveryUpperMark;
-    const auto usage = stats.getCheckpointManagerEstimatedMemUsage();
+    const auto usage = stats.getCheckpointManagerEstimatedMemUsage() +
+                       getCheckpointPendingDestructionMemoryUsage();
 
     if (usage < recoveryThreshold) {
         return CheckpointMemoryState::Available;
     } else if (usage < checkpointQuota) {
-        return CheckpointMemoryState::HighAndNeedsRecovery;
+        return isCMMemoryReductionRequired()
+                       ? CheckpointMemoryState::HighAndNeedsRecovery
+                       : CheckpointMemoryState::High;
     } else {
-        return CheckpointMemoryState::FullAndNeedsRecovery;
+        return isCMMemoryReductionRequired()
+                       ? CheckpointMemoryState::FullAndNeedsRecovery
+                       : CheckpointMemoryState::Full;
     }
 
     folly::assume_unreachable();
@@ -3025,38 +3030,45 @@ size_t KVBucket::getCMRecoveryLowerMarkBytes() const {
     return getCMQuota() * checkpointMemoryRecoveryLowerMark;
 }
 
-size_t KVBucket::getRequiredCheckpointMemoryReduction() const {
+size_t KVBucket::getRequiredCMMemoryReduction() const {
     const auto recoveryThreshold = getCMRecoveryUpperMarkBytes();
-    const auto usage = stats.getCheckpointManagerEstimatedMemUsage();
     const auto recoveryTarget = getCMRecoveryLowerMarkBytes();
+    const auto cmUsage = stats.getCheckpointManagerEstimatedMemUsage();
+    const auto pendingDealloc = getCheckpointPendingDestructionMemoryUsage();
+    const auto usage = cmUsage + pendingDealloc;
 
     if (usage <= recoveryTarget) {
         return 0;
     }
 
-    const size_t amountOfMemoryToClear = usage - recoveryTarget;
+    const size_t toClear = usage - recoveryTarget;
+
+    if (toClear <= pendingDealloc) {
+        return 0;
+    }
+
+    const size_t cmToClear = toClear - pendingDealloc;
 
     const auto toMB = [](size_t bytes) { return bytes / (1024 * 1024); };
     EP_LOG_DEBUG(
-            "Triggering memory recovery as checkpoint memory usage ({} MB) "
-            "exceeds the upper_mark ({}, "
-            "{} MB) - total checkpoint quota {}, {} MB . Attempting to free {} "
-            "MB of memory.",
+            "Triggering memory recovery as CM memory usage ({} MB) plus "
+            "detached checkpoint usage ({} MB) ({} MB in total) exceeds the "
+            "upper_mark ({}, {} MB) - total checkpoint quota {}, {} MB . "
+            "Attempting to free {} MB of memory.",
+            toMB(cmUsage),
+            toMB(pendingDealloc),
             toMB(usage),
             checkpointMemoryRecoveryUpperMark,
             toMB(recoveryThreshold),
             checkpointMemoryRatio,
             toMB(getCMQuota()),
-            toMB(amountOfMemoryToClear));
+            toMB(cmToClear));
 
-    return amountOfMemoryToClear;
+    return cmToClear;
 }
 
-bool KVBucket::isCheckpointMemoryReductionRequired() const {
-    const auto recoveryThreshold = getCMRecoveryUpperMarkBytes();
-    const auto usage = stats.getCheckpointManagerEstimatedMemUsage();
-
-    return usage > recoveryThreshold;
+bool KVBucket::isCMMemoryReductionRequired() const {
+    return getRequiredCMMemoryReduction() > 0;
 }
 
 KVBucket::CheckpointDestroyer KVBucket::getCkptDestroyerTask(Vbid vbid) const {

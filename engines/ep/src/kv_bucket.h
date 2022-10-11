@@ -864,11 +864,28 @@ public:
      */
     size_t getVBMapSize() const;
 
+    // Result type of *CheckpointMemoryState() calls. Informs the caller on
+    // whether frontend ops can be accepted or rejected and on whether memory
+    // recovery needs to be triggered on CheckpointManager.
+    // Note that information on Checkpoint mem-state accounts for both
+    // checkpoints in CM and Destroyer.
     enum class CheckpointMemoryState : uint8_t {
+        // Mem alloc below the limit, nothing to recover, frontend ops accepted.
         Available,
+        // Mem usage has hit the upper_mark - Frontend ops are still accepted.
+        // Alloc in Destroyer doesn't cover the amount of memory that needs to
+        // be released for dropping the mem usage down to lower_mark, thus we
+        // need to trigger mem-recovery in CM.
         HighAndNeedsRecovery,
+        // Mem usage has hit the upper_mark - Frontend ops are still accepted.
+        // Alloc in Destroyer covers the (upper_mark - lower_mark) size, thus
+        // no need to trigger mem-recovery in CM.
         High,
+        // Mem usage has hit the CheckpointQuota - Frontend ops are rejected.
+        // Same mem-recovery behaviour as HighAndNeedsRecovery.
         FullAndNeedsRecovery,
+        // Mem usage has hit the CheckpointQuota - Frontend ops are rejected.
+        // Same mem-recovery behaviour as High.
         Full
     };
 
@@ -914,34 +931,39 @@ public:
      * computed memory reduction target. Everything is based on the Checkpoint
      * Quota and the memory-recovery triggers in configuration.
      *
-     * The following diagram depicts the bucket memory where Q is the bucket
+     * The following diagram depicts the bucket memory where B is the bucket
      * quota and the labelled vertical lines each show thresholds/stats used in
      * deciding if memory reduction is needed.
      *
-     * 0                                                                      Q
-     * ├──────────────┬────────────┬───┬───────┬──────────────────────────────┤
-     * │              │            │   │       │                              │
-     * │              │            │   │       │                              │
-     * └──────────────▼────────────▼───▼───────▼──────────────────────────────┘
-     *                A            B   X       C
+     * 0 <---                      Bucket Quota                          ---> B
+     * ├──────────────────────────────────────────────────────────────────────┤
+     * │                                                                      │
+     * └──────────────────────────────────────────────────────────────────────┘
+     * | <---       Checkpoint Quota      ---> Q
+     * │   ┆      │              │      ┆      │
+     * │   ┆      │              │      ┆      │
+     * └───▼────────────────────────────▼──────┘
+     *     D      L              U      X
      *
-     * A = checkpoint_memory_recovery_lower_mark
-     * B = checkpoint_memory_recovery_upper_mark
-     * C = checkpoints quota (as defined by checkpoint_memory_ratio)
+     * D = current memory used by ckpts detached to Destroyers (pending dealloc)
+     * L = checkpoint_memory_recovery_lower_mark
+     * U = checkpoint_memory_recovery_upper_mark
+     * Q = checkpoints quota (as defined by checkpoint_memory_ratio)
      * X = current checkpoint memory used
-     * Q = bucket quota
+     *     (accounts for both ckpts in CM and ckpts detached to Destroyers)
+     * B = bucket quota
      *
-     * This function will return (X - A) as the target amount to free.
+     * This function will return (X - L - D) as the target amount to free.
      *
-     * @return a calculated memory reduction target (in bytes) - 0 if checkpoint
-     *  memory is not above the low mark
+     * @return the calculated memory reduction target (in bytes) if positive, 0
+     *  otherwise
      */
-    size_t getRequiredCheckpointMemoryReduction() const;
+    size_t getRequiredCMMemoryReduction() const;
 
     /**
-     * Check if checkpoint memory usage exceeds the high mark.
+     * Check if checkpoint memory usage in CM exceeds the high mark.
      */
-    bool isCheckpointMemoryReductionRequired() const;
+    bool isCMMemoryReductionRequired() const;
 
     /**
      * Schedule destructoin of the given checkpoints for vbid.
