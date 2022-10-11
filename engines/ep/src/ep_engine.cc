@@ -158,8 +158,8 @@ static cb::engine_errc sendResponse(const AddResponseFn& response,
                                     uint8_t datatype,
                                     cb::mcbp::Status status,
                                     uint64_t cas,
-                                    const CookieIface* cookie) {
-    if (response(key, ext, body, datatype, status, cas, *cookie)) {
+                                    const CookieIface& cookie) {
+    if (response(key, ext, body, datatype, status, cas, cookie)) {
         return cb::engine_errc::success;
     }
     return cb::engine_errc::failed;
@@ -176,14 +176,14 @@ static cb::engine_errc sendResponse(const AddResponseFn& response,
                                     uint8_t datatype,
                                     cb::mcbp::Status status,
                                     uint64_t cas,
-                                    const CookieIface* cookie) {
+                                    const CookieIface& cookie) {
     if (response(std::string_view(key),
                  ext,
                  body,
                  datatype,
                  status,
                  cas,
-                 *cookie)) {
+                 cookie)) {
         return cb::engine_errc::success;
     }
 
@@ -1094,7 +1094,7 @@ cb::engine_errc EventuallyPersistentEngine::getReplicaCmd(
                 rv.item->getDataType(),
                 cb::mcbp::Status::Success,
                 rv.item->getCas(),
-                cookie);
+                *cookie);
     } else if (error_code == cb::engine_errc::temporary_failure) {
         return cb::engine_errc::no_such_key;
     }
@@ -1193,7 +1193,7 @@ cb::engine_errc EventuallyPersistentEngine::processUnknownCommandInner(
                         PROTOCOL_BINARY_RAW_BYTES,
                         res,
                         0,
-                        &cookie);
+                        cookie);
 }
 
 cb::engine_errc EventuallyPersistentEngine::unknown_command(
@@ -1702,7 +1702,7 @@ cb::engine_errc EventuallyPersistentEngine::get_collection_manifest(
                          PROTOCOL_BINARY_DATATYPE_JSON,
                          rv.first,
                          0,
-                         &cookie));
+                         cookie));
 }
 
 cb::EngineErrorGetCollectionIDResult
@@ -5158,7 +5158,7 @@ cb::engine_errc EventuallyPersistentEngine::observe(
                         PROTOCOL_BINARY_RAW_BYTES,
                         cb::mcbp::Status::Success,
                         persist_time,
-                        cookie);
+                        *cookie);
 }
 
 cb::engine_errc EventuallyPersistentEngine::observe_seqno(
@@ -5230,7 +5230,7 @@ cb::engine_errc EventuallyPersistentEngine::observe_seqno(
                         PROTOCOL_BINARY_RAW_BYTES,
                         cb::mcbp::Status::Success,
                         0,
-                        cookie);
+                        *cookie);
 }
 
 VBucketPtr EventuallyPersistentEngine::getVBucket(Vbid vbucket) const {
@@ -5300,7 +5300,7 @@ cb::engine_errc EventuallyPersistentEngine::handleSeqnoPersistence(
                         PROTOCOL_BINARY_RAW_BYTES,
                         status,
                         0,
-                        cookie);
+                        *cookie);
 }
 
 cb::EngineErrorMetadataPair EventuallyPersistentEngine::getMetaInner(
@@ -5945,7 +5945,7 @@ cb::engine_errc EventuallyPersistentEngine::handleTrafficControlCmd(
                         PROTOCOL_BINARY_RAW_BYTES,
                         cb::mcbp::Status::Success,
                         0,
-                        &cookie);
+                        cookie);
 }
 
 bool EventuallyPersistentEngine::isDegradedMode() const {
@@ -6115,7 +6115,7 @@ cb::engine_errc EventuallyPersistentEngine::returnMeta(
                         datatype,
                         cb::mcbp::Status::Success,
                         cas,
-                        cookie);
+                        *cookie);
 }
 
 cb::engine_errc EventuallyPersistentEngine::getAllKeys(
@@ -6244,7 +6244,7 @@ cb::engine_errc EventuallyPersistentEngine::getRandomKey(
                 it->getDataType(),
                 cb::mcbp::Status::Success,
                 it->getCas(),
-                cookie);
+                *cookie);
     }
 
     return ret;
@@ -6600,7 +6600,7 @@ cb::engine_errc EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
                         PROTOCOL_BINARY_RAW_BYTES,
                         cb::mcbp::Status::Success,
                         0,
-                        cookie);
+                        *cookie);
 }
 
 cb::engine_errc EventuallyPersistentEngine::doGetAllVbSeqnosPrivilegeCheck(
@@ -6665,7 +6665,7 @@ cb::engine_errc EventuallyPersistentEngine::sendErrorResponse(
                         PROTOCOL_BINARY_RAW_BYTES,
                         status,
                         cas,
-                        cookie);
+                        *cookie);
 }
 
 cb::engine_errc EventuallyPersistentEngine::sendMutationExtras(
@@ -6692,7 +6692,7 @@ cb::engine_errc EventuallyPersistentEngine::sendMutationExtras(
                         PROTOCOL_BINARY_RAW_BYTES,
                         status,
                         cas,
-                        cookie);
+                        *cookie);
 }
 
 std::unique_ptr<KVBucket> EventuallyPersistentEngine::makeBucket(
