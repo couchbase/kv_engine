@@ -21,6 +21,7 @@
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <cstring>
+#include <utility>
 
 static std::array<const ssize_t, 31> prime_size_table{
         {3,        7,         13,        23,        47,        97,
@@ -107,11 +108,16 @@ StoredValue* HashTable::FindUpdateResult::selectSVForRead(
                               pending.getSV());
 }
 
+uint8_t HashTable::defaultGetInitialMFU() {
+    return Item::initialFreqCount;
+}
+
 HashTable::HashTable(EPStats& st,
                      std::unique_ptr<AbstractStoredValueFactory> svFactory,
                      size_t initialSize,
                      size_t locks,
                      double freqCounterIncFactor,
+                     std::function<uint8_t()> getInitialMFU,
                      ShouldTrackMFUCallback shouldTrackMfuCallback)
     : initialSize(initialSize),
       size(initialSize),
@@ -123,7 +129,8 @@ HashTable::HashTable(EPStats& st,
       numEjects(0),
       numResizes(0),
       maxDeletedRevSeqno(0),
-      probabilisticCounter(freqCounterIncFactor) {
+      probabilisticCounter(freqCounterIncFactor),
+      getInitialMFU(std::move(getInitialMFU)) {
     values.resize(size);
     activeState = true;
 }
@@ -480,6 +487,14 @@ StoredValue* HashTable::unlocked_addNewStoredValue(const HashBucketLock& hbl,
 
     // Create a new StoredValue and link it into the head of the bucket chain.
     auto v = (*valFact)(itm, std::move(values[hbl.getBucketNum()]));
+
+    if (auto initialMFU = itm.getFreqCounterValue()) {
+        v->setFreqCounterValue(*initialMFU);
+    } else {
+        // initialise the MFU to a value derived from the distribution of the
+        // MFU of existing items
+        v->setFreqCounterValue(getInitialMFU());
+    }
 
     valueStats.epilogue(hbl, emptyProperties, v.get().get());
 

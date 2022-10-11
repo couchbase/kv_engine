@@ -29,6 +29,7 @@
 class CheckpointDestroyerTask;
 class BucketQuotaChangeTask;
 class DurabilityCompletionTask;
+class InitialMFUTask;
 class NotifiableTask;
 class ReplicationThrottle;
 class SeqnoPersistenceNotifyTask;
@@ -1028,6 +1029,22 @@ public:
     /// @return true if the configuration defines retention seconds or size
     bool isHistoryRetentionEnabled() const;
 
+    /**
+     * Set the initial MFU used by items which are stored or bgfetched.
+     *
+     * Updated by InitialMFUTask based on the distribution of MFU values
+     * from all vbuckets.
+     */
+    void setInitialMFU(uint8_t mfu);
+
+    /**
+     * Get the initial MFU items stored or bgfetched should be populated with.
+     *
+     * This is tuned to avoid newly resident items being immediately evicted
+     * to allow time for the MFU to be updated by accesses.
+     */
+    uint8_t getInitialMFU() const;
+
 protected:
     /**
      * Get the checkpoint destroyer task responsible for checkpoints from the
@@ -1050,6 +1067,9 @@ protected:
 
     /// Helper method from initialize() to setup the expiry pager
     void initializeExpiryPager(Configuration& config);
+
+    /// Helper method from initialize() to setup the initial MFU task
+    void initializeInitialMfuUpdater(Configuration& config);
 
     /// Factory method to create a VBucket count visitor of the correct type.
     virtual std::unique_ptr<VBucketCountVisitor> makeVBCountVisitor(
@@ -1124,6 +1144,12 @@ protected:
 
     VBucketMap                      vbMap;
     ExTask itemPagerTask;
+
+    // task responsible for periodically updating the initial MFU
+    std::shared_ptr<InitialMFUTask> initialMfuUpdaterTask;
+    // initial MFU value set in item when stored or bgfetched into
+    // memory.
+    cb::RelaxedAtomic<uint8_t> initialMfuValue;
 
     // Checkpoint recovery tasks. The number is determined by config param
     std::vector<std::shared_ptr<NotifiableTask>> chkRemovers;

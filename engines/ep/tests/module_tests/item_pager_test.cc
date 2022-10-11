@@ -1242,6 +1242,18 @@ TEST_P(STItemPagerTest, ActiveEvictedIfReplicaEvictionInsufficient) {
         GTEST_SKIP();
     }
 
+    // populating items with a default MFU of 0 allows all items to be evicted
+    // in one pass. Without this, some items may not be evicted because:
+    //  * learning item eviction defaults to an MFU threshold of 0 until
+    //    _after_ an item has been visited
+    //  * item age is considered to protect the lowest X% of items. an MFU of
+    //    0 is below the default value of
+    //    item_eviction_freq_counter_age_threshold
+    //    so age will be ignored.
+    // As mfu distribution learning and age are not under test here, this
+    // simplifies this test and makes it less brittle.
+    store->setInitialMFU(0);
+
     auto activeVB = Vbid(0);
     auto replicaVB = Vbid(1);
 
@@ -1543,7 +1555,7 @@ TEST_P(STItemPagerTest, ItemPagerUpdatesMFUHistogram) {
 
     // Set a specific MFU for ease of testing
     auto startMFU = uint8_t(123);
-    item.setFreqCounterValue(startMFU);
+    store->setInitialMFU(startMFU);
     ASSERT_EQ(cb::engine_errc::success, storeItem(item));
     flushAndExpelFromCheckpoints(vbid);
 

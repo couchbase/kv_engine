@@ -364,6 +364,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/hlc.cc
             src/mfu_only_item_eviction.cc
             src/htresizer.cc
+            src/initial_mfu_task.cc
             src/item.cc
             src/item_compressor.cc
             src/item_compressor_visitor.cc

@@ -103,6 +103,7 @@ cb_add_test_executable(ep-engine_ep_unit_tests
         module_tests/hash_table_perspective_test.cc
         module_tests/hash_table_test.cc
         module_tests/hlc_test.cc
+        module_tests/initial_mfu_test.cc
         module_tests/item_compressor_test.cc
         module_tests/item_eviction_test.cc
         module_tests/item_pager_test.cc

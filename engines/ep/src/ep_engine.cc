@@ -671,6 +671,10 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
         } else if (key == "item_eviction_freq_counter_age_threshold") {
             configuration.setItemEvictionFreqCounterAgeThreshold(
                     std::stoull(val));
+        } else if (key == "item_eviction_initial_mfu_percentile") {
+            configuration.setItemEvictionInitialMfuPercentile(std::stoul(val));
+        } else if (key == "item_eviction_initial_mfu_update_interval") {
+            configuration.setItemEvictionInitialMfuUpdateInterval(std::stof(val));
         } else if (key == "item_freq_decayer_chunk_duration") {
             configuration.setItemFreqDecayerChunkDuration(std::stoull(val));
         } else if (key == "item_freq_decayer_percent") {

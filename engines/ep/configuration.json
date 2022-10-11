@@ -653,7 +653,7 @@
         },
         "item_eviction_age_percentage": {
             "default": "30",
-            "descr": "The age percentage used when determining the age threshold in the hifi_mfu eviction policy.",
+            "descr": "The age percentage used when determining the age threshold in the learning_age_and_mfu eviction policy.",
             "dynamic": true,
             "type": "size_t",
             "validator": {
@@ -677,7 +677,7 @@
         },
         "item_eviction_strategy": {
             "default": "upfront_mfu_only",
-            "descr": "Strategy used by eviction to select items to evict. May be based solely on item hotness (upfront_mfu_only) or may learn the distribution of age and hotness (learning_age_and_mfu)",
+            "descr": "Strategy used by eviction to select items to evict. May be based solely on item hotness (upfront_mfu_only) or may learn the distribution of age and hotness (learning_age_and_mfu). In the case of learning_age_and_mfu, the initial item hotness value is always fixed regardless of the initial_mfu_percentile setting.",
             "dynamic": true,
             "type": "std::string",
             "validator": {
@@ -685,6 +685,29 @@
                     "upfront_mfu_only",
                     "learning_age_and_mfu"
                 ]
+            }
+        },
+        "item_eviction_initial_mfu_percentile": {
+            "default": "50",
+            "descr": "Percentile of existing item MFU distribution to use to determine the MFU to give to new items (0 would insert new items with MFU equal to that of the coldest item present; 100 to that of hottest item present) for the upfront_mfu_only eviction strategy.",
+            "dynamic": true,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "min": 0,
+                    "max": 100
+                }
+            }
+        },
+        "item_eviction_initial_mfu_update_interval": {
+            "default": "1",
+            "descr": "Time between updates of the initial MFU given to new items (seconds)",
+            "dynamic": true,
+            "type": "float",
+            "validator": {
+                "range": {
+                    "min": 1
+                }
             }
         },
         "item_freq_decayer_chunk_duration": {

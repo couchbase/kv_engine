@@ -205,14 +205,20 @@ VBucket::VBucket(Vbid i,
                  const nlohmann::json* replTopology,
                  uint64_t maxVisibleSeqno,
                  uint64_t maxPrepareSeqno)
-    : ht(st,
-         std::move(valFact),
-         config.getHtSize(),
-         config.getHtLocks(),
-         config.getFreqCounterIncrementFactor(),
-         [this](const HashTable::HashBucketLock& lh, const StoredValue& v) {
-             return this->isEligibleForEviction(lh, v);
-         }),
+    : ht(
+              st,
+              std::move(valFact),
+              config.getHtSize(),
+              config.getHtLocks(),
+              config.getFreqCounterIncrementFactor(),
+              [this] {
+                  return this->bucket ? this->bucket->getInitialMFU()
+                                      : HashTable::defaultGetInitialMFU();
+              },
+              [this](const HashTable::HashBucketLock& lh,
+                     const StoredValue& v) {
+                  return this->isEligibleForEviction(lh, v);
+              }),
       failovers(std::move(table)),
       opsCreate(0),
       opsDelete(0),

@@ -215,6 +215,16 @@ public:
     // forward decl.
     class HashBucketLock;
 
+    // Callback type used to decide the initial frequency count of a
+    // StoredValue. This callback will be provided from the vbucket at
+    // construction time.
+    using GetInitialMFUCallback = std::function<uint8_t()>;
+
+    // default callback used to determine the initial MFU to use for
+    // new items. Used in tests which neither care about, nor have the
+    // machinery for, an accurately updated initial MFU.
+    static uint8_t defaultGetInitialMFU();
+
     // Callback type used to check if a stored value should have its MFU
     // recorded in a histogram. As this decision is vb-level logic, this
     // callback is provided from the vbucket.
@@ -478,6 +488,8 @@ public:
      * @param locks the number of locks in the hash table
      * @param freqCounterIncFactor The increment factor for the frequency
      *        counters
+     * @param getInitialMFU callback to retrieve the frequency counter which
+     *        should be used for newly added items
      * @param shouldTrackMfuCallback callback used to check if a value can be
      *        evicted from the HashTable safely.
      */
@@ -486,6 +498,7 @@ public:
               size_t initialSize,
               size_t locks,
               double freqCounterIncFactor,
+              GetInitialMFUCallback getInitialMFU = defaultGetInitialMFU,
               ShouldTrackMFUCallback shouldTrackMfuCallback =
                       defaultShouldTrackMFUCallback);
 
@@ -1507,6 +1520,17 @@ protected:
     // Warmup::createVBuckets we should set the function to the task
     // responsible for waking the ItemFreqDecayer task.
     std::function<void()> frequencyCounterSaturated{[]() {}};
+
+    /**
+     * Callback provided to fetch the frequency counter which should be set
+     * on newly stored items.
+     *
+     * This allows the counter "starting point" to be updated over time.
+     * the distribution of MFUs will change; a fixed starting value would
+     * penalise new items (e.g., everything else is >100, but new items are
+     * stored at 4).
+     */
+    std::function<uint8_t()> getInitialMFU;
 
     int getBucketForHash(int h) {
         return abs(h % static_cast<int>(size));

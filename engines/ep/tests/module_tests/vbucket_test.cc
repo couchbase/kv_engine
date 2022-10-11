@@ -852,7 +852,7 @@ TEST_P(MFUTrackingTest, bgfetchedDeletedItem) {
         // temp items _can_ be evicted and should be reflected in the MFU
         // histogram immediately
         EXPECT_EQ(1, hist.getNumberOfSamples());
-        EXPECT_EQ(1, hist[0]);
+        EXPECT_EQ(1, hist[sv->getFreqCounterValue()]);
     } else {
         // temp initial item not eligible for eviction
         EXPECT_TRUE(hist.empty());

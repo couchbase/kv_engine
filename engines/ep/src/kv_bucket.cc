@@ -33,6 +33,7 @@
 #include "failover-table.h"
 #include "flusher.h"
 #include "htresizer.h"
+#include "initial_mfu_task.h"
 #include "item.h"
 #include "item_compressor.h"
 #include "item_freq_decayer.h"
@@ -294,6 +295,7 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     : engine(theEngine),
       stats(engine.getEpStats()),
       vbMap(*this),
+      initialMfuValue(Item::initialFreqCount),
       defragmenterTask(nullptr),
       itemCompressorTask(nullptr),
       itemFreqDecayerTask(nullptr),
@@ -444,8 +446,8 @@ bool KVBucket::initialize() {
     if ((config.getBucketType() == "ephemeral") || (!config.isWarmup())) {
         reset();
     }
-
     initializeExpiryPager(config);
+    initializeInitialMfuUpdater(config);
 
     ExTask htrTask = std::make_shared<HashtableResizerTask>(*this, 10);
     ExecutorPool::get()->schedule(htrTask);
@@ -2630,6 +2632,14 @@ void KVBucket::notifyReplication(const Vbid vbid,
     engine.getDcpConnMap().notifyVBConnections(vbid, syncWrite);
 }
 
+void KVBucket::setInitialMFU(uint8_t mfu) {
+    initialMfuValue = mfu;
+}
+
+uint8_t KVBucket::getInitialMFU() const {
+    return initialMfuValue;
+}
+
 void KVBucket::initializeExpiryPager(Configuration& config) {
     expiryPagerTask = std::make_shared<ExpiredItemPager>(
             engine,
@@ -2651,6 +2661,18 @@ void KVBucket::initializeExpiryPager(Configuration& config) {
     config.addValueChangedListener(
             "exp_pager_initial_run_time",
             std::make_unique<EPStoreValueChangeListener>(*this));
+}
+
+void KVBucket::initializeInitialMfuUpdater(Configuration& config) {
+    initialMfuUpdaterTask = std::make_shared<InitialMFUTask>(engine);
+    ExecutorPool::get()->schedule(initialMfuUpdaterTask);
+
+    config.addAndNotifyValueChangedCallback(
+            "item_eviction_strategy", [this](std::string_view) {
+                // Task requires to be woken up manually when the eviction
+                // strategy changes.
+                ExecutorPool::get()->wake(initialMfuUpdaterTask->getId());
+            });
 }
 
 cb::engine_error KVBucket::setCollections(std::string_view manifest,

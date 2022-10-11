@@ -371,6 +371,10 @@ void KVBucketTest::initializeExpiryPager() {
     store->initializeExpiryPager(engine->getConfiguration());
 }
 
+void KVBucketTest::initializeInitialMfuUpdater() {
+    store->initializeInitialMfuUpdater(engine->getConfiguration());
+}
+
 void KVBucketTest::scheduleCheckpointRemoverTask() {
     for (auto& task : store->chkRemovers) {
         ExecutorPool::get()->schedule(task);
@@ -614,6 +618,10 @@ KVBucketTest::getCollectionStats(Vbid id,
 KVBucket::CheckpointDestroyer KVBucketTest::getCkptDestroyerTask(
         Vbid vbid) const {
     return store->getCkptDestroyerTask(vbid);
+}
+
+std::shared_ptr<InitialMFUTask> KVBucketTest::getInitialMfuUpdaterTask() const {
+    return store->initialMfuUpdaterTask;
 }
 
 class KVBucketParamTest : public STParameterizedBucketTest {

@@ -229,6 +229,8 @@ public:
 
     void initializeExpiryPager();
 
+    void initializeInitialMfuUpdater();
+
     /**
      * Schedules the CheckpointMemRecoveryTask.
      */
@@ -361,6 +363,8 @@ public:
      * vbucket.
      */
     KVBucket::CheckpointDestroyer getCkptDestroyerTask(Vbid vbid) const;
+
+    std::shared_ptr<InitialMFUTask> getInitialMfuUpdaterTask() const;
 
 private:
     /**
