@@ -461,6 +461,13 @@ protected:
     DBFileInfo getAggregatedFileInfo();
 
     /**
+     * Called from deinitialize path - iterates over all vbuckets of the bucket
+     * 1) Checks (and warns) if pending fetches exist
+     * 2) Cancels all range-scans
+     */
+    void allVbucketsDeinitialize();
+
+    /**
      * Max number of backill items in a single flusher batch before we split
      * into multiple batches. Actual batch size may be larger as we will not
      * split Memory Checkpoints, a hard limit is only imposed for Disk

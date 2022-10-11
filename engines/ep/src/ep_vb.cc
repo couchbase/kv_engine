@@ -1472,3 +1472,10 @@ EPVBucket::cancelRangeScansExceedingDuration(std::chrono::seconds duration) {
     return rangeScans.cancelAllExceedingDuration(
             dynamic_cast<EPBucket&>(*bucket), duration);
 }
+
+void EPVBucket::cancelRangeScans() {
+    // Can re-use  the duration cancel, but duration 0 so everything is
+    // cancelled
+    rangeScans.cancelAllExceedingDuration(dynamic_cast<EPBucket&>(*bucket),
+                                          std::chrono::seconds(0));
+}

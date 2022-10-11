@@ -325,6 +325,9 @@ void EPBucket::initializeShards() {
 
 void EPBucket::deinitialize() {
     stopFlusher();
+
+    allVbucketsDeinitialize();
+
     stopBgFetcher();
 
     KVBucket::deinitialize();
@@ -1023,22 +1026,29 @@ bool EPBucket::startBgFetcher() {
 void EPBucket::stopBgFetcher() {
     EP_LOG_INFO_RAW("Stopping bg fetchers");
 
+    for (const auto& bgFetcher : bgFetchers) {
+        bgFetcher->stop();
+    }
+}
+
+void EPBucket::allVbucketsDeinitialize() {
     for (const auto& shard : vbMap.shards) {
         for (const auto vbid : shard->getVBuckets()) {
             VBucketPtr vb = shard->getBucket(vbid);
-            if (vb && vb->hasPendingBGFetchItems()) {
-                EP_LOG_WARN(
-                        "Shutting down engine while there are still pending "
-                        "data "
-                        "read for shard {} from database storage",
-                        shard->getId());
-                break;
+            if (vb) {
+                if (vb->hasPendingBGFetchItems()) {
+                    EP_LOG_WARN(
+                            "Shutting down engine while there are still pending"
+                            "data read for shard {} from database storage",
+                            shard->getId());
+                }
+
+                // MB-53953: Ensure all RangeScans are cancelled and release
+                // their snapshots
+                auto& epVb = dynamic_cast<EPVBucket&>(*vb);
+                epVb.cancelRangeScans();
             }
         }
-    }
-
-    for (const auto& bgFetcher : bgFetchers) {
-        bgFetcher->stop();
     }
 }
 

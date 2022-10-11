@@ -14,6 +14,7 @@
 
 #include <memcached/collections.h>
 #include <memcached/durability_spec.h>
+#include <memcached/range_scan_optional_configuration.h>
 #include <functional>
 
 /**
@@ -715,4 +716,35 @@ cb::engine_errc MockEngine::deleteVBucket(CookieIface& cookie,
     };
 
     return call_engine_and_handle_EWOULDBLOCK(cookie, engine_fn);
+}
+
+std::pair<cb::engine_errc, cb::rangescan::Id> MockEngine::createRangeScan(
+        CookieIface& cookie,
+        Vbid vbid,
+        CollectionID cid,
+        cb::rangescan::KeyView start,
+        cb::rangescan::KeyView end,
+        cb::rangescan::KeyOnly keyOnly,
+        std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
+        std::optional<cb::rangescan::SamplingConfiguration> samplingConfig) {
+    auto engine_fn = [this,
+                      &cookie,
+                      vbid,
+                      cid,
+                      start,
+                      end,
+                      keyOnly,
+                      snapshotReqs,
+                      samplingConfig]() {
+        return the_engine->createRangeScan(cookie,
+                                           vbid,
+                                           cid,
+                                           start,
+                                           end,
+                                           keyOnly,
+                                           snapshotReqs,
+                                           samplingConfig);
+    };
+
+    return do_blocking_engine_call<cb::rangescan::Id>(cookie, engine_fn);
 }

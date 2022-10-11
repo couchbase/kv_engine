@@ -350,6 +350,11 @@ public:
     std::optional<std::chrono::seconds> cancelRangeScansExceedingDuration(
             std::chrono::seconds duration);
 
+    /**
+     * Locate all scans and cancel them
+     */
+    void cancelRangeScans();
+
     VB::RangeScanOwner& getRangeScans() {
         return rangeScans;
     }

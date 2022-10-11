@@ -322,6 +322,17 @@ struct MockEngine : public EngineIface, public DcpIface {
     cb::engine_errc deleteVBucket(CookieIface& cookie,
                                   Vbid vbid,
                                   bool sync) override;
+
+    std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScan(
+            CookieIface& cookie,
+            Vbid vbid,
+            CollectionID cid,
+            cb::rangescan::KeyView start,
+            cb::rangescan::KeyView end,
+            cb::rangescan::KeyOnly keyOnly,
+            std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
+            std::optional<cb::rangescan::SamplingConfiguration> samplingConfig)
+            override;
     unique_engine_ptr the_engine;
 
     // Pointer to DcpIface for the underlying engine we are proxying; or

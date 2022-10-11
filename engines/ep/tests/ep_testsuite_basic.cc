@@ -15,6 +15,7 @@
 
 #include "ep_test_apis.h"
 #include "ep_testsuite_common.h"
+#include <memcached/range_scan_optional_configuration.h>
 #include <memcached/types.h>
 #include <platform/cb_malloc.h>
 #include <platform/cbassert.h>
@@ -2248,6 +2249,34 @@ static test_result max_ttl_setWithMeta(EngineIface* h) {
     return SUCCESS;
 }
 
+// MB-53953: Ensure bucket shutdowns if a scan is created yet never completed
+static enum test_result test_range_scan_no_cancel(EngineIface* h) {
+    checkeq(cb::engine_errc::success,
+            store(h, nullptr, StoreSemantics::Set, "key", "somevalue"),
+            "Failed set.");
+
+    wait_for_flusher_to_settle(h);
+
+    auto* cookie = testHarness->create_cookie(h);
+
+    // Create a scan and do nothing - it should not block shutdown
+    checkeq(cb::engine_errc::success,
+            h->createRangeScan(*cookie,
+                               Vbid(0),
+                               CollectionID::Default,
+                               {"a"},
+                               {"z"},
+                               cb::rangescan::KeyOnly::Yes,
+                               {},
+                               {})
+                    .first,
+            "createRangeScan failed");
+
+    testHarness->destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Test manifest //////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -2577,6 +2606,14 @@ BaseTestCase testsuite_testcases[] = {
                  teardown,
                  nullptr,
                  prepare,
+                 cleanup),
+
+        TestCase("test_range_scan_no_cancel",
+                 test_range_scan_no_cancel,
+                 test_setup,
+                 teardown,
+                 nullptr,
+                 prepare_skip_broken_under_ephemeral_and_rocks,
                  cleanup),
 
         // sentinel
