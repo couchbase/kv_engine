@@ -2399,7 +2399,7 @@ public:
         request.setOpcode(cb::mcbp::ClientOpcode::EnableTraffic);
         EXPECT_EQ(expectedStatus,
                   engine->handleTrafficControlCmd(
-                          cookie, request, dummyRespHandler));
+                          *cookie, request, dummyRespHandler));
     }
 
 private:

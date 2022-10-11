@@ -715,7 +715,7 @@ public:
                                            const cb::mcbp::Request& req,
                                            const AddResponseFn& response);
 
-    cb::engine_errc handleTrafficControlCmd(const CookieIface* cookie,
+    cb::engine_errc handleTrafficControlCmd(const CookieIface& cookie,
                                             const cb::mcbp::Request& request,
                                             const AddResponseFn& response);
 

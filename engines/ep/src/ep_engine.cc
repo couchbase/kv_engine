@@ -1176,7 +1176,7 @@ cb::engine_errc EventuallyPersistentEngine::processUnknownCommandInner(
         return getReplicaCmd(request, response, &cookie);
     case cb::mcbp::ClientOpcode::EnableTraffic:
     case cb::mcbp::ClientOpcode::DisableTraffic:
-        return handleTrafficControlCmd(&cookie, request, response);
+        return handleTrafficControlCmd(cookie, request, response);
     case cb::mcbp::ClientOpcode::GetRandomKey:
         return getRandomKey(&cookie, request, response);
     case cb::mcbp::ClientOpcode::GetKeys:
@@ -5884,27 +5884,27 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
 }
 
 cb::engine_errc EventuallyPersistentEngine::handleTrafficControlCmd(
-        const CookieIface* cookie,
+        const CookieIface& cookie,
         const cb::mcbp::Request& request,
         const AddResponseFn& response) {
     switch (request.getClientOpcode()) {
     case cb::mcbp::ClientOpcode::EnableTraffic:
         if (kvBucket->isWarmupLoadingData()) {
             // engine is still warming up, do not turn on data traffic yet
-            setErrorContext(*cookie, "Persistent engine is still warming up!");
+            setErrorContext(cookie, "Persistent engine is still warming up!");
             return cb::engine_errc::temporary_failure;
         } else if (configuration.isFailpartialwarmup() &&
                    kvBucket->isWarmupOOMFailure()) {
             // engine has completed warm up, but data traffic cannot be
             // turned on due to an OOM failure
             setErrorContext(
-                    *cookie,
+                    cookie,
                     "Data traffic to persistent engine cannot be enabled"
                     " due to out of memory failures during warmup");
             return cb::engine_errc::no_memory;
         } else if (kvBucket->hasWarmupSetVbucketStateFailed()) {
             setErrorContext(
-                    *cookie,
+                    cookie,
                     "Data traffic to persistent engine cannot be enabled"
                     " due to write failures when persisting vbucket state to "
                     "disk");
@@ -5912,10 +5912,10 @@ cb::engine_errc EventuallyPersistentEngine::handleTrafficControlCmd(
         } else {
             if (enableTraffic(true)) {
                 setErrorContext(
-                        *cookie,
+                        cookie,
                         "Data traffic to persistence engine is enabled");
             } else {
-                setErrorContext(*cookie,
+                setErrorContext(cookie,
                                 "Data traffic to persistence engine was "
                                 "already enabled");
             }
@@ -5923,11 +5923,11 @@ cb::engine_errc EventuallyPersistentEngine::handleTrafficControlCmd(
         break;
     case cb::mcbp::ClientOpcode::DisableTraffic:
         if (enableTraffic(false)) {
-            setErrorContext(*cookie,
+            setErrorContext(cookie,
                             "Data traffic to persistence engine is disabled");
         } else {
             setErrorContext(
-                    *cookie,
+                    cookie,
                     "Data traffic to persistence engine was already disabled");
         }
         break;
@@ -5944,7 +5944,7 @@ cb::engine_errc EventuallyPersistentEngine::handleTrafficControlCmd(
                         PROTOCOL_BINARY_RAW_BYTES,
                         cb::mcbp::Status::Success,
                         0,
-                        cookie);
+                        &cookie);
 }
 
 bool EventuallyPersistentEngine::isDegradedMode() const {
