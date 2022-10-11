@@ -210,8 +210,8 @@ cb::engine_errc SynchronousEPEngine::public_setWithMeta(
                        emd);
 }
 
-DocKey SynchronousEPEngine::public_makeDocKey(const CookieIface* cookie,
-                                              const std::string& key) {
+DocKey SynchronousEPEngine::public_makeDocKey(const CookieIface& cookie,
+                                              const std::string& key) const {
     const auto buf = cb::const_byte_buffer{
             reinterpret_cast<const uint8_t*>(key.data()), key.size()};
     return makeDocKey(cookie, buf);

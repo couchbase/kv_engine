@@ -1378,10 +1378,9 @@ protected:
                                    cb::const_byte_buffer emd,
                                    DeleteSource deleteSource);
 
-    /**
-     * Make a DocKey from the key buffer
-     */
-    DocKey makeDocKey(const CookieIface* cookie, cb::const_byte_buffer key);
+    /// Make a DocKey from the key buffer
+    DocKey makeDocKey(const CookieIface& cookie,
+                      cb::const_byte_buffer key) const;
 
     cb::engine_errc processUnknownCommandInner(const CookieIface& cookie,
                                                const cb::mcbp::Request& request,

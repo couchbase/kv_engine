@@ -980,7 +980,7 @@ cb::mcbp::Status EventuallyPersistentEngine::evictKey(
         const CookieIface* cookie,
         const cb::mcbp::Request& request,
         const char** msg) {
-    const auto key = makeDocKey(cookie, request.getKey());
+    const auto key = makeDocKey(*cookie, request.getKey());
     EP_LOG_DEBUG("Manually evicting object with key {}",
                  cb::UserDataView(key.to_string()));
     auto rv = kvBucket->evictKey(key, request.getVBucket(), msg);
@@ -1065,7 +1065,7 @@ cb::engine_errc EventuallyPersistentEngine::getReplicaCmd(
         const cb::mcbp::Request& request,
         const AddResponseFn& response,
         const CookieIface* cookie) {
-    DocKey key = makeDocKey(cookie, request.getKey());
+    DocKey key = makeDocKey(*cookie, request.getKey());
 
     auto options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
@@ -5093,7 +5093,7 @@ cb::engine_errc EventuallyPersistentEngine::observe(
             return cb::engine_errc::invalid_arguments;
         }
 
-        DocKey key = makeDocKey(cookie, {data + offset, keylen});
+        DocKey key = makeDocKey(*cookie, {data + offset, keylen});
         offset += keylen;
         EP_LOG_DEBUG("Observing key {} in {}",
                      cb::UserDataView(key.to_string()),
@@ -5434,11 +5434,11 @@ protocol_binary_datatype_t EventuallyPersistentEngine::checkForDatatypeJson(
     return datatype;
 }
 
-DocKey EventuallyPersistentEngine::makeDocKey(const CookieIface* cookie,
-                                              cb::const_byte_buffer key) {
+DocKey EventuallyPersistentEngine::makeDocKey(const CookieIface& cookie,
+                                              cb::const_byte_buffer key) const {
     return DocKey{key.data(),
                   key.size(),
-                  cookie->isCollectionsSupported()
+                  cookie.isCollectionsSupported()
                           ? DocKeyEncodesCollectionId::Yes
                           : DocKeyEncodesCollectionId::No};
 }
@@ -5494,7 +5494,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
     uint64_t commandCas = request.getCas();
     try {
         ret = setWithMeta(request.getVBucket(),
-                          makeDocKey(cookie, request.getKey()),
+                          makeDocKey(*cookie, request.getKey()),
                           value,
                           {cas, seqno, flags, time_t(expiration)},
                           false /*isDeleted*/,
@@ -5722,7 +5722,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
     cb::const_byte_buffer emd;
     extractNmetaFromExtras(emd, value, extras);
 
-    auto key = makeDocKey(cookie, request.getKey());
+    auto key = makeDocKey(*cookie, request.getKey());
     uint64_t bySeqno = 0;
 
     const auto* payload =
@@ -6044,7 +6044,7 @@ cb::engine_errc EventuallyPersistentEngine::returnMeta(
                 datatype,
                 {reinterpret_cast<const char*>(value.data()), value.size()});
 
-        auto itm = std::make_unique<Item>(makeDocKey(cookie, req.getKey()),
+        auto itm = std::make_unique<Item>(makeDocKey(*cookie, req.getKey()),
                                           flags,
                                           exp,
                                           value.data(),
@@ -6073,7 +6073,7 @@ cb::engine_errc EventuallyPersistentEngine::returnMeta(
     } else if (mutate_type == ReturnMetaType::Del) {
         ItemMetaData itm_meta;
         mutation_descr_t mutation_descr;
-        ret = kvBucket->deleteItem(makeDocKey(cookie, req.getKey()),
+        ret = kvBucket->deleteItem(makeDocKey(*cookie, req.getKey()),
                                    cas,
                                    req.getVBucket(),
                                    cookie,
@@ -6152,7 +6152,7 @@ cb::engine_errc EventuallyPersistentEngine::getAllKeys(
         count = ntohl(*reinterpret_cast<const uint32_t*>(extras.data()));
     }
 
-    DocKey start_key = makeDocKey(&cookie, request.getKey());
+    DocKey start_key = makeDocKey(cookie, request.getKey());
     auto privTestResult =
             checkPrivilege(&cookie, cb::rbac::Privilege::Read, start_key);
     if (privTestResult != cb::engine_errc::success) {

@@ -112,7 +112,7 @@ TEST_P(STParamCouchstoreBucketTest, FlusherMarksCleanBySeqno) {
         uint64_t seqno = 0;
         const auto res = engine->public_setWithMeta(
                 vbid,
-                engine->public_makeDocKey(cookie, key),
+                engine->public_makeDocKey(*cookie, key),
                 valBuf,
                 {cas, revSeqno, 0 /*flags*/, 0 /*exp*/},
                 false /*isDeleted*/,

@@ -79,7 +79,8 @@ public:
                                        GenerateCas genCas,
                                        cb::const_byte_buffer emd);
 
-    DocKey public_makeDocKey(const CookieIface* cookie, const std::string& key);
+    DocKey public_makeDocKey(const CookieIface& cookie,
+                             const std::string& key) const;
 
     bool public_enableTraffic(bool enable) {
         return enableTraffic(enable);
