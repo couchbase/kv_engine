@@ -5278,8 +5278,8 @@ void SingleThreadedKVBucketTest::testExpiryObservesCMQuota(
     ASSERT_EQ(KVBucket::CheckpointMemoryState::Available,
               store->getCheckpointMemoryState());
     EXPECT_GT(loadUpToOOM(VbucketOp::Add), 1);
-    EXPECT_EQ(KVBucket::CheckpointMemoryState::FullAndNeedsRecovery,
-              store->getCheckpointMemoryState());
+    EXPECT_TRUE(KVBucket::isCheckpointMemoryStateFull(
+            store->getCheckpointMemoryState()));
 
     // Time travel, needed for triggering expiration at compaction
     TimeTraveller tt(1000);
@@ -5291,8 +5291,8 @@ void SingleThreadedKVBucketTest::testExpiryObservesCMQuota(
     EXPECT_EQ(0, vb->numExpiredItems);
 
     // CM memory recovery
-    ASSERT_EQ(KVBucket::CheckpointMemoryState::FullAndNeedsRecovery,
-              store->getCheckpointMemoryState());
+    ASSERT_TRUE(KVBucket::isCheckpointMemoryStateFull(
+            store->getCheckpointMemoryState()));
     // Release all the releasable from checkpoints
     if (!isPersistent()) {
         std::vector<queued_item> items;
@@ -5380,8 +5380,8 @@ TEST_P(STParameterizedBucketTest, CheckpointMemThresholdEnforced_Del) {
     ASSERT_EQ(KVBucket::CheckpointMemoryState::Available,
               store->getCheckpointMemoryState());
     EXPECT_GT(loadUpToOOM(VbucketOp::Add), 1);
-    EXPECT_EQ(KVBucket::CheckpointMemoryState::FullAndNeedsRecovery,
-              store->getCheckpointMemoryState());
+    EXPECT_TRUE(KVBucket::isCheckpointMemoryStateFull(
+            store->getCheckpointMemoryState()));
 
     const auto highSeqno = vb->getHighSeqno();
     ASSERT_GT(highSeqno, 0);
@@ -5401,8 +5401,8 @@ TEST_P(STParameterizedBucketTest, CheckpointMemThresholdEnforced_Del) {
     ASSERT_EQ(0, stats.numOpsDelete);
 
     // CM memory recovery
-    ASSERT_EQ(KVBucket::CheckpointMemoryState::FullAndNeedsRecovery,
-              store->getCheckpointMemoryState());
+    ASSERT_TRUE(KVBucket::isCheckpointMemoryStateFull(
+            store->getCheckpointMemoryState()));
     // Release all the releasable from checkpoints
     if (!isPersistent()) {
         std::vector<queued_item> items;

@@ -812,8 +812,8 @@ TEST_P(CheckpointRemoverEPTest, MB_48233) {
             flushVBucket(vbid);
         }
     }
-    ASSERT_EQ(KVBucket::CheckpointMemoryState::FullAndNeedsRecovery,
-              store->getCheckpointMemoryState());
+    ASSERT_TRUE(KVBucket::isCheckpointMemoryStateFull(
+            store->getCheckpointMemoryState()));
 
     const auto& stats = engine->getEpStats();
     ASSERT_EQ(0,

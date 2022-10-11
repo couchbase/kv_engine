@@ -1469,9 +1469,8 @@ HashTable::FindResult VBucket::fetchValidValue(
     // Note that only the master actively expires items, and only if the item's
     // collection is alive and there's mem available in checkpoints.
     const auto cmAvailable =
-            bucket &&
-            bucket->verifyCheckpointMemoryState() !=
-                    KVBucket::CheckpointMemoryState::FullAndNeedsRecovery;
+            bucket && !KVBucket::isCheckpointMemoryStateFull(
+                              bucket->verifyCheckpointMemoryState());
     if (getState() == vbucket_state_active && cHandle.valid() && cmAvailable) {
         handlePreExpiry(res.getHBL(), *v);
         VBNotifyCtx notifyCtx;
@@ -3402,9 +3401,8 @@ std::pair<MutationStatus, std::optional<VBNotifyCtx>> VBucket::processSetInner(
                 getId().to_string());
     }
 
-    if (bucket &&
-        bucket->verifyCheckpointMemoryState() ==
-                KVBucket::CheckpointMemoryState::FullAndNeedsRecovery) {
+    if (bucket && KVBucket::isCheckpointMemoryStateFull(
+                          bucket->verifyCheckpointMemoryState())) {
         return {MutationStatus::NoMem, {}};
     }
 
@@ -3579,9 +3577,8 @@ std::pair<AddStatus, std::optional<VBNotifyCtx>> VBucket::processAdd(
         }
     }
 
-    if (bucket &&
-        bucket->verifyCheckpointMemoryState() ==
-                KVBucket::CheckpointMemoryState::FullAndNeedsRecovery) {
+    if (bucket && KVBucket::isCheckpointMemoryStateFull(
+                          bucket->verifyCheckpointMemoryState())) {
         return {AddStatus::NoMem, {}};
     }
 

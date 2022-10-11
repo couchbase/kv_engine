@@ -867,8 +867,15 @@ public:
     enum class CheckpointMemoryState : uint8_t {
         Available,
         HighAndNeedsRecovery,
-        FullAndNeedsRecovery
+        High,
+        FullAndNeedsRecovery,
+        Full
     };
+
+    static bool isCheckpointMemoryStateFull(CheckpointMemoryState state) {
+        return state == CheckpointMemoryState::FullAndNeedsRecovery ||
+               state == CheckpointMemoryState::Full;
+    }
 
     /**
      * @return the current state of total checkpoints memory usage as defined by

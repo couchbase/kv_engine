@@ -600,8 +600,7 @@ void KVBucket::runPreExpiryHook(VBucket& vb, Item& it) {
 
 void KVBucket::processExpiredItem(Item& it, time_t startTime, ExpireBy source) {
     // Yield if checkpoint's full - The call also wakes up the mem recovery task
-    if (verifyCheckpointMemoryState() ==
-        CheckpointMemoryState::FullAndNeedsRecovery) {
+    if (isCheckpointMemoryStateFull(verifyCheckpointMemoryState())) {
         return;
     }
 
@@ -2014,8 +2013,7 @@ cb::engine_errc KVBucket::deleteItem(
     }
 
     // Yield if checkpoint's full - The call also wakes up the mem recovery task
-    if (verifyCheckpointMemoryState() ==
-        CheckpointMemoryState::FullAndNeedsRecovery) {
+    if (isCheckpointMemoryStateFull(verifyCheckpointMemoryState())) {
         return cb::engine_errc::temporary_failure;
     }
 
@@ -3003,6 +3001,8 @@ KVBucket::CheckpointMemoryState KVBucket::verifyCheckpointMemoryState() {
     const auto state = getCheckpointMemoryState();
     switch (state) {
     case CheckpointMemoryState::Available:
+    case CheckpointMemoryState::High:
+    case CheckpointMemoryState::Full:
         break;
     case CheckpointMemoryState::HighAndNeedsRecovery:
     case CheckpointMemoryState::FullAndNeedsRecovery:
