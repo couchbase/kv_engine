@@ -28,25 +28,24 @@ static bool mcbp_response_handler(std::string_view key,
                                   cb::mcbp::Status status,
                                   uint64_t cas,
                                   const CookieIface& cookieIface) {
-    auto* ccookie = reinterpret_cast<const Cookie*>(&cookieIface);
-    auto* cookie = const_cast<Cookie*>(ccookie);
+    auto& cookie = asCookie(cookieIface);
 
-    Connection* c = &cookie->getConnection();
+    Connection& c = cookie.getConnection();
     cb::compression::Buffer buffer;
     auto payload = body;
 
-    if ((!c->isSnappyEnabled() && cb::mcbp::datatype::is_snappy(datatype)) ||
+    if ((!c.isSnappyEnabled() && cb::mcbp::datatype::is_snappy(datatype)) ||
         (cb::mcbp::datatype::is_snappy(datatype) &&
          cb::mcbp::datatype::is_xattr(datatype))) {
         // The client is not snappy-aware, and the content contains
         // snappy encoded data. Or it's xattr compressed. We need to inflate it!
-        if (!cookie->inflateSnappy(payload, buffer)) {
+        if (!cookie.inflateSnappy(payload, buffer)) {
             std::string mykey(key.data(), key.size());
             LOG_WARNING(
                     "<{} ERROR: Failed to inflate body, "
                     "Key: {} may have an incorrect datatype, "
                     "Datatype indicates that document is {}",
-                    c->getId(),
+                    c.getId(),
                     cb::UserDataView(mykey),
                     cb::mcbp::datatype::to_string(datatype));
             return false;
@@ -61,8 +60,8 @@ static bool mcbp_response_handler(std::string_view key,
         datatype &= ~(PROTOCOL_BINARY_DATATYPE_XATTR);
     }
 
-    datatype = c->getEnabledDatatypes(datatype);
-    const auto error_json = cookie->getErrorJson();
+    datatype = c.getEnabledDatatypes(datatype);
+    const auto error_json = cookie.getErrorJson();
 
     switch (status) {
     case cb::mcbp::Status::Success:
@@ -71,7 +70,7 @@ static bool mcbp_response_handler(std::string_view key,
     case cb::mcbp::Status::Rollback:
         break;
     case cb::mcbp::Status::NotMyVbucket:
-        cookie->sendNotMyVBucket();
+        cookie.sendNotMyVBucket();
         return true;
     default:
         //
@@ -82,8 +81,8 @@ static bool mcbp_response_handler(std::string_view key,
                                    : PROTOCOL_BINARY_DATATYPE_JSON;
     }
 
-    cookie->setCas(cas);
-    c->sendResponse(*cookie, status, extras, key, payload, datatype, {});
+    cookie.setCas(cas);
+    c.sendResponse(cookie, status, extras, key, payload, datatype, {});
     return true;
 }
 

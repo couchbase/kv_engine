@@ -102,7 +102,7 @@ static void append_stats(std::string_view key,
 static void external_append_stats(std::string_view key,
                                   std::string_view value,
                                   const CookieIface& ctx) {
-    auto& cookie = *const_cast<Cookie*>(reinterpret_cast<const Cookie*>(&ctx));
+    auto& cookie = asCookie(ctx);
     append_stats(key, value, cookie);
 }
 

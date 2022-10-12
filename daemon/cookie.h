@@ -832,3 +832,14 @@ protected:
     /// should we try to preserve TTL for this operation
     bool preserveTtl{false};
 };
+
+/// Convert a const CookieIface to a Cookie.
+inline Cookie& asCookie(const CookieIface& constCookieIface) {
+    auto& cookieIface = const_cast<CookieIface&>(constCookieIface);
+    auto* cookie = dynamic_cast<Cookie*>(&cookieIface);
+    if (!cookie) {
+        throw std::runtime_error(
+                "asCookie: The provided cookie is not a Cookie");
+    }
+    return *cookie;
+}

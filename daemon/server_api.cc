@@ -27,11 +27,6 @@
 #include <phosphor/phosphor.h>
 #include <utilities/engine_errc_2_mcbp.h>
 
-static Cookie& getCookie(const CookieIface& void_cookie) {
-    auto& cookie = dynamic_cast<const Cookie&>(void_cookie);
-    return const_cast<Cookie&>(cookie);
-}
-
 struct ServerBucketApi : public ServerBucketIface {
     unique_engine_ptr createBucket(
             const std::string& module,
@@ -89,24 +84,24 @@ struct ServerDocumentApi : public ServerDocumentIface {
 struct ServerCookieApi : public ServerCookieIface {
     void setDcpConnHandler(const CookieIface& cookie,
                            DcpConnHandlerIface* handler) override {
-        getCookie(cookie).getConnection().setDcpConnHandlerIface(handler);
+        asCookie(cookie).getConnection().setDcpConnHandlerIface(handler);
     }
 
     DcpConnHandlerIface* getDcpConnHandler(const CookieIface& cookie) override {
-        return getCookie(cookie).getConnection().getDcpConnHandlerIface();
+        return asCookie(cookie).getConnection().getDcpConnHandlerIface();
     }
 
     void setDcpFlowControlBufferSize(const CookieIface& cookie,
                                      std::size_t size) override {
-        getCookie(cookie).getConnection().setDcpFlowControlBufferSize(size);
+        asCookie(cookie).getConnection().setDcpFlowControlBufferSize(size);
     }
 
     void reserve(const CookieIface& void_cookie) override {
-        getCookie(void_cookie).incrementRefcount();
+        asCookie(void_cookie).incrementRefcount();
     }
 
     void release(const CookieIface& void_cookie) override {
-        auto& cookie = getCookie(void_cookie);
+        auto& cookie = asCookie(void_cookie);
         auto& connection = cookie.getConnection();
         connection.getThread().eventBase.runInEventBaseThreadAlwaysEnqueue(
                 [&cookie]() {
@@ -122,7 +117,7 @@ struct ServerCookieApi : public ServerCookieIface {
 
     void set_priority(const CookieIface& cookie,
                       ConnectionPriority priority) override {
-        getCookie(cookie).getConnection().setPriority(priority);
+        asCookie(cookie).getConnection().setPriority(priority);
     }
 
     ConnectionPriority get_priority(const CookieIface& void_cookie) override {
@@ -135,16 +130,16 @@ struct ServerCookieApi : public ServerCookieIface {
             cb::rbac::Privilege privilege,
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) override {
-        return getCookie(cookie).checkPrivilege(privilege, sid, cid);
+        return asCookie(cookie).checkPrivilege(privilege, sid, cid);
     }
     cb::rbac::PrivilegeAccess check_for_privilege_at_least_in_one_collection(
             const CookieIface& cookie, cb::rbac::Privilege privilege) override {
-        return getCookie(cookie).checkForPrivilegeAtLeastInOneCollection(
+        return asCookie(cookie).checkForPrivilegeAtLeastInOneCollection(
                 privilege);
     }
     uint32_t get_privilege_context_revision(
             const CookieIface& cookie) override {
-        return getCookie(cookie).getPrivilegeContext().getGeneration();
+        return asCookie(cookie).getPrivilegeContext().getGeneration();
     }
     cb::mcbp::Status engine_error2mcbp(const CookieIface& void_cookie,
                                        cb::engine_errc code) override {
@@ -170,16 +165,16 @@ struct ServerCookieApi : public ServerCookieIface {
     }
 
     std::string get_authenticated_user(const CookieIface& cookie) override {
-        return getCookie(cookie).getConnection().getUser().name;
+        return asCookie(cookie).getConnection().getUser().name;
     }
 
     in_port_t get_connected_port(const CookieIface& cookie) override {
-        return getCookie(cookie).getConnection().getParentPort();
+        return asCookie(cookie).getConnection().getParentPort();
     }
 
     bool is_valid_json(CookieIface& cookieIface,
                        std::string_view view) override {
-        auto& cookie = getCookie(cookieIface);
+        auto& cookie = asCookie(cookieIface);
         return cookie.getConnection().getThread().isValidJson(cookie, view);
     }
 };
