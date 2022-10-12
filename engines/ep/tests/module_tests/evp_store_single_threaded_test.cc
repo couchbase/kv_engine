@@ -296,7 +296,7 @@ void SingleThreadedKVBucketTest::resetEngineAndWarmup(std::string new_config,
 }
 
 std::shared_ptr<MockDcpProducer> SingleThreadedKVBucketTest::createDcpProducer(
-        const CookieIface* cookie, IncludeDeleteTime deleteTime) {
+        CookieIface* cookie, IncludeDeleteTime deleteTime) {
     int flags = cb::mcbp::request::DcpOpenPayload::IncludeXattrs;
     if (deleteTime == IncludeDeleteTime::Yes) {
         flags |= cb::mcbp::request::DcpOpenPayload::IncludeDeleteTimes;
@@ -424,7 +424,7 @@ void SingleThreadedKVBucketTest::runCompaction(Vbid id,
         // requires running an AuxIO task which is difficult to order
         // correctly if other AuxIO tasks (e.g. Backfill) are also
         // scheduled.
-        std::vector<const CookieIface*> emptyCookies;
+        std::vector<CookieIface*> emptyCookies;
         epBucket->doCompact(id, compactConfig, emptyCookies);
     }
 }
@@ -558,7 +558,7 @@ SingleThreadedKVBucketTest::getLatestFailoverTableEntry() const {
 }
 
 cb::engine_errc SingleThreadedKVBucketTest::setCollections(
-        const CookieIface* c,
+        CookieIface* c,
         const CollectionsManifest& manifest,
         cb::engine_errc status1) {
     std::string json{manifest};
@@ -1041,7 +1041,7 @@ cb::engine_errc STParameterizedBucketTest::checkKeyExists(
 }
 
 cb::engine_errc STParameterizedBucketTest::setItem(Item& itm,
-                                                   const CookieIface* cookie) {
+                                                   CookieIface* cookie) {
     auto rc = store->set(itm, cookie);
     if (needBGFetch(rc)) {
         rc = store->set(itm, cookie);
@@ -1050,7 +1050,7 @@ cb::engine_errc STParameterizedBucketTest::setItem(Item& itm,
 }
 
 cb::engine_errc STParameterizedBucketTest::addItem(Item& itm,
-                                                   const CookieIface* cookie) {
+                                                   CookieIface* cookie) {
     auto rc = store->add(itm, cookie);
     if (needBGFetch(rc)) {
         rc = store->add(itm, cookie);
@@ -2095,7 +2095,7 @@ TEST_P(STParamPersistentBucketTest, MB19815_doDcpVbTakeoverStats) {
     // Dummy callback to pass into the stats function below.
     auto dummy_cb = [](std::string_view key,
                        std::string_view value,
-                       const CookieIface& ctx) {};
+                       CookieIface& ctx) {};
     std::string key{"MB19815_doDCPVbTakeoverStats"};
     auto* cookie = create_mock_cookie();
     // We can't call stats with a nullptr as the cookie. Given that

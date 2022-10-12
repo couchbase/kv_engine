@@ -159,7 +159,7 @@ public:
      * @param cookie the cookie to pass to the callback function
      */
     virtual void addStats(const AddStatFn& add_stat,
-                          const CookieIface& cookie) const = 0;
+                          CookieIface& cookie) const = 0;
 
     /**
      * Request the specified statistic name from the kvstore.
@@ -188,7 +188,7 @@ public:
      * @param c the cookie to pass to the callback function
      */
     virtual void addTimingStats(const AddStatFn& add_stat,
-                                const CookieIface& c) const = 0;
+                                CookieIface& c) const = 0;
 
     /**
      * Resets kvstore specific stats

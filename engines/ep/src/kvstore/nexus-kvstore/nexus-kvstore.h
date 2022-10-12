@@ -36,11 +36,11 @@ public:
 
     void deinitialize() override;
     void addStats(const AddStatFn& add_stat,
-                  const CookieIface& cookie) const override;
+                  CookieIface& cookie) const override;
     bool getStat(std::string_view name, size_t& value) const override;
     GetStatsMap getStats(gsl::span<const std::string_view> keys) const override;
     void addTimingStats(const AddStatFn& add_stat,
-                        const CookieIface& c) const override;
+                        CookieIface& c) const override;
     void resetStats() override;
     size_t getMemFootPrint() const override;
     bool commit(std::unique_ptr<TransactionContext> txnCtx,

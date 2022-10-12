@@ -94,7 +94,7 @@ public:
      */
     Filter(std::optional<std::string_view> jsonFilter,
            const ::Collections::VB::Manifest& manifest,
-           const CookieIface& cookie,
+           CookieIface& cookie,
            const EventuallyPersistentEngine& engine);
 
     /**
@@ -154,14 +154,14 @@ public:
      * of the revision and then evaluate the required privileges.
      * @return engine status - success/no_access/unknown_scope|collection
      */
-    cb::engine_errc checkPrivileges(const CookieIface& cookie,
+    cb::engine_errc checkPrivileges(CookieIface& cookie,
                                     const EventuallyPersistentEngine& engine);
 
     /**
      * Add statistics for this filter, currently just depicts the object's state
      */
     void addStats(const AddStatFn& add_stat,
-                  const CookieIface& c,
+                  CookieIface& c,
                   const std::string& prefix,
                   Vbid vb) const;
 

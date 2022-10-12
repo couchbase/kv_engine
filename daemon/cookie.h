@@ -171,7 +171,7 @@ public:
      */
     std::string getErrorJson();
 
-    const ConnectionIface& getConnectionIface() const override;
+    ConnectionIface& getConnectionIface() override;
 
     /**
      * Get the connection object the cookie is bound to.
@@ -834,8 +834,7 @@ protected:
 };
 
 /// Convert a const CookieIface to a Cookie.
-inline Cookie& asCookie(const CookieIface& constCookieIface) {
-    auto& cookieIface = const_cast<CookieIface&>(constCookieIface);
+inline Cookie& asCookie(CookieIface& cookieIface) {
     auto* cookie = dynamic_cast<Cookie*>(&cookieIface);
     if (!cookie) {
         throw std::runtime_error(

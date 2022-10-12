@@ -94,8 +94,7 @@ public:
 
     std::list<SyncWrite> getTrackedWrites() const override;
 
-    void addStats(const AddStatFn& addStat,
-                  const CookieIface& cookie) const override;
+    void addStats(const AddStatFn& addStat, CookieIface& cookie) const override;
 
     int64_t getHighPreparedSeqno() const override;
 

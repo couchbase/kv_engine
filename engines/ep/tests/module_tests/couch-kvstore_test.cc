@@ -85,7 +85,7 @@ TEST_F(CouchKVStoreTest, StatsTest) {
     std::map<std::string, std::string> stats;
     auto add_stat_callback = [&stats](std::string_view key,
                                       std::string_view value,
-                                      const CookieIface&) {
+                                      CookieIface&) {
         stats.insert(std::make_pair(std::string(key.data(), key.size()),
                                     std::string(value.data(), value.size())));
     };
@@ -134,7 +134,7 @@ TEST_F(CouchKVStoreTest, CompactStatsTest) {
     std::map<std::string, std::string> stats;
     auto add_stat_callback = [&stats](std::string_view key,
                                       std::string_view value,
-                                      const CookieIface&) {
+                                      CookieIface&) {
         stats.insert(std::make_pair(std::string(key.data(), key.size()),
                                     std::string(value.data(), value.size())));
     };

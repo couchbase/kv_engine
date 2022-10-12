@@ -110,18 +110,16 @@ void NexusKVStore::deinitialize() {
     secondary->deinitialize();
 }
 
-void NexusKVStore::addStats(const AddStatFn& add_stat,
-                            const CookieIface& c) const {
+void NexusKVStore::addStats(const AddStatFn& add_stat, CookieIface& c) const {
     // We want to print both sets of stats here for debug-ability, but we don't
     // want to break anything relying on these stats so print primary stats
     // as-is and the secondary stats with an additional prefix
     primary->addStats(add_stat, c);
 
-    auto prefixedAddStatFn = [&add_stat](std::string_view key,
-                                         std::string_view value,
-                                         const auto& c) {
-        add_prefixed_stat("secondary", key, value, add_stat, c);
-    };
+    auto prefixedAddStatFn =
+            [&add_stat](std::string_view key, std::string_view value, auto& c) {
+                add_prefixed_stat("secondary", key, value, add_stat, c);
+            };
     secondary->addStats(prefixedAddStatFn, c);
 
     add_prefixed_stat("nexus_" + std::to_string(getConfig().getShardId()),
@@ -160,14 +158,13 @@ GetStatsMap NexusKVStore::getStats(
 }
 
 void NexusKVStore::addTimingStats(const AddStatFn& add_stat,
-                                  const CookieIface& c) const {
+                                  CookieIface& c) const {
     primary->addTimingStats(add_stat, c);
 
-    auto prefixedAddStatFn = [&add_stat](std::string_view key,
-                                         std::string_view value,
-                                         const auto& c) {
-        add_prefixed_stat("secondary", key, value, add_stat, c);
-    };
+    auto prefixedAddStatFn =
+            [&add_stat](std::string_view key, std::string_view value, auto& c) {
+                add_prefixed_stat("secondary", key, value, add_stat, c);
+            };
     secondary->addTimingStats(prefixedAddStatFn, c);
 }
 
@@ -724,10 +721,10 @@ public:
         // Do nothing, we will compare the GetValues later
     }
 
-    void abort(EventuallyPersistentEngine& engine,
-               cb::engine_errc status,
-               std::map<const CookieIface*, cb::engine_errc>& toNotify)
-            const override {
+    void abort(
+            EventuallyPersistentEngine& engine,
+            cb::engine_errc status,
+            std::map<CookieIface*, cb::engine_errc>& toNotify) const override {
         // Same as above
     }
 

@@ -167,7 +167,7 @@ TEST_F(StatTest, HistogramStatExpansion) {
     using namespace std::literals::string_view_literals;
 
     NiceMock<MockFunction<void(
-            std::string_view, std::string_view, const CookieIface&)>>
+            std::string_view, std::string_view, CookieIface&)>>
             cb;
 
     EXPECT_CALL(cb, Call("test_histogram_mean"sv, "2052741737"sv, _));
@@ -200,7 +200,7 @@ TEST_F(StatTest, HdrHistogramStatExpansion) {
     using namespace std::literals::string_view_literals;
 
     NiceMock<MockFunction<void(
-            std::string_view, std::string_view, const CookieIface&)>>
+            std::string_view, std::string_view, CookieIface&)>>
             cb;
 
     EXPECT_CALL(cb, Call("test_histogram_mean"sv, "9544"sv, _));
@@ -507,7 +507,7 @@ TEST_F(StatTest, CBStatsScopeCollectionPrefix) {
 
     // mock addStatFn
     NiceMock<MockFunction<void(
-            std::string_view, std::string_view, const CookieIface&)>>
+            std::string_view, std::string_view, CookieIface&)>>
             cb;
 
     auto cbFunc = cb.AsStdFunction();
@@ -546,7 +546,7 @@ TEST_F(StatTest, CBStatsNameSeparateFromEnum) {
 
     // mock addStatFn
     NiceMock<MockFunction<void(
-            std::string_view, std::string_view, const CookieIface&)>>
+            std::string_view, std::string_view, CookieIface&)>>
             cb;
 
     auto cbFunc = cb.AsStdFunction();
@@ -581,7 +581,7 @@ TEST_F(StatTest, LegacyStatsAreNotFormatted) {
 
     // mock addStatFn
     NiceMock<MockFunction<void(
-            std::string_view, std::string_view, const CookieIface&)>>
+            std::string_view, std::string_view, CookieIface&)>>
             cb;
 
     auto cbFunc = cb.AsStdFunction();
@@ -615,7 +615,7 @@ TEST_F(StatTest, WarmupStats) {
 
     // create a collector to which stats will be added
     NiceMock<MockFunction<void(
-            std::string_view, std::string_view, const CookieIface&)>>
+            std::string_view, std::string_view, CookieIface&)>>
             cb;
 
     auto cbFunc = cb.AsStdFunction();
@@ -651,7 +651,7 @@ TEST_F(StatTest, EngineStatsWarmup) {
 
     // create a collector to which stats will be added
     NiceMock<MockFunction<void(
-            std::string_view, std::string_view, const CookieIface&)>>
+            std::string_view, std::string_view, CookieIface&)>>
             cb;
 
     auto cbFunc = cb.AsStdFunction();
@@ -696,7 +696,7 @@ TEST_P(DatatypeStatTest, datatypesInitiallyZero) {
 }
 
 void setDatatypeItem(KVBucket* store,
-                     const CookieIface* cookie,
+                     CookieIface* cookie,
                      protocol_binary_datatype_t datatype,
                      std::string name,
                      std::string val = "[0]") {

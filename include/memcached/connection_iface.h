@@ -31,13 +31,4 @@ public:
      * @throws std::logic_error if the connection isn't a DCP connection
      */
     virtual void scheduleDcpStep() = 0;
-
-    /// The engines gets passed a const reference and they're the ones
-    /// to call notifyIoComplete.. cast away the constness to avoid
-    /// having to clutter the code everywhere with a const cast (and at
-    /// some point we should stop passing it as a const reference from the
-    /// engine as they're allowed to call some methods
-    void scheduleDcpStep() const {
-        const_cast<ConnectionIface*>(this)->scheduleDcpStep();
-    }
 };

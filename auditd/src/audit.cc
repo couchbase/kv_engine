@@ -353,7 +353,7 @@ bool AuditImpl::put_event(uint32_t event_id, std::string_view payload) {
 }
 
 bool AuditImpl::configure_auditdaemon(const std::string& configfile,
-                                      const CookieIface& cookie) {
+                                      CookieIface& cookie) {
     auto new_event = std::make_unique<ConfigureEvent>(configfile, cookie);
     std::lock_guard<std::mutex> guard(producer_consumer_lock);
     filleventqueue.push(std::move(new_event));

@@ -77,7 +77,7 @@ void KVShard::setBucket(VBucketPtr vb) {
 }
 
 void KVShard::dropVBucketAndSetupDeferredDeletion(Vbid id,
-                                                  const CookieIface* cookie) {
+                                                  CookieIface* cookie) {
     VBucketPtr vbPtr;
 
     {

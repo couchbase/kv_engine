@@ -71,39 +71,37 @@ struct test_harness {
     /**
      * Set the ewouldblock mode for the specified cookie
      */
-    virtual void set_ewouldblock_handling(const CookieIface* cookie,
-                                          bool enable) = 0;
+    virtual void set_ewouldblock_handling(CookieIface* cookie, bool enable) = 0;
 
     /**
      * Set if mutations_extra's should be handled for the specified cookie
      */
-    virtual void set_mutation_extras_handling(const CookieIface* cookie,
+    virtual void set_mutation_extras_handling(CookieIface* cookie,
                                               bool enable) = 0;
     /**
      * Set the datatypes the cookie should support
      */
-    virtual void set_datatype_support(const CookieIface* cookie,
+    virtual void set_datatype_support(CookieIface* cookie,
                                       protocol_binary_datatype_t datatypes) = 0;
     /**
      * Set if collections is enabled for the specified cookie
      */
-    virtual void set_collections_support(const CookieIface* cookie,
-                                         bool enable) = 0;
+    virtual void set_collections_support(CookieIface* cookie, bool enable) = 0;
 
     /**
      * Lock the specified cookie
      */
-    virtual void lock_cookie(const CookieIface* cookie) = 0;
+    virtual void lock_cookie(CookieIface* cookie) = 0;
 
     /**
      * Unlock the specified cookie
      */
-    virtual void unlock_cookie(const CookieIface* cookie) = 0;
+    virtual void unlock_cookie(CookieIface* cookie) = 0;
 
     /**
      * Wait for a cookie to be notified
      */
-    virtual void waitfor_cookie(const CookieIface* cookie) = 0;
+    virtual void waitfor_cookie(CookieIface* cookie) = 0;
 
     /**
      * Add the specified offset (in seconds) to the internal clock. (Adding

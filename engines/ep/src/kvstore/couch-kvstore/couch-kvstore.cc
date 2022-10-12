@@ -422,8 +422,7 @@ void CouchKVStore::resetStats() {
     fsStatsCompaction.reset();
 }
 
-void CouchKVStore::addStats(const AddStatFn& add_stat,
-                            const CookieIface& c) const {
+void CouchKVStore::addStats(const AddStatFn& add_stat, CookieIface& c) const {
     KVStore::addStats(add_stat, c);
     const auto prefix = getStatsPrefix();
 
@@ -468,7 +467,7 @@ void CouchKVStore::addStats(const AddStatFn& add_stat,
 }
 
 void CouchKVStore::addTimingStats(const AddStatFn& add_stat,
-                                  const CookieIface& c) const {
+                                  CookieIface& c) const {
     KVStore::addTimingStats(add_stat, c);
 
     const auto prefix = getStatsPrefix();

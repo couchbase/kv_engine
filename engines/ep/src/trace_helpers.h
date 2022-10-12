@@ -15,10 +15,6 @@
 #include <memcached/cookie_iface.h>
 #include <memcached/tracer.h>
 
-static inline cb::tracing::Traceable* cookie2traceable(const CookieIface* cc) {
-    return const_cast<CookieIface*>(cc);
-}
-
 /**
  * Traces a scope
  * Usage:
@@ -37,9 +33,8 @@ public:
         }
     }
 
-    /// Constructor from const CookieIface
-    ScopedTracer(const CookieIface* cookie, cb::tracing::Code code)
-        : ScopedTracer(*cookie2traceable(cookie), code) {
+    ScopedTracer(cb::tracing::Traceable* traceable, cb::tracing::Code code)
+        : ScopedTracer(*traceable, code) {
     }
 
     ~ScopedTracer() {
@@ -65,14 +60,13 @@ protected:
  */
 class TracerStopwatch {
 public:
+    TracerStopwatch(cb::tracing::Traceable& traceable,
+                    const cb::tracing::Code code)
+        : TracerStopwatch(&traceable, code) {
+    }
     TracerStopwatch(cb::tracing::Traceable* traceable,
                     const cb::tracing::Code code)
         : traceable(traceable), code(code) {
-    }
-
-    /// Constructor from const CookieIface
-    TracerStopwatch(const CookieIface* cookie, const cb::tracing::Code code)
-        : TracerStopwatch(cookie2traceable(cookie), code) {
     }
 
     ~TracerStopwatch() {

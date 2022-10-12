@@ -114,7 +114,7 @@ public:
     cb::engine_error update(const VBucketStateRLockMap& vbStateLocks,
                             KVBucket& bucket,
                             std::string_view manifest,
-                            const CookieIface* cookie);
+                            CookieIface* cookie);
 
     /**
      * Function used to provide a status when any update PersistManifestTask
@@ -124,7 +124,7 @@ public:
      * @param status The final status of the task execution
      */
     void updatePersistManifestTaskDone(EventuallyPersistentEngine& engine,
-                                       const CookieIface* cookie,
+                                       CookieIface* cookie,
                                        cb::engine_errc status);
 
     /**
@@ -327,7 +327,7 @@ private:
             const VBucketStateRLockMap& vbStateLocks,
             KVBucket& bucket,
             std::unique_ptr<Manifest> newManifest,
-            const CookieIface* cookie);
+            CookieIface* cookie);
 
     /**
      * Final stage of the manifest update is to roll the new manifest out to
@@ -455,7 +455,7 @@ private:
     folly::Synchronized<Manifest> currentManifest;
 
     /// Serialise updates to the manifest (set_collections core)
-    folly::Synchronized<const CookieIface*> updateInProgress{nullptr};
+    folly::Synchronized<CookieIface*> updateInProgress{nullptr};
 };
 
 std::ostream& operator<<(std::ostream& os, const Manager& manager);

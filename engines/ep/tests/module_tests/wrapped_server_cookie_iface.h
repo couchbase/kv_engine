@@ -35,58 +35,57 @@ public:
     ~WrappedServerCookieIface() override {
         get_mock_server_api()->cookie = wrapped;
     }
-    void setDcpConnHandler(const CookieIface& cookie,
+    void setDcpConnHandler(CookieIface& cookie,
                            DcpConnHandlerIface* handler) override {
         wrapped->setDcpConnHandler(cookie, handler);
     }
-    DcpConnHandlerIface* getDcpConnHandler(const CookieIface& cookie) override {
+    DcpConnHandlerIface* getDcpConnHandler(CookieIface& cookie) override {
         return wrapped->getDcpConnHandler(cookie);
     }
-    void setDcpFlowControlBufferSize(const CookieIface& cookie,
+    void setDcpFlowControlBufferSize(CookieIface& cookie,
                                      std::size_t size) override {
         wrapped->setDcpFlowControlBufferSize(cookie, size);
     }
-    void reserve(const CookieIface& cookie) override {
+    void reserve(CookieIface& cookie) override {
         wrapped->reserve(cookie);
     }
-    void release(const CookieIface& cookie) override {
+    void release(CookieIface& cookie) override {
         wrapped->release(cookie);
     }
-    void set_priority(const CookieIface& cookie,
+    void set_priority(CookieIface& cookie,
                       ConnectionPriority priority) override {
         return wrapped->set_priority(cookie, priority);
     }
-    ConnectionPriority get_priority(const CookieIface& cookie) override {
+    ConnectionPriority get_priority(CookieIface& cookie) override {
         return wrapped->get_priority(cookie);
     }
     cb::rbac::PrivilegeAccess check_privilege(
-            const CookieIface& cookie,
+            CookieIface& cookie,
             cb::rbac::Privilege privilege,
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) override {
         return wrapped->check_privilege(cookie, privilege, sid, cid);
     }
     cb::rbac::PrivilegeAccess check_for_privilege_at_least_in_one_collection(
-            const CookieIface& cookie, cb::rbac::Privilege privilege) override {
+            CookieIface& cookie, cb::rbac::Privilege privilege) override {
         return wrapped->check_for_privilege_at_least_in_one_collection(
                 cookie, privilege);
     }
-    uint32_t get_privilege_context_revision(
-            const CookieIface& cookie) override {
+    uint32_t get_privilege_context_revision(CookieIface& cookie) override {
         return wrapped->get_privilege_context_revision(cookie);
     }
-    cb::mcbp::Status engine_error2mcbp(const CookieIface& cookie,
+    cb::mcbp::Status engine_error2mcbp(CookieIface& cookie,
                                        cb::engine_errc code) override {
         return wrapped->engine_error2mcbp(cookie, code);
     }
     std::pair<uint32_t, std::string> get_log_info(
-            const CookieIface& cookie) override {
+            CookieIface& cookie) override {
         return wrapped->get_log_info(cookie);
     }
-    std::string get_authenticated_user(const CookieIface& cookie) override {
+    std::string get_authenticated_user(CookieIface& cookie) override {
         return wrapped->get_authenticated_user(cookie);
     }
-    in_port_t get_connected_port(const CookieIface& cookie) override {
+    in_port_t get_connected_port(CookieIface& cookie) override {
         return wrapped->get_connected_port(cookie);
     }
     bool is_valid_json(CookieIface& cookie, std::string_view view) override {

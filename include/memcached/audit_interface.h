@@ -88,7 +88,7 @@ public:
      * reconfigure is complete)
      */
     virtual bool configure_auditdaemon(const std::string& config,
-                                       const CookieIface& cookie) = 0;
+                                       CookieIface& cookie) = 0;
 
     /// Create an audit filter based upon the current configuration one may
     /// use to check if an event should be filtered out or not. Multiple

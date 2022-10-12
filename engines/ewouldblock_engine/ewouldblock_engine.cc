@@ -147,10 +147,10 @@ public:
 
     /* Implementation of all the engine functions. ***************************/
     void initiate_shutdown() override;
-    void disconnect(const CookieIface& cookie) override;
+    void disconnect(CookieIface& cookie) override;
     cb::engine_errc initialize(std::string_view config_str) override;
     void destroy(bool force) override;
-    cb::unique_item_ptr allocateItem(const CookieIface& cookie,
+    cb::unique_item_ptr allocateItem(CookieIface& cookie,
                                      const DocKey& key,
                                      size_t nbytes,
                                      size_t priv_nbytes,
@@ -159,42 +159,42 @@ public:
                                      uint8_t datatype,
                                      Vbid vbucket) override;
     cb::engine_errc remove(
-            const CookieIface& cookie,
+            CookieIface& cookie,
             const DocKey& key,
             uint64_t& cas,
             Vbid vbucket,
             const std::optional<cb::durability::Requirements>& durability,
             mutation_descr_t& mut_info) override;
     void release(ItemIface& item) override;
-    cb::EngineErrorItemPair get(const CookieIface& cookie,
+    cb::EngineErrorItemPair get(CookieIface& cookie,
                                 const DocKey& key,
                                 Vbid vbucket,
                                 DocStateFilter documentStateFilter) override;
     cb::EngineErrorItemPair get_if(
-            const CookieIface& cookie,
+            CookieIface& cookie,
             const DocKey& key,
             Vbid vbucket,
             std::function<bool(const item_info&)> filter) override;
     cb::EngineErrorItemPair get_and_touch(
-            const CookieIface& cookie,
+            CookieIface& cookie,
             const DocKey& key,
             Vbid vbucket,
             uint32_t exptime,
             const std::optional<cb::durability::Requirements>& durability)
             override;
-    cb::EngineErrorItemPair get_locked(const CookieIface& cookie,
+    cb::EngineErrorItemPair get_locked(CookieIface& cookie,
                                        const DocKey& key,
                                        Vbid vbucket,
                                        uint32_t lock_timeout) override;
-    cb::engine_errc unlock(const CookieIface& cookie,
+    cb::engine_errc unlock(CookieIface& cookie,
                            const DocKey& key,
                            Vbid vbucket,
                            uint64_t cas) override;
-    cb::EngineErrorMetadataPair get_meta(const CookieIface& cookie,
+    cb::EngineErrorMetadataPair get_meta(CookieIface& cookie,
                                          const DocKey& key,
                                          Vbid vbucket) override;
     cb::engine_errc store(
-            const CookieIface& cookie,
+            CookieIface& cookie,
             ItemIface& item,
             uint64_t& cas,
             StoreSemantics operation,
@@ -202,7 +202,7 @@ public:
             DocumentState document_state,
             bool preserveTtl) override;
     cb::EngineErrorCasPair store_if(
-            const CookieIface& cookie,
+            CookieIface& cookie,
             ItemIface& item,
             uint64_t cas,
             StoreSemantics operation,
@@ -210,26 +210,26 @@ public:
             const std::optional<cb::durability::Requirements>& durability,
             DocumentState document_state,
             bool preserveTtl) override;
-    cb::engine_errc flush(const CookieIface& cookie) override;
-    cb::engine_errc get_stats(const CookieIface& cookie,
+    cb::engine_errc flush(CookieIface& cookie) override;
+    cb::engine_errc get_stats(CookieIface& cookie,
                               std::string_view key,
                               std::string_view value,
                               const AddStatFn& add_stat) override;
-    void reset_stats(const CookieIface& cookie) override;
-    cb::engine_errc unknown_command(const CookieIface& cookie,
+    void reset_stats(CookieIface& cookie) override;
+    cb::engine_errc unknown_command(CookieIface& cookie,
                                     const cb::mcbp::Request& req,
                                     const AddResponseFn& response) override;
     bool get_item_info(const ItemIface& item, item_info& item_info) override;
-    cb::engine_errc set_collection_manifest(const CookieIface& cookie,
+    cb::engine_errc set_collection_manifest(CookieIface& cookie,
                                             std::string_view json) override;
     cb::engine_errc get_collection_manifest(
-            const CookieIface& cookie, const AddResponseFn& response) override;
+            CookieIface& cookie, const AddResponseFn& response) override;
     cb::EngineErrorGetCollectionIDResult get_collection_id(
-            const CookieIface& cookie, std::string_view path) override;
+            CookieIface& cookie, std::string_view path) override;
     cb::EngineErrorGetScopeIDResult get_scope_id(
-            const CookieIface& cookie, std::string_view path) override;
+            CookieIface& cookie, std::string_view path) override;
     cb::EngineErrorGetCollectionMetaResult get_collection_meta(
-            const CookieIface& cookie,
+            CookieIface& cookie,
             CollectionID cid,
             std::optional<Vbid> vbid) const override;
     cb::engine::FeatureSet getFeatures() override;
@@ -238,28 +238,28 @@ public:
     BucketCompressionMode getCompressionMode() override;
     size_t getMaxItemSize() override;
     float getMinCompressionRatio() override;
-    cb::engine_errc setParameter(const CookieIface& cookie,
+    cb::engine_errc setParameter(CookieIface& cookie,
                                  EngineParamCategory category,
                                  std::string_view key,
                                  std::string_view value,
                                  Vbid vbucket) override;
-    cb::engine_errc compactDatabase(const CookieIface& cookie,
+    cb::engine_errc compactDatabase(CookieIface& cookie,
                                     Vbid vbid,
                                     uint64_t purge_before_ts,
                                     uint64_t purge_before_seq,
                                     bool drop_deletes) override;
-    std::pair<cb::engine_errc, vbucket_state_t> getVBucket(
-            const CookieIface& cookie, Vbid vbid) override;
-    cb::engine_errc setVBucket(const CookieIface& cookie,
+    std::pair<cb::engine_errc, vbucket_state_t> getVBucket(CookieIface& cookie,
+                                                           Vbid vbid) override;
+    cb::engine_errc setVBucket(CookieIface& cookie,
                                Vbid vbid,
                                uint64_t cas,
                                vbucket_state_t state,
                                nlohmann::json* meta) override;
-    cb::engine_errc deleteVBucket(const CookieIface& cookie,
+    cb::engine_errc deleteVBucket(CookieIface& cookie,
                                   Vbid vbid,
                                   bool sync) override;
     std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScan(
-            const CookieIface& cookie,
+            CookieIface& cookie,
             Vbid vbid,
             CollectionID cid,
             cb::rangescan::KeyView start,
@@ -268,13 +268,13 @@ public:
             std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
             std::optional<cb::rangescan::SamplingConfiguration> samplingConfig)
             override;
-    cb::engine_errc continueRangeScan(const CookieIface& cookie,
+    cb::engine_errc continueRangeScan(CookieIface& cookie,
                                       Vbid vbid,
                                       cb::rangescan::Id uuid,
                                       size_t itemLimit,
                                       std::chrono::milliseconds timeLimit,
                                       size_t byteLimit) override;
-    cb::engine_errc cancelRangeScan(const CookieIface& cookie,
+    cb::engine_errc cancelRangeScan(CookieIface& cookie,
                                     Vbid vbid,
                                     cb::rangescan::Id uuid) override;
     cb::engine_errc pause() override;
@@ -286,24 +286,24 @@ public:
     // We don't support mocking with the DCP interface yet, so all access to //
     // the DCP interface will be proxied down to the underlying engine.      //
     ///////////////////////////////////////////////////////////////////////////
-    cb::engine_errc step(const CookieIface& cookie,
+    cb::engine_errc step(CookieIface& cookie,
                          bool throttled,
                          DcpMessageProducersIface& producers) override;
-    cb::engine_errc open(const CookieIface& cookie,
+    cb::engine_errc open(CookieIface& cookie,
                          uint32_t opaque,
                          uint32_t seqno,
                          uint32_t flags,
                          std::string_view name,
                          std::string_view value) override;
-    cb::engine_errc add_stream(const CookieIface& cookie,
+    cb::engine_errc add_stream(CookieIface& cookie,
                                uint32_t opaque,
                                Vbid vbucket,
                                uint32_t flags) override;
-    cb::engine_errc close_stream(const CookieIface& cookie,
+    cb::engine_errc close_stream(CookieIface& cookie,
                                  uint32_t opaque,
                                  Vbid vbucket,
                                  cb::mcbp::DcpStreamId sid) override;
-    cb::engine_errc stream_req(const CookieIface& cookie,
+    cb::engine_errc stream_req(CookieIface& cookie,
                                uint32_t flags,
                                uint32_t opaque,
                                Vbid vbucket,
@@ -315,16 +315,16 @@ public:
                                uint64_t* rollback_seqno,
                                dcp_add_failover_log callback,
                                std::optional<std::string_view> json) override;
-    cb::engine_errc get_failover_log(const CookieIface& cookie,
+    cb::engine_errc get_failover_log(CookieIface& cookie,
                                      uint32_t opaque,
                                      Vbid vbucket,
                                      dcp_add_failover_log callback) override;
-    cb::engine_errc stream_end(const CookieIface& cookie,
+    cb::engine_errc stream_end(CookieIface& cookie,
                                uint32_t opaque,
                                Vbid vbucket,
                                cb::mcbp::DcpStreamEndStatus status) override;
     cb::engine_errc snapshot_marker(
-            const CookieIface& cookie,
+            CookieIface& cookie,
             uint32_t opaque,
             Vbid vbucket,
             uint64_t start_seqno,
@@ -332,7 +332,7 @@ public:
             uint32_t flags,
             std::optional<uint64_t> high_completed_seqno,
             std::optional<uint64_t> max_visible_seqno) override;
-    cb::engine_errc mutation(const CookieIface& cookie,
+    cb::engine_errc mutation(CookieIface& cookie,
                              uint32_t opaque,
                              const DocKey& key,
                              cb::const_byte_buffer value,
@@ -347,7 +347,7 @@ public:
                              uint32_t lock_time,
                              cb::const_byte_buffer meta,
                              uint8_t nru) override;
-    cb::engine_errc deletion(const CookieIface& cookie,
+    cb::engine_errc deletion(CookieIface& cookie,
                              uint32_t opaque,
                              const DocKey& key,
                              cb::const_byte_buffer value,
@@ -358,7 +358,7 @@ public:
                              uint64_t by_seqno,
                              uint64_t rev_seqno,
                              cb::const_byte_buffer meta) override;
-    cb::engine_errc deletion_v2(const CookieIface& cookie,
+    cb::engine_errc deletion_v2(CookieIface& cookie,
                                 uint32_t opaque,
                                 const DocKey& key,
                                 cb::const_byte_buffer value,
@@ -369,7 +369,7 @@ public:
                                 uint64_t by_seqno,
                                 uint64_t rev_seqno,
                                 uint32_t delete_time) override;
-    cb::engine_errc expiration(const CookieIface& cookie,
+    cb::engine_errc expiration(CookieIface& cookie,
                                uint32_t opaque,
                                const DocKey& key,
                                cb::const_byte_buffer value,
@@ -380,22 +380,21 @@ public:
                                uint64_t by_seqno,
                                uint64_t rev_seqno,
                                uint32_t deleteTime) override;
-    cb::engine_errc set_vbucket_state(const CookieIface& cookie,
+    cb::engine_errc set_vbucket_state(CookieIface& cookie,
                                       uint32_t opaque,
                                       Vbid vbucket,
                                       vbucket_state_t state) override;
-    cb::engine_errc noop(const CookieIface& cookie, uint32_t opaque) override;
-    cb::engine_errc buffer_acknowledgement(const CookieIface& cookie,
+    cb::engine_errc noop(CookieIface& cookie, uint32_t opaque) override;
+    cb::engine_errc buffer_acknowledgement(CookieIface& cookie,
                                            uint32_t opaque,
                                            uint32_t buffer_bytes) override;
-    cb::engine_errc control(const CookieIface& cookie,
+    cb::engine_errc control(CookieIface& cookie,
                             uint32_t opaque,
                             std::string_view key,
                             std::string_view value) override;
     cb::engine_errc response_handler(
-            const CookieIface& cookie,
-            const cb::mcbp::Response& response) override;
-    cb::engine_errc system_event(const CookieIface& cookie,
+            CookieIface& cookie, const cb::mcbp::Response& response) override;
+    cb::engine_errc system_event(CookieIface& cookie,
                                  uint32_t opaque,
                                  Vbid vbucket,
                                  mcbp::systemevent::id event,
@@ -403,7 +402,7 @@ public:
                                  mcbp::systemevent::version version,
                                  cb::const_byte_buffer key,
                                  cb::const_byte_buffer eventData) override;
-    cb::engine_errc prepare(const CookieIface& cookie,
+    cb::engine_errc prepare(CookieIface& cookie,
                             uint32_t opaque,
                             const DocKey& key,
                             cb::const_byte_buffer value,
@@ -419,17 +418,17 @@ public:
                             uint8_t nru,
                             DocumentState document_state,
                             cb::durability::Level level) override;
-    cb::engine_errc seqno_acknowledged(const CookieIface& cookie,
+    cb::engine_errc seqno_acknowledged(CookieIface& cookie,
                                        uint32_t opaque,
                                        Vbid vbucket,
                                        uint64_t prepared_seqno) override;
-    cb::engine_errc commit(const CookieIface& cookie,
+    cb::engine_errc commit(CookieIface& cookie,
                            uint32_t opaque,
                            Vbid vbucket,
                            const DocKey& key,
                            uint64_t prepared_seqno,
                            uint64_t commit_seqno) override;
-    cb::engine_errc abort(const CookieIface& cookie,
+    cb::engine_errc abort(CookieIface& cookie,
                           uint32_t opaque,
                           Vbid vbucket,
                           const DocKey& key,
@@ -456,7 +455,7 @@ protected:
      * @param response callback used to send a response to the client
      * @return The standard engine error codes
      */
-    cb::engine_errc handleBlockMonitorFile(const CookieIface* cookie,
+    cb::engine_errc handleBlockMonitorFile(CookieIface* cookie,
                                            uint32_t id,
                                            const std::string& file,
                                            const AddResponseFn& response);
@@ -471,7 +470,7 @@ protected:
      * @param response callback used to send a response to the client
      * @return The standard engine error codes
      */
-    cb::engine_errc handleSuspend(const CookieIface* cookie,
+    cb::engine_errc handleSuspend(CookieIface* cookie,
                                   uint32_t id,
                                   const AddResponseFn& response);
 
@@ -483,7 +482,7 @@ protected:
      * @param response callback used to send a response to the client
      * @return The standard engine error codes
      */
-    cb::engine_errc handleResume(const CookieIface* cookie,
+    cb::engine_errc handleResume(CookieIface* cookie,
                                  uint32_t id,
                                  const AddResponseFn& response);
 
@@ -494,12 +493,12 @@ protected:
      * @param response Response callback used to send a response to the client
      * @return Standard engine error codes
      */
-    cb::engine_errc setItemCas(const CookieIface* cookie,
+    cb::engine_errc setItemCas(CookieIface* cookie,
                                const std::string& key,
                                uint32_t cas,
                                const AddResponseFn& response);
 
-    cb::engine_errc checkLogLevels(const CookieIface* cookie,
+    cb::engine_errc checkLogLevels(CookieIface* cookie,
                                    uint32_t value,
                                    const AddResponseFn& response);
 
@@ -530,7 +529,7 @@ private:
      * @param[out] Error code to return.
      */
     bool should_inject_error(Cmd cmd,
-                             const CookieIface* cookie,
+                             CookieIface* cookie,
                              cb::engine_errc& err);
 
     // Base class for all fault injection modes.
@@ -786,9 +785,9 @@ private:
 
     // Map of connections (aka cookies) to their current mode.
     folly::Synchronized<
-            std::unordered_map<uint64_t,
-                               std::pair<const CookieIface*,
-                                         std::shared_ptr<FaultInjectMode>>>,
+            std::unordered_map<
+                    uint64_t,
+                    std::pair<CookieIface*, std::shared_ptr<FaultInjectMode>>>,
             std::mutex>
             connection_map;
 
@@ -800,14 +799,13 @@ private:
      * if the stream is opened or not, and a count of how many times we should
      * return data
      */
-    std::map<const CookieIface*, std::pair<bool, uint64_t>> dcp_stream;
+    std::map<CookieIface*, std::pair<bool, uint64_t>> dcp_stream;
 
     /// A map from connection id to cookies which are suspended
-    folly::Synchronized<std::unordered_map<uint32_t, const CookieIface*>,
-                        std::mutex>
+    folly::Synchronized<std::unordered_map<uint32_t, CookieIface*>, std::mutex>
             suspended_map;
 
-    bool suspendConn(const CookieIface* cookie, uint32_t id) {
+    bool suspendConn(CookieIface* cookie, uint32_t id) {
         return suspended_map.withLock([id, cookie](auto& map) {
             auto [iter, inserted] = map.insert({id, cookie});
             return inserted;
@@ -815,7 +813,7 @@ private:
     }
 
     bool resumeConn(uint32_t id) {
-        const CookieIface* cookie = nullptr;
+        CookieIface* cookie = nullptr;
         if (suspended_map.withLock([id, &cookie](auto& map) {
                 auto iter = map.find(id);
                 if (iter == map.cend()) {
@@ -831,7 +829,7 @@ private:
         return false;
     }
 
-    bool is_connection_suspended(const CookieIface* cookie) {
+    bool is_connection_suspended(CookieIface* cookie) {
         return suspended_map.withLock([cookie, this](const auto& map) {
             for (const auto& [id, c] : map) {
                 if (c == cookie) {
@@ -849,8 +847,7 @@ private:
         });
     }
 
-    void schedule_notification(const CookieIface* cookie,
-                               cb::engine_errc status) {
+    void schedule_notification(CookieIface* cookie, cb::engine_errc status) {
         cookie->notifyIoComplete(status);
     }
 
@@ -868,7 +865,7 @@ EWB_Engine::~EWB_Engine() {
     threads.lock()->clear();
 }
 
-void EWB_Engine::disconnect(const CookieIface& cookie) {
+void EWB_Engine::disconnect(CookieIface& cookie) {
     connection_map.lock()->erase(uint64_t(&cookie.getConnectionIface()));
 
     if (real_engine) {
@@ -882,7 +879,7 @@ void EWB_Engine::disconnect(const CookieIface& cookie) {
  * @param[out] Error code to return.
  */
 bool EWB_Engine::should_inject_error(Cmd cmd,
-                                     const CookieIface* cookie,
+                                     CookieIface* cookie,
                                      cb::engine_errc& err) {
     if (is_connection_suspended(cookie)) {
         err = cb::engine_errc::would_block;
@@ -958,7 +955,7 @@ void EWB_Engine::destroy(bool force) {
     delete this;
 }
 
-cb::unique_item_ptr EWB_Engine::allocateItem(const CookieIface& cookie,
+cb::unique_item_ptr EWB_Engine::allocateItem(CookieIface& cookie,
                                              const DocKey& key,
                                              size_t nbytes,
                                              size_t priv_nbytes,
@@ -982,7 +979,7 @@ cb::unique_item_ptr EWB_Engine::allocateItem(const CookieIface& cookie,
 }
 
 cb::engine_errc EWB_Engine::remove(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const DocKey& key,
         uint64_t& cas,
         Vbid vbucket,
@@ -1006,7 +1003,7 @@ void EWB_Engine::release(ItemIface& item) {
     }
 }
 
-cb::EngineErrorItemPair EWB_Engine::get(const CookieIface& cookie,
+cb::EngineErrorItemPair EWB_Engine::get(CookieIface& cookie,
                                         const DocKey& key,
                                         Vbid vbucket,
                                         DocStateFilter documentStateFilter) {
@@ -1021,7 +1018,7 @@ cb::EngineErrorItemPair EWB_Engine::get(const CookieIface& cookie,
 }
 
 cb::EngineErrorItemPair EWB_Engine::get_if(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const DocKey& key,
         Vbid vbucket,
         std::function<bool(const item_info&)> filter) {
@@ -1034,7 +1031,7 @@ cb::EngineErrorItemPair EWB_Engine::get_if(
 }
 
 cb::EngineErrorItemPair EWB_Engine::get_and_touch(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const DocKey& key,
         Vbid vbucket,
         uint32_t exptime,
@@ -1048,7 +1045,7 @@ cb::EngineErrorItemPair EWB_Engine::get_and_touch(
     }
 }
 
-cb::EngineErrorItemPair EWB_Engine::get_locked(const CookieIface& cookie,
+cb::EngineErrorItemPair EWB_Engine::get_locked(CookieIface& cookie,
                                                const DocKey& key,
                                                Vbid vbucket,
                                                uint32_t lock_timeout) {
@@ -1060,7 +1057,7 @@ cb::EngineErrorItemPair EWB_Engine::get_locked(const CookieIface& cookie,
     }
 }
 
-cb::engine_errc EWB_Engine::unlock(const CookieIface& cookie,
+cb::engine_errc EWB_Engine::unlock(CookieIface& cookie,
                                    const DocKey& key,
                                    Vbid vbucket,
                                    uint64_t cas) {
@@ -1072,7 +1069,7 @@ cb::engine_errc EWB_Engine::unlock(const CookieIface& cookie,
     }
 }
 
-cb::EngineErrorMetadataPair EWB_Engine::get_meta(const CookieIface& cookie,
+cb::EngineErrorMetadataPair EWB_Engine::get_meta(CookieIface& cookie,
                                                  const DocKey& key,
                                                  Vbid vbucket) {
     cb::engine_errc err = cb::engine_errc::success;
@@ -1084,7 +1081,7 @@ cb::EngineErrorMetadataPair EWB_Engine::get_meta(const CookieIface& cookie,
 }
 
 cb::engine_errc EWB_Engine::store(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         ItemIface& item,
         uint64_t& cas,
         StoreSemantics operation,
@@ -1107,7 +1104,7 @@ cb::engine_errc EWB_Engine::store(
 }
 
 cb::EngineErrorCasPair EWB_Engine::store_if(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         ItemIface& item,
         uint64_t cas,
         StoreSemantics operation,
@@ -1131,7 +1128,7 @@ cb::EngineErrorCasPair EWB_Engine::store_if(
     }
 }
 
-cb::engine_errc EWB_Engine::flush(const CookieIface& cookie) {
+cb::engine_errc EWB_Engine::flush(CookieIface& cookie) {
     // Flush is a little different - it often returns EWOULDBLOCK, and
     // notify_io_complete() just tells the server it can issue it's *next*
     // command (i.e. no need to re-flush). Therefore just pass Flush
@@ -1139,7 +1136,7 @@ cb::engine_errc EWB_Engine::flush(const CookieIface& cookie) {
     return real_engine->flush(cookie);
 }
 
-cb::engine_errc EWB_Engine::get_stats(const CookieIface& cookie,
+cb::engine_errc EWB_Engine::get_stats(CookieIface& cookie,
                                       std::string_view key,
                                       std::string_view value,
                                       const AddStatFn& add_stat) {
@@ -1151,7 +1148,7 @@ cb::engine_errc EWB_Engine::get_stats(const CookieIface& cookie,
     }
 }
 
-void EWB_Engine::reset_stats(const CookieIface& cookie) {
+void EWB_Engine::reset_stats(CookieIface& cookie) {
     return real_engine->reset_stats(cookie);
 }
 
@@ -1160,7 +1157,7 @@ void EWB_Engine::reset_stats(const CookieIface& cookie) {
  * underlying real engine, this is also used to configure
  * ewouldblock_engine itself using he CMD_EWOULDBLOCK_CTL opcode.
  */
-cb::engine_errc EWB_Engine::unknown_command(const CookieIface& cookie,
+cb::engine_errc EWB_Engine::unknown_command(CookieIface& cookie,
                                             const cb::mcbp::Request& req,
                                             const AddResponseFn& response) {
     const auto opcode = req.getClientOpcode();
@@ -1339,7 +1336,7 @@ float EWB_Engine::getMinCompressionRatio() {
     return real_engine->getMinCompressionRatio();
 }
 
-cb::engine_errc EWB_Engine::setParameter(const CookieIface& cookie,
+cb::engine_errc EWB_Engine::setParameter(CookieIface& cookie,
                                          EngineParamCategory category,
                                          std::string_view key,
                                          std::string_view value,
@@ -1347,7 +1344,7 @@ cb::engine_errc EWB_Engine::setParameter(const CookieIface& cookie,
     return real_engine->setParameter(cookie, category, key, value, vbucket);
 }
 
-cb::engine_errc EWB_Engine::compactDatabase(const CookieIface& cookie,
+cb::engine_errc EWB_Engine::compactDatabase(CookieIface& cookie,
                                             Vbid vbid,
                                             uint64_t purge_before_ts,
                                             uint64_t purge_before_seq,
@@ -1357,11 +1354,11 @@ cb::engine_errc EWB_Engine::compactDatabase(const CookieIface& cookie,
 }
 
 std::pair<cb::engine_errc, vbucket_state_t> EWB_Engine::getVBucket(
-        const CookieIface& cookie, Vbid vbid) {
+        CookieIface& cookie, Vbid vbid) {
     return real_engine->getVBucket(cookie, vbid);
 }
 
-cb::engine_errc EWB_Engine::setVBucket(const CookieIface& cookie,
+cb::engine_errc EWB_Engine::setVBucket(CookieIface& cookie,
                                        Vbid vbid,
                                        uint64_t cas,
                                        vbucket_state_t state,
@@ -1369,14 +1366,14 @@ cb::engine_errc EWB_Engine::setVBucket(const CookieIface& cookie,
     return real_engine->setVBucket(cookie, vbid, cas, state, meta);
 }
 
-cb::engine_errc EWB_Engine::deleteVBucket(const CookieIface& cookie,
+cb::engine_errc EWB_Engine::deleteVBucket(CookieIface& cookie,
                                           Vbid vbid,
                                           bool sync) {
     return real_engine->deleteVBucket(cookie, vbid, sync);
 }
 
 std::pair<cb::engine_errc, cb::rangescan::Id> EWB_Engine::createRangeScan(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         Vbid vbid,
         CollectionID cid,
         cb::rangescan::KeyView start,
@@ -1395,7 +1392,7 @@ std::pair<cb::engine_errc, cb::rangescan::Id> EWB_Engine::createRangeScan(
 }
 
 cb::engine_errc EWB_Engine::continueRangeScan(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         Vbid vbid,
         cb::rangescan::Id uuid,
         size_t itemLimit,
@@ -1405,7 +1402,7 @@ cb::engine_errc EWB_Engine::continueRangeScan(
             cookie, vbid, uuid, itemLimit, timeLimit, byteLimit);
 }
 
-cb::engine_errc EWB_Engine::cancelRangeScan(const CookieIface& cookie,
+cb::engine_errc EWB_Engine::cancelRangeScan(CookieIface& cookie,
                                             Vbid vbid,
                                             cb::rangescan::Id uuid) {
     return real_engine->cancelRangeScan(cookie, vbid, uuid);
@@ -1419,7 +1416,7 @@ cb::engine_errc EWB_Engine::resume() {
     return real_engine->resume();
 }
 
-cb::engine_errc EWB_Engine::step(const CookieIface& cookie,
+cb::engine_errc EWB_Engine::step(CookieIface& cookie,
                                  bool throttled,
                                  DcpMessageProducersIface& producers) {
     auto stream = dcp_stream.find(&cookie);
@@ -1450,7 +1447,7 @@ cb::engine_errc EWB_Engine::step(const CookieIface& cookie,
     return real_engine_dcp->step(cookie, throttled, producers);
 }
 
-cb::engine_errc EWB_Engine::open(const CookieIface& cookie,
+cb::engine_errc EWB_Engine::open(CookieIface& cookie,
                                  uint32_t opaque,
                                  uint32_t seqno,
                                  uint32_t flags,
@@ -1482,7 +1479,7 @@ cb::engine_errc EWB_Engine::open(const CookieIface& cookie,
     }
 }
 
-cb::engine_errc EWB_Engine::stream_req(const CookieIface& cookie,
+cb::engine_errc EWB_Engine::stream_req(CookieIface& cookie,
                                        uint32_t flags,
                                        uint32_t opaque,
                                        Vbid vbucket,
@@ -1524,7 +1521,7 @@ cb::engine_errc EWB_Engine::stream_req(const CookieIface& cookie,
     }
 }
 
-cb::engine_errc EWB_Engine::add_stream(const CookieIface& cookie,
+cb::engine_errc EWB_Engine::add_stream(CookieIface& cookie,
                                        uint32_t opaque,
                                        Vbid vbucket,
                                        uint32_t flags) {
@@ -1535,7 +1532,7 @@ cb::engine_errc EWB_Engine::add_stream(const CookieIface& cookie,
     }
 }
 
-cb::engine_errc EWB_Engine::close_stream(const CookieIface& cookie,
+cb::engine_errc EWB_Engine::close_stream(CookieIface& cookie,
                                          uint32_t opaque,
                                          Vbid vbucket,
                                          cb::mcbp::DcpStreamId sid) {
@@ -1546,7 +1543,7 @@ cb::engine_errc EWB_Engine::close_stream(const CookieIface& cookie,
     }
 }
 
-cb::engine_errc EWB_Engine::get_failover_log(const CookieIface& cookie,
+cb::engine_errc EWB_Engine::get_failover_log(CookieIface& cookie,
                                              uint32_t opaque,
                                              Vbid vbucket,
                                              dcp_add_failover_log callback) {
@@ -1558,7 +1555,7 @@ cb::engine_errc EWB_Engine::get_failover_log(const CookieIface& cookie,
     }
 }
 
-cb::engine_errc EWB_Engine::stream_end(const CookieIface& cookie,
+cb::engine_errc EWB_Engine::stream_end(CookieIface& cookie,
                                        uint32_t opaque,
                                        Vbid vbucket,
                                        cb::mcbp::DcpStreamEndStatus status) {
@@ -1570,7 +1567,7 @@ cb::engine_errc EWB_Engine::stream_end(const CookieIface& cookie,
 }
 
 cb::engine_errc EWB_Engine::snapshot_marker(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         uint32_t opaque,
         Vbid vbucket,
         uint64_t start_seqno,
@@ -1592,7 +1589,7 @@ cb::engine_errc EWB_Engine::snapshot_marker(
     }
 }
 
-cb::engine_errc EWB_Engine::mutation(const CookieIface& cookie,
+cb::engine_errc EWB_Engine::mutation(CookieIface& cookie,
                                      uint32_t opaque,
                                      const DocKey& key,
                                      cb::const_byte_buffer value,
@@ -1628,7 +1625,7 @@ cb::engine_errc EWB_Engine::mutation(const CookieIface& cookie,
     }
 }
 
-cb::engine_errc EWB_Engine::deletion(const CookieIface& cookie,
+cb::engine_errc EWB_Engine::deletion(CookieIface& cookie,
                                      uint32_t opaque,
                                      const DocKey& key,
                                      cb::const_byte_buffer value,
@@ -1656,7 +1653,7 @@ cb::engine_errc EWB_Engine::deletion(const CookieIface& cookie,
     }
 }
 
-cb::engine_errc EWB_Engine::deletion_v2(const CookieIface& cookie,
+cb::engine_errc EWB_Engine::deletion_v2(CookieIface& cookie,
                                         uint32_t opaque,
                                         const DocKey& key,
                                         cb::const_byte_buffer value,
@@ -1684,7 +1681,7 @@ cb::engine_errc EWB_Engine::deletion_v2(const CookieIface& cookie,
     }
 }
 
-cb::engine_errc EWB_Engine::expiration(const CookieIface& cookie,
+cb::engine_errc EWB_Engine::expiration(CookieIface& cookie,
                                        uint32_t opaque,
                                        const DocKey& key,
                                        cb::const_byte_buffer value,
@@ -1712,7 +1709,7 @@ cb::engine_errc EWB_Engine::expiration(const CookieIface& cookie,
     }
 }
 
-cb::engine_errc EWB_Engine::set_vbucket_state(const CookieIface& cookie,
+cb::engine_errc EWB_Engine::set_vbucket_state(CookieIface& cookie,
                                               uint32_t opaque,
                                               Vbid vbucket,
                                               vbucket_state_t state) {
@@ -1724,7 +1721,7 @@ cb::engine_errc EWB_Engine::set_vbucket_state(const CookieIface& cookie,
     }
 }
 
-cb::engine_errc EWB_Engine::noop(const CookieIface& cookie, uint32_t opaque) {
+cb::engine_errc EWB_Engine::noop(CookieIface& cookie, uint32_t opaque) {
     if (!real_engine_dcp) {
         return cb::engine_errc::not_supported;
     } else {
@@ -1732,7 +1729,7 @@ cb::engine_errc EWB_Engine::noop(const CookieIface& cookie, uint32_t opaque) {
     }
 }
 
-cb::engine_errc EWB_Engine::buffer_acknowledgement(const CookieIface& cookie,
+cb::engine_errc EWB_Engine::buffer_acknowledgement(CookieIface& cookie,
                                                    uint32_t opaque,
                                                    uint32_t buffer_bytes) {
     if (!real_engine_dcp) {
@@ -1743,7 +1740,7 @@ cb::engine_errc EWB_Engine::buffer_acknowledgement(const CookieIface& cookie,
     }
 }
 
-cb::engine_errc EWB_Engine::control(const CookieIface& cookie,
+cb::engine_errc EWB_Engine::control(CookieIface& cookie,
                                     uint32_t opaque,
                                     std::string_view key,
                                     std::string_view value) {
@@ -1755,7 +1752,7 @@ cb::engine_errc EWB_Engine::control(const CookieIface& cookie,
 }
 
 cb::engine_errc EWB_Engine::response_handler(
-        const CookieIface& cookie, const cb::mcbp::Response& response) {
+        CookieIface& cookie, const cb::mcbp::Response& response) {
     if (!real_engine_dcp) {
         return cb::engine_errc::not_supported;
     } else {
@@ -1763,7 +1760,7 @@ cb::engine_errc EWB_Engine::response_handler(
     }
 }
 
-cb::engine_errc EWB_Engine::system_event(const CookieIface& cookie,
+cb::engine_errc EWB_Engine::system_event(CookieIface& cookie,
                                          uint32_t opaque,
                                          Vbid vbucket,
                                          mcbp::systemevent::id event,
@@ -1785,7 +1782,7 @@ cb::engine_errc EWB_Engine::system_event(const CookieIface& cookie,
     }
 }
 
-cb::engine_errc EWB_Engine::prepare(const CookieIface& cookie,
+cb::engine_errc EWB_Engine::prepare(CookieIface& cookie,
                                     uint32_t opaque,
                                     const DocKey& key,
                                     cb::const_byte_buffer value,
@@ -1822,7 +1819,7 @@ cb::engine_errc EWB_Engine::prepare(const CookieIface& cookie,
                                         level);
     }
 }
-cb::engine_errc EWB_Engine::seqno_acknowledged(const CookieIface& cookie,
+cb::engine_errc EWB_Engine::seqno_acknowledged(CookieIface& cookie,
                                                uint32_t opaque,
                                                Vbid vbucket,
                                                uint64_t prepared_seqno) {
@@ -1833,7 +1830,7 @@ cb::engine_errc EWB_Engine::seqno_acknowledged(const CookieIface& cookie,
                 cookie, opaque, vbucket, prepared_seqno);
     }
 }
-cb::engine_errc EWB_Engine::commit(const CookieIface& cookie,
+cb::engine_errc EWB_Engine::commit(CookieIface& cookie,
                                    uint32_t opaque,
                                    Vbid vbucket,
                                    const DocKey& key,
@@ -1847,7 +1844,7 @@ cb::engine_errc EWB_Engine::commit(const CookieIface& cookie,
     }
 }
 
-cb::engine_errc EWB_Engine::abort(const CookieIface& cookie,
+cb::engine_errc EWB_Engine::abort(CookieIface& cookie,
                                   uint32_t opaque,
                                   Vbid vbucket,
                                   const DocKey& key,
@@ -1900,7 +1897,7 @@ const char* EWB_Engine::to_string(const Cmd cmd) {
 }
 
 cb::engine_errc EWB_Engine::handleBlockMonitorFile(
-        const CookieIface* cookie,
+        CookieIface* cookie,
         uint32_t id,
         const std::string& file,
         const AddResponseFn& response) {
@@ -1994,7 +1991,7 @@ cb::engine_errc EWB_Engine::handleBlockMonitorFile(
     return cb::engine_errc::success;
 }
 
-cb::engine_errc EWB_Engine::handleSuspend(const CookieIface* cookie,
+cb::engine_errc EWB_Engine::handleSuspend(CookieIface* cookie,
                                           uint32_t id,
                                           const AddResponseFn& response) {
     if (suspendConn(cookie, id)) {
@@ -2016,7 +2013,7 @@ cb::engine_errc EWB_Engine::handleSuspend(const CookieIface* cookie,
     }
 }
 
-cb::engine_errc EWB_Engine::handleResume(const CookieIface* cookie,
+cb::engine_errc EWB_Engine::handleResume(CookieIface* cookie,
                                          uint32_t id,
                                          const AddResponseFn& response) {
     if (resumeConn(id)) {
@@ -2038,7 +2035,7 @@ cb::engine_errc EWB_Engine::handleResume(const CookieIface* cookie,
     }
 }
 
-cb::engine_errc EWB_Engine::setItemCas(const CookieIface* cookie,
+cb::engine_errc EWB_Engine::setItemCas(CookieIface* cookie,
                                        const std::string& key,
                                        uint32_t cas,
                                        const AddResponseFn& response) {
@@ -2066,7 +2063,7 @@ cb::engine_errc EWB_Engine::setItemCas(const CookieIface* cookie,
     return cb::engine_errc::success;
 }
 
-cb::engine_errc EWB_Engine::checkLogLevels(const CookieIface* cookie,
+cb::engine_errc EWB_Engine::checkLogLevels(CookieIface* cookie,
                                            uint32_t value,
                                            const AddResponseFn& response) {
     auto level = spdlog::level::level_enum(value);
@@ -2082,23 +2079,23 @@ cb::engine_errc EWB_Engine::checkLogLevels(const CookieIface* cookie,
     return cb::engine_errc::success;
 }
 
-cb::engine_errc EWB_Engine::set_collection_manifest(const CookieIface& cookie,
+cb::engine_errc EWB_Engine::set_collection_manifest(CookieIface& cookie,
                                                     std::string_view json) {
     return real_engine->set_collection_manifest(cookie, json);
 }
 
 cb::engine_errc EWB_Engine::get_collection_manifest(
-        const CookieIface& cookie, const AddResponseFn& response) {
+        CookieIface& cookie, const AddResponseFn& response) {
     return real_engine->get_collection_manifest(cookie, response);
 }
 
 cb::EngineErrorGetCollectionIDResult EWB_Engine::get_collection_id(
-        const CookieIface& cookie, std::string_view path) {
+        CookieIface& cookie, std::string_view path) {
     return real_engine->get_collection_id(cookie, path);
 }
 
 cb::EngineErrorGetScopeIDResult EWB_Engine::get_scope_id(
-        const CookieIface& cookie, std::string_view path) {
+        CookieIface& cookie, std::string_view path) {
     return real_engine->get_scope_id(cookie, path);
 }
 
@@ -2109,8 +2106,6 @@ void EWB_Engine::initiate_shutdown() {
 }
 
 cb::EngineErrorGetCollectionMetaResult EWB_Engine::get_collection_meta(
-        const CookieIface& cookie,
-        CollectionID cid,
-        std::optional<Vbid> vbid) const {
+        CookieIface& cookie, CollectionID cid, std::optional<Vbid> vbid) const {
     return real_engine->get_collection_meta(cookie, cid, std::optional<Vbid>());
 }

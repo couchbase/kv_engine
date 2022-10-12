@@ -73,7 +73,7 @@ public:
             DiskDocKey start,
             DiskDocKey end,
             std::unique_ptr<RangeScanDataHandlerIFace> handler,
-            const CookieIface& cookie,
+            CookieIface& cookie,
             cb::rangescan::KeyOnly keyOnly,
             std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
             std::optional<cb::rangescan::SamplingConfiguration> samplingConfig);
@@ -100,7 +100,7 @@ public:
      * exists (which could be dropped whilst a scan is idle). Caller can use
      * that to cancel scans.
      */
-    cb::engine_errc hasPrivilege(const CookieIface& cookie,
+    cb::engine_errc hasPrivilege(CookieIface& cookie,
                                  const EventuallyPersistentEngine& engine);
 
     /**
@@ -135,7 +135,7 @@ public:
      * @param timeLimit how long the scan can run for (0 no limit)
      * @param byteLimit how many bytes the continue can return (0 no limit)
      */
-    void setStateContinuing(const CookieIface& client,
+    void setStateContinuing(CookieIface& client,
                             size_t itemLimit,
                             std::chrono::milliseconds timeLimit,
                             size_t byteLimit);
@@ -262,7 +262,7 @@ protected:
      * @return the Id to use for this scan
      */
     cb::rangescan::Id createScan(
-            const CookieIface& cookie,
+            CookieIface& cookie,
             EPBucket& bucket,
             std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
             std::optional<cb::rangescan::SamplingConfiguration> samplingConfig);
@@ -394,7 +394,7 @@ protected:
          * limits so that the run can process the scan and respond to the
          * cookie.
          */
-        void setupForContinue(const CookieIface& c,
+        void setupForContinue(CookieIface& c,
                               size_t limit,
                               std::chrono::milliseconds timeLimit,
                               size_t byteLimit);
@@ -416,7 +416,7 @@ protected:
         void setupForCancel();
 
         // cookie will transition from null -> cookie -> null ...
-        const CookieIface* cookie{nullptr};
+        CookieIface* cookie{nullptr};
         State state{State::Idle};
         ContinueLimits limits;
     };

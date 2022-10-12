@@ -149,7 +149,7 @@ public:
     }
 
     void doWorkerStat(Taskable& taskable,
-                      const CookieIface& cookie,
+                      CookieIface& cookie,
                       const AddStatFn& add_stat) override;
 
     /**
@@ -157,11 +157,11 @@ public:
      * cbstats tasks.
      */
     void doTasksStat(Taskable& taskable,
-                     const CookieIface& cookie,
+                     CookieIface& cookie,
                      const AddStatFn& add_stat) override;
 
     void doTaskQStat(Taskable& taskable,
-                     const CookieIface& cookie,
+                     CookieIface& cookie,
                      const AddStatFn& add_stat) override;
 
     size_t getNumWorkersStat() override {

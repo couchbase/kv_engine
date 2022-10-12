@@ -89,7 +89,7 @@ public:
         return snap_end_seqno_;
     }
 
-    virtual void addStats(const AddStatFn& add_stat, const CookieIface& c);
+    virtual void addStats(const AddStatFn& add_stat, CookieIface& c);
 
     virtual uint32_t setDead(cb::mcbp::DcpStreamEndStatus status) = 0;
 

@@ -192,7 +192,7 @@ public:
      * @returns statistics about worker threads.
      */
     virtual void doWorkerStat(Taskable& taskable,
-                              const CookieIface& cookie,
+                              CookieIface& cookie,
                               const AddStatFn& add_stat) = 0;
 
     /**
@@ -200,14 +200,14 @@ public:
      * cbstats tasks.
      */
     virtual void doTasksStat(Taskable& taskable,
-                             const CookieIface& cookie,
+                             CookieIface& cookie,
                              const AddStatFn& add_stat) = 0;
 
     /**
      * Generates stats regarding queued tasks.
      */
     virtual void doTaskQStat(Taskable& taskable,
-                             const CookieIface& cookie,
+                             CookieIface& cookie,
                              const AddStatFn& add_stat) = 0;
 
     virtual ~ExecutorPool() = default;

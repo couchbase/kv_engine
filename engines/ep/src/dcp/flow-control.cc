@@ -97,8 +97,7 @@ bool FlowControl::isBufferSufficientlyDrained() {
     return freedBytes > (lockedBuffer->getSize() * 0.2);
 }
 
-void FlowControl::addStats(const AddStatFn& add_stat,
-                           const CookieIface& c) const {
+void FlowControl::addStats(const AddStatFn& add_stat, CookieIface& c) const {
     consumerConn.addStat("total_acked_bytes", ackedBytes, add_stat, c);
     consumerConn.addStat(
             "max_buffer_bytes", buffer.rlock()->getSize(), add_stat, c);

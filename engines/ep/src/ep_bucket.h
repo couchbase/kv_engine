@@ -122,7 +122,7 @@ public:
     cb::engine_errc scheduleCompaction(
             Vbid vbid,
             const CompactionConfig& c,
-            const CookieIface* ck,
+            CookieIface* ck,
             std::chrono::milliseconds delay) override;
 
     /**
@@ -153,7 +153,7 @@ public:
      */
     bool doCompact(Vbid vbid,
                    CompactionConfig& config,
-                   std::vector<const CookieIface*>& cookies);
+                   std::vector<CookieIface*>& cookies);
 
     /**
      * After compaction completes the task can be removed if no further
@@ -169,7 +169,7 @@ public:
 
     cb::engine_errc getFileStats(const BucketStatCollector& collector) override;
 
-    cb::engine_errc getPerVBucketDiskStats(const CookieIface& cookie,
+    cb::engine_errc getPerVBucketDiskStats(CookieIface& cookie,
                                            const AddStatFn& add_stat) override;
 
     size_t getPageableMemCurrent() const override;
@@ -199,9 +199,9 @@ public:
 
     cb::engine_errc statsVKey(const DocKey& key,
                               Vbid vbucket,
-                              const CookieIface* cookie) override;
+                              CookieIface* cookie) override;
 
-    void completeStatsVKey(const CookieIface* cookie,
+    void completeStatsVKey(CookieIface* cookie,
                            const DocKey& key,
                            Vbid vbid,
                            uint64_t bySeqNum) override;
@@ -222,8 +222,7 @@ public:
      *        doesn't support Snappy compression then ValueFilter will not
      *        return compressed data.
      */
-    ValueFilter getValueFilterForCompressionMode(
-            const CookieIface* cookie = nullptr);
+    ValueFilter getValueFilterForCompressionMode(CookieIface* cookie = nullptr);
 
     void notifyNewSeqno(const Vbid vbid, const VBNotifyCtx& notifyCtx) override;
 
@@ -258,7 +257,7 @@ public:
      * @return true if the cookie was stored for later notification, false if
      *         not.
      */
-    bool maybeWaitForVBucketWarmup(const CookieIface* cookie) override;
+    bool maybeWaitForVBucketWarmup(CookieIface* cookie) override;
 
     /**
      * Creates a warmup task if the engine configuration has "warmup=true"
@@ -295,7 +294,7 @@ public:
     }
 
     bool maybeScheduleManifestPersistence(
-            const CookieIface* cookie,
+            CookieIface* cookie,
             std::unique_ptr<Collections::Manifest>& newManifest) override;
 
     BgFetcher& getBgFetcher(Vbid vbid);
@@ -313,7 +312,7 @@ public:
             cb::rangescan::KeyView start,
             cb::rangescan::KeyView end,
             std::unique_ptr<RangeScanDataHandlerIFace> handler,
-            const CookieIface& cookie,
+            CookieIface& cookie,
             cb::rangescan::KeyOnly keyOnly,
             std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
             std::optional<cb::rangescan::SamplingConfiguration> samplingConfig)
@@ -321,14 +320,14 @@ public:
 
     cb::engine_errc continueRangeScan(Vbid vbid,
                                       cb::rangescan::Id uuid,
-                                      const CookieIface& cookie,
+                                      CookieIface& cookie,
                                       size_t itemLimit,
                                       std::chrono::milliseconds timeLimit,
                                       size_t byteLimit) override;
 
     cb::engine_errc cancelRangeScan(Vbid vbid,
                                     cb::rangescan::Id uuid,
-                                    const CookieIface& cookie) override;
+                                    CookieIface& cookie) override;
 
     cb::engine_errc prepareForPause() override;
 
@@ -443,7 +442,7 @@ protected:
     cb::engine_errc scheduleOrRescheduleCompaction(
             Vbid vbid,
             const CompactionConfig& config,
-            const CookieIface* cookie,
+            CookieIface* cookie,
             std::chrono::milliseconds delay);
 
     /**

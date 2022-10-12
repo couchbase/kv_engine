@@ -279,7 +279,7 @@ public:
      * @return true if the cookie was stored for later notification, false if
      *         not.
      */
-    bool maybeWaitForVBucketWarmup(const CookieIface* cookie);
+    bool maybeWaitForVBucketWarmup(CookieIface* cookie);
 
     /**
      * Perform any notifications to any pending setVBState operations and mark
@@ -478,7 +478,7 @@ private:
             std::numeric_limits<size_t>::max()};
 
     /// All of the cookies which need notifying when create-vbuckets is done
-    using PendingCookiesQueue = std::deque<const CookieIface*>;
+    using PendingCookiesQueue = std::deque<CookieIface*>;
     PendingCookiesQueue pendingCookies;
     /// flag to mark once warmup is passed createVbuckets
     bool createVBucketsComplete{false};

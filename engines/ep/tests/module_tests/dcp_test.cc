@@ -1897,7 +1897,7 @@ TEST_F(DcpConnMapTest, ConnAggStats) {
 
     auto addStat = [&statsOutput](std::string_view key,
                                   std::string_view value,
-                                  const CookieIface&) {
+                                  CookieIface&) {
         statsOutput.emplace(std::string(key), std::string(value));
     };
 

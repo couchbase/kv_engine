@@ -101,7 +101,7 @@ static void append_stats(std::string_view key,
 /// Wrapper function for the _external_ functions.
 static void external_append_stats(std::string_view key,
                                   std::string_view value,
-                                  const CookieIface& ctx) {
+                                  CookieIface& ctx) {
     auto& cookie = asCookie(ctx);
     append_stats(key, value, cookie);
 }

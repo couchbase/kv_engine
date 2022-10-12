@@ -1454,12 +1454,12 @@ void Warmup::processCreateVBucketsComplete(cb::engine_errc status) {
 
     EP_LOG_INFO("Warmup::processCreateVBucketsComplete unblocking {} cookie(s)",
                 toNotify.size());
-    for (const auto* c : toNotify) {
+    for (auto* c : toNotify) {
         store.getEPEngine().notifyIOComplete(c, status);
     }
 }
 
-bool Warmup::maybeWaitForVBucketWarmup(const CookieIface* cookie) {
+bool Warmup::maybeWaitForVBucketWarmup(CookieIface* cookie) {
     std::lock_guard<std::mutex> lg(pendingCookiesMutex);
     if (!createVBucketsComplete) {
         pendingCookies.push_back(cookie);

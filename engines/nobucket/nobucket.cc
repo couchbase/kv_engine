@@ -33,7 +33,7 @@ public:
         delete this;
     }
 
-    cb::unique_item_ptr allocateItem(const CookieIface& cookie,
+    cb::unique_item_ptr allocateItem(CookieIface& cookie,
                                      const DocKey& key,
                                      size_t nbytes,
                                      size_t priv_nbytes,
@@ -45,7 +45,7 @@ public:
     }
 
     cb::engine_errc remove(
-            const CookieIface&,
+            CookieIface&,
             const DocKey&,
             uint64_t&,
             Vbid,
@@ -60,7 +60,7 @@ public:
                 " been allocated from this engine");
     }
 
-    cb::EngineErrorItemPair get(const CookieIface&,
+    cb::EngineErrorItemPair get(CookieIface&,
                                 const DocKey&,
                                 Vbid,
                                 DocStateFilter) override {
@@ -68,27 +68,27 @@ public:
     }
 
     cb::EngineErrorItemPair get_if(
-            const CookieIface&,
+            CookieIface&,
             const DocKey&,
             Vbid,
             std::function<bool(const item_info&)>) override {
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
 
-    cb::EngineErrorMetadataPair get_meta(const CookieIface& cookie,
+    cb::EngineErrorMetadataPair get_meta(CookieIface& cookie,
                                          const DocKey& key,
                                          Vbid vbucket) override {
         return cb::EngineErrorMetadataPair(cb::engine_errc::no_bucket, {});
     }
 
-    cb::EngineErrorItemPair get_locked(const CookieIface&,
+    cb::EngineErrorItemPair get_locked(CookieIface&,
                                        const DocKey&,
                                        Vbid,
                                        uint32_t) override {
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
 
-    cb::engine_errc unlock(const CookieIface&,
+    cb::engine_errc unlock(CookieIface&,
                            const DocKey&,
                            Vbid,
                            uint64_t) override {
@@ -96,7 +96,7 @@ public:
     }
 
     cb::EngineErrorItemPair get_and_touch(
-            const CookieIface& cookie,
+            CookieIface& cookie,
             const DocKey&,
             Vbid,
             uint32_t,
@@ -104,7 +104,7 @@ public:
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
 
-    cb::engine_errc store(const CookieIface&,
+    cb::engine_errc store(CookieIface&,
                           ItemIface&,
                           uint64_t&,
                           StoreSemantics,
@@ -115,7 +115,7 @@ public:
     }
 
     cb::EngineErrorCasPair store_if(
-            const CookieIface&,
+            CookieIface&,
             ItemIface&,
             uint64_t,
             StoreSemantics,
@@ -126,21 +126,21 @@ public:
         return {cb::engine_errc::no_bucket, 0};
     }
 
-    cb::engine_errc flush(const CookieIface&) override {
+    cb::engine_errc flush(CookieIface&) override {
         return cb::engine_errc::no_bucket;
     }
 
-    cb::engine_errc get_stats(const CookieIface&,
+    cb::engine_errc get_stats(CookieIface&,
                               std::string_view,
                               std::string_view,
                               const AddStatFn&) override {
         return cb::engine_errc::no_bucket;
     }
 
-    void reset_stats(const CookieIface& cookie) override {
+    void reset_stats(CookieIface& cookie) override {
     }
 
-    cb::engine_errc unknown_command(const CookieIface&,
+    cb::engine_errc unknown_command(CookieIface&,
                                     const cb::mcbp::Request& request,
                                     const AddResponseFn&) override {
         return cb::engine_errc::no_bucket;
@@ -154,13 +154,13 @@ public:
 
     // DcpIface implementation ////////////////////////////////////////////////
 
-    cb::engine_errc step(const CookieIface&,
+    cb::engine_errc step(CookieIface&,
                          bool,
                          DcpMessageProducersIface&) override {
         return cb::engine_errc::no_bucket;
     }
 
-    cb::engine_errc open(const CookieIface&,
+    cb::engine_errc open(CookieIface&,
                          uint32_t,
                          uint32_t,
                          uint32_t,
@@ -169,21 +169,21 @@ public:
         return cb::engine_errc::no_bucket;
     }
 
-    cb::engine_errc add_stream(const CookieIface&,
+    cb::engine_errc add_stream(CookieIface&,
                                uint32_t,
                                Vbid,
                                uint32_t) override {
         return cb::engine_errc::no_bucket;
     }
 
-    cb::engine_errc close_stream(const CookieIface&,
+    cb::engine_errc close_stream(CookieIface&,
                                  uint32_t,
                                  Vbid,
                                  cb::mcbp::DcpStreamId) override {
         return cb::engine_errc::no_bucket;
     }
 
-    cb::engine_errc stream_req(const CookieIface&,
+    cb::engine_errc stream_req(CookieIface&,
                                uint32_t,
                                uint32_t,
                                Vbid,
@@ -198,21 +198,21 @@ public:
         return cb::engine_errc::no_bucket;
     }
 
-    cb::engine_errc get_failover_log(const CookieIface&,
+    cb::engine_errc get_failover_log(CookieIface&,
                                      uint32_t,
                                      Vbid,
                                      dcp_add_failover_log) override {
         return cb::engine_errc::no_bucket;
     }
 
-    cb::engine_errc stream_end(const CookieIface&,
+    cb::engine_errc stream_end(CookieIface&,
                                uint32_t,
                                Vbid,
                                cb::mcbp::DcpStreamEndStatus) override {
         return cb::engine_errc::no_bucket;
     }
 
-    cb::engine_errc snapshot_marker(const CookieIface&,
+    cb::engine_errc snapshot_marker(CookieIface&,
                                     uint32_t,
                                     Vbid,
                                     uint64_t,
@@ -223,7 +223,7 @@ public:
         return cb::engine_errc::no_bucket;
     }
 
-    cb::engine_errc mutation(const CookieIface&,
+    cb::engine_errc mutation(CookieIface&,
                              uint32_t,
                              const DocKey&,
                              cb::const_byte_buffer,
@@ -241,7 +241,7 @@ public:
         return cb::engine_errc::no_bucket;
     }
 
-    cb::engine_errc deletion(const CookieIface&,
+    cb::engine_errc deletion(CookieIface&,
                              uint32_t,
                              const DocKey&,
                              cb::const_byte_buffer,
@@ -255,7 +255,7 @@ public:
         return cb::engine_errc::no_bucket;
     }
 
-    cb::engine_errc deletion_v2(const CookieIface&,
+    cb::engine_errc deletion_v2(CookieIface&,
                                 uint32_t,
                                 const DocKey&,
                                 cb::const_byte_buffer,
@@ -269,7 +269,7 @@ public:
         return cb::engine_errc::no_bucket;
     }
 
-    cb::engine_errc expiration(const CookieIface&,
+    cb::engine_errc expiration(CookieIface&,
                                uint32_t,
                                const DocKey&,
                                cb::const_byte_buffer,
@@ -283,36 +283,36 @@ public:
         return cb::engine_errc::no_bucket;
     }
 
-    cb::engine_errc set_vbucket_state(const CookieIface&,
+    cb::engine_errc set_vbucket_state(CookieIface&,
                                       uint32_t,
                                       Vbid,
                                       vbucket_state_t) override {
         return cb::engine_errc::no_bucket;
     }
 
-    cb::engine_errc noop(const CookieIface& cookie, uint32_t opaque) override {
+    cb::engine_errc noop(CookieIface& cookie, uint32_t opaque) override {
         return cb::engine_errc::no_bucket;
     }
 
-    cb::engine_errc buffer_acknowledgement(const CookieIface&,
+    cb::engine_errc buffer_acknowledgement(CookieIface&,
                                            uint32_t,
                                            uint32_t) override {
         return cb::engine_errc::no_bucket;
     }
 
-    cb::engine_errc control(const CookieIface&,
+    cb::engine_errc control(CookieIface&,
                             uint32_t,
                             std::string_view,
                             std::string_view) override {
         return cb::engine_errc::no_bucket;
     }
 
-    cb::engine_errc response_handler(const CookieIface&,
+    cb::engine_errc response_handler(CookieIface&,
                                      const cb::mcbp::Response&) override {
         return cb::engine_errc::no_bucket;
     }
 
-    cb::engine_errc system_event(const CookieIface& cookie,
+    cb::engine_errc system_event(CookieIface& cookie,
                                  uint32_t opaque,
                                  Vbid vbucket,
                                  mcbp::systemevent::id event,
@@ -323,7 +323,7 @@ public:
         return cb::engine_errc::no_bucket;
     }
 
-    cb::engine_errc prepare(const CookieIface& cookie,
+    cb::engine_errc prepare(CookieIface& cookie,
                             uint32_t opaque,
                             const DocKey& key,
                             cb::const_byte_buffer value,
@@ -341,13 +341,13 @@ public:
                             cb::durability::Level level) override {
         return cb::engine_errc::no_bucket;
     }
-    cb::engine_errc seqno_acknowledged(const CookieIface& cookie,
+    cb::engine_errc seqno_acknowledged(CookieIface& cookie,
                                        uint32_t opaque,
                                        Vbid vbucket,
                                        uint64_t prepared_seqno) override {
         return cb::engine_errc::no_bucket;
     }
-    cb::engine_errc commit(const CookieIface& cookie,
+    cb::engine_errc commit(CookieIface& cookie,
                            uint32_t opaque,
                            Vbid vbucket,
                            const DocKey& key,
@@ -355,7 +355,7 @@ public:
                            uint64_t commit_seqno) override {
         return cb::engine_errc::no_bucket;
     }
-    cb::engine_errc abort(const CookieIface& cookie,
+    cb::engine_errc abort(CookieIface& cookie,
                           uint32_t opaque,
                           Vbid vbucket,
                           const DocKey& key,
@@ -376,28 +376,28 @@ public:
         return {};
     }
 
-    cb::engine_errc set_collection_manifest(const CookieIface& cookie,
+    cb::engine_errc set_collection_manifest(CookieIface& cookie,
                                             std::string_view json) override {
         return cb::engine_errc::no_bucket;
     }
 
     cb::engine_errc get_collection_manifest(
-            const CookieIface& cookie, const AddResponseFn& response) override {
+            CookieIface& cookie, const AddResponseFn& response) override {
         return cb::engine_errc::no_bucket;
     }
 
     cb::EngineErrorGetCollectionIDResult get_collection_id(
-            const CookieIface& cookie, std::string_view path) override {
+            CookieIface& cookie, std::string_view path) override {
         return cb::EngineErrorGetCollectionIDResult{cb::engine_errc::no_bucket};
     }
 
     cb::EngineErrorGetScopeIDResult get_scope_id(
-            const CookieIface& cookie, std::string_view path) override {
+            CookieIface& cookie, std::string_view path) override {
         return cb::EngineErrorGetScopeIDResult{cb::engine_errc::no_bucket};
     }
 
     cb::EngineErrorGetCollectionMetaResult get_collection_meta(
-            const CookieIface& cookie,
+            CookieIface& cookie,
             CollectionID cid,
             std::optional<Vbid> vbid) const override {
         return cb::EngineErrorGetCollectionMetaResult(

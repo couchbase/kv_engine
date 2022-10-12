@@ -29,12 +29,11 @@ RangeScanDataHandler::RangeScanDataHandler(EventuallyPersistentEngine& engine)
               engine.getConfiguration().getRangeScanReadBufferSendSize()) {
 }
 
-bool RangeScanDataHandler::checkAndSend(const CookieIface& cookie) {
+bool RangeScanDataHandler::checkAndSend(CookieIface& cookie) {
     bool scanMustThrottle{false};
     {
         NonBucketAllocationGuard guard;
-        scanMustThrottle = const_cast<CookieIface&>(cookie).checkThrottle(
-                pendingReadBytes, 0);
+        scanMustThrottle = cookie.checkThrottle(pendingReadBytes, 0);
     }
 
     if (responseBuffer.size() >= sendTriggerThreshold) {
@@ -44,11 +43,10 @@ bool RangeScanDataHandler::checkAndSend(const CookieIface& cookie) {
     return scanMustThrottle;
 }
 
-void RangeScanDataHandler::send(const CookieIface& cookie,
-                                cb::engine_errc status) {
+void RangeScanDataHandler::send(CookieIface& cookie, cb::engine_errc status) {
     {
         NonBucketAllocationGuard guard;
-        const_cast<CookieIface&>(cookie).sendResponse(
+        cookie.sendResponse(
                 status,
                 {reinterpret_cast<const char*>(responseBuffer.data()),
                  responseBuffer.size()});
@@ -56,14 +54,14 @@ void RangeScanDataHandler::send(const CookieIface& cookie,
     responseBuffer.clear();
 }
 
-bool RangeScanDataHandler::handleKey(const CookieIface& cookie, DocKey key) {
+bool RangeScanDataHandler::handleKey(CookieIface& cookie, DocKey key) {
     pendingReadBytes += key.size();
     cb::mcbp::response::RangeScanContinueKeyPayload::encode(responseBuffer,
                                                             key);
     return checkAndSend(cookie);
 }
 
-bool RangeScanDataHandler::handleItem(const CookieIface& cookie,
+bool RangeScanDataHandler::handleItem(CookieIface& cookie,
                                       std::unique_ptr<Item> item) {
     pendingReadBytes += item->getKey().size() + item->getNBytes();
     cb::mcbp::response::RangeScanContinueValuePayload::encode(
@@ -71,14 +69,14 @@ bool RangeScanDataHandler::handleItem(const CookieIface& cookie,
     return checkAndSend(cookie);
 }
 
-void RangeScanDataHandler::handleStatus(const CookieIface& cookie,
+void RangeScanDataHandler::handleStatus(CookieIface& cookie,
                                         cb::engine_errc status) {
     // send the 'final' status along with any outstanding data
     // The status must be range_scan_{more/complete} or an error
     Expects(status != cb::engine_errc::success);
 
     // The final status includes (when enabled) the read cost
-    const_cast<CookieIface&>(cookie).addDocumentReadBytes(pendingReadBytes);
+    cookie.addDocumentReadBytes(pendingReadBytes);
     pendingReadBytes = 0;
 
     send(cookie, status);

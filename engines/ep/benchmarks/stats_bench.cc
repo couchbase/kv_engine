@@ -36,7 +36,7 @@ public:
     using Collections::VB::Manifest::Manifest;
 };
 
-void dummyCallback(std::string_view, std::string_view, const CookieIface&) {
+void dummyCallback(std::string_view, std::string_view, CookieIface&) {
 }
 /**
  * Fixture for stat collection benchmarks

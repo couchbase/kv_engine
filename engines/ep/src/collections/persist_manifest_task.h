@@ -29,7 +29,7 @@ class PersistManifestTask : public ::GlobalTask {
 public:
     PersistManifestTask(EPBucket& bucket,
                         std::unique_ptr<Collections::Manifest> manifest,
-                        const CookieIface* cookie);
+                        CookieIface* cookie);
 
     std::string getDescription() const override;
 
@@ -59,7 +59,7 @@ private:
      * for destruction on failure.
      */
     std::unique_ptr<Collections::Manifest> manifest;
-    const CookieIface* cookie;
+    CookieIface* cookie;
 };
 
 } // namespace Collections

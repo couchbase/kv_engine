@@ -1200,7 +1200,7 @@ std::pair<size_t, size_t> Cookie::getDocumentMeteringRWUnits() const {
             size_t{0}};
 }
 
-const ConnectionIface& Cookie::getConnectionIface() const {
+ConnectionIface& Cookie::getConnectionIface() {
     return connection;
 }
 

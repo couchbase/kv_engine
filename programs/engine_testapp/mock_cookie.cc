@@ -136,7 +136,7 @@ void MockCookie::setCurrentCollectionInfo(ScopeID sid,
     // do nothing
 }
 
-const ConnectionIface& MockCookie::getConnectionIface() const {
+ConnectionIface& MockCookie::getConnectionIface() {
     return *connection;
 }
 
@@ -156,12 +156,12 @@ void MockCookie::sendResponse(cb::engine_errc, std::string_view) {
     // do nothing
 }
 
-MockCookie* cookie_to_mock_cookie(const CookieIface* cookie) {
+MockCookie* cookie_to_mock_cookie(CookieIface* cookie) {
     return &asMockCookie(*cookie);
 }
 
-MockCookie& asMockCookie(const CookieIface& cookie) {
-    auto* mc = dynamic_cast<MockCookie*>(const_cast<CookieIface*>(&cookie));
+MockCookie& asMockCookie(CookieIface& cookie) {
+    auto* mc = dynamic_cast<MockCookie*>(&cookie);
     if (mc == nullptr) {
         throw std::runtime_error(
                 "asMockCookie(): provided cookie is not a MockCookie");

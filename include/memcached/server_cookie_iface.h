@@ -45,7 +45,7 @@ struct ServerCookieIface {
      * @param cookie The cookie provided by the core for the operation
      * @param handler The new handler (may be nullptr to clear the handler)
      */
-    virtual void setDcpConnHandler(const CookieIface& cookie,
+    virtual void setDcpConnHandler(CookieIface& cookie,
                                    DcpConnHandlerIface* handler) = 0;
 
     /**
@@ -60,33 +60,32 @@ struct ServerCookieIface {
      * @return The handler stored for the connection (may be nullptr if
      *         none is specified)
      */
-    virtual DcpConnHandlerIface* getDcpConnHandler(
-            const CookieIface& cookie) = 0;
+    virtual DcpConnHandlerIface* getDcpConnHandler(CookieIface& cookie) = 0;
 
     /**
      * Notify the core that we're holding on to this cookie for
      * future use. (The core guarantees it will not invalidate the
      * memory until the cookie is invalidated by calling release())
      */
-    virtual void reserve(const CookieIface& cookie) = 0;
+    virtual void reserve(CookieIface& cookie) = 0;
 
     /**
      * Notify the core that we're releasing the reference to the
      * The engine is not allowed to use the cookie (the core may invalidate
      * the memory)
      */
-    virtual void release(const CookieIface& cookie) = 0;
+    virtual void release(CookieIface& cookie) = 0;
 
     /**
      * Set the priority for this connection
      */
-    virtual void set_priority(const CookieIface& cookie,
+    virtual void set_priority(CookieIface& cookie,
                               ConnectionPriority priority) = 0;
 
     /**
      * Get the priority for this connection
      */
-    virtual ConnectionPriority get_priority(const CookieIface& cookie) = 0;
+    virtual ConnectionPriority get_priority(CookieIface& cookie) = 0;
 
     /**
      * Check if the cookie have the specified privilege in it's active set.
@@ -100,14 +99,14 @@ struct ServerCookieIface {
      *         active set. PrivilegeAccess::Fail/FailNoPrivileges otherwise
      */
     virtual cb::rbac::PrivilegeAccess check_privilege(
-            const CookieIface& cookie,
+            CookieIface& cookie,
             cb::rbac::Privilege privilege,
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) = 0;
 
     virtual cb::rbac::PrivilegeAccess
     check_for_privilege_at_least_in_one_collection(
-            const CookieIface& cookie, cb::rbac::Privilege privilege) = 0;
+            CookieIface& cookie, cb::rbac::Privilege privilege) = 0;
 
     /**
      * Set the size of the DCP flow control buffer size used by this
@@ -116,14 +115,13 @@ struct ServerCookieIface {
      * @param cookie the cookie representing the DCP connection
      * @param size The new buffer size
      */
-    virtual void setDcpFlowControlBufferSize(const CookieIface& cookie,
+    virtual void setDcpFlowControlBufferSize(CookieIface& cookie,
                                              std::size_t size) = 0;
 
     /// Get the revision number for the privilege context for the cookie to
     /// allow the engine to cache the result of a privilege check if locating
     /// the sid / cid is costly.
-    virtual uint32_t get_privilege_context_revision(
-            const CookieIface& cookie) = 0;
+    virtual uint32_t get_privilege_context_revision(CookieIface& cookie) = 0;
 
     /**
      * Method to map an engine error code to the appropriate mcbp response
@@ -138,7 +136,7 @@ struct ServerCookieIface {
      *         std::logic_error if the error code doesn't make sense
      *         std::invalid_argument if the code doesn't exist
      */
-    virtual cb::mcbp::Status engine_error2mcbp(const CookieIface& cookie,
+    virtual cb::mcbp::Status engine_error2mcbp(CookieIface& cookie,
                                                cb::engine_errc code) = 0;
 
     /**
@@ -157,11 +155,11 @@ struct ServerCookieIface {
      * from the core) so it should _not_ be cached.
      */
     virtual std::pair<uint32_t, std::string> get_log_info(
-            const CookieIface& cookie) = 0;
+            CookieIface& cookie) = 0;
 
-    virtual std::string get_authenticated_user(const CookieIface& cookie) = 0;
+    virtual std::string get_authenticated_user(CookieIface& cookie) = 0;
 
-    virtual in_port_t get_connected_port(const CookieIface& cookie) = 0;
+    virtual in_port_t get_connected_port(CookieIface& cookie) = 0;
 
     /// Validate the JSON. This method must NOT be called from a background
     /// thread as it use the front-end-threads instance for a JSON validator

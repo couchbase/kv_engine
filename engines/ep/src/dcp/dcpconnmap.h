@@ -39,7 +39,7 @@ public:
      * @param flags The DCP open flags (as per protocol)
      * @param jsonExtra An optional JSON document for additional configuration
      */
-    DcpProducer* newProducer(const CookieIface* cookie,
+    DcpProducer* newProducer(CookieIface* cookie,
                              const std::string& name,
                              uint32_t flags);
 
@@ -52,7 +52,7 @@ public:
      *        consumer to advertise itself to the producer as.
      * @return Pointer to the new dcp connection
      */
-    DcpConsumer* newConsumer(const CookieIface* cookie,
+    DcpConsumer* newConsumer(CookieIface* cookie,
                              const std::string& name,
                              const std::string& consumerName = {});
 
@@ -114,7 +114,7 @@ public:
      */
     bool handleSlowStream(Vbid vbid, const CheckpointCursor* cursor);
 
-    void disconnect(const CookieIface* cookie);
+    void disconnect(CookieIface* cookie);
 
     void manageConnections() override;
 
@@ -135,7 +135,7 @@ public:
 
     /* Use this only for any quick direct stats from DcpConnMap. To collect
        individual conn stats from conn lists please use ConnStatBuilder */
-    void addStats(const AddStatFn& add_stat, const CookieIface& c);
+    void addStats(const AddStatFn& add_stat, CookieIface& c);
 
     /* Updates the minimum compression ratio to be achieved for docs by
      * all the producers, which will be in effect if the producer side
@@ -199,7 +199,7 @@ protected:
      */
     virtual std::shared_ptr<DcpConsumer> makeConsumer(
             EventuallyPersistentEngine& engine,
-            const CookieIface* cookie,
+            CookieIface* cookie,
             const std::string& connName,
             const std::string& consumerName) const;
 

@@ -28,9 +28,8 @@ enum class Status : uint16_t;
  * @param value the stat's value in an ascii form (e.g. text form of a number)
  * @param cookie the cookie provided by the frontend
  */
-using AddStatFn = std::function<void(std::string_view key,
-                                     std::string_view value,
-                                     const CookieIface& cookie)>;
+using AddStatFn = std::function<void(
+        std::string_view key, std::string_view value, CookieIface& cookie)>;
 
 /**
  * Callback for adding a response backet
@@ -51,4 +50,4 @@ using AddResponseFn = std::function<bool(std::string_view key,
                                          uint8_t datatype,
                                          cb::mcbp::Status status,
                                          uint64_t cas,
-                                         const CookieIface& cookie)>;
+                                         CookieIface& cookie)>;

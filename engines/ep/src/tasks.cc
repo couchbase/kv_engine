@@ -33,7 +33,7 @@ CompactTask::CompactTask(
         Vbid vbid,
         CompactionConfig config,
         std::chrono::steady_clock::time_point requestedStartTime,
-        const CookieIface* ck,
+        CookieIface* ck,
         cb::AwaitableSemaphore& semaphore,
         bool completeBeforeShutdown)
     : LimitedConcurrencyTask(bucket.getEPEngine(),
@@ -114,7 +114,7 @@ bool CompactTask::isRescheduleRequired() const {
     return compaction.rlock()->rescheduleRequired;
 }
 
-bool CompactTask::isTaskDone(const std::vector<const CookieIface*>& cookies) {
+bool CompactTask::isTaskDone(const std::vector<CookieIface*>& cookies) {
     auto handle = compaction.wlock();
     bool shouldReschedule = handle->rescheduleRequired;
     handle->rescheduleRequired = false;
@@ -130,7 +130,7 @@ CompactionConfig CompactTask::getCurrentConfig() const {
     return compaction.rlock()->config;
 }
 
-std::optional<std::pair<CompactionConfig, std::vector<const CookieIface*>>>
+std::optional<std::pair<CompactionConfig, std::vector<CookieIface*>>>
 CompactTask::preDoCompact() {
     auto lockedState = compaction.wlock();
     if (lockedState->requestedStartTime > std::chrono::steady_clock::now()) {
@@ -147,7 +147,7 @@ CompactTask::preDoCompact() {
 
 CompactionConfig CompactTask::runCompactionWithConfig(
         std::optional<CompactionConfig> config,
-        const CookieIface* cookie,
+        CookieIface* cookie,
         std::chrono::steady_clock::time_point requestedStartTime) {
     auto lockedState = compaction.wlock();
     if (config) {
@@ -162,8 +162,8 @@ CompactionConfig CompactTask::runCompactionWithConfig(
     return lockedState->config;
 }
 
-std::vector<const CookieIface*> CompactTask::takeCookies() {
-    std::vector<const CookieIface*> ret;
+std::vector<CookieIface*> CompactTask::takeCookies() {
+    std::vector<CookieIface*> ret;
     auto lockedState = compaction.wlock();
     lockedState->cookiesWaiting.swap(ret);
 

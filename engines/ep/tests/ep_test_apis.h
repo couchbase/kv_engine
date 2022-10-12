@@ -38,11 +38,9 @@ bool add_response(std::string_view key,
                   uint8_t datatype,
                   cb::mcbp::Status status,
                   uint64_t cas,
-                  const CookieIface& cookie);
+                  CookieIface& cookie);
 
-void add_stats(std::string_view key,
-               std::string_view value,
-               const CookieIface&);
+void add_stats(std::string_view key, std::string_view value, CookieIface&);
 
 const uint8_t dcp_stream_end_resp_base_msg_bytes = 28;
 const uint8_t dcp_snapshot_marker_base_msg_bytes = 44;
@@ -346,7 +344,7 @@ bool verify_vbucket_state(EngineIface* h,
                           bool mute = false);
 
 void sendDcpAck(EngineIface* h,
-                const CookieIface* cookie,
+                CookieIface* cookie,
                 cb::mcbp::ClientOpcode opcode,
                 cb::mcbp::Status status,
                 uint32_t opaque);

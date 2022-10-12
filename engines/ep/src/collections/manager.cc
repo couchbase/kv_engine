@@ -37,7 +37,7 @@ cb::engine_error Collections::Manager::update(
         const VBucketStateRLockMap& vbStateLocks,
         KVBucket& bucket,
         std::string_view manifestString,
-        const CookieIface* cookie) {
+        CookieIface* cookie) {
     auto lockedUpdateCookie = updateInProgress.wlock();
     if (*lockedUpdateCookie != nullptr && *lockedUpdateCookie != cookie) {
         // log this as it's very unexpected, only ever 1 manager
@@ -123,7 +123,7 @@ cb::engine_error Collections::Manager::updateFromIOComplete(
         const VBucketStateRLockMap& vbStateLocks,
         KVBucket& bucket,
         std::unique_ptr<Manifest> newManifest,
-        const CookieIface* cookie) {
+        CookieIface* cookie) {
     auto current = currentManifest.ulock(); // Will update to newManifest
     return applyNewManifest(
             std::move(vbStateLocks), bucket, current, std::move(newManifest));
@@ -205,7 +205,7 @@ std::optional<Vbid> Collections::Manager::updateAllVBuckets(
 
 void Collections::Manager::updatePersistManifestTaskDone(
         EventuallyPersistentEngine& engine,
-        const CookieIface* cookie,
+        CookieIface* cookie,
         cb::engine_errc status) {
     // If !success the command will return to the caller, so must clean-up
     // ready for any further task.

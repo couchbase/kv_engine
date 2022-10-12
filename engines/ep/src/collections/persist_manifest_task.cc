@@ -29,7 +29,7 @@ namespace Collections {
 PersistManifestTask::PersistManifestTask(
         EPBucket& bucket,
         std::unique_ptr<Collections::Manifest> manifest,
-        const CookieIface* cookie)
+        CookieIface* cookie)
     : ::GlobalTask(bucket.getEPEngine(),
                    TaskId::PersistCollectionsManifest,
                    0,

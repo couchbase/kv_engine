@@ -38,12 +38,12 @@ std::string to_string(ConnHandler::PausedReason r) {
 }
 
 ConnHandler::ConnHandler(EventuallyPersistentEngine& e,
-                         const CookieIface* c,
+                         CookieIface* c,
                          std::string n)
     : engine_(e),
       stats(engine_.getEpStats()),
       name(std::move(n)),
-      cookie(const_cast<CookieIface*>(c)),
+      cookie(c),
       created(ep_current_time()),
       disconnect(false),
       paused(false),
@@ -338,7 +338,7 @@ BucketLogger& ConnHandler::getLogger() {
     return *logger;
 }
 
-void ConnHandler::addStats(const AddStatFn& add_stat, const CookieIface& c) {
+void ConnHandler::addStats(const AddStatFn& add_stat, CookieIface& c) {
     using namespace std::chrono;
 
     addStat("type", getType(), add_stat, c);
@@ -432,4 +432,4 @@ void ConnHandler::scheduleNotify() {
 template void ConnHandler::addStat<std::string>(const char* nm,
                                                 const std::string& val,
                                                 const AddStatFn& add_stat,
-                                                const CookieIface& c) const;
+                                                CookieIface& c) const;

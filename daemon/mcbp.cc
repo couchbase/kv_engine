@@ -27,7 +27,7 @@ static bool mcbp_response_handler(std::string_view key,
                                   protocol_binary_datatype_t datatype,
                                   cb::mcbp::Status status,
                                   uint64_t cas,
-                                  const CookieIface& cookieIface) {
+                                  CookieIface& cookieIface) {
     auto& cookie = asCookie(cookieIface);
 
     Connection& c = cookie.getConnection();

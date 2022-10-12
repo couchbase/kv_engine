@@ -180,13 +180,13 @@ public:
     void snooze(size_t taskId, double tosleep) override;
     bool snoozeAndWait(size_t taskId, double tosleep) override;
     void doWorkerStat(Taskable& taskable,
-                      const CookieIface& cookie,
+                      CookieIface& cookie,
                       const AddStatFn& add_stat) override;
     void doTasksStat(Taskable& taskable,
-                     const CookieIface& cookie,
+                     CookieIface& cookie,
                      const AddStatFn& add_stat) override;
     void doTaskQStat(Taskable& taskable,
-                     const CookieIface& cookie,
+                     CookieIface& cookie,
                      const AddStatFn& add_stat) override;
 
 private:

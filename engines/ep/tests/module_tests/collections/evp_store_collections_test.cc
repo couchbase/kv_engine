@@ -2482,7 +2482,7 @@ TEST_P(CollectionsParameterizedTest,
                             uint8_t datatype,
                             cb::mcbp::Status status,
                             uint64_t cas,
-                            const CookieIface& cookie) -> bool {
+                            CookieIface& cookie) -> bool {
         // This callback should run in the memcached-context - there should be
         // no associated engine.
         EXPECT_FALSE(ObjectRegistry::getCurrentEngine());
@@ -3185,7 +3185,7 @@ bool getAllKeysResponseHandler(std::string_view key,
                                uint8_t datatype,
                                cb::mcbp::Status status,
                                uint64_t cas,
-                               const CookieIface& cookie) {
+                               CookieIface& cookie) {
     lastGetKeysResult.clear();
 
     const char* strPtr = body.data();
@@ -3434,7 +3434,7 @@ TEST_P(CollectionsPersistentParameterizedTest, GetAllKeysCollectionConnection) {
 static bool wasKeyStatsResponseHandlerCalled = false;
 bool getKeyStatsResponseHandler(std::string_view key,
                                 std::string_view value,
-                                const CookieIface&) {
+                                CookieIface&) {
     wasKeyStatsResponseHandlerCalled = true;
     return true;
 }
@@ -3624,7 +3624,7 @@ public:
     std::set<CollectionID> noAccessCids;
 
     MockCookie::CheckPrivilegeFunction checkPriv =
-            [this](const CookieIface&,
+            [this](const auto&,
                    cb::rbac::Privilege priv,
                    std::optional<ScopeID> sid,
                    std::optional<CollectionID> cid)
@@ -3871,7 +3871,7 @@ TEST_P(CollectionsParameterizedTest, ScopeIDIsValid) {
 
 static void append_stat(std::string_view key,
                         std::string_view value,
-                        const CookieIface& ctx) {
+                        CookieIface& ctx) {
 }
 
 TEST_P(CollectionsParameterizedTest, OneScopeStatsByIdParsing) {

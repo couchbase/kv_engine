@@ -49,7 +49,7 @@ void ConnStore::addVBConnByVbid(Vbid vbid, ConnHandler& conn) {
     }
 }
 
-void ConnStore::removeVBConnByVbid(Vbid vbid, const CookieIface* cookie) {
+void ConnStore::removeVBConnByVbid(Vbid vbid, CookieIface* cookie) {
     if (vbid.get() > vbToConns.size()) {
         throw std::out_of_range(
                 "ConnStore::removeVBConnByVbid attempting to remove "
@@ -79,9 +79,7 @@ ConnStore::VBToConnsMap::value_type::iterator ConnStore::getVBToConnsItr(
 }
 
 ConnStore::VBToConnsMap::value_type::iterator ConnStore::getVBToConnsItr(
-        std::unique_lock<std::mutex>& lock,
-        Vbid vbid,
-        const CookieIface* cookie) {
+        std::unique_lock<std::mutex>& lock, Vbid vbid, CookieIface* cookie) {
     return getVBToConnsItr(lock, vbid, [cookie](const VBConn& listConn) {
         return listConn.connHandler.getCookie() == cookie;
     });
@@ -103,7 +101,7 @@ ConnStore::VBToConnsMap::value_type::iterator ConnStore::getVBToConnsItr(
     return std::find_if(list.begin(), list.end(), p);
 }
 
-bool ConnStore::doesVbConnExist(Vbid vbid, const CookieIface* cookie) {
+bool ConnStore::doesVbConnExist(Vbid vbid, CookieIface* cookie) {
     size_t lock_num = vbid.get() % vbConnLocks.size();
     std::unique_lock<std::mutex> lh(vbConnLocks[lock_num]);
     auto itr = getVBToConnsItr(lh, vbid, cookie);
@@ -128,8 +126,7 @@ bool ConnStore::doesVbConnExistInner(
 }
 
 std::shared_ptr<ConnHandler>
-ConnStore::CookieToConnMapHandle::findConnHandlerByCookie(
-        const CookieIface* cookie) {
+ConnStore::CookieToConnMapHandle::findConnHandlerByCookie(CookieIface* cookie) {
     auto itr = cookieToConn.find(cookie);
     if (itr == cookieToConn.end()) {
         return {};
@@ -150,7 +147,7 @@ ConnStore::CookieToConnMapHandle::findConnHandlerByName(
 }
 
 void ConnStore::CookieToConnMapHandle::addConnByCookie(
-        const CookieIface* cookie, std::shared_ptr<ConnHandler> conn) {
+        CookieIface* cookie, std::shared_ptr<ConnHandler> conn) {
     Expects(conn.get());
 
     auto existing = findConnHandlerByCookie(cookie);
@@ -164,8 +161,7 @@ void ConnStore::CookieToConnMapHandle::addConnByCookie(
     }
 }
 
-void ConnStore::CookieToConnMapHandle::removeConnByCookie(
-        const CookieIface* cookie) {
+void ConnStore::CookieToConnMapHandle::removeConnByCookie(CookieIface* cookie) {
     auto itr = cookieToConn.find(cookie);
     if (itr != cookieToConn.end()) {
         // Remove all ConnHandlers associated with this cookie from vbToConns

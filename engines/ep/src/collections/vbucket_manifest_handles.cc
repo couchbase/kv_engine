@@ -61,7 +61,7 @@ void ReadHandle::dump() const {
 
 cb::engine_errc CachingReadHandle::handleWriteStatus(
         EventuallyPersistentEngine& engine,
-        const CookieIface* cookie,
+        CookieIface* cookie,
         size_t nBytes) {
     // Collection not found
     if (!valid()) {
@@ -74,7 +74,7 @@ cb::engine_errc CachingReadHandle::handleWriteStatus(
 
 cb::engine_errc CachingReadHandle::handleWriteStatus(
         EventuallyPersistentEngine& engine,
-        const CookieIface* cookie,
+        CookieIface* cookie,
         vbucket_state_t state,
 
         size_t nBytes) {

@@ -34,7 +34,7 @@ public:
     cb::engine_errc scheduleCompaction(
             Vbid vbid,
             const CompactionConfig& c,
-            const CookieIface* ck,
+            CookieIface* ck,
             std::chrono::milliseconds delay) override;
 
     cb::engine_errc cancelCompaction(Vbid vbid) override;
@@ -59,7 +59,7 @@ public:
     }
 
     /// Disk stats not supported for Ephemeral buckets.
-    cb::engine_errc getPerVBucketDiskStats(const CookieIface& cookie,
+    cb::engine_errc getPerVBucketDiskStats(CookieIface& cookie,
                                            const AddStatFn& add_stat) override {
         return cb::engine_errc::no_such_key;
     }
@@ -97,11 +97,11 @@ public:
 
     cb::engine_errc statsVKey(const DocKey& key,
                               Vbid vbucket,
-                              const CookieIface* cookie) override {
+                              CookieIface* cookie) override {
         return cb::engine_errc::not_supported;
     }
 
-    void completeStatsVKey(const CookieIface* cookie,
+    void completeStatsVKey(CookieIface* cookie,
                            const DocKey& key,
                            Vbid vbid,
                            uint64_t bySeqNum) override;
@@ -149,7 +149,7 @@ public:
     }
 
     bool maybeScheduleManifestPersistence(
-            const CookieIface* cookie,
+            CookieIface* cookie,
             std::unique_ptr<Collections::Manifest>& newManifest) override;
 
     // Static methods /////////////////////////////////////////////////////////

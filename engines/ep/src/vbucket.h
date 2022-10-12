@@ -90,7 +90,7 @@ struct SnapshotRequirements;
  * that it has not been stored by the given timeout.
  */
 struct SeqnoPersistenceRequest {
-    SeqnoPersistenceRequest(const CookieIface* cookie,
+    SeqnoPersistenceRequest(CookieIface* cookie,
                             uint64_t seqno,
                             std::chrono::milliseconds timeout);
 
@@ -113,7 +113,7 @@ struct SeqnoPersistenceRequest {
     virtual void expired() const;
 
     // The cookie to notify of the status of this request
-    const CookieIface* cookie{nullptr};
+    CookieIface* cookie{nullptr};
     // The sequence number this request is waiting for
     const uint64_t seqno{0};
     // The time that this request was created (started)
@@ -124,7 +124,7 @@ struct SeqnoPersistenceRequest {
 
 struct SeqnoPersistenceRequestNotifications {
     /// map of cookies that have requests completed
-    std::unordered_map<const CookieIface*, cb::engine_errc> notifications;
+    std::unordered_map<CookieIface*, cb::engine_errc> notifications;
     /// when requests are still waiting completion, this is the next deadline
     std::optional<std::chrono::steady_clock::time_point> nextDeadline;
 };
@@ -387,7 +387,7 @@ public:
     /**
      * @param A cookie to notify when the deferred deletion completes.
      */
-    void setDeferredDeletionCookie(const CookieIface* cookie) {
+    void setDeferredDeletionCookie(CookieIface* cookie) {
         deferredDeletionCookie = cookie;
     }
 
@@ -395,7 +395,7 @@ public:
      * @return the cookie which could of been set when setupDeferredDeletion was
      *         called.
      */
-    const CookieIface* getDeferredDeletionCookie() const {
+    CookieIface* getDeferredDeletionCookie() const {
         return deferredDeletionCookie;
     }
 
@@ -406,7 +406,7 @@ public:
      * EphemeralVBucket as only memory resources need freeing.
      * @param cookie A cookie to notify when the deletion task completes.
      */
-    virtual void setupDeferredDeletion(const CookieIface* cookie) = 0;
+    virtual void setupDeferredDeletion(CookieIface* cookie) = 0;
 
     // Returns the last persisted sequence number for the VBucket
     virtual uint64_t getPersistenceSeqno() const = 0;
@@ -510,7 +510,7 @@ public:
      */
     void handlePreExpiry(const HashTable::HashBucketLock& hbl, StoredValue& v);
 
-    bool addPendingOp(const CookieIface* cookie);
+    bool addPendingOp(CookieIface* cookie);
 
     void doStatsForQueueing(const Item& item, size_t itemBytes);
 
@@ -557,7 +557,7 @@ public:
     /**
      * Get (and clear) the cookies for all in-flight SyncWrites from the ADM
      */
-    std::vector<const CookieIface*> getCookiesForInFlightSyncWrites();
+    std::vector<CookieIface*> getCookiesForInFlightSyncWrites();
 
     /**
      * Prepare the transition away from active by doing necessary work in the
@@ -566,7 +566,7 @@ public:
      * @return cookies for all in-flight SyncWrites so that clients can be
      *         notified
      */
-    std::vector<const CookieIface*> prepareTransitionAwayFromActive();
+    std::vector<CookieIface*> prepareTransitionAwayFromActive();
 
     size_t size();
 
@@ -706,7 +706,7 @@ public:
 
     virtual void addStats(VBucketStatsDetailLevel detail,
                           const AddStatFn& add_stat,
-                          const CookieIface& c) = 0;
+                          CookieIface& c) = 0;
 
     /**
      * Output DurabiltyMonitor stats.
@@ -715,7 +715,7 @@ public:
      * @param cookie
      */
     void addDurabilityMonitorStats(const AddStatFn& addStat,
-                                   const CookieIface& cookie) const;
+                                   CookieIface& cookie) const;
 
     /// Dump the internal state of the durabilityMonitor to the given stream.
     void dumpDurabilityMonitor(std::ostream& os) const;
@@ -982,7 +982,7 @@ public:
      * @return VBReturnCtx indicates notifyCtx and operation result
      */
     virtual cb::engine_errc statsVKey(const DocKey& key,
-                                      const CookieIface* cookie,
+                                      CookieIface* cookie,
                                       EventuallyPersistentEngine& engine) = 0;
 
     /**
@@ -1022,7 +1022,7 @@ public:
      * @return cb::engine_errc status notified to be to the front end
      */
     cb::engine_errc set(Item& itm,
-                        const CookieIface* cookie,
+                        CookieIface* cookie,
                         EventuallyPersistentEngine& engine,
                         cb::StoreIfPredicate predicate,
                         const Collections::VB::CachingReadHandle& cHandle);
@@ -1041,7 +1041,7 @@ public:
      * @return cb::engine_errc status notified to be to the front end
      */
     cb::engine_errc replace(Item& itm,
-                            const CookieIface* cookie,
+                            CookieIface* cookie,
                             EventuallyPersistentEngine& engine,
                             cb::StoreIfPredicate predicate,
                             const Collections::VB::CachingReadHandle& cHandle);
@@ -1067,7 +1067,7 @@ public:
             Item& itm,
             uint64_t cas,
             uint64_t* seqno,
-            const CookieIface* cookie,
+            CookieIface* cookie,
             EventuallyPersistentEngine& engine,
             CheckConflicts checkConflicts,
             bool allowExisting,
@@ -1078,7 +1078,7 @@ public:
     cb::engine_errc prepare(Item& itm,
                             uint64_t cas,
                             uint64_t* seqno,
-                            const CookieIface* cookie,
+                            CookieIface* cookie,
                             EventuallyPersistentEngine& engine,
                             CheckConflicts checkConflicts,
                             bool allowExisting,
@@ -1105,7 +1105,7 @@ public:
      */
     cb::engine_errc deleteItem(
             uint64_t& cas,
-            const CookieIface* cookie,
+            CookieIface* cookie,
             EventuallyPersistentEngine& engine,
             std::optional<cb::durability::Requirements> durability,
             ItemMetaData* itemMeta,
@@ -1134,7 +1134,7 @@ public:
     cb::engine_errc deleteWithMeta(
             uint64_t& cas,
             uint64_t* seqno,
-            const CookieIface* cookie,
+            CookieIface* cookie,
             EventuallyPersistentEngine& engine,
             CheckConflicts checkConflicts,
             const ItemMetaData& itemMeta,
@@ -1246,7 +1246,7 @@ public:
      * @return the result of the operation
      */
     cb::engine_errc add(Item& itm,
-                        const CookieIface* cookie,
+                        CookieIface* cookie,
                         EventuallyPersistentEngine& engine,
                         const Collections::VB::CachingReadHandle& cHandle);
 
@@ -1260,7 +1260,7 @@ public:
      *
      * @return a GetValue representing the result of the request
      */
-    GetValue getAndUpdateTtl(const CookieIface* cookie,
+    GetValue getAndUpdateTtl(CookieIface* cookie,
                              EventuallyPersistentEngine& engine,
                              time_t exptime,
                              const Collections::VB::CachingReadHandle& cHandle);
@@ -1308,7 +1308,7 @@ public:
      *
      * @return the result of the operation
      */
-    GetValue getInternal(const CookieIface* cookie,
+    GetValue getInternal(CookieIface* cookie,
                          EventuallyPersistentEngine& engine,
                          get_options_t options,
                          GetKeyOnly getKeyOnly,
@@ -1329,7 +1329,7 @@ public:
      * @return the result of the operation
      */
     cb::engine_errc getMetaData(
-            const CookieIface* cookie,
+            CookieIface* cookie,
             EventuallyPersistentEngine& engine,
             const Collections::VB::CachingReadHandle& cHandle,
             ItemMetaData& metadata,
@@ -1350,7 +1350,7 @@ public:
      * @return the result of the operation
      */
     cb::engine_errc getKeyStats(
-            const CookieIface* cookie,
+            CookieIface* cookie,
             EventuallyPersistentEngine& engine,
             struct key_stats& kstats,
             WantsDeleted wantsDeleted,
@@ -1370,7 +1370,7 @@ public:
      */
     GetValue getLocked(rel_time_t currentTime,
                        uint32_t lockTimeout,
-                       const CookieIface* cookie,
+                       CookieIface* cookie,
                        EventuallyPersistentEngine& engine,
                        const Collections::VB::CachingReadHandle& cHandle);
 
@@ -1390,7 +1390,7 @@ public:
                            uint64_t prepareSeqno,
                            std::optional<int64_t> commitSeqno,
                            const Collections::VB::CachingReadHandle& cHandle,
-                           const CookieIface* cookie = nullptr);
+                           CookieIface* cookie = nullptr);
 
     /**
      * Perform an abort against the given pending Sync Write.
@@ -1409,7 +1409,7 @@ public:
                           uint64_t prepareSeqno,
                           std::optional<int64_t> abortSeqno,
                           const Collections::VB::CachingReadHandle& cHandle,
-                          const CookieIface* cookie = nullptr);
+                          CookieIface* cookie = nullptr);
 
     /**
      * Notify the ActiveDurabilityMonitor that a SyncWrite has been locally
@@ -1441,7 +1441,7 @@ public:
      * @param cookie The client's cookie
      * @param result The result of the SyncWrite processing
      */
-    void notifyClientOfSyncWriteComplete(const CookieIface* cookie,
+    void notifyClientOfSyncWriteComplete(CookieIface* cookie,
                                          cb::engine_errc result);
 
     /**
@@ -1713,7 +1713,7 @@ public:
             cb::rangescan::KeyView start,
             cb::rangescan::KeyView end,
             std::unique_ptr<RangeScanDataHandlerIFace> handler,
-            const CookieIface& cookie,
+            CookieIface& cookie,
             cb::rangescan::KeyOnly keyOnly,
             std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
             std::optional<cb::rangescan::SamplingConfiguration>
@@ -1735,7 +1735,7 @@ public:
      */
     virtual cb::engine_errc continueRangeScan(
             cb::rangescan::Id id,
-            const CookieIface& cookie,
+            CookieIface& cookie,
             size_t itemLimit,
             std::chrono::milliseconds timeLimit,
             size_t byteLimit) = 0;
@@ -1754,7 +1754,7 @@ public:
      *         cancellation
      */
     virtual cb::engine_errc cancelRangeScan(cb::rangescan::Id id,
-                                            const CookieIface* cookie,
+                                            CookieIface* cookie,
                                             bool schedule) = 0;
 
     /**
@@ -2118,7 +2118,7 @@ protected:
      * @return map of notifies with conn cookie as the key and notify status as
      *         the value
      */
-    std::map<const CookieIface*, cb::engine_errc> tmpFailAndGetAllHpNotifies(
+    std::map<CookieIface*, cb::engine_errc> tmpFailAndGetAllHpNotifies(
             EventuallyPersistentEngine& engine);
 
     /**
@@ -2133,13 +2133,13 @@ protected:
 
     void _addStats(VBucketStatsDetailLevel detail,
                    const AddStatFn& add_stat,
-                   const CookieIface& c);
+                   CookieIface& c);
 
     template <typename T>
     void addStat(const char* nm,
                  const T& val,
                  const AddStatFn& add_stat,
-                 const CookieIface& c);
+                 CookieIface& c);
 
     /* This member holds the eviction policy used */
     const EvictionPolicy eviction;
@@ -2381,7 +2381,7 @@ private:
     virtual cb::engine_errc addTempItemAndBGFetch(
             HashTable::HashBucketLock&& hbl,
             const DocKey& key,
-            const CookieIface* cookie,
+            CookieIface* cookie,
             EventuallyPersistentEngine& engine,
             bool metadataOnly) = 0;
 
@@ -2400,7 +2400,7 @@ private:
     virtual void bgFetch(HashTable::HashBucketLock&& hbl,
                          const DocKey& key,
                          const StoredValue& v,
-                         const CookieIface* cookie,
+                         CookieIface* cookie,
                          EventuallyPersistentEngine& engine,
                          bool isMeta = false) = 0;
 
@@ -2434,7 +2434,7 @@ private:
      */
     virtual GetValue getInternalNonResident(HashTable::HashBucketLock&& hbl,
                                             const DocKey& key,
-                                            const CookieIface* cookie,
+                                            CookieIface* cookie,
                                             EventuallyPersistentEngine& engine,
                                             QueueBgFetch queueBgFetch,
                                             const StoredValue& v) = 0;
@@ -2579,7 +2579,7 @@ private:
     folly::Synchronized<std::string> replicationTopology;
 
     std::mutex                           pendingOpLock;
-    std::vector<const CookieIface*> pendingOps;
+    std::vector<CookieIface*> pendingOps;
     std::chrono::steady_clock::time_point pendingOpsStart;
 
     /**
@@ -2617,7 +2617,7 @@ private:
     std::atomic<bool> deferredDeletion;
     /// A cookie that can be set when the vbucket is deletion is deferred, the
     /// cookie will be notified when the deferred deletion completes
-    const CookieIface* deferredDeletionCookie;
+    CookieIface* deferredDeletionCookie;
 
     // Ptr to the item conflict resolution module
     std::unique_ptr<ConflictResolution> conflictResolver;

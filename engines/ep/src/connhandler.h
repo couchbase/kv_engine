@@ -100,7 +100,7 @@ public:
      * @param name of the connection
      */
     ConnHandler(EventuallyPersistentEngine& engine,
-                const CookieIface* cookie,
+                CookieIface* cookie,
                 std::string name);
 
     /**
@@ -276,9 +276,9 @@ public:
     void addStat(const char* nm,
                  const T& val,
                  const AddStatFn& add_stat,
-                 const CookieIface& c) const;
+                 CookieIface& c) const;
 
-    virtual void addStats(const AddStatFn& add_stat, const CookieIface& c);
+    virtual void addStats(const AddStatFn& add_stat, CookieIface& c);
 
     virtual void aggregateQueueStats(ConnCounter& stats_aggregator) const {
         // Empty
@@ -308,7 +308,7 @@ public:
         return name;
     }
 
-    const CookieIface* getCookie() const {
+    CookieIface* getCookie() const {
         return cookie.load();
     }
 

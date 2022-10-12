@@ -38,7 +38,7 @@ protected:
     }
 
     static cb::EngineErrorItemPair allocateItem(EngineIface& engine,
-                                                const CookieIface& cookie,
+                                                CookieIface& cookie,
                                                 const DocKey& key,
                                                 size_t nbytes,
                                                 int flags,
@@ -453,7 +453,7 @@ TEST_F(BasicEngineTestsuite, ItemSetCas) {
 uint32_t evictions;
 static void eviction_stats_handler(std::string_view key,
                                    std::string_view value,
-                                   const CookieIface&) {
+                                   CookieIface&) {
     if (key == "evictions"sv) {
         std::string v{value.data(), value.size()};
         evictions = atoi(v.c_str());
@@ -925,7 +925,7 @@ TEST_F(CollectionsTest, SetGetCollections) {
                                             uint8_t datatype,
                                             cb::mcbp::Status status,
                                             uint64_t cas,
-                                            const CookieIface& cookie) -> bool {
+                                            CookieIface& cookie) -> bool {
         std::copy(body.begin(), body.end(), std::back_inserter(returnedData));
         returnedStatus = status;
         return true;

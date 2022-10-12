@@ -36,7 +36,7 @@ struct DurabilityItemCtx {
      * The client cookie associated with the Durability operation. If non-null
      * then notifyIOComplete will be called on it when operation is committed.
      */
-    const CookieIface* cookie = nullptr;
+    CookieIface* cookie = nullptr;
 };
 
 /**

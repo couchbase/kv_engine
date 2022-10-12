@@ -37,7 +37,7 @@ public:
     void notify_all_event_states() override;
     void stats(const StatCollector& collector) override;
     bool configure_auditdaemon(const std::string& config,
-                               const CookieIface& cookie) override;
+                               CookieIface& cookie) override;
     // End public API
 
     explicit AuditImpl(std::string config_file, std::string host);

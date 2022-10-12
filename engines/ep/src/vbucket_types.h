@@ -44,11 +44,11 @@ using SyncWriteResolvedCallback = std::function<void(Vbid vbid)>;
  * completed (has been committed / aborted / times out).
  */
 using SyncWriteCompleteCallback =
-        std::function<void(const CookieIface* cookie, cb::engine_errc status)>;
+        std::function<void(CookieIface* cookie, cb::engine_errc status)>;
 
 /// Instance of SyncWriteCompleteCallback which does nothing.
 const SyncWriteCompleteCallback NoopSyncWriteCompleteCb =
-        [](const CookieIface* cookie, cb::engine_errc status) {};
+        [](CookieIface* cookie, cb::engine_errc status) {};
 
 /**
  * Callback function invoked at Replica for sending a SeqnoAck message to the

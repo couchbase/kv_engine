@@ -66,7 +66,7 @@ void AllKeysCallback::callback(const DiskDocKey& key) {
 }
 
 FetchAllKeysTask::FetchAllKeysTask(EventuallyPersistentEngine& e,
-                                   const CookieIface& c,
+                                   CookieIface& c,
                                    AddResponseFn resp,
                                    const DocKey start_key_,
                                    Vbid vbucket,
@@ -104,8 +104,7 @@ bool FetchAllKeysTask::run() {
         auto cb = std::make_shared<AllKeysCallback>(collection, count);
         err = engine->getKVBucket()->getROUnderlying(vbid)->getAllKeys(
                 vbid, start_key, count, cb);
-        const_cast<CookieIface&>(cookie).addDocumentReadBytes(
-                cb->getAllKeysLen());
+        cookie.addDocumentReadBytes(cb->getAllKeysLen());
         if (err == cb::engine_errc::success) {
             err = response({}, // key
                            {}, // extra

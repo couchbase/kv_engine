@@ -186,7 +186,7 @@ cb::engine_errc SynchronousEPEngine::public_setWithMeta(
         protocol_binary_datatype_t datatype,
         uint64_t& cas,
         uint64_t* seqno,
-        const CookieIface* cookie,
+        CookieIface* cookie,
         PermittedVBStates permittedVBStates,
         CheckConflicts checkConflicts,
         bool allowExisting,
@@ -210,7 +210,7 @@ cb::engine_errc SynchronousEPEngine::public_setWithMeta(
                        emd);
 }
 
-DocKey SynchronousEPEngine::public_makeDocKey(const CookieIface& cookie,
+DocKey SynchronousEPEngine::public_makeDocKey(CookieIface& cookie,
                                               const std::string& key) const {
     const auto buf = cb::const_byte_buffer{
             reinterpret_cast<const uint8_t*>(key.data()), key.size()};

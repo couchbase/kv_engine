@@ -107,8 +107,7 @@ public:
      * @param cookie Optional connection cookie, this cookie will be notified
      *        when the deletion task is completed.
      */
-    void dropVBucketAndSetupDeferredDeletion(Vbid id,
-                                             const CookieIface* cookie);
+    void dropVBucketAndSetupDeferredDeletion(Vbid id, CookieIface* cookie);
 
     KVShard::id_type getId() const {
         return kvConfig->getShardId();

@@ -97,7 +97,7 @@ struct default_engine : public EngineIface {
     cb::engine_errc initialize(std::string_view config_str) override;
     void destroy(bool force) override;
 
-    cb::unique_item_ptr allocateItem(const CookieIface& cookie,
+    cb::unique_item_ptr allocateItem(CookieIface& cookie,
                                      const DocKey& key,
                                      size_t nbytes,
                                      size_t priv_nbytes,
@@ -107,7 +107,7 @@ struct default_engine : public EngineIface {
                                      Vbid vbucket) override;
 
     cb::engine_errc remove(
-            const CookieIface& cookie,
+            CookieIface& cookie,
             const DocKey& key,
             uint64_t& cas,
             Vbid vbucket,
@@ -116,32 +116,32 @@ struct default_engine : public EngineIface {
 
     void release(ItemIface& item) override;
 
-    cb::EngineErrorItemPair get(const CookieIface& cookie,
+    cb::EngineErrorItemPair get(CookieIface& cookie,
                                 const DocKey& key,
                                 Vbid vbucket,
                                 DocStateFilter documentStateFilter) override;
     cb::EngineErrorItemPair get_if(
-            const CookieIface& cookie,
+            CookieIface& cookie,
             const DocKey& key,
             Vbid vbucket,
             std::function<bool(const item_info&)> filter) override;
 
-    cb::EngineErrorMetadataPair get_meta(const CookieIface& cookie,
+    cb::EngineErrorMetadataPair get_meta(CookieIface& cookie,
                                          const DocKey& key,
                                          Vbid vbucket) override;
 
-    cb::EngineErrorItemPair get_locked(const CookieIface& cookie,
+    cb::EngineErrorItemPair get_locked(CookieIface& cookie,
                                        const DocKey& key,
                                        Vbid vbucket,
                                        uint32_t lock_timeout) override;
 
-    cb::engine_errc unlock(const CookieIface& cookie,
+    cb::engine_errc unlock(CookieIface& cookie,
                            const DocKey& key,
                            Vbid vbucket,
                            uint64_t cas) override;
 
     cb::EngineErrorItemPair get_and_touch(
-            const CookieIface& cookie,
+            CookieIface& cookie,
             const DocKey& key,
             Vbid vbucket,
             uint32_t expirytime,
@@ -149,7 +149,7 @@ struct default_engine : public EngineIface {
             override;
 
     cb::engine_errc store(
-            const CookieIface& cookie,
+            CookieIface& cookie,
             ItemIface& item,
             uint64_t& cas,
             StoreSemantics operation,
@@ -158,7 +158,7 @@ struct default_engine : public EngineIface {
             bool preserveTtl) override;
 
     cb::EngineErrorCasPair store_if(
-            const CookieIface& cookie,
+            CookieIface& cookie,
             ItemIface& item,
             uint64_t cas,
             StoreSemantics operation,
@@ -167,9 +167,9 @@ struct default_engine : public EngineIface {
             DocumentState document_state,
             bool preserveTtl) override;
 
-    cb::engine_errc flush(const CookieIface& cookie) override;
+    cb::engine_errc flush(CookieIface& cookie) override;
 
-    cb::engine_errc get_stats(const CookieIface& cookie,
+    cb::engine_errc get_stats(CookieIface& cookie,
                               std::string_view key,
                               std::string_view value,
                               const AddStatFn& add_stat) override;
@@ -178,9 +178,9 @@ struct default_engine : public EngineIface {
             const BucketStatCollector& collector,
             cb::prometheus::MetricGroup metricGroup) override;
 
-    void reset_stats(const CookieIface& cookie) override;
+    void reset_stats(CookieIface& cookie) override;
 
-    cb::engine_errc unknown_command(const CookieIface& cookie,
+    cb::engine_errc unknown_command(CookieIface& cookie,
                                     const cb::mcbp::Request& request,
                                     const AddResponseFn& response) override;
 
@@ -205,41 +205,41 @@ struct default_engine : public EngineIface {
 
     float getMinCompressionRatio() override;
 
-    cb::engine_errc set_collection_manifest(const CookieIface& cookie,
+    cb::engine_errc set_collection_manifest(CookieIface& cookie,
                                             std::string_view json) override;
 
     cb::engine_errc get_collection_manifest(
-            const CookieIface& cookie, const AddResponseFn& response) override;
+            CookieIface& cookie, const AddResponseFn& response) override;
 
     cb::EngineErrorGetCollectionIDResult get_collection_id(
-            const CookieIface& cookie, std::string_view path) override;
+            CookieIface& cookie, std::string_view path) override;
 
     cb::EngineErrorGetScopeIDResult get_scope_id(
-            const CookieIface& cookie, std::string_view path) override;
+            CookieIface& cookie, std::string_view path) override;
 
     cb::EngineErrorGetCollectionMetaResult get_collection_meta(
-            const CookieIface& cookie,
+            CookieIface& cookie,
             CollectionID cid,
             std::optional<Vbid> vbid) const override;
 
-    cb::engine_errc setParameter(const CookieIface& cookie,
+    cb::engine_errc setParameter(CookieIface& cookie,
                                  EngineParamCategory category,
                                  std::string_view key,
                                  std::string_view value,
                                  Vbid) override;
 
-    std::pair<cb::engine_errc, vbucket_state_t> getVBucket(
-            const CookieIface& cookie, Vbid vbid) override;
-    cb::engine_errc setVBucket(const CookieIface& cookie,
+    std::pair<cb::engine_errc, vbucket_state_t> getVBucket(CookieIface& cookie,
+                                                           Vbid vbid) override;
+    cb::engine_errc setVBucket(CookieIface& cookie,
                                Vbid vbid,
                                uint64_t cas,
                                vbucket_state_t state,
                                nlohmann::json* meta) override;
-    cb::engine_errc deleteVBucket(const CookieIface& cookie,
+    cb::engine_errc deleteVBucket(CookieIface& cookie,
                                   Vbid vbid,
                                   bool sync) override;
 
-    void generate_unknown_collection_response(const CookieIface* cookie) const;
+    void generate_unknown_collection_response(CookieIface* cookie) const;
 
     cb::engine_errc pause() override {
         return cb::engine_errc::success;

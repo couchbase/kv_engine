@@ -243,7 +243,7 @@ void destroy_engine_instance(struct default_engine* engine) {
     }
 }
 
-cb::unique_item_ptr default_engine::allocateItem(const CookieIface& cookie,
+cb::unique_item_ptr default_engine::allocateItem(CookieIface& cookie,
                                                  const DocKey& key,
                                                  size_t nbytes,
                                                  size_t priv_nbytes,
@@ -291,7 +291,7 @@ cb::unique_item_ptr default_engine::allocateItem(const CookieIface& cookie,
 }
 
 cb::engine_errc default_engine::remove(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const DocKey& key,
         uint64_t& cas,
         Vbid vbucket,
@@ -351,7 +351,7 @@ cb::engine_errc default_engine::remove(
                          deleted,
                          &cas,
                          StoreSemantics::CAS,
-                         const_cast<CookieIface*>(&cookie),
+                         &cookie,
                          DocumentState::Deleted,
                          false);
 
@@ -375,7 +375,7 @@ void default_engine::release(ItemIface& item) {
 }
 
 cb::EngineErrorItemPair default_engine::get(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const DocKey& key,
         Vbid vbucket,
         DocStateFilter documentStateFilter) {
@@ -400,7 +400,7 @@ cb::EngineErrorItemPair default_engine::get(
 }
 
 cb::EngineErrorItemPair default_engine::get_if(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const DocKey& key,
         Vbid vbucket,
         std::function<bool(const item_info&)> filter) {
@@ -435,7 +435,7 @@ cb::EngineErrorItemPair default_engine::get_if(
 }
 
 cb::EngineErrorItemPair default_engine::get_and_touch(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const DocKey& key,
         Vbid vbucket,
         uint32_t expiry_time,
@@ -454,17 +454,14 @@ cb::EngineErrorItemPair default_engine::get_and_touch(
     }
 
     hash_item* it = nullptr;
-    auto ret = item_get_and_touch(this,
-                                  const_cast<CookieIface*>(&cookie),
-                                  &it,
-                                  key,
-                                  server.core->realtime(expiry_time));
+    auto ret = item_get_and_touch(
+            this, &cookie, &it, key, server.core->realtime(expiry_time));
 
     return cb::makeEngineErrorItemPair(
             cb::engine_errc(ret), new ItemHolder(this, it), this);
 }
 
-cb::EngineErrorItemPair default_engine::get_locked(const CookieIface& cookie,
+cb::EngineErrorItemPair default_engine::get_locked(CookieIface& cookie,
                                                    const DocKey& key,
                                                    Vbid vbucket,
                                                    uint32_t lock_timeout) {
@@ -490,13 +487,12 @@ cb::EngineErrorItemPair default_engine::get_locked(const CookieIface& cookie,
     lock_timeout += server.core->get_current_time();
 
     hash_item* it = nullptr;
-    auto ret = item_get_locked(
-            this, const_cast<CookieIface*>(&cookie), &it, key, lock_timeout);
+    auto ret = item_get_locked(this, &cookie, &it, key, lock_timeout);
     return cb::makeEngineErrorItemPair(
             cb::engine_errc(ret), new ItemHolder(this, it), this);
 }
 
-cb::EngineErrorMetadataPair default_engine::get_meta(const CookieIface& cookie,
+cb::EngineErrorMetadataPair default_engine::get_meta(CookieIface& cookie,
                                                      const DocKey& key,
                                                      Vbid vbucket) {
     if (!handled_vbucket(this, vbucket)) {
@@ -526,7 +522,7 @@ cb::EngineErrorMetadataPair default_engine::get_meta(const CookieIface& cookie,
     return std::make_pair(cb::engine_errc::success, info);
 }
 
-cb::engine_errc default_engine::unlock(const CookieIface& cookie,
+cb::engine_errc default_engine::unlock(CookieIface& cookie,
                                        const DocKey& key,
                                        Vbid vbucket,
                                        uint64_t cas) {
@@ -535,10 +531,10 @@ cb::engine_errc default_engine::unlock(const CookieIface& cookie,
     if (!key.getCollectionID().isDefaultCollection()) {
         return cb::engine_errc::unknown_collection;
     }
-    return item_unlock(this, const_cast<CookieIface*>(&cookie), key, cas);
+    return item_unlock(this, &cookie, key, cas);
 }
 
-cb::engine_errc default_engine::get_stats(const CookieIface& cookie,
+cb::engine_errc default_engine::get_stats(CookieIface& cookie,
                                           std::string_view key,
                                           std::string_view value,
                                           const AddStatFn& add_stat) {
@@ -605,7 +601,7 @@ void default_engine::do_engine_stats(const StatCollector& collector) const {
 }
 
 cb::engine_errc default_engine::store(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         ItemIface& item,
         uint64_t& cas,
         StoreSemantics operation,
@@ -626,13 +622,13 @@ cb::engine_errc default_engine::store(
                       it->item,
                       &cas,
                       operation,
-                      const_cast<CookieIface*>(&cookie),
+                      &cookie,
                       document_state,
                       preserveTtl);
 }
 
 cb::EngineErrorCasPair default_engine::store_if(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         ItemIface& item,
         uint64_t cas,
         StoreSemantics operation,
@@ -683,19 +679,19 @@ cb::EngineErrorCasPair default_engine::store_if(
                              it->item,
                              &cas,
                              operation,
-                             const_cast<CookieIface*>(&cookie),
+                             &cookie,
                              document_state,
                              preserveTtl);
     return {cb::engine_errc(status), cas};
 }
 
-cb::engine_errc default_engine::flush(const CookieIface& cookie) {
+cb::engine_errc default_engine::flush(CookieIface& cookie) {
     item_flush_expired(get_handle(this));
 
     return cb::engine_errc::success;
 }
 
-void default_engine::reset_stats(const CookieIface& cookie) {
+void default_engine::reset_stats(CookieIface& cookie) {
     item_stats_reset(this);
 
     stats.evictions.store(0);
@@ -765,7 +761,7 @@ static cb::engine_errc initalize_configuration(struct default_engine* se,
 }
 
 static bool scrub_cmd(struct default_engine* e,
-                      const CookieIface* cookie,
+                      CookieIface* cookie,
                       const AddResponseFn& response) {
     auto res = cb::mcbp::Status::Success;
     if (!item_start_scrub(e)) {
@@ -775,7 +771,7 @@ static bool scrub_cmd(struct default_engine* e,
     return response({}, {}, {}, PROTOCOL_BINARY_RAW_BYTES, res, 0, *cookie);
 }
 
-cb::engine_errc default_engine::setParameter(const CookieIface& cookie,
+cb::engine_errc default_engine::setParameter(CookieIface& cookie,
                                              EngineParamCategory category,
                                              std::string_view key,
                                              std::string_view value,
@@ -818,7 +814,7 @@ cb::engine_errc default_engine::setParameter(const CookieIface& cookie,
 }
 
 cb::engine_errc default_engine::unknown_command(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const cb::mcbp::Request& request,
         const AddResponseFn& response) {
     bool sent;
@@ -950,14 +946,14 @@ size_t default_engine::getMaxItemSize() {
 }
 
 // Cannot set the manifest on the default engine
-cb::engine_errc default_engine::set_collection_manifest(
-        const CookieIface& cookie, std::string_view json) {
+cb::engine_errc default_engine::set_collection_manifest(CookieIface& cookie,
+                                                        std::string_view json) {
     return cb::engine_errc::not_supported;
 }
 
 // always return the "epoch" manifest, default collection/scope only
 cb::engine_errc default_engine::get_collection_manifest(
-        const CookieIface& cookie, const AddResponseFn& response) {
+        CookieIface& cookie, const AddResponseFn& response) {
     static std::string default_manifest =
             R"({"uid" : "0",
         "scopes" : [{"name":"_default", "uid":"0",
@@ -976,7 +972,7 @@ static std::string_view default_scope_path{"_default."};
 
 // permit lookup of the default collection only
 cb::EngineErrorGetCollectionIDResult default_engine::get_collection_id(
-        const CookieIface& cookie, std::string_view path) {
+        CookieIface& cookie, std::string_view path) {
     if (std::count(path.begin(), path.end(), '.') == 1) {
         cb::engine_errc error = cb::engine_errc::unknown_scope;
         if (path == "_default._default" || path == "._default" || path == "." ||
@@ -996,7 +992,7 @@ cb::EngineErrorGetCollectionIDResult default_engine::get_collection_id(
 
 // permit lookup of the default scope only
 cb::EngineErrorGetScopeIDResult default_engine::get_scope_id(
-        const CookieIface& cookie, std::string_view path) {
+        CookieIface& cookie, std::string_view path) {
     auto dotCount = std::count(path.begin(), path.end(), '.');
     if (dotCount <= 1) {
         // only care about everything before .
@@ -1015,9 +1011,7 @@ cb::EngineErrorGetScopeIDResult default_engine::get_scope_id(
 
 // permit lookup of the default collection
 cb::EngineErrorGetCollectionMetaResult default_engine::get_collection_meta(
-        const CookieIface& cookie,
-        CollectionID cid,
-        std::optional<Vbid> vbid) const {
+        CookieIface& cookie, CollectionID cid, std::optional<Vbid> vbid) const {
     if (cid.isDefaultCollection()) {
         // default collection belongs to the default scope and is always metered
         return cb::EngineErrorGetCollectionMetaResult(
@@ -1028,18 +1022,18 @@ cb::EngineErrorGetCollectionMetaResult default_engine::get_collection_meta(
 }
 
 void default_engine::generate_unknown_collection_response(
-        const CookieIface* cookie) const {
+        CookieIface* cookie) const {
     // Default engine does not support collection changes, so is always
     // reporting 'unknown collection' against the epoch manifest (uid 0)
-    const_cast<CookieIface*>(cookie)->setUnknownCollectionErrorContext(0);
+    cookie->setUnknownCollectionErrorContext(0);
 }
 
 std::pair<cb::engine_errc, vbucket_state_t> default_engine::getVBucket(
-        const CookieIface&, Vbid vbid) {
+        CookieIface&, Vbid vbid) {
     return {cb::engine_errc::success, get_vbucket_state(this, vbid)};
 }
 
-cb::engine_errc default_engine::setVBucket(const CookieIface&,
+cb::engine_errc default_engine::setVBucket(CookieIface&,
                                            Vbid vbid,
                                            uint64_t,
                                            vbucket_state_t state,
@@ -1048,9 +1042,7 @@ cb::engine_errc default_engine::setVBucket(const CookieIface&,
     return cb::engine_errc::success;
 }
 
-cb::engine_errc default_engine::deleteVBucket(const CookieIface&,
-                                              Vbid vbid,
-                                              bool) {
+cb::engine_errc default_engine::deleteVBucket(CookieIface&, Vbid vbid, bool) {
     set_vbucket_state(this, vbid, vbucket_state_dead);
     return cb::engine_errc::success;
 }

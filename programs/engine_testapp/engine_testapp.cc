@@ -152,35 +152,33 @@ public:
         destroy_mock_cookie(cookie);
     }
 
-    void set_ewouldblock_handling(const CookieIface* cookie,
-                                  bool enable) override {
+    void set_ewouldblock_handling(CookieIface* cookie, bool enable) override {
         cookie_to_mock_cookie(cookie)->setEwouldblock(enable);
     }
 
-    void set_mutation_extras_handling(const CookieIface* cookie,
+    void set_mutation_extras_handling(CookieIface* cookie,
                                       bool enable) override {
         cookie_to_mock_cookie(cookie)->setMutationExtrasHandling(enable);
     }
 
-    void set_datatype_support(const CookieIface* cookie,
+    void set_datatype_support(CookieIface* cookie,
                               protocol_binary_datatype_t datatypes) override {
         cookie_to_mock_cookie(cookie)->setDatatypeSupport(datatypes);
     }
 
-    void set_collections_support(const CookieIface* cookie,
-                                 bool enable) override {
+    void set_collections_support(CookieIface* cookie, bool enable) override {
         cookie_to_mock_cookie(cookie)->setCollectionsSupport(enable);
     }
 
-    void lock_cookie(const CookieIface* cookie) override {
+    void lock_cookie(CookieIface* cookie) override {
         cookie_to_mock_cookie(cookie)->lock();
     }
 
-    void unlock_cookie(const CookieIface* cookie) override {
+    void unlock_cookie(CookieIface* cookie) override {
         cookie_to_mock_cookie(cookie)->unlock();
     }
 
-    void waitfor_cookie(const CookieIface* cookie) override {
+    void waitfor_cookie(CookieIface* cookie) override {
         mock_waitfor_cookie(cookie);
     }
 

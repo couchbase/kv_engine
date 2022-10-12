@@ -158,7 +158,7 @@ static cb::engine_errc sendResponse(const AddResponseFn& response,
                                     uint8_t datatype,
                                     cb::mcbp::Status status,
                                     uint64_t cas,
-                                    const CookieIface& cookie) {
+                                    CookieIface& cookie) {
     if (response(key, ext, body, datatype, status, cas, cookie)) {
         return cb::engine_errc::success;
     }
@@ -176,7 +176,7 @@ static cb::engine_errc sendResponse(const AddResponseFn& response,
                                     uint8_t datatype,
                                     cb::mcbp::Status status,
                                     uint64_t cas,
-                                    const CookieIface& cookie) {
+                                    CookieIface& cookie) {
     if (response(std::string_view(key),
                  ext,
                  body,
@@ -219,7 +219,7 @@ void EventuallyPersistentEngine::destroy(const bool force) {
 }
 
 cb::unique_item_ptr EventuallyPersistentEngine::allocateItem(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const DocKey& key,
         size_t nbytes,
         size_t priv_nbytes,
@@ -240,7 +240,7 @@ cb::unique_item_ptr EventuallyPersistentEngine::allocateItem(
 }
 
 cb::engine_errc EventuallyPersistentEngine::remove(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const DocKey& key,
         uint64_t& cas,
         Vbid vbucket,
@@ -269,7 +269,7 @@ void EventuallyPersistentEngine::release(ItemIface& itm) {
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::get(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const DocKey& key,
         Vbid vbucket,
         DocStateFilter documentStateFilter) {
@@ -297,7 +297,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get(
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const DocKey& key,
         Vbid vbucket,
         std::function<bool(const item_info&)> filter) {
@@ -305,7 +305,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::get_and_touch(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const DocKey& key,
         Vbid vbucket,
         uint32_t expiry_time,
@@ -318,7 +318,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_and_touch(
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::get_locked(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const DocKey& key,
         Vbid vbucket,
         uint32_t lock_timeout) {
@@ -326,7 +326,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_locked(
             &cookie, key, vbucket, lock_timeout);
 }
 
-cb::engine_errc EventuallyPersistentEngine::unlock(const CookieIface& cookie,
+cb::engine_errc EventuallyPersistentEngine::unlock(CookieIface& cookie,
                                                    const DocKey& key,
                                                    Vbid vbucket,
                                                    uint64_t cas) {
@@ -353,7 +353,7 @@ auto makeExitBorderGuard = [](auto&& wrapped) {
 };
 
 cb::engine_errc EventuallyPersistentEngine::get_stats(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         std::string_view key,
         std::string_view value,
         const AddStatFn& add_stat) {
@@ -446,7 +446,7 @@ cb::engine_errc EventuallyPersistentEngine::doMetricGroupMetering(
 }
 
 cb::engine_errc EventuallyPersistentEngine::store(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         ItemIface& itm,
         uint64_t& cas,
         StoreSemantics operation,
@@ -479,7 +479,7 @@ cb::engine_errc EventuallyPersistentEngine::store(
 }
 
 cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         ItemIface& itm,
         uint64_t cas,
         StoreSemantics operation,
@@ -512,7 +512,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
             &cookie, item, cas, operation, predicate, preserveTtl);
 }
 
-void EventuallyPersistentEngine::reset_stats(const CookieIface& cookie) {
+void EventuallyPersistentEngine::reset_stats(CookieIface& cookie) {
     acquireEngine(this)->resetStats();
 }
 
@@ -977,7 +977,7 @@ cb::engine_errc EventuallyPersistentEngine::setVbucketParam(
 }
 
 cb::mcbp::Status EventuallyPersistentEngine::evictKey(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const cb::mcbp::Request& request,
         const char** msg) {
     const auto key = makeDocKey(cookie, request.getKey());
@@ -994,7 +994,7 @@ cb::mcbp::Status EventuallyPersistentEngine::evictKey(
 }
 
 cb::engine_errc EventuallyPersistentEngine::setParameter(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         EngineParamCategory category,
         std::string_view key,
         std::string_view value,
@@ -1004,7 +1004,7 @@ cb::engine_errc EventuallyPersistentEngine::setParameter(
 }
 
 cb::engine_errc EventuallyPersistentEngine::setParameterInner(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         EngineParamCategory category,
         std::string_view key,
         std::string_view value,
@@ -1040,8 +1040,7 @@ cb::engine_errc EventuallyPersistentEngine::setParameterInner(
 }
 
 std::pair<cb::engine_errc, vbucket_state_t>
-EventuallyPersistentEngine::getVBucketInner(const CookieIface& cookie,
-                                            Vbid vbucket) {
+EventuallyPersistentEngine::getVBucketInner(CookieIface& cookie, Vbid vbucket) {
     HdrMicroSecBlockTimer timer(&stats.getVbucketCmdHisto);
 
     auto vb = getVBucket(vbucket);
@@ -1052,7 +1051,7 @@ EventuallyPersistentEngine::getVBucketInner(const CookieIface& cookie,
 }
 
 cb::engine_errc EventuallyPersistentEngine::setVBucketInner(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         Vbid vbid,
         uint64_t cas,
         vbucket_state_t state,
@@ -1064,7 +1063,7 @@ cb::engine_errc EventuallyPersistentEngine::setVBucketInner(
 cb::engine_errc EventuallyPersistentEngine::getReplicaCmd(
         const cb::mcbp::Request& request,
         const AddResponseFn& response,
-        const CookieIface* cookie) {
+        CookieIface* cookie) {
     DocKey key = makeDocKey(*cookie, request.getKey());
 
     auto options = static_cast<get_options_t>(
@@ -1082,10 +1081,8 @@ cb::engine_errc EventuallyPersistentEngine::getReplicaCmd(
         uint32_t flags = rv.item->getFlags();
         ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
         guardedIface.audit_document_access(
-                const_cast<CookieIface&>(*cookie),
-                cb::audit::document::Operation::Read);
-        const_cast<CookieIface*>(cookie)->addDocumentReadBytes(
-                rv.item->getNBytes());
+                *cookie, cb::audit::document::Operation::Read);
+        cookie->addDocumentReadBytes(rv.item->getNBytes());
         return sendResponse(
                 response,
                 rv.item->getKey(), // key
@@ -1103,7 +1100,7 @@ cb::engine_errc EventuallyPersistentEngine::getReplicaCmd(
 }
 
 cb::engine_errc EventuallyPersistentEngine::compactDatabaseInner(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         Vbid vbid,
         uint64_t purge_before_ts,
         uint64_t purge_before_seq,
@@ -1136,7 +1133,7 @@ cb::engine_errc EventuallyPersistentEngine::compactDatabaseInner(
 }
 
 cb::engine_errc EventuallyPersistentEngine::processUnknownCommandInner(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const cb::mcbp::Request& request,
         const AddResponseFn& response) {
     auto res = cb::mcbp::Status::UnknownCommand;
@@ -1197,7 +1194,7 @@ cb::engine_errc EventuallyPersistentEngine::processUnknownCommandInner(
 }
 
 cb::engine_errc EventuallyPersistentEngine::unknown_command(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const cb::mcbp::Request& request,
         const AddResponseFn& response) {
     auto engine = acquireEngine(this);
@@ -1217,7 +1214,7 @@ cb::engine_errc EventuallyPersistentEngine::unknown_command(
 }
 
 cb::engine_errc EventuallyPersistentEngine::step(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         bool throttled,
         DcpMessageProducersIface& producers) {
     auto engine = acquireEngine(this);
@@ -1226,7 +1223,7 @@ cb::engine_errc EventuallyPersistentEngine::step(
     return conn.step(throttled, guardedProducers);
 }
 
-cb::engine_errc EventuallyPersistentEngine::open(const CookieIface& cookie,
+cb::engine_errc EventuallyPersistentEngine::open(CookieIface& cookie,
                                                  uint32_t opaque,
                                                  uint32_t seqno,
                                                  uint32_t flags,
@@ -1236,16 +1233,15 @@ cb::engine_errc EventuallyPersistentEngine::open(const CookieIface& cookie,
             &cookie, opaque, seqno, flags, conName, value);
 }
 
-cb::engine_errc EventuallyPersistentEngine::add_stream(
-        const CookieIface& cookie,
-        uint32_t opaque,
-        Vbid vbucket,
-        uint32_t flags) {
+cb::engine_errc EventuallyPersistentEngine::add_stream(CookieIface& cookie,
+                                                       uint32_t opaque,
+                                                       Vbid vbucket,
+                                                       uint32_t flags) {
     return acquireEngine(this)->dcpAddStream(&cookie, opaque, vbucket, flags);
 }
 
 cb::engine_errc EventuallyPersistentEngine::close_stream(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         uint32_t opaque,
         Vbid vbucket,
         cb::mcbp::DcpStreamId sid) {
@@ -1255,7 +1251,7 @@ cb::engine_errc EventuallyPersistentEngine::close_stream(
 }
 
 cb::engine_errc EventuallyPersistentEngine::stream_req(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         uint32_t flags,
         uint32_t opaque,
         Vbid vbucket,
@@ -1288,7 +1284,7 @@ cb::engine_errc EventuallyPersistentEngine::stream_req(
 }
 
 cb::engine_errc EventuallyPersistentEngine::get_failover_log(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         uint32_t opaque,
         Vbid vbucket,
         dcp_add_failover_log callback) {
@@ -1337,7 +1333,7 @@ cb::engine_errc EventuallyPersistentEngine::get_failover_log(
 }
 
 cb::engine_errc EventuallyPersistentEngine::stream_end(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         uint32_t opaque,
         Vbid vbucket,
         cb::mcbp::DcpStreamEndStatus status) {
@@ -1346,7 +1342,7 @@ cb::engine_errc EventuallyPersistentEngine::stream_end(
 }
 
 cb::engine_errc EventuallyPersistentEngine::snapshot_marker(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         uint32_t opaque,
         Vbid vbucket,
         uint64_t start_seqno,
@@ -1366,7 +1362,7 @@ cb::engine_errc EventuallyPersistentEngine::snapshot_marker(
 }
 
 cb::engine_errc EventuallyPersistentEngine::mutation(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         uint32_t opaque,
         const DocKey& key,
         cb::const_byte_buffer value,
@@ -1406,7 +1402,7 @@ cb::engine_errc EventuallyPersistentEngine::mutation(
 }
 
 cb::engine_errc EventuallyPersistentEngine::deletion(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         uint32_t opaque,
         const DocKey& key,
         cb::const_byte_buffer value,
@@ -1432,7 +1428,7 @@ cb::engine_errc EventuallyPersistentEngine::deletion(
 }
 
 cb::engine_errc EventuallyPersistentEngine::deletion_v2(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         uint32_t opaque,
         const DocKey& key,
         cb::const_byte_buffer value,
@@ -1458,7 +1454,7 @@ cb::engine_errc EventuallyPersistentEngine::deletion_v2(
 }
 
 cb::engine_errc EventuallyPersistentEngine::expiration(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         uint32_t opaque,
         const DocKey& key,
         cb::const_byte_buffer value,
@@ -1484,7 +1480,7 @@ cb::engine_errc EventuallyPersistentEngine::expiration(
 }
 
 cb::engine_errc EventuallyPersistentEngine::set_vbucket_state(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         uint32_t opaque,
         Vbid vbucket,
         vbucket_state_t state) {
@@ -1493,22 +1489,20 @@ cb::engine_errc EventuallyPersistentEngine::set_vbucket_state(
     return conn.setVBucketState(opaque, vbucket, state);
 }
 
-cb::engine_errc EventuallyPersistentEngine::noop(const CookieIface& cookie,
+cb::engine_errc EventuallyPersistentEngine::noop(CookieIface& cookie,
                                                  uint32_t opaque) {
     auto engine = acquireEngine(this);
     return engine->getConnHandler(&cookie).noop(opaque);
 }
 
 cb::engine_errc EventuallyPersistentEngine::buffer_acknowledgement(
-        const CookieIface& cookie,
-        uint32_t opaque,
-        uint32_t buffer_bytes) {
+        CookieIface& cookie, uint32_t opaque, uint32_t buffer_bytes) {
     auto engine = acquireEngine(this);
     auto& conn = engine->getConnHandler(&cookie);
     return conn.bufferAcknowledgement(opaque, buffer_bytes);
 }
 
-cb::engine_errc EventuallyPersistentEngine::control(const CookieIface& cookie,
+cb::engine_errc EventuallyPersistentEngine::control(CookieIface& cookie,
                                                     uint32_t opaque,
                                                     std::string_view key,
                                                     std::string_view value) {
@@ -1517,7 +1511,7 @@ cb::engine_errc EventuallyPersistentEngine::control(const CookieIface& cookie,
 }
 
 cb::engine_errc EventuallyPersistentEngine::response_handler(
-        const CookieIface& cookie, const cb::mcbp::Response& response) {
+        CookieIface& cookie, const cb::mcbp::Response& response) {
     auto engine = acquireEngine(this);
     auto* conn = engine->tryGetConnHandler(&cookie);
     if (conn && conn->handleResponse(response)) {
@@ -1527,7 +1521,7 @@ cb::engine_errc EventuallyPersistentEngine::response_handler(
 }
 
 cb::engine_errc EventuallyPersistentEngine::system_event(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         uint32_t opaque,
         Vbid vbucket,
         mcbp::systemevent::id event,
@@ -1542,7 +1536,7 @@ cb::engine_errc EventuallyPersistentEngine::system_event(
 }
 
 cb::engine_errc EventuallyPersistentEngine::prepare(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         uint32_t opaque,
         const DocKey& key,
         cb::const_byte_buffer value,
@@ -1578,7 +1572,7 @@ cb::engine_errc EventuallyPersistentEngine::prepare(
 }
 
 cb::engine_errc EventuallyPersistentEngine::seqno_acknowledged(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         uint32_t opaque,
         Vbid vbucket,
         uint64_t prepared_seqno) {
@@ -1587,7 +1581,7 @@ cb::engine_errc EventuallyPersistentEngine::seqno_acknowledged(
     return conn.seqno_acknowledged(opaque, vbucket, prepared_seqno);
 }
 
-cb::engine_errc EventuallyPersistentEngine::commit(const CookieIface& cookie,
+cb::engine_errc EventuallyPersistentEngine::commit(CookieIface& cookie,
                                                    uint32_t opaque,
                                                    Vbid vbucket,
                                                    const DocKey& key,
@@ -1598,7 +1592,7 @@ cb::engine_errc EventuallyPersistentEngine::commit(const CookieIface& cookie,
     return conn.commit(opaque, vbucket, key, prepared_seqno, commit_seqno);
 }
 
-cb::engine_errc EventuallyPersistentEngine::abort(const CookieIface& cookie,
+cb::engine_errc EventuallyPersistentEngine::abort(CookieIface& cookie,
                                                   uint32_t opaque,
                                                   Vbid vbucket,
                                                   const DocKey& key,
@@ -1659,12 +1653,12 @@ bool EventuallyPersistentEngine::get_item_info(const ItemIface& itm,
 }
 
 cb::EngineErrorMetadataPair EventuallyPersistentEngine::get_meta(
-        const CookieIface& cookie, const DocKey& key, Vbid vbucket) {
+        CookieIface& cookie, const DocKey& key, Vbid vbucket) {
     return acquireEngine(this)->getMetaInner(&cookie, key, vbucket);
 }
 
 cb::engine_errc EventuallyPersistentEngine::set_collection_manifest(
-        const CookieIface& cookie, std::string_view json) {
+        CookieIface& cookie, std::string_view json) {
     auto engine = acquireEngine(this);
     auto rv = engine->getKVBucket()->setCollections(json, &cookie);
 
@@ -1678,7 +1672,7 @@ cb::engine_errc EventuallyPersistentEngine::set_collection_manifest(
 }
 
 cb::engine_errc EventuallyPersistentEngine::get_collection_manifest(
-        const CookieIface& cookie, const AddResponseFn& response) {
+        CookieIface& cookie, const AddResponseFn& response) {
     auto engine = acquireEngine(this);
     Collections::IsVisibleFunction isVisible =
             [&engine, &cookie](ScopeID sid,
@@ -1706,7 +1700,7 @@ cb::engine_errc EventuallyPersistentEngine::get_collection_manifest(
 }
 
 cb::EngineErrorGetCollectionIDResult
-EventuallyPersistentEngine::get_collection_id(const CookieIface& cookie,
+EventuallyPersistentEngine::get_collection_id(CookieIface& cookie,
                                               std::string_view path) {
     auto engine = acquireEngine(this);
     auto rv = engine->getKVBucket()->getCollectionID(path);
@@ -1732,7 +1726,7 @@ EventuallyPersistentEngine::get_collection_id(const CookieIface& cookie,
 }
 
 cb::EngineErrorGetScopeIDResult EventuallyPersistentEngine::get_scope_id(
-        const CookieIface& cookie, std::string_view path) {
+        CookieIface& cookie, std::string_view path) {
     auto engine = acquireEngine(this);
     auto rv = engine->getKVBucket()->getScopeID(path);
     if (rv.result == cb::engine_errc::success) {
@@ -1755,7 +1749,7 @@ cb::EngineErrorGetScopeIDResult EventuallyPersistentEngine::get_scope_id(
 
 cb::EngineErrorGetCollectionMetaResult
 EventuallyPersistentEngine::get_collection_meta(
-        const CookieIface&, CollectionID cid, std::optional<Vbid> vbid) const {
+        CookieIface&, CollectionID cid, std::optional<Vbid> vbid) const {
     auto engine = acquireEngine(this);
     if (vbid) {
         auto vbucket = engine->getVBucket(*vbid);
@@ -1820,27 +1814,26 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     serverApi = getServerApiFunc();
 }
 
-void EventuallyPersistentEngine::reserveCookie(const CookieIface& cookie) {
+void EventuallyPersistentEngine::reserveCookie(CookieIface& cookie) {
     NonBucketAllocationGuard guard;
     serverApi->cookie->reserve(cookie);
 }
 
-void EventuallyPersistentEngine::releaseCookie(const CookieIface& cookie) {
+void EventuallyPersistentEngine::releaseCookie(CookieIface& cookie) {
     NonBucketAllocationGuard guard;
     serverApi->cookie->release(cookie);
 }
 
-void EventuallyPersistentEngine::setErrorContext(const CookieIface& cookie,
+void EventuallyPersistentEngine::setErrorContext(CookieIface& cookie,
                                                  std::string_view message) {
     NonBucketAllocationGuard guard;
-    const_cast<CookieIface&>(cookie).setErrorContext(std::string{message});
+    cookie.setErrorContext(std::string{message});
 }
 
 void EventuallyPersistentEngine::setUnknownCollectionErrorContext(
-        const CookieIface& cookie, uint64_t manifestUid) const {
+        CookieIface& cookie, uint64_t manifestUid) const {
     NonBucketAllocationGuard guard;
-    const_cast<CookieIface&>(cookie).setUnknownCollectionErrorContext(
-            manifestUid);
+    cookie.setUnknownCollectionErrorContext(manifestUid);
 }
 
 template <typename T>
@@ -2240,7 +2233,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::itemAllocate(
 }
 
 cb::engine_errc EventuallyPersistentEngine::itemDelete(
-        const CookieIface* cookie,
+        CookieIface* cookie,
         const DocKey& key,
         uint64_t& cas,
         Vbid vbucket,
@@ -2310,7 +2303,7 @@ void EventuallyPersistentEngine::itemRelease(ItemIface* itm) {
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::getInner(
-        const CookieIface* cookie,
+        CookieIface* cookie,
         const DocKey& key,
         Vbid vbucket,
         get_options_t options) {
@@ -2339,7 +2332,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getInner(
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::getAndTouchInner(
-        const CookieIface* cookie,
+        CookieIface* cookie,
         const DocKey& key,
         Vbid vbucket,
         uint32_t exptime) {
@@ -2376,7 +2369,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getAndTouchInner(
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::getIfInner(
-        const CookieIface* cookie,
+        CookieIface* cookie,
         const DocKey& key,
         Vbid vbucket,
         std::function<bool(const item_info&)> filter) {
@@ -2455,7 +2448,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getIfInner(
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::getLockedInner(
-        const CookieIface* cookie,
+        CookieIface* cookie,
         const DocKey& key,
         Vbid vbucket,
         uint32_t lock_timeout) {
@@ -2488,16 +2481,15 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getLockedInner(
     return cb::makeEngineErrorItemPair(cb::engine_errc(result.getStatus()));
 }
 
-cb::engine_errc EventuallyPersistentEngine::unlockInner(
-        const CookieIface* cookie,
-        const DocKey& key,
-        Vbid vbucket,
-        uint64_t cas) {
+cb::engine_errc EventuallyPersistentEngine::unlockInner(CookieIface* cookie,
+                                                        const DocKey& key,
+                                                        Vbid vbucket,
+                                                        uint64_t cas) {
     return kvBucket->unlockKey(key, vbucket, cas, ep_current_time(), cookie);
 }
 
 cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
-        const CookieIface* cookie,
+        CookieIface* cookie,
         Item& item,
         uint64_t cas,
         StoreSemantics operation,
@@ -2618,12 +2610,11 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
     return {status, item.getCas()};
 }
 
-cb::engine_errc EventuallyPersistentEngine::storeInner(
-        const CookieIface* cookie,
-        Item& itm,
-        uint64_t& cas,
-        StoreSemantics operation,
-        bool preserveTtl) {
+cb::engine_errc EventuallyPersistentEngine::storeInner(CookieIface* cookie,
+                                                       Item& itm,
+                                                       uint64_t& cas,
+                                                       StoreSemantics operation,
+                                                       bool preserveTtl) {
     auto [status, _cas] =
             storeIfInner(cookie, itm, cas, operation, {}, preserveTtl);
     cas = _cas;
@@ -3275,7 +3266,7 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsHighCardinality(
 }
 
 cb::engine_errc EventuallyPersistentEngine::doMemoryStats(
-        const CookieIface& cookie, const AddStatFn& add_stat) {
+        CookieIface& cookie, const AddStatFn& add_stat) {
     add_casted_stat("mem_used_estimate",
                     stats.getEstimatedTotalMemoryUsed(),
                     add_stat,
@@ -3380,7 +3371,7 @@ cb::engine_errc EventuallyPersistentEngine::doMemoryStats(
 }
 
 cb::engine_errc EventuallyPersistentEngine::doVBucketStats(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const AddStatFn& add_stat,
         const char* stat_key,
         int nkey,
@@ -3388,7 +3379,7 @@ cb::engine_errc EventuallyPersistentEngine::doVBucketStats(
     class StatVBucketVisitor : public VBucketVisitor {
     public:
         StatVBucketVisitor(KVBucketIface* store,
-                           const CookieIface& c,
+                           CookieIface& c,
                            AddStatFn a,
                            VBucketStatsDetailLevel detail)
             : eps(store), cookie(c), add_stat(std::move(a)), detail(detail) {
@@ -3398,7 +3389,7 @@ cb::engine_errc EventuallyPersistentEngine::doVBucketStats(
             addVBStats(cookie, add_stat, vb, eps, detail);
         }
 
-        static void addVBStats(const CookieIface& cookie,
+        static void addVBStats(CookieIface& cookie,
                                const AddStatFn& add_stat,
                                VBucket& vb,
                                KVBucketIface* store,
@@ -3423,7 +3414,7 @@ cb::engine_errc EventuallyPersistentEngine::doVBucketStats(
 
     private:
         KVBucketIface* eps;
-        const CookieIface& cookie;
+        CookieIface& cookie;
         AddStatFn add_stat;
         VBucketStatsDetailLevel detail;
     };
@@ -3477,10 +3468,10 @@ cb::engine_errc EventuallyPersistentEngine::doVBucketStats(
 }
 
 cb::engine_errc EventuallyPersistentEngine::doHashStats(
-        const CookieIface& cookie, const AddStatFn& add_stat) {
+        CookieIface& cookie, const AddStatFn& add_stat) {
     class StatVBucketVisitor : public VBucketVisitor {
     public:
-        StatVBucketVisitor(const CookieIface& c,
+        StatVBucketVisitor(CookieIface& c,
                            AddStatFn a,
                            BucketCompressionMode compressMode)
             : cookie(c), add_stat(std::move(a)), compressionMode(compressMode) {
@@ -3579,7 +3570,7 @@ cb::engine_errc EventuallyPersistentEngine::doHashStats(
             }
         }
 
-        const CookieIface& cookie;
+        CookieIface& cookie;
         AddStatFn add_stat;
         BucketCompressionMode compressionMode;
     };
@@ -3604,9 +3595,7 @@ cb::engine_errc EventuallyPersistentEngine::doHashStats(
  */
 class AddStatsStream : public std::ostream {
 public:
-    AddStatsStream(std::string key,
-                   AddStatFn callback,
-                   const CookieIface& cookie)
+    AddStatsStream(std::string key, AddStatFn callback, CookieIface& cookie)
         : std::ostream(&buf),
           key(std::move(key)),
           callback(std::move(callback)),
@@ -3621,12 +3610,12 @@ public:
 private:
     std::string key;
     AddStatFn callback;
-    const CookieIface& cookie;
+    CookieIface& cookie;
     std::stringbuf buf;
 };
 
 cb::engine_errc EventuallyPersistentEngine::doHashDump(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const AddStatFn& addStat,
         std::string_view keyArgs) {
     auto result = getValidVBucketFromString(keyArgs);
@@ -3641,7 +3630,7 @@ cb::engine_errc EventuallyPersistentEngine::doHashDump(
 }
 
 cb::engine_errc EventuallyPersistentEngine::doCheckpointDump(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const AddStatFn& addStat,
         std::string_view keyArgs) {
     auto result = getValidVBucketFromString(keyArgs);
@@ -3656,7 +3645,7 @@ cb::engine_errc EventuallyPersistentEngine::doCheckpointDump(
 }
 
 cb::engine_errc EventuallyPersistentEngine::doDurabilityMonitorDump(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const AddStatFn& addStat,
         std::string_view keyArgs) {
     auto result = getValidVBucketFromString(keyArgs);
@@ -3672,7 +3661,7 @@ cb::engine_errc EventuallyPersistentEngine::doDurabilityMonitorDump(
 }
 
 cb::engine_errc EventuallyPersistentEngine::doVBucketDump(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const AddStatFn& addStat,
         std::string_view keyArgs) {
     auto result = getValidVBucketFromString(keyArgs);
@@ -3689,7 +3678,7 @@ cb::engine_errc EventuallyPersistentEngine::doVBucketDump(
 
 class StatCheckpointVisitor : public VBucketVisitor {
 public:
-    StatCheckpointVisitor(KVBucketIface* kvs, const CookieIface& c, AddStatFn a)
+    StatCheckpointVisitor(KVBucketIface* kvs, CookieIface& c, AddStatFn a)
         : kvBucket(kvs), cookie(c), add_stat(std::move(a)) {
     }
 
@@ -3697,7 +3686,7 @@ public:
         addCheckpointStat(cookie, add_stat, kvBucket, vb);
     }
 
-    static void addCheckpointStat(const CookieIface& cookie,
+    static void addCheckpointStat(CookieIface& cookie,
                                   const AddStatFn& add_stat,
                                   KVBucketIface* eps,
                                   VBucket& vb) {
@@ -3719,13 +3708,13 @@ public:
     }
 
     KVBucketIface* kvBucket;
-    const CookieIface& cookie;
+    CookieIface& cookie;
     AddStatFn add_stat;
 };
 /// @endcond
 
 cb::engine_errc EventuallyPersistentEngine::doCheckpointStats(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const AddStatFn& add_stat,
         const char* stat_key,
         int nkey) {
@@ -3754,7 +3743,7 @@ cb::engine_errc EventuallyPersistentEngine::doCheckpointStats(
 }
 
 cb::engine_errc EventuallyPersistentEngine::doDurabilityMonitorStats(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const AddStatFn& add_stat,
         const char* stat_key,
         int nkey) {
@@ -3830,7 +3819,7 @@ protected:
  * Function object to send stats for a single dcp connection.
  */
 struct ConnStatBuilder {
-    ConnStatBuilder(const CookieIface& c, AddStatFn as, DcpStatsFilter filter)
+    ConnStatBuilder(CookieIface& c, AddStatFn as, DcpStatsFilter filter)
         : cookie(c), add_stat(std::move(as)), filter(std::move(filter)) {
     }
 
@@ -3849,7 +3838,7 @@ struct ConnStatBuilder {
         return aggregator;
     }
 
-    const CookieIface& cookie;
+    CookieIface& cookie;
     AddStatFn add_stat;
     DcpStatsFilter filter;
     ConnCounter aggregator;
@@ -3987,7 +3976,7 @@ cb::engine_errc EventuallyPersistentEngine::doConnAggStats(
 }
 
 cb::engine_errc EventuallyPersistentEngine::doDcpStats(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const AddStatFn& add_stat,
         std::string_view value) {
     ConnStatBuilder dcpVisitor(cookie, add_stat, DcpStatsFilter{value});
@@ -4026,7 +4015,7 @@ void EventuallyPersistentEngine::addAggregatedProducerStats(
 }
 
 cb::engine_errc EventuallyPersistentEngine::doEvictionStats(
-        const CookieIface& cookie, const AddStatFn& add_stat) {
+        CookieIface& cookie, const AddStatFn& add_stat) {
     /**
      * The "evicted" histogram stats provide an aggregated view of what the
      * execution frequencies are for all the items that evicted when running
@@ -4057,7 +4046,7 @@ cb::engine_errc EventuallyPersistentEngine::doEvictionStats(
 }
 
 cb::engine_errc EventuallyPersistentEngine::doKeyStats(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const AddStatFn& add_stat,
         Vbid vbid,
         const DocKey& key,
@@ -4115,7 +4104,7 @@ cb::engine_errc EventuallyPersistentEngine::doKeyStats(
 }
 
 cb::engine_errc EventuallyPersistentEngine::doVbIdFailoverLogStats(
-        const CookieIface& cookie, const AddStatFn& add_stat, Vbid vbid) {
+        CookieIface& cookie, const AddStatFn& add_stat, Vbid vbid) {
     VBucketPtr vb = getVBucket(vbid);
     if(!vb) {
         return cb::engine_errc::not_my_vbucket;
@@ -4125,11 +4114,11 @@ cb::engine_errc EventuallyPersistentEngine::doVbIdFailoverLogStats(
 }
 
 cb::engine_errc EventuallyPersistentEngine::doAllFailoverLogStats(
-        const CookieIface& cookie, const AddStatFn& add_stat) {
+        CookieIface& cookie, const AddStatFn& add_stat) {
     cb::engine_errc rv = cb::engine_errc::success;
     class StatVBucketVisitor : public VBucketVisitor {
     public:
-        StatVBucketVisitor(const CookieIface& c, AddStatFn a)
+        StatVBucketVisitor(CookieIface& c, AddStatFn a)
             : cookie(c), add_stat(std::move(a)) {
         }
 
@@ -4138,7 +4127,7 @@ cb::engine_errc EventuallyPersistentEngine::doAllFailoverLogStats(
         }
 
     private:
-        const CookieIface& cookie;
+        CookieIface& cookie;
         AddStatFn add_stat;
     };
 
@@ -4207,7 +4196,7 @@ static std::string getTaskDescrForStats(TaskId id) {
 }
 
 cb::engine_errc EventuallyPersistentEngine::doSchedulerStats(
-        const CookieIface& cookie, const AddStatFn& add_stat) {
+        CookieIface& cookie, const AddStatFn& add_stat) {
     for (TaskId id : GlobalTask::allTaskIds) {
         add_casted_stat(getTaskDescrForStats(id).c_str(),
                         stats.schedulingHisto[static_cast<int>(id)],
@@ -4219,7 +4208,7 @@ cb::engine_errc EventuallyPersistentEngine::doSchedulerStats(
 }
 
 cb::engine_errc EventuallyPersistentEngine::doRunTimeStats(
-        const CookieIface& cookie, const AddStatFn& add_stat) {
+        CookieIface& cookie, const AddStatFn& add_stat) {
     for (TaskId id : GlobalTask::allTaskIds) {
         add_casted_stat(getTaskDescrForStats(id).c_str(),
                         stats.taskRuntimeHisto[static_cast<int>(id)],
@@ -4231,7 +4220,7 @@ cb::engine_errc EventuallyPersistentEngine::doRunTimeStats(
 }
 
 cb::engine_errc EventuallyPersistentEngine::doDispatcherStats(
-        const CookieIface& cookie, const AddStatFn& add_stat) {
+        CookieIface& cookie, const AddStatFn& add_stat) {
     ExecutorPool::get()->doWorkerStat(
             ObjectRegistry::getCurrentEngine()->getTaskable(),
             cookie,
@@ -4240,7 +4229,7 @@ cb::engine_errc EventuallyPersistentEngine::doDispatcherStats(
 }
 
 cb::engine_errc EventuallyPersistentEngine::doTasksStats(
-        const CookieIface& cookie, const AddStatFn& add_stat) {
+        CookieIface& cookie, const AddStatFn& add_stat) {
     ExecutorPool::get()->doTasksStat(
             ObjectRegistry::getCurrentEngine()->getTaskable(),
             cookie,
@@ -4249,7 +4238,7 @@ cb::engine_errc EventuallyPersistentEngine::doTasksStats(
 }
 
 cb::engine_errc EventuallyPersistentEngine::doWorkloadStats(
-        const CookieIface& cookie, const AddStatFn& add_stat) {
+        CookieIface& cookie, const AddStatFn& add_stat) {
     try {
         std::array<char, 80> statname;
         ExecutorPool* expool = ExecutorPool::get();
@@ -4300,7 +4289,7 @@ cb::engine_errc EventuallyPersistentEngine::doWorkloadStats(
     return cb::engine_errc::success;
 }
 
-void EventuallyPersistentEngine::addSeqnoVbStats(const CookieIface& cookie,
+void EventuallyPersistentEngine::addSeqnoVbStats(CookieIface& cookie,
                                                  const AddStatFn& add_stat,
                                                  const VBucketPtr& vb) {
     // MB-19359: An atomic read of vbucket state without acquiring the
@@ -4376,7 +4365,7 @@ void EventuallyPersistentEngine::addSeqnoVbStats(const CookieIface& cookie,
     }
 }
 
-void EventuallyPersistentEngine::addLookupResult(const CookieIface* cookie,
+void EventuallyPersistentEngine::addLookupResult(CookieIface* cookie,
                                                  std::unique_ptr<Item> result) {
     auto oldItem = takeEngineSpecific<std::unique_ptr<Item>>(cookie);
     // Check for old lookup results and clear them
@@ -4392,7 +4381,7 @@ void EventuallyPersistentEngine::addLookupResult(const CookieIface* cookie,
     storeEngineSpecific(cookie, std::move(result));
 }
 
-bool EventuallyPersistentEngine::fetchLookupResult(const CookieIface* cookie,
+bool EventuallyPersistentEngine::fetchLookupResult(CookieIface* cookie,
                                                    std::unique_ptr<Item>& itm) {
     // This will return *and erase* the lookup result for a connection.
     // You look it up, you own it.
@@ -4426,7 +4415,7 @@ EventuallyPersistentEngine::getValidVBucketFromString(std::string_view vbNum) {
 }
 
 cb::engine_errc EventuallyPersistentEngine::doSeqnoStats(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const AddStatFn& add_stat,
         const char* stat_key,
         int nkey) {
@@ -4464,7 +4453,7 @@ cb::engine_errc EventuallyPersistentEngine::doSeqnoStats(
     return cb::engine_errc::success;
 }
 
-void EventuallyPersistentEngine::addLookupAllKeys(const CookieIface& cookie,
+void EventuallyPersistentEngine::addLookupAllKeys(CookieIface& cookie,
                                                   cb::engine_errc err) {
     std::lock_guard<std::mutex> lh(lookupMutex);
     allKeysLookups[&cookie] = err;
@@ -4483,7 +4472,7 @@ void EventuallyPersistentEngine::runVbStatePersistTask(Vbid vbid) {
 }
 
 cb::engine_errc EventuallyPersistentEngine::doCollectionStats(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const AddStatFn& add_stat,
         const std::string& statKey) {
     CBStatCollector collector(add_stat, cookie);
@@ -4498,7 +4487,7 @@ cb::engine_errc EventuallyPersistentEngine::doCollectionStats(
 }
 
 cb::engine_errc EventuallyPersistentEngine::doScopeStats(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const AddStatFn& add_stat,
         const std::string& statKey) {
     CBStatCollector collector(add_stat, cookie);
@@ -4561,7 +4550,7 @@ std::tuple<cb::engine_errc,
            std::optional<Vbid>,
            std::optional<std::string>,
            std::optional<CollectionID>>
-EventuallyPersistentEngine::parseStatKeyArg(const CookieIface* cookie,
+EventuallyPersistentEngine::parseStatKeyArg(CookieIface* cookie,
                                             std::string_view statKeyPrefix,
                                             std::string_view statKey) {
     std::vector<std::string> args;
@@ -4614,7 +4603,7 @@ EventuallyPersistentEngine::parseStatKeyArg(const CookieIface* cookie,
 }
 
 cb::engine_errc EventuallyPersistentEngine::doKeyStats(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const AddStatFn& add_stat,
         std::string_view statKey) {
     cb::engine_errc status;
@@ -4630,7 +4619,7 @@ cb::engine_errc EventuallyPersistentEngine::doKeyStats(
 }
 
 cb::engine_errc EventuallyPersistentEngine::doVKeyStats(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const AddStatFn& add_stat,
         std::string_view statKey) {
     cb::engine_errc status;
@@ -4647,7 +4636,7 @@ cb::engine_errc EventuallyPersistentEngine::doVKeyStats(
 }
 
 cb::engine_errc EventuallyPersistentEngine::doDcpVbTakeoverStats(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const AddStatFn& add_stat,
         std::string_view statKey) {
     std::string tStream;
@@ -4663,9 +4652,7 @@ cb::engine_errc EventuallyPersistentEngine::doDcpVbTakeoverStats(
 }
 
 cb::engine_errc EventuallyPersistentEngine::doFailoversStats(
-        const CookieIface& cookie,
-        const AddStatFn& add_stat,
-        std::string_view key) {
+        CookieIface& cookie, const AddStatFn& add_stat, std::string_view key) {
     const std::string statKey(key.data(), key.size());
     if (key.size() == 9) {
         return doAllFailoverLogStats(cookie, add_stat);
@@ -4688,9 +4675,7 @@ cb::engine_errc EventuallyPersistentEngine::doFailoversStats(
 }
 
 cb::engine_errc EventuallyPersistentEngine::doDiskinfoStats(
-        const CookieIface& cookie,
-        const AddStatFn& add_stat,
-        std::string_view key) {
+        CookieIface& cookie, const AddStatFn& add_stat, std::string_view key) {
     const std::string statKey(key.data(), key.size());
     if (key.size() == 8) {
         CBStatCollector collector{add_stat, cookie};
@@ -4723,9 +4708,7 @@ void EventuallyPersistentEngine::doDiskFailureStats(
 }
 
 cb::engine_errc EventuallyPersistentEngine::doPrivilegedStats(
-        const CookieIface& cookie,
-        const AddStatFn& add_stat,
-        std::string_view key) {
+        CookieIface& cookie, const AddStatFn& add_stat, std::string_view key) {
     // Privileged stats - need Stats priv (and not just SimpleStats).
     const auto acc = getServerApi()->cookie->check_privilege(
             cookie, cb::rbac::Privilege::Stats, {}, {});
@@ -4761,7 +4744,7 @@ cb::engine_errc EventuallyPersistentEngine::doPrivilegedStats(
 }
 
 cb::engine_errc EventuallyPersistentEngine::getStats(
-        const CookieIface& c,
+        CookieIface& c,
         std::string_view key,
         std::string_view value,
         const AddStatFn& add_stat) {
@@ -4926,14 +4909,12 @@ void EventuallyPersistentEngine::resetStats() {
 }
 
 cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
-        const CookieIface* cookie, cb::rbac::Privilege priv, DocKey key) const {
+        CookieIface* cookie, cb::rbac::Privilege priv, DocKey key) const {
     return cb::engine_errc(checkPrivilege(cookie, priv, key.getCollectionID()));
 }
 
 cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
-        const CookieIface* cookie,
-        cb::rbac::Privilege priv,
-        CollectionID cid) const {
+        CookieIface* cookie, cb::rbac::Privilege priv, CollectionID cid) const {
     ScopeID sid{ScopeID::Default};
     uint64_t manifestUid{0};
     cb::engine_errc status = cb::engine_errc::success;
@@ -4974,7 +4955,7 @@ cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
 
 cb::engine_errc
 EventuallyPersistentEngine::checkForPrivilegeAtLeastInOneCollection(
-        const CookieIface& cookie, cb::rbac::Privilege privilege) const {
+        CookieIface& cookie, cb::rbac::Privilege privilege) const {
     try {
         switch (serverApi->cookie
                         ->check_for_privilege_at_least_in_one_collection(
@@ -4997,7 +4978,7 @@ EventuallyPersistentEngine::checkForPrivilegeAtLeastInOneCollection(
 }
 
 cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
-        const CookieIface* cookie,
+        CookieIface* cookie,
         cb::rbac::Privilege priv,
         std::optional<ScopeID> sid,
         std::optional<CollectionID> cid) const {
@@ -5024,7 +5005,7 @@ cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
 }
 
 cb::engine_errc EventuallyPersistentEngine::testPrivilege(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         cb::rbac::Privilege priv,
         std::optional<ScopeID> sid,
         std::optional<CollectionID> cid) const {
@@ -5053,12 +5034,12 @@ cb::engine_errc EventuallyPersistentEngine::testPrivilege(
  * @return the privilege revision, which changes when privileges do.
  */
 uint32_t EventuallyPersistentEngine::getPrivilegeRevision(
-        const CookieIface* cookie) const {
+        CookieIface* cookie) const {
     return serverApi->cookie->get_privilege_context_revision(*cookie);
 }
 
 cb::engine_errc EventuallyPersistentEngine::observe(
-        const CookieIface* cookie,
+        CookieIface* cookie,
         const cb::mcbp::Request& req,
         const AddResponseFn& response) {
     size_t offset = 0;
@@ -5162,7 +5143,7 @@ cb::engine_errc EventuallyPersistentEngine::observe(
 }
 
 cb::engine_errc EventuallyPersistentEngine::observe_seqno(
-        const CookieIface* cookie,
+        CookieIface* cookie,
         const cb::mcbp::Request& request,
         const AddResponseFn& response) {
     Vbid vb_id = request.getVBucket();
@@ -5238,7 +5219,7 @@ VBucketPtr EventuallyPersistentEngine::getVBucket(Vbid vbucket) const {
 }
 
 cb::engine_errc EventuallyPersistentEngine::handleSeqnoPersistence(
-        const CookieIface* cookie,
+        CookieIface* cookie,
         const cb::mcbp::Request& req,
         const AddResponseFn& response) {
     const Vbid vbucket = req.getVBucket();
@@ -5304,7 +5285,7 @@ cb::engine_errc EventuallyPersistentEngine::handleSeqnoPersistence(
 }
 
 cb::EngineErrorMetadataPair EventuallyPersistentEngine::getMetaInner(
-        const CookieIface* cookie, const DocKey& key, Vbid vbucket) {
+        CookieIface* cookie, const DocKey& key, Vbid vbucket) {
     uint32_t deleted;
     uint8_t datatype;
     ItemMetaData itemMeta;
@@ -5417,7 +5398,7 @@ void extractNmetaFromExtras(cb::const_byte_buffer& emd,
 }
 
 protocol_binary_datatype_t EventuallyPersistentEngine::checkForDatatypeJson(
-        const CookieIface* cookie,
+        CookieIface* cookie,
         protocol_binary_datatype_t datatype,
         std::string_view body) {
     if (!cookie->isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_JSON)) {
@@ -5427,15 +5408,14 @@ protocol_binary_datatype_t EventuallyPersistentEngine::checkForDatatypeJson(
         }
 
         NonBucketAllocationGuard guard;
-        if (serverApi->cookie->is_valid_json(*const_cast<CookieIface*>(cookie),
-                                             body)) {
+        if (serverApi->cookie->is_valid_json(*cookie, body)) {
             datatype |= PROTOCOL_BINARY_DATATYPE_JSON;
         }
     }
     return datatype;
 }
 
-DocKey EventuallyPersistentEngine::makeDocKey(const CookieIface& cookie,
+DocKey EventuallyPersistentEngine::makeDocKey(CookieIface& cookie,
                                               cb::const_byte_buffer key) const {
     return DocKey{key.data(),
                   key.size(),
@@ -5445,7 +5425,7 @@ DocKey EventuallyPersistentEngine::makeDocKey(const CookieIface& cookie,
 }
 
 cb::engine_errc EventuallyPersistentEngine::setWithMeta(
-        const CookieIface* cookie,
+        CookieIface* cookie,
         const cb::mcbp::Request& request,
         const AddResponseFn& response) {
     if (isDegradedMode()) {
@@ -5514,15 +5494,13 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
     }
 
     if (ret == cb::engine_errc::success) {
-        const_cast<CookieIface*>(cookie)->addDocumentWriteBytes(
-                value.size() + request.getKey().size());
+        cookie->addDocumentWriteBytes(value.size() + request.getKey().size());
         ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
         guardedIface.audit_document_access(
-                const_cast<CookieIface&>(*cookie),
-                cb::audit::document::Operation::Modify);
+                *cookie, cb::audit::document::Operation::Modify);
         ++stats.numOpsSetMeta;
         auto endTime = std::chrono::steady_clock::now();
-        auto& traceable = *cookie2traceable(cookie);
+        auto& traceable = *cookie;
         if (traceable.isTracingEnabled()) {
             NonBucketAllocationGuard guard;
             auto& tracer = traceable.getTracer();
@@ -5571,7 +5549,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
         protocol_binary_datatype_t datatype,
         uint64_t& cas,
         uint64_t* seqno,
-        const CookieIface* cookie,
+        CookieIface* cookie,
         PermittedVBStates permittedVBStates,
         CheckConflicts checkConflicts,
         bool allowExisting,
@@ -5698,7 +5676,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
 }
 
 cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
-        const CookieIface* cookie,
+        CookieIface* cookie,
         const cb::mcbp::Request& request,
         const AddResponseFn& response) {
     if (isDegradedMode()) {
@@ -5816,12 +5794,10 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
     }
 
     if (ret == cb::engine_errc::success) {
-        const_cast<CookieIface*>(cookie)->addDocumentWriteBytes(
-                value.size() + request.getKey().size());
+        cookie->addDocumentWriteBytes(value.size() + request.getKey().size());
         ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
         guardedIface.audit_document_access(
-                const_cast<CookieIface&>(*cookie),
-                cb::audit::document::Operation::Delete);
+                *cookie, cb::audit::document::Operation::Delete);
         stats.numOpsDelMeta++;
     } else if (ret == cb::engine_errc::no_memory) {
         return memoryCondition();
@@ -5851,7 +5827,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
         ItemMetaData itemMeta,
         uint64_t& cas,
         uint64_t* seqno,
-        const CookieIface* cookie,
+        CookieIface* cookie,
         PermittedVBStates permittedVBStates,
         CheckConflicts checkConflicts,
         GenerateBySeqno genBySeqno,
@@ -5885,7 +5861,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
 }
 
 cb::engine_errc EventuallyPersistentEngine::handleTrafficControlCmd(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const cb::mcbp::Request& request,
         const AddResponseFn& response) {
     switch (request.getClientOpcode()) {
@@ -5953,7 +5929,7 @@ bool EventuallyPersistentEngine::isDegradedMode() const {
 }
 
 cb::engine_errc EventuallyPersistentEngine::doDcpVbTakeoverStats(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const AddStatFn& add_stat,
         std::string& key,
         Vbid vbid) {
@@ -6014,7 +5990,7 @@ cb::engine_errc EventuallyPersistentEngine::doDcpVbTakeoverStats(
 }
 
 cb::engine_errc EventuallyPersistentEngine::returnMeta(
-        const CookieIface* cookie,
+        CookieIface* cookie,
         const cb::mcbp::Request& req,
         const AddResponseFn& response) {
     using cb::mcbp::request::ReturnMetaPayload;
@@ -6063,11 +6039,9 @@ cb::engine_errc EventuallyPersistentEngine::returnMeta(
         if (ret == cb::engine_errc::success) {
             ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
             guardedIface.audit_document_access(
-                    const_cast<CookieIface&>(*cookie),
-                    cb::audit::document::Operation::Modify);
+                    *cookie, cb::audit::document::Operation::Modify);
             ++stats.numOpsSetRetMeta;
-            const_cast<CookieIface&>(*cookie).addDocumentWriteBytes(
-                    req.getKeylen() + value.size());
+            cookie->addDocumentWriteBytes(req.getKeylen() + value.size());
         }
         cas = itm->getCas();
         seqno = htonll(itm->getRevSeqno());
@@ -6084,10 +6058,9 @@ cb::engine_errc EventuallyPersistentEngine::returnMeta(
         if (ret == cb::engine_errc::success) {
             ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
             guardedIface.audit_document_access(
-                    const_cast<CookieIface&>(*cookie),
-                    cb::audit::document::Operation::Delete);
+                    *cookie, cb::audit::document::Operation::Delete);
             ++stats.numOpsDelRetMeta;
-            const_cast<CookieIface&>(*cookie).addDocumentWriteBytes(1);
+            cookie->addDocumentWriteBytes(1);
         }
         flags = itm_meta.flags;
         exp = gsl::narrow<uint32_t>(itm_meta.exptime);
@@ -6119,7 +6092,7 @@ cb::engine_errc EventuallyPersistentEngine::returnMeta(
 }
 
 cb::engine_errc EventuallyPersistentEngine::getAllKeys(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const cb::mcbp::Request& request,
         const AddResponseFn& response) {
     if (!getKVBucket()->isGetAllKeysSupported()) {
@@ -6177,18 +6150,18 @@ cb::engine_errc EventuallyPersistentEngine::getAllKeys(
 }
 
 ConnectionPriority EventuallyPersistentEngine::getDCPPriority(
-        const CookieIface* cookie) {
+        CookieIface* cookie) {
     NonBucketAllocationGuard guard;
     return serverApi->cookie->get_priority(*cookie);
 }
 
-void EventuallyPersistentEngine::setDCPPriority(const CookieIface* cookie,
+void EventuallyPersistentEngine::setDCPPriority(CookieIface* cookie,
                                                 ConnectionPriority priority) {
     NonBucketAllocationGuard guard;
     serverApi->cookie->set_priority(*cookie, priority);
 }
 
-void EventuallyPersistentEngine::notifyIOComplete(const CookieIface* cookie,
+void EventuallyPersistentEngine::notifyIOComplete(CookieIface* cookie,
                                                   cb::engine_errc status) {
     if (cookie == nullptr) {
         EP_LOG_WARN_RAW("Tried to signal a NULL cookie!");
@@ -6197,20 +6170,20 @@ void EventuallyPersistentEngine::notifyIOComplete(const CookieIface* cookie,
     notifyIOComplete(*cookie, status);
 }
 
-void EventuallyPersistentEngine::notifyIOComplete(const CookieIface& cookie,
+void EventuallyPersistentEngine::notifyIOComplete(CookieIface& cookie,
                                                   cb::engine_errc status) {
     HdrMicroSecBlockTimer bt(&stats.notifyIOHisto);
     NonBucketAllocationGuard guard;
     cookie.notifyIoComplete(status);
 }
 
-void EventuallyPersistentEngine::scheduleDcpStep(const CookieIface& cookie) {
+void EventuallyPersistentEngine::scheduleDcpStep(CookieIface& cookie) {
     NonBucketAllocationGuard guard;
     cookie.getConnectionIface().scheduleDcpStep();
 }
 
 cb::engine_errc EventuallyPersistentEngine::getRandomKey(
-        const CookieIface* cookie,
+        CookieIface* cookie,
         const cb::mcbp::Request& request,
         const AddResponseFn& response) {
     CollectionID cid{CollectionID::Default};
@@ -6226,12 +6199,12 @@ cb::engine_errc EventuallyPersistentEngine::getRandomKey(
         return cb::engine_errc(priv);
     }
 
-    GetValue gv(kvBucket->getRandomKey(cid, const_cast<CookieIface&>(*cookie)));
+    GetValue gv(kvBucket->getRandomKey(cid, *cookie));
     cb::engine_errc ret = gv.getStatus();
 
     if (ret == cb::engine_errc::success) {
         auto* it = gv.item.get();
-        const_cast<CookieIface*>(cookie)->addDocumentReadBytes(it->getNBytes());
+        cookie->addDocumentReadBytes(it->getNBytes());
         const auto flags = it->getFlags();
         ret = sendResponse(
                 response,
@@ -6251,7 +6224,7 @@ cb::engine_errc EventuallyPersistentEngine::getRandomKey(
 }
 
 cb::engine_errc EventuallyPersistentEngine::dcpOpen(
-        const CookieIface* cookie,
+        CookieIface* cookie,
         uint32_t opaque,
         uint32_t seqno,
         uint32_t flags,
@@ -6314,17 +6287,16 @@ cb::engine_errc EventuallyPersistentEngine::dcpOpen(
     return cb::engine_errc::success;
 }
 
-cb::engine_errc EventuallyPersistentEngine::dcpAddStream(
-        const CookieIface* cookie,
-        uint32_t opaque,
-        Vbid vbucket,
-        uint32_t flags) {
+cb::engine_errc EventuallyPersistentEngine::dcpAddStream(CookieIface* cookie,
+                                                         uint32_t opaque,
+                                                         Vbid vbucket,
+                                                         uint32_t flags) {
     return dcpConnMap_->addPassiveStream(
             getConnHandler(cookie), opaque, vbucket, flags);
 }
 
 ConnHandler* EventuallyPersistentEngine::tryGetConnHandler(
-        const CookieIface* cookie) {
+        CookieIface* cookie) {
     auto* iface = serverApi->cookie->getDcpConnHandler(*cookie);
     if (iface) {
         auto* handler = dynamic_cast<ConnHandler*>(iface);
@@ -6338,14 +6310,13 @@ ConnHandler* EventuallyPersistentEngine::tryGetConnHandler(
 
     return nullptr;
 }
-ConnHandler& EventuallyPersistentEngine::getConnHandler(
-        const CookieIface* cookie) {
+ConnHandler& EventuallyPersistentEngine::getConnHandler(CookieIface* cookie) {
     auto* handle = tryGetConnHandler(cookie);
     Expects(handle);
     return *handle;
 }
 
-void EventuallyPersistentEngine::handleDisconnect(const CookieIface& cookie) {
+void EventuallyPersistentEngine::handleDisconnect(CookieIface& cookie) {
     dcpConnMap_->disconnect(&cookie);
 }
 
@@ -6389,7 +6360,7 @@ cb::mcbp::Status EventuallyPersistentEngine::startFlusher(const char** msg,
 }
 
 cb::engine_errc EventuallyPersistentEngine::deleteVBucketInner(
-        const CookieIface& cookie, Vbid vbid, bool sync) {
+        CookieIface& cookie, Vbid vbid, bool sync) {
     HdrMicroSecBlockTimer timer(&stats.delVbucketCmdHisto);
     auto status = cb::engine_errc::success;
     if (getKVBucket()->maybeWaitForVBucketWarmup(&cookie)) {
@@ -6447,13 +6418,13 @@ cb::engine_errc EventuallyPersistentEngine::deleteVBucketInner(
 }
 
 cb::engine_errc EventuallyPersistentEngine::scheduleCompaction(
-        Vbid vbid, const CompactionConfig& c, const CookieIface* cookie) {
+        Vbid vbid, const CompactionConfig& c, CookieIface* cookie) {
     return kvBucket->scheduleCompaction(
             vbid, c, cookie, std::chrono::seconds(0));
 }
 
 cb::engine_errc EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
-        const CookieIface* cookie,
+        CookieIface* cookie,
         const cb::mcbp::Request& request,
         const AddResponseFn& response) {
     static_assert(sizeof(RequestedVBState) == 4,
@@ -6604,7 +6575,7 @@ cb::engine_errc EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
 }
 
 cb::engine_errc EventuallyPersistentEngine::doGetAllVbSeqnosPrivilegeCheck(
-        const CookieIface* cookie, std::optional<CollectionID> collection) {
+        CookieIface* cookie, std::optional<CollectionID> collection) {
     // 1) Clients that have not enabled collections (i.e. HELLO(collections)).
     //   The client is directed to operate only against the default collection
     //   and they are permitted to use GetAllVbSeqnos with Read access to the
@@ -6656,7 +6627,7 @@ cb::engine_errc EventuallyPersistentEngine::sendErrorResponse(
         const AddResponseFn& response,
         cb::mcbp::Status status,
         uint64_t cas,
-        const CookieIface* cookie) {
+        CookieIface* cookie) {
     // no body/ext data for the error
     return sendResponse(response,
                         {}, // key
@@ -6674,7 +6645,7 @@ cb::engine_errc EventuallyPersistentEngine::sendMutationExtras(
         uint64_t bySeqno,
         cb::mcbp::Status status,
         uint64_t cas,
-        const CookieIface* cookie) {
+        CookieIface* cookie) {
     VBucketPtr vb = kvBucket->getVBucket(vbucket);
     if (!vb) {
         return sendErrorResponse(
@@ -6710,7 +6681,7 @@ std::unique_ptr<KVBucket> EventuallyPersistentEngine::makeBucket(
 }
 
 cb::engine_errc EventuallyPersistentEngine::setVBucketState(
-        const CookieIface* cookie,
+        CookieIface* cookie,
         Vbid vbid,
         vbucket_state_t to,
         const nlohmann::json* meta,
@@ -6893,12 +6864,12 @@ void EventuallyPersistentEngine::set_num_storage_threads(
     }
 }
 
-void EventuallyPersistentEngine::disconnect(const CookieIface& cookie) {
+void EventuallyPersistentEngine::disconnect(CookieIface& cookie) {
     acquireEngine(this)->handleDisconnect(cookie);
 }
 
 cb::engine_errc EventuallyPersistentEngine::compactDatabase(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         Vbid vbid,
         uint64_t purge_before_ts,
         uint64_t purge_before_seq,
@@ -6908,27 +6879,27 @@ cb::engine_errc EventuallyPersistentEngine::compactDatabase(
 }
 
 std::pair<cb::engine_errc, vbucket_state_t>
-EventuallyPersistentEngine::getVBucket(const CookieIface& cookie, Vbid vbid) {
+EventuallyPersistentEngine::getVBucket(CookieIface& cookie, Vbid vbid) {
     return acquireEngine(this)->getVBucketInner(cookie, vbid);
 }
 
-cb::engine_errc EventuallyPersistentEngine::setVBucket(
-        const CookieIface& cookie,
-        Vbid vbid,
-        uint64_t cas,
-        vbucket_state_t state,
-        nlohmann::json* meta) {
+cb::engine_errc EventuallyPersistentEngine::setVBucket(CookieIface& cookie,
+                                                       Vbid vbid,
+                                                       uint64_t cas,
+                                                       vbucket_state_t state,
+                                                       nlohmann::json* meta) {
     return acquireEngine(this)->setVBucketInner(cookie, vbid, cas, state, meta);
 }
 
-cb::engine_errc EventuallyPersistentEngine::deleteVBucket(
-        const CookieIface& cookie, Vbid vbid, bool sync) {
+cb::engine_errc EventuallyPersistentEngine::deleteVBucket(CookieIface& cookie,
+                                                          Vbid vbid,
+                                                          bool sync) {
     return acquireEngine(this)->deleteVBucketInner(cookie, vbid, sync);
 }
 
 std::pair<cb::engine_errc, cb::rangescan::Id>
 EventuallyPersistentEngine::createRangeScan(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         Vbid vbid,
         CollectionID cid,
         cb::rangescan::KeyView start,
@@ -6949,7 +6920,7 @@ EventuallyPersistentEngine::createRangeScan(
 }
 
 cb::engine_errc EventuallyPersistentEngine::continueRangeScan(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         Vbid vbid,
         cb::rangescan::Id uuid,
         size_t itemLimit,
@@ -6960,7 +6931,7 @@ cb::engine_errc EventuallyPersistentEngine::continueRangeScan(
 }
 
 cb::engine_errc EventuallyPersistentEngine::cancelRangeScan(
-        const CookieIface& cookie, Vbid vbid, cb::rangescan::Id uuid) {
+        CookieIface& cookie, Vbid vbid, cb::rangescan::Id uuid) {
     return acquireEngine(this)->getKVBucket()->cancelRangeScan(
             vbid, uuid, cookie);
 }

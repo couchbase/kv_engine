@@ -46,7 +46,7 @@ public:
 
 class AuditMockCookie : public CookieIface {
 public:
-    const ConnectionIface& getConnectionIface() const override {
+    ConnectionIface& getConnectionIface() override {
         return connection;
     }
     uint32_t getConnectionId() const override {

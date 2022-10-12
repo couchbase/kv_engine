@@ -197,14 +197,14 @@ public:
     using KVStore::get;
 
     void addTimingStats(const AddStatFn& add_stat,
-                        const CookieIface& c) const override;
+                        CookieIface& c) const override;
 
     size_t getMemFootPrint() const override;
 
     void resetStats() override;
 
     void addStats(const AddStatFn& add_stat,
-                  const CookieIface& cookie) const override;
+                  CookieIface& cookie) const override;
 
     GetValue getWithHeader(const KVFileHandle& kvFileHandle,
                            const DiskDocKey& key,

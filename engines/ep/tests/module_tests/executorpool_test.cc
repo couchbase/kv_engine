@@ -2169,7 +2169,7 @@ TYPED_TEST(ExecutorPoolEpEngineTest, TaskStats_MemAccounting) {
     MockAddStat mockAddStat;
     auto& taskable = this->engine->getTaskable();
     EXPECT_CALL(mockAddStat, callback(_, _, _))
-            .WillOnce([taskId](std::string, std::string, const CookieIface&) {
+            .WillOnce([taskId](std::string, std::string, CookieIface&) {
                 ExecutorPool::get()->cancel(taskId);
             })
             .WillRepeatedly(Return());

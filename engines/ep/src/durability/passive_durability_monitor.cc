@@ -191,7 +191,7 @@ std::optional<int64_t> PassiveDurabilityMonitor::getLatestSnapshotEnd() const {
 }
 
 void PassiveDurabilityMonitor::addStats(const AddStatFn& addStat,
-                                        const CookieIface& cookie) const {
+                                        CookieIface& cookie) const {
     try {
         const auto vbid = vb.getId().get();
         add_casted_stat(fmt::format("vb_{}:state", vbid),

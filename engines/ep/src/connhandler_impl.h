@@ -28,7 +28,7 @@ template <typename T>
 void ConnHandler::addStat(const char* nm,
                           const T& val,
                           const AddStatFn& add_stat,
-                          const CookieIface& c) const {
+                          CookieIface& c) const {
     std::stringstream tap;
     tap << name << ":" << nm;
     std::string n = tap.str();

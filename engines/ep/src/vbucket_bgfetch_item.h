@@ -57,7 +57,7 @@ public:
     virtual void abort(
             EventuallyPersistentEngine& engine,
             cb::engine_errc status,
-            std::map<const CookieIface*, cb::engine_errc>& toNotify) const = 0;
+            std::map<CookieIface*, cb::engine_errc>& toNotify) const = 0;
 
     /// @returns The ValueFilter for this request.
     virtual ValueFilter getValueFilter() const = 0;
@@ -83,16 +83,14 @@ public:
  */
 class FrontEndBGFetchItem : public BGFetchItem {
 public:
-    FrontEndBGFetchItem(const CookieIface* cookie,
-                        ValueFilter filter,
-                        uint64_t token)
+    FrontEndBGFetchItem(CookieIface* cookie, ValueFilter filter, uint64_t token)
         : FrontEndBGFetchItem(
                   std::chrono::steady_clock::now(), filter, cookie, token) {
     }
 
     FrontEndBGFetchItem(std::chrono::steady_clock::time_point initTime,
                         ValueFilter filter,
-                        const CookieIface* cookie,
+                        CookieIface* cookie,
                         uint64_t cas);
 
     void complete(EventuallyPersistentEngine& engine,
@@ -100,16 +98,16 @@ public:
                   std::chrono::steady_clock::time_point startTime,
                   const DiskDocKey& key) const override;
 
-    void abort(EventuallyPersistentEngine& engine,
-               cb::engine_errc status,
-               std::map<const CookieIface*, cb::engine_errc>& toNotify)
-            const override;
+    void abort(
+            EventuallyPersistentEngine& engine,
+            cb::engine_errc status,
+            std::map<CookieIface*, cb::engine_errc>& toNotify) const override;
 
     ValueFilter getValueFilter() const override {
         return filter;
     }
 
-    const CookieIface* cookie;
+    CookieIface* cookie;
     cb::tracing::SpanId traceSpanId;
     ValueFilter filter;
 };
@@ -130,10 +128,10 @@ public:
                   std::chrono::steady_clock::time_point startTime,
                   const DiskDocKey& key) const override;
 
-    void abort(EventuallyPersistentEngine& engine,
-               cb::engine_errc status,
-               std::map<const CookieIface*, cb::engine_errc>& toNotify)
-            const override;
+    void abort(
+            EventuallyPersistentEngine& engine,
+            cb::engine_errc status,
+            std::map<CookieIface*, cb::engine_errc>& toNotify) const override;
 
     ValueFilter getValueFilter() const override;
 

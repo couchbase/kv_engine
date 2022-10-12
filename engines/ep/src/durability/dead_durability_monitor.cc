@@ -56,7 +56,7 @@ DeadDurabilityMonitor::getTrackedWrites() const {
 }
 
 void DeadDurabilityMonitor::addStats(const AddStatFn& addStat,
-                                     const CookieIface& cookie) const {
+                                     CookieIface& cookie) const {
     try {
         const auto vbid = vb.getId().get();
 

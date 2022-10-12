@@ -280,10 +280,10 @@ public:
         return snappyEnabled == SnappyEnabled::Yes;
     }
 
-    void addStats(const AddStatFn& add_stat, const CookieIface& c) override;
+    void addStats(const AddStatFn& add_stat, CookieIface& c) override;
 
     void addTakeoverStats(const AddStatFn& add_stat,
-                          const CookieIface& c,
+                          CookieIface& c,
                           const VBucket& vb);
 
     /* Returns a count of how many items are outstanding to be sent for this

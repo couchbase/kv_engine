@@ -187,7 +187,7 @@ bool EphemeralVBucket::areDeletedItemsAlwaysResident() const {
 
 void EphemeralVBucket::addStats(VBucketStatsDetailLevel detail,
                                 const AddStatFn& add_stat,
-                                const CookieIface& c) {
+                                CookieIface& c) {
     // Include base class statistics:
     _addStats(detail, add_stat, c);
 
@@ -848,7 +848,7 @@ void EphemeralVBucket::updateSeqListPostAbort(
 void EphemeralVBucket::bgFetch(HashTable::HashBucketLock&& hbl,
                                const DocKey& key,
                                const StoredValue& v,
-                               const CookieIface* cookie,
+                               CookieIface* cookie,
                                EventuallyPersistentEngine& engine,
                                const bool isMeta) {
     throw std::logic_error(
@@ -860,7 +860,7 @@ void EphemeralVBucket::bgFetch(HashTable::HashBucketLock&& hbl,
 cb::engine_errc EphemeralVBucket::addTempItemAndBGFetch(
         HashTable::HashBucketLock&& hbl,
         const DocKey& key,
-        const CookieIface* cookie,
+        CookieIface* cookie,
         EventuallyPersistentEngine& engine,
         bool metadataOnly) {
     /* [EPHE TODO]: Just return error code and make all the callers handle it */
@@ -884,7 +884,7 @@ cb::engine_errc EphemeralVBucket::bgFetchForCompactionExpiry(
 GetValue EphemeralVBucket::getInternalNonResident(
         HashTable::HashBucketLock&& hbl,
         const DocKey& key,
-        const CookieIface* cookie,
+        CookieIface* cookie,
         EventuallyPersistentEngine& engine,
         QueueBgFetch queueBgFetch,
         const StoredValue& v) {
@@ -897,7 +897,7 @@ size_t EphemeralVBucket::estimateNewMemoryUsage(EPStats& st, const Item& item) {
            OrderedStoredValue::getRequiredStorage(item.getKey());
 }
 
-void EphemeralVBucket::setupDeferredDeletion(const CookieIface* cookie) {
+void EphemeralVBucket::setupDeferredDeletion(CookieIface* cookie) {
     setDeferredDeletionCookie(cookie);
     setDeferredDeletion(true);
 }
@@ -1106,7 +1106,7 @@ std::pair<cb::engine_errc, cb::rangescan::Id> EphemeralVBucket::createRangeScan(
         cb::rangescan::KeyView,
         cb::rangescan::KeyView,
         std::unique_ptr<RangeScanDataHandlerIFace>,
-        const CookieIface&,
+        CookieIface&,
         cb::rangescan::KeyOnly,
         std::optional<cb::rangescan::SnapshotRequirements>,
         std::optional<cb::rangescan::SamplingConfiguration>) {
@@ -1114,7 +1114,7 @@ std::pair<cb::engine_errc, cb::rangescan::Id> EphemeralVBucket::createRangeScan(
 }
 
 cb::engine_errc EphemeralVBucket::continueRangeScan(cb::rangescan::Id,
-                                                    const CookieIface&,
+                                                    CookieIface&,
                                                     size_t,
                                                     std::chrono::milliseconds,
                                                     size_t) {
@@ -1122,7 +1122,7 @@ cb::engine_errc EphemeralVBucket::continueRangeScan(cb::rangescan::Id,
 }
 
 cb::engine_errc EphemeralVBucket::cancelRangeScan(cb::rangescan::Id,
-                                                  const CookieIface*,
+                                                  CookieIface*,
                                                   bool) {
     return cb::engine_errc::not_supported;
 }

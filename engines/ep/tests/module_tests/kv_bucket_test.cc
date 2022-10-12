@@ -363,7 +363,7 @@ void KVBucketTest::evict_key(Vbid vbid, const DocKey& key) {
 
 GetValue KVBucketTest::getInternal(const DocKey& key,
                                    Vbid vbucket,
-                                   const CookieIface* cookie,
+                                   CookieIface* cookie,
                                    const ForGetReplicaOp getReplicaItem,
                                    get_options_t options) {
     return store->getInternal(key, vbucket, cookie, getReplicaItem, options);
@@ -490,7 +490,7 @@ bool KVBucketTest::addResponse(std::string_view key,
                                uint8_t datatype,
                                cb::mcbp::Status status,
                                uint64_t pcas,
-                               const CookieIface& cookie) {
+                               CookieIface& cookie) {
     addResponseStatus = status;
     return true;
 }
@@ -1292,7 +1292,7 @@ TEST_F(KVBucketTest, DataRaceInDoWorkerStat) {
     // nop callback to serve as add_stat
     auto dummy_cb = [](std::string_view key,
                        std::string_view value,
-                       const CookieIface& ctx) {};
+                       CookieIface& ctx) {};
     auto* cookie = create_mock_cookie();
     for (uint64_t i = 0; i < 10; ++i) {
         pool->doWorkerStat(engine->getTaskable(), *cookie, dummy_cb);
@@ -1344,7 +1344,7 @@ void KVBucketTest::storeAndDeleteItem(Vbid vbid,
 
 cb::engine_errc KVBucketTest::getMeta(Vbid vbid,
                                       const DocKey key,
-                                      const CookieIface* cookie,
+                                      CookieIface* cookie,
                                       ItemMetaData& itemMeta,
                                       uint32_t& deleted,
                                       uint8_t& datatype,
@@ -1980,7 +1980,7 @@ TEST_P(KVBucketParamTest, VBucketDiskStatsENOENT) {
     bool addStatsCalled = false;
     auto mockStatFn = [&addStatsCalled](std::string_view key,
                                         std::string_view value,
-                                        const CookieIface&) {
+                                        CookieIface&) {
         addStatsCalled = true;
     };
 

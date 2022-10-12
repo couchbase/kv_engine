@@ -45,20 +45,19 @@ public:
           testHook(hook) {
     }
 
-    bool handleKey(const CookieIface&, DocKey key) override {
+    bool handleKey(CookieIface&, DocKey key) override {
         checkKeyIsUnique(key);
         scannedKeys.emplace_back(key);
         return testHook(scannedKeys.size());
     }
 
-    bool handleItem(const CookieIface&, std::unique_ptr<Item> item) override {
+    bool handleItem(CookieIface&, std::unique_ptr<Item> item) override {
         checkKeyIsUnique(item->getKey());
         scannedItems.emplace_back(std::move(item));
         return testHook(scannedItems.size());
     }
 
-    void handleStatus(const CookieIface& cookie,
-                      cb::engine_errc status) override {
+    void handleStatus(CookieIface& cookie, cb::engine_errc status) override {
         EXPECT_TRUE(validateStatus(status));
         this->status = status;
     }
@@ -1383,17 +1382,17 @@ public:
         : callbackCounter(callbackCounter) {
     }
 
-    bool handleKey(const CookieIface&, DocKey key) override {
+    bool handleKey(CookieIface&, DocKey key) override {
         ++callbackCounter;
         return false;
     }
 
-    bool handleItem(const CookieIface&, std::unique_ptr<Item>) override {
+    bool handleItem(CookieIface&, std::unique_ptr<Item>) override {
         ++callbackCounter;
         return false;
     }
 
-    void handleStatus(const CookieIface&, cb::engine_errc) override {
+    void handleStatus(CookieIface&, cb::engine_errc) override {
         ++callbackCounter;
     }
 

@@ -380,7 +380,7 @@ GetStatsMap KVStore::getStats(gsl::span<const std::string_view> keys) const {
     return stats;
 }
 
-void KVStore::addStats(const AddStatFn& add_stat, const CookieIface& c) const {
+void KVStore::addStats(const AddStatFn& add_stat, CookieIface& c) const {
     const char* backend = getConfig().getBackend().c_str();
     const auto prefix = getStatsPrefix();
 
@@ -417,8 +417,7 @@ void KVStore::addStats(const AddStatFn& add_stat, const CookieIface& c) const {
                       c);
 }
 
-void KVStore::addTimingStats(const AddStatFn& add_stat,
-                             const CookieIface& c) const {
+void KVStore::addTimingStats(const AddStatFn& add_stat, CookieIface& c) const {
     const auto prefix = getStatsPrefix();
 
     add_prefixed_stat(prefix, "commit", st.commitHisto, add_stat, c);

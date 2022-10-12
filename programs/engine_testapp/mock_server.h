@@ -29,7 +29,7 @@ void mock_register_cookie(CookieIface& cookie);
 /// Unregister the given cookie for notifications via notify_io_complete().
 void mock_unregister_cookie(CookieIface& cookie);
 
-void mock_notify_io_complete(const CookieIface& cookie, cb::engine_errc status);
+void mock_notify_io_complete(CookieIface& cookie, cb::engine_errc status);
 
 /**
  * Wait for at least one call to notify_io_complete to have been made
@@ -47,10 +47,10 @@ void mock_notify_io_complete(const CookieIface& cookie, cb::engine_errc status);
  * check _if_ the cookie has a notification pending without consuming it,
  * use mock_cookie_notified().
  */
-cb::engine_errc mock_waitfor_cookie(const CookieIface* cookie);
+cb::engine_errc mock_waitfor_cookie(CookieIface* cookie);
 
 /**
  * Returns true if the cookie has been notified and has a status pending
  * to read.
  */
-bool mock_cookie_notified(const CookieIface* cookie);
+bool mock_cookie_notified(CookieIface* cookie);

@@ -780,7 +780,7 @@ bool ActiveStream::isCompressionEnabled() const {
     return false;
 }
 
-void ActiveStream::addStats(const AddStatFn& add_stat, const CookieIface& c) {
+void ActiveStream::addStats(const AddStatFn& add_stat, CookieIface& c) {
     Stream::addStats(add_stat, c);
 
     try {
@@ -825,7 +825,7 @@ void ActiveStream::addStats(const AddStatFn& add_stat, const CookieIface& c) {
 }
 
 void ActiveStream::addTakeoverStats(const AddStatFn& add_stat,
-                                    const CookieIface& cookie,
+                                    CookieIface& cookie,
                                     const VBucket& vb) {
     std::lock_guard<std::mutex> lh(streamMutex);
 

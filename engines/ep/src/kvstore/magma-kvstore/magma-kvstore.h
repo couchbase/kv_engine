@@ -515,7 +515,7 @@ public:
      * Populate kvstore stats with magma specific stats
      */
     void addStats(const AddStatFn& add_stat,
-                  const CookieIface& cookie) const override;
+                  CookieIface& cookie) const override;
 
     /**
      * Populate magma specific timing stats.
@@ -524,7 +524,7 @@ public:
      * @param c the cookie to pass to the callback function
      */
     void addTimingStats(const AddStatFn& add_stat,
-                        const CookieIface& c) const override;
+                        CookieIface& c) const override;
 
     /**
      * Construct a compaction context for use with implicit compactions. Calls

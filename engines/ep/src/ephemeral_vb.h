@@ -74,7 +74,7 @@ public:
     size_t getNumSystemItems() const override;
 
     cb::engine_errc statsVKey(const DocKey& key,
-                              const CookieIface* cookie,
+                              CookieIface* cookie,
                               EventuallyPersistentEngine& engine) override {
         return cb::engine_errc::not_supported;
     }
@@ -111,7 +111,7 @@ public:
 
     void addStats(VBucketStatsDetailLevel detail,
                   const AddStatFn& add_stat,
-                  const CookieIface& c) override;
+                  CookieIface& c) override;
 
     KVShard* getShard() override {
         return nullptr;
@@ -197,7 +197,7 @@ public:
     size_t purgeStaleItems(
             std::function<bool()> shouldPauseCbk = []() { return false; });
 
-    void setupDeferredDeletion(const CookieIface* cookie) override;
+    void setupDeferredDeletion(CookieIface* cookie) override;
 
     /**
      * Schedule a VBucketMemoryDeletionTask to delete this object.
@@ -277,17 +277,17 @@ public:
             cb::rangescan::KeyView,
             cb::rangescan::KeyView,
             std::unique_ptr<RangeScanDataHandlerIFace>,
-            const CookieIface&,
+            CookieIface&,
             cb::rangescan::KeyOnly,
             std::optional<cb::rangescan::SnapshotRequirements>,
             std::optional<cb::rangescan::SamplingConfiguration>) override;
     cb::engine_errc continueRangeScan(cb::rangescan::Id,
-                                      const CookieIface&,
+                                      CookieIface&,
                                       size_t,
                                       std::chrono::milliseconds,
                                       size_t) override;
     cb::engine_errc cancelRangeScan(cb::rangescan::Id,
-                                    const CookieIface*,
+                                    CookieIface*,
                                     bool) override;
     cb::engine_errc doRangeScanStats(const StatCollector&) override;
 
@@ -352,13 +352,13 @@ private:
     void bgFetch(HashTable::HashBucketLock&& hbl,
                  const DocKey& key,
                  const StoredValue& v,
-                 const CookieIface* cookie,
+                 CookieIface* cookie,
                  EventuallyPersistentEngine& engine,
                  bool isMeta = false) override;
 
     cb::engine_errc addTempItemAndBGFetch(HashTable::HashBucketLock&& hbl,
                                           const DocKey& key,
-                                          const CookieIface* cookie,
+                                          CookieIface* cookie,
                                           EventuallyPersistentEngine& engine,
                                           bool metadataOnly) override;
 
@@ -368,7 +368,7 @@ private:
 
     GetValue getInternalNonResident(HashTable::HashBucketLock&& hbl,
                                     const DocKey& key,
-                                    const CookieIface* cookie,
+                                    CookieIface* cookie,
                                     EventuallyPersistentEngine& engine,
                                     QueueBgFetch queueBgFetch,
                                     const StoredValue& v) override;

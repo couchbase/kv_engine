@@ -24,9 +24,8 @@ TEST_F(CollectorTest, FloatValueStringRepresentation) {
     // Verify simple float values are formatted as expected
 
     using namespace testing;
-    StrictMock<MockFunction<void(std::string_view key,
-                                 std::string_view value,
-                                 const CookieIface& ctx)>>
+    StrictMock<MockFunction<void(
+            std::string_view key, std::string_view value, CookieIface & ctx)>>
             mockAddStat;
 
     using namespace std::string_view_literals;

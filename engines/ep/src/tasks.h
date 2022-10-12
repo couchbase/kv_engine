@@ -73,7 +73,7 @@ public:
                 Vbid vbid,
                 CompactionConfig config,
                 std::chrono::steady_clock::time_point requestedStartTime,
-                const CookieIface* ck,
+                CookieIface* ck,
                 cb::AwaitableSemaphore& semaphore,
                 bool completeBeforeShutdown = false);
 
@@ -113,7 +113,7 @@ public:
      */
     CompactionConfig runCompactionWithConfig(
             std::optional<CompactionConfig> config,
-            const CookieIface* cookie,
+            CookieIface* cookie,
             std::chrono::steady_clock::time_point requestedStartTime);
 
     /**
@@ -140,7 +140,7 @@ public:
      *
      * @return vector of cookies
      */
-    std::vector<const CookieIface*> takeCookies();
+    std::vector<CookieIface*> takeCookies();
 
 private:
     /**
@@ -155,7 +155,7 @@ private:
      *         or nullopt if start time has not been reached
      *
      */
-    std::optional<std::pair<CompactionConfig, std::vector<const CookieIface*>>>
+    std::optional<std::pair<CompactionConfig, std::vector<CookieIface*>>>
     preDoCompact();
 
     /**
@@ -169,14 +169,14 @@ private:
      *
      * @return true if the task reschedule for a future run.
      */
-    bool isTaskDone(const std::vector<const CookieIface*>& cookies);
+    bool isTaskDone(const std::vector<CookieIface*>& cookies);
 
     EPBucket& bucket;
     Vbid vbid;
 
     struct Compaction {
         CompactionConfig config{};
-        std::vector<const CookieIface*> cookiesWaiting;
+        std::vector<CookieIface*> cookiesWaiting;
         // if delayed compaction was requested, this task should not
         // start compaction until this time.
         std::chrono::steady_clock::time_point requestedStartTime;
@@ -225,7 +225,7 @@ public:
                         const DocKey& k,
                         Vbid vbid,
                         uint64_t s,
-                        const CookieIface* c,
+                        CookieIface* c,
                         int sleeptime = 0,
                         bool completeBeforeShutdown = false)
         : GlobalTask(e,
@@ -260,7 +260,7 @@ private:
     const StoredDocKey key;
     const Vbid vbucket;
     uint64_t                         bySeqNum;
-    const CookieIface* cookie;
+    CookieIface* cookie;
     const std::string description;
 };
 

@@ -13,25 +13,23 @@
 #include <memcached/range_scan_optional_configuration.h>
 
 cb::EngineErrorGetCollectionIDResult EngineIface::get_collection_id(
-        const CookieIface& cookie, std::string_view path) {
+        CookieIface& cookie, std::string_view path) {
     return cb::EngineErrorGetCollectionIDResult{cb::engine_errc::not_supported};
 }
 
 cb::EngineErrorGetScopeIDResult EngineIface::get_scope_id(
-        const CookieIface& cookie, std::string_view path) {
+        CookieIface& cookie, std::string_view path) {
     return cb::EngineErrorGetScopeIDResult{cb::engine_errc::not_supported};
 }
 
 cb::EngineErrorGetCollectionMetaResult EngineIface::get_collection_meta(
-        const CookieIface& cookie,
-        CollectionID cid,
-        std::optional<Vbid> vbid) const {
+        CookieIface& cookie, CollectionID cid, std::optional<Vbid> vbid) const {
     return cb::EngineErrorGetCollectionMetaResult(
             cb::engine_errc::not_supported);
 }
 
 std::pair<cb::engine_errc, cb::rangescan::Id> EngineIface::createRangeScan(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         Vbid vbid,
         CollectionID cid,
         cb::rangescan::KeyView start,
@@ -43,7 +41,7 @@ std::pair<cb::engine_errc, cb::rangescan::Id> EngineIface::createRangeScan(
 }
 
 cb::engine_errc EngineIface::continueRangeScan(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         Vbid vbid,
         cb::rangescan::Id uuid,
         size_t itemLimit,
@@ -52,7 +50,7 @@ cb::engine_errc EngineIface::continueRangeScan(
     return cb::engine_errc::not_supported;
 }
 
-cb::engine_errc EngineIface::cancelRangeScan(const CookieIface& cookie,
+cb::engine_errc EngineIface::cancelRangeScan(CookieIface& cookie,
                                              Vbid vbid,
                                              cb::rangescan::Id uuid) {
     return cb::engine_errc::not_supported;

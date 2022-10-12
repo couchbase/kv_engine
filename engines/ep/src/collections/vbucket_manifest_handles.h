@@ -324,7 +324,7 @@ public:
      * @return the status - success and the write can go ahead
      */
     cb::engine_errc handleWriteStatus(EventuallyPersistentEngine& engine,
-                                      const CookieIface* cookie,
+                                      CookieIface* cookie,
                                       size_t nBytes);
 
     /**
@@ -339,7 +339,7 @@ public:
      * @return the status - success and the write can go ahead
      */
     cb::engine_errc handleWriteStatus(EventuallyPersistentEngine& engine,
-                                      const CookieIface* cookie,
+                                      CookieIface* cookie,
                                       vbucket_state_t state,
                                       size_t nBytes);
 

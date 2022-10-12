@@ -36,7 +36,7 @@ public:
             cb::rangescan::KeyView start,
             cb::rangescan::KeyView end,
             std::unique_ptr<RangeScanDataHandlerIFace> handler,
-            const CookieIface& cookie,
+            CookieIface& cookie,
             cb::rangescan::KeyOnly keyOnly,
             std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
             std::optional<cb::rangescan::SamplingConfiguration> samplingConfig,
@@ -67,7 +67,7 @@ protected:
     StoredDocKey start;
     StoredDocKey end;
     std::unique_ptr<RangeScanDataHandlerIFace> handler;
-    const CookieIface& cookie;
+    CookieIface& cookie;
     cb::rangescan::KeyOnly keyOnly;
     std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs;
     std::optional<cb::rangescan::SamplingConfiguration> samplingConfig;

@@ -29,7 +29,7 @@ public:
      * @param cookie
      */
     virtual void addStats(const AddStatFn& addStat,
-                          const CookieIface& cookie) const = 0;
+                          CookieIface& cookie) const = 0;
 
     /// @return the high_prepared_seqno.
     virtual int64_t getHighPreparedSeqno() const = 0;

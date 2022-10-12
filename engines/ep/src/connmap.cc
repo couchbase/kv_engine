@@ -111,7 +111,7 @@ void ConnMap::addVBConnByVBId(ConnHandler& conn, Vbid vbid) {
     connStore->addVBConnByVbid(vbid, conn);
 }
 
-void ConnMap::removeVBConnByVBId(const CookieIface* connCookie, Vbid vbid) {
+void ConnMap::removeVBConnByVBId(CookieIface* connCookie, Vbid vbid) {
     connStore->removeVBConnByVbid(vbid, connCookie);
 }
 

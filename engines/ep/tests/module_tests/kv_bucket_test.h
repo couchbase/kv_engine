@@ -178,7 +178,7 @@ public:
     /// Exposes the normally-protected getInternal method from the store.
     GetValue getInternal(const DocKey& key,
                          Vbid vbucket,
-                         const CookieIface* cookie,
+                         CookieIface* cookie,
                          ForGetReplicaOp getReplicaItem,
                          get_options_t options);
 
@@ -198,7 +198,7 @@ public:
      */
     cb::engine_errc getMeta(Vbid vbid,
                             const DocKey key,
-                            const CookieIface* cookie,
+                            CookieIface* cookie,
                             ItemMetaData& itemMeta,
                             uint32_t& deleted,
                             uint8_t& datatype,
@@ -287,7 +287,7 @@ public:
                             uint8_t datatype,
                             cb::mcbp::Status status,
                             uint64_t pcas,
-                            const CookieIface& cookie);
+                            CookieIface& cookie);
 
     static cb::mcbp::Status getAddResponseStatus(
             cb::mcbp::Status newval = cb::mcbp::Status::Success);

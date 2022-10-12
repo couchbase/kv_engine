@@ -66,7 +66,7 @@ public:
 
     void addStats(const std::string& prefix,
                   const AddStatFn& add_stat,
-                  const CookieIface& c) const;
+                  CookieIface& c) const;
 
     /**
      * Testing hooks for testing things... Lock free is HARD so sanity checks

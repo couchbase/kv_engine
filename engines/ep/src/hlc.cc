@@ -39,7 +39,7 @@ cb::HlcTime HLCT<Clock>::peekHLC() const {
 template <class Clock>
 void HLCT<Clock>::addStats(const std::string& prefix,
                            const AddStatFn& add_stat,
-                           const CookieIface& c) const {
+                           CookieIface& c) const {
     auto maxCas = getMaxHLC();
     add_prefixed_stat(prefix.data(), "max_cas", maxCas, add_stat, c);
 

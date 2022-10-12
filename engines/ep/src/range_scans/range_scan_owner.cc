@@ -197,7 +197,7 @@ cb::engine_errc VB::RangeScanOwner::addNewScan(std::shared_ptr<RangeScan> scan,
 cb::engine_errc VB::RangeScanOwner::continueScan(
         EPBucket& bucket,
         cb::rangescan::Id id,
-        const CookieIface& cookie,
+        CookieIface& cookie,
         size_t itemLimit,
         std::chrono::milliseconds timeLimit,
         size_t byteLimit) {
@@ -340,7 +340,7 @@ std::shared_ptr<RangeScan> VB::RangeScanOwner::processScanRemoval(
 
 cb::engine_errc VB::RangeScanOwner::hasPrivilege(
         cb::rangescan::Id id,
-        const CookieIface& cookie,
+        CookieIface& cookie,
         const EventuallyPersistentEngine& engine) const {
     auto scan = getScan(id);
     if (!scan) {

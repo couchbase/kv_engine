@@ -185,7 +185,7 @@ struct EngineIface {
     /// Callback that a cookie will be disconnected (this method is
     /// deprecated and will go away once we change the internals of DCP
     /// to store the ConnectionIface and not the cookie
-    virtual void disconnect(const CookieIface& cookie){};
+    virtual void disconnect(CookieIface& cookie){};
 
     /// Callback that a connection will be disconnected
     virtual void disconnect(const ConnectionIface& connection){};
@@ -273,7 +273,7 @@ struct EngineIface {
      *   * `cb::engine_errc::too_busy` Too busy to serve the request,
      *                                 back off and try again.
      */
-    virtual cb::unique_item_ptr allocateItem(const CookieIface& cookie,
+    virtual cb::unique_item_ptr allocateItem(CookieIface& cookie,
                                              const DocKey& key,
                                              size_t nbytes,
                                              size_t priv_nbytes,
@@ -296,7 +296,7 @@ struct EngineIface {
      * @return cb::engine_errc::success if all goes well
      */
     virtual cb::engine_errc remove(
-            const CookieIface& cookie,
+            CookieIface& cookie,
             const DocKey& key,
             uint64_t& cas,
             Vbid vbucket,
@@ -325,7 +325,7 @@ struct EngineIface {
      *
      * @return cb::engine_errc::success if all goes well
      */
-    virtual cb::EngineErrorItemPair get(const CookieIface& cookie,
+    virtual cb::EngineErrorItemPair get(CookieIface& cookie,
                                         const DocKey& key,
                                         Vbid vbucket,
                                         DocStateFilter documentStateFilter) = 0;
@@ -347,7 +347,7 @@ struct EngineIface {
      * @return A pair of the error code and (optionally) the item
      */
     virtual cb::EngineErrorItemPair get_if(
-            const CookieIface& cookie,
+            CookieIface& cookie,
             const DocKey& key,
             Vbid vbucket,
             std::function<bool(const item_info&)> filter) = 0;
@@ -361,7 +361,7 @@ struct EngineIface {
      *
      * @return  Pair (cb::engine_errc::success, Metadata) if all goes well
      */
-    virtual cb::EngineErrorMetadataPair get_meta(const CookieIface& cookie,
+    virtual cb::EngineErrorMetadataPair get_meta(CookieIface& cookie,
                                                  const DocKey& key,
                                                  Vbid vbucket) = 0;
 
@@ -376,7 +376,7 @@ struct EngineIface {
      *
      * @return A pair of the error code and (optionally) the item
      */
-    virtual cb::EngineErrorItemPair get_locked(const CookieIface& cookie,
+    virtual cb::EngineErrorItemPair get_locked(CookieIface& cookie,
                                                const DocKey& key,
                                                Vbid vbucket,
                                                uint32_t lock_timeout) = 0;
@@ -391,7 +391,7 @@ struct EngineIface {
      *
      * @return cb::engine_errc::success if all goes well
      */
-    virtual cb::engine_errc unlock(const CookieIface& cookie,
+    virtual cb::engine_errc unlock(CookieIface& cookie,
                                    const DocKey& key,
                                    Vbid vbucket,
                                    uint64_t cas) = 0;
@@ -407,7 +407,7 @@ struct EngineIface {
      * @return A pair of the error code and (optionally) the item
      */
     virtual cb::EngineErrorItemPair get_and_touch(
-            const CookieIface& cookie,
+            CookieIface& cookie,
             const DocKey& key,
             Vbid vbucket,
             uint32_t expirytime,
@@ -433,7 +433,7 @@ struct EngineIface {
      * @return cb::engine_errc::success if all goes well
      */
     virtual cb::engine_errc store(
-            const CookieIface& cookie,
+            CookieIface& cookie,
             ItemIface& item,
             uint64_t& cas,
             StoreSemantics semantics,
@@ -475,7 +475,7 @@ struct EngineIface {
      * @return a std::pair containing the engine_error code and new CAS
      */
     virtual cb::EngineErrorCasPair store_if(
-            const CookieIface& cookie,
+            CookieIface& cookie,
             ItemIface& item,
             uint64_t cas,
             StoreSemantics semantics,
@@ -494,7 +494,7 @@ struct EngineIface {
      * @param cookie The cookie provided by the frontend
      * @return cb::engine_errc::success if all goes well
      */
-    virtual cb::engine_errc flush(const CookieIface& cookie) {
+    virtual cb::engine_errc flush(CookieIface& cookie) {
         return cb::engine_errc::not_supported;
     }
 
@@ -512,7 +512,7 @@ struct EngineIface {
      *
      * @return cb::engine_errc::success if all goes well
      */
-    virtual cb::engine_errc get_stats(const CookieIface& cookie,
+    virtual cb::engine_errc get_stats(CookieIface& cookie,
                                       std::string_view key,
                                       std::string_view value,
                                       const AddStatFn& add_stat) = 0;
@@ -536,7 +536,7 @@ struct EngineIface {
      *
      * @param cookie The cookie provided by the frontend
      */
-    virtual void reset_stats(const CookieIface& cookie) = 0;
+    virtual void reset_stats(CookieIface& cookie) = 0;
 
     /**
      * Any unknown command will be considered engine specific.
@@ -547,7 +547,7 @@ struct EngineIface {
      *
      * @return cb::engine_errc::success if all goes well
      */
-    virtual cb::engine_errc unknown_command(const CookieIface& cookie,
+    virtual cb::engine_errc unknown_command(CookieIface& cookie,
                                             const cb::mcbp::Request& request,
                                             const AddResponseFn& response) {
         return cb::engine_errc::not_supported;
@@ -570,7 +570,7 @@ struct EngineIface {
      * The set of collections related functions. May be defined optionally by
      * the engine(s) that support them.
      */
-    virtual cb::engine_errc set_collection_manifest(const CookieIface& cookie,
+    virtual cb::engine_errc set_collection_manifest(CookieIface& cookie,
                                                     std::string_view json) {
         return cb::engine_errc::not_supported;
     }
@@ -579,15 +579,15 @@ struct EngineIface {
      * Retrieve the last manifest set using set_manifest (a JSON document)
      */
     virtual cb::engine_errc get_collection_manifest(
-            const CookieIface& cookie, const AddResponseFn& response) {
+            CookieIface& cookie, const AddResponseFn& response) {
         return cb::engine_errc::not_supported;
     }
 
     virtual cb::EngineErrorGetCollectionIDResult get_collection_id(
-            const CookieIface& cookie, std::string_view path);
+            CookieIface& cookie, std::string_view path);
 
-    virtual cb::EngineErrorGetScopeIDResult get_scope_id(
-            const CookieIface& cookie, std::string_view path);
+    virtual cb::EngineErrorGetScopeIDResult get_scope_id(CookieIface& cookie,
+                                                         std::string_view path);
 
     /**
      * Get the metadata for the given collection (scope and metering)
@@ -597,7 +597,7 @@ struct EngineIface {
      * @return pair with the manifest UID and if found the meta of the cid
      */
     virtual cb::EngineErrorGetCollectionMetaResult get_collection_meta(
-            const CookieIface& cookie,
+            CookieIface& cookie,
             CollectionID cid,
             std::optional<Vbid> vbid = std::nullopt) const;
 
@@ -653,7 +653,7 @@ struct EngineIface {
      *                the vbucket sub group)
      * @return The standard engine codes
      */
-    virtual cb::engine_errc setParameter(const CookieIface& cookie,
+    virtual cb::engine_errc setParameter(CookieIface& cookie,
                                          EngineParamCategory category,
                                          std::string_view key,
                                          std::string_view value,
@@ -671,7 +671,7 @@ struct EngineIface {
      * @param drop_deletes Set to true if deletes should be dropped
      * @return The standard engine codes
      */
-    virtual cb::engine_errc compactDatabase(const CookieIface& cookie,
+    virtual cb::engine_errc compactDatabase(CookieIface& cookie,
                                             Vbid vbid,
                                             uint64_t purge_before_ts,
                                             uint64_t purge_before_seq,
@@ -688,7 +688,7 @@ struct EngineIface {
      *         and the second is the state when the status is success.
      */
     virtual std::pair<cb::engine_errc, vbucket_state_t> getVBucket(
-            const CookieIface& cookie, Vbid vbid) {
+            CookieIface& cookie, Vbid vbid) {
         return {cb::engine_errc::not_supported, vbucket_state_dead};
     }
 
@@ -703,7 +703,7 @@ struct EngineIface {
      *             none is provided)
      * @return The standard engine codes
      */
-    virtual cb::engine_errc setVBucket(const CookieIface& cookie,
+    virtual cb::engine_errc setVBucket(CookieIface& cookie,
                                        Vbid vbid,
                                        uint64_t cas,
                                        vbucket_state_t state,
@@ -721,7 +721,7 @@ struct EngineIface {
      *             mode.
      * @return The standard engine codes
      */
-    virtual cb::engine_errc deleteVBucket(const CookieIface& cookie,
+    virtual cb::engine_errc deleteVBucket(CookieIface& cookie,
                                           Vbid vbid,
                                           bool sync) {
         return cb::engine_errc::not_supported;
@@ -743,7 +743,7 @@ struct EngineIface {
      * @return pair of status/cb::rangescan::Id - ID is valid on success
      */
     virtual std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScan(
-            const CookieIface& cookie,
+            CookieIface& cookie,
             Vbid vbid,
             CollectionID cid,
             cb::rangescan::KeyView start,
@@ -768,7 +768,7 @@ struct EngineIface {
      * @return would_block if the scan was found and successfully scheduled
      */
     virtual cb::engine_errc continueRangeScan(
-            const CookieIface& cookie,
+            CookieIface& cookie,
             Vbid vbid,
             cb::rangescan::Id uuid,
             size_t itemLimit,
@@ -785,7 +785,7 @@ struct EngineIface {
      * @return would_block if the scan was found and successfully scheduled for
      *         cancellation
      */
-    virtual cb::engine_errc cancelRangeScan(const CookieIface& cookie,
+    virtual cb::engine_errc cancelRangeScan(CookieIface& cookie,
                                             Vbid vbid,
                                             cb::rangescan::Id uuid);
 

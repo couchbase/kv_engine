@@ -96,8 +96,8 @@ cb::engine_errc VBucketMap::addBucket(VBucketPtr vb) {
     return cb::engine_errc::out_of_range;
 }
 
-void VBucketMap::dropVBucketAndSetupDeferredDeletion(
-        Vbid id, const CookieIface* cookie) {
+void VBucketMap::dropVBucketAndSetupDeferredDeletion(Vbid id,
+                                                     CookieIface* cookie) {
     if (id.get() < size) {
         // Note: Can't hold a shared_ptr copy when calling down to
         // KVShard::dropVBucketAndSetupDeferredDeletion. See that function for

@@ -82,25 +82,25 @@ struct ServerDocumentApi : public ServerDocumentIface {
 };
 
 struct ServerCookieApi : public ServerCookieIface {
-    void setDcpConnHandler(const CookieIface& cookie,
+    void setDcpConnHandler(CookieIface& cookie,
                            DcpConnHandlerIface* handler) override {
         asCookie(cookie).getConnection().setDcpConnHandlerIface(handler);
     }
 
-    DcpConnHandlerIface* getDcpConnHandler(const CookieIface& cookie) override {
+    DcpConnHandlerIface* getDcpConnHandler(CookieIface& cookie) override {
         return asCookie(cookie).getConnection().getDcpConnHandlerIface();
     }
 
-    void setDcpFlowControlBufferSize(const CookieIface& cookie,
+    void setDcpFlowControlBufferSize(CookieIface& cookie,
                                      std::size_t size) override {
         asCookie(cookie).getConnection().setDcpFlowControlBufferSize(size);
     }
 
-    void reserve(const CookieIface& void_cookie) override {
+    void reserve(CookieIface& void_cookie) override {
         asCookie(void_cookie).incrementRefcount();
     }
 
-    void release(const CookieIface& void_cookie) override {
+    void release(CookieIface& void_cookie) override {
         auto& cookie = asCookie(void_cookie);
         auto& connection = cookie.getConnection();
         connection.getThread().eventBase.runInEventBaseThreadAlwaysEnqueue(
@@ -115,33 +115,32 @@ struct ServerCookieApi : public ServerCookieIface {
                 });
     }
 
-    void set_priority(const CookieIface& cookie,
+    void set_priority(CookieIface& cookie,
                       ConnectionPriority priority) override {
         asCookie(cookie).getConnection().setPriority(priority);
     }
 
-    ConnectionPriority get_priority(const CookieIface& void_cookie) override {
+    ConnectionPriority get_priority(CookieIface& void_cookie) override {
         auto& cookie = dynamic_cast<const Cookie&>(void_cookie);
         return cookie.getConnection().getPriority();
     }
 
     cb::rbac::PrivilegeAccess check_privilege(
-            const CookieIface& cookie,
+            CookieIface& cookie,
             cb::rbac::Privilege privilege,
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) override {
         return asCookie(cookie).checkPrivilege(privilege, sid, cid);
     }
     cb::rbac::PrivilegeAccess check_for_privilege_at_least_in_one_collection(
-            const CookieIface& cookie, cb::rbac::Privilege privilege) override {
+            CookieIface& cookie, cb::rbac::Privilege privilege) override {
         return asCookie(cookie).checkForPrivilegeAtLeastInOneCollection(
                 privilege);
     }
-    uint32_t get_privilege_context_revision(
-            const CookieIface& cookie) override {
+    uint32_t get_privilege_context_revision(CookieIface& cookie) override {
         return asCookie(cookie).getPrivilegeContext().getGeneration();
     }
-    cb::mcbp::Status engine_error2mcbp(const CookieIface& void_cookie,
+    cb::mcbp::Status engine_error2mcbp(CookieIface& void_cookie,
                                        cb::engine_errc code) override {
         auto& cookie = dynamic_cast<const Cookie&>(void_cookie);
         auto& connection = cookie.getConnection();
@@ -158,17 +157,17 @@ struct ServerCookieApi : public ServerCookieIface {
     }
 
     std::pair<uint32_t, std::string> get_log_info(
-            const CookieIface& void_cookie) override {
+            CookieIface& void_cookie) override {
         auto& cookie = dynamic_cast<const Cookie&>(void_cookie);
         return std::make_pair(cookie.getConnectionId(),
                               cookie.getConnection().getDescription());
     }
 
-    std::string get_authenticated_user(const CookieIface& cookie) override {
+    std::string get_authenticated_user(CookieIface& cookie) override {
         return asCookie(cookie).getConnection().getUser().name;
     }
 
-    in_port_t get_connected_port(const CookieIface& cookie) override {
+    in_port_t get_connected_port(CookieIface& cookie) override {
         return asCookie(cookie).getConnection().getParentPort();
     }
 

@@ -64,7 +64,7 @@ private:
 class FetchAllKeysTask : public GlobalTask {
 public:
     FetchAllKeysTask(EventuallyPersistentEngine& e,
-                     const CookieIface& c,
+                     CookieIface& c,
                      AddResponseFn resp,
                      const DocKey start_key_,
                      Vbid vbucket,
@@ -84,7 +84,7 @@ public:
     bool run() override;
 
 private:
-    const CookieIface& cookie;
+    CookieIface& cookie;
     const std::string description;
     AddResponseFn response;
     DiskDocKey start_key;

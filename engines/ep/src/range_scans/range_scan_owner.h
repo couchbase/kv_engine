@@ -165,7 +165,7 @@ public:
      */
     cb::engine_errc continueScan(EPBucket& bucket,
                                  cb::rangescan::Id id,
-                                 const CookieIface& cookie,
+                                 CookieIface& cookie,
                                  size_t itemLimit,
                                  std::chrono::milliseconds timeLimit,
                                  size_t byteLimit);
@@ -231,7 +231,7 @@ public:
      */
     cb::engine_errc hasPrivilege(
             cb::rangescan::Id id,
-            const CookieIface& cookie,
+            CookieIface& cookie,
             const EventuallyPersistentEngine& engine) const;
     /// @return size of the map (how many scans exist)
     size_t size() const;

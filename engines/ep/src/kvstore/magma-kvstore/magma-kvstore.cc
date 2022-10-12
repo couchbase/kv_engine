@@ -3318,7 +3318,7 @@ magma::Status MagmaKVStore::updateScopes(
 }
 
 void MagmaKVStore::addTimingStats(const AddStatFn& add_stat,
-                                  const CookieIface& c) const {
+                                  CookieIface& c) const {
     KVStore::addTimingStats(add_stat, c);
     const auto prefix = getStatsPrefix();
 
@@ -3446,8 +3446,7 @@ GetStatsMap MagmaKVStore::getStats(
     return stats;
 }
 
-void MagmaKVStore::addStats(const AddStatFn& add_stat,
-                            const CookieIface& c) const {
+void MagmaKVStore::addStats(const AddStatFn& add_stat, CookieIface& c) const {
     KVStore::addStats(add_stat, c);
     const auto prefix = getStatsPrefix();
 

@@ -34,7 +34,7 @@ RangeScan::RangeScan(
         DiskDocKey start,
         DiskDocKey end,
         std::unique_ptr<RangeScanDataHandlerIFace> handler,
-        const CookieIface& cookie,
+        CookieIface& cookie,
         cb::rangescan::KeyOnly keyOnly,
         std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
         std::optional<cb::rangescan::SamplingConfiguration> samplingConfig)
@@ -118,7 +118,7 @@ RangeScan::~RangeScan() {
 }
 
 cb::rangescan::Id RangeScan::createScan(
-        const CookieIface& cookie,
+        CookieIface& cookie,
         EPBucket& bucket,
         std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
         std::optional<cb::rangescan::SamplingConfiguration> samplingConfig) {
@@ -250,7 +250,7 @@ cb::rangescan::Id RangeScan::createScan(
                 tryAndScanOneKey(*bucket.getRWUnderlying(getVBucketId()));
     }
 
-    const_cast<CookieIface&>(cookie).addDocumentReadBytes(approxBytesRead);
+    cookie.addDocumentReadBytes(approxBytesRead);
 
     // Generate the scan ID (which may also incur i/o)
     return boost::uuids::random_generator()();
@@ -308,7 +308,7 @@ size_t RangeScan::tryAndScanOneKey(KVStoreIface& kvstore) {
 }
 
 cb::engine_errc RangeScan::hasPrivilege(
-        const CookieIface& cookie, const EventuallyPersistentEngine& engine) {
+        CookieIface& cookie, const EventuallyPersistentEngine& engine) {
     // @todo: change to Privilege::RangeScan
     return engine.checkPrivilege(&cookie,
                                  cb::rbac::Privilege::Read,
@@ -428,7 +428,7 @@ bool RangeScan::setStateIdle(cb::engine_errc status) {
     return status != cb::engine_errc::range_scan_cancelled;
 }
 
-void RangeScan::setStateContinuing(const CookieIface& client,
+void RangeScan::setStateContinuing(CookieIface& client,
                                    size_t limit,
                                    std::chrono::milliseconds timeLimit,
                                    size_t byteLimit) {
@@ -684,7 +684,7 @@ void RangeScan::ContinueState::setupForIdle() {
 }
 
 void RangeScan::ContinueState::setupForContinue(
-        const CookieIface& c,
+        CookieIface& c,
         size_t limit,
         std::chrono::milliseconds timeLimit,
         size_t byteLimit) {

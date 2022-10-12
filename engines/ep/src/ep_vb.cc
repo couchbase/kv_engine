@@ -125,7 +125,7 @@ cb::engine_errc EPVBucket::completeBGFetchForSingleItem(
                 updateBGStats(fetched_item.initTime, startTime, fetchEnd);
 
                 // Close the BackgroundWait span; and add a BackgroundLoad span
-                auto* traceable = cookie2traceable(fetched_item.cookie);
+                auto* traceable = fetched_item.cookie;
                 if (traceable && traceable->isTracingEnabled()) {
                     NonBucketAllocationGuard guard;
                     auto& tracer = traceable->getTracer();
@@ -433,7 +433,7 @@ size_t EPVBucket::getNumSystemItems() const {
 }
 
 cb::engine_errc EPVBucket::statsVKey(const DocKey& key,
-                                     const CookieIface* cookie,
+                                     CookieIface* cookie,
                                      EventuallyPersistentEngine& engine) {
     folly::SharedMutex::ReadHolder rlh(getStateLock());
     auto readHandle = lockCollections(key);
@@ -522,7 +522,7 @@ bool EPVBucket::areDeletedItemsAlwaysResident() const {
 
 void EPVBucket::addStats(VBucketStatsDetailLevel detail,
                          const AddStatFn& add_stat,
-                         const CookieIface& c) {
+                         CookieIface& c) {
     _addStats(detail, add_stat, c);
 
     if (detail == VBucketStatsDetailLevel::Full) {
@@ -771,7 +771,7 @@ VBNotifyCtx EPVBucket::addNewAbort(const HashTable::HashBucketLock& hbl,
 void EPVBucket::bgFetch(HashTable::HashBucketLock&& hbl,
                         const DocKey& key,
                         const StoredValue& v,
-                        const CookieIface* cookie,
+                        CookieIface* cookie,
                         EventuallyPersistentEngine& engine,
                         const bool isMeta) {
     auto token = v.getCas();
@@ -799,7 +799,7 @@ void EPVBucket::bgFetch(HashTable::HashBucketLock&& hbl,
 cb::engine_errc EPVBucket::addTempItemAndBGFetch(
         HashTable::HashBucketLock&& hbl,
         const DocKey& key,
-        const CookieIface* cookie,
+        CookieIface* cookie,
         EventuallyPersistentEngine& engine,
         bool metadataOnly) {
     auto rv = addTempStoredValue(hbl, key);
@@ -869,7 +869,7 @@ void EPVBucket::updateBGStats(
 
 GetValue EPVBucket::getInternalNonResident(HashTable::HashBucketLock&& hbl,
                                            const DocKey& key,
-                                           const CookieIface* cookie,
+                                           CookieIface* cookie,
                                            EventuallyPersistentEngine& engine,
                                            QueueBgFetch queueBgFetch,
                                            const StoredValue& v) {
@@ -880,7 +880,7 @@ GetValue EPVBucket::getInternalNonResident(HashTable::HashBucketLock&& hbl,
             nullptr, cb::engine_errc::would_block, v.getBySeqno(), true);
 }
 
-void EPVBucket::setupDeferredDeletion(const CookieIface* cookie) {
+void EPVBucket::setupDeferredDeletion(CookieIface* cookie) {
     setDeferredDeletionCookie(cookie);
     auto revision = getShard()->getRWUnderlying()->prepareToDelete(getId());
     EP_LOG_INFO("EPVBucket::setupDeferredDeletion({}) {}, revision:{}",
@@ -1224,7 +1224,7 @@ std::pair<cb::engine_errc, cb::rangescan::Id> EPVBucket::createRangeScan(
         cb::rangescan::KeyView start,
         cb::rangescan::KeyView end,
         std::unique_ptr<RangeScanDataHandlerIFace> handler,
-        const CookieIface& cookie,
+        CookieIface& cookie,
         cb::rangescan::KeyOnly keyOnly,
         std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
         std::optional<cb::rangescan::SamplingConfiguration> samplingConfig) {
@@ -1300,7 +1300,7 @@ std::pair<cb::engine_errc, cb::rangescan::Id> EPVBucket::createRangeScan(
 std::pair<cb::engine_errc, cb::rangescan::Id>
 EPVBucket::createRangeScanComplete(
         std::unique_ptr<RangeScanCreateData> rangeScanCreateData,
-        const CookieIface& cookie) {
+        CookieIface& cookie) {
     Expects(rangeScanCreateData);
     bucket->getEPEngine().clearEngineSpecific(&cookie);
     return {cb::engine_errc::success, rangeScanCreateData->uuid};
@@ -1308,10 +1308,10 @@ EPVBucket::createRangeScanComplete(
 
 void EPVBucket::createRangeScanWait(
         const cb::rangescan::SnapshotRequirements& requirements,
-        const CookieIface& cookie) {
+        CookieIface& cookie) {
     struct RangeScanWaitForPersistenceRequest : public SeqnoPersistenceRequest {
         RangeScanWaitForPersistenceRequest(EventuallyPersistentEngine& engine,
-                                           const CookieIface* cookie,
+                                           CookieIface* cookie,
                                            uint64_t seqno,
                                            std::chrono::milliseconds timeout)
             : SeqnoPersistenceRequest(cookie, seqno, timeout), engine(engine) {
@@ -1336,8 +1336,7 @@ void EPVBucket::createRangeScanWait(
                     requirements.timeout.value()));
 }
 
-cb::engine_errc EPVBucket::checkAndCancelRangeScanCreate(
-        const CookieIface& cookie) {
+cb::engine_errc EPVBucket::checkAndCancelRangeScanCreate(CookieIface& cookie) {
     // Obtain the data (so it now frees if not null)
     std::unique_ptr<RangeScanCreateData> rangeScanCreateData(
             bucket->getEPEngine()
@@ -1386,11 +1385,11 @@ cb::engine_errc EPVBucket::setupCookieForRangeScan(cb::rangescan::Id id,
 
 cb::engine_errc EPVBucket::continueRangeScan(
         cb::rangescan::Id id,
-        const CookieIface& cookie,
+        CookieIface& cookie,
         size_t itemLimit,
         std::chrono::milliseconds timeLimit,
         size_t byteLimit) {
-    auto status = setupCookieForRangeScan(id, const_cast<CookieIface&>(cookie));
+    auto status = setupCookieForRangeScan(id, cookie);
     if (status == cb::engine_errc::success) {
         status = rangeScans.hasPrivilege(id, cookie, bucket->getEPEngine());
     }
@@ -1425,7 +1424,7 @@ cb::engine_errc EPVBucket::continueRangeScan(
 }
 
 cb::engine_errc EPVBucket::cancelRangeScan(cb::rangescan::Id id,
-                                           const CookieIface* cookie,
+                                           CookieIface* cookie,
                                            bool schedule) {
     cb::engine_errc status{cb::engine_errc::success};
     if (cookie) {

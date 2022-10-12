@@ -162,9 +162,7 @@ public:
 
     virtual ~BackfillManager();
 
-    void addStats(DcpProducer& conn,
-                  const AddStatFn& add_stat,
-                  const CookieIface& c);
+    void addStats(DcpProducer& conn, const AddStatFn& add_stat, CookieIface& c);
 
     /// The scheduling order for DCPBackfills
     enum class ScheduleOrder {

@@ -1335,7 +1335,7 @@ TEST_P(KVStoreParamTestSkipRocks, GetAllKeysSanity) {
     EXPECT_EQ(keys, int(cb->getProcessedCount()));
 
     NiceMock<MockFunction<void(
-            std::string_view, std::string_view, const CookieIface&)>>
+            std::string_view, std::string_view, CookieIface&)>>
             addStatCb;
 
     auto cbFunc = addStatCb.AsStdFunction();

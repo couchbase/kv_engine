@@ -48,7 +48,7 @@ public:
 
     ~MockCookie() override;
 
-    const ConnectionIface& getConnectionIface() const override;
+    ConnectionIface& getConnectionIface() override;
 
     // Get the actual connection we've got
     MockConnection& getConnection() {
@@ -190,5 +190,5 @@ MockCookie* create_mock_cookie(EngineIface* engine = nullptr);
 
 void destroy_mock_cookie(CookieIface* cookie);
 
-MockCookie* cookie_to_mock_cookie(const CookieIface* cookie);
-MockCookie& asMockCookie(const CookieIface& cookie);
+MockCookie* cookie_to_mock_cookie(CookieIface* cookie);
+MockCookie& asMockCookie(CookieIface& cookie);

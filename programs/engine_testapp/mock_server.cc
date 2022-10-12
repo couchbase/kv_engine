@@ -47,8 +47,8 @@ spdlog::level::level_enum log_level = spdlog::level::level_enum::info;
 using CookieNotifyQueue = std::queue<cb::engine_errc>;
 
 /// Map of Cookie to its queued notifications.
-using CookieToNotificationsMap = std::unordered_map<const CookieIface*,
-                                                    CookieNotifyQueue>;
+using CookieToNotificationsMap =
+        std::unordered_map<CookieIface*, CookieNotifyQueue>;
 
 /// CookieToNotificationsMap guarded by a mutex to allow concurrent waiting
 /// and signalling on a new status being added for a given cookie.
@@ -80,8 +80,7 @@ static rel_time_t mock_get_current_time() {
     return result;
 }
 
-void mock_notify_io_complete(const CookieIface& cookie,
-                             cb::engine_errc status) {
+void mock_notify_io_complete(CookieIface& cookie, cb::engine_errc status) {
     // Using at() here as the cookie should have been registered in
     // cookieNotifications when it was created.
     cookieNotifications.lock()->at(&cookie).push(status);
@@ -218,7 +217,7 @@ void mock_unregister_cookie(CookieIface& cookie) {
     locked->erase(it);
 }
 
-cb::engine_errc mock_waitfor_cookie(const CookieIface* cookie) {
+cb::engine_errc mock_waitfor_cookie(CookieIface* cookie) {
     Expects(cookie);
     // Wait for at least one element to be present in this cookie's
     // notification queue.
@@ -234,62 +233,61 @@ cb::engine_errc mock_waitfor_cookie(const CookieIface* cookie) {
     return status;
 }
 
-bool mock_cookie_notified(const CookieIface* cookie) {
+bool mock_cookie_notified(CookieIface* cookie) {
     Expects(cookie);
     return !cookieNotifications.lock()->at(cookie).empty();
 }
 
 struct MockServerCookieApi : public ServerCookieIface {
-    void setDcpConnHandler(const CookieIface& cookie,
+    void setDcpConnHandler(CookieIface& cookie,
                            DcpConnHandlerIface* handler) override {
         asMockCookie(cookie).setConHandler(handler);
     }
-    DcpConnHandlerIface* getDcpConnHandler(const CookieIface& cookie) override {
+    DcpConnHandlerIface* getDcpConnHandler(CookieIface& cookie) override {
         return asMockCookie(cookie).getConHandler();
     }
-    void setDcpFlowControlBufferSize(const CookieIface& cookie,
+    void setDcpFlowControlBufferSize(CookieIface& cookie,
                                      std::size_t size) override {
     }
 
-    void reserve(const CookieIface& cookie) override {
+    void reserve(CookieIface& cookie) override {
         asMockCookie(cookie).incrementRefcount();
     }
 
-    void release(const CookieIface& cookie) override {
+    void release(CookieIface& cookie) override {
         auto& c = asMockCookie(cookie);
         if (c.decrementRefcount() == 0) {
             delete &c;
         }
     }
 
-    void set_priority(const CookieIface& cookie, ConnectionPriority) override {
+    void set_priority(CookieIface& cookie, ConnectionPriority) override {
         // Just verify the cookie type
         asMockCookie(cookie);
     }
 
-    ConnectionPriority get_priority(const CookieIface& cookie) override {
+    ConnectionPriority get_priority(CookieIface& cookie) override {
         // Just verify the cookie type
         asMockCookie(cookie);
         return ConnectionPriority::Medium;
     }
 
     cb::rbac::PrivilegeAccess check_privilege(
-            const CookieIface& cookie,
+            CookieIface& cookie,
             cb::rbac::Privilege privilege,
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) override {
         return cookie.testPrivilege(privilege, sid, cid);
     }
     cb::rbac::PrivilegeAccess check_for_privilege_at_least_in_one_collection(
-            const CookieIface& cookie, cb::rbac::Privilege privilege) override {
+            CookieIface& cookie, cb::rbac::Privilege privilege) override {
         return cookie.checkForPrivilegeAtLeastInOneCollection(privilege);
     }
-    uint32_t get_privilege_context_revision(
-            const CookieIface& cookie) override {
+    uint32_t get_privilege_context_revision(CookieIface& cookie) override {
         return privilege_context_revision;
     }
 
-    cb::mcbp::Status engine_error2mcbp(const CookieIface& cookie,
+    cb::mcbp::Status engine_error2mcbp(CookieIface& cookie,
                                        cb::engine_errc code) override {
         if (code == cb::engine_errc::disconnect) {
             return cb::mcbp::Status(cb::engine_errc(-1));
@@ -299,17 +297,17 @@ struct MockServerCookieApi : public ServerCookieIface {
     }
 
     std::pair<uint32_t, std::string> get_log_info(
-            const CookieIface& cookie) override {
+            CookieIface& cookie) override {
         // The DCP test suite don't use a real cookie, and until we've
         // fixed that we can't try to use the provided cookie
         return std::make_pair(uint32_t(0xdead), std::string{"[you - me]"});
     }
 
-    std::string get_authenticated_user(const CookieIface& cookie) override {
+    std::string get_authenticated_user(CookieIface& cookie) override {
         return asMockCookie(cookie).getAuthedUser();
     }
 
-    in_port_t get_connected_port(const CookieIface& cookie) override {
+    in_port_t get_connected_port(CookieIface& cookie) override {
         return asMockCookie(cookie).getParentPort();
     }
 

@@ -801,7 +801,7 @@ TEST_P(NexusKVStoreTest, PrimarySecondaryStats) {
 
     // create a collector to which stats will be added
     NiceMock<MockFunction<void(
-            std::string_view, std::string_view, const CookieIface&)>>
+            std::string_view, std::string_view, CookieIface&)>>
             cb;
 
     auto cbFunc = cb.AsStdFunction();
@@ -833,7 +833,7 @@ TEST_P(NexusKVStoreTest, PrimarySecondaryTimingStats) {
 
     // create a collector to which stats will be added
     NiceMock<MockFunction<void(
-            std::string_view, std::string_view, const CookieIface&)>>
+            std::string_view, std::string_view, CookieIface&)>>
             cb;
 
     auto cbFunc = cb.AsStdFunction();

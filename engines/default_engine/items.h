@@ -174,7 +174,7 @@ hash_item* item_alloc(struct default_engine* engine,
                       int flags,
                       rel_time_t exptime,
                       int nbytes,
-                      const CookieIface* cookie,
+                      CookieIface* cookie,
                       uint8_t datatype);
 
 /**
@@ -187,7 +187,7 @@ hash_item* item_alloc(struct default_engine* engine,
  * @return pointer to the item if it exists or NULL otherwise
  */
 hash_item* item_get(struct default_engine* engine,
-                    const CookieIface* cookie,
+                    CookieIface* cookie,
                     const DocKey& key,
                     const DocStateFilter state);
 
@@ -201,7 +201,7 @@ hash_item* item_get(struct default_engine* engine,
  * @return pointer to the item if it exists or NULL otherwise
  */
 hash_item* item_get(struct default_engine* engine,
-                    const CookieIface* cookie,
+                    CookieIface* cookie,
                     const hash_key& key,
                     const DocStateFilter state);
 
@@ -266,7 +266,7 @@ void item_stats_reset(struct default_engine *engine);
  */
 void item_stats(struct default_engine* engine,
                 const AddStatFn& add_stat,
-                const CookieIface& cookie);
+                CookieIface& cookie);
 
 /**
  * Get detaild item statitistics
@@ -277,7 +277,7 @@ void item_stats(struct default_engine* engine,
  */
 void item_stats_sizes(struct default_engine* engine,
                       const AddStatFn& add_stat,
-                      const CookieIface& cookie);
+                      CookieIface& cookie);
 
 /**
  * Flush expired items from the cache

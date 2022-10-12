@@ -190,7 +190,7 @@ public:
      * @param item the queued_item
      * @throw std::logic_error if the replication-chain is not set
      */
-    void addSyncWrite(const CookieIface* cookie, queued_item item);
+    void addSyncWrite(CookieIface* cookie, queued_item item);
 
     /**
      * Expected to be called by memcached at receiving a DCP_SEQNO_ACK packet.
@@ -219,7 +219,7 @@ public:
      * to avoid a double notification on the cookie (which is illegal),
      * so the caller <u>must</u> notify these cookies.
      */
-    std::vector<const CookieIface*> getCookiesForInFlightSyncWrites();
+    std::vector<CookieIface*> getCookiesForInFlightSyncWrites();
 
     /**
      * Prepare for a transition away from active by moving every prepare in the
@@ -229,7 +229,7 @@ public:
      * @return The cookies of all in-flight SyncWrites. Return value of
      *         getCookiesForInFlightSyncWrites.
      */
-    std::vector<const CookieIface*> prepareTransitionAwayFromActive();
+    std::vector<CookieIface*> prepareTransitionAwayFromActive();
 
     void notifyLocalPersistence() override;
 
@@ -239,8 +239,7 @@ public:
      * @param addStat the callback to memcached
      * @param cookie
      */
-    void addStats(const AddStatFn& addStat,
-                  const CookieIface& cookie) const override;
+    void addStats(const AddStatFn& addStat, CookieIface& cookie) const override;
 
     size_t getNumTracked() const override;
 
@@ -420,7 +419,7 @@ protected:
      * @param chain reference to the chain to output stats for
      */
     void addStatsForChain(const AddStatFn& addStat,
-                          const CookieIface& cookie,
+                          CookieIface& cookie,
                           const ReplicationChain& chain) const;
 
     /**

@@ -394,11 +394,9 @@ void DCPLoopbackTestHelper::DcpRoute::destroy() {
         producer->cancelCheckpointCreatorTask();
         producer->closeAllStreams();
         consumer->closeAllStreams();
-        destroy_mock_cookie(static_cast<MockCookie*>(
-                const_cast<CookieIface*>(producer->getCookie())));
+        destroy_mock_cookie(producer->getCookie());
         producer.reset();
-        destroy_mock_cookie(static_cast<MockCookie*>(
-                const_cast<CookieIface*>(consumer->getCookie())));
+        destroy_mock_cookie(consumer->getCookie());
         consumer.reset();
     } else {
         // don't expect consumer or producer, both or nothing

@@ -151,7 +151,7 @@ void DcpProducer::BufferLog::acknowledge(size_t bytes) {
 }
 
 void DcpProducer::BufferLog::addStats(const AddStatFn& add_stat,
-                                      const CookieIface& c) {
+                                      CookieIface& c) {
     std::shared_lock<folly::SharedMutex> rhl(logLock);
     if (isEnabled_UNLOCKED()) {
         producer.addStat("max_buffer_bytes", maxBytes, add_stat, c);
@@ -176,7 +176,7 @@ static IncludeValue toIncludeValue(uint32_t flags) {
 }
 
 DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
-                         const CookieIface* cookie,
+                         CookieIface* cookie,
                          const std::string& name,
                          uint32_t flags,
                          bool startTask)
@@ -1478,7 +1478,7 @@ bool DcpProducer::scheduleBackfillManager(VBucket& vb,
     return true;
 }
 
-void DcpProducer::addStats(const AddStatFn& add_stat, const CookieIface& c) {
+void DcpProducer::addStats(const AddStatFn& add_stat, CookieIface& c) {
     ConnHandler::addStats(add_stat, c);
 
     addStat("items_sent", getItemsSent(), add_stat, c);
@@ -1549,7 +1549,7 @@ void DcpProducer::addStats(const AddStatFn& add_stat, const CookieIface& c) {
 }
 
 void DcpProducer::addTakeoverStats(const AddStatFn& add_stat,
-                                   const CookieIface& c,
+                                   CookieIface& c,
                                    const VBucket& vb) {
     // Only do takeover stats on 'traditional' streams
     if (multipleStreamRequests == MultipleStreamRequests::Yes) {
@@ -2074,7 +2074,7 @@ void DcpProducer::updateStreamsMap(Vbid vbid,
 }
 
 cb::mcbp::DcpStreamEndStatus DcpProducer::mapEndStreamStatus(
-        const CookieIface* cookie, cb::mcbp::DcpStreamEndStatus status) const {
+        CookieIface* cookie, cb::mcbp::DcpStreamEndStatus status) const {
     if (!cookie->isCollectionsSupported()) {
         switch (status) {
         case cb::mcbp::DcpStreamEndStatus::Ok:

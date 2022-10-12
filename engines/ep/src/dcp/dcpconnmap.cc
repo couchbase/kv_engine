@@ -62,7 +62,7 @@ DcpConnMap::~DcpConnMap() {
     EP_LOG_INFO_RAW("Deleted dcpConnMap_");
 }
 
-DcpConsumer* DcpConnMap::newConsumer(const CookieIface* cookie,
+DcpConsumer* DcpConnMap::newConsumer(CookieIface* cookie,
                                      const std::string& name,
                                      const std::string& consumerName) {
     std::string conn_name("eq_dcpq:");
@@ -94,7 +94,7 @@ DcpConsumer* DcpConnMap::newConsumer(const CookieIface* cookie,
 
 std::shared_ptr<DcpConsumer> DcpConnMap::makeConsumer(
         EventuallyPersistentEngine& engine,
-        const CookieIface* cookie,
+        CookieIface* cookie,
         const std::string& connName,
         const std::string& consumerName) const {
     return std::make_shared<DcpConsumer>(
@@ -136,7 +136,7 @@ cb::engine_errc DcpConnMap::addPassiveStream(ConnHandler& conn,
     return conn.addStream(opaque, vbucket, flags);
 }
 
-DcpProducer* DcpConnMap::newProducer(const CookieIface* cookie,
+DcpProducer* DcpConnMap::newProducer(CookieIface* cookie,
                                      const std::string& name,
                                      uint32_t flags) {
     std::string conn_name("eq_dcpq:");
@@ -277,7 +277,7 @@ void DcpConnMap::cancelTasks(CookieToConnectionMap& map) {
     }
 }
 
-void DcpConnMap::disconnect(const CookieIface* cookie) {
+void DcpConnMap::disconnect(CookieIface* cookie) {
     // Move the connection matching this cookie from the map_
     // data structure (under connsLock).
     std::shared_ptr<ConnHandler> conn;
@@ -428,7 +428,7 @@ void DcpConnMap::notifyBackfillManagerTasks() {
     }
 }
 
-void DcpConnMap::addStats(const AddStatFn& add_stat, const CookieIface& c) {
+void DcpConnMap::addStats(const AddStatFn& add_stat, CookieIface& c) {
     std::lock_guard<std::mutex> lh(connsLock);
     add_casted_stat("ep_dcp_dead_conn_count", deadConnections.size(), add_stat,
                     c);

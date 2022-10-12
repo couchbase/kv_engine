@@ -234,7 +234,7 @@ void EphemeralBucket::attemptToFreeMemory() {
 cb::engine_errc EphemeralBucket::scheduleCompaction(
         Vbid vbid,
         const CompactionConfig& c,
-        const CookieIface* ck,
+        CookieIface* ck,
         std::chrono::milliseconds delay) {
     return cb::engine_errc::not_supported;
 }
@@ -306,7 +306,7 @@ VBucketPtr EphemeralBucket::makeVBucket(
     return VBucketPtr(vb, VBucket::DeferredDeleter(engine));
 }
 
-void EphemeralBucket::completeStatsVKey(const CookieIface* cookie,
+void EphemeralBucket::completeStatsVKey(CookieIface* cookie,
                                         const DocKey& key,
                                         Vbid vbid,
                                         uint64_t bySeqNum) {
@@ -433,7 +433,7 @@ bool EphemeralBucket::isValidBucketDurabilityLevel(
 }
 
 bool EphemeralBucket::maybeScheduleManifestPersistence(
-        const CookieIface* cookie,
+        CookieIface* cookie,
         std::unique_ptr<Collections::Manifest>& newManifest) {
     return false; // newManifest not taken
 }

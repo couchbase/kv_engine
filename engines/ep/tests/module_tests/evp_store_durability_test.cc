@@ -366,7 +366,7 @@ protected:
     // inserted and the BGFetcher needs to run to get that item accepted.
     // Then, we need to come back to the original item and push that out
     // with the BGFetch before the pending item is accepted.
-    cb::engine_errc addPendingItem(Item& itm, const CookieIface* cookie) {
+    cb::engine_errc addPendingItem(Item& itm, CookieIface* cookie) {
         auto rc = store->add(itm, cookie);
         if (rc == cb::engine_errc::would_block && persistent() &&
             fullEviction()) {
@@ -2123,7 +2123,7 @@ void DurabilityBucketTest::testTakeoverDestinationHandlesPreparedSyncWrites(
 
 TEST_P(DurabilityBucketTest, SetDurabilityInvalidLevel) {
     auto op = [this](queued_item pending,
-                     const CookieIface* cookie) -> cb::engine_errc {
+                     CookieIface* cookie) -> cb::engine_errc {
         return store->set(*pending, cookie);
     };
     testDurabilityInvalidLevel(op);
@@ -2131,7 +2131,7 @@ TEST_P(DurabilityBucketTest, SetDurabilityInvalidLevel) {
 
 TEST_P(DurabilityBucketTest, AddDurabilityInvalidLevel) {
     auto op = [this](queued_item pending,
-                     const CookieIface* cookie) -> cb::engine_errc {
+                     CookieIface* cookie) -> cb::engine_errc {
         return store->add(*pending, cookie);
     };
     testDurabilityInvalidLevel(op);
@@ -2139,7 +2139,7 @@ TEST_P(DurabilityBucketTest, AddDurabilityInvalidLevel) {
 
 TEST_P(DurabilityBucketTest, ReplaceDurabilityInvalidLevel) {
     auto op = [this](queued_item pending,
-                     const CookieIface* cookie) -> cb::engine_errc {
+                     CookieIface* cookie) -> cb::engine_errc {
         return store->replace(*pending, cookie);
     };
     testDurabilityInvalidLevel(op);
@@ -4498,9 +4498,7 @@ TEST_P(DurabilityBucketTest, ObserveReturnsErrorIfRecommitInProgress) {
                                      uint8_t datatype,
                                      cb::mcbp::Status status,
                                      uint64_t cas,
-                                     const CookieIface& cookie) {
-        return true;
-    };
+                                     CookieIface& cookie) { return true; };
 
     auto requestPtr = createObserveRequest({keyCommitted});
     auto res = engine->observe(cookie, *requestPtr, dummyAddResponse);

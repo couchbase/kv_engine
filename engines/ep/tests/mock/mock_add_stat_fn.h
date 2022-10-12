@@ -30,13 +30,12 @@
  *     someMethodExpectingAddStatFn(..., mockAddStat.asStdFunction());
  */
 struct MockAddStat {
-    MOCK_CONST_METHOD3(callback,
-                       void(std::string, std::string, const CookieIface&));
+    MOCK_CONST_METHOD3(callback, void(std::string, std::string, CookieIface&));
 
     AddStatFn asStdFunction() {
         return [this](std::string_view key,
                       std::string_view value,
-                      const auto& cookie) {
+                      auto& cookie) {
             callback(std::string{key}, std::string{value}, cookie);
         };
     }

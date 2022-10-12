@@ -228,7 +228,7 @@ bool add_response(std::string_view key,
                   uint8_t datatype,
                   cb::mcbp::Status status,
                   uint64_t cas,
-                  const CookieIface& cookie) {
+                  CookieIface& cookie) {
     (void)cookie;
     static std::mutex m;
     std::lock_guard<std::mutex> lg(m);
@@ -247,7 +247,7 @@ bool add_response_set_del_meta(std::string_view key,
                                uint8_t datatype,
                                cb::mcbp::Status status,
                                uint64_t cas,
-                               const CookieIface& cookie) {
+                               CookieIface& cookie) {
     if (!extras.empty()) {
         const auto* ext_bytes = reinterpret_cast<const uint8_t*>(extras.data());
         uint64_t vb_uuid;
@@ -267,7 +267,7 @@ bool add_response_ret_meta(std::string_view key,
                            uint8_t datatype,
                            cb::mcbp::Status status,
                            uint64_t cas,
-                           const CookieIface& cookie) {
+                           CookieIface& cookie) {
     if (extras.size() == 16) {
         const auto* ext_bytes = reinterpret_cast<const uint8_t*>(extras.data());
         memcpy(&last_meta.flags, ext_bytes, 4);
@@ -287,9 +287,7 @@ bool add_response_ret_meta(std::string_view key,
     return add_response(key, extras, body, datatype, status, cas, cookie);
 }
 
-void add_stats(std::string_view key,
-               std::string_view value,
-               const CookieIface&) {
+void add_stats(std::string_view key, std::string_view value, CookieIface&) {
     std::string k(key.data(), key.size());
     std::string v(value.data(), value.size());
 
@@ -307,7 +305,7 @@ void add_stats(std::string_view key,
  */
 static void add_individual_stat(std::string_view key,
                                 std::string_view value,
-                                const CookieIface&) {
+                                CookieIface&) {
     if (get_stat_context.actual_stat_value.empty() &&
         get_stat_context.requested_stat_name.compare(
                 0,
@@ -321,7 +319,7 @@ static void add_individual_stat(std::string_view key,
 
 static void add_individual_histo_stat(std::string_view key,
                                       std::string_view value,
-                                      const CookieIface&) {
+                                      CookieIface&) {
     /* Convert key to string */
     std::string key_str(key.data(), key.size());
     /* Exclude mean value keys e.g. backfill_tasks_mean */
@@ -1413,7 +1411,7 @@ bool verify_vbucket_state(EngineIface* h,
 }
 
 void sendDcpAck(EngineIface* h,
-                const CookieIface* cookie,
+                CookieIface* cookie,
                 cb::mcbp::ClientOpcode opcode,
                 cb::mcbp::Status status,
                 uint32_t opaque) {

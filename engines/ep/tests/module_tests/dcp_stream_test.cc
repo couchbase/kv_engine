@@ -1726,7 +1726,7 @@ TEST_P(SingleThreadedActiveStreamTest, DiskBackfillInitializingItemsRemaining) {
     std::string expectedKey;
     auto checkStatusFn = [&statusFound, &expectedKey](std::string_view key,
                                                       std::string_view value,
-                                                      const CookieIface&) {
+                                                      CookieIface&) {
         if (key == "status"sv) {
             EXPECT_EQ(expectedKey, std::string(value.data(), value.size()));
             statusFound = true;

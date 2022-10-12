@@ -44,7 +44,7 @@ public:
      * @param key A key read from a Key only scan
      * @return true if the current continue should now yield
      */
-    virtual bool handleKey(const CookieIface& cookie, DocKey key) = 0;
+    virtual bool handleKey(CookieIface& cookie, DocKey key) = 0;
 
     /**
      * Callback method invoked for each Item that is read from the snapshot.
@@ -54,7 +54,7 @@ public:
      * @param item An Item read from a Key/Value scan
      * @return true if the current continue should now yield
      */
-    virtual bool handleItem(const CookieIface& cookie,
+    virtual bool handleItem(CookieIface& cookie,
                             std::unique_ptr<Item> item) = 0;
 
     /**
@@ -66,8 +66,7 @@ public:
      * @param cookie The cookie which triggered the range-scan-continue
      * @param status The status of the just completed continue
      */
-    virtual void handleStatus(const CookieIface& cookie,
-                              cb::engine_errc status) = 0;
+    virtual void handleStatus(CookieIface& cookie, cb::engine_errc status) = 0;
 
     /**
      * Generate stats from the handler
@@ -84,21 +83,18 @@ class RangeScanDataHandler : public RangeScanDataHandlerIFace {
 public:
     RangeScanDataHandler(EventuallyPersistentEngine& engine);
 
-    bool handleKey(const CookieIface& cookie, DocKey key) override;
+    bool handleKey(CookieIface& cookie, DocKey key) override;
 
-    bool handleItem(const CookieIface& cookie,
-                    std::unique_ptr<Item> item) override;
+    bool handleItem(CookieIface& cookie, std::unique_ptr<Item> item) override;
 
-    void handleStatus(const CookieIface& cookie,
-                      cb::engine_errc status) override;
+    void handleStatus(CookieIface& cookie, cb::engine_errc status) override;
 
     void addStats(std::string_view prefix,
                   const StatCollector& collector) override;
 
 private:
-    bool checkAndSend(const CookieIface& cookie);
-    void send(const CookieIface& cookie,
-              cb::engine_errc = cb::engine_errc::success);
+    bool checkAndSend(CookieIface& cookie);
+    void send(CookieIface& cookie, cb::engine_errc = cb::engine_errc::success);
 
     EventuallyPersistentEngine& engine;
     /**

@@ -109,7 +109,7 @@ public:
         delete this;
     }
 
-    cb::unique_item_ptr allocateItem(const CookieIface&,
+    cb::unique_item_ptr allocateItem(CookieIface&,
                                      const DocKey&,
                                      size_t,
                                      size_t,
@@ -120,7 +120,7 @@ public:
         throw cb::engine_error{cb::engine_errc::failed, "crash_engine"};
     }
 
-    cb::engine_errc remove(const CookieIface&,
+    cb::engine_errc remove(CookieIface&,
                            const DocKey&,
                            uint64_t&,
                            Vbid,
@@ -132,7 +132,7 @@ public:
     void release(ItemIface& item) override {
     }
 
-    cb::EngineErrorItemPair get(const CookieIface&,
+    cb::EngineErrorItemPair get(CookieIface&,
                                 const DocKey&,
                                 Vbid,
                                 DocStateFilter) override {
@@ -140,27 +140,27 @@ public:
     }
 
     cb::EngineErrorItemPair get_if(
-            const CookieIface&,
+            CookieIface&,
             const DocKey&,
             Vbid,
             std::function<bool(const item_info&)>) override {
         return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
     }
 
-    cb::EngineErrorMetadataPair get_meta(const CookieIface&,
+    cb::EngineErrorMetadataPair get_meta(CookieIface&,
                                          const DocKey&,
                                          Vbid) override {
         return {cb::engine_errc::failed, {}};
     }
 
-    cb::EngineErrorItemPair get_locked(const CookieIface&,
+    cb::EngineErrorItemPair get_locked(CookieIface&,
                                        const DocKey&,
                                        Vbid,
                                        uint32_t) override {
         return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
     }
 
-    cb::engine_errc unlock(const CookieIface&,
+    cb::engine_errc unlock(CookieIface&,
                            const DocKey&,
                            Vbid,
                            uint64_t) override {
@@ -168,7 +168,7 @@ public:
     }
 
     cb::EngineErrorItemPair get_and_touch(
-            const CookieIface&,
+            CookieIface&,
             const DocKey&,
             Vbid,
             uint32_t,
@@ -176,7 +176,7 @@ public:
         return cb::makeEngineErrorItemPair(cb::engine_errc::failed);
     }
 
-    cb::engine_errc store(const CookieIface&,
+    cb::engine_errc store(CookieIface&,
                           ItemIface&,
                           uint64_t&,
                           StoreSemantics,
@@ -186,14 +186,14 @@ public:
         return cb::engine_errc::failed;
     }
 
-    cb::engine_errc get_stats(const CookieIface&,
+    cb::engine_errc get_stats(CookieIface&,
                               std::string_view,
                               std::string_view,
                               const AddStatFn&) override {
         return cb::engine_errc::failed;
     }
 
-    void reset_stats(const CookieIface&) override {
+    void reset_stats(CookieIface&) override {
     }
 
     bool get_item_info(const ItemIface&, item_info&) override {

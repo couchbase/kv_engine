@@ -51,7 +51,7 @@ cb::durability::Requirements DurabilityMonitor::SyncWrite::getDurabilityReqs()
 }
 
 DurabilityMonitor::ActiveSyncWrite::ActiveSyncWrite(
-        const CookieIface* cookie,
+        CookieIface* cookie,
         queued_item item,
         std::chrono::milliseconds defaultTimeout,
         const ActiveDurabilityMonitor::ReplicationChain* firstChain,
@@ -63,7 +63,7 @@ DurabilityMonitor::ActiveSyncWrite::ActiveSyncWrite(
 }
 
 DurabilityMonitor::ActiveSyncWrite::ActiveSyncWrite(
-        const CookieIface* cookie,
+        CookieIface* cookie,
         queued_item item,
         const ActiveDurabilityMonitor::ReplicationChain* firstChain,
         const ActiveDurabilityMonitor::ReplicationChain* secondChain,
@@ -111,7 +111,7 @@ void DurabilityMonitor::ActiveSyncWrite::resetChains() {
     this->secondChain.reset(nullptr, 0 /*ackCount*/);
 }
 
-const CookieIface* DurabilityMonitor::ActiveSyncWrite::getCookie() const {
+CookieIface* DurabilityMonitor::ActiveSyncWrite::getCookie() const {
     return cookie;
 }
 

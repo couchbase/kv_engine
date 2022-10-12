@@ -97,7 +97,7 @@ public:
     size_t getNumSystemItems() const override;
 
     cb::engine_errc statsVKey(const DocKey& key,
-                              const CookieIface* cookie,
+                              CookieIface* cookie,
                               EventuallyPersistentEngine& engine) override;
 
     void completeStatsVKey(const DocKey& key, const GetValue& gcb) override;
@@ -123,7 +123,7 @@ public:
 
     void addStats(VBucketStatsDetailLevel detail,
                   const AddStatFn& add_stat,
-                  const CookieIface& c) override;
+                  CookieIface& c) override;
 
     KVShard* getShard() override {
         return shard;
@@ -157,7 +157,7 @@ public:
      *
      * @param cookie A cookie to notify when the deletion task completes.
      */
-    void setupDeferredDeletion(const CookieIface* cookie) override;
+    void setupDeferredDeletion(CookieIface* cookie) override;
 
     /**
      * Should only be called by the deletion task which ensures that all other
@@ -277,18 +277,18 @@ public:
             cb::rangescan::KeyView start,
             cb::rangescan::KeyView end,
             std::unique_ptr<RangeScanDataHandlerIFace> handler,
-            const CookieIface& cookie,
+            CookieIface& cookie,
             cb::rangescan::KeyOnly keyOnly,
             std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
             std::optional<cb::rangescan::SamplingConfiguration> samplingConfig)
             override;
     cb::engine_errc continueRangeScan(cb::rangescan::Id id,
-                                      const CookieIface& cookie,
+                                      CookieIface& cookie,
                                       size_t itemLimit,
                                       std::chrono::milliseconds timeLimit,
                                       size_t byteLimit) override;
     cb::engine_errc cancelRangeScan(cb::rangescan::Id id,
-                                    const CookieIface* cookie,
+                                    CookieIface* cookie,
                                     bool schedule) override;
     cb::engine_errc doRangeScanStats(const StatCollector& collector) override;
 
@@ -298,14 +298,14 @@ public:
      */
     std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScanComplete(
             std::unique_ptr<RangeScanCreateData> rangeScanCreateData,
-            const CookieIface& cookie);
+            CookieIface& cookie);
 
     /**
      * Setup a SeqnoPersistenceRequest using the RangeScanSnapshotRequirements
      */
     void createRangeScanWait(
             const cb::rangescan::SnapshotRequirements& requirements,
-            const CookieIface& cookie);
+            CookieIface& cookie);
 
     /**
      * A range-scan-create may need to be cancelled after the I/O task has
@@ -313,7 +313,7 @@ public:
      *
      * @return status (currently only success)
      */
-    cb::engine_errc checkAndCancelRangeScanCreate(const CookieIface& cookie);
+    cb::engine_errc checkAndCancelRangeScanCreate(CookieIface& cookie);
 
     /**
      * Get the scan associated with the given id
@@ -401,13 +401,13 @@ private:
     void bgFetch(HashTable::HashBucketLock&& hbl,
                  const DocKey& key,
                  const StoredValue& v,
-                 const CookieIface* cookie,
+                 CookieIface* cookie,
                  EventuallyPersistentEngine& engine,
                  bool isMeta = false) override;
 
     cb::engine_errc addTempItemAndBGFetch(HashTable::HashBucketLock&& hbl,
                                           const DocKey& key,
-                                          const CookieIface* cookie,
+                                          CookieIface* cookie,
                                           EventuallyPersistentEngine& engine,
                                           bool metadataOnly) override;
 
@@ -429,7 +429,7 @@ private:
 
     GetValue getInternalNonResident(HashTable::HashBucketLock&& hbl,
                                     const DocKey& key,
-                                    const CookieIface* cookie,
+                                    CookieIface* cookie,
                                     EventuallyPersistentEngine& engine,
                                     QueueBgFetch queueBgFetch,
                                     const StoredValue& v) override;
