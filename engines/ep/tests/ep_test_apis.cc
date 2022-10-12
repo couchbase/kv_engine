@@ -1259,16 +1259,16 @@ cb::engine_errc replace(EngineIface* h,
         return cb::StoreIfStatus::Continue;
     };
 
-    auto res = h->store_if(*cookie,
-                           *item.get(),
-                           0 /*cas*/,
-                           StoreSemantics::Replace,
-                           predicate,
-                           {} /*durReqs*/,
-                           DocumentState::Alive,
-                           false);
+    auto [status, cas] = h->store_if(*cookie,
+                                     *item.get(),
+                                     0 /*cas*/,
+                                     StoreSemantics::Replace,
+                                     predicate,
+                                     {} /*durReqs*/,
+                                     DocumentState::Alive,
+                                     false);
 
-    return cb::engine_errc(res.status);
+    return status;
 }
 
 cb::engine_errc touch(EngineIface* h, const char* key, Vbid vb, uint32_t exp) {

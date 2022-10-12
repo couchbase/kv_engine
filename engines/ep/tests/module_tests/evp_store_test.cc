@@ -1582,12 +1582,12 @@ TEST_P(EPBucketTest, replaceRequiresEnabledTraffic) {
     EXPECT_EQ(cb::engine_errc::temporary_failure,
               engine->storeIfInner(
                             cookie, item, 0, StoreSemantics::Replace, {}, false)
-                      .status);
+                      .first);
     engine->public_enableTraffic(true);
     EXPECT_EQ(cb::engine_errc::success,
               engine->storeIfInner(
                             cookie, item, 0, StoreSemantics::Replace, {}, false)
-                      .status);
+                      .first);
 }
 
 TEST_P(EPBucketBloomFilterParameterizedTest, store_if_throws) {
@@ -1700,7 +1700,7 @@ TEST_P(EPBucketBloomFilterParameterizedTest, store_if) {
                                                  StoreSemantics::Set,
                                                  test.predicate,
                                                  false)
-                                    .status;
+                                    .first;
         if (test.actualStatus == cb::engine_errc::success) {
             flush_vbucket_to_disk(vbid);
         }
@@ -1728,7 +1728,7 @@ TEST_P(EPBucketBloomFilterParameterizedTest, store_if) {
                                                    i.predicate,
                                                    false);
                 // The second run should result the same as VE
-                EXPECT_EQ(i.expectedVEStatus, status.status);
+                EXPECT_EQ(i.expectedVEStatus, status.first);
             }
         }
     }
@@ -1762,7 +1762,7 @@ TEST_P(EPBucketBloomFilterParameterizedTest, store_if_fe_interleave) {
                                    StoreSemantics::Set,
                                    predicate,
                                    false)
-                      .status);
+                      .first);
 
     // expect another store to the same key to be told the same, even though the
     // first store has populated the store with a temp item
@@ -1773,7 +1773,7 @@ TEST_P(EPBucketBloomFilterParameterizedTest, store_if_fe_interleave) {
                                    StoreSemantics::Set,
                                    predicate,
                                    false)
-                      .status);
+                      .first);
 
     runBGFetcherTask();
     EXPECT_EQ(cb::engine_errc::success,
@@ -1783,7 +1783,7 @@ TEST_P(EPBucketBloomFilterParameterizedTest, store_if_fe_interleave) {
                                    StoreSemantics::Set,
                                    predicate,
                                    false)
-                      .status);
+                      .first);
 }
 
 // Demonstrate the couchstore issue affects get - if we have multiple gets in

@@ -109,10 +109,7 @@ enum class StoreIfStatus {
 using StoreIfPredicate = std::function<StoreIfStatus(
         const std::optional<item_info>&, cb::vbucket_info)>;
 
-struct EngineErrorCasPair {
-    engine_errc status;
-    uint64_t cas;
-};
+using EngineErrorCasPair = std::pair<engine_errc, uint64_t>;
 
 /// Result of getVBucketHlcNow()
 struct HlcTime {

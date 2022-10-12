@@ -4760,15 +4760,15 @@ void DurabilityBucketTest::testUpgradeToMinDurabilityLevel(
                 [](const std::optional<item_info>&, cb::vbucket_info) {
                     return cb::StoreIfStatus::Continue;
                 };
-        const auto res = engine->store_if(*cookie,
-                                          *item.get(),
-                                          0 /*cas*/,
-                                          StoreSemantics::Set,
-                                          predicate,
-                                          reqs,
-                                          DocumentState::Alive,
-                                          false);
-        ASSERT_EQ(cb::engine_errc::would_block, res.status);
+        const auto [status, cas] = engine->store_if(*cookie,
+                                                    *item.get(),
+                                                    0 /*cas*/,
+                                                    StoreSemantics::Set,
+                                                    predicate,
+                                                    reqs,
+                                                    DocumentState::Alive,
+                                                    false);
+        ASSERT_EQ(cb::engine_errc::would_block, status);
         break;
     }
     case EngineOp::Remove: {

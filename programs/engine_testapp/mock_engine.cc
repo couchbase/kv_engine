@@ -41,30 +41,6 @@ static std::pair<cb::engine_errc, T> do_blocking_engine_call(
 }
 
 /*
- * @todo: We can avoid duplicating this code by turning cb::EngineErrorCasPair
- *  from a named structure into a real std::pair<engine_errc, uint64_t>.
- *  Not doing here as it requires touching a bit around.
- */
-static cb::EngineErrorCasPair call_engine_and_handle_EWOULDBLOCK(
-        MockCookie* c,
-        const std::function<cb::EngineErrorCasPair()>& engine_function) {
-    std::unique_lock<std::mutex> lock(c->getMutex());
-
-    auto ret = engine_function();
-    while (ret.status == cb::engine_errc::would_block && c->isEwouldblock()) {
-        const auto status = mock_waitfor_cookie(c);
-
-        if (status == cb::engine_errc::success) {
-            ret = engine_function();
-        } else {
-            return {status, 0};
-        }
-    }
-
-    return ret;
-}
-
-/*
  * @todo: re-factoring of these handlers - can likely reduce the duplication
  * with some work around more functions to abstract how the return type is
  * composed and inspected (is it a pair, a bird a plane?)
@@ -311,7 +287,7 @@ cb::EngineErrorCasPair MockEngine::store_if(
                                     preserveTtl);
     };
     auto* mockCookie = cookie_to_mock_cookie(&cookie);
-    return call_engine_and_handle_EWOULDBLOCK(mockCookie, engine_fn);
+    return do_blocking_engine_call<uint64_t>(mockCookie, engine_fn);
 }
 
 cb::engine_errc MockEngine::flush(const CookieIface& cookie) {

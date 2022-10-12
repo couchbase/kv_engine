@@ -2615,7 +2615,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
         break;
     }
 
-    return {cb::engine_errc(status), item.getCas()};
+    return {status, item.getCas()};
 }
 
 cb::engine_errc EventuallyPersistentEngine::storeInner(
@@ -2624,9 +2624,10 @@ cb::engine_errc EventuallyPersistentEngine::storeInner(
         uint64_t& cas,
         StoreSemantics operation,
         bool preserveTtl) {
-    auto rv = storeIfInner(cookie, itm, cas, operation, {}, preserveTtl);
-    cas = rv.cas;
-    return cb::engine_errc(rv.status);
+    auto [status, _cas] =
+            storeIfInner(cookie, itm, cas, operation, {}, preserveTtl);
+    cas = _cas;
+    return status;
 }
 
 cb::engine_errc EventuallyPersistentEngine::memoryCondition() {

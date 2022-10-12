@@ -132,29 +132,29 @@ cb::EngineErrorCasPair bucket_store_if(
         DocumentState document_state,
         bool preserveTtl) {
     auto& c = cookie.getConnection();
-    auto ret = c.getBucketEngine().store_if(cookie,
-                                            item_,
-                                            cas,
-                                            operation,
-                                            predicate,
-                                            durability,
-                                            document_state,
-                                            preserveTtl);
-    if (ret.status == cb::engine_errc::success) {
+    auto [rstatus, rcas] = c.getBucketEngine().store_if(cookie,
+                                                        item_,
+                                                        cas,
+                                                        operation,
+                                                        predicate,
+                                                        durability,
+                                                        document_state,
+                                                        preserveTtl);
+    if (rstatus == cb::engine_errc::success) {
         using namespace cb::audit::document;
         add(cookie,
             document_state == DocumentState::Alive ? Operation::Modify
                                                    : Operation::Delete);
         cookie.addDocumentWriteBytes(item_.getValueView().size() +
                                      item_.getDocKey().size());
-    } else if (ret.status == cb::engine_errc::disconnect) {
+    } else if (rstatus == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} store_if return cb::engine_errc::disconnect",
                     c.getId(),
                     c.getDescription());
         c.setTerminationReason("Engine forced disconnect");
     }
 
-    return ret;
+    return {rstatus, rcas};
 }
 
 cb::engine_errc bucket_remove(

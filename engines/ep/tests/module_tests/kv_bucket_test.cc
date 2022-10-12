@@ -2148,13 +2148,13 @@ TEST_F(StoreIfTest, store_if_basic) {
             vbid, {"key", DocKeyEncodesCollectionId::No}, "value", 0, 0);
     auto rv = engine->storeIfInner(
             cookie, item, 0, StoreSemantics::Add, pred, false);
-    EXPECT_EQ(cb::engine_errc::success, rv.status);
+    EXPECT_EQ(cb::engine_errc::success, rv.first);
     rv = engine->storeIfInner(
             cookie, item, 0, StoreSemantics::Replace, pred, false);
-    EXPECT_EQ(cb::engine_errc::predicate_failed, rv.status);
+    EXPECT_EQ(cb::engine_errc::predicate_failed, rv.first);
     rv = engine->storeIfInner(
             cookie, item, 0, StoreSemantics::Set, pred, false);
-    EXPECT_EQ(cb::engine_errc::predicate_failed, rv.status);
+    EXPECT_EQ(cb::engine_errc::predicate_failed, rv.first);
 }
 
 class RelativeExpiryLimitTest : public KVBucketTest {

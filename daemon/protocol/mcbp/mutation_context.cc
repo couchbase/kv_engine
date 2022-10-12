@@ -271,42 +271,42 @@ cb::engine_errc MutationCommandContext::allocateNewItem() {
 
 cb::engine_errc MutationCommandContext::storeItem() {
     const auto& request = cookie.getRequest();
-    auto ret = bucket_store_if(cookie,
-                               *newitem,
-                               input_cas,
-                               operation,
-                               store_if_predicate,
-                               request.getDurabilityRequirements(),
-                               DocumentState::Alive,
-                               cookie.isPreserveTtl());
-    if (ret.status == cb::engine_errc::success) {
-        cookie.setCas(ret.cas);
+    auto [status, cas] = bucket_store_if(cookie,
+                                         *newitem,
+                                         input_cas,
+                                         operation,
+                                         store_if_predicate,
+                                         request.getDurabilityRequirements(),
+                                         DocumentState::Alive,
+                                         cookie.isPreserveTtl());
+    if (status == cb::engine_errc::success) {
+        cookie.setCas(cas);
         state = State::SendResponse;
-    } else if (ret.status == cb::engine_errc::predicate_failed) {
+    } else if (status == cb::engine_errc::predicate_failed) {
         // predicate failed because xattrs are present
         state = State::GetExistingItemToPreserveXattr;
 
         // Mark as success and we'll move to the next state
-        ret.status = cb::engine_errc::success;
+        status = cb::engine_errc::success;
 
         // Next time we store - we force it
         store_if_predicate = nullptr;
-    } else if (ret.status == cb::engine_errc::not_stored) {
+    } else if (status == cb::engine_errc::not_stored) {
         // Need to remap error for add and replace
         if (operation == StoreSemantics::Add) {
-            ret.status = cb::engine_errc::key_already_exists;
+            status = cb::engine_errc::key_already_exists;
         } else if (operation == StoreSemantics::Replace) {
-            ret.status = cb::engine_errc::no_such_key;
+            status = cb::engine_errc::no_such_key;
         }
-    } else if (ret.status == cb::engine_errc::key_already_exists &&
+    } else if (status == cb::engine_errc::key_already_exists &&
                input_cas == 0) {
         // We failed due to CAS mismatch, and the user did not specify
         // the CAS, retry the operation.
         state = State::Reset;
-        ret.status = cb::engine_errc::success;
+        status = cb::engine_errc::success;
     }
 
-    return cb::engine_errc(ret.status);
+    return status;
 }
 
 cb::engine_errc MutationCommandContext::sendResponse() {
