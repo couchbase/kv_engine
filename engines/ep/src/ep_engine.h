@@ -421,8 +421,8 @@ public:
      * @returns cb::engine_errc::success if the delete was successful or
      *          an error code indicating the error
      */
-    cb::engine_errc itemDelete(
-            CookieIface* cookie,
+    cb::engine_errc removeInner(
+            CookieIface& cookie,
             const DocKey& key,
             uint64_t& cas,
             Vbid vbucket,

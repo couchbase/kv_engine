@@ -2178,7 +2178,7 @@ cb::engine_errc VBucket::deleteItem(
     // For pending SyncDeletes we initially return
     // cb::engine_errc::sync_write_pending; will notify client when request is
     // committed / aborted later. This is effectively EWOULDBLOCK, but needs to
-    // be distinguishable by the ep-engine caller (itemDelete) from EWOULDBLOCK
+    // be distinguishable by the ep-engine caller (removeInner) from EWOULDBLOCK
     // for bg-fetch
     auto ret = durability ? cb::engine_errc::sync_write_pending
                           : cb::engine_errc::success;

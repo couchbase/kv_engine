@@ -260,8 +260,8 @@ cb::engine_errc EventuallyPersistentEngine::remove(
         }
     }
 
-    return acquireEngine(this)->itemDelete(
-            &cookie, key, cas, vbucket, durReqs, mut_info);
+    return acquireEngine(this)->removeInner(
+            cookie, key, cas, vbucket, durReqs, mut_info);
 }
 
 void EventuallyPersistentEngine::release(ItemIface& itm) {
@@ -2223,15 +2223,15 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::itemAllocate(
     }
 }
 
-cb::engine_errc EventuallyPersistentEngine::itemDelete(
-        CookieIface* cookie,
+cb::engine_errc EventuallyPersistentEngine::removeInner(
+        CookieIface& cookie,
         const DocKey& key,
         uint64_t& cas,
         Vbid vbucket,
         std::optional<cb::durability::Requirements> durability,
         mutation_descr_t& mut_info) {
     if (sanityCheckVBucketMapping) {
-        validateKeyMapping("EventuallyPersistentEngine::itemDelete",
+        validateKeyMapping("EventuallyPersistentEngine::removeInner",
                            vBucketMappingErrorHandlingMethod,
                            key,
                            vbucket,
@@ -2242,7 +2242,7 @@ cb::engine_errc EventuallyPersistentEngine::itemDelete(
     // (see 'case EWOULDBLOCK' at the end of this function where we record
     // the fact we must block the client until the SycnWrite is durable).
     if (durability) {
-        auto deletedCas = takeEngineSpecific<uint64_t>(cookie);
+        auto deletedCas = takeEngineSpecific<uint64_t>(&cookie);
         if (deletedCas.has_value()) {
             // Non-null means this is the second call to this function after
             // the SyncWrite has completed. Return SUCCESS.
@@ -2255,7 +2255,7 @@ cb::engine_errc EventuallyPersistentEngine::itemDelete(
     }
 
     cb::engine_errc ret = kvBucket->deleteItem(
-            key, cas, vbucket, cookie, durability, nullptr, mut_info);
+            key, cas, vbucket, &cookie, durability, nullptr, mut_info);
 
     switch (ret) {
     case cb::engine_errc::no_such_key:
@@ -2273,7 +2273,7 @@ cb::engine_errc EventuallyPersistentEngine::itemDelete(
             // the result of the SyncWrite (see call to getEngineSpecific at
             // the head of this function).
             // (just store non-null value to indicate this).
-            storeEngineSpecific(cookie, cas);
+            storeEngineSpecific(&cookie, cas);
         }
         ret = cb::engine_errc::would_block;
         break;
