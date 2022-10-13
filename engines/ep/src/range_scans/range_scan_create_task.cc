@@ -59,7 +59,7 @@ bool RangeScanCreateTask::run() {
         status = cb::engine_errc(e.code().value());
         // create failure, clear out cookie (this object will free the data
         // which was "there")
-        engine->clearEngineSpecific(&cookie);
+        engine->clearEngineSpecific(cookie);
     }
 
     // On success, release the scanData. The frontend thread will retrieve and

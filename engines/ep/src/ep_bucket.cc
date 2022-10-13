@@ -1491,7 +1491,7 @@ bool EPBucket::doCompact(Vbid vbid,
         // code returned in notifyIOComplete is != success so we need to
         // do all of the clean-up here.
         for (const auto& cookie : cookies) {
-            engine.clearEngineSpecific(cookie);
+            engine.clearEngineSpecific(*cookie);
         }
     }
 
@@ -2336,7 +2336,7 @@ bool EPBucket::isValidBucketDurabilityLevel(cb::durability::Level level) const {
 bool EPBucket::maybeScheduleManifestPersistence(
         CookieIface* cookie,
         std::unique_ptr<Collections::Manifest>& newManifest) {
-    getEPEngine().storeEngineSpecific(cookie, newManifest.get());
+    getEPEngine().storeEngineSpecific(*cookie, newManifest.get());
 
     ExTask task = std::make_shared<Collections::PersistManifestTask>(
             *this, std::move(newManifest), cookie);

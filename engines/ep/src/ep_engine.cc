@@ -1105,7 +1105,7 @@ cb::engine_errc EventuallyPersistentEngine::compactDatabaseInner(
         uint64_t purge_before_ts,
         uint64_t purge_before_seq,
         bool drop_deletes) {
-    if (takeEngineSpecific<ScheduledCompactionToken>(&cookie)) {
+    if (takeEngineSpecific<ScheduledCompactionToken>(cookie)) {
         // This is a completion of a compaction. We cleared the engine-specific
         return cb::engine_errc::success;
     }
@@ -1116,7 +1116,7 @@ cb::engine_errc EventuallyPersistentEngine::compactDatabaseInner(
     ++stats.pendingCompactions;
     // Set something in the EngineSpecfic so we can determine which phase of the
     // command is executing.
-    storeEngineSpecific(&cookie, ScheduledCompactionToken{});
+    storeEngineSpecific(cookie, ScheduledCompactionToken{});
 
     // returns would_block for success or another status (e.g. nmvb)
     const auto status = scheduleCompaction(vbid, compactionConfig, &cookie);
@@ -1125,7 +1125,7 @@ cb::engine_errc EventuallyPersistentEngine::compactDatabaseInner(
     if (status != cb::engine_errc::would_block) {
         --stats.pendingCompactions;
         // failed, clear the engine-specific
-        clearEngineSpecific(&cookie);
+        clearEngineSpecific(cookie);
         EP_LOG_WARN("Compaction of {} failed: {}", vbid, status);
     }
 
@@ -2242,7 +2242,7 @@ cb::engine_errc EventuallyPersistentEngine::removeInner(
     // (see 'case EWOULDBLOCK' at the end of this function where we record
     // the fact we must block the client until the SycnWrite is durable).
     if (durability) {
-        auto deletedCas = takeEngineSpecific<uint64_t>(&cookie);
+        auto deletedCas = takeEngineSpecific<uint64_t>(cookie);
         if (deletedCas.has_value()) {
             // Non-null means this is the second call to this function after
             // the SyncWrite has completed. Return SUCCESS.
@@ -2273,7 +2273,7 @@ cb::engine_errc EventuallyPersistentEngine::removeInner(
             // the result of the SyncWrite (see call to getEngineSpecific at
             // the head of this function).
             // (just store non-null value to indicate this).
-            storeEngineSpecific(&cookie, cas);
+            storeEngineSpecific(cookie, cas);
         }
         ret = cb::engine_errc::would_block;
         break;
@@ -2517,7 +2517,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
     // (see 'case EWOULDBLOCK' at the end of this function where we record
     // the fact we must block the client until the SyncWrite is durable).
     if (item.isPending()) {
-        auto cookieCas = takeEngineSpecific<uint64_t>(&cookie);
+        auto cookieCas = takeEngineSpecific<uint64_t>(cookie);
         if (cookieCas.has_value()) {
             // Non-null means this is the second call to this function after
             // the SyncWrite has completed. Return SUCCESS.
@@ -2590,7 +2590,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
             // the result of the SyncWrite (see call to getEngineSpecific at
             // the head of this function. Store the cas of the item so that we
             // can return it to the client later.
-            storeEngineSpecific(&cookie, item.getCas());
+            storeEngineSpecific(cookie, item.getCas());
         }
         status = cb::engine_errc::would_block;
         break;
@@ -4358,7 +4358,7 @@ void EventuallyPersistentEngine::addSeqnoVbStats(CookieIface& cookie,
 
 void EventuallyPersistentEngine::addLookupResult(CookieIface* cookie,
                                                  std::unique_ptr<Item> result) {
-    auto oldItem = takeEngineSpecific<std::unique_ptr<Item>>(cookie);
+    auto oldItem = takeEngineSpecific<std::unique_ptr<Item>>(*cookie);
     // Check for old lookup results and clear them
     if (oldItem) {
         if (*oldItem) {
@@ -4369,14 +4369,14 @@ void EventuallyPersistentEngine::addLookupResult(CookieIface* cookie,
         }
     }
 
-    storeEngineSpecific(cookie, std::move(result));
+    storeEngineSpecific(*cookie, std::move(result));
 }
 
 bool EventuallyPersistentEngine::fetchLookupResult(CookieIface* cookie,
                                                    std::unique_ptr<Item>& itm) {
     // This will return *and erase* the lookup result for a connection.
     // You look it up, you own it.
-    auto es = takeEngineSpecific<std::unique_ptr<Item>>(cookie);
+    auto es = takeEngineSpecific<std::unique_ptr<Item>>(*cookie);
     if (es) {
         itm = std::move(*es);
         return true;
@@ -5221,7 +5221,7 @@ cb::engine_errc EventuallyPersistentEngine::handleSeqnoPersistence(
     auto extras = req.getExtdata();
     uint64_t seqno = ntohll(*reinterpret_cast<const uint64_t*>(extras.data()));
 
-    if (!getEngineSpecific<ScheduledSeqnoPersistenceToken>(cookie)) {
+    if (!getEngineSpecific<ScheduledSeqnoPersistenceToken>(*cookie)) {
         auto persisted_seqno = vb->getPersistenceSeqno();
         if (seqno > persisted_seqno) {
             const auto res = vb->checkAddHighPriorityVBEntry(
@@ -5232,7 +5232,7 @@ cb::engine_errc EventuallyPersistentEngine::handleSeqnoPersistence(
 
             switch (res) {
             case HighPriorityVBReqStatus::RequestScheduled:
-                storeEngineSpecific(cookie, ScheduledSeqnoPersistenceToken{});
+                storeEngineSpecific(*cookie, ScheduledSeqnoPersistenceToken{});
                 return cb::engine_errc::would_block;
 
             case HighPriorityVBReqStatus::NotSupported:
@@ -5259,7 +5259,7 @@ cb::engine_errc EventuallyPersistentEngine::handleSeqnoPersistence(
             }
         }
     } else {
-        clearEngineSpecific(cookie);
+        clearEngineSpecific(*cookie);
         EP_LOG_DEBUG("Sequence number {} persisted for {}", seqno, vbucket);
     }
 
@@ -5439,7 +5439,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
     {
         auto startTimeC =
                 takeEngineSpecific<std::chrono::steady_clock::time_point>(
-                        cookie);
+                        *cookie);
         if (startTimeC.has_value()) {
             startTime = *startTimeC;
         } else {
@@ -5505,7 +5505,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
         return memoryCondition();
     } else if (ret == cb::engine_errc::would_block) {
         ++stats.numOpsGetMetaOnSetWithMeta;
-        storeEngineSpecific(cookie, startTime);
+        storeEngineSpecific(*cookie, startTime);
         return ret;
     } else {
         // Let the framework generate the error message
@@ -6353,7 +6353,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteVBucketInner(
         return cb::engine_errc::would_block;
     }
 
-    auto es = takeEngineSpecific<ScheduledVBucketDeleteToken>(&cookie);
+    auto es = takeEngineSpecific<ScheduledVBucketDeleteToken>(cookie);
 
     if (sync) {
         if (es.has_value()) {
@@ -6392,7 +6392,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteVBucketInner(
                 vbid);
         // We don't use the actual value in ewouldblock, just the existence
         // of something there.
-        storeEngineSpecific(&cookie, ScheduledVBucketDeleteToken{});
+        storeEngineSpecific(cookie, ScheduledVBucketDeleteToken{});
         break;
     default:
         EP_LOG_WARN("Deletion of {} failed because of unknown reasons", vbid);

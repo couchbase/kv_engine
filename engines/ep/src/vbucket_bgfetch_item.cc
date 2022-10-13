@@ -52,7 +52,7 @@ void FrontEndBGFetchItem::abort(
         cb::engine_errc status,
         std::map<CookieIface*, cb::engine_errc>& toNotify) const {
     toNotify[cookie] = status;
-    engine.clearEngineSpecific(cookie);
+    engine.clearEngineSpecific(*cookie);
 }
 
 void CompactionBGFetchItem::complete(

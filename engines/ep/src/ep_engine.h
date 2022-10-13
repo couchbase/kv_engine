@@ -543,9 +543,8 @@ public:
      * @throws std::bad_cast if the stored value is not of type T.
      */
     template <typename T>
-    std::optional<T> getEngineSpecific(CookieIface* cookie) {
-        Expects(cookie);
-        auto* es = cookie->getEngineStorage();
+    std::optional<T> getEngineSpecific(CookieIface& cookie) {
+        auto* es = cookie.getEngineStorage();
         if (!es) {
             return {};
         }
@@ -559,9 +558,8 @@ public:
      * value is lost in this case.
      */
     template <typename T>
-    std::optional<T> takeEngineSpecific(CookieIface* cookie) {
-        Expects(cookie);
-        auto es = cookie->takeEngineStorage();
+    std::optional<T> takeEngineSpecific(CookieIface& cookie) {
+        auto es = cookie.takeEngineStorage();
         if (!es) {
             return {};
         }
@@ -569,25 +567,19 @@ public:
         return dynamic_cast<EPEngineStorage<T>&>(*es).take();
     }
 
-    /**
-     * Stores the value in the engine specific storage.
-     */
+    /// Stores the value in the engine specific storage.
     template <typename T>
-    void storeEngineSpecific(CookieIface* cookie, T&& value) {
-        Expects(cookie);
+    void storeEngineSpecific(CookieIface& cookie, T&& value) {
         // TODO: We should be able to assert that getCurrentEngine() == this
         // here, but that is not always true in many of our tests
         cb::unique_engine_storage_ptr p(
                 new EPEngineStorage<std::decay_t<T>>(std::forward<T>(value)));
-        cookie->setEngineStorage(std::move(p));
+        cookie.setEngineStorage(std::move(p));
     }
 
-    /**
-     * Clears the engine specific storage.
-     */
-    void clearEngineSpecific(CookieIface* cookie) {
-        Expects(cookie);
-        cookie->setEngineStorage({});
+    /// Clears the engine specific storage.
+    void clearEngineSpecific(CookieIface& cookie) {
+        cookie.setEngineStorage({});
     }
 
     void setErrorContext(CookieIface& cookie, std::string_view message);

@@ -4074,7 +4074,7 @@ std::map<CookieIface*, cb::engine_errc> VBucket::tmpFailAndGetAllHpNotifies(
 
     for (auto& entry : hpVBReqs) {
         toNotify[entry->cookie] = cb::engine_errc::temporary_failure;
-        engine.clearEngineSpecific(entry->cookie);
+        engine.clearEngineSpecific(*entry->cookie);
     }
     hpVBReqs.clear();
 

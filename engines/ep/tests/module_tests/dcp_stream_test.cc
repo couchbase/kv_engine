@@ -274,7 +274,7 @@ TEST_P(StreamTest, VerifyProducerStats) {
     // Clear our cookie, we don't actually care about the cas of the item but
     // this is necessary to allow us to enqueue our next abort (which uses the
     // same cookie)
-    engine->clearEngineSpecific(cookie);
+    engine->clearEngineSpecific(*cookie);
 
     auto prepareToAbort = store_pending_item(vbid, "pending2", "value4", reqs);
     ASSERT_EQ(cb::engine_errc::success,

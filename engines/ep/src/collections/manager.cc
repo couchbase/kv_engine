@@ -48,7 +48,7 @@ cb::engine_error Collections::Manager::update(
 
     // Now getEngineSpecific - if that is null this is a new command, else
     // it's the IO complete command
-    auto manifest = bucket.getEPEngine().takeEngineSpecific<Manifest*>(cookie);
+    auto manifest = bucket.getEPEngine().takeEngineSpecific<Manifest*>(*cookie);
 
     if (manifest.has_value()) {
         // I/O complete path?
@@ -212,7 +212,7 @@ void Collections::Manager::updatePersistManifestTaskDone(
     if (status != cb::engine_errc::success) {
         auto lockedUpdateCookie = updateInProgress.wlock();
         *lockedUpdateCookie = nullptr;
-        engine.clearEngineSpecific(cookie);
+        engine.clearEngineSpecific(*cookie);
     }
 }
 
