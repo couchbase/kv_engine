@@ -503,7 +503,7 @@ public:
                             std::string_view stream_name,
                             std::string_view value);
 
-    cb::engine_errc dcpAddStream(CookieIface* cookie,
+    cb::engine_errc dcpAddStream(CookieIface& cookie,
                                  uint32_t opaque,
                                  Vbid vbucket,
                                  uint32_t flags);
