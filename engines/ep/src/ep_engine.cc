@@ -1158,7 +1158,7 @@ cb::engine_errc EventuallyPersistentEngine::processUnknownCommandInner(
     case cb::mcbp::ClientOpcode::ObserveSeqno:
         return observe_seqno(cookie, request, response);
     case cb::mcbp::ClientOpcode::SeqnoPersistence:
-        return handleSeqnoPersistence(&cookie, request, response);
+        return handleSeqnoPersistence(cookie, request, response);
     case cb::mcbp::ClientOpcode::SetWithMeta:
     case cb::mcbp::ClientOpcode::SetqWithMeta:
     case cb::mcbp::ClientOpcode::AddWithMeta:
@@ -5211,7 +5211,7 @@ VBucketPtr EventuallyPersistentEngine::getVBucket(Vbid vbucket) const {
 }
 
 cb::engine_errc EventuallyPersistentEngine::handleSeqnoPersistence(
-        CookieIface* cookie,
+        CookieIface& cookie,
         const cb::mcbp::Request& req,
         const AddResponseFn& response) {
     const Vbid vbucket = req.getVBucket();
@@ -5224,18 +5224,18 @@ cb::engine_errc EventuallyPersistentEngine::handleSeqnoPersistence(
     auto extras = req.getExtdata();
     uint64_t seqno = ntohll(*reinterpret_cast<const uint64_t*>(extras.data()));
 
-    if (!getEngineSpecific<ScheduledSeqnoPersistenceToken>(*cookie)) {
+    if (!getEngineSpecific<ScheduledSeqnoPersistenceToken>(cookie)) {
         auto persisted_seqno = vb->getPersistenceSeqno();
         if (seqno > persisted_seqno) {
             const auto res = vb->checkAddHighPriorityVBEntry(
                     std::make_unique<SeqnoPersistenceRequest>(
-                            cookie,
+                            &cookie,
                             seqno,
                             kvBucket->getSeqnoPersistenceTimeout()));
 
             switch (res) {
             case HighPriorityVBReqStatus::RequestScheduled:
-                storeEngineSpecific(*cookie, ScheduledSeqnoPersistenceToken{});
+                storeEngineSpecific(cookie, ScheduledSeqnoPersistenceToken{});
                 return cb::engine_errc::would_block;
 
             case HighPriorityVBReqStatus::NotSupported:
@@ -5262,7 +5262,7 @@ cb::engine_errc EventuallyPersistentEngine::handleSeqnoPersistence(
             }
         }
     } else {
-        clearEngineSpecific(*cookie);
+        clearEngineSpecific(cookie);
         EP_LOG_DEBUG("Sequence number {} persisted for {}", seqno, vbucket);
     }
 
@@ -5273,7 +5273,7 @@ cb::engine_errc EventuallyPersistentEngine::handleSeqnoPersistence(
                         PROTOCOL_BINARY_RAW_BYTES,
                         status,
                         0,
-                        *cookie);
+                        cookie);
 }
 
 cb::EngineErrorMetadataPair EventuallyPersistentEngine::getMetaInner(

@@ -697,7 +697,7 @@ public:
         return configuration;
     }
 
-    cb::engine_errc handleSeqnoPersistence(CookieIface* cookie,
+    cb::engine_errc handleSeqnoPersistence(CookieIface& cookie,
                                            const cb::mcbp::Request& req,
                                            const AddResponseFn& response);
 
