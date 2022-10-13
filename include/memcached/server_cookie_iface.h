@@ -104,10 +104,6 @@ struct ServerCookieIface {
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) = 0;
 
-    virtual cb::rbac::PrivilegeAccess
-    check_for_privilege_at_least_in_one_collection(
-            CookieIface& cookie, cb::rbac::Privilege privilege) = 0;
-
     /**
      * Set the size of the DCP flow control buffer size used by this
      * DCP producer

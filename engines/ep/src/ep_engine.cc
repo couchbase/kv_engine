@@ -4957,9 +4957,7 @@ cb::engine_errc
 EventuallyPersistentEngine::checkForPrivilegeAtLeastInOneCollection(
         CookieIface& cookie, cb::rbac::Privilege privilege) const {
     try {
-        switch (serverApi->cookie
-                        ->check_for_privilege_at_least_in_one_collection(
-                                cookie, privilege)
+        switch (cookie.checkForPrivilegeAtLeastInOneCollection(privilege)
                         .getStatus()) {
         case cb::rbac::PrivilegeAccess::Status::Ok:
             return cb::engine_errc::success;

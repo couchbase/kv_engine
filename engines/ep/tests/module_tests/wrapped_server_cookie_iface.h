@@ -66,11 +66,6 @@ public:
             std::optional<CollectionID> cid) override {
         return wrapped->check_privilege(cookie, privilege, sid, cid);
     }
-    cb::rbac::PrivilegeAccess check_for_privilege_at_least_in_one_collection(
-            CookieIface& cookie, cb::rbac::Privilege privilege) override {
-        return wrapped->check_for_privilege_at_least_in_one_collection(
-                cookie, privilege);
-    }
     uint32_t get_privilege_context_revision(CookieIface& cookie) override {
         return wrapped->get_privilege_context_revision(cookie);
     }
