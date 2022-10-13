@@ -310,7 +310,7 @@ size_t RangeScan::tryAndScanOneKey(KVStoreIface& kvstore) {
 cb::engine_errc RangeScan::hasPrivilege(
         CookieIface& cookie, const EventuallyPersistentEngine& engine) {
     // @todo: change to Privilege::RangeScan
-    return engine.checkPrivilege(&cookie,
+    return engine.checkPrivilege(cookie,
                                  cb::rbac::Privilege::Read,
                                  start.getDocKey().getCollectionID());
 }

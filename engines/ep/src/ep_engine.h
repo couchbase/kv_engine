@@ -878,7 +878,7 @@ public:
     /**
      * Check the access for the given privilege for the bucket.scope.collection
      */
-    cb::engine_errc checkPrivilege(CookieIface* cookie,
+    cb::engine_errc checkPrivilege(CookieIface& cookie,
                                    cb::rbac::Privilege priv,
                                    std::optional<ScopeID> sid,
                                    std::optional<CollectionID> cid) const;
@@ -887,7 +887,7 @@ public:
      * Check the access for the given privilege for the collection. The function
      * locates the scope of the collection
      */
-    cb::engine_errc checkPrivilege(CookieIface* cookie,
+    cb::engine_errc checkPrivilege(CookieIface& cookie,
                                    cb::rbac::Privilege priv,
                                    CollectionID) const;
 
@@ -904,7 +904,7 @@ public:
     /**
      * @return the privilege revision, which changes when privileges do.
      */
-    uint32_t getPrivilegeRevision(CookieIface* cookie) const;
+    uint32_t getPrivilegeRevision(CookieIface& cookie) const;
 
     cb::engine_errc doRangeScanStats(const BucketStatCollector& collector,
                                      std::string_view statKey);
@@ -942,7 +942,7 @@ protected:
     /**
      * Check the access for the given privilege for the given key
      */
-    cb::engine_errc checkPrivilege(CookieIface* cookie,
+    cb::engine_errc checkPrivilege(CookieIface& cookie,
                                    cb::rbac::Privilege priv,
                                    DocKey key) const;
 
@@ -1355,7 +1355,7 @@ protected:
      * @return status success or no_access
      */
     cb::engine_errc doGetAllVbSeqnosPrivilegeCheck(
-            CookieIface* cookie, std::optional<CollectionID> collection);
+            CookieIface& cookie, std::optional<CollectionID> collection);
 
 private:
     void doEngineStatsCouchDB(const StatCollector& collector,

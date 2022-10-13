@@ -4042,7 +4042,7 @@ cb::engine_errc EventuallyPersistentEngine::doKeyStats(
         Vbid vbid,
         const DocKey& key,
         bool validate) {
-    auto rv = checkPrivilege(&cookie, cb::rbac::Privilege::Read, key);
+    auto rv = checkPrivilege(cookie, cb::rbac::Privilege::Read, key);
     if (rv != cb::engine_errc::success) {
         return rv;
     }
@@ -4900,12 +4900,12 @@ void EventuallyPersistentEngine::resetStats() {
 }
 
 cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
-        CookieIface* cookie, cb::rbac::Privilege priv, DocKey key) const {
-    return cb::engine_errc(checkPrivilege(cookie, priv, key.getCollectionID()));
+        CookieIface& cookie, cb::rbac::Privilege priv, DocKey key) const {
+    return checkPrivilege(cookie, priv, key.getCollectionID());
 }
 
 cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
-        CookieIface* cookie, cb::rbac::Privilege priv, CollectionID cid) const {
+        CookieIface& cookie, cb::rbac::Privilege priv, CollectionID cid) const {
     ScopeID sid{ScopeID::Default};
     uint64_t manifestUid{0};
     cb::engine_errc status = cb::engine_errc::success;
@@ -4929,7 +4929,7 @@ cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
     case cb::engine_errc::no_access:
         break;
     case cb::engine_errc::unknown_collection:
-        setUnknownCollectionErrorContext(*cookie, manifestUid);
+        setUnknownCollectionErrorContext(cookie, manifestUid);
         break;
     default:
         EP_LOG_ERR(
@@ -4967,12 +4967,15 @@ EventuallyPersistentEngine::checkForPrivilegeAtLeastInOneCollection(
 }
 
 cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
-        CookieIface* cookie,
+        CookieIface& cookie,
         cb::rbac::Privilege priv,
         std::optional<ScopeID> sid,
         std::optional<CollectionID> cid) const {
     try {
-        switch (serverApi->cookie->check_privilege(*cookie, priv, sid, cid)
+        // Upon failure check_privilege may set an error message in the
+        // cookie about the missing privilege
+        NonBucketAllocationGuard guard;
+        switch (serverApi->cookie->check_privilege(cookie, priv, sid, cid)
                         .getStatus()) {
         case cb::rbac::PrivilegeAccess::Status::Ok:
             return cb::engine_errc::success;
@@ -5023,8 +5026,8 @@ cb::engine_errc EventuallyPersistentEngine::testPrivilege(
  * @return the privilege revision, which changes when privileges do.
  */
 uint32_t EventuallyPersistentEngine::getPrivilegeRevision(
-        CookieIface* cookie) const {
-    return serverApi->cookie->get_privilege_context_revision(*cookie);
+        CookieIface& cookie) const {
+    return serverApi->cookie->get_privilege_context_revision(cookie);
 }
 
 cb::engine_errc EventuallyPersistentEngine::observe(
@@ -5070,7 +5073,7 @@ cb::engine_errc EventuallyPersistentEngine::observe(
                      cb::UserDataView(key.to_string()),
                      vb_id);
 
-        auto rv = checkPrivilege(&cookie, cb::rbac::Privilege::Read, key);
+        auto rv = checkPrivilege(cookie, cb::rbac::Privilege::Read, key);
         if (rv != cb::engine_errc::success) {
             return rv;
         }
@@ -6114,7 +6117,7 @@ cb::engine_errc EventuallyPersistentEngine::getAllKeys(
 
     DocKey start_key = makeDocKey(cookie, request.getKey());
     auto privTestResult =
-            checkPrivilege(&cookie, cb::rbac::Privilege::Read, start_key);
+            checkPrivilege(cookie, cb::rbac::Privilege::Read, start_key);
     if (privTestResult != cb::engine_errc::success) {
         return privTestResult;
     }
@@ -6177,7 +6180,7 @@ cb::engine_errc EventuallyPersistentEngine::getRandomKey(
         cid = payload.getCollectionId();
     }
 
-    auto priv = checkPrivilege(cookie, cb::rbac::Privilege::Read, cid);
+    auto priv = checkPrivilege(*cookie, cb::rbac::Privilege::Read, cid);
     if (priv != cb::engine_errc::success) {
         return cb::engine_errc(priv);
     }
@@ -6467,7 +6470,7 @@ cb::engine_errc EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
     }
 
     if (auto accessStatus =
-                doGetAllVbSeqnosPrivilegeCheck(cookie, reqCollection);
+                doGetAllVbSeqnosPrivilegeCheck(*cookie, reqCollection);
         accessStatus != cb::engine_errc::success) {
         return accessStatus;
     }
@@ -6558,7 +6561,7 @@ cb::engine_errc EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
 }
 
 cb::engine_errc EventuallyPersistentEngine::doGetAllVbSeqnosPrivilegeCheck(
-        CookieIface* cookie, std::optional<CollectionID> collection) {
+        CookieIface& cookie, std::optional<CollectionID> collection) {
     // 1) Clients that have not enabled collections (i.e. HELLO(collections)).
     //   The client is directed to operate only against the default collection
     //   and they are permitted to use GetAllVbSeqnos with Read access to the
@@ -6570,7 +6573,7 @@ cb::engine_errc EventuallyPersistentEngine::doGetAllVbSeqnosPrivilegeCheck(
     // 3) Clients that have enabked collections making a bucket request can
     //    use GetAllVbSeqnos as long as they have at least Read privilege
     //    for one collection/scope in the bucket
-    if (!cookie->isCollectionsSupported()) {
+    if (!cookie.isCollectionsSupported()) {
         auto accessStatus = checkPrivilege(cookie,
                                            cb::rbac::Privilege::Read,
                                            ScopeID::Default,
@@ -6592,7 +6595,7 @@ cb::engine_errc EventuallyPersistentEngine::doGetAllVbSeqnosPrivilegeCheck(
                 cookie, cb::rbac::Privilege::Read, collection.value());
     }
 
-    return checkForPrivilegeAtLeastInOneCollection(*cookie,
+    return checkForPrivilegeAtLeastInOneCollection(cookie,
                                                    cb::rbac::Privilege::Read);
 }
 
