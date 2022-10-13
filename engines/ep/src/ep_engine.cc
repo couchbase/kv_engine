@@ -1061,17 +1061,17 @@ cb::engine_errc EventuallyPersistentEngine::setVBucketInner(
 }
 
 cb::engine_errc EventuallyPersistentEngine::getReplicaCmd(
+        CookieIface& cookie,
         const cb::mcbp::Request& request,
-        const AddResponseFn& response,
-        CookieIface* cookie) {
-    DocKey key = makeDocKey(*cookie, request.getKey());
+        const AddResponseFn& response) {
+    DocKey key = makeDocKey(cookie, request.getKey());
 
     auto options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS);
 
     GetValue rv(getKVBucket()->getReplica(
-            key, request.getVBucket(), cookie, options));
+            key, request.getVBucket(), &cookie, options));
     auto error_code = rv.getStatus();
     if (error_code != cb::engine_errc::would_block) {
         ++(getEpStats().numOpsGet);
@@ -1081,8 +1081,8 @@ cb::engine_errc EventuallyPersistentEngine::getReplicaCmd(
         uint32_t flags = rv.item->getFlags();
         ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
         guardedIface.audit_document_access(
-                *cookie, cb::audit::document::Operation::Read);
-        cookie->addDocumentReadBytes(rv.item->getNBytes());
+                cookie, cb::audit::document::Operation::Read);
+        cookie.addDocumentReadBytes(rv.item->getNBytes());
         return sendResponse(
                 response,
                 rv.item->getKey(), // key
@@ -1091,7 +1091,7 @@ cb::engine_errc EventuallyPersistentEngine::getReplicaCmd(
                 rv.item->getDataType(),
                 cb::mcbp::Status::Success,
                 rv.item->getCas(),
-                *cookie);
+                cookie);
     } else if (error_code == cb::engine_errc::temporary_failure) {
         return cb::engine_errc::no_such_key;
     }
@@ -1170,7 +1170,7 @@ cb::engine_errc EventuallyPersistentEngine::processUnknownCommandInner(
     case cb::mcbp::ClientOpcode::ReturnMeta:
         return returnMeta(cookie, request, response);
     case cb::mcbp::ClientOpcode::GetReplica:
-        return getReplicaCmd(request, response, &cookie);
+        return getReplicaCmd(cookie, request, response);
     case cb::mcbp::ClientOpcode::EnableTraffic:
     case cb::mcbp::ClientOpcode::DisableTraffic:
         return handleTrafficControlCmd(cookie, request, response);

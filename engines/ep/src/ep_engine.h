@@ -646,9 +646,9 @@ public:
                                     const std::string& val,
                                     std::string& msg);
 
-    cb::engine_errc getReplicaCmd(const cb::mcbp::Request& request,
-                                  const AddResponseFn& response,
-                                  CookieIface* cookie);
+    cb::engine_errc getReplicaCmd(CookieIface& cookie,
+                                  const cb::mcbp::Request& request,
+                                  const AddResponseFn& response);
 
     EPStats& getEpStats() {
         return stats;
