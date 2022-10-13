@@ -302,8 +302,11 @@ public:
 
     /**
      * Setup a SeqnoPersistenceRequest using the RangeScanSnapshotRequirements
+     *
+     * @return the status of checkAddHighPriorityVBEntry as a task may not of
+     *         been scheduled
      */
-    void createRangeScanWait(
+    HighPriorityVBReqStatus createRangeScanWait(
             const cb::rangescan::SnapshotRequirements& requirements,
             CookieIface& cookie);
 

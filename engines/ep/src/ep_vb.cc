@@ -1258,12 +1258,16 @@ std::pair<cb::engine_errc, cb::rangescan::Id> EPVBucket::createRangeScan(
     if (snapshotReqs && getPersistenceSeqno() < snapshotReqs->seqno &&
         rangeScanCreateData->state == RangeScanCreateState::Pending) {
         if (snapshotReqs->timeout) {
-            rangeScanCreateData->state =
-                    RangeScanCreateState::WaitForPersistence;
-            createRangeScanWait(*snapshotReqs, cookie);
-            // release the data, it's now 'owned' by the cookie
-            rangeScanCreateData.release();
-            return {cb::engine_errc::would_block, {}};
+            auto status = createRangeScanWait(*snapshotReqs, cookie);
+            Expects(status != HighPriorityVBReqStatus::NotSupported);
+            if (status == HighPriorityVBReqStatus::RequestScheduled) {
+                rangeScanCreateData->state =
+                        RangeScanCreateState::WaitForPersistence;
+                // release the data, it's now 'owned' by the cookie
+                rangeScanCreateData.release();
+                // waiting for persistence...
+                return {cb::engine_errc::would_block, {}};
+            } // else the seqno is now persisted, we can continue to create
         } else {
             bucket->getEPEngine().clearEngineSpecific(&cookie);
             // No timeout, fail command here. This is the same return code as
@@ -1306,7 +1310,7 @@ EPVBucket::createRangeScanComplete(
     return {cb::engine_errc::success, rangeScanCreateData->uuid};
 }
 
-void EPVBucket::createRangeScanWait(
+HighPriorityVBReqStatus EPVBucket::createRangeScanWait(
         const cb::rangescan::SnapshotRequirements& requirements,
         CookieIface& cookie) {
     struct RangeScanWaitForPersistenceRequest : public SeqnoPersistenceRequest {
@@ -1328,7 +1332,7 @@ void EPVBucket::createRangeScanWait(
         EventuallyPersistentEngine& engine;
     };
 
-    checkAddHighPriorityVBEntry(
+    return checkAddHighPriorityVBEntry(
             std::make_unique<RangeScanWaitForPersistenceRequest>(
                     bucket->getEPEngine(),
                     &cookie,
