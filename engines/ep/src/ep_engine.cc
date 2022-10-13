@@ -323,14 +323,14 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_locked(
         Vbid vbucket,
         uint32_t lock_timeout) {
     return acquireEngine(this)->getLockedInner(
-            &cookie, key, vbucket, lock_timeout);
+            cookie, key, vbucket, lock_timeout);
 }
 
 cb::engine_errc EventuallyPersistentEngine::unlock(CookieIface& cookie,
                                                    const DocKey& key,
                                                    Vbid vbucket,
                                                    uint64_t cas) {
-    return acquireEngine(this)->unlockInner(&cookie, key, vbucket, cas);
+    return acquireEngine(this)->unlockInner(cookie, key, vbucket, cas);
 }
 
 /**
@@ -2439,7 +2439,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getIfInner(
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::getLockedInner(
-        CookieIface* cookie,
+        CookieIface& cookie,
         const DocKey& key,
         Vbid vbucket,
         uint32_t lock_timeout) {
@@ -2452,7 +2452,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getLockedInner(
                 "{}: EventuallyPersistentEngine::get_locked: Illegal value for "
                 "lock timeout specified for {}: {}. Using default "
                 "value: {}",
-                cookie->getConnectionId(),
+                cookie.getConnectionId(),
                 cb::tagUserData(key.to_string()),
                 lock_timeout,
                 default_timeout);
@@ -2460,8 +2460,8 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getLockedInner(
         lock_timeout = default_timeout;
     }
 
-    auto result = kvBucket->getLocked(key, vbucket, ep_current_time(),
-                                      lock_timeout, cookie);
+    auto result = kvBucket->getLocked(
+            key, vbucket, ep_current_time(), lock_timeout, &cookie);
 
     if (result.getStatus() == cb::engine_errc::success) {
         ++stats.numOpsGet;
@@ -2472,11 +2472,11 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getLockedInner(
     return cb::makeEngineErrorItemPair(cb::engine_errc(result.getStatus()));
 }
 
-cb::engine_errc EventuallyPersistentEngine::unlockInner(CookieIface* cookie,
+cb::engine_errc EventuallyPersistentEngine::unlockInner(CookieIface& cookie,
                                                         const DocKey& key,
                                                         Vbid vbucket,
                                                         uint64_t cas) {
-    return kvBucket->unlockKey(key, vbucket, cas, ep_current_time(), cookie);
+    return kvBucket->unlockKey(key, vbucket, cas, ep_current_time(), &cookie);
 }
 
 cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(

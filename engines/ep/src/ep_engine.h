@@ -462,12 +462,12 @@ public:
                                              Vbid vbucket,
                                              uint32_t expiry_time);
 
-    cb::EngineErrorItemPair getLockedInner(CookieIface* cookie,
+    cb::EngineErrorItemPair getLockedInner(CookieIface& cookie,
                                            const DocKey& key,
                                            Vbid vbucket,
                                            uint32_t lock_timeout);
 
-    cb::engine_errc unlockInner(CookieIface* cookie,
+    cb::engine_errc unlockInner(CookieIface& cookie,
                                 const DocKey& key,
                                 Vbid vbucket,
                                 uint64_t cas);
