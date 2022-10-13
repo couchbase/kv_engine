@@ -119,7 +119,7 @@ TEST_P(STParamCouchstoreBucketTest, FlusherMarksCleanBySeqno) {
                 PROTOCOL_BINARY_RAW_BYTES,
                 opCas,
                 &seqno,
-                cookie,
+                *cookie,
                 {vbucket_state_active} /*permittedVBStates*/,
                 CheckConflicts::Yes,
                 true /*allowExisting*/,

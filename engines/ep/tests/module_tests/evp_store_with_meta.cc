@@ -110,9 +110,9 @@ public:
         auto* req = reinterpret_cast<cb::mcbp::Request*>(wm.data());
         if (op == cb::mcbp::ClientOpcode::DelWithMeta ||
             op == cb::mcbp::ClientOpcode::DelqWithMeta) {
-            return engine->deleteWithMeta(cookie, *req, this->addResponse);
+            return engine->deleteWithMeta(*cookie, *req, this->addResponse);
         } else {
-            return engine->setWithMeta(cookie, *req, this->addResponse);
+            return engine->setWithMeta(*cookie, *req, this->addResponse);
         }
     }
 
@@ -384,12 +384,12 @@ void WithMetaTest::testWithMetaXattrWithEmptyPayload(
     if (op == ClientOpcode::SetWithMeta) {
         // Note: Before the fix this allows storing invalid paylaods.
         EXPECT_EQ(cb::engine_errc::success,
-                  engine->setWithMeta(cookie, *req, addResponse));
+                  engine->setWithMeta(*cookie, *req, addResponse));
     } else {
         // Note: Before the fix invalid payloads are detected but we throw and
         // close the connection.
         EXPECT_EQ(cb::engine_errc::success,
-                  engine->deleteWithMeta(cookie, *req, addResponse));
+                  engine->deleteWithMeta(*cookie, *req, addResponse));
     }
 
     // Check in memory

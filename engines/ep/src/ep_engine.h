@@ -508,19 +508,19 @@ public:
                                  Vbid vbucket,
                                  uint32_t flags);
 
-    cb::EngineErrorMetadataPair getMetaInner(CookieIface* cookie,
+    cb::EngineErrorMetadataPair getMetaInner(CookieIface& cookie,
                                              const DocKey& key,
                                              Vbid vbucket);
 
-    cb::engine_errc setWithMeta(CookieIface* cookie,
+    cb::engine_errc setWithMeta(CookieIface& cookie,
                                 const cb::mcbp::Request& request,
                                 const AddResponseFn& response);
 
-    cb::engine_errc deleteWithMeta(CookieIface* cookie,
+    cb::engine_errc deleteWithMeta(CookieIface& cookie,
                                    const cb::mcbp::Request& request,
                                    const AddResponseFn& response);
 
-    cb::engine_errc returnMeta(CookieIface* cookie,
+    cb::engine_errc returnMeta(CookieIface& cookie,
                                const cb::mcbp::Request& req,
                                const AddResponseFn& response);
 
@@ -1275,7 +1275,7 @@ protected:
                                 protocol_binary_datatype_t datatype,
                                 uint64_t& cas,
                                 uint64_t* seqno,
-                                CookieIface* cookie,
+                                CookieIface& cookie,
                                 PermittedVBStates permittedVBStates,
                                 CheckConflicts checkConflicts,
                                 bool allowExisting,
@@ -1305,7 +1305,7 @@ protected:
                                    ItemMetaData itemMeta,
                                    uint64_t& cas,
                                    uint64_t* seqno,
-                                   CookieIface* cookie,
+                                   CookieIface& cookie,
                                    PermittedVBStates permittedVBStates,
                                    CheckConflicts checkConflicts,
                                    GenerateBySeqno genBySeqno,

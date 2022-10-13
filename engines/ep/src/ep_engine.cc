@@ -1163,12 +1163,12 @@ cb::engine_errc EventuallyPersistentEngine::processUnknownCommandInner(
     case cb::mcbp::ClientOpcode::SetqWithMeta:
     case cb::mcbp::ClientOpcode::AddWithMeta:
     case cb::mcbp::ClientOpcode::AddqWithMeta:
-        return setWithMeta(&cookie, request, response);
+        return setWithMeta(cookie, request, response);
     case cb::mcbp::ClientOpcode::DelWithMeta:
     case cb::mcbp::ClientOpcode::DelqWithMeta:
-        return deleteWithMeta(&cookie, request, response);
+        return deleteWithMeta(cookie, request, response);
     case cb::mcbp::ClientOpcode::ReturnMeta:
-        return returnMeta(&cookie, request, response);
+        return returnMeta(cookie, request, response);
     case cb::mcbp::ClientOpcode::GetReplica:
         return getReplicaCmd(request, response, &cookie);
     case cb::mcbp::ClientOpcode::EnableTraffic:
@@ -1654,7 +1654,7 @@ bool EventuallyPersistentEngine::get_item_info(const ItemIface& itm,
 
 cb::EngineErrorMetadataPair EventuallyPersistentEngine::get_meta(
         CookieIface& cookie, const DocKey& key, Vbid vbucket) {
-    return acquireEngine(this)->getMetaInner(&cookie, key, vbucket);
+    return acquireEngine(this)->getMetaInner(cookie, key, vbucket);
 }
 
 cb::engine_errc EventuallyPersistentEngine::set_collection_manifest(
@@ -5274,12 +5274,12 @@ cb::engine_errc EventuallyPersistentEngine::handleSeqnoPersistence(
 }
 
 cb::EngineErrorMetadataPair EventuallyPersistentEngine::getMetaInner(
-        CookieIface* cookie, const DocKey& key, Vbid vbucket) {
+        CookieIface& cookie, const DocKey& key, Vbid vbucket) {
     uint32_t deleted;
     uint8_t datatype;
     ItemMetaData itemMeta;
     cb::engine_errc ret = kvBucket->getMetaData(
-            key, vbucket, cookie, itemMeta, deleted, datatype);
+            key, vbucket, &cookie, itemMeta, deleted, datatype);
 
     item_info metadata;
 
@@ -5294,6 +5294,7 @@ cb::EngineErrorMetadataPair EventuallyPersistentEngine::getMetaInner(
 
     return std::make_pair(cb::engine_errc(ret), metadata);
 }
+
 bool EventuallyPersistentEngine::decodeSetWithMetaOptions(
         cb::const_byte_buffer extras,
         GenerateCas& generateCas,
@@ -5414,7 +5415,7 @@ DocKey EventuallyPersistentEngine::makeDocKey(CookieIface& cookie,
 }
 
 cb::engine_errc EventuallyPersistentEngine::setWithMeta(
-        CookieIface* cookie,
+        CookieIface& cookie,
         const cb::mcbp::Request& request,
         const AddResponseFn& response) {
     if (isDegradedMode()) {
@@ -5439,7 +5440,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
     {
         auto startTimeC =
                 takeEngineSpecific<std::chrono::steady_clock::time_point>(
-                        *cookie);
+                        cookie);
         if (startTimeC.has_value()) {
             startTime = *startTimeC;
         } else {
@@ -5464,7 +5465,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
     uint64_t commandCas = request.getCas();
     try {
         ret = setWithMeta(request.getVBucket(),
-                          makeDocKey(*cookie, request.getKey()),
+                          makeDocKey(cookie, request.getKey()),
                           value,
                           {cas, seqno, flags, time_t(expiration)},
                           false /*isDeleted*/,
@@ -5483,16 +5484,15 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
     }
 
     if (ret == cb::engine_errc::success) {
-        cookie->addDocumentWriteBytes(value.size() + request.getKey().size());
+        cookie.addDocumentWriteBytes(value.size() + request.getKey().size());
         ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
         guardedIface.audit_document_access(
-                *cookie, cb::audit::document::Operation::Modify);
+                cookie, cb::audit::document::Operation::Modify);
         ++stats.numOpsSetMeta;
         auto endTime = std::chrono::steady_clock::now();
-        auto& traceable = *cookie;
-        if (traceable.isTracingEnabled()) {
+        if (cookie.isTracingEnabled()) {
             NonBucketAllocationGuard guard;
-            auto& tracer = traceable.getTracer();
+            auto& tracer = cookie.getTracer();
             auto spanid = tracer.begin(Code::SetWithMeta, startTime);
             tracer.end(spanid, endTime);
         }
@@ -5505,7 +5505,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
         return memoryCondition();
     } else if (ret == cb::engine_errc::would_block) {
         ++stats.numOpsGetMetaOnSetWithMeta;
-        storeEngineSpecific(*cookie, startTime);
+        storeEngineSpecific(cookie, startTime);
         return ret;
     } else {
         // Let the framework generate the error message
@@ -5518,15 +5518,15 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
         return cb::engine_errc::success;
     }
 
-    if (cookie->isMutationExtrasSupported()) {
+    if (cookie.isMutationExtrasSupported()) {
         return sendMutationExtras(response,
                                   request.getVBucket(),
                                   bySeqno,
                                   cb::mcbp::Status::Success,
                                   cas,
-                                  *cookie);
+                                  cookie);
     }
-    return sendErrorResponse(response, cb::mcbp::Status::Success, cas, *cookie);
+    return sendErrorResponse(response, cb::mcbp::Status::Success, cas, cookie);
 }
 
 cb::engine_errc EventuallyPersistentEngine::setWithMeta(
@@ -5538,7 +5538,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
         protocol_binary_datatype_t datatype,
         uint64_t& cas,
         uint64_t* seqno,
-        CookieIface* cookie,
+        CookieIface& cookie,
         PermittedVBStates permittedVBStates,
         CheckConflicts checkConflicts,
         bool allowExisting,
@@ -5551,14 +5551,14 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
                 std::make_unique<ExtendedMetaData>(emd.data(), emd.size());
         if (extendedMetaData->getStatus() ==
             cb::engine_errc::invalid_arguments) {
-            setErrorContext(*cookie, "Invalid extended metadata");
+            setErrorContext(cookie, "Invalid extended metadata");
             return cb::engine_errc::invalid_arguments;
         }
     }
 
     if (cb::mcbp::datatype::is_snappy(datatype) &&
-        !cookie->isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_SNAPPY)) {
-        setErrorContext(*cookie, "Client did not negotiate Snappy support");
+        !cookie.isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_SNAPPY)) {
+        setErrorContext(cookie, "Client did not negotiate Snappy support");
         return cb::engine_errc::invalid_arguments;
     }
 
@@ -5579,7 +5579,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
             if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
                                           payload,
                                           uncompressedValue)) {
-                setErrorContext(*cookie, "Failed to inflate document");
+                setErrorContext(cookie, "Failed to inflate document");
                 return cb::engine_errc::invalid_arguments;
             }
 
@@ -5605,7 +5605,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
                     cb::xattr::get_system_xattr_size(inflatedDatatype, xattr);
             if (system_xattr_size > cb::limits::PrivilegedBytes) {
                 setErrorContext(
-                        *cookie,
+                        cookie,
                         "System XATTR (" + std::to_string(system_xattr_size) +
                                 ") exceeds the max limit for system "
                                 "xattrs: " +
@@ -5626,7 +5626,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
         }
 
         finalDatatype = checkForDatatypeJson(
-                cookie,
+                &cookie,
                 finalDatatype,
                 cb::mcbp::datatype::is_snappy(datatype) ? uncompressedValue
                                                         : payload);
@@ -5648,7 +5648,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
     auto ret = kvBucket->setWithMeta(*item,
                                      cas,
                                      seqno,
-                                     cookie,
+                                     &cookie,
                                      permittedVBStates,
                                      checkConflicts,
                                      allowExisting,
@@ -5665,7 +5665,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
 }
 
 cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
-        CookieIface* cookie,
+        CookieIface& cookie,
         const cb::mcbp::Request& request,
         const AddResponseFn& response) {
     if (isDegradedMode()) {
@@ -5690,7 +5690,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
     cb::const_byte_buffer emd;
     extractNmetaFromExtras(emd, value, extras);
 
-    auto key = makeDocKey(*cookie, request.getKey());
+    auto key = makeDocKey(cookie, request.getKey());
     uint64_t bySeqno = 0;
 
     const auto* payload =
@@ -5712,7 +5712,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
                         {reinterpret_cast<const char*>(value.data()),
                          value.size()},
                         uncompressedValue)) {
-                setErrorContext(*cookie, "Failed to inflate data");
+                setErrorContext(cookie, "Failed to inflate data");
                 return cb::engine_errc::invalid_arguments;
             }
             value = uncompressedValue;
@@ -5740,7 +5740,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
                         datatype,
                         {reinterpret_cast<const char*>(value.data()),
                          value.size()}) > 0) {
-                setErrorContext(*cookie,
+                setErrorContext(cookie,
                                 "It is only possible to specify Xattrs as a "
                                 "value to DeleteWithMeta");
                 return cb::engine_errc::invalid_arguments;
@@ -5783,10 +5783,10 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
     }
 
     if (ret == cb::engine_errc::success) {
-        cookie->addDocumentWriteBytes(value.size() + request.getKey().size());
+        cookie.addDocumentWriteBytes(value.size() + request.getKey().size());
         ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
         guardedIface.audit_document_access(
-                *cookie, cb::audit::document::Operation::Delete);
+                cookie, cb::audit::document::Operation::Delete);
         stats.numOpsDelMeta++;
     } else if (ret == cb::engine_errc::no_memory) {
         return memoryCondition();
@@ -5798,16 +5798,16 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
         return cb::engine_errc::success;
     }
 
-    if (cookie->isMutationExtrasSupported()) {
+    if (cookie.isMutationExtrasSupported()) {
         return sendMutationExtras(response,
                                   request.getVBucket(),
                                   bySeqno,
                                   cb::mcbp::Status::Success,
                                   cas,
-                                  *cookie);
+                                  cookie);
     }
 
-    return sendErrorResponse(response, cb::mcbp::Status::Success, cas, *cookie);
+    return sendErrorResponse(response, cb::mcbp::Status::Success, cas, cookie);
 }
 
 cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
@@ -5816,7 +5816,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
         ItemMetaData itemMeta,
         uint64_t& cas,
         uint64_t* seqno,
-        CookieIface* cookie,
+        CookieIface& cookie,
         PermittedVBStates permittedVBStates,
         CheckConflicts checkConflicts,
         GenerateBySeqno genBySeqno,
@@ -5829,7 +5829,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
                 std::make_unique<ExtendedMetaData>(emd.data(), emd.size());
         if (extendedMetaData->getStatus() ==
             cb::engine_errc::invalid_arguments) {
-            setErrorContext(*cookie, "Invalid extended metadata");
+            setErrorContext(cookie, "Invalid extended metadata");
             return cb::engine_errc::invalid_arguments;
         }
     }
@@ -5838,7 +5838,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
                                     cas,
                                     seqno,
                                     vbucket,
-                                    cookie,
+                                    &cookie,
                                     permittedVBStates,
                                     checkConflicts,
                                     itemMeta,
@@ -5979,7 +5979,7 @@ cb::engine_errc EventuallyPersistentEngine::doDcpVbTakeoverStats(
 }
 
 cb::engine_errc EventuallyPersistentEngine::returnMeta(
-        CookieIface* cookie,
+        CookieIface& cookie,
         const cb::mcbp::Request& req,
         const AddResponseFn& response) {
     using cb::mcbp::request::ReturnMetaPayload;
@@ -6006,11 +6006,11 @@ cb::engine_errc EventuallyPersistentEngine::returnMeta(
         mutate_type == ReturnMetaType::Add) {
         auto value = req.getValue();
         datatype = checkForDatatypeJson(
-                cookie,
+                &cookie,
                 datatype,
                 {reinterpret_cast<const char*>(value.data()), value.size()});
 
-        auto itm = std::make_unique<Item>(makeDocKey(*cookie, req.getKey()),
+        auto itm = std::make_unique<Item>(makeDocKey(cookie, req.getKey()),
                                           flags,
                                           exp,
                                           value.data(),
@@ -6021,35 +6021,35 @@ cb::engine_errc EventuallyPersistentEngine::returnMeta(
                                           req.getVBucket());
 
         if (mutate_type == ReturnMetaType::Set) {
-            ret = kvBucket->set(*itm, cookie, {});
+            ret = kvBucket->set(*itm, &cookie, {});
         } else {
-            ret = kvBucket->add(*itm, cookie);
+            ret = kvBucket->add(*itm, &cookie);
         }
         if (ret == cb::engine_errc::success) {
             ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
             guardedIface.audit_document_access(
-                    *cookie, cb::audit::document::Operation::Modify);
+                    cookie, cb::audit::document::Operation::Modify);
             ++stats.numOpsSetRetMeta;
-            cookie->addDocumentWriteBytes(req.getKeylen() + value.size());
+            cookie.addDocumentWriteBytes(req.getKeylen() + value.size());
         }
         cas = itm->getCas();
         seqno = htonll(itm->getRevSeqno());
     } else if (mutate_type == ReturnMetaType::Del) {
         ItemMetaData itm_meta;
         mutation_descr_t mutation_descr;
-        ret = kvBucket->deleteItem(makeDocKey(*cookie, req.getKey()),
+        ret = kvBucket->deleteItem(makeDocKey(cookie, req.getKey()),
                                    cas,
                                    req.getVBucket(),
-                                   cookie,
+                                   &cookie,
                                    {},
                                    &itm_meta,
                                    mutation_descr);
         if (ret == cb::engine_errc::success) {
             ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
             guardedIface.audit_document_access(
-                    *cookie, cb::audit::document::Operation::Delete);
+                    cookie, cb::audit::document::Operation::Delete);
             ++stats.numOpsDelRetMeta;
-            cookie->addDocumentWriteBytes(1);
+            cookie.addDocumentWriteBytes(1);
         }
         flags = itm_meta.flags;
         exp = gsl::narrow<uint32_t>(itm_meta.exptime);
@@ -6077,7 +6077,7 @@ cb::engine_errc EventuallyPersistentEngine::returnMeta(
                         datatype,
                         cb::mcbp::Status::Success,
                         cas,
-                        *cookie);
+                        cookie);
 }
 
 cb::engine_errc EventuallyPersistentEngine::getAllKeys(

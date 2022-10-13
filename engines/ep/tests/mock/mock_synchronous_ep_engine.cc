@@ -186,7 +186,7 @@ cb::engine_errc SynchronousEPEngine::public_setWithMeta(
         protocol_binary_datatype_t datatype,
         uint64_t& cas,
         uint64_t* seqno,
-        CookieIface* cookie,
+        CookieIface& cookie,
         PermittedVBStates permittedVBStates,
         CheckConflicts checkConflicts,
         bool allowExisting,
