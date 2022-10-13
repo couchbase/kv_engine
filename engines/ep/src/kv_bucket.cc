@@ -1906,7 +1906,7 @@ cb::engine_errc KVBucket::unlockKey(const DocKey& key,
 
 cb::engine_errc KVBucket::getKeyStats(const DocKey& key,
                                       Vbid vbucket,
-                                      CookieIface* cookie,
+                                      CookieIface& cookie,
                                       struct key_stats& kstats,
                                       WantsDeleted wantsDeleted) {
     auto vb = getVBucket(vbucket);
@@ -1918,7 +1918,7 @@ cb::engine_errc KVBucket::getKeyStats(const DocKey& key,
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     auto cHandle = vb->lockCollections(key);
     if (!cHandle.valid()) {
-        engine.setUnknownCollectionErrorContext(*cookie,
+        engine.setUnknownCollectionErrorContext(cookie,
                                                 cHandle.getManifestUid());
         return cb::engine_errc::unknown_collection;
     }

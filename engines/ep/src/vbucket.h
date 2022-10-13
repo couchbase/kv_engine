@@ -1350,7 +1350,7 @@ public:
      * @return the result of the operation
      */
     cb::engine_errc getKeyStats(
-            CookieIface* cookie,
+            CookieIface& cookie,
             EventuallyPersistentEngine& engine,
             struct key_stats& kstats,
             WantsDeleted wantsDeleted,

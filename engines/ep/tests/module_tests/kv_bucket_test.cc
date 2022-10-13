@@ -707,7 +707,7 @@ TEST_P(KVBucketParamTest, GetKeyStatsResident) {
     auto getKeyStats = [&]() -> cb::engine_errc {
         return store->getKeyStats(makeStoredDocKey("key"),
                                   Vbid(0),
-                                  cookie,
+                                  *cookie,
                                   kstats,
                                   WantsDeleted::No);
     };
@@ -739,7 +739,7 @@ TEST_P(KVBucketParamTest, GetKeyStatsDeleted) {
     EXPECT_EQ(cb::engine_errc::no_such_key,
               kvbucket.getKeyStats(makeStoredDocKey("key"),
                                    Vbid(0),
-                                   cookie,
+                                   *cookie,
                                    kstats,
                                    WantsDeleted::No));
 
@@ -748,7 +748,7 @@ TEST_P(KVBucketParamTest, GetKeyStatsDeleted) {
     EXPECT_EQ(cb::engine_errc::success,
               kvbucket.getKeyStats(makeStoredDocKey("key"),
                                    Vbid(0),
-                                   cookie,
+                                   *cookie,
                                    kstats,
                                    WantsDeleted::Yes));
     EXPECT_EQ(vbucket_state_active, kstats.vb_state);
@@ -763,7 +763,7 @@ TEST_P(KVBucketParamTest, GetKeyStatsNMVB) {
     EXPECT_EQ(cb::engine_errc::not_my_vbucket,
               kvbucket.getKeyStats(makeStoredDocKey("key"),
                                    Vbid(1),
-                                   cookie,
+                                   *cookie,
                                    kstats,
                                    WantsDeleted::No));
 }

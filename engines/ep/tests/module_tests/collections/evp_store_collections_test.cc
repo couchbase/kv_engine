@@ -306,10 +306,10 @@ TEST_P(CollectionsParameterizedTest, unknown_collection_errors) {
     struct key_stats ks;
     EXPECT_EQ(cb::engine_errc::unknown_collection,
               store->getKeyStats(
-                      item2.getKey(), vbid, cookie, ks, WantsDeleted::No));
+                      item2.getKey(), vbid, *cookie, ks, WantsDeleted::No));
     EXPECT_EQ(cb::engine_errc::unknown_collection,
               store->getKeyStats(
-                      item2.getKey(), vbid, cookie, ks, WantsDeleted::Yes));
+                      item2.getKey(), vbid, *cookie, ks, WantsDeleted::Yes));
 
     uint32_t deleted = 0;
     uint8_t dtype = 0;

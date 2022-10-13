@@ -3003,7 +3003,7 @@ cb::engine_errc VBucket::getMetaData(
 }
 
 cb::engine_errc VBucket::getKeyStats(
-        CookieIface* cookie,
+        CookieIface& cookie,
         EventuallyPersistentEngine& engine,
         struct key_stats& kstats,
         WantsDeleted wantsDeleted,
@@ -3028,7 +3028,7 @@ cb::engine_errc VBucket::getKeyStats(
             bgFetch(std::move(res.lock),
                     cHandle.getKey(),
                     *v,
-                    cookie,
+                    &cookie,
                     engine,
                     true);
             return cb::engine_errc::would_block;
@@ -3050,7 +3050,7 @@ cb::engine_errc VBucket::getKeyStats(
             if (maybeKeyExistsInFilter(cHandle.getKey())) {
                 return addTempItemAndBGFetch(std::move(res.lock),
                                              cHandle.getKey(),
-                                             cookie,
+                                             &cookie,
                                              engine,
                                              true);
             } else {

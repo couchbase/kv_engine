@@ -155,7 +155,7 @@ TEST_P(EPBucketTest, GetKeyStatsEjected) {
     auto do_getKeyStats = [this, &kstats]() {
         return store->getKeyStats(makeStoredDocKey("key"),
                                   vbid,
-                                  cookie,
+                                  *cookie,
                                   kstats,
                                   WantsDeleted::No);
     };

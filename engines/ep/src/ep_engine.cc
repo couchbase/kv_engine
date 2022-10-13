@@ -4064,7 +4064,7 @@ cb::engine_errc EventuallyPersistentEngine::doKeyStats(
         return rv;
     }
 
-    rv = kvBucket->getKeyStats(key, vbid, &cookie, kstats, WantsDeleted::No);
+    rv = kvBucket->getKeyStats(key, vbid, cookie, kstats, WantsDeleted::No);
     if (rv == cb::engine_errc::success) {
         std::string valid("this_is_a_bug");
         if (validate) {
@@ -5081,7 +5081,7 @@ cb::engine_errc EventuallyPersistentEngine::observe(
         uint8_t keystatus = 0;
         struct key_stats kstats = {};
         rv = kvBucket->getKeyStats(
-                key, vb_id, &cookie, kstats, WantsDeleted::Yes);
+                key, vb_id, cookie, kstats, WantsDeleted::Yes);
         if (rv == cb::engine_errc::success) {
             if (kstats.logically_deleted) {
                 keystatus = OBS_STATE_LOGICAL_DEL;

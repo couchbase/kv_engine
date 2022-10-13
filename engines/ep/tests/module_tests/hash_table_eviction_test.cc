@@ -308,7 +308,7 @@ protected:
 
             result = store->getKeyStats(makeStoredDocKey(key),
                                         vbucket,
-                                        cookie,
+                                        *cookie,
                                         kstats,
                                         WantsDeleted::No);
 

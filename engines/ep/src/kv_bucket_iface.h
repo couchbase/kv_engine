@@ -576,7 +576,7 @@ public:
      */
     virtual cb::engine_errc getKeyStats(const DocKey& key,
                                         Vbid vbucket,
-                                        CookieIface* cookie,
+                                        CookieIface& cookie,
                                         key_stats& kstats,
                                         WantsDeleted wantsDeleted) = 0;
 
