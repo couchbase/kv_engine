@@ -18,6 +18,8 @@
 
 #include "relaxed_atomic.h"
 
+struct HistogramData;
+
 /**
  * A simplistic implementation of a histogram backed by an array.
  *
@@ -114,6 +116,11 @@ public:
     CountType operator[](size_t idx) const;
 
     ArrayHistogram& operator+=(const ArrayHistogram& other);
+
+    /**
+     * Convert to the HistogramData type supported by collectors.
+     */
+    explicit operator HistogramData() const;
 
 private:
     // array for storing the counters for each "bin".

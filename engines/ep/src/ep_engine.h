@@ -1049,6 +1049,8 @@ protected:
     cb::engine_errc doConnAggStats(const BucketStatCollector& collector,
                                    std::string_view sep);
     void doTimingStats(const BucketStatCollector& collector);
+    cb::engine_errc doFrequencyCountersStats(
+            const BucketStatCollector& collector);
     cb::engine_errc doSchedulerStats(CookieIface& cookie,
                                      const AddStatFn& add_stat);
     cb::engine_errc doRunTimeStats(CookieIface& cookie,

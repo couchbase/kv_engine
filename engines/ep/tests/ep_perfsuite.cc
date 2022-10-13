@@ -147,6 +147,8 @@ std::unordered_map<std::string, StatProperties> stat_tests = {
         make_stat_pair("checkpoint_vb0",
                        {"checkpoint 0", StatRuntime::Fast, {}}),
         make_stat_pair("timings", {"timings", StatRuntime::Fast, {}}),
+        make_stat_pair("frequency-counters",
+                       {"frequency-counters", StatRuntime::Fast, {}}),
         make_stat_pair("dispatcher", {"dispatcher", StatRuntime::Slow, {}}),
         make_stat_pair("scheduler", {"scheduler", StatRuntime::Fast, {}}),
         make_stat_pair("runtimes", {"runtimes", StatRuntime::Fast, {}}),

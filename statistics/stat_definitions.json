@@ -2072,6 +2072,14 @@
         }
     },
     {
+        "key": "vb_evictable_mfu",
+        "unit": "count",
+        "cbstat": "vb_{state}_evictable_mfu",
+        "prometheus": {
+            "family": "vb_evictable_mfu"
+        }
+    },
+    {
         "key": "curr_items",
         "unit": "count",
         "description": "Number of active items in memory"

@@ -378,6 +378,27 @@ public:
 
     void visit(VBucketVisitor &visitor) override;
 
+    /**
+     * Visit all vbuckets for each visitor in the argument list.
+     * The order in which the visitors are called is unspecified.
+     */
+    template <typename... Visitors>
+    void visitAll(Visitors&... visitors) {
+        auto visit = [this](Vbid vbid, auto& visitor) {
+            if (visitor.getVBucketFilter()(vbid)) {
+                VBucketPtr vb = vbMap.getBucket(vbid);
+                if (vb) {
+                    visitor.visitBucket(*vb);
+                }
+            }
+        };
+
+        for (auto vbid : vbMap.getBuckets()) {
+            // Call the visit() lambda for each visitor
+            (visit(vbid, visitors), ...);
+        }
+    }
+
     size_t visitAsync(std::unique_ptr<InterruptableVBucketVisitor> visitor,
                       const char* lbl,
                       TaskId id,

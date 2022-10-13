@@ -4181,6 +4181,29 @@ void EventuallyPersistentEngine::doTimingStats(
                       stats.syncWriteCommitTimes.at(2));
 }
 
+cb::engine_errc EventuallyPersistentEngine::doFrequencyCountersStats(
+        const BucketStatCollector& collector) {
+    using namespace cb::stats;
+
+    VBucketEvictableMFUVisitor activeVisitor(vbucket_state_active);
+    VBucketEvictableMFUVisitor replicaVisitor(vbucket_state_replica);
+    VBucketEvictableMFUVisitor pendingVisitor(vbucket_state_pending);
+
+    kvBucket->visitAll(activeVisitor, replicaVisitor, pendingVisitor);
+
+    collector.addStat(Key::vb_evictable_mfu,
+                      activeVisitor.getHistogramData(),
+                      {{"state", "active"}});
+    collector.addStat(Key::vb_evictable_mfu,
+                      replicaVisitor.getHistogramData(),
+                      {{"state", "replica"}});
+    collector.addStat(Key::vb_evictable_mfu,
+                      pendingVisitor.getHistogramData(),
+                      {{"state", "pending"}});
+
+    return cb::engine_errc::success;
+}
+
 static std::string getTaskDescrForStats(TaskId id) {
     return std::string(GlobalTask::getTaskName(id)) + "[" +
            to_string(GlobalTask::getTaskType(id)) + "]";
@@ -4806,6 +4829,9 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
     if (key == "timings"sv) {
         doTimingStats(bucketCollector);
         return cb::engine_errc::success;
+    }
+    if (key == "frequency-counters"sv) {
+        return doFrequencyCountersStats(bucketCollector);
     }
     if (key == "dispatcher"sv) {
         return doDispatcherStats(c, add_stat);

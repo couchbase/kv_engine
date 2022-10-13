@@ -11,6 +11,7 @@
 
 #include "vb_count_visitor.h"
 
+#include "statistics/collector.h"
 #include "vbucket.h"
 
 void VBucketCountVisitor::visitBucket(VBucket& vb) {
@@ -106,4 +107,19 @@ void VBucketStatAggregator::visitBucket(VBucket& vb) {
 
 void VBucketStatAggregator::addVisitor(VBucketStatVisitor* visitor) {
     visitorMap[visitor->getVBucketState()].push_back(visitor);
+}
+
+VBucketEvictableMFUVisitor::VBucketEvictableMFUVisitor(vbucket_state_t state)
+    : VBucketStatVisitor(state),
+      vbHist(std::make_unique<HashTable::MFUHistogram>()) {
+}
+
+void VBucketEvictableMFUVisitor::visitBucket(VBucket& vb) {
+    if (vb.getState() == desired_state) {
+        *vbHist += vb.ht.getEvictableMFUHistogram();
+    }
+}
+
+HistogramData VBucketEvictableMFUVisitor::getHistogramData() const {
+    return HistogramData(*vbHist);
 }

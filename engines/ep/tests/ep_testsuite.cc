@@ -7840,6 +7840,7 @@ static enum test_result test_mb19687_variable(EngineIface* h) {
               "item_alloc_sizes_mean",
               "set_vb_cmd_mean",
               "store_cmd_mean"}},
+            {"frequency-counters", {}},
             {"scheduler", {}},
             {"runtimes", {}},
             {"kvtimings", {}},

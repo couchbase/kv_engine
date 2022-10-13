@@ -301,3 +301,16 @@ public:
 private:
     std::map<vbucket_state_t, std::vector<VBucketStatVisitor*>> visitorMap;
 };
+
+class VBucketEvictableMFUVisitor : public VBucketStatVisitor {
+public:
+    VBucketEvictableMFUVisitor(vbucket_state_t state);
+
+    void visitBucket(VBucket& vb) override;
+
+    HistogramData getHistogramData() const;
+
+private:
+    // Heap-allocated because MFUHistogram can be pretty large ~ 2KiB
+    std::unique_ptr<HashTable::MFUHistogram> vbHist;
+};

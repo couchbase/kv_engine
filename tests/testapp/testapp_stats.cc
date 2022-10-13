@@ -9,6 +9,7 @@
  */
 
 #include "testapp_client_test.h"
+#include <fmt/format.h>
 #include <gsl/gsl-lite.hpp>
 #include <protocol/mcbp/ewb_encode.h>
 
@@ -608,6 +609,32 @@ TEST_P(StatsTest, TestTracingStats) {
     EXPECT_FALSE(stats.empty());
     auto enabled = stats.find("log_is_enabled");
     EXPECT_NE(stats.end(), enabled);
+}
+
+/**
+ * Check the format of the "frequency-counters" histograms.
+ * We should have one histogram with 256 buckets for each vb state.
+ */
+TEST_P(StatsTest, TestFrequencyCountersStats) {
+    TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Couchbase);
+    using namespace std::string_view_literals;
+
+    auto stats = userConnection->stats("frequency-counters");
+    EXPECT_FALSE(stats.empty());
+
+    // We expect 257 histogram buckets per vbucket state (256 buckets + mean)
+    const auto keys = 257 * 3;
+    EXPECT_EQ(keys, stats.size());
+
+    for (auto state : {"active", "replica", "pending"}) {
+        for (int i = 0; i < 256; i++) {
+            auto bucket =
+                    fmt::format("vb_{}_evictable_mfu_{},{}", state, i, i + 1);
+            EXPECT_TRUE(stats.contains(bucket));
+        }
+        auto mean = fmt::format("vb_{}_evictable_mfu_mean", state);
+        EXPECT_TRUE(stats.contains(mean));
+    }
 }
 
 TEST_P(StatsTest, TestSingleBucketOpStats) {

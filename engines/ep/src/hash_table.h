@@ -169,6 +169,12 @@ public:
                                            cb::mcbp::datatype::highest + 1>;
 
     /**
+     * A histogram of all possible MFU values.
+     */
+    using MFUHistogram =
+            ArrayHistogram<uint64_t, std::numeric_limits<uint8_t>::max() + 1>;
+
+    /**
      * Represents a position within the hashtable.
      *
      * Currently opaque (and constant), clients can pass them around but
@@ -389,8 +395,7 @@ public:
         // Histogram used to record the MFU values of all evictable items.
         // Contains a flat array of uint64_t counts for every possible MFU
         // value.
-        ArrayHistogram<uint64_t, std::numeric_limits<uint8_t>::max() + 1>
-                evictableMFUHist;
+        MFUHistogram evictableMFUHist;
 
         struct CacheLocalStatistics;
 

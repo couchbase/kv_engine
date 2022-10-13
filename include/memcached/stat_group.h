@@ -51,6 +51,7 @@ enum class StatGroupId {
     Checkpoint,
     DurabilityMonitor,
     Timings,
+    FrequencyCounters,
     Dispatcher,
     Tasks,
     Scheduler,

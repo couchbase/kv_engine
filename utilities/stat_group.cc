@@ -174,6 +174,12 @@ StatsGroupManager::StatsGroupManager()
                 "timers over various operations within the system.",
                 false,
                 true},
+               {StatGroupId::FrequencyCounters,
+                "frequency-counters",
+                "Histogram describing the MFU values of the items in the "
+                "hashtable.",
+                false,
+                true},
                {StatGroupId::Dispatcher,
                 "dispatcher",
                 "This provides the stats from AUX dispatcher and non-IO "

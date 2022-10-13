@@ -10,6 +10,7 @@
  */
 
 #include "array_histogram.h"
+#include "statistics/collector.h"
 
 #include <numeric>
 
@@ -163,6 +164,23 @@ ArrayHistogram<CountType, ArraySize, StoredType>::operator+=(
         valueArray[i] += other[i];
     }
     return *this;
+}
+
+template <class CountType, size_t ArraySize, class StoredType>
+ArrayHistogram<CountType, ArraySize, StoredType>::operator HistogramData()
+        const {
+    HistogramData histData;
+    histData.buckets.reserve(valueArray.size());
+    for (size_t i = 0; i < valueArray.size(); i++) {
+        const auto count = valueArray[i].load();
+        histData.buckets.push_back({i, i + 1, count});
+        histData.sampleCount += count;
+        histData.sampleSum += count * i;
+    }
+    if (histData.sampleCount > 0) {
+        histData.mean = histData.sampleSum / histData.sampleCount;
+    }
+    return histData;
 }
 
 // explicit instantiation of the most common variant
