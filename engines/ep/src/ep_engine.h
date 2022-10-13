@@ -731,7 +731,7 @@ public:
         workloadPriority = p;
     }
 
-    cb::engine_errc getRandomKey(CookieIface* cookie,
+    cb::engine_errc getRandomKey(CookieIface& cookie,
                                  const cb::mcbp::Request& request,
                                  const AddResponseFn& response);
 

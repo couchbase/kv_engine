@@ -1175,7 +1175,7 @@ cb::engine_errc EventuallyPersistentEngine::processUnknownCommandInner(
     case cb::mcbp::ClientOpcode::DisableTraffic:
         return handleTrafficControlCmd(cookie, request, response);
     case cb::mcbp::ClientOpcode::GetRandomKey:
-        return getRandomKey(&cookie, request, response);
+        return getRandomKey(cookie, request, response);
     case cb::mcbp::ClientOpcode::GetKeys:
         return getAllKeys(cookie, request, response);
     default:
@@ -6169,7 +6169,7 @@ void EventuallyPersistentEngine::scheduleDcpStep(CookieIface& cookie) {
 }
 
 cb::engine_errc EventuallyPersistentEngine::getRandomKey(
-        CookieIface* cookie,
+        CookieIface& cookie,
         const cb::mcbp::Request& request,
         const AddResponseFn& response) {
     CollectionID cid{CollectionID::Default};
@@ -6180,21 +6180,21 @@ cb::engine_errc EventuallyPersistentEngine::getRandomKey(
         cid = payload.getCollectionId();
     }
 
-    auto priv = checkPrivilege(*cookie, cb::rbac::Privilege::Read, cid);
+    auto priv = checkPrivilege(cookie, cb::rbac::Privilege::Read, cid);
     if (priv != cb::engine_errc::success) {
         return cb::engine_errc(priv);
     }
 
-    GetValue gv(kvBucket->getRandomKey(cid, *cookie));
+    GetValue gv(kvBucket->getRandomKey(cid, cookie));
     cb::engine_errc ret = gv.getStatus();
 
     if (ret == cb::engine_errc::success) {
         auto* it = gv.item.get();
-        cookie->addDocumentReadBytes(it->getNBytes());
+        cookie.addDocumentReadBytes(it->getNBytes());
         const auto flags = it->getFlags();
         ret = sendResponse(
                 response,
-                cookie->isCollectionsSupported()
+                cookie.isCollectionsSupported()
                         ? DocKey{it->getKey()}
                         : it->getKey().makeDocKeyWithoutCollectionID(),
                 std::string_view{reinterpret_cast<const char*>(&flags),
@@ -6203,7 +6203,7 @@ cb::engine_errc EventuallyPersistentEngine::getRandomKey(
                 it->getDataType(),
                 cb::mcbp::Status::Success,
                 it->getCas(),
-                *cookie);
+                cookie);
     }
 
     return ret;
