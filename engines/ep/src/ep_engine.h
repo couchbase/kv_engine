@@ -1200,10 +1200,10 @@ protected:
      *
      * @return status of sending response
      */
-    cb::engine_errc sendErrorResponse(const AddResponseFn& response,
-                                      cb::mcbp::Status status,
-                                      uint64_t cas,
-                                      CookieIface* cookie);
+    static cb::engine_errc sendErrorResponse(const AddResponseFn& response,
+                                             cb::mcbp::Status status,
+                                             uint64_t cas,
+                                             CookieIface& cookie);
 
     /**
      * Sends a response that includes the mutation extras, the VB uuid and
@@ -1222,7 +1222,7 @@ protected:
                                        uint64_t bySeqno,
                                        cb::mcbp::Status status,
                                        uint64_t cas,
-                                       CookieIface* cookie);
+                                       CookieIface& cookie);
 
     /**
      * Factory method for constructing the correct bucket type given the

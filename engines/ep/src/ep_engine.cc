@@ -5524,9 +5524,9 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
                                   bySeqno,
                                   cb::mcbp::Status::Success,
                                   cas,
-                                  cookie);
+                                  *cookie);
     }
-    return sendErrorResponse(response, cb::mcbp::Status::Success, cas, cookie);
+    return sendErrorResponse(response, cb::mcbp::Status::Success, cas, *cookie);
 }
 
 cb::engine_errc EventuallyPersistentEngine::setWithMeta(
@@ -5804,10 +5804,10 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
                                   bySeqno,
                                   cb::mcbp::Status::Success,
                                   cas,
-                                  cookie);
+                                  *cookie);
     }
 
-    return sendErrorResponse(response, cb::mcbp::Status::Success, cas, cookie);
+    return sendErrorResponse(response, cb::mcbp::Status::Success, cas, *cookie);
 }
 
 cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
@@ -6613,7 +6613,7 @@ cb::engine_errc EventuallyPersistentEngine::sendErrorResponse(
         const AddResponseFn& response,
         cb::mcbp::Status status,
         uint64_t cas,
-        CookieIface* cookie) {
+        CookieIface& cookie) {
     // no body/ext data for the error
     return sendResponse(response,
                         {}, // key
@@ -6622,7 +6622,7 @@ cb::engine_errc EventuallyPersistentEngine::sendErrorResponse(
                         PROTOCOL_BINARY_RAW_BYTES,
                         status,
                         cas,
-                        *cookie);
+                        cookie);
 }
 
 cb::engine_errc EventuallyPersistentEngine::sendMutationExtras(
@@ -6631,7 +6631,7 @@ cb::engine_errc EventuallyPersistentEngine::sendMutationExtras(
         uint64_t bySeqno,
         cb::mcbp::Status status,
         uint64_t cas,
-        CookieIface* cookie) {
+        CookieIface& cookie) {
     VBucketPtr vb = kvBucket->getVBucket(vbucket);
     if (!vb) {
         return sendErrorResponse(
@@ -6649,7 +6649,7 @@ cb::engine_errc EventuallyPersistentEngine::sendMutationExtras(
                         PROTOCOL_BINARY_RAW_BYTES,
                         status,
                         cas,
-                        *cookie);
+                        cookie);
 }
 
 std::unique_ptr<KVBucket> EventuallyPersistentEngine::makeBucket(
