@@ -1243,7 +1243,7 @@ protected:
      *          and the connection does not support datatype JSON.
      */
     protocol_binary_datatype_t checkForDatatypeJson(
-            CookieIface* cookie,
+            CookieIface& cookie,
             protocol_binary_datatype_t datatype,
             std::string_view body);
 

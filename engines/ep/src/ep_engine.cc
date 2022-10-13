@@ -5388,17 +5388,17 @@ void extractNmetaFromExtras(cb::const_byte_buffer& emd,
 }
 
 protocol_binary_datatype_t EventuallyPersistentEngine::checkForDatatypeJson(
-        CookieIface* cookie,
+        CookieIface& cookie,
         protocol_binary_datatype_t datatype,
         std::string_view body) {
-    if (!cookie->isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_JSON)) {
+    if (!cookie.isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_JSON)) {
         // JSON check the body if xattr's are enabled
         if (cb::mcbp::datatype::is_xattr(datatype)) {
             body = cb::xattr::get_body(body);
         }
 
         NonBucketAllocationGuard guard;
-        if (serverApi->cookie->is_valid_json(*cookie, body)) {
+        if (serverApi->cookie->is_valid_json(cookie, body)) {
             datatype |= PROTOCOL_BINARY_DATATYPE_JSON;
         }
     }
@@ -5626,7 +5626,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
         }
 
         finalDatatype = checkForDatatypeJson(
-                &cookie,
+                cookie,
                 finalDatatype,
                 cb::mcbp::datatype::is_snappy(datatype) ? uncompressedValue
                                                         : payload);
@@ -6004,11 +6004,8 @@ cb::engine_errc EventuallyPersistentEngine::returnMeta(
     cb::engine_errc ret;
     if (mutate_type == ReturnMetaType::Set ||
         mutate_type == ReturnMetaType::Add) {
-        auto value = req.getValue();
-        datatype = checkForDatatypeJson(
-                &cookie,
-                datatype,
-                {reinterpret_cast<const char*>(value.data()), value.size()});
+        auto value = req.getValueString();
+        datatype = checkForDatatypeJson(cookie, datatype, value);
 
         auto itm = std::make_unique<Item>(makeDocKey(cookie, req.getKey()),
                                           flags,
