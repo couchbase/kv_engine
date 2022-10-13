@@ -13,6 +13,7 @@
 #include "testapp_client_test.h"
 
 #include <boost/filesystem.hpp>
+#include <cbsasl/client.h>
 #include <algorithm>
 
 using namespace std::string_literals;
@@ -265,4 +266,32 @@ TEST_P(SaslTest, CollectionsConnectionSetup) {
     const auto getRsp = BinprotGetResponse(conn.execute(getCmd));
     conn.setAutoRetryTmpfail(auto_retry_tmpfail);
     EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, getRsp.getStatus());
+}
+
+TEST_P(SaslTest, StepWithoutStart) {
+    if (!isSupported("SCRAM-SHA1")) {
+        return;
+    }
+    MemcachedConnection& conn = getConnection();
+    std::string username = "foobar";
+    std::string password = "barbaz";
+    std::string mech = "SCRAM-SHA1";
+    cb::sasl::client::ClientContext client([username] { return username; },
+                                           [password] { return password; },
+                                           mech);
+    auto client_data = client.start();
+
+    if (client_data.first != cb::sasl::Error::OK) {
+        throw std::runtime_error(std::string("cbsasl_client_start (") +
+                                 std::string(client.getName()) +
+                                 std::string("): ") +
+                                 ::to_string(client_data.first));
+    }
+
+    BinprotSaslStepCommand stepCommand;
+    stepCommand.setMechanism(client.getName());
+    stepCommand.setChallenge(client_data.second);
+    auto response = conn.execute(stepCommand);
+
+    EXPECT_FALSE(response.isSuccess());
 }
