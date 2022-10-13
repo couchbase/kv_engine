@@ -452,7 +452,7 @@ public:
      * place).
      */
     cb::EngineErrorItemPair getIfInner(
-            CookieIface* cookie,
+            CookieIface& cookie,
             const DocKey& key,
             Vbid vbucket,
             std::function<bool(const item_info&)> filter);

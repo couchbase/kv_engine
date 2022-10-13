@@ -2542,7 +2542,7 @@ void CollectionsExpiryLimitTest::operation_test(
     auto f = [](const item_info&) { return true; };
 
     // verify meaty has 0 expiry
-    auto rval = engine->getIfInner(cookie, meaty, vbid, f);
+    auto rval = engine->getIfInner(*cookie, meaty, vbid, f);
     ASSERT_EQ(cb::engine_errc::success, rval.first);
     Item* i = reinterpret_cast<Item*>(rval.second.get());
     auto info = engine->getItemInfo(*i);
@@ -2551,9 +2551,9 @@ void CollectionsExpiryLimitTest::operation_test(
     // Now the rest, we expect fruity to have the bucket ttl
     // we can expect milky to be > fruity
     // we can expect potatoey to be < fruity
-    auto fruityValue = engine->getIfInner(cookie, fruity, vbid, f);
-    auto milkyValue = engine->getIfInner(cookie, milky, vbid, f);
-    auto potatoeyValue = engine->getIfInner(cookie, potatoey, vbid, f);
+    auto fruityValue = engine->getIfInner(*cookie, fruity, vbid, f);
+    auto milkyValue = engine->getIfInner(*cookie, milky, vbid, f);
+    auto potatoeyValue = engine->getIfInner(*cookie, potatoey, vbid, f);
     ASSERT_EQ(cb::engine_errc::success, fruityValue.first);
     ASSERT_EQ(cb::engine_errc::success, milkyValue.first);
     ASSERT_EQ(cb::engine_errc::success, potatoeyValue.first);

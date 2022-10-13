@@ -1255,7 +1255,7 @@ TEST_P(EPBucketTest, getIfOnlyFetchesMetaForFilterNegative) {
     // Setup a lambda for how we want to call get_if() - filter always returns
     // false.
     auto do_getIf = [this]() {
-        return engine->getIfInner(cookie,
+        return engine->getIfInner(*cookie,
                                   makeStoredDocKey("key"),
                                   vbid,
                                   [](const item_info& info) { return false; });
@@ -1306,7 +1306,7 @@ TEST_P(EPBucketTest, getIfOnlyFetchesMetaForFilterPositive) {
     // Setup a lambda for how we want to call get_if() - filter always returns
     // true.
     auto do_getIf = [this]() {
-        return engine->getIfInner(cookie,
+        return engine->getIfInner(*cookie,
                                   makeStoredDocKey("key"),
                                   vbid,
                                   [](const item_info& info) { return true; });

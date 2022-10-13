@@ -2183,12 +2183,12 @@ TEST_F(RelativeExpiryLimitTest, add_set_replace) {
     std::vector<cb::EngineErrorItemPair> results;
 
     auto f = [](const item_info&) { return true; };
-    results.push_back(engine->getIfInner(cookie, item1.getKey(), vbid, f));
-    results.push_back(engine->getIfInner(cookie, item2.getKey(), vbid, f));
+    results.push_back(engine->getIfInner(*cookie, item1.getKey(), vbid, f));
+    results.push_back(engine->getIfInner(*cookie, item2.getKey(), vbid, f));
 
     // finally replace key2
     EXPECT_EQ(cb::engine_errc::success, store->replace(item3, cookie));
-    results.push_back(engine->getIfInner(cookie, item2.getKey(), vbid, f));
+    results.push_back(engine->getIfInner(*cookie, item2.getKey(), vbid, f));
 
     for (const auto& rval : results) {
         ASSERT_EQ(cb::engine_errc::success, rval.first);

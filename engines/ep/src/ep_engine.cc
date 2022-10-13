@@ -301,7 +301,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(
         const DocKey& key,
         Vbid vbucket,
         std::function<bool(const item_info&)> filter) {
-    return acquireEngine(this)->getIfInner(&cookie, key, vbucket, filter);
+    return acquireEngine(this)->getIfInner(cookie, key, vbucket, filter);
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::get_and_touch(
@@ -2360,7 +2360,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getAndTouchInner(
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::getIfInner(
-        CookieIface* cookie,
+        CookieIface& cookie,
         const DocKey& key,
         Vbid vbucket,
         std::function<bool(const item_info&)> filter) {
@@ -2391,7 +2391,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getIfInner(
             options = static_cast<get_options_t>(int(options) | QUEUE_BG_FETCH);
         }
 
-        GetValue gv(kvBucket->get(key, vbucket, cookie, options));
+        GetValue gv(kvBucket->get(key, vbucket, &cookie, options));
         cb::engine_errc status = gv.getStatus();
 
         switch (status) {
