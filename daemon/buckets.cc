@@ -109,9 +109,11 @@ nlohmann::json Bucket::to_json() const {
 
 void Bucket::addMeteringMetrics(const BucketStatCollector& collector) const {
     using namespace cb::stats;
-    // engine-related metering (e.g., disk usage)
-    getEngine().get_prometheus_stats(
-            collector, cb::prometheus::MetricGroup::Metering);
+    if (hasEngine()) {
+        // engine-related metering (e.g., disk usage)
+        getEngine().get_prometheus_stats(collector,
+                                         cb::prometheus::MetricGroup::Metering);
+    }
 
     collector.addStat(Key::op_count_total, num_commands);
 
@@ -141,7 +143,8 @@ void Bucket::addMeteringMetrics(const BucketStatCollector& collector) const {
     using namespace std::chrono;
     forKV.addStat(
             Key::throttle_seconds_total,
-            duration_cast<seconds>(milliseconds(throttle_wait_time)).count());
+            duration_cast<duration<double>>(microseconds(throttle_wait_time))
+                    .count());
 }
 
 void Bucket::setThrottleLimit(std::size_t limit) {
