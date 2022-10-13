@@ -1692,9 +1692,9 @@ void EPBucket::completeStatsVKey(CookieIface* cookie,
     }
 
     if (gcb.getStatus() == cb::engine_errc::success) {
-        engine.addLookupResult(cookie, std::move(gcb.item));
+        engine.addLookupResult(*cookie, std::move(gcb.item));
     } else {
-        engine.addLookupResult(cookie, nullptr);
+        engine.addLookupResult(*cookie, nullptr);
     }
 
     --stats.numRemainingBgJobs;

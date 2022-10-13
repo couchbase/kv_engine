@@ -4053,7 +4053,7 @@ cb::engine_errc EventuallyPersistentEngine::doKeyStats(
     // If this is a validating call, we need to fetch the item from disk. The
     // fetch task is scheduled by statsVKey(). fetchLookupResult will succeed
     // in returning the item once the fetch task has completed.
-    if (validate && !fetchLookupResult(&cookie, it)) {
+    if (validate && !fetchLookupResult(cookie, it)) {
         rv = kvBucket->statsVKey(key, vbid, &cookie);
         if (rv == cb::engine_errc::not_my_vbucket ||
             rv == cb::engine_errc::no_such_key) {
@@ -4356,9 +4356,9 @@ void EventuallyPersistentEngine::addSeqnoVbStats(CookieIface& cookie,
     }
 }
 
-void EventuallyPersistentEngine::addLookupResult(CookieIface* cookie,
+void EventuallyPersistentEngine::addLookupResult(CookieIface& cookie,
                                                  std::unique_ptr<Item> result) {
-    auto oldItem = takeEngineSpecific<std::unique_ptr<Item>>(*cookie);
+    auto oldItem = takeEngineSpecific<std::unique_ptr<Item>>(cookie);
     // Check for old lookup results and clear them
     if (oldItem) {
         if (*oldItem) {
@@ -4369,14 +4369,14 @@ void EventuallyPersistentEngine::addLookupResult(CookieIface* cookie,
         }
     }
 
-    storeEngineSpecific(*cookie, std::move(result));
+    storeEngineSpecific(cookie, std::move(result));
 }
 
-bool EventuallyPersistentEngine::fetchLookupResult(CookieIface* cookie,
+bool EventuallyPersistentEngine::fetchLookupResult(CookieIface& cookie,
                                                    std::unique_ptr<Item>& itm) {
     // This will return *and erase* the lookup result for a connection.
     // You look it up, you own it.
-    auto es = takeEngineSpecific<std::unique_ptr<Item>>(*cookie);
+    auto es = takeEngineSpecific<std::unique_ptr<Item>>(cookie);
     if (es) {
         itm = std::move(*es);
         return true;

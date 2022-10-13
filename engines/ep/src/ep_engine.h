@@ -1142,9 +1142,9 @@ protected:
     cb::engine_errc doMetricGroupMetering(
             const BucketStatCollector& collector);
 
-    void addLookupResult(CookieIface* cookie, std::unique_ptr<Item> result);
+    void addLookupResult(CookieIface& cookie, std::unique_ptr<Item> result);
 
-    bool fetchLookupResult(CookieIface* cookie, std::unique_ptr<Item>& itm);
+    bool fetchLookupResult(CookieIface& cookie, std::unique_ptr<Item>& itm);
 
     /// Result of getValidVBucketFromString()
     struct StatusAndVBPtr {
