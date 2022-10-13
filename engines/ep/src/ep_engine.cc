@@ -1143,7 +1143,7 @@ cb::engine_errc EventuallyPersistentEngine::processUnknownCommandInner(
 
     switch (request.getClientOpcode()) {
     case cb::mcbp::ClientOpcode::GetAllVbSeqnos:
-        return getAllVBucketSequenceNumbers(&cookie, request, response);
+        return getAllVBucketSequenceNumbers(cookie, request, response);
     case cb::mcbp::ClientOpcode::StopPersistence:
         res = stopFlusher(&msg, &msg_size);
         break;
@@ -6410,7 +6410,7 @@ cb::engine_errc EventuallyPersistentEngine::scheduleCompaction(
 }
 
 cb::engine_errc EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
-        CookieIface* cookie,
+        CookieIface& cookie,
         const cb::mcbp::Request& request,
         const AddResponseFn& response) {
     static_assert(sizeof(RequestedVBState) == 4,
@@ -6421,7 +6421,7 @@ cb::engine_errc EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
     // filter on that specific state.
     auto reqState = aliveVBStates;
     std::optional<CollectionID> reqCollection = {};
-    const bool collectionsEnabled = cookie->isCollectionsSupported();
+    const bool collectionsEnabled = cookie.isCollectionsSupported();
 
     // if extlen is non-zero, it limits the result to either only include the
     // vbuckets in the specified vbucket state, or in the specified vbucket
@@ -6470,12 +6470,12 @@ cb::engine_errc EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
     }
 
     if (auto accessStatus =
-                doGetAllVbSeqnosPrivilegeCheck(*cookie, reqCollection);
+                doGetAllVbSeqnosPrivilegeCheck(cookie, reqCollection);
         accessStatus != cb::engine_errc::success) {
         return accessStatus;
     }
 
-    auto* connhandler = tryGetConnHandler(*cookie);
+    auto* connhandler = tryGetConnHandler(cookie);
     bool supportsSyncWrites = connhandler && connhandler->isSyncWritesEnabled();
 
     std::vector<char> payload;
@@ -6557,7 +6557,7 @@ cb::engine_errc EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
                         PROTOCOL_BINARY_RAW_BYTES,
                         cb::mcbp::Status::Success,
                         0,
-                        *cookie);
+                        cookie);
 }
 
 cb::engine_errc EventuallyPersistentEngine::doGetAllVbSeqnosPrivilegeCheck(

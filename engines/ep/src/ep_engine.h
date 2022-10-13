@@ -810,7 +810,7 @@ public:
      * @return cb::engine_errc::success upon success
      */
     cb::engine_errc getAllVBucketSequenceNumbers(
-            CookieIface* cookie,
+            CookieIface& cookie,
             const cb::mcbp::Request& request,
             const AddResponseFn& response);
 
