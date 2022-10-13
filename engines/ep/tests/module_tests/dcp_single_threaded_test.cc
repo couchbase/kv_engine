@@ -114,7 +114,7 @@ TEST_P(STDcpTest, test_not_using_backfill_queue) {
 
     auto* cookie = create_mock_cookie(engine.get());
     auto& connMap = engine->getDcpConnMap();
-    auto* consumer = connMap.newConsumer(cookie, "test_consumer");
+    auto* consumer = connMap.newConsumer(*cookie, "test_consumer");
 
     // Add passive stream
     ASSERT_EQ(cb::engine_errc::success,
@@ -230,7 +230,7 @@ TEST_P(STDcpTest, SnapshotsAndNoData) {
 
     auto* cookie = create_mock_cookie(engine.get());
     auto& connMap = engine->getDcpConnMap();
-    auto* consumer = connMap.newConsumer(cookie, "test_consumer");
+    auto* consumer = connMap.newConsumer(*cookie, "test_consumer");
 
     // Add passive stream
     ASSERT_EQ(cb::engine_errc::success,
@@ -403,7 +403,7 @@ void STDcpTest::testConsumerNegotiatesIncludeDeletedUserXattrs(
 
     // Create a new Consumer, flag that we want it to support DeleteXattr
     auto& consumer = dynamic_cast<MockDcpConsumer&>(
-            *connMap.newConsumer(cookie, "conn_name", "the_consumer_name"));
+            *connMap.newConsumer(*cookie, "conn_name", "the_consumer_name"));
 
     using State = DcpConsumer::BlockingDcpControlNegotiation::State;
     auto syncReplNeg = consumer.public_getSyncReplNegotiation();
@@ -695,7 +695,7 @@ TEST_P(STDcpTest, test_producer_no_stream_end_on_client_close_stream) {
     auto* cookie = create_mock_cookie(engine.get());
 
     /* Create a new Dcp producer */
-    DcpProducer* producer = connMap.newProducer(cookie,
+    DcpProducer* producer = connMap.newProducer(*cookie,
                                                 "test_producer",
                                                 /*flags*/ 0);
 

@@ -2800,7 +2800,7 @@ TEST_F(WarmupTest, ConsumerDuringWarmup) {
 
     // Consumer should fail - not finished warmup
     EXPECT_EQ(cb::engine_errc::temporary_failure,
-              engine->dcpOpen(cookie,
+              engine->dcpOpen(*cookie,
                               /*opaque:unused*/ {},
                               /*seqno:unused*/ {},
                               0 /*flags - consumer*/,
@@ -2833,7 +2833,7 @@ TEST_F(WarmupTest, ConsumerDuringWarmup) {
 
     // Still fails, not finished warmup
     EXPECT_EQ(cb::engine_errc::temporary_failure,
-              engine->dcpOpen(cookie,
+              engine->dcpOpen(*cookie,
                               /*opaque:unused*/ {},
                               /*seqno:unused*/ {},
                               0 /*flags - consumer*/,
@@ -2867,7 +2867,7 @@ TEST_F(WarmupTest, ConsumerDuringWarmup) {
 
     // Opening the connection should now work
     EXPECT_EQ(cb::engine_errc::success,
-              engine->dcpOpen(cookie,
+              engine->dcpOpen(*cookie,
                               /*opaque:unused*/ {},
                               /*seqno:unused*/ {},
                               0 /*flags - consumer*/,

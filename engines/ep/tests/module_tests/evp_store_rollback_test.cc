@@ -778,7 +778,7 @@ TEST_P(RollbackTest, MB21784) {
 
     // Create a new Dcp producer, reserving its cookie.
     DcpProducer* producer = engine->getDcpConnMap().newProducer(
-            cookie, "test_producer", /*flags*/ 0);
+            *cookie, "test_producer", /*flags*/ 0);
 
     uint64_t rollbackSeqno;
     auto err = producer->streamRequest(/*flags*/ 0,

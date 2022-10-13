@@ -180,7 +180,7 @@ TEST_P(DcpStreamSyncReplTest, NoPendingNotificationWithoutSyncReplication) {
     auto& connMap = engine->getDcpConnMap();
     auto producerCookie = create_mock_cookie(engine);
     ASSERT_EQ(cb::engine_errc::success,
-              engine->dcpOpen(producerCookie,
+              engine->dcpOpen(*producerCookie,
                               0 /*opaque*/,
                               0 /*seqno*/,
                               cb::mcbp::request::DcpOpenPayload::Producer,
@@ -215,7 +215,7 @@ TEST_P(DcpStreamSyncReplTest, PendingNotificationWithSyncReplication) {
     auto& connMap = engine->getDcpConnMap();
     auto producerCookie = create_mock_cookie(engine);
     ASSERT_EQ(cb::engine_errc::success,
-              engine->dcpOpen(producerCookie,
+              engine->dcpOpen(*producerCookie,
                               0 /*opaque*/,
                               0 /*seqno*/,
                               cb::mcbp::request::DcpOpenPayload::Producer,

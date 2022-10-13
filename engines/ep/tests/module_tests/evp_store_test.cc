@@ -85,7 +85,7 @@ void EPBucketBloomFilterParameterizedTest::SetUp() {
 TEST_P(EPBucketTest, test_mb20751_deadlock_on_disconnect_delete) {
     // Create a new Dcp producer, reserving its cookie.
     DcpProducer* producer = engine->getDcpConnMap().newProducer(
-            cookie, "mb_20716r", /*flags*/ 0);
+            *cookie, "mb_20716r", /*flags*/ 0);
 
     // Check preconditions.
     EXPECT_TRUE(producer->isPaused());

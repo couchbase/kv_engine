@@ -62,13 +62,13 @@ DcpConnMap::~DcpConnMap() {
     EP_LOG_INFO_RAW("Deleted dcpConnMap_");
 }
 
-DcpConsumer* DcpConnMap::newConsumer(CookieIface* cookie,
+DcpConsumer* DcpConnMap::newConsumer(CookieIface& cookie,
                                      const std::string& name,
                                      const std::string& consumerName) {
     std::string conn_name("eq_dcpq:");
     conn_name.append(name);
 
-    auto consumer = makeConsumer(engine, cookie, conn_name, consumerName);
+    auto consumer = makeConsumer(engine, &cookie, conn_name, consumerName);
     EP_LOG_DEBUG("{} Connection created", consumer->logHeader());
     auto* rawPtr = consumer.get();
 
@@ -84,11 +84,11 @@ DcpConsumer* DcpConnMap::newConsumer(CookieIface* cookie,
                 "same name as a new connection {}",
                 connForName->logHeader(),
                 static_cast<const void*>(connForName->getCookie()),
-                static_cast<const void*>(cookie));
+                static_cast<const void*>(&cookie));
         connForName->setDisconnect();
     }
 
-    handle->addConnByCookie(cookie, std::move(consumer));
+    handle->addConnByCookie(&cookie, std::move(consumer));
     return rawPtr;
 }
 
@@ -136,14 +136,14 @@ cb::engine_errc DcpConnMap::addPassiveStream(ConnHandler& conn,
     return conn.addStream(opaque, vbucket, flags);
 }
 
-DcpProducer* DcpConnMap::newProducer(CookieIface* cookie,
+DcpProducer* DcpConnMap::newProducer(CookieIface& cookie,
                                      const std::string& name,
                                      uint32_t flags) {
     std::string conn_name("eq_dcpq:");
     conn_name.append(name);
 
     auto producer = std::make_shared<DcpProducer>(
-            engine, cookie, conn_name, flags, true /*startTask*/);
+            engine, &cookie, conn_name, flags, true /*startTask*/);
     EP_LOG_DEBUG("{} Connection created", producer->logHeader());
     auto* result = producer.get();
 
@@ -164,7 +164,7 @@ DcpProducer* DcpConnMap::newProducer(CookieIface* cookie,
                 "same name as a new connection {}",
                 connForName->logHeader(),
                 static_cast<const void*>(connForName->getCookie()),
-                static_cast<const void*>(cookie));
+                static_cast<const void*>(&cookie));
         connForName->flagDisconnect();
 
         // Note: I thought that we need to 'map_.erase(oldCookie)'
@@ -175,7 +175,7 @@ DcpProducer* DcpConnMap::newProducer(CookieIface* cookie,
         // here will lead to issues described MB-36451.
     }
 
-    handle->addConnByCookie(cookie, producer);
+    handle->addConnByCookie(&cookie, producer);
     return result;
 }
 

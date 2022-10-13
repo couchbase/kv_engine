@@ -988,7 +988,7 @@ TEST_P(ConnectionTest, test_deadConnections) {
     connMap.initialize();
     auto* cookie = create_mock_cookie(engine);
     // Create a new Dcp producer
-    connMap.newProducer(cookie,
+    connMap.newProducer(*cookie,
                         "test_producer",
                         /*flags*/ 0);
 
@@ -1009,7 +1009,7 @@ TEST_P(ConnectionTest, test_mb23637_findByNameWithConnectionDoDisconnect) {
     connMap.initialize();
     auto* cookie = create_mock_cookie(engine);
     // Create a new Dcp producer
-    connMap.newProducer(cookie,
+    connMap.newProducer(*cookie,
                         "test_producer",
                         /*flags*/ 0);
     // should be able to find the connection
@@ -1035,7 +1035,7 @@ TEST_P(ConnectionTest, test_mb23637_findByNameWithDuplicateConnections) {
     auto* cookie1 = create_mock_cookie(engine);
     auto* cookie2 = create_mock_cookie(engine);
     // Create a new Dcp producer
-    DcpProducer* producer = connMap.newProducer(cookie1,
+    DcpProducer* producer = connMap.newProducer(*cookie1,
                                                 "test_producer",
                                                 /*flags*/ 0);
     ASSERT_NE(nullptr, producer) << "producer is null";
@@ -1044,7 +1044,7 @@ TEST_P(ConnectionTest, test_mb23637_findByNameWithDuplicateConnections) {
 
     // Create a duplicate Dcp producer
     DcpProducer* duplicateproducer =
-            connMap.newProducer(cookie2, "test_producer", /*flags*/ 0);
+            connMap.newProducer(*cookie2, "test_producer", /*flags*/ 0);
     ASSERT_TRUE(producer->doDisconnect()) << "producer doDisconnect == false";
     ASSERT_NE(nullptr, duplicateproducer) << "duplicateproducer is null";
 
@@ -1076,13 +1076,13 @@ TEST_P(ConnectionTest, test_mb17042_duplicate_name_producer_connections) {
     auto* cookie1 = create_mock_cookie(engine);
     auto* cookie2 = create_mock_cookie(engine);
     // Create a new Dcp producer
-    DcpProducer* producer = connMap.newProducer(cookie1,
+    DcpProducer* producer = connMap.newProducer(*cookie1,
                                                 "test_producer",
                                                 /*flags*/ 0);
     EXPECT_NE(nullptr, producer) << "producer is null";
 
     // Create a duplicate Dcp producer
-    DcpProducer* duplicateproducer = connMap.newProducer(cookie2,
+    DcpProducer* duplicateproducer = connMap.newProducer(*cookie2,
                                                          "test_producer",
                                                          /*flags*/ 0);
     EXPECT_TRUE(producer->doDisconnect()) << "producer doDisconnect == false";
@@ -1108,12 +1108,12 @@ TEST_P(ConnectionTest, test_mb17042_duplicate_name_consumer_connections) {
     auto* cookie1 = create_mock_cookie(engine);
     auto* cookie2 = create_mock_cookie(engine);
     // Create a new Dcp consumer
-    DcpConsumer* consumer = connMap.newConsumer(cookie1, "test_consumer");
+    DcpConsumer* consumer = connMap.newConsumer(*cookie1, "test_consumer");
     EXPECT_NE(nullptr, consumer) << "consumer is null";
 
     // Create a duplicate Dcp consumer
     DcpConsumer* duplicateconsumer =
-            connMap.newConsumer(cookie2, "test_consumer");
+            connMap.newConsumer(*cookie2, "test_consumer");
     EXPECT_TRUE(consumer->doDisconnect()) << "consumer doDisconnect == false";
     EXPECT_NE(nullptr, duplicateconsumer) << "duplicateconsumer is null";
 
@@ -1303,7 +1303,7 @@ TEST_P(ConnectionTest, test_mb20645_stats_after_closeAllStreams) {
     connMap.initialize();
     auto* cookie = create_mock_cookie(engine);
     // Create a new Dcp producer
-    DcpProducer* producer = connMap.newProducer(cookie,
+    DcpProducer* producer = connMap.newProducer(*cookie,
                                                 "test_producer",
                                                 /*flags*/ 0);
 
@@ -1329,7 +1329,7 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete) {
     connMap.initialize();
     auto* cookie = create_mock_cookie(engine);
     // Create a new Dcp producer.
-    DcpProducer* producer = connMap.newProducer(cookie,
+    DcpProducer* producer = connMap.newProducer(*cookie,
                                                 "mb_20716r",
                                                 /*flags*/ 0);
 
@@ -1365,7 +1365,7 @@ TEST_P(ConnectionTest, test_mb20716_connmap_notify_on_delete_consumer) {
     auto* cookie = create_mock_cookie(engine);
     // Create a new Dcp consumer
     auto& consumer = dynamic_cast<MockDcpConsumer&>(
-            *connMap.newConsumer(cookie, "mb_20716_consumer"));
+            *connMap.newConsumer(*cookie, "mb_20716_consumer"));
     consumer.setPendingAddStream(false);
 
     // Move consumer into paused state (aka EWOULDBLOCK).
@@ -1405,7 +1405,7 @@ TEST_P(ConnectionTest, ConsumerWithoutConsumerNameDoesNotEnableSyncRepl) {
     auto* cookie = create_mock_cookie(engine);
     // Create a new Dcp consumer
     auto& consumer = dynamic_cast<MockDcpConsumer&>(
-            *connMap.newConsumer(cookie, "consumer"));
+            *connMap.newConsumer(*cookie, "consumer"));
     consumer.setPendingAddStream(false);
     EXPECT_FALSE(consumer.isSyncReplicationEnabled());
     EXPECT_EQ(DcpConsumer::BlockingDcpControlNegotiation::State::Completed,
@@ -1420,7 +1420,7 @@ TEST_P(ConnectionTest, ConsumerWithConsumerNameEnablesSyncRepl) {
     auto* cookie = create_mock_cookie(engine);
     // Create a new Dcp consumer
     auto& consumer = dynamic_cast<MockDcpConsumer&>(
-            *connMap.newConsumer(cookie, "consumer", "replica1"));
+            *connMap.newConsumer(*cookie, "consumer", "replica1"));
     consumer.setPendingAddStream(false);
     EXPECT_FALSE(consumer.isSyncReplicationEnabled());
     using State = DcpConsumer::BlockingDcpControlNegotiation::State;
@@ -1518,7 +1518,7 @@ TEST_F(DcpConnMapTest, StaleConnMapReferences) {
 
     auto* cookie = create_mock_cookie();
     // Create a new Dcp producer
-    auto* producer = connMap.newProducer(cookie, "test_producer", 0 /*flags*/);
+    auto* producer = connMap.newProducer(*cookie, "test_producer", 0 /*flags*/);
 
     // Bit of a test hack; when we close the stream we will only remove the
     // ConnHandler reference from the vbToConns map if we do not set
@@ -1565,9 +1565,10 @@ TEST_F(DcpConnMapTest, StaleConnMapReferences) {
 TEST_F(DcpConnMapTest, DeleteProducerOnUncleanDCPConnMapDelete) {
     /* Create a new Dcp producer */
     auto* dummyMockCookie = create_mock_cookie(engine.get());
-    DcpProducer* producer = engine->getDcpConnMap().newProducer(dummyMockCookie,
-                                                                "test_producer",
-                                                                /*flags*/ 0);
+    DcpProducer* producer =
+            engine->getDcpConnMap().newProducer(*dummyMockCookie,
+                                                "test_producer",
+                                                /*flags*/ 0);
     /* Open stream */
     uint64_t rollbackSeqno = 0;
     uint32_t opaque = 0;
@@ -1602,7 +1603,7 @@ TEST_F(DcpConnMapTest, DeleteConsumerConnOnUncleanDCPConnMapDelete) {
     /* Create a new Dcp consumer */
     auto* dummyMockCookie = create_mock_cookie(engine.get());
     DcpConsumer* consumer = engine->getDcpConnMap().newConsumer(
-            dummyMockCookie, "test_consumer");
+            *dummyMockCookie, "test_consumer");
 
     /* Add passive stream */
     ASSERT_EQ(cb::engine_errc::success,
@@ -1631,7 +1632,7 @@ TEST_F(DcpConnMapTest, TestCorrectConnHandlerRemoved) {
                       vbid, vbucket_state_replica, {}, TransferVB::Yes));
 
     DcpConsumer* consumerA =
-            connMap.newConsumer(cookieA, "test_consumerA", "test_consumerA");
+            connMap.newConsumer(*cookieA, "test_consumerA", "test_consumerA");
     EXPECT_FALSE(connMap.doesVbConnExist(vbid, "eq_dcpq:test_consumerA"));
     consumerA->addStream(0xdead, vbid, 0);
     EXPECT_TRUE(connMap.doesVbConnExist(vbid, "eq_dcpq:test_consumerA"));
@@ -1640,7 +1641,7 @@ TEST_F(DcpConnMapTest, TestCorrectConnHandlerRemoved) {
 
     // Create a new consumer, with a stream for the same VB
     DcpConsumer* consumerB =
-            connMap.newConsumer(cookieB, "test_consumerB", "test_consumerB");
+            connMap.newConsumer(*cookieB, "test_consumerB", "test_consumerB");
     EXPECT_FALSE(connMap.doesVbConnExist(vbid, "eq_dcpq:test_consumerB"));
     consumerB->addStream(0xbeef, vbid, 0);
     EXPECT_TRUE(connMap.doesVbConnExist(vbid, "eq_dcpq:test_consumerB"));
@@ -1673,7 +1674,7 @@ TEST_F(DcpConnMapTest, TestCorrectRemovedOnStreamEnd) {
     MockDcpMessageProducers producers;
 
     // create a producer (We are currently active)
-    auto producer = engine->getDcpConnMap().newProducer(producerCookie,
+    auto producer = engine->getDcpConnMap().newProducer(*producerCookie,
                                                         "producerA",
                                                         /*flags*/ 0);
 
@@ -1712,7 +1713,7 @@ TEST_F(DcpConnMapTest, TestCorrectRemovedOnStreamEnd) {
 
     // Create a consumer (we are now a replica)
     DcpConsumer* consumer = connMap.newConsumer(
-            consumerCookie, "test_consumerA", "test_consumerA");
+            *consumerCookie, "test_consumerA", "test_consumerA");
 
     EXPECT_FALSE(connMap.doesVbConnExist(vbid, "eq_dcpq:test_consumerA"));
 
@@ -1752,7 +1753,7 @@ TEST_F(DcpConnMapTest, AvoidDoubleLockToVBStateAtSetVBucketState) {
     auto* cookie = create_mock_cookie(engine.get());
     const uint32_t flags = 0;
     auto& connMap = dynamic_cast<MockDcpConnMap&>(engine->getDcpConnMap());
-    auto* producer = connMap.newProducer(cookie, "producer", flags);
+    auto* producer = connMap.newProducer(*cookie, "producer", flags);
 
     const uint32_t opaque = 0xdead;
     // Vbstate lock acquired in ActiveStream::setDead (executed by
@@ -1801,7 +1802,7 @@ TEST_F(DcpConnMapTest,
     auto* cookie = create_mock_cookie(engine.get());
     const uint32_t flags = 0;
     auto& connMap = dynamic_cast<MockDcpConnMap&>(engine->getDcpConnMap());
-    auto* producer = connMap.newProducer(cookie, "producer", flags);
+    auto* producer = connMap.newProducer(*cookie, "producer", flags);
 
     const uint32_t opaque = 0xdead;
     // Vbstate lock acquired in ActiveStream::setDead (executed by
@@ -1949,7 +1950,7 @@ void DcpConnMapTest::testLockInversionInSetVBucketStateAndNewProducer() {
     auto* cookie = create_mock_cookie(engine.get());
     const std::string connName = "producer";
     const uint32_t flags = 0;
-    auto* producer = connMap.newProducer(cookie, connName, flags);
+    auto* producer = connMap.newProducer(*cookie, connName, flags);
 
     const uint32_t opaque = 0;
     // Vbstate lock acquired in ActiveStream::setDead (executed by
@@ -1993,7 +1994,7 @@ void DcpConnMapTest::testLockInversionInSetVBucketStateAndNewProducer() {
     // Note: ActiveStream::setDead executed only if re-creating the same
     // connection (ie, same cookie or connection name).
     auto* cookie2 = create_mock_cookie(engine.get());
-    producer = connMap.newProducer(cookie2, connName, flags);
+    producer = connMap.newProducer(*cookie2, connName, flags);
     ASSERT_TRUE(producer);
     // Check that the connection has been re-created with the same name
     // and exists in vbConns at stream-req
@@ -2029,7 +2030,7 @@ public:
                 [this](cb::engine_errc status) { notify(); });
         cookie->getConnection().setUserScheduleDcpStep([this]() { notify(); });
         connMap->initialize();
-        producer = connMap->newProducer(cookie,
+        producer = connMap->newProducer(*cookie,
                                         "test_producer",
                                         /*flags*/ 0);
     }

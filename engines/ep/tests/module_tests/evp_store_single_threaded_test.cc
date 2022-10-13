@@ -2195,7 +2195,7 @@ TEST_P(STParamPersistentBucketTest, MB19892_BackfillNotDeleted) {
     // Create a DCP producer, and start a stream request.
     std::string name{"test_producer"};
     EXPECT_EQ(cb::engine_errc::success,
-              engine->dcpOpen(cookie,
+              engine->dcpOpen(*cookie,
                               /*opaque:unused*/ {},
                               /*seqno:unused*/ {},
                               cb::mcbp::request::DcpOpenPayload::Producer,
@@ -2568,7 +2568,7 @@ TEST_P(MB20054_SingleThreadedEPStoreTest,
     // Create a DCP producer, and start a stream request.
     std::string name("test_producer");
     EXPECT_EQ(cb::engine_errc::success,
-              engine->dcpOpen(cookie,
+              engine->dcpOpen(*cookie,
                               /*opaque:unused*/ {},
                               /*seqno:unused*/ {},
                               cb::mcbp::request::DcpOpenPayload::Producer,

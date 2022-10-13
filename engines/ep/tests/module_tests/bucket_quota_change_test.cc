@@ -76,7 +76,7 @@ public:
         ASSERT_EQ(0, engine->getDcpFlowControlManager().getNumConsumers());
 
         auto& connMap = engine->getDcpConnMap();
-        consumer = connMap.newConsumer(cookie, "connection", "consumer");
+        consumer = connMap.newConsumer(*cookie, "connection", "consumer");
         ASSERT_TRUE(consumer->isFlowControlEnabled());
         ASSERT_EQ(1, engine->getDcpFlowControlManager().getNumConsumers());
         EXPECT_EQ(config.getMaxSize() * config.getDcpConsumerBufferRatio(),

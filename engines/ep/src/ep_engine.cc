@@ -1230,7 +1230,7 @@ cb::engine_errc EventuallyPersistentEngine::open(CookieIface& cookie,
                                                  std::string_view conName,
                                                  std::string_view value) {
     return acquireEngine(this)->dcpOpen(
-            &cookie, opaque, seqno, flags, conName, value);
+            cookie, opaque, seqno, flags, conName, value);
 }
 
 cb::engine_errc EventuallyPersistentEngine::add_stream(CookieIface& cookie,
@@ -6210,7 +6210,7 @@ cb::engine_errc EventuallyPersistentEngine::getRandomKey(
 }
 
 cb::engine_errc EventuallyPersistentEngine::dcpOpen(
-        CookieIface* cookie,
+        CookieIface& cookie,
         uint32_t opaque,
         uint32_t seqno,
         uint32_t flags,

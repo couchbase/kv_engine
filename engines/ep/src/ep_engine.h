@@ -496,7 +496,7 @@ public:
                                         const cb::StoreIfPredicate& predicate,
                                         bool preserveTtl);
 
-    cb::engine_errc dcpOpen(CookieIface* cookie,
+    cb::engine_errc dcpOpen(CookieIface& cookie,
                             uint32_t opaque,
                             uint32_t seqno,
                             uint32_t flags,

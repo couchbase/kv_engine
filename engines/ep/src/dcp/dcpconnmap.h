@@ -39,7 +39,7 @@ public:
      * @param flags The DCP open flags (as per protocol)
      * @param jsonExtra An optional JSON document for additional configuration
      */
-    DcpProducer* newProducer(CookieIface* cookie,
+    DcpProducer* newProducer(CookieIface& cookie,
                              const std::string& name,
                              uint32_t flags);
 
@@ -52,7 +52,7 @@ public:
      *        consumer to advertise itself to the producer as.
      * @return Pointer to the new dcp connection
      */
-    DcpConsumer* newConsumer(CookieIface* cookie,
+    DcpConsumer* newConsumer(CookieIface& cookie,
                              const std::string& name,
                              const std::string& consumerName = {});
 
