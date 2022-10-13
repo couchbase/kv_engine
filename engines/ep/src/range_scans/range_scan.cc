@@ -334,6 +334,13 @@ cb::engine_errc RangeScan::continueScan(KVStoreIface& kvstore) {
         return cb::engine_errc::success;
     }
 
+    if (!continueRunState.cState.cookie) {
+        // MB-54053: @todo remove this extra check/log
+        // If the cookie is not set at this point what has happened?
+        EP_LOG_CRITICAL("RangeScan::continueScan no cookie {}", *this);
+        Expects(continueRunState.cState.cookie);
+    }
+
     EP_LOG_DEBUG("RangeScan {} continue for {}", uuid, getVBucketId());
     auto status = kvstore.scan(*scanCtx);
 
@@ -489,6 +496,13 @@ std::chrono::seconds RangeScan::getRemainingTime(
 
 void RangeScan::handleKey(DocKey key) {
     incrementItemCounters(key.size());
+
+    if (!continueRunState.cState.cookie) {
+        // MB-54053: @todo remove this extra check/log
+        // If the cookie is not set at this point what has happened?
+        EP_LOG_CRITICAL("RangeScan::handleKey no cookie {}", *this);
+    }
+
     Expects(continueRunState.cState.cookie);
     continueRunState.limitByThrottle =
             handler->handleKey(*continueRunState.cState.cookie, key);
@@ -501,6 +515,13 @@ void RangeScan::handleItem(std::unique_ptr<Item> item, Source source) {
         incrementValueFromDisk();
     }
     incrementItemCounters(item->getNBytes() + item->getKey().size());
+
+    if (!continueRunState.cState.cookie) {
+        // MB-54053: @todo remove this extra check/log
+        // If the cookie is not set at this point what has happened?
+        EP_LOG_CRITICAL("RangeScan::handleItem no cookie {}", *this);
+    }
+
     Expects(continueRunState.cState.cookie);
     continueRunState.limitByThrottle = handler->handleItem(
             *continueRunState.cState.cookie, std::move(item));
