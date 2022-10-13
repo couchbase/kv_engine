@@ -431,7 +431,7 @@ public:
 
     void itemRelease(ItemIface* itm);
 
-    cb::EngineErrorItemPair getInner(CookieIface* cookie,
+    cb::EngineErrorItemPair getInner(CookieIface& cookie,
                                      const DocKey& key,
                                      Vbid vbucket,
                                      get_options_t options);

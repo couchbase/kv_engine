@@ -293,7 +293,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get(
         options = static_cast<get_options_t>(options | GET_DELETED_VALUE);
         break;
     }
-    return acquireEngine(this)->getInner(&cookie, key, vbucket, options);
+    return acquireEngine(this)->getInner(cookie, key, vbucket, options);
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(
@@ -2294,7 +2294,7 @@ void EventuallyPersistentEngine::itemRelease(ItemIface* itm) {
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::getInner(
-        CookieIface* cookie,
+        CookieIface& cookie,
         const DocKey& key,
         Vbid vbucket,
         get_options_t options) {
@@ -2302,7 +2302,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getInner(
             std::forward_as_tuple(stats.getCmdHisto),
             std::forward_as_tuple(cookie, cb::tracing::Code::Get));
 
-    GetValue gv(kvBucket->get(key, vbucket, cookie, options));
+    GetValue gv(kvBucket->get(key, vbucket, &cookie, options));
     cb::engine_errc ret = gv.getStatus();
 
     if (ret == cb::engine_errc::success) {

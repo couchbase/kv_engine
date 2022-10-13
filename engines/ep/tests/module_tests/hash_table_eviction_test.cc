@@ -239,7 +239,7 @@ protected:
                         DELETE_TEMP | HIDE_LOCKED_CAS | TRACK_STATISTICS);
                 {
                     auto [status, item] =
-                            engine->getInner(cookie, key, vbucket, options);
+                            engine->getInner(*cookie, key, vbucket, options);
                     EXPECT_EQ(cb::engine_errc::success, status);
                     EXPECT_TRUE(item);
                 }
