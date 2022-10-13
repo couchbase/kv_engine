@@ -612,7 +612,7 @@ public:
 
     VBucketPtr getVBucket(Vbid vbucket) const;
 
-    cb::engine_errc setVBucketState(CookieIface* cookie,
+    cb::engine_errc setVBucketState(CookieIface& cookie,
                                     Vbid vbid,
                                     vbucket_state_t to,
                                     const nlohmann::json* meta,

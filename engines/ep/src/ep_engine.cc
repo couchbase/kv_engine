@@ -1057,7 +1057,7 @@ cb::engine_errc EventuallyPersistentEngine::setVBucketInner(
         vbucket_state_t state,
         nlohmann::json* meta) {
     HdrMicroSecBlockTimer timer(&stats.setVbucketCmdHisto);
-    return setVBucketState(&cookie, vbid, state, meta, TransferVB::No, cas);
+    return setVBucketState(cookie, vbid, state, meta, TransferVB::No, cas);
 }
 
 cb::engine_errc EventuallyPersistentEngine::getReplicaCmd(
@@ -6667,15 +6667,15 @@ std::unique_ptr<KVBucket> EventuallyPersistentEngine::makeBucket(
 }
 
 cb::engine_errc EventuallyPersistentEngine::setVBucketState(
-        CookieIface* cookie,
+        CookieIface& cookie,
         Vbid vbid,
         vbucket_state_t to,
         const nlohmann::json* meta,
         TransferVB transfer,
         uint64_t cas) {
-    auto status = kvBucket->setVBucketState(vbid, to, meta, transfer, cookie);
+    auto status = kvBucket->setVBucketState(vbid, to, meta, transfer, &cookie);
     if (status == cb::engine_errc::out_of_range) {
-        setErrorContext(*cookie, "VBucket number too big");
+        setErrorContext(cookie, "VBucket number too big");
     }
 
     return cb::engine_errc(status);
