@@ -6147,18 +6147,6 @@ cb::engine_errc EventuallyPersistentEngine::getAllKeys(
     return cb::engine_errc::would_block;
 }
 
-ConnectionPriority EventuallyPersistentEngine::getDCPPriority(
-        CookieIface* cookie) {
-    NonBucketAllocationGuard guard;
-    return serverApi->cookie->get_priority(*cookie);
-}
-
-void EventuallyPersistentEngine::setDCPPriority(CookieIface* cookie,
-                                                ConnectionPriority priority) {
-    NonBucketAllocationGuard guard;
-    serverApi->cookie->set_priority(*cookie, priority);
-}
-
 void EventuallyPersistentEngine::notifyIOComplete(CookieIface* cookie,
                                                   cb::engine_errc status) {
     if (cookie == nullptr) {

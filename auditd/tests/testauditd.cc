@@ -42,6 +42,14 @@ public:
         throw std::runtime_error(
                 "AuditMockConnection::scheduleDcpStep not implemented");
     }
+    ConnectionPriority getPriority() const override {
+        throw std::runtime_error(
+                "AuditMockConnection::getPriority not implemented");
+    }
+    void setPriority(ConnectionPriority value) override {
+        throw std::runtime_error(
+                "AuditMockConnection::setPriority not implemented");
+    }
 };
 
 class AuditMockCookie : public CookieIface {

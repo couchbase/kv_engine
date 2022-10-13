@@ -115,16 +115,6 @@ struct ServerCookieApi : public ServerCookieIface {
                 });
     }
 
-    void set_priority(CookieIface& cookie,
-                      ConnectionPriority priority) override {
-        asCookie(cookie).getConnection().setPriority(priority);
-    }
-
-    ConnectionPriority get_priority(CookieIface& void_cookie) override {
-        auto& cookie = dynamic_cast<const Cookie&>(void_cookie);
-        return cookie.getConnection().getPriority();
-    }
-
     cb::rbac::PrivilegeAccess check_privilege(
             CookieIface& cookie,
             cb::rbac::Privilege privilege,

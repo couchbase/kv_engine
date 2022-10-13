@@ -13,6 +13,7 @@
 #include <memcached/cookie_iface.h>
 #include <memcached/engine_error.h>
 #include <memcached/tracer.h>
+#include <memcached/types.h>
 #include <platform/compression/buffer.h>
 #include <platform/socket.h>
 #include <atomic>
@@ -28,6 +29,17 @@ public:
     void scheduleDcpStep() override;
     void setUserScheduleDcpStep(std::function<void()> func);
     std::function<void()> userScheduleDcpStep;
+
+    ConnectionPriority getPriority() const override {
+        return priority;
+    }
+
+    void setPriority(ConnectionPriority value) override {
+        priority = value;
+    }
+
+protected:
+    ConnectionPriority priority{ConnectionPriority::Medium};
 };
 
 class MockCookie : public CookieIface {

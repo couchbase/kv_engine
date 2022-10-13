@@ -33,6 +33,7 @@
 #include "snappy-c.h"
 #include "vbucket.h"
 #include <executor/executorpool.h>
+#include <memcached/connection_iface.h>
 #include <memcached/cookie_iface.h>
 #include <memcached/server_cookie_iface.h>
 #include <nlohmann/json.hpp>
@@ -229,7 +230,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
         logger->unregister();
     }
 
-    engine_.setDCPPriority(getCookie(), ConnectionPriority::Medium);
+    getCookie()->getConnectionIface().setPriority(ConnectionPriority::Medium);
 
     // The consumer assigns opaques starting at 0 so lets have the producer
     //start using opaques at 10M to prevent any opaque conflicts.
@@ -1063,13 +1064,16 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
         }
     } else if (strncmp(param, "set_priority", key.size()) == 0) {
         if (valueStr == "high") {
-            engine_.setDCPPriority(getCookie(), ConnectionPriority::High);
+            getCookie()->getConnectionIface().setPriority(
+                    ConnectionPriority::High);
             return cb::engine_errc::success;
         } else if (valueStr == "medium") {
-            engine_.setDCPPriority(getCookie(), ConnectionPriority::Medium);
+            getCookie()->getConnectionIface().setPriority(
+                    ConnectionPriority::Medium);
             return cb::engine_errc::success;
         } else if (valueStr == "low") {
-            engine_.setDCPPriority(getCookie(), ConnectionPriority::Low);
+            getCookie()->getConnectionIface().setPriority(
+                    ConnectionPriority::Low);
             return cb::engine_errc::success;
         }
     } else if (keyStr == "send_stream_end_on_client_close_stream") {

@@ -261,17 +261,6 @@ struct MockServerCookieApi : public ServerCookieIface {
         }
     }
 
-    void set_priority(CookieIface& cookie, ConnectionPriority) override {
-        // Just verify the cookie type
-        asMockCookie(cookie);
-    }
-
-    ConnectionPriority get_priority(CookieIface& cookie) override {
-        // Just verify the cookie type
-        asMockCookie(cookie);
-        return ConnectionPriority::Medium;
-    }
-
     cb::rbac::PrivilegeAccess check_privilege(
             CookieIface& cookie,
             cb::rbac::Privilege privilege,

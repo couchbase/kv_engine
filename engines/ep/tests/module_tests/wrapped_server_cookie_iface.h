@@ -52,13 +52,6 @@ public:
     void release(CookieIface& cookie) override {
         wrapped->release(cookie);
     }
-    void set_priority(CookieIface& cookie,
-                      ConnectionPriority priority) override {
-        return wrapped->set_priority(cookie, priority);
-    }
-    ConnectionPriority get_priority(CookieIface& cookie) override {
-        return wrapped->get_priority(cookie);
-    }
     cb::rbac::PrivilegeAccess check_privilege(
             CookieIface& cookie,
             cb::rbac::Privilege privilege,

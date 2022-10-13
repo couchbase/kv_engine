@@ -10,6 +10,10 @@
 
 #pragma once
 
+#include <cstdint>
+
+enum class ConnectionPriority : uint8_t;
+
 /**
  * ConnectionIface is a base class for all of the connection objects in
  * the system. By using an "interface class" we may use different backends
@@ -31,4 +35,10 @@ public:
      * @throws std::logic_error if the connection isn't a DCP connection
      */
     virtual void scheduleDcpStep() = 0;
+
+    /// Get the priority for this connection
+    virtual ConnectionPriority getPriority() const = 0;
+
+    /// Set the priority for this connection
+    virtual void setPriority(ConnectionPriority value) = 0;
 };

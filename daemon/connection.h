@@ -146,11 +146,11 @@ public:
                           cb::rbac::UserIdent ui = {"unknown",
                                                     cb::sasl::Domain::Local});
 
-    ConnectionPriority getPriority() const {
+    ConnectionPriority getPriority() const override {
         return priority.load();
     }
 
-    void setPriority(ConnectionPriority priority);
+    void setPriority(ConnectionPriority value) override;
 
     /**
      * Create a JSON representation of the members of the connection

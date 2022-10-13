@@ -528,10 +528,6 @@ public:
                                const cb::mcbp::Request& request,
                                const AddResponseFn& response);
 
-    ConnectionPriority getDCPPriority(CookieIface* cookie);
-
-    void setDCPPriority(CookieIface* cookie, ConnectionPriority priority);
-
     void notifyIOComplete(CookieIface& cookie, cb::engine_errc status);
     void notifyIOComplete(CookieIface* cookie, cb::engine_errc status);
     void scheduleDcpStep(CookieIface& cookie);

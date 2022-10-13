@@ -77,17 +77,6 @@ struct ServerCookieIface {
     virtual void release(CookieIface& cookie) = 0;
 
     /**
-     * Set the priority for this connection
-     */
-    virtual void set_priority(CookieIface& cookie,
-                              ConnectionPriority priority) = 0;
-
-    /**
-     * Get the priority for this connection
-     */
-    virtual ConnectionPriority get_priority(CookieIface& cookie) = 0;
-
-    /**
      * Check if the cookie have the specified privilege in it's active set.
      *
      * @param cookie the cookie sent to the engine for an operation

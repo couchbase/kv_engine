@@ -15,6 +15,7 @@
 #include "ep_engine.h"
 #include "ep_time.h"
 
+#include <memcached/connection_iface.h>
 #include <memcached/cookie_iface.h>
 #include <memcached/durability_spec.h>
 #include <memcached/server_cookie_iface.h>
@@ -370,7 +371,7 @@ void ConnHandler::addStats(const AddStatFn& add_stat, CookieIface& c) {
             addStat(key.c_str(), cb::time2text(duration), add_stat, c);
         }
     }
-    const auto priority = engine_.getDCPPriority(cookie);
+    const auto priority = cookie.load()->getConnectionIface().getPriority();
     const char* priString = "<INVALID>";
     switch (priority) {
     case ConnectionPriority::High:
