@@ -602,11 +602,11 @@ public:
                               const cb::mcbp::Request& request,
                               const char** msg);
 
-    cb::engine_errc observe(CookieIface* cookie,
+    cb::engine_errc observe(CookieIface& cookie,
                             const cb::mcbp::Request& request,
                             const AddResponseFn& response);
 
-    cb::engine_errc observe_seqno(CookieIface* cookie,
+    cb::engine_errc observe_seqno(CookieIface& cookie,
                                   const cb::mcbp::Request& request,
                                   const AddResponseFn& response);
 

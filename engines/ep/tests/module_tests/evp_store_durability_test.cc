@@ -4501,19 +4501,19 @@ TEST_P(DurabilityBucketTest, ObserveReturnsErrorIfRecommitInProgress) {
                                      CookieIface& cookie) { return true; };
 
     auto requestPtr = createObserveRequest({keyCommitted});
-    auto res = engine->observe(cookie, *requestPtr, dummyAddResponse);
+    auto res = engine->observe(*cookie, *requestPtr, dummyAddResponse);
     EXPECT_EQ(cb::engine_errc::success, res);
 
     // Verify that observing a maybe visble prepare causes
     // the entire Observe to fail
     requestPtr = createObserveRequest({keyMaybeVisible});
-    res = engine->observe(cookie, *requestPtr, dummyAddResponse);
+    res = engine->observe(*cookie, *requestPtr, dummyAddResponse);
     EXPECT_EQ(cb::engine_errc::sync_write_re_commit_in_progress, res);
 
     // a request with one prepared maybe visible key should still
     // fail the entire request
     requestPtr = createObserveRequest({keyMaybeVisible, keyCommitted});
-    res = engine->observe(cookie, *requestPtr, dummyAddResponse);
+    res = engine->observe(*cookie, *requestPtr, dummyAddResponse);
     EXPECT_EQ(cb::engine_errc::sync_write_re_commit_in_progress, res);
 }
 

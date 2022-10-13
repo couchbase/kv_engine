@@ -1154,9 +1154,9 @@ cb::engine_errc EventuallyPersistentEngine::processUnknownCommandInner(
         res = evictKey(cookie, request, &msg);
         break;
     case cb::mcbp::ClientOpcode::Observe:
-        return observe(&cookie, request, response);
+        return observe(cookie, request, response);
     case cb::mcbp::ClientOpcode::ObserveSeqno:
-        return observe_seqno(&cookie, request, response);
+        return observe_seqno(cookie, request, response);
     case cb::mcbp::ClientOpcode::SeqnoPersistence:
         return handleSeqnoPersistence(&cookie, request, response);
     case cb::mcbp::ClientOpcode::SetWithMeta:
@@ -5028,7 +5028,7 @@ uint32_t EventuallyPersistentEngine::getPrivilegeRevision(
 }
 
 cb::engine_errc EventuallyPersistentEngine::observe(
-        CookieIface* cookie,
+        CookieIface& cookie,
         const cb::mcbp::Request& req,
         const AddResponseFn& response) {
     size_t offset = 0;
@@ -5045,7 +5045,7 @@ cb::engine_errc EventuallyPersistentEngine::observe(
 
         // Parse a key
         if (value.size() - offset < 4) {
-            setErrorContext(*cookie, "Requires vbid and keylen.");
+            setErrorContext(cookie, "Requires vbid and keylen.");
             return cb::engine_errc::invalid_arguments;
         }
 
@@ -5060,17 +5060,17 @@ cb::engine_errc EventuallyPersistentEngine::observe(
         offset += sizeof(uint16_t);
 
         if (value.size() - offset < keylen) {
-            setErrorContext(*cookie, "Incorrect keylen");
+            setErrorContext(cookie, "Incorrect keylen");
             return cb::engine_errc::invalid_arguments;
         }
 
-        DocKey key = makeDocKey(*cookie, {data + offset, keylen});
+        DocKey key = makeDocKey(cookie, {data + offset, keylen});
         offset += keylen;
         EP_LOG_DEBUG("Observing key {} in {}",
                      cb::UserDataView(key.to_string()),
                      vb_id);
 
-        auto rv = checkPrivilege(cookie, cb::rbac::Privilege::Read, key);
+        auto rv = checkPrivilege(&cookie, cb::rbac::Privilege::Read, key);
         if (rv != cb::engine_errc::success) {
             return rv;
         }
@@ -5079,7 +5079,7 @@ cb::engine_errc EventuallyPersistentEngine::observe(
         uint8_t keystatus = 0;
         struct key_stats kstats = {};
         rv = kvBucket->getKeyStats(
-                key, vb_id, cookie, kstats, WantsDeleted::Yes);
+                key, vb_id, &cookie, kstats, WantsDeleted::Yes);
         if (rv == cb::engine_errc::success) {
             if (kstats.logically_deleted) {
                 keystatus = OBS_STATE_LOGICAL_DEL;
@@ -5128,11 +5128,11 @@ cb::engine_errc EventuallyPersistentEngine::observe(
                         PROTOCOL_BINARY_RAW_BYTES,
                         cb::mcbp::Status::Success,
                         persist_time,
-                        *cookie);
+                        cookie);
 }
 
 cb::engine_errc EventuallyPersistentEngine::observe_seqno(
-        CookieIface* cookie,
+        CookieIface& cookie,
         const cb::mcbp::Request& request,
         const AddResponseFn& response) {
     Vbid vb_id = request.getVBucket();
@@ -5200,7 +5200,7 @@ cb::engine_errc EventuallyPersistentEngine::observe_seqno(
                         PROTOCOL_BINARY_RAW_BYTES,
                         cb::mcbp::Status::Success,
                         0,
-                        *cookie);
+                        cookie);
 }
 
 VBucketPtr EventuallyPersistentEngine::getVBucket(Vbid vbucket) const {
