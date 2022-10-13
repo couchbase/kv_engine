@@ -4541,7 +4541,7 @@ std::tuple<cb::engine_errc,
            std::optional<Vbid>,
            std::optional<std::string>,
            std::optional<CollectionID>>
-EventuallyPersistentEngine::parseStatKeyArg(CookieIface* cookie,
+EventuallyPersistentEngine::parseStatKeyArg(CookieIface& cookie,
                                             std::string_view statKeyPrefix,
                                             std::string_view statKey) {
     std::vector<std::string> args;
@@ -4579,7 +4579,7 @@ EventuallyPersistentEngine::parseStatKeyArg(CookieIface* cookie,
                 parseKeyStatCollection(statKeyPrefix, args[0], args[3]);
         if (cidResult.result != cb::engine_errc::success) {
             if (cidResult.result == cb::engine_errc::unknown_collection) {
-                setUnknownCollectionErrorContext(*cookie,
+                setUnknownCollectionErrorContext(cookie,
                                                  cidResult.getManifestId());
             }
             return {cb::engine_errc(cidResult.result),
@@ -4601,7 +4601,7 @@ cb::engine_errc EventuallyPersistentEngine::doKeyStats(
     std::optional<Vbid> vbid;
     std::optional<std::string> key;
     std::optional<CollectionID> cid;
-    std::tie(status, vbid, key, cid) = parseStatKeyArg(&cookie, "key", statKey);
+    std::tie(status, vbid, key, cid) = parseStatKeyArg(cookie, "key", statKey);
     if (status != cb::engine_errc::success) {
         return status;
     }
@@ -4617,8 +4617,7 @@ cb::engine_errc EventuallyPersistentEngine::doVKeyStats(
     std::optional<Vbid> vbid;
     std::optional<std::string> key;
     std::optional<CollectionID> cid;
-    std::tie(status, vbid, key, cid) =
-            parseStatKeyArg(&cookie, "vkey", statKey);
+    std::tie(status, vbid, key, cid) = parseStatKeyArg(cookie, "vkey", statKey);
     if (status != cb::engine_errc::success) {
         return status;
     }

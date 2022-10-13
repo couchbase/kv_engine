@@ -1372,7 +1372,7 @@ private:
                std::optional<Vbid>,
                std::optional<std::string>,
                std::optional<CollectionID>>
-    parseStatKeyArg(CookieIface* cookie,
+    parseStatKeyArg(CookieIface& cookie,
                     std::string_view statKeyPrefix,
                     std::string_view statKey);
 
