@@ -528,6 +528,8 @@ public:
                                const cb::mcbp::Request& request,
                                const AddResponseFn& response);
 
+    template <typename T>
+    void notifyIOComplete(T cookies, cb::engine_errc status);
     void notifyIOComplete(CookieIface& cookie, cb::engine_errc status);
     void notifyIOComplete(CookieIface* cookie, cb::engine_errc status);
     void scheduleDcpStep(CookieIface& cookie);
@@ -592,9 +594,6 @@ public:
 
     void setUnknownCollectionErrorContext(CookieIface& cookie,
                                           uint64_t manifestUid) const;
-
-    template <typename T>
-    void notifyIOComplete(T cookies, cb::engine_errc status);
 
     void handleDisconnect(CookieIface& cookie);
 

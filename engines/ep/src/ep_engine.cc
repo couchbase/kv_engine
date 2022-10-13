@@ -1836,15 +1836,6 @@ void EventuallyPersistentEngine::setUnknownCollectionErrorContext(
     cookie.setUnknownCollectionErrorContext(manifestUid);
 }
 
-template <typename T>
-void EventuallyPersistentEngine::notifyIOComplete(T cookies,
-                                                  cb::engine_errc status) {
-    NonBucketAllocationGuard guard;
-    for (auto& cookie : cookies) {
-        cookie.notifyIoComplete(status);
-    }
-}
-
 EpEngineValueChangeListener::EpEngineValueChangeListener(
         EventuallyPersistentEngine& e)
     : engine(e) {
@@ -6145,6 +6136,15 @@ cb::engine_errc EventuallyPersistentEngine::getAllKeys(
                                                      keysCollection);
     ExecutorPool::get()->schedule(task);
     return cb::engine_errc::would_block;
+}
+
+template <typename T>
+void EventuallyPersistentEngine::notifyIOComplete(T cookies,
+                                                  cb::engine_errc status) {
+    NonBucketAllocationGuard guard;
+    for (auto& cookie : cookies) {
+        cookie.notifyIoComplete(status);
+    }
 }
 
 void EventuallyPersistentEngine::notifyIOComplete(CookieIface* cookie,
