@@ -475,7 +475,7 @@ cb::engine_errc EventuallyPersistentEngine::store(
     item.increaseDurabilityLevel(kvBucket->getMinDurabilityLevel());
 
     return acquireEngine(this)->storeInner(
-            &cookie, item, cas, operation, preserveTtl);
+            cookie, item, cas, operation, preserveTtl);
 }
 
 cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
@@ -509,7 +509,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::store_if(
     item.increaseDurabilityLevel(kvBucket->getMinDurabilityLevel());
 
     return acquireEngine(this)->storeIfInner(
-            &cookie, item, cas, operation, predicate, preserveTtl);
+            cookie, item, cas, operation, predicate, preserveTtl);
 }
 
 void EventuallyPersistentEngine::reset_stats(CookieIface& cookie) {
@@ -2480,7 +2480,7 @@ cb::engine_errc EventuallyPersistentEngine::unlockInner(CookieIface& cookie,
 }
 
 cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
-        CookieIface* cookie,
+        CookieIface& cookie,
         Item& item,
         uint64_t cas,
         StoreSemantics operation,
@@ -2517,7 +2517,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
     // (see 'case EWOULDBLOCK' at the end of this function where we record
     // the fact we must block the client until the SyncWrite is durable).
     if (item.isPending()) {
-        auto cookieCas = takeEngineSpecific<uint64_t>(cookie);
+        auto cookieCas = takeEngineSpecific<uint64_t>(&cookie);
         if (cookieCas.has_value()) {
             // Non-null means this is the second call to this function after
             // the SyncWrite has completed. Return SUCCESS.
@@ -2539,7 +2539,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
             return {cb::engine_errc::temporary_failure, cas};
         }
         item.setPreserveTtl(preserveTtl);
-        status = kvBucket->set(item, cookie, predicate);
+        status = kvBucket->set(item, &cookie, predicate);
         break;
 
     case StoreSemantics::Add:
@@ -2552,7 +2552,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
             return {cb::engine_errc::key_already_exists, cas};
         }
 
-        status = kvBucket->add(item, cookie);
+        status = kvBucket->add(item, &cookie);
         break;
 
     case StoreSemantics::Replace:
@@ -2562,7 +2562,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
         }
 
         item.setPreserveTtl(preserveTtl);
-        status = kvBucket->replace(item, cookie, predicate);
+        status = kvBucket->replace(item, &cookie, predicate);
         break;
     default:
         status = cb::engine_errc::not_supported;
@@ -2590,7 +2590,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
             // the result of the SyncWrite (see call to getEngineSpecific at
             // the head of this function. Store the cas of the item so that we
             // can return it to the client later.
-            storeEngineSpecific(cookie, item.getCas());
+            storeEngineSpecific(&cookie, item.getCas());
         }
         status = cb::engine_errc::would_block;
         break;
@@ -2601,7 +2601,7 @@ cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(
     return {status, item.getCas()};
 }
 
-cb::engine_errc EventuallyPersistentEngine::storeInner(CookieIface* cookie,
+cb::engine_errc EventuallyPersistentEngine::storeInner(CookieIface& cookie,
                                                        Item& itm,
                                                        uint64_t& cas,
                                                        StoreSemantics operation,

@@ -2902,7 +2902,7 @@ protected:
         uint64_t cas;
         ASSERT_EQ(cb::engine_errc::would_block,
                   engine->storeInner(
-                          cookie, *item, cas, StoreSemantics::Set, false));
+                          *cookie, *item, cas, StoreSemantics::Set, false));
         flush_vbucket_to_disk(vbid, 2);
 
         // Setup: Restart engine and begin warmup. This is a single-threaded

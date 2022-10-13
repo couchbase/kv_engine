@@ -141,9 +141,9 @@ queued_item EventuallyPersistentEngineTest::store_item(
     auto item = makeCommittedItem(makeStoredDocKey(key), value);
     item->setVBucketId(vbid);
     uint64_t cas;
-    EXPECT_EQ(
-            cb::engine_errc::success,
-            engine->storeInner(cookie, *item, cas, StoreSemantics::Set, false));
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->storeInner(
+                      *cookie, *item, cas, StoreSemantics::Set, false));
     return item;
 }
 
@@ -156,7 +156,7 @@ queued_item EventuallyPersistentEngineTest::store_pending_item(
     uint64_t cas;
     EXPECT_EQ(
             cb::engine_errc::would_block,
-            engine->storeInner(cookie, *item, cas, StoreSemantics::Set, false))
+            engine->storeInner(*cookie, *item, cas, StoreSemantics::Set, false))
             << "pending SyncWrite should initially block (until durability "
                "met).";
     return item;
@@ -169,7 +169,7 @@ queued_item EventuallyPersistentEngineTest::store_pending_delete(
     uint64_t cas;
     EXPECT_EQ(
             cb::engine_errc::would_block,
-            engine->storeInner(cookie, *item, cas, StoreSemantics::Set, false))
+            engine->storeInner(*cookie, *item, cas, StoreSemantics::Set, false))
             << "pending SyncDelete should initially block (until durability "
                "met).";
     return item;
@@ -179,9 +179,9 @@ void EventuallyPersistentEngineTest::store_committed_item(
         Vbid vbid, const std::string& key, const std::string& value) {
     auto item = makeCommittedviaPrepareItem(makeStoredDocKey(key), value);
     uint64_t cas;
-    EXPECT_EQ(
-            cb::engine_errc::success,
-            engine->storeInner(cookie, *item, cas, StoreSemantics::Set, false));
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->storeInner(
+                      *cookie, *item, cas, StoreSemantics::Set, false));
 }
 
 TEST_P(EPEngineParamTest, requirements_bucket_type) {

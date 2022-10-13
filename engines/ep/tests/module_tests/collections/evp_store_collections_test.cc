@@ -1124,7 +1124,7 @@ TEST_F(CollectionsWarmupTest, warmup) {
         uint64_t cas;
         EXPECT_EQ(cb::engine_errc::success,
                   engine->storeInner(
-                          cookie, item, cas, StoreSemantics::Set, false));
+                          *cookie, item, cas, StoreSemantics::Set, false));
     }
     {
         Item item(StoredDocKey{"dairy:milk", CollectionEntry::dairy},
@@ -1136,7 +1136,7 @@ TEST_F(CollectionsWarmupTest, warmup) {
         uint64_t cas;
         EXPECT_EQ(cb::engine_errc::unknown_collection,
                   engine->storeInner(
-                          cookie, item, cas, StoreSemantics::Set, false));
+                          *cookie, item, cas, StoreSemantics::Set, false));
     }
 
     EXPECT_EQ(1,

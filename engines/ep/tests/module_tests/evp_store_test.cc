@@ -1535,7 +1535,7 @@ TEST_P(EPBucketTest, memOverheadMemoryCondition) {
                               value);
         uint64_t cas;
         result = engine->storeInner(
-                dummyCookie.get(), item, cas, StoreSemantics::Set, false);
+                *dummyCookie, item, cas, StoreSemantics::Set, false);
     }
 
     ASSERT_EQ(cb::engine_errc::no_memory, result);
@@ -1579,15 +1579,17 @@ TEST_P(EPBucketTest, replaceRequiresEnabledTraffic) {
     store_item(vbid, key, "value1");
     flush_vbucket_to_disk(vbid);
     engine->public_enableTraffic(false);
-    EXPECT_EQ(cb::engine_errc::temporary_failure,
-              engine->storeIfInner(
-                            cookie, item, 0, StoreSemantics::Replace, {}, false)
-                      .first);
+    EXPECT_EQ(
+            cb::engine_errc::temporary_failure,
+            engine->storeIfInner(
+                          *cookie, item, 0, StoreSemantics::Replace, {}, false)
+                    .first);
     engine->public_enableTraffic(true);
-    EXPECT_EQ(cb::engine_errc::success,
-              engine->storeIfInner(
-                            cookie, item, 0, StoreSemantics::Replace, {}, false)
-                      .first);
+    EXPECT_EQ(
+            cb::engine_errc::success,
+            engine->storeIfInner(
+                          *cookie, item, 0, StoreSemantics::Replace, {}, false)
+                    .first);
 }
 
 TEST_P(EPBucketBloomFilterParameterizedTest, store_if_throws) {
@@ -1606,7 +1608,7 @@ TEST_P(EPBucketBloomFilterParameterizedTest, store_if_throws) {
     evict_key(vbid, key);
 
     if (fullEviction()) {
-        EXPECT_NO_THROW(engine->storeIfInner(cookie,
+        EXPECT_NO_THROW(engine->storeIfInner(*cookie,
                                              item,
                                              0 /*cas*/,
                                              StoreSemantics::Set,
@@ -1616,7 +1618,7 @@ TEST_P(EPBucketBloomFilterParameterizedTest, store_if_throws) {
     }
 
     // If the itemInfo exists, you can't ask for it again - so expect throw
-    EXPECT_THROW(engine->storeIfInner(cookie,
+    EXPECT_THROW(engine->storeIfInner(*cookie,
                                       item,
                                       0 /*cas*/,
                                       StoreSemantics::Set,
@@ -1694,7 +1696,7 @@ TEST_P(EPBucketBloomFilterParameterizedTest, store_if) {
         flush_vbucket_to_disk(vbid);
         evict_key(vbid, test.key);
         auto item = make_item(vbid, test.key, "new_value");
-        test.actualStatus = engine->storeIfInner(cookie,
+        test.actualStatus = engine->storeIfInner(*cookie,
                                                  item,
                                                  0 /*cas*/,
                                                  StoreSemantics::Set,
@@ -1721,7 +1723,7 @@ TEST_P(EPBucketBloomFilterParameterizedTest, store_if) {
         for (auto& i : testData) {
             if (i.actualStatus == cb::engine_errc::would_block) {
                 auto item = make_item(vbid, i.key, "new_value");
-                auto status = engine->storeIfInner(cookie,
+                auto status = engine->storeIfInner(*cookie,
                                                    item,
                                                    0 /*cas*/,
                                                    StoreSemantics::Set,
@@ -1756,7 +1758,7 @@ TEST_P(EPBucketBloomFilterParameterizedTest, store_if_fe_interleave) {
     evict_key(vbid, key);
 
     EXPECT_EQ(cb::engine_errc::would_block,
-              engine->storeIfInner(cookie,
+              engine->storeIfInner(*cookie,
                                    item,
                                    0 /*cas*/,
                                    StoreSemantics::Set,
@@ -1767,7 +1769,7 @@ TEST_P(EPBucketBloomFilterParameterizedTest, store_if_fe_interleave) {
     // expect another store to the same key to be told the same, even though the
     // first store has populated the store with a temp item
     EXPECT_EQ(cb::engine_errc::would_block,
-              engine->storeIfInner(cookie,
+              engine->storeIfInner(*cookie,
                                    item,
                                    0 /*cas*/,
                                    StoreSemantics::Set,
@@ -1777,7 +1779,7 @@ TEST_P(EPBucketBloomFilterParameterizedTest, store_if_fe_interleave) {
 
     runBGFetcherTask();
     EXPECT_EQ(cb::engine_errc::success,
-              engine->storeIfInner(cookie,
+              engine->storeIfInner(*cookie,
                                    item,
                                    0 /*cas*/,
                                    StoreSemantics::Set,

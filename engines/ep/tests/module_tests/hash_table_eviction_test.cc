@@ -151,7 +151,7 @@ protected:
     cb::engine_errc storeItem(Item& item) {
         uint64_t cas = 0;
         return engine->storeInner(
-                cookie, item, cas, StoreSemantics::Set, false);
+                *cookie, item, cas, StoreSemantics::Set, false);
     }
 
     /**

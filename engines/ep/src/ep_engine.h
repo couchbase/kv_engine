@@ -483,13 +483,13 @@ public:
 
     void resetStats();
 
-    cb::engine_errc storeInner(CookieIface* cookie,
+    cb::engine_errc storeInner(CookieIface& cookie,
                                Item& itm,
                                uint64_t& cas,
                                StoreSemantics operation,
                                bool preserveTtl);
 
-    cb::EngineErrorCasPair storeIfInner(CookieIface* cookie,
+    cb::EngineErrorCasPair storeIfInner(CookieIface& cookie,
                                         Item& itm,
                                         uint64_t cas,
                                         StoreSemantics operation,
