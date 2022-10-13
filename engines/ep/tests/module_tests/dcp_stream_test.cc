@@ -783,7 +783,8 @@ TEST_P(StreamTest, BackfillOnly) {
     std::thread thr([this]() {
         int i = 0;
         while (i < 100) {
-            engine->getAndTouchInner(cookie, makeStoredDocKey("key1"), vbid, i);
+            engine->getAndTouchInner(
+                    *cookie, makeStoredDocKey("key1"), vbid, i);
             i++;
         }
     });

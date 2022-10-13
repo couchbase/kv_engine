@@ -2627,7 +2627,7 @@ TEST_P(CollectionsExpiryLimitTest, gat) {
         Item item = store_item(vb, k, v, 0);
 
         // re touch to 0
-        auto rval = engine->getAndTouchInner(cookie, k, vb, 0);
+        auto rval = engine->getAndTouchInner(*cookie, k, vb, 0);
         ASSERT_EQ(cb::engine_errc::success, rval.first);
     };
     operation_test(func, GetParam());

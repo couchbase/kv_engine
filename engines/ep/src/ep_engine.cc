@@ -314,7 +314,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_and_touch(
         return cb::makeEngineErrorItemPair(cb::engine_errc::not_supported);
     }
     return acquireEngine(this)->getAndTouchInner(
-            &cookie, key, vbucket, expiry_time);
+            cookie, key, vbucket, expiry_time);
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::get_locked(
@@ -2323,13 +2323,13 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getInner(
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::getAndTouchInner(
-        CookieIface* cookie,
+        CookieIface& cookie,
         const DocKey& key,
         Vbid vbucket,
         uint32_t exptime) {
     time_t expiry_time = (exptime == 0) ? 0 : ep_abs_time(ep_reltime(exptime));
 
-    GetValue gv(kvBucket->getAndUpdateTtl(key, vbucket, cookie, expiry_time));
+    GetValue gv(kvBucket->getAndUpdateTtl(key, vbucket, &cookie, expiry_time));
 
     auto rv = gv.getStatus();
     if (rv == cb::engine_errc::success) {

@@ -457,7 +457,7 @@ public:
             Vbid vbucket,
             std::function<bool(const item_info&)> filter);
 
-    cb::EngineErrorItemPair getAndTouchInner(CookieIface* cookie,
+    cb::EngineErrorItemPair getAndTouchInner(CookieIface& cookie,
                                              const DocKey& key,
                                              Vbid vbucket,
                                              uint32_t expiry_time);

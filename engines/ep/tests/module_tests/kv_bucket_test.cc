@@ -2207,7 +2207,7 @@ TEST_F(RelativeExpiryLimitTest, gat) {
 
     // Now touch with 0
     auto rval = engine->getAndTouchInner(
-            cookie, {"key", DocKeyEncodesCollectionId::No}, vbid, 0);
+            *cookie, {"key", DocKeyEncodesCollectionId::No}, vbid, 0);
 
     ASSERT_EQ(cb::engine_errc::success, rval.first);
 
