@@ -6148,10 +6148,7 @@ void EventuallyPersistentEngine::notifyIOComplete(T cookies,
 
 void EventuallyPersistentEngine::notifyIOComplete(CookieIface* cookie,
                                                   cb::engine_errc status) {
-    if (cookie == nullptr) {
-        EP_LOG_WARN_RAW("Tried to signal a NULL cookie!");
-        return;
-    }
+    Expects(cookie);
     notifyIOComplete(*cookie, status);
 }
 

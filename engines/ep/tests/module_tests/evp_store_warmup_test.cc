@@ -3064,13 +3064,15 @@ TEST_F(WarmupTest, WarmupZeroThreshold) {
 
     // 4. Verify we can still see get documents we wrote but we have to fetch
     // them from disk
+    EXPECT_NE(nullptr, cookie);
     auto item = store->get(makeStoredDocKey("key1"),
                            vbid,
-                           nullptr,
+                           cookie,
                            get_options_t::QUEUE_BG_FETCH);
     ASSERT_EQ(cb::engine_errc::would_block, item.getStatus());
     runBGFetcherTask();
-    item = store->get(makeStoredDocKey("key1"), vbid, nullptr, {});
+    mock_waitfor_cookie(cookie);
+    item = store->get(makeStoredDocKey("key1"), vbid, cookie, {});
     ASSERT_EQ(cb::engine_errc::success, item.getStatus());
     ASSERT_EQ("cid:0x0:key1", item.item->getKey().to_string());
     ASSERT_EQ("", item.item->getValueView());

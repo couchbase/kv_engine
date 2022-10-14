@@ -163,10 +163,12 @@ public:
             EXPECT_EQ(cb::engine_errc::no_such_key,
                       store->get(a, vbid, nullptr, {}).getStatus());
         } else {
+            EXPECT_NE(nullptr, cookie);
             EXPECT_EQ(cb::engine_errc::would_block,
-                      store->get(a, vbid, nullptr, QUEUE_BG_FETCH).getStatus());
+                      store->get(a, vbid, cookie, QUEUE_BG_FETCH).getStatus());
             // Manually run the bgfetch task.
             runBGFetcherTask();
+            mock_waitfor_cookie(cookie);
             EXPECT_EQ(cb::engine_errc::no_such_key,
                       store->get(a, vbid, nullptr, QUEUE_BG_FETCH).getStatus());
         }
@@ -242,10 +244,12 @@ public:
 
         // key should be gone
         {
-            auto result = store->get(key, vbid, nullptr, needsBGFetchQueued());
+            EXPECT_NE(nullptr, cookie);
+            auto result = store->get(key, vbid, cookie, needsBGFetchQueued());
             if (needsBGFetch(result.getStatus())) {
                 runBGFetcherTask();
-                result = store->get(key, vbid, nullptr, {});
+                mock_waitfor_cookie(cookie);
+                result = store->get(key, vbid, cookie, {});
             }
             EXPECT_EQ(cb::engine_errc::no_such_key, result.getStatus())
                     << "A key set after the rollback point was found";
@@ -320,12 +324,13 @@ protected:
             EXPECT_EQ(cb::engine_errc::no_such_key,
                       store->get(a, vbid, nullptr, {}).getStatus());
         } else {
-            auto gcb = store->get(a, vbid, nullptr, QUEUE_BG_FETCH);
+            EXPECT_NE(nullptr, cookie);
+            auto gcb = store->get(a, vbid, cookie, QUEUE_BG_FETCH);
 
             if (flushOnce && !deleteLast) {
                 if (needsBGFetch(gcb.getStatus())) {
                     runBGFetcherTask();
-                    gcb = store->get(a, vbid, nullptr, {});
+                    gcb = store->get(a, vbid, cookie, {});
                 }
                 EXPECT_EQ(cb::engine_errc::no_such_key, gcb.getStatus());
             } else {
@@ -334,8 +339,9 @@ protected:
                 EXPECT_EQ(cb::engine_errc::would_block, gcb.getStatus());
                 // Manually run the bgfetch task.
                 runBGFetcherTask();
+                mock_waitfor_cookie(cookie);
                 EXPECT_EQ(cb::engine_errc::no_such_key,
-                          store->get(a, vbid, nullptr, QUEUE_BG_FETCH)
+                          store->get(a, vbid, cookie, QUEUE_BG_FETCH)
                                   .getStatus());
             }
         }
@@ -738,10 +744,12 @@ TEST_P(RollbackTest, RollbackToMiddleOfAnUnPersistedSnapshot) {
        the checkpoints */
     for (int i = 0; i < 2; i++) {
         auto key = makeStoredDocKey("rollback-cp-" + std::to_string(i));
-        auto result = store->get(key, vbid, nullptr, needsBGFetchQueued());
+        EXPECT_NE(nullptr, cookie);
+        auto result = store->get(key, vbid, cookie, needsBGFetchQueued());
         if (needsBGFetch(result.getStatus())) {
             runBGFetcherTask();
-            result = store->get(key, vbid, nullptr, {});
+            mock_waitfor_cookie(cookie);
+            result = store->get(key, vbid, cookie, {});
         }
         EXPECT_EQ(cb::engine_errc::no_such_key, result.getStatus())
                 << "A key set after the rollback point was found";

@@ -1809,9 +1809,11 @@ TEST_P(KVBucketParamTest, ReplicaExpiredItem) {
             HIDE_LOCKED_CAS | TRACK_STATISTICS);
     // Test: Attempt to read expired item.
     if (engine->getConfiguration().getItemEvictionPolicy() == "full_eviction") {
-        auto result = store->getReplica(key, vbid, nullptr, options);
+        EXPECT_NE(nullptr, cookie);
+        auto result = store->getReplica(key, vbid, cookie, options);
         EXPECT_EQ(cb::engine_errc::would_block, result.getStatus());
         runBGFetcherTask();
+        mock_waitfor_cookie(cookie);
     }
 
     auto result = store->getReplica(key, vbid, nullptr, options);
