@@ -334,6 +334,9 @@ cb::engine_errc RangeScan::continueScan(KVStoreIface& kvstore) {
         return cb::engine_errc::success;
     }
 
+    // The scan can only be in the continue state at this point
+    Expects(isContinuing());
+
     if (!continueRunState.cState.cookie) {
         // MB-54053: @todo remove this extra check/log
         // If the cookie is not set at this point what has happened?
