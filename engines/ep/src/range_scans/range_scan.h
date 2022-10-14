@@ -225,8 +225,8 @@ public:
     /// Generate stats for this scan
     void addStats(const StatCollector& collector) const;
 
-    /// dump the object to the ostream (default of cerr)
-    void dump(std::ostream& os = std::cerr) const;
+    /// dump this to std::cerr
+    void dump() const;
 
     /// @return the collection being scanned
     CollectionID getCollectionID() const;
@@ -336,6 +336,9 @@ protected:
 
         /// current byte limit for the continuation of this scan
         size_t byteLimit{0};
+
+        /// dump this to std::cerr
+        void dump() const;
     } continueLimits;
 
     /**
@@ -415,6 +418,9 @@ protected:
          */
         void setupForCancel();
 
+        /// dump this to std::cerr
+        void dump() const;
+
         // cookie will transition from null -> cookie -> null ...
         CookieIface* cookie{nullptr};
         State state{State::Idle};
@@ -430,6 +436,9 @@ protected:
     struct ContinueRunState {
         ContinueRunState();
         ContinueRunState(const ContinueState& cs);
+        /// dump this to std::cerr
+        void dump() const;
+
         ContinueState cState;
         /// item count for the continuation of this scan
         size_t itemCount{0};
@@ -452,7 +461,16 @@ protected:
 
     friend std::ostream& operator<<(std::ostream&, const RangeScan::State&);
     friend std::ostream& operator<<(std::ostream&, const RangeScan&);
+    friend std::ostream& operator<<(std::ostream&,
+                                    const RangeScan::ContinueLimits&);
+    friend std::ostream& operator<<(std::ostream&,
+                                    const RangeScan::ContinueState&);
+    friend std::ostream& operator<<(std::ostream&,
+                                    const RangeScan::ContinueRunState&);
 };
 
 std::ostream& operator<<(std::ostream&, const RangeScan::State&);
 std::ostream& operator<<(std::ostream&, const RangeScan&);
+std::ostream& operator<<(std::ostream&, const RangeScan::ContinueLimits&);
+std::ostream& operator<<(std::ostream&, const RangeScan::ContinueState&);
+std::ostream& operator<<(std::ostream&, const RangeScan::ContinueRunState&);

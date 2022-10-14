@@ -658,44 +658,81 @@ void RangeScan::addStats(const StatCollector& collector) const {
                       collector);
 }
 
-void RangeScan::dump(std::ostream& os) const {
+void RangeScan::dump() const {
+    std::cerr << *this;
+}
+
+std::ostream& operator<<(std::ostream& os, const RangeScan& scan) {
     // copy state then print, avoiding invoking ostream whilst locked
-    auto cs = *continueState.rlock();
+    auto cs = *scan.continueState.rlock();
     fmt::print(os,
                "RangeScan: uuid:{}, {}, vbuuid:{}, created:{}. range:({},{}), "
                "mode:{}, queued:{}, totalKeys:{} values m:{}, d:{}, "
-               "totalLimit:{}, crs_itemCount:{}, crs_cookie:{}, "
-               "crs_item_limit:{}, crs_time_limit:{}, crs_byte_limit:{}, "
-               "crs_deadline:{}, cs.state:{}, cs.cookie:{}, cs.itemLimit:{}, "
-               "cs.timeLimit:{}, cs.byteLimit:{}",
-               uuid,
-               vbid,
-               vbUuid,
-               createTime.time_since_epoch().count(),
-               cb::UserDataView(start.to_string()),
-               cb::UserDataView(end.to_string()),
-               (keyOnly == cb::rangescan::KeyOnly::Yes ? "key" : "value"),
-               queued,
-               totalKeys,
-               totalValuesFromMemory,
-               totalValuesFromDisk,
-               totalLimit,
-               continueRunState.itemCount,
-               reinterpret_cast<const void*>(continueRunState.cState.cookie),
-               continueRunState.cState.limits.itemLimit,
-               continueRunState.cState.limits.timeLimit.count(),
-               continueRunState.cState.limits.byteLimit,
-               continueRunState.scanContinueDeadline.time_since_epoch(),
-               cs.state,
-               reinterpret_cast<const void*>(cs.cookie),
-               cs.limits.itemLimit,
-               cs.limits.timeLimit.count(),
-               cs.limits.byteLimit);
+               "totalLimit:{}, crs{{{}}}, cs{{{}}}",
+               scan.uuid,
+               scan.vbid,
+               scan.vbUuid,
+               scan.createTime.time_since_epoch().count(),
+               cb::UserDataView(scan.start.to_string()),
+               cb::UserDataView(scan.end.to_string()),
+               (scan.keyOnly == cb::rangescan::KeyOnly::Yes ? "key" : "value"),
+               scan.queued,
+               scan.totalKeys,
+               scan.totalValuesFromMemory,
+               scan.totalValuesFromDisk,
+               scan.totalLimit,
+               scan.continueRunState,
+               cs);
 
-    if (isSampling()) {
-        fmt::print(os, ", distribution(p:{})", distribution.p());
+    if (scan.isSampling()) {
+        fmt::print(os, ", distribution(p:{})", scan.distribution.p());
     }
-    fmt::print(os, "\n");
+    return os;
+}
+
+void RangeScan::ContinueLimits::dump() const {
+    std::cerr << *this;
+}
+
+std::ostream& operator<<(std::ostream& os,
+                         const RangeScan::ContinueLimits& limits) {
+    fmt::print(os,
+               "items:{}, time:{}ms, bytes:{}",
+               limits.itemLimit,
+               limits.timeLimit.count(),
+               limits.byteLimit);
+    return os;
+}
+
+void RangeScan::ContinueState::dump() const {
+    std::cerr << *this;
+}
+
+std::ostream& operator<<(std::ostream& os,
+                         const RangeScan::ContinueState& continueState) {
+    fmt::print(os,
+               "cookie:{}, {}, limits:{{{}}}",
+               static_cast<const void*>(continueState.cookie),
+               continueState.state,
+               continueState.limits);
+    return os;
+}
+
+void RangeScan::ContinueRunState::dump() const {
+    std::cerr << *this;
+}
+
+std::ostream& operator<<(std::ostream& os,
+                         const RangeScan::ContinueRunState& state) {
+    fmt::print(os,
+               "{} itemCount:{}, byteCount:{}, scanContinueDeadline:{}, "
+               "limitByThrottle:{}",
+               state.cState,
+               state.itemCount,
+               state.byteCount,
+               state.scanContinueDeadline.time_since_epoch(),
+               state.limitByThrottle);
+    return os;
 }
 
 CollectionID RangeScan::getCollectionID() const {
@@ -750,9 +787,4 @@ std::ostream& operator<<(std::ostream& os, const RangeScan::State& state) {
     throw std::runtime_error(
             fmt::format("RangeScan::State ostream operator<< invalid state:{}",
                         int(state)));
-}
-
-std::ostream& operator<<(std::ostream& os, const RangeScan& scan) {
-    scan.dump(os);
-    return os;
 }
