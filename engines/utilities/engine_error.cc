@@ -125,6 +125,8 @@ std::string cb::to_string(cb::engine_errc code) {
         return "too many connections";
     case engine_errc::throttled:
         return "throttled";
+    case engine_errc::bucket_paused:
+        return "bucket paused";
     };
     throw std::invalid_argument(
         "engine_error_category::message: code does not represent a "

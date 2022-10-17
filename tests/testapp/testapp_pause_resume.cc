@@ -111,17 +111,16 @@ TEST_P(PauseResumeTest, DeleteWhenPaused) {
 }
 
 /// Cannot Pause a bucket when already paused.
-/// MB-53914: Disabled due to raciness in test / Pause command behaviour - see
-/// MB for details.
-TEST_P(PauseResumeTest, DISABLED_PauseFailsWhenPaused) {
+TEST_P(PauseResumeTest, PauseFailsWhenPaused) {
     // Pause the bucket
     auto rsp = adminConnection->execute(BinprotPauseBucketCommand{bucketName});
     ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus()) << rsp.getDataView();
-    waitUntilBucketStateIs(bucketName, "paused", std::chrono::seconds{10});
+    EXPECT_EQ("paused", getBucketInformation(bucketName)["state"]);
 
-    // Trying to pause again should be ignored.
+    // Trying to pause again should fail.
     rsp = adminConnection->execute(BinprotPauseBucketCommand{bucketName});
-    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus()) << rsp.getDataView();
+    ASSERT_EQ(cb::mcbp::Status::BucketPaused, rsp.getStatus())
+            << rsp.getDataView();
     EXPECT_EQ("paused", getBucketInformation(bucketName)["state"]);
 
     // Cleanup
@@ -135,7 +134,6 @@ TEST_P(PauseResumeTest, ResumeFailsWhenNotPaused) {
     // Pause the bucket
     auto rsp = adminConnection->execute(BinprotPauseBucketCommand{bucketName});
     ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus()) << rsp.getDataView();
-    waitUntilBucketStateIs(bucketName, "paused", std::chrono::seconds{10});
 
     // Resume the Bucket.
     rsp = adminConnection->execute(BinprotResumeBucketCommand{bucketName});

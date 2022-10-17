@@ -43,6 +43,7 @@ bool is_known(Status status) {
     case Status::RateLimitedMaxCommands:
     case Status::ScopeSizeLimitExceeded:
     case Status::BucketSizeLimitExceeded:
+    case Status::BucketPaused:
     case Status::UnknownFrameInfo:
     case Status::UnknownCommand:
     case Status::Enomem:
@@ -133,6 +134,7 @@ bool isStatusSuccess(Status status) {
     case Status::RateLimitedMaxCommands:
     case Status::ScopeSizeLimitExceeded:
     case Status::BucketSizeLimitExceeded:
+    case Status::BucketPaused:
     case Status::UnknownFrameInfo:
     case Status::UnknownCommand:
     case Status::Enomem:
@@ -266,6 +268,8 @@ std::string to_string(cb::mcbp::Status status, bool shortname) {
             return "ScopeSizeLimitExceeded";
         case Status::BucketSizeLimitExceeded:
             return "BucketSizeLimitExceeded";
+        case Status::BucketPaused:
+            return "BucketPaused";
         case Status::UnknownFrameInfo:
             return "UnknownFrameInfo";
         case Status::UnknownCommand:
@@ -417,6 +421,8 @@ std::string to_string(cb::mcbp::Status status, bool shortname) {
             return "Too much data in Scope";
         case Status::BucketSizeLimitExceeded:
             return "Too much data in Bucket";
+        case Status::BucketPaused:
+            return "The Bucket is paused";
         case Status::UnknownFrameInfo:
             return "Unknown frame info";
         case Status::UnknownCommand:

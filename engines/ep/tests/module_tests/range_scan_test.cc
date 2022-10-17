@@ -1747,6 +1747,7 @@ bool TestRangeScanHandler::validateStatus(cb::engine_errc code) {
     case cb::engine_errc::opaque_no_match:
     case cb::engine_errc::scope_size_limit_exceeded:
     case cb::engine_errc::vbuuid_not_equal:
+    case cb::engine_errc::bucket_paused:
         return false;
     };
     throw std::invalid_argument(

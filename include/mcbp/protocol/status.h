@@ -94,6 +94,9 @@ enum class Status : uint16_t {
 
     // END Rate limit error codes. Next error should be 0x50
 
+    /// The bucket is paused and cannot perform the requested operation.
+    BucketPaused = 0x50,
+
     /// The server don't know about the frame info, and can't use it
     UnknownFrameInfo = 0x80,
     /** The server have no idea what this command is for */

@@ -364,6 +364,7 @@ cb::engine_errc Connection::remapErrorCode(cb::engine_errc code) {
     case cb::engine_errc::stream_not_found:
     case cb::engine_errc::opaque_no_match:
     case cb::engine_errc::throttled:
+    case cb::engine_errc::bucket_paused:
         return code;
 
     case cb::engine_errc::too_many_connections:

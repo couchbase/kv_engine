@@ -145,6 +145,9 @@ enum class engine_errc {
     /// Throttled for some reason
     throttled = 0x2b,
 
+    /// Bucket is currently paused and operation is not possible.
+    bucket_paused = 0x2c,
+
     /** Generic failue. */
     failed = 0xff
 };

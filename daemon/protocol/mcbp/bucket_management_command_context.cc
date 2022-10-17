@@ -188,8 +188,9 @@ cb::engine_errc BucketManagementCommandContext::pause() {
                 TaskId::Core_PauseBucketTask,
                 "Pause bucket",
                 [client, nm = std::move(name)]() {
+                    cb::engine_errc status;
                     try {
-                        BucketManager::instance().pause(*client, nm);
+                        status = BucketManager::instance().pause(*client, nm);
                     } catch (const std::runtime_error& error) {
                         LOG_WARNING(
                                 "{}: An error occurred while pausing "
@@ -197,7 +198,9 @@ cb::engine_errc BucketManagementCommandContext::pause() {
                                 client->getConnectionId(),
                                 nm,
                                 error.what());
+                        status = cb::engine_errc::failed;
                     }
+                    client->notifyIoComplete(status);
                 },
                 std::chrono::seconds(10)));
     };
@@ -205,7 +208,7 @@ cb::engine_errc BucketManagementCommandContext::pause() {
         return cb::engine_errc::key_already_exists;
     }
     state = State::Done;
-    return cb::engine_errc::success;
+    return cb::engine_errc::would_block;
 }
 
 cb::engine_errc BucketManagementCommandContext::resume() {

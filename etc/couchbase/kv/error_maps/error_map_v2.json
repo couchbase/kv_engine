@@ -213,6 +213,13 @@
                 "rate-limit"
             ]
         },
+        "50": {
+            "name": "BUCKET_PAUSED",
+            "desc": "The request is not possible because the bucket is paused",
+            "attrs": [
+                "support"
+            ]
+        },
         "80": {
             "name": "UNKNOWN_FRAME_INFO",
             "desc": "Unknown frame info identifier encountered. Maybe a newer server version knows about it",

@@ -909,6 +909,11 @@ cb::engine_errc BucketManager::pause(std::string_view cid, std::string_view name
         // state to Pausing. After this we can release the buckets_lock.
         {
             std::lock_guard bucketguard(bucket->mutex);
+            if (bucket->state == Bucket::State::Pausing ||
+                bucket->state == Bucket::State::Paused) {
+                // Cannot pause bucket if already pausing / paused.
+                return cb::engine_errc::bucket_paused;
+            }
             if (bucket->state != Bucket::State::Ready) {
                 // perhaps we want a new error code for this?
                 return cb::engine_errc::key_already_exists;
