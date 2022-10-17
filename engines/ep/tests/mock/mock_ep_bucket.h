@@ -92,4 +92,8 @@ public:
             std::shared_ptr<CompactionContext>)>
             mockMakeCompactionContext =
                     [](std::shared_ptr<CompactionContext> ctx) { return ctx; };
+
+    cb::AwaitableSemaphore& public_getCompactionSemaphore();
+
+    void public_updateCompactionConcurrency();
 };

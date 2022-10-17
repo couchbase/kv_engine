@@ -151,3 +151,11 @@ std::shared_ptr<CompactionContext> MockEPBucket::makeCompactionContext(
 void MockEPBucket::publicCompactionCompletionCallback(CompactionContext& ctx) {
     compactionCompletionCallback(ctx);
 }
+
+cb::AwaitableSemaphore& MockEPBucket::public_getCompactionSemaphore() {
+    return *compactionSemaphore;
+}
+
+void MockEPBucket::public_updateCompactionConcurrency() {
+    updateCompactionConcurrency();
+}

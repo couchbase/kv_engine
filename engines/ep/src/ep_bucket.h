@@ -348,6 +348,10 @@ public:
      */
     std::shared_ptr<RangeScan> takeNextRangeScan(size_t taskId);
 
+    /// Hook that gets called from prepareForPause. Phase of prepareForPause()
+    /// specified by the single string_view arg
+    TestingHook<std::string_view> prepareForPauseTestingHook;
+
 protected:
     // During the warmup phase we might want to enable external traffic
     // at a given point in time.. The LoadStorageKvPairCallback will be

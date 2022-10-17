@@ -2515,10 +2515,35 @@ cb::engine_errc EPBucket::prepareForPause(
             "Rollback, DeleteVB tasks to complete");
     std::vector<std::unique_lock<std::mutex>> vb_locks;
     for (auto& mutex : vb_mutexes) {
-        vb_locks.emplace_back(mutex);
+        prepareForPauseTestingHook("Lock vb_mutexes");
+
+        std::unique_lock<std::mutex> lock{mutex, std::try_to_lock};
+        while (!lock.owns_lock()) {
+            // Sleep for a short while to avoid busy-wait while current owner
+            // of mutex finishes with it. (We don't want to use a blocking wait
+            // we want to be able to check for cancellation promptly).
+            std::this_thread::sleep_for(std::chrono::milliseconds{1});
+            lock.try_lock();
+            if (cancellationToken.isCancellationRequested()) {
+                // Return from this method; all vb_mutexes locked so far
+                // will be unlocked via unique_locks going out of scope.
+                return cb::engine_errc::cancelled;
+            }
+        }
+        // Transfer this lock into vb_locks; if we need to cancel this ensures
+        // all mutexes locked so far are unlocked on return.
+        vb_locks.push_back(std::move(lock));
     }
 
-    // b) Compaction - This only requires that the appropriate vb_mutexes is
+    // All vb_mutex locks acquired; check again for cancellation before
+    // continuing.
+    if (cancellationToken.isCancellationRequested()) {
+        // As above, RAII destruction of vb_locks will undo the pause steps so
+        // far.
+        return cb::engine_errc::cancelled;
+    }
+
+    // b) Compaction - This only requires that the appropriate vb_mutexes are
     //    acquired for critical sections (assuming that the KVStore supports
     //    concurrent compaction, which Couchstore & Magma do). As such, we need
     //    to do more - we reduce the capacity of the compaction semaphore to
@@ -2544,34 +2569,69 @@ cb::engine_errc EPBucket::prepareForPause(
     };
     auto waiter = std::make_shared<BlockingWaiter>(*compactionSemaphore);
     // "Signal" the waiter - ie. check if we can acquire the semaphore now.
-    // (This is done to avoid repeating the same initial acquirw_or_wait()
+    // (This is done to avoid repeating the same initial acquire_or_wait()
     //  logic here).
     waiter->signal();
     // And wait until the waiter successfully acquires a token.
     waiter->baton.wait();
 
+    // If cancelled at or after this point need to release the compaction
+    // semaphore and undo the reduction in capacity.
+    folly::CancellationCallback compactionUndoPauseCB(cancellationToken, [&] {
+        compactionSemaphore->release();
+        updateCompactionConcurrency();
+    });
+
     // 2. Tell all the KVStores to pause. This ensures any background IO
     //    operations which ep-engine is unaware of are also completed (and no
     //    new ones started).
     bool allSuccess = true;
-    vbMap.forEachShard([&allSuccess](KVShard& shard) {
+    std::vector<KVShard::id_type> pausedShards;
+    vbMap.forEachShard([&](KVShard& shard) {
         EP_LOG_DEBUG("EPBucket::prepareForPause: pausing KVShard:{}", shard.getId());
+        prepareForPauseTestingHook("Pause KVStore");
 
-        bool success = shard.getRWUnderlying()->pause();
-        if (!success) {
-            EP_LOG_WARN("EPBucket::prepareForPause: shard:{} failed",
-                        shard.getId());
+        // Skip pausing any remaining shards if one has already failed.
+        if (!allSuccess) {
+            return;
         }
-        allSuccess &= success;
+        if (cancellationToken.isCancellationRequested()) {
+            EP_LOG_INFO(
+                    "EPBucket::prepareForPause: Cancelling pause, skipping "
+                    "pause of shard:{}",
+                    shard.getId());
+        } else {
+            if (shard.getRWUnderlying()->pause()) {
+                pausedShards.push_back(shard.getId());
+            } else {
+                EP_LOG_WARN("EPBucket::prepareForPause: shard:{} failed",
+                            shard.getId());
+                allSuccess = false;
+            }
+        }
     });
 
+    // If cancelled at or after this point then need to unpause all paused
+    // shards and reset paused state.
+    folly::CancellationCallback kvStoreUndoPauseCB(cancellationToken, [&] {
+        for (auto shardId : pausedShards) {
+            vbMap.getShard(shardId)->getRWUnderlying()->resume();
+        }
+    });
+
+    if (cancellationToken.isCancellationRequested()) {
+        return cb::engine_errc::cancelled;
+    }
+
     if (allSuccess) {
-        // Successfully prepared for pausing; set paused flag to true before
-        // we unlock all the vb_mutexes; that will inhibit anyone from acquiring
-        // the mutexes again until paused is set to false.
+        // Successfully prepared for pausing without being cancelled; set
+        // paused flag to true before we unlock all the vb_mutexes; that will
+        // inhibit anyone from acquiring the mutexes again until paused is set
+        // to false.
         paused.store(true);
         return cb::engine_errc::success;
     }
+
     return cb::engine_errc::failed;
 }
 

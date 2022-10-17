@@ -84,6 +84,7 @@ cb_add_test_executable(ep-engine_ep_unit_tests
         module_tests/evp_store_durability_test.cc
         module_tests/evp_store_rollback_test.cc
         module_tests/evp_store_test.cc
+        module_tests/evp_store_pause_resume_test.cc
         module_tests/evp_store_single_threaded_test.cc
         module_tests/evp_store_warmup_test.cc
         module_tests/evp_store_with_meta.cc
