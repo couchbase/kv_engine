@@ -91,7 +91,8 @@ void startCluster(int verbosity, std::string_view backend) {
       "Delete",
       "Upsert",
       "DcpProducer",
-      "DcpStream"
+      "DcpStream",
+      "RangeScan"
     ]
   }
 },
@@ -133,7 +134,8 @@ void startCluster(int verbosity, std::string_view backend) {
       "Delete",
       "Upsert",
       "DcpProducer",
-      "DcpStream"
+      "DcpStream",
+      "RangeScan"
     ]
   }
 },

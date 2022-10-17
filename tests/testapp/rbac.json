@@ -11,7 +11,8 @@
         "Delete",
         "Upsert",
         "SystemXattrRead",
-        "SystemXattrWrite"
+        "SystemXattrWrite",
+        "RangeScan"
       ],
       "bucket": [
         "DcpConsumer",
