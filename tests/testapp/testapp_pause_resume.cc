@@ -129,8 +129,8 @@ TEST_P(PauseResumeTest, PauseFailsWhenPaused) {
     rebuildUserConnection(true);
 }
 
-/// Cannot Resume unless the bucket is paused.
-TEST_P(PauseResumeTest, ResumeFailsWhenNotPaused) {
+/// Cannot Resume if a Paused bucket has already been resumed.
+TEST_P(PauseResumeTest, ResumeFailsWhenAlreadyResumed) {
     // Pause the bucket
     auto rsp = adminConnection->execute(BinprotPauseBucketCommand{bucketName});
     ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus()) << rsp.getDataView();
@@ -144,6 +144,15 @@ TEST_P(PauseResumeTest, ResumeFailsWhenNotPaused) {
 
     // Attempting to resume again should fail.
     rsp = adminConnection->execute(BinprotResumeBucketCommand{bucketName});
+    EXPECT_EQ(cb::mcbp::Status::KeyEexists, rsp.getStatus())
+            << rsp.getDataView();
+    EXPECT_EQ("ready", getBucketInformation(bucketName)["state"]);
+}
+
+/// Cannot Resume unless the bucket is paused.
+TEST_P(PauseResumeTest, ResumeFailsWhenNotPaused) {
+    // Attempting to resume a bucket which has never been paused should fail.
+    auto rsp = adminConnection->execute(BinprotResumeBucketCommand{bucketName});
     EXPECT_EQ(cb::mcbp::Status::KeyEexists, rsp.getStatus())
             << rsp.getDataView();
     EXPECT_EQ("ready", getBucketInformation(bucketName)["state"]);

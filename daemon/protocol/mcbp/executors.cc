@@ -73,6 +73,7 @@ void handle_executor_status(Cookie& cookie, cb::engine_errc status) {
     case engine_errc::range_scan_complete:
     case engine_errc::vbuuid_not_equal:
     case engine_errc::too_many_connections:
+    case engine_errc::cancelled:
     case engine_errc::bucket_paused:
         cookie.sendResponse(mapped);
         break;

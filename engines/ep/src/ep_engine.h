@@ -250,7 +250,7 @@ public:
     cb::engine_errc cancelRangeScan(CookieIface& cookie,
                                     Vbid vbid,
                                     cb::rangescan::Id uuid) override;
-    cb::engine_errc pause() override;
+    cb::engine_errc pause(folly::CancellationToken cancellationToken) override;
     cb::engine_errc resume() override;
 
     /////////////////////////////////////////////////////////////

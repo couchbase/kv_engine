@@ -127,6 +127,8 @@ std::string cb::to_string(cb::engine_errc code) {
         return "throttled";
     case engine_errc::bucket_paused:
         return "bucket paused";
+    case engine_errc::cancelled:
+        return "request cancelled";
     };
     throw std::invalid_argument(
         "engine_error_category::message: code does not represent a "

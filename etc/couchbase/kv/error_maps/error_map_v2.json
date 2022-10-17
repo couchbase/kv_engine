@@ -220,6 +220,14 @@
                 "support"
             ]
         },
+        "51": {
+            "name": "CANCELLED",
+            "desc": "The request was cancelled, no state changed",
+            "attrs": [
+                "item-only",
+                "retry-now"
+            ]
+        },
         "80": {
             "name": "UNKNOWN_FRAME_INFO",
             "desc": "Unknown frame info identifier encountered. Maybe a newer server version knows about it",

@@ -148,6 +148,9 @@ enum class engine_errc {
     /// Bucket is currently paused and operation is not possible.
     bucket_paused = 0x2c,
 
+    /// Operation was cancelled before completion and had no effect.
+    cancelled = 0x2d,
+
     /** Generic failue. */
     failed = 0xff
 };

@@ -56,6 +56,7 @@
 
 #include "ewouldblock_engine.h"
 #include "ewouldblock_engine_public.h"
+#include <folly/CancellationToken.h>
 #include <gsl/gsl-lite.hpp>
 #include <logger/logger.h>
 #include <memcached/collections.h>
@@ -277,7 +278,7 @@ public:
     cb::engine_errc cancelRangeScan(CookieIface& cookie,
                                     Vbid vbid,
                                     cb::rangescan::Id uuid) override;
-    cb::engine_errc pause() override;
+    cb::engine_errc pause(folly::CancellationToken cancellationToken) override;
     cb::engine_errc resume() override;
 
     ///////////////////////////////////////////////////////////////////////////
@@ -1408,8 +1409,8 @@ cb::engine_errc EWB_Engine::cancelRangeScan(CookieIface& cookie,
     return real_engine->cancelRangeScan(cookie, vbid, uuid);
 }
 
-cb::engine_errc EWB_Engine::pause() {
-    return real_engine->pause();
+cb::engine_errc EWB_Engine::pause(folly::CancellationToken cancellationToken) {
+    return real_engine->pause(cancellationToken);
 }
 
 cb::engine_errc EWB_Engine::resume() {

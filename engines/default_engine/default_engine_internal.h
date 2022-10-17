@@ -7,6 +7,7 @@
  */
 #pragma once
 
+#include <folly/CancellationToken.h>
 #include <memcached/engine.h>
 #include <memcached/util.h>
 #include <relaxed_atomic.h>
@@ -241,7 +242,7 @@ struct default_engine : public EngineIface {
 
     void generate_unknown_collection_response(CookieIface* cookie) const;
 
-    cb::engine_errc pause() override {
+    cb::engine_errc pause(folly::CancellationToken cancellationToken) override {
         return cb::engine_errc::success;
     }
 

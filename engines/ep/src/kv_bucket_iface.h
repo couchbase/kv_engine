@@ -921,10 +921,7 @@ public:
      * Prepare the bucket for being paused - ensure that any on-disk state
      * is quiesced.
      */
-    virtual cb::engine_errc prepareForPause() {
-        // By default nothing to do.
-        return cb::engine_errc::success;
-    };
+    virtual cb::engine_errc prepareForPause(folly::CancellationToken);
 
     /**
      * Prepare the bucket for being resumed - ensure that disk writes are

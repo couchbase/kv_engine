@@ -403,6 +403,7 @@ cb::engine_errc Connection::remapErrorCode(cb::engine_errc code) {
     case cb::engine_errc::range_scan_more:
     case cb::engine_errc::range_scan_complete:
     case cb::engine_errc::vbuuid_not_equal:
+    case cb::engine_errc::cancelled:
         break;
     }
 

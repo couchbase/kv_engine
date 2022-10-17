@@ -14,6 +14,7 @@
 #include "stat_timings.h"
 #include "timings.h"
 
+#include <folly/CancellationToken.h>
 #include <hdrhistogram/hdrhistogram.h>
 #include <mcbp/protocol/status.h>
 #include <memcached/bucket_type.h>
@@ -84,7 +85,8 @@ public:
     DcpIface* getDcpIface() const;
 
     /**
-     * Mutex protecting the state and refcount.
+     * Mutex protecting the state and refcount, and pause_cancellation_source
+     * initialization / reset.
      */
     mutable std::mutex mutex;
     mutable std::condition_variable cond;
@@ -178,6 +180,18 @@ public:
      * The cluster configuration for this bucket
      */
     ClusterConfiguration clusterConfiguration;
+
+    /**
+     * A CancellationSource object which allows an in-progress pause() request
+     * to be cancelled if a resume() request occurs during the pause.
+     * Guarded via Bucket::mutex, to avoid races between checking for an
+     * in-progress pause and that pause finishing.
+     * Note that once CancellationTokens are created from the source (under
+     * Bucket::mutex) we _can_ safely manipulate those tokens without the
+     * Bucket::mutex being held as CancellationToken performs it's own
+     * synchronisation.
+     */
+    folly::CancellationSource pause_cancellation_source;
 
     /**
      * The maximum document size for this bucket
@@ -531,6 +545,19 @@ protected:
     }
 
     /**
+     * Called after transitioning to the Pausing state. It is called in multiple
+     * places as pause() progressed, with the 'phase' argument specifying
+     * at what point this callback is called.
+     * Bucket object is *not* locked at this point, so we only pass its name.
+     * @param bucket Name of the bucket being paused.
+     * @param phase Position within the pause() process where this callback is
+     *              called from.
+     */
+    virtual void bucketPausingListener(std::string_view bucket,
+                                       std::string_view phase) {
+    }
+
+    /**
      * Wait for all clients to disconnect from the provided bucket
      *
      * @param bucket The bucket to wait for
@@ -540,11 +567,14 @@ protected:
      *           logging and is typically cookie.getConnectionId(), but in
      *           the case where there are no client context it should be
      *           set to <none>)
+     * @param cancellationToken A cancellation token which can be used to
+     *        cancel waiting for all clients to disconnect.
      */
-    void waitForEveryoneToDisconnect(Bucket& bucket,
-                                     std::string_view operation,
-                                     std::string_view id);
-
+    void waitForEveryoneToDisconnect(
+            Bucket& bucket,
+            std::string_view operation,
+            std::string_view id,
+            folly::CancellationToken cancellationToken = {});
 
     /**
      * Pause a bucket

@@ -69,6 +69,7 @@ void Bucket::reset() {
     type = BucketType::Unknown;
     throttledConnections.resize(Settings::instance().getNumWorkerThreads());
     management_operation_in_progress = false;
+    pause_cancellation_source = folly::CancellationSource::invalid();
 }
 
 bool Bucket::supports(cb::engine::Feature feature) {
@@ -703,9 +704,11 @@ cb::engine_errc BucketManager::destroy(std::string_view cid,
     return cb::engine_errc::success;
 }
 
-void BucketManager::waitForEveryoneToDisconnect(Bucket& bucket,
-                                                std::string_view operation,
-                                                std::string_view id) {
+void BucketManager::waitForEveryoneToDisconnect(
+        Bucket& bucket,
+        std::string_view operation,
+        std::string_view id,
+        folly::CancellationToken cancellationToken) {
     // Wait until all users disconnected...
     {
         std::unique_lock<std::mutex> guard(bucket.mutex);
@@ -736,6 +739,12 @@ void BucketManager::waitForEveryoneToDisconnect(Bucket& bucket,
         // Log pending connections that are connected every 2 minutes.
         auto nextLog = steady_clock::now() + minutes(2);
         while (bucket.clients > 0) {
+
+            if (cancellationToken.isCancellationRequested()) {
+                // Give up on disconnecting connections.
+                return;
+            }
+
             bucket.cond.wait_for(guard, seconds(1), [&bucket] {
                 return bucket.clients == 0;
             });
@@ -910,6 +919,7 @@ cb::engine_errc BucketManager::pause(Cookie& cookie, std::string_view name) {
 cb::engine_errc BucketManager::pause(std::string_view cid, std::string_view name) {
     // Find the specified bucket and check it can be paused.
     Bucket* bucket{nullptr};
+    folly::CancellationToken cancellationToken;
     {
         // Make sure we don't race with anyone else touching the bucket array
         // (create/delete/pause/resume bucket or set cluster config).
@@ -948,29 +958,99 @@ cb::engine_errc BucketManager::pause(std::string_view cid, std::string_view name
                 return cb::engine_errc::not_supported;
             }
 
+            // Change to 'Pausing' State to block any more requests, and
+            // so observers can tell pausing has started.
             bucket->management_operation_in_progress = true;
             bucketStateChangeListener(*bucket, Bucket::State::Pausing);
             bucket->state = Bucket::State::Pausing;
+            Expects(!bucket->pause_cancellation_source.canBeCancelled());
+            bucket->pause_cancellation_source = folly::CancellationSource{};
+            cancellationToken = bucket->pause_cancellation_source.getToken();
         }
     }
 
-    waitForEveryoneToDisconnect(*bucket, "Pause", cid);
-
-    // Change to 'Pausing' State to block any more requests, and
-    // so observers can tell pausing has started.
     LOG_INFO("{}: Pausing bucket [{}], notifying engine to quiesce state", cid, name);
-    auto status = bucket->getEngine().pause();
+
+    bucketPausingListener(name, "before_cancellation_callback");
+
+    // Setup a cancellationCallback which, if pause is cancelled will restore
+    // bucket to the state before pause() was started.
+    //
+    // Note: This can either be executed on the cancelling thread (typical
+    // execution path), or it can be executed inline here if the
+    // cancellationToken is cancelled before the cancellationCallback is
+    // constructed, so we need to handle both cases:
+    // - For inline execution: we must acquire Bucket::mutex around
+    //   construction.
+    // - For execution via cancelling thread: we must acquire Bucket::mutex
+    //   before requesting cancellation - see BucketManager::resume().
+    folly::CancellationCallback cancellationCallback = [&] {
+        std::lock_guard guard(bucket->mutex);
+        return folly::CancellationCallback{
+                cancellationToken, [this, cid, bucket, name] {
+                    LOG_INFO("{}: Cancelling pause of bucket [{}]", cid, name);
+                    Expects(bucket->state == Bucket::State::Pausing ||
+                            bucket->state == Bucket::State::Paused);
+                    bucket->management_operation_in_progress = false;
+                    bucketStateChangeListener(*bucket, bucket->state);
+                    bucket->pause_cancellation_source =
+                            folly::CancellationSource::invalid();
+                    bucket->state = Bucket::State::Ready;
+                }};
+    }();
+
+    bucketPausingListener(name, "before_disconnect");
+
+    waitForEveryoneToDisconnect(*bucket, "Pause", cid, cancellationToken);
+
+    {
+        // Check if cancellation was requested since waiting for clients to
+        // disconnect - if so cancel.
+        // Note we don't /need/ to take the Bucket::mutex here - given we could
+        // get cancellation occurring just after we unlock the mutex - but
+        // we do acquire Bucket::mutex before checking later on (just before
+        // we return success below) and hence for locking consistency we
+        // acquire Bucket::mutex here also.
+        std::lock_guard guard(bucket->mutex);
+        if (cancellationToken.isCancellationRequested()) {
+            // Cancel (fail) the pause() request. Registered callback(s) above
+            // (and potentially others registered at lower levels) will "undo"
+            // any necessary partial pause.
+            return cb::engine_errc::cancelled;
+        }
+    }
+
+    bucketPausingListener(name, "before_engine_pause");
+
+    auto status = bucket->getEngine().pause(cancellationToken);
 
     if (status == cb::engine_errc::success) {
-        LOG_INFO("{}: Paused bucket [{}]", cid, name, to_string(status));
         std::lock_guard bucketguard(bucket->mutex);
+        // Check if cancellation was requested (under the Bucket::mutex to
+        // avoid racing with another thread attempting to cancel). If so
+        // then return a failure status - note cleanup back to state ready etc
+        // is done by cancellationCallback above.
+        if (cancellationToken.isCancellationRequested()) {
+            return cb::engine_errc::cancelled;
+        }
+        LOG_INFO("{}: Paused bucket [{}]", cid, name, to_string(status));
         bucket->management_operation_in_progress = false;
         bucketStateChangeListener(*bucket, Bucket::State::Paused);
+        bucket->pause_cancellation_source =
+                folly::CancellationSource::invalid();
         bucket->state = Bucket::State::Paused;
     } else {
-        LOG_WARNING("{}: Pausing bucket [{}] failed:{}", cid, name, to_string(status));
         std::lock_guard bucketguard(bucket->mutex);
+        if (cancellationToken.isCancellationRequested()) {
+            return cb::engine_errc::cancelled;
+        }
+        LOG_WARNING("{}: Pausing bucket [{}] failed:{}",
+                    cid,
+                    name,
+                    to_string(status));
         bucketStateChangeListener(*bucket, Bucket::State::Ready);
+        bucket->pause_cancellation_source =
+                folly::CancellationSource::invalid();
         bucket->state = Bucket::State::Ready;
     }
 
@@ -992,7 +1072,11 @@ cb::engine_errc BucketManager::resume(std::string_view cid,
     for (auto& bucket : all_buckets) {
         std::lock_guard<std::mutex> bucketguard(bucket.mutex);
         if (bucket.name == name) {
-            if (bucket.state != Bucket::State::Paused) {
+            // Can only resume Pausing buckets (in which case we cancel the
+            // in-progress pause) or Paused buckets.
+            if (bucket.state != Bucket::State::Pausing &&
+                bucket.state != Bucket::State::Paused) {
+                // @todo: Use a different error code?
                 return cb::engine_errc::key_already_exists;
             }
             break;
@@ -1005,6 +1089,26 @@ cb::engine_errc BucketManager::resume(std::string_view cid,
     }
 
     auto& bucket = all_buckets.at(idx);
+
+    // Check if a pause() operation is still in-flight. If so then no need to
+    // perform a full resume operation - just cancel the in-flight pause.
+    // This must be done under Bucket::mutex to avoid a race between checking
+    // for in-flight pause and that pause completing - setting / clearing
+    // Bucket::pause_cancellation_source is done under Bucket::mutex.
+    {
+        std::lock_guard bucketguard(bucket.mutex);
+        if (bucket.pause_cancellation_source.canBeCancelled()) {
+            bool alreadyRequested =
+                    bucket.pause_cancellation_source.requestCancellation();
+            LOG_INFO(
+                    "{}: Requesting cancellation of in-progress pause() "
+                    "request. previouslyRequested:{}",
+                    cid,
+                    alreadyRequested);
+            return cb::engine_errc::success;
+        }
+    }
+
     LOG_INFO("{}: Resuming bucket '{}'", cid, name);
     auto status = bucket.getEngine().resume();
     if (status == cb::engine_errc::success) {

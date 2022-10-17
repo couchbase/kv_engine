@@ -52,6 +52,10 @@ class CookieIface;
 class BucketStatCollector;
 class StatCollector;
 
+namespace folly {
+class CancellationToken;
+}
+
 /*! \mainpage memcached public API
  *
  * \section intro_sec Introduction
@@ -794,11 +798,12 @@ struct EngineIface {
      * necessary to quiesce the on-disk bucket state, so the buckets' data
      * directory can be safely copied off the node as part of hibernating it.
      *
+     * @param cancellationToken To allow cancellation of a pause() request
+     *                          the caller can request cancellation via the
+     *                          Cancellation Source this token was created from.
      * @return The standard engine codes
      */
-    virtual cb::engine_errc pause() {
-        return cb::engine_errc::not_supported;
-    }
+    virtual cb::engine_errc pause(folly::CancellationToken cancellationToken);
 
     /**
      * Notify the engine it has been unpaused. Engine should perform any work

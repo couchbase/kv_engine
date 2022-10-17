@@ -8,6 +8,7 @@
  *   the file licenses/APL2.txt.
  */
 
+#include <folly/CancellationToken.h>
 #include <memcached/collections.h>
 #include <memcached/engine.h>
 #include <memcached/range_scan_optional_configuration.h>
@@ -53,5 +54,9 @@ cb::engine_errc EngineIface::continueRangeScan(
 cb::engine_errc EngineIface::cancelRangeScan(CookieIface& cookie,
                                              Vbid vbid,
                                              cb::rangescan::Id uuid) {
+    return cb::engine_errc::not_supported;
+}
+
+cb::engine_errc EngineIface::pause(folly::CancellationToken cancellationToken) {
     return cb::engine_errc::not_supported;
 }

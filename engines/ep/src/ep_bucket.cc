@@ -39,6 +39,7 @@
 
 #include <executor/executorpool.h>
 #include <fmt/ostream.h>
+#include <folly/CancellationToken.h>
 #include <folly/synchronization/Baton.h>
 #include <hdrhistogram/hdrhistogram.h>
 #include <memcached/range_scan_optional_configuration.h>
@@ -2497,7 +2498,8 @@ cb::engine_errc EPBucket::cancelRangeScan(Vbid vbid,
             uuid, &cookie, true /* schedule for background cancel */);
 }
 
-cb::engine_errc EPBucket::prepareForPause() {
+cb::engine_errc EPBucket::prepareForPause(
+        folly::CancellationToken cancellationToken) {
     // 1. Wait for all outstanding disk writing operations to complete.
     // a) Flusher, Rollback, DeleteVB - These all require that the
     //    appropriate vb_mutexes element has been acquired, so we simply

@@ -52,6 +52,7 @@
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/trim.hpp>
+#include <folly/CancellationToken.h>
 #include <hdrhistogram/hdrhistogram.h>
 #include <logger/logger.h>
 #include <memcached/audit_interface.h>
@@ -6998,8 +6999,9 @@ cb::engine_errc EventuallyPersistentEngine::doRangeScanStats(
     return cb::engine_errc::success;
 }
 
-cb::engine_errc EventuallyPersistentEngine::pause() {
-    return kvBucket->prepareForPause();
+cb::engine_errc EventuallyPersistentEngine::pause(
+        folly::CancellationToken cancellationToken) {
+    return kvBucket->prepareForPause(cancellationToken);
 }
 
 cb::engine_errc EventuallyPersistentEngine::resume() {

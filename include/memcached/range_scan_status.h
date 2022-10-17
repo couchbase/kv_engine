@@ -84,6 +84,7 @@ static HandlingStatus getContinueHandlingStatus(cb::engine_errc status) {
     case cb::engine_errc::scope_size_limit_exceeded:
     case cb::engine_errc::vbuuid_not_equal:
     case cb::engine_errc::bucket_paused:
+    case cb::engine_errc::cancelled:
         throw std::runtime_error(
                 "cb::rangescan::getHandlingStatus unexpected status:" +
                 to_string(status));

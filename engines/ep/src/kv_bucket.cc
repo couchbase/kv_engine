@@ -51,6 +51,7 @@
 #include <executor/executorpool.h>
 #include <executor/notifiable_task.h>
 
+#include <folly/CancellationToken.h>
 #include <memcached/collections.h>
 #include <memcached/cookie_iface.h>
 #include <memcached/range_scan_optional_configuration.h>
@@ -2591,6 +2592,11 @@ cb::engine_errc KVBucket::forceMaxCas(Vbid vbucket, uint64_t cas) {
 std::ostream& operator<<(std::ostream& os, const KVBucket::Position& pos) {
     os << pos.vbucket_id;
     return os;
+}
+cb::engine_errc KVBucketIface::prepareForPause(
+        folly::CancellationToken cancellationToken) {
+    // By default nothing to do.
+    return cb::engine_errc::success;
 }
 
 void KVBucket::notifyFlusher(const Vbid vbid) {

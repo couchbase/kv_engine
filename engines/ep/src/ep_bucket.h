@@ -329,7 +329,7 @@ public:
                                     cb::rangescan::Id uuid,
                                     CookieIface& cookie) override;
 
-    cb::engine_errc prepareForPause() override;
+    cb::engine_errc prepareForPause(folly::CancellationToken) override;
 
     cb::engine_errc prepareForResume() override;
 

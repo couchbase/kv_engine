@@ -97,6 +97,9 @@ enum class Status : uint16_t {
     /// The bucket is paused and cannot perform the requested operation.
     BucketPaused = 0x50,
 
+    /// The operation was cancelled before completion and had no effect.
+    Cancelled = 0x51,
+
     /// The server don't know about the frame info, and can't use it
     UnknownFrameInfo = 0x80,
     /** The server have no idea what this command is for */

@@ -88,6 +88,8 @@ cb::mcbp::Status cb::mcbp::to_status(cb::engine_errc code) {
         return Status::VbUuidNotEqual;
     case engine_errc::too_many_connections:
         return Status::RateLimitedMaxConnections;
+    case engine_errc::cancelled:
+        return Status::Cancelled;
     case engine_errc::bucket_paused:
         return Status::BucketPaused;
 

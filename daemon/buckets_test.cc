@@ -10,19 +10,36 @@
 
 #include "buckets.h"
 #include "enginemap.h"
+#include "front_end_thread.h"
+#include "memcached.h"
 #include "stats.h"
+#include "tests/mcbp/mcbp_mock_connection.h"
 #include "utilities/testing_hook.h"
+#include <boost/thread/barrier.hpp>
 #include <folly/portability/GTest.h>
+#include <folly/synchronization/Baton.h>
 #include <future>
 
 using namespace std::string_view_literals;
 
 TEST(BucketTest, Reset) {
+    // Attempt to spot when new members are added to Bucket and the reset()
+    // method and/or this test have not been updated.
+    // Bucket size varies depending on arch / platform ABI alignment rules,
+    // check the main ones we run against.
+    static constexpr size_t expectedBucketSize =
 #if defined(__linux) && defined(__x86_64__)
-    ASSERT_EQ(5776, sizeof(Bucket))
-            << "Bucket size changed, the reset test must be updated with "
-               "the new members";
+            5784;
+#elif defined(__APPLE__)
+            5880;
+#else
+            0;
 #endif
+    if (expectedBucketSize) {
+        ASSERT_EQ(expectedBucketSize, sizeof(Bucket))
+                << "Bucket size changed, the reset test must be updated with "
+                   "the new members";
+    }
 
     class MockBucket : public Bucket {
     public:
@@ -36,6 +53,7 @@ TEST(BucketTest, Reset) {
             num_metered_dcp_messages = 1;
             num_rejected = 1;
             bucket_quota_exceeded = true;
+            pause_cancellation_source = folly::CancellationSource{};
 
             reset();
             EXPECT_EQ(std::numeric_limits<std::size_t>::max(), throttle_limit);
@@ -47,6 +65,7 @@ TEST(BucketTest, Reset) {
             EXPECT_EQ(0, num_rejected);
             EXPECT_EQ(0, throttle_gauge.getValue());
             EXPECT_FALSE(bucket_quota_exceeded);
+            EXPECT_FALSE(pause_cancellation_source.canBeCancelled());
         }
     } bucket;
 
@@ -61,6 +80,13 @@ public:
         }
     }
 
+    cb::engine_errc public_resume(std::string_view cid, std::string_view name) {
+        return BucketManager::resume(cid, name);
+    }
+
+    void testPauseBucketCancellable(bool threaded,
+                                    std::string_view expectedPhase);
+
 protected:
     void bucketTypeChangeListener(Bucket& bucket, BucketType type) override {
         bucketTypeChangeListenerFunc(bucket, type);
@@ -70,8 +96,14 @@ protected:
         bucketStateChangeListenerFunc(bucket, state);
     }
 
+    void bucketPausingListener(std::string_view bucket,
+                               std::string_view phase) override {
+        bucketPausingListenerFunc(bucket, phase);
+    }
+
     TestingHook<Bucket&, BucketType> bucketTypeChangeListenerFunc;
     TestingHook<Bucket&, Bucket::State> bucketStateChangeListenerFunc;
+    TestingHook<std::string_view, std::string_view> bucketPausingListenerFunc;
 };
 
 TEST_F(BucketManagerTest, AllocateBucket) {
@@ -374,6 +406,182 @@ TEST_F(BucketManagerTest, PauseBucket) {
 
     // Cleanup
     bucketStateChangeListenerFunc.reset();
+    ASSERT_EQ(cb::engine_errc::success, destroy("1", "mybucket", false, {}));
+    shutdown_all_engines();
+}
+
+/**
+ * Verify that a pause() operation can be cancelled by calling resume() while
+ * in the pausing state, before setting up the cancellation callback. This
+ * exercises the case where the cancellationCallback's ctor is run inline on
+ * the calling thread (as cancellation has already been requested).
+ */
+TEST_F(BucketManagerTest, PauseBucketCancellableBeforeCallback) {
+    testPauseBucketCancellable(false, "before_cancellation_callback");
+}
+
+/// Multi-threaded version of previous test - the resume occurs in a different
+/// thread, so simulate a different client connection issuing it.
+TEST_F(BucketManagerTest, PauseBucketCancellableBeforeCallbackThreaded) {
+    testPauseBucketCancellable(true, "before_disconnect");
+}
+
+/// As above, but cancelling the pause just before we wait for connections
+/// to disconnect.
+TEST_F(BucketManagerTest, PauseBucketCancellableBeforeDisconnect) {
+    testPauseBucketCancellable(false, "before_disconnect");
+}
+
+/// As above, but cancelling the pause just before we wait for connections
+/// to disconnect, threaded version.
+TEST_F(BucketManagerTest, PauseBucketCancellableBeforeDisconnectThreaded) {
+    testPauseBucketCancellable(true, "before_disconnect");
+}
+
+/// As above, but cancelling the pause just before we call into the engine.
+TEST_F(BucketManagerTest, PauseBucketEngineCancellable) {
+    testPauseBucketCancellable(false, "before_engine_pause");
+}
+
+/// As above, but cancelling the pause just before we call into the engine.
+TEST_F(BucketManagerTest, PauseBucketEngineCancellableThreaded) {
+    testPauseBucketCancellable(true, "before_engine_pause");
+}
+
+void BucketManagerTest::testPauseBucketCancellable(
+        bool threaded, std::string_view expectedPhase) {
+    // Require a bucket type which supports pause() - i.e. Memcached or
+    // Couchbase; using the former as simpler to spin up.
+    auto err = create(1, "mybucket", {}, BucketType::Memcached);
+    ASSERT_EQ(cb::engine_errc::success, err);
+
+    FrontEndThread thread;
+    McbpMockConnection conn{thread};
+
+    // When cancelling the pause before disconnect, we want at least one
+    // client connection associated with the bucket being paused - that
+    // exercises the code which checks for cancellation inside
+    // waitForEveryoneToDisconnect().
+    // However, due to limitations in the BucketManagerTest harness, if we
+    // associate a connection and _don't_ cancel before getting further into
+    // waitForEveryoneToDisconnect() then the test will hang (as there's no
+    // front-end thread to actually disconnect - as such only associate
+    // if we know we are going to cancel before we properly wait.
+    if (expectedPhase == "before_disconnect") {
+        associate_bucket(conn, "mybucket");
+    }
+
+    bool pausing = false;
+    bool ready = true;
+    bucketStateChangeListenerFunc = [&pausing, &ready](Bucket& bucket,
+                                                       Bucket::State state) {
+        switch (state) {
+        case Bucket::State::None:
+        case Bucket::State::Initializing:
+        case Bucket::State::Destroying:
+        case Bucket::State::Creating:
+            FAIL() << "Unexpected callback for state:" << to_string(state);
+            break;
+        case Bucket::State::Pausing:
+            pausing = true;
+            break;
+        case Bucket::State::Paused:
+            FAIL() << "Unexpected callback for 'Paused': bucket should have "
+                      "resumed instead of changing to paused after resume()";
+            break;
+        case Bucket::State::Ready:
+            ready = true;
+        }
+    };
+
+    // In threaded mode we use a background thread to perform the resume.
+    // Prepare it here - we want it to already exist before pause() is initially
+    // called.
+    folly::Baton baton1;
+    std::thread resumeThread{[threaded, &baton1, &testFixture = *this]() {
+        if (!threaded) {
+            return;
+        }
+        baton1.wait();
+        testFixture.public_resume("2", "mybucket");
+    }};
+
+    bucketPausingListenerFunc = [&testFixture = *this,
+                                 threaded,
+                                 expectedPhase,
+                                 &baton1,
+                                 &resumeThread](std::string_view bucket,
+                                                std::string_view phase) {
+        // Ignore if not the expected phase.
+        if (phase != expectedPhase) {
+            return;
+        }
+        // When changes to Pausing, issue a resume() request which
+        // should
+        // cancel the pause.
+        if (threaded) {
+            // Wake waiting bg thread to perform the resume, then block
+            // until thread has performed resume.
+            baton1.post();
+            resumeThread.join();
+        } else {
+            testFixture.public_resume("2", "mybucket");
+        }
+    };
+
+    err = pause("1", "mybucket");
+    EXPECT_EQ(cb::engine_errc::cancelled, err);
+    EXPECT_TRUE(pausing) << "Expected callback for state Pausing";
+    EXPECT_TRUE(ready)
+            << "Expected callback for state Ready (after resume() called)";
+
+    // Cleanup
+    if (!threaded) {
+        // (In threaded mode we already joined the resumeThread in pausing
+        // listener.)
+        resumeThread.join();
+    }
+    bucketStateChangeListenerFunc.reset();
+    if (expectedPhase == "before_disconnect") {
+        disassociate_bucket(conn);
+    }
+    destroy("1", "mybucket", false, {});
+    shutdown_all_engines();
+}
+
+/// Basic smoke test to see what happens if two threads both attempt to pause/
+/// resume simulataneously....
+TEST_F(BucketManagerTest, PauseResumeFight) {
+    // Require a bucket type which supports pause() - i.e. Memcached or
+    // Couchbase; using the former as simpler to spin up.
+    auto err = create(1, "mybucket", {}, BucketType::Memcached);
+    ASSERT_EQ(cb::engine_errc::success, err);
+
+    FrontEndThread thread;
+    McbpMockConnection conn{thread};
+
+    // Use a barrier which both threads must rendezvous via to maximise the
+    // contention we get between threads.
+    boost::barrier barrier{2};
+    const int iterations = 1000;
+    auto pauseResumeNTimes = [&](std::string_view connectionId) {
+        barrier.count_down_and_wait();
+        for (int i = 0; i < iterations; i++) {
+            // Yield thread between each operation to attempt to get more
+            // interleaving with the other thread.
+            pause(connectionId, "mybucket");
+            std::this_thread::yield();
+            public_resume(connectionId, "mybucket");
+            std::this_thread::yield();
+        }
+    };
+
+    std::thread worker1{pauseResumeNTimes, "1"};
+    std::thread worker2{pauseResumeNTimes, "2"};
+
+    worker1.join();
+    worker2.join();
+
     destroy("1", "mybucket", false, {});
     shutdown_all_engines();
 }
