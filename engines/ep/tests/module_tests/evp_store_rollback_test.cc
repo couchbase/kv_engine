@@ -147,7 +147,7 @@ public:
                   store->deleteItem(a,
                                     cas,
                                     vbid,
-                                    /*cookie*/ nullptr,
+                                    cookie,
                                     {},
                                     /*itemMeta*/ nullptr,
                                     mutation_descr));
@@ -161,7 +161,7 @@ public:
         // we don't need to do a bg fetch
         if (getEvictionMode() == "value_only" || !flush_before_rollback) {
             EXPECT_EQ(cb::engine_errc::no_such_key,
-                      store->get(a, vbid, nullptr, {}).getStatus());
+                      store->get(a, vbid, cookie, {}).getStatus());
         } else {
             EXPECT_NE(nullptr, cookie);
             EXPECT_EQ(cb::engine_errc::would_block,
@@ -170,7 +170,7 @@ public:
             runBGFetcherTask();
             mock_waitfor_cookie(cookie);
             EXPECT_EQ(cb::engine_errc::no_such_key,
-                      store->get(a, vbid, nullptr, QUEUE_BG_FETCH).getStatus());
+                      store->get(a, vbid, cookie, QUEUE_BG_FETCH).getStatus());
         }
 
         // Test - rollback to seqno of item_v1 and verify that the previous value
@@ -182,8 +182,7 @@ public:
                 vbStateAtRollback == vbucket_state_replica
                         ? ForGetReplicaOp::Yes
                         : ForGetReplicaOp::No;
-        auto result =
-                getInternal(a, vbid, /*cookie*/ nullptr, getReplicaItem, {});
+        auto result = getInternal(a, vbid, cookie, getReplicaItem, {});
         ASSERT_EQ(cb::engine_errc::success, result.getStatus());
 
         EXPECT_EQ(htState.dump(0), getHtState().dump(0));
@@ -236,7 +235,7 @@ public:
 
         // a should have the value of 'old'
         {
-            auto result = store->get(a, vbid, nullptr, {});
+            auto result = store->get(a, vbid, cookie, {});
             ASSERT_EQ(cb::engine_errc::success, result.getStatus());
             EXPECT_EQ(item_v1, *result.item)
                     << "Fetched item after rollback should match item_v1";
@@ -322,7 +321,7 @@ protected:
 
         if (getEvictionMode() == "value_only") {
             EXPECT_EQ(cb::engine_errc::no_such_key,
-                      store->get(a, vbid, nullptr, {}).getStatus());
+                      store->get(a, vbid, cookie, {}).getStatus());
         } else {
             EXPECT_NE(nullptr, cookie);
             auto gcb = store->get(a, vbid, cookie, QUEUE_BG_FETCH);
@@ -1212,7 +1211,7 @@ TEST_P(RollbackDcpTest, test_rollback_zero) {
     for (int ii = 0; ii < items; ii++) {
         std::string key = "anykey_0_" + std::to_string(ii);
         auto result = store->get(
-                {key, DocKeyEncodesCollectionId::No}, vbid, nullptr, {});
+                {key, DocKeyEncodesCollectionId::No}, vbid, cookie, {});
         EXPECT_EQ(cb::engine_errc::success, result.getStatus())
                 << "Problem with " << key;
     }
@@ -1225,7 +1224,7 @@ TEST_P(RollbackDcpTest, test_rollback_zero) {
     for (int ii = 0; ii < items; ii++) {
         std::string key = "anykey_0_" + std::to_string(ii);
         auto result = store->get(
-                {key, DocKeyEncodesCollectionId::No}, vbid, nullptr, {});
+                {key, DocKeyEncodesCollectionId::No}, vbid, cookie, {});
         EXPECT_EQ(cb::engine_errc::no_such_key, result.getStatus())
                 << "Problem with " << key;
     }
@@ -1279,7 +1278,7 @@ TEST_P(RollbackDcpTest, test_rollback_nonzero) {
             std::string key =
                     "anykey_" + std::to_string(ff) + "_" + std::to_string(ii);
             auto result = store->get(
-                    {key, DocKeyEncodesCollectionId::No}, vbid, nullptr, {});
+                    {key, DocKeyEncodesCollectionId::No}, vbid, cookie, {});
             EXPECT_EQ(cb::engine_errc::success, result.getStatus())
                     << "Expected to find " << key;
         }
@@ -1295,7 +1294,7 @@ TEST_P(RollbackDcpTest, test_rollback_nonzero) {
             std::string key =
                     "anykey_" + std::to_string(ff) + "_" + std::to_string(ii);
             auto result = store->get(
-                    {key, DocKeyEncodesCollectionId::No}, vbid, nullptr, {});
+                    {key, DocKeyEncodesCollectionId::No}, vbid, cookie, {});
             EXPECT_EQ(cb::engine_errc::success, result.getStatus())
                     << "Expected to find " << key;
         }
@@ -1305,7 +1304,7 @@ TEST_P(RollbackDcpTest, test_rollback_nonzero) {
     for (int ii = 0; ii < items; ii++) {
         std::string key = "anykey_3_" + std::to_string(ii);
         auto result = store->get(
-                {key, DocKeyEncodesCollectionId::No}, vbid, nullptr, {});
+                {key, DocKeyEncodesCollectionId::No}, vbid, cookie, {});
         EXPECT_EQ(cb::engine_errc::no_such_key, result.getStatus())
                 << "Problem with " << key;
     }
@@ -1355,12 +1354,12 @@ TEST_P(RollbackDcpTest, test_rollback_zero_MB_48398) {
     for (int ii = 0; ii < nitems; ii++) {
         std::string key = "anykey_" + std::to_string(ii);
         auto result = store->get(
-                {key, DocKeyEncodesCollectionId::No}, vbid, nullptr, {});
+                {key, DocKeyEncodesCollectionId::No}, vbid, cookie, {});
         EXPECT_EQ(cb::engine_errc::no_such_key, result.getStatus())
                 << "Problem with " << key;
     }
     auto result = store->get(
-            {"rogue1", DocKeyEncodesCollectionId::No}, vbid, nullptr, {});
+            {"rogue1", DocKeyEncodesCollectionId::No}, vbid, cookie, {});
     EXPECT_EQ(cb::engine_errc::no_such_key, result.getStatus())
             << "Problem with " << key;
 

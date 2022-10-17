@@ -3828,7 +3828,7 @@ void SingleThreadedActiveStreamTest::testExpirationRemovesBody(uint32_t flags,
     manager.createNewCheckpoint();
 
     // Just need to access key for expiring
-    GetValue gv = store->get(docKey, vbid, nullptr, get_options_t::NONE);
+    GetValue gv = store->get(docKey, vbid, cookie, get_options_t::NONE);
     EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
 
     // MB-41989: Expiration removes UserXattrs (if any), but it must do that on

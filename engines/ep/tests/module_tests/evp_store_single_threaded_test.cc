@@ -5348,7 +5348,7 @@ TEST_P(STParameterizedBucketTest, CheckpointMemThresholdEnforced_ExpiryByRead) {
     const auto read = [this]() -> void {
         const auto ret = store->get(makeStoredDocKey("key_to_expire"),
                                     vbid,
-                                    nullptr,
+                                    cookie,
                                     get_options_t::NONE);
         ASSERT_EQ(cb::engine_errc::no_such_key, ret.getStatus());
     };
@@ -5387,7 +5387,7 @@ TEST_P(STParameterizedBucketTest, CheckpointMemThresholdEnforced_Del) {
     // First ensure the doc is alive
     const auto key = makeStoredDocKey("key_" + std::to_string(highSeqno));
     ASSERT_EQ(cb::engine_errc::success,
-              store->get(key, vbid, nullptr, get_options_t::NONE).getStatus());
+              store->get(key, vbid, cookie, get_options_t::NONE).getStatus());
     // Then attempt deletion
     mutation_descr_t delInfo;
     uint64_t cas = 0;

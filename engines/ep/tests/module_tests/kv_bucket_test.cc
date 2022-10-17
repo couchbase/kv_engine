@@ -1816,7 +1816,7 @@ TEST_P(KVBucketParamTest, ReplicaExpiredItem) {
         mock_waitfor_cookie(cookie);
     }
 
-    auto result = store->getReplica(key, vbid, nullptr, options);
+    auto result = store->getReplica(key, vbid, cookie, options);
     EXPECT_EQ(cb::engine_errc::no_such_key, result.getStatus());
 }
 

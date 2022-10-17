@@ -270,16 +270,16 @@ TEST_P(EPBucketTest, FreqCountTest) {
 
     // Perform one or more gets to increase the frequency count
     auto options = static_cast<get_options_t>(TRACK_REFERENCE);
-    GetValue v = store->get(a, vbid, nullptr, options);
+    GetValue v = store->get(a, vbid, cookie, options);
     while (v.item->getFreqCounterValue() == initialFreqCount) {
-        v = store->get(a, vbid, nullptr, options);
+        v = store->get(a, vbid, cookie, options);
     }
 
     // Update the document with a new value
     auto item_v2 = store_item(vbid, a, "new");
 
     // Check that the frequency counter of the document has not been reset
-    auto result = store->get(a, vbid, nullptr, {});
+    auto result = store->get(a, vbid, cookie, {});
     EXPECT_NE(initialFreqCount, result.item->getFreqCounterValue());
 }
 
@@ -299,7 +299,7 @@ TEST_P(EPBucketTest, FreqCountOnlyMutationsTest) {
         store_item(vbid, k, str);
 
         // Do an internal get (does not increment frequency count)
-        result = store->get(k, vbid, nullptr, {});
+        result = store->get(k, vbid, cookie, {});
         ++ii;
     } while (freqCount == result.item->getFreqCounterValue() && ii < limit);
 
@@ -314,7 +314,7 @@ TEST_P(EPBucketTest, FreqCountOnlyMutationsTest) {
         store->replace(item, cookie);
 
         // Do an internal get (does not increment frequency count)
-        result = store->get(k, vbid, nullptr, {});
+        result = store->get(k, vbid, cookie, {});
         ++ii;
     } while (freqCount == result.item->getFreqCounterValue() && ii < limit);
 

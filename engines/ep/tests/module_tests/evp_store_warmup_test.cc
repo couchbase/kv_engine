@@ -137,13 +137,13 @@ TEST_F(WarmupTest, hlcEpoch) {
     EXPECT_EQ(2, vb->getHLCEpochSeqno());
 
     // key1 stored before we established the epoch should have cas_is_hlc==false
-    auto item1 = store->get(makeStoredDocKey("key1"), vbid, nullptr, {});
+    auto item1 = store->get(makeStoredDocKey("key1"), vbid, cookie, {});
     ASSERT_EQ(cb::engine_errc::success, item1.getStatus());
     auto info1 = engine->getItemInfo(*item1.item);
     EXPECT_FALSE(info1.cas_is_hlc);
 
     // key2 should have a CAS generated from the HLC
-    auto item2 = store->get(makeStoredDocKey("key2"), vbid, nullptr, {});
+    auto item2 = store->get(makeStoredDocKey("key2"), vbid, cookie, {});
     ASSERT_EQ(cb::engine_errc::success, item2.getStatus());
     auto info2 = engine->getItemInfo(*item2.item);
     EXPECT_TRUE(info2.cas_is_hlc);
@@ -162,20 +162,20 @@ TEST_F(WarmupTest, fetchDocInDifferentCompressionModes) {
     flush_vbucket_to_disk(vbid);
 
     resetEngineAndWarmup("compression_mode=off");
-    auto item1 = store->get(makeStoredDocKey("key1"), vbid, nullptr, {});
+    auto item1 = store->get(makeStoredDocKey("key1"), vbid, cookie, {});
     ASSERT_EQ(cb::engine_errc::success, item1.getStatus());
     auto info1 = engine->getItemInfo(*item1.item);
     EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_JSON, info1.datatype);
 
     resetEngineAndWarmup("compression_mode=passive");
-    item1 = store->get(makeStoredDocKey("key1"), vbid, nullptr, {});
+    item1 = store->get(makeStoredDocKey("key1"), vbid, cookie, {});
     ASSERT_EQ(cb::engine_errc::success, item1.getStatus());
     info1 = engine->getItemInfo(*item1.item);
     EXPECT_EQ((PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_SNAPPY),
               info1.datatype);
 
     resetEngineAndWarmup("compression_mode=active");
-    item1 = store->get(makeStoredDocKey("key1"), vbid, nullptr, {});
+    item1 = store->get(makeStoredDocKey("key1"), vbid, cookie, {});
     ASSERT_EQ(cb::engine_errc::success, item1.getStatus());
     info1 = engine->getItemInfo(*item1.item);
     EXPECT_EQ((PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_SNAPPY),

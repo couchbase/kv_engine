@@ -2089,7 +2089,7 @@ void DurabilityBucketTest::testTakeoverDestinationHandlesPreparedSyncWrites(
             makePendingItem(makeStoredDocKey("key"), "value", requirements);
     pending->setCas(1);
     pending->setBySeqno(1);
-    ASSERT_EQ(cb::engine_errc::success, store->prepare(*pending, nullptr));
+    ASSERT_EQ(cb::engine_errc::success, store->prepare(*pending, cookie));
     ASSERT_EQ(1, vb.getDurabilityMonitor().getNumTracked());
 
     // Test: Change to active via takeover (null topology),

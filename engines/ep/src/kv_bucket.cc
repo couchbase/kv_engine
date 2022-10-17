@@ -691,6 +691,7 @@ void KVBucket::logRunTime(const GlobalTask& task,
 cb::engine_errc KVBucket::set(Item& itm,
                               CookieIface* cookie,
                               cb::StoreIfPredicate predicate) {
+    Expects(cookie);
     VBucketPtr vb = getVBucket(itm.getVBucketId());
     if (!vb) {
         ++stats.numNotMyVBuckets;
@@ -745,6 +746,7 @@ cb::engine_errc KVBucket::set(Item& itm,
 }
 
 cb::engine_errc KVBucket::add(Item& itm, CookieIface* cookie) {
+    Expects(cookie);
     VBucketPtr vb = getVBucket(itm.getVBucketId());
     if (!vb) {
         ++stats.numNotMyVBuckets;
@@ -803,6 +805,7 @@ cb::engine_errc KVBucket::add(Item& itm, CookieIface* cookie) {
 cb::engine_errc KVBucket::replace(Item& itm,
                                   CookieIface* cookie,
                                   cb::StoreIfPredicate predicate) {
+    Expects(cookie);
     VBucketPtr vb = getVBucket(itm.getVBucketId());
     if (!vb) {
         ++stats.numNotMyVBuckets;
@@ -1502,6 +1505,7 @@ GetValue KVBucket::getInternal(const DocKey& key,
                                CookieIface* cookie,
                                const ForGetReplicaOp getReplicaItem,
                                get_options_t options) {
+    Expects(cookie);
     VBucketPtr vb = getVBucket(vbucket);
 
     if (!vb) {
@@ -1628,6 +1632,7 @@ cb::engine_errc KVBucket::getMetaData(const DocKey& key,
                                       ItemMetaData& metadata,
                                       uint32_t& deleted,
                                       uint8_t& datatype) {
+    Expects(cookie);
     VBucketPtr vb = getVBucket(vbucket);
 
     if (!vb) {
@@ -1665,6 +1670,7 @@ cb::engine_errc KVBucket::setWithMeta(Item& itm,
                                       GenerateBySeqno genBySeqno,
                                       GenerateCas genCas,
                                       ExtendedMetaData* emd) {
+    Expects(cookie);
     VBucketPtr vb = getVBucket(itm.getVBucketId());
     if (!vb) {
         ++stats.numNotMyVBuckets;
@@ -1723,6 +1729,7 @@ cb::engine_errc KVBucket::setWithMeta(Item& itm,
 }
 
 cb::engine_errc KVBucket::prepare(Item& itm, CookieIface* cookie) {
+    Expects(cookie);
     VBucketPtr vb = getVBucket(itm.getVBucketId());
     if (!vb) {
         ++stats.numNotMyVBuckets;
@@ -1772,6 +1779,7 @@ GetValue KVBucket::getAndUpdateTtl(const DocKey& key,
                                    Vbid vbucket,
                                    CookieIface* cookie,
                                    time_t exptime) {
+    Expects(cookie);
     VBucketPtr vb = getVBucket(vbucket);
     if (!vb) {
         ++stats.numNotMyVBuckets;
@@ -1818,6 +1826,7 @@ GetValue KVBucket::getLocked(const DocKey& key,
                              rel_time_t currentTime,
                              uint32_t lockTimeout,
                              CookieIface* cookie) {
+    Expects(cookie);
     auto vb = getVBucket(vbucket);
     if (!vb) {
         ++stats.numNotMyVBuckets;
@@ -1850,6 +1859,7 @@ cb::engine_errc KVBucket::unlockKey(const DocKey& key,
                                     uint64_t cas,
                                     rel_time_t currentTime,
                                     CookieIface* cookie) {
+    Expects(cookie);
     auto vb = getVBucket(vbucket);
     if (!vb) {
         ++stats.numNotMyVBuckets;
@@ -1969,6 +1979,7 @@ cb::engine_errc KVBucket::deleteItem(
         std::optional<cb::durability::Requirements> durability,
         ItemMetaData* itemMeta,
         mutation_descr_t& mutInfo) {
+    Expects(cookie);
     auto vb = getVBucket(vbucket);
     if (!vb) {
         ++stats.numNotMyVBuckets;
@@ -2032,6 +2043,7 @@ cb::engine_errc KVBucket::deleteWithMeta(const DocKey& key,
                                          uint64_t bySeqno,
                                          ExtendedMetaData* emd,
                                          DeleteSource deleteSource) {
+    Expects(cookie);
     VBucketPtr vb = getVBucket(vbucket);
 
     if (!vb) {

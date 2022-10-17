@@ -1059,7 +1059,7 @@ TEST_P(CollectionsEraserTest, DeleteExpiryResurrectionTest) {
               store->deleteItem(key,
                                 cas,
                                 vbid,
-                                /*cookie*/ nullptr,
+                                cookie,
                                 {},
                                 /*itemMeta*/ nullptr,
                                 mutation_descr));

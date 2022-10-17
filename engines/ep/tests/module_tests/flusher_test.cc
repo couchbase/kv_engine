@@ -20,6 +20,7 @@
 #include <engines/ep/src/bucket_logger.h>
 #include <executor/fake_executorpool.h>
 #include <folly/portability/GTest.h>
+#include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
 
 using namespace std::string_literals;
@@ -144,12 +145,13 @@ TEST_F(FlusherTest, GetToLowPrioWhenSomeHighPriIsPending) {
     auto item = make_item(lpVbid, makeStoredDocKey("key"), "value");
     item.setCas();
     uint64_t seqno;
+    MockCookie cookie;
     // Simulate PassiveStream::processMessage
     ASSERT_EQ(cb::engine_errc::success,
               kvBucket->setWithMeta(item,
                                     0 /*cas*/,
                                     &seqno,
-                                    nullptr /*cookie*/,
+                                    &cookie,
                                     {vbucket_state_active,
                                      vbucket_state_replica,
                                      vbucket_state_pending},
