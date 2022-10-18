@@ -408,7 +408,13 @@ def ratio_label(s):
     """
     return str(float(s) / 10.0);
 
-def histograms(mc, raw_stats):
+def histograms(mc, raw_stats, default_label_func=time_label):
+    """
+    Print a histogram to stdout.
+
+    default_label_func: The default formatting function to use for labels.
+    Will be ignored for sizes, ratios and some other special-cased keys.
+    """
     # Try to figure out the terminal width.  If we can't, 79 is good
     def termWidth():
         try:
@@ -444,7 +450,7 @@ def histograms(mc, raw_stats):
         kstart, kend = [int(x) for x in ka[-1].split(',')]
 
         # Create a label for the data point
-        label_func = time_label
+        label_func = default_label_func
         if k.endswith("Size") or k.endswith("Seek"):
             label_func = size_label
         elif k.endswith("Count"):
@@ -617,6 +623,15 @@ def stats_meta_timings(mc):
     h = stats_perform(mc, 'stat-timings')
     if h:
         histograms(mc, h)
+
+@cmd
+def stats_frequency_counters(mc):
+    if output_json:
+        print('Json output not supported for frequency counter stats')
+        return
+    h = stats_perform(mc, 'frequency-counters')
+    if h:
+        histograms(mc, h, default_label_func=no_label)
 
 @cmd
 def stats_dcp(mc):
@@ -1027,6 +1042,7 @@ def main():
     c.addCommand('dcp-vbtakeover', stats_dcp_takeover, 'dcp-vbtakeover vb name')
     c.addCommand('timings', stats_timings, 'timings')
     c.addCommand('stat-timings', stats_meta_timings, 'stat-timings')
+    c.addCommand('frequency-counters', stats_frequency_counters, 'frequency-counters')
     c.addCommand('vbucket', stats_vbucket, 'vbucket')
     c.addCommand('vbucket-details', stats_vbucket_details, 'vbucket-details [vbid]')
     c.addCommand('vbucket-durability-state', stats_vbucket_durability_state, 'vbucket-durability-state [vbid]')
