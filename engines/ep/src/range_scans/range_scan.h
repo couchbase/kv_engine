@@ -194,8 +194,9 @@ public:
      * is only invoked for a KeyOnly::Yes scan.
      *
      * @param key A key read from a Key only scan
+     * @return false if the key cannot be sent (disconnected continue)
      */
-    void handleKey(DocKey key);
+    bool handleKey(DocKey key);
 
     enum Source { Memory, Disk };
 
@@ -205,8 +206,9 @@ public:
      *
      * @param item An Item read from a Key/Value scan
      * @param source Item was found in memory or on disk
+     * @return false if the key cannot be sent (disconnected continue)
      */
-    void handleItem(std::unique_ptr<Item> item, Source source);
+    bool handleItem(std::unique_ptr<Item> item, Source source);
 
     /**
      * Callback method for when a scan has finished a "continue" and is used to
@@ -215,8 +217,9 @@ public:
      * a limit.
      *
      * @param status The status of the just completed continue
+     * @return false if the status cannot be sent (disconnected continue)
      */
-    void handleStatus(cb::engine_errc status);
+    bool handleStatus(cb::engine_errc status);
 
     /**
      * Callback method for when a scan encounters an unknown collection during

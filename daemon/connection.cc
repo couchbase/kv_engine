@@ -1485,7 +1485,7 @@ void Connection::sendResponseHeaders(Cookie& cookie,
     copyToOutputStream(wbuf, extras, key);
 }
 
-void Connection::sendResponse(Cookie& cookie,
+bool Connection::sendResponse(Cookie& cookie,
                               cb::mcbp::Status status,
                               std::string_view extras,
                               std::string_view key,
@@ -1513,6 +1513,7 @@ void Connection::sendResponse(Cookie& cookie,
                                           datatype);
         copyToOutputStream(wbuf, extras, key, value);
     }
+    return !sendQueueInfo.term;
 }
 
 cb::engine_errc Connection::add_packet_to_send_pipe(

@@ -99,7 +99,7 @@ public:
         return false;
     }
 
-    void sendResponse(cb::engine_errc status, std::string_view value) override {
+    bool sendResponse(cb::engine_errc status, std::string_view value) override {
         throw std::runtime_error("AuditMockCookie::sendResponse unimplemented");
     }
 

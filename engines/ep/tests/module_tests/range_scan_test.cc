@@ -38,35 +38,37 @@ public:
     TestRangeScanHandler(std::vector<std::unique_ptr<Item>>& items,
                          std::vector<StoredDocKey>& keys,
                          cb::engine_errc& status,
-                         std::function<bool(size_t)>& hook)
+                         std::function<Status(size_t)>& hook)
         : scannedItems(items),
           scannedKeys(keys),
           status(status),
           testHook(hook) {
     }
 
-    bool handleKey(CookieIface&, DocKey key) override {
+    Status handleKey(CookieIface&, DocKey key) override {
         checkKeyIsUnique(key);
         scannedKeys.emplace_back(key);
         return testHook(scannedKeys.size());
     }
 
-    bool handleItem(CookieIface&, std::unique_ptr<Item> item) override {
+    Status handleItem(CookieIface&, std::unique_ptr<Item> item) override {
         checkKeyIsUnique(item->getKey());
         scannedItems.emplace_back(std::move(item));
         return testHook(scannedItems.size());
     }
 
-    void handleStatus(CookieIface& cookie, cb::engine_errc status) override {
+    Status handleStatus(CookieIface& cookie, cb::engine_errc status) override {
         EXPECT_TRUE(validateContinueStatus(status));
         this->status = status;
+        return Status::OK;
     }
 
-    void handleUnknownCollection(CookieIface& cookie,
-                                 uint64_t manifestUid) override {
+    Status handleUnknownCollection(CookieIface& cookie,
+                                   uint64_t manifestUid) override {
         throw std::runtime_error(
                 "TestRangeScanHandler::handleUnknownCollection"
                 " unimplemented");
+        return Status::OK;
     }
 
     void addStats(std::string_view prefix,
@@ -88,7 +90,7 @@ public:
     std::vector<StoredDocKey>& scannedKeys;
     std::unordered_set<StoredDocKey> allKeys;
     cb::engine_errc& status;
-    std::function<bool(size_t)>& testHook;
+    std::function<Status(size_t)>& testHook;
 };
 
 class RangeScanTest
@@ -275,7 +277,9 @@ public:
 
     // default to some status RangeScan won't use
     cb::engine_errc status{cb::engine_errc::sync_write_ambiguous};
-    std::function<bool(size_t)> testHook = [](size_t) { return false; };
+    std::function<TestRangeScanHandler::Status(size_t)> testHook = [](size_t) {
+        return TestRangeScanHandler::Status::OK;
+    };
     std::unique_ptr<TestRangeScanHandler> handler{
             std::make_unique<TestRangeScanHandler>(
                     scannedItems, scannedKeys, status, testHook)};
@@ -552,7 +556,7 @@ TEST_P(RangeScanTest, user_prefix_evicted) {
 }
 
 TEST_P(RangeScanTest, scan_is_throttled) {
-    testHook = [](size_t) { return true; };
+    testHook = [](size_t) { return TestRangeScanHandler::Status::Throttle; };
     // Scan with no continue limits, but the scan will yield for every key
     // as the testHook returns true meaning "throttle"
     auto expectedKeys = getUserKeys();
@@ -826,7 +830,7 @@ TEST_P(RangeScanTest, create_continue_is_cancelled_2) {
             EXPECT_EQ(cb::engine_errc::success,
                       vb->cancelRangeScan(uuid, nullptr, true));
         }
-        return false;
+        return TestRangeScanHandler::Status::OK;
     };
 
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
@@ -1365,7 +1369,7 @@ TEST_P(RangeScanTest, cancel_when_yielding) {
         // Cancel after the first key has been read
         EXPECT_EQ(cb::engine_errc::success,
                   vb->cancelRangeScan(uuid, nullptr, true));
-        return false;
+        return TestRangeScanHandler::Status::OK;
     };
 
     // scan!
@@ -1392,24 +1396,25 @@ public:
         : callbackCounter(callbackCounter) {
     }
 
-    bool handleKey(CookieIface&, DocKey key) override {
+    Status handleKey(CookieIface&, DocKey key) override {
         ++callbackCounter;
-        return false;
+        return Status::OK;
     }
 
-    bool handleItem(CookieIface&, std::unique_ptr<Item>) override {
+    Status handleItem(CookieIface&, std::unique_ptr<Item>) override {
         ++callbackCounter;
-        return false;
+        return Status::OK;
     }
 
-    void handleStatus(CookieIface&, cb::engine_errc) override {
+    Status handleStatus(CookieIface&, cb::engine_errc) override {
         ++callbackCounter;
+        return Status::OK;
     }
 
-    void handleUnknownCollection(CookieIface& cookie,
-                                 uint64_t manifestUid) override {
-        EXPECT_FALSE(true) << "DummyRangeScanHandler::handleUnknownCollection "
-                           << "unimplemented";
+    Status handleUnknownCollection(CookieIface& cookie,
+                                   uint64_t manifestUid) override {
+        throw std::runtime_error(
+                "DummyRangeScanHandler::handleUnknownCollection unimplemented");
     }
 
     void addStats(std::string_view prefix,
@@ -1966,19 +1971,20 @@ public:
         : callback(std::move(cb)) {
     }
 
-    bool handleKey(CookieIface&, DocKey key) override {
-        return false;
+    Status handleKey(CookieIface&, DocKey key) override {
+        return Status::OK;
     }
 
-    bool handleItem(CookieIface&, std::unique_ptr<Item>) override {
-        return false;
+    Status handleItem(CookieIface&, std::unique_ptr<Item>) override {
+        return Status::OK;
     }
 
-    void handleStatus(CookieIface&, cb::engine_errc status) override {
+    Status handleStatus(CookieIface&, cb::engine_errc status) override {
         callback(status);
+        return Status::OK;
     }
 
-    void handleUnknownCollection(CookieIface&, uint64_t) override {
+    Status handleUnknownCollection(CookieIface&, uint64_t) override {
         throw std::runtime_error(
                 "MB_54053Handler::handleUnknownCollection unexpected call");
     }
@@ -2043,6 +2049,43 @@ TEST_P(RangeScanTestSimple, MB_54053) {
     // scan2 now hits an exception because after the setup thread1 continues
     // and wipes out the cookie of scan2
     scan2->progressScan(*kvs);
+}
+
+TEST_P(RangeScanTestSimple, DisconnectCancels) {
+    auto k1 = makeStoredDocKey("key1", scanCollection);
+    store_item(vbid, k1, "value");
+    flushVBucket(vbid);
+
+    // force disconnect detection path
+    testHook = [](size_t) {
+        return TestRangeScanHandler::Status::Disconnected;
+    };
+    auto uuid = createScan(scanCollection,
+                           {"\0"},
+                           {"\xFF"},
+                           {/* no snapshot requirements */},
+                           {/* no sampling*/},
+                           cb::engine_errc::success);
+
+    EXPECT_EQ(cb::engine_errc::would_block,
+              store->continueRangeScan(
+                      vbid, uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
+
+    EXPECT_NE(cb::engine_errc::range_scan_cancelled, status);
+
+    // run the I/O task
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                "RangeScanContinueTask");
+
+    // handleStatus is still reached and sends the scan was cancelled - if
+    // really disconnected this goes no where. (Although final status is now
+    // logged as cancelled)
+    EXPECT_EQ(cb::engine_errc::range_scan_cancelled, status);
+
+    // Confirm the scan has been removed
+    EXPECT_EQ(cb::engine_errc::no_such_key,
+              store->continueRangeScan(
+                      vbid, uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
 }
 
 auto valueScanConfig =

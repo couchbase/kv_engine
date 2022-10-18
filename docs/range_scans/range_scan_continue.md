@@ -14,10 +14,15 @@ The request:
 Note that each continue request always returns at least 1 key/document unless:
 
 * The scan reaches the end
-* An error occurs
+* An server "error" occurs
 
 The client is responsible for progressing the scan by issuing new continue
-requests until the server indicates the scan has reached the end.
+requests until the server indicates the scan has reached the end. Note that
+if the connection which requested the continue becomes disconnected for any
+reasons whilst the scan is progressing the server policy is to cancel the
+range-scan as there is no mechanism for safely resuming the existing scan.
+A client should create a new scan using their last received key as the start
+point.
 
 The command uses an extras section to describe the input parameters.
 

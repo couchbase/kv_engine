@@ -39,16 +39,20 @@ class VBucket;
 class RangeScanDataHandlerIFace {
 public:
     virtual ~RangeScanDataHandlerIFace() = default;
-
+    enum class Status {
+        OK, // Scan can continue
+        Throttle, // Scan must yield because the connection is now throttled
+        Disconnected // Connection has disconnected and scan must cancel
+    };
     /**
      * Callback method invoked for each key that is read from the snapshot. This
      * is only invoked for a KeyOnly::Yes scan.
      *
      * @param cookie The cookie which triggered the range-scan-continue
      * @param key A key read from a Key only scan
-     * @return true if the current continue should now yield
+     * @return A "Status" which determines the next "step" for the scan
      */
-    virtual bool handleKey(CookieIface& cookie, DocKey key) = 0;
+    virtual Status handleKey(CookieIface& cookie, DocKey key) = 0;
 
     /**
      * Callback method invoked for each Item that is read from the snapshot.
@@ -56,10 +60,10 @@ public:
      *
      * @param cookie The cookie which triggered the range-scan-continue
      * @param item An Item read from a Key/Value scan
-     * @return true if the current continue should now yield
+     * @return A "Status" which determines the next "step" for the scan
      */
-    virtual bool handleItem(CookieIface& cookie,
-                            std::unique_ptr<Item> item) = 0;
+    virtual Status handleItem(CookieIface& cookie,
+                              std::unique_ptr<Item> item) = 0;
 
     /**
      * Callback method for when a scan has finished a "continue" and is used to
@@ -69,17 +73,20 @@ public:
      *
      * @param cookie The cookie which triggered the range-scan-continue
      * @param status The status of the just completed continue
+     * @return A "Status" which determines the next "step" for the scan
      */
-    virtual void handleStatus(CookieIface& cookie, cb::engine_errc status) = 0;
+    virtual Status handleStatus(CookieIface& cookie,
+                                cb::engine_errc status) = 0;
 
     /**
      * Callback method specific to unknown collection which has extra work todo
      * for the error response.
      * @param cookie The cookie which triggered the failure
      * @param manifestUid the manifest-ID that triggered the unknown collection
+     * @return A "Status" which determines the next "step" for the scan
      */
-    virtual void handleUnknownCollection(CookieIface& cookie,
-                                         uint64_t manifestUid) = 0;
+    virtual Status handleUnknownCollection(CookieIface& cookie,
+                                           uint64_t manifestUid) = 0;
     /**
      * Generate stats from the handler
      */
@@ -95,21 +102,22 @@ class RangeScanDataHandler : public RangeScanDataHandlerIFace {
 public:
     RangeScanDataHandler(EventuallyPersistentEngine& engine);
 
-    bool handleKey(CookieIface& cookie, DocKey key) override;
+    Status handleKey(CookieIface& cookie, DocKey key) override;
 
-    bool handleItem(CookieIface& cookie, std::unique_ptr<Item> item) override;
+    Status handleItem(CookieIface& cookie, std::unique_ptr<Item> item) override;
 
-    void handleStatus(CookieIface& cookie, cb::engine_errc status) override;
+    Status handleStatus(CookieIface& cookie, cb::engine_errc status) override;
 
-    void handleUnknownCollection(CookieIface& cookie,
-                                 uint64_t manifestUid) override;
+    Status handleUnknownCollection(CookieIface& cookie,
+                                   uint64_t manifestUid) override;
 
     void addStats(std::string_view prefix,
                   const StatCollector& collector) override;
 
 private:
-    bool checkAndSend(CookieIface& cookie);
-    void send(CookieIface& cookie, cb::engine_errc = cb::engine_errc::success);
+    Status checkAndSend(CookieIface& cookie);
+    Status send(CookieIface& cookie,
+                cb::engine_errc = cb::engine_errc::success);
 
     /// @return true if the status can be sent directly from this handler
     bool handleStatusCanRespond(cb::engine_errc status);

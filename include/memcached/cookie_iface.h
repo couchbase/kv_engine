@@ -142,8 +142,11 @@ public:
 
     /**
      * Send a status/value in a response message
+     * @param status the status to use in the response message
+     * @param value view onto a value to send
+     * @return true if successful, false if not (e.g. disconnect)
      */
-    virtual void sendResponse(cb::engine_errc status,
+    virtual bool sendResponse(cb::engine_errc status,
                               std::string_view value) = 0;
 
     /**

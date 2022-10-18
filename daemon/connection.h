@@ -646,10 +646,11 @@ public:
      * @param datatype The value to specify as the datatype of the response
      * @param sendbuffer An optional send buffer to chain into the response
      *                   if present (instead of copying the content).
+     * @return true send was successful, false if not (connection disconnect)
      * @throws std::runtime_error if the sendbuffers payload don't match the
      *                   provided value.
      */
-    void sendResponse(Cookie& cookie,
+    bool sendResponse(Cookie& cookie,
                       cb::mcbp::Status status,
                       std::string_view extras,
                       std::string_view key,

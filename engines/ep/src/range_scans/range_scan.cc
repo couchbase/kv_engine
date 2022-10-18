@@ -351,11 +351,15 @@ cb::engine_errc RangeScan::setupToScan() {
     if (continueRunState.cState.state == State::Cancelled) {
         // ensure the client/cookie sees cancelled
         handleStatus(cb::engine_errc::range_scan_cancelled);
+        // ignoring the handleStatus return value as scan-cancelled is the
+        // outcome here.
         return cb::engine_errc::range_scan_cancelled;
     } else if (isTotalLimitReached()) {
         // If the total was reached, scan is complete (success)
-        handleStatus(cb::engine_errc::range_scan_complete);
-        return cb::engine_errc::success;
+        if (handleStatus(cb::engine_errc::range_scan_complete)) {
+            return cb::engine_errc::success;
+        }
+        return cb::engine_errc::range_scan_cancelled;
     }
 
     Expects(continueRunState.cState.state == State::Continuing);
@@ -384,11 +388,15 @@ cb::engine_errc RangeScan::progressScan(KVStoreIface& kvstore) {
     }
     case ScanStatus::Success:
         // Scan has reached the end
-        handleStatus(cb::engine_errc::range_scan_complete);
-        return cb::engine_errc::success;
+        if (handleStatus(cb::engine_errc::range_scan_complete)) {
+            return cb::engine_errc::success;
+        }
+        return cb::engine_errc::range_scan_cancelled;
     case ScanStatus::Failed:
         // Scan cannot continue due to KVStore failure
         handleStatus(cb::engine_errc::failed);
+        // ignoring the handleStatus return value as cancelled is the outcome
+        // here.
     case ScanStatus::Cancelled:
         // Scan cannot continue, it has been cancelled, e.g. the "handler"
         // spotted the vbucket is no longer compatible. In this case an
@@ -526,14 +534,22 @@ std::chrono::seconds RangeScan::getRemainingTime(
                             (createTime + timeLimit) - now()));
 }
 
-void RangeScan::handleKey(DocKey key) {
+bool RangeScan::handleKey(DocKey key) {
     incrementItemCounters(key.size());
     Expects(continueRunState.cState.cookie);
-    continueRunState.limitByThrottle =
-            handler->handleKey(*continueRunState.cState.cookie, key);
+    switch (handler->handleKey(*continueRunState.cState.cookie, key)) {
+    case RangeScanDataHandler::Status::OK:
+        break;
+    case RangeScanDataHandler::Status::Throttle:
+        continueRunState.limitByThrottle = true;
+        break;
+    case RangeScanDataHandler::Status::Disconnected:
+        return false;
+    }
+    return true;
 }
 
-void RangeScan::handleItem(std::unique_ptr<Item> item, Source source) {
+bool RangeScan::handleItem(std::unique_ptr<Item> item, Source source) {
     if (source == Source::Memory) {
         incrementValueFromMemory();
     } else {
@@ -541,14 +557,34 @@ void RangeScan::handleItem(std::unique_ptr<Item> item, Source source) {
     }
     incrementItemCounters(item->getNBytes() + item->getKey().size());
     Expects(continueRunState.cState.cookie);
-    continueRunState.limitByThrottle = handler->handleItem(
-            *continueRunState.cState.cookie, std::move(item));
+    switch (handler->handleItem(*continueRunState.cState.cookie,
+                                std::move(item))) {
+    case RangeScanDataHandler::Status::OK:
+        break;
+    case RangeScanDataHandler::Status::Throttle:
+        continueRunState.limitByThrottle = true;
+        break;
+    case RangeScanDataHandler::Status::Disconnected:
+        return false;
+    }
+    return true;
 }
 
-void RangeScan::handleStatus(cb::engine_errc status) {
+bool RangeScan::handleStatus(cb::engine_errc status) {
+    bool rv{true};
     if (continueRunState.cState.cookie) {
         // Only handle a status if the cookie is set.
-        handler->handleStatus(*continueRunState.cState.cookie, status);
+        switch (handler->handleStatus(*continueRunState.cState.cookie,
+                                      status)) {
+        case RangeScanDataHandler::Status::Throttle:
+            // Don't expext handleStatus to do the throttling
+            Expects(false);
+        case RangeScanDataHandler::Status::Disconnected:
+            rv = false;
+            break;
+        case RangeScanDataHandler::Status::OK:
+            break;
+        }
         // The cookie can only receive a status once, for safety clear the
         // cookie now. Code inspection and current testing deems this
         // unnecessary but it is a safer approach for any future change or
@@ -562,6 +598,7 @@ void RangeScan::handleStatus(cb::engine_errc status) {
         // continue (no cookie) the status can be dropped
         Expects(status == cb::engine_errc::range_scan_cancelled);
     }
+    return rv;
 }
 
 void RangeScan::handleUnknownCollection(uint64_t manifestUid) {
