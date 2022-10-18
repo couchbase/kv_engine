@@ -79,12 +79,27 @@ public:
     BinprotResponse execute(const BinprotCommand& cmd) override;
 
 protected:
+    /// Check to see if we have an input packet available in the input stream
+    bool isPacketAvailable();
+
     /// Process as much as possible of the input data
     void tryProcessInputData();
     std::unique_ptr<folly::AsyncSocket, folly::DelayedDestruction::Destructor>
             asyncSocket;
 
-    folly::IOBuf read_buffer;
+    /// The number of bytes left for the current "current" packet (in the case
+    /// we received a partial frame we want to be able to fit the rest of the
+    /// packet inside a single allocation instead of a bunch of smaller
+    /// allocations which needs to be reallocated later on)
+    std::size_t current_frame_bytes_left = 0;
+    /// A list of all of the IOBufs we've received so far
+    std::deque<std::unique_ptr<folly::IOBuf>> input_queue;
+    /// Did we schedule a callback for processing all of the input data
+    /// received or not (we might get multiple smaller read callbacks
+    /// in a sequence before we try to consume the input data and we don't
+    /// want to schedule multiple callbacks as we consume the entire input
+    /// stream once we try to consume it)
+    bool scheduled_callback{false};
 
     std::function<void()> connect_listener;
     std::function<void(Direction)> eof_listener;
@@ -97,26 +112,76 @@ protected:
     std::function<void(const cb::mcbp::Header&)> frame_listener;
 };
 
-void AsyncClientConnectionImpl::getReadBuffer(void** bufReturn,
-                                              size_t* lenReturn) {
-    if (read_buffer.tailroom() == 0) {
-        // out of space in the buffer, double the buffer capacity and move
-        // all current valid data to the start of the new buffer.
-        read_buffer.reserve(
-                0 /*headroom*/,
-                std::max(std::size_t(512),
-                         read_buffer.capacity() * 2 -
-                                 read_buffer.length()) /*tailroom*/);
+bool AsyncClientConnectionImpl::isPacketAvailable() {
+    if (input_queue.empty()) {
+        return false;
     }
 
-    *bufReturn = static_cast<void*>(read_buffer.writableTail());
-    *lenReturn = read_buffer.tailroom();
+    do {
+        // The input queue contains a "list" of IOBufs provided by
+        // the read callbacks. If there isn't enough data in the current
+        // iobuf for the entire MCBP frame we try to append the next entry
+        // in the input_queue to the current buffer. This might not be
+        // optimal, but we currently require the entire input frame
+        // to be a single continuous segment.
+        auto& buf = input_queue.front();
+        if (buf->isChained()) {
+            buf->coalesce();
+        }
+
+        if (buf->length() >= sizeof(cb::mcbp::Header)) {
+            // We have the header; do we have the body?
+            const auto* header =
+                    reinterpret_cast<const cb::mcbp::Header*>(buf->data());
+            if (!header->isValid()) {
+                protocol_error_listener();
+                return false;
+            }
+
+            const auto framesize = sizeof(*header) + header->getBodylen();
+            if (buf->length() >= framesize) {
+                // Header and body present
+                current_frame_bytes_left = 0;
+                return true;
+            }
+            current_frame_bytes_left = framesize - buf->length();
+        } else {
+            current_frame_bytes_left = sizeof(cb::mcbp::Header) - buf->length();
+        }
+
+        if (input_queue.size() == 1) {
+            return false;
+        }
+
+        // Append the next buffer to this buffer
+        auto iter = input_queue.begin();
+        ++iter;
+        if (iter == input_queue.end()) {
+            // This should never occur? or
+            return false;
+        }
+
+        buf->appendChain(std::move(*iter));
+        input_queue.erase(iter);
+    } while (true);
+    // not reached
+}
+
+void AsyncClientConnectionImpl::getReadBuffer(void** bufReturn,
+                                              size_t* lenReturn) {
+    if (input_queue.empty() || input_queue.back()->tailroom() < 256) {
+        std::size_t allocsize =
+                std::max(current_frame_bytes_left, std::size_t(2048));
+        input_queue.emplace_back(folly::IOBuf::create(allocsize));
+    }
+    *bufReturn = input_queue.back()->writableTail();
+    *lenReturn = input_queue.back()->tailroom();
 }
 
 void AsyncClientConnectionImpl::readDataAvailable(size_t len) noexcept {
     // `len` bytes have been written into the backing buffer, advance the
     // tail ptr by this amount.
-    read_buffer.append(len);
+    input_queue.back()->append(len);
     tryProcessInputData();
 }
 
@@ -128,7 +193,7 @@ size_t AsyncClientConnectionImpl::maxBufferSize() const {
 }
 void AsyncClientConnectionImpl::readBufferAvailable(
         std::unique_ptr<folly::IOBuf> ptr) noexcept {
-    read_buffer.appendToChain(std::move(ptr));
+    input_queue.emplace_back(std::move(ptr));
     tryProcessInputData();
 }
 
@@ -146,45 +211,25 @@ void AsyncClientConnectionImpl::readErr(
 }
 
 void AsyncClientConnectionImpl::tryProcessInputData() {
-    if (read_buffer.isChained()) {
-        // @todo we want to optimize this away
-        read_buffer.coalesce();
-    }
-    auto getNextFrame = [this]() -> const cb::mcbp::Header* {
-        if (read_buffer.length() < sizeof(cb::mcbp::Header)) {
-            return nullptr;
-        }
+    if (isPacketAvailable() && !scheduled_callback) {
+        scheduled_callback = true;
+        asyncSocket->getEventBase()->runInEventBaseThreadAlwaysEnqueue(
+                [this]() {
+                    scheduled_callback = false;
+                    while (isPacketAvailable()) {
+                        auto& buf = input_queue.front();
+                        const auto* header =
+                                reinterpret_cast<const cb::mcbp::Header*>(
+                                        buf->data());
 
-        auto* hdr =
-                reinterpret_cast<const cb::mcbp::Header*>(read_buffer.data());
-        if (!hdr->isValid()) {
-            protocol_error_listener();
-            return nullptr;
-        }
-
-        if (read_buffer.length() <
-            (sizeof(cb::mcbp::Header) + hdr->getBodylen())) {
-            return nullptr;
-        }
-        return hdr;
-    };
-
-    const auto* header = getNextFrame();
-    while (header) {
-        size_t consumed = sizeof(*header) + header->getBodylen();
-        if (frame_listener) {
-            frame_listener(*header);
-        }
-        // advance the head ptr, getNextFrame() will look at the next
-        // unread bytes, if any.
-        read_buffer.trimStart(consumed);
-        if (read_buffer.empty()) {
-            // There's now no valid data in the buffer, so the data ptr can be
-            // reset to the start of the buffer without having to memmove any
-            // data to the start of the buffer.
-            read_buffer.retreat(read_buffer.headroom());
-        }
-        header = getNextFrame();
+                        size_t consumed =
+                                sizeof(*header) + header->getBodylen();
+                        if (frame_listener) {
+                            frame_listener(*header);
+                        }
+                        buf->trimStart(consumed);
+                    }
+                });
     }
 }
 

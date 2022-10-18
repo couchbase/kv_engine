@@ -101,51 +101,38 @@ static void handleFollyAsyncSocketException(
 class AsyncReadCallback : public folly::AsyncReader::ReadCallback {
 public:
     AsyncReadCallback(folly::EventBase& base)
-        : base(base), backing(folly::IOBuf::CREATE, 1024) {
+        : base(base) {
     }
 
     ~AsyncReadCallback() override = default;
 
     void getReadBuffer(void** bufReturn, size_t* lenReturn) override {
-        if (backing.tailroom() == 0) {
-            // out of space in the buffer, double the buffer capacity and move
-            // all current valid data to the start of the new buffer.
-            backing.reserve(
-                    0 /*headroom*/,
-                    backing.capacity() * 2 - backing.length() /*tailroom*/);
+        if (inputQueue.empty() || inputQueue.back()->tailroom() < 256) {
+            std::size_t allocsize =
+                    std::max(current_frame_bytes_left, std::size_t(2048));
+            inputQueue.emplace_back(folly::IOBuf::create(allocsize));
         }
-
-        *bufReturn = static_cast<void*>(backing.writableTail());
-        *lenReturn = backing.tailroom();
+        *bufReturn = inputQueue.back()->writableTail();
+        *lenReturn = inputQueue.back()->tailroom();
     }
 
     void readDataAvailable(size_t len) noexcept override {
-        // `len` bytes have been written into the backing buffer, advance the
-        // tail ptr by this amount.
-        backing.append(len);
-        if (frameReceivedCallback) {
-            const auto* header = getNextFrame();
-            while (header) {
-                size_t consumed = sizeof(*header) + header->getBodylen();
-                frameReceivedCallback(*header);
-                // advance the head ptr, getNextFrame() will look at the next
-                // unread bytes, if any.
-                drain(consumed);
+        inputQueue.back()->append(len);
+        onDataReceived();
+    }
 
-                header = getNextFrame();
-            }
-        } else {
-            try {
-                if (getNextFrame()) {
-                    // We have received at least one full packet
-                    base.terminateLoopSoon();
-                }
-            } catch (const std::exception&) {
-                // There is a something wrong with the packet on the stream
-                // We'll throw the exception once we return from folly
-                base.terminateLoopSoon();
-            }
-        }
+    bool isBufferMovable() noexcept override {
+        return true;
+    }
+
+    size_t maxBufferSize() const override {
+        return 1024 * 1024;
+    }
+
+    void readBufferAvailable(
+            std::unique_ptr<folly::IOBuf> ptr) noexcept override {
+        inputQueue.emplace_back(std::move(ptr));
+        onDataReceived();
     }
 
     void readEOF() noexcept override {
@@ -162,44 +149,116 @@ public:
         }
     }
 
+    void onDataReceived() {
+        if (frameReceivedCallback) {
+            if (!scheduled_callback && isPacketAvailable(false)) {
+                scheduled_callback = true;
+                base.runInEventBaseThreadAlwaysEnqueue([this]() {
+                    scheduled_callback = false;
+                    const auto* header = getNextFrame();
+                    while (header) {
+                        size_t consumed =
+                                sizeof(*header) + header->getBodylen();
+                        frameReceivedCallback(*header);
+                        drain(consumed);
+                        header = getNextFrame();
+                    }
+                });
+            }
+        } else {
+            try {
+                if (getNextFrame()) {
+                    // We have received at least one full packet
+                    base.terminateLoopSoon();
+                }
+            } catch (const std::exception&) {
+                // There is a something wrong with the packet on the stream
+                // We'll throw the exception once we return from folly
+                base.terminateLoopSoon();
+            }
+        }
+    }
+
+    bool isPacketAvailable(bool throwOnError) {
+        if (inputQueue.empty()) {
+            return false;
+        }
+
+        do {
+            // The input queue contains a "list" of IOBufs provided by
+            // the read callbacks. If there isn't enough data in the current
+            // iobuf for the entire MCBP frame we try to append the next entry
+            // in the inputQueue to the current buffer. This might not be
+            // optimal, but we currently require the entire input frame
+            // to be a single continuous segment.
+            auto& buf = inputQueue.front();
+            if (buf->isChained()) {
+                buf->coalesce();
+            }
+
+            if (buf->length() >= sizeof(cb::mcbp::Header)) {
+                // We have the header; do we have the body?
+                const auto* header =
+                        reinterpret_cast<const cb::mcbp::Header*>(buf->data());
+                if (!header->isValid()) {
+                    if (throwOnError) {
+                        throw std::runtime_error(
+                                "isPacketAvailable(): Invalid packet header detected");
+                    } else {
+                        current_frame_bytes_left = 0;
+                        return true;
+                    }
+                }
+
+                const auto framesize = sizeof(*header) + header->getBodylen();
+                if (buf->length() >= framesize) {
+                    // Header and body present
+                    current_frame_bytes_left = 0;
+                    return true;
+                }
+                current_frame_bytes_left = framesize - buf->length();
+            } else {
+                current_frame_bytes_left =
+                        sizeof(cb::mcbp::Header) - buf->length();
+            }
+
+            if (inputQueue.size() == 1) {
+                return false;
+            }
+
+            // Append the next buffer to this buffer
+            auto iter = inputQueue.begin();
+            ++iter;
+            if (iter == inputQueue.end()) {
+                // This should never occur? or
+                return false;
+            }
+
+            buf->appendChain(std::move(*iter));
+            inputQueue.erase(iter);
+        } while (true);
+        // not reached
+    }
+
     /**
      * Try to get the next memcached frame from the input buffer
      *
-     * @param offset The offset in the buffer (to allow parsing multiple
-     *               packets without having to repack the buffer between
-     *               each iteration)
      * @return The next frame if available or nullptr if we don't have
      *         the full frame available
      * @throws std::runtime_error if there is a format error on the
      *                            header of the packet
      */
     const cb::mcbp::Header* getNextFrame() {
-        if (backing.length() < sizeof(cb::mcbp::Header)) {
+        if (!isPacketAvailable(true)) {
             return nullptr;
         }
-
-        auto* hdr = reinterpret_cast<const cb::mcbp::Header*>(backing.data());
-        if (!hdr->isValid()) {
-            throw std::runtime_error("Invalid header received!");
-        }
-
-        if (backing.length() < (sizeof(cb::mcbp::Header) + hdr->getBodylen())) {
-            return nullptr;
-        }
-        return hdr;
+        auto& buf = inputQueue.front();
+        return reinterpret_cast<const cb::mcbp::Header*>(buf->data());
     }
 
     /// Drain a number of bytes from the backing store
     void drain(size_t nb) {
-        // data has been read, advance the start of the data ptr in the buffer
-        // past the consumed data.
-        backing.trimStart(nb);
-        if (backing.empty()) {
-            // There's now no valid data in the buffer, so the data ptr can be
-            // reset to the start of the buffer without having to memmove any
-            // data to the start of the buffer.
-            backing.retreat(backing.headroom());
-        }
+        inputQueue.front()->trimStart(nb);
     }
 
     void handlePotentialNetworkException() {
@@ -222,7 +281,11 @@ public:
     /// The EventBase we're bound to so that we can jump out of the loop
     folly::EventBase& base;
     /// The memory buffer we're currently using
-    folly::IOBuf backing;
+    std::deque<std::unique_ptr<folly::IOBuf>> inputQueue;
+    /// The number of bytes left for the current "current" packet.
+    std::size_t current_frame_bytes_left = 0;
+
+    bool scheduled_callback{false};
 };
 
 void MemcachedConnection::enterMessagePumpMode(
