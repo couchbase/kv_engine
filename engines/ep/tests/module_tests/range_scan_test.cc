@@ -1941,6 +1941,87 @@ TEST_P(RangeScanTestSimple, limitRangeScans) {
     EXPECT_EQ(0, store->getKVStoreScanTracker().getNumRunningRangeScans());
 }
 
+// A handler which will execute a callback as part of handleStatus
+class MB_54053Handler : public RangeScanDataHandlerIFace {
+public:
+    MB_54053Handler(std::function<void(cb::engine_errc)> cb)
+        : callback(std::move(cb)) {
+    }
+
+    bool handleKey(CookieIface&, DocKey key) override {
+        return false;
+    }
+
+    bool handleItem(CookieIface&, std::unique_ptr<Item>) override {
+        return false;
+    }
+
+    void handleStatus(CookieIface&, cb::engine_errc status) override {
+        callback(status);
+    }
+
+    void addStats(std::string_view prefix,
+                  const StatCollector& collector) override {
+    }
+    std::function<void(cb::engine_errc)> callback;
+};
+
+// This test 'weaves' the continue of a single scan with some overlap where a
+// race condition lead to an exception
+TEST_P(RangeScanTestSimple, MB_54053) {
+    // 2 keys required
+    auto k1 = makeStoredDocKey("key1", scanCollection);
+    auto k2 = makeStoredDocKey("key2", scanCollection);
+
+    store_item(vbid, k1, "value");
+    store_item(vbid, k2, "value");
+    flushVBucket(vbid);
+
+    auto& epBucket = dynamic_cast<EPBucket&>(*store);
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+
+    cb::rangescan::Id scanId;
+    auto* kvs = store->getRWUnderlying(vbid);
+    ASSERT_TRUE(kvs);
+
+    // Setup a callback function which will move the scan to the continue state.
+    // This is called when the first continuation sets back to idle and signals
+    // to the first request the status.
+    std::shared_ptr<RangeScan> scan2;
+    auto callback = [this, &scanId, &scan2](cb::engine_errc status) {
+        if (status == cb::engine_errc::range_scan_more) {
+            scan2->setStateContinuing(
+                    *cookie, 1, std::chrono::milliseconds{0}, 0);
+            scan2->setupToScan();
+        }
+    };
+
+    // 1 scan is required which is manually created so we can drive it forward
+    auto scan1 = std::make_shared<RangeScan>(
+            epBucket,
+            *vb,
+            DiskDocKey{k1},
+            DiskDocKey{k2},
+            std::make_unique<MB_54053Handler>(std::move(callback)),
+            *cookie,
+            cb::rangescan::KeyOnly::Yes,
+            std::optional<cb::rangescan::SnapshotRequirements>{},
+            std::optional<cb::rangescan::SamplingConfiguration>{});
+    scanId = scan1->getUuid();
+    // Set a second reference on the scan to demonstrate the original bug
+    scan2 = scan1;
+
+    scan1->setStateContinuing(*cookie, 1, std::chrono::milliseconds{0}, 0);
+    scan1->setupToScan();
+    scan1->progressScan(*kvs);
+    // scan2 (thread2) moves from idle to continue inside the callback, i.e. it
+    // interleaves with scan1 executing RangeScan::handleStatus
+    // scan2 now hits an exception because after the setup thread1 continues
+    // and wipes out the cookie of scan2
+    scan2->progressScan(*kvs);
+}
+
 auto valueScanConfig =
         ::testing::Combine(::testing::Values("persistent_couchdb"
 #ifdef EP_USE_MAGMA

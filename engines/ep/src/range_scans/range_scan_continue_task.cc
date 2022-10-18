@@ -37,8 +37,11 @@ bool RangeScanContinueTask::run() {
 }
 
 void RangeScanContinueTask::continueScan(RangeScan& scan) {
-    auto status =
-            scan.continueScan(*bucket.getRWUnderlying(scan.getVBucketId()));
+    auto status = scan.setupToScan();
+    if (status == cb::engine_errc::range_scan_more) {
+        status =
+                scan.progressScan(*bucket.getRWUnderlying(scan.getVBucketId()));
+    }
 
     if (status == cb::engine_errc::success) {
         auto vb = bucket.getVBucket(scan.getVBucketId());

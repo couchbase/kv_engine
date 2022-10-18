@@ -337,7 +337,7 @@ cb::engine_errc RangeScan::hasPrivilege(
                                  start.getDocKey().getCollectionID());
 }
 
-cb::engine_errc RangeScan::continueScan(KVStoreIface& kvstore) {
+cb::engine_errc RangeScan::setupToScan() {
     // continue works on a copy of the state.
     continueRunState = continueState.withWLock([](auto& cs) {
         auto state = cs;
@@ -346,27 +346,23 @@ cb::engine_errc RangeScan::continueScan(KVStoreIface& kvstore) {
     });
 
     // Only attempt scan when !cancelled
-    if (isCancelled()) {
+    if (continueRunState.cState.state == State::Cancelled) {
         // ensure the client/cookie sees cancelled
         handleStatus(cb::engine_errc::range_scan_cancelled);
         return cb::engine_errc::range_scan_cancelled;
     } else if (isTotalLimitReached()) {
-        // If the total was reached, scan is complete
+        // If the total was reached, scan is complete (success)
         handleStatus(cb::engine_errc::range_scan_complete);
         return cb::engine_errc::success;
     }
 
-    // The scan can only be in the continue state at this point
-    Expects(isContinuing());
+    Expects(continueRunState.cState.state == State::Continuing);
+    return cb::engine_errc::range_scan_more;
+}
 
-    if (!continueRunState.cState.cookie) {
-        // MB-54053: @todo remove this extra check/log
-        // If the cookie is not set at this point what has happened?
-        EP_LOG_CRITICAL("RangeScan::continueScan no cookie {}", *this);
-        Expects(continueRunState.cState.cookie);
-    }
-
-    EP_LOG_DEBUG("RangeScan {} continue for {}", uuid, getVBucketId());
+cb::engine_errc RangeScan::progressScan(KVStoreIface& kvstore) {
+    EP_LOG_DEBUG(
+            "RangeScan {} continue progressScan for {}", uuid, getVBucketId());
     auto status = kvstore.scan(*scanCtx);
 
     switch (status) {
@@ -438,6 +434,10 @@ bool RangeScan::setStateIdle(cb::engine_errc status) {
     Expects(status == cb::engine_errc::range_scan_more ||
             status == cb::engine_errc::range_scan_complete);
 
+    auto* cookie = continueRunState.cState.cookie;
+    Expects(cookie);
+    continueRunState.cState.cookie = nullptr;
+
     continueState.withWLock([&status](auto& cs) {
         switch (cs.state) {
         case State::Idle:
@@ -453,10 +453,15 @@ bool RangeScan::setStateIdle(cb::engine_errc status) {
         }
     });
 
-    // The ordering here is deliberate, set the status after the cs.state update
-    // so there's no chance a client sees 'success' then fails to continue again
-    // (because you cannot continue a Continuing scan)
-    handleStatus(status);
+    // 1) The ordering here is deliberate, set the status after the cs.state
+    // update so there's no chance a client sees 'success' then fails to
+    // continue again (because you cannot continue a Continuing scan)
+    // 2) The use of handler->handleStatus direct (instead of ::handleStatus) is
+    // important as this scan is now in the idle (or cancelled state). When idle
+    // the scan can be continued again so continueRunState is not safe to use,
+    // so instead use the cookie copied before the state change.
+    handler->handleStatus(*cookie, status);
+
     return status != cb::engine_errc::range_scan_cancelled;
 }
 
@@ -521,13 +526,6 @@ std::chrono::seconds RangeScan::getRemainingTime(
 
 void RangeScan::handleKey(DocKey key) {
     incrementItemCounters(key.size());
-
-    if (!continueRunState.cState.cookie) {
-        // MB-54053: @todo remove this extra check/log
-        // If the cookie is not set at this point what has happened?
-        EP_LOG_CRITICAL("RangeScan::handleKey no cookie {}", *this);
-    }
-
     Expects(continueRunState.cState.cookie);
     continueRunState.limitByThrottle =
             handler->handleKey(*continueRunState.cState.cookie, key);
@@ -540,13 +538,6 @@ void RangeScan::handleItem(std::unique_ptr<Item> item, Source source) {
         incrementValueFromDisk();
     }
     incrementItemCounters(item->getNBytes() + item->getKey().size());
-
-    if (!continueRunState.cState.cookie) {
-        // MB-54053: @todo remove this extra check/log
-        // If the cookie is not set at this point what has happened?
-        EP_LOG_CRITICAL("RangeScan::handleItem no cookie {}", *this);
-    }
-
     Expects(continueRunState.cState.cookie);
     continueRunState.limitByThrottle = handler->handleItem(
             *continueRunState.cState.cookie, std::move(item));
