@@ -1052,11 +1052,14 @@ protected:
     int sslPreConnection();
 
     /**
-     * Helper method for sslPreConnection, performs SSL accept, retrying
-     * any temporary errors.
-     * @return
+     * Helper method for sslPreConnection, performs SSL_accept from any read
+     * data is available. This method may generate a write if SSL_accept has
+     * data to send back to the client
+     *
+     * @return 1 once the connection is accepted or -1 if not. If -1 the client
+     *         may have been disconnected or put into ewouldblock
      */
-    int sslAcceptWithRetry();
+    int sslAccept();
 
     // Shared DCP_DELETION write function for the v1/v2 commands.
     ENGINE_ERROR_CODE deletionInner(const item_info& info,
