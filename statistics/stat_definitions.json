@@ -355,12 +355,9 @@
         "key": "ep_kv_size",
         "unit": "bytes",
         "prometheus": {
-            "family": "memory_used",
-            "labels": {
-                "for": "hashtable"
-            }
+            "family": "ep_key_value_size"
         },
-        "description": "Memory used to store item metadata, keys and values, no matter the vbucket's state. If an item's value is ejected, this stat will be decremented by the size of the item's value."
+        "description": "Memory used to store items metadata, keys and values in the system, no matter the vbucket's state."
     },
     {
         "key": "ep_blob_num",
