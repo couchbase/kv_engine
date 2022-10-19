@@ -82,24 +82,8 @@ std::ostream& operator<<(std::ostream& os, const HashTable::Position& pos) {
 }
 
 HashTable::StoredValueProxy::StoredValueProxy(HashBucketLock&& hbl,
-                                              StoredValue* sv,
-                                              Statistics& stats)
-    : lock(std::move(hbl)),
-      value(sv),
-      valueStats(stats),
-      pre(valueStats.get().prologue(sv)) {
-}
-
-HashTable::StoredValueProxy::~StoredValueProxy() {
-    if (value) {
-        valueStats.get().epilogue(pre, value);
-    }
-}
-
-void HashTable::StoredValueProxy::setCommitted(CommittedState state) {
-    value->setCommitted(state);
-    value->markDirty();
-    value->setCompletedOrDeletedTime(ep_real_time());
+                                              StoredValue* sv)
+    : lock(std::move(hbl)), value(sv) {
 }
 
 StoredValue* HashTable::StoredValueProxy::release() {
@@ -958,19 +942,10 @@ HashTable::FindResult HashTable::findForSyncReplace(const DocKey& key) {
     return {result.committedSV, std::move(result.lock)};
 }
 
-HashTable::StoredValueProxy HashTable::findForWrite(StoredValueProxy::RetSVPTag,
-                                                    const DocKey& key,
-                                                    WantsDeleted wantsDeleted) {
-    auto result = findForWrite(key, wantsDeleted);
-    return StoredValueProxy(
-            std::move(result.lock), result.storedValue, valueStats);
-}
-
 HashTable::FindUpdateResult HashTable::findForUpdate(const DocKey& key) {
     auto result = findInner(key);
 
-    StoredValueProxy prepare{
-            std::move(result.lock), result.pendingSV, valueStats};
+    StoredValueProxy prepare{std::move(result.lock), result.pendingSV};
     return {std::move(prepare), result.committedSV, *this};
 }
 
@@ -1362,6 +1337,16 @@ void HashTable::unlocked_restoreMeta(const std::unique_lock<std::mutex>& htLock,
     v.restoreMeta(itm);
 
     valueStats.epilogue(preProps, &v);
+}
+
+void HashTable::unlocked_setCommitted(const HashTable::HashBucketLock&,
+                                      StoredValue& value,
+                                      CommittedState state) {
+    const auto preProps = valueStats.prologue(&value);
+    value.setCommitted(state);
+    value.markDirty();
+    value.setCompletedOrDeletedTime(ep_real_time());
+    valueStats.epilogue(preProps, &value);
 }
 
 uint8_t HashTable::generateFreqValue(uint8_t counter) {

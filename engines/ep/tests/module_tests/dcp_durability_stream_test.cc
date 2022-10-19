@@ -4540,6 +4540,8 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
     consumer.reset();
 
     auto vb = engine->getVBucket(vbid);
+    EXPECT_EQ(1, vb->getNumItems());
+
     auto& ckptMgr = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
 
     const auto checkOpenCheckpoint = [&ckptMgr](
