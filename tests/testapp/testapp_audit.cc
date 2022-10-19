@@ -32,20 +32,6 @@ class AuditTest : public TestappClientTest {
 public:
     void SetUp() override {
         TestappClientTest::SetUp();
-
-        // Create a copy of the audit events file so that we can modify
-        // the events
-        auto& json = mcd_env->getAuditConfig();
-        descriptor_file = cb::io::mktemp("audit_events.json");
-        org_descriptor_file = json["descriptors_path"].get<std::string>();
-
-        auto content =
-                cb::io::loadFile(org_descriptor_file + "/audit_events.json");
-        std::ofstream copy(descriptor_file, std::ios::binary);
-        copy.write(content.data(), content.size());
-        copy.close();
-        json["descriptors_path"] = descriptor_file;
-
         reconfigure_client_cert_auth("disabled", "", "", "");
         auto logdir = mcd_env->getAuditLogDir();
         EXPECT_NO_THROW(cb::io::rmrf(logdir));
@@ -55,13 +41,8 @@ public:
 
     void TearDown() override {
         reconfigure_client_cert_auth("disabled", "", "", "");
-        auto& json = mcd_env->getAuditConfig();
-        json["descriptors_path"] = org_descriptor_file;
         setEnabled(false);
-        auto logdir = mcd_env->getAuditLogDir();
-        EXPECT_NO_THROW(cb::io::rmrf(mcd_env->getAuditLogDir()));
-        cb::io::mkdirp(logdir);
-        cb::io::rmrf(descriptor_file);
+        cb::io::mkdirp(mcd_env->getAuditLogDir());
         TestappClientTest::TearDown();
     }
 
@@ -72,6 +53,9 @@ public:
         json["disabled_userids"][0] = {
                 {"domain", to_string(cb::rbac::Domain::Local)},
                 {"user", "MB33603"}};
+        json["disabled_userids"][1] = {
+                {"domain", to_string(cb::rbac::Domain::Local)},
+                {"user", "Jane"}};
 
         json["event_states"]
             [std::to_string(MEMCACHED_AUDIT_SESSION_TERMINATED)] = "enabled";
@@ -82,16 +66,16 @@ public:
         json["event_states"][std::to_string(MEMCACHED_AUDIT_DOCUMENT_DELETE)] =
                 "enabled";
 
+        reconfigureAudit();
+    }
+
+    void reconfigureAudit() {
         try {
             mcd_env->rewriteAuditConfig();
         } catch (std::exception& e) {
             FAIL() << "Failed to toggle audit state: " << e.what();
         }
-
-        auto& connection = getConnection();
-        connection.authenticate("@admin", "password", "PLAIN");
-        connection.reloadAuditConfiguration();
-        connection.reconnect();
+        adminConnection->reloadAuditConfiguration();
     }
 
     std::vector<nlohmann::json> readAuditData();
@@ -111,10 +95,6 @@ public:
     void iterate(const std::function<bool(const nlohmann::json&)>& callback);
 
     int getAuditCount(const std::vector<nlohmann::json>& entries, int id);
-
-protected:
-    std::string descriptor_file;
-    std::string org_descriptor_file;
 };
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
@@ -544,55 +524,38 @@ TEST_P(AuditTest, MB33603_ValidDomainName) {
     EXPECT_EQ(to_string(cb::rbac::Domain::Local), domain);
 }
 
+/// Verify that we honor filtering. We should filter out all events for Jane,
+/// but all Lukes commands should be audited.
 TEST_P(AuditTest, MB33603_Filtering) {
-    auto json = nlohmann::json::parse(cb::io::loadFile(descriptor_file));
+    Document doc;
+    doc.info.id = "MB33603_Filtering";
+    doc.value = "blah blah";
 
-    for (auto& module : json["modules"]) {
-        for (auto& entry : module["events"]) {
-            if (entry["id"].get<int>() ==
-                MEMCACHED_AUDIT_AUTHENTICATION_FAILED) {
-                entry["filtering_permitted"] = true;
-            }
-        }
-    }
+    auto jane = userConnection->clone();
+    jane->authenticate("Jane", mcd_env->getPassword("Jane"), "PLAIN");
+    jane->selectBucket("default");
+    // That should not generate an audit event
+    jane->mutate(doc, Vbid{0}, MutationType::Set);
 
-    auto content = json.dump(2);
-    std::ofstream copy(descriptor_file, std::ios::binary);
-    copy.write(content.data(), content.size());
-    copy.close();
-    setEnabled(true);
-
-    auto& conn = getConnection();
-    try {
-        conn.authenticate("MB33603", "invalid", "PLAIN");
-        FAIL() << "Authentication should fail";
-    } catch (const ConnectionError& error) {
-        ASSERT_TRUE(error.isAuthError());
-    }
-
-    // Perform a second invalid login (with a different username)
-    // so that we know when we can stop looking at the audit trail and
-    // verify that we haven't generated an entry for the user.
-
-    try {
-        conn.authenticate("MB33603_1", "invalid", "PLAIN");
-        FAIL() << "Authentication should fail";
-    } catch (const ConnectionError& error) {
-        ASSERT_TRUE(error.isAuthError());
-    }
+    // redo the mutation and verify that
+    userConnection->mutate(doc, Vbid{0}, MutationType::Set);
 
     bool found = false;
-    iterate([&found](const nlohmann::json& entry) {
-        if (entry["id"].get<int>() != MEMCACHED_AUDIT_AUTHENTICATION_FAILED) {
+    iterate([&found, &doc](const nlohmann::json& entry) {
+        if (entry["id"].get<int>() != MEMCACHED_AUDIT_DOCUMENT_MODIFY) {
             return false;
         }
 
-        if (entry["real_userid"]["user"] == "MB33603") {
-            found = true;
-            return true;
+        if (entry["key"].get<std::string>() != doc.info.id) {
+            return false;
         }
 
-        return entry["real_userid"]["user"] == "MB33603_1";
+        EXPECT_NE("Jane", entry["real_userid"]["user"].get<std::string>())
+                << "Jane should not be audited";
+
+        // The entry should be from Luke
+        EXPECT_EQ("Luke", entry["real_userid"]["user"].get<std::string>());
+        return true;
     });
 
     EXPECT_FALSE(found)
