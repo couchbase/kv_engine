@@ -209,8 +209,11 @@ protected:
                                 {buf->data(),
                                  std::min(std::size_t(1024), buf->length())});
                         throw std::runtime_error(
-                                "Connection::isPacketAvailable(): Invalid "
-                                "packet header detected");
+                                fmt::format("Connection::isPacketAvailable(): "
+                                            "Invalid packet header "
+                                            "detected: ({}) totalRecv:{}",
+                                            *header,
+                                            connection.totalRecv));
                     } else {
                         current_frame_bytes_left = 0;
                         return true;

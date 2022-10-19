@@ -50,14 +50,16 @@ public:
     }
 
     uint16_t getKeylen() const {
-        if (is_alternative_encoding(Magic(magic))) {
+        Magic m{magic};
+        if (is_legal(m) && is_alternative_encoding(m)) {
             return uint16_t(reinterpret_cast<const uint8_t*>(this)[3]);
         }
         return ntohs(keylen);
     }
 
     uint8_t getFramingExtraslen() const {
-        if (is_alternative_encoding(Magic(magic))) {
+        Magic m{magic};
+        if (is_legal(m) && is_alternative_encoding(m)) {
             return reinterpret_cast<const uint8_t*>(this)[2];
         }
 

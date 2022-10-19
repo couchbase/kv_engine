@@ -366,9 +366,11 @@ bool LibeventConnection::isPacketAvailable() const {
 
     if (!header->isValid()) {
         audit_invalid_packet(*this, getAvailableBytes());
-        throw std::runtime_error(
+        throw std::runtime_error(fmt::format(
                 "Connection::isPacketAvailable(): Invalid packet header "
-                "detected");
+                "detected: ({}) totalRecv:{}",
+                *header,
+                totalRecv));
     }
 
     const auto framesize = sizeof(*header) + header->getBodylen();
