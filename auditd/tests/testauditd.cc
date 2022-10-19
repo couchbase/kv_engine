@@ -10,7 +10,6 @@
  */
 #include <auditd/couchbase_audit_events.h>
 #include <folly/portability/GTest.h>
-#include <getopt.h>
 #include <logger/logger.h>
 #include <memcached/audit_interface.h>
 #include <memcached/connection_iface.h>
@@ -31,11 +30,6 @@
 #include "auditd/src/audit.h"
 #include "auditd/src/auditconfig.h"
 #include "auditd/tests/mock_auditconfig.h"
-
-// The event descriptor file is normally stored in the directory named
-// auditd relative to the binary... let's just use that as the default
-// and allow the user to override it with -e
-static std::string event_descriptor("auditd");
 
 class AuditMockConnection : public ConnectionIface {
 public:
@@ -174,7 +168,6 @@ protected:
     }
 
     void SetUp() override {
-        config.set_descriptors_path(event_descriptor);
         config.set_rotate_size(2000);
         config.set_rotate_interval(900);
         config.set_log_directory(testdir);
@@ -364,28 +357,6 @@ int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
     // required for gethostname(); normally called by memcached's main()
     cb::net::initialize();
-
-    int cmd;
-    while ((cmd = getopt(argc, argv, "e:")) != EOF) {
-        switch (cmd) {
-        case 'e':
-            event_descriptor = optarg;
-            break;
-        default:
-            std::cerr << "Usage: " << argv[0] << " [-e]" << std::endl
-                      << "\t-e\tPath to audit_events.json" << std::endl;
-            return 1;
-        }
-    }
-
-    std::string filename = event_descriptor + "/audit_events.json";
-    FILE* fp = fopen(filename.c_str(), "r");
-    if (fp == nullptr) {
-        std::cerr << "Failed to open: " << filename << std::endl;
-        return EXIT_FAILURE;
-    }
-    fclose(fp);
-
     return RUN_ALL_TESTS();
 }
 

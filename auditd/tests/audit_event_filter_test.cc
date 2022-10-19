@@ -42,12 +42,6 @@ TEST(AuditEventFilterTest, isIdSubjectToFilter) {
                           isIdSubjectToFilter(entry["id"].get<uint32_t>()))
                         << entry.dump(2);
             }
-
-            // Verify outside the memcached range
-            EXPECT_FALSE(isIdSubjectToFilter(
-                    MEMCACHED_AUDIT_OPENED_DCP_CONNECTION - 1));
-            EXPECT_FALSE(isIdSubjectToFilter(
-                    MEMCACHED_AUDIT_TENANT_RATE_LIMITED + 1));
         }
     };
 

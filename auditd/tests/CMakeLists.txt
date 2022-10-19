@@ -3,7 +3,6 @@ cb_add_test_executable(memcached_audit_test
                audit_event_filter_test.cc
                auditfile_test.cc
                auditconfig_test.cc
-               eventdescriptor_test.cc
                ${Memcached_SOURCE_DIR}/auditd/src/eventdescriptor.h
                ${Memcached_SOURCE_DIR}/include/memcached/isotime.h)
 kv_enable_pch(memcached_audit_test)
@@ -29,4 +28,4 @@ target_link_libraries(memcached_auditd_tests PRIVATE
 add_dependencies(memcached_auditd_tests generate_audit_descriptors)
 add_sanitizers(memcached_auditd_tests)
 add_test(NAME memcached-auditd-test
-         COMMAND memcached_auditd_tests -e ${Memcached_BINARY_DIR}/auditd)
+         COMMAND memcached_auditd_tests)

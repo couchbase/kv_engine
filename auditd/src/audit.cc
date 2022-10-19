@@ -8,6 +8,7 @@
  *   the file licenses/APL2.txt.
  */
 #include "audit.h"
+#include "audit_descriptor_manager.h"
 #include "audit_event_filter.h"
 #include "configureevent.h"
 #include "event.h"
@@ -78,7 +79,6 @@ void AuditImpl::create_audit_event(uint32_t event_id, nlohmann::json& payload) {
     switch (event_id) {
         case AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON:
             payload["auditd_enabled"] = config.is_auditd_enabled();
-            payload["descriptors_path"] = config.get_descriptors_path();
             payload["hostname"] = hostname;
             payload["log_path"] = config.get_log_directory();
             payload["rotate_interval"] = config.get_rotate_interval();
@@ -92,64 +92,6 @@ void AuditImpl::create_audit_event(uint32_t event_id, nlohmann::json& payload) {
 
     throw std::logic_error(
             "Audit::create_audit_event: Invalid event identifier specified");
-}
-
-bool AuditImpl::add_event_descriptor(const nlohmann::json& json) {
-    try {
-        auto entry = std::make_unique<EventDescriptor>(json);
-        events.insert(std::pair<uint32_t, std::unique_ptr<EventDescriptor>>(
-                entry->getId(), std::move(entry)));
-        return true;
-    } catch (const std::bad_alloc&) {
-        LOG_WARNING_RAW(
-                "Audit::add_event_descriptor: Failed to allocate "
-                "memory");
-    } catch (const nlohmann::json::exception& e) {
-        LOG_WARNING(
-                "Audit::add_event_descriptor: JSON parsing exception {}"
-                " for event {}",
-                e.what(),
-                cb::UserDataView(json.dump()));
-    } catch (const std::invalid_argument& e) {
-        LOG_WARNING(
-                "Audit::add_event_descriptor: parsing exception {}"
-                " for event {}",
-                cb::UserDataView(e.what()),
-                cb::UserDataView(json.dump()));
-    }
-
-    return false;
-}
-
-bool AuditImpl::process_module_data_structures(const nlohmann::json& json) {
-    for (const auto& event : json) {
-        if (!add_event_descriptor(event)) {
-            return false;
-        }
-    }
-    return true;
-}
-
-bool AuditImpl::process_module_descriptor(const nlohmann::json& json) {
-    events.clear();
-    for (const auto& module_descriptor : json) {
-        auto events = module_descriptor.at("events");
-        switch (events.type()) {
-        case nlohmann::json::value_t::number_integer:
-            break;
-        case nlohmann::json::value_t::array:
-            if (!process_module_data_structures(events)) {
-                return false;
-            }
-            break;
-        default:
-            LOG_WARNING_RAW(
-                    "Audit:process_module_descriptor \"events\" field is not"
-                    " integer or array");
-            return false;
-        }
-    }
-    return true;
 }
 
 bool AuditImpl::reconfigure(std::string file) {
@@ -212,63 +154,24 @@ bool AuditImpl::configure() {
         }
     }
 
-    auto audit_events_file =
-            cb::io::sanitizePath(config.get_descriptors_path());
-    if (!cb::io::isFile(audit_events_file)) {
-        audit_events_file.append("/audit_events.json");
-        audit_events_file = cb::io::sanitizePath(audit_events_file);
-    }
-
-    try {
-        file_content =
-                cb::io::loadFile(audit_events_file, std::chrono::seconds{5});
-        if (file_content.empty()) {
-            LOG_WARNING(R"(Audit::configure: No data in "{}")",
-                        audit_events_file);
-            return false;
-        }
-    } catch (const std::exception& exception) {
-        LOG_WARNING(R"(Audit::configure: Failed to load "{}": {})",
-                    audit_events_file,
-                    exception.what());
-        return false;
-    }
-
-    nlohmann::json events_json;
-    try {
-        events_json = nlohmann::json::parse(file_content);
-        auto modules = events_json.at("modules");
-        if (!process_module_descriptor(modules)) {
-            return false;
-        }
-    } catch (const nlohmann::json::exception& e) {
-        LOG_WARNING(
-                R"(Audit::configure: Audit event file_content error in "{}".)"
-                R"(Error: {}. Content: {})",
-                cb::UserDataView(audit_events_file),
-                cb::UserDataView(e.what()),
-                cb::UserDataView(file_content));
-        return false;
-    }
     auditfile.reconfigure(config);
 
-    // iterate through the events map and update the sync and enabled flags
-    for (const auto& event : events) {
-        event.second->setSync(config.is_event_sync(event.first));
-        // If the event has a state defined then use that
-        AuditConfig::EventState state = config.get_event_state(event.first);
+    // iterate through the events map and update the enabled flags
+    AuditDescriptorManager::instance().iterate([this](auto& descriptor) {
+        AuditConfig::EventState state =
+                config.get_event_state(descriptor.getId());
         switch (state) {
         case AuditConfig::EventState::enabled:
-            event.second->setEnabled(true);
+            descriptor.setEnabled(true);
             break;
         case AuditConfig::EventState::disabled:
-            event.second->setEnabled(false);
+            descriptor.setEnabled(false);
             break;
         case AuditConfig::EventState::undefined:
             // No state defined for the event so don't do anything
             break;
         }
-    }
+    });
 
     /*
      * We need to notify if the audit daemon is turned on or off during a
@@ -280,21 +183,22 @@ bool AuditImpl::configure() {
 
     // create event to say done reconfiguration
     if (is_enabled_before_reconfig || config.is_auditd_enabled()) {
-        auto evt = events.find(AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON);
-        if (evt == events.end()) {
+        auto* evt = AuditDescriptorManager::instance().lookup(
+                AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON);
+        if (!evt) {
             LOG_WARNING(
                     "Audit: error: Failed to locate descriptor for event id: "
                     "{}",
                     AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON);
         } else {
-            if (evt->second->isEnabled()) {
+            if (evt->isEnabled()) {
                 nlohmann::json payload;
                 try {
                     create_audit_event(AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON,
                                        payload);
                     payload["id"] = AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON;
-                    payload["name"] = evt->second->getName();
-                    payload["description"] = evt->second->getDescription();
+                    payload["name"] = evt->getName();
+                    payload["description"] = evt->getDescription();
 
                     if (!(auditfile.ensure_open() && auditfile.write_event_to_disk(payload))) {
                         dropped_events++;
@@ -363,9 +267,9 @@ bool AuditImpl::configure_auditdaemon(const std::string& configfile,
 
 void AuditImpl::notify_all_event_states() {
     notify_event_state_changed(0, config.is_auditd_enabled());
-    for (const auto& event : events) {
-        notify_event_state_changed(event.first, event.second->isEnabled());
-    }
+    AuditDescriptorManager::instance().iterate([this](const auto& descriptor) {
+        notify_event_state_changed(descriptor.getId(), descriptor.isEnabled());
+    });
 }
 
 void AuditImpl::add_event_state_listener(

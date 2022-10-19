@@ -55,8 +55,6 @@ public:
     bool is_buffered() const;
     void set_log_directory(std::string directory);
     std::string get_log_directory() const;
-    void set_descriptors_path(std::string directory);
-    std::string get_descriptors_path() const;
     void set_version(uint32_t ver);
     uint32_t get_version() const;
     bool is_event_sync(uint32_t id);
@@ -128,7 +126,6 @@ protected:
     cb::RelaxedAtomic<uint32_t> version{0};
 
     folly::Synchronized<std::string, std::mutex> log_path;
-    folly::Synchronized<std::string, std::mutex> descriptors_path;
     folly::Synchronized<std::vector<uint32_t>, std::mutex> sync;
     folly::Synchronized<std::vector<uint32_t>, std::mutex> disabled;
     folly::Synchronized<std::vector<std::pair<std::string, std::string>>,

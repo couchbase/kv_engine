@@ -17,24 +17,21 @@
 #include "audit_event_filter.h"
 
 #include "audit.h"
-#include <auditd/couchbase_audit_events.h>
+#include "audit_descriptor_manager.h"
 
 bool AuditEventFilter::isValid() {
     return generation == AuditImpl::generation;
 }
 
 bool AuditEventFilter::isIdSubjectToFilter(uint32_t id) {
-    if (id < MEMCACHED_AUDIT_OPENED_DCP_CONNECTION ||
-        id > MEMCACHED_AUDIT_TENANT_RATE_LIMITED ||
-        id == MEMCACHED_AUDIT_AUTHENTICATION_FAILED ||
-        id == MEMCACHED_AUDIT_COMMAND_ACCESS_FAILURE ||
-        id == MEMCACHED_AUDIT_PRIVILEGE_DEBUG ||
-        id == MEMCACHED_AUDIT_PRIVILEGE_DEBUG_CONFIGURED) {
-        // This isn't a memcached generated audit event, or it isn't
-        // allowed for filtering
-        return false;
+    const auto* entry = AuditDescriptorManager::instance().lookup(id);
+    if (!entry) {
+        // failed to look up the descriptor, and we drop unknown
+        // events
+        return true;
     }
-    return true;
+
+    return entry->isFilteringPermitted();
 }
 
 bool AuditEventFilter::isFilteredOut(uint32_t id,

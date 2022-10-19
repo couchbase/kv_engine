@@ -11,6 +11,7 @@
 
 #include "event.h"
 #include "audit.h"
+#include "audit_descriptor_manager.h"
 #include "eventdescriptor.h"
 #include <logger/logger.h>
 #include <memcached/isotime.h>
@@ -102,19 +103,19 @@ bool Event::process(AuditImpl& audit) {
         json_payload["timestamp"] = timestamp;
     }
 
-    auto evt = audit.events.find(id);
-    if (evt == audit.events.end()) {
+    auto* descriptor = AuditDescriptorManager::instance().lookup(id);
+    if (!descriptor) {
         // it is an unknown event
         LOG_WARNING("Audit: error: unknown event {}", id);
         return false;
     }
-    if (!evt->second->isEnabled()) {
+    if (!descriptor->isEnabled()) {
         // the event is not enabled so ignore event
         return true;
     }
 
     if (audit.config.is_filtering_enabled() &&
-        evt->second->isFilteringPermitted() &&
+        descriptor->isFilteringPermitted() &&
         filterEvent(json_payload, audit.config)) {
         return true;
     }
@@ -125,8 +126,8 @@ bool Event::process(AuditImpl& audit) {
         return false;
     }
     json_payload["id"] = id;
-    json_payload["name"] = evt->second->getName();
-    json_payload["description"] = evt->second->getDescription();
+    json_payload["name"] = descriptor->getName();
+    json_payload["description"] = descriptor->getDescription();
 
     if (audit.auditfile.write_event_to_disk(json_payload)) {
         return true;

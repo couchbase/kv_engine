@@ -95,6 +95,36 @@ void parse_module_descriptors(const nlohmann::json& json,
     }
 }
 
+static std::string to_string(bool val) {
+    if (val) {
+        return "true";
+    }
+    return "false";
+}
+
+void create_audit_descriptor_manager_defs(
+        const std::list<std::unique_ptr<Module>>& modules,
+        const std::filesystem::path& filename) {
+    std::stringstream ss;
+    ss << "{{" << std::endl;
+    for (const auto& mod_ptr : modules) {
+        for (const auto& e : mod_ptr->json["events"]) {
+            ss << "{" << e["id"].get<uint32_t>() << ", EventDescriptor("
+               << e["id"].get<uint32_t>() << ", R\"("
+               << e["name"].get<std::string>() << ")\", R\"("
+               << e["description"].get<std::string>() << ")\", "
+               << to_string(e["enabled"].get<bool>()) << ", "
+               << to_string(e.value("filtering_permitted", false)) << ")},"
+               << std::endl;
+        }
+    }
+    auto dump = ss.str();
+    dump.pop_back();
+    std::ofstream out(filename);
+    out << dump << "}}";
+    out.close();
+}
+
 void create_master_file(const std::list<std::unique_ptr<Module>>& modules,
                         const std::string& output_file) {
     nlohmann::json output_json;

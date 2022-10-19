@@ -13,6 +13,7 @@
 
 #include <gsl/gsl-lite.hpp>
 #include <nlohmann/json_fwd.hpp>
+#include <filesystem>
 #include <list>
 #include <string>
 
@@ -67,3 +68,8 @@ void parse_module_descriptors(const nlohmann::json&,
  */
 void create_master_file(const std::list<std::unique_ptr<Module>>& modules,
                         const std::string& output_file);
+
+/// Generate code for setting up the audit descriptor map
+void create_audit_descriptor_manager_defs(
+        const std::list<std::unique_ptr<Module>>& modules,
+        const std::filesystem::path& filename);

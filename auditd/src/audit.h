@@ -81,17 +81,6 @@ protected:
     friend class AuditDaemonFilteringTest;
 
     /**
-     * Add a new event descriptor to the list of defined audit descriptors
-     *
-     * @param event_ptr the definition of the descriptor in JSON
-     * @return true if the descriptor was successfully added
-     */
-    bool add_event_descriptor(const nlohmann::json& json);
-
-    bool process_module_data_structures(const nlohmann::json& json);
-    bool process_module_descriptor(const nlohmann::json& json);
-
-    /**
      * Create an internal audit event structure
      *
      * @param event_id the event identifier to use
@@ -107,9 +96,6 @@ protected:
 
     /// The current configuration used by the daemon.
     AuditConfig config;
-
-    /// The map of known audit events to process
-    std::unordered_map<uint32_t, std::unique_ptr<EventDescriptor>> events;
 
     /// The current audit log file we're using
     AuditFile auditfile;

@@ -60,6 +60,10 @@ int main(int argc, char **argv) {
         std::list<std::unique_ptr<Module>> modules;
         parse_module_descriptors(json, modules, srcroot, objroot);
         create_master_file(modules, output_file);
+        create_audit_descriptor_manager_defs(
+                modules,
+                std::filesystem::path(objroot) / "kv_engine" / "auditd" /
+                        "audit_descriptor_manager_defs.cc");
 
         std::ofstream file;
         file.open(header);

@@ -29,7 +29,6 @@ AuditConfig::AuditConfig(const nlohmann::json& json) {
     set_auditd_enabled(json.at("auditd_enabled"));
     set_buffered(json.value("buffered", true));
     set_log_directory(json.at("log_path"));
-    set_descriptors_path(json.at("descriptors_path"));
     set_sync(json.at("sync"));
 
     // The disabled list is depreciated in version 2
@@ -63,7 +62,7 @@ AuditConfig::AuditConfig(const nlohmann::json& json) {
     tags["auditd_enabled"] = 1;
     tags["buffered"] = 1;
     tags["log_path"] = 1;
-    tags["descriptors_path"] = 1;
+    tags["descriptors_path"] = 1; // currently ignored
     tags["sync"] = 1;
     // The disabled list is depreciated in version 2 - if defined will
     // just be ignored.
@@ -139,31 +138,6 @@ void AuditConfig::set_log_directory(std::string directory) {
 
 std::string AuditConfig::get_log_directory() const {
     return *log_path.lock();
-}
-
-void AuditConfig::set_descriptors_path(std::string directory) {
-    sanitize_path(directory);
-    std::string fname;
-    if (cb::io::isDirectory(directory)) {
-        fname = directory + cb::io::DirectorySeparator + "audit_events.json";
-    } else {
-        fname = directory;
-    }
-
-    auto* fp = fopen(fname.c_str(), "r");
-    if (!fp) {
-        std::stringstream ss;
-        ss << "AuditConfig::set_descriptors_path(): Failed to open \""
-           << fname.c_str() << "\"" << cb_strerror();
-        throw std::system_error(errno, std::system_category(), ss.str());
-    }
-    fclose(fp);
-
-    descriptors_path.swap(directory);
-}
-
-std::string AuditConfig::get_descriptors_path() const {
-    return *descriptors_path.lock();
 }
 
 void AuditConfig::set_version(uint32_t ver) {
@@ -356,7 +330,6 @@ nlohmann::json AuditConfig::to_json() const {
     ret["rotate_interval"] = get_rotate_interval();
     ret["buffered"] = is_buffered();
     ret["log_path"] = get_log_directory();
-    ret["descriptors_path"] = get_descriptors_path();
     ret["filtering_enabled"] = is_filtering_enabled();
     ret["uuid"] = get_uuid();
 
@@ -412,7 +385,6 @@ void AuditConfig::initialize_config(const nlohmann::json& json) {
     buffered = other.buffered;
     filtering_enabled = other.filtering_enabled;
     log_path.swap(other.log_path);
-    descriptors_path.swap(other.descriptors_path);
     sync.swap(other.sync);
     disabled.swap(other.disabled);
     disabled_userids.swap(other.disabled_userids);

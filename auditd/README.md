@@ -98,8 +98,7 @@ example event descriptor file for the auditd module is given below.
                                           "version" : 1,
                                           "auditd_enabled" : true,
                                           "rotate_interval" : 1,
-                                          "log_path" : "",
-                                          "descriptors_path" : ""
+                                          "log_path" : ""
                                          },
                     "optional_fields" : {}
                  },
@@ -390,7 +389,6 @@ An example verison 1 configuration is presented below.
         "rotate_size":          20971520,
         "buffered":             true,
         "log_path": "/var/lib/couchbase/logs",
-        "descriptors_path" : "/path/to/directory/containing/audit_events.json/",
         "disabled": [],
         "sync": []
        }
@@ -405,7 +403,6 @@ An example verison 2 configuration is presented below.
         "rotate_size":          20971520,
         "buffered":             true,
         "log_path": "/var/lib/couchbase/logs",
-        "descriptors_path" : "/path/to/directory/containing/audit_events.json/",
         "event_states" : {"1234" : "enabled", "5678" : "disabled"}
         "disabled_userids": [{"domain" : "internal, "user" : "joeblogs"}],
         "sync": []

@@ -10,7 +10,7 @@
  */
 #pragma once
 
-#include <nlohmann/json_fwd.hpp>
+#include <atomic>
 #include <string>
 
 /**
@@ -21,15 +21,25 @@
  */
 class EventDescriptor {
 public:
-    /**
-     * Initialize an object from the JSON representation of the event
-     * descriptor.
-     *
-     * @param root pointer to the json represenatation
-     * @throws std::invalid_argument if called with a JSON representation which
-     *         isn't what we expect
-     */
-    explicit EventDescriptor(const nlohmann::json& root);
+    EventDescriptor(const EventDescriptor& other)
+        : id(other.id),
+          name(other.name),
+          description(other.description),
+          enabled(other.enabled.load()),
+          filteringPermitted(other.filteringPermitted) {
+    }
+
+    EventDescriptor(uint32_t id,
+                    std::string name,
+                    std::string description,
+                    bool enabled,
+                    bool filteringPermitted)
+        : id(id),
+          name(std::move(name)),
+          description(std::move(description)),
+          enabled(enabled),
+          filteringPermitted(filteringPermitted) {
+    }
 
     uint32_t getId() const {
         return id;
@@ -43,33 +53,22 @@ public:
         return description;
     }
 
-    bool isSync() const {
-        return sync;
-    }
-
     bool isEnabled() const {
-        return enabled;
+        return enabled.load(std::memory_order_consume);
     }
 
     bool isFilteringPermitted() const {
         return filteringPermitted;
     }
 
-    void setSync(bool sync) {
-        EventDescriptor::sync = sync;
-    }
-
-    void setEnabled(bool enabled) {
-        EventDescriptor::enabled = enabled;
+    void setEnabled(bool val) {
+        enabled.store(val, std::memory_order_release);
     }
 
 protected:
     const uint32_t id;
     const std::string name;
     const std::string description;
-    bool sync;
-    bool enabled;
-    bool filteringPermitted;
+    std::atomic_bool enabled;
+    const bool filteringPermitted;
 };
-
-

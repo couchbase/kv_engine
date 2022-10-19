@@ -25,15 +25,6 @@ class AuditConfigTest : public ::testing::Test {
 protected:
     static void SetUpTestCase() {
         testdir = cb::io::mkdtemp("auditconfig-test-");
-        // Create the audit_events.json file needed by the configuration
-        std::string fname = testdir + std::string("/audit_events.json");
-        FILE* fd = fopen(fname.c_str(), "w");
-        ASSERT_NE(nullptr, fd)
-            << "Unable to open test file '" << fname << "' error: "
-            << strerror(errno);
-        ASSERT_EQ(0, fclose(fd))
-            << "Failed to close test file '" << fname << "' error: "
-            << strerror(errno);
     }
 
     static void TearDownTestCase() {
@@ -62,7 +53,6 @@ protected:
         root["auditd_enabled"] = true;
         root["buffered"] = true;
         root["log_path"] = testdir;
-        root["descriptors_path"] = testdir;
         nlohmann::json sync = nlohmann::json::array();
         root["sync"] = sync;
         nlohmann::json disabled = nlohmann::json::array();
@@ -291,26 +281,6 @@ TEST_F(AuditConfigTest, TestGetSetSanitizeLogPathMixedSeparators) {
     EXPECT_EQ(testdir + "\\mydir\\baddir", config.get_log_directory());
 }
 #endif
-
-// descriptors_path
-
-TEST_F(AuditConfigTest, TestNoDescriptorsPath) {
-    json.erase("descriptors_path");
-    EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
-}
-
-TEST_F(AuditConfigTest, TestGetSetDescriptorsPath) {
-    config.set_descriptors_path(testdir);
-    EXPECT_EQ(testdir, config.get_descriptors_path());
-}
-
-TEST_F(AuditConfigTest, TestSetMissingEventDescrFileDescriptorsPath) {
-    std::string path = testdir + std::string("/foo");
-    cb::io::mkdirp(path);
-
-    EXPECT_THROW(config.set_descriptors_path(path), std::system_error);
-    cb::io::rmrf(path);
-}
 
 // Sync
 

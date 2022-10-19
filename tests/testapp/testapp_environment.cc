@@ -398,8 +398,6 @@ public:
         rewriteRbacFileImpl();
 
         // And we need an audit daemon configuration
-        const auto descr =
-                (test_directory.parent_path() / "auditd").generic_string();
         audit_config = {
                 {"version", 2},
                 {"uuid", "this_is_the_uuid"},
@@ -408,7 +406,6 @@ public:
                 {"rotate_size", 20971520},
                 {"buffered", false},
                 {"log_path", audit_log_dir.generic_string()},
-                {"descriptors_path", descr},
                 {"sync", nlohmann::json::array()},
                 {"disabled", nlohmann::json::array()},
                 {"event_states",
