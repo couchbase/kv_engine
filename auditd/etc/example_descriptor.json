@@ -1,21 +1,31 @@
 {
-    "version" : 1,
-    "module" : "example",
-    "events" : [
-                {  "id" : 8192,
-                   "name" : "example event",
-                   "description" : "this is the full description of the example event",
-                   "sync" : false,
-                   "enabled" : true,
-                   "mandatory_fields" : {
-                                          "timestamp" : "",
-                                          "real_userid" : {"domain" : "", "user" : ""}
-                                         },
-                   "optional_fields" : {
-                                          "sessionid" : "",
-                                          "remote" : {"ip" : "", "port" : 1},
-                                          "effective_userid" : {"domain" : "", "user" : ""}
-                                       }
-                }
-               ]
+  "version": 1,
+  "module": "example",
+  "events": [
+    {
+      "id": 8192,
+      "name": "example event",
+      "description": "this is the full description of the example event",
+      "sync": false,
+      "enabled": true,
+      "mandatory_fields": {
+        "timestamp": "",
+        "real_userid": {
+          "domain": "",
+          "user": ""
+        }
+      },
+      "optional_fields": {
+        "sessionid": "",
+        "remote": {
+          "ip": "",
+          "port": 1
+        },
+        "effective_userid": {
+          "domain": "",
+          "user": ""
+        }
+      }
+    }
+  ]
 }

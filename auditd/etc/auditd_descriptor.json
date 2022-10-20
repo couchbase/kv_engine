@@ -1,38 +1,44 @@
 {
-    "version" : 2,
-    "module" : "auditd",
-    "events" : [
-                {  "id" : 4096,
-                   "name" : "configured audit daemon",
-                   "description" : "loaded configuration file for audit daemon",
-                   "sync" : false,
-                   "enabled" : true,
-                   "filtering_permitted" : false,
-                   "mandatory_fields" : {
-                                         "timestamp" : "",
-                                         "real_userid" : {"domain" : "", "user" : ""},
-                                         "hostname" : "",
-                                         "version" : 1,
-                                         "auditd_enabled" : true,
-                                         "rotate_interval" : 1,
-                                         "log_path" : "",
-                                         "descriptors_path" : ""
-                                        },
-                   "optional_fields" : {}
-                },
-
-                {  "id" : 4097,
-                   "name" : "shutting down audit daemon",
-                   "description" : "The audit daemon is being shutdown",
-                   "sync" : false,
-                   "enabled" : true,
-                   "filtering_permitted" : false,
-                   "mandatory_fields" : {
-                                         "timestamp" : "",
-                                         "real_userid" : {"domain" : "", "user" : ""}
-                                        },
-                   "optional_fields" : {}
-                }
-
-               ]
+  "version": 2,
+  "module": "auditd",
+  "events": [
+    {
+      "id": 4096,
+      "name": "configured audit daemon",
+      "description": "loaded configuration file for audit daemon",
+      "sync": false,
+      "enabled": true,
+      "filtering_permitted": false,
+      "mandatory_fields": {
+        "timestamp": "",
+        "real_userid": {
+          "domain": "",
+          "user": ""
+        },
+        "hostname": "",
+        "version": 1,
+        "auditd_enabled": true,
+        "rotate_interval": 1,
+        "log_path": "",
+        "descriptors_path": ""
+      },
+      "optional_fields": {}
+    },
+    {
+      "id": 4097,
+      "name": "shutting down audit daemon",
+      "description": "The audit daemon is being shutdown",
+      "sync": false,
+      "enabled": true,
+      "filtering_permitted": false,
+      "mandatory_fields": {
+        "timestamp": "",
+        "real_userid": {
+          "domain": "",
+          "user": ""
+        }
+      },
+      "optional_fields": {}
+    }
+  ]
 }
