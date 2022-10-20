@@ -769,7 +769,7 @@ public:
     bool bloomFilterEnabled() const;
 
     bool supportsFetchingAsSnappy() const {
-        return !(isMagma() || isRocksDB());
+        return !isRocksDB();
     }
 
     /// @returns a string representing this tests' parameters.

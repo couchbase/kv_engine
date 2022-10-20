@@ -1629,6 +1629,11 @@ TEST_P(KVBucketParamTest, validateKeyTempDeletedItemTest) {
 // memcached). So we use expiry which will use the pre_expiry hook to prune
 // the xattrs.
 TEST_P(KVBucketParamTest, MB_25948) {
+    if (isNexus()) {
+        // TODO MB-53859: Re-enable under nexus once couchstore datatype
+        // on KEYS_ONLY is consistent with magma
+        GTEST_SKIP();
+    }
 
     // 1. Store key1 with an xattr value
     auto key = makeStoredDocKey("key");
@@ -1673,6 +1678,11 @@ TEST_P(KVBucketParamTest, MB_25948) {
     // Verify that GetMeta succeeded; and metadata is correct.
     ASSERT_EQ(cb::engine_errc::success, engineResult);
     ASSERT_TRUE(deleted);
+    // strip off Snappy, as magma and couchstore differ in whether they
+    // report Snappy datatype in response to getMeta (even though both
+    // actually compressed the document)
+    // TODO MB-53859: make couchstore report Snappy "accurately" for meta-only
+    datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
     ASSERT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, datatype);
     ASSERT_EQ(item.getFlags(), itemMeta.flags);
     // CAS and revSeqno not checked as changed when the document was expired.

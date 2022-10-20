@@ -413,8 +413,13 @@ static enum test_result test_get_meta_with_xattr(EngineIface* h) {
         // This should result in a bg fetch
         check(get_meta(h, key, errorMetaPair, cookie),
               "Get meta command failed");
+        auto datatype = errorMetaPair.second.datatype;
+        // the document may have been compressed when written; this is
+        // acceptable but the datatype mysteriously becoming something unrelated
+        // would be a bug. Just ignore snappy here.
+        datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
         checkeq(PROTOCOL_BINARY_DATATYPE_XATTR,
-                errorMetaPair.second.datatype,
+                datatype,
                 "Datatype is not XATTR");
     }
 
@@ -475,8 +480,15 @@ static enum test_result test_get_meta_mb23905(EngineIface* h) {
         cb::EngineErrorMetadataPair errorMetaPair;
         check(get_meta(h, key, errorMetaPair, cookie),
               "Get meta command failed");
+        // TODO MB-53859: Once couchstore reports snappy for getMeta if the
+        //                doc is compressed this can expect XATTR|SNAPPY.
+        //                for now, ignore snappy as only magma will report it
+        auto datatype = errorMetaPair.second.datatype;
+        if (get_str_stat(h, "ep_backend") == "magma") {
+            datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
+        }
         checkeq(PROTOCOL_BINARY_DATATYPE_XATTR,
-                errorMetaPair.second.datatype,
+                datatype,
                 "Datatype is not XATTR");
         checkeq(DocumentState::Deleted,
                 errorMetaPair.second.document_state,

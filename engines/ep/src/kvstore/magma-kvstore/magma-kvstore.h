@@ -34,6 +34,10 @@ class Slice;
 class Status;
 } // namespace magma
 
+namespace cb::compression {
+class Buffer;
+}
+
 class MagmaKVStoreConfig;
 class MagmaMemoryTrackingProxy;
 struct kvstats_ctx;
@@ -774,6 +778,36 @@ protected:
             const magma::Slice& metaSlice,
             const magma::Slice& valSlice,
             std::function<magma::Status(magma::Slice&)> valueRead) const;
+
+    /**
+     * If the provided @p op does not already have datatype Snappy, attempt
+     * to compress the contained value, storing the result in @p
+     * newValueStorage.
+     *
+     * If compression did reduce the size of the value, updated metadata will
+     * be stored in @p newMetaStorage, @p result will be populated with the
+     * updated operation, and true will be returned.
+     *
+     * If the value is already compressed, @p result will be unmodified
+     * and false will be returned.
+     *
+     * @param commitData data used to update on disk stats at commit
+     * @param newMetaStorage temporary storage for updated metadata
+     *                       if the value is compressed
+     * @param newValueStorage temporary storage for compressed values
+     * @param op the operation to consider compressing
+     * @param result contains the updated write operation pointing to the
+     *               temporary meta/value storage if the value was compressed
+     *               (and returned true)
+     * @return whether the value in the write operation was compressed.
+     *         If false, @p result is unmodified, and the original @p op
+     *         should be used.
+     */
+    static bool maybeCompressValue(VB::Commit& commitData,
+                                   std::string& newMetaStorage,
+                                   cb::compression::Buffer& newValueStorage,
+                                   const magma::Magma::WriteOperation& op,
+                                   magma::Magma::WriteOperation& result);
 
     MagmaKVStoreConfig& configuration;
 

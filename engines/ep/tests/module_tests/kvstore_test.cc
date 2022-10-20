@@ -28,6 +28,7 @@
 #include "vbucket_test.h"
 #include <executor/workload.h>
 #include <folly/portability/GTest.h>
+#include <platform/compress.h>
 #include <platform/dirutils.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <filesystem>
@@ -317,7 +318,7 @@ void KVStoreParamTest::TearDown() {
 }
 
 bool KVStoreParamTest::supportsFetchingAsSnappy() const {
-    return isCouchstore();
+    return isCouchstore() || isMagma();
 }
 
 // Test basic set / get of a document
@@ -346,9 +347,9 @@ TEST_P(KVStoreParamTest, GetModes) {
 
     auto gv = kvstore->get(
             DiskDocKey{key}, Vbid(0), ValueFilter::VALUES_COMPRESSED);
-    // Only couchstore compresses documents individually, hence is the only
-    // kvstore backend which will return compressed when requested.
-    const auto expectCompressed = isCouchstore();
+    // Magma and couchstore compresses documents individually, hence will return
+    // compressed documents when requested.
+    const auto expectCompressed = isCouchstore() || isMagma();
     checkGetValue(gv, cb::engine_errc::success, expectCompressed);
 
     gv = kvstore->get(DiskDocKey{key}, Vbid(0), ValueFilter::KEYS_ONLY);
@@ -1120,10 +1121,12 @@ void KVStoreParamTest::testGetRange(ValueFilter filter) {
                                               ? PROTOCOL_BINARY_DATATYPE_SNAPPY
                                               : PROTOCOL_BINARY_RAW_BYTES;
         EXPECT_EQ(expectedKey, item.getKey());
-        EXPECT_EQ(expectedDatatype, item.getDataType());
         if (filter == ValueFilter::KEYS_ONLY) {
             EXPECT_FALSE(item.getValue());
+            // magma may return snappy datatype if that is the datatype
+            // of the document on disk, even if KEYS_ONLY is requested.
         } else {
+            EXPECT_EQ(expectedDatatype, item.getDataType());
             item.decompressValue();
             EXPECT_EQ(expectedValue, item.getValue()->to_s());
         }
@@ -1692,6 +1695,92 @@ TEST_P(KVStoreParamTest, ScanAborted) {
 
     ASSERT_NE(nullptr, scanCtx);
     EXPECT_EQ(ScanStatus::Cancelled, kvstore->scan(*scanCtx));
+}
+
+void KVStoreParamTest::testPerDocumentCompression(bool useJson) {
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
+    StoredDocKey key = makeStoredDocKey("key");
+    // use a value with a little repetition so compression shrinks the value
+    // (otherwise the raw value will be stored instead)
+    std::string value = useJson ? R"({"foo":"foofoofoofoofoofoofoofoo"})"
+                                : "foofoofoofoofoofoofoofoo";
+    auto qi = makeCommittedItem(key, value);
+    qi->setBySeqno(1);
+    if (useJson) {
+        qi->setDataType(qi->getDataType() | uint8_t(cb::mcbp::Datatype::JSON));
+    }
+    ASSERT_FALSE(qi->getDataType() & uint8_t(cb::mcbp::Datatype::Snappy));
+
+    kvstore->set(*ctx, qi);
+
+    EXPECT_TRUE(kvstore->commit(std::move(ctx), flush));
+
+    // "manually" compress the document in the expected format to verify
+    // the read version matches
+    cb::compression::Buffer expectedValue;
+    ASSERT_TRUE(cb::compression::deflate(cb::compression::Algorithm::Snappy,
+                                         {value.data(), value.size()},
+                                         expectedValue));
+
+    // check the value is read compressed, and is the expected value
+    GetValue gv = kvstore->get(
+            DiskDocKey{key}, Vbid(0), ValueFilter::VALUES_COMPRESSED);
+    EXPECT_TRUE(gv.item->getDataType() & uint8_t(cb::mcbp::Datatype::Snappy));
+    EXPECT_EQ(useJson, qi->getDataType() & uint8_t(cb::mcbp::Datatype::JSON));
+    EXPECT_EQ(std::string_view(expectedValue), gv.item->getValue()->to_s());
+
+    // for rigour, check the decompressed version is exactly the original value
+    gv.item->decompressValue();
+    EXPECT_FALSE(gv.item->getDataType() & uint8_t(cb::mcbp::Datatype::Snappy));
+    EXPECT_EQ(useJson, qi->getDataType() & uint8_t(cb::mcbp::Datatype::JSON));
+    EXPECT_EQ(value, gv.item->getValue()->to_s());
+}
+
+TEST_P(KVStoreParamTest, PerDocumentCompressionTest_Binary) {
+    // check that an item written without snappy compression will be compressed
+    // by magma
+    if (config.getBackend() != "magma") {
+        // TODO MB-53859: Run these tests for all kvstores once
+        // couchstore decompresses items for VALUES_DECOMPRESSED even if
+        // they were compressed _before_ being written to the kvstore
+        GTEST_SKIP();
+    }
+    testPerDocumentCompression(false /* useJson */);
+}
+
+TEST_P(KVStoreParamTest, PerDocumentCompressionTest_Json) {
+    // check that a json item written without snappy compression will be
+    // compressed by magma
+    if (config.getBackend() != "magma") {
+        GTEST_SKIP();
+    }
+    testPerDocumentCompression(true /* useJson */);
+}
+
+TEST_P(KVStoreParamTest, PerDocumentCompressionTest_Disabled) {
+    // check that a per document compression under magma can be disabled
+    // successfully
+    if (config.getBackend() != "magma") {
+        GTEST_SKIP();
+    }
+
+    config.setMagmaPerDocumentCompressionEnabled(false);
+
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
+    StoredDocKey key = makeStoredDocKey("key");
+    std::string value = "foofoofoofoofoofoofoofoo";
+    auto qi = makeCommittedItem(key, value);
+    qi->setBySeqno(1);
+    ASSERT_FALSE(qi->getDataType() & uint8_t(cb::mcbp::Datatype::Snappy));
+
+    kvstore->set(*ctx, qi);
+
+    EXPECT_TRUE(kvstore->commit(std::move(ctx), flush));
+
+    // check the value is read uncompressed, and is the expected value
+    GetValue gv = kvstore->get(DiskDocKey{key}, Vbid(0));
+    EXPECT_FALSE(gv.item->getDataType() & uint8_t(cb::mcbp::Datatype::Snappy));
+    EXPECT_EQ(value, gv.item->getValue()->to_s());
 }
 
 TEST_P(KVStoreParamTestSkipRocks, GetBySeqno) {

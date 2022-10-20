@@ -52,6 +52,8 @@ public:
             config.setSanityCheckVBucketMapping(b);
         } else if (key == "magma_enable_block_cache") {
             config.setMagmaEnableBlockCache(b);
+        } else if (key == "magma_per_document_compression_enabled") {
+            config.setPerDocumentCompressionEnabled(b);
         }
     }
 
@@ -111,6 +113,8 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
             config.getMagmaGroupCommitMaxTransactionCount();
     magmaIndexCompressionAlgo = config.getMagmaIndexCompressionAlgo();
     magmaDataCompressionAlgo = config.getMagmaDataCompressionAlgo();
+    perDocumentCompressionEnabled =
+            config.isMagmaPerDocumentCompressionEnabled();
 
     config.addValueChangedListener(
             "magma_enable_block_cache",
@@ -137,6 +141,9 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
             std::make_unique<ConfigChangeListener>(*this));
     config.addValueChangedListener(
             "vbucket_mapping_sanity_checking_error_mode",
+            std::make_unique<ConfigChangeListener>(*this));
+    config.addValueChangedListener(
+            "magma_per_document_compression_enabled",
             std::make_unique<ConfigChangeListener>(*this));
 }
 

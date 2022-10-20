@@ -478,10 +478,11 @@ magma::Status MagmaMemoryTrackingProxy::WriteDocs(
         const std::vector<magma::Magma::WriteOperation>& docOperations,
         const magma::Magma::KVStoreRevision kvsRev,
         const magma::Magma::WriteDocsCallback docCallback,
-        const magma::Magma::PostWriteDocsCallback postCallback) {
+        const magma::Magma::PostWriteDocsCallback postCallback,
+        const magma::Magma::DocTransformCallback docTransformCallback) {
     magma::Magma::WriteDocsCallback wrappedDocCallback = nullptr;
     magma::Magma::PostWriteDocsCallback wrappedPostCallback = nullptr;
-
+    magma::Magma::DocTransformCallback wrappedDocTransformCallback = nullptr;
     if (docCallback) {
         wrappedDocCallback = [&docCallback](
                                      const magma::Magma::WriteOperation& op,
@@ -501,12 +502,24 @@ magma::Status MagmaMemoryTrackingProxy::WriteDocs(
         };
     }
 
+    if (docTransformCallback) {
+        wrappedDocTransformCallback =
+                [&docTransformCallback](
+                        const magma::Magma::WriteOperation& op,
+                        magma::Magma::WriteOperation& outputOp) {
+                    // Run the callers callback in primary domain
+                    cb::UseArenaMallocPrimaryDomain domainGuard;
+                    return docTransformCallback(op, outputOp);
+                };
+    }
+
     cb::UseArenaMallocSecondaryDomain domainGuard;
     return magma->WriteDocs(kvID,
                             docOperations,
                             kvsRev,
                             wrappedDocCallback,
-                            wrappedPostCallback);
+                            wrappedPostCallback,
+                            wrappedDocTransformCallback);
 }
 
 magma::Status MagmaMemoryTrackingProxy::NewCheckpoint(

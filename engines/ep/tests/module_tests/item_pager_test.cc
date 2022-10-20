@@ -1813,6 +1813,11 @@ TEST_P(STExpiryPagerTest, ExpiredItemsDeleted) {
 // Test that when an expired system-xattr document is fetched with getMeta
 // it can be successfully expired again
 TEST_P(STExpiryPagerTest, MB_25650) {
+    if (isNexus()) {
+        // TODO MB-53859: Re-enable under nexus once couchstore datatype
+        // on KEYS_ONLY is consistent with magma
+        GTEST_SKIP();
+    }
     expiredItemsDeleted();
 
     auto vb = store->getVBucket(Vbid(0));
@@ -1871,6 +1876,11 @@ TEST_P(STExpiryPagerTest, MB_25650) {
 // Test that when an expired system-xattr document is fetched with getMeta
 // deleteWithMeta can be successfully invoked
 TEST_P(STExpiryPagerTest, MB_25671) {
+    if (isNexus()) {
+        // TODO MB-53859: Re-enable under nexus once couchstore datatype
+        // on KEYS_ONLY is consistent with magma
+        GTEST_SKIP();
+    }
     expiredItemsDeleted();
     auto vb = store->getVBucket(vbid);
 

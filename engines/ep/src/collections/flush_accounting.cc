@@ -216,12 +216,12 @@ bool FlushAccounting::updateStats(const DocKey& key,
     // seqno. Empty collection detection relies on start-seqno == high-seqno.
     if (!isLogicallyDeleted(cid.value(), seqno) ||
         compactionCallbacks == CompactionCallbacks::AnyRevision) {
-        collsFlushStats.insert(isSystemEvent ? IsSystem::Yes : IsSystem::No,
-                               isDelete,
-                               isCommitted,
-                               compactionCallbacks,
-                               size);
-        return true;
+        return collsFlushStats.insert(
+                isSystemEvent ? IsSystem::Yes : IsSystem::No,
+                isDelete,
+                isCommitted,
+                compactionCallbacks,
+                size);
     }
     return false;
 }
@@ -362,6 +362,22 @@ FlushAccounting::UpdateStatsResult FlushAccounting::updateStats(
     }
 
     return result;
+}
+
+void FlushAccounting::updateStatsPostCompression(
+        const DocKey& key,
+        uint64_t seqno,
+        size_t uncompressedSize,
+        size_t compressedSize,
+        CompactionCallbacks compactionCallbacks) {
+    auto cid = getCollectionID(key).second;
+    // this should only be called as a follow up if stats have previously been
+    // modified for this operation, so the collection id _must_ be valid at
+    // this stage
+    Expects(cid);
+    getStatsAndMaybeSetPersistedHighSeqno(
+            cid.value(), seqno, compactionCallbacks)
+            .update(compressedSize - uncompressedSize);
 }
 
 void FlushAccounting::maybeUpdatePersistedHighSeqno(const DocKey& key,

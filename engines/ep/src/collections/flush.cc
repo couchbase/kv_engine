@@ -662,6 +662,16 @@ FlushAccounting::UpdateStatsResult Flush::updateStats(
                                        compactionCallbacks);
 }
 
+void Flush::updateStatsPostCompression(
+        const DocKey& key,
+        uint64_t seqno,
+        size_t uncompressedSize,
+        size_t compressedSize,
+        CompactionCallbacks compactionCallbacks) {
+    flushAccounting.updateStatsPostCompression(
+            key, seqno, uncompressedSize, compressedSize, compactionCallbacks);
+}
+
 void Flush::setManifest(Manifest& newManifest) {
     manifest = newManifest;
 }

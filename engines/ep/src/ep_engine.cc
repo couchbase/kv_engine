@@ -867,6 +867,8 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setRangeScanMaxLifetime(std::stoull(val));
         } else if (key == "item_eviction_strategy") {
             getConfiguration().setItemEvictionStrategy(val);
+        } else if (key == "magma_per_document_compression_enabled") {
+            configuration.setMagmaPerDocumentCompressionEnabled(cb_stob(val));
         } else {
             msg = "Unknown config param";
             rv = cb::engine_errc::invalid_arguments;

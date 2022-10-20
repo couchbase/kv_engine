@@ -47,6 +47,7 @@
 #include "tests/module_tests/vbucket_utils.h"
 #include <engines/ep/src/collections/collections_types.h>
 #include <engines/ep/src/ephemeral_tombstone_purger.h>
+#include <platform/compress.h>
 #include <utilities/test_manifest.h>
 #include <functional>
 #include <thread>
@@ -3443,6 +3444,17 @@ void CollectionsDcpPersistentOnly::resurrectionStatsTest(
 
     auto stats = vb->getManifest().lock(target.getId()).getPersistedStats();
 
+    auto getCompressedSize = [](const auto& value) -> size_t {
+        if (value.empty()) {
+            return 0;
+        }
+        cb::compression::Buffer buffer;
+        using cb::compression::Algorithm;
+        cb::compression::deflate(
+                Algorithm::Snappy, {value.data(), value.size()}, buffer);
+        return buffer.size();
+    };
+
     // Sizes are manually verified from dbdump and other manual checks
     // 57 for the value, 14 for the key and 18 for the v1 metadata
     // 4 (from value1.size()) + 10 for the value, 7 for the key and 18 for the
@@ -3453,9 +3465,12 @@ void CollectionsDcpPersistentOnly::resurrectionStatsTest(
                       MetaData::getMetaDataSize(MetaData::Version::V1);
     if (isMagma()) {
         // magma doesn't account the same bits and bytes
-        // 56 = value size, 14 = key size
-        systemeventSize = 56 + 14 + magmaMetaV0Size;
-        itemSize = value1.size() + key1.size() + magmaMetaV0Size;
+        // 49 = compressed system event value size (56 raw), 14 = key size
+        systemeventSize = 49 + 14 + magmaMetaV0Size;
+
+        auto compressedSize = getCompressedSize(value1);
+        EXPECT_EQ(compressedSize, 6) << "Compressed value1 has unexpected size";
+        itemSize = compressedSize + key1.size() + magmaMetaV0Size;
     }
     EXPECT_EQ(1, stats.itemCount);
     EXPECT_EQ(systemeventSize + itemSize, stats.diskSize);
@@ -3524,7 +3539,9 @@ void CollectionsDcpPersistentOnly::resurrectionStatsTest(
                MetaData::getMetaDataSize(MetaData::Version::V1);
     if (isMagma()) {
         // magma doesn't account the same bits and bytes
-        itemSize = value2.size() + key1.size() + magmaMetaV0Size;
+        auto compressedSize = getCompressedSize(value2);
+        EXPECT_EQ(compressedSize, 7) << "Compressed value2 has unexpected size";
+        itemSize = compressedSize + key1.size() + magmaMetaV0Size;
     }
     EXPECT_EQ(1, stats.itemCount);
     EXPECT_EQ(systemeventSize + itemSize, stats.diskSize);

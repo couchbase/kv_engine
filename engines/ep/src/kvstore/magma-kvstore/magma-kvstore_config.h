@@ -218,6 +218,13 @@ public:
         vBucketMappingErrorHandlingMethod = value;
     }
 
+    bool isPerDocumentCompressionEnabled() const {
+        return perDocumentCompressionEnabled;
+    }
+    void setPerDocumentCompressionEnabled(bool value) {
+        perDocumentCompressionEnabled = value;
+    }
+
     magma::Magma::Config magmaCfg;
 
     /**
@@ -448,6 +455,14 @@ private:
      * Should we validate that the key - vBucket mapping is correct?
      */
     std::atomic_bool sanityCheckVBucketMapping;
+
+    /**
+     * Should the kvstore apply compression to any items which are not already
+     * datatype Snappy.
+     *
+     * Does not affect _block-level_ compression, just per-document compression
+     */
+    std::atomic<bool> perDocumentCompressionEnabled;
 
     /**
      * The method in which errors are handled should the key - vBucket mapping

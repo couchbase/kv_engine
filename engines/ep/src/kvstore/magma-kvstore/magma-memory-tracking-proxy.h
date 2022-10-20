@@ -216,7 +216,9 @@ public:
             const std::vector<magma::Magma::WriteOperation>& docOperations,
             const magma::Magma::KVStoreRevision kvsRev = 1,
             const magma::Magma::WriteDocsCallback docCallback = nullptr,
-            const magma::Magma::PostWriteDocsCallback postCallback = nullptr);
+            const magma::Magma::PostWriteDocsCallback postCallback = nullptr,
+            const magma::Magma::DocTransformCallback docTransformCallback =
+                    nullptr);
     magma::Status NewCheckpoint(const magma::Magma::KVStoreID kvID);
     magma::Status StopBGCompaction(const magma::Magma::KVStoreID kvID);
     magma::Status ResumeBGCompaction(const magma::Magma::KVStoreID kvID);

@@ -3089,7 +3089,13 @@ void SingleThreadedPassiveStreamTest::testConsumerReceivesUserXattrsInDelete(
 
     auto& kvstore = *store->getRWUnderlying(vbid);
     const auto isPrepare = durReqs.has_value();
-    auto doc = kvstore.get(makeDiskDocKey("key", isPrepare), vbid);
+
+    // Test expects the datatype to remain the same.
+    // Provide the correct filter to read back the item compressed/uncompressed
+    // to match how it was stored.
+    auto filter = compressed ? ValueFilter::VALUES_COMPRESSED
+                             : ValueFilter::VALUES_DECOMPRESSED;
+    auto doc = kvstore.get(makeDiskDocKey("key", isPrepare), vbid, filter);
     EXPECT_EQ(cb::engine_errc::success, doc.getStatus());
     ASSERT_TRUE(doc.item);
     EXPECT_TRUE(doc.item->isDeleted());

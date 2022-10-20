@@ -31,9 +31,11 @@
 #include "vbucket.h"
 #include "vbucket_state.h"
 #include <executor/executorpool.h>
+#include <mcbp/protocol/datatype.h>
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <nlohmann/json.hpp>
 #include <platform/cb_arena_malloc.h>
+#include <platform/compress.h>
 #include <statistics/cbstat_collector.h>
 #include <utilities/logtags.h>
 #include <algorithm>
@@ -1286,6 +1288,22 @@ std::unique_ptr<Item> MagmaKVStore::makeItem(Vbid vb,
     if (filter != ValueFilter::KEYS_ONLY) {
         checkAndFixKVStoreCreatedItem(*item);
     }
+    if (filter == ValueFilter::VALUES_DECOMPRESSED) {
+        // Decompressed values requested, but the value is compressed.
+        // Attempt to decompress the value.
+        if (!item->decompressValue()) {
+            logger->warn(
+                    "MagmaKVStore::makeItem failed to decompress value "
+                    "vbid{} "
+                    "key:{} "
+                    "seqno:{} ",
+                    "datatype:{} ",
+                    vb,
+                    cb::UserData{key.getDocKey().to_string()},
+                    meta.getBySeqno(),
+                    meta.getDatatype());
+        }
+    }
 
     if (meta.isDeleted()) {
         item->setDeleted(static_cast<DeleteSource>(meta.getDeleteSource()));
@@ -1588,11 +1606,36 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
         commitData.collections.setDroppedCollectionsForStore(dropped);
     }
 
+    // WriteOperations are non-owning, so temporary storage is required for
+    // compressed values and updated meta, for use in per-document compression.
+    // Must live for the duration of the WriteDocs call.
+    // This storage will be reused for each document that requires compression.
+    std::string newMeta;
+    cb::compression::Buffer newValueBuffer;
+
+    // callback which _may_ apply compression to each written document
+    std::function<bool(const Magma::WriteOperation& op,
+                       Magma::WriteOperation& result)>
+            compressCB;
+
+    if (configuration.isPerDocumentCompressionEnabled()) {
+        // compression buffers aren't copyable (and std::function requires
+        // the lambda be copy constructable), otherwise a capture
+        // initialiser could be used.
+        compressCB = [&commitData, &newMeta, &newValueBuffer](
+                             const Magma::WriteOperation& op,
+                             Magma::WriteOperation& result) {
+            return MagmaKVStore::maybeCompressValue(
+                    commitData, newMeta, newValueBuffer, op, result);
+        };
+    }
+
     auto status = magma->WriteDocs(vbid.get(),
                                    writeOps,
                                    kvstoreRevList[getCacheSlot(vbid)],
                                    writeDocsCB,
-                                   postWriteDocsCB);
+                                   postWriteDocsCB,
+                                   std::move(compressCB));
 
     saveDocsPostWriteDocsHook();
 
@@ -1628,6 +1671,58 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
     }
 
     return status.ErrorCode();
+}
+
+bool MagmaKVStore::maybeCompressValue(VB::Commit& commitData,
+                                      std::string& newMetaStorage,
+                                      cb::compression::Buffer& newValueStorage,
+                                      const Magma::WriteOperation& op,
+                                      Magma::WriteOperation& result) {
+    auto meta = magmakv::getDocMeta(op.Meta);
+    if (op.Value.Empty()) {
+        // empty value, nothing to compress
+        return false;
+    }
+
+    if (cb::mcbp::datatype::is_snappy(meta.getDatatype())) {
+        // already compressed
+        return false;
+    }
+    if (!cb::compression::deflate(cb::compression::Algorithm::Snappy,
+                                  {op.Value.Data(), op.Value.Len()},
+                                  newValueStorage)) {
+        // compression failed
+        return false;
+    }
+
+    // we've compressed the value, now we need to update the
+    // output operation with the compressed value and a copy
+    // of the meta with the datatype and value size altered
+    meta.setDataType(meta.getDatatype() | uint8_t(cb::mcbp::Datatype::Snappy));
+    meta.setValueSize(newValueStorage.size());
+    newMetaStorage = meta.encode();
+    // copy over the existing operation (doesn't deep copy
+    // any slices)
+    result = op;
+    // now point the meta and value to the temporary buffers
+    result.Meta = newMetaStorage;
+    result.Value = std::string_view(newValueStorage);
+
+    // fixup collection stats to reflect the compressed size
+    auto diskDocKey = makeDiskDocKey(op.Key);
+    auto docKey = diskDocKey.getDocKey();
+
+    auto req = reinterpret_cast<MagmaRequest*>(op.UserData);
+
+    if (req->isNewDocReflectedInDiskSize()) {
+        commitData.collections.updateStatsPostCompression(
+                docKey,
+                meta.getBySeqno(),
+                op.Value.Len() /* original size */,
+                result.Value.Len() /* compressed size */,
+                CompactionCallbacks::AnyRevision);
+    }
+    return true;
 }
 
 /**

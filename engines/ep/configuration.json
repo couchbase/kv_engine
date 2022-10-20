@@ -1104,6 +1104,12 @@
                 }
             }
         },
+        "magma_per_document_compression_enabled": {
+            "default": "true",
+            "dynamic": true,
+            "descr": "Apply Snappy compression to each document when persisted (magma only)",
+            "type": "bool"
+        },
         "magma_delete_memtable_writecache": {
             "default": "8192",
             "dynamic": false,

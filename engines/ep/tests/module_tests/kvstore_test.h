@@ -135,14 +135,30 @@ protected:
         return config.getBackend() == "couchdb" || isNexusCouchstorePrimary();
     }
 
+    bool isMagma() const {
+        return config.getBackend() == "magma" || isNexusMagmaPrimary();
+    }
+
     bool isNexusCouchstorePrimary() const {
         return config.getBackend() == "nexus" &&
                config.getNexusPrimaryBackend() == "couchdb";
     }
 
+    bool isNexusMagmaPrimary() const {
+        return config.getBackend() == "nexus" &&
+               config.getNexusPrimaryBackend() == "magma";
+    }
+
     bool isNexus() const {
         return config.getBackend() == "nexus";
     }
+
+    /**
+     * Test that an item written without snappy compression will be compressed
+     * by magma.
+     * @param useJson whether to use a json or binary document
+     */
+    void testPerDocumentCompression(bool useJson);
 };
 
 /**
