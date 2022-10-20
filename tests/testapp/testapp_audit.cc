@@ -15,12 +15,9 @@
 #include "testapp.h"
 
 #include "testapp_client_test.h"
-#include "memcached_audit_events.h"
-#include "auditd/auditd_audit_events.h"
-
+#include <auditd/couchbase_audit_events.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
-
 #include <protocol/connection/frameinfo.h>
 #include <cctype>
 #include <fstream>

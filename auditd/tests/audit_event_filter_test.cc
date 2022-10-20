@@ -10,9 +10,9 @@
 
 #include <audit.h>
 #include <audit_event_filter.h>
+#include <auditd/couchbase_audit_events.h>
 #include <boost/filesystem/path.hpp>
 #include <folly/portability/GTest.h>
-#include <memcached_audit_events.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 

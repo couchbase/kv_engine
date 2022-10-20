@@ -14,6 +14,7 @@
 
 #include <folly/portability/GTest.h>
 #include <nlohmann/json.hpp>
+#include <fstream>
 
 /// @todo Add extra unit tests to verify that we check for the JSON types
 
@@ -33,7 +34,6 @@ protected:
       "module1": {
         "startid": 0,
         "file": "auditd/generator/tests/module1.json",
-        "header": "auditd/generator/module1.h",
         "enterprise": false
       }
     },
@@ -41,7 +41,6 @@ protected:
       "module2": {
         "startid": 4096,
         "file": "auditd/generator/tests/module2.json",
-        "header": "auditd/generator/module2.h",
         "enterprise": false
       }
     },
@@ -98,7 +97,6 @@ protected:
   "module1": {
     "startid": 0,
     "file": "auditd/generator/tests/module1.json",
-    "header": "auditd/generator/module_test.h",
     "enterprise": false
   }
 })";
@@ -117,12 +115,6 @@ TEST_F(SingleModuleParseTest, TestCorrectInput) {
     Module module(json, SOURCE_ROOT, OBJECT_ROOT);
     EXPECT_EQ("module1", module.name);
     EXPECT_EQ(0, module.start);
-    auto expected = cb::io::sanitizePath(
-            SOURCE_ROOT "/auditd/generator/tests/module1.json");
-    EXPECT_EQ(expected, module.file);
-    expected =
-            cb::io::sanitizePath(OBJECT_ROOT "/auditd/generator/module_test.h");
-    EXPECT_EQ(expected, module.header);
     EXPECT_FALSE(module.enterprise);
     EXPECT_EQ(3, module.events.size());
 }
@@ -147,13 +139,6 @@ TEST_F(SingleModuleParseTest, MandatoryFields) {
         }
         json["module1"][tag] = removed;
     }
-}
-
-/// Verify that we can handle no header entry
-TEST_F(SingleModuleParseTest, NoHeaderEntry) {
-    json["module1"].erase("header");
-    Module module(json, SOURCE_ROOT, OBJECT_ROOT);
-    EXPECT_TRUE(module.header.empty());
 }
 
 /// Verify that we default to false if no enterprise attribute is set
@@ -183,13 +168,12 @@ TEST_F(SingleModuleParseTest, CeSkipEnterpriseEvents) {
 /// Verify that the headerfile was successfully written
 TEST_F(SingleModuleParseTest, HeaderfileGeneration) {
     Module module(json, SOURCE_ROOT, OBJECT_ROOT);
-    EXPECT_FALSE(module.header.empty());
-    if (cb::io::isFile(module.header)) {
-        cb::io::rmrf(module.header);
-    }
-    module.createHeaderFile();
-    EXPECT_TRUE(cb::io::isFile(module.header));
-    auto content = cb::io::loadFile(module.header);
+    auto filename = cb::io::mktemp("myheader");
+    std::ofstream output(filename);
+    module.createHeaderFile(output);
+    output.close();
+    auto content = cb::io::loadFile(filename);
+    cb::io::rmrf(filename);
 
     // @todo add a better parser to check that we're not on a comment line etc
     EXPECT_NE(std::string::npos, content.find("MODULE1_AUDIT_EVENT_1 0"));

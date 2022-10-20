@@ -9,7 +9,7 @@
  *   the file licenses/APL2.txt.
  */
 #include "testapp_environment.h"
-#include "memcached_audit_events.h"
+#include <auditd/couchbase_audit_events.h>
 #include <cbsasl/password_database.h>
 #include <cbsasl/user.h>
 #include <folly/portability/GTest.h>

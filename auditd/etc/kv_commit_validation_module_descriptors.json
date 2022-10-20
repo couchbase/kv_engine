@@ -3,15 +3,13 @@
     {
       "auditd": {
         "startid": 4096,
-        "file": "kv_engine/auditd/etc/auditd_descriptor.json",
-        "header": "kv_engine/auditd/auditd_audit_events.h"
+        "file": "kv_engine/auditd/etc/auditd_descriptor.json"
       }
     },
     {
       "memcached": {
         "startid": 20480,
-        "file": "kv_engine/etc/memcached_descriptor.json",
-        "header": "kv_engine/memcached_audit_events.h"
+        "file": "kv_engine/etc/memcached_descriptor.json"
       }
     }
   ]

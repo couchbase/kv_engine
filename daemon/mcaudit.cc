@@ -17,9 +17,9 @@
 #include "log_macros.h"
 #include "logger/logger.h"
 #include "memcached.h"
-#include "memcached_audit_events.h"
 #include "settings.h"
 
+#include <auditd/couchbase_audit_events.h>
 #include <folly/Synchronized.h>
 #include <memcached/audit_interface.h>
 #include <memcached/isotime.h>

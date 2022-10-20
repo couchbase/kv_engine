@@ -28,7 +28,7 @@ public:
            const std::string& srcRoot,
            const std::string& objRoot);
 
-    void createHeaderFile();
+    void createHeaderFile(std::ostream& out);
 
     /**
      * The name of the module
@@ -53,12 +53,6 @@ public:
      * Is this module enterprise only?
      */
     bool enterprise = false;
-
-    /**
-     * If present this is the name of a C headerfile to generate with
-     * #defines for all audit identifiers for the module.
-     */
-    std::string header;
 
     /**
      * A list of all of the events defined for this module

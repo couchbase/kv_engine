@@ -55,15 +55,6 @@ Module::Module(const nlohmann::json& object,
     file.append(cb::jsonGet<std::string>(data, "file"));
     file = cb::io::sanitizePath(file);
 
-    auto hfile = data.value("header", "");
-    if (!hfile.empty()) {
-        header.assign(objRoot);
-        header.append("/");
-        header.append(hfile);
-        header = cb::io::sanitizePath(header);
-        ++expected;
-    }
-
     auto ent = data.value("enterprise", -1);
     if (ent != -1) {
         enterprise = gsl::narrow_cast<bool>(ent);
@@ -93,32 +84,17 @@ void Module::addEvent(std::unique_ptr<Event> event) {
     }
 }
 
-void Module::createHeaderFile() {
-    if (header.empty()) {
-        return;
-    }
-
-    std::ofstream headerfile;
-    headerfile.open(header);
-    if (!headerfile.is_open()) {
-        throw std::system_error(
-                errno, std::system_category(), "Failed to open " + header);
-    }
-
-    headerfile << "// This is a generated file, do not edit" << std::endl
-               << "#pragma once" << std::endl;
-
+void Module::createHeaderFile(std::ostream& out) {
     for (const auto& ev : events) {
         std::string nm(name);
         nm.append("_AUDIT_");
         nm.append(ev->name);
         std::replace(nm.begin(), nm.end(), ' ', '_');
+        std::replace(nm.begin(), nm.end(), '/', '_');
+        std::replace(nm.begin(), nm.end(), ':', '_');
         std::transform(nm.begin(), nm.end(), nm.begin(), toupper);
-
-        headerfile << "#define " << nm << " " << ev->id << std::endl;
+        out << "#define " << nm << " " << ev->id << std::endl;
     }
-
-    headerfile.close();
 }
 void Module::parseEventDescriptorFile() {
     if (!is_enterprise_edition() && enterprise) {

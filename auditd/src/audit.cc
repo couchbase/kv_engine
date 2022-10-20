@@ -9,11 +9,11 @@
  */
 #include "audit.h"
 #include "audit_event_filter.h"
-#include "auditd_audit_events.h"
 #include "configureevent.h"
 #include "event.h"
 #include "eventdescriptor.h"
 
+#include <auditd/couchbase_audit_events.h>
 #include <logger/logger.h>
 #include <memcached/isotime.h>
 #include <memcached/server_cookie_iface.h>

@@ -7,8 +7,7 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-#include "memcached_audit_events.h"
-
+#include <auditd/couchbase_audit_events.h>
 #include <daemon/connection.h>
 #include <daemon/cookie.h>
 #include <daemon/front_end_thread.h>

@@ -31,14 +31,14 @@ endif (COUCHBASE_KV_COMMIT_VALIDATION)
 
 add_custom_command(OUTPUT
                      ${Memcached_BINARY_DIR}/auditd/audit_events.json
-                     ${Memcached_BINARY_DIR}/auditd/auditd_audit_events.h
-                     ${Memcached_BINARY_DIR}/memcached_audit_events.h
+                     ${Memcached_BINARY_DIR}/auditd/couchbase_audit_events.h
                   COMMAND
                      auditevent_generator
                             -r ${CMAKE_SOURCE_DIR}
                             -b ${CMAKE_BINARY_DIR}
                             -o ${Memcached_BINARY_DIR}/auditd/audit_events.json
                             -i ${MODULE_DESCRIPTION}
+                            -f ${Memcached_BINARY_DIR}/auditd/couchbase_audit_events.h
                   DEPENDS
                         auditevent_generator
                         ${Memcached_SOURCE_DIR}/auditd/etc/module_descriptors.json

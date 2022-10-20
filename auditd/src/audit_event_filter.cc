@@ -17,7 +17,7 @@
 #include "audit_event_filter.h"
 
 #include "audit.h"
-#include "memcached_audit_events.h"
+#include <auditd/couchbase_audit_events.h>
 
 bool AuditEventFilter::isValid() {
     return generation == AuditImpl::generation;
