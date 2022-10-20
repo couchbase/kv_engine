@@ -178,19 +178,18 @@ void audit_auth_success(const Connection& c, Cookie* cookie) {
 }
 
 void audit_bucket_selection(const Connection& c, Cookie* cookie) {
-    if (!isEnabled(MEMCACHED_AUDIT_SELECT_BUCKET, c)) {
-        return;
-    }
     const auto& bucket = c.getBucket();
     // Don't audit that we're jumping into the "no bucket"
-    if (bucket.type != BucketType::NoBucket) {
-        auto root = create_memcached_audit_object(c, c.getUser(), {});
-        root["bucket"] = c.getBucket().name;
-        do_audit(cookie,
-                 MEMCACHED_AUDIT_SELECT_BUCKET,
-                 root,
-                 "Failed to send SELECT BUCKET audit event");
+    if (bucket.type == BucketType::NoBucket ||
+        !isEnabled(MEMCACHED_AUDIT_SELECT_BUCKET, c)) {
+        return;
     }
+    auto root = create_memcached_audit_object(c, c.getUser(), {});
+    root["bucket"] = c.getBucket().name;
+    do_audit(cookie,
+             MEMCACHED_AUDIT_SELECT_BUCKET,
+             root,
+             "Failed to send SELECT BUCKET audit event");
 }
 
 void audit_bucket_flush(Cookie& cookie, const std::string_view bucket) {
