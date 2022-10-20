@@ -257,12 +257,23 @@ protected:
         if (!ready.empty() && nextScan) {
             continueNextScan();
         }
+
+        if (creates.empty() && ready.empty() && scans.empty()) {
+            connection->getUnderlyingAsyncSocket().setReadCB(nullptr);
+            connection->getUnderlyingAsyncSocket().close();
+            stop = std::chrono::steady_clock::now();
+        }
     }
 
     void handleCreateResponse(const cb::mcbp::Response& response) {
-        if (response.getStatus() != cb::mcbp::Status::Success ||
-            response.getClientOpcode() !=
-                    cb::mcbp::ClientOpcode::RangeScanCreate) {
+        if (response.getStatus() != cb::mcbp::Status::Success) {
+            if (response.getClientOpcode() ==
+                        cb::mcbp::ClientOpcode::RangeScanCreate &&
+                response.getStatus() == cb::mcbp::Status::KeyEnoent) {
+                // No keys in requested range.
+                handleCreateRangeEmpty(response);
+                return;
+            }
             std::cerr << "handleCreateResponse failure"
                       << response.to_json(false).dump() << std::endl;
             std::exit(EXIT_FAILURE);
@@ -278,6 +289,17 @@ protected:
         creates.erase(response.getOpaque());
         scans.emplace(vb, id);
         ready.push(vb);
+    }
+
+    void handleCreateRangeEmpty(const cb::mcbp::Response& response) {
+        if (verbose) {
+            auto vb = creates.at(response.getOpaque());
+            std::cout << "vb:" << vb << " with no keys in range"
+                      << response.to_json(false).dump() << std::endl;
+        }
+        // erase this scan
+        creates.erase(response.getOpaque());
+        start = stop = {};
     }
 
     void continueNextScan() {
@@ -304,6 +326,7 @@ protected:
                 &terminateOnErrorWriteCallback, std::move(iob));
     }
 
+    /// @return true if another scan-continue should be requested
     bool handleContinueResponse(const cb::mcbp::Response& response) {
         if (response.getStatus() != cb::mcbp::Status::Success &&
             response.getStatus() != cb::mcbp::Status::RangeScanMore &&
@@ -331,9 +354,6 @@ protected:
 
             // All scans done?
             if (scans.empty()) {
-                connection->getUnderlyingAsyncSocket().setReadCB(nullptr);
-                connection->getUnderlyingAsyncSocket().close();
-                stop = std::chrono::steady_clock::now();
                 rv = false;
             } else {
                 rv = !ready.empty(); // try for another scan if any are left
