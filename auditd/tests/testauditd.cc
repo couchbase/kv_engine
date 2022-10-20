@@ -8,6 +8,7 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
+#include <auditd/couchbase_audit_events.h>
 #include <folly/portability/GTest.h>
 #include <getopt.h>
 #include <logger/logger.h>
@@ -264,24 +265,6 @@ protected:
 
         config.public_set_disabled_userids(disabled_userids);
     }
-
-    // Adds a new event that has the filtering_permitted attribute set according
-    // to the input parameter.
-    // @param filteringPermitted  indicates whether the event being added can
-    //                            be filtered or not
-    void addEvent(bool filteringPermitted) {
-        nlohmann::json json;
-        // We normally expect this to be an unsigned integer so we need to
-        // explicitly pass a unsigned int to json[].
-        size_t id = 1234;
-        json["id"] = id;
-        json["name"] = "newEvent";
-        json["description"] = "description";
-        json["sync"] = false;
-        json["enabled"] = true;
-        json["filtering_permitted"] = filteringPermitted;
-        dynamic_cast<AuditImpl*>(auditHandle.get())->add_event_descriptor(json);
-    }
 };
 
 /**
@@ -296,22 +279,24 @@ TEST_P(AuditDaemonFilteringTest, AuditFilteringTest) {
     bool eventFilteringPermitted = std::get<1>(GetParam());
     bool foundJohndoe{false};
 
-    const std::string payloadjohndoe =
-            R"({"id": 1234, "timestamp": "test", "real_userid":
+    auto id = eventFilteringPermitted ? MEMCACHED_AUDIT_INVALID_PACKET
+                                      : MEMCACHED_AUDIT_AUTHENTICATION_FAILED;
+
+    const std::string payloadjohndoe = R"({"id": )" + std::to_string(id) +
+                                       R"(, "timestamp": "test", "real_userid":
                      {"source": "internal", "user": "johndoe"}})";
 
-    const std::string payloadanother =
-            R"({"id": 1234, "timestamp": "test", "real_userid":
+    const std::string payloadanother = R"({"id": )" + std::to_string(id) +
+                                       R"(, "timestamp": "test", "real_userid":
                      {"source": "internal", "user": "another"}})";
 
     config.set_filtering_enabled(globalFilterSetting);
     enable();
-    addEvent(eventFilteringPermitted);
 
-    // generate the 1234 event with real_userid:user = johndoe
-    auditHandle->put_event(1234, payloadjohndoe);
-    // generate the 1234 event with real_userid:user = another
-    auditHandle->put_event(1234, payloadanother);
+    // generate the event with real_userid:user = johndoe
+    auditHandle->put_event(id, payloadjohndoe);
+    // generate the event with real_userid:user = another
+    auditHandle->put_event(id, payloadanother);
 
     // Check the audit log exists
     assertNumberOfFiles(1);

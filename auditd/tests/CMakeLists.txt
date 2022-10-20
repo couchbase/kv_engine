@@ -22,6 +22,7 @@ add_test(NAME memcached-audit-test
 add_sanitizers(memcached_audit_test)
 
 cb_add_test_executable(memcached_auditd_tests testauditd.cc)
+target_include_directories(memcached_auditd_tests PRIVATE ${Memcached_BINARY_DIR})
 kv_enable_pch(memcached_auditd_tests)
 target_link_libraries(memcached_auditd_tests PRIVATE
                       auditd memcached_logger mcd_util mcd_time platform GTest::gtest)
