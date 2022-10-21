@@ -116,7 +116,7 @@ public:
                          EPVBucket& vBucket,
                          std::chrono::seconds initialSleep)
         : GlobalTask(engine,
-                     TaskId::DurabilityTimeoutTask,
+                     TaskId::RangeScanTimeoutTask,
                      initialSleep.count(),
                      false),
           vBucket(vBucket),
