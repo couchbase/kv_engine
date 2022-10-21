@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2015-Present Couchbase, Inc.
  *
@@ -10,51 +9,26 @@
  */
 #pragma once
 
-#include <nlohmann/json_fwd.hpp>
+#include <nlohmann/json.hpp>
 #include <cinttypes>
 #include <string>
 
 class AuditImpl;
-class AuditConfig;
 
 class Event {
 public:
     const uint32_t id;
-    const std::string payload;
+    nlohmann::json payload;
 
     // Constructor required for ConfigureEvent
-    Event()
-        : id(0) {}
+    Event() : id(0) {
+    }
 
-    Event(const uint32_t event_id, std::string_view payload)
-        : id(event_id), payload(payload.data(), payload.size()) {
+    Event(const uint32_t event_id, nlohmann::json payload)
+        : id(event_id), payload(std::move(payload)) {
     }
 
     virtual bool process(AuditImpl& audit);
 
-    /**
-     * State whether a given event should be filtered out given the userid.
-     *
-     * @param eventPayload  pointer to the event payload
-     * @param config  reference to the audit configuration
-     * @param userid  reference to the userid_type string, which will either be
-     *                effective_userid or real_userid
-     * @return true if event should be filtered out, else false.
-     */
-    bool filterEventByUserid(const nlohmann::json& eventPayload,
-                             const AuditConfig& config,
-                             const std::string& userid_type);
-
-    /**
-     * State whether a given event should be filtered out.
-     *
-     * @param eventPayload  pointer to the event payload
-     * @param config  reference to the audit configuration
-     * @return true if event should be filtered out, else false.
-     */
-    bool filterEvent(const nlohmann::json& eventPayload,
-                     const AuditConfig& audit);
-
-    virtual ~Event() {}
-
+    virtual ~Event() = default;
 };

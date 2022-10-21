@@ -215,7 +215,7 @@ void AuditFile::cleanup_old_logfile(const std::string& log_path) {
     }
 }
 
-bool AuditFile::write_event_to_disk(nlohmann::json& output) {
+bool AuditFile::write_event_to_disk(const nlohmann::json& output) {
     bool ret = true;
     try {
         const auto content = output.dump();
@@ -237,7 +237,6 @@ bool AuditFile::write_event_to_disk(nlohmann::json& output) {
 
     return ret;
 }
-
 
 void AuditFile::set_log_directory(const std::string &new_directory) {
     if (log_directory == new_directory) {

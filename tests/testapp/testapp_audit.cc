@@ -159,7 +159,7 @@ bool AuditTest::searchAuditLogForID(int id,
                                     const std::string& bucketname) {
     bool ret = false;
     iterate([&ret, id, username, bucketname](const nlohmann::json& entry) {
-        if (entry["id"].get<int>() != id) {
+        if (entry.value("id", -1) != id) {
             return false;
         }
 
@@ -489,7 +489,9 @@ TEST_P(AuditTest, AuditConfigReload) {
 }
 
 TEST_P(AuditTest, AuditPut) {
-    auto rsp = adminConnection->execute(BinprotAuditPutCommand{0, R"({})"});
+    auto rsp = adminConnection->execute(BinprotAuditPutCommand{
+            MEMCACHED_AUDIT_INVALID_PACKET,
+            R"({"real_userid":{"domain":"external","user":"Joe"}})"});
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getDataString();
 }
 

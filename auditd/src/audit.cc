@@ -227,19 +227,14 @@ bool AuditImpl::configure() {
     return true;
 }
 
-bool AuditImpl::put_event(uint32_t event_id, std::string_view payload) {
+bool AuditImpl::put_event(uint32_t event_id, nlohmann::json payload) {
     if (!config.is_auditd_enabled()) {
         // Audit is disabled
         return true;
     }
 
-    // @todo I think we should do full validation of the content
-    //       in debug mode to ensure that developers actually fill
-    //       in the correct fields.. if not we should add an
-    //       event to the audit trail saying it is one in an illegal
-    //       format (or missing fields)
     try {
-        auto new_event = std::make_unique<Event>(event_id, payload);
+        auto new_event = std::make_unique<Event>(event_id, std::move(payload));
         std::lock_guard<std::mutex> guard(producer_consumer_lock);
         if (filleventqueue.size() < max_audit_queue) {
             filleventqueue.push(std::move(new_event));
@@ -250,9 +245,7 @@ bool AuditImpl::put_event(uint32_t event_id, std::string_view payload) {
     }
 
     dropped_events++;
-    LOG_WARNING("Audit: Dropping audit event {}: {}",
-                event_id,
-                cb::UserDataView(payload));
+    LOG_WARNING("Audit: Dropping audit event {}", event_id);
     return false;
 }
 

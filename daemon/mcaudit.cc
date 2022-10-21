@@ -20,6 +20,7 @@
 #include "settings.h"
 
 #include <auditd/couchbase_audit_events.h>
+#include <auditd/src/audit_descriptor_manager.h>
 #include <folly/Synchronized.h>
 #include <memcached/audit_interface.h>
 #include <memcached/isotime.h>
@@ -123,11 +124,16 @@ void cb::audit::setEnabled(uint32_t id, bool enable) {
  * @return the json object containing the basic information
  */
 static nlohmann::json create_memcached_audit_object(
+        uint32_t id,
         const Connection& c,
         const cb::rbac::UserIdent& ui,
         const cb::rbac::UserIdent* euid) {
     nlohmann::json root;
 
+    const auto* descr = AuditDescriptorManager::instance().lookup(id);
+    root["id"] = id;
+    root["name"] = descr->getName();
+    root["description"] = descr->getDescription();
     root["timestamp"] = ISOTime::generatetimestamp();
     root["remote"] = c.getPeername();
     root["local"] = c.getSockname();
@@ -155,11 +161,10 @@ static void do_audit(Cookie* cookie,
     using cb::tracing::SpanStopwatch;
     ScopeTimer1<SpanStopwatch> timer(cookie, Code::Audit);
 
-    auto text = event.dump();
-    getAuditHandle().withRLock([id, warn, &text](auto& handle) {
+    getAuditHandle().withRLock([id, warn, &event](auto& handle) {
         if (handle) {
-            if (!handle->put_event(id, text)) {
-                LOG_WARNING("{}: {}", warn, text);
+            if (!handle->put_event(id, event)) {
+                LOG_WARNING("{}: {}", warn, event);
             }
         }
     });
@@ -187,7 +192,8 @@ void audit_auth_failure(const Connection& c,
                    cookie ? cookie->getEffectiveUser() : nullptr)) {
         return;
     }
-    auto root = create_memcached_audit_object(c, ui, {});
+    auto root = create_memcached_audit_object(
+            MEMCACHED_AUDIT_AUTHENTICATION_FAILED, c, ui, {});
     root["reason"] = reason;
 
     do_audit(cookie,
@@ -202,7 +208,8 @@ void audit_auth_success(const Connection& c, Cookie* cookie) {
                    cookie ? cookie->getEffectiveUser() : nullptr)) {
         return;
     }
-    auto root = create_memcached_audit_object(c, c.getUser(), {});
+    auto root = create_memcached_audit_object(
+            MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED, c, c.getUser(), {});
     do_audit(cookie,
              MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED,
              root,
@@ -218,7 +225,8 @@ void audit_bucket_selection(const Connection& c, Cookie* cookie) {
                    cookie ? cookie->getEffectiveUser() : nullptr)) {
         return;
     }
-    auto root = create_memcached_audit_object(c, c.getUser(), {});
+    auto root = create_memcached_audit_object(
+            MEMCACHED_AUDIT_SELECT_BUCKET, c, c.getUser(), {});
     root["bucket"] = c.getBucket().name;
     do_audit(cookie,
              MEMCACHED_AUDIT_SELECT_BUCKET,
@@ -231,7 +239,11 @@ void audit_bucket_flush(Cookie& cookie, const std::string_view bucket) {
         return;
     }
     auto& c = cookie.getConnection();
-    auto root = create_memcached_audit_object(c, c.getUser(), {});
+    auto root = create_memcached_audit_object(
+            MEMCACHED_AUDIT_EXTERNAL_MEMCACHED_BUCKET_FLUSH,
+            c,
+            c.getUser(),
+            {});
     root["bucket"] = bucket;
 
     do_audit(&cookie,
@@ -248,7 +260,8 @@ void audit_dcp_open(Cookie& cookie) {
     if (c.isInternal()) {
         LOG_INFO_RAW("Open DCP stream with admin credentials");
     } else {
-        auto root = create_memcached_audit_object(c, c.getUser(), {});
+        auto root = create_memcached_audit_object(
+                MEMCACHED_AUDIT_OPENED_DCP_CONNECTION, c, c.getUser(), {});
         root["bucket"] = c.getBucket().name;
 
         do_audit(&cookie,
@@ -264,7 +277,8 @@ void audit_set_privilege_debug_mode(Cookie& cookie, bool enable) {
         return;
     }
     auto& c = cookie.getConnection();
-    auto root = create_memcached_audit_object(c, c.getUser(), {});
+    auto root = create_memcached_audit_object(
+            MEMCACHED_AUDIT_PRIVILEGE_DEBUG_CONFIGURED, c, c.getUser(), {});
     root["enable"] = enable;
     do_audit(&cookie,
              MEMCACHED_AUDIT_PRIVILEGE_DEBUG_CONFIGURED,
@@ -284,7 +298,8 @@ void audit_privilege_debug(Cookie& cookie,
                    cookie.getEffectiveUser())) {
         return;
     }
-    auto root = create_memcached_audit_object(c, c.getUser(), {});
+    auto root = create_memcached_audit_object(
+            MEMCACHED_AUDIT_PRIVILEGE_DEBUG, c, c.getUser(), {});
     root["command"] = command;
     root["bucket"] = bucket;
     root["privilege"] = privilege;
@@ -302,7 +317,10 @@ void audit_command_access_failed(Cookie& cookie) {
     }
     const auto& connection = cookie.getConnection();
     auto root = create_memcached_audit_object(
-            connection, connection.getUser(), cookie.getEffectiveUser());
+            MEMCACHED_AUDIT_COMMAND_ACCESS_FAILURE,
+            connection,
+            connection.getUser(),
+            cookie.getEffectiveUser());
     std::array<char, 256> buffer;
     memset(buffer.data(), 0, buffer.size());
     const auto packet = cookie.getPacket();
@@ -326,7 +344,8 @@ void audit_invalid_packet(const Connection& c, cb::const_byte_buffer packet) {
     if (!isEnabled(MEMCACHED_AUDIT_INVALID_PACKET, c, nullptr)) {
         return;
     }
-    auto root = create_memcached_audit_object(c, c.getUser(), {});
+    auto root = create_memcached_audit_object(
+            MEMCACHED_AUDIT_INVALID_PACKET, c, c.getUser(), {});
     std::stringstream ss;
     std::string trunc;
     const cb::const_byte_buffer::size_type max_dump_size = 256;
@@ -351,14 +370,86 @@ bool mc_audit_event(Cookie& cookie,
     std::string_view buffer{reinterpret_cast<const char*>(payload.data()),
                             payload.size()};
 
+    const auto* descr =
+            AuditDescriptorManager::instance().lookup(audit_eventid);
+    if (!descr) {
+        LOG_WARNING("{}: Tried to submit an unknown audit event: {} : {}",
+                    cookie.getConnectionId(),
+                    audit_eventid,
+                    buffer);
+        return false;
+    }
+
+    if (!descr->isEnabled()) {
+        return true;
+    }
+
+    nlohmann::json json;
     using cb::tracing::Code;
     using cb::tracing::SpanStopwatch;
+
+    {
+        ScopeTimer1<SpanStopwatch> timer(cookie, Code::JsonParse);
+        try {
+            json = nlohmann::json::parse(buffer);
+        } catch (const std::exception& e) {
+            LOG_WARNING(
+                    "{}: Failed to parse provided JSON. Audit event {} "
+                    "dropped: {}",
+                    cookie.getConnectionId(),
+                    audit_eventid,
+                    e.what());
+            return false;
+        }
+    }
+
+    // find the user identifiers, bucket, scope and collection
+    // and call the filter
+    auto iter = json.find("real_userid");
+    if (iter == json.end()) {
+        LOG_WARNING("{} Submitted an audit event ({}) without a real user",
+                    cookie.getConnectionId(),
+                    audit_eventid);
+        return false;
+    }
+    cb::rbac::UserIdent uid(*iter);
+    cb::rbac::UserIdent euid_holder;
+    cb::rbac::UserIdent* euid = nullptr;
+    iter = json.find("effective_userid");
+    if (iter != json.end()) {
+        euid_holder = cb::rbac::UserIdent(*iter);
+        euid = &euid_holder;
+    }
+    auto bucket = json.value("bucket", std::string{});
+    auto sid = json.value("scope_id", std::string{});
+    auto cid = json.value("collection_id", std::string{});
+    std::optional<std::string_view> buck;
+    std::optional<ScopeID> scope;
+    std::optional<CollectionID> collection;
+    if (!bucket.empty()) {
+        buck = bucket;
+    }
+    if (!sid.empty()) {
+        scope = ScopeID(sid);
+    }
+    if (!cid.empty()) {
+        collection = CollectionID(cid);
+    }
+
+    if (cookie.getConnection().getThread().is_audit_event_filtered_out(
+                audit_eventid, uid, euid, buck, scope, collection)) {
+        return true;
+    }
+
+    json["id"] = audit_eventid;
+    json["name"] = descr->getName();
+    json["description"] = descr->getDescription();
     ScopeTimer1<SpanStopwatch> timer(cookie, Code::Audit);
-    return getAuditHandle().withRLock([audit_eventid, buffer](auto& handle) {
+    return getAuditHandle().withRLock([audit_eventid, json](auto& handle) {
         if (!handle) {
             return false;
         }
-        return handle->put_event(audit_eventid, buffer);
+        return handle->put_event(audit_eventid, std::move(json));
     });
 }
 
@@ -369,7 +460,8 @@ void addSessionTerminated(const Connection& c) {
         !isEnabled(MEMCACHED_AUDIT_SESSION_TERMINATED, c, nullptr)) {
         return;
     }
-    auto root = create_memcached_audit_object(c, c.getUser(), {});
+    auto root = create_memcached_audit_object(
+            MEMCACHED_AUDIT_SESSION_TERMINATED, c, c.getUser(), {});
     const auto& reason = c.getTerminationReason();
     if (!reason.empty()) {
         root["reason_for_termination"] = reason;
@@ -411,7 +503,7 @@ void add(Cookie& cookie, Operation operation) {
 
     const auto& connection = cookie.getConnection();
     auto root = create_memcached_audit_object(
-            connection, connection.getUser(), cookie.getEffectiveUser());
+            id, connection, connection.getUser(), cookie.getEffectiveUser());
     root["bucket"] = connection.getBucket().name;
     root["collection_id"] = cookie.getPrintableRequestCollectionID();
     root["key"] = cookie.getPrintableRequestKey(false, true);

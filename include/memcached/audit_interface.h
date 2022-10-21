@@ -11,6 +11,7 @@
 #pragma once
 
 #include <memcached/engine_error.h>
+#include <nlohmann/json_fwd.hpp>
 #include <memory>
 
 class StatCollector;
@@ -77,7 +78,7 @@ public:
      *         false if an error occurred while trying to insert the
      *               event to the audit queue.
      */
-    virtual bool put_event(uint32_t eventid, std::string_view payload) = 0;
+    virtual bool put_event(uint32_t eventid, nlohmann::json payload) = 0;
 
     /**
      * Update the audit daemon with the specified configuration file

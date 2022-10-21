@@ -100,6 +100,7 @@ target_link_libraries(memcached_testapp PRIVATE
     ${COUCHBASE_NETWORK_LIBS})
 add_dependencies(memcached_testapp
     memcached
+    generate_audit_descriptors
     Generate_kv_engine_X509_Test_Certificates
     golang_tls_test)
 add_sanitizers(memcached_testapp)

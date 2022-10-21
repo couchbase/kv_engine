@@ -60,7 +60,7 @@ public:
      * @param output the data to write
      * @return true if success, false otherwise
      */
-    bool write_event_to_disk(nlohmann::json& output);
+    bool write_event_to_disk(const nlohmann::json& output);
 
     /**
      * Is the audit file open already?

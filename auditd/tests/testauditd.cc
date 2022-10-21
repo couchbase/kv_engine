@@ -244,76 +244,6 @@ TEST_P(AuditDaemonTest, StartupEnableCreateFile) {
     assertNumberOfFiles(1);
 }
 
-class AuditDaemonFilteringTest : public AuditDaemonTest {
-protected:
-    void SetUp() override {
-        AuditDaemonTest::SetUp();
-        // Add the userid : {"source" : "internal", "user" : "johndoe"}
-        // to the disabled users list
-        nlohmann::json disabled_userids = nlohmann::json::array();
-        nlohmann::json userIdRoot;
-        userIdRoot["source"] = "internal";
-        userIdRoot["user"] = "johndoe";
-        disabled_userids.push_back(userIdRoot);
-
-        config.public_set_disabled_userids(disabled_userids);
-    }
-};
-
-/**
- * Tests the filtering of audit events by user.
- * An attempt is made to add the new event to the audit log (using
- * put_audit_event) with a real_userid:user = "johndoe".  Depending on the
- * global filter setting and the event's filtering permitted attribute, the
- * "johndoe" event may or may not appear in the audit log.
- */
-TEST_P(AuditDaemonFilteringTest, AuditFilteringTest) {
-    bool globalFilterSetting = std::get<0>(GetParam());
-    bool eventFilteringPermitted = std::get<1>(GetParam());
-    bool foundJohndoe{false};
-
-    auto id = eventFilteringPermitted ? MEMCACHED_AUDIT_INVALID_PACKET
-                                      : MEMCACHED_AUDIT_AUTHENTICATION_FAILED;
-
-    const std::string payloadjohndoe = R"({"id": )" + std::to_string(id) +
-                                       R"(, "timestamp": "test", "real_userid":
-                     {"source": "internal", "user": "johndoe"}})";
-
-    const std::string payloadanother = R"({"id": )" + std::to_string(id) +
-                                       R"(, "timestamp": "test", "real_userid":
-                     {"source": "internal", "user": "another"}})";
-
-    config.set_filtering_enabled(globalFilterSetting);
-    enable();
-
-    // generate the event with real_userid:user = johndoe
-    auditHandle->put_event(id, payloadjohndoe);
-    // generate the event with real_userid:user = another
-    auditHandle->put_event(id, payloadanother);
-
-    // Check the audit log exists
-    assertNumberOfFiles(1);
-
-    // wait up to 10 seconds for "another" to appear in the audit log
-    uint16_t waitIteration = 0;
-    while (!existsInAuditLog("another") && (waitIteration < 200)) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        waitIteration++;
-    }
-
-    // Check to see if "johndoe" exists or not in the audit log
-    foundJohndoe = existsInAuditLog("johndoe");
-
-    // If filtering is enabled and the event is permitted to be filtered
-    // then the event should not be found in the audit log.
-    if (globalFilterSetting && eventFilteringPermitted) {
-        EXPECT_FALSE(foundJohndoe);
-    } else {
-        // exists in audit log
-        EXPECT_TRUE(foundJohndoe);
-    }
-}
-
 // Check to see if "uuid":"12345" is reported
 TEST_F(AuditDaemonTest, UuidTest) {
     enable();
@@ -360,13 +290,6 @@ int main(int argc, char** argv) {
     return RUN_ALL_TESTS();
 }
 
-static std::vector<bool> allFilteringOptions = {{true, false}};
-
 INSTANTIATE_TEST_SUITE_P(bool,
                          AuditDaemonTest,
                          ::testing::Values(std::make_tuple(true, true)));
-INSTANTIATE_TEST_SUITE_P(
-        bool,
-        AuditDaemonFilteringTest,
-        ::testing::Combine(::testing::ValuesIn(allFilteringOptions),
-                           ::testing::ValuesIn(allFilteringOptions)));
