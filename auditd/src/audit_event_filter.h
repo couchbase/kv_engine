@@ -50,11 +50,20 @@ public:
      * provided user.
      *
      * @param id The event to check
-     * @param user The user to check
+     * @param uid The user to check
+     * @param euid The effective user if it is different from uid
+     * @param bucket The optional bucket for the event
+     * @param scope The optional scope for the event
+     * @param collection The optional collection for the event
      * @return true if the event should be dropped, false if it should be
      *              submitted to the audit daemon.
      */
-    bool isFilteredOut(uint32_t id, const cb::rbac::UserIdent& user);
+    bool isFilteredOut(uint32_t id,
+                       const cb::rbac::UserIdent& uid,
+                       const cb::rbac::UserIdent* euid,
+                       std::optional<std::string_view> bucket,
+                       std::optional<ScopeID> scope,
+                       std::optional<CollectionID> collection);
 
 protected:
     /// Is the provided ID subject to filtering by this filter

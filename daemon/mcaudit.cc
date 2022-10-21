@@ -41,17 +41,28 @@ static const int Last = MEMCACHED_AUDIT_TENANT_RATE_LIMITED;
 
 static std::array<std::atomic_bool, Last - First + 1> events;
 
-static bool isEnabled(uint32_t id, const Connection& connection) {
+static bool isEnabled(uint32_t id,
+                      const Connection& connection,
+                      const cb::rbac::UserIdent* euid,
+                      std::optional<std::string_view> bucket,
+                      std::optional<ScopeID> scope,
+                      std::optional<CollectionID> collection) {
     if (!audit_enabled.load(std::memory_order_consume)) {
-        // Global switch is off.. All events are disabled
+        // Global switch is off... All events are disabled
         return false;
     }
 
     if (id >= First && id <= Last) {
         // This is one of ours
         if (events[id - First].load(std::memory_order_consume)) {
-            if (connection.getThread().is_audit_event_filtered_out(
-                        id, connection.getUser())) {
+            // The event is enabled. Check if it is disabled or not
+            auto& thread = connection.getThread();
+            if (thread.is_audit_event_filtered_out(id,
+                                                   connection.getUser(),
+                                                   euid,
+                                                   bucket,
+                                                   scope,
+                                                   collection)) {
                 return false;
             }
 
@@ -63,6 +74,23 @@ static bool isEnabled(uint32_t id, const Connection& connection) {
     // we don't have information about this id... let the underlying event
     // framework deal with it
     return true;
+}
+
+static bool isEnabled(uint32_t id,
+                      const Connection& connection,
+                      const cb::rbac::UserIdent* euid) {
+    return isEnabled(id, connection, euid, connection.getBucket().name, {}, {});
+}
+
+static bool isEnabled(uint32_t id, const Cookie& cookie) {
+    const auto& connection = cookie.getConnection();
+    auto [sid, cid] = cookie.getScopeAndCollection();
+    return isEnabled(id,
+                     connection,
+                     cookie.getEffectiveUser(),
+                     connection.getBucket().name,
+                     sid,
+                     cid);
 }
 
 void cb::audit::setEnabled(uint32_t id, bool enable) {
@@ -154,7 +182,9 @@ void audit_auth_failure(const Connection& c,
                         const cb::rbac::UserIdent& ui,
                         const char* reason,
                         Cookie* cookie) {
-    if (!isEnabled(MEMCACHED_AUDIT_AUTHENTICATION_FAILED, c)) {
+    if (!isEnabled(MEMCACHED_AUDIT_AUTHENTICATION_FAILED,
+                   c,
+                   cookie ? cookie->getEffectiveUser() : nullptr)) {
         return;
     }
     auto root = create_memcached_audit_object(c, ui, {});
@@ -167,7 +197,9 @@ void audit_auth_failure(const Connection& c,
 }
 
 void audit_auth_success(const Connection& c, Cookie* cookie) {
-    if (!isEnabled(MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED, c)) {
+    if (!isEnabled(MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED,
+                   c,
+                   cookie ? cookie->getEffectiveUser() : nullptr)) {
         return;
     }
     auto root = create_memcached_audit_object(c, c.getUser(), {});
@@ -181,7 +213,9 @@ void audit_bucket_selection(const Connection& c, Cookie* cookie) {
     const auto& bucket = c.getBucket();
     // Don't audit that we're jumping into the "no bucket"
     if (bucket.type == BucketType::NoBucket ||
-        !isEnabled(MEMCACHED_AUDIT_SELECT_BUCKET, c)) {
+        !isEnabled(MEMCACHED_AUDIT_SELECT_BUCKET,
+                   c,
+                   cookie ? cookie->getEffectiveUser() : nullptr)) {
         return;
     }
     auto root = create_memcached_audit_object(c, c.getUser(), {});
@@ -193,8 +227,7 @@ void audit_bucket_selection(const Connection& c, Cookie* cookie) {
 }
 
 void audit_bucket_flush(Cookie& cookie, const std::string_view bucket) {
-    if (!isEnabled(MEMCACHED_AUDIT_EXTERNAL_MEMCACHED_BUCKET_FLUSH,
-                   cookie.getConnection())) {
+    if (!isEnabled(MEMCACHED_AUDIT_EXTERNAL_MEMCACHED_BUCKET_FLUSH, cookie)) {
         return;
     }
     auto& c = cookie.getConnection();
@@ -208,8 +241,7 @@ void audit_bucket_flush(Cookie& cookie, const std::string_view bucket) {
 }
 
 void audit_dcp_open(Cookie& cookie) {
-    if (!isEnabled(MEMCACHED_AUDIT_OPENED_DCP_CONNECTION,
-                   cookie.getConnection())) {
+    if (!isEnabled(MEMCACHED_AUDIT_OPENED_DCP_CONNECTION, cookie)) {
         return;
     }
     auto& c = cookie.getConnection();
@@ -228,8 +260,7 @@ void audit_dcp_open(Cookie& cookie) {
 }
 
 void audit_set_privilege_debug_mode(Cookie& cookie, bool enable) {
-    if (!isEnabled(MEMCACHED_AUDIT_PRIVILEGE_DEBUG_CONFIGURED,
-                   cookie.getConnection())) {
+    if (!isEnabled(MEMCACHED_AUDIT_PRIVILEGE_DEBUG_CONFIGURED, cookie)) {
         return;
     }
     auto& c = cookie.getConnection();
@@ -248,7 +279,9 @@ void audit_privilege_debug(Cookie& cookie,
                            const std::string& privilege,
                            const std::string& context) {
     auto& c = cookie.getConnection();
-    if (!isEnabled(MEMCACHED_AUDIT_PRIVILEGE_DEBUG, c)) {
+    if (!isEnabled(MEMCACHED_AUDIT_PRIVILEGE_DEBUG,
+                   c,
+                   cookie.getEffectiveUser())) {
         return;
     }
     auto root = create_memcached_audit_object(c, c.getUser(), {});
@@ -264,8 +297,7 @@ void audit_privilege_debug(Cookie& cookie,
 }
 
 void audit_command_access_failed(Cookie& cookie) {
-    if (!isEnabled(MEMCACHED_AUDIT_COMMAND_ACCESS_FAILURE,
-                   cookie.getConnection())) {
+    if (!isEnabled(MEMCACHED_AUDIT_COMMAND_ACCESS_FAILURE, cookie)) {
         return;
     }
     const auto& connection = cookie.getConnection();
@@ -291,7 +323,7 @@ void audit_command_access_failed(Cookie& cookie) {
 }
 
 void audit_invalid_packet(const Connection& c, cb::const_byte_buffer packet) {
-    if (!isEnabled(MEMCACHED_AUDIT_INVALID_PACKET, c)) {
+    if (!isEnabled(MEMCACHED_AUDIT_INVALID_PACKET, c, nullptr)) {
         return;
     }
     auto root = create_memcached_audit_object(c, c.getUser(), {});
@@ -334,7 +366,7 @@ namespace cb::audit {
 
 void addSessionTerminated(const Connection& c) {
     if (!c.isAuthenticated() ||
-        !isEnabled(MEMCACHED_AUDIT_SESSION_TERMINATED, c)) {
+        !isEnabled(MEMCACHED_AUDIT_SESSION_TERMINATED, c, nullptr)) {
         return;
     }
     auto root = create_memcached_audit_object(c, c.getUser(), {});
@@ -373,7 +405,7 @@ void add(Cookie& cookie, Operation operation) {
                 "cb::audit::document::add: Invalid operation");
     }
 
-    if (!isEnabled(id, cookie.getConnection())) {
+    if (!isEnabled(id, cookie)) {
         return;
     }
 

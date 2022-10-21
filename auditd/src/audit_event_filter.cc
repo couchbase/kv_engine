@@ -35,11 +35,23 @@ bool AuditEventFilter::isIdSubjectToFilter(uint32_t id) {
 }
 
 bool AuditEventFilter::isFilteredOut(uint32_t id,
-                                     const cb::rbac::UserIdent& user) {
-    if (!filtering_enabled || !isIdSubjectToFilter(id)) {
-        return false;
-    }
+                                     const cb::rbac::UserIdent& uid,
+                                     const cb::rbac::UserIdent* euid,
+                                     std::optional<std::string_view> bucket,
+                                     std::optional<ScopeID> scope,
+                                     std::optional<CollectionID> collection) {
+    auto isFilteredOut = [this](uint32_t id, const cb::rbac::UserIdent& user) {
+        if (!filtering_enabled || !isIdSubjectToFilter(id)) {
+            return false;
+        }
 
-    return std::find(disabled_userids.begin(), disabled_userids.end(), user) !=
-           disabled_userids.end();
+        return std::find(disabled_userids.begin(),
+                         disabled_userids.end(),
+                         user) != disabled_userids.end();
+    };
+
+    if (euid) {
+        return isFilteredOut(id, uid) && isFilteredOut(id, *euid);
+    }
+    return isFilteredOut(id, uid);
 }

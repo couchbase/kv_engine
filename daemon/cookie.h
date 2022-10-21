@@ -523,6 +523,11 @@ public:
                 CurrentCollectionInfo(sid, cid, manifestUid, metered);
     }
 
+    const std::pair<std::optional<ScopeID>, std::optional<CollectionID>>
+    getScopeAndCollection() const {
+        return {currentCollectionInfo.sid, currentCollectionInfo.cid};
+    }
+
     /// Set the JSON extras to return the manifestId which is located in
     /// currentCollectionInfo.
     void setUnknownCollectionErrorContext();

@@ -57,18 +57,22 @@ TEST(AuditEventFilterTest, isFilteredOut) {
 
     AuditEventFilter filter(0, true, {user1Local, user2External});
 
-    EXPECT_TRUE(
-            filter.isFilteredOut(MEMCACHED_AUDIT_DOCUMENT_READ, user1Local));
-    EXPECT_FALSE(
-            filter.isFilteredOut(MEMCACHED_AUDIT_DOCUMENT_READ, user1External));
-    EXPECT_TRUE(
-            filter.isFilteredOut(MEMCACHED_AUDIT_DOCUMENT_READ, user2External));
-    EXPECT_FALSE(
-            filter.isFilteredOut(MEMCACHED_AUDIT_DOCUMENT_READ, user2Local));
+    EXPECT_TRUE(filter.isFilteredOut(
+            MEMCACHED_AUDIT_DOCUMENT_READ, user1Local, {}, {}, {}, {}));
+    EXPECT_FALSE(filter.isFilteredOut(
+            MEMCACHED_AUDIT_DOCUMENT_READ, user1External, {}, {}, {}, {}));
+    EXPECT_TRUE(filter.isFilteredOut(
+            MEMCACHED_AUDIT_DOCUMENT_READ, user2External, {}, {}, {}, {}));
+    EXPECT_FALSE(filter.isFilteredOut(
+            MEMCACHED_AUDIT_DOCUMENT_READ, user2Local, {}, {}, {}, {}));
 
     // Verify that we don't filter out if the id doesn't allow filtering
+    EXPECT_FALSE(filter.isFilteredOut(
+            MEMCACHED_AUDIT_AUTHENTICATION_FAILED, user1Local, {}, {}, {}, {}));
     EXPECT_FALSE(filter.isFilteredOut(MEMCACHED_AUDIT_AUTHENTICATION_FAILED,
-                                      user1Local));
-    EXPECT_FALSE(filter.isFilteredOut(MEMCACHED_AUDIT_AUTHENTICATION_FAILED,
-                                      user2External));
+                                      user2External,
+                                      {},
+                                      {},
+                                      {},
+                                      {}));
 }
