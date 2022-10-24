@@ -161,18 +161,18 @@ TEST_P(TuneMcbpSla, SlowCommandLogging) {
         const auto entries = findLogLines();
         if (!entries.empty()) {
             // Verify that it has the correct format
-            EXPECT_EQ(1, entries.size());
             for (const auto& entry : entries) {
                 auto idx = entry.find('{');
                 ASSERT_NE(std::string::npos, idx);
                 auto json = nlohmann::json::parse(entry.substr(idx));
-                EXPECT_EQ("COMPACT_DB", json["command"].get<std::string>());
-                EXPECT_EQ("Success", json["response"].get<std::string>());
-                auto workerTid = json.find("worker_tid");
-                ASSERT_NE(workerTid, json.end());
-                EXPECT_TRUE(workerTid->is_number());
+                if (json["command"].get<std::string>() == "COMPACT_DB") {
+                    EXPECT_EQ("Success", json["response"].get<std::string>());
+                    auto workerTid = json.find("worker_tid");
+                    ASSERT_NE(workerTid, json.end());
+                    EXPECT_TRUE(workerTid->is_number());
+                    return;
+                }
             }
-            return;
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds{20});
