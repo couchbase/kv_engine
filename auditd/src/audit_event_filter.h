@@ -17,7 +17,8 @@
 
 #include <memcached/rbac/privilege_database.h>
 #include <cstdint>
-#include <string>
+#include <memory>
+#include <string_view>
 
 /**
  * The AuditEventFilter allows for checking if a given event should be
@@ -25,6 +26,8 @@
  */
 class AuditEventFilter {
 public:
+    virtual ~AuditEventFilter() = default;
+
     /**
      * Create a new instance
      *
@@ -33,17 +36,12 @@ public:
      * @param enabled Is audit filtering enabled or not
      * @param u The list of users which should be filtered out
      */
-    AuditEventFilter(uint64_t g,
-                     bool enabled,
-                     std::vector<cb::rbac::UserIdent> u)
-        : generation(g),
-          filtering_enabled(enabled),
-          disabled_userids(std::move(u)) {
-    }
+    static std::unique_ptr<AuditEventFilter> create(
+            uint64_t g, bool enabled, std::vector<cb::rbac::UserIdent> u);
 
     /// Check if this filter is valid (based on the same configuration as the
     /// audit daemon is currently using)
-    bool isValid();
+    virtual bool isValid() const = 0;
 
     /**
      * Check to see if the provided event should be filtered out for the
@@ -58,18 +56,11 @@ public:
      * @return true if the event should be dropped, false if it should be
      *              submitted to the audit daemon.
      */
-    bool isFilteredOut(uint32_t id,
-                       const cb::rbac::UserIdent& uid,
-                       const cb::rbac::UserIdent* euid,
-                       std::optional<std::string_view> bucket,
-                       std::optional<ScopeID> scope,
-                       std::optional<CollectionID> collection);
-
-protected:
-    /// Is the provided ID subject to filtering by this filter
-    static bool isIdSubjectToFilter(uint32_t id);
-
-    const uint64_t generation;
-    const bool filtering_enabled;
-    const std::vector<cb::rbac::UserIdent> disabled_userids;
+    virtual bool isFilteredOut(
+            uint32_t id,
+            const cb::rbac::UserIdent& uid,
+            const cb::rbac::UserIdent* euid,
+            std::optional<std::string_view> bucket,
+            std::optional<ScopeID> scope,
+            std::optional<CollectionID> collection) const = 0;
 };

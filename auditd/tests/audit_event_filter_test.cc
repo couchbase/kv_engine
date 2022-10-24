@@ -17,36 +17,15 @@
 #include <platform/dirutils.h>
 
 TEST(AuditEventFilterTest, InvalidGeneration) {
-    AuditEventFilter filter(AuditImpl::generation.load() + 1, true, {});
-    EXPECT_FALSE(filter.isValid());
+    auto filter = AuditEventFilter::create(
+            AuditImpl::generation.load() + 1, true, {});
+    EXPECT_FALSE(filter->isValid());
 }
 
 TEST(AuditEventFilterTest, ValidGeneration) {
-    AuditEventFilter filter(AuditImpl::generation.load(), true, {});
-    EXPECT_TRUE(filter.isValid());
-}
-
-TEST(AuditEventFilterTest, isIdSubjectToFilter) {
-    class MockAuditEventFilter : public AuditEventFilter {
-    public:
-        MockAuditEventFilter()
-            : AuditEventFilter(AuditImpl::generation.load(), true, {}) {
-        }
-        void testIsIdSubjectToFilter() {
-            auto json = nlohmann::json::parse(
-                    cb::io::loadFile((boost::filesystem::path{SOURCE_ROOT} /
-                                      "etc" / "memcached_descriptor.json")
-                                             .generic_string()));
-            for (const auto& entry : json["events"]) {
-                EXPECT_EQ(entry["filtering_permitted"].get<bool>(),
-                          isIdSubjectToFilter(entry["id"].get<uint32_t>()))
-                        << entry.dump(2);
-            }
-        }
-    };
-
-    MockAuditEventFilter filter;
-    filter.testIsIdSubjectToFilter();
+    auto filter =
+            AuditEventFilter::create(AuditImpl::generation.load(), true, {});
+    EXPECT_TRUE(filter->isValid());
 }
 
 TEST(AuditEventFilterTest, isFilteredOut) {
@@ -55,24 +34,25 @@ TEST(AuditEventFilterTest, isFilteredOut) {
     cb::rbac::UserIdent user2Local{"user2", cb::rbac::Domain::Local};
     cb::rbac::UserIdent user2External{"user2", cb::rbac::Domain::External};
 
-    AuditEventFilter filter(0, true, {user1Local, user2External});
+    auto filter =
+            AuditEventFilter::create(0, true, {user1Local, user2External});
 
-    EXPECT_TRUE(filter.isFilteredOut(
+    EXPECT_TRUE(filter->isFilteredOut(
             MEMCACHED_AUDIT_DOCUMENT_READ, user1Local, {}, {}, {}, {}));
-    EXPECT_FALSE(filter.isFilteredOut(
+    EXPECT_FALSE(filter->isFilteredOut(
             MEMCACHED_AUDIT_DOCUMENT_READ, user1External, {}, {}, {}, {}));
-    EXPECT_TRUE(filter.isFilteredOut(
+    EXPECT_TRUE(filter->isFilteredOut(
             MEMCACHED_AUDIT_DOCUMENT_READ, user2External, {}, {}, {}, {}));
-    EXPECT_FALSE(filter.isFilteredOut(
+    EXPECT_FALSE(filter->isFilteredOut(
             MEMCACHED_AUDIT_DOCUMENT_READ, user2Local, {}, {}, {}, {}));
 
     // Verify that we don't filter out if the id doesn't allow filtering
-    EXPECT_FALSE(filter.isFilteredOut(
+    EXPECT_FALSE(filter->isFilteredOut(
             MEMCACHED_AUDIT_AUTHENTICATION_FAILED, user1Local, {}, {}, {}, {}));
-    EXPECT_FALSE(filter.isFilteredOut(MEMCACHED_AUDIT_AUTHENTICATION_FAILED,
-                                      user2External,
-                                      {},
-                                      {},
-                                      {},
-                                      {}));
+    EXPECT_FALSE(filter->isFilteredOut(MEMCACHED_AUDIT_AUTHENTICATION_FAILED,
+                                       user2External,
+                                       {},
+                                       {},
+                                       {},
+                                       {}));
 }

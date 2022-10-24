@@ -408,6 +408,6 @@ std::unique_ptr<AuditEventFilter> AuditConfig::createAuditEventFilter(
             }
         }
     });
-    return std::make_unique<AuditEventFilter>(
+    return AuditEventFilter::create(
             rev, filtering_enabled.load(), std::move(u));
 }
