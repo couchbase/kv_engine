@@ -278,6 +278,11 @@ public:
      */
     static void resetClockFunction();
 
+    /// @return the current time which is used by RangeScans
+    static std::chrono::steady_clock::time_point getTime() {
+        return now();
+    }
+
 protected:
     /**
      * Function to create a scan by opening the underlying disk snapshot. The

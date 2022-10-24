@@ -105,6 +105,10 @@ void ReadyRangeScans::addStats(const StatCollector& collector) const {
     collector.addStat("tasks_size", getTaskQueueSize());
     collector.addStat("ready_queue_size", getReadyQueueSize());
     collector.addStat("max_duration", maxDuration.load().count());
+    // Log the "current time" according to RangeScan so that any logged
+    // timestamps can be better understood
+    collector.addStat("current_time",
+                      RangeScan::getTime().time_since_epoch().count());
 }
 
 // Task used by RangeScans for checking that any scans of a vbucket have not

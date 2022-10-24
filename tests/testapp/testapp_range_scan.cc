@@ -480,6 +480,11 @@ TEST_P(RangeScanTest, TestStats) {
     EXPECT_FALSE(stats.empty());
 
     auto statsAll = userConnection->stats("range-scans");
+
+    // Clear the time field so we can compare.
+    stats["current_time"] = "0";
+    statsAll["current_time"] = "0";
+
     // With only one vb in use, all == vbid0
     EXPECT_EQ(stats, statsAll);
 }
