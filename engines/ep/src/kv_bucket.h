@@ -702,6 +702,8 @@ public:
 
     void setXattrEnabled(bool value);
 
+    bool isCrossBucketHtQuotaSharing() const;
+
     /**
      * Returns the replication throttle instance
      *
@@ -1184,6 +1186,11 @@ protected:
      * threads.
      */
     cb::RelaxedAtomic<bool> xattrEnabled;
+
+    /**
+     * Is this bucket sharing HashTable quota?
+     */
+    const bool crossBucketHtQuotaSharing;
 
     /* Contains info about throttling the replication */
     std::unique_ptr<ReplicationThrottle> replicationThrottle;

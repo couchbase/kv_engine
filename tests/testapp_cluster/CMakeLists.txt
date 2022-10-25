@@ -3,6 +3,7 @@ cb_add_test_executable(cluster_test
                clustertest.h
                collection_tests.cc
                collection_dcp_tests.cc
+               cross_bucket_quota_sharing_test.cc
                durability_tests.cc
                durability_upgrade_tests.cc
                main.cc

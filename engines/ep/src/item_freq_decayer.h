@@ -14,8 +14,98 @@
 #include "kv_bucket_iface.h"
 #include <executor/globaltask.h>
 
+#include <folly/Synchronized.h>
+#include <platform/semaphore.h>
+#include <weak_ptr_bag.h>
+#include <memory>
+#include <mutex>
+#include <unordered_set>
+#include <vector>
+
 class ItemFreqDecayerVisitor;
 class PauseResumeVBAdapter;
+
+class ItemFreqDecayerTask;
+class CrossBucketItemFreqDecayer;
+
+/**
+ * Creates ItemFreqDecayerTask instances. Tasks created for quota sharing
+ * engine configurations are weakly referenced and strong references can be
+ * obtained by calling getTasksForQuotaSharing.
+ */
+class ItemFreqDecayerTaskManager {
+public:
+    static ItemFreqDecayerTaskManager& get();
+
+    /**
+     * Create an ItemFreqDecayerTask (factory method).
+     *
+     * @param percentage Defines by what percentage the values should be aged.
+     *                   0 means that no aging is performed, whilst 100 means
+     *                   that all the values are reset.
+     */
+    std::shared_ptr<ItemFreqDecayerTask> create(EventuallyPersistentEngine& e,
+                                                uint16_t percentage);
+
+    /**
+     * Get the ItemFreqDecayerTask instances created for quota sharing buckets
+     * which are currently alive in the program.
+     */
+    std::vector<std::shared_ptr<ItemFreqDecayerTask>> getTasksForQuotaSharing()
+            const;
+
+    /**
+     * Return the cross bucket decayer runner.
+     */
+    std::shared_ptr<CrossBucketItemFreqDecayer> getCrossBucketDecayer() const;
+
+private:
+    ItemFreqDecayerTaskManager();
+
+    /**
+     * Called when a UC ItemFreqDecayerTask has completed.
+     */
+    static void signalCompleted(ItemFreqDecayerTask& task);
+
+    /**
+     * The ItemFreqDecayerTasks created for quota sharing buckets.
+     */
+    WeakPtrBag<ItemFreqDecayerTask, std::mutex> tasksForQuotaSharing;
+
+    /**
+     * The cross-bucket decayer runner.
+     */
+    const std::shared_ptr<CrossBucketItemFreqDecayer> crossBucketDecayer;
+};
+
+/**
+ * Runs the ItemFreqDecayerTask for quota sharing buckets.
+ */
+class CrossBucketItemFreqDecayer {
+public:
+    /**
+     * Run the ItemFreqDecayerTasks.
+     */
+    void schedule();
+
+    /**
+     * Signalled when an ItemFreqDecayerTask has completed execution.
+     */
+    void itemDecayerCompleted(ItemFreqDecayerTask& task);
+
+private:
+    std::atomic_bool notified;
+    /**
+     * The set of tasks we're still waiting to complete before we can schedule
+     * again.
+     *
+     * The tasks' destructors will signal the ItemFreqDecayerTaskManager, which
+     * will in turn call itemDecayerCompleted, where we remove the destroyed
+     * task pointers from this set (so we don't have dangling pointers).
+     */
+    folly::Synchronized<std::unordered_set<ItemFreqDecayerTask*>, std::mutex>
+            pendingSubTasks;
+};
 
 /**
  * The task is responsible for running a visitor that iterates over all
@@ -24,7 +114,19 @@ class PauseResumeVBAdapter;
  */
 class ItemFreqDecayerTask : public GlobalTask {
 public:
-    ItemFreqDecayerTask(EventuallyPersistentEngine& e, uint16_t percentage_);
+    /**
+     * Create an ItemFreqDecayerTask.
+     *
+     * @param e A reference to the ep-engine.
+     * @param percentage Defines by what percentage the values should be aged.
+     *                   0 means that no aging is performed, whilst 100 means
+     *                   that all the values are reset.
+     * @param scheduleNow If true, sets the waketime of the tasks to now.
+     *                    Otherwise, sets it to time_point::max().
+     */
+    ItemFreqDecayerTask(EventuallyPersistentEngine& e,
+                        uint16_t percentage_,
+                        bool scheduleNow = true);
 
     ~ItemFreqDecayerTask() override;
 
@@ -41,6 +143,9 @@ public:
     virtual void wakeup();
 
 protected:
+    virtual void onCompleted() {
+    }
+
     // bool used to indicate whether the task's visitor has finished visiting
     // all the documents in the given hash table.
     bool completed;

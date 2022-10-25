@@ -17,13 +17,127 @@
 #include "stored-value.h"
 #include <executor/executorpool.h>
 
+#include <daemon/nobucket_taskable.h>
 #include <phosphor/phosphor.h>
 
+#include <algorithm>
 #include <limits>
 
+ItemFreqDecayerTaskManager::ItemFreqDecayerTaskManager()
+    : crossBucketDecayer(std::make_shared<CrossBucketItemFreqDecayer>()) {
+}
+
+ItemFreqDecayerTaskManager& ItemFreqDecayerTaskManager::get() {
+    static ItemFreqDecayerTaskManager manager;
+    return manager;
+}
+
+std::shared_ptr<ItemFreqDecayerTask> ItemFreqDecayerTaskManager::create(
+        EventuallyPersistentEngine& e, uint16_t percentage) {
+    if (e.getConfiguration().isCrossBucketHtQuotaSharing()) {
+        // There's more bookkeeping to do for buckets sharing quota:
+        // The task must signal it's completion to the
+        // CrossBucketDecayer. We should also signal up if the task has been
+        // destroyed as then it might not complete. This is necessary to
+        // orchestrate the execution across buckets.
+        class ItemFreqDecayerTaskWithCallback : public ItemFreqDecayerTask {
+        public:
+            // Create an item decayer task which signals its completion to the
+            // task manager. The task should only be woken up from
+            // CrossBucketItemFreqDecayer::schedule for quota sharing configs,
+            // so we set scheduleNow to false. This is so that we never lose
+            // wakeups.
+            ItemFreqDecayerTaskWithCallback(EventuallyPersistentEngine& e,
+                                            uint16_t percentage)
+                : ItemFreqDecayerTask(e, percentage, /* scheduleNow= */ false) {
+            }
+            void onCompleted() override {
+                // Signal on completion
+                signalCompleted(*this);
+            }
+            ~ItemFreqDecayerTaskWithCallback() noexcept override {
+                // Signal on destruction
+                signalCompleted(*this);
+            }
+        };
+
+        auto task = std::make_shared<ItemFreqDecayerTaskWithCallback>(
+                e, percentage);
+        // Push to the list so we can get it back when we need to run the
+        // cross-bucket item decayer.
+        tasksForQuotaSharing.push(task);
+        return task;
+    }
+    return std::make_shared<ItemFreqDecayerTask>(e, percentage);
+}
+
+std::vector<std::shared_ptr<ItemFreqDecayerTask>>
+ItemFreqDecayerTaskManager::getTasksForQuotaSharing() const {
+    return tasksForQuotaSharing.getNonExpired();
+}
+
+std::shared_ptr<CrossBucketItemFreqDecayer>
+ItemFreqDecayerTaskManager::getCrossBucketDecayer() const {
+    return crossBucketDecayer;
+}
+
+void ItemFreqDecayerTaskManager::signalCompleted(ItemFreqDecayerTask& task) {
+    get().getCrossBucketDecayer()->itemDecayerCompleted(task);
+}
+
+void CrossBucketItemFreqDecayer::schedule() {
+    bool expected = false;
+    if (!notified.compare_exchange_strong(expected, true)) {
+        return;
+    }
+
+    // Get the tasks we need to wakeup and wait for
+    auto tasks = ItemFreqDecayerTaskManager::get().getTasksForQuotaSharing();
+    EP_LOG_DEBUG("CrossBucketItemFreqDecayer waking up {} decayer tasks",
+                 tasks.size());
+    for (const auto& task : tasks) {
+        // The task is only ever scheduled from here. We shouldn't reach here if
+        // any tasks are waiting to run or running because of the notified
+        // guard, which we reset in itemDecayerCompleted.
+#if CB_DEVELOPMENT_ASSERTS
+        // Assert the above is true for debug builds.
+        Expects(task->getWaketime() ==
+                std::chrono::steady_clock::time_point::max());
+#endif // CB_DEVELOPMENT_ASSERTS
+        task->wakeup();
+    }
+
+    // Add the tasks to the pending task set
+    pendingSubTasks.withLock([&tasks](auto& locked) {
+        Expects(locked.empty());
+        for (const auto& task : tasks) {
+            locked.insert(task.get());
+        }
+    });
+}
+
+void CrossBucketItemFreqDecayer::itemDecayerCompleted(ItemFreqDecayerTask& t) {
+    // Reset the notified flag once all tasks have completed.
+    // This method also gets called when the task object is destroyed,
+    // or when the bucket is warmed up and the task is executed without the
+    // CrossBucketItemFreqDecayer waking it up, so erase() can return 0.
+    auto remainingTasks = pendingSubTasks.withLock([tptr = &t](auto& locked) {
+        locked.erase(tptr);
+        return locked.size();
+    });
+    if (remainingTasks == 0) {
+        EP_LOG_DEBUG_RAW(
+                "CrossBucketItemFreqDecayer all decayer tasks have "
+                "completed");
+        notified.store(false);
+    }
+}
+
 ItemFreqDecayerTask::ItemFreqDecayerTask(EventuallyPersistentEngine& e,
-                                         uint16_t percentage_)
-    : GlobalTask(e, TaskId::ItemFreqDecayerTask, 0, false),
+                                         uint16_t percentage_,
+                                         bool scheduleNow)
+    : GlobalTask(
+              e, TaskId::ItemFreqDecayerTask, scheduleNow ? 0 : INT_MAX, false),
       completed(false),
       epstore_position(engine->getKVBucket()->startPosition()),
       notified(false),
@@ -100,6 +214,7 @@ bool ItemFreqDecayerTask::run() {
     if (completed) {
         prAdapter.reset();
         notified.store(false);
+        onCompleted();
     } else {
         // We have not completed decaying all the items so wake the task back
         // up
@@ -115,7 +230,9 @@ bool ItemFreqDecayerTask::run() {
 
 void ItemFreqDecayerTask::stop() {
     if (uid) {
-        ExecutorPool::get()->cancel(uid);
+        if (ExecutorPool::get()->cancel(uid)) {
+            onCompleted();
+        }
     }
 }
 
