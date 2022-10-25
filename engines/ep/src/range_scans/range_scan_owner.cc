@@ -304,6 +304,19 @@ VB::RangeScanOwner::cancelAllExceedingDuration(EPBucket& bucket,
     return nextExpiry;
 }
 
+void VB::RangeScanOwner::cancelAllScans(EPBucket& bucket) {
+    auto locked = syncData.wlock();
+    for (auto it = locked->rangeScans.begin();
+         it != locked->rangeScans.end();) {
+        // Note: processScanRemoval() erases the entry from unordered_map, which
+        // invalidates any reference/iterator to the erased entry. This, we
+        // need to precompute 'next'.
+        auto next = std::next(it);
+        processScanRemoval(*locked, it->first, true /*cancelled*/);
+        it = next;
+    }
+}
+
 std::shared_ptr<RangeScan> VB::RangeScanOwner::getScan(
         cb::rangescan::Id id) const {
     auto locked = syncData.rlock();
@@ -320,10 +333,15 @@ void VB::RangeScanOwner::completeScan(cb::rangescan::Id id) {
 
 std::shared_ptr<RangeScan> VB::RangeScanOwner::processScanRemoval(
         cb::rangescan::Id id, bool cancelled) {
-    std::shared_ptr<RangeScan> scan;
     auto locked = syncData.wlock();
-    auto itr = locked->rangeScans.find(id);
-    if (itr == locked->rangeScans.end()) {
+    return processScanRemoval(*locked, id, cancelled);
+}
+
+std::shared_ptr<RangeScan> VB::RangeScanOwner::processScanRemoval(
+        SynchronizedData& data, cb::rangescan::Id id, bool cancelled) {
+    std::shared_ptr<RangeScan> scan;
+    auto itr = data.rangeScans.find(id);
+    if (itr == data.rangeScans.end()) {
         return {};
     }
     // obtain the scan
@@ -335,10 +353,10 @@ std::shared_ptr<RangeScan> VB::RangeScanOwner::processScanRemoval(
     }
 
     // Erase from the map, no further continue/cancel allowed.
-    locked->rangeScans.erase(itr);
+    data.rangeScans.erase(itr);
 
-    if (locked->rangeScans.empty()) {
-        locked->timeoutTask.reset();
+    if (data.rangeScans.empty()) {
+        data.timeoutTask.reset();
     }
     return scan;
 }

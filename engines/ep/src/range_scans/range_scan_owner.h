@@ -205,6 +205,18 @@ public:
             EPBucket& bucket, std::chrono::seconds duration);
 
     /**
+     * Cancel all scans for the given bucket.
+     * The function doesn't schedule any RangeScanContinueTask to run. Scans are
+     * removed in-place and possibly destructed if at call they aren't already
+     * scheduled for being executed in RangeScanContinueTask.
+     * Scans that are in the middle of their execution in RangeScanContinueTask
+     * will be destructed when the task completes.
+     *
+     * @param bucket The bucket of the scan
+     */
+    void cancelAllScans(EPBucket& bucket);
+
+    /**
      * Find the scan for the given id
      */
     std::shared_ptr<RangeScan> getScan(cb::rangescan::Id id) const;
@@ -238,11 +250,6 @@ public:
     std::chrono::seconds getMaxDuration() const;
 
 protected:
-    std::shared_ptr<RangeScan> processScanRemoval(cb::rangescan::Id id,
-                                                  bool cancelled);
-
-    ReadyRangeScans* readyScans;
-
     // Following struct wraps all objects managed via folly::Synchronized
     struct SynchronizedData {
         /// All scans that are available for continue/cancel
@@ -255,5 +262,14 @@ protected:
     };
 
     folly::Synchronized<SynchronizedData> syncData;
+
+    std::shared_ptr<RangeScan> processScanRemoval(cb::rangescan::Id id,
+                                                  bool cancelled);
+
+    std::shared_ptr<RangeScan> processScanRemoval(SynchronizedData& data,
+                                                  cb::rangescan::Id id,
+                                                  bool cancelled);
+
+    ReadyRangeScans* readyScans;
 };
 } // namespace VB
