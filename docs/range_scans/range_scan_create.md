@@ -102,7 +102,12 @@ object has the following keys.
   * `"samples"`
   * value is a number
   * This key must be included in the `"sampling"` object.
-  * If the target collection is smaller than samples, the entire collection is returned.
+  * A sampling scan does not guarantee that exactly the requested number of
+    items is returned. A bernoulli distribution with a probability of
+    `samples / collection size` determines if a scanned key is included in the
+    output set.
+  * If the target collection size is smaller or equal to samples, the entire
+    collection is returned.
 
 ### Snapshot Requirements
 
