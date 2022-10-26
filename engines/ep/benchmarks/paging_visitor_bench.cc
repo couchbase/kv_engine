@@ -218,12 +218,11 @@ BENCHMARK_DEFINE_F(PagingVisitorBench, SingleVBucket)
                         cfg.getItemEvictionFreqCounterAgeThreshold(),
                         &engine->getEpStats());
 
-        auto pv = std::make_unique<PagingVisitor>(
+        auto pv = std::make_unique<ItemPagingVisitor>(
                 *engine->getKVBucket(),
                 engine->getEpStats(),
                 std::move(evictionStrategy),
                 semaphore,
-                ITEM_PAGER,
                 false,
                 VBucketFilter(std::vector<Vbid>{vbid}));
         ObjectRegistry::onSwitchThread(engine.get());
@@ -269,12 +268,11 @@ BENCHMARK_DEFINE_F(PagingVisitorBench, PagerIteration)
                         cfg.getItemEvictionFreqCounterAgeThreshold(),
                         &engine->getEpStats());
 
-        auto pv = std::make_unique<PagingVisitor>(
+        auto pv = std::make_unique<ItemPagingVisitor>(
                 *engine->getKVBucket(),
                 engine->getEpStats(),
                 std::move(evictionStrategy),
                 semaphore,
-                ITEM_PAGER,
                 false,
                 VBucketFilter(std::vector<Vbid>{vbid}));
         ObjectRegistry::onSwitchThread(engine.get());

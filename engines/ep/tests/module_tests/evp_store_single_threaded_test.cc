@@ -5331,13 +5331,12 @@ TEST_P(STParameterizedBucketTest,
                         config.getItemEvictionAgePercentage(),
                         config.getItemEvictionFreqCounterAgeThreshold(),
                         &engine->getEpStats());
-        auto visitor = PagingVisitor(*store,
-                                     engine->getEpStats(),
-                                     std::move(evictionStrategy),
-                                     pagerSemaphore,
-                                     ITEM_PAGER,
-                                     false,
-                                     VBucketFilter());
+        auto visitor = ItemPagingVisitor(*store,
+                                         engine->getEpStats(),
+                                         std::move(evictionStrategy),
+                                         pagerSemaphore,
+                                         false,
+                                         VBucketFilter());
         store->visit(visitor);
         visitor.complete();
     };

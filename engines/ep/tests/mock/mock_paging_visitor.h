@@ -18,28 +18,26 @@
 #include <folly/portability/GMock.h>
 
 /**
- * Mock PagingVisitor class.  Provide access to ItemEviction data structure.
+ * Mock ItemPagingVisitor class.  Provide access to ItemEviction data structure.
  */
-class MockPagingVisitor : public PagingVisitor {
+class MockItemPagingVisitor : public ItemPagingVisitor {
 public:
-    MockPagingVisitor(KVBucket& s,
-                      EPStats& st,
-                      std::unique_ptr<ItemEvictionStrategy> strategy,
-                      std::shared_ptr<cb::Semaphore> pagerSemaphore,
-                      pager_type_t caller,
-                      bool pause,
-                      const VBucketFilter& vbFilter)
-        : PagingVisitor(s,
-                        st,
-                        std::move(strategy),
-                        std::move(pagerSemaphore),
-                        caller,
-                        pause,
-                        vbFilter) {
+    MockItemPagingVisitor(KVBucket& s,
+                          EPStats& st,
+                          std::unique_ptr<ItemEvictionStrategy> strategy,
+                          std::shared_ptr<cb::Semaphore> pagerSemaphore,
+                          bool pause,
+                          const VBucketFilter& vbFilter)
+        : ItemPagingVisitor(s,
+                            st,
+                            std::move(strategy),
+                            std::move(pagerSemaphore),
+                            pause,
+                            vbFilter) {
         using namespace testing;
         ON_CALL(*this, visitBucket(_))
                 .WillByDefault(Invoke([this](VBucket& vb) {
-                    PagingVisitor::visitBucket(vb);
+                    ItemPagingVisitor::visitBucket(vb);
                 }));
     }
 
@@ -57,6 +55,32 @@ public:
         //       will no longer be necessary, and the freqCounter can be
         static_cast<LearningAgeAndMFUBasedEviction&>(*evictionStrategy)
                 .setFreqCounterThreshold(threshold);
+    }
+
+    void setCurrentBucket(VBucket& _currentBucket) {
+        currentBucket = &_currentBucket;
+    }
+
+    MOCK_METHOD1(visitBucket, void(VBucket&));
+};
+
+/**
+ * Mock ExpiredPagingVisitor class.
+ */
+class MockExpiredPagingVisitor : public ExpiredPagingVisitor {
+public:
+    MockExpiredPagingVisitor(KVBucket& s,
+                             EPStats& st,
+                             std::shared_ptr<cb::Semaphore> pagerSemaphore,
+                             bool pause,
+                             const VBucketFilter& vbFilter)
+        : ExpiredPagingVisitor(
+                  s, st, std::move(pagerSemaphore), pause, vbFilter) {
+        using namespace testing;
+        ON_CALL(*this, visitBucket(_))
+                .WillByDefault(Invoke([this](VBucket& vb) {
+                    ExpiredPagingVisitor::visitBucket(vb);
+                }));
     }
 
     void setCurrentBucket(VBucket& _currentBucket) {

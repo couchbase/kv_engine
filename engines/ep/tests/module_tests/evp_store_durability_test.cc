@@ -3549,16 +3549,11 @@ TEST_P(DurabilityEphemeralBucketTest, CompletedPreparesNotExpired) {
 
     auto pagerSemaphore = std::make_shared<cb::Semaphore>();
 
-    std::unique_ptr<MockPagingVisitor> pv = std::make_unique<MockPagingVisitor>(
-            *engine->getKVBucket(),
-            engine->getEpStats(),
-            // don't want anything to be _evicted_, that's not what this test
-            // is trying to cover.
-            ItemEvictionStrategy::evict_nothing(),
-            pagerSemaphore,
-            EXPIRY_PAGER,
-            false,
-            VBucketFilter());
+    auto pv = std::make_unique<MockExpiredPagingVisitor>(*engine->getKVBucket(),
+                                                         engine->getEpStats(),
+                                                         pagerSemaphore,
+                                                         false,
+                                                         VBucketFilter());
 
     {
         auto pending = vb->ht.findForUpdate(key).pending;

@@ -2043,12 +2043,11 @@ void EPBucketFullEvictionNoBloomFilterTest::MB_52067(bool forceCasMismatch) {
     // get requests.
     auto pagerSemaphore = std::make_shared<cb::Semaphore>();
     pagerSemaphore->try_acquire(1);
-    auto pv = std::make_unique<MockPagingVisitor>(
+    auto pv = std::make_unique<MockItemPagingVisitor>(
             *engine->getKVBucket(),
             engine->getEpStats(),
             ItemEvictionStrategy::evict_everything(), // try evict everything
             pagerSemaphore,
-            ITEM_PAGER,
             false,
             VBucketFilter());
 

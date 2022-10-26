@@ -36,31 +36,24 @@ static const size_t MAX_PERSISTENCE_QUEUE_SIZE = 1000000;
 
 PagingVisitor::PagingVisitor(KVBucket& s,
                              EPStats& st,
-                             std::unique_ptr<ItemEvictionStrategy> strategy,
                              std::shared_ptr<cb::Semaphore> pagerSemaphore,
-                             pager_type_t caller,
                              bool pause,
                              const VBucketFilter& vbFilter)
-    : evictionStrategy(std::move(strategy)),
-      ejected(0),
-      store(s),
+    : store(s),
       stats(st),
       startTime(ep_real_time()),
       pagerSemaphore(std::move(pagerSemaphore)),
-      owner(caller),
-      canPause(pause),
-      isBelowLowWaterMark(false),
+      isPausingAllowed(pause),
       wasAboveBackfillThreshold(s.isMemUsageAboveBackfillThreshold()),
-      taskStart(std::chrono::steady_clock::now()),
-      maxCas(0) {
+      taskStart(std::chrono::steady_clock::now()) {
     setVBucketFilter(vbFilter);
 }
 
-bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
-    // The ItemPager should never touch a prepare. Prepares will be eventually
+bool PagingVisitor::shouldVisit(StoredValue& v) {
+    // We should never touch a prepare. Prepares will be eventually
     // purged, but should not expire, whether completed or pending.
     if (v.isPending() || v.isPrepareCompleted()) {
-        return true;
+        return false;
     }
 
     if (!currentBucket->canEvict()) {
@@ -69,9 +62,13 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
         // This may depend on vbucket state, but the state lock is held for
         // each hash bucket visit (see setUpHashBucketVisit) so no additional
         // locking is required here.
-        return true;
+        return false;
     }
 
+    return true;
+}
+
+bool PagingVisitor::maybeExpire(StoredValue& v) {
     auto vbState = currentBucket->getState();
 
     // Delete expired items for an active vbucket.
@@ -82,11 +79,165 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
         expired.push_back(*it.get());
         return true;
     }
+    return false;
+}
 
-    // expiry pager does not need to do anything else
-    if (owner == EXPIRY_PAGER) {
+void PagingVisitor::update() {
+    // Process expirations
+    if (!expired.empty()) {
+        const auto startTime = ep_real_time();
+        for (auto& item : expired) {
+            store.processExpiredItem(item, startTime, ExpireBy::Pager);
+        }
+        EP_LOG_DEBUG("Purged {} expired items", expired.size());
+        expired.clear();
+    }
+}
+
+void PagingVisitor::complete() {
+    update();
+
+    // visitor done, return token so parent is aware when all visitors
+    // have finished.
+    pagerSemaphore->release();
+
+    // Wake up any sleeping backfill tasks if the memory usage is lowered
+    // below the backfill threshold as a result of item ejection.
+    if (wasAboveBackfillThreshold &&
+        !store.isMemUsageAboveBackfillThreshold()) {
+        store.getEPEngine().getDcpConnMap().notifyBackfillManagerTasks();
+    }
+}
+
+std::function<bool(const Vbid&, const Vbid&)>
+PagingVisitor::getVBucketComparator() const {
+    // Get the pageable mem used and state of each vb _once_ and cache it.
+    // Fetching these values repeatedly in the comparator could cause issues
+    // as the values can change _during_ a given sort call.
+
+    auto numVbs = store.getVBuckets().getSize();
+
+    std::vector<bool> isReplica(numVbs);
+    std::vector<size_t> memUsed(numVbs);
+
+    for (const auto& vbid : store.getVBuckets().getBuckets()) {
+        auto vb = store.getVBucket(vbid);
+        if (vb) {
+            isReplica[vbid.get()] = vb->getState() == vbucket_state_replica;
+            memUsed[vbid.get()] = vb->getPageableMemUsage();
+        }
+    }
+
+    return [isReplica = std::move(isReplica), memUsed = std::move(memUsed)](
+                   const Vbid& a, const Vbid& b) mutable {
+        // sort replicas before all other vbucket states, then sort by
+        // pageableMemUsed
+        return std::make_pair(isReplica[a.get()], memUsed[a.get()]) >
+               std::make_pair(isReplica[b.get()], memUsed[b.get()]);
+    };
+}
+
+std::chrono::microseconds PagingVisitor::getElapsedTime() const {
+    return std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - taskStart);
+}
+
+void PagingVisitor::setUpHashBucketVisit() {
+    // We need to lock the VBucket state here, because if the vb changes state
+    // during paging, this could lead to data loss.
+    vbStateLock = folly::SharedMutex::ReadHolder(currentBucket->getStateLock());
+    // Grab a locked ReadHandle
+    readHandle = currentBucket->lockCollections();
+}
+
+void PagingVisitor::tearDownHashBucketVisit() {
+    // Unlock the locks. They can now never be locked again, and should
+    // be overwritten with new ones. The unlocking order matters - vbStateLock
+    // must outlive the collections lock to avoid lock inversion.
+    readHandle.unlock();
+    vbStateLock.unlock();
+}
+
+ExpiredPagingVisitor::ExpiredPagingVisitor(
+        KVBucket& s,
+        EPStats& st,
+        std::shared_ptr<cb::Semaphore> pagerSemaphore,
+        bool pause,
+        const VBucketFilter& vbFilter)
+    : PagingVisitor(s, st, pagerSemaphore, pause, vbFilter) {
+}
+
+InterruptableVBucketVisitor::ExecutionState
+ExpiredPagingVisitor::shouldInterrupt() {
+    if (!canPause()) {
+        return ExecutionState::Continue;
+    }
+
+    if (stats.diskQueueSize.load() >= MAX_PERSISTENCE_QUEUE_SIZE) {
+        return ExecutionState::Pause;
+    }
+
+    return CappedDurationVBucketVisitor::shouldInterrupt();
+}
+
+bool ExpiredPagingVisitor::visit(const HashTable::HashBucketLock& lh,
+                                 StoredValue& v) {
+    if (!shouldVisit(v)) {
         return true;
     }
+    maybeExpire(v);
+    return true;
+}
+
+void ExpiredPagingVisitor::visitBucket(VBucket& vb) {
+    update();
+
+    if (vBucketFilter(vb.getId())) {
+        currentBucket = &vb;
+        // EvictionPolicy is not required when running expiry item
+        // pager
+        vb.ht.visit(*this);
+        currentBucket = nullptr;
+    }
+}
+
+void ExpiredPagingVisitor::complete() {
+    PagingVisitor::complete();
+    stats.expiryPagerHisto.add(getElapsedTime());
+}
+
+ItemPagingVisitor::ItemPagingVisitor(
+        KVBucket& s,
+        EPStats& st,
+        std::unique_ptr<ItemEvictionStrategy> strategy,
+        std::shared_ptr<cb::Semaphore> pagerSemaphore,
+        bool pause,
+        const VBucketFilter& vbFilter)
+    : PagingVisitor(s, st, pagerSemaphore, pause, vbFilter),
+      evictionStrategy(std::move(strategy)),
+      ejected(0),
+      maxCas(0) {
+}
+
+InterruptableVBucketVisitor::ExecutionState
+ItemPagingVisitor::shouldInterrupt() {
+    if (!canPause()) {
+        return ExecutionState::Continue;
+    }
+
+    return CappedDurationVBucketVisitor::shouldInterrupt();
+}
+
+bool ItemPagingVisitor::visit(const HashTable::HashBucketLock& lh,
+                              StoredValue& v) {
+    if (!shouldVisit(v)) {
+        return true;
+    }
+    if (maybeExpire(v)) {
+        return true;
+    }
+
+    auto vbState = currentBucket->getState();
 
     // Any dropped documents can be discarded
     if (readHandle.isLogicallyDeleted(v.getKey(), v.getBySeqno())) {
@@ -140,27 +291,14 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
     return true;
 }
 
-void PagingVisitor::visitBucket(VBucket& vb) {
+void ItemPagingVisitor::visitBucket(VBucket& vb) {
     update();
-
-    // fast path for expiry item pager
-    if (owner == EXPIRY_PAGER) {
-        if (vBucketFilter(vb.getId())) {
-            currentBucket = &vb;
-            // EvictionPolicy is not required when running expiry item
-            // pager
-            vb.ht.visit(*this);
-            currentBucket = nullptr;
-        }
-        return;
-    }
 
     auto current = static_cast<double>(stats.getEstimatedTotalMemoryUsed());
     auto lower = static_cast<double>(stats.mem_low_wat);
 
     if (current <= lower) {
         // stop eviction whenever memory usage is below low watermark
-        isBelowLowWaterMark = true;
         return;
     }
 
@@ -178,99 +316,9 @@ void PagingVisitor::visitBucket(VBucket& vb) {
     evictionStrategy->tearDownVBucketVisit(vb.getState());
 }
 
-void PagingVisitor::update() {
-    // Process expirations
-    if (!expired.empty()) {
-        const auto startTime = ep_real_time();
-        for (auto& item : expired) {
-            store.processExpiredItem(item, startTime, ExpireBy::Pager);
-        }
-        EP_LOG_DEBUG("Purged {} expired items", expired.size());
-        expired.clear();
-    }
-
-    if (ejected > 0) {
-        EP_LOG_DEBUG("Paged out {} values", ejected);
-        ejected = 0;
-    }
-}
-
-InterruptableVBucketVisitor::ExecutionState PagingVisitor::shouldInterrupt() {
-    if (!canPause) {
-        return ExecutionState::Continue;
-    }
-
-    if (owner == EXPIRY_PAGER &&
-        (stats.diskQueueSize.load() >= MAX_PERSISTENCE_QUEUE_SIZE)) {
-        return ExecutionState::Pause;
-    }
-
-    return CappedDurationVBucketVisitor::shouldInterrupt();
-}
-
-void PagingVisitor::complete() {
-    update();
-
-    auto elapsed_time = std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::steady_clock::now() - taskStart);
-    if (owner == ITEM_PAGER) {
-        stats.itemPagerHisto.add(elapsed_time);
-    } else if (owner == EXPIRY_PAGER) {
-        stats.expiryPagerHisto.add(elapsed_time);
-    }
-
-    // visitor done, return token so parent is aware when all visitors
-    // have finished.
-    pagerSemaphore->release();
-
-    // Wake up any sleeping backfill tasks if the memory usage is lowered
-    // below the backfill threshold as a result of item ejection.
-    if (wasAboveBackfillThreshold &&
-        !store.isMemUsageAboveBackfillThreshold()) {
-        store.getEPEngine().getDcpConnMap().notifyBackfillManagerTasks();
-    }
-
-    if (ITEM_PAGER == owner) {
-        // Re-check memory which may wake up the ItemPager and schedule
-        // a new PagingVisitor with the next phase/memory target etc...
-        // This is done after we've signalled 'completion' by clearing
-        // the stateFinalizer, which ensures the ItemPager doesn't just
-        // ignore a request.
-        store.checkAndMaybeFreeMemory();
-    }
-}
-
-std::function<bool(const Vbid&, const Vbid&)>
-PagingVisitor::getVBucketComparator() const {
-    // Get the pageable mem used and state of each vb _once_ and cache it.
-    // Fetching these values repeatedly in the comparator could cause issues
-    // as the values can change _during_ a given sort call.
-
-    auto numVbs = store.getVBuckets().getSize();
-
-    std::vector<bool> isReplica(numVbs);
-    std::vector<size_t> memUsed(numVbs);
-
-    for (const auto& vbid : store.getVBuckets().getBuckets()) {
-        auto vb = store.getVBucket(vbid);
-        if (vb) {
-            isReplica[vbid.get()] = vb->getState() == vbucket_state_replica;
-            memUsed[vbid.get()] = vb->getPageableMemUsage();
-        }
-    }
-
-    return [isReplica = std::move(isReplica), memUsed = std::move(memUsed)](
-                   const Vbid& a, const Vbid& b) mutable {
-        // sort replicas before all other vbucket states, then sort by
-        // pageableMemUsed
-        return std::make_pair(isReplica[a.get()], memUsed[a.get()]) >
-               std::make_pair(isReplica[b.get()], memUsed[b.get()]);
-    };
-}
-
-bool PagingVisitor::doEviction(const HashTable::HashBucketLock& lh,
-                               StoredValue* v,
-                               bool isDropped) {
+bool ItemPagingVisitor::doEviction(const HashTable::HashBucketLock& lh,
+                                   StoredValue* v,
+                                   bool isDropped) {
     auto policy = store.getItemEvictionPolicy();
     StoredDocKey key(v->getKey());
 
@@ -310,24 +358,28 @@ bool PagingVisitor::doEviction(const HashTable::HashBucketLock& lh,
     return false;
 }
 
-uint64_t PagingVisitor::casToAge(uint64_t cas) const {
+void ItemPagingVisitor::complete() {
+    PagingVisitor::complete();
+    stats.itemPagerHisto.add(getElapsedTime());
+
+    // Re-check memory which may wake up the ItemPager and schedule
+    // a new PagingVisitor with the next phase/memory target etc...
+    // This is done after we've signalled 'completion' by clearing
+    // the stateFinalizer, which ensures the ItemPager doesn't just
+    // ignore a request.
+    store.checkAndMaybeFreeMemory();
+}
+
+void ItemPagingVisitor::update() {
+    PagingVisitor::update();
+    if (ejected > 0) {
+        EP_LOG_DEBUG("Paged out {} values", ejected);
+        ejected = 0;
+    }
+}
+
+uint64_t ItemPagingVisitor::casToAge(uint64_t cas) const {
     uint64_t age = (maxCas > cas) ? (maxCas - cas) : 0;
     age = age >> cb::eviction::casBitsNotTime;
     return age;
-}
-
-void PagingVisitor::setUpHashBucketVisit() {
-    // We need to lock the VBucket state here, because if the vb changes state
-    // during paging, this could lead to data loss.
-    vbStateLock = folly::SharedMutex::ReadHolder(currentBucket->getStateLock());
-    // Grab a locked ReadHandle
-    readHandle = currentBucket->lockCollections();
-}
-
-void PagingVisitor::tearDownHashBucketVisit() {
-    // Unlock the locks. They can now never be locked again, and should
-    // be overwritten with new ones. The unlocking order matters - vbStateLock
-    // must outlive the collections lock to avoid lock inversion.
-    readHandle.unlock();
-    vbStateLock.unlock();
 }

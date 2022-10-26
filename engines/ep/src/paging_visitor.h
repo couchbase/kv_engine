@@ -30,8 +30,6 @@ namespace cb {
 class Semaphore;
 }
 
-enum pager_type_t { ITEM_PAGER, EXPIRY_PAGER };
-
 /**
  * As part of the ItemPager, visit all of the objects in memory and
  * eject some within a constrained probability
@@ -45,39 +43,17 @@ public:
      *
      * @param s the store that will handle the bulk removal
      * @param st the stats where we'll track what we've done
-     * @param evictionRatio fractions (0-1) of objects to attempt to evict
-     *                      from replica vbs, and from active/pending vbs
-     * @param sfin pointer to a bool to be set to true after run completes
      * @param pause flag indicating if PagingVisitor can pause between vbucket
      *              visits
-     * @param bias active vbuckets eviction probability bias multiplier (0-1)
      * @param vbFilter the filter used to select which vbuckets to visit
-     * @param _agePercentage age percentile used to find age threshold items
-     *        must exceed to be considered for eviction if their MFU value is
-     *        above _freqCounterAgeThreshold
-     * @param _freqCounterAgeThreshold MFU frequency threshold beyond which the
-     *        item age is considered
      */
     PagingVisitor(KVBucket& s,
                   EPStats& st,
-                  std::unique_ptr<ItemEvictionStrategy> strategy,
                   std::shared_ptr<cb::Semaphore> pagerSemaphore,
-                  pager_type_t caller,
                   bool pause,
                   const VBucketFilter& vbFilter);
 
-    bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) override;
-
-    void visitBucket(VBucket& vb) override;
-
-    void update();
-
-    /**
-     * @return ExecutionState::Pause if this visitor execution duration-quantum
-     *  has been consumed. Only for the ExpiryPager "paused" is also returned
-     *  based on the DWQ size. ExecutionState::Continue otherwise.
-     */
-    ExecutionState shouldInterrupt() override;
+    virtual void update();
 
     void complete() override;
 
@@ -99,6 +75,129 @@ public:
     void tearDownHashBucketVisit() override;
 
 protected:
+    /**
+     * Derived visitors should not touch the item.
+     *
+     * This may be because the item is a prepare or because this is an
+     * replica ephemeral bucket for example.
+     */
+    bool shouldVisit(StoredValue& v);
+
+    /**
+     * Expire the item if its TTL was up when the visitor was created.
+     * @return true if expired
+     */
+    bool maybeExpire(StoredValue& v);
+
+    /**
+     * Returns the time elapsed since the creation of the visitor instance.
+     */
+    std::chrono::microseconds getElapsedTime() const;
+
+    /**
+     * Is the visitor allowed to pause?
+     */
+    bool canPause() const {
+        return isPausingAllowed;
+    }
+
+    // The current vbucket that the eviction algorithm is operating on.
+    // Only valid while inside visitBucket().
+    VBucket* currentBucket{nullptr};
+
+    // The VBucket state lock handle that we use around HashBucket visits.
+    folly::SharedMutex::ReadHolder vbStateLock{nullptr};
+
+    // The VB::Manifest read handle that we use to lock around HashBucket
+    // visits. Will contain a nullptr if we aren't currently locking anything.
+    Collections::VB::ReadHandle readHandle;
+
+    KVBucket& store;
+    EPStats& stats;
+
+private:
+    std::list<Item> expired;
+
+    time_t startTime;
+    std::shared_ptr<cb::Semaphore> pagerSemaphore;
+    bool isPausingAllowed;
+
+    /**
+     * Flag used to identify if memory usage was above the backfill threshold
+     * when the PagingVisitor started. Used to determine if we have to wake up
+     * snoozed backfills at PagingVisitor completion.
+     */
+    bool wasAboveBackfillThreshold;
+
+    std::chrono::steady_clock::time_point taskStart;
+};
+
+class ExpiredPagingVisitor : public PagingVisitor {
+public:
+    /**
+     * Construct an ExpiredPagingVisitor that will expire eligible items.
+     *
+     * @param s the store that will handle the bulk removal
+     * @param st the stats where we'll track what we've done
+     * @param pause flag indicating if PagingVisitor can pause between vbucket
+     *              visits
+     * @param vbFilter the filter used to select which vbuckets to visit
+     */
+    ExpiredPagingVisitor(KVBucket& s,
+                         EPStats& st,
+                         std::shared_ptr<cb::Semaphore> pagerSemaphore,
+                         bool pause,
+                         const VBucketFilter& vbFilter);
+
+    /**
+     * @return ExecutionState::Pause if this visitor execution duration-quantum
+     *  has been consumed. "Paused" is also returned based on the DWQ size.
+     *  ExecutionState::Continue otherwise.
+     */
+    ExecutionState shouldInterrupt() override;
+
+    bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) override;
+
+    void visitBucket(VBucket& vb) override;
+
+    void complete() override;
+};
+
+class ItemPagingVisitor : public PagingVisitor {
+public:
+    /**
+     * Construct an ItemPagingVisitor that will attempt to evict the given
+     * percentage of objects.
+     *
+     * @param s the store that will handle the bulk removal
+     * @param st the stats where we'll track what we've done
+     * @param strategy the eviction strategy to use
+     * @param pause flag indicating if PagingVisitor can pause between vbucket
+     *              visits
+     * @param vbFilter the filter used to select which vbuckets to visit
+     */
+    ItemPagingVisitor(KVBucket& s,
+                      EPStats& st,
+                      std::unique_ptr<ItemEvictionStrategy> strategy,
+                      std::shared_ptr<cb::Semaphore> pagerSemaphore,
+                      bool pause,
+                      const VBucketFilter& vbFilter);
+
+    /**
+     * @return ExecutionState::Pause if this visitor execution duration-quantum
+     *  has been consumed. ExecutionState::Continue otherwise.
+     */
+    ExecutionState shouldInterrupt() override;
+
+    bool visit(const HashTable::HashBucketLock& lh, StoredValue& v) override;
+
+    void visitBucket(VBucket& vb) override;
+
+    void complete() override;
+
+    void update() override;
+
+protected:
     // Protected for testing purposes
     // Holds the data structures used during the selection of documents to
     // evict from the hash table.
@@ -107,15 +206,7 @@ protected:
     // The number of documents that were evicted.
     size_t ejected;
 
-    // The current vbucket that the eviction algorithm is operating on.
-    // Only valid while inside visitBucket().
-    VBucket* currentBucket{nullptr};
-
 private:
-    bool doEviction(const HashTable::HashBucketLock& lh,
-                    StoredValue* v,
-                    bool isDropped);
-
     /*
      * Calculate the age when the item was last stored / modified.
      *
@@ -134,35 +225,11 @@ private:
      */
     uint64_t casToAge(uint64_t cas) const;
 
-    std::list<Item> expired;
-
-    KVBucket& store;
-    EPStats& stats;
-    time_t startTime;
-    std::shared_ptr<cb::Semaphore> pagerSemaphore;
-    pager_type_t owner;
-    bool canPause;
-
-    /// Flag used to identify if memory usage is below the low watermark.
-    bool isBelowLowWaterMark;
-
-    /**
-     * Flag used to identify if memory usage was above the backfill threshold
-     * when the PagingVisitor started. Used to determine if we have to wake up
-     * snoozed backfills at PagingVisitor completion.
-     */
-    bool wasAboveBackfillThreshold;
-
-    std::chrono::steady_clock::time_point taskStart;
+    bool doEviction(const HashTable::HashBucketLock& lh,
+                    StoredValue* v,
+                    bool isDropped);
 
     // Holds the current vbucket's maxCas value at the point just before we
     // visit all items in the vbucket.
     uint64_t maxCas;
-
-    // The VBucket state lock handle that we use around HashBucket visits.
-    folly::SharedMutex::ReadHolder vbStateLock{nullptr};
-
-    // The VB::Manifest read handle that we use to lock around HashBucket
-    // visits. Will contain a nullptr if we aren't currently locking anything.
-    Collections::VB::ReadHandle readHandle;
 };

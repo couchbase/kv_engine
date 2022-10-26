@@ -174,12 +174,11 @@ bool ItemPager::run() {
                             cfg.getItemEvictionAgePercentage(),
                             cfg.getItemEvictionFreqCounterAgeThreshold(),
                             &stats);
-            auto pv = std::make_unique<PagingVisitor>(
+            auto pv = std::make_unique<ItemPagingVisitor>(
                     *kvBucket,
                     stats,
                     std::move(evictionStrategy),
                     pagerSemaphore,
-                    ITEM_PAGER,
                     true, /* allow pausing between vbuckets */
                     partFilter);
 
@@ -352,14 +351,8 @@ bool ExpiredItemPager::run() {
             // TODO MB-53980: consider splitting a simpler expiry visitor out of
             //       paging visitor. Expiry behaviour is shared, but it
             //       may be cleaner to introduce a subtype for eviction.
-            auto pv = std::make_unique<PagingVisitor>(
-                    *kvBucket,
-                    stats,
-                    ItemEvictionStrategy::evict_nothing(),
-                    pagerSemaphore,
-                    EXPIRY_PAGER,
-                    true,
-                    partFilter);
+            auto pv = std::make_unique<ExpiredPagingVisitor>(
+                    *kvBucket, stats, pagerSemaphore, true, partFilter);
 
             // p99.99 is ~50ms (same as ItemPager).
             const auto maxExpectedDurationForVisitorTask =
