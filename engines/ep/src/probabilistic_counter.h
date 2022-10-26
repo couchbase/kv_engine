@@ -41,7 +41,7 @@ struct ProbabilisticCounterImpl {
  * stored in a taggedPtr.
  *
  * Through experimentation it has been determined that you need a incFactor of:
- * - approx 800 to mimic a u32int counter (max value of 4,294,967,295)
+ * - approx 772 to mimic a u32int counter (max value of 4,294,967,295)
  * - approx 0.012 to mimic a u16int counter (max value of 65,535)
  *
  * These values were found by running the following code using a variety of
@@ -55,6 +55,14 @@ struct ProbabilisticCounterImpl {
  *         iterationCount++;
  *     }
  * std::cerr << "iterationCount=" <<  iterationCount << std::endl;
+ *
+ * The incFactor value can also be calculated from the following:
+ *         6(y - x)
+ * f = ----------------
+ *     x(x + 1)(2x + 1)
+ *
+ * where x = maximum value for the underlying counter type (e.g. 2^8),
+ *       y = desired number of increments to saturate the counter (e.g. 2^16)
  *
  * For example to replace a u16int counter with a probabilistic counter that
  * only requires 8-bits of storage, you would need to construct a
