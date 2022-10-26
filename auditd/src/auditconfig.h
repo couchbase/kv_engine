@@ -9,12 +9,9 @@
  */
 #pragma once
 
-#include <folly/Synchronized.h>
 #include <nlohmann/json_fwd.hpp>
-#include <relaxed_atomic.h>
 #include <atomic>
 #include <cinttypes>
-#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <utility> // For std::pair
@@ -36,13 +33,6 @@ public:
      * @param json the JSON document describing the configuration
      */
     explicit AuditConfig(const nlohmann::json& json);
-
-    /**
-     * Initialize the object from the specified JSON payload
-     *
-     * @todo refactor the logic to
-     */
-    void initialize_config(const nlohmann::json& json);
 
     // methods to access the private parts
     bool is_auditd_enabled() const;
@@ -108,24 +98,21 @@ protected:
     void set_disabled_userids(const nlohmann::json& array);
     void set_event_states(const nlohmann::json& array);
 
-    cb::RelaxedAtomic<bool> auditd_enabled {false};
-    cb::RelaxedAtomic<uint32_t> rotate_interval {900};
-    cb::RelaxedAtomic<size_t> rotate_size{20*1024*1024};
-    cb::RelaxedAtomic<bool> buffered{true};
-    cb::RelaxedAtomic<bool> filtering_enabled{false};
-    cb::RelaxedAtomic<uint32_t> version{0};
+    bool auditd_enabled{false};
+    uint32_t rotate_interval{900};
+    size_t rotate_size{20 * 1024 * 1024};
+    bool buffered{true};
+    bool filtering_enabled{false};
+    uint32_t version{0};
 
-    folly::Synchronized<std::string, std::mutex> log_path;
-    folly::Synchronized<std::vector<uint32_t>, std::mutex> sync;
-    folly::Synchronized<std::vector<uint32_t>, std::mutex> disabled;
-    folly::Synchronized<std::vector<std::pair<std::string, std::string>>,
-                        std::mutex>
-            disabled_userids;
-    folly::Synchronized<std::unordered_map<uint32_t, EventState>, std::mutex>
-            event_states;
-    folly::Synchronized<std::string, std::mutex> uuid;
+    std::string log_path;
+    std::vector<uint32_t> sync;
+    std::vector<uint32_t> disabled;
+    std::vector<std::pair<std::string, std::string>> disabled_userids;
+    std::unordered_map<uint32_t, EventState> event_states;
+    std::string uuid;
 
-    const uint32_t min_file_rotation_time = 900; // 15 minutes
-    const uint32_t max_file_rotation_time = 604800; // 1 week
-    const size_t max_rotate_file_size = 500 * 1024 * 1024; // 500MB
+    static constexpr uint32_t min_file_rotation_time = 900; // 15 minutes
+    static constexpr uint32_t max_file_rotation_time = 604800; // 1 week
+    static constexpr size_t max_rotate_file_size = 500 * 1024 * 1024; // 500MB
 };

@@ -72,24 +72,24 @@ std::string AuditConfigTest::testdir;
 
 TEST_F(AuditConfigTest, UnknownTag) {
     json["foo"] = 5;
-    EXPECT_THROW(config.initialize_config(json), std::invalid_argument);
+    EXPECT_THROW(AuditConfig cfg(json), std::invalid_argument);
 }
 
 // version
 
 TEST_F(AuditConfigTest, TestGetVersion) {
-    config.initialize_config(json);
+    config = AuditConfig(json);
     EXPECT_EQ(2, config.get_version());
 }
 
 TEST_F(AuditConfigTest, TestNoVersion) {
     json.erase("version");
-    EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
+    EXPECT_THROW(AuditConfig cfg(json), nlohmann::json::exception);
 }
 
 TEST_F(AuditConfigTest, TestIllegalDatatypeVersion) {
     json["version"] = "foobar";
-    EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
+    EXPECT_THROW(AuditConfig cfg(json), nlohmann::json::exception);
 }
 
 TEST_F(AuditConfigTest, TestLegalVersion) {
@@ -110,9 +110,9 @@ TEST_F(AuditConfigTest, TestLegalVersion) {
             json["uuid"] = "123456";
         }
         if ((version == 1) || (version == 2)) {
-            config.initialize_config(json);
+            config = AuditConfig(json);
         } else {
-            EXPECT_THROW(config.initialize_config(json), std::invalid_argument);
+            EXPECT_THROW(AuditConfig cfg(json), std::invalid_argument);
         }
     }
 }
@@ -121,7 +121,7 @@ TEST_F(AuditConfigTest, TestLegalVersion) {
 
 TEST_F(AuditConfigTest, TestNoRotateSize) {
     json.erase("rotate_size");
-    EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
+    EXPECT_THROW(AuditConfig cfg(json), nlohmann::json::exception);
 }
 
 TEST_F(AuditConfigTest, TestRotateSizeSetGet) {
@@ -133,29 +133,29 @@ TEST_F(AuditConfigTest, TestRotateSizeSetGet) {
 
 TEST_F(AuditConfigTest, TestRotateSizeIllegalDatatype) {
     json["rotate_size"] = "foobar";
-    EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
+    EXPECT_THROW(AuditConfig cfg(json), nlohmann::json::exception);
 }
 
 TEST_F(AuditConfigTest, TestRotateSizeLegalValue) {
     json["rotate_size"] = 100;
-    config.initialize_config(json);
+    config = AuditConfig(json);
 }
 
 TEST_F(AuditConfigTest, TestRotateSizeIllegalValue) {
     json["rotate_size"] = -1;
-    EXPECT_THROW(config.initialize_config(json), std::invalid_argument);
+    EXPECT_THROW(AuditConfig cfg(json), std::invalid_argument);
 }
 
 // rotate_interval
 
 TEST_F(AuditConfigTest, TestNoRotateInterval) {
     json.erase("rotate_interval");
-    EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
+    EXPECT_THROW(AuditConfig cfg(json), nlohmann::json::exception);
 }
 
 TEST_F(AuditConfigTest, TestDisableRotateInterval) {
     json["rotate_interval"] = 0;
-    config.initialize_config(json);
+    config = AuditConfig(json);
     EXPECT_EQ(0, config.get_rotate_interval());
 }
 
@@ -172,7 +172,7 @@ TEST_F(AuditConfigTest, TestRotateIntervalSetGet) {
 
 TEST_F(AuditConfigTest, TestRotateIntervalIllegalDatatype) {
     json["rotate_interval"] = "foobar";
-    EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
+    EXPECT_THROW(AuditConfig cfg(json), nlohmann::json::exception);
 }
 
 TEST_F(AuditConfigTest, TestRotateIntervalLegalValue) {
@@ -183,7 +183,7 @@ TEST_F(AuditConfigTest, TestRotateIntervalLegalValue) {
     for (uint32_t ii = min_file_rotation_time; ii < max_file_rotation_time;
          ii += 1000) {
         json["rotate_interval"] = ii;
-        config.initialize_config(json);
+        config = AuditConfig(json);
     }
 }
 
@@ -193,16 +193,16 @@ TEST_F(AuditConfigTest, TestRotateIntervalIllegalValue) {
     const uint32_t max_file_rotation_time = defaultvalue.get_max_file_rotation_time();
 
     json["rotate_interval"] = min_file_rotation_time - 1;
-    EXPECT_THROW(config.initialize_config(json), std::invalid_argument);
+    EXPECT_THROW(AuditConfig cfg(json), std::invalid_argument);
     json["rotate_interval"] = max_file_rotation_time + 1;
-    EXPECT_THROW(config.initialize_config(json), std::invalid_argument);
+    EXPECT_THROW(AuditConfig cfg(json), std::invalid_argument);
 }
 
 // auditd_enabled
 
 TEST_F(AuditConfigTest, TestNoAuditdEnabled) {
     json.erase("auditd_enabled");
-    EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
+    EXPECT_THROW(AuditConfig cfg(json), nlohmann::json::exception);
 }
 
 TEST_F(AuditConfigTest, TestGetSetAuditdEnabled) {
@@ -214,15 +214,15 @@ TEST_F(AuditConfigTest, TestGetSetAuditdEnabled) {
 
 TEST_F(AuditConfigTest, TestIllegalDatatypeAuditdEnabled) {
     json["auditd_enabled"] = "foobar";
-    EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
+    EXPECT_THROW(AuditConfig cfg(json), nlohmann::json::exception);
 }
 
 TEST_F(AuditConfigTest, TestLegalAuditdEnabled) {
     json["auditd_enabled"] = true;
-    config.initialize_config(json);
+    config = AuditConfig(json);
 
     json["auditd_enabled"] = false;
-    config.initialize_config(json);
+    config = AuditConfig(json);
 }
 
 // buffered
@@ -230,7 +230,7 @@ TEST_F(AuditConfigTest, TestLegalAuditdEnabled) {
 TEST_F(AuditConfigTest, TestNoBuffered) {
     // buffered is optional, and enabled unless explicitly disabled
     json.erase("buffered");
-    config.initialize_config(json);
+    config = AuditConfig(json);
     EXPECT_TRUE(config.is_buffered());
 }
 
@@ -243,22 +243,22 @@ TEST_F(AuditConfigTest, TestGetSetBuffered) {
 
 TEST_F(AuditConfigTest, TestIllegalDatatypeBuffered) {
     json["buffered"] = "foobar";
-    EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
+    EXPECT_THROW(AuditConfig cfg(json), nlohmann::json::exception);
 }
 
 TEST_F(AuditConfigTest, TestLegalBuffered) {
     json["buffered"] = true;
-    config.initialize_config(json);
+    config = AuditConfig(json);
 
     json["buffered"] = false;
-    config.initialize_config(json);
+    config = AuditConfig(json);
 }
 
 // log_path
 
 TEST_F(AuditConfigTest, TestNoLogPath) {
     json.erase("log_path");
-    EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
+    EXPECT_THROW(AuditConfig cfg(json), nlohmann::json::exception);
 }
 
 TEST_F(AuditConfigTest, TestGetSetLogPath) {
@@ -286,7 +286,7 @@ TEST_F(AuditConfigTest, TestGetSetSanitizeLogPathMixedSeparators) {
 
 TEST_F(AuditConfigTest, TestNoSync) {
     json.erase("sync");
-    EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
+    EXPECT_THROW(AuditConfig cfg(json), nlohmann::json::exception);
 }
 
 TEST_F(AuditConfigTest, TestSpecifySync) {
@@ -295,7 +295,7 @@ TEST_F(AuditConfigTest, TestSpecifySync) {
         array.push_back(ii);
     }
     json["sync"] = array;
-    config.initialize_config(json);
+    config = AuditConfig(json);
 
     for (uint32_t ii = 0; ii < 100; ++ii) {
         if (ii < 10) {
@@ -311,9 +311,9 @@ TEST_F(AuditConfigTest, TestSpecifySync) {
 TEST_F(AuditConfigTest, TestNoDisabled) {
     json.erase("disabled");
     if (config.get_version() == 1) {
-        EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
+        EXPECT_THROW(AuditConfig cfg(json), nlohmann::json::exception);
     } else {
-        config.initialize_config(json);
+        config = AuditConfig(json);
     }
 }
 
@@ -323,7 +323,7 @@ TEST_F(AuditConfigTest, TestSpecifyDisabled) {
         array.push_back(ii);
     }
     json["disabled"] = array;
-    config.initialize_config(json);
+    config = AuditConfig(json);
 
     for (uint32_t ii = 0; ii < 100; ++ii) {
         if (ii < 10 && config.get_version() == 1) {
@@ -352,7 +352,7 @@ TEST_F(AuditConfigTest, TestSpecifyDisabledUsers) {
         array.push_back(userIdRoot);
     }
     json["disabled_userids"] = array;
-    config.initialize_config(json);
+    config = AuditConfig(json);
 
     for (uint16_t ii = 0; ii < 100; ++ii) {
         const auto& domain = "internal";
@@ -411,7 +411,7 @@ TEST_F(AuditConfigTest, AuditConfigDisabledUsers) {
 
 TEST_F(AuditConfigTest, TestNoFilteringEnabled) {
     json.erase("filtering_enabled");
-    EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
+    EXPECT_THROW(AuditConfig cfg(json), nlohmann::json::exception);
 }
 
 TEST_F(AuditConfigTest, TestGetSetFilteringEnabled) {
@@ -423,22 +423,22 @@ TEST_F(AuditConfigTest, TestGetSetFilteringEnabled) {
 
 TEST_F(AuditConfigTest, TestIllegalDatatypeFilteringEnabled) {
     json["filtering_enabled"] = "foobar";
-    EXPECT_THROW(config.initialize_config(json), nlohmann::json::exception);
+    EXPECT_THROW(AuditConfig cfg(json), nlohmann::json::exception);
 }
 
 TEST_F(AuditConfigTest, TestLegalFilteringEnabled) {
     json["filtering_enabled"] = true;
-    config.initialize_config(json);
+    config = AuditConfig(json);
 
     json["filtering_enabled"] = false;
-    config.initialize_config(json);
+    config = AuditConfig(json);
 }
 
 // The event_states list is optional and therefore if it does not exist
 // it should not throw an exception.
 TEST_F(AuditConfigTest, TestNoEventStates) {
     json.erase("event_states");
-    config.initialize_config(json);
+    config = AuditConfig(json);
 }
 
 // Test that with an event_states object consisting of "enabled" and "disabled"
@@ -455,7 +455,7 @@ TEST_F(AuditConfigTest, TestSpecifyEventStates) {
         object[event] = "disabled";
     }
     json["event_states"] = object;
-    config.initialize_config(json);
+    config = AuditConfig(json);
 
     for (uint32_t ii = 0; ii < 20; ++ii) {
         if (ii < 5) {

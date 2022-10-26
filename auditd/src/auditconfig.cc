@@ -133,16 +133,16 @@ void AuditConfig::set_log_directory(std::string directory) {
 }
 
 std::string AuditConfig::get_log_directory() const {
-    return *log_path.lock();
+    return log_path;
 }
 
 void AuditConfig::set_version(uint32_t ver) {
-    if ((ver != 1) && (ver != 2))  {
-           std::stringstream ss;
-           ss << "AuditConfig::set_version(): version " << ver
-              << " is not supported";
-           throw std::invalid_argument(ss.str());
-       }
+    if ((ver != 1) && (ver != 2)) {
+        std::stringstream ss;
+        ss << "AuditConfig::set_version(): version " << ver
+           << " is not supported";
+        throw std::invalid_argument(ss.str());
+    }
     version = ver;
 }
 
@@ -151,34 +151,28 @@ uint32_t AuditConfig::get_version() const {
 }
 
 bool AuditConfig::is_event_sync(uint32_t id) {
-    return sync.withLock([id](auto& vec) {
-        return std::find(vec.begin(), vec.end(), id) != vec.end();
-    });
+    return std::find(sync.begin(), sync.end(), id) != sync.end();
 }
 
 bool AuditConfig::is_event_disabled(uint32_t id) {
-    return disabled.withLock([id](auto& vec) {
-        return std::find(vec.begin(), vec.end(), id) != vec.end();
-    });
+    return std::find(disabled.begin(), disabled.end(), id) != disabled.end();
 }
 
 AuditConfig::EventState AuditConfig::get_event_state(uint32_t id) const {
-    return event_states.withLock([id](auto& map) -> EventState {
-        const auto it = map.find(id);
-        if (it == map.end()) {
-            // If event state is not defined (as either enabled or disabled)
-            // then return undefined.
-            return EventState::undefined;
-        }
-        return it->second;
-    });
+    const auto it = event_states.find(id);
+    if (it == event_states.end()) {
+        // If event state is not defined (as either enabled or disabled)
+        // then return undefined.
+        return EventState::undefined;
+    }
+    return it->second;
 }
 
 bool AuditConfig::is_event_filtered(
         const std::pair<std::string, std::string>& userid) const {
-    return disabled_userids.withLock([&userid](auto& vec) {
-        return std::find(vec.begin(), vec.end(), userid) != vec.end();
-    });
+    return std::find(disabled_userids.begin(),
+                     disabled_userids.end(),
+                     userid) != disabled_userids.end();
 }
 
 void AuditConfig::set_filtering_enabled(bool value) {
@@ -189,7 +183,7 @@ bool AuditConfig::is_filtering_enabled() const {
     return filtering_enabled;
 }
 
-void AuditConfig::sanitize_path(std::string &path) {
+void AuditConfig::sanitize_path(std::string& path) {
     path = cb::io::sanitizePath(path);
     if (path.length() > 1 && path.back() == cb::io::DirectorySeparator) {
         path.resize(path.length() - 1);
@@ -201,7 +195,7 @@ void AuditConfig::set_uuid(std::string _uuid) {
 }
 
 std::string AuditConfig::get_uuid() const {
-    return *uuid.lock();
+    return uuid;
 }
 
 void AuditConfig::add_array(std::vector<uint32_t>& vec,
@@ -298,24 +292,19 @@ void AuditConfig::add_pair_string_array(
 }
 
 void AuditConfig::set_sync(const nlohmann::json& array) {
-    sync.withLock([this, &array](auto& vec) { add_array(vec, array, "sync"); });
+    add_array(sync, array, "sync");
 }
 
 void AuditConfig::set_disabled(const nlohmann::json& array) {
-    disabled.withLock(
-            [this, &array](auto& vec) { add_array(vec, array, "disabled"); });
+    add_array(disabled, array, "disabled");
 }
 
 void AuditConfig::set_disabled_userids(const nlohmann::json& array) {
-    disabled_userids.withLock([this, &array](auto& vec) {
-        add_pair_string_array(vec, array, "disabled_userids");
-    });
+    add_pair_string_array(disabled_userids, array, "disabled_userids");
 }
 
 void AuditConfig::set_event_states(const nlohmann::json& object) {
-    event_states.withLock([this, &object](auto& map) {
-        add_event_states_object(map, object, "event_states");
-    });
+    add_event_states_object(event_states, object, "event_states");
 }
 
 nlohmann::json AuditConfig::to_json() const {
@@ -329,78 +318,58 @@ nlohmann::json AuditConfig::to_json() const {
     ret["filtering_enabled"] = is_filtering_enabled();
     ret["uuid"] = get_uuid();
 
-    sync.withLock([&ret](auto& vec) { ret["sync"] = vec; });
-    disabled.withLock([&ret](auto& vec) { ret["disabled"] = vec; });
+    ret["sync"] = sync;
+    ret["disabled"] = disabled;
 
     auto array = nlohmann::json::array();
-    disabled_userids.withLock([&array](auto& vec) {
-        for (const auto& v : vec) {
-            nlohmann::json userIdRoot;
-            userIdRoot["domain"] = v.first;
-            userIdRoot["user"] = v.second;
-            array.push_back(userIdRoot);
-        }
-    });
+
+    for (const auto& v : disabled_userids) {
+        nlohmann::json userIdRoot;
+        userIdRoot["domain"] = v.first;
+        userIdRoot["user"] = v.second;
+        array.push_back(userIdRoot);
+    }
+
     ret["disabled_userids"] = array;
 
     nlohmann::json object;
-    event_states.withLock([&object](auto& map) {
-        for (const auto& v : map) {
-            std::string event = std::to_string(v.first);
-            EventState estate = v.second;
-            std::string state;
-            switch (estate) {
-            case EventState::enabled: {
-                state = "enabled";
-                break;
-            }
-            case EventState::disabled: {
-                state = "disabled";
-                break;
-            }
-            case EventState::undefined: {
-                throw std::logic_error(
-                        "AuditConfig::to_json - EventState:undefined should "
-                        "not be found in the event_states list");
-            }
-            }
-            object[event] = state;
+    for (const auto& v : event_states) {
+        std::string event = std::to_string(v.first);
+        EventState estate = v.second;
+        std::string state;
+        switch (estate) {
+        case EventState::enabled: {
+            state = "enabled";
+            break;
         }
-    });
+        case EventState::disabled: {
+            state = "disabled";
+            break;
+        }
+        case EventState::undefined: {
+            throw std::logic_error(
+                    "AuditConfig::to_json - EventState:undefined should "
+                    "not be found in the event_states list");
+        }
+        }
+        object[event] = state;
+    }
+
     ret["event_states"] = object;
 
     return ret;
 }
 
-void AuditConfig::initialize_config(const nlohmann::json& json) {
-    AuditConfig other(json);
-
-    auditd_enabled = other.auditd_enabled;
-    rotate_interval = other.rotate_interval;
-    rotate_size = other.rotate_size;
-    buffered = other.buffered;
-    filtering_enabled = other.filtering_enabled;
-    log_path.swap(other.log_path);
-    sync.swap(other.sync);
-    disabled.swap(other.disabled);
-    disabled_userids.swap(other.disabled_userids);
-    event_states.swap(other.event_states);
-    uuid.swap(other.uuid);
-
-    version = other.version;
-}
-
 std::vector<std::string> AuditConfig::get_disabled_users() const {
     std::vector<std::string> ret;
-    disabled_userids.withLock([&ret](const auto& users) {
-        for (const auto& [domain, user] : users) {
-            if (domain == "local") {
-                ret.emplace_back(user + "/couchbase");
-            } else {
-                ret.emplace_back(user + "/external");
-            }
+
+    for (const auto& [domain, user] : disabled_userids) {
+        if (domain == "local") {
+            ret.emplace_back(user + "/couchbase");
+        } else {
+            ret.emplace_back(user + "/external");
         }
-    });
+    }
     return ret;
 }
 
@@ -411,13 +380,13 @@ nlohmann::json AuditConfig::get_audit_event_filter() const {
     nlohmann::json ret;
     auto& def = ret["default"];
     std::vector<uint32_t> enabled;
-    event_states.withLock([&enabled](auto& map) {
-        for (const auto& [id, state] : map) {
-            if (state == EventState::enabled) {
-                enabled.push_back(id);
-            }
+
+    for (const auto& [id, state] : event_states) {
+        if (state == EventState::enabled) {
+            enabled.push_back(id);
         }
-    });
+    }
+
     def["enabled"] = enabled;
     auto users = get_disabled_users();
     for (const auto& u : users) {

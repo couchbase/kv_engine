@@ -86,7 +86,7 @@ void AuditImpl::create_audit_event(uint32_t event_id, nlohmann::json& payload) {
 
     switch (event_id) {
         case AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON:
-            payload["auditd_enabled"] = config.is_auditd_enabled();
+            payload["auditd_enabled"] = enabled.load();
             payload["hostname"] = hostname;
             payload["log_path"] = config.get_log_directory();
             payload["rotate_interval"] = config.get_rotate_interval();
@@ -108,7 +108,7 @@ bool AuditImpl::reconfigure(std::string file) {
 }
 
 bool AuditImpl::configure() {
-    bool is_enabled_before_reconfig = config.is_auditd_enabled();
+    bool is_enabled_before_reconfig = enabled;
     std::string file_content;
     try {
         file_content = cb::io::loadFile(configfile, std::chrono::seconds{5});
@@ -135,7 +135,7 @@ bool AuditImpl::configure() {
     }
 
     try {
-        config.initialize_config(config_json);
+        config = AuditConfig(config_json);
     } catch (const nlohmann::json::exception& e) {
         LOG_WARNING(
                 R"(Audit::configure:: Configuration error in "{}". Error: {}.)"
@@ -173,9 +173,10 @@ bool AuditImpl::configure() {
     }
 
     auditfile.reconfigure(config);
+    enabled = config.is_auditd_enabled();
 
     // create event to say done reconfiguration
-    if (is_enabled_before_reconfig || config.is_auditd_enabled()) {
+    if (is_enabled_before_reconfig || enabled) {
         auto* evt = AuditDescriptorManager::instance().lookup(
                 AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON);
         if (!evt) {
@@ -206,7 +207,7 @@ bool AuditImpl::configure() {
         }
     }
 
-    if (config.is_auditd_enabled()) {
+    if (enabled) {
         // If the write_event_to_disk function returns false then it is
         // possible the audit file has been closed.  Therefore ensure
         // the file is open.
@@ -220,7 +221,7 @@ bool AuditImpl::configure() {
 }
 
 bool AuditImpl::put_event(uint32_t event_id, nlohmann::json payload) {
-    if (!config.is_auditd_enabled()) {
+    if (!enabled) {
         // Audit is disabled
         return true;
     }
@@ -241,9 +242,8 @@ bool AuditImpl::put_event(uint32_t event_id, nlohmann::json payload) {
     return false;
 }
 
-bool AuditImpl::configure_auditdaemon(const std::string& configfile,
-                                      CookieIface& cookie) {
-    auto new_event = std::make_unique<ConfigureEvent>(configfile, cookie);
+bool AuditImpl::configure_auditdaemon(std::string file, CookieIface& cookie) {
+    auto new_event = std::make_unique<ConfigureEvent>(std::move(file), cookie);
     std::lock_guard<std::mutex> guard(producer_consumer_lock);
     filleventqueue.push(std::move(new_event));
     events_arrived.notify_all();
@@ -251,9 +251,8 @@ bool AuditImpl::configure_auditdaemon(const std::string& configfile,
 }
 
 void AuditImpl::stats(const StatCollector& collector) {
-    bool enabled = config.is_auditd_enabled();
     using namespace cb::stats;
-    collector.addStat(Key::audit_enabled, enabled);
+    collector.addStat(Key::audit_enabled, enabled.load());
     collector.addStat(Key::audit_dropped_events, dropped_events);
 }
 

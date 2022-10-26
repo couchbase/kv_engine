@@ -33,7 +33,7 @@ public:
     // Implementation of the public API
     bool put_event(uint32_t event_id, nlohmann::json payload) override;
     void stats(const StatCollector& collector) override;
-    bool configure_auditdaemon(const std::string& config,
+    bool configure_auditdaemon(std::string config,
                                CookieIface& cookie) override;
     // End public API
 
@@ -84,6 +84,12 @@ protected:
      * @param payload the json payload to populate with the mandatory fields
      */
     void create_audit_event(uint32_t event_id, nlohmann::json& payload);
+
+    /// The global on-off switch if audit is enabled or not. It is an
+    /// atomic variable as it is used from the front-end threads
+    /// as part of requesting stats; and whenever we try to submit
+    /// audit events.
+    std::atomic_bool enabled{false};
 
     /// The current configuration used by the daemon.
     AuditConfig config;

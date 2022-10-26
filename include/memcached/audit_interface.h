@@ -56,7 +56,7 @@ public:
      * @return true if success (and the cookie will be signalled when
      * reconfigure is complete)
      */
-    virtual bool configure_auditdaemon(const std::string& config,
+    virtual bool configure_auditdaemon(std::string config,
                                        CookieIface& cookie) = 0;
 
     /// Create an audit filter based upon the current configuration one may
