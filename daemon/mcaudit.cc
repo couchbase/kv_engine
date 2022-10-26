@@ -35,45 +35,18 @@ folly::Synchronized<cb::audit::UniqueAuditPtr>& getAuditHandle() {
     return handle;
 }
 
-static std::atomic_bool audit_enabled{false};
-
-static const int First = MEMCACHED_AUDIT_OPENED_DCP_CONNECTION;
-static const int Last = MEMCACHED_AUDIT_TENANT_RATE_LIMITED;
-
-static std::array<std::atomic_bool, Last - First + 1> events;
-
 static bool isEnabled(uint32_t id,
                       const Connection& connection,
                       const cb::rbac::UserIdent* euid,
                       std::optional<std::string_view> bucket,
                       std::optional<ScopeID> scope,
                       std::optional<CollectionID> collection) {
-    if (!audit_enabled.load(std::memory_order_consume)) {
-        // Global switch is off... All events are disabled
+    auto& filter = connection.getThread().getAuditEventFilter();
+    if (filter.isFilteredOut(
+                id, connection.getUser(), euid, bucket, scope, collection)) {
         return false;
     }
 
-    if (id >= First && id <= Last) {
-        // This is one of ours
-        if (events[id - First].load(std::memory_order_consume)) {
-            // The event is enabled. Check if it is disabled or not
-            auto& thread = connection.getThread();
-            if (thread.is_audit_event_filtered_out(id,
-                                                   connection.getUser(),
-                                                   euid,
-                                                   bucket,
-                                                   scope,
-                                                   collection)) {
-                return false;
-            }
-
-            return true;
-        }
-        return false;
-    }
-
-    // we don't have information about this id... let the underlying event
-    // framework deal with it
     return true;
 }
 
@@ -92,27 +65,6 @@ static bool isEnabled(uint32_t id, const Cookie& cookie) {
                      connection.getBucket().name,
                      sid,
                      cid);
-}
-
-void cb::audit::setEnabled(uint32_t id, bool enable) {
-    bool expected = !enable;
-
-    if (id == 0) {
-        if (audit_enabled.compare_exchange_strong(expected, enable)) {
-            LOG_INFO("Audit changed from: {} to: {}",
-                     !enable ? "enabled" : "disabled",
-                     enable ? "enabled" : "disabled");
-        }
-    }
-
-    if (id >= First && id <= Last) {
-        if (events[id - First].compare_exchange_strong(expected, enable)) {
-            LOG_INFO("Audit descriptor {} changed from: {} to: {}",
-                     id,
-                     expected ? "enabled" : "disabled",
-                     enable ? "enabled" : "disabled");
-        }
-    }
 }
 
 /**
@@ -363,7 +315,12 @@ void audit_invalid_packet(const Connection& c, cb::const_byte_buffer packet) {
 bool mc_audit_event(Cookie& cookie,
                     uint32_t audit_eventid,
                     cb::const_byte_buffer payload) {
-    if (!audit_enabled) {
+    auto& connection = cookie.getConnection();
+    auto& filter = connection.getThread().getAuditEventFilter();
+
+    // @todo we should put the bucket name in the key!
+    if (!filter.isEnabled(audit_eventid, {})) {
+        // Not enabled, no need to even parse the JSON
         return true;
     }
 
@@ -378,10 +335,6 @@ bool mc_audit_event(Cookie& cookie,
                     audit_eventid,
                     buffer);
         return false;
-    }
-
-    if (!descr->isEnabled()) {
-        return true;
     }
 
     nlohmann::json json;
@@ -407,40 +360,51 @@ bool mc_audit_event(Cookie& cookie,
     // and call the filter
     auto iter = json.find("real_userid");
     if (iter == json.end()) {
-        LOG_WARNING("{} Submitted an audit event ({}) without a real user",
+        /// @todo Remove the log message in the future. Right now it is
+        ///       here for debug to easily figure out which events we've
+        ///       got without a user
+        LOG_WARNING("{} Submitted an audit event ({}) without a real user: {}",
                     cookie.getConnectionId(),
-                    audit_eventid);
-        return false;
-    }
-    cb::rbac::UserIdent uid(*iter);
-    cb::rbac::UserIdent euid_holder;
-    cb::rbac::UserIdent* euid = nullptr;
-    iter = json.find("effective_userid");
-    if (iter != json.end()) {
-        euid_holder = cb::rbac::UserIdent(*iter);
-        euid = &euid_holder;
-    }
-    auto bucket = json.value("bucket", std::string{});
-    auto sid = json.value("scope_id", std::string{});
-    auto cid = json.value("collection_id", std::string{});
-    std::optional<std::string_view> buck;
-    std::optional<ScopeID> scope;
-    std::optional<CollectionID> collection;
-    if (!bucket.empty()) {
-        buck = bucket;
-    }
-    if (!sid.empty()) {
-        scope = ScopeID(sid);
-    }
-    if (!cid.empty()) {
-        collection = CollectionID(cid);
-    }
+                    audit_eventid,
+                    json.dump());
+    } else {
+        try {
+            cb::rbac::UserIdent uid(*iter);
+            cb::rbac::UserIdent euid_holder;
+            cb::rbac::UserIdent* euid = nullptr;
+            iter = json.find("effective_userid");
+            if (iter != json.end()) {
+                euid_holder = cb::rbac::UserIdent(*iter);
+                euid = &euid_holder;
+            }
+            auto bucket = json.value("bucket", std::string{});
+            auto sid = json.value("scope_id", std::string{});
+            auto cid = json.value("collection_id", std::string{});
+            std::optional<std::string_view> buck;
+            std::optional<ScopeID> scope;
+            std::optional<CollectionID> collection;
+            if (!bucket.empty()) {
+                buck = bucket;
+            }
+            if (!sid.empty()) {
+                scope = ScopeID(sid);
+            }
+            if (!cid.empty()) {
+                collection = CollectionID(cid);
+            }
 
-    if (cookie.getConnection().getThread().is_audit_event_filtered_out(
-                audit_eventid, uid, euid, buck, scope, collection)) {
-        return true;
+            if (filter.isFilteredOut(
+                        audit_eventid, uid, euid, buck, scope, collection)) {
+                return true;
+            }
+        } catch (const std::exception& e) {
+            LOG_WARNING("Got invalid audit event id:{} content:{} error: {}",
+                        audit_eventid,
+                        json.dump(),
+                        e.what());
+            return false;
+        }
     }
-
     json["id"] = audit_eventid;
     json["name"] = descr->getName();
     json["description"] = descr->getDescription();
@@ -539,10 +503,6 @@ void add(Cookie& cookie, Operation operation) {
 } // namespace cb::audit::document
 } // namespace cb::audit
 
-static void event_state_listener(uint32_t id, bool enabled) {
-    cb::audit::setEnabled(id, enabled);
-}
-
 void initialize_audit() {
     /* Start the audit daemon */
     auto audit =
@@ -550,8 +510,6 @@ void initialize_audit() {
     if (!audit) {
         FATAL_ERROR(EXIT_FAILURE, "FATAL: Failed to start audit daemon");
     }
-    audit->add_event_state_listener(event_state_listener);
-    audit->notify_all_event_states();
     *getAuditHandle().wlock() = std::move(audit);
 }
 

@@ -16,15 +16,87 @@
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 
+using namespace std::string_view_literals;
+
+TEST(AuditEventFilterTest, CreateFromJson) {
+    auto json =
+            R"(
+{
+  "buckets": {
+    "bucket2": {
+      "enabled": [
+        20480,
+        20481,
+        20482
+      ],
+      "filter_out": {
+        "user/couchbase": [
+          20482
+        ]
+      }
+    }
+  },
+  "default": {
+    "enabled": [
+      20480,
+      20481,
+      20482
+    ],
+    "filter_out": {
+      "user/couchbase": [
+        20480
+      ]
+    }
+  }
+})"_json;
+
+    auto filter = AuditEventFilter::create(AuditImpl::generation.load(), json);
+    ASSERT_TRUE(filter) << "Failed to create filter from " << json.dump(2);
+    EXPECT_TRUE(filter->isValid());
+
+    EXPECT_TRUE(filter->isFilteredOut(
+            20480, {"user", cb::rbac::Domain::Local}, {}, {}, {}, {}));
+    EXPECT_FALSE(filter->isFilteredOut(
+            20480, {"user", cb::rbac::Domain::External}, {}, {}, {}, {}));
+    EXPECT_FALSE(filter->isFilteredOut(
+            20481, {"user", cb::rbac::Domain::Local}, {}, {}, {}, {}));
+    EXPECT_FALSE(filter->isFilteredOut(
+            20482, {"user", cb::rbac::Domain::Local}, {}, {}, {}, {}));
+
+    // Verify that we fall back to the default bucket if we don't have a match
+    // for the given bucket
+    EXPECT_TRUE(filter->isFilteredOut(
+            20480, {"user", cb::rbac::Domain::Local}, {}, "bucket", {}, {}));
+    EXPECT_FALSE(filter->isFilteredOut(
+            20480, {"user", cb::rbac::Domain::External}, {}, "bucket", {}, {}));
+    EXPECT_FALSE(filter->isFilteredOut(
+            20481, {"user", cb::rbac::Domain::Local}, {}, "bucket", {}, {}));
+    EXPECT_FALSE(filter->isFilteredOut(
+            20482, {"user", cb::rbac::Domain::Local}, {}, "bucket", {}, {}));
+
+    cb::rbac::UserIdent euid{"John", cb::rbac::Domain::Local};
+    EXPECT_FALSE(filter->isFilteredOut(
+            20480, {"user", cb::rbac::Domain::Local}, &euid, "bucket", {}, {}));
+    EXPECT_FALSE(filter->isFilteredOut(
+            20481, {"user", cb::rbac::Domain::Local}, &euid, "bucket", {}, {}));
+    EXPECT_FALSE(filter->isFilteredOut(
+            20482, {"user", cb::rbac::Domain::Local}, &euid, "bucket", {}, {}));
+
+    // Verify that we pick the bucket specific config
+    EXPECT_FALSE(filter->isFilteredOut(
+            20480, {"user", cb::rbac::Domain::Local}, {}, "bucket2", {}, {}));
+    EXPECT_TRUE(filter->isFilteredOut(
+            20482, {"user", cb::rbac::Domain::Local}, {}, "bucket2", {}, {}));
+}
+
 TEST(AuditEventFilterTest, InvalidGeneration) {
-    auto filter = AuditEventFilter::create(
-            AuditImpl::generation.load() + 1, true, {});
+    auto filter =
+            AuditEventFilter::create(AuditImpl::generation.load() + 1, {});
     EXPECT_FALSE(filter->isValid());
 }
 
 TEST(AuditEventFilterTest, ValidGeneration) {
-    auto filter =
-            AuditEventFilter::create(AuditImpl::generation.load(), true, {});
+    auto filter = AuditEventFilter::create(AuditImpl::generation.load(), {});
     EXPECT_TRUE(filter->isValid());
 }
 
@@ -34,8 +106,10 @@ TEST(AuditEventFilterTest, isFilteredOut) {
     cb::rbac::UserIdent user2Local{"user2", cb::rbac::Domain::Local};
     cb::rbac::UserIdent user2External{"user2", cb::rbac::Domain::External};
 
-    auto filter =
-            AuditEventFilter::create(0, true, {user1Local, user2External});
+    auto json =
+            R"({"default":{"enabled":[20481,20488],"filter_out":{"user1/couchbase":[20488],"user2/external":[20488]}}})"_json;
+    auto filter = AuditEventFilter::create(AuditImpl::generation.load(), json);
+    ASSERT_TRUE(filter) << "Failed to create filter from " << json.dump(2);
 
     EXPECT_TRUE(filter->isFilteredOut(
             MEMCACHED_AUDIT_DOCUMENT_READ, user1Local, {}, {}, {}, {}));

@@ -29,19 +29,31 @@ public:
     virtual ~AuditEventFilter() = default;
 
     /**
-     * Create a new instance
+     * Create a new filter based on the provided JSON
      *
      * @param g The generation for the servers configuration this object
      *          represents
-     * @param enabled Is audit filtering enabled or not
-     * @param u The list of users which should be filtered out
+     * @param json The configuration to use (empty == everything disabled)
      */
-    static std::unique_ptr<AuditEventFilter> create(
-            uint64_t g, bool enabled, std::vector<cb::rbac::UserIdent> u);
+    static std::unique_ptr<AuditEventFilter> create(uint64_t g,
+                                                    const nlohmann::json& json);
+
+    /// Clone this configuration
+    virtual std::unique_ptr<AuditEventFilter> clone() const = 0;
 
     /// Check if this filter is valid (based on the same configuration as the
     /// audit daemon is currently using)
     virtual bool isValid() const = 0;
+
+    /// Get a JSON description of this filter
+    virtual nlohmann::json to_json() const = 0;
+
+    /**
+     * Check if the provided identifier is enabled globally (or in the provided
+     * bucket). This may be used as an optimization to bypass parsing JSON.
+     */
+    virtual bool isEnabled(uint32_t id,
+                           std::optional<std::string_view> bucket) const = 0;
 
     /**
      * Check to see if the provided event should be filtered out for the

@@ -15,9 +15,9 @@
 #include "event.h"
 #include "eventdescriptor.h"
 
+#include <folly/SynchronizedPtr.h>
 #include <memcached/audit_interface.h>
 #include <platform/platform_thread.h>
-
 #include <atomic>
 #include <cinttypes>
 #include <condition_variable>
@@ -32,9 +32,6 @@ class AuditImpl : public cb::audit::Audit {
 public:
     // Implementation of the public API
     bool put_event(uint32_t event_id, nlohmann::json payload) override;
-    void add_event_state_listener(
-            cb::audit::EventStateListener listener) override;
-    void notify_all_event_states() override;
     void stats(const StatCollector& collector) override;
     bool configure_auditdaemon(const std::string& config,
                                CookieIface& cookie) override;
@@ -88,12 +85,6 @@ protected:
      */
     void create_audit_event(uint32_t event_id, nlohmann::json& payload);
 
-    void notify_event_state_changed(uint32_t id, bool enabled) const;
-    struct {
-        mutable std::mutex mutex;
-        std::vector<cb::audit::EventStateListener> clients;
-    } event_state_listener;
-
     /// The current configuration used by the daemon.
     AuditConfig config;
 
@@ -122,6 +113,9 @@ protected:
 
     /// The hostname we want to inject to the audit events
     const std::string hostname;
+
+    /// The event filter currently in use by the audit daemon
+    folly::SynchronizedPtr<std::unique_ptr<AuditEventFilter>> event_filter;
 
 private:
     const size_t max_audit_queue = 50000;

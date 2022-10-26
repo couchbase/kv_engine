@@ -39,7 +39,15 @@ AuditImpl::AuditImpl(std::string config_file, std::string host)
       auditfile(host),
       configfile(std::move(config_file)),
       hostname(std::move(host)) {
-    if (!configfile.empty() && !configure()) {
+    if (configfile.empty()) {
+        // Create an event filter where everything gets filtered out
+        // (disable everything).
+        // Note: This is only used via unit tests
+        auto filter = AuditEventFilter::create(generation + 1, {});
+        event_filter.withWLockPointer(
+                [&filter](auto& f) { f = std::move(filter); });
+        ++generation;
+    } else if (!configure()) {
         throw std::runtime_error(
                 "Audit::Audit(): Failed to configure audit daemon");
     }
@@ -128,7 +136,6 @@ bool AuditImpl::configure() {
 
     try {
         config.initialize_config(config_json);
-        ++generation;
     } catch (const nlohmann::json::exception& e) {
         LOG_WARNING(
                 R"(Audit::configure:: Configuration error in "{}". Error: {}.)"
@@ -143,6 +150,17 @@ bool AuditImpl::configure() {
         return false;
     }
 
+    // Until we have the server providing the new type of configuration
+    // we need to convert the old style configuration to the new
+    // type of configuration. Don't hold the lock while doing this
+    auto filter = AuditEventFilter::create(generation + 1,
+                                           config.get_audit_event_filter());
+    event_filter.withWLockPointer(
+            [&filter](auto& f) { f = std::move(filter); });
+    ++generation;
+
+    LOG_DEBUG("Using audit Event filter: {}",
+              event_filter.rlock()->to_json().dump());
     if (!auditfile.is_open()) {
         try {
             auditfile.cleanup_old_logfile(config.get_log_directory());
@@ -156,31 +174,6 @@ bool AuditImpl::configure() {
 
     auditfile.reconfigure(config);
 
-    // iterate through the events map and update the enabled flags
-    AuditDescriptorManager::instance().iterate([this](auto& descriptor) {
-        AuditConfig::EventState state =
-                config.get_event_state(descriptor.getId());
-        switch (state) {
-        case AuditConfig::EventState::enabled:
-            descriptor.setEnabled(true);
-            break;
-        case AuditConfig::EventState::disabled:
-            descriptor.setEnabled(false);
-            break;
-        case AuditConfig::EventState::undefined:
-            // No state defined for the event so don't do anything
-            break;
-        }
-    });
-
-    /*
-     * We need to notify if the audit daemon is turned on or off during a
-     * reconfiguration. It is also possible that particular audit events may
-     * have been enabled or disabled. We want to notify the current event
-     * states whenever we reconfigure.
-     */
-    notify_all_event_states();
-
     // create event to say done reconfiguration
     if (is_enabled_before_reconfig || config.is_auditd_enabled()) {
         auto* evt = AuditDescriptorManager::instance().lookup(
@@ -191,25 +184,24 @@ bool AuditImpl::configure() {
                     "{}",
                     AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON);
         } else {
-            if (evt->isEnabled()) {
-                nlohmann::json payload;
-                try {
-                    create_audit_event(AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON,
-                                       payload);
-                    payload["id"] = AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON;
-                    payload["name"] = evt->getName();
-                    payload["description"] = evt->getDescription();
+            nlohmann::json payload;
+            try {
+                create_audit_event(AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON,
+                                   payload);
+                payload["id"] = AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON;
+                payload["name"] = evt->getName();
+                payload["description"] = evt->getDescription();
 
-                    if (!(auditfile.ensure_open() && auditfile.write_event_to_disk(payload))) {
-                        dropped_events++;
-                    }
-                } catch (const std::exception& exception) {
+                if (!(auditfile.ensure_open() &&
+                      auditfile.write_event_to_disk(payload))) {
                     dropped_events++;
-                    LOG_WARNING(
-                            "Audit::configure(): Failed to add audit event for "
-                            "audit configure: {}",
-                            exception.what());
                 }
+            } catch (const std::exception& exception) {
+                dropped_events++;
+                LOG_WARNING(
+                        "Audit::configure(): Failed to add audit event for "
+                        "audit configure: {}",
+                        exception.what());
             }
         }
     }
@@ -256,26 +248,6 @@ bool AuditImpl::configure_auditdaemon(const std::string& configfile,
     filleventqueue.push(std::move(new_event));
     events_arrived.notify_all();
     return true;
-}
-
-void AuditImpl::notify_all_event_states() {
-    notify_event_state_changed(0, config.is_auditd_enabled());
-    AuditDescriptorManager::instance().iterate([this](const auto& descriptor) {
-        notify_event_state_changed(descriptor.getId(), descriptor.isEnabled());
-    });
-}
-
-void AuditImpl::add_event_state_listener(
-        cb::audit::EventStateListener listener) {
-    std::lock_guard<std::mutex> guard(event_state_listener.mutex);
-    event_state_listener.clients.push_back(listener);
-}
-
-void AuditImpl::notify_event_state_changed(uint32_t id, bool enabled) const {
-    std::lock_guard<std::mutex> guard(event_state_listener.mutex);
-    for (const auto& func : event_state_listener.clients) {
-        func(id, enabled);
-    }
 }
 
 void AuditImpl::stats(const StatCollector& collector) {
@@ -327,5 +299,5 @@ void AuditImpl::consume_events() {
 }
 
 std::unique_ptr<AuditEventFilter> AuditImpl::createAuditEventFilter() {
-    return config.createAuditEventFilter(generation);
+    return event_filter.rlock()->clone();
 }

@@ -82,26 +82,16 @@ public:
      */
     nlohmann::json to_json() const;
 
-    /**
-     * Create an audit filter and tag it with the provided revision.
-     *
-     * This method may "race" with a reconfigure of the audit daemon,
-     * but we choose speed over "correctness". The audit daemon completes
-     * the reconfiguration (which is done in multiple steps) before it
-     * finally bump the revision number. This means that a calling thread
-     * _could_ get a partially updated filter and use that for a single
-     * filter check and soon after the audit daemon completes the
-     * reconfiguration and the filter would be invalidated.
-     *
-     * This should be improved in the next version to make a reconfigure
-     * an atomic swap, but that requires more work on the server.
-     *
-     * @param rev the revision number to use for the event filter
-     */
-    std::unique_ptr<AuditEventFilter> createAuditEventFilter(uint64_t rev);
+    /// Get the filter to use for audit filtering. Currently this method
+    /// maps an old style configuration into a new style configuration
+    /// by building up the new JSON (and should therefore not be called
+    /// while holding a mutex ;))
+    nlohmann::json get_audit_event_filter() const;
 
 protected:
-    void sanitize_path(std::string &path);
+    /// Temporary function until the server provides a new type of configuration
+    std::vector<std::string> get_disabled_users() const;
+    void sanitize_path(std::string& path);
     void add_array(std::vector<uint32_t>& vec,
                    const nlohmann::json& array,
                    const char* name);

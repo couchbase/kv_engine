@@ -9,7 +9,6 @@
  */
 
 #include "auditconfig.h"
-#include "audit.h"
 #include "audit_event_filter.h"
 #include <gsl/gsl-lite.hpp>
 #include <nlohmann/json.hpp>
@@ -17,10 +16,7 @@
 #include <platform/strerror.h>
 #include <utilities/json_utilities.h>
 #include <algorithm>
-#include <cstdio>
-#include <cstring>
 #include <iostream>
-#include <system_error>
 
 AuditConfig::AuditConfig(const nlohmann::json& json) {
     set_version(json.at("version"));
@@ -394,20 +390,38 @@ void AuditConfig::initialize_config(const nlohmann::json& json) {
     version = other.version;
 }
 
-std::unique_ptr<AuditEventFilter> AuditConfig::createAuditEventFilter(
-        uint64_t rev) {
-    std::vector<cb::rbac::UserIdent> u;
-    disabled_userids.withLock([&u](const auto& users) {
+std::vector<std::string> AuditConfig::get_disabled_users() const {
+    std::vector<std::string> ret;
+    disabled_userids.withLock([&ret](const auto& users) {
         for (const auto& [domain, user] : users) {
             if (domain == "local") {
-                u.emplace_back(
-                        cb::rbac::UserIdent{user, cb::rbac::Domain::Local});
+                ret.emplace_back(user + "/couchbase");
             } else {
-                u.emplace_back(
-                        cb::rbac::UserIdent{user, cb::rbac::Domain::External});
+                ret.emplace_back(user + "/external");
             }
         }
     });
-    return AuditEventFilter::create(
-            rev, filtering_enabled.load(), std::move(u));
+    return ret;
+}
+
+nlohmann::json AuditConfig::get_audit_event_filter() const {
+    if (!auditd_enabled) {
+        return {};
+    }
+    nlohmann::json ret;
+    auto& def = ret["default"];
+    std::vector<uint32_t> enabled;
+    event_states.withLock([&enabled](auto& map) {
+        for (const auto& [id, state] : map) {
+            if (state == EventState::enabled) {
+                enabled.push_back(id);
+            }
+        }
+    });
+    def["enabled"] = enabled;
+    auto users = get_disabled_users();
+    for (const auto& u : users) {
+        def["filter_out"][u] = enabled;
+    }
+    return ret;
 }

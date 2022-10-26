@@ -23,41 +23,9 @@ namespace document {
 enum class Operation { Read, Lock, Modify, Delete };
 } // namespace document
 
-/**
- * The event state listener is a callback function being called
- * every time the state for an event id change state (enabled / disabled)
- */
-using EventStateListener = void (*)(uint32_t id, bool enabled);
-
 class Audit {
 public:
     virtual ~Audit() = default;
-
-    /**
-     * Add a listener to be called whenever an event identifier change state
-     *
-     * The callback is called with the event id and the new state for the event,
-     * and the _global_ on/off switch is signalled by passing event id 0
-     *
-     * This information may be used to cache which events are enabled or
-     * disabled in memcached (to avoid building up audit events in the frontend
-     * threads which will be dropped by the audit daemon later on).
-     */
-    virtual void add_event_state_listener(
-            cb::audit::EventStateListener listener) = 0;
-
-    /**
-     * Fire the event state listener for _ALL_ of the events.
-     *
-     * The use case for this is for clients who wants to know the state of
-     * all events (and initialize their cache)
-     *
-     * NOTE: This method should _ONLY_ be called before the memcached
-     *       server is accepting audit events as it operates on one of
-     *       the internal datastructures without locking it (the event
-     *       descriptor array).
-     */
-    virtual void notify_all_event_states() = 0;
 
     /**
      * method called from the core to collect statistics information from

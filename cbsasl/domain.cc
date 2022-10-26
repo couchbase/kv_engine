@@ -18,7 +18,7 @@ cb::sasl::Domain cb::sasl::to_domain(const std::string& domain) {
     } else if (domain == "external") {
         return cb::sasl::Domain::External;
     }
-    throw std::invalid_argument("cb::sasl::to_domain: invalid domain " +
+    throw std::invalid_argument("cb::sasl::to_domain: invalid domain: " +
                                 domain);
 }
 

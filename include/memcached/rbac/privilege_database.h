@@ -569,3 +569,8 @@ std::optional<std::chrono::steady_clock::time_point> getExternalUserTimestamp(
  */
 nlohmann::json to_json(Domain domain);
 } // namespace cb::rbac
+
+template <>
+struct std::hash<cb::rbac::UserIdent> {
+    std::size_t operator()(cb::rbac::UserIdent const& user) const noexcept;
+};

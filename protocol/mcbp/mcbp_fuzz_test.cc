@@ -7,6 +7,7 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
+#include "auditd/src/audit_descriptor_manager.h"
 #include <auditd/couchbase_audit_events.h>
 #include <daemon/connection.h>
 #include <daemon/cookie.h>
@@ -111,13 +112,6 @@ public:
     }
 
     FuzzValidator() : connection(thread) {
-        cb::audit::setEnabled(MEMCACHED_AUDIT_INVALID_PACKET, false);
-        cb::logger::createBlackholeLogger();
-        Settings::instance().setXattrEnabled(true);
-        cb::rbac::initialize();
-        const auto path = std::filesystem::path(SOURCE_ROOT) / "protocol" /
-                          "mcbp" / "mcbp_fuzz_test_rbac.json";
-        cb::rbac::loadPrivilegeDatabase(path.generic_string());
         connection.setAuthenticated(
                 true, true, {"@admin", cb::rbac::Domain::Local});
         connection.setCollectionsSupported(true);
@@ -145,8 +139,25 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     return 0;
 }
 
+extern "C" int LLVMFuzzerInitialize(int* argc, char*** argv) {
+    cb::logger::createBlackholeLogger();
+    Settings::instance().setXattrEnabled(true);
+    cb::rbac::initialize();
+    initialize_audit();
+    const auto path = std::filesystem::path(SOURCE_ROOT) / "protocol" / "mcbp" /
+                      "mcbp_fuzz_test_rbac.json";
+    cb::rbac::loadPrivilegeDatabase(path.generic_string());
+    // We need to make sure that the AuditDescriptorManager gets initialized
+    // before the Fuzz instance otherwise the AuditDescriptorManager gets
+    // initialized as part of checking for an event, but the connection object
+    // will use it in its destructor to submit a "session terminated" event
+    AuditDescriptorManager::instance();
+    return 0;
+}
+
 #ifndef HAVE_LIBFUZZER
 int main() {
+    LLVMFuzzerInitialize(nullptr, nullptr);
     LLVMFuzzerTestOneInput(nullptr, 0);
     return 0;
 }

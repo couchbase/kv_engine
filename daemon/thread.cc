@@ -339,20 +339,10 @@ void threads_shutdown() {
     threads.clear();
 }
 
-bool FrontEndThread::is_audit_event_filtered_out(
-        uint32_t id,
-        const cb::rbac::UserIdent& uid,
-        const cb::rbac::UserIdent* euid,
-        std::optional<std::string_view> bucket,
-        std::optional<ScopeID> scope,
-        std::optional<CollectionID> collection) {
+AuditEventFilter& FrontEndThread::getAuditEventFilter() {
     if (!auditEventFilter || !auditEventFilter->isValid()) {
         auditEventFilter = create_audit_event_filter();
-        if (!auditEventFilter) {
-            // failed to create a filter, let the daemon filter
-            return false;
-        }
     }
-    return auditEventFilter->isFilteredOut(
-            id, uid, euid, bucket, scope, collection);
+
+    return *auditEventFilter;
 }

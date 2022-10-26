@@ -10,7 +10,7 @@
  */
 #pragma once
 
-#include <atomic>
+#include <cstdint>
 #include <string>
 
 /**
@@ -21,23 +21,13 @@
  */
 class EventDescriptor {
 public:
-    EventDescriptor(const EventDescriptor& other)
-        : id(other.id),
-          name(other.name),
-          description(other.description),
-          enabled(other.enabled.load()),
-          filteringPermitted(other.filteringPermitted) {
-    }
-
     EventDescriptor(uint32_t id,
                     std::string name,
                     std::string description,
-                    bool enabled,
                     bool filteringPermitted)
         : id(id),
           name(std::move(name)),
           description(std::move(description)),
-          enabled(enabled),
           filteringPermitted(filteringPermitted) {
     }
 
@@ -53,22 +43,13 @@ public:
         return description;
     }
 
-    bool isEnabled() const {
-        return enabled.load(std::memory_order_consume);
-    }
-
     bool isFilteringPermitted() const {
         return filteringPermitted;
-    }
-
-    void setEnabled(bool val) {
-        enabled.store(val, std::memory_order_release);
     }
 
 protected:
     const uint32_t id;
     const std::string name;
     const std::string description;
-    std::atomic_bool enabled;
     const bool filteringPermitted;
 };

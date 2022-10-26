@@ -29,10 +29,3 @@ const EventDescriptor* AuditDescriptorManager::lookup(uint32_t id) const {
         return nullptr;
     }
 }
-
-void AuditDescriptorManager::iterate(
-        std::function<void(EventDescriptor&)> callback) {
-    for (auto& [id, descriptor] : descriptors) {
-        callback(descriptor);
-    }
-}

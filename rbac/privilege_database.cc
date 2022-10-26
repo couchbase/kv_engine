@@ -22,6 +22,13 @@
 #include <streambuf>
 #include <string>
 
+std::size_t std::hash<cb::rbac::UserIdent>::operator()(
+        cb::rbac::UserIdent const& user) const noexcept {
+    std::size_t h1 = std::hash<std::string>{}(user.name);
+    std::size_t h2 = std::hash<uint8_t>{}(uint8_t(user.domain));
+    return h1 ^ (h2 << 1);
+}
+
 namespace cb::rbac {
 
 nlohmann::json UserIdent::to_json() const {
