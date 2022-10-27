@@ -2620,5 +2620,12 @@
         "unit": "bytes",
         "type": "gauge",
         "description": "Total bytes on disk used by a bucket"
+    },
+
+    {
+        "key": "logical_data_size",
+        "cbstat": "vb_{state}_logical_data_size",
+        "unit": "bytes",
+        "description": "The logical size of all user data on disk (per-bucket), with compression applied"
     }
 ]

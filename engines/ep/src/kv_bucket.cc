@@ -1295,6 +1295,8 @@ void KVBucket::appendAggregatedVBucketStats(
         auto state = VBucket::toString(visitor.getVBucketState());
         auto stateCol = collector.withLabels({{"state", state}});
 
+        stateCol.addStat(Key::logical_data_size, visitor.getLogicalDiskSize());
+
         stateCol.addStat(Key::vb_num, visitor.getVBucketNumber());
         stateCol.addStat(Key::vb_curr_items, visitor.getNumItems());
         stateCol.addStat(Key::vb_hp_vb_req_size, visitor.getNumHpVBReqs());

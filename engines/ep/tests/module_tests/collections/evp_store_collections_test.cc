@@ -32,6 +32,7 @@
 #include "tests/mock/mock_couch_kvstore.h"
 #include "tests/mock/mock_ep_bucket.h"
 #include "tests/mock/mock_global_task.h"
+#include "tests/mock/mock_stat_collector.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
 #include "tests/module_tests/collections/stat_checker.h"
@@ -44,6 +45,7 @@
 #include <statistics/cbstat_collector.h>
 #include <statistics/collector.h>
 #include <statistics/labelled_collector.h>
+#include <statistics/statdef.h>
 #include <utilities/test_manifest.h>
 
 #include <folly/portability/GMock.h>
@@ -4559,6 +4561,69 @@ TEST_P(CollectionsParameterizedTest, PerCollectionMemUsedAndDeleteVbucket) {
 
     EXPECT_EQ(vb0size,
               engine->getEpStats().getCollectionMemUsed(CollectionID::Default));
+}
+
+TEST_P(CollectionsParameterizedTest, LogicalDiskSize) {
+    // test that logical_data_size correctly aggregates the collection disk
+    // sizes for vbuckets in a given state
+
+    if (!persistent()) {
+        GTEST_SKIP();
+    }
+
+    // Add the meat collection
+    CollectionsManifest cm(CollectionEntry::meat);
+    setCollections(cookie, cm);
+    store_item(vbid, StoredDocKey{"key", CollectionEntry::defaultC}, "value");
+    store_item(vbid,
+               StoredDocKey{"meat:beef", CollectionEntry::meat},
+               "valueasdfasdfasdf");
+
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    ASSERT_EQ(0, vb->getManifest().lock(CollectionEntry::meat).getDiskSize());
+    ASSERT_EQ(0, vb->getManifest().lock(CollectionID::Default).getDiskSize());
+
+    // Trigger a flush to disk. Flushes the meat create event and 2 items
+    flushVBucketToDiskIfPersistent(vbid, 3);
+
+    auto& manifest = vb->getManifest();
+    int64_t expectedDiskSize =
+            manifest.lock(CollectionEntry::meat).getDiskSize() +
+            manifest.lock(CollectionID::Default).getDiskSize();
+
+    using namespace std::string_view_literals;
+    using namespace testing;
+    using namespace cb::stats;
+
+    auto doExpects = [&](int64_t active, int64_t replica, int64_t pending) {
+        // check that the logical_data_size for state=active has the expected
+        // value
+        NiceMock<MockStatCollector> collector;
+        EXPECT_CALL(collector,
+                    addStat(Field(&StatDef::metricFamily,
+                                  "logical_data_size_bytes"),
+                            Matcher<int64_t>(active),
+                            Contains(Pair("state"sv, "active"))));
+        EXPECT_CALL(collector,
+                    addStat(Field(&StatDef::metricFamily,
+                                  "logical_data_size_bytes"),
+                            Matcher<int64_t>(replica),
+                            Contains(Pair("state"sv, "replica"))));
+        EXPECT_CALL(collector,
+                    addStat(Field(&StatDef::metricFamily,
+                                  "logical_data_size_bytes"),
+                            Matcher<int64_t>(pending),
+                            Contains(Pair("state"sv, "pending"))));
+        store->getAggregatedVBucketStats(collector.forBucket("foo"),
+                                         cb::prometheus::MetricGroup::Low);
+    };
+
+    doExpects(expectedDiskSize, 0, 0);
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+    doExpects(0, expectedDiskSize, 0);
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_pending);
+    doExpects(0, 0, expectedDiskSize);
 }
 
 class CollectionsPersistentNoNexusParameterizedTest

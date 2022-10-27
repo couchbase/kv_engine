@@ -208,6 +208,9 @@ public:
     size_t getSyncWriteAbortedCount() const {
         return syncWriteAbortedCount;
     }
+    auto getLogicalDiskSize() const {
+        return logicalDiskSize;
+    }
 
 private:
     size_t numItems{0};
@@ -259,6 +262,8 @@ private:
     size_t syncWriteAcceptedCount{0};
     size_t syncWriteCommittedCount{0};
     size_t syncWriteAbortedCount{0};
+
+    int64_t logicalDiskSize{0};
 };
 
 /**

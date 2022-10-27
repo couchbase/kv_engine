@@ -11,6 +11,8 @@
 
 #include "vb_count_visitor.h"
 
+#include "collections/vbucket_manifest.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "statistics/collector.h"
 #include "vbucket.h"
 
@@ -22,6 +24,12 @@ void VBucketCountVisitor::visitBucket(VBucket& vb) {
 
     if (vb.getHighPriorityChkSize() > 0) {
         chkPersistRemaining++;
+    }
+
+    // TODO MB-54294: This may be expensive for lots of collections.
+    // consider tracking this value "upfront".
+    for (const auto& [id, collection] : vb.getManifest().lock()) {
+        logicalDiskSize += collection.getDiskSize();
     }
 
     if (desired_state != vbucket_state_dead) {
