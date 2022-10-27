@@ -7537,23 +7537,15 @@ TEST_P(STParamPersistentBucketTest,
                 res.lock, res.storedValue, store->getEvictionPolicy());
     }
 
-    // check it exists in the desired state
+    // check it exists in the expected state (removed from HT as of MB-50423).
     {
         auto res = ht.findForRead(key,
                                   TrackReference::No,
                                   WantsDeleted::Yes,
                                   ForGetReplicaOp::No);
         const auto* v = res.storedValue;
-        if (fullEviction()) {
-            // Item should be entirely removed.
-            EXPECT_FALSE(v);
-        } else {
-            // Item should still be present.
-            ASSERT_TRUE(v);
-            ASSERT_TRUE(v->isDeleted());
-            ASSERT_FALSE(v->isResident());
-            ASSERT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, v->getDatatype());
-        }
+        // Item should be entirely removed.
+       EXPECT_FALSE(v);
     }
 
     // now drop the xattrs and store again, as if the only xattr has been
