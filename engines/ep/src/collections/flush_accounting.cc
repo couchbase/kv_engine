@@ -89,7 +89,7 @@ void FlushAccounting::StatisticsUpdate::updateDiskSize(ssize_t delta) {
     diskSize += delta;
 }
 
-void FlushAccounting::StatisticsUpdate::insert(
+bool FlushAccounting::StatisticsUpdate::insert(
         IsSystem isSystem,
         IsDeleted isDelete,
         IsCommitted isCommitted,
@@ -109,12 +109,13 @@ void FlushAccounting::StatisticsUpdate::insert(
         // Not tracking tombstones in the disk size for magma because we can't
         // decrement by the correct amount when purging them as we may purge
         // stale versions
-        return;
+        return false;
     }
 
     // else inserting a collection-start/prepare/tombstone/abort:
     // no item increment but account for the disk size change
     updateDiskSize(diskSizeDelta);
+    return true;
 }
 
 void FlushAccounting::StatisticsUpdate::update(ssize_t diskSizeDelta) {
@@ -124,13 +125,13 @@ void FlushAccounting::StatisticsUpdate::update(ssize_t diskSizeDelta) {
     updateDiskSize(diskSizeDelta);
 }
 
-void FlushAccounting::StatisticsUpdate::remove(
+bool FlushAccounting::StatisticsUpdate::remove(
         IsSystem isSystem,
         IsDeleted isDelete,
         IsCommitted isCommitted,
         CompactionCallbacks compactionCallbacks,
-                                               size_t oldSize,
-                                               size_t newSize) {
+        size_t oldSize,
+        size_t newSize) {
     if (isSystem == IsSystem::No && isCommitted == IsCommitted::Yes) {
         decrementItemCount();
     }
@@ -142,10 +143,11 @@ void FlushAccounting::StatisticsUpdate::remove(
     if (compactionCallbacks == CompactionCallbacks::AnyRevision &&
         isDelete == IsDeleted::Yes) {
         updateDiskSize(-oldSize);
-        return;
+        return false;
     }
 
     updateDiskSize(newSize - oldSize);
+    return true;
 }
 
 FlushAccounting::FlushAccounting(
@@ -182,7 +184,7 @@ bool FlushAccounting::processSystemEvent(CollectionID cid,
     return isDelete == IsDeleted::Yes;
 }
 
-void FlushAccounting::updateStats(const DocKey& key,
+bool FlushAccounting::updateStats(const DocKey& key,
                                   uint64_t seqno,
                                   IsCommitted isCommitted,
                                   IsDeleted isDelete,
@@ -193,14 +195,14 @@ void FlushAccounting::updateStats(const DocKey& key,
 
     if (!cid) {
         // The key is not for a collection (e.g. a scope event).
-        return;
+        return false;
     }
 
     // System events have extra handling and may terminate the stat update
     if (isSystemEvent && processSystemEvent(*cid, isDelete, isCompaction)) {
         // This was a drop collection event, we don't update the collection
         // stats for this case.
-        return;
+        return false;
     }
 
     // Track high-seqno for the item
@@ -219,32 +221,33 @@ void FlushAccounting::updateStats(const DocKey& key,
                                isCommitted,
                                compactionCallbacks,
                                size);
+        return true;
     }
+    return false;
 }
 
-bool FlushAccounting::updateStats(const DocKey& key,
-                                  uint64_t seqno,
-                                  IsCommitted isCommitted,
-                                  IsDeleted isDelete,
-                                  size_t size,
-                                  uint64_t oldSeqno,
-                                  IsDeleted oldIsDelete,
-                                  size_t oldSize,
-                                  IsCompaction isCompaction,
-                                  CompactionCallbacks compactionCallbacks) {
-    bool logicalInsert = false;
-
+FlushAccounting::UpdateStatsResult FlushAccounting::updateStats(
+        const DocKey& key,
+        uint64_t seqno,
+        IsCommitted isCommitted,
+        IsDeleted isDelete,
+        size_t size,
+        uint64_t oldSeqno,
+        IsDeleted oldIsDelete,
+        size_t oldSize,
+        IsCompaction isCompaction,
+        CompactionCallbacks compactionCallbacks) {
     // Same logic (and comments) apply as per the above updateStats function.
     auto [systemEvent, cid] = getCollectionID(key);
     auto isSystemEvent = systemEvent ? IsSystem::Yes : IsSystem::No;
     if (!cid) {
-        return false;
+        return {};
     }
 
     // System events have extra handling and may terminate the stat update
     if (isSystemEvent == IsSystem::Yes &&
         processSystemEvent(*cid, isDelete, isCompaction)) {
-        return false;
+        return {};
     }
 
     auto& collsFlushStats = getStatsAndMaybeSetPersistedHighSeqno(
@@ -253,8 +256,10 @@ bool FlushAccounting::updateStats(const DocKey& key,
     // Logically deleted items don't update item-count/disk-size
     if (isLogicallyDeleted(cid.value(), seqno) &&
         compactionCallbacks == CompactionCallbacks::LatestRevision) {
-        return false;
+        return {};
     }
+
+    UpdateStatsResult result;
 
     if (isSystemEvent == IsSystem::No &&
         compactionCallbacks == CompactionCallbacks::AnyRevision &&
@@ -269,7 +274,7 @@ bool FlushAccounting::updateStats(const DocKey& key,
         // this point as it would race with a concurrent purge so we instead
         // update the vBucket stat to reflect this being a logical insert rather
         // than an update.
-        logicalInsert = true;
+        result.logicalInsert = true;
     }
 
     // Of interest next is the state of old vs new. An update can become an
@@ -302,11 +307,12 @@ bool FlushAccounting::updateStats(const DocKey& key,
         // new key is live
         if (oldIsDropped) {
             // insert with the new size
-            collsFlushStats.insert(isSystemEvent,
-                                   isDelete,
-                                   isCommitted,
-                                   compactionCallbacks,
-                                   size);
+            result.newDocReflectedInDiskSize =
+                    collsFlushStats.insert(isSystemEvent,
+                                           isDelete,
+                                           isCommitted,
+                                           compactionCallbacks,
+                                           size);
         } else if (oldIsDelete == IsDeleted::Yes) {
             // insert with the delta of old/new
             auto sizeUpdate = size - oldSize;
@@ -315,14 +321,16 @@ bool FlushAccounting::updateStats(const DocKey& key,
                 // increment by size rather than delta as we're undeleting
                 sizeUpdate = size;
             }
-            collsFlushStats.insert(isSystemEvent,
-                                   isDelete,
-                                   isCommitted,
-                                   compactionCallbacks,
-                                   sizeUpdate);
+            result.newDocReflectedInDiskSize =
+                    collsFlushStats.insert(isSystemEvent,
+                                           isDelete,
+                                           isCommitted,
+                                           compactionCallbacks,
+                                           sizeUpdate);
         } else {
             // update with the delta
             collsFlushStats.update(size - oldSize);
+            result.newDocReflectedInDiskSize = true;
         }
 
     } else {
@@ -332,25 +340,28 @@ bool FlushAccounting::updateStats(const DocKey& key,
             if (compactionCallbacks == CompactionCallbacks::LatestRevision) {
                 // Magma doesn't track tombstones in the disk size
                 collsFlushStats.update(size);
+                result.newDocReflectedInDiskSize = true;
             }
         } else if (oldIsDelete == IsDeleted::Yes) {
             // update with the delta of old/new
             if (compactionCallbacks == CompactionCallbacks::LatestRevision) {
                 // Magma doesn't track tombstones in the disk size
                 collsFlushStats.update(size - oldSize);
+                result.newDocReflectedInDiskSize = true;
             }
         } else {
             // remove
-            collsFlushStats.remove(isSystemEvent,
-                                   isDelete,
-                                   isCommitted,
-                                   compactionCallbacks,
-                                   oldSize,
-                                   size);
+            result.newDocReflectedInDiskSize =
+                    collsFlushStats.remove(isSystemEvent,
+                                           isDelete,
+                                           isCommitted,
+                                           compactionCallbacks,
+                                           oldSize,
+                                           size);
         }
     }
 
-    return logicalInsert;
+    return result;
 }
 
 void FlushAccounting::maybeUpdatePersistedHighSeqno(const DocKey& key,

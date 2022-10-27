@@ -39,6 +39,7 @@ class MagmaMemoryTrackingProxy;
 struct kvstats_ctx;
 struct MagmaKVStoreTransactionContext;
 struct MagmaScanResult;
+class MagmaRequest;
 struct vbucket_state;
 
 /**
@@ -818,6 +819,13 @@ protected:
      * Testing hook called with the result of Sync when creating a file handle
      */
     TestingHook<magma::Status&> fileHandleSyncStatusHook;
+
+    /**
+     * Testing hook called after collection stats are updated in the commit
+     * data.
+     * Hook is provided the request and the old item size.
+     */
+    TestingHook<const MagmaRequest&, size_t> updateStatsHook;
 
 private:
     EventuallyPersistentEngine* currEngine;

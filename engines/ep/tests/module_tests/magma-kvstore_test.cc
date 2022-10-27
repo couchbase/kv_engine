@@ -10,9 +10,11 @@
  */
 
 #include "../mock/mock_magma_kvstore.h"
+#include "collections/collection_persisted_stats.h"
 #include "configuration.h"
 #include "kvstore/magma-kvstore/kv_magma_common/magma-kvstore_metadata.h"
 #include "kvstore/magma-kvstore/magma-kvstore_config.h"
+#include "kvstore/magma-kvstore/magma-kvstore_iorequest.h"
 #include "kvstore/storage_common/storage_common/local_doc_constants.h"
 #include "kvstore_test.h"
 #include "programs/engine_testapp/mock_server.h"
@@ -55,6 +57,11 @@ protected:
     std::unique_ptr<MockMagmaKVStore> kvstore;
     void SetRollbackTest() {
         rollbackTest = true;
+    }
+
+    size_t getCollectionDiskSize(Vbid vbid = Vbid(0),
+                                 CollectionID cid = CollectionID::Default) {
+        return kvstore->getCollectionStats(vbid, cid).second.diskSize;
     }
 
 private:
@@ -697,4 +704,95 @@ TEST_F(MagmaKVStoreTest, makeFileHandleSyncFailed) {
     setupSyncStatus(magma::Status(magma::Status::Internal, "Internal"));
     fileHandle = kvstore->makeFileHandle(vbid);
     EXPECT_FALSE(fileHandle);
+}
+
+TEST_F(MagmaKVStoreTest, diskSizeUpdateTracking) {
+    // verify that MagmaRequests correctly track whether a new item's size is
+    // included in the current disk size
+    using namespace testing;
+
+    uint64_t seqno{1};
+    auto store = [this, &seqno](queued_item qi) {
+        auto ctx =
+                kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
+        qi->setBySeqno(seqno++);
+        kvstore->set(*ctx, qi);
+        VB::Commit commitData(manifest);
+        kvstore->commit(std::move(ctx), commitData);
+    };
+
+    // forward to a simplified mock function for easier expectations along side
+    // tracking the expected stats values
+    StrictMock<MockFunction<void(bool)>> cb;
+
+    auto expectedDiskSize = 0;
+
+    kvstore->updateStatsHook = [&](const MagmaRequest& req, size_t oldSize) {
+        expectedDiskSize -= oldSize;
+        auto isInDiskSize = req.isNewDocReflectedInDiskSize();
+        if (isInDiskSize) {
+            expectedDiskSize += req.getDocSize();
+        }
+
+        cb.AsStdFunction()(isInDiskSize);
+    };
+
+    // check the disk size is initially zero
+    ASSERT_EQ(getCollectionDiskSize(), 0);
+
+    const auto metadataSize = magmakv::MetaData().encode().size();
+
+    {
+        // store a prepare, should _not_ be included in disk size
+        // don't even expect the test hook to be called for non-committed
+        // items
+        EXPECT_CALL(cb, Call(_)).Times(0);
+        auto qi = makePendingItem(makeStoredDocKey("key"), "value");
+        store(qi);
+        EXPECT_EQ(getCollectionDiskSize(), 0);
+    }
+
+    {
+        // store an item, should be included in disk size
+        EXPECT_CALL(cb, Call(true));
+        auto qi = makeCommittedItem(makeStoredDocKey("key"), "value");
+        store(qi);
+        auto minExpectedSize =
+                metadataSize + qi->getKey().size() + qi->getNBytes();
+        EXPECT_GE(getCollectionDiskSize(), minExpectedSize);
+    }
+
+    {
+        // delete the same item, tombstones should _not_ be included
+        EXPECT_CALL(cb, Call(false));
+        auto qi = makeCommittedItem(makeStoredDocKey("key"), "value");
+        qi->setDeleted();
+        store(qi);
+        EXPECT_EQ(getCollectionDiskSize(), 0);
+    }
+
+    size_t largerExpectedSize;
+    {
+        // re-create item (bigger this time), should be included in disk size
+        EXPECT_CALL(cb, Call(true));
+        auto qi = makeCommittedItem(makeStoredDocKey("key"), "valuefoobarqux");
+        store(qi);
+        auto minExpectedSize =
+                metadataSize + qi->getKey().size() + qi->getNBytes();
+        EXPECT_GE(getCollectionDiskSize(), minExpectedSize);
+        // stash that size to verify it goes down in the next section
+        largerExpectedSize = minExpectedSize;
+    }
+
+    {
+        // update without deleting (smaller this time), should be included in
+        // disk size
+        EXPECT_CALL(cb, Call(true));
+        auto qi = makeCommittedItem(makeStoredDocKey("key"), "v");
+        store(qi);
+        auto minExpectedSize =
+                metadataSize + qi->getKey().size() + qi->getNBytes();
+        EXPECT_GE(getCollectionDiskSize(), minExpectedSize);
+        EXPECT_LT(getCollectionDiskSize(), largerExpectedSize);
+    }
 }

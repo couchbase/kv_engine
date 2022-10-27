@@ -625,30 +625,31 @@ bool Flush::isOpen(CollectionID cid) const {
     return false;
 }
 
-void Flush::updateStats(const DocKey& key,
-                        uint64_t seqno,
-                        IsCommitted isCommitted,
-                        IsDeleted isDelete,
-                        size_t size,
-                        CompactionCallbacks compactionCallbacks) {
-    flushAccounting.updateStats(key,
-                                seqno,
-                                isCommitted,
-                                isDelete,
-                                size,
-                                IsCompaction::No,
-                                compactionCallbacks);
-}
-
 bool Flush::updateStats(const DocKey& key,
                         uint64_t seqno,
                         IsCommitted isCommitted,
                         IsDeleted isDelete,
                         size_t size,
-                        uint64_t oldSeqno,
-                        IsDeleted oldIsDelete,
-                        size_t oldSize,
                         CompactionCallbacks compactionCallbacks) {
+    return flushAccounting.updateStats(key,
+                                       seqno,
+                                       isCommitted,
+                                       isDelete,
+                                       size,
+                                       IsCompaction::No,
+                                       compactionCallbacks);
+}
+
+FlushAccounting::UpdateStatsResult Flush::updateStats(
+        const DocKey& key,
+        uint64_t seqno,
+        IsCommitted isCommitted,
+        IsDeleted isDelete,
+        size_t size,
+        uint64_t oldSeqno,
+        IsDeleted oldIsDelete,
+        size_t oldSize,
+        CompactionCallbacks compactionCallbacks) {
     return flushAccounting.updateStats(key,
                                        seqno,
                                        isCommitted,

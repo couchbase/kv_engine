@@ -67,8 +67,9 @@ public:
      * @param size bytes used on disk of the item flushed
      * @param compactionCallbacks For which items does the store invoke the
      *                            compaction callbacks?
+     * @return if the collection disk size stat now reflects the new item size
      */
-    void updateStats(const DocKey& key,
+    bool updateStats(const DocKey& key,
                      uint64_t seqno,
                      IsCommitted isCommitted,
                      IsDeleted isDelete,
@@ -94,16 +95,17 @@ public:
      * @return true if this is a logical insert (the item previously belonged to
      *         and old generation of the collection).
      */
-    bool updateStats(const DocKey& key,
-                     uint64_t seqno,
-                     IsCommitted isCommitted,
-                     IsDeleted isDelete,
-                     size_t size,
-                     uint64_t oldSeqno,
-                     IsDeleted oldIsDelete,
-                     size_t oldSize,
-                     CompactionCallbacks compactionCallbacks =
-                             CompactionCallbacks::LatestRevision);
+    FlushAccounting::UpdateStatsResult updateStats(
+            const DocKey& key,
+            uint64_t seqno,
+            IsCommitted isCommitted,
+            IsDeleted isDelete,
+            size_t size,
+            uint64_t oldSeqno,
+            IsDeleted oldIsDelete,
+            size_t oldSize,
+            CompactionCallbacks compactionCallbacks =
+                    CompactionCallbacks::LatestRevision);
 
     /**
      * Update the collection high-seqno (only if the flushed item is higher)

@@ -1363,33 +1363,51 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
             auto isDeleted = req->isDelete() ? IsDeleted::Yes : IsDeleted::No;
             auto isCommitted = diskDocKey.isCommitted() ? IsCommitted::Yes
                                                         : IsCommitted::No;
+            size_t oldDocSize = 0;
+            using namespace Collections::VB;
+            FlushAccounting::UpdateStatsResult res;
             if (docExists) {
                 auto oldIsDeleted =
                         isTombstone ? IsDeleted::Yes : IsDeleted::No;
-                const auto oldDocSize =
-                        req->getRawKeyLen() + oldMeta.Len() +
-                        configuration.magmaCfg.GetValueSize(oldMeta);
-                if (commitData.collections.updateStats(
-                            docKey,
-                            magmakv::getDocMeta(req->getDocMeta()).getBySeqno(),
-                            isCommitted,
-                            isDeleted,
-                            req->getDocSize(),
-                            configuration.magmaCfg.GetSeqNum(oldMeta),
-                            oldIsDeleted,
-                            oldDocSize,
-                            CompactionCallbacks::AnyRevision)) {
-                    req->markLogicalInsert();
-                }
-            } else {
-                commitData.collections.updateStats(
+                oldDocSize = req->getRawKeyLen() + oldMeta.Len() +
+                             configuration.magmaCfg.GetValueSize(oldMeta);
+                res = commitData.collections.updateStats(
                         docKey,
                         magmakv::getDocMeta(req->getDocMeta()).getBySeqno(),
                         isCommitted,
                         isDeleted,
                         req->getDocSize(),
+                        configuration.magmaCfg.GetSeqNum(oldMeta),
+                        oldIsDeleted,
+                        oldDocSize,
                         CompactionCallbacks::AnyRevision);
+                if (res.logicalInsert) {
+                    req->markLogicalInsert();
+                }
+            } else {
+                res.newDocReflectedInDiskSize =
+                        commitData.collections.updateStats(
+                                docKey,
+                                magmakv::getDocMeta(req->getDocMeta())
+                                        .getBySeqno(),
+                                isCommitted,
+                                isDeleted,
+                                req->getDocSize(),
+                                CompactionCallbacks::AnyRevision);
             }
+            if (res.newDocReflectedInDiskSize) {
+                // note that this operation has updated the per collection
+                // disk size.
+                // If compression later changes the size of the stored
+                // value, then the disk size needs fixing up.
+                // Note that compression isn't applied _before_ this point
+                // to avoid holding compressed and uncompressed versions of
+                // documents for the duration of the flush batch.
+                // instead, each is compressed individually before being
+                // written.
+                req->markNewDocReflectedInDiskSize();
+            }
+            updateStatsHook(*req, oldDocSize);
         } else {
             // Tell Collections::Flush that it may need to record this seqno
             commitData.collections.maybeUpdatePersistedHighSeqno(

@@ -63,6 +63,14 @@ public:
         return logicalInsert;
     }
 
+    void markNewDocReflectedInDiskSize() {
+        newDocReflectedInDiskSize = true;
+    }
+
+    bool isNewDocReflectedInDiskSize() const {
+        return newDocReflectedInDiskSize;
+    }
+
     std::string to_string();
 
     size_t getDocSize() const {
@@ -84,4 +92,9 @@ private:
     // handle it which is important as couchstore does not care about logical
     // inserts due to the differences in item counting.
     bool logicalInsert{false};
+
+    // Were disk size stats updated to reflect the _new_ item size by this
+    // request?
+    // They may need adjusting if an item is later compressed.
+    bool newDocReflectedInDiskSize{false};
 };

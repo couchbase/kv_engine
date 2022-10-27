@@ -67,6 +67,9 @@ public:
 
     ScanStatus scan(BySeqnoScanContext& scanCtx) const override;
 
+    // allow users of this mock to set the test hook directly
+    using MagmaKVStore::updateStatsHook;
+
     TestingHook<> readVBStateFromDiskHook;
 
     std::function<int(VB::Commit&, kvstats_ctx&)> saveDocsErrorInjector;

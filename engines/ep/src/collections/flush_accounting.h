@@ -74,8 +74,9 @@ public:
      * @param isCompaction Yes if the call originates from compaction replay
      * @param compactionCallbacks For which items does the store invoke the
      *                            compaction callbacks?
+     * @return if the collection disk size stat now reflects the new item size
      */
-    void updateStats(const DocKey& key,
+    bool updateStats(const DocKey& key,
                      uint64_t seqno,
                      IsCommitted isCommitted,
                      IsDeleted isDelete,
@@ -83,6 +84,17 @@ public:
                      IsCompaction isCompaction = IsCompaction::No,
                      CompactionCallbacks compactionCallbacks =
                              CompactionCallbacks::LatestRevision);
+
+    struct UpdateStatsResult {
+        // If true, the document does already exist on disk, but the collection
+        // has been recreated since then, so this is _logically_ an insert.
+        bool logicalInsert = false;
+
+        // Indicates that this operation will update the collection disk size
+        // when committed. Some operations may not (e.g., storing a tombstone
+        // in magma)
+        bool newDocReflectedInDiskSize = false;
+    };
 
     /**
      * Update collection stats when an old 'version' of the item already exists.
@@ -99,19 +111,20 @@ public:
      * @param isCompaction Yes if the call originates from compaction replay
      * @param compactionCallbacks For which items does the store invoke the
      *                            compaction callbacks?
-     * @return bool should collections meta be updated due to stats change?
+     * @return flags reporting if this operation was logically an insert,
+     *         and if the new value is now reflected in the disk size stat.
      */
-    bool updateStats(const DocKey& key,
-                     uint64_t seqno,
-                     IsCommitted isCommitted,
-                     IsDeleted isDelete,
-                     size_t size,
-                     uint64_t oldSeqno,
-                     IsDeleted oldIsDelete,
-                     size_t oldSize,
-                     IsCompaction isCompaction = IsCompaction::No,
-                     CompactionCallbacks compactionCallbacks =
-                             CompactionCallbacks::LatestRevision);
+    UpdateStatsResult updateStats(const DocKey& key,
+                                  uint64_t seqno,
+                                  IsCommitted isCommitted,
+                                  IsDeleted isDelete,
+                                  size_t size,
+                                  uint64_t oldSeqno,
+                                  IsDeleted oldIsDelete,
+                                  size_t oldSize,
+                                  IsCompaction isCompaction = IsCompaction::No,
+                                  CompactionCallbacks compactionCallbacks =
+                                          CompactionCallbacks::LatestRevision);
 
     /**
      * Update the collection high-seqno (only if the flushed item is higher)
@@ -197,8 +210,10 @@ public:
          * @param diskSize size in bytes 'inserted' into disk. Should be
          *        representative of the bytes used by each document, but does
          *        not need to be exact.
+         * @return if the collection disk size stat now reflects the new item
+         *         size
          */
-        void insert(IsSystem isSystem,
+        bool insert(IsSystem isSystem,
                     IsDeleted isDelete,
                     IsCommitted isCommitted,
                     CompactionCallbacks compactionCallbacks,
@@ -224,8 +239,10 @@ public:
          *                            tombstones.
          * @param oldSize old size of the item
          * @param newSize size of the new item
+         * @return if the collection disk size stat now reflects the new item
+         *         size
          */
-        void remove(IsSystem isSystem,
+        bool remove(IsSystem isSystem,
                     IsDeleted isDelete,
                     IsCommitted isCommitted,
                     CompactionCallbacks compactionCallbacks,
