@@ -95,3 +95,10 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     framework.fuzz(data, size);
     return 0;
 }
+
+#ifndef HAVE_LIBFUZZER
+int main() {
+    LLVMFuzzerTestOneInput(nullptr, 0);
+    return 0;
+}
+#endif
