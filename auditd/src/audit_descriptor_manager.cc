@@ -17,15 +17,7 @@ AuditDescriptorManager::AuditDescriptorManager()
       ) {
 }
 
-AuditDescriptorManager& AuditDescriptorManager::instance() {
+const EventDescriptor& AuditDescriptorManager::lookup(uint32_t id) {
     static AuditDescriptorManager inst;
-    return inst;
-}
-
-const EventDescriptor* AuditDescriptorManager::lookup(uint32_t id) const {
-    try {
-        return &descriptors.at(id);
-    } catch (const std::out_of_range&) {
-        return nullptr;
-    }
+    return inst.descriptors.at(id);
 }

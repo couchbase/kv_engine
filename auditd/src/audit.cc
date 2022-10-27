@@ -177,33 +177,24 @@ bool AuditImpl::configure() {
 
     // create event to say done reconfiguration
     if (is_enabled_before_reconfig || enabled) {
-        auto* evt = AuditDescriptorManager::instance().lookup(
+        const auto& evt = AuditDescriptorManager::lookup(
                 AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON);
-        if (!evt) {
-            LOG_WARNING(
-                    "Audit: error: Failed to locate descriptor for event id: "
-                    "{}",
-                    AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON);
-        } else {
-            nlohmann::json payload;
-            try {
-                create_audit_event(AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON,
-                                   payload);
-                payload["id"] = AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON;
-                payload["name"] = evt->getName();
-                payload["description"] = evt->getDescription();
-
-                if (!(auditfile.ensure_open() &&
-                      auditfile.write_event_to_disk(payload))) {
-                    dropped_events++;
-                }
-            } catch (const std::exception& exception) {
+        nlohmann::json payload;
+        try {
+            create_audit_event(AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON, payload);
+            payload["id"] = AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON;
+            payload["name"] = evt.getName();
+            payload["description"] = evt.getDescription();
+            if (!(auditfile.ensure_open() &&
+                  auditfile.write_event_to_disk(payload))) {
                 dropped_events++;
-                LOG_WARNING(
-                        "Audit::configure(): Failed to add audit event for "
-                        "audit configure: {}",
-                        exception.what());
             }
+        } catch (const std::exception& exception) {
+            dropped_events++;
+            LOG_WARNING(
+                    "Audit::configure(): Failed to add audit event for "
+                    "audit configure: {}",
+                    exception.what());
         }
     }
 

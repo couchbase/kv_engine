@@ -151,7 +151,7 @@ extern "C" int LLVMFuzzerInitialize(int* argc, char*** argv) {
     // before the Fuzz instance otherwise the AuditDescriptorManager gets
     // initialized as part of checking for an event, but the connection object
     // will use it in its destructor to submit a "session terminated" event
-    AuditDescriptorManager::instance();
+    AuditDescriptorManager::lookup(MEMCACHED_AUDIT_INVALID_PACKET);
     return 0;
 }
 

@@ -255,14 +255,7 @@ protected:
 
     /// Is the provided ID subject to filtering by this filter
     static bool isIdSubjectToFilter(uint32_t id) {
-        const auto* entry = AuditDescriptorManager::instance().lookup(id);
-        if (!entry) {
-            // failed to look up the descriptor, and we drop unknown
-            // events
-            return true;
-        }
-
-        return entry->isFilteringPermitted();
+        return AuditDescriptorManager::lookup(id).isFilteringPermitted();
     }
 
     BucketFilter getDefaultBucketFilter(const nlohmann::json& json) {

@@ -82,10 +82,10 @@ static nlohmann::json create_memcached_audit_object(
         const cb::rbac::UserIdent* euid) {
     nlohmann::json root;
 
-    const auto* descr = AuditDescriptorManager::instance().lookup(id);
+    const auto& descr = AuditDescriptorManager::lookup(id);
     root["id"] = id;
-    root["name"] = descr->getName();
-    root["description"] = descr->getDescription();
+    root["name"] = descr.getName();
+    root["description"] = descr.getDescription();
     root["timestamp"] = ISOTime::generatetimestamp();
     root["remote"] = c.getPeername();
     root["local"] = c.getSockname();
@@ -327,14 +327,17 @@ bool mc_audit_event(Cookie& cookie,
     std::string_view buffer{reinterpret_cast<const char*>(payload.data()),
                             payload.size()};
 
-    const auto* descr =
-            AuditDescriptorManager::instance().lookup(audit_eventid);
-    if (!descr) {
-        LOG_WARNING("{}: Tried to submit an unknown audit event: {} : {}",
-                    cookie.getConnectionId(),
+    const EventDescriptor* descr;
+    try {
+        descr = &AuditDescriptorManager::lookup(audit_eventid);
+    } catch (const std::out_of_range&) {
+        LOG_WARNING("{}: Unknown event id ({}) provided with content {}{}{}",
+                    connection.getDescription(),
                     audit_eventid,
-                    buffer);
-        return false;
+                    cb::userdataStartTag,
+                    buffer,
+                    cb::userdataEndTag);
+        throw;
     }
 
     nlohmann::json json;
@@ -348,10 +351,13 @@ bool mc_audit_event(Cookie& cookie,
         } catch (const std::exception& e) {
             LOG_WARNING(
                     "{}: Failed to parse provided JSON. Audit event {} "
-                    "dropped: {}",
-                    cookie.getConnectionId(),
+                    "dropped: {}. provided json: {}{}{}",
+                    connection.getDescription(),
                     audit_eventid,
-                    e.what());
+                    e.what(),
+                    cb::userdataStartTag,
+                    buffer,
+                    cb::userdataEndTag);
             return false;
         }
     }
@@ -362,11 +368,15 @@ bool mc_audit_event(Cookie& cookie,
     if (iter == json.end()) {
         /// @todo Remove the log message in the future. Right now it is
         ///       here for debug to easily figure out which events we've
-        ///       got without a user
-        LOG_WARNING("{} Submitted an audit event ({}) without a real user: {}",
-                    cookie.getConnectionId(),
-                    audit_eventid,
-                    json.dump());
+        ///       got without a user. Given that we don't have a user
+        ///       we won't try to filter it and submit it :)
+        LOG_WARNING(
+                "{} Submitted an audit event ({}) without a real user: {}{}{}",
+                connection.getDescription(),
+                audit_eventid,
+                cb::userdataStartTag,
+                buffer,
+                cb::userdataEndTag);
     } else {
         try {
             cb::rbac::UserIdent uid(*iter);
@@ -398,11 +408,16 @@ bool mc_audit_event(Cookie& cookie,
                 return true;
             }
         } catch (const std::exception& e) {
-            LOG_WARNING("Got invalid audit event id:{} content:{} error: {}",
-                        audit_eventid,
-                        json.dump(),
-                        e.what());
-            return false;
+            LOG_WARNING(
+                    "{}: Got exception during filtering of audit event id:{} "
+                    "content:{} error: {}",
+                    connection.getDescription(),
+                    audit_eventid,
+                    cb::userdataStartTag,
+                    buffer,
+                    cb::userdataEndTag,
+                    e.what());
+            throw;
         }
     }
     json["id"] = audit_eventid;
