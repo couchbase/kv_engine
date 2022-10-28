@@ -1022,6 +1022,9 @@ protected:
         bool term{false};
     } sendQueueInfo;
 
+    /// Last usage of the connection
+    std::chrono::steady_clock::time_point last_used_timestamp{};
+
     /// Pointer to the thread object serving this connection
     FrontEndThread& thread;
 

@@ -24,7 +24,6 @@
 #include "settings.h"
 #include "ssl_utils.h"
 #include "tracing.h"
-
 #include <gsl/gsl-lite.hpp>
 #include <logger/logger.h>
 #include <mcbp/codec/dcp_snapshot_marker.h>
@@ -41,6 +40,7 @@
 #include <platform/socket.h>
 #include <platform/strerror.h>
 #include <platform/string_hex.h>
+#include <platform/timeutils.h>
 #include <utilities/logtags.h>
 
 #include <exception>
@@ -245,6 +245,9 @@ nlohmann::json Connection::to_json() const {
     }
 #endif
 
+    ret["last_used"] =
+            cb::time2text(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    std::chrono::steady_clock::now() - last_used_timestamp));
     return ret;
 }
 
@@ -831,7 +834,7 @@ void Connection::processNotifiedCookie(Cookie& cookie, cb::engine_errc status) {
     using std::chrono::microseconds;
     using std::chrono::nanoseconds;
 
-    const auto start = std::chrono::steady_clock::now();
+    const auto start = last_used_timestamp = std::chrono::steady_clock::now();
     try {
         Expects(cookie.isEwouldblock());
         cookie.setAiostat(status);
@@ -963,7 +966,7 @@ bool Connection::executeCommandsCallback() {
     using std::chrono::microseconds;
     using std::chrono::nanoseconds;
 
-    const auto start = std::chrono::steady_clock::now();
+    const auto start = last_used_timestamp = std::chrono::steady_clock::now();
 
     shutdownIfSendQueueStuck(start);
     if (state == State::running) {
