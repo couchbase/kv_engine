@@ -615,8 +615,10 @@ void KVBucketTest::writeDocToReplica(Vbid vbid,
     using namespace cb::durability;
     item.setPendingSyncWrite(
             Requirements{Level::Majority, Timeout::Infinity()});
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     EXPECT_EQ(cb::engine_errc::success,
-              vb->prepare(std::ref(item),
+              vb->prepare(rlh,
+                          std::ref(item),
                           0,
                           &seq,
                           cookie,

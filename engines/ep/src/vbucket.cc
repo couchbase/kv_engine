@@ -1922,6 +1922,7 @@ void VBucket::replicaDropScope(Collections::ManifestUid uid,
 }
 
 cb::engine_errc VBucket::prepare(
+        VBucketStateLockRef vbStateLock,
         Item& itm,
         uint64_t cas,
         uint64_t* seqno,

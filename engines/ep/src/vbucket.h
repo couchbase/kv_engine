@@ -1075,7 +1075,27 @@ public:
             GenerateCas genCas,
             const Collections::VB::CachingReadHandle& cHandle);
 
-    cb::engine_errc prepare(Item& itm,
+    /**
+     * Creates a pending SyncWrite, which might be aborted or committed in the
+     * future, but is not yet visible.
+     *
+     * @param vbStateLock a lock on the state of the VBucket
+     * @param itm item to store as pending
+     * @param cas the cas value to check against
+     * @param seqno the seqno of the mutation
+     * @param cookie the cookie representing the client
+     * @param engine the EP engine
+     * @param checkConflicts whether to perform conflict resolution
+     * @param allowExisting set to false if you want set to fail if the
+     *                      item exists already
+     * @param genBySeqno whether or not to generate sequence number
+     * @param genCas whether to generate a new cas or match against the provided
+     * @param cHandle collections readhandle (caching mode) for this key
+     *
+     * @return the result of the prepare operation
+     */
+    cb::engine_errc prepare(VBucketStateLockRef vbStateLock,
+                            Item& itm,
                             uint64_t cas,
                             uint64_t* seqno,
                             CookieIface* cookie,

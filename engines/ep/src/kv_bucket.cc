@@ -1756,7 +1756,8 @@ cb::engine_errc KVBucket::prepare(Item& itm, CookieIface* cookie) {
         rv = cHandle.handleWriteStatus(engine, cookie, itm.getNBytes());
         if (rv == cb::engine_errc::success) {
             cHandle.processExpiryTime(itm, getMaxTtl());
-            rv = vb->prepare(itm,
+            rv = vb->prepare(rlh,
+                             itm,
                              0,
                              nullptr,
                              cookie,
