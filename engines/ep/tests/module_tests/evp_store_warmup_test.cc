@@ -1248,13 +1248,14 @@ void DurabilityWarmupTest::setupForPrepareWarmup(VBucket& vb,
     const auto topology = nlohmann::json::array({{"active"}});
     setVBucketToActiveWithValidTopology(topology);
     auto item = makePendingItem(key, "do");
-    { // collections read-lock scope
+    {
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
         auto cHandle = vb.lockCollections(item->getKey());
         EXPECT_TRUE(cHandle.valid());
         // Use vb level set so that the commit doesn't yet happen, we want to
         // simulate the prepare, but not commit landing on disk
         EXPECT_EQ(cb::engine_errc::sync_write_pending,
-                  vb.set(*item, cookie, *engine, {}, cHandle));
+                  vb.set(rlh, *item, cookie, *engine, {}, cHandle));
     }
 
     // Need at least one committed item on disk for warmup to run the
@@ -1434,13 +1435,14 @@ void DurabilityWarmupTest::testCheckpointTypePersistedAndLoadedIntoVBState(
     auto key = makeStoredDocKey("key");
     auto item = makePendingItem(key, "do");
     item->setBySeqno(1);
-    { // collections read-lock scope
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(item->getKey());
         EXPECT_TRUE(cHandle.valid());
         // Use vb level set so that the commit doesn't yet happen, we want to
         // simulate the prepare, but not commit landing on disk
         EXPECT_EQ(cb::engine_errc::sync_write_pending,
-                  vb->set(*item, cookie, *engine, {}, cHandle));
+                  vb->set(rlh, *item, cookie, *engine, {}, cHandle));
     }
 
     flushVBucketToDiskIfPersistent(vbid, 1);

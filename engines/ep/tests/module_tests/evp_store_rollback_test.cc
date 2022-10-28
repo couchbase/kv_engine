@@ -1535,21 +1535,25 @@ void RollbackDcpTest::doDelete(StoredDocKey key, bool flush) {
             {}, // timestamp
             {} /*streamID*/);
     stream->processMarker(&marker);
-    ItemMetaData meta;
-    uint64_t cas = 0;
-    meta.cas = 99;
-    ASSERT_EQ(cb::engine_errc::success,
-              vb->deleteWithMeta(cas,
-                                 nullptr,
-                                 cookie,
-                                 store->getEPEngine(),
-                                 CheckConflicts::No,
-                                 meta,
-                                 GenerateBySeqno::No,
-                                 GenerateCas::No,
-                                 delSeqno,
-                                 vb->lockCollections(key),
-                                 DeleteSource::Explicit));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        ItemMetaData meta;
+        uint64_t cas = 0;
+        meta.cas = 99;
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb->deleteWithMeta(rlh,
+                                     cas,
+                                     nullptr,
+                                     cookie,
+                                     store->getEPEngine(),
+                                     CheckConflicts::No,
+                                     meta,
+                                     GenerateBySeqno::No,
+                                     GenerateCas::No,
+                                     delSeqno,
+                                     vb->lockCollections(key),
+                                     DeleteSource::Explicit));
+    }
 
     if (flush) {
         flush_vbucket_to_disk(vbid, 1);

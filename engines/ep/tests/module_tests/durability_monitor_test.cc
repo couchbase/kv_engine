@@ -136,15 +136,19 @@ void DurabilityMonitorTest::addSyncDelete(int64_t seqno,
         store_item(vbid, key, "value");
     }
 
-    mutation_descr_t mutation_descr;
-    ASSERT_EQ(cb::engine_errc::sync_write_pending,
-              vb->deleteItem(cas,
-                             cookie,
-                             *engine,
-                             req,
-                             nullptr,
-                             mutation_descr,
-                             vb->lockCollections(item.getKey())));
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        mutation_descr_t mutation_descr;
+        ASSERT_EQ(cb::engine_errc::sync_write_pending,
+                  vb->deleteItem(rlh,
+                                 cas,
+                                 cookie,
+                                 *engine,
+                                 req,
+                                 nullptr,
+                                 mutation_descr,
+                                 vb->lockCollections(item.getKey())));
+    }
     vb->notifyActiveDMOfLocalSyncWrite();
     vb->processResolvedSyncWrites();
 }
@@ -193,8 +197,16 @@ MutationStatus DurabilityMonitorTest::processSet(Item& item) {
 }
 
 cb::engine_errc DurabilityMonitorTest::set(Item& item) {
-    auto result = vb->set(
-            item, cookie, *engine, {}, vb->lockCollections(item.getKey()));
+    cb::engine_errc result;
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        result = vb->set(rlh,
+                         item,
+                         cookie,
+                         *engine,
+                         {},
+                         vb->lockCollections(item.getKey()));
+    }
     vb->notifyActiveDMOfLocalSyncWrite();
     return result;
 }

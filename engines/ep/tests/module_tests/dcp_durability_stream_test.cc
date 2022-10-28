@@ -84,9 +84,10 @@ void DurabilityActiveStreamTest::testSendDcpPrepare() {
     ctx.durability =
             DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
     {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(item->getKey());
         EXPECT_EQ(cb::engine_errc::sync_write_pending,
-                  vb->set(*item, cookie, *engine, {}, cHandle));
+                  vb->set(rlh, *item, cookie, *engine, {}, cHandle));
     }
     vb->notifyActiveDMOfLocalSyncWrite();
 
@@ -862,9 +863,11 @@ TEST_P(DurabilityActiveStreamTest,
         VBQueueItemCtx ctx;
         ctx.durability = DurabilityItemCtx{item->getDurabilityReqs(),
                                            nullptr /*cookie*/};
+
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(item->getKey());
         EXPECT_EQ(cb::engine_errc::sync_write_pending,
-                  vb->set(*item, cookie, *engine, {}, cHandle));
+                  vb->set(rlh, *item, cookie, *engine, {}, cHandle));
     }
     vb->notifyActiveDMOfLocalSyncWrite();
 
@@ -893,9 +896,10 @@ TEST_P(DurabilityActiveStreamTest,
         VBQueueItemCtx ctx;
         ctx.durability = DurabilityItemCtx{item->getDurabilityReqs(),
                                            nullptr /*cookie*/};
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(item->getKey());
         EXPECT_EQ(cb::engine_errc::sync_write_pending,
-                  vb->set(*item, cookie, *engine, {}, cHandle));
+                  vb->set(rlh, *item, cookie, *engine, {}, cHandle));
     }
     vb->notifyActiveDMOfLocalSyncWrite();
 
@@ -4671,10 +4675,10 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
         folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(item->getKey());
         EXPECT_EQ(cb::engine_errc::success,
-                  vb->set(*item, cookie, *engine, {}, cHandle));
+                  vb->set(rlh, *item, cookie, *engine, {}, cHandle));
         ASSERT_EQ(5, vb->getHighSeqno());
         EXPECT_EQ(cb::engine_errc::sync_write_pending,
-                  vb->set(*prepare, cookie, *engine, {}, cHandle));
+                  vb->set(rlh, *prepare, cookie, *engine, {}, cHandle));
         ASSERT_EQ(6, vb->getHighSeqno());
 
         EXPECT_EQ(cb::engine_errc::success,
@@ -4932,9 +4936,10 @@ void DurabilityPromotionStreamTest::
     // 3) Queue M:4 in the new MemoryCheckpoint.
     item = makeCommittedItem(makeStoredDocKey("key2"), value);
     {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(item->getKey());
         EXPECT_EQ(cb::engine_errc::success,
-                  vb->set(*item, cookie, *engine, {}, cHandle));
+                  vb->set(rlh, *item, cookie, *engine, {}, cHandle));
         ASSERT_EQ(4, vb->getHighSeqno());
     }
 
@@ -5704,9 +5709,10 @@ void DurabilityActiveStreamTest::testBackfillNoSyncWriteSupport(
     auto mutation = makeCommittedItem(makeStoredDocKey("mutation"), "value");
 
     {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(mutation->getKey());
         EXPECT_EQ(cb::engine_errc::success,
-                  vb->set(*mutation, cookie, *engine, {}, cHandle));
+                  vb->set(rlh, *mutation, cookie, *engine, {}, cHandle));
     }
     flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -5714,9 +5720,10 @@ void DurabilityActiveStreamTest::testBackfillNoSyncWriteSupport(
             makePendingItem(makeStoredDocKey("prepare"), "value", {level, {}});
 
     {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(prepare->getKey());
         EXPECT_EQ(cb::engine_errc::sync_write_pending,
-                  vb->set(*prepare, cookie, *engine, {}, cHandle));
+                  vb->set(rlh, *prepare, cookie, *engine, {}, cHandle));
     }
     flushVBucketToDiskIfPersistent(vbid, 1);
     removeCheckpoint(*vb);
@@ -5830,9 +5837,10 @@ void DurabilityActiveStreamTest::testEmptyBackfillNoSyncWriteSupport(
 
     auto vb = engine->getVBucket(vbid);
     {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(prepare->getKey());
         EXPECT_EQ(cb::engine_errc::sync_write_pending,
-                  vb->set(*prepare, cookie, *engine, {}, cHandle));
+                  vb->set(rlh, *prepare, cookie, *engine, {}, cHandle));
     }
     flushVBucketToDiskIfPersistent(vbid, 1);
     removeCheckpoint(*vb);
@@ -5999,9 +6007,10 @@ void DurabilityActiveStreamTest::
     //   Abort
     const auto prepare = makePendingItem(key, "value", {level, {}});
     {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(prepare->getKey());
         EXPECT_EQ(cb::engine_errc::sync_write_pending,
-                  vb->set(*prepare, cookie, *engine, {}, cHandle));
+                  vb->set(rlh, *prepare, cookie, *engine, {}, cHandle));
     }
     flushVBucketToDiskIfPersistent(vbid, 1);
     removeCheckpoint(*vb);
@@ -6123,18 +6132,20 @@ TEST_P(DurabilityActiveStreamTest, inMemoryMultipleMarkers) {
             cb::durability::Requirements(cb::durability::Level::Majority,
                                          cb::durability::Timeout(1)));
     {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(prepare->getKey());
         EXPECT_EQ(cb::engine_errc::sync_write_pending,
-                  vb->set(*prepare, cookie, *engine, {}, cHandle));
+                  vb->set(rlh, *prepare, cookie, *engine, {}, cHandle));
     }
 
     ckptMgr.createNewCheckpoint();
 
     auto item = makeCommittedItem(makeStoredDocKey("mut1"), "value");
     {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(item->getKey());
         EXPECT_EQ(cb::engine_errc::success,
-                  vb->set(*item, cookie, *engine, {}, cHandle));
+                  vb->set(rlh, *item, cookie, *engine, {}, cHandle));
     }
 
     prepare = makePendingItem(
@@ -6143,9 +6154,10 @@ TEST_P(DurabilityActiveStreamTest, inMemoryMultipleMarkers) {
             cb::durability::Requirements(cb::durability::Level::Majority,
                                          cb::durability::Timeout(1)));
     {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(prepare->getKey());
         EXPECT_EQ(cb::engine_errc::sync_write_pending,
-                  vb->set(*prepare, cookie, *engine, {}, cHandle));
+                  vb->set(rlh, *prepare, cookie, *engine, {}, cHandle));
     }
 
     // We should get items from two checkpoints which will make processItems

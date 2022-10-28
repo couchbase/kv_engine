@@ -1011,6 +1011,7 @@ public:
     /**
      * Set (add new or update) an item in the vbucket.
      *
+     * @param vbStateLock A lock on the state of the VBucket
      * @param itm Item to be added or updated. Upon success, the itm
      *            bySeqno, cas and revSeqno are updated
      * @param cookie the connection cookie
@@ -1021,7 +1022,8 @@ public:
      *
      * @return cb::engine_errc status notified to be to the front end
      */
-    cb::engine_errc set(Item& itm,
+    cb::engine_errc set(VBucketStateLockRef vbStateLock,
+                        Item& itm,
                         CookieIface* cookie,
                         EventuallyPersistentEngine& engine,
                         cb::StoreIfPredicate predicate,
@@ -1030,6 +1032,7 @@ public:
     /**
      * Replace (overwrite existing) an item in the vbucket.
      *
+     * @param vbStateLock A lock on the state of the VBucket
      * @param itm Item to be added or updated. Upon success, the itm
      *            bySeqno, cas and revSeqno are updated
      * @param cookie the connection cookie
@@ -1040,7 +1043,8 @@ public:
      *
      * @return cb::engine_errc status notified to be to the front end
      */
-    cb::engine_errc replace(Item& itm,
+    cb::engine_errc replace(VBucketStateLockRef vbStateLock,
+                            Item& itm,
                             CookieIface* cookie,
                             EventuallyPersistentEngine& engine,
                             cb::StoreIfPredicate predicate,
@@ -1049,6 +1053,7 @@ public:
     /**
      * Set an item in the store from a non-front end operation (DCP, XDCR)
      *
+     * @param vbStateLock A lock on the state of the VBucket
      * @param item the item to set. Upon success, the itm revSeqno is updated
      * @param cas value to match
      * @param seqno sequence number of mutation
@@ -1064,6 +1069,7 @@ public:
      * @return the result of the store operation
      */
     cb::engine_errc setWithMeta(
+            VBucketStateLockRef vbStateLock,
             Item& itm,
             uint64_t cas,
             uint64_t* seqno,
@@ -1109,6 +1115,7 @@ public:
     /**
      * Delete an item in the vbucket
      *
+     * @param vbStateLock A lock on the state of the VBucket
      * @param[in,out] cas value to match; new cas after logical delete
      * @param cookie the cookie representing the client to store the item
      * @param engine Reference to ep engine
@@ -1124,6 +1131,7 @@ public:
      * @return the result of the operation
      */
     cb::engine_errc deleteItem(
+            VBucketStateLockRef vbStateLock,
             uint64_t& cas,
             CookieIface* cookie,
             EventuallyPersistentEngine& engine,
@@ -1135,6 +1143,7 @@ public:
     /**
      * Delete an item in the vbucket from a non-front end operation (DCP, XDCR)
      *
+     * @param vbStateLock A lock on the state of the VBucket
      * @param[in, out] cas value to match; new cas after logical delete
      * @param[out] seqno Pointer to get the seqno generated for the item. A
      *                   NULL value is passed if not needed
@@ -1152,6 +1161,7 @@ public:
      * @return the result of the operation
      */
     cb::engine_errc deleteWithMeta(
+            VBucketStateLockRef vbStateLock,
             uint64_t& cas,
             uint64_t* seqno,
             CookieIface* cookie,
@@ -1259,6 +1269,7 @@ public:
     /**
      * Add an item in the store
      *
+     * @param vbStateLock A lock on the state of the VBucket
      * @param itm the item to add. On success, this will have its seqno and
      *            CAS updated.
      * @param cookie the cookie representing the client to store the item
@@ -1267,7 +1278,8 @@ public:
      *
      * @return the result of the operation
      */
-    cb::engine_errc add(Item& itm,
+    cb::engine_errc add(VBucketStateLockRef vbStateLock,
+                        Item& itm,
                         CookieIface* cookie,
                         EventuallyPersistentEngine& engine,
                         const Collections::VB::CachingReadHandle& cHandle);
@@ -1275,6 +1287,7 @@ public:
     /**
      * Retrieve a value, but update its TTL first
      *
+     * @param vbStateLock A lock on the state of the VBucket
      * @param cookie the connection cookie
      * @param engine Reference to ep engine
      * @param exptime the new expiry time for the object
@@ -1282,7 +1295,8 @@ public:
      *
      * @return a GetValue representing the result of the request
      */
-    GetValue getAndUpdateTtl(CookieIface* cookie,
+    GetValue getAndUpdateTtl(VBucketStateLockRef vbStateLock,
+                             CookieIface* cookie,
                              EventuallyPersistentEngine& engine,
                              time_t exptime,
                              const Collections::VB::CachingReadHandle& cHandle);

@@ -1994,9 +1994,10 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSkipsScanIfStreamInWrongState) {
     auto item = make_item(vbid, key, value);
 
     {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(item.getKey());
         EXPECT_EQ(cb::engine_errc::success,
-                  vb->set(item, cookie, *engine, {}, cHandle));
+                  vb->set(rlh, item, cookie, *engine, {}, cHandle));
     }
     EXPECT_EQ(2, ckptMgr.createNewCheckpoint());
 

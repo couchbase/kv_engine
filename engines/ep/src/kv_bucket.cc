@@ -731,7 +731,7 @@ cb::engine_errc KVBucket::set(Item& itm,
         // maybe need to adjust expiry of item
         cHandle.processExpiryTime(itm, getMaxTtl());
 
-        result = vb->set(itm, cookie, engine, predicate, cHandle);
+        result = vb->set(rlh, itm, cookie, engine, predicate, cHandle);
         if (result == cb::engine_errc::success) {
             itm.isDeleted() ? cHandle.incrementOpsDelete()
                             : cHandle.incrementOpsStore();
@@ -788,7 +788,7 @@ cb::engine_errc KVBucket::add(Item& itm, CookieIface* cookie) {
 
         // maybe need to adjust expiry of item
         cHandle.processExpiryTime(itm, getMaxTtl());
-        result = vb->add(itm, cookie, engine, cHandle);
+        result = vb->add(rlh, itm, cookie, engine, cHandle);
         if (result == cb::engine_errc::success) {
             itm.isDeleted() ? cHandle.incrementOpsDelete()
                             : cHandle.incrementOpsStore();
@@ -836,7 +836,7 @@ cb::engine_errc KVBucket::replace(Item& itm,
 
         // maybe need to adjust expiry of item
         cHandle.processExpiryTime(itm, getMaxTtl());
-        result = vb->replace(itm, cookie, engine, predicate, cHandle);
+        result = vb->replace(rlh, itm, cookie, engine, predicate, cHandle);
         if (result == cb::engine_errc::success) {
             itm.isDeleted() ? cHandle.incrementOpsDelete()
                             : cHandle.incrementOpsStore();
@@ -1701,15 +1701,17 @@ cb::engine_errc KVBucket::setWithMeta(Item& itm,
     }
 
     cb::engine_errc rv = cb::engine_errc::success;
-    { // hold collections read lock for duration of set
-
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        // hold collections read lock for duration of set
         auto cHandle = vb->lockCollections(itm.getKey());
         rv = cHandle.handleWriteStatus(
                 engine, cookie, vb->getState(), itm.getNBytes());
 
         if (rv == cb::engine_errc::success) {
             cHandle.processExpiryTime(itm, getMaxTtl());
-            rv = vb->setWithMeta(itm,
+            rv = vb->setWithMeta(rlh,
+                                 itm,
                                  cas,
                                  seqno,
                                  cookie,
@@ -1800,7 +1802,9 @@ GetValue KVBucket::getAndUpdateTtl(const DocKey& key,
         }
     }
 
-    { // collections read scope
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        // collections read scope
         auto cHandle = vb->lockCollections(key);
         if (!cHandle.valid()) {
             engine.setUnknownCollectionErrorContext(*cookie,
@@ -1809,6 +1813,7 @@ GetValue KVBucket::getAndUpdateTtl(const DocKey& key,
         }
 
         auto result = vb->getAndUpdateTtl(
+                rlh,
                 cookie,
                 engine,
                 cHandle.processExpiryTime(exptime, getMaxTtl()),
@@ -2012,7 +2017,8 @@ cb::engine_errc KVBucket::deleteItem(
     }
 
     cb::engine_errc result;
-    { // collections read scope
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(key);
         if (!cHandle.valid()) {
             engine.setUnknownCollectionErrorContext(*cookie,
@@ -2020,8 +2026,14 @@ cb::engine_errc KVBucket::deleteItem(
             return cb::engine_errc::unknown_collection;
         }
 
-        result = vb->deleteItem(
-                cas, cookie, engine, durability, itemMeta, mutInfo, cHandle);
+        result = vb->deleteItem(rlh,
+                                cas,
+                                cookie,
+                                engine,
+                                durability,
+                                itemMeta,
+                                mutInfo,
+                                cHandle);
     }
 
     if (durability) {
@@ -2075,7 +2087,9 @@ cb::engine_errc KVBucket::deleteWithMeta(const DocKey& key,
         return cb::engine_errc::key_already_exists;
     }
 
-    { // hold collections read lock for duration of delete
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        // hold collections read lock for duration of delete
         auto cHandle = vb->lockCollections(key);
         if (!cHandle.valid()) {
             engine.setUnknownCollectionErrorContext(*cookie,
@@ -2083,7 +2097,8 @@ cb::engine_errc KVBucket::deleteWithMeta(const DocKey& key,
             return cb::engine_errc::unknown_collection;
         }
 
-        return vb->deleteWithMeta(cas,
+        return vb->deleteWithMeta(rlh,
+                                  cas,
                                   seqno,
                                   cookie,
                                   engine,

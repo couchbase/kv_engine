@@ -1603,6 +1603,7 @@ cb::StoreIfStatus VBucket::callPredicate(cb::StoreIfPredicate predicate,
 }
 
 cb::engine_errc VBucket::set(
+        VBucketStateLockRef vbStateLock,
         Item& itm,
         CookieIface* cookie,
         EventuallyPersistentEngine& engine,
@@ -1722,6 +1723,7 @@ cb::engine_errc VBucket::set(
 }
 
 cb::engine_errc VBucket::replace(
+        VBucketStateLockRef vbStateLock,
         Item& itm,
         CookieIface* cookie,
         EventuallyPersistentEngine& engine,
@@ -2025,6 +2027,7 @@ cb::engine_errc VBucket::prepare(
 }
 
 cb::engine_errc VBucket::setWithMeta(
+        VBucketStateLockRef vbStateLock,
         Item& itm,
         uint64_t cas,
         uint64_t* seqno,
@@ -2164,6 +2167,7 @@ cb::engine_errc VBucket::setWithMeta(
 }
 
 cb::engine_errc VBucket::deleteItem(
+        VBucketStateLockRef vbStateLock,
         uint64_t& cas,
         CookieIface* cookie,
         EventuallyPersistentEngine& engine,
@@ -2333,6 +2337,7 @@ cb::engine_errc VBucket::deleteItem(
 }
 
 cb::engine_errc VBucket::deleteWithMeta(
+        VBucketStateLockRef vbStateLock,
         uint64_t& cas,
         uint64_t* seqno,
         CookieIface* cookie,
@@ -2622,6 +2627,7 @@ void VBucket::processExpiredItem(const Item& it,
 }
 
 cb::engine_errc VBucket::add(
+        VBucketStateLockRef vbStateLock,
         Item& itm,
         CookieIface* cookie,
         EventuallyPersistentEngine& engine,
@@ -2778,6 +2784,7 @@ std::pair<MutationStatus, GetValue> VBucket::processGetAndUpdateTtl(
 }
 
 GetValue VBucket::getAndUpdateTtl(
+        VBucketStateLockRef vbStateLock,
         CookieIface* cookie,
         EventuallyPersistentEngine& engine,
         time_t exptime,

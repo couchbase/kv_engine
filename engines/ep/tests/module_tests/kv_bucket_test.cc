@@ -598,8 +598,10 @@ void KVBucketTest::writeDocToReplica(Vbid vbid,
     ASSERT_TRUE(vb);
 
     if (!prepare) {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         EXPECT_EQ(cb::engine_errc::success,
-                  vb->setWithMeta(std::ref(item),
+                  vb->setWithMeta(rlh,
+                                  std::ref(item),
                                   0,
                                   &seq,
                                   cookie,

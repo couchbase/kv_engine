@@ -3673,17 +3673,21 @@ TEST_P(DurabilityBucketTest, CompletedPreparesDoNotPreventDelWithMetaReplica) {
     item->setCas();
     item->setBySeqno(seqno);
 
-    ASSERT_EQ(cb::engine_errc::success,
-              vbucket->setWithMeta(*item,
-                                   0,
-                                   &seqno,
-                                   cookie,
-                                   *engine,
-                                   CheckConflicts::No,
-                                   true,
-                                   GenerateBySeqno::No,
-                                   GenerateCas::No,
-                                   vbucket->lockCollections(key)));
+    {
+        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vbucket->setWithMeta(rlh,
+                                       *item,
+                                       0,
+                                       &seqno,
+                                       cookie,
+                                       *engine,
+                                       CheckConflicts::No,
+                                       true,
+                                       GenerateBySeqno::No,
+                                       GenerateCas::No,
+                                       vbucket->lockCollections(key)));
+    }
 
     ++seqno;
     // COMMIT
@@ -3715,20 +3719,24 @@ TEST_P(DurabilityBucketTest, CompletedPreparesDoNotPreventDelWithMetaReplica) {
     // expect the seqnos to be  @ the commit (which is seqno - 1)
     validateHighAndVisibleSeqno(*store->getVBucket(vbid), seqno - 1, seqno - 1);
 
-    uint64_t cas = 0;
-    ItemMetaData metadata;
-    EXPECT_EQ(cb::engine_errc::success,
-              vbucket->deleteWithMeta(cas,
-                                      nullptr,
-                                      cookie,
-                                      *engine,
-                                      CheckConflicts::No,
-                                      metadata,
-                                      GenerateBySeqno::No,
-                                      GenerateCas::No,
-                                      seqno /*seqno*/,
-                                      vbucket->lockCollections(key),
-                                      DeleteSource::TTL));
+    {
+        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
+        uint64_t cas = 0;
+        ItemMetaData metadata;
+        EXPECT_EQ(cb::engine_errc::success,
+                  vbucket->deleteWithMeta(rlh,
+                                          cas,
+                                          nullptr,
+                                          cookie,
+                                          *engine,
+                                          CheckConflicts::No,
+                                          metadata,
+                                          GenerateBySeqno::No,
+                                          GenerateCas::No,
+                                          seqno /*seqno*/,
+                                          vbucket->lockCollections(key),
+                                          DeleteSource::TTL));
+    }
 
     EXPECT_FALSE(vbucket->ht.findForRead(key).storedValue);
 }
