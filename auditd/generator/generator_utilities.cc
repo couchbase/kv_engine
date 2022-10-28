@@ -18,6 +18,7 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <sstream>
 #include <system_error>
 
 #ifdef COUCHBASE_ENTERPRISE_EDITION
