@@ -240,6 +240,67 @@ TEST_P(AuditTest, splitJsonData) {
 }
 
 /**
+ * Validate the audit configured event
+ */
+TEST_P(AuditTest, AuditConfigured) {
+    bool found = false;
+    iterate([&found](const nlohmann::json& entry) -> bool {
+        if (entry.value("id", 0) == AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON) {
+            EXPECT_TRUE(entry["auditd_enabled"].get<bool>());
+            // this is the entry I want
+            EXPECT_EQ(2, entry["version"].get<int>());
+            EXPECT_EQ("this_is_the_uuid", entry["uuid"].get<std::string>());
+            found = true;
+            return true;
+        }
+        return false;
+    });
+
+    EXPECT_TRUE(found) << "Timed out waiting for log entry to appear";
+    found = false;
+    setEnabled(false);
+    iterate([&found](const nlohmann::json& entry) -> bool {
+        if (entry.value("id", 0) == AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON) {
+            // There should be one entry for it to be started, and one
+            // for it to be shut down.
+            if (!entry["auditd_enabled"].get<bool>()) {
+                // this is the entry I want
+                EXPECT_EQ(2, entry["version"].get<int>());
+                EXPECT_EQ("this_is_the_uuid", entry["uuid"].get<std::string>());
+                found = true;
+                return true;
+            }
+        }
+        return false;
+    });
+
+    EXPECT_TRUE(found) << "Timed out waiting for log entry to appear";
+}
+
+/**
+ * Validate that we only create the audit log file in the situation
+ * where we go from disabled to enabled. Configure is synchronous
+ * so it is easy to test
+ */
+TEST_P(AuditTest, ValidateAuditLogFileCreated) {
+    std::filesystem::path log_dir{mcd_env->getAuditLogDir()};
+    auto log = log_dir / "audit.log";
+    // Audit should be enabled so the file should be there
+    EXPECT_TRUE(exists(log));
+    setEnabled(false);
+    remove(log);
+
+    // Reconfigure going from disabled to disabled should not cause
+    // the audit file to be created
+    setEnabled(false);
+    EXPECT_FALSE(exists(log));
+
+    // But if we start it the file should be created
+    setEnabled(true);
+    EXPECT_TRUE(exists(log));
+}
+
+/**
  * Validate that a rejected illegal packet is audit logged.
  */
 TEST_P(AuditTest, AuditIllegalPacket) {
