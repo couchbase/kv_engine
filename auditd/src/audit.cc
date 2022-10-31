@@ -79,10 +79,9 @@ AuditImpl::~AuditImpl() {
 void AuditImpl::create_audit_event(uint32_t event_id, nlohmann::json& payload) {
     // Add common fields to the audit event
     payload["timestamp"] = ISOTime::generatetimestamp();
-    nlohmann::json real_userid;
-    real_userid["domain"] = "internal";
-    real_userid["user"] = "couchbase";
-    payload["real_userid"] = real_userid;
+    const cb::rbac::UserIdent real_userid("@memcached",
+                                          cb::rbac::Domain::Local);
+    payload["real_userid"] = real_userid.to_json();
 
     switch (event_id) {
         case AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON:

@@ -250,6 +250,10 @@ TEST_P(AuditTest, AuditConfigured) {
             // this is the entry I want
             EXPECT_EQ(2, entry["version"].get<int>());
             EXPECT_EQ("this_is_the_uuid", entry["uuid"].get<std::string>());
+            EXPECT_EQ("local",
+                      entry["real_userid"]["domain"].get<std::string>());
+            EXPECT_EQ("@memcached",
+                      entry["real_userid"]["user"].get<std::string>());
             found = true;
             return true;
         }
