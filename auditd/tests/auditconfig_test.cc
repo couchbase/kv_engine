@@ -95,12 +95,6 @@ TEST_F(AuditConfigTest, TestIllegalDatatypeVersion) {
 TEST_F(AuditConfigTest, TestLegalVersion) {
     for (int version = -100; version < 100; ++version) {
         json["version"] = version;
-        if (version == 1) {
-            json.erase("filtering_enabled");
-            json.erase("disabled_userids");
-            json.erase("event_states");
-            json.erase("uuid");
-        }
         if (version == 2) {
             json["filtering_enabled"] = true;
             nlohmann::json disabled_userids = nlohmann::json::array();
@@ -109,7 +103,7 @@ TEST_F(AuditConfigTest, TestLegalVersion) {
             json["event_states"] = event_states;
             json["uuid"] = "123456";
         }
-        if ((version == 1) || (version == 2)) {
+        if (version == 2) {
             config = AuditConfig(json);
         } else {
             EXPECT_THROW(AuditConfig cfg(json), std::invalid_argument);
@@ -309,23 +303,6 @@ TEST_F(AuditConfigTest, TestNoDisabled) {
     }
 }
 
-TEST_F(AuditConfigTest, TestSpecifyDisabled) {
-    nlohmann::json array = nlohmann::json::array();
-    for (int ii = 0; ii < 10; ++ii) {
-        array.push_back(ii);
-    }
-    json["disabled"] = array;
-    config = AuditConfig(json);
-
-    for (uint32_t ii = 0; ii < 100; ++ii) {
-        if (ii < 10 && config.get_version() == 1) {
-            EXPECT_TRUE(config.is_event_disabled(ii));
-        } else {
-            EXPECT_FALSE(config.is_event_disabled(ii));
-        }
-    }
-}
-
 TEST_F(AuditConfigTest, TestSpecifyDisabledUsers) {
     nlohmann::json array = nlohmann::json::array();
     for (uint16_t ii = 0; ii < 10; ++ii) {
@@ -356,25 +333,6 @@ TEST_F(AuditConfigTest, TestSpecifyDisabledUsers) {
             EXPECT_FALSE(config.is_event_filtered(userid));
         }
     }
-}
-
-/**
- * Tests that when converting a config containing a single disabled event it
- * translates to a single entry in the json "disabled" array and the json
- * "disabled_userids" array remains empty.
- */
-TEST_F(AuditConfigTest, AuditConfigDisabled) {
-    MockAuditConfig config;
-    nlohmann::json disabled = nlohmann::json::array();
-    disabled.push_back(1234);
-    config.public_set_disabled(disabled);
-
-    auto json = config.to_json();
-    auto disabledArray = json["disabled"];
-
-    EXPECT_EQ(1, disabledArray.size());
-    auto disabledUseridsArray = json["disabled_userids"];
-    EXPECT_EQ(0, disabledUseridsArray.size());
 }
 
 /**

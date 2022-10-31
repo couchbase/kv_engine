@@ -21,10 +21,6 @@ public:
                   // Empty
           };
 
-    void public_set_disabled(const nlohmann::json& array) {
-        AuditConfig::set_disabled(array);
-    }
-
     void public_set_disabled_userids(const nlohmann::json& array) {
         AuditConfig::set_disabled_userids(array);
     }

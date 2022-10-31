@@ -48,8 +48,6 @@ public:
     void set_version(uint32_t ver);
     uint32_t get_version() const;
     bool is_event_sync(uint32_t id);
-    // is_event_disabled is depreciated in version 2 of the configuration.
-    bool is_event_disabled(uint32_t id);
     AuditConfig::EventState get_event_state(uint32_t id) const;
     bool is_event_filtered(
             const std::pair<std::string, std::string>& userid) const;
@@ -86,7 +84,6 @@ protected:
             const nlohmann::json& object,
             const char* name);
     void set_sync(const nlohmann::json& array);
-    void set_disabled(const nlohmann::json& array);
     void set_disabled_userids(const nlohmann::json& array);
     void set_event_states(const nlohmann::json& array);
 
@@ -99,7 +96,6 @@ protected:
 
     std::string log_path;
     std::vector<uint32_t> sync;
-    std::vector<uint32_t> disabled;
     std::vector<std::pair<std::string, std::string>> disabled_userids;
     std::unordered_map<uint32_t, EventState> event_states;
     std::string uuid;

@@ -159,11 +159,7 @@ The module defines 4 events; for each event 7 fields must be specified:
   *remote* and *effective_userid*.  However additional bespoke fields can
   be added, if required.  Note: it is valid to have an empty optional_fields,
   i.e. {}.
-
-Version 2 of the audit configuration supports the filtering of events by user.
-Therefore with Version 2 an additional optional attribute is permitted.
-
-* filtering_permiited (bool) - whether the event can be filtered or not.
+* filtering_permitted (bool) - whether the event can be filtered or not.
   If the attribute is not defined then it is defaulted that the event
   cannot be filtered.  Note: we don't want to permit any ns_server or audit
   events from being filtered.
@@ -350,24 +346,17 @@ PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD.
 The configuration file is a JSON structured document that comprises of
 the following fields:
 
-* version - states which format of the auditd to use.  Currently only "1" or
-  "2" is valid
+* version - states which format of the auditd to use.  Currently only "2" is
+  valid
 * daemon enabled - boolean stating whether the daemon should be running.
 * rotate interval - number of minutes between log file rotation. (Default is
   one day.  Minimum is 15 minutes)
 * rotate_size - number of bytes written to the file before rotating to a new
   file
 * buffered - should buffered file IO be used or not
-* disabled - list of event ids (numbers) containing those events that are NOT
-  to be outputted to the audit log.  This is depreciated in version 2 and has
-  no affect.
 * sync - list of event ids containing those events that are synchronous.
   Synchronous events are not supported in Sherlock and so this should be the
   empty list.
-
-With the introduction of Version 2 of the auditd configuration the following
-additional fields are required:
-
 * uuid - identifies which auditd configuration is being used. The value is
   provided by ns_server
 * disabled_userids - a list of userids. Each entry corresponds to a userid
@@ -379,19 +368,6 @@ additional fields are required:
   This configuration is used to override the "enabled" attribute of an
    event defined in its module definition. The map is optional and if
     omitted the configuration will still be parsed correctly.
-
-An example verison 1 configuration is presented below.
-
-       {
-        "version":      1,
-        "auditd_enabled":       true,
-        "rotate_interval":      1440,
-        "rotate_size":          20971520,
-        "buffered":             true,
-        "log_path": "/var/lib/couchbase/logs",
-        "disabled": [],
-        "sync": []
-       }
 
 An example verison 2 configuration is presented below.
 
@@ -414,7 +390,7 @@ With the introduction of Version 2 of the auditd configuration filtering by
 user is supported.  For filtering to work the filtering_enabled setting in the
 auditd configuration file must be set to true.
 
-In addition the disabled_userids list must contain the userids that are to be
+In addition, the disabled_userids list must contain the userids that are to be
 filtered out.  The domain must match the "domain" component from a real_userid
 or effective_userid, and the user must match the "user" component.
 For example given the following:

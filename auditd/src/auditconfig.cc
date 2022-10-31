@@ -26,27 +26,21 @@ AuditConfig::AuditConfig(const nlohmann::json& json) {
     set_log_directory(json.at("log_path"));
     set_sync(json.at("sync"));
 
-    // The disabled list is depreciated in version 2
-    if (get_version() == 1) {
-        set_disabled(json.at("disabled"));
+    set_filtering_enabled(json.at("filtering_enabled"));
+    set_uuid(json.at("uuid"));
+    auto duids = json.at("disabled_userids");
+    if (duids.is_array()) {
+        set_disabled_userids(duids);
+    } else {
+        throw std::invalid_argument(fmt::format(
+                "AuditConfig::AuditConfig 'disabled_userids' should "
+                "be array, but got: '{}'",
+                duids.type_name()));
     }
-    if (get_version() == 2) {
-        set_filtering_enabled(json.at("filtering_enabled"));
-        set_uuid(json.at("uuid"));
-        auto duids = json.at("disabled_userids");
-        if (duids.is_array()) {
-            set_disabled_userids(duids);
-        } else {
-            throw std::invalid_argument(fmt::format(
-                    "AuditConfig::AuditConfig 'disabled_userids' should "
-                    "be array, but got: '{}'",
-                    duids.type_name()));
-        }
-        // event_states is optional so if not defined will not throw an
-        // exception.
-        if (json.find("event_states") != json.end()) {
-            set_event_states(json.at("event_states"));
-        }
+    // event_states is optional so if not defined will not throw an
+    // exception.
+    if (json.find("event_states") != json.end()) {
+        set_event_states(json.at("event_states"));
     }
 
     std::map<std::string, int> tags;
@@ -61,12 +55,10 @@ AuditConfig::AuditConfig(const nlohmann::json& json) {
     // The disabled list is depreciated in version 2 - if defined will
     // just be ignored.
     tags["disabled"] = 1;
-    if (get_version() == 2) {
-        tags["filtering_enabled"] = 1;
-        tags["uuid"] = 1;
-        tags["disabled_userids"] = 1;
-        tags["event_states"] = 1;
-    }
+    tags["filtering_enabled"] = 1;
+    tags["uuid"] = 1;
+    tags["disabled_userids"] = 1;
+    tags["event_states"] = 1;
 
     for (auto it = json.begin(); it != json.end(); ++it) {
         if (tags.find(it.key()) == tags.end()) {
@@ -136,7 +128,7 @@ std::string AuditConfig::get_log_directory() const {
 }
 
 void AuditConfig::set_version(uint32_t ver) {
-    if ((ver != 1) && (ver != 2)) {
+    if (ver != 2) {
         throw std::invalid_argument(fmt::format(
                 "AuditConfig::set_version(): version {} is not supported",
                 ver));
@@ -150,10 +142,6 @@ uint32_t AuditConfig::get_version() const {
 
 bool AuditConfig::is_event_sync(uint32_t id) {
     return std::find(sync.begin(), sync.end(), id) != sync.end();
-}
-
-bool AuditConfig::is_event_disabled(uint32_t id) {
-    return std::find(disabled.begin(), disabled.end(), id) != disabled.end();
 }
 
 AuditConfig::EventState AuditConfig::get_event_state(uint32_t id) const {
@@ -295,10 +283,6 @@ void AuditConfig::set_sync(const nlohmann::json& array) {
     add_array(sync, array, "sync");
 }
 
-void AuditConfig::set_disabled(const nlohmann::json& array) {
-    add_array(disabled, array, "disabled");
-}
-
 void AuditConfig::set_disabled_userids(const nlohmann::json& array) {
     add_pair_string_array(disabled_userids, array, "disabled_userids");
 }
@@ -319,7 +303,6 @@ nlohmann::json AuditConfig::to_json() const {
     ret["uuid"] = get_uuid();
 
     ret["sync"] = sync;
-    ret["disabled"] = disabled;
 
     auto array = nlohmann::json::array();
 
