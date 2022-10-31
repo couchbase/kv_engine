@@ -114,6 +114,7 @@ void create_audit_descriptor_manager_defs(
                << e["id"].get<uint32_t>() << ", R\"("
                << e["name"].get<std::string>() << ")\", R\"("
                << e["description"].get<std::string>() << ")\", "
+               << to_string(e.value("enabled", false)) << ", "
                << to_string(e.value("filtering_permitted", false)) << ")},"
                << std::endl;
         }

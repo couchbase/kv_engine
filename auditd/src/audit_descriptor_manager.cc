@@ -17,7 +17,18 @@ AuditDescriptorManager::AuditDescriptorManager()
       ) {
 }
 
-const EventDescriptor& AuditDescriptorManager::lookup(uint32_t id) {
+AuditDescriptorManager& AuditDescriptorManager::instance() {
     static AuditDescriptorManager inst;
-    return inst.descriptors.at(id);
+    return inst;
+}
+
+const EventDescriptor& AuditDescriptorManager::lookup(uint32_t id) {
+    return instance().descriptors.at(id);
+}
+
+void AuditDescriptorManager::iterate(
+        std::function<void(const EventDescriptor&)> callback) {
+    for (const auto& [k, v] : instance().descriptors) {
+        callback(v);
+    }
 }

@@ -24,10 +24,12 @@ public:
     EventDescriptor(uint32_t id,
                     std::string name,
                     std::string description,
+                    bool enabled,
                     bool filteringPermitted)
         : id(id),
           name(std::move(name)),
           description(std::move(description)),
+          enabled(enabled),
           filteringPermitted(filteringPermitted) {
     }
 
@@ -43,6 +45,10 @@ public:
         return description;
     }
 
+    bool isEnabled() const {
+        return enabled;
+    }
+
     bool isFilteringPermitted() const {
         return filteringPermitted;
     }
@@ -51,5 +57,6 @@ protected:
     const uint32_t id;
     const std::string name;
     const std::string description;
+    const bool enabled;
     const bool filteringPermitted;
 };

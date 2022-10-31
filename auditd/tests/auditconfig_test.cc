@@ -19,6 +19,7 @@
 #include "auditconfig.h"
 #include "mock_auditconfig.h"
 
+#include <audit_descriptor_manager.h>
 #include <folly/portability/GTest.h>
 
 class AuditConfigTest : public ::testing::Test {
@@ -384,39 +385,33 @@ TEST_F(AuditConfigTest, TestLegalFilteringEnabled) {
     config = AuditConfig(json);
 }
 
-// The event_states list is optional and therefore if it does not exist
-// it should not throw an exception.
+/// The event_states list is optional and therefore if it does not exist
+/// it should not throw an exception.
+/// And all events should be set to the "default" state. The array is only
+/// populated with the _enabled_ events so the rest of them will have the
+/// status of "undefined" if we try to look them up.
 TEST_F(AuditConfigTest, TestNoEventStates) {
     json.erase("event_states");
-    config = AuditConfig(json);
-}
+    const auto cfg = AuditConfig(json);
 
-// Test that with an event_states object consisting of "enabled" and "disabled"
-// the states get converted into corresponding EventStates.  Also if an event
-// is not in the event_states object it has an EventState of undefined.
-TEST_F(AuditConfigTest, TestSpecifyEventStates) {
-    nlohmann::json object;
-    for (int ii = 0; ii < 5; ++ii) {
-        auto event = std::to_string(ii);
-        object[event] = "enabled";
-    }
-    for (int ii = 5; ii < 10; ++ii) {
-        auto event = std::to_string(ii);
-        object[event] = "disabled";
-    }
-    json["event_states"] = object;
-    config = AuditConfig(json);
-
-    for (uint32_t ii = 0; ii < 20; ++ii) {
-        if (ii < 5) {
+    AuditDescriptorManager::iterate([&cfg](const auto& e) {
+        if (e.isEnabled()) {
             EXPECT_EQ(AuditConfig::EventState::enabled,
-                      config.get_event_state(ii));
-        } else if (ii < 10) {
-            EXPECT_EQ(AuditConfig::EventState::disabled,
-                      config.get_event_state(ii));
+                      cfg.get_event_state(e.getId()));
         } else {
             EXPECT_EQ(AuditConfig::EventState::undefined,
-                      config.get_event_state(ii));
+                      cfg.get_event_state(e.getId()));
         }
-    }
+    });
+}
+
+/// Test that with an event_states object consisting of "enabled" and "disabled"
+/// the states get converted into corresponding EventStates.
+TEST_F(AuditConfigTest, TestSpecifyEventStates) {
+    // Event 20488 is disabled by default, and 20480 is enabled by default
+    json["event_states"] =
+            nlohmann::json{{"20488", "enabled"}, {"20480", "disabled"}};
+    config = AuditConfig(json);
+    EXPECT_EQ(AuditConfig::EventState::enabled, config.get_event_state(20488));
+    EXPECT_EQ(AuditConfig::EventState::disabled, config.get_event_state(20480));
 }

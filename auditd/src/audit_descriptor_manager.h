@@ -10,6 +10,7 @@
 #pragma once
 
 #include "eventdescriptor.h"
+#include <functional>
 #include <unordered_map>
 
 /**
@@ -26,7 +27,13 @@ public:
     /// @throws std::out_of_range for unknown identifiers
     static const EventDescriptor& lookup(uint32_t id);
 
+    /// Iterate over all available descriptors
+    /// @todo remove this once we add support for specifying the audit filter
+    ///       in the audit configuration
+    static void iterate(std::function<void(const EventDescriptor&)> callback);
+
 private:
     AuditDescriptorManager();
+    static AuditDescriptorManager& instance();
     const std::unordered_map<uint32_t, EventDescriptor> descriptors;
 };

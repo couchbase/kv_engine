@@ -9,6 +9,7 @@
  */
 
 #include "auditconfig.h"
+#include "audit_descriptor_manager.h"
 #include <fmt/format.h>
 #include <gsl/gsl-lite.hpp>
 #include <nlohmann/json.hpp>
@@ -38,7 +39,14 @@ AuditConfig::AuditConfig(const nlohmann::json& json) {
                 duids.type_name()));
     }
     // event_states is optional so if not defined will not throw an
-    // exception.
+    // exception. It is used to override default values, so
+    // lets start by initialize the default values
+    AuditDescriptorManager::iterate([this](const auto& e) {
+        if (e.isEnabled()) {
+            event_states[e.getId()] = EventState::enabled;
+        }
+    });
+
     if (json.find("event_states") != json.end()) {
         set_event_states(json.at("event_states"));
     }
@@ -202,25 +210,6 @@ void AuditConfig::add_array(std::vector<uint32_t>& vec,
     }
 }
 
-void AuditConfig::add_event_states_object(
-        std::unordered_map<uint32_t, EventState>& eventStates,
-        const nlohmann::json& object,
-        const char* name) {
-    eventStates.clear();
-    for (auto it = object.begin(); it != object.end(); ++it) {
-        std::string event(it.key());
-        std::string state{cb::jsonGet<std::string>(it)};
-        EventState estate{EventState::undefined};
-        if (state == "enabled") {
-            estate = EventState::enabled;
-        } else if (state == "disabled") {
-            estate = EventState::disabled;
-        }
-        // add to the eventStates map
-        eventStates[std::stoi(event)] = estate;
-    }
-}
-
 void AuditConfig::add_pair_string_array(
         std::vector<std::pair<std::string, std::string>>& vec,
         const nlohmann::json& array,
@@ -288,7 +277,18 @@ void AuditConfig::set_disabled_userids(const nlohmann::json& array) {
 }
 
 void AuditConfig::set_event_states(const nlohmann::json& object) {
-    add_event_states_object(event_states, object, "event_states");
+    for (auto it = object.begin(); it != object.end(); ++it) {
+        std::string event(it.key());
+        std::string state{cb::jsonGet<std::string>(it)};
+        EventState estate{EventState::undefined};
+        if (state == "enabled") {
+            estate = EventState::enabled;
+        } else if (state == "disabled") {
+            estate = EventState::disabled;
+        }
+        // add to the eventStates map
+        event_states[std::stoi(event)] = estate;
+    }
 }
 
 nlohmann::json AuditConfig::to_json() const {

@@ -79,10 +79,6 @@ protected:
             std::vector<std::pair<std::string, std::string>>& vec,
             const nlohmann::json& array,
             const char* name);
-    void add_event_states_object(
-            std::unordered_map<uint32_t, EventState>& eventStates,
-            const nlohmann::json& object,
-            const char* name);
     void set_sync(const nlohmann::json& array);
     void set_disabled_userids(const nlohmann::json& array);
     void set_event_states(const nlohmann::json& array);
