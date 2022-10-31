@@ -9,14 +9,13 @@
  */
 
 #include "auditconfig.h"
-#include "audit_event_filter.h"
+#include <fmt/format.h>
 #include <gsl/gsl-lite.hpp>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
 #include <utilities/json_utilities.h>
 #include <algorithm>
-#include <iostream>
 
 AuditConfig::AuditConfig(const nlohmann::json& json) {
     set_version(json.at("version"));
@@ -38,11 +37,10 @@ AuditConfig::AuditConfig(const nlohmann::json& json) {
         if (duids.is_array()) {
             set_disabled_userids(duids);
         } else {
-            std::stringstream ss;
-            ss << "AuditConfig::AuditConfig 'disabled_userids' should "
-                  "be array, but got: '"
-               << duids.type_name() << "'";
-            throw std::invalid_argument(ss.str());
+            throw std::invalid_argument(fmt::format(
+                    "AuditConfig::AuditConfig 'disabled_userids' should "
+                    "be array, but got: '{}'",
+                    duids.type_name()));
         }
         // event_states is optional so if not defined will not throw an
         // exception.
@@ -72,10 +70,9 @@ AuditConfig::AuditConfig(const nlohmann::json& json) {
 
     for (auto it = json.begin(); it != json.end(); ++it) {
         if (tags.find(it.key()) == tags.end()) {
-            std::stringstream ss;
-            ss << "AuditConfig::AuditConfig(): Error: Unknown token \""
-               << it.key() << "\"" << std::endl;
-            throw std::invalid_argument(ss.str());
+            throw std::invalid_argument(fmt::format(
+                    R"(AuditConfig::AuditConfig(): Error: Unknown token "{}")",
+                    it.key()));
         }
     }
 }
@@ -90,10 +87,11 @@ void AuditConfig::set_auditd_enabled(bool value) {
 
 void AuditConfig::set_rotate_size(size_t size) {
     if (size > max_rotate_file_size) {
-        std::stringstream ss;
-        ss << "AuditConfig::set_rotate_size(): Rotation size " << size
-           << " is too big. Legal range is [0, " << max_rotate_file_size << "]";
-        throw std::invalid_argument(ss.str());
+        throw std::invalid_argument(
+                fmt::format("AuditConfig::set_rotate_size(): Rotation size {} "
+                            "is too big. Legal range is [0, {}]",
+                            size,
+                            max_rotate_file_size));
     }
     rotate_size = size;
 }
@@ -105,11 +103,12 @@ size_t AuditConfig::get_rotate_size() const {
 void AuditConfig::set_rotate_interval(uint32_t interval) {
     if (interval != 0 && (interval > max_file_rotation_time ||
                           interval < min_file_rotation_time)) {
-        std::stringstream ss;
-        ss << "AuditConfig::set_rotate_interval(): Rotation interval "
-           << interval << " is outside the legal range ["
-           << min_file_rotation_time << ", " << max_file_rotation_time << "]";
-        throw std::invalid_argument(ss.str());
+        throw std::invalid_argument(
+                fmt::format("AuditConfig::set_rotate_interval(): Rotation "
+                            "interval {} is outside the legal range [{}, {}]",
+                            interval,
+                            min_file_rotation_time,
+                            max_file_rotation_time));
     }
 
     rotate_interval = interval;
@@ -138,10 +137,9 @@ std::string AuditConfig::get_log_directory() const {
 
 void AuditConfig::set_version(uint32_t ver) {
     if ((ver != 1) && (ver != 2)) {
-        std::stringstream ss;
-        ss << "AuditConfig::set_version(): version " << ver
-           << " is not supported";
-        throw std::invalid_argument(ss.str());
+        throw std::invalid_argument(fmt::format(
+                "AuditConfig::set_version(): version {} is not supported",
+                ver));
     }
     version = ver;
 }
@@ -207,10 +205,11 @@ void AuditConfig::add_array(std::vector<uint32_t>& vec,
         if (elem.is_number()) {
             vec.push_back(gsl::narrow<uint32_t>(elem));
         } else {
-            std::stringstream ss;
-            ss << "Incorrect type (" << elem.type_name() << ") for element in "
-               << name << " array. Expected numbers";
-            throw std::runtime_error(ss.str());
+            throw std::invalid_argument(
+                    fmt::format("AuditConfig::add_array(): Incorrect type ({}) "
+                                "for element in {} array. Expected numbers",
+                                elem.type_name(),
+                                name));
         }
     }
 }
@@ -242,10 +241,11 @@ void AuditConfig::add_pair_string_array(
 
     for (auto& elem : array) {
         if (!elem.is_object()) {
-            std::stringstream ss;
-            ss << "Incorrect type (" << elem.type_name() << ") for element in "
-               << name << " array. Expected objects";
-            throw std::invalid_argument(ss.str());
+            throw std::invalid_argument(fmt::format(
+                    "AuditConfig::add_pair_string_array(): Incorrect type({}) "
+                    "for element in {} array. Expected objects",
+                    elem.type_name(),
+                    name));
         }
         std::string source;
         std::string domain;
