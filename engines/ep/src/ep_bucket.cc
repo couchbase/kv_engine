@@ -324,6 +324,12 @@ void EPBucket::initializeShards() {
 }
 
 void EPBucket::deinitialize() {
+    // If Bucket is currently paused; need to resume to allow flushers
+    // etc to complete.
+    if (paused) {
+        prepareForResume();
+    }
+
     stopFlusher();
 
     allVbucketsDeinitialize();
@@ -2498,11 +2504,16 @@ cb::engine_errc EPBucket::prepareForPause() {
     //    acquire _all_ of them here, which means any of the above in-flight
     //    operations will have to complete before we continue - and that no
     //    more can begin.
+    //    Once all preparations have been completed; we set EPBucket::paused
+    //    to true and unlock the mutexes - any future attempts to lock them
+    //    will be blocked until EPBucket::paused is cleared
+    //    (via prepareForResume()).
     EP_LOG_DEBUG_RAW(
             "EPBucket::prepareForPause: waiting for in-flight Flusher, "
             "Rollback, DeleteVB tasks to complete");
+    std::vector<std::unique_lock<std::mutex>> vb_locks;
     for (auto& mutex : vb_mutexes) {
-        mutex.lock();
+        vb_locks.emplace_back(mutex);
     }
 
     // b) Compaction - This only requires that the appropriate vb_mutexes is
@@ -2551,7 +2562,15 @@ cb::engine_errc EPBucket::prepareForPause() {
         }
         allSuccess &= success;
     });
-    return allSuccess ? cb::engine_errc::success : cb::engine_errc::failed;
+
+    if (allSuccess) {
+        // Successfully prepared for pausing; set paused flag to true before
+        // we unlock all the vb_mutexes; that will inhibit anyone from acquiring
+        // the mutexes again until paused is set to false.
+        paused.store(true);
+        return cb::engine_errc::success;
+    }
+    return cb::engine_errc::failed;
 }
 
 cb::engine_errc EPBucket::prepareForResume() {
@@ -2567,17 +2586,16 @@ cb::engine_errc EPBucket::prepareForResume() {
     });
 
     // 2. Resume ep-engine operations.
-    // a) Unblock disk writing operations from ep-engine.
+    // a) Clear EPBucket::paused so disk writing operations can
+    //    resume.
     EP_LOG_DEBUG_RAW(
-            "EPBucket::prepareForPause: unblocking all Flusher, "
+            "EPBucket::prepareForResume: unblocking all Flusher, "
             "Rollback, DeleteVB tasks.");
-    for (auto& mutex : vb_mutexes) {
-        mutex.unlock();
-    }
+    paused.store(false);
 
     // b) Reset compaction concurrency
     EP_LOG_DEBUG_RAW(
-            "EPBucket::prepareForPause: resuming all Compaction tasks");
+            "EPBucket::prepareForResume: resuming all Compaction tasks");
     compactionSemaphore->release();
     updateCompactionConcurrency();
 

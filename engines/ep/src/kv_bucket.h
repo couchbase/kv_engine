@@ -254,6 +254,10 @@ public:
      *         alongside a shared pointer to the requested VBucket.
      */
     LockedVBucketPtr getLockedVBucket(Vbid vbid) {
+        // While the Bucket is paused, no Locked VBuckets can be acquired.
+        while (paused.load()) {
+            std::this_thread::yield();
+        }
         std::unique_lock<std::mutex> lock(vb_mutexes[vbid.get()]);
         return {vbMap.getBucket(vbid), std::move(lock)};
     }
@@ -270,6 +274,10 @@ public:
      * successfully acquired a locked VBucket.
      */
     LockedVBucketPtr getLockedVBucket(Vbid vbid, std::try_to_lock_t) {
+        // While the Bucket is paused, no Locked VBuckets can be acquired.
+        if (paused.load()) {
+            return {};
+        }
         std::unique_lock<std::mutex> lock(vb_mutexes[vbid.get()],
                                           std::try_to_lock);
         if (!lock) {
@@ -1177,6 +1185,10 @@ protected:
     /* Vector of mutexes for each vbucket
      * Used by flush operations: flushVB, deleteVB, compactVB, snapshotVB */
     std::vector<std::mutex>       vb_mutexes;
+
+    /// Is this Bucket currently paused? If true, inhibits any of the vb_mutexes
+    /// from being acquired.
+    std::atomic_bool paused;
 
     std::mutex vbsetMutex;
     double backfillMemoryThreshold;

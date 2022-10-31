@@ -29,6 +29,8 @@
  */
 class LockedVBucketPtr {
 public:
+    LockedVBucketPtr() = default;
+
     LockedVBucketPtr(VBucketPtr vb, std::unique_lock<std::mutex>&& lock)
         : vb(std::move(vb)), lock(std::move(lock)) {
     }
