@@ -58,14 +58,6 @@ public:
     void set_uuid(std::string uuid);
     std::string get_uuid() const;
 
-    uint32_t get_min_file_rotation_time() const {
-        return min_file_rotation_time;
-    }
-
-    uint32_t get_max_file_rotation_time() const {
-        return max_file_rotation_time;
-    }
-
     /**
      * Create a JSON representation of the audit configuration. This is
      * the same JSON representation that the constructor would accept.
@@ -112,6 +104,7 @@ protected:
     std::unordered_map<uint32_t, EventState> event_states;
     std::string uuid;
 
+public:
     static constexpr uint32_t min_file_rotation_time = 900; // 15 minutes
     static constexpr uint32_t max_file_rotation_time = 604800; // 1 week
     static constexpr size_t max_rotate_file_size = 500 * 1024 * 1024; // 500MB

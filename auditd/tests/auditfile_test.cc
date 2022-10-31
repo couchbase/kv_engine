@@ -80,15 +80,14 @@ TEST_F(AuditFileTest, TestFileCreation) {
  * Seen issues in the past such as MB-32232
  */
 TEST_F(AuditFileTest, TestRotateEmptyFile) {
-    AuditConfig defaultvalue;
-    config.set_rotate_interval(defaultvalue.get_min_file_rotation_time());
+    config.set_rotate_interval(AuditConfig::min_file_rotation_time);
     config.set_rotate_size(1024*1024);
 
     AuditFile auditfile("testing");
     auditfile.reconfigure(config);
 
     auditfile.ensure_open();
-    cb_timeofday_timetravel(defaultvalue.get_min_file_rotation_time() + 1);
+    cb_timeofday_timetravel(AuditConfig::min_file_rotation_time + 1);
     auditfile.ensure_open();
 
     auditfile.close();
@@ -102,8 +101,7 @@ TEST_F(AuditFileTest, TestRotateEmptyFile) {
  * to use the next file
  */
 TEST_F(AuditFileTest, TestTimeRotate) {
-    AuditConfig defaultvalue;
-    config.set_rotate_interval(defaultvalue.get_min_file_rotation_time());
+    config.set_rotate_interval(AuditConfig::min_file_rotation_time);
     config.set_rotate_size(1024*1024);
 
     AuditFile auditfile("testing");
@@ -114,7 +112,7 @@ TEST_F(AuditFileTest, TestTimeRotate) {
     for (int ii = 0; ii < 10; ++ii) {
         auditfile.ensure_open();
         auditfile.write_event_to_disk(event);
-        cb_timeofday_timetravel(defaultvalue.get_min_file_rotation_time() + 1);
+        cb_timeofday_timetravel(AuditConfig::min_file_rotation_time + 1);
     }
 
     auditfile.close();
@@ -136,7 +134,7 @@ TEST_F(AuditFileTest, TestTimeRotateDisabled) {
     for (int ii = 0; ii < 10; ++ii) {
         auditfile.ensure_open();
         auditfile.write_event_to_disk(event);
-        cb_timeofday_timetravel(config.get_min_file_rotation_time() + 1);
+        cb_timeofday_timetravel(AuditConfig::min_file_rotation_time + 1);
     }
     auditfile.close();
 
@@ -149,8 +147,7 @@ TEST_F(AuditFileTest, TestTimeRotateDisabled) {
  * of the file gets bigger.
  */
 TEST_F(AuditFileTest, TestSizeRotate) {
-    AuditConfig defaultvalue;
-    config.set_rotate_interval(defaultvalue.get_max_file_rotation_time());
+    config.set_rotate_interval(AuditConfig::max_file_rotation_time);
     config.set_rotate_size(100);
 
     AuditFile auditfile("testing");
@@ -170,8 +167,7 @@ TEST_F(AuditFileTest, TestSizeRotate) {
 }
 
 TEST_F(AuditFileTest, TestSizeRotateDisabled) {
-    AuditConfig defaultvalue;
-    config.set_rotate_interval(defaultvalue.get_max_file_rotation_time());
+    config.set_rotate_interval(AuditConfig::max_file_rotation_time);
     config.set_rotate_size(0);
 
     AuditFile auditfile("testing");
@@ -195,14 +191,13 @@ TEST_F(AuditFileTest, TestSizeRotateDisabled) {
  * opened, and not from the instance was configured
  */
 TEST_F(AuditFileTest, TestRollover) {
-    AuditConfig defaultvalue;
-    config.set_rotate_interval(defaultvalue.get_min_file_rotation_time());
+    config.set_rotate_interval(AuditConfig::min_file_rotation_time);
     config.set_rotate_size(100);
     AuditFile auditfile("testing");
     auditfile.reconfigure(config);
 
     uint32_t secs = auditfile.get_seconds_to_rotation();
-    EXPECT_EQ(defaultvalue.get_min_file_rotation_time(), secs);
+    EXPECT_EQ(AuditConfig::min_file_rotation_time, secs);
 
     cb_timeofday_timetravel(10);
     EXPECT_EQ(secs, auditfile.get_seconds_to_rotation())
@@ -211,13 +206,13 @@ TEST_F(AuditFileTest, TestRollover) {
     auditfile.ensure_open();
 
     secs = auditfile.get_seconds_to_rotation();
-    EXPECT_TRUE(secs == defaultvalue.get_min_file_rotation_time() ||
-                secs == (defaultvalue.get_min_file_rotation_time() - 1));
+    EXPECT_TRUE(secs == AuditConfig::min_file_rotation_time ||
+                secs == (AuditConfig::min_file_rotation_time - 1));
 
     cb_timeofday_timetravel(10);
     secs = auditfile.get_seconds_to_rotation();
-    EXPECT_TRUE(secs == defaultvalue.get_min_file_rotation_time() - 10 ||
-                secs == (defaultvalue.get_min_file_rotation_time() - 11));
+    EXPECT_TRUE(secs == AuditConfig::min_file_rotation_time - 10 ||
+                secs == (AuditConfig::min_file_rotation_time - 11));
 }
 
 TEST_F(AuditFileTest, TestSuccessfulCrashRecovery) {
