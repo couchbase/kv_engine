@@ -519,6 +519,11 @@ void add(Cookie& cookie, Operation operation) {
 } // namespace cb::audit
 
 void initialize_audit() {
+    // Make sure that we initialize the descriptor manager _before_ we
+    // start the audit daemon to ensure that it its singleton gets freed
+    // after the audit daemon
+    AuditDescriptorManager::lookup(AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON);
+
     /* Start the audit daemon */
     auto audit =
             cb::audit::create_audit_daemon(Settings::instance().getAuditFile());
