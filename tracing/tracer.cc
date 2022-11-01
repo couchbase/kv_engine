@@ -145,6 +145,8 @@ std::string to_string(const cb::tracing::Code tracecode) {
         return "audit.reconfigure";
     case Code::AuditStats:
         return "audit.stats";
+    case Code::AuditValidate:
+        return "audit.validate";
     case Code::SnappyDecompress:
         return "snappy.decompress";
     case Code::JsonValidate:

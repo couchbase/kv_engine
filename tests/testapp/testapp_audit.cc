@@ -554,10 +554,27 @@ TEST_P(AuditTest, AuditConfigReload) {
 }
 
 TEST_P(AuditTest, AuditPut) {
+    const auto event = nlohmann::json{
+            {"real_userid", {{"domain", "external"}, {"user", "joe"}}},
+            {"bucket", "foo"},
+            {"timestamp", "2022-11-01T05:15:25.277211+01:00"},
+            {"local", {{"ip", "::1"}, {"port", 1}}},
+            {"remote", {{"ip", "::1"}, {"port", 1}}}};
+    auto rsp = adminConnection->execute(BinprotAuditPutCommand{
+            MEMCACHED_AUDIT_INVALID_PACKET, event.dump()});
+    EXPECT_TRUE(rsp.isSuccess()) << rsp.getDataString();
+}
+
+TEST_P(AuditTest, AuditPutMissingMandatoryField) {
     auto rsp = adminConnection->execute(BinprotAuditPutCommand{
             MEMCACHED_AUDIT_INVALID_PACKET,
             R"({"real_userid":{"domain":"external","user":"Joe"}})"});
-    EXPECT_TRUE(rsp.isSuccess()) << rsp.getDataString();
+    EXPECT_EQ(cb::mcbp::Status::Einval, rsp.getStatus());
+    auto json = rsp.getDataJson();
+    EXPECT_EQ("Audit event is missing elements specified as mandatory",
+              json["error"]["context"].get<std::string>());
+    EXPECT_EQ(R"(["bucket","local","remote","timestamp"])",
+              json["missing_elements"].dump());
 }
 
 /// Filtering failed to work for memcached generated events as the domain

@@ -9,20 +9,13 @@
  */
 
 #include "event.h"
+
 #include "audit.h"
 #include <logger/logger.h>
-#include <memcached/isotime.h>
 #include <nlohmann/json.hpp>
 #include <utilities/logtags.h>
 
 bool Event::process(AuditImpl& audit) {
-    if (payload.find("timestamp") == payload.end()) {
-        // the audit does not contain a timestamp, so the server
-        // needs to insert one
-        const auto timestamp = ISOTime::generatetimestamp();
-        payload["timestamp"] = timestamp;
-    }
-
     if (!audit.auditfile.ensure_open()) {
         LOG_WARNING("Audit: error opening audit file. Dropping event: {}",
                     cb::UserDataView(payload.dump()));

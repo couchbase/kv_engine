@@ -18,7 +18,7 @@ class AuditImpl;
 class Event {
 public:
     const uint32_t id;
-    nlohmann::json payload;
+    const nlohmann::json payload;
 
     // Constructor required for ConfigureEvent
     Event() : id(0) {

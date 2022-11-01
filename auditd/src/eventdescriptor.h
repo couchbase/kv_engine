@@ -10,6 +10,7 @@
  */
 #pragma once
 
+#include <nlohmann/json.hpp>
 #include <cstdint>
 #include <string>
 
@@ -25,12 +26,14 @@ public:
                     std::string name,
                     std::string description,
                     bool enabled,
-                    bool filteringPermitted)
+                    bool filteringPermitted,
+                    nlohmann::json mandatoryFields)
         : id(id),
           name(std::move(name)),
           description(std::move(description)),
           enabled(enabled),
-          filteringPermitted(filteringPermitted) {
+          filteringPermitted(filteringPermitted),
+          mandatoryFields(std::move(mandatoryFields)) {
     }
 
     uint32_t getId() const {
@@ -53,10 +56,15 @@ public:
         return filteringPermitted;
     }
 
+    const nlohmann::json& getMandatoryFields() const {
+        return mandatoryFields;
+    }
+
 protected:
     const uint32_t id;
     const std::string name;
     const std::string description;
     const bool enabled;
     const bool filteringPermitted;
+    const nlohmann::json mandatoryFields;
 };

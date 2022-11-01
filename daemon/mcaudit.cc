@@ -364,6 +364,32 @@ cb::engine_errc mc_audit_event(Cookie& cookie,
         }
     }
 
+#ifdef CB_DEVELOPMENT_ASSERTS
+    const auto& mandatory = descr->getMandatoryFields();
+    if (!mandatory.empty()) {
+        ScopeTimer1<SpanStopwatch> timer(cookie, Code::AuditValidate);
+        nlohmann::json missing = nlohmann::json::array();
+        for (auto it = mandatory.begin(); it != mandatory.end(); ++it) {
+            if (json.find(it.key()) == json.end()) {
+                missing.push_back(std::string{it.key()});
+            }
+        }
+        if (!missing.empty()) {
+            LOG_WARNING(
+                    "{}: Audit event {} is missing mandatory elements {} and "
+                    "is dropped.",
+                    connection.getDescription(),
+                    audit_eventid,
+                    missing.dump());
+            cookie.setErrorContext(
+                    "Audit event is missing elements specified as "
+                    "mandatory");
+            cookie.setErrorJsonExtras({{"missing_elements", missing}});
+            return cb::engine_errc::invalid_arguments;
+        }
+    }
+#endif
+
     // find the user identifiers, bucket, scope and collection
     // and call the filter
     auto iter = json.find("real_userid");

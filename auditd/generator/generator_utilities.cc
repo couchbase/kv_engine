@@ -110,13 +110,19 @@ void create_audit_descriptor_manager_defs(
     ss << "{{" << std::endl;
     for (const auto& mod_ptr : modules) {
         for (const auto& e : mod_ptr->json["events"]) {
+            std::string mandatory_fields = "{}";
+            const auto iter = e.find("mandatory_fields");
+            if (iter != e.end()) {
+                mandatory_fields = iter->dump();
+            }
+
             ss << "{" << e["id"].get<uint32_t>() << ", EventDescriptor("
                << e["id"].get<uint32_t>() << ", R\"("
                << e["name"].get<std::string>() << ")\", R\"("
                << e["description"].get<std::string>() << ")\", "
                << to_string(e.value("enabled", false)) << ", "
-               << to_string(e.value("filtering_permitted", false)) << ")},"
-               << std::endl;
+               << to_string(e.value("filtering_permitted", false)) << ", "
+               << "R\"(" << mandatory_fields << ")\"_json)}," << std::endl;
         }
     }
     auto dump = ss.str();

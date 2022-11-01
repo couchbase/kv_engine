@@ -42,6 +42,8 @@ enum class Code : uint8_t {
     AuditReconfigure,
     /// Time spent generating audit stats
     AuditStats,
+    /// Time spend validating audit input
+    AuditValidate,
     /// Time spent decompressing Snappy data.
     SnappyDecompress,
     /// Time spent validating if incoming value is JSON.
