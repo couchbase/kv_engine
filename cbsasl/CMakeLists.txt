@@ -42,6 +42,7 @@ add_sanitizers(cbsasl)
 cb_add_test_executable(cbsasl_unit_test
                        cbcrypto_test.cc
                        client_server_test.cc
+                       domain_test.cc
                        password_database_test.cc
                        plain/plain_test.cc
                        sasl_server_test.cc

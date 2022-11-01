@@ -12,6 +12,7 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 
 namespace cb::sasl {
 
@@ -32,7 +33,7 @@ enum class Domain : uint8_t {
     External
 };
 
-Domain to_domain(const std::string& domain);
+Domain to_domain(std::string_view domain);
 
 } // namespace cb::sasl
 

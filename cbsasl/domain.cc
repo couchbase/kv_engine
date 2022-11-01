@@ -9,17 +9,26 @@
  */
 
 #include <cbsasl/domain.h>
-
+#include <fmt/format.h>
 #include <stdexcept>
 
-cb::sasl::Domain cb::sasl::to_domain(const std::string& domain) {
-    if (domain == "local") {
+/// We're using domains in (at least) two places in our system: in cbsasl
+/// and audit. In the initial version of the audit daemon we allowed for
+/// "builtin" to be used, and we didn't have a strict check for what
+/// the various components submitted. When support for audit filtering
+/// was added the UI wants the user to use "couchbase" for the domain
+/// and external for the others. Allow "builtin" and "couchbase" as "aliases"
+/// for "local" until all components submit using "local"
+cb::sasl::Domain cb::sasl::to_domain(std::string_view domain) {
+    using namespace std::string_view_literals;
+    if (domain == "local"sv || domain == "builtin"sv ||
+        domain == "couchbase"sv) {
         return cb::sasl::Domain::Local;
     } else if (domain == "external") {
         return cb::sasl::Domain::External;
     }
-    throw std::invalid_argument("cb::sasl::to_domain: invalid domain: " +
-                                domain);
+    throw std::invalid_argument(
+            fmt::format("cb::sasl::to_domain: invalid domain: {}", domain));
 }
 
 std::string to_string(cb::sasl::Domain domain) {
