@@ -395,15 +395,45 @@ cb::engine_errc mc_audit_event(Cookie& cookie,
     // and call the filter
     auto iter = json.find("real_userid");
     if (iter != json.end()) {
+        cb::rbac::UserIdent uid;
         try {
-            cb::rbac::UserIdent uid(*iter);
-            cb::rbac::UserIdent euid_holder;
-            cb::rbac::UserIdent* euid = nullptr;
+            uid = cb::rbac::UserIdent(*iter);
+        } catch (const std::exception& exception) {
+            LOG_WARNING(
+                    "{}: Audit event: {} Illegal value for 'real_user': {}. "
+                    "Error: {}",
+                    connection.getDescription(),
+                    audit_eventid,
+                    cb::UserDataView(iter->dump()),
+                    exception.what());
+            cookie.setErrorContext(fmt::format(
+                    "Failed to parse 'real_userid': {}", exception.what()));
+            return cb::engine_errc::invalid_arguments;
+        }
+
+        cb::rbac::UserIdent euid_holder;
+        cb::rbac::UserIdent* euid = nullptr;
+        try {
             iter = json.find("effective_userid");
             if (iter != json.end()) {
                 euid_holder = cb::rbac::UserIdent(*iter);
                 euid = &euid_holder;
             }
+        } catch (const std::exception& exception) {
+            LOG_WARNING(
+                    "{}: Audit event: {} Illegal value for 'effective_userid': "
+                    "{}. Error: {}",
+                    connection.getDescription(),
+                    audit_eventid,
+                    cb::UserDataView(iter->dump()),
+                    exception.what());
+            cookie.setErrorContext(
+                    fmt::format("Failed to parse 'effective_userid': {}",
+                                exception.what()));
+            return cb::engine_errc::invalid_arguments;
+        }
+
+        try {
             auto bucket = json.value("bucket", std::string{});
             auto sid = json.value("scope_id", std::string{});
             auto cid = json.value("collection_id", std::string{});
@@ -427,12 +457,9 @@ cb::engine_errc mc_audit_event(Cookie& cookie,
         } catch (const std::exception& e) {
             LOG_WARNING(
                     "{}: Got exception during filtering of audit event id:{} "
-                    "content:{} error: {}",
+                    " error: {}",
                     connection.getDescription(),
                     audit_eventid,
-                    cb::userdataStartTag,
-                    buffer,
-                    cb::userdataEndTag,
                     e.what());
             throw;
         }
