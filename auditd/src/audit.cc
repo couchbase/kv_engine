@@ -275,7 +275,17 @@ void AuditImpl::consume_events() {
 
         while (!processeventqueue.empty()) {
             auto& event = processeventqueue.front();
-            if (!event->process(*this)) {
+            try {
+                if (!event->process(*this)) {
+                    dropped_events++;
+                }
+            } catch (const std::exception& e) {
+                LOG_WARNING(
+                        "AuditImpl::consume_events(): Got exception while "
+                        "processing event: {} ({}): {}",
+                        event->id,
+                        cb::tagUserData(event->payload.dump()),
+                        e.what());
                 dropped_events++;
             }
             processeventqueue.pop();
