@@ -128,6 +128,6 @@ void shutdown_audit();
 cb::engine_errc reconfigure_audit(Cookie& cookie);
 void stats_audit(const StatCollector& collector, Cookie* cookie = nullptr);
 
-bool mc_audit_event(Cookie& cookie,
-                    uint32_t audit_eventid,
-                    cb::const_byte_buffer payload);
+cb::engine_errc mc_audit_event(Cookie& cookie,
+                               uint32_t audit_eventid,
+                               cb::const_byte_buffer payload);

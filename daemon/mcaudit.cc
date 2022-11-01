@@ -312,16 +312,16 @@ void audit_invalid_packet(const Connection& c, cb::const_byte_buffer packet) {
     do_audit(nullptr, MEMCACHED_AUDIT_INVALID_PACKET, root, message.c_str());
 }
 
-bool mc_audit_event(Cookie& cookie,
-                    uint32_t audit_eventid,
-                    cb::const_byte_buffer payload) {
+cb::engine_errc mc_audit_event(Cookie& cookie,
+                               uint32_t audit_eventid,
+                               cb::const_byte_buffer payload) {
     auto& connection = cookie.getConnection();
     auto& filter = connection.getThread().getAuditEventFilter();
 
     // @todo we should put the bucket name in the key!
     if (!filter.isEnabled(audit_eventid, {})) {
         // Not enabled, no need to even parse the JSON
-        return true;
+        return cb::engine_errc::success;
     }
 
     std::string_view buffer{reinterpret_cast<const char*>(payload.data()),
@@ -337,7 +337,8 @@ bool mc_audit_event(Cookie& cookie,
                     cb::userdataStartTag,
                     buffer,
                     cb::userdataEndTag);
-        throw;
+        cookie.setErrorContext("Unknown event id");
+        return cb::engine_errc::invalid_arguments;
     }
 
     nlohmann::json json;
@@ -358,7 +359,8 @@ bool mc_audit_event(Cookie& cookie,
                     cb::userdataStartTag,
                     buffer,
                     cb::userdataEndTag);
-            return false;
+            cookie.setErrorContext("Failed to parse JSON");
+            return cb::engine_errc::invalid_arguments;
         }
     }
 
@@ -405,7 +407,7 @@ bool mc_audit_event(Cookie& cookie,
 
             if (filter.isFilteredOut(
                         audit_eventid, uid, euid, buck, scope, collection)) {
-                return true;
+                return cb::engine_errc::success;
             }
         } catch (const std::exception& e) {
             LOG_WARNING(
@@ -426,9 +428,11 @@ bool mc_audit_event(Cookie& cookie,
     ScopeTimer1<SpanStopwatch> timer(cookie, Code::Audit);
     return getAuditHandle().withRLock([audit_eventid, json](auto& handle) {
         if (!handle) {
-            return false;
+            return cb::engine_errc::too_busy;
         }
-        return handle->put_event(audit_eventid, std::move(json));
+        return handle->put_event(audit_eventid, std::move(json))
+                       ? cb::engine_errc::success
+                       : cb::engine_errc::too_busy;
     });
 }
 
