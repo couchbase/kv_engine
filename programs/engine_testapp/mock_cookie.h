@@ -169,7 +169,9 @@ public:
                                   uint64_t manifestUid,
                                   bool metered) override;
     bool checkThrottle(size_t, size_t) override;
-    bool sendResponse(cb::engine_errc status, std::string_view value) override;
+    bool sendResponse(cb::engine_errc status,
+                      std::string_view extras,
+                      std::string_view value) override;
 
     /// An alternative function to call for notifyIoComplete
     void setUserNotifyIoComplete(std::function<void(cb::engine_errc)> func) {

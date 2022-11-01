@@ -81,4 +81,25 @@ private:
     std::string_view payload;
 };
 
+// The structure which is attached to all response packets from RangeScan
+// continue
+class RangeScanContinueResponseExtras {
+public:
+    enum class Flags : uint32_t { KeyScan = 0, ValueScan = 1 };
+
+    RangeScanContinueResponseExtras(bool keyOnly);
+
+    std::string_view getBuffer() const {
+        return {reinterpret_cast<const char*>(this), sizeof(*this)};
+    }
+
+    Flags getFlags() const;
+
+protected:
+    uint32_t flags{0};
+};
+
+static_assert(sizeof(RangeScanContinueResponseExtras) == 4,
+              "Unexpected object size");
+
 } // namespace cb::mcbp::response

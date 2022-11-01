@@ -143,10 +143,12 @@ public:
     /**
      * Send a status/value in a response message
      * @param status the status to use in the response message
-     * @param value view onto a value to send
+     * @param extras view onto extras to attach to the response
+     * @param value view onto a value to attach to the response
      * @return true if successful, false if not (e.g. disconnect)
      */
     virtual bool sendResponse(cb::engine_errc status,
+                              std::string_view extras,
                               std::string_view value) = 0;
 
     /**

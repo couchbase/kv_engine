@@ -235,6 +235,8 @@ public:
 
     std::string_view getDataView() const;
 
+    std::string_view getExtrasView() const;
+
     /// Parse the payload as JSON and return the parsed payload
     /// @throws exception if a parse error occurs (not json for instance)
     nlohmann::json getDataJson() const;

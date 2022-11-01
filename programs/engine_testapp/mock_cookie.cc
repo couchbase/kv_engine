@@ -152,7 +152,9 @@ bool MockCookie::checkThrottle(size_t, size_t) {
     return false;
 }
 
-bool MockCookie::sendResponse(cb::engine_errc, std::string_view) {
+bool MockCookie::sendResponse(cb::engine_errc,
+                              std::string_view,
+                              std::string_view) {
     // do nothing
     return true;
 }

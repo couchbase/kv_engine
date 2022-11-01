@@ -24,10 +24,12 @@
 #include <memcached/range_scan_status.h>
 #include <statistics/cbstat_collector.h>
 
-RangeScanDataHandler::RangeScanDataHandler(EventuallyPersistentEngine& engine)
+RangeScanDataHandler::RangeScanDataHandler(EventuallyPersistentEngine& engine,
+                                           bool keyOnly)
     : engine(engine),
       sendTriggerThreshold(
-              engine.getConfiguration().getRangeScanReadBufferSendSize()) {
+              engine.getConfiguration().getRangeScanReadBufferSendSize()),
+      keyOnly(keyOnly) {
 }
 
 RangeScanDataHandler::Status RangeScanDataHandler::checkAndSend(
@@ -55,9 +57,11 @@ RangeScanDataHandler::Status RangeScanDataHandler::send(
         CookieIface& cookie, cb::engine_errc status) {
     bool sendSuccess = false;
     {
+        cb::mcbp::response::RangeScanContinueResponseExtras extras(keyOnly);
         NonBucketAllocationGuard guard;
         sendSuccess = cookie.sendResponse(
                 status,
+                extras.getBuffer(),
                 {reinterpret_cast<const char*>(responseBuffer.data()),
                  responseBuffer.size()});
     }

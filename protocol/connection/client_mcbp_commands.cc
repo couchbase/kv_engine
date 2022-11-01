@@ -469,6 +469,11 @@ std::string_view BinprotResponse::getDataView() const {
     return {reinterpret_cast<const char*>(buf.data()), buf.size()};
 }
 
+std::string_view BinprotResponse::getExtrasView() const {
+    const auto buf = getResponse().getExtdata();
+    return {reinterpret_cast<const char*>(buf.data()), buf.size()};
+}
+
 nlohmann::json BinprotResponse::getDataJson() const {
     const auto buf = getData();
     const auto view = std::string_view{

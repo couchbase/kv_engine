@@ -648,7 +648,10 @@ public:
 
     /// Cookie implementation checks the bucket throttle
     bool checkThrottle(size_t pendingRBytes, size_t pendingWBytes) override;
-    bool sendResponse(cb::engine_errc status, std::string_view value) override;
+    /// Cookie implementation calls through to Connection::sendResponse
+    bool sendResponse(cb::engine_errc status,
+                      std::string_view extras,
+                      std::string_view value) override;
 
 protected:
     /**

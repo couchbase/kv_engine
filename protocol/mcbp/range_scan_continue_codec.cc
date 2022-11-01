@@ -153,4 +153,13 @@ void RangeScanContinueValuePayload::encode(std::vector<uint8_t>& v,
     std::copy(value.begin(), value.end(), std::back_inserter(v));
 }
 
+RangeScanContinueResponseExtras::RangeScanContinueResponseExtras(bool keyOnly)
+    : flags(htonl(uint32_t(keyOnly ? Flags::KeyScan : Flags::ValueScan))) {
+}
+
+RangeScanContinueResponseExtras::Flags
+RangeScanContinueResponseExtras::getFlags() const {
+    return Flags(ntohl(flags));
+}
+
 } // namespace cb::mcbp::response

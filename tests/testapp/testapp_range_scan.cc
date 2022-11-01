@@ -285,6 +285,14 @@ size_t RangeScanTest::drainKeyResponse(
         return 0;
     }
 
+    EXPECT_EQ(4, response.getExtrasView().size());
+    const auto* extras = reinterpret_cast<
+            const cb::mcbp::response::RangeScanContinueResponseExtras*>(
+            response.getExtrasView().data());
+    EXPECT_EQ(
+            cb::mcbp::response::RangeScanContinueResponseExtras::Flags::KeyScan,
+            extras->getFlags());
+
     size_t count = 0;
     cb::mcbp::response::RangeScanContinueKeyPayload payload(
             response.getDataView());
@@ -307,6 +315,14 @@ size_t RangeScanTest::drainItemResponse(
     if (response.getDataView().empty()) {
         return 0;
     }
+
+    EXPECT_EQ(4, response.getExtrasView().size());
+    const auto* extras = reinterpret_cast<
+            const cb::mcbp::response::RangeScanContinueResponseExtras*>(
+            response.getExtrasView().data());
+    EXPECT_EQ(cb::mcbp::response::RangeScanContinueResponseExtras::Flags::
+                      ValueScan,
+              extras->getFlags());
 
     size_t count = 0;
     cb::mcbp::response::RangeScanContinueValuePayload payload(

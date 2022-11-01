@@ -100,7 +100,7 @@ public:
  */
 class RangeScanDataHandler : public RangeScanDataHandlerIFace {
 public:
-    RangeScanDataHandler(EventuallyPersistentEngine& engine);
+    RangeScanDataHandler(EventuallyPersistentEngine& engine, bool keyOnly);
 
     Status handleKey(CookieIface& cookie, DocKey key) override;
 
@@ -131,7 +131,7 @@ private:
     std::vector<uint8_t> responseBuffer;
 
     /// the trigger for pushing data to send, set from engine configuration
-    size_t sendTriggerThreshold{0};
+    const size_t sendTriggerThreshold{0};
 
     /**
      * As the scan continues, and reads data it accumulates how many bytes
@@ -139,6 +139,8 @@ private:
      * updating the metering counter.
      */
     size_t pendingReadBytes{0};
+
+    const bool keyOnly{false};
 };
 
 /**

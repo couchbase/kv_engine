@@ -1220,10 +1220,12 @@ bool Cookie::checkThrottle(size_t pendingRBytes, size_t pendingWBytes) {
             *this, true, pendingRBytes + pendingWBytes);
 }
 
-bool Cookie::sendResponse(cb::engine_errc status, std::string_view value) {
+bool Cookie::sendResponse(cb::engine_errc status,
+                          std::string_view extras,
+                          std::string_view value) {
     return connection.sendResponse(*this,
                                    cb::mcbp::to_status(status),
-                                   {},
+                                   extras,
                                    {},
                                    value,
                                    uint8_t(cb::mcbp::Datatype::Raw),
