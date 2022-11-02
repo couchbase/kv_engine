@@ -132,7 +132,9 @@ struct FrontEndThread {
     void iterateThrottleableDcpConnections(
             std::function<void(Connection&)> callback);
 
-    AuditEventFilter& getAuditEventFilter();
+    /// Get the thread local audit event filter to use by this thread
+    /// (or nullptr if there was an error creating an event filter)
+    AuditEventFilter* getAuditEventFilter();
 
     /// Destroy (delete) the connection
     void destroy_connection(Connection& c);

@@ -1042,9 +1042,6 @@ int memcached_main(int argc, char** argv) {
     // Shut down Prometheus (it adds its own log message)
     cb::prometheus::shutdown();
 
-    LOG_INFO_RAW("Shutting down audit daemon");
-    shutdown_audit();
-
     LOG_INFO_RAW("Shutting down client worker threads");
     threads_shutdown();
 
@@ -1078,6 +1075,9 @@ int memcached_main(int argc, char** argv) {
 
     LOG_INFO_RAW("Shutting down all engines");
     shutdown_all_engines();
+
+    LOG_INFO_RAW("Shutting down audit daemon");
+    shutdown_audit();
 
     LOG_INFO_RAW("Removing breakpad");
     cb::breakpad::destroy();

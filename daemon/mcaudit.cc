@@ -41,8 +41,9 @@ static bool isEnabled(uint32_t id,
                       std::optional<std::string_view> bucket,
                       std::optional<ScopeID> scope,
                       std::optional<CollectionID> collection) {
-    auto& filter = connection.getThread().getAuditEventFilter();
-    if (filter.isFilteredOut(
+    auto* filter = connection.getThread().getAuditEventFilter();
+    if (!filter || // no filter -> drop all events
+        filter->isFilteredOut(
                 id, connection.getUser(), euid, bucket, scope, collection)) {
         return false;
     }
@@ -316,11 +317,11 @@ cb::engine_errc mc_audit_event(Cookie& cookie,
                                uint32_t audit_eventid,
                                cb::const_byte_buffer payload) {
     auto& connection = cookie.getConnection();
-    auto& filter = connection.getThread().getAuditEventFilter();
+    auto* filter = connection.getThread().getAuditEventFilter();
 
-    // @todo we should put the bucket name in the key!
-    if (!filter.isEnabled(audit_eventid, {})) {
-        // Not enabled, no need to even parse the JSON
+    // @todo we should put the bucket name in the kv_enkey!
+    if (!filter || !filter->isEnabled(audit_eventid, {})) {
+        // No filter, or not enabled. No need to parse the JSON
         return cb::engine_errc::success;
     }
 
@@ -393,19 +394,7 @@ cb::engine_errc mc_audit_event(Cookie& cookie,
     // find the user identifiers, bucket, scope and collection
     // and call the filter
     auto iter = json.find("real_userid");
-    if (iter == json.end()) {
-        /// @todo Remove the log message in the future. Right now it is
-        ///       here for debug to easily figure out which events we've
-        ///       got without a user. Given that we don't have a user
-        ///       we won't try to filter it and submit it :)
-        LOG_WARNING(
-                "{} Submitted an audit event ({}) without a real user: {}{}{}",
-                connection.getDescription(),
-                audit_eventid,
-                cb::userdataStartTag,
-                buffer,
-                cb::userdataEndTag);
-    } else {
+    if (iter != json.end()) {
         try {
             cb::rbac::UserIdent uid(*iter);
             cb::rbac::UserIdent euid_holder;
@@ -431,7 +420,7 @@ cb::engine_errc mc_audit_event(Cookie& cookie,
                 collection = CollectionID(cid);
             }
 
-            if (filter.isFilteredOut(
+            if (filter->isFilteredOut(
                         audit_eventid, uid, euid, buck, scope, collection)) {
                 return cb::engine_errc::success;
             }
@@ -465,7 +454,6 @@ cb::engine_errc mc_audit_event(Cookie& cookie,
 namespace cb::audit {
 
 void addSessionTerminated(const Connection& c) {
-#if 0
     if (!c.isAuthenticated() ||
         !isEnabled(MEMCACHED_AUDIT_SESSION_TERMINATED, c, nullptr)) {
         return;
@@ -481,7 +469,6 @@ void addSessionTerminated(const Connection& c) {
              MEMCACHED_AUDIT_SESSION_TERMINATED,
              root,
              "Failed to audit session terminated");
-#endif
 }
 
 namespace document {

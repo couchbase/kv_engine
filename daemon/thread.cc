@@ -339,10 +339,10 @@ void threads_shutdown() {
     threads.clear();
 }
 
-AuditEventFilter& FrontEndThread::getAuditEventFilter() {
+AuditEventFilter* FrontEndThread::getAuditEventFilter() {
     if (!auditEventFilter || !auditEventFilter->isValid()) {
         auditEventFilter = create_audit_event_filter();
     }
 
-    return *auditEventFilter;
+    return auditEventFilter.get();
 }
