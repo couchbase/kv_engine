@@ -465,6 +465,7 @@ cb::engine_errc mc_audit_event(Cookie& cookie,
 namespace cb::audit {
 
 void addSessionTerminated(const Connection& c) {
+#if 0
     if (!c.isAuthenticated() ||
         !isEnabled(MEMCACHED_AUDIT_SESSION_TERMINATED, c, nullptr)) {
         return;
@@ -480,6 +481,7 @@ void addSessionTerminated(const Connection& c) {
              MEMCACHED_AUDIT_SESSION_TERMINATED,
              root,
              "Failed to audit session terminated");
+#endif
 }
 
 namespace document {
