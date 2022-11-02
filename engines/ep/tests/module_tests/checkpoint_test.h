@@ -201,7 +201,13 @@ protected:
     // optimization, e.g. for alignment. This has been observed to be up to
     // multiples of 16 bytes on macOS, but this is environment dependent, so the
     // following value is used only as an upper bound.
+#if defined(__arm64__) && defined(__APPLE__)
+    // macOS aarch64 seems to align to an even larger value than other
+    // platforms.
+    static const size_t alignmentBytes = 32;
+#else
     static const size_t alignmentBytes = 24;
+#endif
 };
 
 /**
