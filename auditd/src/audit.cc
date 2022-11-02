@@ -60,7 +60,7 @@ AuditImpl::AuditImpl(std::string config_file, std::string host)
 AuditImpl::~AuditImpl() {
     nlohmann::json payload;
     create_audit_event(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON, payload);
-    put_event(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON, payload.dump());
+    put_event(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON, payload);
 
     {
         // Set the flag to request the audit consumer to stop
@@ -82,6 +82,10 @@ void AuditImpl::create_audit_event(uint32_t event_id, nlohmann::json& payload) {
     const cb::rbac::UserIdent real_userid("@memcached",
                                           cb::rbac::Domain::Local);
     payload["real_userid"] = real_userid.to_json();
+    const auto& evt = AuditDescriptorManager::lookup(event_id);
+    payload["id"] = event_id;
+    payload["name"] = evt.getName();
+    payload["description"] = evt.getDescription();
 
     switch (event_id) {
         case AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON:
@@ -176,14 +180,9 @@ bool AuditImpl::configure() {
 
     // create event to say done reconfiguration
     if (is_enabled_before_reconfig || enabled) {
-        const auto& evt = AuditDescriptorManager::lookup(
-                AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON);
         nlohmann::json payload;
         try {
             create_audit_event(AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON, payload);
-            payload["id"] = AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON;
-            payload["name"] = evt.getName();
-            payload["description"] = evt.getDescription();
             if (!(auditfile.ensure_open() &&
                   auditfile.write_event_to_disk(payload))) {
                 dropped_events++;
