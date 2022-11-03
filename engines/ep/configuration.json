@@ -1484,6 +1484,15 @@
                 ]
             }
         },
+        "cross_bucket_ht_quota_sharing": {
+          "default": {
+            "on-prem": "false",
+            "serverless": "false"
+          },
+          "descr": "Allow this Bucket's HashTable quota to be shared with other Buckets which have this setting enabled.",
+          "dynamic": false,
+          "type": "bool"
+        },
         "couchstore_tracing": {
             "default": "false",
             "dynamic": true,
