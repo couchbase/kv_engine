@@ -235,8 +235,9 @@ below:
 * timestamp - Contains the date and time of the event, in ISO 8601 format.
   Uses local time with timezone offset (from UTC) in hours and minutes.
   Records microsecond granularity using 3 digits after decimal point.
-* real_userid - comprises of a "domain", which states where the user is
-  defined, e.g. internal, ldap or ad.  It then contains the user string.
+* real_userid - comprises a "domain", which states where the user is
+  defined: "local" (in Couchbase) or "external" (outside Couchbase; LDAP etc).
+  It then contains the user string.
 
 Note:  In version 2 the real_user_id has been changed from
 `{"source" : "", "user" : ""}` to `{"domain" : "", "user" : ""}`.
@@ -321,7 +322,7 @@ be as follows:
 
      {
       "timestamp" : "2014-11-05T13:15:30Z",
-      "real_userid" : {"domain": "internal", "user" : "_admin"}
+      "real_userid" : {"domain": "local", "user" : "@ns_server"}
      }
 
 If the event contained also contained the additional 3 pre-defined
@@ -329,10 +330,10 @@ optional fields then an example payload would be as follows:
 
     {
      "timestamp" : "2014-11-05T13:15:30Z",
-     "real_userid" : {"domain": "internal", "user" : "_admin"},
+     "real_userid" : {"domain": "local", "user" : "@ns_server"},
      "sessionID" : "SID:ANON:www.w3.org:j6oAOxCWZh/CD723LGeXlf-01:34",
      "remote" : {"ip": "127.0.0.1", "port" : 11210"},
-     "effective_userid" : {"domain": "ldap", "user" : "joeblogs"},
+     "effective_userid" : {"domain": "external", "user" : "joeblogs"},
     }
 
 
@@ -380,7 +381,7 @@ An example verison 2 configuration is presented below.
         "buffered":             true,
         "log_path": "/var/lib/couchbase/logs",
         "event_states" : {"1234" : "enabled", "5678" : "disabled"}
-        "disabled_userids": [{"domain" : "internal, "user" : "joeblogs"}],
+        "disabled_userids": [{"domain" : "local, "user" : "joeblogs"}],
         "sync": []
        }
 
@@ -395,13 +396,13 @@ filtered out.  The domain must match the "domain" component from a real_userid
 or effective_userid, and the user must match the "user" component.
 For example given the following:
 
-        "real_userid" : {"domain": "internal", "user" : "joeblogs"}
-        "effective_userid" : {"domain": "ldap", "user" : "joeblogs"},
+        "real_userid" : {"domain": "local", "user" : "joeblogs"}
+        "effective_userid" : {"domain": "external", "user" : "joeblogs"},
 
-If it was decided to filter out the events from {"domain" : "internal",
+If it was decided to filter out the events from {"domain" : "local",
 "user" : "joeblogs"} then the disabled_userids list would be as follows:
 
-        "disabled_userids": [{"domain" : "internal", "user" : "joeblogs"}]
+        "disabled_userids": [{"domain" : "local", "user" : "joeblogs"}]
 
 Finally, an event will only be filtered if its "filtering_permitted" attribute
 is set to true in the definition of the event.  If the event does not contain
