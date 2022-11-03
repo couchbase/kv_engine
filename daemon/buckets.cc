@@ -369,8 +369,6 @@ std::string to_string(Bucket::State state) {
         return "pausing";
     case Bucket::State::Paused:
         return "paused";
-    case Bucket::State::Stopping:
-        return "stopping";
     case Bucket::State::Destroying:
         return "destroying";
     }

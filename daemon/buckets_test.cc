@@ -142,7 +142,6 @@ TEST_F(BucketManagerTest, CreateBucket) {
         case Bucket::State::None:
         case Bucket::State::Pausing:
         case Bucket::State::Paused:
-        case Bucket::State::Stopping:
         case Bucket::State::Destroying:
             FAIL() << "Unexpected callback";
         case Bucket::State::Creating:
@@ -216,7 +215,6 @@ TEST_F(BucketManagerTest, PromoteClusterConfigOnlyBucket) {
                                              Bucket::State state) {
         switch (state) {
         case Bucket::State::None:
-        case Bucket::State::Stopping:
         case Bucket::State::Destroying:
         case Bucket::State::Creating:
         case Bucket::State::Initializing:
@@ -261,7 +259,6 @@ TEST_F(BucketManagerTest, FailingPromoteClusterConfigOnlyBucket) {
                                                   Bucket::State state) {
         switch (state) {
         case Bucket::State::None:
-        case Bucket::State::Stopping:
         case Bucket::State::Creating:
         case Bucket::State::Initializing:
         case Bucket::State::Ready:
@@ -320,7 +317,6 @@ TEST_F(BucketManagerTest, PauseBucket) {
         case Bucket::State::None:
         case Bucket::State::Initializing:
         case Bucket::State::Ready:
-        case Bucket::State::Stopping:
         case Bucket::State::Destroying:
         case Bucket::State::Creating:
             FAIL() << "Unexpected callback for state:" << to_string(state);

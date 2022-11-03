@@ -53,10 +53,8 @@ public:
         Pausing,
         /// The bucket has been paused
         Paused,
-        /// The bucket is currently being stopped. Awaiting clients to
-        /// be disconnected.
-        Stopping,
-        /// The bucket is currently being destroyed.
+        /// The bucket is currently being destroyed. It might be awaiting
+        /// clients to be disconnected.
         Destroying
     };
 

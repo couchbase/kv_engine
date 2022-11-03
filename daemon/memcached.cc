@@ -606,7 +606,6 @@ void cleanup_buckets() {
             {
                 std::lock_guard<std::mutex> guard(bucket.mutex);
                 switch (bucket.state.load()) {
-                case Bucket::State::Stopping:
                 case Bucket::State::Destroying:
                 case Bucket::State::Creating:
                 case Bucket::State::Initializing:
