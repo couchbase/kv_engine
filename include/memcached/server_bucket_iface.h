@@ -12,8 +12,12 @@
 
 #include "engine.h"
 
+#include <functional>
 #include <memory>
 #include <string>
+
+using AssociatedBucketHandle =
+        std::unique_ptr<EngineIface, std::function<void(EngineIface*)>>;
 
 /**
  * The ServerBucketIface allows the EWB engine to create buckets without
@@ -33,4 +37,21 @@ struct ServerBucketIface {
     virtual unique_engine_ptr createBucket(
             const std::string& module,
             ServerApi* (*get_server_api)()) const = 0;
+
+    /**
+     * Associates with the bucket with the given engine. The bucket must be in
+     * the Ready state (otherwise, it will fail to associate). The bucket will
+     * not be destroyed until all handles obtained by calling this method have
+     * been released.
+     *
+     * The bucket might still change state however. In particular, in the case
+     * where the bucket is prevented from being destroyed (by a handle or other
+     * reason), the state will be Destroying.
+     *
+     * @param engine The bucket to associate with. This pointer is explicitly
+     *               allowed to be dangling.
+     * @return If the bucket is not active, nullopt is returned.
+     */
+    virtual std::optional<AssociatedBucketHandle> tryAssociateBucket(
+            EngineIface* engine) const = 0;
 };

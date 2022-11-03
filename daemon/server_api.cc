@@ -42,6 +42,18 @@ struct ServerBucketApi : public ServerBucketIface {
             return {};
         }
     }
+
+    std::optional<AssociatedBucketHandle> tryAssociateBucket(
+            EngineIface* engine) const override {
+        auto* bucket = BucketManager::instance().tryAssociateBucket(engine);
+        if (!bucket) {
+            return {};
+        }
+
+        return AssociatedBucketHandle(engine, [bucket](EngineIface*) {
+            BucketManager::instance().disassociateBucket(bucket);
+        });
+    }
 };
 
 struct ServerDocumentApi : public ServerDocumentIface {
