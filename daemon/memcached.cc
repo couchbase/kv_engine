@@ -142,7 +142,8 @@ void disconnect_bucket(Bucket& bucket, Cookie* cookie) {
                                  Code::BucketLockHeld,
                                  std::chrono::milliseconds(5));
 
-    if (--bucket.clients == 0 && bucket.state == Bucket::State::Destroying) {
+    if (--bucket.clients == 0 && (bucket.state == Bucket::State::Destroying ||
+                                  bucket.state == Bucket::State::Pausing)) {
         bucket.cond.notify_one();
     }
 }
