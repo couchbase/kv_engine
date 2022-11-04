@@ -19,6 +19,7 @@
 #include <memcached/config_parser.h>
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
+#include <memcached/server_bucket_iface.h>
 #include <memcached/server_cookie_iface.h>
 #include <memcached/server_core_iface.h>
 #include <memcached/server_document_iface.h>
@@ -186,6 +187,19 @@ struct MockServerDocumentApi : public ServerDocumentIface {
     }
 };
 
+struct MockServerBucketApi : public ServerBucketIface {
+    unique_engine_ptr createBucket(
+            const std::string& module,
+            ServerApi* (*get_server_api)()) const override {
+        throw std::runtime_error("Not implemented");
+    }
+
+    std::optional<AssociatedBucketHandle> tryAssociateBucket(
+            EngineIface* engine) const override {
+        return AssociatedBucketHandle(engine, [](auto*) {});
+    }
+};
+
 static uint32_t privilege_context_revision = 0;
 void mock_set_privilege_context_revision(uint32_t rev) {
     privilege_context_revision = rev;
@@ -306,6 +320,7 @@ struct MockServerCookieApi : public ServerCookieIface {
 ServerApi* get_mock_server_api() {
     static MockServerCoreApi core_api;
     static MockServerCookieApi server_cookie_api;
+    static MockServerBucketApi server_bucket_api;
     static ServerApi rv;
     static MockServerDocumentApi document_api;
     static int init;
@@ -313,6 +328,7 @@ ServerApi* get_mock_server_api() {
         init = 1;
         rv.core = &core_api;
         rv.cookie = &server_cookie_api;
+        rv.bucket = &server_bucket_api;
         rv.document = &document_api;
     }
 
