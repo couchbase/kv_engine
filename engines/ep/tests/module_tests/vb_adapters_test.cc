@@ -10,6 +10,8 @@
 
 #include "evp_store_single_threaded_test.h"
 
+#include "../mock/mock_synchronous_ep_engine.h"
+#include "cross_bucket_visitor_adapter.h"
 #include "vb_adapters.h"
 #include "vb_visitors.h"
 #include "vbucket.h"
@@ -21,7 +23,7 @@ using namespace ::testing;
 
 class VBAdaptorsTest : public SingleThreadedKVBucketTest {};
 
-MATCHER_P(HasVbid, vbid, "") {
+MATCHER_P(HasVbid, vbid, "Check the provided VBucket has the given vbid") {
     return arg.getId() == vbid;
 }
 
@@ -98,4 +100,208 @@ TEST_F(VBAdaptorsTest, PausingAdapterVisitsVbuckets) {
     EXPECT_TRUE(task->run());
     // 4th run will just see that all vbuckets have been visited and return.
     EXPECT_FALSE(task->run());
+}
+
+class TestVisitor : public InterruptableVBucketVisitor {
+public:
+    TestVisitor(std::optional<Vbid>& lastVbid) : lastVbid(lastVbid) {
+    }
+
+    ExecutionState shouldInterrupt() override {
+        return ExecutionState::Continue;
+    }
+
+    void visitBucket(VBucket& vb) override {
+        lastVbid = vb.getId();
+    }
+
+    std::optional<Vbid>& lastVbid;
+};
+
+TEST_F(VBAdaptorsTest, CrossBucketVisitorsWorksForSingleBucket) {
+    setVBucketState(Vbid(0), vbucket_state_active);
+    setVBucketState(Vbid(1), vbucket_state_active);
+    setVBucketState(Vbid(2), vbucket_state_active);
+
+    auto* bucketApi = engine->getServerApi()->bucket;
+    auto handle = *bucketApi->tryAssociateBucket(engine.get());
+
+    // Track the last Vbid the visitor has seen.
+    std::optional<Vbid> lastVbid;
+    auto visitor = std::make_unique<TestVisitor>(lastVbid);
+
+    CrossBucketVisitorAdapter::VisitorMap visitors;
+    visitors.emplace_back(std::move(handle), std::move(visitor));
+
+    auto crossBucketVisitor = std::make_shared<CrossBucketVisitorAdapter>(
+            *bucketApi,
+            std::move(visitors),
+            // ScheduleOrder doesn't matter for a single bucket
+            CrossBucketVisitorAdapter::ScheduleOrder::RoundRobin,
+            TaskId::ItemPager,
+            "test",
+            std::chrono::microseconds(0));
+    crossBucketVisitor->scheduleNow();
+
+    EXPECT_FALSE(crossBucketVisitor->hasCompleted());
+    // Expect to visit one Vbucket per task wakeup.
+    EXPECT_EQ(std::nullopt, lastVbid);
+    task_executor->runNextTask(NONIO_TASK_IDX,
+                               "test (SynchronousEPEngine:default)");
+    EXPECT_EQ(Vbid(0), lastVbid);
+    task_executor->runNextTask(NONIO_TASK_IDX,
+                               "test (SynchronousEPEngine:default)");
+    EXPECT_EQ(Vbid(1), lastVbid);
+    task_executor->runNextTask(NONIO_TASK_IDX,
+                               "test (SynchronousEPEngine:default)");
+    EXPECT_EQ(Vbid(2), lastVbid);
+    // Final task run will not progress the visitor, as all vBuckets have been
+    // visited.
+    task_executor->runNextTask(NONIO_TASK_IDX,
+                               "test (SynchronousEPEngine:default)");
+    EXPECT_EQ(Vbid(2), lastVbid);
+    // The task should have ran to completion.
+    EXPECT_THROW(task_executor->runNextTask(
+                         NONIO_TASK_IDX, "test (SynchronousEPEngine:default)"),
+                 std::logic_error);
+    EXPECT_TRUE(crossBucketVisitor->hasCompleted());
+}
+
+TEST_F(VBAdaptorsTest, CrossBucketVisitorsWorksForTwoBuckets) {
+    setVBucketState(Vbid(0), vbucket_state_active);
+    setVBucketState(Vbid(1), vbucket_state_active);
+    setVBucketState(Vbid(2), vbucket_state_active);
+
+    auto engine2 = SynchronousEPEngine::build(
+            "dbname=CrossBucketVisitorsWorksForTwoBuckets;couch_bucket="
+            "engine2");
+    ASSERT_EQ(cb::engine_errc::success,
+              engine2->getKVBucket()->setVBucketState(Vbid(0),
+                                                      vbucket_state_active));
+    ASSERT_EQ(cb::engine_errc::success,
+              engine2->getKVBucket()->setVBucketState(Vbid(1),
+                                                      vbucket_state_active));
+
+    auto* bucketApi = engine->getServerApi()->bucket;
+    auto bucket1Handle = *bucketApi->tryAssociateBucket(engine.get());
+    auto bucket2Handle = *bucketApi->tryAssociateBucket(engine2.get());
+
+    CrossBucketVisitorAdapter::VisitorMap visitors;
+    std::optional<Vbid> lastVbidBucket1;
+    visitors.emplace_back(std::move(bucket1Handle),
+                          std::make_unique<TestVisitor>(lastVbidBucket1));
+    std::optional<Vbid> lastVbidBucket2;
+    visitors.emplace_back(std::move(bucket2Handle),
+                          std::make_unique<TestVisitor>(lastVbidBucket2));
+
+    auto crossBucketVisitor = std::make_shared<CrossBucketVisitorAdapter>(
+            *bucketApi,
+            std::move(visitors),
+            CrossBucketVisitorAdapter::ScheduleOrder::RoundRobin,
+            TaskId::ItemPager,
+            "test",
+            std::chrono::microseconds(0),
+            nullptr,
+            /* randomShuffle */ false);
+    crossBucketVisitor->scheduleNow();
+
+    // Expect to visit one Vbucket per task wakeup.
+    EXPECT_EQ(std::nullopt, lastVbidBucket1);
+    EXPECT_EQ(std::nullopt, lastVbidBucket2);
+    {
+        task_executor->runNextTask(NONIO_TASK_IDX,
+                                   "test (SynchronousEPEngine:default)");
+        EXPECT_EQ(Vbid(0), lastVbidBucket1);
+        EXPECT_EQ(std::nullopt, lastVbidBucket2);
+    }
+    {
+        task_executor->runNextTask(NONIO_TASK_IDX,
+                                   "test (SynchronousEPEngine:engine2)");
+        EXPECT_EQ(Vbid(0), lastVbidBucket1);
+        EXPECT_EQ(Vbid(0), lastVbidBucket2);
+    }
+    {
+        task_executor->runNextTask(NONIO_TASK_IDX,
+                                   "test (SynchronousEPEngine:default)");
+        EXPECT_EQ(Vbid(1), lastVbidBucket1);
+        EXPECT_EQ(Vbid(0), lastVbidBucket2);
+    }
+    {
+        task_executor->runNextTask(NONIO_TASK_IDX,
+                                   "test (SynchronousEPEngine:engine2)");
+        EXPECT_EQ(Vbid(1), lastVbidBucket1);
+        EXPECT_EQ(Vbid(1), lastVbidBucket2);
+    }
+    {
+        task_executor->runNextTask(NONIO_TASK_IDX,
+                                   "test (SynchronousEPEngine:default)");
+        EXPECT_EQ(Vbid(2), lastVbidBucket1);
+        EXPECT_EQ(Vbid(1), lastVbidBucket2);
+    }
+    {
+        // Final task run will not progress the visitors
+        task_executor->runNextTask(NONIO_TASK_IDX,
+                                   "test (SynchronousEPEngine:engine2)");
+        task_executor->runNextTask(NONIO_TASK_IDX,
+                                   "test (SynchronousEPEngine:default)");
+        EXPECT_EQ(Vbid(2), lastVbidBucket1);
+        EXPECT_EQ(Vbid(1), lastVbidBucket2);
+    }
+    // The tasks should have ran to completion.
+    EXPECT_THROW(task_executor->runNextTask(
+                         NONIO_TASK_IDX, "test (SynchronousEPEngine:default)"),
+                 std::logic_error);
+    EXPECT_THROW(task_executor->runNextTask(
+                         NONIO_TASK_IDX, "test (SynchronousEPEngine:engine2)"),
+                 std::logic_error);
+}
+
+/**
+ * Tasks managed by the cross-bucket adapter might get woken up when their
+ * engine is shutting down. Test that we can detect this and ignore the tasks.
+ */
+TEST_F(VBAdaptorsTest, CrossBucketVisitorIgnoresUnexpectedWakeups) {
+    setVBucketState(Vbid(0), vbucket_state_active);
+    setVBucketState(Vbid(1), vbucket_state_active);
+
+    auto* bucketApi = engine->getServerApi()->bucket;
+
+    // Track the last Vbid the visitor has seen.
+    std::optional<Vbid> lastVbid1;
+    std::optional<Vbid> lastVbid2;
+
+    CrossBucketVisitorAdapter::VisitorMap visitors;
+    visitors.emplace_back(*bucketApi->tryAssociateBucket(engine.get()),
+                          std::make_unique<TestVisitor>(lastVbid1));
+    visitors.emplace_back(*bucketApi->tryAssociateBucket(engine.get()),
+                          std::make_unique<TestVisitor>(lastVbid2));
+
+    auto crossBucketVisitor = std::make_shared<CrossBucketVisitorAdapter>(
+            *bucketApi,
+            std::move(visitors),
+            CrossBucketVisitorAdapter::ScheduleOrder::RoundRobin,
+            TaskId::ItemPager,
+            "test",
+            std::chrono::microseconds(0));
+
+    bool wasHookExecuted = false;
+    crossBucketVisitor->scheduleNextHook = [&wasHookExecuted](
+                                                   std::deque<ExTask>& queue,
+                                                   GlobalTask* expected) {
+        // Make the unexpected task run instead.
+        auto unexpected =
+                queue.front().get() == expected ? queue.back() : queue.front();
+        // The task will signal its completion from within
+        // GlobalTask::run() and callback into the CrossBucket adapter.
+        // We should detect this and remove the task from the queue.
+        EXPECT_THROW(unexpected->execute(""), std::logic_error);
+        unexpected->getEngine()->getEpStats().isShutdown = true;
+        EXPECT_NO_THROW(unexpected->execute(""));
+        // The unexpected task is removed from the queue.
+        EXPECT_EQ(1, queue.size());
+        EXPECT_EQ(expected, queue.front().get());
+        wasHookExecuted = true;
+    };
+    crossBucketVisitor->scheduleNow();
+    ASSERT_TRUE(wasHookExecuted);
 }

@@ -96,7 +96,7 @@ SingleSteppingVisitorAdapter::SingleSteppingVisitorAdapter(
         ContinuationCallback continuation)
     : NotifiableTask(store->getEPEngine(),
                      id,
-                     0 /*initialSleepTime*/,
+                     INT_MAX /*initialSleepTime*/,
                      completeBeforeShutdown),
       CallbackAdapter(std::move(continuation)),
       store(store),

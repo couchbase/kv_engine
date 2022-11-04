@@ -1880,6 +1880,13 @@ static enum test_result test_sync_vbucket_destroy(EngineIface* h) {
 }
 
 static enum test_result test_async_vbucket_destroy_restart(EngineIface* h) {
+    std::string backend = get_str_stat(h, "ep_backend");
+    if (backend == "rocksdb") {
+        // RocksDBKVStore::prepareToDeleteImpl is not implemented.
+        // Some of our debug logging accesses the result and we end up
+        // with a nullptr dereference.
+        return SKIPPED_UNDER_ROCKSDB;
+    }
     return vbucket_destroy_restart(h);
 }
 

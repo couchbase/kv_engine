@@ -302,6 +302,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/connmap.cc
             src/conn_store.cc
             src/crc32.c
+            src/cross_bucket_visitor_adapter.cc
             src/dcp/active_stream.cc
             src/dcp/active_stream.h
             src/dcp/active_stream_checkpoint_processor_task.cc
