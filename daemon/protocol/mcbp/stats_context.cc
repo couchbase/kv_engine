@@ -781,16 +781,14 @@ cb::engine_errc StatsCommandContext::checkPrivilege() {
 }
 
 cb::engine_errc StatsCommandContext::doStats() {
-    auto handler_pair = getStatHandler(statgroup);
+    const auto [callback, known] = getStatHandler(statgroup);
 
     start = std::chrono::steady_clock::now();
-    if (!handler_pair.second) {
-        const auto key = cookie.getRequest().getKey();
-        command_exit_code = handler_pair.first.handler(
-                {reinterpret_cast<const char*>(key.data()), key.size()},
-                cookie);
+    if (known) {
+        command_exit_code = callback.handler(argument, cookie);
     } else {
-        command_exit_code = handler_pair.first.handler(argument, cookie);
+        command_exit_code = callback.handler(
+                std::string{cookie.getRequest().getKeyString()}, cookie);
     }
 
     // If stats command call returns cb::engine_errc::would_block and the task
