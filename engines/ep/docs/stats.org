@@ -1204,7 +1204,7 @@ rw_<Shard number>: indicating the times spent doing various things:
 | snapshot              | time spent in VB state snapshot operations     |
 | delete                | time spent in delete operations                |
 | save_documents        | time spent in persisting documents in storage  |
-| readTime              | Time spent in read operations                  |
+| readTime              | Time spent in read operations, measured from when the read was initially requsted (bgFetch queued), until when the KVStore completes the read of that document. |
 | readSize              | Size of data in read operations                |
 | writeTime             | time spent in writing to storage subsystem     |
 | writeSize             | sizes of writes given to storage subsystem     |
