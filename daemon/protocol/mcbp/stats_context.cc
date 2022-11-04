@@ -413,7 +413,7 @@ static cb::engine_errc stat_subdoc_execute_executor(const std::string& arg,
             arg, cookie, &Bucket::subjson_operation_times);
 }
 
-static cb::engine_errc stat_responses_json_executor(const std::string& arg,
+static cb::engine_errc stat_responses_json_executor(const std::string&,
                                                     Cookie& cookie) {
     try {
         auto& respCounters =
@@ -564,7 +564,7 @@ static cb::engine_errc stat_timings_executor(const std::string&,
     return cb::engine_errc::success;
 }
 
-static cb::engine_errc stat_threads_executor(const std::string& key,
+static cb::engine_errc stat_threads_executor(const std::string&,
                                              Cookie& cookie) {
     auto& setting = Settings::instance();
 
@@ -587,25 +587,19 @@ static cb::engine_errc stat_threads_executor(const std::string& key,
     return cb::engine_errc::success;
 }
 
-static cb::engine_errc stat_tasks_all_executor(const std::string& key,
+static cb::engine_errc stat_tasks_all_executor(const std::string&,
                                                Cookie& cookie) {
     // BucketManager.forEach() isn't perfect, it only gathers stats for
-    // Buckets in the Ready state, but it's a pain to touch non-ready Buckets...
+    // Buckets in the Ready state, but it's a pain (and not safe) to touch
+    // non-ready Buckets...
     BucketManager::instance().forEach([&cookie](Bucket& bucket) {
-        if (bucket.type == BucketType::ClusterConfigOnly ||
-            bucket.type == BucketType::NoBucket) {
-            // continue - the other Buckets don't necessarily have engines
-            return true;
+        if (bucket.type == BucketType::Couchbase ||
+            bucket.type == BucketType::EWouldBlock) {
+            bucket.getEngine().get_stats(cookie,
+                                         "tasks",
+                                         cookie.getRequest().getValueString(),
+                                         appendStatsFn);
         }
-
-        auto value = cookie.getRequest().getValue();
-        bucket.getEngine().get_stats(
-                cookie,
-                "tasks",
-                {reinterpret_cast<const char*>(value.data()), value.size()},
-                appendStatsFn);
-
-        // continue
         return true;
     });
 
