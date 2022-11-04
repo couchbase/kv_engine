@@ -83,15 +83,9 @@ public:
  */
 class FrontEndBGFetchItem : public BGFetchItem {
 public:
-    FrontEndBGFetchItem(CookieIface* cookie, ValueFilter filter, uint64_t token)
-        : FrontEndBGFetchItem(
-                  std::chrono::steady_clock::now(), filter, cookie, token) {
-    }
-
-    FrontEndBGFetchItem(std::chrono::steady_clock::time_point initTime,
+    FrontEndBGFetchItem(CookieIface* cookie,
                         ValueFilter filter,
-                        CookieIface* cookie,
-                        uint64_t cas);
+                        uint64_t token);
 
     void complete(EventuallyPersistentEngine& engine,
                   VBucketPtr& vb,

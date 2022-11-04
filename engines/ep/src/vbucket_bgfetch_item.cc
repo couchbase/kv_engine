@@ -17,12 +17,12 @@
 #include "vbucket.h"
 #include "vbucket_fwd.h"
 
-FrontEndBGFetchItem::FrontEndBGFetchItem(
-        std::chrono::steady_clock::time_point initTime,
-        ValueFilter filter,
-        CookieIface* cookie,
-        uint64_t token)
-    : BGFetchItem(initTime, token), cookie(cookie), filter(filter) {
+FrontEndBGFetchItem::FrontEndBGFetchItem(CookieIface* cookie,
+                                         ValueFilter filter,
+                                         uint64_t token)
+    : BGFetchItem(std::chrono::steady_clock::now(), token),
+      cookie(cookie),
+      filter(filter) {
     if (cookie && cookie->isTracingEnabled()) {
         NonBucketAllocationGuard guard;
         traceSpanId = cookie->getTracer().begin(
