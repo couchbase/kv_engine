@@ -22,6 +22,7 @@ import sys
 
 from collections import defaultdict
 from difflib import SequenceMatcher
+from functools import wraps, partial
 from operator import itemgetter
 
 try:
@@ -37,7 +38,10 @@ SMALL_VALUE = - (2 ** 60)
 output_json = False
 force_utf8 = False
 
-def cmd(f):
+def cmd(f = None, needs_bucket=True):
+    if f is None:
+        return partial(cmd, needs_bucket=needs_bucket)
+
     f = cli_auth_utils.cmd_decorator(f)
     def g(*args, **kwargs):
         global output_json
@@ -46,6 +50,15 @@ def cmd(f):
         force_utf8 = kwargs.pop('force_utf8', None)
         if force_utf8:
             sys.stdout = codecs.getwriter('utf-8')(sys.stdout)
+
+        # cli_auth_utils.cmd_decorator() adds kwarg bucketName.
+        # Default value for that arg is 'default', used when the user doesn't
+        # pass the arg in input.
+        # Some commands (eg, tasks-all) don't require any user-defined bucket,
+        # so for those we remove the arg for signaling authentication that it
+        # doesn't have to issue any select-bucket.
+        if not needs_bucket:
+            kwargs.pop('bucketName', None)
 
         f(*args, **kwargs)
     return g
@@ -975,7 +988,7 @@ def stats_durability_monitor(mc, vb):
 def stats_tasks(mc, *args):
     tasks_stats_formatter(stats_perform(mc, 'tasks'), *args)
 
-@cmd
+@cmd(needs_bucket=False)
 def stats_tasks_all(mc, *args):
     tasks_stats_formatter(stats_perform(mc, 'tasks-all'), *args)
 

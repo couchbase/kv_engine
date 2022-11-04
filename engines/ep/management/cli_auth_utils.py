@@ -72,7 +72,6 @@ def cmd_decorator(f):
 
         # try to auth
         if username is not None or password is not None:
-            bucket = bucket or 'default'
             username = username or ''
             password = password or ''
             try:
@@ -123,7 +122,7 @@ def get_authed_clitool(extraUsage="", allBuckets=True):
 
     if allBuckets:
         c.addFlag('-a', 'allBuckets', 'iterate over all buckets')
-    c.addOption('-b', 'bucketName', 'the bucket to get stats from (Default: default)')
+    c.addOption('-b', 'bucketName', 'the bucket to get stats from (Default: default)', 'default')
     c.addOption('-u', 'username', 'the user as which to authenticate')
     c.addOption('-p', 'password', 'the password for the user')
     c.addFlag('-S', 'passwordFromStdin', 'read password from stdin')

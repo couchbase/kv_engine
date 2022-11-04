@@ -41,10 +41,10 @@ class CliTool(object):
         self.parser.add_option(flag, dest=key, action='store_true',
                                help=optparse.SUPPRESS_HELP)
 
-    def addOption(self, flag, key, description):
+    def addOption(self, flag, key, description, default=None):
         self.flags[flag] = description
         self.parser.add_option(flag, dest=key, action='store',
-                               help=description)
+                               help=description, default=default)
 
     def execute(self):
         shortUsage = self.parser.usage
