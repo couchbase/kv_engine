@@ -54,8 +54,6 @@ public:
                 {"domain", to_string(cb::rbac::Domain::Local)},
                 {"user", "Jane"}};
 
-        json["event_states"]
-            [std::to_string(MEMCACHED_AUDIT_SESSION_TERMINATED)] = "enabled";
         json["event_states"][std::to_string(MEMCACHED_AUDIT_DOCUMENT_READ)] =
                 "enabled";
         json["event_states"][std::to_string(MEMCACHED_AUDIT_DOCUMENT_MODIFY)] =
@@ -797,4 +795,35 @@ TEST_P(AuditTest, AuditDroppedTest) {
     // Rewrite the config back to the original one
     json["log_path"] = orgLogDir;
     setEnabled(true);
+}
+
+/// Verify that memcached don't generate audit events for disabled
+/// audit events
+TEST_P(AuditTest, MB54426) {
+    auto& json = mcd_env->getAuditConfig();
+    json["event_states"][std::to_string(MEMCACHED_AUDIT_SESSION_TERMINATED)] =
+            "disabled";
+    reconfigureAudit();
+
+    // Recreate the user connection; this should generate a Session terminated
+    // event if the event is enabled (which is it not)
+    rebuildUserConnection(false);
+
+    // Enable the event
+    json["event_states"][std::to_string(MEMCACHED_AUDIT_SESSION_TERMINATED)] =
+            "enabled";
+    reconfigureAudit();
+
+    // Rebuild admin connection which should generate another session terminated
+    // event (ut we may differentiate the disconnect with the real userid)
+    rebuildAdminConnection();
+
+    iterate([](const nlohmann::json& entry) -> bool {
+        if (entry.value("id", 0) == MEMCACHED_AUDIT_SESSION_TERMINATED) {
+            EXPECT_EQ("@admin", entry["real_userid"].value("user", "foo"));
+            return true;
+        }
+
+        return false;
+    });
 }

@@ -242,15 +242,13 @@ protected:
         if (bucket) {
             auto iter = bucketFilter.find(std::string{*bucket});
             if (iter != bucketFilter.end()) {
-                return iter->second.isMatch(id, uid, scope, collection);
+                return !iter->second.isEnabled(id) ||
+                       iter->second.isMatch(id, uid, scope, collection);
             }
         }
 
-        if (defaultBucketFilter.isMatch(id, uid, scope, collection)) {
-            return true;
-        }
-
-        return false;
+        return !defaultBucketFilter.isEnabled(id) ||
+               defaultBucketFilter.isMatch(id, uid, scope, collection);
     }
 
     /// Is the provided ID subject to filtering by this filter
