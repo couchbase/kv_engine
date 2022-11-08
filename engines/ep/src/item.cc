@@ -44,6 +44,7 @@ Item::Item(const DocKey& k,
       deleted(0), // false
       maybeVisible(0),
       preserveTtl(0),
+      deduplicate(1),
       datatype(dtype) {
     if (bySeqno == 0) {
         throw std::invalid_argument("Item(): bySeqno must be non-zero");
@@ -73,6 +74,7 @@ Item::Item(const DocKey& k,
       deleted(0), // false
       maybeVisible(0),
       preserveTtl(0),
+      deduplicate(1),
       datatype(dtype) {
     if (bySeqno == 0) {
         throw std::invalid_argument("Item(): bySeqno must be non-zero");
@@ -95,7 +97,8 @@ Item::Item(const DocKey& k,
       op(o),
       deleted(0), // false
       maybeVisible(0),
-      preserveTtl(0) {
+      preserveTtl(0),
+      deduplicate(1) {
     if (bySeqno < 0) {
         throw std::invalid_argument("Item(): bySeqno must be non-negative");
     }
@@ -115,6 +118,7 @@ Item::Item(const Item& other)
       deletionCause(other.deletionCause),
       maybeVisible(other.maybeVisible),
       preserveTtl(other.preserveTtl),
+      deduplicate(other.deduplicate),
       datatype(other.datatype),
       durabilityReqs(other.durabilityReqs),
       queuedTime(other.queuedTime) {

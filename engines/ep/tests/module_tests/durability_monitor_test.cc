@@ -173,7 +173,7 @@ void DurabilityMonitorTest::addSyncWrites(const std::vector<int64_t>& seqnos,
 }
 
 MutationStatus DurabilityMonitorTest::processSet(Item& item) {
-    VBQueueItemCtx ctx;
+    VBQueueItemCtx ctx{CanDeduplicate::Yes};
     ctx.genBySeqno = GenerateBySeqno::No;
     ctx.durability =
             DurabilityItemCtx{item.getDurabilityReqs(), /*cookie*/ nullptr};

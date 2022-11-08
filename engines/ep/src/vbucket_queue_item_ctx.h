@@ -54,7 +54,9 @@ struct DurabilityItemCtx {
  *
  */
 struct VBQueueItemCtx {
-    VBQueueItemCtx() = default;
+    explicit VBQueueItemCtx(CanDeduplicate deduplicate)
+        : deduplicate(deduplicate) {
+    }
 
     VBQueueItemCtx(GenerateBySeqno genBySeqno,
                    GenerateCas genCas,
@@ -62,14 +64,16 @@ struct VBQueueItemCtx {
                    TrackCasDrift trackCasDrift,
                    std::optional<DurabilityItemCtx> durability,
                    PreLinkDocumentContext* preLinkDocumentContext_,
-                   std::optional<int64_t> overwritingPrepareSeqno)
+                   std::optional<int64_t> overwritingPrepareSeqno,
+                   CanDeduplicate deduplicate)
         : genBySeqno(genBySeqno),
           genCas(genCas),
           generateDeleteTime(generateDeleteTime),
           trackCasDrift(trackCasDrift),
           durability(durability),
           preLinkDocumentContext(preLinkDocumentContext_),
-          overwritingPrepareSeqno(overwritingPrepareSeqno) {
+          overwritingPrepareSeqno(overwritingPrepareSeqno),
+          deduplicate(deduplicate) {
     }
 
     GenerateBySeqno genBySeqno = GenerateBySeqno::Yes;
@@ -86,4 +90,7 @@ struct VBQueueItemCtx {
     std::optional<int64_t> overwritingPrepareSeqno = {};
     // Ephemeral only, high completed seqno to update the seqlist with
     std::optional<int64_t> hcs = {};
+
+    // By default deduplication is enabled
+    const CanDeduplicate deduplicate = CanDeduplicate::Yes;
 };

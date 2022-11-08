@@ -732,13 +732,15 @@ VBNotifyCtx EPVBucket::commitStoredValue(HashTable::FindUpdateResult& values,
             values.pending.getHBL(), *values.pending.getSV(), queueItmCtx);
 }
 
-VBNotifyCtx EPVBucket::abortStoredValue(const HashTable::HashBucketLock& hbl,
-                                        StoredValue& v,
-                                        int64_t prepareSeqno,
-                                        std::optional<int64_t> abortSeqno) {
+VBNotifyCtx EPVBucket::abortStoredValue(
+        const HashTable::HashBucketLock& hbl,
+        StoredValue& v,
+        int64_t prepareSeqno,
+        std::optional<int64_t> abortSeqno,
+        const Collections::VB::CachingReadHandle& cHandle) {
     // Note: We have to enqueue the item into the CM /before/ removing it from
     //     the HT as the removal is synchronous and deallocates the StoredValue
-    VBQueueItemCtx queueItmCtx;
+    VBQueueItemCtx queueItmCtx{cHandle.getCanDeduplicate()};
     if (abortSeqno) {
         queueItmCtx.genBySeqno = GenerateBySeqno::No;
         v.setBySeqno(*abortSeqno);
@@ -750,11 +752,13 @@ VBNotifyCtx EPVBucket::abortStoredValue(const HashTable::HashBucketLock& hbl,
     return notify;
 }
 
-VBNotifyCtx EPVBucket::addNewAbort(const HashTable::HashBucketLock& hbl,
-                                   const DocKey& key,
-                                   int64_t prepareSeqno,
-                                   int64_t abortSeqno) {
-    VBQueueItemCtx queueItmCtx;
+VBNotifyCtx EPVBucket::addNewAbort(
+        const HashTable::HashBucketLock& hbl,
+        const DocKey& key,
+        int64_t prepareSeqno,
+        int64_t abortSeqno,
+        const Collections::VB::CachingReadHandle& cHandle) {
+    VBQueueItemCtx queueItmCtx{cHandle.getCanDeduplicate()};
     queueItmCtx.genBySeqno = GenerateBySeqno::No;
     queued_item item = createNewAbortedItem(key, prepareSeqno, abortSeqno);
     return queueAbortForUnseenPrepare(item, queueItmCtx);

@@ -98,21 +98,26 @@ protected:
                      WantsDeleted wantDeleted);
 
     std::pair<HashTable::HashBucketLock, StoredValue*> lockAndFind(
-            const StoredDocKey& key, const VBQueueItemCtx& ctx = {});
+            const StoredDocKey& key,
+            const VBQueueItemCtx& ctx = VBQueueItemCtx{CanDeduplicate::Yes});
 
     MutationStatus public_processSet(Item& itm,
                                      const uint64_t cas,
-                                     const VBQueueItemCtx& ctx = {});
+                                     const VBQueueItemCtx& ctx = VBQueueItemCtx{
+                                             CanDeduplicate::Yes});
 
-    AddStatus public_processAdd(Item& itm, const VBQueueItemCtx& ctx = {});
+    AddStatus public_processAdd(Item& itm,
+                                const VBQueueItemCtx& ctx = VBQueueItemCtx{
+                                        CanDeduplicate::Yes});
 
     /// Public access to processSoftDelete() method.
     std::pair<MutationStatus, StoredValue*> public_processSoftDelete(
-            const DocKey& key, VBQueueItemCtx ctx = {});
+            const DocKey& key,
+            VBQueueItemCtx ctx = VBQueueItemCtx{CanDeduplicate::Yes});
     std::pair<MutationStatus, StoredValue*> public_processSoftDelete(
             HashTable::FindUpdateResult& htRes,
             StoredValue& v,
-            VBQueueItemCtx ctx = {});
+            VBQueueItemCtx ctx = VBQueueItemCtx{CanDeduplicate::Yes});
 
     bool public_deleteStoredValue(const DocKey& key);
 

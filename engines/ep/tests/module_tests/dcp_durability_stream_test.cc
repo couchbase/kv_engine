@@ -72,7 +72,7 @@ void DurabilityActiveStreamTest::testSendDcpPrepare() {
             value,
             cb::durability::Requirements(cb::durability::Level::Majority,
                                          cb::durability::Timeout(1)));
-    VBQueueItemCtx ctx;
+    VBQueueItemCtx ctx{CanDeduplicate::Yes};
     ctx.durability =
             DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
     {
@@ -395,7 +395,7 @@ TEST_P(DurabilityActiveStreamTest, BackfillDurabilityLevel) {
             value,
             cb::durability::Requirements(cb::durability::Level::Majority,
                                          cb::durability::Timeout(1)));
-    VBQueueItemCtx ctx;
+    VBQueueItemCtx ctx{CanDeduplicate::Yes};
     ctx.durability =
             DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
 
@@ -463,7 +463,7 @@ TEST_P(DurabilityActiveStreamTest, AbortWithBackfillPrepare) {
             value,
             cb::durability::Requirements(cb::durability::Level::Majority,
                                          cb::durability::Timeout(1)));
-    VBQueueItemCtx ctx;
+    VBQueueItemCtx ctx{CanDeduplicate::Yes};
     ctx.durability =
             DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
     EXPECT_EQ(MutationStatus::WasClean, public_processSet(*vb, *item, ctx));
@@ -541,7 +541,7 @@ TEST_P(DurabilityActiveStreamTest, BackfillHCSZero) {
     ckptMgr.clear(0 /*seqno*/);
 
     auto item = makeCommittedItem(makeStoredDocKey("key"), "value");
-    VBQueueItemCtx ctx;
+    VBQueueItemCtx ctx{CanDeduplicate::Yes};
     EXPECT_EQ(MutationStatus::WasClean, public_processSet(*vb, *item, ctx));
 
     // Required at for transitioning to backfill at EPBucket
@@ -666,7 +666,7 @@ void DurabilityActiveStreamTest::setUpSendSetInsteadOfCommitTest() {
             value,
             cb::durability::Requirements(cb::durability::Level::Majority,
                                          cb::durability::Timeout(1)));
-    VBQueueItemCtx ctx;
+    VBQueueItemCtx ctx{CanDeduplicate::Yes};
     ctx.durability =
             DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
 
@@ -835,7 +835,7 @@ TEST_P(DurabilityActiveStreamTest,
                 value,
                 cb::durability::Requirements(cb::durability::Level::Majority,
                                              cb::durability::Timeout(1)));
-        VBQueueItemCtx ctx;
+        VBQueueItemCtx ctx{CanDeduplicate::Yes};
         ctx.durability = DurabilityItemCtx{item->getDurabilityReqs(),
                                            nullptr /*cookie*/};
         auto cHandle = vb->lockCollections(item->getKey());
@@ -861,7 +861,7 @@ TEST_P(DurabilityActiveStreamTest,
                 value,
                 cb::durability::Requirements(cb::durability::Level::Majority,
                                              cb::durability::Timeout(1)));
-        VBQueueItemCtx ctx;
+        VBQueueItemCtx ctx{CanDeduplicate::Yes};
         ctx.durability = DurabilityItemCtx{item->getDurabilityReqs(),
                                            nullptr /*cookie*/};
         auto cHandle = vb->lockCollections(item->getKey());
@@ -934,7 +934,7 @@ TEST_P(DurabilityActiveStreamTest,
             value,
             cb::durability::Requirements(cb::durability::Level::Majority,
                                          cb::durability::Timeout(1)));
-    VBQueueItemCtx ctx;
+    VBQueueItemCtx ctx{CanDeduplicate::Yes};
     ctx.durability =
             DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
     EXPECT_EQ(MutationStatus::WasClean, public_processSet(*vb, *item, ctx));
@@ -989,7 +989,7 @@ TEST_P(DurabilityActiveStreamTest, DiskSnapshotSendsHCSWithSyncRepSupport) {
     const std::string value = "value";
     auto item = makePendingItem(key, value);
 
-    auto ctx = VBQueueItemCtx();
+    auto ctx = VBQueueItemCtx(CanDeduplicate::Yes);
     ctx.durability = DurabilityItemCtx{item->getDurabilityReqs()};
 
     EXPECT_EQ(MutationStatus::WasClean, public_processSet(*vb, *item, ctx));

@@ -902,7 +902,7 @@ cb::engine_errc VBucket::commit(
         Expects(prepareSeqno >= checkpointManager->getOpenSnapshotStartSeqno());
     }
 
-    VBQueueItemCtx queueItmCtx;
+    VBQueueItemCtx queueItmCtx{cHandle.getCanDeduplicate()};
     if (commitSeqno) {
         queueItmCtx.genBySeqno = GenerateBySeqno::No;
     }
@@ -996,15 +996,19 @@ cb::engine_errc VBucket::abort(
         //     into a new PersistedAborted item
         VBNotifyCtx ctx;
         if (!htRes.pending) {
-            ctx = addNewAbort(
-                    htRes.pending.getHBL(), key, prepareSeqno, *abortSeqno);
+            ctx = addNewAbort(htRes.pending.getHBL(),
+                              key,
+                              prepareSeqno,
+                              *abortSeqno,
+                              cHandle);
         } else {
             // This code path can be reached only at Ephemeral
             Expects(htRes.pending->isPrepareCompleted());
             ctx = abortStoredValue(htRes.pending.getHBL(),
                                    *htRes.pending.release(),
                                    prepareSeqno,
-                                   *abortSeqno);
+                                   *abortSeqno,
+                                   cHandle);
         }
 
         notifyNewSeqno(ctx);
@@ -1027,7 +1031,8 @@ cb::engine_errc VBucket::abort(
     auto notify = abortStoredValue(htRes.pending.getHBL(),
                                    *htRes.pending.release(),
                                    prepareSeqno,
-                                   abortSeqno);
+                                   abortSeqno,
+                                   cHandle);
 
     notifyNewSeqno(notify);
     doCollectionsStats(cHandle, notify);
@@ -1355,6 +1360,8 @@ VBNotifyCtx VBucket::queueDirty(const HashTable::HashBucketLock& hbl,
         setMightContainXattrs();
     }
 
+    qi->setCanDeduplicate(ctx.deduplicate);
+
     // Enqueue the item for persistence and replication
     VBNotifyCtx notifyCtx = queueItem(qi, ctx);
 
@@ -1625,7 +1632,7 @@ cb::engine_errc VBucket::set(
 
         PreLinkDocumentContext preLinkDocumentContext(
                 engine, const_cast<CookieIface*>(cookie), &itm);
-        VBQueueItemCtx queueItmCtx;
+        VBQueueItemCtx queueItmCtx{cHandle.getCanDeduplicate()};
         if (itm.isPending()) {
             queueItmCtx.durability =
                     DurabilityItemCtx{itm.getDurabilityReqs(), cookie};
@@ -1749,7 +1756,7 @@ cb::engine_errc VBucket::replace(
 
                 PreLinkDocumentContext preLinkDocumentContext(
                         engine, const_cast<CookieIface*>(cookie), &itm);
-                VBQueueItemCtx queueItmCtx;
+                VBQueueItemCtx queueItmCtx{cHandle.getCanDeduplicate()};
                 queueItmCtx.preLinkDocumentContext = &preLinkDocumentContext;
                 if (itm.isPending()) {
                     queueItmCtx.durability =
@@ -1898,7 +1905,8 @@ cb::engine_errc VBucket::prepare(
             TrackCasDrift::Yes,
             DurabilityItemCtx{itm.getDurabilityReqs(), cookie},
             nullptr /* No pre link step needed */,
-            {} /*overwritingPrepareSeqno*/};
+            {} /*overwritingPrepareSeqno*/,
+            cHandle.getCanDeduplicate()};
 
     if (v && v->getBySeqno() <= allowedDuplicatePrepareThreshold) {
         // Valid duplicate prepare - call processSetInner and skip the
@@ -2052,7 +2060,8 @@ cb::engine_errc VBucket::setWithMeta(
             TrackCasDrift::Yes,
             DurabilityItemCtx{itm.getDurabilityReqs(), cookie},
             nullptr /* No pre link step needed */,
-            {} /*overwritingPrepareSeqno*/};
+            {} /*overwritingPrepareSeqno*/,
+            cHandle.getCanDeduplicate()};
 
     MutationStatus status;
     std::optional<VBNotifyCtx> notifyCtx;
@@ -2209,7 +2218,7 @@ cb::engine_errc VBucket::deleteItem(
         } else {
             ItemMetaData metadata;
             metadata.revSeqno = htRes.committed->getRevSeqno() + 1;
-            VBQueueItemCtx queueItmCtx;
+            VBQueueItemCtx queueItmCtx{cHandle.getCanDeduplicate()};
             if (durability) {
                 queueItmCtx.durability = DurabilityItemCtx{*durability, cookie};
             }
@@ -2387,7 +2396,8 @@ cb::engine_errc VBucket::deleteWithMeta(
                                    TrackCasDrift::Yes,
                                    {},
                                    nullptr /* No pre link step needed */,
-                                   {} /*overwritingPrepareSeqno*/};
+                                   {} /*overwritingPrepareSeqno*/,
+                                   cHandle.getCanDeduplicate()};
 
         std::unique_ptr<Item> itm;
         if (cachedVbState == vbucket_state_active &&
@@ -2605,7 +2615,7 @@ cb::engine_errc VBucket::add(
 
         PreLinkDocumentContext preLinkDocumentContext(
                 engine, const_cast<CookieIface*>(cookie), &itm);
-        VBQueueItemCtx queueItmCtx;
+        VBQueueItemCtx queueItmCtx{cHandle.getCanDeduplicate()};
         queueItmCtx.preLinkDocumentContext = &preLinkDocumentContext;
         if (itm.isPending()) {
             queueItmCtx.durability =
@@ -2701,7 +2711,7 @@ std::pair<MutationStatus, GetValue> VBucket::processGetAndUpdateTtl(
                     bySeqNo);
 
         if (exptime_mutated) {
-            VBQueueItemCtx qItemCtx;
+            VBQueueItemCtx qItemCtx{cHandle.getCanDeduplicate()};
             VBNotifyCtx notifyCtx;
             std::tie(v, std::ignore, notifyCtx) =
                     updateStoredValue(hbl, *v, *rv.item, qItemCtx, true);
@@ -3818,7 +3828,9 @@ VBucket::processExpiredItem(HashTable::FindUpdateResult& htRes,
         return std::make_tuple(
                 MutationStatus::NeedBgFetch,
                 &v,
-                queueDirty(htRes.getHBL(), v, {} /*VBQueueItemCtx*/));
+                queueDirty(htRes.getHBL(),
+                           v,
+                           VBQueueItemCtx{cHandle.getCanDeduplicate()}));
     }
 
     /* If the datatype is XATTR, mark the item as deleted
@@ -3839,7 +3851,7 @@ VBucket::processExpiredItem(HashTable::FindUpdateResult& htRes,
             softDeleteStoredValue(htRes.getHBL(),
                                   v,
                                   onlyMarkDeleted,
-                                  VBQueueItemCtx{},
+                                  VBQueueItemCtx{cHandle.getCanDeduplicate()},
                                   v.getBySeqno(),
                                   DeleteSource::TTL);
     switch (delStatus) {

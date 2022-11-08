@@ -699,7 +699,7 @@ TEST_P(VBucketEvictionTest, Durability_PendingNeverEjected) {
     ASSERT_EQ(0, vbucket->getNumNonResidentItems());
 
     const auto item = makePendingItem(makeStoredDocKey("key"), "value");
-    VBQueueItemCtx ctx;
+    VBQueueItemCtx ctx{CanDeduplicate::Yes};
     ctx.durability =
             DurabilityItemCtx{item->getDurabilityReqs(), nullptr /*cookie*/};
 
