@@ -630,38 +630,12 @@ public:
     };
 
     /**
-     * The motivation behind the StoredValueProxy class is to allow users of the
-     * HashTable to interact more directly with StoredValues without breaking
-     * things in the HashTable such as stats. Notably, a StoredValueProxy will
-     * always call valueStats.prologue(...) and valueStats.epilogue(...) in the
-     * constructor and destructor respectively. StoredValueProxy is a non-owning
-     * handle on a StoredValue.
-     *
-     * You might ask the question, why don't we just create functions in the
-     * HashTable for everything that we may wish to do? That becomes
-     * unmanageable when you have multiple users wishing to do "something" but
-     * in a different way. Consider SyncWrites in EP and Ephemeral buckets. In
-     * EP buckets, to commit a SyncWrite you convert the existing prepare value
-     * to a committed one. In Ephemeral buckets this is not possible due to the
-     * range read mechanism. To prevent blocking all SyncWrites on range reads,
-     * we allow pending and committed SyncWrites to exist in the HashTable for
-     * the same key. This means that performing a commit should differ in
-     * implementation for EP and Ephemeral buckets. Having a "commitEP" and
-     * "commitEphemeral" method on HashTable would soon spiral out of control.
-     * Instead, just allow the caller to do what they need to, but in a more
-     * managed way.
+     * StoredValueProxy currently serves no purpose and will be removed in a
+     * future branch.
      */
     class StoredValueProxy {
     public:
-        // Tag used for overload resolution while we migrate to using
-        // StoredValueProxy's in HashTable.
-        struct RetSVPTag {};
-
-        StoredValueProxy(HashBucketLock&& hbl,
-                         StoredValue* sv,
-                         Statistics& stats);
-
-        ~StoredValueProxy();
+        StoredValueProxy(HashBucketLock&& hbl, StoredValue* sv);
 
         // Copy is not allowed.
         StoredValueProxy(const StoredValueProxy& other) = delete;
@@ -704,8 +678,6 @@ public:
             value->setBySeqno(newSeqno);
         }
 
-        void setCommitted(CommittedState state);
-
         /**
          * Release this handle to the StoredValue* to the caller. This will
          * allow us to do things such as call a HashTable delete function using
@@ -718,9 +690,6 @@ public:
     private:
         HashBucketLock lock;
         StoredValue* value;
-        // Using ref wrapper to support move.
-        std::reference_wrapper<Statistics> valueStats;
-        Statistics::StoredValueProperties pre;
     };
 
     /**
@@ -804,12 +773,6 @@ public:
      */
     FindResult findForWrite(const DocKey& key,
                             WantsDeleted wantsDeleted = WantsDeleted::Yes);
-
-    /// @return Overload of above function returning a StoredValueProxy
-    StoredValueProxy findForWrite(
-            StoredValueProxy::RetSVPTag,
-            const DocKey& key,
-            WantsDeleted wantsDeleted = WantsDeleted::Yes);
 
     /**
      * Find an item with the specified key for write access.
@@ -1222,6 +1185,19 @@ public:
     void unlocked_restoreMeta(const std::unique_lock<std::mutex>& htLock,
                               const Item& itm,
                               StoredValue& v);
+
+    /**
+     * Set the committed state of StoredValue to be state.
+     * The StoredValue is also marked dirty and has its completed time set.
+     * HashTable statistics are also updated to account for the now committed
+     * StoredValue.
+     * @param hbl reference to the StoredValue's HashBucketLock
+     * @param value StoredValue to modify
+     * @param state The new state for value
+     */
+    void unlocked_setCommitted(const HashTable::HashBucketLock& hbl,
+                               StoredValue& value,
+                               CommittedState state);
 
     /**
      * Releases an item(StoredValue) in the hash table, but does not delete it.
