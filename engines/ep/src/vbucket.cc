@@ -1438,6 +1438,7 @@ queued_item VBucket::createNewAbortedItem(const DocKey& key,
 }
 
 HashTable::FindResult VBucket::fetchValidValue(
+        VBucketStateLockRef vbStateLock,
         WantsDeleted wantsDeleted,
         TrackReference trackReference,
         const Collections::VB::CachingReadHandle& cHandle,
@@ -2827,7 +2828,8 @@ GetValue VBucket::getAndUpdateTtl(
     folly::assume_unreachable();
 }
 
-GetValue VBucket::getInternal(CookieIface* cookie,
+GetValue VBucket::getInternal(VBucketStateLockRef vbStateLock,
+                              CookieIface* cookie,
                               EventuallyPersistentEngine& engine,
                               get_options_t options,
                               GetKeyOnly getKeyOnly,
@@ -2840,8 +2842,11 @@ GetValue VBucket::getInternal(CookieIface* cookie,
     const bool getDeletedValue = (options & GET_DELETED_VALUE);
     const bool bgFetchRequired = (options & QUEUE_BG_FETCH);
 
-    auto res = fetchValidValue(
-            WantsDeleted::Yes, trackReference, cHandle, getReplicaItem);
+    auto res = fetchValidValue(vbStateLock,
+                               WantsDeleted::Yes,
+                               trackReference,
+                               cHandle,
+                               getReplicaItem);
 
     this->isCalledHook();
     auto* v = res.storedValue;
@@ -3013,12 +3018,14 @@ cb::engine_errc VBucket::getMetaData(
 }
 
 cb::engine_errc VBucket::getKeyStats(
+        VBucketStateLockRef vbStateLock,
         CookieIface& cookie,
         EventuallyPersistentEngine& engine,
         struct key_stats& kstats,
         WantsDeleted wantsDeleted,
         const Collections::VB::CachingReadHandle& cHandle) {
-    auto res = fetchValidValue(WantsDeleted::Yes, TrackReference::Yes, cHandle);
+    auto res = fetchValidValue(
+            vbStateLock, WantsDeleted::Yes, TrackReference::Yes, cHandle);
     auto* v = res.storedValue;
 
     if (v) {

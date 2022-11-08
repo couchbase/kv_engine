@@ -1091,7 +1091,8 @@ TEST_P(STItemPagerTest, EvictBGFetchedDeletedItem) {
     EXPECT_EQ(0, vb->getNumTempItems());
 
     auto checkItemStatePostFetch = [&](bool expected) {
-        auto val = vb->fetchValidValue(WantsDeleted::Yes,
+        auto val = vb->fetchValidValue(rlh,
+                                       WantsDeleted::Yes,
                                        TrackReference::No,
                                        vb->lockCollections(key));
         if (expected) {

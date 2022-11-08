@@ -5053,7 +5053,9 @@ TEST_P(DurabilityBucketTest, PrepareDoesNotExpire) {
     // Now access the StoredValue via the expiry code path, must NOT expire has
     // TTL not reached
     const auto checkNotExpired = [&vb, &key]() -> void {
-        auto res = vb.fetchValidValue(WantsDeleted::No,
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        auto res = vb.fetchValidValue(rlh,
+                                      WantsDeleted::No,
                                       TrackReference::No,
                                       vb.lockCollections(key));
         ASSERT_TRUE(res.storedValue);
@@ -5084,7 +5086,9 @@ TEST_P(DurabilityBucketTest, PrepareDoesNotExpire) {
     ObjectRegistry::onSwitchThread(engine.get());
 
     // Item committed, TTL must kick in
-    auto res = vb.fetchValidValue(WantsDeleted::Yes,
+    folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+    auto res = vb.fetchValidValue(rlh,
+                                  WantsDeleted::Yes,
                                   TrackReference::No,
                                   vb.lockCollections(key));
     ASSERT_TRUE(res.storedValue);

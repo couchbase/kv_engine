@@ -872,6 +872,7 @@ public:
      * If an expired item is found then will enqueue a delete to clean up the
      * item if the collection handle is valid.
      *
+     * @param vbStateLock A lock on the state of the vbucket
      * @param wantsDeleted
      * @param trackReference
      * @param cHandle Collections readhandle (caching mode) for this key
@@ -882,6 +883,7 @@ public:
      * found) and the associated HashBucketLock which guards it.
      */
     HashTable::FindResult fetchValidValue(
+            VBucketStateLockRef vbStateLock,
             WantsDeleted wantsDeleted,
             TrackReference trackReference,
             const Collections::VB::CachingReadHandle& cHandle,
@@ -1334,6 +1336,7 @@ public:
     /**
      * Get metadata and value for a given key
      *
+     * @param vbStateLock a lock on the state of the VBucket
      * @param cookie the cookie representing the client
      * @param engine Reference to ep engine
      * @param options flags indicating some retrieval related info
@@ -1344,7 +1347,8 @@ public:
      *
      * @return the result of the operation
      */
-    GetValue getInternal(CookieIface* cookie,
+    GetValue getInternal(VBucketStateLockRef vbStateLock,
+                         CookieIface* cookie,
                          EventuallyPersistentEngine& engine,
                          get_options_t options,
                          GetKeyOnly getKeyOnly,
@@ -1386,6 +1390,7 @@ public:
      * @return the result of the operation
      */
     cb::engine_errc getKeyStats(
+            VBucketStateLockRef vbStateLock,
             CookieIface& cookie,
             EventuallyPersistentEngine& engine,
             struct key_stats& kstats,

@@ -861,7 +861,8 @@ GetValue DurabilityWarmupTest::getItemFromDisk(const DocKey& key,
     // one to run the get against both active and replica vBuckets.
     const auto options =
             static_cast<get_options_t>(QUEUE_BG_FETCH | GET_DELETED_VALUE);
-    auto gv = vb->getInternal(cookie,
+    auto gv = vb->getInternal(rlh,
+                              cookie,
                               *engine,
                               options,
                               VBucket::GetKeyOnly::No,
@@ -872,7 +873,8 @@ GetValue DurabilityWarmupTest::getItemFromDisk(const DocKey& key,
 
     EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
     runBGFetcherTask();
-    gv = vb->getInternal(cookie,
+    gv = vb->getInternal(rlh,
+                         cookie,
                          *engine,
                          options,
                          VBucket::GetKeyOnly::No,

@@ -1560,7 +1560,8 @@ GetValue KVBucket::getInternal(const DocKey& key,
             return GetValue(nullptr, cb::engine_errc::unknown_collection);
         }
 
-        auto result = vb->getInternal(cookie,
+        auto result = vb->getInternal(rlh,
+                                      cookie,
                                       engine,
                                       options,
                                       VBucket::GetKeyOnly::No,
@@ -1944,7 +1945,7 @@ cb::engine_errc KVBucket::getKeyStats(const DocKey& key,
         return cb::engine_errc::unknown_collection;
     }
 
-    return vb->getKeyStats(cookie, engine, kstats, wantsDeleted, cHandle);
+    return vb->getKeyStats(rlh, cookie, engine, kstats, wantsDeleted, cHandle);
 }
 
 std::string KVBucket::validateKey(const DocKey& key,
@@ -1958,8 +1959,8 @@ std::string KVBucket::validateKey(const DocKey& key,
         return "collection_unknown";
     }
 
-    auto res =
-            vb->fetchValidValue(WantsDeleted::Yes, TrackReference::No, cHandle);
+    auto res = vb->fetchValidValue(
+            rlh, WantsDeleted::Yes, TrackReference::No, cHandle);
     auto* v = res.storedValue;
     if (v) {
         if (VBucket::isLogicallyNonExistent(*v, cHandle)) {

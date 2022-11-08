@@ -1766,8 +1766,10 @@ void VBucketDurabilityTest::testConvertPassiveDMToActiveDM(
     // Check that any attempts to read keys which are have Prepared SyncWrites
     // against them fail with SyncWriteReCommitting (until they are committed).
     for (const auto& spec : seqnos) {
+        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
         auto key = makeStoredDocKey("key"s + std::to_string(spec.seqno));
-        auto result = vbucket->fetchValidValue(WantsDeleted::No,
+        auto result = vbucket->fetchValidValue(rlh,
+                                               WantsDeleted::No,
                                                TrackReference::No,
                                                vbucket->lockCollections(key));
         ASSERT_TRUE(result.storedValue);
@@ -1793,8 +1795,10 @@ void VBucketDurabilityTest::testConvertPassiveDMToActiveDM(
     // After commit() check that the keys are now accessible and appear as
     // committed.
     for (const auto& spec : seqnos) {
+        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
         auto key = makeStoredDocKey("key"s + std::to_string(spec.seqno));
-        auto result = vbucket->fetchValidValue(WantsDeleted::No,
+        auto result = vbucket->fetchValidValue(rlh,
+                                               WantsDeleted::No,
                                                TrackReference::No,
                                                vbucket->lockCollections(key));
         ASSERT_TRUE(result.storedValue);
@@ -2586,8 +2590,10 @@ TEST_P(VBucketDurabilityTest, ActiveDM_DoubleSetVBState) {
     // After commit() check that the keys are now accessible and appear as
     // committed.
     for (const auto& spec : seqnos) {
+        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
         auto key = makeStoredDocKey("key"s + std::to_string(spec.seqno));
-        auto result = vbucket->fetchValidValue(WantsDeleted::No,
+        auto result = vbucket->fetchValidValue(rlh,
+                                               WantsDeleted::No,
                                                TrackReference::No,
                                                vbucket->lockCollections(key));
         ASSERT_TRUE(result.storedValue);
@@ -2652,8 +2658,10 @@ TEST_P(EPVBucketDurabilityTest,
     // After commit() check that the keys are now accessible and appear as
     // committed.
     for (const auto& spec : seqnos) {
+        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
         auto key = makeStoredDocKey("key"s + std::to_string(spec.seqno));
-        auto result = vbucket->fetchValidValue(WantsDeleted::No,
+        auto result = vbucket->fetchValidValue(rlh,
+                                               WantsDeleted::No,
                                                TrackReference::No,
                                                vbucket->lockCollections(key));
         ASSERT_TRUE(result.storedValue);

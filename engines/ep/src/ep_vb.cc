@@ -151,12 +151,13 @@ cb::engine_errc EPVBucket::completeBGFetchForSingleItem(
         auto docKey = key.getDocKey();
         folly::SharedMutex::ReadHolder rlh(getStateLock());
         auto cHandle = lockCollections(docKey);
-        auto res = fetchValidValue(
-                WantsDeleted::Yes,
-                TrackReference::Yes,
-                cHandle,
-                getState() == vbucket_state_replica ? ForGetReplicaOp::Yes
-                                                    : ForGetReplicaOp::No);
+        auto res = fetchValidValue(rlh,
+                                   WantsDeleted::Yes,
+                                   TrackReference::Yes,
+                                   cHandle,
+                                   getState() == vbucket_state_replica
+                                           ? ForGetReplicaOp::Yes
+                                           : ForGetReplicaOp::No);
         auto* v = res.storedValue;
 
         if (!v) {
@@ -442,9 +443,8 @@ cb::engine_errc EPVBucket::statsVKey(const DocKey& key,
         return cb::engine_errc::unknown_collection;
     }
 
-    auto res = fetchValidValue(WantsDeleted::Yes,
-                               TrackReference::Yes,
-                               readHandle);
+    auto res = fetchValidValue(
+            rlh, WantsDeleted::Yes, TrackReference::Yes, readHandle);
 
     auto* v = res.storedValue;
     if (v) {
@@ -485,9 +485,7 @@ void EPVBucket::completeStatsVKey(const DocKey& key, const GetValue& gcb) {
 
     auto cHandle = lockCollections(key);
     auto res = fetchValidValue(
-            WantsDeleted::Yes,
-            TrackReference::Yes,
-            cHandle);
+            rlh, WantsDeleted::Yes, TrackReference::Yes, cHandle);
 
     auto* v = res.storedValue;
     if (v && v->isTempInitialItem()) {
@@ -568,9 +566,10 @@ UniqueDCPBackfillPtr EPVBucket::createDCPBackfill(
 
 cb::mcbp::Status EPVBucket::evictKey(
         const char** msg,
-        VBucketStateLockRef,
+        VBucketStateLockRef vbStateLock,
         const Collections::VB::CachingReadHandle& cHandle) {
-    auto res = fetchValidValue(WantsDeleted::No, TrackReference::No, cHandle);
+    auto res = fetchValidValue(
+            vbStateLock, WantsDeleted::No, TrackReference::No, cHandle);
     auto* v = res.storedValue;
     if (!v) {
         if (eviction == EvictionPolicy::Value) {

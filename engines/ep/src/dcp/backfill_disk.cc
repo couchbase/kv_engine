@@ -39,7 +39,8 @@ GetValue CacheCallback::get(VBucket& vb,
     if (!cHandle.valid()) {
         return {};
     }
-    return vb.getInternal(nullptr,
+    return vb.getInternal(rlh,
+                          nullptr,
                           bucket.getEPEngine(),
                           /*options*/ NONE,
                           stream.isKeyOnly() ? VBucket::GetKeyOnly::Yes

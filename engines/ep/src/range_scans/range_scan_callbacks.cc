@@ -148,13 +148,15 @@ RangeScanCacheCallback::RangeScanCacheCallback(RangeScan& scan,
 
 // Do a get and restrict the collections lock scope to just these checks.
 GetValue RangeScanCacheCallback::get(
+        VBucketStateLockRef vbStateLock,
         VBucket& vb,
         Collections::VB::CachingReadHandle& cHandle,
         CacheLookup& lookup) {
     // getInternal may generate expired items and thus may for example need to
     // update a collection high-seqno, so requires a handle on the collection
     // manifest
-    return vb.getInternal(nullptr,
+    return vb.getInternal(vbStateLock,
+                          nullptr,
                           bucket.getEPEngine(),
                           /*options*/ NONE,
                           scan.isKeyOnly() ? VBucket::GetKeyOnly::Yes
@@ -217,7 +219,7 @@ void RangeScanCacheCallback::callback(CacheLookup& lookup) {
         return;
     }
 
-    auto gv = get(*vb, cHandle, lookup);
+    auto gv = get(rlh, *vb, cHandle, lookup);
     if (gv.getStatus() == cb::engine_errc::success &&
         gv.item->getBySeqno() == lookup.getBySeqno()) {
         // RangeScans do not transmit xattrs

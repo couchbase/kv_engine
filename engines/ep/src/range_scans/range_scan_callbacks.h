@@ -11,6 +11,7 @@
 
 #pragma once
 #include "callbacks.h"
+#include "ep_types.h"
 
 namespace Collections::VB {
 class CachingReadHandle;
@@ -169,7 +170,8 @@ protected:
      */
     void setUnknownCollection(uint64_t manifestUid);
 
-    GetValue get(VBucket& vb,
+    GetValue get(VBucketStateLockRef vbStateLock,
+                 VBucket& vb,
                  Collections::VB::CachingReadHandle& cHandle,
                  CacheLookup& lookup);
     RangeScan& scan;

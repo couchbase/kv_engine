@@ -894,8 +894,10 @@ TEST_P(MFUTrackingTest, accessUpdatesMFU) {
     // probabilistically, but it would be exceedingly unlikely for
     // 100 accesses not to increment it once (especially at low MFU values)
     for (int i = 0; i < 100; i++) {
+        folly::SharedMutex::ReadHolder rlh(vbucket->getStateLock());
         auto cHandle = vbucket->lockCollections(key);
-        auto res = vbucket->fetchValidValue(WantsDeleted::No,
+        auto res = vbucket->fetchValidValue(rlh,
+                                            WantsDeleted::No,
                                             TrackReference::Yes,
                                             cHandle,
                                             ForGetReplicaOp::No);

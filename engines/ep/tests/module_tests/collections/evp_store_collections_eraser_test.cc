@@ -1039,10 +1039,10 @@ TEST_P(CollectionsEraserTest, FetchValidValueExpiryResurrectionTest) {
 
     // And run the expiry which should not generate a new seqno
     {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(key);
-        auto result = vb->fetchValidValue(WantsDeleted::Yes,
-                                          TrackReference::Yes,
-                                          cHandle);
+        auto result = vb->fetchValidValue(
+                rlh, WantsDeleted::Yes, TrackReference::Yes, cHandle);
         EXPECT_FALSE(result.storedValue);
     }
 

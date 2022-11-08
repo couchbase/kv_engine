@@ -5150,7 +5150,9 @@ TEST_P(STParameterizedBucketTest, SyncWriteXattrExpiryResetsCommittedState) {
     // deleted.
     TimeTraveller t(1000);
     {
-        auto res = vb->fetchValidValue(WantsDeleted::No,
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        auto res = vb->fetchValidValue(rlh,
+                                       WantsDeleted::No,
                                        TrackReference::No,
                                        vb->lockCollections(key));
         EXPECT_FALSE(res.storedValue);
