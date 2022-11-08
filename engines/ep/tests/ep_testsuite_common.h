@@ -307,6 +307,9 @@ bool isWarmupEnabled(EngineIface* h);
 // Returns true if the given engine is a persistent bucket (EPBucket).
 bool isPersistentBucket(EngineIface* h);
 
+// Returns true if the given engine is a magma bucket.
+bool isMagmaBucket(EngineIface* h);
+
 // Returns true if the given engine is an ephemeral bucket (EphemeralBucket).
 bool isEphemeralBucket(EngineIface* h);
 

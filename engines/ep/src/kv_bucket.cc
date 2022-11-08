@@ -139,6 +139,8 @@ public:
             store.setCheckpointMaxSize(value);
         } else if (key == "seqno_persistence_timeout") {
             store.setSeqnoPersistenceTimeout(std::chrono::seconds(value));
+        } else if (key == "history_retention_seconds") {
+            store.setHistoryRetentionSeconds(std::chrono::seconds(value));
         } else {
             EP_LOG_WARN("Failed to change value for unknown variable, {}", key);
         }
@@ -442,6 +444,12 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
             std::chrono::seconds(config.getSeqnoPersistenceTimeout()));
     config.addValueChangedListener(
             "seqno_persistence_timeout",
+            std::make_unique<EPStoreValueChangeListener>(*this));
+
+    setHistoryRetentionSeconds(
+            std::chrono::seconds(config.getHistoryRetentionSeconds()));
+    config.addValueChangedListener(
+            "history_retention_seconds",
             std::make_unique<EPStoreValueChangeListener>(*this));
 }
 
@@ -3071,4 +3079,12 @@ KVBucket::getSeqnoPersistenceNotifyTaskWakeTime() const {
     // Added for unit-testing, so expect the task to exist
     Expects(seqnoPersistenceNotifyTask);
     return seqnoPersistenceNotifyTask->getWaketime();
+}
+
+void KVBucket::setHistoryRetentionSeconds(std::chrono::seconds secs) {
+    historyRetentionSeconds = secs;
+}
+
+std::chrono::seconds KVBucket::getHistoryRetentionSeconds() const {
+    return historyRetentionSeconds;
 }

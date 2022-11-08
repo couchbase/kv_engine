@@ -21,8 +21,8 @@
 #include "checkpoint.h"
 #include "checkpoint_manager.h"
 #include "checkpoint_remover.h"
-#include "collections/vbucket_manifest_handles.h"
 #include "collections/collection_persisted_stats.h"
+#include "collections/vbucket_manifest_handles.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/flow-control-manager.h"
 #include "ep_bucket.h"
@@ -2095,6 +2095,51 @@ TEST_P(KVBucketParamTest, SeqnoPersistenceCancelledIfBucketDeleted) {
     engine->cancel_all_operations_in_ewb_state();
 
     EXPECT_EQ(cb::engine_errc::temporary_failure, mock_waitfor_cookie(cookie));
+}
+
+TEST_P(KVBucketParamTest, HistoryRetentionSeconds) {
+    if (isNexus() || !hasMagma()) {
+        GTEST_SKIP();
+    }
+
+    const size_t newVal = 123;
+    ASSERT_NE(newVal, store->getHistoryRetentionSeconds().count());
+    std::string err;
+    engine->setFlushParam(
+            "history_retention_seconds", std::to_string(newVal), err);
+    EXPECT_EQ(newVal, store->getHistoryRetentionSeconds().count());
+}
+
+TEST_P(KVBucketParamTest, HistoryRetentionSeconds_NotPersistent) {
+    if (!ephemeral()) {
+        GTEST_SKIP();
+    }
+
+    const auto initialVal = store->getHistoryRetentionSeconds().count();
+    const auto newVal = 123;
+    ASSERT_NE(initialVal, newVal);
+    std::string err;
+    EXPECT_EQ(
+            cb::engine_errc::invalid_arguments,
+            engine->setFlushParam(
+                    "history_retention_seconds", std::to_string(newVal), err));
+    EXPECT_THAT(err, testing::HasSubstr("requirements not met"));
+}
+
+TEST_P(KVBucketParamTest, HistoryRetentionSeconds_NotMagma) {
+    if (hasMagma()) {
+        GTEST_SKIP();
+    }
+
+    const auto initialVal = store->getHistoryRetentionSeconds().count();
+    const auto newVal = 123;
+    ASSERT_NE(initialVal, newVal);
+    std::string err;
+    EXPECT_EQ(
+            cb::engine_errc::invalid_arguments,
+            engine->setFlushParam(
+                    "history_retention_seconds", std::to_string(newVal), err));
+    EXPECT_THAT(err, testing::HasSubstr("requirements not met"));
 }
 
 class StoreIfTest : public KVBucketTest {

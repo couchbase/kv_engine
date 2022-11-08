@@ -530,6 +530,10 @@ bool isPersistentBucket(EngineIface* h) {
     return get_str_stat(h, "ep_bucket_type") == "persistent";
 }
 
+bool isMagmaBucket(EngineIface* h) {
+    return get_str_stat(h, "ep_backend") == "magma";
+}
+
 bool isEphemeralBucket(EngineIface* h) {
     return get_str_stat(h, "ep_bucket_type") == "ephemeral";
 }

@@ -1621,6 +1621,16 @@
                 ]
             }
         },
+        "history_retention_seconds": {
+            "default": "0",
+            "dynamic": true,
+            "descr": "Seconds of history the bucket should aim to retain on disk.",
+            "type": "size_t",
+            "requires": {
+                "bucket_type": "persistent",
+                "backend": "magma"
+            }
+        },
         "warmup": {
             "default": "true",
             "dynamic": false,

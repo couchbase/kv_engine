@@ -7718,6 +7718,13 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
         config_stats.insert(config_stats.end(), persistentConfig);
     }
 
+    if (isMagmaBucket(h)) {
+        for (const auto& statGroup : {"", "config"}) {
+            auto& stats = statsKeys.at(statGroup);
+            stats.insert(stats.end(), {"ep_history_retention_seconds"});
+        }
+    }
+
     if (isEphemeralBucket(h)) {
         auto& eng_stats = statsKeys.at("");
         eng_stats.insert(eng_stats.end(),

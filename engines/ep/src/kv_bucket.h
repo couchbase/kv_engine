@@ -932,6 +932,10 @@ public:
     std::chrono::steady_clock::time_point
     getSeqnoPersistenceNotifyTaskWakeTime() const;
 
+    void setHistoryRetentionSeconds(std::chrono::seconds secs);
+
+    std::chrono::seconds getHistoryRetentionSeconds() const;
+
 protected:
     /**
      * Get the checkpoint destroyer task responsible for checkpoints from the
@@ -1190,6 +1194,9 @@ protected:
      * A task that will notify (success or timeout) of SeqnoPersistenceRequests.
      */
     std::shared_ptr<SeqnoPersistenceNotifyTask> seqnoPersistenceNotifyTask;
+
+    /// Seconds of history a bucket should aim to retain on disk.
+    std::atomic<std::chrono::seconds> historyRetentionSeconds;
 
     friend class KVBucketTest;
 
