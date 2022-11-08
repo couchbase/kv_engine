@@ -1037,10 +1037,10 @@ bool Connection::isTlsEnabled() const {
 bool Connection::tryAuthUserFromX509Cert(std::string_view userName,
                                          std::string_view cipherName) {
     try {
-        cb::rbac::UserIdent user{std::string{userName.data(), userName.size()},
-                                 cb::sasl::Domain::Local};
-        auto context = cb::rbac::createInitialContext(user);
-        setAuthenticated(true, context.second, user);
+        cb::rbac::UserIdent ident{std::string{userName.data(), userName.size()},
+                                  cb::sasl::Domain::Local};
+        auto context = cb::rbac::createInitialContext(ident);
+        setAuthenticated(true, context.second, ident);
         audit_auth_success(*this);
         LOG_INFO(
                 "{}: Client {} using cipher '{}' authenticated as '{}' via "
@@ -1048,7 +1048,7 @@ bool Connection::tryAuthUserFromX509Cert(std::string_view userName,
                 getId(),
                 getPeername().dump(),
                 cipherName,
-                cb::UserDataView(user.name));
+                cb::UserDataView(ident.name));
         // External users authenticated by using X.509 certificates should not
         // be able to use SASL to change its identity.
         saslAuthEnabled = internal;
