@@ -43,9 +43,13 @@ protected:
     /**
      * User defined processing function, executed at run().
      *
+     * @param manuallyNotified Was the task manually notified to run the last
+     * time it started executing? false if the task was woken by the periodic
+     * scheduler.
+     *
      * @return true if the task needs to be re-scheduled, false otherwise
      */
-    virtual bool runInner() = 0;
+    virtual bool runInner(bool manuallyNotified) = 0;
 
     virtual std::chrono::microseconds getSleepTime() const {
         return std::chrono::seconds(INT_MAX);

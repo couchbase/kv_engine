@@ -158,7 +158,7 @@ public:
         return maxDuration;
     }
 
-    bool runInner() override;
+    bool runInner(bool manuallyNotified) override;
 
 private:
     KVBucket* const store;

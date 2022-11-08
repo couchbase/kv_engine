@@ -198,7 +198,7 @@ CheckpointMemRecoveryTask::attemptCursorDropping() {
     return ReductionRequired::Yes;
 }
 
-bool CheckpointMemRecoveryTask::runInner() {
+bool CheckpointMemRecoveryTask::runInner(bool) {
     TRACE_EVENT0("ep-engine/task", "CheckpointMemRecoveryTask");
 
     auto& bucket = *engine->getKVBucket();

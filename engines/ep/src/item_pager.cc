@@ -44,31 +44,18 @@
 ItemPager::ItemPager(EventuallyPersistentEngine& e,
                      EPStats& st,
                      size_t numConcurrentPagers)
-    : GlobalTask(e, TaskId::ItemPager, 10, false),
+    : NotifiableTask(e, TaskId::ItemPager, 10, false),
       numConcurrentPagers(numConcurrentPagers),
       engine(e),
       stats(st),
       pagerSemaphore(std::make_shared<cb::Semaphore>(numConcurrentPagers)),
       doEvict(false),
       sleepTime(std::chrono::milliseconds(
-              e.getConfiguration().getPagerSleepTimeMs())),
-      notified(false) {
+              e.getConfiguration().getPagerSleepTimeMs())) {
 }
 
-bool ItemPager::run() {
+bool ItemPager::runInner(bool manuallyNotified) {
     TRACE_EVENT0("ep-engine/task", "ItemPager");
-
-    // Setup so that we will sleep before clearing notified.
-    snooze(sleepTime.count());
-
-    // Save the value of notified to be used in the "do we page check", it could
-    // be that we've gone over HWM have been notified to run, then came back
-    // down (e.g. 1 byte under HWM), we should still page in this scenario.
-    // Notified would be false if we were woken by the periodic scheduler
-    const bool wasNotified = notified;
-
-    // Clear the notification flag before starting the task's actions
-    notified.store(false);
 
     KVBucket* kvBucket = engine.getKVBucket();
     auto current = engine.getKVBucket()->getPageableMemCurrent();
@@ -84,7 +71,11 @@ bool ItemPager::run() {
         return true;
     }
 
-    if ((current > upper) || doEvict || wasNotified) {
+    // It could be that we've gone over HWM have been notified to run,
+    // then came back down (e.g. 1 byte under HWM), we should still page in this
+    // scenario. wasNotified would be false if we were woken by the
+    // periodic scheduler.
+    if ((current > upper) || doEvict || manuallyNotified) {
         if (!pagerSemaphore->try_acquire(numConcurrentPagers)) {
             // could not acquire the required number of tokens, so there's
             // still a paging visitor running. Don't create more.
@@ -243,13 +234,6 @@ ItemPager::getEvictionStrategyFactory(EvictionRatios evictionRatios) {
     throw std::logic_error(
             "ItemPager::getEvictionStrategyFactory: Invalid eviction strategy "
             "in config");
-}
-
-void ItemPager::scheduleNow() {
-    bool expected = false;
-    if (notified.compare_exchange_strong(expected, true)) {
-        ExecutorPool::get()->wake(getId());
-    }
 }
 
 /**

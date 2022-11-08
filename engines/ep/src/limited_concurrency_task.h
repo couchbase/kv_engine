@@ -59,13 +59,15 @@ public:
                            cb::AwaitableSemaphore& semaphore,
                            bool completeBeforeShutdown);
 
+    bool runInner(bool) override {
+        // Ignore the extra parameter from NotifiableTask as it is not needed.
+        return runInner();
+    }
+
     /**
      * Subtypes should provide an implementation for the task.
-     *
-     * Note: overriden in this class for informative/documentation
-     * purposes, this is part of the NotifiableTask interface.
      */
-    bool runInner() override = 0;
+    virtual bool runInner() = 0;
 
     /**
      * Called by cb::AwaitableSemaphore when tokens become available.

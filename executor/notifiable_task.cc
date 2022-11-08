@@ -14,8 +14,8 @@
 
 bool NotifiableTask::run() {
     snooze(std::chrono::duration<double>(getSleepTime()).count());
-    pendingRun.store(false);
-    return runInner();
+    bool manuallyNotified = pendingRun.exchange(false);
+    return runInner(manuallyNotified);
 }
 
 void NotifiableTask::wakeup() {

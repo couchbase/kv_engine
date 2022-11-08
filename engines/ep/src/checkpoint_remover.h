@@ -73,7 +73,7 @@ public:
                               size_t interval,
                               size_t removerId);
 
-    bool runInner() override;
+    bool runInner(bool manuallyNotified) override;
 
     std::string getDescription() const override {
         return "CheckpointMemRecoveryTask:" + std::to_string(removerId);

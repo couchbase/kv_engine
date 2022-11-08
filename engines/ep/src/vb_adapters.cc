@@ -121,7 +121,7 @@ std::string SingleSteppingVisitorAdapter::getDescription() const {
     return label;
 }
 
-bool SingleSteppingVisitorAdapter::runInner() {
+bool SingleSteppingVisitorAdapter::runInner(bool) {
     bool runAgain = [this] {
         visitor->begin();
 

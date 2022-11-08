@@ -12,6 +12,7 @@
 
 #include <executor/globaltask.h>
 
+#include <executor/notifiable_task.h>
 #include <folly/Synchronized.h>
 #include <memcached/types.h> // for ssize_t
 #include <chrono>
@@ -35,7 +36,7 @@ class Semaphore;
  * Dispatcher job responsible for periodically pushing data out of
  * memory.
  */
-class ItemPager : public GlobalTask {
+class ItemPager : public NotifiableTask {
 public:
     /**
      * Construct an ItemPager.
@@ -49,7 +50,7 @@ public:
               EPStats& st,
               size_t numConcurrentPagers);
 
-    bool run() override;
+    bool runInner(bool manuallyNotified) override;
 
     std::string getDescription() const override {
         return "Paging out items.";
@@ -61,10 +62,9 @@ public:
         return std::chrono::milliseconds(25);
     }
 
-    /**
-     * Request that this ItemPager is scheduled to run 'now'
-     */
-    void scheduleNow();
+    std::chrono::microseconds getSleepTime() const override {
+        return sleepTime;
+    }
 
 private:
     /**
@@ -100,12 +100,8 @@ private:
     /**
      * How long this task sleeps for if not requested to run. Initialised from
      * the configuration parameter - pager_sleep_time_ms
-     * stored as a double seconds value ready for use in snooze calls.
      */
-    std::chrono::duration<double> sleepTime;
-
-    /// atomic bool used in the task's run trigger
-    std::atomic<bool> notified;
+    std::chrono::milliseconds sleepTime;
 };
 
 /**
