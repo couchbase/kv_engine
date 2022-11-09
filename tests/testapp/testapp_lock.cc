@@ -82,16 +82,18 @@ TEST_P(LockTest, LockLockedDocument) {
  */
 TEST_P(LockTest, MB_22459_LockLockedDocument_WithoutXerror) {
     userConnection->setXerrorSupport(false);
-
+    userConnection->setAutoRetryTmpfail(false);
     userConnection->mutate(document, Vbid(0), MutationType::Add);
     userConnection->get_and_lock(name, Vbid(0), 0);
 
     try {
         userConnection->get_and_lock(name, Vbid(0), 0);
+        userConnection->setAutoRetryTmpfail(true);
         FAIL() << "it is not possible to lock a locked document";
     } catch (const ConnectionError& ex) {
         EXPECT_TRUE(ex.isTemporaryFailure()) << ex.what();
     }
+    userConnection->setAutoRetryTmpfail(true);
 }
 
 TEST_P(LockTest, MutateLockedDocument) {
