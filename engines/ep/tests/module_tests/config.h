@@ -121,9 +121,21 @@ private:
 Config operator|(const Config& lhs, const Config& rhs);
 
 /**
+ * Compound union assignment operator.
+ * lhs = lhs | rhs
+ */
+Config& operator|=(Config& lhs, const Config& rhs);
+
+/**
  * Creates a Config representing the Cartesian product of the configurations
  * in *this and other.
  */
 Config operator*(const Config& lhs, const Config& rhs);
+
+/**
+ * Compound Cartesian product assignment operator.
+ * lhs = lhs * rhs
+ */
+Config& operator*=(Config& lhs, const Config& rhs);
 
 } // namespace config

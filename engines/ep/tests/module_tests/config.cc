@@ -100,7 +100,17 @@ config::Config config::operator|(const config::Config& lhs,
     return lhs.join(rhs);
 }
 
+config::Config& config::operator|=(config::Config& lhs,
+                                   const config::Config& rhs) {
+    return lhs = lhs | rhs;
+}
+
 config::Config config::operator*(const config::Config& lhs,
                                  const config::Config& rhs) {
     return lhs.combine(rhs);
+}
+
+config::Config& config::operator*=(config::Config& lhs,
+                                   const config::Config& rhs) {
+    return lhs = lhs * rhs;
 }

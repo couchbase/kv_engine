@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include "config.h"
 #include "dcp/dcp-types.h"
 #include "kv_bucket_test.h"
 #include <executor/fake_executorpool.h>
@@ -431,314 +432,176 @@ class STParameterizedBucketTest
     : virtual public SingleThreadedKVBucketTest,
       public ::testing::WithParamInterface<std::string> {
 public:
+    static auto persistentBucket() {
+        return config::Config{{"bucket_type", "persistent"}};
+    }
+
+    static auto ephemeralBucket() {
+        return config::Config{{"bucket_type", "ephemeral"}};
+    }
+
+    static auto ephAutoDelete() {
+        return config::Config{{"ephemeral_full_policy", "auto_delete"}};
+    }
+
+    static auto ephFailNewData() {
+        return config::Config{{"ephemeral_full_policy", "fail_new_data"}};
+    }
+
+    static auto ephFullPolicy() {
+        return ephAutoDelete() | ephFailNewData();
+    }
+
+    static auto couchstoreBucket() {
+        return persistentBucket() * config::Config{{"backend", "couchstore"}};
+    }
+
+    static auto magmaBucket() {
+        return persistentBucket() * config::Config{{"backend", "magma"}};
+    }
+
+    static auto valueOnlyEvictionPolicy() {
+        return persistentBucket() *
+               config::Config{{"item_eviction_policy", "value_only"}};
+    }
+
+    static auto fullEvictionPolicy() {
+        return persistentBucket() *
+               config::Config{{"item_eviction_policy", "full_eviction"}};
+    }
+
+    static auto itemEvictionPolicy() {
+        return valueOnlyEvictionPolicy() | fullEvictionPolicy();
+    }
+
     static auto ephConfigValues() {
-        using namespace std::string_literals;
-        return ::testing::Values(
-                "bucket_type=ephemeral:"
-                "ephemeral_full_policy=auto_delete"s,
-                "bucket_type=ephemeral:"
-                "ephemeral_full_policy=fail_new_data"s);
+        return ephemeralBucket() * ephFullPolicy();
     }
 
     static auto ephAutoDeleteConfigValues() {
         using namespace std::string_literals;
-        return ::testing::Values(
-                "bucket_type=ephemeral:"
-                "ephemeral_full_policy=auto_delete"s);
+        return ephemeralBucket() * ephAutoDelete();
     }
 
     static auto allConfigValues() {
-        using namespace std::string_literals;
-        return ::testing::Values(
-                "bucket_type=ephemeral:"
-                "ephemeral_full_policy=auto_delete"s,
-                "bucket_type=ephemeral:"
-                "ephemeral_full_policy=fail_new_data"s,
-                "bucket_type=persistent:"
-                "backend=couchstore:"
-                "item_eviction_policy=value_only"s,
-                "bucket_type=persistent:"
-                "backend=couchstore:"
-                "item_eviction_policy=full_eviction"s
 #ifdef EP_USE_MAGMA
-                ,
-                "bucket_type=persistent:"
-                "backend=nexus:"
-                "nexus_primary_backend=couchstore:"
-                "nexus_secondary_backend=magma:"
-                "item_eviction_policy=value_only"s,
-                "bucket_type=persistent:"
-                "backend=nexus:"
-                "nexus_primary_backend=couchstore:"
-                "nexus_secondary_backend=magma:"
-                "item_eviction_policy=full_eviction"s,
-                "bucket_type=persistent:"
-                "backend=magma:"
-                "item_eviction_policy=value_only"s,
-                "bucket_type=persistent:"
-                "backend=magma:"
-                "item_eviction_policy=full_eviction"s
+        return allConfigValuesNoNexus() | nexusCouchstoreMagmaConfigValues();
+#else
+        return allConfigValuesNoNexus();
 #endif
-        );
     }
 
-    static auto allConfigValuesNoNexus() {
-        using namespace std::string_literals;
-        return ::testing::Values(
-                "bucket_type=ephemeral:"
-                "ephemeral_full_policy=auto_delete"s,
-                "bucket_type=ephemeral:"
-                "ephemeral_full_policy=fail_new_data"s,
-                "bucket_type=persistent:"
-                "backend=couchstore:"
-                "item_eviction_policy=value_only"s,
-                "bucket_type=persistent:"
-                "backend=couchstore:"
-                "item_eviction_policy=full_eviction"s
-#ifdef EP_USE_MAGMA
-                ,
-                "bucket_type=persistent:"
-                "backend=magma:"
-                "item_eviction_policy=value_only"s,
-                "bucket_type=persistent:"
-                "backend=magma:"
-                "item_eviction_policy=full_eviction"s
-#endif
-        );
+    static config::Config allConfigValuesNoNexus() {
+        return ephConfigValues() | persistentNoNexusConfigValues();
     }
 
     static auto ephAndCouchstoreConfigValues() {
-        using namespace std::string_literals;
-        return ::testing::Values(
-                "bucket_type=ephemeral:"
-                "ephemeral_full_policy=auto_delete"s,
-                "bucket_type=ephemeral:"
-                "ephemeral_full_policy=fail_new_data"s,
-                "bucket_type=persistent:"
-                "backend=couchstore:"
-                "item_eviction_policy=value_only"s,
-                "bucket_type=persistent:"
-                "backend=couchstore:"
-                "item_eviction_policy=full_eviction"s);
+        return ephConfigValues() | couchstoreConfigValues();
     }
 
-    static auto persistentConfigValues() {
-        using namespace std::string_literals;
-        return ::testing::Values(
-                "bucket_type=persistent:"
-                "backend=couchstore:"
-                "item_eviction_policy=value_only"s,
-                "bucket_type=persistent:"
-                "backend=couchstore:"
-                "item_eviction_policy=full_eviction"s
+    static config::Config persistentConfigValues() {
 #ifdef EP_USE_MAGMA
-                ,
-                "bucket_type=persistent:"
-                "backend=nexus:"
-                "nexus_primary_backend=couchstore:"
-                "nexus_secondary_backend=magma:"
-                "item_eviction_policy=value_only"s,
-                "bucket_type=persistent:"
-                "backend=nexus:"
-                "nexus_primary_backend=couchstore:"
-                "nexus_secondary_backend=magma:"
-                "item_eviction_policy=full_eviction"s,
-                "bucket_type=persistent:"
-                "backend=magma:"
-                "item_eviction_policy=value_only"s,
-                "bucket_type=persistent:"
-                "backend=magma:"
-                "item_eviction_policy=full_eviction"s
+        return persistentNoNexusConfigValues() |
+               nexusCouchstoreMagmaConfigValues();
+#else
+        return persistentNoNexusConfigValues();
 #endif
-        );
     }
 
-    static auto persistentNoNexusConfigValues() {
-        using namespace std::string_literals;
-        return ::testing::Values(
-                "bucket_type=persistent:"
-                "backend=couchstore:"
-                "item_eviction_policy=value_only"s,
-                "bucket_type=persistent:"
-                "backend=couchstore:"
-                "item_eviction_policy=full_eviction"s
+    static config::Config persistentNoNexusConfigValues() {
+        auto configs = couchstoreConfigValues();
 #ifdef EP_USE_MAGMA
-                ,
-                "bucket_type=persistent:"
-                "backend=magma:"
-                "item_eviction_policy=value_only"s,
-                "bucket_type=persistent:"
-                "backend=magma:"
-                "item_eviction_policy=full_eviction"s
+        configs |= magmaConfigValues();
 #endif
-        );
+        return configs;
     }
 
-    static auto couchstoreConfigValues() {
-        using namespace std::string_literals;
-        return ::testing::Values(
-                "bucket_type=persistent:"
-                "backend=couchstore:"
-                "item_eviction_policy=value_only"s,
-                "bucket_type=persistent:"
-                "backend=couchstore:"
-                "item_eviction_policy=full_eviction"s);
+    static config::Config couchstoreConfigValues() {
+        return couchstoreBucket() * itemEvictionPolicy();
     }
 
     static auto pitrEnabledConfigValues() {
         // @TODO Add variants for magma if/when it supports PiTR.
-        using namespace std::string_literals;
-        return ::testing::Values(
-                "bucket_type=persistent:"
-                "backend=couchstore:"
-                "item_eviction_policy=value_only:"
-                "pitr_enabled=true"s,
-                "bucket_type=persistent:"
-                "backend=couchstore:"
-                "item_eviction_policy=full_eviction:"
-                "pitr_enabled=true"s);
+        return couchstoreConfigValues() *
+               config::Config{{"pitr_enabled", "true"}};
     }
 
 #ifdef EP_USE_MAGMA
-    static auto magmaConfigValues() {
-        using namespace std::string_literals;
-        return ::testing::Values(
-                "bucket_type=persistent:"
-                "backend=magma:"
-                "item_eviction_policy=value_only"s,
-                "bucket_type=persistent:"
-                "backend=magma:"
-                "item_eviction_policy=full_eviction"s);
+    static config::Config magmaConfigValues() {
+        return magmaBucket() * itemEvictionPolicy();
     }
 
-    static auto nexusCouchstoreMagmaConfigValues() {
-        using namespace std::string_literals;
-        return ::testing::Values(
-                "bucket_type=persistent:"
-                "backend=nexus:"
-                "nexus_primary_backend=couchstore:"
-                "nexus_secondary_backend=magma:"
-                "item_eviction_policy=value_only"s,
-                "bucket_type=persistent:"
-                "backend=nexus:"
-                "nexus_primary_backend=couchstore:"
-                "nexus_secondary_backend=magma:"
-                "item_eviction_policy=full_eviction"s);
+    static auto nexusCouchstoreMagma() {
+        return persistentBucket() *
+               config::Config{{"backend", "nexus"},
+                              {"nexus_primary_backend", "couchstore"},
+                              { "nexus_secondary_backend",
+                                "magma" }};
+    }
+
+    static auto nexusMagmaCouchstore() {
+        return persistentBucket() *
+               config::Config{{"backend", "nexus"},
+                              {"nexus_primary_backend", "magma"},
+                              { "nexus_secondary_backend",
+                                "couchstore" }};
+    }
+
+    static config::Config nexusCouchstoreMagmaConfigValues() {
+        return nexusCouchstoreMagma() * itemEvictionPolicy();
     }
 
     static auto nexusCouchstoreMagmaAllConfigValues() {
-        using namespace std::string_literals;
-        return ::testing::Values(
-                "bucket_type=persistent:"
-                "backend=nexus:"
-                "nexus_primary_backend=couchstore:"
-                "nexus_secondary_backend=magma:"
-                "item_eviction_policy=value_only"s,
-                "bucket_type=persistent:"
-                "backend=nexus:"
-                "nexus_primary_backend=couchstore:"
-                "nexus_secondary_backend=magma:"
-                "item_eviction_policy=full_eviction"s,
-                "bucket_type=persistent:"
-                "backend=nexus:"
-                "nexus_primary_backend=magma:"
-                "nexus_secondary_backend=couchstore:"
-                "item_eviction_policy=value_only"s,
-                "bucket_type=persistent:"
-                "backend=nexus:"
-                "nexus_primary_backend=magma:"
-                "nexus_secondary_backend=couchstore:"
-                "item_eviction_policy=full_eviction"s);
+        return (nexusCouchstoreMagma() | nexusMagmaCouchstore()) *
+               itemEvictionPolicy();
     }
 
 #endif
 
 #ifdef EP_USE_ROCKSDB
+    static auto rocksDbBucket() {
+        return persistentBucket() * config::Config{{ "backend", "rocksdb" }};
+    }
+
     static auto rocksDbConfigValues() {
-        using namespace std::string_literals;
-        return ::testing::Values(
-                "bucket_type=persistent:"
-                "backend=rocksdb:"
-                "item_eviction_policy=value_only"s,
-                "bucket_type=persistent:"
-                "backend=rocksdb:"
-                "item_eviction_policy=full_eviction"s);
+        return rocksDbBucket() * itemEvictionPolicy();
     }
 #endif
 
     static auto persistentAllBackendsConfigValues() {
-        using namespace std::string_literals;
-        return ::testing::Values(
-                "bucket_type=persistent:"
-                "backend=couchstore:"
-                "item_eviction_policy=value_only"s,
-                "bucket_type=persistent:"
-                "backend=couchstore:"
-                "item_eviction_policy=full_eviction"s
+        auto configs = couchstoreConfigValues();
 #ifdef EP_USE_MAGMA
-                ,
-                "bucket_type=persistent:"
-                "backend=nexus:"
-                "nexus_primary_backend=couchstore:"
-                "nexus_secondary_backend=magma:"
-                "item_eviction_policy=value_only"s,
-                "bucket_type=persistent:"
-                "backend=nexus:"
-                "nexus_primary_backend=couchstore:"
-                "nexus_secondary_backend=magma:"
-                "item_eviction_policy=full_eviction"s,
-                "bucket_type=persistent:"
-                "backend=nexus:"
-                "nexus_primary_backend=magma:"
-                "nexus_secondary_backend=couchstore:"
-                "item_eviction_policy=value_only"s,
-                "bucket_type=persistent:"
-                "backend=nexus:"
-                "nexus_primary_backend=magma:"
-                "nexus_secondary_backend=couchstore:"
-                "item_eviction_policy=full_eviction"s,
-                "bucket_type=persistent:"
-                "backend=magma:"
-                "item_eviction_policy=value_only"s,
-                "bucket_type=persistent:"
-                "backend=magma:"
-                "item_eviction_policy=full_eviction"s
-
+        configs |= nexusCouchstoreMagmaAllConfigValues();
+        configs |= magmaConfigValues();
 #endif
 #ifdef EP_USE_ROCKSDB
-                ,
-                "bucket_type=persistent:"
-                "backend=rocksdb:"
-                "item_eviction_policy=value_only"s,
-                "bucket_type=persistent:"
-                "backend=rocksdb:"
-                "item_eviction_policy=full_eviction"s
+        configs |= rocksDbConfigValues();
 #endif
-        );
+        return configs;
+    }
+
+    static auto persistentAllBackendsNoNexusConfigValues() {
+        auto configs = couchstoreConfigValues();
+#ifdef EP_USE_MAGMA
+        configs |= magmaConfigValues();
+#endif
+#ifdef EP_USE_ROCKSDB
+        configs |= rocksDbConfigValues();
+#endif
+        return configs;
     }
 
     static auto fullEvictionAllBackendsConfigValues() {
         using namespace std::string_literals;
-        return ::testing::Values(
+        auto configs = couchstoreBucket();
 #ifdef EP_USE_ROCKSDB
-                "bucket_type=persistent:"
-                "backend=rocksdb:"
-                "item_eviction_policy=full_eviction"s,
+        configs |= rocksDbBucket();
 #endif
 #ifdef EP_USE_MAGMA
-                "bucket_type=persistent:"
-                "backend=nexus:"
-                "nexus_primary_backend=couchstore:"
-                "nexus_secondary_backend=magma:"
-                "item_eviction_policy=full_eviction"s,
-                "bucket_type=persistent:"
-                "backend=magma:"
-                "item_eviction_policy=full_eviction"s,
+        configs |= magmaBucket();
+        configs |= nexusCouchstoreMagma();
 #endif
-
-                "bucket_type=persistent:"
-                "backend=couchstore:"
-                "item_eviction_policy=full_eviction"s);
+        return configs * fullEvictionPolicy();
     }
 
     bool persistent() const {

@@ -48,36 +48,8 @@ protected:
 class EPBucketBloomFilterParameterizedTest : public STParameterizedBucketTest {
 public:
     static auto bloomFilterDisabledConfigValues() {
-        using namespace std::string_literals;
-        return ::testing::Values(
-#ifdef EP_USE_ROCKSDB
-                "bucket_type=persistent:"
-                "backend=rocksdb:"
-                "item_eviction_policy=value_only:"
-                "bfilter_enabled=false"s,
-                "bucket_type=persistent:"
-                "backend=rocksdb:"
-                "item_eviction_policy=full_eviction:"
-                "bfilter_enabled=false"s,
-#endif
-#ifdef EP_USE_MAGMA
-                "bucket_type=persistent:"
-                "backend=magma:"
-                "item_eviction_policy=value_only:"
-                "bfilter_enabled=false"s,
-                "bucket_type=persistent:"
-                "backend=magma:"
-                "item_eviction_policy=full_eviction:"
-                "bfilter_enabled=false"s,
-#endif
-                "bucket_type=persistent:"
-                "backend=couchstore:"
-                "item_eviction_policy=value_only:"
-                "bfilter_enabled=false"s,
-                "bucket_type=persistent:"
-                "backend=couchstore:"
-                "item_eviction_policy=full_eviction:"
-                "bfilter_enabled=false"s);
+        return persistentAllBackendsNoNexusConfigValues() *
+               config::Config{{"bfilter_enabled", "false"}};
     }
 
 protected:
