@@ -73,6 +73,9 @@ public:
     }
 
 protected:
+    /// Set the various TCP Keepalive options to the provided socket.
+    void setTcpKeepalive(SOCKET client);
+
     /// The socket object to accept clients from
     const SOCKET sfd;
 
@@ -233,6 +236,16 @@ void LibeventServerSocketImpl::acceptNewClient() {
         return;
     }
 
+    // Connections connecting to a system port should use the TCP Keepalive
+    // configuration configured in the OS.
+    if (!interface->system) {
+        setTcpKeepalive(client);
+    }
+
+    FrontEndThread::dispatch(client, interface);
+}
+
+void LibeventServerSocketImpl::setTcpKeepalive(SOCKET client) {
     auto& settings = Settings::instance();
     const auto idle = settings.getTcpKeepAliveIdle();
     if (idle.count() != 0) {
@@ -270,8 +283,6 @@ void LibeventServerSocketImpl::acceptNewClient() {
                         cb_strerror(cb::net::get_socket_error()));
         }
     }
-
-    FrontEndThread::dispatch(client, interface);
 }
 
 nlohmann::json LibeventServerSocketImpl::to_json() const {
