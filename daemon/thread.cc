@@ -23,7 +23,6 @@
 #include <hdrhistogram/hdrhistogram.h>
 #include <json/syntax_validator.h>
 #include <memcached/tracer.h>
-#include <openssl/conf.h>
 #include <phosphor/phosphor.h>
 #include <platform/histogram.h>
 #include <platform/scope_timer.h>
@@ -33,10 +32,6 @@
 #include <atomic>
 #include <condition_variable>
 #include <cstdlib>
-#include <cstring>
-#ifndef WIN32
-#include <netinet/tcp.h> // For TCP_NODELAY etc
-#endif
 #include <mutex>
 #include <queue>
 
