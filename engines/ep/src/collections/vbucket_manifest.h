@@ -332,6 +332,7 @@ public:
         ScopeCollectionPair identifiers;
         std::string name;
         cb::ExpiryLimit maxTtl;
+        CanDeduplicate canDeduplicate;
     };
 
     // local struct for managing scope creation
@@ -453,6 +454,7 @@ protected:
      * @param identifiers ScopeID and CollectionID pair
      * @param collectionName Name of the created collection
      * @param maxTtl An optional maxTTL for the collection
+     * @param canDeduplicate The collection's deduplication setting
      * @param optionalSeqno Either a seqno to assign to the new collection or
      *        none (none means the checkpoint will assign a seqno).
      */
@@ -462,6 +464,7 @@ protected:
                           ScopeCollectionPair identifiers,
                           std::string_view collectionName,
                           cb::ExpiryLimit maxTtl,
+                          CanDeduplicate canDeduplicate,
                           OptionalSeqno optionalSeqno);
 
     /**
@@ -886,6 +889,7 @@ protected:
      * @param collectionName The name of the collection
      * @param maxTtl The maxTTL that if defined will be applied to new items of
      *        the collection (overriding bucket maxTTL)
+     * @param canDeduplicate can items in this collection be deduplicated?
      * @param startSeqno The seqno where the collection begins.
      * @return a non const reference to the new ManifestEntry so the caller can
      *         make any changes that are needed post construction.
@@ -893,6 +897,7 @@ protected:
     ManifestEntry& addNewCollectionEntry(ScopeCollectionPair identifiers,
                                          std::string_view collectionName,
                                          cb::ExpiryLimit maxTtl,
+                                         CanDeduplicate canDeduplicate,
                                          int64_t startSeqno);
 
     /**
@@ -1011,8 +1016,6 @@ protected:
      */
     cb::engine_errc getScopeDataLimitStatus(const container::const_iterator itr,
                                             size_t nBytes) const;
-
-
     /**
      * Sets the default collection max-visible to seqno (if the collection
      * exists). This does not just set the value. The seqno passed is the value
@@ -1026,6 +1029,11 @@ protected:
      * Caller must check for existence of the collection before calling
      */
     uint64_t getDefaultCollectionMaxVisibleSeqno() const;
+
+    /**
+     * @return the CanDeduplicate setting for the collection
+     */
+    CanDeduplicate getCanDeduplicate(CollectionID cid) const;
 
     /**
      * Return a string for use in throwException, returns:

@@ -35,6 +35,7 @@ Manifest::Manifest(std::shared_ptr<Manager> manager)
     addNewCollectionEntry({ScopeID::Default, CollectionID::Default},
                           DefaultCollectionIdentifier,
                           {} /*ttl*/,
+                          CanDeduplicate::Yes,
                           0 /*startSeqno*/);
 }
 
@@ -43,20 +44,20 @@ Manifest::Manifest(std::shared_ptr<Manager> manager,
     : manifestUid(data.manifestUid),
       manager(std::move(manager)),
       dropInProgress(data.droppedCollectionsExist) {
-    {
-        auto bucketManifest = this->manager->getCurrentManifest().rlock();
-        for (const auto& scope : data.scopes) {
-            addNewScopeEntry(
-                    scope.metaData.sid,
-                    scope.metaData.name,
-                    bucketManifest->getScopeDataLimit(scope.metaData.sid));
-        }
+    auto bucketManifest = this->manager->getCurrentManifest().rlock();
+    for (const auto& scope : data.scopes) {
+        addNewScopeEntry(scope.metaData.sid,
+                         scope.metaData.name,
+                         bucketManifest->getScopeDataLimit(scope.metaData.sid));
     }
 
     for (const auto& e : data.collections) {
         const auto& meta = e.metaData;
-        addNewCollectionEntry(
-                {meta.sid, meta.cid}, meta.name, meta.maxTtl, e.startSeqno);
+        addNewCollectionEntry({meta.sid, meta.cid},
+                              meta.name,
+                              meta.maxTtl,
+                              bucketManifest->getCanDeduplicate(meta.cid),
+                              e.startSeqno);
     }
 }
 
@@ -82,8 +83,10 @@ Manifest::Manifest(Manifest& other) : manager(other.manager) {
 
     // Collection/Scope maps are not trivially copyable, so we do it manually
     for (auto& [cid, entry] : other.map) {
-        CollectionSharedMetaDataView meta{
-                entry.getName(), entry.getScopeID(), entry.getMaxTtl()};
+        CollectionSharedMetaDataView meta{entry.getName(),
+                                          entry.getScopeID(),
+                                          entry.getMaxTtl(),
+                                          entry.getCanDeduplicate()};
         auto [itr, inserted] =
                 map.try_emplace(cid,
                                 other.manager->createOrReferenceMeta(cid, meta),
@@ -161,6 +164,7 @@ std::optional<Manifest::CollectionCreation> Manifest::applyCreates(
                          creation.identifiers,
                          creation.name,
                          creation.maxTtl,
+                         creation.canDeduplicate,
                          OptionalSeqno{/*no-seqno*/});
     }
     changes.clear();
@@ -357,6 +361,7 @@ void Manifest::completeUpdate(mutex_type::UpgradeHolder&& upgradeLock,
                          finalAddition.value().identifiers,
                          finalAddition.value().name,
                          finalAddition.value().maxTtl,
+                         finalAddition.value().canDeduplicate,
                          OptionalSeqno{/*no-seqno*/});
     }
 
@@ -427,11 +432,13 @@ void Manifest::createCollection(const WriteHandle& wHandle,
                                 ScopeCollectionPair identifiers,
                                 std::string_view collectionName,
                                 cb::ExpiryLimit maxTtl,
+                                CanDeduplicate canDeduplicate,
                                 OptionalSeqno optionalSeqno) {
     // 1. Update the manifest, adding or updating an entry in the collections
     // map. The start-seqno is 0 here and is patched up once we've created and
     // queued the system-event Item (step 2 and 3)
-    auto& entry = addNewCollectionEntry(identifiers, collectionName, maxTtl, 0);
+    auto& entry = addNewCollectionEntry(
+            identifiers, collectionName, maxTtl, canDeduplicate, 0);
 
     // 1.1 record the uid of the manifest which is adding the collection
     updateUid(newManUid, optionalSeqno.has_value());
@@ -449,13 +456,14 @@ void Manifest::createCollection(const WriteHandle& wHandle,
 
     EP_LOG_DEBUG(
             "{} create collection:id:{}, name:{} in scope:{}, seq:{}, "
-            "manifest:{:#x}{}{}",
+            "manifest:{:#x}, {}{}{}",
             vb.getId(),
             identifiers.second,
             collectionName,
             identifiers.first,
             seqno,
             newManUid,
+            canDeduplicate,
             maxTtl.has_value()
                     ? ", maxttl:" + std::to_string(maxTtl.value().count())
                     : "",
@@ -470,9 +478,10 @@ void Manifest::createCollection(const WriteHandle& wHandle,
 ManifestEntry& Manifest::addNewCollectionEntry(ScopeCollectionPair identifiers,
                                                std::string_view collectionName,
                                                cb::ExpiryLimit maxTtl,
+                                               CanDeduplicate canDeduplicate,
                                                int64_t startSeqno) {
     CollectionSharedMetaDataView meta{
-            collectionName, identifiers.first, maxTtl};
+            collectionName, identifiers.first, maxTtl, canDeduplicate};
     auto [itr, inserted] = map.try_emplace(
             identifiers.second,
             manager->createOrReferenceMeta(identifiers.second, meta),
@@ -533,6 +542,7 @@ void Manifest::dropCollection(WriteHandle& wHandle,
         addNewCollectionEntry({ScopeID::Default, cid},
                               "tombstone",
                               cb::ExpiryLimit{},
+                              CanDeduplicate::Yes,
                               0 /*startSeq*/);
     }
 
@@ -781,8 +791,10 @@ Manifest::ManifestChanges Manifest::processManifest(
             auto mapItr = map.find(m.cid);
 
             if (mapItr == map.end()) {
-                rv.collectionsToCreate.push_back(
-                        {std::make_pair(m.sid, m.cid), m.name, m.maxTtl});
+                rv.collectionsToCreate.push_back({std::make_pair(m.sid, m.cid),
+                                                  m.name,
+                                                  m.maxTtl,
+                                                  m.canDeduplicate});
             }
         }
     }
@@ -1381,6 +1393,15 @@ uint64_t Manifest::getDefaultCollectionMaxVisibleSeqno() const {
     }
 
     return defaultCollectionMaxVisibleSeqno;
+}
+
+CanDeduplicate Manifest::getCanDeduplicate(CollectionID cid) const {
+    auto itr = map.find(cid);
+    if (itr == map.end()) {
+        throwException<std::invalid_argument>(
+                __FUNCTION__, "failed find of collection:" + cid.to_string());
+    }
+    return itr->second.getCanDeduplicate();
 }
 
 void Manifest::DroppedCollections::insert(CollectionID cid,

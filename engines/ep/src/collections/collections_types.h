@@ -11,12 +11,13 @@
 
 #pragma once
 
-#include <platform/monotonic.h>
+#include "ep_types.h"
 
 #include <folly/Synchronized.h>
 #include <gsl/gsl-lite.hpp>
 #include <memcached/types.h>
 #include <platform/atomic.h>
+#include <platform/monotonic.h>
 
 #include <functional>
 #include <unordered_map>
@@ -267,12 +268,14 @@ class CollectionSharedMetaDataView {
 public:
     CollectionSharedMetaDataView(std::string_view name,
                                  ScopeID scope,
-                                 cb::ExpiryLimit maxTtl);
+                                 cb::ExpiryLimit maxTtl,
+                                 CanDeduplicate canDeduplicate);
     CollectionSharedMetaDataView(const CollectionSharedMetaData&);
     std::string to_string() const;
     std::string_view name;
     const ScopeID scope;
     const cb::ExpiryLimit maxTtl;
+    const CanDeduplicate canDeduplicate;
 };
 
 // The type stored by the Manager SharedMetaDataTable
@@ -280,7 +283,8 @@ class CollectionSharedMetaData : public RCValue {
 public:
     CollectionSharedMetaData(std::string_view name,
                              ScopeID scope,
-                             cb::ExpiryLimit maxTtl);
+                             cb::ExpiryLimit maxTtl,
+                             CanDeduplicate canDeduplicate);
     CollectionSharedMetaData(const CollectionSharedMetaDataView& view);
     bool operator==(const CollectionSharedMetaDataView& view) const;
     bool operator!=(const CollectionSharedMetaDataView& view) const {
@@ -294,6 +298,7 @@ public:
     const std::string name;
     const ScopeID scope;
     const cb::ExpiryLimit maxTtl;
+    const CanDeduplicate canDeduplicate;
 };
 std::ostream& operator<<(std::ostream& os,
                          const CollectionSharedMetaData& meta);

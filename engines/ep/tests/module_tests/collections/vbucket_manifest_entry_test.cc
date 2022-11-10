@@ -19,7 +19,7 @@ using namespace std::chrono_literals;
 // Basic ManifestEntry construction checks
 TEST(ManifestEntry, test_getters) {
     auto meta = make_STRCPtr<const Collections::VB::CollectionSharedMetaData>(
-            "name", ScopeID{101}, cb::ExpiryLimit{5000});
+            "name", ScopeID{101}, cb::ExpiryLimit{5000}, CanDeduplicate::No);
 
     Collections::VB::ManifestEntry m(meta, 1000);
     EXPECT_EQ(1000, m.getStartSeqno());
@@ -28,11 +28,12 @@ TEST(ManifestEntry, test_getters) {
     EXPECT_EQ(5000s, m.getMaxTtl().value());
     EXPECT_EQ("name", m.getName());
     EXPECT_EQ(ScopeID{101}, m.getScopeID());
+    EXPECT_EQ(CanDeduplicate::No, m.getCanDeduplicate());
 }
 
 TEST(ManifestEntry, exceptions) {
     auto meta = make_STRCPtr<const Collections::VB::CollectionSharedMetaData>(
-            "name", ScopeID{101}, cb::NoExpiryLimit);
+            "name", ScopeID{101}, cb::NoExpiryLimit, CanDeduplicate::Yes);
 
     // Collection starts at seqno 1000, note these test require a name because
     // the ManifestEntry ostream<< will be invoked by the exception path

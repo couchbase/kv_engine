@@ -234,6 +234,14 @@ public:
         return manifest->getSystemEventItemCount();
     }
 
+    /**
+     * @throw if collection does not exist
+     * @return the CanDeduplicate status for the collection
+     */
+    CanDeduplicate getCanDeduplicate(CollectionID cid) const {
+        return manifest->getCanDeduplicate(cid);
+    }
+
 protected:
     friend std::ostream& operator<<(std::ostream& os,
                                     const ReadHandle& readHandle);
@@ -503,6 +511,13 @@ public:
         return itr->second.incrementOpsGet();
     }
 
+    CanDeduplicate getCanDeduplicate() const {
+        if (!valid()) {
+            return CanDeduplicate::Yes;
+        }
+        return itr->second.getCanDeduplicate();
+    }
+
     /**
      * Dump this VB::Manifest to std::cerr
      */
@@ -642,13 +657,18 @@ public:
                        std::string_view collectionName,
                        cb::ExpiryLimit maxTtl,
                        int64_t startSeqno) {
-        manifest.createCollection(*this,
-                                  vb,
-                                  manifestUid,
-                                  identifiers,
-                                  collectionName,
-                                  maxTtl,
-                                  OptionalSeqno{startSeqno});
+        manifest.createCollection(
+                *this,
+                vb,
+                manifestUid,
+                identifiers,
+                collectionName,
+                maxTtl,
+                // This is the incorrect value with no path yet to correct.
+                // For now replicas runs out of sync, only the active applies
+                // correct deduplication logic.
+                CanDeduplicate::Yes,
+                OptionalSeqno{startSeqno});
     }
 
     /**

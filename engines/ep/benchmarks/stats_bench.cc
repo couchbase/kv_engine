@@ -47,6 +47,7 @@ public:
                     {0x0, cid},
                     "collection-" + std::to_string(cid),
                     cb::NoExpiryLimit,
+                    CanDeduplicate::Yes,
                     0);
         }
     }

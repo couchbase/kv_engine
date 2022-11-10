@@ -12,6 +12,7 @@
 #pragma once
 
 #include "collections/collections_types.h"
+#include "ep_types.h"
 #include "memcached/engine_common.h"
 
 #include <platform/non_negative_counter.h>
@@ -198,6 +199,11 @@ public:
      */
     SingleThreadedRCPtr<const CollectionSharedMetaData>&& takeMeta() {
         return std::move(meta);
+    }
+
+    /// @return Yes/No if this collection removes duplicate keys when possible
+    CanDeduplicate getCanDeduplicate() const {
+        return meta->canDeduplicate;
     }
 
 private:
