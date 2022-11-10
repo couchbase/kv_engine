@@ -406,6 +406,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/stored_value_factories.h
             src/systemevent_factory.cc
             src/tasks.cc
+            src/vb_adapters.cc
             src/vb_commit.cc
             src/vb_count_visitor.cc
             src/vb_notifiable_task.cc

@@ -43,6 +43,7 @@
 #include "seqno_persistence_notify_task.h"
 #include "tasks.h"
 #include "trace_helpers.h"
+#include "vb_adapters.h"
 #include "vb_count_visitor.h"
 #include "vbucket.h"
 #include "vbucket_bgfetch_item.h"
@@ -2383,70 +2384,6 @@ KVBucket::Position KVBucket::startPosition() const
 KVBucket::Position KVBucket::endPosition() const
 {
     return KVBucket::Position(Vbid(vbMap.getSize()));
-}
-
-VBCBAdaptor::VBCBAdaptor(KVBucket* s,
-                         TaskId id,
-                         std::unique_ptr<InterruptableVBucketVisitor> v,
-                         const char* l,
-                         bool shutdown)
-    : GlobalTask(s->getEPEngine(), id, 0 /*initialSleepTime*/, shutdown),
-      store(s),
-      visitor(std::move(v)),
-      label(l),
-      maxDuration(std::chrono::microseconds::max()) {
-    // populate the list of vbuckets to visit, and order them as needed by
-    // the visitor.
-    const auto numVbs = store->getVBuckets().getSize();
-
-    for (Vbid::id_type vbid = 0; vbid < numVbs; ++vbid) {
-        if (visitor->getVBucketFilter()(Vbid(vbid))) {
-            vbucketsToVisit.emplace_back(vbid);
-        }
-    }
-    std::sort(vbucketsToVisit.begin(),
-              vbucketsToVisit.end(),
-              visitor->getVBucketComparator());
-}
-
-std::string VBCBAdaptor::getDescription() const {
-    auto value = currentvb.load();
-    if (value == None) {
-        return std::string(label) + " no vbucket assigned";
-    } else {
-        return std::string(label) + " on " + Vbid(value).to_string();
-    }
-}
-
-bool VBCBAdaptor::run() {
-    visitor->begin();
-
-    while (!vbucketsToVisit.empty()) {
-        const auto vbid = vbucketsToVisit.front();
-        VBucketPtr vb = store->getVBucket(vbid);
-        if (vb) {
-            currentvb = vbid.get();
-
-            using State = InterruptableVBucketVisitor::ExecutionState;
-            switch (visitor->shouldInterrupt()) {
-            case State::Continue:
-                break;
-            case State::Pause:
-                snooze(0);
-                return true;
-            case State::Stop:
-                visitor->complete();
-                return false;
-            }
-
-            visitor->visitBucket(*vb);
-        }
-        vbucketsToVisit.pop_front();
-    }
-
-    // Processed all vBuckets now, do not need to run again.
-    visitor->complete();
-    return false;
 }
 
 void KVBucket::resetUnderlyingStats()

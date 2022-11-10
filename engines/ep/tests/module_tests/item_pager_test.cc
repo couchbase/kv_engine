@@ -29,6 +29,7 @@
 #include "test_helpers.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
+#include "vb_adapters.h"
 #include "vbucket.h"
 #include "vbucket_utils.h"
 

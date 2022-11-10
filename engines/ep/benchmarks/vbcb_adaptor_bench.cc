@@ -17,6 +17,7 @@
 #include <kv_bucket.h>
 #include <paging_visitor.h>
 #include <platform/semaphore.h>
+#include <vb_adapters.h>
 #include <random>
 
 /**
