@@ -411,13 +411,8 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
 
 bool Checkpoint::canDedup(const queued_item& existing,
                           const queued_item& in) const {
-    auto isDurabilityOp = [](const queued_item& qi_) -> bool {
-        const auto op = qi_->getOperation();
-        return op == queue_op::pending_sync_write ||
-               op == queue_op::commit_sync_write ||
-               op == queue_op::abort_sync_write;
-    };
-    return !(isDurabilityOp(existing) || isDurabilityOp(in));
+    return !(existing->isAnySyncWriteOp() || in->isAnySyncWriteOp() ||
+             !in->canDeduplicate());
 }
 
 uint64_t Checkpoint::getMinimumCursorSeqno() const {

@@ -27,6 +27,7 @@
 #include "failover-table.h"
 #include "kv_bucket.h"
 #include "programs/engine_testapp/mock_server.h"
+#include "test_manifest.h"
 #include "tests/module_tests/test_helpers.h"
 #include "vbucket.h"
 #include <folly/portability/GMock.h>
@@ -3881,4 +3882,137 @@ TEST_F(CheckpointConfigTest, CheckpointPeriod) {
     auto& manager = *store->getVBuckets().getBucket(vbid)->checkpointManager;
 
     EXPECT_EQ(1234, manager.getCheckpointConfig().getCheckpointPeriod());
+}
+
+void ChangeStreamCheckpointTest::SetUp() {
+    // Note: Checkpoint removal isn't under test at all here.
+    // Eager checkpoint removal, default prod setting in Neo and post-Neo.
+    // That helps in cleaning up the CheckpointManager during the test and we
+    // won't need to fix the testsuite when merging into the master branch.
+    if (!config_string.empty()) {
+        config_string += ";";
+    }
+    config_string += "checkpoint_removal_mode=eager";
+    SingleThreadedKVBucketTest::SetUp();
+
+    CollectionsManifest manifest;
+    manifest.add(CollectionEntry::vegetable,
+                 cb::NoExpiryLimit,
+                 {} /*no history*/,
+                 ScopeEntry::defaultS);
+    manifest.add(CollectionEntry::fruit,
+                 cb::NoExpiryLimit,
+                 true /*history*/,
+                 ScopeEntry::defaultS);
+
+    setVBucketState(vbid, vbucket_state_active);
+    auto vb = store->getVBucket(vbid);
+    vb->updateFromManifest(Collections::Manifest{std::string{manifest}});
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    vb->checkpointManager->createNewCheckpoint(true);
+}
+
+TEST_F(ChangeStreamCheckpointTest, CollectionNotDeduped) {
+    auto vb = store->getVBuckets().getBucket(vbid);
+    auto& manager = *vb->checkpointManager;
+
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(1, manager.getNumItems()); // cs
+    ASSERT_EQ(0, manager.getNumOpenChkItems()); // no mutation
+    ASSERT_EQ(2, manager.getHighSeqno()); // 2 create-coll processed at SetUp
+
+    // The test-cursor is at the begin of the single open checkpoint
+    ASSERT_EQ(1, manager.getNumCursors());
+    const auto pos = *CheckpointCursorIntrospector::getCurrentPos(
+            *manager.getPersistenceCursor());
+    ASSERT_EQ(queue_op::empty, pos->getOperation());
+
+    // Normal in-memory deduplication for collection(history=false)
+    const auto keyVeg = makeStoredDocKey("key", CollectionEntry::vegetable);
+    const auto value = "value";
+    store_item(vbid, keyVeg, value);
+    store_item(vbid, keyVeg, value);
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(2, manager.getNumItems()); // cs + mut
+    EXPECT_EQ(1, manager.getNumOpenChkItems()); // mut
+    EXPECT_EQ(4, manager.getHighSeqno());
+
+    // No in-memory deduplication for collection(history=true)
+    manager.createNewCheckpoint(true);
+    flushVBucket(vbid);
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    const auto keyFruit = makeStoredDocKey("key", CollectionEntry::fruit);
+    store_item(vbid, keyFruit, value);
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(2, manager.getNumItems()); // cs + mut
+    EXPECT_EQ(1, manager.getNumOpenChkItems()); // mut
+    EXPECT_EQ(5, manager.getHighSeqno());
+    // Now queue duplicate
+    store_item(vbid, keyFruit, value);
+    EXPECT_EQ(2, manager.getNumCheckpoints());
+    EXPECT_EQ(5, manager.getNumItems()); // cs, m, ce, cs, m
+    EXPECT_EQ(1, manager.getNumOpenChkItems());
+    EXPECT_EQ(6, manager.getHighSeqno());
+}
+
+/**
+ * The test shows that the deduplication behaviour in CM might affects also
+ * collections with history turned off in the case where mutations for those
+ * collections interleave with mutations that belong to some
+ * collection(history=true).
+ */
+TEST_F(ChangeStreamCheckpointTest, CollectionNotDeduped_Interleaved) {
+    auto vb = store->getVBuckets().getBucket(vbid);
+    auto& manager = *vb->checkpointManager;
+
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(1, manager.getNumItems()); // cs
+    ASSERT_EQ(0, manager.getNumOpenChkItems()); // no mutation
+    ASSERT_EQ(2, manager.getHighSeqno()); // 2 create-coll processed at SetUp
+
+    ASSERT_EQ(1, manager.getNumCursors());
+    const auto pos = *CheckpointCursorIntrospector::getCurrentPos(
+            *manager.getPersistenceCursor());
+    ASSERT_EQ(queue_op::empty, pos->getOperation());
+
+    const auto keyVeg = makeStoredDocKey("key", CollectionEntry::vegetable);
+    const auto keyFruit = makeStoredDocKey("key", CollectionEntry::fruit);
+    const auto value = "value";
+
+    // history=false
+    store_item(vbid, keyVeg, value);
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(2, manager.getNumItems()); // [cs mut)
+    EXPECT_EQ(1, manager.getNumOpenChkItems()); // 1x mut
+    EXPECT_EQ(3, manager.getHighSeqno());
+
+    // history=true, but keyFruit not in the checkpoint index, so no need to
+    // dedup anything yet
+    store_item(vbid, keyFruit, value);
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(3, manager.getNumItems()); // [cs mutV mutF)
+    EXPECT_EQ(2, manager.getNumOpenChkItems()); // 2x mut
+    EXPECT_EQ(4, manager.getHighSeqno());
+
+    // history=false, keyVeg in the index, deduped
+    store_item(vbid, keyVeg, value);
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(3, manager.getNumItems()); // [cs x mutF mutV)
+    EXPECT_EQ(2, manager.getNumOpenChkItems()); // 2x mut
+    EXPECT_EQ(5, manager.getHighSeqno());
+
+    // history=true, keyFruit in the index, dedup
+    store_item(vbid, keyFruit, value);
+    EXPECT_EQ(2, manager.getNumCheckpoints());
+    EXPECT_EQ(6, manager.getNumItems()); // [cs x mutF mutV ce] [cs mutF)
+    EXPECT_EQ(1, manager.getNumOpenChkItems()); // 1x mut
+    EXPECT_EQ(6, manager.getHighSeqno());
+
+    // history=false, keyVeg could be dedup but it doesn't, as now we queue the
+    // new mutation for it into a different checkpoint
+    store_item(vbid, keyVeg, value);
+    EXPECT_EQ(2, manager.getNumCheckpoints());
+    EXPECT_EQ(7, manager.getNumItems()); // [cs x mutF mutV ce] [cs mutF mutV)
+    EXPECT_EQ(2, manager.getNumOpenChkItems()); // 2x mut
+    EXPECT_EQ(7, manager.getHighSeqno());
 }
