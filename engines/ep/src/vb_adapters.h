@@ -11,13 +11,16 @@
 #pragma once
 
 #include <executor/globaltask.h>
+#include <executor/notifiable_task.h>
 #include <memcached/vbucket.h>
 #include <relaxed_atomic.h>
 #include <chrono>
 #include <deque>
+#include <functional>
 #include <memory>
 
 class KVBucket;
+class VBucket;
 class InterruptableVBucketVisitor;
 
 /**
@@ -87,4 +90,78 @@ private:
      */
     const Vbid::id_type None = std::numeric_limits<Vbid::id_type>::max();
     cb::RelaxedAtomic<Vbid::id_type> currentvb{None};
+};
+
+/**
+ * A base class for an adapter which calls a callback on every VBucket visit.
+ */
+class CallbackAdapter {
+public:
+    using VBucketVisitedCallback =
+            std::function<void(const CallbackAdapter&, VBucket&)>;
+
+    CallbackAdapter(VBucketVisitedCallback onVBucketVisited);
+
+    virtual ~CallbackAdapter() = default;
+
+protected:
+    /**
+     * Calls the VBucketVisitedCallback provided at construction time.
+     */
+    void onVBucketVisited(VBucket& vb) const;
+
+private:
+    const VBucketVisitedCallback vbucketVisitedCallback;
+};
+
+/**
+ * A helper task that can be used to visit VBuckets asynchronously. In contrast
+ * to VBCBAdaptor, this task will visit VBuckets one at a time, snoozing
+ * its execution for "forever" after each visit. This means that the task needs
+ * to be woken after each visit in order to make progress.
+ *
+ * A callback which will be invoked after each visit can be specified.
+ *
+ * The set of VBuckets to visit is obtained by applying
+ * VBucketVisitor::getVBucketFilter() to the set of vBuckets the Bucket has.
+ */
+class SingleSteppingVisitorAdapter : public NotifiableTask,
+                                     public CallbackAdapter {
+public:
+    SingleSteppingVisitorAdapter(
+            KVBucket* store,
+            TaskId id,
+            std::unique_ptr<InterruptableVBucketVisitor> visitor,
+            const char* label,
+            bool completeBeforeShutdown,
+            VBucketVisitedCallback onVBucketVisited = nullptr);
+
+    std::string getDescription() const override;
+
+    /**
+     * Set the maximum expected duration for this task.
+     */
+    void setMaxExpectedDuration(std::chrono::microseconds duration) {
+        maxDuration = duration;
+    }
+
+    std::chrono::microseconds maxExpectedDuration() const override {
+        return maxDuration;
+    }
+
+    bool runInner() override;
+
+private:
+    KVBucket* const store;
+    const std::unique_ptr<InterruptableVBucketVisitor> visitor;
+    const std::string label;
+    std::chrono::microseconds maxDuration;
+    const VBucketVisitedCallback vbucketVisitedCallback;
+
+    /**
+     * VBuckets will be sorted according to visitor->getVBucketComparator().
+     * Once visited, vbuckets will be removed, so the visitor can resume after
+     * pausing.
+     */
+    std::deque<Vbid> vbucketsToVisit;
 };
