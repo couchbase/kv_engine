@@ -24,6 +24,7 @@
 #include <memcached/engine_error.h>
 #include <nlohmann/json.hpp>
 #include <platform/checked_snprintf.h>
+#include <spdlog/fmt/fmt.h>
 #include <statistics/cbstat_collector.h>
 #include <statistics/labelled_collector.h>
 
@@ -336,39 +337,39 @@ bool Manifest::invalidCollectionID(CollectionID identifier) {
 nlohmann::json Manifest::toJson(
         const Collections::IsVisibleFunction& isVisible) const {
     nlohmann::json manifest;
-    manifest["uid"] = fmt::format("{0:x}", uid);
-    manifest["scopes"] = nlohmann::json::array();
+    manifest[UidKey] = fmt::format("{0:x}", uid);
+    manifest[ScopesKey] = nlohmann::json::array();
 
     // scope check is correct to see an empty scope
     // collection check is correct as well, if you have no visible collections
     // and no access to the scope - no scope
 
-    for (const auto& s : scopes) {
+    for (const auto& [sid, scopeMeta] : scopes) {
         nlohmann::json scope;
-        scope["collections"] = nlohmann::json::array();
-        bool visible = isVisible(s.first, {});
-        for (const auto& c : s.second.collections) {
+        scope[CollectionsKey] = nlohmann::json::array();
+        bool visible = isVisible(sid, {});
+        for (const auto& c : scopeMeta.collections) {
             // Include if the collection is visible
-            if (isVisible(s.first, c.cid)) {
+            if (isVisible(sid, c.cid)) {
                 nlohmann::json collection;
-                collection["name"] = c.name;
-                collection["uid"] = fmt::format("{0:x}", uint32_t{c.cid});
+                collection[NameKey] = c.name;
+                collection[UidKey] = fmt::format("{0:x}", uint32_t{c.cid});
                 if (c.maxTtl) {
-                    collection["maxTTL"] = c.maxTtl.value().count();
+                    collection[MaxTtlKey] = c.maxTtl.value().count();
                 }
-                scope["collections"].push_back(collection);
+                scope[CollectionsKey].push_back(collection);
             }
         }
-        if (!scope["collections"].empty() || visible) {
-            scope["name"] = s.second.name;
-            scope["uid"] = fmt::format("{0:x}", uint32_t(s.first));
-            if (s.second.dataLimit) {
+        if (!scope[CollectionsKey].empty() || visible) {
+            scope[NameKey] = scopeMeta.name;
+            scope[UidKey] = fmt::format("{0:x}", uint32_t(sid));
+            if (scopeMeta.dataLimit) {
                 nlohmann::json jsonDataLimit;
-                jsonDataLimit["kv"]["data_size"] =
-                        s.second.dataLimitFromCluster;
-                scope["limits"] = jsonDataLimit;
+                jsonDataLimit[KvKey][DataSizeKey] =
+                        scopeMeta.dataLimitFromCluster;
+                scope[LimitsKey] = jsonDataLimit;
             }
-            manifest["scopes"].push_back(scope);
+            manifest[ScopesKey].push_back(scope);
         }
     }
     return manifest;
@@ -378,11 +379,11 @@ flatbuffers::DetachedBuffer Manifest::toFlatbuffer() const {
     flatbuffers::FlatBufferBuilder builder;
     std::vector<flatbuffers::Offset<Collections::Persist::Scope>> fbScopes;
 
-    for (const auto& scope : scopes) {
+    for (const auto& [sid, scope] : scopes) {
         std::vector<flatbuffers::Offset<Collections::Persist::Collection>>
                 fbCollections;
 
-        for (const auto& c : scope.second.collections) {
+        for (const auto& c : scope.collections) {
             auto newEntry = Collections::Persist::CreateCollection(
                     builder,
                     uint32_t(c.cid),
@@ -393,24 +394,24 @@ flatbuffers::DetachedBuffer Manifest::toFlatbuffer() const {
         }
         auto collectionVector = builder.CreateVector(fbCollections);
 
-        if (scope.second.dataLimit) {
+        if (scope.dataLimit) {
             auto limits = Collections::Persist::CreateScopeLimits(
                     builder,
                     true,
-                    scope.second.dataLimit.value(),
-                    scope.second.dataLimitFromCluster);
+                    scope.dataLimit.value(),
+                    scope.dataLimitFromCluster);
             auto newEntry = Collections::Persist::CreateScope(
                     builder,
-                    uint32_t(scope.first),
-                    builder.CreateString(scope.second.name),
+                    uint32_t(sid),
+                    builder.CreateString(scope.name),
                     collectionVector,
                     limits);
             fbScopes.push_back(newEntry);
         } else {
             auto newEntry = Collections::Persist::CreateScope(
                     builder,
-                    uint32_t(scope.first),
-                    builder.CreateString(scope.second.name),
+                    uint32_t(sid),
+                    builder.CreateString(scope.name),
                     collectionVector);
             fbScopes.push_back(newEntry);
         }
@@ -487,14 +488,14 @@ void Manifest::addCollectionStats(KVBucket& bucket,
         // exposes this too). It reveals nothing about scopes or collections but
         // is useful for assisting in access failures
         collector.addStat(Key::manifest_uid, uid);
-        for (const auto& scope : scopes) {
-            std::string_view scopeName = scope.second.name;
-            auto scopeC = collector.forScope(scopeName, scope.first);
-            for (const auto& entry : scope.second.collections) {
+        for (const auto& [sid, scope] : scopes) {
+            std::string_view scopeName = scope.name;
+            auto scopeC = collector.forScope(scopeName, sid);
+            for (const auto& entry : scope.collections) {
                 auto collectionC = scopeC.forCollection(entry.name, entry.cid);
                 // The inclusion of each collection requires an appropriate
                 // privilege
-                if (collectionC.testPrivilegeForStat(scope.first, entry.cid) !=
+                if (collectionC.testPrivilegeForStat(sid, entry.cid) !=
                     cb::engine_errc::success) {
                     continue; // skip this collection
                 }
@@ -687,33 +688,19 @@ cb::engine_error Manifest::isSuccessor(const Manifest& successor) const {
         for (auto itr = successor.beginScopes(); itr != successor.endScopes();
              ++itr) {
             if (scopes.count(itr->first) == 0) {
-                EP_LOG_INFO("create scope:id:{}, name:{}, manifest:{:#x}{}",
-                            itr->first,
-                            itr->second.name,
+                EP_LOG_INFO("create scope manifest:{:#x}, sid:{}, {}",
                             successor.getUid(),
-                            itr->second.dataLimit
-                                    ? fmt::format(", limit:{}",
-                                                  itr->second.dataLimit.value())
-                                    : "");
+                            itr->first,
+                            itr->second);
             }
         }
 
-        // Log creations
+        // Log collection creations
         for (auto itr = successor.begin(); itr != successor.end(); ++itr) {
             if (collections.count(itr->first) == 0) {
-                EP_LOG_INFO(
-                        "create collection:id:{}, name:{}, scope:{}, "
-                        "manifest:{:#x}{}",
-                        itr->first,
-                        itr->second.name,
-                        itr->second.sid,
-                        successor.getUid(),
-                        itr->second.maxTtl.has_value()
-                                ? ", maxttl:" +
-                                          std::to_string(
-                                                  itr->second.maxTtl.value()
-                                                          .count())
-                                : "");
+                EP_LOG_INFO("create collection manifest:{:#x}, {}",
+                            successor.getUid(),
+                            itr->second);
             }
         }
 
@@ -731,9 +718,9 @@ cb::engine_error Manifest::isSuccessor(const Manifest& successor) const {
                                     ", new-name:" + itr->second.name);
                 }
             } else {
-                EP_LOG_INFO("drop scope:id:{}, manifest:{:#x}",
-                            sid,
-                            successor.getUid());
+                EP_LOG_INFO("drop scope manifest:{:#x}, sid:{}",
+                            successor.getUid(),
+                            sid);
             }
         }
 
@@ -745,38 +732,17 @@ cb::engine_error Manifest::isSuccessor(const Manifest& successor) const {
                 if (collection != itr->second) {
                     return cb::engine_error(
                             cb::engine_errc::cannot_apply_collections_manifest,
-                            "invalid collection change detected "
-                            "cid:" + cid.to_string() +
-                                    ", name:" + collection.name + ", sid:" +
-                                    collection.sid.to_string() + ", maxTTL:" +
-                                    (collection.maxTtl.has_value() ? "yes"
-                                                                   : "no") +
-                                    ":" +
-                                    std::to_string(
-                                            collection.maxTtl
-                                                    .value_or(
-                                                            std::chrono::
-                                                                    seconds{0})
-                                                    .count()) +
-                                    ", new-name:" + itr->second.name +
-                                    ", new-sid: " +
-                                    itr->second.sid.to_string() +
-                                    ", new-maxTTL:" +
-                                    (itr->second.maxTtl.has_value() ? "yes"
-                                                                    : "no") +
-                                    ":" +
-                                    std::to_string(
-                                            itr->second.maxTtl
-                                                    .value_or(
-                                                            std::chrono::
-                                                                    seconds{0})
-                                                    .count()));
+                            fmt::format(
+                                    "invalid collection manifest change "
+                                    "detected current:{{{}}}, successor:{{{}}}",
+                                    collection,
+                                    itr->second));
                 }
             } else {
-                EP_LOG_INFO("drop collection:id:{}, scope:{}, manifest:{:#x}",
+                EP_LOG_INFO("drop collection manifest:{:#x} cid:{}, sid:{}, ",
+                            successor.getUid(),
                             cid,
-                            collection.sid,
-                            successor.getUid());
+                            collection.sid);
             }
         }
     } else if (uid == successor.getUid()) {
@@ -811,35 +777,48 @@ std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
        << ", defaultCollectionExists:" << manifest.defaultCollectionExists
        << ", uid:" << manifest.uid
        << ", collections.size:" << manifest.collections.size() << std::endl;
-    for (const auto& entry : manifest.scopes) {
-        os << "scope:{" << entry.first << ", " << entry.second.name;
-
-        if (entry.second.dataLimit) {
-            os << ", dataLimit:" << entry.second.dataLimit.value()
-               << ", dataLimitFromCluster:"
-               << entry.second.dataLimitFromCluster;
-        }
+    for (const auto& [sid, scope] : manifest.scopes) {
+        os << "scope:{" << sid << ", " << scope;
         os << ", collections:[";
 
-        for (const auto& collection : entry.second.collections) {
-            os << "{cid:" << collection.cid << ", sid:" << collection.sid
-               << ", " << collection.name
-               << ", ttl:" << (collection.maxTtl.has_value() ? "yes" : "no")
-               << ":"
-               << collection.maxTtl.value_or(std::chrono::seconds(0)).count()
-               << "}";
+        for (const auto& collection : scope.collections) {
+            os << "{" << collection << "}\n";
         }
         os << "]\n";
     }
 
     for (const auto& [key, collection] : manifest.collections) {
-        os << "{cid key:" << key.to_string() << ", value:" << collection.cid
-           << ", sid:" << collection.sid << ", " << collection.name
-           << ", ttl:" << (collection.maxTtl.has_value() ? "yes" : "no") << ":"
-           << collection.maxTtl.value_or(std::chrono::seconds(0)).count()
-           << "}";
-        os << "]\n";
+        os << "{key:" << key << ", " << collection << "}\n";
     }
     return os;
+}
+
+std::string to_string(const CollectionEntry& collection) {
+    return fmt::format(
+            "cid:{}, name:{}, ttl:{{{}, {}}}, sid:{}",
+            collection.cid.to_string(),
+            collection.name,
+            collection.maxTtl.has_value(),
+            collection.maxTtl.value_or(std::chrono::seconds(0)).count(),
+            collection.sid.to_string());
+}
+
+std::ostream& operator<<(std::ostream& os, const CollectionEntry& collection) {
+    return os << to_string(collection);
+}
+
+std::string to_string(const Scope& scope) {
+    // not descending into the collections vector as caller can choose how to
+    // space that out.
+    return fmt::format("name:{}, limit:{{{},{}}}, limitFromCluster:{}, size:{}",
+                       scope.name,
+                       scope.dataLimit.has_value(),
+                       scope.dataLimit.value_or(0),
+                       scope.dataLimitFromCluster,
+                       scope.collections.size());
+}
+
+std::ostream& operator<<(std::ostream& os, const Scope& scope) {
+    return os << to_string(scope);
 }
 }
