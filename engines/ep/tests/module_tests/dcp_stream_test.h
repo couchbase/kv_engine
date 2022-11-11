@@ -209,3 +209,16 @@ public:
 };
 
 class STPassiveStreamMagmaTest : public STPassiveStreamPersistentTest {};
+
+/**
+ * The persistent-only version of SingleThreadedActiveStreamTest.
+ */
+class STActiveStreamPersistentTest : public SingleThreadedActiveStreamTest {};
+
+/**
+ * Test fixture that verifies the behaviour of DCP for CDC-enabled connections.
+ */
+class CDCActiveStreamTest : public STActiveStreamPersistentTest {
+protected:
+    void SetUp() override;
+};

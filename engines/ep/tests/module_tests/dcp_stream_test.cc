@@ -4976,3 +4976,115 @@ INSTANTIATE_TEST_SUITE_P(Persistent,
                          STParameterizedBucketTest::magmaConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 #endif /*EP_USE_MAGMA*/
+
+void CDCActiveStreamTest::SetUp() {
+    STActiveStreamPersistentTest::SetUp();
+
+    CollectionsManifest manifest;
+    manifest.add(CollectionEntry::historical,
+                 cb::NoExpiryLimit,
+                 true /*history*/,
+                 ScopeEntry::defaultS);
+
+    setVBucketState(vbid, vbucket_state_active);
+    auto vb = store->getVBucket(vbid);
+    vb->updateFromManifest(Collections::Manifest{std::string{manifest}});
+    ASSERT_EQ(1, vb->getHighSeqno());
+
+    startCheckpointTask();
+    recreateStream(*vb,
+                   true,
+                   fmt::format(R"({{"collections":["{:x}"]}})",
+                               uint32_t(CollectionEntry::historical.uid)));
+
+    // Control data: Add some mutations into the non-CDC collection
+    for (size_t i : {1, 2, 3}) {
+        store_item(vbid,
+                   makeStoredDocKey("key" + std::to_string(i),
+                                    CollectionEntry::defaultC),
+                   "value");
+    }
+
+    ASSERT_EQ(4, vb->getHighSeqno());
+}
+
+TEST_P(CDCActiveStreamTest, CollectionNotDeduped_InMemory) {
+    auto& vb = *store->getVBucket(vbid);
+    const auto initHighSeqno = vb.getHighSeqno();
+    ASSERT_GT(initHighSeqno, 0); // From SetUp
+
+    // Mutate the same key some times into the CDC collection
+    const auto key = makeStoredDocKey("key", CollectionEntry::historical);
+    for (size_t i : {1, 2, 3}) {
+        store_item(vbid, key, "value" + std::to_string(i));
+    }
+    ASSERT_EQ(initHighSeqno + 3, vb.getHighSeqno());
+
+    // Stream must send 3 snapshots, 1 per mutation
+
+    const auto& readyQ = stream->public_readyQ();
+    ASSERT_EQ(0, readyQ.size());
+
+    stream->nextCheckpointItemTask();
+    ASSERT_EQ(7, readyQ.size());
+
+    // Marker + Sysevent + Mutation
+    auto resp = stream->public_nextQueuedItem(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto* marker = dynamic_cast<SnapshotMarker*>(resp.get());
+    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK, marker->getFlags());
+    EXPECT_EQ(0, marker->getStartSeqno());
+    EXPECT_EQ(initHighSeqno + 1, marker->getEndSeqno());
+
+    resp = stream->public_nextQueuedItem(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SystemEvent, resp->getEvent());
+    EXPECT_EQ(1, resp->getBySeqno());
+
+    resp = stream->public_nextQueuedItem(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    EXPECT_EQ(initHighSeqno + 1, resp->getBySeqno());
+    auto* mut = dynamic_cast<const MutationResponse*>(resp.get());
+    EXPECT_EQ(key, mut->getItem()->getKey());
+
+    // Marker + Mutation
+    resp = stream->public_nextQueuedItem(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    marker = dynamic_cast<SnapshotMarker*>(resp.get());
+    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK, marker->getFlags());
+    EXPECT_EQ(initHighSeqno + 2, marker->getStartSeqno());
+    EXPECT_EQ(initHighSeqno + 2, marker->getEndSeqno());
+
+    resp = stream->public_nextQueuedItem(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    EXPECT_EQ(initHighSeqno + 2, resp->getBySeqno());
+    mut = dynamic_cast<const MutationResponse*>(resp.get());
+    EXPECT_EQ(key, mut->getItem()->getKey());
+
+    // Marker + Mutation
+    resp = stream->public_nextQueuedItem(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    marker = dynamic_cast<SnapshotMarker*>(resp.get());
+    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK, marker->getFlags());
+    EXPECT_EQ(initHighSeqno + 3, marker->getStartSeqno());
+    EXPECT_EQ(initHighSeqno + 3, marker->getEndSeqno());
+
+    resp = stream->public_nextQueuedItem(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    EXPECT_EQ(initHighSeqno + 3, resp->getBySeqno());
+    mut = dynamic_cast<const MutationResponse*>(resp.get());
+    EXPECT_EQ(key, mut->getItem()->getKey());
+
+    EXPECT_EQ(0, readyQ.size());
+}
+
+INSTANTIATE_TEST_SUITE_P(Persistent,
+                         CDCActiveStreamTest,
+                         STParameterizedBucketTest::persistentConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
