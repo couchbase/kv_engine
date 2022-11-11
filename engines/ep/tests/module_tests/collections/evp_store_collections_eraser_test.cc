@@ -984,7 +984,10 @@ void CollectionsEraserTest::testScopePurgedItemsCorrectAfterDrop(
 TEST_P(CollectionsEraserTest, ScopePurgedItemsCorrectAfterDrop) {
     CollectionsManifest cm;
     cm.add(ScopeEntry::shop1);
-    cm.add(CollectionEntry::dairy, cb::ExpiryLimit{0}, ScopeEntry::shop1);
+    cm.add(CollectionEntry::dairy,
+           cb::ExpiryLimit{0},
+           {/*history*/},
+           ScopeEntry::shop1);
     vb->updateFromManifest(makeManifest(cm));
     flushVBucketToDiskIfPersistent(vbid, 2);
 

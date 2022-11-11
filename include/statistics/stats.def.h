@@ -770,6 +770,7 @@ STAT(manifest_force, "force", none, , )
 STAT(collection_name, "name", none, , )
 STAT(collection_scope_name, "scope_name", none, , )
 STAT(collection_maxTTL, "maxTTL", seconds, , )
+STAT(collection_history, "history", none, , )
 
 STAT(scope_name, "name", none, , )
 STAT(scope_data_limit, "data_limit", none, , )

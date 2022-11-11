@@ -21,6 +21,7 @@ table Collection {
     ttlValid:bool;
     maxTtl:uint;
     name:string;
+    history:bool;
 }
 
 table ScopeLimits {
@@ -34,6 +35,7 @@ table Scope {
     name:string;
     collections:[Collection];
     limits:ScopeLimits;
+    history:bool;
 }
 
 table Manifest {

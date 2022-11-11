@@ -396,7 +396,7 @@ TEST(ManifestTest, validation) {
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[]}]})",
             // mix-case uid is fine
-            R"({"uid" : "AbCd1",
+            R"({"uid" : "FbCd1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[]}]})",
 
@@ -440,7 +440,17 @@ TEST(ManifestTest, validation) {
                 "scopes":[{"name":"_default", "uid":"0", "collections":[]},
                           {"name":"s1", "uid":"8",
                            "limits": {},
-                           "collections":[]}]})"};
+                           "collections":[]}]})",
+            // scope which supports change history
+            R"({"uid" : "1",
+                "scopes":[{"name":"_default", "uid":"0", "collections":[]},
+                          {"name":"s1", "uid":"8",
+                           "history": true,
+                           "collections":[{"name":"c1","uid":"8","history":true}]}]})",
+            // collection which supports change history
+            R"({"uid" : "1",
+                "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"brewery","uid":"8","history":true}]}]})"};
 
     for (auto& manifest : invalidManifests) {
         try {
@@ -599,7 +609,10 @@ TEST(ManifestTest, toJson) {
                 cm.add(collection.scope);
                 scopesAdded.insert(collection.scope.uid);
             }
-            cm.add(collection.collection, collection.maxTtl, collection.scope);
+            cm.add(collection.collection,
+                   collection.maxTtl,
+                   {/*history*/},
+                   collection.scope);
         }
         cm.setUid(manifest.first);
 
@@ -975,4 +988,26 @@ TEST(ManifestTest, scopeDataSize) {
     auto scope = cm.findScope(ScopeID{8});
     ASSERT_NE(scope, cm.endScopes());
     EXPECT_EQ(123456, scope->second.dataLimitFromCluster);
+}
+
+TEST(ManifestTest, configureHistory) {
+    CollectionsManifest cm;
+    // A collection in default scope and then a new scope with history
+    cm.add(CollectionEntry::fruit); // expect no history
+    cm.add(CollectionEntry::vegetable, cb::NoExpiryLimit, true /*history*/);
+
+    // dairy collection will get 'history' from the scope
+    cm.add(ScopeEntry::shop1, {/*no datalimit*/}, true /*history*/);
+    cm.add(CollectionEntry::dairy, ScopeEntry::shop1);
+
+    Collections::Manifest manifest{std::string{cm}};
+    EXPECT_EQ(CanDeduplicate::Yes,
+              manifest.getCanDeduplicate(CollectionEntry::fruit));
+
+    // Both the following are defined to keep history. Can these collections be
+    // deduplicated? No
+    EXPECT_EQ(CanDeduplicate::No,
+              manifest.getCanDeduplicate(CollectionEntry::vegetable));
+    EXPECT_EQ(CanDeduplicate::No,
+              manifest.getCanDeduplicate(CollectionEntry::dairy));
 }

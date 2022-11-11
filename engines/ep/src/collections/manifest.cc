@@ -56,6 +56,9 @@ static constexpr nlohmann::json::value_t KvType =
 static constexpr char const* DataSizeKey = "data_size";
 static constexpr nlohmann::json::value_t DataSizeType =
         nlohmann::json::value_t::number_unsigned;
+static constexpr char const* HistoryKey = "history";
+static constexpr nlohmann::json::value_t HistoryType =
+        nlohmann::json::value_t::boolean;
 
 /**
  * Get json sub-object from the json object for key and check the type.
@@ -141,6 +144,15 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
             }
         }
 
+        // Does the scope disable deduplication?
+        CanDeduplicate scopeCanDeduplicate = CanDeduplicate::Yes;
+        auto scopeHistoryConfigured =
+                cb::getOptionalJsonObject(scope, HistoryKey, HistoryType);
+        if (scopeHistoryConfigured &&
+            scopeHistoryConfigured.value().get<bool>()) {
+            scopeCanDeduplicate = CanDeduplicate::No;
+        }
+
         std::vector<CollectionEntry> scopeCollections = {};
 
         // Read the collections within this scope
@@ -205,9 +217,22 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
                 maxTtl = std::chrono::seconds(value);
             }
 
+            // Does the collection (re)define a history setting
+            CanDeduplicate collectionCanDeduplicate = scopeCanDeduplicate;
+            auto historyConfigured = cb::getOptionalJsonObject(
+                    collection, HistoryKey, HistoryType);
+            // Does the collection disable deduplication?
+            if (historyConfigured && historyConfigured.value().get<bool>()) {
+                collectionCanDeduplicate = CanDeduplicate::No;
+            }
+
             enableDefaultCollection(cidValue);
             scopeCollections.push_back(
-                    CollectionEntry{cidValue, cnameValue, maxTtl, sidValue});
+                    CollectionEntry{cidValue,
+                                    cnameValue,
+                                    maxTtl,
+                                    sidValue,
+                                    collectionCanDeduplicate});
         }
 
         // Check for limits - only support for data_size
@@ -219,7 +244,8 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
                              Scope{dataLimit.first,
                                    dataLimit.second,
                                    nameValue,
-                                   std::move(scopeCollections)});
+                                   std::move(scopeCollections),
+                                   scopeCanDeduplicate});
     }
 
     // Now build the collection id to collection-entry map
@@ -357,6 +383,11 @@ nlohmann::json Manifest::toJson(
                 if (c.maxTtl) {
                     collection[MaxTtlKey] = c.maxTtl.value().count();
                 }
+
+                if (getHistoryFromCanDeduplicate(c.canDeduplicate)) {
+                    // Only include when the value is true
+                    collection[HistoryKey] = true;
+                }
                 scope[CollectionsKey].push_back(collection);
             }
         }
@@ -368,6 +399,11 @@ nlohmann::json Manifest::toJson(
                 jsonDataLimit[KvKey][DataSizeKey] =
                         scopeMeta.dataLimitFromCluster;
                 scope[LimitsKey] = jsonDataLimit;
+            }
+
+            if (getHistoryFromCanDeduplicate(scopeMeta.canDeduplicate)) {
+                // Only include when the value is true
+                scope[HistoryKey] = true;
             }
             manifest[ScopesKey].push_back(scope);
         }
@@ -389,7 +425,8 @@ flatbuffers::DetachedBuffer Manifest::toFlatbuffer() const {
                     uint32_t(c.cid),
                     c.maxTtl.has_value(),
                     c.maxTtl.value_or(std::chrono::seconds(0)).count(),
-                    builder.CreateString(c.name));
+                    builder.CreateString(c.name),
+                    getHistoryFromCanDeduplicate(c.canDeduplicate));
             fbCollections.push_back(newEntry);
         }
         auto collectionVector = builder.CreateVector(fbCollections);
@@ -405,14 +442,17 @@ flatbuffers::DetachedBuffer Manifest::toFlatbuffer() const {
                     uint32_t(sid),
                     builder.CreateString(scope.name),
                     collectionVector,
-                    limits);
+                    limits,
+                    getHistoryFromCanDeduplicate(scope.canDeduplicate));
             fbScopes.push_back(newEntry);
         } else {
             auto newEntry = Collections::Persist::CreateScope(
                     builder,
                     uint32_t(sid),
                     builder.CreateString(scope.name),
-                    collectionVector);
+                    collectionVector,
+                    0, // No limits
+                    getHistoryFromCanDeduplicate(scope.canDeduplicate));
             fbScopes.push_back(newEntry);
         }
     }
@@ -458,7 +498,11 @@ Manifest::Manifest(std::string_view flatbufferData, Manifest::FlatBuffers tag)
 
             enableDefaultCollection(cid);
             scopeCollections.push_back(CollectionEntry{
-                    cid, collection->name()->str(), maxTtl, scope->scopeId()});
+                    cid,
+                    collection->name()->str(),
+                    maxTtl,
+                    scope->scopeId(),
+                    getCanDeduplicateFromHistory(collection->history())});
         }
 
         std::optional<size_t> dataSize;
@@ -469,11 +513,13 @@ Manifest::Manifest(std::string_view flatbufferData, Manifest::FlatBuffers tag)
             pristineValue = scope->limits()->dataSizeClusterValue();
         }
 
-        this->scopes.emplace(scope->scopeId(),
-                             Scope{dataSize,
-                                   pristineValue,
-                                   scope->name()->str(),
-                                   std::move(scopeCollections)});
+        this->scopes.emplace(
+                scope->scopeId(),
+                Scope{dataSize,
+                      pristineValue,
+                      scope->name()->str(),
+                      std::move(scopeCollections),
+                      getCanDeduplicateFromHistory(scope->history())});
     }
 
     // Now build the collection id to collection-entry map
@@ -505,6 +551,10 @@ void Manifest::addCollectionStats(KVBucket& bucket,
                 if (entry.maxTtl) {
                     collectionC.addStat(Key::collection_maxTTL, entry.maxTtl->count());
                 }
+
+                collectionC.addStat(
+                        Key::collection_history,
+                        getHistoryFromCanDeduplicate(entry.canDeduplicate));
             }
         }
     } catch (const std::exception& e) {
@@ -641,20 +691,29 @@ DataLimit Manifest::getScopeDataLimit(ScopeID sid) const {
     return scopeItr->second.dataLimit;
 }
 
+CanDeduplicate Manifest::getCanDeduplicate(CollectionID cid) const {
+    auto itr = collections.find(cid);
+    if (itr != collections.end()) {
+        return itr->second.canDeduplicate;
+    }
+    return CanDeduplicate::Yes;
+}
+
 void Manifest::dump() const {
     std::cerr << *this << std::endl;
 }
 
 bool CollectionEntry::operator==(const CollectionEntry& other) const {
     return cid == other.cid && name == other.name && sid == other.sid &&
-           maxTtl == other.maxTtl;
+           maxTtl == other.maxTtl && canDeduplicate == other.canDeduplicate;
 }
 
 bool Scope::operator==(const Scope& other) const {
     bool equal = name == other.name &&
                  collections.size() == other.collections.size() &&
                  dataLimit == other.dataLimit &&
-                 dataLimitFromCluster == other.dataLimitFromCluster;
+                 dataLimitFromCluster == other.dataLimitFromCluster &&
+                 canDeduplicate == other.canDeduplicate;
     if (equal) {
         for (const auto& c : collections) {
             equal &= std::find(other.collections.begin(),
@@ -795,12 +854,13 @@ std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
 
 std::string to_string(const CollectionEntry& collection) {
     return fmt::format(
-            "cid:{}, name:{}, ttl:{{{}, {}}}, sid:{}",
+            "cid:{}, name:{}, ttl:{{{}, {}}}, sid:{}, {}",
             collection.cid.to_string(),
             collection.name,
             collection.maxTtl.has_value(),
             collection.maxTtl.value_or(std::chrono::seconds(0)).count(),
-            collection.sid.to_string());
+            collection.sid.to_string(),
+            collection.canDeduplicate);
 }
 
 std::ostream& operator<<(std::ostream& os, const CollectionEntry& collection) {
@@ -810,12 +870,14 @@ std::ostream& operator<<(std::ostream& os, const CollectionEntry& collection) {
 std::string to_string(const Scope& scope) {
     // not descending into the collections vector as caller can choose how to
     // space that out.
-    return fmt::format("name:{}, limit:{{{},{}}}, limitFromCluster:{}, size:{}",
-                       scope.name,
-                       scope.dataLimit.has_value(),
-                       scope.dataLimit.value_or(0),
-                       scope.dataLimitFromCluster,
-                       scope.collections.size());
+    return fmt::format(
+            "name:{}, limit:{{{},{}}}, limitFromCluster:{}, size:{}, {}",
+            scope.name,
+            scope.dataLimit.has_value(),
+            scope.dataLimit.value_or(0),
+            scope.dataLimitFromCluster,
+            scope.collections.size(),
+            scope.canDeduplicate);
 }
 
 std::ostream& operator<<(std::ostream& os, const Scope& scope) {
