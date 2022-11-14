@@ -106,8 +106,17 @@ object has the following keys.
     items is returned. A bernoulli distribution with a probability of
     `samples / collection size` determines if a scanned key is included in the
     output set.
+  * The scan will iterate the collection and randomly include keys using the
+    distribution.
   * If the target collection size is smaller or equal to samples, the entire
     collection is returned.
+
+Example 1. Collection stores 100 keys and the sample request is for 10. The scan
+will configure a distribution with a 0.1 probability. The scan will then return
+approximately 10% of the collection - it could be more or less.
+
+Example 2. Collection stores 100 key and the sample request is for 200. The scan
+will return all 100 keys.
 
 ### Snapshot Requirements
 

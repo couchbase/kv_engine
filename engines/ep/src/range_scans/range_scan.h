@@ -249,9 +249,6 @@ public:
     /// @return true if the current item should be skipped
     bool skipItem();
 
-    /// @return true if the scan's total limit has now been reached
-    bool isTotalLimitReached() const;
-
     /// @return true if the vbucket can be scanned (correct state/uuid)
     bool isVbucketScannable(const VBucket& vb) const;
 
@@ -351,14 +348,13 @@ protected:
     std::chrono::steady_clock::time_point createTime;
 
     /**
-     * Following 3 member variables are used only when a
+     * Following 2 member variables are used only when a
      * cb::rangescan::SamplingConfiguration is provided to the constructor.
      * The prng is allocated on demand as it's quite large (~2500bytes) and only
      * needed by sampling scans.
      */
     std::unique_ptr<std::mt19937> prng;
     std::bernoulli_distribution distribution{0.0};
-    size_t totalLimit{0};
 
     Vbid vbid{0};
 

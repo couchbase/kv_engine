@@ -237,8 +237,6 @@ cb::rangescan::Id RangeScan::createScan(
             } else if (stats.second.itemCount > samplingConfig->samples) {
                 // Create the prng so that sampling is enabled
                 prng = std::make_unique<std::mt19937>(samplingConfig->seed);
-                // set the total so we don't go over the request
-                totalLimit = samplingConfig->samples;
 
                 // Now we can compute the distribution and assign the first
                 // sample index. Example, if asked for 999 samples and 1,000
@@ -247,7 +245,7 @@ cb::rangescan::Id RangeScan::createScan(
                         double(samplingConfig->samples) /
                         double(stats.second.itemCount)};
             }
-            // else no prng, all keys are returned which is <= samples
+            // else no prng, the entire collection is now returned
         } else if (stats.first == KVStore::GetCollectionStatsStatus::NotFound) {
             // same errc as an empty range-scan
             throw cb::engine_error(
@@ -353,12 +351,6 @@ cb::engine_errc RangeScan::setupToScan() {
         handleStatus(cb::engine_errc::range_scan_cancelled);
         // ignoring the handleStatus return value as scan-cancelled is the
         // outcome here.
-        return cb::engine_errc::range_scan_cancelled;
-    } else if (isTotalLimitReached()) {
-        // If the total was reached, scan is complete (success)
-        if (handleStatus(cb::engine_errc::range_scan_complete)) {
-            return cb::engine_errc::success;
-        }
         return cb::engine_errc::range_scan_cancelled;
     }
 
@@ -645,10 +637,6 @@ bool RangeScan::skipItem() {
     return isSampling() && !distribution(*prng);
 }
 
-bool RangeScan::isTotalLimitReached() const {
-    return totalLimit && (totalKeys >= totalLimit);
-}
-
 bool RangeScan::isSampling() const {
     return prng != nullptr;
 }
@@ -693,7 +681,6 @@ void RangeScan::addStats(const StatCollector& collector) const {
     addStat("total_keys", totalKeys);
     addStat("total_items_from_memory", totalValuesFromMemory);
     addStat("total_items_from_disk", totalValuesFromDisk);
-    addStat("total_limit", totalLimit);
 
     addStat("crs_item_count", continueRunState.itemCount);
     addStat("crs_cookie", continueRunState.cState.cookie);
@@ -727,7 +714,7 @@ std::ostream& operator<<(std::ostream& os, const RangeScan& scan) {
     fmt::print(os,
                "RangeScan: uuid:{}, {}, vbuuid:{}, created:{}. range:({},{}), "
                "mode:{}, queued:{}, totalKeys:{} values m:{}, d:{}, "
-               "totalLimit:{}, crs{{{}}}, cs{{{}}}",
+               "crs{{{}}}, cs{{{}}}",
                scan.uuid,
                scan.vbid,
                scan.vbUuid,
@@ -739,7 +726,6 @@ std::ostream& operator<<(std::ostream& os, const RangeScan& scan) {
                scan.totalKeys,
                scan.totalValuesFromMemory,
                scan.totalValuesFromDisk,
-               scan.totalLimit,
                scan.continueRunState,
                cs);
 

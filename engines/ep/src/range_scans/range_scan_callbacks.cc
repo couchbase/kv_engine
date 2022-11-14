@@ -192,11 +192,6 @@ void RangeScanCacheCallback::callback(CacheLookup& lookup) {
     if (scan.skipItem()) {
         setStatus(cb::engine_errc::key_already_exists);
         return;
-    } else if (scan.isTotalLimitReached()) {
-        // end the scan. Using setScanErrorStatus ensures this status is
-        // attached to any output from the scan.
-        setScanErrorStatus(cb::engine_errc::range_scan_complete);
-        return;
     }
 
     // Key only scan ends here
