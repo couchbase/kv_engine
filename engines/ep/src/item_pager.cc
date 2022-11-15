@@ -45,7 +45,8 @@
 ItemPager::ItemPager(Taskable& t, size_t numConcurrentPagers)
     : NotifiableTask(t, TaskId::ItemPager, 10, false),
       numConcurrentPagers(numConcurrentPagers),
-      pagerSemaphore(std::make_shared<cb::Semaphore>(numConcurrentPagers)) {
+      pagerSemaphore(std::make_shared<cb::Semaphore>(numConcurrentPagers)),
+      doEvict(false) {
 }
 
 VBucketFilter ItemPager::createVBucketFilter(KVBucket& kvBucket,
@@ -83,7 +84,6 @@ StrictQuotaItemPager::StrictQuotaItemPager(EventuallyPersistentEngine& e,
     : ItemPager(e.getTaskable(), numConcurrentPagers),
       engine(e),
       stats(st),
-      doEvict(false),
       sleepTime(std::chrono::milliseconds(
               e.getConfiguration().getPagerSleepTimeMs())) {
 }
@@ -133,7 +133,7 @@ ItemPager::PageableMemInfo StrictQuotaItemPager::getPageableMemInfo() const {
     return {current, upper, lower};
 }
 
-bool StrictQuotaItemPager::runInner(bool manuallyNotified) {
+bool ItemPager::runInner(bool manuallyNotified) {
     TRACE_EVENT0("ep-engine/task", "ItemPager");
 
     const auto memInfo = getPageableMemInfo();
@@ -160,49 +160,8 @@ bool StrictQuotaItemPager::runInner(bool manuallyNotified) {
         // acquired token, PagingVisitor::complete() will call
         // pagerSemaphore->signal() to release it.
 
-        auto* kvBucket = engine.getKVBucket();
-        if (kvBucket->getItemEvictionPolicy() == EvictionPolicy::Value) {
-            doEvict = true;
-        }
-
-        ++stats.pagerRuns;
-
         std::ptrdiff_t bytesToEvict = memInfo.current - memInfo.lower;
-        auto evictionRatios = getEvictionRatios({*kvBucket}, bytesToEvict);
-
-        EP_LOG_DEBUG(
-                "Using {} bytes of memory, paging out {}% of active and "
-                "pending items, {}% of replica items.",
-                stats.getEstimatedTotalMemoryUsed(),
-                (evictionRatios.activeAndPending * 100.0),
-                (evictionRatios.replica * 100.0));
-
-        PermittedVBStates statesToEvictFrom =
-                getStatesForEviction(evictionRatios);
-
-        // p99.99 is ~200ms
-        const auto maxExpectedDurationForVisitorTask =
-                std::chrono::milliseconds(200);
-
-        auto makeEvictionStrategy = getEvictionStrategyFactory(evictionRatios);
-
-        // distribute the vbuckets that should be visited among multiple
-        // paging visitors.
-        auto filter = createVBucketFilter(*kvBucket, statesToEvictFrom);
-        for (const auto& partFilter : filter.split(numConcurrentPagers)) {
-            auto pv = std::make_unique<ItemPagingVisitor>(
-                    *kvBucket,
-                    stats,
-                    makeEvictionStrategy(),
-                    pagerSemaphore,
-                    true, /* allow pausing between vbuckets */
-                    partFilter);
-
-            kvBucket->visitAsync(std::move(pv),
-                                 "Item pager",
-                                 TaskId::ItemPagerVisitor,
-                                 maxExpectedDurationForVisitorTask);
-        }
+        schedulePagingVisitors(bytesToEvict);
     }
 
     return true;
@@ -300,6 +259,50 @@ size_t ItemPager::getEvictableBytes(KVBucket& kvBucket,
     kvBucket.visit(visitor);
 
     return visitor.getTotalEvictableMemory();
+}
+
+void StrictQuotaItemPager::schedulePagingVisitors(std::size_t bytesToEvict) {
+    auto* kvBucket = engine.getKVBucket();
+    if (kvBucket->getItemEvictionPolicy() == EvictionPolicy::Value) {
+        doEvict = true;
+    }
+
+    ++stats.pagerRuns;
+
+    auto evictionRatios = getEvictionRatios({*kvBucket}, bytesToEvict);
+
+    EP_LOG_DEBUG(
+            "Using {} bytes of memory, paging out {}% of active and "
+            "pending items, {}% of replica items.",
+            stats.getEstimatedTotalMemoryUsed(),
+            (evictionRatios.activeAndPending * 100.0),
+            (evictionRatios.replica * 100.0));
+
+    PermittedVBStates statesToEvictFrom = getStatesForEviction(evictionRatios);
+
+    // p99.99 is ~200ms
+    const auto maxExpectedDurationForVisitorTask =
+            std::chrono::milliseconds(200);
+
+    auto makeEvictionStrategy = getEvictionStrategyFactory(evictionRatios);
+
+    // distribute the vbuckets that should be visited among multiple
+    // paging visitors.
+    auto filter = createVBucketFilter(*kvBucket, statesToEvictFrom);
+    for (const auto& partFilter : filter.split(numConcurrentPagers)) {
+        auto pv = std::make_unique<ItemPagingVisitor>(
+                *kvBucket,
+                stats,
+                makeEvictionStrategy(),
+                pagerSemaphore,
+                true, /* allow pausing between vbuckets */
+                partFilter);
+
+        kvBucket->visitAsync(std::move(pv),
+                             "Item pager",
+                             TaskId::ItemPagerVisitor,
+                             maxExpectedDurationForVisitorTask);
+    }
 }
 
 ExpiredItemPager::ExpiredItemPager(EventuallyPersistentEngine& e,

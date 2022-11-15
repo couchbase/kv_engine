@@ -43,6 +43,8 @@ class ItemPager : public NotifiableTask {
 public:
     ItemPager(Taskable& t, size_t numConcurrentPagers);
 
+    bool runInner(bool manuallyNotified) override;
+
 protected:
     struct PageableMemInfo {
         /** Current pageable memory usage */
@@ -57,6 +59,11 @@ protected:
      * Gets the memory quotas and usage to consider for paging.
      */
     virtual PageableMemInfo getPageableMemInfo() const = 0;
+
+    /**
+     * Schedules paging visitor tasks to run immediately.
+     */
+    virtual void schedulePagingVisitors(std::size_t bytesToEvict) = 0;
 
     /**
      * Creates a VBucketFilter object which only accepts VBuckets in one of
@@ -92,6 +99,8 @@ protected:
     const size_t numConcurrentPagers;
     // used to avoid creating more paging visitors while any are still running
     const std::shared_ptr<cb::Semaphore> pagerSemaphore;
+    // Should eviction continue until the low watermark is reached?
+    bool doEvict;
 };
 
 /**
@@ -113,8 +122,6 @@ public:
                          EPStats& st,
                          size_t numConcurrentPagers);
 
-    bool runInner(bool manuallyNotified) override;
-
     std::string getDescription() const override {
         return "Paging out items.";
     }
@@ -135,6 +142,8 @@ public:
             const std::vector<std::reference_wrapper<KVBucket>>& kvBuckets,
             std::size_t bytesToEvict) const override;
 
+    void schedulePagingVisitors(std::size_t bytesToEvict) override;
+
 private:
     /**
      * Get a factory which can create multiple matching eviction strategy
@@ -153,8 +162,6 @@ private:
 
     EventuallyPersistentEngine& engine;
     EPStats& stats;
-
-    bool doEvict;
 
     /**
      * How long this task sleeps for if not requested to run. Initialised from
