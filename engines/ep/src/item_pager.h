@@ -17,6 +17,7 @@
 #include <memcached/types.h> // for ssize_t
 #include <chrono>
 #include <memory>
+#include <utility>
 
 #include "eviction_ratios.h"
 #include "permitted_vb_states.h"
@@ -49,6 +50,30 @@ protected:
      */
     static VBucketFilter createVBucketFilter(KVBucket& kvBucket,
                                              PermittedVBStates acceptedStates);
+
+    /**
+     * Returns the list of state we need to consider for eviction according
+     * to the eviction ratios.
+     */
+    PermittedVBStates getStatesForEviction(EvictionRatios states) const;
+
+    /**
+     * Get how many bytes could theoretically be reclaimed from
+     * vbuckets in the specified states, if all resident items were evicted.
+     */
+    size_t getEvictableBytes(KVBucket& kvBucket,
+                             PermittedVBStates states) const;
+
+    /**
+     * Computes the eviction ratios we need to be able to evict @p bytesToEvict
+     * bytes from the given buckets.
+     *
+     * Some implementations of this method may only allow 1 KVBucket to be
+     * specified.
+     */
+    virtual EvictionRatios getEvictionRatios(
+            const std::vector<std::reference_wrapper<KVBucket>>& kvBuckets,
+            std::size_t bytesToEvict) const = 0;
 
     const size_t numConcurrentPagers;
     // used to avoid creating more paging visitors while any are still running
@@ -90,6 +115,10 @@ public:
         return sleepTime;
     }
 
+    EvictionRatios getEvictionRatios(
+            const std::vector<std::reference_wrapper<KVBucket>>& kvBuckets,
+            std::size_t bytesToEvict) const override;
+
 private:
     /**
      * Get a factory which can create multiple matching eviction strategy
@@ -100,12 +129,6 @@ private:
      */
     std::function<std::unique_ptr<ItemEvictionStrategy>()>
     getEvictionStrategyFactory(EvictionRatios evictionRatios);
-
-    /**
-     * Get how many bytes could theoretically be reclaimed from
-     * vbuckets matching the given filter, if all resident items were evicted.
-     */
-    size_t getEvictableBytes(const VBucketFilter& filter) const;
 
     /**
      * Reset the phase to the default determined by the bucket type

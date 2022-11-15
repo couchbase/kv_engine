@@ -31,6 +31,7 @@
 #include <platform/platform_time.h>
 #include <platform/semaphore.h>
 
+#include <gsl/gsl-lite.hpp>
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
@@ -64,6 +65,18 @@ VBucketFilter ItemPager::createVBucketFilter(KVBucket& kvBucket,
     return filter;
 }
 
+PermittedVBStates ItemPager::getStatesForEviction(EvictionRatios ratios) const {
+    PermittedVBStates statesToEvictFrom;
+    if (ratios.replica > 0.0) {
+        statesToEvictFrom.set(vbucket_state_replica);
+    }
+    if (ratios.activeAndPending > 0.0) {
+        statesToEvictFrom.set(vbucket_state_active);
+        statesToEvictFrom.set(vbucket_state_pending);
+    }
+    return statesToEvictFrom;
+}
+
 StrictQuotaItemPager::StrictQuotaItemPager(EventuallyPersistentEngine& e,
                                            EPStats& st,
                                            size_t numConcurrentPagers)
@@ -73,6 +86,43 @@ StrictQuotaItemPager::StrictQuotaItemPager(EventuallyPersistentEngine& e,
       doEvict(false),
       sleepTime(std::chrono::milliseconds(
               e.getConfiguration().getPagerSleepTimeMs())) {
+}
+
+EvictionRatios StrictQuotaItemPager::getEvictionRatios(
+        const std::vector<std::reference_wrapper<KVBucket>>& kvBuckets,
+        std::size_t bytesToEvict_) const {
+    auto bytesToEvict = gsl::narrow<std::ptrdiff_t>(bytesToEvict_);
+    if (kvBuckets.size() != 1) {
+        throw std::invalid_argument("Only 1 bucket can be specified");
+    }
+    auto& kvBucket = kvBuckets[0].get();
+
+    double replicaEvictionRatio = 0.0;
+    if (kvBucket.canEvictFromReplicas()) {
+        const double replicaEvictableMem =
+                getEvictableBytes(kvBucket, {vbucket_state_replica});
+        // try evict from replicas first if we can
+        replicaEvictionRatio =
+                std::min(1.0, bytesToEvict / replicaEvictableMem);
+
+        bytesToEvict -= replicaEvictableMem;
+    }
+
+    double activeAndPendingEvictionRatio = 0.0;
+    if (bytesToEvict > 0) {
+        const double activePendingEvictableMem = getEvictableBytes(
+                kvBucket, {vbucket_state_active, vbucket_state_pending});
+        // replicas are not sufficient (or are not eligible for eviction if
+        // ephemeral). Not enough memory can be reclaimed from them to
+        // reach the low watermark.
+        // Consider active and pending vbuckets too.
+        // active and pending share an eviction ratio, it need only be
+        // set once
+        activeAndPendingEvictionRatio =
+                std::min(1.0, bytesToEvict / activePendingEvictableMem);
+    }
+
+    return {activeAndPendingEvictionRatio, replicaEvictionRatio};
 }
 
 bool StrictQuotaItemPager::runInner(bool manuallyNotified) {
@@ -111,63 +161,28 @@ bool StrictQuotaItemPager::runInner(bool manuallyNotified) {
 
         ++stats.pagerRuns;
 
-        VBucketFilter replicaFilter =
-                createVBucketFilter(*kvBucket, {vbucket_state_replica});
-        VBucketFilter activePendingFilter = createVBucketFilter(
-                *kvBucket, {vbucket_state_active, vbucket_state_pending});
-
-        ssize_t bytesToEvict = current - lower;
-
-        double replicaEvictionRatio = 0.0;
-        if (kvBucket->canEvictFromReplicas()) {
-            const double replicaEvictableMem = getEvictableBytes(replicaFilter);
-            // try evict from replicas first if we can
-            replicaEvictionRatio =
-                    std::min(1.0, bytesToEvict / replicaEvictableMem);
-
-            bytesToEvict -= replicaEvictableMem;
-        }
-
-        double activeAndPendingEvictionRatio = 0.0;
-        if (bytesToEvict > 0) {
-            const double activePendingEvictableMem =
-                    getEvictableBytes(activePendingFilter);
-            // replicas are not sufficient (or are not eligible for eviction if
-            // ephemeral). Not enough memory can be reclaimed from them to
-            // reach the low watermark.
-            // Consider active and pending vbuckets too.
-            // active and pending share an eviction ratio, it need only be
-            // set once
-            activeAndPendingEvictionRatio =
-                    std::min(1.0, bytesToEvict / activePendingEvictableMem);
-        }
+        std::ptrdiff_t bytesToEvict = current - lower;
+        auto evictionRatios = getEvictionRatios({*kvBucket}, bytesToEvict);
 
         EP_LOG_DEBUG(
                 "Using {} bytes of memory, paging out {}% of active and "
                 "pending items, {}% of replica items.",
                 stats.getEstimatedTotalMemoryUsed(),
-                (activeAndPendingEvictionRatio * 100.0),
-                (replicaEvictionRatio * 100.0));
+                (evictionRatios.activeAndPending * 100.0),
+                (evictionRatios.replica * 100.0));
 
-        VBucketFilter filter;
-
-        if (replicaEvictionRatio > 0.0) {
-            filter = filter.filter_union(replicaFilter);
-        }
-
-        if (activeAndPendingEvictionRatio > 0.0) {
-            filter = filter.filter_union(activePendingFilter);
-        }
+        PermittedVBStates statesToEvictFrom =
+                getStatesForEviction(evictionRatios);
 
         // p99.99 is ~200ms
         const auto maxExpectedDurationForVisitorTask =
                 std::chrono::milliseconds(200);
 
-        auto makeEvictionStrategy = getEvictionStrategyFactory(
-                {activeAndPendingEvictionRatio, replicaEvictionRatio});
+        auto makeEvictionStrategy = getEvictionStrategyFactory(evictionRatios);
 
         // distribute the vbuckets that should be visited among multiple
         // paging visitors.
+        auto filter = createVBucketFilter(*kvBucket, statesToEvictFrom);
         for (const auto& partFilter : filter.split(numConcurrentPagers)) {
             auto pv = std::make_unique<ItemPagingVisitor>(
                     *kvBucket,
@@ -272,12 +287,11 @@ private:
     size_t totalEvictableMemory = 0;
 };
 
-size_t StrictQuotaItemPager::getEvictableBytes(
-        const VBucketFilter& filter) const {
-    KVBucket* kvBucket = engine.getKVBucket();
-
+size_t ItemPager::getEvictableBytes(KVBucket& kvBucket,
+                                    PermittedVBStates states) const {
+    auto filter = createVBucketFilter(kvBucket, states);
     VBucketEvictableMemVisitor visitor(filter);
-    kvBucket->visit(visitor);
+    kvBucket.visit(visitor);
 
     return visitor.getTotalEvictableMemory();
 }
