@@ -44,6 +44,20 @@ public:
     ItemPager(Taskable& t, size_t numConcurrentPagers);
 
 protected:
+    struct PageableMemInfo {
+        /** Current pageable memory usage */
+        size_t current = 0;
+        /** Pageable memory high watermark */
+        size_t upper = 0;
+        /** Pageable memory low watermark */
+        size_t lower = 0;
+    };
+
+    /**
+     * Gets the memory quotas and usage to consider for paging.
+     */
+    virtual PageableMemInfo getPageableMemInfo() const = 0;
+
     /**
      * Creates a VBucketFilter object which only accepts VBuckets in one of
      * the specified states.
@@ -114,6 +128,8 @@ public:
     std::chrono::microseconds getSleepTime() const override {
         return sleepTime;
     }
+
+    PageableMemInfo getPageableMemInfo() const override;
 
     EvictionRatios getEvictionRatios(
             const std::vector<std::reference_wrapper<KVBucket>>& kvBuckets,

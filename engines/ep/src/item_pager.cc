@@ -125,15 +125,20 @@ EvictionRatios StrictQuotaItemPager::getEvictionRatios(
     return {activeAndPendingEvictionRatio, replicaEvictionRatio};
 }
 
+ItemPager::PageableMemInfo StrictQuotaItemPager::getPageableMemInfo() const {
+    KVBucket* kvBucket = engine.getKVBucket();
+    auto current = kvBucket->getPageableMemCurrent();
+    auto upper = kvBucket->getPageableMemHighWatermark();
+    auto lower = kvBucket->getPageableMemLowWatermark();
+    return {current, upper, lower};
+}
+
 bool StrictQuotaItemPager::runInner(bool manuallyNotified) {
     TRACE_EVENT0("ep-engine/task", "ItemPager");
 
-    KVBucket* kvBucket = engine.getKVBucket();
-    auto current = engine.getKVBucket()->getPageableMemCurrent();
-    auto upper = engine.getKVBucket()->getPageableMemHighWatermark();
-    auto lower = engine.getKVBucket()->getPageableMemLowWatermark();
+    const auto memInfo = getPageableMemInfo();
 
-    if (current <= lower) {
+    if (memInfo.current <= memInfo.lower) {
         // doEvict may have been set to ensure eviction would continue until the
         // low watermark was reached - it now has, so clear the flag.
         doEvict = false;
@@ -146,7 +151,7 @@ bool StrictQuotaItemPager::runInner(bool manuallyNotified) {
     // then came back down (e.g. 1 byte under HWM), we should still page in this
     // scenario. wasNotified would be false if we were woken by the
     // periodic scheduler.
-    if ((current > upper) || doEvict || manuallyNotified) {
+    if ((memInfo.current > memInfo.upper) || doEvict || manuallyNotified) {
         if (!pagerSemaphore->try_acquire(numConcurrentPagers)) {
             // could not acquire the required number of tokens, so there's
             // still a paging visitor running. Don't create more.
@@ -155,13 +160,14 @@ bool StrictQuotaItemPager::runInner(bool manuallyNotified) {
         // acquired token, PagingVisitor::complete() will call
         // pagerSemaphore->signal() to release it.
 
+        auto* kvBucket = engine.getKVBucket();
         if (kvBucket->getItemEvictionPolicy() == EvictionPolicy::Value) {
             doEvict = true;
         }
 
         ++stats.pagerRuns;
 
-        std::ptrdiff_t bytesToEvict = current - lower;
+        std::ptrdiff_t bytesToEvict = memInfo.current - memInfo.lower;
         auto evictionRatios = getEvictionRatios({*kvBucket}, bytesToEvict);
 
         EP_LOG_DEBUG(
