@@ -387,6 +387,7 @@ public:
                                 {dcpData.metaData.sid, dcpData.metaData.cid},
                                 dcpData.metaData.name,
                                 dcpData.metaData.maxTtl,
+                                CanDeduplicate::Yes,
                                 qi->getBySeqno());
                     }
                     break;
@@ -453,6 +454,8 @@ public:
                                  collection->collectionId()},
                                 collection->name()->str(),
                                 maxTtl,
+                                getCanDeduplicateFromHistory(
+                                        collection->history()),
                                 qi->getBySeqno());
                     }
                     break;
@@ -1257,9 +1260,13 @@ TEST_P(VBucketManifestTest, scope_limits_corrected_by_update_drop_two_scopes) {
 }
 
 TEST_P(VBucketManifestTest, add_with_history) {
+    // Test requires FlatBuffers event to pass most up-to-date event data.
+    if (!GetParam()) {
+        GTEST_SKIP();
+    }
+
     // Add a scope with history=true and check the status on active/replica
-    // The replica won't equal active, so for now EXPECT_FALSE.
-    EXPECT_FALSE(manifest.update(
+    EXPECT_TRUE(manifest.update(
             cm.add(ScopeEntry::shop1, {/*no data limit*/}, true)
                     .add(CollectionEntry::fruit, ScopeEntry::shop1)));
 
@@ -1279,12 +1286,11 @@ TEST_P(VBucketManifestTest, add_with_history) {
                       CollectionEntry::vegetable));
 
     // Check fruit, which has a non-default history=true, so expect
-    // CanDeduplicate::No, but currently only the active VB will know about the
-    // correct setting (no replica setting yet available)
+    // CanDeduplicate::No
     EXPECT_EQ(CanDeduplicate::No,
               manifest.getActiveManifest().public_getCanDeduplicate(
                       CollectionEntry::fruit));
-    EXPECT_EQ(CanDeduplicate::Yes,
+    EXPECT_EQ(CanDeduplicate::No,
               manifest.getReplicaManifest().public_getCanDeduplicate(
                       CollectionEntry::fruit));
 }

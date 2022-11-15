@@ -1857,9 +1857,15 @@ void VBucket::replicaCreateCollection(Collections::ManifestUid uid,
                                       ScopeCollectionPair identifiers,
                                       std::string_view collectionName,
                                       cb::ExpiryLimit maxTtl,
+                                      CanDeduplicate canDeduplicate,
                                       int64_t bySeqno) {
-    manifest->wlock().replicaCreate(
-            *this, uid, identifiers, collectionName, maxTtl, bySeqno);
+    manifest->wlock().replicaCreate(*this,
+                                    uid,
+                                    identifiers,
+                                    collectionName,
+                                    maxTtl,
+                                    canDeduplicate,
+                                    bySeqno);
 }
 
 void VBucket::replicaDropCollection(Collections::ManifestUid uid,

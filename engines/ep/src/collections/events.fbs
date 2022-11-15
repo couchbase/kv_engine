@@ -14,23 +14,31 @@ namespace Collections.VB;
 
 // FlatBuffers SystemEvents: This is the structure used by CreateCollection
 table Collection {
+    // The following fields all exist with the "epoch" of collections, 7.0+
     uid:ulong;
     scopeId:uint;
     collectionId:uint;
     ttlValid:bool;
     maxTtl:uint;
     name:string;
+    // All fields after here are added from 7.2
+    //
+    // history: MB-54516: added in neo (7.2) branch. If this field is not part
+    // of a Collection structure it is defaulted to false.
+    history:bool = false;
 }
 
 // FlatBuffers SystemEvents: This is the structure used by DropCollection
 table DroppedCollection {
-   uid:ulong;
-   scopeId:uint;
-   collectionId:uint;
+    // The following fields all exist with the "epoch" of collections, 7.0+
+    uid:ulong;
+    scopeId:uint;
+    collectionId:uint;
 }
 
 // FlatBuffers SystemEvents: This is the structure used by CreateScope
 table Scope {
+    // The following fields all exist with the "epoch" of collections, 7.0+
     uid:ulong;
     scopeId:uint;
     name:string;
@@ -38,6 +46,7 @@ table Scope {
 
 // FlatBuffers SystemEvents: This is the structure used by DropScope
 table DroppedScope {
+    // The following fields all exist with the "epoch" of collections, 7.0+
     uid:ulong;
     scopeId:uint;
 }

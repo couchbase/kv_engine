@@ -370,16 +370,19 @@ TEST_F(CollectionsDcpTest, MB_38019) {
                                      {ScopeID::Default, CollectionEntry::fruit},
                                      "fruit",
                                      {},
+                                     CanDeduplicate::Yes,
                                      1);
     replica->replicaCreateCollection(Collections::ManifestUid(++uid),
                                      {ScopeID::Default, CollectionEntry::meat},
                                      "meat",
                                      {},
+                                     CanDeduplicate::Yes,
                                      2);
     replica->replicaCreateCollection(Collections::ManifestUid(++uid),
                                      {ScopeID::Default, CollectionEntry::dairy},
                                      "dairy",
                                      {},
+                                     CanDeduplicate::Yes,
                                      3);
 
     // Would of seen a monotonic exception
@@ -703,9 +706,10 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_create_delete) {
     const int items = 3;
     {
         VBucketPtr vb = store->getVBucket(vbid);
-        // Create dairy & fruit
-        CollectionsManifest cm(CollectionEntry::fruit);
-        vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::dairy)));
+        // Create dairy and fruit.
+        CollectionsManifest cm(CollectionEntry::dairy);
+        vb->updateFromManifest(makeManifest(cm.add(
+                CollectionEntry::fruit, cb::NoExpiryLimit, true /*history*/)));
 
         // Mutate dairy
         for (int ii = 0; ii < items; ii++) {
@@ -736,10 +740,19 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_create_delete) {
         {
             SCOPED_TRACE("DCP 1");
             testDcpCreateDelete(
-                    {CollectionEntry::fruit, CollectionEntry::dairy},
+                    {CollectionEntry::dairy, CollectionEntry::fruit},
                     {CollectionEntry::dairy},
                     (2 * items));
         }
+
+        // Expect that the fruit collection has the correct dedup setting (No)
+        auto replica = store->getVBucket(replicaVB);
+        EXPECT_EQ(CanDeduplicate::No,
+                  vb->lockCollections().getCanDeduplicate(
+                          CollectionEntry::fruit));
+        EXPECT_EQ(CanDeduplicate::No,
+                  replica->lockCollections().getCanDeduplicate(
+                          CollectionEntry::fruit));
     }
     ensureDcpWillBackfill();
 
@@ -757,8 +770,15 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_create_delete) {
                             false);
     }
 
-    EXPECT_TRUE(store->getVBucket(vbid)->lockCollections().exists(
-            CollectionEntry::fruit));
+    auto vb = store->getVBucket(vbid);
+    // Expect that the fruit collection exists and has the correct dedup (No)
+    EXPECT_TRUE(vb->lockCollections().exists(CollectionEntry::fruit));
+    auto replica = store->getVBucket(replicaVB);
+    EXPECT_EQ(CanDeduplicate::No,
+              vb->lockCollections().getCanDeduplicate(CollectionEntry::fruit));
+    EXPECT_EQ(CanDeduplicate::No,
+              replica->lockCollections().getCanDeduplicate(
+                      CollectionEntry::fruit));
 }
 
 // Test that a backfill stream is consistent over failure.
@@ -2562,11 +2582,13 @@ void MB48010CollectionsDCPParamTest::SetUp() {
                                 {ScopeID::Default, CollectionEntry::dairy},
                                 "dairy",
                                 {},
+                                CanDeduplicate::Yes,
                                 1);
     vb->replicaCreateCollection(Collections::ManifestUid(++uid),
                                 {ScopeID::Default, CollectionEntry::fruit},
                                 "fruit",
                                 {},
+                                CanDeduplicate::Yes,
                                 2);
 
     // 2 collections written

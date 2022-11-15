@@ -799,12 +799,14 @@ public:
      * @param identifiers ScopeID and CollectionID pair
      * @param collectionName name of the added collection
      * @param maxTtl An optional maxTTL for the collection
+     * @param canDeduplicate deduplicate setting for the collection
      * @param bySeqno The seqno assigned to the collection create event.
      */
     void replicaCreateCollection(Collections::ManifestUid uid,
                                  ScopeCollectionPair identifiers,
                                  std::string_view collectionName,
                                  cb::ExpiryLimit maxTtl,
+                                 CanDeduplicate canDeduplicate,
                                  int64_t bySeqno);
 
     /**

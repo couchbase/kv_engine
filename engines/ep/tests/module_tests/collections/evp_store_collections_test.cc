@@ -3054,6 +3054,7 @@ TEST_P(CollectionsParameterizedTest, GetScopeIdForGivenKeyAndVbucket) {
             {ScopeUid::shop1, CollectionEntry::meat.getId()},
             CollectionEntry::meat.name,
             {},
+            CanDeduplicate::Yes,
             2);
     // Trigger a flush to disk. Flushes the dairy create event.
     flushVBucketToDiskIfPersistent(meatVbid, 2);
