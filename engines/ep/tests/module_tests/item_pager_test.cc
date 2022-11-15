@@ -15,6 +15,7 @@
 
 #include "../mock/mock_global_task.h"
 #include "../mock/mock_paging_visitor.h"
+#include "../mock/mock_stat_collector.h"
 #include "bgfetcher.h"
 #include "checkpoint_manager.h"
 #include "checkpoint_utils.h"
@@ -31,7 +32,6 @@
 #include "vb_adapters.h"
 #include "vbucket.h"
 #include "vbucket_utils.h"
-#include <statistics/tests/mock/mock_stat_collector.h>
 
 #include <folly/portability/GTest.h>
 #include <platform/cb_arena_malloc.h>

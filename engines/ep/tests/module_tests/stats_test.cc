@@ -25,11 +25,11 @@
 #include "test_helpers.h"
 #include "tests/mock/mock_add_stat_fn.h"
 #include "tests/mock/mock_function_helper.h"
+#include "tests/mock/mock_stat_collector.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "thread_gate.h"
 #include "trace_helpers.h"
 #include "warmup.h"
-#include <statistics/tests/mock/mock_stat_collector.h>
 
 #include <folly/portability/GMock.h>
 #include <memcached/server_cookie_iface.h>
