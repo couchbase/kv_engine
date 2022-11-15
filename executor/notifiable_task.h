@@ -29,6 +29,12 @@
  */
 class NotifiableTask : public GlobalTask {
 public:
+    NotifiableTask(Taskable& t,
+                   TaskId id,
+                   double sleeptime,
+                   bool completeBeforeShutdown = false)
+        : GlobalTask(t, id, sleeptime, completeBeforeShutdown){};
+
     NotifiableTask(EventuallyPersistentEngine& e,
                    TaskId id,
                    double sleeptime,

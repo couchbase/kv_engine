@@ -19,6 +19,7 @@
 #include <memory>
 
 #include "eviction_ratios.h"
+#include "permitted_vb_states.h"
 
 typedef std::pair<int64_t, int64_t> row_range_t;
 
@@ -27,16 +28,39 @@ class EPStats;
 class EventuallyPersistentEngine;
 class ItemEvictionStrategy;
 class VBucketFilter;
+class KVBucket;
 
 namespace cb {
 class Semaphore;
 }
 
 /**
- * Dispatcher job responsible for periodically pushing data out of
- * memory.
+ * An abstract base class for a task which runs periodically and evicts items
+ * from memory.
  */
 class ItemPager : public NotifiableTask {
+public:
+    ItemPager(Taskable& t, size_t numConcurrentPagers);
+
+protected:
+    /**
+     * Creates a VBucketFilter object which only accepts VBuckets in one of
+     * the specified states.
+     */
+    static VBucketFilter createVBucketFilter(KVBucket& kvBucket,
+                                             PermittedVBStates acceptedStates);
+
+    const size_t numConcurrentPagers;
+    // used to avoid creating more paging visitors while any are still running
+    const std::shared_ptr<cb::Semaphore> pagerSemaphore;
+};
+
+/**
+ * Dispatcher job responsible for periodically pushing data out of
+ * memory, by taking into account just the bucket's own memory usage and
+ * watermarks.
+ */
+class StrictQuotaItemPager : public ItemPager {
 public:
     /**
      * Construct an ItemPager.
@@ -46,9 +70,9 @@ public:
      * @param numConcurrentPagers how many paging visitors should be created
      *        per run ItemPager run.
      */
-    ItemPager(EventuallyPersistentEngine& e,
-              EPStats& st,
-              size_t numConcurrentPagers);
+    StrictQuotaItemPager(EventuallyPersistentEngine& e,
+                         EPStats& st,
+                         size_t numConcurrentPagers);
 
     bool runInner(bool manuallyNotified) override;
 
@@ -88,12 +112,8 @@ private:
      */
     void resetPhase();
 
-    const size_t numConcurrentPagers;
-
     EventuallyPersistentEngine& engine;
     EPStats& stats;
-    // used to avoid creating more paging visitors while any are still running
-    std::shared_ptr<cb::Semaphore> pagerSemaphore;
 
     bool doEvict;
 

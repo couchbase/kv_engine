@@ -398,8 +398,8 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
 
     // Always create the item pager; but initially disable, leaving scheduling
     // up to the specific KVBucket subclasses.
-    itemPagerTask =
-            std::make_shared<ItemPager>(engine, stats, numConcurrentPagers);
+    itemPagerTask = std::make_shared<StrictQuotaItemPager>(
+            engine, stats, numConcurrentPagers);
     disableItemPager();
 
     minDurabilityLevel =

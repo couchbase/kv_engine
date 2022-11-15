@@ -41,20 +41,41 @@
 
 #include <memory>
 
-ItemPager::ItemPager(EventuallyPersistentEngine& e,
-                     EPStats& st,
-                     size_t numConcurrentPagers)
-    : NotifiableTask(e, TaskId::ItemPager, 10, false),
+ItemPager::ItemPager(Taskable& t, size_t numConcurrentPagers)
+    : NotifiableTask(t, TaskId::ItemPager, 10, false),
       numConcurrentPagers(numConcurrentPagers),
+      pagerSemaphore(std::make_shared<cb::Semaphore>(numConcurrentPagers)) {
+}
+
+VBucketFilter ItemPager::createVBucketFilter(KVBucket& kvBucket,
+                                             PermittedVBStates acceptedStates) {
+    VBucketFilter filter;
+    for (auto state : {vbucket_state_active,
+                       vbucket_state_pending,
+                       vbucket_state_replica,
+                       vbucket_state_dead}) {
+        if (!acceptedStates.test(state)) {
+            continue;
+        }
+        for (auto vbid : kvBucket.getVBucketsInState(state)) {
+            filter.addVBucket(vbid);
+        }
+    }
+    return filter;
+}
+
+StrictQuotaItemPager::StrictQuotaItemPager(EventuallyPersistentEngine& e,
+                                           EPStats& st,
+                                           size_t numConcurrentPagers)
+    : ItemPager(e.getTaskable(), numConcurrentPagers),
       engine(e),
       stats(st),
-      pagerSemaphore(std::make_shared<cb::Semaphore>(numConcurrentPagers)),
       doEvict(false),
       sleepTime(std::chrono::milliseconds(
               e.getConfiguration().getPagerSleepTimeMs())) {
 }
 
-bool ItemPager::runInner(bool manuallyNotified) {
+bool StrictQuotaItemPager::runInner(bool manuallyNotified) {
     TRACE_EVENT0("ep-engine/task", "ItemPager");
 
     KVBucket* kvBucket = engine.getKVBucket();
@@ -90,30 +111,16 @@ bool ItemPager::runInner(bool manuallyNotified) {
 
         ++stats.pagerRuns;
 
-        VBucketFilter replicaFilter;
-        VBucketFilter activePendingFilter;
-
-        for (auto vbid : kvBucket->getVBucketsInState(vbucket_state_replica)) {
-            replicaFilter.addVBucket(vbid);
-        }
-
-        for (auto vbid : kvBucket->getVBucketsInState(vbucket_state_active)) {
-            activePendingFilter.addVBucket(vbid);
-        }
-        for (auto vbid : kvBucket->getVBucketsInState(vbucket_state_pending)) {
-            activePendingFilter.addVBucket(vbid);
-        }
+        VBucketFilter replicaFilter =
+                createVBucketFilter(*kvBucket, {vbucket_state_replica});
+        VBucketFilter activePendingFilter = createVBucketFilter(
+                *kvBucket, {vbucket_state_active, vbucket_state_pending});
 
         ssize_t bytesToEvict = current - lower;
 
-        const double replicaEvictableMem = getEvictableBytes(replicaFilter);
-        const double activePendingEvictableMem =
-                getEvictableBytes(activePendingFilter);
-
         double replicaEvictionRatio = 0.0;
-        double activeAndPendingEvictionRatio = 0.0;
-
         if (kvBucket->canEvictFromReplicas()) {
+            const double replicaEvictableMem = getEvictableBytes(replicaFilter);
             // try evict from replicas first if we can
             replicaEvictionRatio =
                     std::min(1.0, bytesToEvict / replicaEvictableMem);
@@ -121,7 +128,10 @@ bool ItemPager::runInner(bool manuallyNotified) {
             bytesToEvict -= replicaEvictableMem;
         }
 
+        double activeAndPendingEvictionRatio = 0.0;
         if (bytesToEvict > 0) {
+            const double activePendingEvictableMem =
+                    getEvictableBytes(activePendingFilter);
             // replicas are not sufficient (or are not eligible for eviction if
             // ephemeral). Not enough memory can be reclaimed from them to
             // reach the low watermark.
@@ -178,7 +188,8 @@ bool ItemPager::runInner(bool manuallyNotified) {
 }
 
 std::function<std::unique_ptr<ItemEvictionStrategy>()>
-ItemPager::getEvictionStrategyFactory(EvictionRatios evictionRatios) {
+StrictQuotaItemPager::getEvictionStrategyFactory(
+        EvictionRatios evictionRatios) {
     const auto& cfg = engine.getConfiguration();
 
     auto strategy = cfg.getItemEvictionStrategy();
@@ -261,7 +272,8 @@ private:
     size_t totalEvictableMemory = 0;
 };
 
-size_t ItemPager::getEvictableBytes(const VBucketFilter& filter) const {
+size_t StrictQuotaItemPager::getEvictableBytes(
+        const VBucketFilter& filter) const {
     KVBucket* kvBucket = engine.getKVBucket();
 
     VBucketEvictableMemVisitor visitor(filter);
