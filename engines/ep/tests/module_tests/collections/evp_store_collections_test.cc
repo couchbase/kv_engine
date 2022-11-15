@@ -32,7 +32,6 @@
 #include "tests/mock/mock_couch_kvstore.h"
 #include "tests/mock/mock_ep_bucket.h"
 #include "tests/mock/mock_global_task.h"
-#include "tests/mock/mock_stat_collector.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
 #include "tests/module_tests/collections/stat_checker.h"
@@ -46,6 +45,7 @@
 #include <statistics/collector.h>
 #include <statistics/labelled_collector.h>
 #include <statistics/statdef.h>
+#include <statistics/tests/mock/mock_stat_collector.h>
 #include <utilities/test_manifest.h>
 
 #include <folly/portability/GMock.h>
