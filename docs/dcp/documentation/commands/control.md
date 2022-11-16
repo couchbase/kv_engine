@@ -57,6 +57,10 @@ Possible values are:
 receive status codes `Status::DcpStreamNotFound = 0x0A` and
 `Status::OpaqueNoMatch = 0x0B`, introduced as of Couchbase 7.0.0.
 
+* `flatbuffers_system_events` = `true` - Tells  the DCP producer that it must
+send system events with a FlatBuffers value. A configuration of `false` is
+invalid and will be rejected.
+
 The following example shows the breakdown of the message:
 
       Byte/     0       |       1       |       2       |       3       |

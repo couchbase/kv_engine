@@ -28,6 +28,7 @@ class DropScopeEvent;
 class EventuallyPersistentEngine;
 class MutationConsumerMessage;
 class SystemEventMessage;
+class SystemEventConsumerMessage;
 class UpdateFlowControl;
 
 class PassiveStream : public Stream {
@@ -172,6 +173,18 @@ protected:
     cb::engine_errc processSystemEvent(const SystemEventMessage& event);
 
     /**
+     * Inner handler for when messages don't use FlatBuffers
+     */
+    cb::engine_errc processSystemEvent(VBucket& vb,
+                                       const SystemEventMessage& event);
+
+    /**
+     * Inner handler for when messages do use FlatBuffers
+     */
+    cb::engine_errc processSystemEventFlatBuffers(
+            VBucket& vb, const SystemEventConsumerMessage& event);
+
+    /**
      * Process a create collection event, creating the collection on vb
      *
      * @param vb Vbucket onto which the collection is created.
@@ -205,6 +218,42 @@ protected:
      * @param event The event data for the drop
      */
     cb::engine_errc processDropScope(VBucket& vb, const DropScopeEvent& event);
+
+    /**
+     * Process a create collection when FlatBuffers support is enabled
+     *
+     * @param vb Vbucket which we apply the create to
+     * @param event The system event to process
+     */
+    cb::engine_errc processCreateCollection(
+            VBucket& vb, const SystemEventConsumerMessage& event);
+
+    /**
+     * Process a drop collection when FlatBuffers support is enabled
+     *
+     * @param vb Vbucket which we apply the drop to
+     * @param event The system event to process
+     */
+    cb::engine_errc processDropCollection(
+            VBucket& vb, const SystemEventConsumerMessage& event);
+
+    /**
+     * Process a create scope when FlatBuffers support is enabled
+     *
+     * @param vb Vbucket which we apply the create to
+     * @param event The system event to process
+     */
+    cb::engine_errc processCreateScope(VBucket& vb,
+                                       const SystemEventConsumerMessage& event);
+
+    /**
+     * Process a drop scope when FlatBuffers support is enabled
+     *
+     * @param vb Vbucket which we apply the drop to
+     * @param event The system event to process
+     */
+    cb::engine_errc processDropScope(VBucket& vb,
+                                     const SystemEventConsumerMessage& event);
 
     void handleSnapshotEnd(VBucketPtr& vb, uint64_t byseqno);
 
@@ -360,4 +409,7 @@ protected:
     std::atomic<bool> isNoMemory{false};
 
     bool alwaysBufferOperations{false};
+
+    // True if the consumer/producer enabled FlatBuffers
+    const bool flatBuffersSystemEventsEnabled{false};
 };

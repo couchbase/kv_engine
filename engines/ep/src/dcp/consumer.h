@@ -380,6 +380,9 @@ protected:
 
     cb::engine_errc enableV7DcpStatus(DcpMessageProducersIface& producers);
 
+    cb::engine_errc enableFlatBuffersSystemEvents(
+            DcpMessageProducersIface& producers);
+
     /**
      * Handles the negotiation of IncludeDeletedUserXattrs.
      *
@@ -560,6 +563,9 @@ protected:
 
     // Maintains the state of the Sync Replication negotiation
     BlockingDcpControlNegotiation syncReplNegotiation;
+
+    // Maintains the state of the system event negotiation
+    BlockingDcpControlNegotiation flatBuffersNegotiation;
 
     // SyncReplication: Producer needs to know the Consumer name to identify
     // the source of received SeqnoAck messages.

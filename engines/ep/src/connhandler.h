@@ -273,7 +273,7 @@ public:
     virtual const char *getType() const = 0;
 
     template <typename T>
-    void addStat(const char* nm,
+    void addStat(std::string_view nm,
                  const T& val,
                  const AddStatFn& add_stat,
                  const void* c) const;
@@ -363,6 +363,13 @@ public:
      */
     void scheduleNotify();
 
+    /**
+     * @return true if system-events are using FlatBuffers.
+     */
+    bool areFlatBuffersSystemEventsEnabled() const {
+        return flatBuffersSystemEventsEnabled;
+    }
+
 protected:
     EventuallyPersistentEngine &engine_;
     EPStats &stats;
@@ -389,6 +396,13 @@ protected:
      * "v7_dcp_status_codes" = "true".
      */
     bool enabledV7DcpStatus = false;
+
+    /**
+     * True if the sub-class has successfully enabled system events using
+     * FlatBuffers structures. Producer/Consumer will set this once they have
+     * processed a DCP control to enable.
+     */
+    std::atomic<bool> flatBuffersSystemEventsEnabled{false};
 
 private:
 

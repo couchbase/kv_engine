@@ -95,6 +95,7 @@ void CollectionsDcpTest::createDcpConsumer() {
 
     consumer = std::make_shared<MockDcpConsumer>(
             *engine, cookieC, "test_consumer");
+    consumer->enableFlatBuffersSystemEvents();
     mockConnMap.addConn(cookieC, consumer);
 
     store->setVBucketState(replicaVB, vbucket_state_replica);
@@ -143,6 +144,10 @@ void CollectionsDcpTest::createDcpObjects(
         EXPECT_EQ(cb::engine_errc::success,
                   producer->control(1, "consumer_name", "mock_replication"));
     }
+
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->control(
+                      1, DcpControlKeys::FlatBuffersSystemEvents, "true"));
 
     createDcpStream(
             collections, vbid, cb::engine_errc::success, flags, streamEndSeqno);

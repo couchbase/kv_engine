@@ -1231,7 +1231,9 @@ enum class id : uint32_t {
     DropScope = 4
 };
 
-enum class version : uint8_t { version0 = 0, version1 = 1 };
+// versions define the format of the value transmitted by a SystemEvent.
+// see docs/dcp/documentation/commands/system_event.md
+enum class version : uint8_t { version0 = 0, version1 = 1, version2 = 2 };
 } // namespace mcbp::systemevent
 
 namespace cb::mcbp::request {
@@ -1295,6 +1297,7 @@ public:
         switch (version(getVersion())) {
         case version::version0:
         case version::version1:
+        case version::version2:
             return true;
         }
         return false;

@@ -12,6 +12,7 @@
 #include "checkpoint_config.h"
 #include "checkpoint_manager.h"
 #include "collections/collections_types.h"
+#include "collections/events_generated.h"
 #include "collections/manager.h"
 #include "collections/manifest.h"
 #include "collections/vbucket_manifest.h"
@@ -190,7 +191,9 @@ public:
         }
     };
 
-    ActiveReplicaManifest() : lastCompleteDeletionArgs(0) {
+    ActiveReplicaManifest(bool transferFlatBuffers)
+        : lastCompleteDeletionArgs(0),
+          transferFlatBuffers(transferFlatBuffers) {
         config.parseConfiguration("", get_mock_server_api());
         checkpoint_config = std::make_unique<CheckpointConfig>(config);
 
@@ -247,8 +250,15 @@ public:
                    << "Exception thrown for update with " << json
                    << ", e.what:" << e.what();
         }
+
         try {
-            applyCheckpointEventsToReplica();
+            std::vector<queued_item> events;
+            getEventsFromCheckpoint(*vbA, events);
+            if (transferFlatBuffers) {
+                applyCheckpointFlatBuffersEventsToReplica(events);
+            } else {
+                applyCheckpointEventsToReplica(events);
+            }
         } catch (std::exception& e) {
             return ::testing::AssertionFailure()
                    << "Exception thrown for replica update, e.what:"
@@ -351,9 +361,8 @@ public:
      *         collections against this manifest.
      *
      */
-    void applyCheckpointEventsToReplica() {
-        std::vector<queued_item> events;
-        getEventsFromCheckpoint(*vbA, events);
+    void applyCheckpointEventsToReplica(
+            const std::vector<queued_item>& events) {
         for (const auto& qi : events) {
             lastSeqno = qi->getBySeqno();
             if (qi->getOperation() == queue_op::system_event) {
@@ -413,6 +422,72 @@ public:
         }
     }
 
+    // Read back the value using FlatBuffers data
+    void applyCheckpointFlatBuffersEventsToReplica(
+            const std::vector<queued_item>& events) {
+        for (const auto& qi : events) {
+            lastSeqno = qi->getBySeqno();
+            if (qi->getOperation() == queue_op::system_event) {
+                switch (SystemEvent(qi->getFlags())) {
+                case SystemEvent::Collection: {
+                    if (qi->isDeleted()) {
+                        const auto* collection = Collections::VB::Manifest::
+                                getDroppedCollectionFlatbuffer(
+                                        qi->getValueView());
+                        replica.wlock().replicaDrop(
+                                *vbR,
+                                Collections::ManifestUid{collection->uid()},
+                                collection->collectionId(),
+                                qi->getBySeqno());
+                    } else {
+                        const auto* collection = Collections::VB::Manifest::
+                                getCollectionFlatbuffer(qi->getValueView());
+                        cb::ExpiryLimit maxTtl;
+                        if (collection->ttlValid()) {
+                            maxTtl = std::chrono::seconds(collection->maxTtl());
+                        }
+                        replica.wlock().replicaCreate(
+                                *vbR,
+                                Collections::ManifestUid{collection->uid()},
+                                {collection->scopeId(),
+                                 collection->collectionId()},
+                                collection->name()->str(),
+                                maxTtl,
+                                qi->getBySeqno());
+                    }
+                    break;
+                }
+                case SystemEvent::Scope: {
+                    if (qi->isDeleted()) {
+                        const auto* scope = Collections::VB::Manifest::
+                                getDroppedScopeFlatbuffer(qi->getValueView());
+                        replica.wlock().replicaDropScope(
+                                *vbR,
+                                Collections::ManifestUid{scope->uid()},
+                                scope->scopeId(),
+                                qi->getBySeqno());
+                    } else {
+                        const auto* scope =
+                                Collections::VB::Manifest::getScopeFlatbuffer(
+                                        qi->getValueView());
+
+                        replica.wlock().replicaCreateScope(
+                                *vbR,
+                                Collections::ManifestUid{scope->uid()},
+                                scope->scopeId(),
+                                scope->name()->str(),
+                                qi->getBySeqno());
+                    }
+                    break;
+                }
+                default:
+                    throw std::invalid_argument("Unknown event " +
+                                                std::to_string(qi->getFlags()));
+                }
+            }
+        }
+    }
+
     std::shared_ptr<Collections::Manager> collectionsManager =
             std::make_shared<Collections::Manager>();
     MockVBManifest active{collectionsManager};
@@ -424,22 +499,24 @@ public:
     VBucketPtr vbR;
     int64_t lastSeqno;
     CollectionID lastCompleteDeletionArgs;
+    bool transferFlatBuffers{false};
 };
 
-class VBucketManifestTest : public ::testing::Test {
+/// parameter bool to run with FlatBuffers messages or with 'old' messages
+class VBucketManifestTest : public ::testing::TestWithParam<bool> {
 public:
-    ActiveReplicaManifest manifest;
+    ActiveReplicaManifest manifest{GetParam()};
     CollectionsManifest cm{CollectionEntry::vegetable};
 };
 
-TEST_F(VBucketManifestTest, collectionExists) {
+TEST_P(VBucketManifestTest, collectionExists) {
     EXPECT_TRUE(manifest.update(cm));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"vegetable:carrot", CollectionEntry::vegetable}));
     EXPECT_TRUE(manifest.exists(CollectionEntry::vegetable));
 }
 
-TEST_F(VBucketManifestTest, defaultCollectionExists) {
+TEST_P(VBucketManifestTest, defaultCollectionExists) {
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
             StoredDocKey{"anykey", CollectionEntry::defaultC}));
     EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::defaultC)));
@@ -447,7 +524,7 @@ TEST_F(VBucketManifestTest, defaultCollectionExists) {
             StoredDocKey{"anykey", CollectionEntry::defaultC}));
 }
 
-TEST_F(VBucketManifestTest, add_to_scope) {
+TEST_P(VBucketManifestTest, add_to_scope) {
     EXPECT_TRUE(manifest.update(
             cm.add(CollectionEntry::vegetable, ScopeEntry::shop1)));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
@@ -455,7 +532,7 @@ TEST_F(VBucketManifestTest, add_to_scope) {
     EXPECT_TRUE(manifest.exists(CollectionEntry::vegetable));
 }
 
-TEST_F(VBucketManifestTest, add_delete_different_scopes) {
+TEST_P(VBucketManifestTest, add_delete_different_scopes) {
     // Add dairy to default scope
     EXPECT_TRUE(manifest.update(cm.add(CollectionEntry::dairy)));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
@@ -482,7 +559,7 @@ TEST_F(VBucketManifestTest, add_delete_different_scopes) {
     EXPECT_TRUE(manifest.exists(CollectionEntry::dairy2));
 }
 
-TEST_F(VBucketManifestTest, add_delete_same_scopes) {
+TEST_P(VBucketManifestTest, add_delete_same_scopes) {
     // Add dairy to default scope
     EXPECT_TRUE(manifest.update(cm.add(CollectionEntry::dairy)));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
@@ -515,7 +592,7 @@ TEST_F(VBucketManifestTest, add_delete_same_scopes) {
 /**
  * Test that we can add a collection to a scope that was previously empty
  */
-TEST_F(VBucketManifestTest, add_to_empty_scope) {
+TEST_P(VBucketManifestTest, add_to_empty_scope) {
     EXPECT_TRUE(manifest.update(cm.add(ScopeEntry::shop1)));
 
     // We have no collections, but the scope does exist
@@ -536,7 +613,7 @@ TEST_F(VBucketManifestTest, add_to_empty_scope) {
 /**
  * Test that all collections in a scope get deleted just by the scope drop
  */
-TEST_F(VBucketManifestTest, drop_scope) {
+TEST_P(VBucketManifestTest, drop_scope) {
     EXPECT_TRUE(manifest.update(cm.add(ScopeEntry::shop1)));
     EXPECT_TRUE(manifest.update(
             cm.add(CollectionEntry::fruit, ScopeEntry::shop1)
@@ -551,7 +628,7 @@ TEST_F(VBucketManifestTest, drop_scope) {
     EXPECT_FALSE(manifest.exists(CollectionEntry::meat));
 }
 
-TEST_F(VBucketManifestTest, drop_collections) {
+TEST_P(VBucketManifestTest, drop_collections) {
     EXPECT_TRUE(manifest.update(cm.add(ScopeEntry::shop1)));
     EXPECT_TRUE(manifest.update(
             cm.add(CollectionEntry::fruit, ScopeEntry::shop1)
@@ -623,7 +700,7 @@ TEST_F(VBucketManifestTest, drop_collections) {
  * Test that we can drop a scope (simulate this by dropping all the
  * collections within it) then add it back.
  */
-TEST_F(VBucketManifestTest, drop_scope_then_add) {
+TEST_P(VBucketManifestTest, drop_scope_then_add) {
     // Add meat to the shop 1 scope
     EXPECT_TRUE(manifest.update(
             cm.add(ScopeEntry::shop1)
@@ -660,7 +737,7 @@ TEST_F(VBucketManifestTest, drop_scope_then_add) {
               1);
 }
 
-TEST_F(VBucketManifestTest, duplicate_cid_different_scope) {
+TEST_P(VBucketManifestTest, duplicate_cid_different_scope) {
     // Add dairy to default scope
     EXPECT_TRUE(manifest.update(cm.add(CollectionEntry::dairy)));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
@@ -673,7 +750,7 @@ TEST_F(VBucketManifestTest, duplicate_cid_different_scope) {
                     .add(CollectionEntry::dairy, ScopeEntry::shop1)));
 }
 
-TEST_F(VBucketManifestTest, add_delete_in_one_update) {
+TEST_P(VBucketManifestTest, add_delete_in_one_update) {
     EXPECT_TRUE(manifest.update(cm));
     EXPECT_TRUE(manifest.exists(CollectionEntry::vegetable));
     EXPECT_TRUE(manifest.doesKeyContainValidCollection(
@@ -685,7 +762,7 @@ TEST_F(VBucketManifestTest, add_delete_in_one_update) {
     EXPECT_TRUE(manifest.exists(CollectionEntry::vegetable2));
 }
 
-TEST_F(VBucketManifestTest, updates) {
+TEST_P(VBucketManifestTest, updates) {
     EXPECT_TRUE(manifest.checkSize(1));
     EXPECT_TRUE(manifest.exists(CollectionEntry::defaultC));
 
@@ -703,7 +780,7 @@ TEST_F(VBucketManifestTest, updates) {
     EXPECT_TRUE(manifest.exists(CollectionEntry::meat));
 }
 
-TEST_F(VBucketManifestTest, updates2) {
+TEST_P(VBucketManifestTest, updates2) {
     EXPECT_TRUE(manifest.update(cm.add(CollectionEntry::fruit)
                                         .add(CollectionEntry::meat)
                                         .add(CollectionEntry::dairy)));
@@ -727,7 +804,7 @@ TEST_F(VBucketManifestTest, updates2) {
             StoredDocKey{"meat:chicken", CollectionEntry::meat}));
 }
 
-TEST_F(VBucketManifestTest, updates3) {
+TEST_P(VBucketManifestTest, updates3) {
     EXPECT_TRUE(manifest.update(cm.add(CollectionEntry::fruit)
                                         .add(CollectionEntry::meat)
                                         .add(CollectionEntry::dairy)));
@@ -757,7 +834,7 @@ TEST_F(VBucketManifestTest, updates3) {
             StoredDocKey{"anykey", CollectionEntry::defaultC}));
 }
 
-TEST_F(VBucketManifestTest, resurrection) {
+TEST_P(VBucketManifestTest, resurrection) {
     EXPECT_TRUE(manifest.update(cm));
 
     const int cycles = 3;
@@ -814,7 +891,7 @@ TEST_F(VBucketManifestTest, resurrection) {
     EXPECT_TRUE(manifest.checkDroppedSize(0));
 }
 
-TEST_F(VBucketManifestTest, resurrection_part2) {
+TEST_P(VBucketManifestTest, resurrection_part2) {
     EXPECT_TRUE(manifest.update(cm));
 
     const int cycles = 3;
@@ -849,7 +926,7 @@ TEST_F(VBucketManifestTest, resurrection_part2) {
     EXPECT_TRUE(manifest.checkDroppedSize(0));
 }
 
-TEST_F(VBucketManifestTest, resurrection_part3) {
+TEST_P(VBucketManifestTest, resurrection_part3) {
     EXPECT_TRUE(manifest.update(cm));
 
     const int cycles = 3;
@@ -890,7 +967,7 @@ TEST_F(VBucketManifestTest, resurrection_part3) {
     EXPECT_TRUE(manifest.checkDroppedSize(0));
 }
 
-TEST_F(VBucketManifestTest, add_delete_add) {
+TEST_P(VBucketManifestTest, add_delete_add) {
     // remove default and add vegetable
     EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::defaultC)));
     auto seqno = manifest.getLastSeqno(); // seqno of the vegetable addition
@@ -941,7 +1018,7 @@ TEST_F(VBucketManifestTest, add_delete_add) {
             oldSeqno));
 }
 
-TEST_F(VBucketManifestTest, add_beginDelete_delete) {
+TEST_P(VBucketManifestTest, add_beginDelete_delete) {
     EXPECT_TRUE(manifest.update(cm));
     EXPECT_TRUE(manifest.checkSize(2));
     EXPECT_TRUE(manifest.exists(CollectionEntry::vegetable));
@@ -960,7 +1037,7 @@ TEST_F(VBucketManifestTest, add_beginDelete_delete) {
             seqno));
 }
 
-TEST_F(VBucketManifestTest, add_beginDelete_add_delete) {
+TEST_P(VBucketManifestTest, add_beginDelete_add_delete) {
     EXPECT_TRUE(manifest.update(cm));
     EXPECT_TRUE(manifest.checkSize(2));
     EXPECT_TRUE(manifest.exists(CollectionEntry::vegetable));
@@ -985,7 +1062,7 @@ TEST_F(VBucketManifestTest, add_beginDelete_add_delete) {
 }
 
 // Check that a deleting collection doesn't keep adding system events
-TEST_F(VBucketManifestTest, doubleDelete) {
+TEST_P(VBucketManifestTest, doubleDelete) {
     auto seqno = manifest.getActiveVB().getHighSeqno();
     // add vegetable
     EXPECT_TRUE(manifest.update(cm));
@@ -1014,7 +1091,7 @@ TEST_F(VBucketManifestTest, doubleDelete) {
     EXPECT_EQ(seqno, manifest.getActiveVB().getHighSeqno());
 }
 
-TEST_F(VBucketManifestTest, replica_add_remove) {
+TEST_P(VBucketManifestTest, replica_add_remove) {
     // add vegetable
     EXPECT_TRUE(manifest.update(cm));
 
@@ -1039,7 +1116,7 @@ TEST_F(VBucketManifestTest, replica_add_remove) {
             StoredDocKey{"dairy:butter", CollectionEntry::dairy}));
 }
 
-TEST_F(VBucketManifestTest, check_applyChanges) {
+TEST_P(VBucketManifestTest, check_applyChanges) {
     Collections::VB::Manifest::ManifestChanges changes{
             Collections::ManifestUid(0)};
     auto value = manifest.getActiveManifest().public_applyCreates(
@@ -1076,7 +1153,7 @@ TEST_F(VBucketManifestTest, check_applyChanges) {
     EXPECT_EQ(CanDeduplicate::No, value.value().canDeduplicate);
 }
 
-TEST_F(VBucketManifestTest, isLogicallyDeleted) {
+TEST_P(VBucketManifestTest, isLogicallyDeleted) {
     // This test creates the vegetable collection at seqno 1, it is not
     // logically deleted
     EXPECT_TRUE(manifest.update(cm));
@@ -1087,7 +1164,7 @@ TEST_F(VBucketManifestTest, isLogicallyDeleted) {
             manifest.active.lock().isLogicallyDeleted(item->getKey(), sno));
 }
 
-TEST_F(VBucketManifestTest, add_scope_with_limit) {
+TEST_P(VBucketManifestTest, add_scope_with_limit) {
     // update will compare the VB::manifests, the ScopeEntry has compare
     // operator which checks the active vs replica. Even though the replica
     // doesn't receive the limit via replicaCreateScope path it is sharing
@@ -1115,7 +1192,7 @@ TEST_F(VBucketManifestTest, add_scope_with_limit) {
     EXPECT_EQ(limit, limit2);
 }
 
-TEST_F(VBucketManifestTest, scope_with_limit_exists) {
+TEST_P(VBucketManifestTest, scope_with_limit_exists) {
     EXPECT_FALSE(manifest.getActiveManifest().doesScopeWithDataLimitExist());
     cm.add(ScopeEntry::shop1, 0);
     EXPECT_TRUE(manifest.update(cm.add(ScopeEntry::shop2, 819200)));
@@ -1133,7 +1210,7 @@ TEST_F(VBucketManifestTest, scope_with_limit_exists) {
     EXPECT_FALSE(manifest.getReplicaManifest().doesScopeWithDataLimitExist());
 }
 
-TEST_F(VBucketManifestTest, scope_limits_corrected_by_update_drop_one_scope) {
+TEST_P(VBucketManifestTest, scope_limits_corrected_by_update_drop_one_scope) {
     EXPECT_FALSE(manifest.getActiveManifest().doesScopeWithDataLimitExist());
     EXPECT_TRUE(manifest.update(cm.add(ScopeEntry::shop1)));
     EXPECT_TRUE(manifest.update(cm.add(ScopeEntry::shop2, 819200)));
@@ -1155,7 +1232,7 @@ TEST_F(VBucketManifestTest, scope_limits_corrected_by_update_drop_one_scope) {
     EXPECT_FALSE(manifest.getReplicaManifest().doesScopeWithDataLimitExist());
 }
 
-TEST_F(VBucketManifestTest, scope_limits_corrected_by_update_drop_two_scopes) {
+TEST_P(VBucketManifestTest, scope_limits_corrected_by_update_drop_two_scopes) {
     EXPECT_FALSE(manifest.getActiveManifest().doesScopeWithDataLimitExist());
     EXPECT_TRUE(manifest.update(cm.add(ScopeEntry::shop1)));
     EXPECT_TRUE(manifest.update(cm.add(ScopeEntry::shop2, 819200)));
@@ -1179,7 +1256,7 @@ TEST_F(VBucketManifestTest, scope_limits_corrected_by_update_drop_two_scopes) {
     EXPECT_FALSE(manifest.getReplicaManifest().doesScopeWithDataLimitExist());
 }
 
-TEST_F(VBucketManifestTest, add_with_history) {
+TEST_P(VBucketManifestTest, add_with_history) {
     // Add a scope with history=true and check the status on active/replica
     // The replica won't equal active, so for now EXPECT_FALSE.
     EXPECT_FALSE(manifest.update(
@@ -1212,9 +1289,14 @@ TEST_F(VBucketManifestTest, add_with_history) {
                       CollectionEntry::fruit));
 }
 
+INSTANTIATE_TEST_SUITE_P(VBucketManifestTests,
+                         VBucketManifestTest,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());
+
 class VBucketManifestCachingReadHandle : public VBucketManifestTest {};
 
-TEST_F(VBucketManifestCachingReadHandle, basic) {
+TEST_P(VBucketManifestCachingReadHandle, basic) {
     // Add
     EXPECT_TRUE(manifest.update(cm));
 
@@ -1253,7 +1335,7 @@ TEST_F(VBucketManifestCachingReadHandle, basic) {
     }
 }
 
-TEST_F(VBucketManifestCachingReadHandle, deleted_default) {
+TEST_P(VBucketManifestCachingReadHandle, deleted_default) {
     // Check we can still get an iterator into the map when the default
     // collection is logically deleted only (i.e marked deleted, but in the map)
     EXPECT_TRUE(manifest.update(cm.remove(CollectionEntry::defaultC)));
@@ -1262,3 +1344,8 @@ TEST_F(VBucketManifestCachingReadHandle, deleted_default) {
     // Real items begin at seqno 1
     EXPECT_TRUE(rh.isLogicallyDeleted(1 /*seqno*/));
 }
+
+INSTANTIATE_TEST_SUITE_P(VBucketManifestCachingReadHandleTests,
+                         VBucketManifestCachingReadHandle,
+                         ::testing::Bool(),
+                         ::testing::PrintToStringParamName());

@@ -13,6 +13,7 @@
 
 #include "bucket_logger.h"
 #include "checkpoint_manager.h"
+#include "collections/events_generated.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/consumer.h"
 #include "dcp/response.h"
@@ -63,7 +64,8 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e,
       cur_snapshot_ack(false),
       cur_snapshot_prepare(false),
       vb_manifest_uid(vb_manifest_uid),
-      alwaysBufferOperations(c->shouldBufferOperations()) {
+      alwaysBufferOperations(c->shouldBufferOperations()),
+      flatBuffersSystemEventsEnabled(c->areFlatBuffersSystemEventsEnabled()) {
     std::lock_guard<std::mutex> lh(streamMutex);
     streamRequest_UNLOCKED(vb_uuid);
     itemsReady.store(true);
@@ -858,29 +860,12 @@ cb::engine_errc PassiveStream::processSystemEvent(
     }
 
     cb::engine_errc rv = cb::engine_errc::success;
-    // Depending on the event, extras is different and key may even be empty
-    // The specific handler will know how to interpret.
-    switch (event.getSystemEvent()) {
-    case mcbp::systemevent::id::CreateCollection: {
-        rv = processCreateCollection(*vb, CreateCollectionEvent(event));
-        break;
-    }
-    case mcbp::systemevent::id::DeleteCollection: {
-        rv = processDropCollection(*vb, DropCollectionEvent(event));
-        break;
-    }
-    case mcbp::systemevent::id::CreateScope: {
-        rv = processCreateScope(*vb, CreateScopeEvent(event));
-        break;
-    }
-    case mcbp::systemevent::id::DropScope: {
-        rv = processDropScope(*vb, DropScopeEvent(event));
-        break;
-    }
-    default: {
-        rv = cb::engine_errc::invalid_arguments;
-        break;
-    }
+
+    if (flatBuffersSystemEventsEnabled) {
+        rv = processSystemEventFlatBuffers(
+                *vb, static_cast<const SystemEventConsumerMessage&>(event));
+    } else {
+        rv = processSystemEvent(*vb, event);
     }
 
     if (rv != cb::engine_errc::success) {
@@ -894,6 +879,50 @@ cb::engine_errc PassiveStream::processSystemEvent(
     }
 
     return rv;
+}
+
+cb::engine_errc PassiveStream::processSystemEvent(
+        VBucket& vb, const SystemEventMessage& event) {
+    Expects(!flatBuffersSystemEventsEnabled);
+    // Depending on the event, extras is different and key may even be empty
+    // The specific handler will know how to interpret.
+    using mcbp::systemevent::id;
+    switch (event.getSystemEvent()) {
+    case id::CreateCollection:
+        return processCreateCollection(vb, CreateCollectionEvent(event));
+    case id::DeleteCollection:
+        return processDropCollection(vb, DropCollectionEvent(event));
+    case id::CreateScope:
+        return processCreateScope(vb, CreateScopeEvent(event));
+    case id::DropScope:
+        return processDropScope(vb, DropScopeEvent(event));
+    case id::FlushCollection:
+        // Event unused since epoch of system events (7.0)
+        return cb::engine_errc::invalid_arguments;
+    }
+    folly::assume_unreachable();
+}
+
+cb::engine_errc PassiveStream::processSystemEventFlatBuffers(
+        VBucket& vb, const SystemEventConsumerMessage& event) {
+    Expects(flatBuffersSystemEventsEnabled);
+    // Depending on the event, extras is different and key may even be empty
+    // The specific handler will know how to interpret.
+    using mcbp::systemevent::id;
+    switch (event.getSystemEvent()) {
+    case id::CreateCollection:
+        return processCreateCollection(vb, event);
+    case id::DeleteCollection:
+        return processDropCollection(vb, event);
+    case id::CreateScope:
+        return processCreateScope(vb, event);
+    case id::DropScope:
+        return processDropScope(vb, event);
+    case id::FlushCollection:
+        // Event unused since epoch of system events (7.0)
+        return cb::engine_errc::invalid_arguments;
+    }
+    folly::assume_unreachable();
 }
 
 cb::engine_errc PassiveStream::processCreateCollection(
@@ -956,6 +985,95 @@ cb::engine_errc PassiveStream::processDropScope(VBucket& vb,
     } catch (std::exception& e) {
         log(spdlog::level::level_enum::warn,
             "PassiveStream::processDropScope {} exception {}",
+            vb.getId(),
+            e.what());
+        return cb::engine_errc::invalid_arguments;
+    }
+    return cb::engine_errc::success;
+}
+
+cb::engine_errc PassiveStream::processCreateCollection(
+        VBucket& vb, const SystemEventConsumerMessage& event) {
+    try {
+        // Decompose the FlatBuffers data.
+        // Here we will use defaults when the producer is older.
+        // The vbucket is now informed of the collection and it will regenerate
+        // a new FlatBuffers system event using *this* system's schema+data.
+        const auto* collection =
+                Collections::VB::Manifest::getCollectionFlatbuffer(
+                        event.getEventData());
+        cb::ExpiryLimit maxTtl;
+        if (collection->ttlValid()) {
+            maxTtl = std::chrono::seconds(collection->maxTtl());
+        }
+
+        vb.replicaCreateCollection(
+                Collections::ManifestUid{collection->uid()},
+                {collection->scopeId(), collection->collectionId()},
+                event.getKey(),
+                maxTtl,
+                *event.getBySeqno());
+    } catch (std::exception& e) {
+        log(spdlog::level::level_enum::warn,
+            "PassiveStream::processCreateCollection FlatBuffers {} exception "
+            "{}",
+            vb.getId(),
+            e.what());
+        return cb::engine_errc::invalid_arguments;
+    }
+    return cb::engine_errc::success;
+}
+
+cb::engine_errc PassiveStream::processDropCollection(
+        VBucket& vb, const SystemEventConsumerMessage& event) {
+    try {
+        const auto* collection =
+                Collections::VB::Manifest::getDroppedCollectionFlatbuffer(
+                        event.getEventData());
+        vb.replicaDropCollection(Collections::ManifestUid{collection->uid()},
+                                 collection->collectionId(),
+                                 *event.getBySeqno());
+    } catch (std::exception& e) {
+        log(spdlog::level::level_enum::warn,
+            "PassiveStream::processDropCollection FlatBuffers {} exception {}",
+            vb.getId(),
+            e.what());
+        return cb::engine_errc::invalid_arguments;
+    }
+    return cb::engine_errc::success;
+}
+
+cb::engine_errc PassiveStream::processCreateScope(
+        VBucket& vb, const SystemEventConsumerMessage& event) {
+    try {
+        const auto* scope = Collections::VB::Manifest::getScopeFlatbuffer(
+                event.getEventData());
+        vb.replicaCreateScope(Collections::ManifestUid{scope->uid()},
+                              scope->scopeId(),
+                              event.getKey(),
+                              *event.getBySeqno());
+    } catch (std::exception& e) {
+        log(spdlog::level::level_enum::warn,
+            "PassiveStream::processCreateScope FlatBuffers {} exception {}",
+            vb.getId(),
+            e.what());
+        return cb::engine_errc::invalid_arguments;
+    }
+    return cb::engine_errc::success;
+}
+
+cb::engine_errc PassiveStream::processDropScope(
+        VBucket& vb, const SystemEventConsumerMessage& event) {
+    try {
+        const auto* scope =
+                Collections::VB::Manifest::getDroppedScopeFlatbuffer(
+                        event.getEventData());
+        vb.replicaDropScope(Collections::ManifestUid{scope->uid()},
+                            scope->scopeId(),
+                            *event.getBySeqno());
+    } catch (std::exception& e) {
+        log(spdlog::level::level_enum::warn,
+            "PassiveStream::processDropScope FlatBuffers {} exception {}",
             vb.getId(),
             e.what());
         return cb::engine_errc::invalid_arguments;

@@ -41,12 +41,7 @@ void handleProducerResponseIfStepBlocked(MockDcpConsumer& consumer,
     // We need to simulate the Producer response (with the proper opaque),
     // the next calls to step() would block forever otherwise.
     if (producers.last_op == cb::mcbp::ClientOpcode::DcpControl) {
-        if (producers.last_opaque ==
-                    consumer.public_getSyncReplNegotiationOpaque() ||
-            producers.last_opaque ==
-                    consumer.public_getDeletedUserXattrsNegotiation().opaque ||
-            producers.last_opaque ==
-                    consumer.public_getV7StatusCodesNegotiation().opaque) {
+        if (consumer.isOpaqueBlockingDcpControl(producers.last_opaque)) {
             cb::mcbp::Response resp{};
             resp.setMagic(cb::mcbp::Magic::ClientResponse);
             resp.setOpcode(cb::mcbp::ClientOpcode::DcpControl);

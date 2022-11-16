@@ -126,18 +126,17 @@ public:
     }
 
     /**
-     * @return the entire v7 DCP status code Negotiation struct used to send
-     * DCP_CONTROL messages for testing.
-     */
-    BlockingDcpControlNegotiation public_getV7StatusCodesNegotiation() const {
-        return v7DcpStatusCodesNegotiation;
-    }
-
-    /**
      * Enable the use of V7 status codes for DCP in tests
      */
     void enableV7DcpStatus() {
         isV7DcpStatusEnabled = true;
+    }
+
+    bool isOpaqueBlockingDcpControl(uint64_t opaque) const {
+        return v7DcpStatusCodesNegotiation.opaque == opaque ||
+               syncReplNegotiation.opaque == opaque ||
+               deletedUserXattrsNegotiation.opaque == opaque ||
+               flatBuffersNegotiation.opaque == opaque;
     }
 
     /**
@@ -173,5 +172,16 @@ public:
 
     FlowControl& public_flowControl() {
         return flowControl;
+    }
+
+    void disableFlatBuffersSystemEvents() {
+        flatBuffersSystemEventsEnabled = false;
+        // reset any pending control for this feature
+        flatBuffersNegotiation = {};
+    }
+
+    // Set FlatBuffers configuration without the full control tx/rx loop
+    void enableFlatBuffersSystemEvents() {
+        flatBuffersSystemEventsEnabled = true;
     }
 };

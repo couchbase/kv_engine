@@ -3215,6 +3215,9 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
     simulateProdRespToDcpControlBlockingNegotiation(h, cookie, producers);
     dcpStepAndExpectControlMsg("v7_dcp_status_codes"s);
     simulateProdRespToDcpControlBlockingNegotiation(h, cookie, producers);
+    dcpStepAndExpectControlMsg(
+            std::string{DcpControlKeys::FlatBuffersSystemEvents});
+    simulateProdRespToDcpControlBlockingNegotiation(h, cookie, producers);
 
     dcp_step(h, cookie, producers);
     uint32_t stream_opaque = producers.last_opaque;
@@ -3957,7 +3960,8 @@ static void drainDcpControl(EngineIface* engine,
         // negotiation introduces a blocking step
         if (producers.last_key == "enable_sync_writes" ||
             producers.last_key == "include_deleted_user_xattrs" ||
-            producers.last_key == "v7_dcp_status_codes") {
+            producers.last_key == "v7_dcp_status_codes" ||
+            producers.last_key == DcpControlKeys::FlatBuffersSystemEvents) {
             simulateProdRespToDcpControlBlockingNegotiation(
                     engine, cookie, producers);
         }

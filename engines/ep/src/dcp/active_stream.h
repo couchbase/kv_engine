@@ -870,6 +870,9 @@ private:
      */
     const SyncReplication syncReplication;
 
+    /// Does this stream send system-events with a FlatBuffers value?
+    const bool flatBuffersSystemEventsEnabled{false};
+
     /**
      * The filter the stream will use to decide which keys should be transmitted
      */

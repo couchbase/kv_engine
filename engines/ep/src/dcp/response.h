@@ -910,11 +910,12 @@ private:
  * queued_item (shared_ptr) and then read all data from the underlying
  * Item object.
  */
+class SystemEventFlatBuffers;
 class SystemEventProducerMessage : public SystemEventMessage {
 public:
     /**
-     * Note: the body of this factory method is in systemevent.cc along side
-     *       related code which decides how SystemEvents are managed.
+     * Note: the body of this factory method is in systemevent_factory.cc along
+     *       side related code which decides how SystemEvents are managed.
      *
      * Note: creation of the SystemEventProducerMessage will up the ref-count
      * of item
@@ -923,6 +924,19 @@ public:
      *         queued_item data.
      */
     static std::unique_ptr<SystemEventProducerMessage> make(
+            uint32_t opaque, queued_item& item, cb::mcbp::DcpStreamId sid);
+
+    /**
+     * Note: the body of this factory method is in systemevent_factory.cc along
+     *       side related code which decides how SystemEvents are managed.
+     *
+     * Note: creation of the SystemEventProducerMessage will up the ref-count
+     * of item
+     *
+     * @return a SystemEventMessage unique pointer constructed from the
+     *         queued_item data with a FlatBuffers value
+     */
+    static std::unique_ptr<SystemEventFlatBuffers> makeWithFlatBuffersValue(
             uint32_t opaque, queued_item& item, cb::mcbp::DcpStreamId sid);
 
     uint32_t getMessageSize() const override {
@@ -973,6 +987,29 @@ protected:
     }
 
     queued_item item;
+};
+
+class SystemEventFlatBuffers : public SystemEventProducerMessage {
+public:
+    SystemEventFlatBuffers(uint32_t opaque,
+                           std::string_view key,
+                           const queued_item& item,
+                           cb::mcbp::DcpStreamId sid)
+        : SystemEventProducerMessage(opaque, item, sid), key(key) {
+    }
+
+    std::string_view getKey() const override {
+        return {key.data(), key.size()};
+    }
+
+    std::string_view getEventData() const override {
+        return item->getValueView();
+    }
+
+    mcbp::systemevent::version getVersion() const override {
+        return mcbp::systemevent::version::version2;
+    }
+    std::string key;
 };
 
 class CollectionCreateProducerMessage : public SystemEventProducerMessage {

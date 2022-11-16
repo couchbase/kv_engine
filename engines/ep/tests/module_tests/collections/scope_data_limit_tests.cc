@@ -54,6 +54,11 @@ TEST_P(CollectionsDcpParameterizedTest,
     cm.add(CollectionEntry::fruit, ScopeEntry::shop1);
     setCollections(cookie, cm);
 
+    // MB-54516: Test keeps coverage of the 'custom' binary system event so here
+    // we disable the FlatBuffers configuration so the test can call consumer
+    // directly with the binary data.
+    consumer->disableFlatBuffersSystemEvents();
+
     ASSERT_EQ(cb::engine_errc::success,
               consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ 0));
 
@@ -143,10 +148,21 @@ TEST_P(CollectionsDcpParameterizedTest,
     EXPECT_TRUE(vb->getManifest().lock().getDataLimit(ScopeEntry::shop1));
     EXPECT_EQ(limit,
               vb->getManifest().lock().getDataLimit(ScopeEntry::shop1).value());
+    // MB-54516: Test keeps coverage of the 'custom' binary system event so here
+    // we disable the FlatBuffers configuration so the test can call consumer
+    // directly with the binary data.
+    consumer->disableFlatBuffersSystemEvents();
+
+    // recreate the replica with the new config
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->closeStream(/*opaque*/ 0, replicaVB, {}));
+
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->addStream(/*opaque*/ 1, replicaVB, /*flags*/ 0));
 
     // Now drive the replica vbucket with the shop1/fruit setup
     ASSERT_EQ(cb::engine_errc::success,
-              consumer->snapshotMarker(/*opaque*/ 1,
+              consumer->snapshotMarker(/*opaque*/ 2,
                                        replicaVB,
                                        /*start_seqno*/ 0,
                                        /*end_seqno*/ 2,
@@ -156,10 +172,10 @@ TEST_P(CollectionsDcpParameterizedTest,
 
     // Replicate the scope and collection
     Collections::ManifestUid muid{1};
-    createScopeOnConsumer(replicaVB, 1, muid, ScopeEntry::shop1, 1);
+    createScopeOnConsumer(replicaVB, 2, muid, ScopeEntry::shop1, 1);
     muid++;
     createCollectionOnConsumer(
-            replicaVB, 1, muid, ScopeEntry::shop1, CollectionEntry::fruit, 2);
+            replicaVB, 2, muid, ScopeEntry::shop1, CollectionEntry::fruit, 2);
     auto replica = store->getVBucket(replicaVB);
 
     // 'inherited' the limit from active
@@ -221,6 +237,12 @@ TEST_P(CollectionsDcpParameterizedTest,
 // * Expect that vb:0 now knows the limit
 TEST_P(CollectionsDcpParameterizedTest, active_updates_limit) {
     store->setVBucketState(vbid, vbucket_state_replica);
+
+    // MB-54516: Test keeps coverage of the 'custom' binary system event so here
+    // we disable the FlatBuffers configuration so the test can call consumer
+    // directly with the binary data.
+    consumer->disableFlatBuffersSystemEvents();
+
     ASSERT_EQ(cb::engine_errc::success,
               consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ 0));
     // Now drive the replica vbucket with the shop1/fruit setup
