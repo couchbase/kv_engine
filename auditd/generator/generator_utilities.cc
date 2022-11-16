@@ -82,8 +82,7 @@ void parse_module_descriptors(const nlohmann::json& json,
     auto mod = json["modules"];
     if (mod.is_array()) {
         for (auto& module : mod) {
-            auto new_module =
-                    std::make_unique<Module>(module, srcroot, objroot);
+            auto new_module = std::make_unique<Module>(module, srcroot);
             if (new_module->enterprise && !is_enterprise_edition()) {
                 // Community edition should ignore modules from enterprise
                 // Edition
@@ -120,7 +119,7 @@ void create_audit_descriptor_manager_defs(
                << e["id"].get<uint32_t>() << ", R\"("
                << e["name"].get<std::string>() << ")\", R\"("
                << e["description"].get<std::string>() << ")\", "
-               << to_string(e.value("enabled", false)) << ", "
+               << to_string(e.value("enabled", true)) << ", "
                << to_string(e.value("filtering_permitted", false)) << ", "
                << "R\"(" << mandatory_fields << ")\"_json)}," << std::endl;
         }
@@ -145,7 +144,7 @@ void create_master_file(const std::list<std::unique_ptr<Module>>& modules,
 
     try {
         std::ofstream out(output_file);
-        out << output_json << std::endl;
+        out << output_json.dump(2) << std::endl;
         out.close();
     } catch (...) {
         throw std::system_error(errno,

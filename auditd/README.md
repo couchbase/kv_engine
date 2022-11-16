@@ -73,102 +73,67 @@ module are found in `kv_engine/auditd/etc/auditd_descriptor.json`.
 ## The Per Module Events Descriptor File
 
 An events descriptor JSON structure contains a definition of the
-events for the module.  The JSON structure contains a version field;
-stating the auditd format version used.  Version 1 and with the
-introduction of Vulcan version 2 is supported.
+events for the module, and the following attributes must be present:
 
-The second field contains the module name.  This needs
-to match the name used in the module descriptor file.  The third field
-is a list of all the events that are defined for the module.  An
-example event descriptor file for the auditd module is given below.
+ * version (number) - the version of the auditd format to be used.
+           Only version 2 is supported
+ * module (string) - the name of the module. Must match the name used
+          in the module descriptor file.
+ * events (array) - an array of objects where each object defines a single
+          audit event.
+
+Example:
 
     {
-     "version" : 1,
-     "module" : "auditd",
-     "events" : [
-                 {  "id" : 4096,
-                    "name" : "configured audit daemon",
-                    "description" : "loaded configuration file for audit daemon",
-                    "sync" : false,
-                    "enabled" : true,
-                    "mandatory_fields" : {
-                                          "timestamp" : "",
-                                          "real_userid" : {"domain" : "", "user" : ""},
-                                          "hostname" : "",
-                                          "version" : 1,
-                                          "auditd_enabled" : true,
-                                          "rotate_interval" : 1,
-                                          "log_path" : ""
-                                         },
-                    "optional_fields" : {}
-                 },
+      "version": 2,
+      "module": "auditd",
+      "events": [
+        {
+          "id": 4096,
+          "name": "configured audit daemon",
+          "description": "loaded configuration file for audit daemon",
+          "sync": false,
+          "enabled": true,
+          "filtering_permitted": false,
+          "mandatory_fields": {
+            "timestamp": "",
+            "real_userid": {
+              "domain": "",
+              "user": ""
+            },
+            "hostname": "",
+            "version": 1,
+            "auditd_enabled": true,
+            "rotate_interval": 1,
+            "log_path": "",
+            "descriptors_path": ""
+          },
+          "optional_fields": {}
+        }
+      ]
+    }
 
-                 {  "id" : 4097,
-                    "name" : "enabled audit daemon",
-                    "description" : "The audit daemon is now enabled",
-                    "sync" : false,
-                    "enabled" : true,
-                    "mandatory_fields" : {
-                                          "timestamp" : "",
-                                          "real_userid" : {"domain" : "", "user" : ""}
-                                         },
-                    "optional_fields" : {}
-                 },
+The module defines 1 event; for each event the following fields may be specified:
 
-                 {  "id" : 4098,
-                    "name" : "disabled audit daemon",
-                    "description" : "The audit daemon is now disabled",
-                    "sync" : false,
-                    "enabled" : true,
-                    "mandatory_fields" : {
-                                          "timestamp" : "",
-                                          "real_userid" : {"domain" : "", "user" : ""}
-                                         },
-                    "optional_fields" : {}
-                 },
-
-                 {  "id" : 4099,
-                    "name" : "shutting down audit daemon",
-                    "description" : "The audit daemon is being shutdown",
-                    "sync" : false,
-                    "enabled" : true,
-                    "mandatory_fields" : {
-                                          "timestamp" : "",
-                                          "real_userid" : {"domain" : "", "user" : ""}
-                                         },
-                    "optional_fields" : {}
-                 }
-                ]
-}
-
-
-The module defines 4 events; for each event 7 fields must be specified:
-
-* id (number) - the event id; it must be >= startid and <= startid + 0xFFF
-* name (string) - short textual name of the event
-* description (string) - longer name / description of the event
-* sync (bool) - whether the event is synchronous.  Currently only async events
-  are supported
-* enabled (bool) - whether the event should be outputted in the audit log.
-  This feature can be used to depreciate an event, if required.
-* mandatory_fields (object) - field(s) required for a valid instance of the
-  event.  In version 1 of the audit format *timestamp* and *real_userid*
-  fields are required (see below).  Other bespoke fields can be added.
-* optional_fields - optional field(s) valid in an instance of the event.
-  Three standard optional_fields are defined in version 1; *sessionID*,
-  *remote* and *effective_userid*.  However additional bespoke fields can
-  be added, if required.  Note: it is valid to have an empty optional_fields,
-  i.e. {}.
-* filtering_permitted (bool) - whether the event can be filtered or not.
+* id (number, mandatory) - the event id; it must be >= startid and <= startid + 0xFFF
+* name (string, mandatory) - short textual name of the event
+* description (string, mandatory) - longer name / description of the event
+* sync (bool, optional) - whether the event is synchronous.
+  Currently only async events are supported (default if not specified)
+* enabled (bool, optional) - whether the event should be enabled by default.
+* filtering_permitted (bool, optional) - whether the event can be filtered or not.
   If the attribute is not defined then it is defaulted that the event
-  cannot be filtered.  Note: we don't want to permit any ns_server or audit
-  events from being filtered.
+  cannot be filtered.
+* mandatory_fields (object, mandatory) - field(s) required for a valid instance of the
+  event.
+* optional_fields (object, optional) - optional field(s) valid in an instance of the event.
+  Note: it is valid to have an empty optional_fields, i.e. {}.
 
 ### Defining the format for mandatory and optional fields
 
 The format of mandatory and optional fields are defined to allow
-validation of the events submitted to auditd.  Note: validation is not currently
-implemented.
+validation of the events submitted to auditd.  Note: Only simple validation
+is implemented (that all the mandatory fields are present).
 
 Field types can be any valid JSON type.  The type is specified by
 providing the following default values:
@@ -183,14 +148,12 @@ The example JSON structure below shows the definition for the 4
 pre-defined mandatory fields; *timestamp*, *real_userid*, *remote*, *local*,
 and the 2 pre-defined optional fields; *sessionID* and *effective_userid*.
 
-    {"version" : 1,
+    {"version" : 2,
     "module" : "example",
     "events" : [
                 {  "id" : 8192,
                    "name" : "example event",
                    "description" : "this is the full description of the example event",
-                   "sync" : false,
-                   "enabled" : true,
                    "mandatory_fields" : {
                                          "timestamp" : "",
                                          "real_userid" : {"domain" : "", "user" : ""},
@@ -205,42 +168,16 @@ and the 2 pre-defined optional fields; *sessionID* and *effective_userid*.
                ]
     }
 
-A similar example for Version 2 where filtering_permitted is defined is provided
-below:
+#### Pre-defined Fields
 
-    {"version" : 2,
-    "module" : "example",
-    "events" : [
-                {  "id" : 8192,
-                   "name" : "example event",
-                   "description" : "this is the full description of the example event",
-                   "sync" : false,
-                   "enabled" : true,
-                   "filtering_permitted" : true,
-                   "mandatory_fields" : {
-                                         "timestamp" : "",
-                                         "real_userid" : {"domain" : "", "user" : ""}
-                                        },
-                   "optional_fields" : {
-                                        "sessionid" : ""
-                                        "remote" : {"ip" : "", "port" : 1}
-                                        "effective_userid" : {"domain" : "", "user" : ""}
-                                       }
-                }
-               ]
-    }
-
-#### Pre-defined Mandatory Fields
-
-* timestamp - Contains the date and time of the event, in ISO 8601 format.
+* `timestamp` - Contains the date and time of the event, in ISO 8601 format.
   Uses local time with timezone offset (from UTC) in hours and minutes.
   Records microsecond granularity using 3 digits after decimal point.
-* real_userid - comprises a "domain", which states where the user is
-  defined: "local" (in Couchbase) or "external" (outside Couchbase; LDAP etc).
-  It then contains the user string.
-
-Note:  In version 2 the real_user_id has been changed from
-`{"source" : "", "user" : ""}` to `{"domain" : "", "user" : ""}`.
+* `real_userid` and `effective_userid` - comprises a "domain", which states
+  where the user is defined: "local" (in Couchbase) or "external" (outside
+  Couchbase; LDAP etc). It then contains the user string. Example:
+  ` {"domain":"local","user":"@ns_server"}`
+* `remote` and `local` - An object containing two fields `ip` and `port`
 
 #### Pre-defined Optional Fields
 
@@ -256,9 +193,6 @@ Note:  In version 2 the real_user_id has been changed from
   connects to an indexing node on behalf of an SDK client. real_userid is
   "_admin" (query auth's as the internal admin); effective user ID is what
   ever the client's ID is.
-
-Note: Similar to real_user_id the notation has changed from version 1 to
-version 2, to be `{"domain" : "", "user" : ""}`.
 
 #### Duration
 

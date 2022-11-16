@@ -9,34 +9,31 @@
  *   the file licenses/APL2.txt.
  */
 #include "generator_event.h"
-#include "generator_utilities.h"
-
-#include <gsl/gsl-lite.hpp>
 #include <nlohmann/json.hpp>
-#include <sstream>
 
-Event::Event(const nlohmann::json& json) {
-    id = json.at("id");
-    name = json.at("name").get<std::string>();
-    description = json.at("description").get<std::string>();
-    sync = json.at("sync");
-    enabled = json.at("enabled");
-    auto cFilteringPermitted = json.value("filtering_permitted", -1);
-    mandatory_fields = json.at("mandatory_fields").dump();
-    optional_fields = json.at("optional_fields").dump();
+void to_json(nlohmann::json& json, const Event& event) {
+    json = nlohmann::json{
+            {"id", event.id},
+            {"name", event.name},
+            {"description", event.description},
+            {"sync", event.sync},
+            {"enabled", event.enabled},
+            {"filtering_permitted", event.filtering_permitted},
+            {"mandatory_fields", nlohmann::json::parse(event.mandatory_fields)},
+            {"optional_fields", nlohmann::json::parse(event.optional_fields)}};
+}
 
-    if (cFilteringPermitted != -1) {
-        filtering_permitted = gsl::narrow_cast<bool>(cFilteringPermitted);
+void from_json(const nlohmann::json& j, Event& event) {
+    j.at("id").get_to(event.id);
+    j.at("name").get_to(event.name);
+    j.at("description").get_to(event.description);
+    event.sync = j.value("sync", false);
+    event.enabled = j.value("enabled", true);
+    event.filtering_permitted = j.value("filtering_permitted", false);
+    event.mandatory_fields = j.at("mandatory_fields").dump();
+    if (j.contains("optional_fields")) {
+        event.optional_fields = j.at("optional_fields").dump();
     } else {
-        filtering_permitted = false;
-    }
-
-    auto num_elem = json.size();
-    if ((cFilteringPermitted == -1 && num_elem != 7) ||
-        (cFilteringPermitted != -1 && num_elem != 8)) {
-        std::stringstream ss;
-        ss << "Unknown elements for " << name << ": " << std::endl
-           << json << std::endl;
-        throw std::runtime_error(ss.str());
+        event.optional_fields = "{}";
     }
 }

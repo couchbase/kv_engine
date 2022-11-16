@@ -76,13 +76,8 @@ TEST_F(EventParseTest, TestCorrectInput) {
  * Verify that we detect that a mandatory field is missing
  */
 TEST_F(EventParseTest, MandatoryFields) {
-    for (const auto& tag : std::vector<std::string>{{"id",
-                                                     "name",
-                                                     "description",
-                                                     "sync",
-                                                     "enabled",
-                                                     "mandatory_fields",
-                                                     "optional_fields"}}) {
+    for (const auto& tag : std::vector<std::string>{
+                 {"id", "name", "description", "mandatory_fields"}}) {
         auto removed = json.at(tag);
         json.erase(tag);
         try {
@@ -101,8 +96,27 @@ TEST_F(EventParseTest, MandatoryFields) {
 TEST_F(EventParseTest, OptionalFields) {
     // "filtering_permitted" is optional, and should be set to false if it
     // is missing
-    auto removed = json.at("filtering_permitted");
-    json.erase("filtering_permitted");
-    Event event(json);
-    ASSERT_FALSE(event.filtering_permitted);
+    {
+        json.erase("filtering_permitted");
+        Event event(json);
+        EXPECT_FALSE(event.filtering_permitted);
+    }
+
+    {
+        json.erase("sync");
+        Event event(json);
+        EXPECT_FALSE(event.sync);
+    }
+
+    {
+        json.erase("enabled");
+        Event event(json);
+        EXPECT_TRUE(event.enabled);
+    }
+
+    {
+        json.erase("optional_fields");
+        Event event(json);
+        EXPECT_EQ("{}", event.optional_fields);
+    }
 }

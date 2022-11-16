@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -11,7 +10,6 @@
 
 #pragma once
 
-#include <gsl/gsl-lite.hpp>
 #include <nlohmann/json_fwd.hpp>
 #include <cstdint>
 #include <string>
@@ -20,21 +18,7 @@
  * The Event class represents the information needed for a single
  * audit event entry.
  */
-class Event {
-public:
-    Event() = delete;
-
-    /**
-     * Construct and initialize a new Event structure based off the
-     * provided JSON. See ../README.md for information about the
-     * layout of the JSON element.
-     *
-     * @param entry
-     * @throws std::runtime_error for errors accessing the expected
-     *                            elements
-     */
-    explicit Event(const nlohmann::json& json);
-
+struct Event {
     /// The identifier for this entry
     uint32_t id;
     /// The name of the entry
@@ -45,7 +29,7 @@ public:
     bool sync;
     /// Set to true if this entry is enabled (or should be dropped)
     bool enabled;
-    /// Set to true if the user may enable filtering for the enry
+    /// Set to true if the user may enable filtering for the entry
     bool filtering_permitted;
     /// The textual representation of the JSON describing mandatory
     /// fields in the event (NOTE: this is currently not enforced
@@ -56,3 +40,6 @@ public:
     /// by the audit daemon)
     std::string optional_fields;
 };
+
+void to_json(nlohmann::json& json, const Event& event);
+void from_json(const nlohmann::json& j, Event& event);

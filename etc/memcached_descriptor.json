@@ -6,8 +6,6 @@
       "id": 20480,
       "name": "opened DCP connection",
       "description": "opened DCP connection",
-      "sync": false,
-      "enabled": true,
       "filtering_permitted": true,
       "mandatory_fields": {
         "timestamp": "",
@@ -26,8 +24,6 @@
       "id": 20481,
       "name": "authentication failed",
       "description": "Authentication to the cluster failed",
-      "sync": false,
-      "enabled": true,
       "filtering_permitted": false,
       "mandatory_fields": {
         "timestamp": "",
@@ -46,8 +42,6 @@
       "id": 20482,
       "name": "external memcached bucket flush",
       "description": "External user flushed the content of a memcached bucket",
-      "sync": false,
-      "enabled": true,
       "filtering_permitted": true,
       "mandatory_fields": {
         "timestamp": "",
@@ -66,8 +60,6 @@
       "id": 20483,
       "name": "invalid packet",
       "description": "Rejected an invalid packet",
-      "sync": false,
-      "enabled": true,
       "filtering_permitted": true,
       "mandatory_fields": {
         "timestamp": "",
@@ -86,8 +78,6 @@
       "id": 20484,
       "name": "command access failure",
       "description": "Access to command is not allowed",
-      "sync": false,
-      "enabled": true,
       "filtering_permitted": false,
       "mandatory_fields": {
         "timestamp": "",
@@ -106,7 +96,6 @@
       "id": 20485,
       "name": "authentication succeeded",
       "description": "Authentication to the cluster succeeded",
-      "sync": false,
       "enabled": false,
       "filtering_permitted": true,
       "mandatory_fields": {
@@ -125,8 +114,6 @@
       "id": 20486,
       "name": "privilege debug configured",
       "description": "The state of the privilege debug mode changed",
-      "sync": false,
-      "enabled": true,
       "filtering_permitted": false,
       "mandatory_fields": {
         "enable": true,
@@ -145,8 +132,6 @@
       "id": 20487,
       "name": "privilege debug",
       "description": "Access to a resource was granted due to privilege debug",
-      "sync": false,
-      "enabled": true,
       "filtering_permitted": false,
       "mandatory_fields": {
         "command": "",
@@ -168,7 +153,6 @@
       "id": 20488,
       "name": "document read",
       "description": "Document was read",
-      "sync": false,
       "enabled": false,
       "filtering_permitted": true,
       "mandatory_fields": {
@@ -190,7 +174,6 @@
       "id": 20489,
       "name": "document locked",
       "description": "Document was locked",
-      "sync": false,
       "enabled": false,
       "filtering_permitted": true,
       "mandatory_fields": {
@@ -212,7 +195,6 @@
       "id": 20490,
       "name": "document modify",
       "description": "Document was modified",
-      "sync": false,
       "enabled": false,
       "filtering_permitted": true,
       "mandatory_fields": {
@@ -234,7 +216,6 @@
       "id": 20491,
       "name": "document delete",
       "description": "Document was deleted",
-      "sync": false,
       "enabled": false,
       "filtering_permitted": true,
       "mandatory_fields": {
@@ -256,8 +237,6 @@
       "id": 20492,
       "name": "select bucket",
       "description": "The specified bucket was selected",
-      "sync": false,
-      "enabled": true,
       "filtering_permitted": true,
       "mandatory_fields": {
         "timestamp": "",
@@ -276,7 +255,6 @@
       "id": 20493,
       "name": "session terminated",
       "description": "Session to the cluster has terminated",
-      "sync": false,
       "enabled": false,
       "filtering_permitted": true,
       "mandatory_fields": {
@@ -296,8 +274,6 @@
       "id": 20494,
       "name": "tenant rate limited",
       "description": "The given tenant was rate limited",
-      "sync": false,
-      "enabled": true,
       "filtering_permitted": true,
       "mandatory_fields": {
         "timestamp": "",

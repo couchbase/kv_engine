@@ -15,7 +15,7 @@
 #include <platform/dirutils.h>
 #include <vector>
 
-class Event;
+struct Event;
 
 /**
  * The Module class represents the configuration for a single module.
@@ -23,10 +23,10 @@ class Event;
  */
 class Module {
 public:
+    constexpr static size_t SupportedVersion = 2;
+
     Module() = delete;
-    Module(const nlohmann::json& json,
-           const std::string& srcRoot,
-           const std::string& objRoot);
+    Module(const nlohmann::json& json, const std::string& srcRoot);
 
     void createHeaderFile(std::ostream& out);
 
@@ -57,7 +57,7 @@ public:
     /**
      * A list of all of the events defined for this module
      */
-    std::vector<std::unique_ptr<Event>> events;
+    std::vector<Event> events;
 
 protected:
     /**
@@ -67,7 +67,7 @@ protected:
      * @throws std::invalid_argument if the event is outside the legal range
      *                               for the module
      */
-    void addEvent(std::unique_ptr<Event> event);
+    void addEvent(Event event);
 
     /// Parse the event descriptor file and add all of the events into
     /// the list of events

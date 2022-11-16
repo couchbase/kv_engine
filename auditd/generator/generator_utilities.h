@@ -18,7 +18,7 @@
 #include <string>
 
 class Module;
-class Event;
+struct Event;
 
 /**
  * Is this build for enterprise edition?

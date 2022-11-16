@@ -12,19 +12,16 @@
 #include "auditevent_generator.h"
 #include "generator_event.h"
 #include "generator_utilities.h"
-
+#include <fmt/format.h>
+#include <gsl/gsl-lite.hpp>
 #include <nlohmann/json.hpp>
 #include <utilities/json_utilities.h>
-
-#include <gsl/gsl-lite.hpp>
 #include <fstream>
 #include <memory>
 #include <sstream>
 #include <system_error>
 
-Module::Module(const nlohmann::json& object,
-               const std::string& srcRoot,
-               const std::string& objRoot) {
+Module::Module(const nlohmann::json& object, const std::string& srcRoot) {
     /*
      * https://github.com/nlohmann/json/issues/67
      * There is no way for a JSON value to "know" whether it is stored in an
@@ -71,16 +68,18 @@ Module::Module(const nlohmann::json& object,
     parseEventDescriptorFile();
 }
 
-void Module::addEvent(std::unique_ptr<Event> event) {
-    if (event->id >= start && event->id < (start + max_events_per_module)) {
-        events.push_back(std::move(event));
+void Module::addEvent(Event event) {
+    if (event.id >= start && event.id < (start + max_events_per_module)) {
+        events.emplace_back(std::move(event));
     } else {
-        std::stringstream ss;
-        ss << "Event identifier " << event->id
-           << " outside the legal range for "
-           << "module " << name << "s legal range: " << start << " - "
-           << start + max_events_per_module;
-        throw std::invalid_argument(ss.str());
+        throw std::runtime_error(
+                fmt::format("Error in {}: Event identifier {} is outside the "
+                            "legal range for module {}s legal range: [{}, {}>",
+                            file,
+                            event.id,
+                            name,
+                            start,
+                            start + max_events_per_module));
     }
 }
 
@@ -88,12 +87,12 @@ void Module::createHeaderFile(std::ostream& out) {
     for (const auto& ev : events) {
         std::string nm(name);
         nm.append("_AUDIT_");
-        nm.append(ev->name);
+        nm.append(ev.name);
         std::replace(nm.begin(), nm.end(), ' ', '_');
         std::replace(nm.begin(), nm.end(), '/', '_');
         std::replace(nm.begin(), nm.end(), ':', '_');
         std::transform(nm.begin(), nm.end(), nm.begin(), toupper);
-        out << "#define " << nm << " " << ev->id << std::endl;
+        out << "#define " << nm << " " << ev.id << std::endl;
     }
 }
 void Module::parseEventDescriptorFile() {
@@ -104,23 +103,34 @@ void Module::parseEventDescriptorFile() {
 
     json = load_file(file);
     auto v = cb::jsonGet<int32_t>(json, "version");
-    if (v != 1 && v != 2) {
-        throw std::runtime_error("Invalid version in " + file + ": " +
-                                 std::to_string(v));
+    if (v != SupportedVersion) {
+        throw std::runtime_error(
+                fmt::format("Invalid version in {}: {}. Must be set to {}",
+                            file,
+                            v,
+                            SupportedVersion));
     }
 
     auto n = cb::jsonGet<std::string>(json, "module");
     if (n != name) {
-        throw std::runtime_error(name + " can't load a module named " + n);
+        throw std::runtime_error(fmt::format(
+                "Invalid name in {}: {} can't load a module named {}",
+                file,
+                name,
+                n));
     }
 
-    // Parse all of the individual events
+    // Parse all the individual events
     auto e = json["events"];
-    assert(e.is_array());
-    auto it = e.begin();
-    while (it != e.end()) {
-        auto event = std::make_unique<Event>(*it);
-        addEvent(std::move(event));
-        ++it;
+    if (!e.is_array()) {
+        throw std::runtime_error(fmt::format(
+                "Invalid entry in {}: \"events\" must be an array", file));
     }
+
+    for (const auto& event : json["events"]) {
+        addEvent(event.get<Event>());
+    }
+
+    // Replace the JSON with one where we've updated all default variables
+    json = {{"version", SupportedVersion}, {"name", name}, {"events", events}};
 }

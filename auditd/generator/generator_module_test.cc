@@ -112,7 +112,7 @@ protected:
  * Verify that the members was set to whatever we had in the input
  */
 TEST_F(SingleModuleParseTest, TestCorrectInput) {
-    Module module(json, SOURCE_ROOT, OBJECT_ROOT);
+    Module module(json, SOURCE_ROOT);
     EXPECT_EQ("module1", module.name);
     EXPECT_EQ(0, module.start);
     EXPECT_FALSE(module.enterprise);
@@ -132,7 +132,7 @@ TEST_F(SingleModuleParseTest, MandatoryFields) {
         auto removed = json["module1"].at(tag);
         json["module1"].erase(tag);
         try {
-            Module module(json, SOURCE_ROOT, OBJECT_ROOT);
+            Module module(json, SOURCE_ROOT);
             FAIL() << "Should not be able to construct modules without \""
                    << tag << "\"";
         } catch (const nlohmann::json::exception&) {
@@ -144,14 +144,14 @@ TEST_F(SingleModuleParseTest, MandatoryFields) {
 /// Verify that we default to false if no enterprise attribute is set
 TEST_F(SingleModuleParseTest, NoEnterprise) {
     json["module1"].erase("enterprise");
-    Module module(json, SOURCE_ROOT, OBJECT_ROOT);
+    Module module(json, SOURCE_ROOT);
     EXPECT_FALSE(module.enterprise);
 }
 
 /// Verify that we can change the enterprise attribute to true
 TEST_F(SingleModuleParseTest, Enterprise) {
     json["module1"]["enterprise"] = true;
-    Module module(json, SOURCE_ROOT, OBJECT_ROOT);
+    Module module(json, SOURCE_ROOT);
     EXPECT_TRUE(module.enterprise);
 }
 
@@ -160,14 +160,14 @@ TEST_F(SingleModuleParseTest, Enterprise) {
 TEST_F(SingleModuleParseTest, CeSkipEnterpriseEvents) {
     set_enterprise_edition(false);
     json["module1"]["enterprise"] = true;
-    Module module(json, SOURCE_ROOT, OBJECT_ROOT);
+    Module module(json, SOURCE_ROOT);
     EXPECT_TRUE(module.enterprise);
     EXPECT_TRUE(module.events.empty());
 }
 
 /// Verify that the headerfile was successfully written
 TEST_F(SingleModuleParseTest, HeaderfileGeneration) {
-    Module module(json, SOURCE_ROOT, OBJECT_ROOT);
+    Module module(json, SOURCE_ROOT);
     auto filename = cb::io::mktemp("myheader");
     std::ofstream output(filename);
     module.createHeaderFile(output);
