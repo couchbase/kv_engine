@@ -62,7 +62,8 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_consumer) {
     ScopeID sid = ScopeEntry::shop1.getId();
     Collections::ManifestUid manifestUid(0xcafef00d);
     Collections::CreateEventData createEventData{
-            manifestUid, {sid, cid, collection, {/*no ttl*/}}};
+            manifestUid,
+            {sid, cid, collection, {/*no ttl*/}, CanDeduplicate::Yes}};
     Collections::CreateEventDcpData createEventDcpData{createEventData};
     Collections::DropEventData dropEventData{manifestUid, sid, cid};
     Collections::DropEventDcpData dropEventDcpData{dropEventData};
@@ -155,7 +156,8 @@ TEST_F(CollectionsDcpTest, stream_request_uid) {
     ScopeID sid = ScopeEntry::shop1.getId();
     Collections::ManifestUid manifestUid(0xcafef00d);
     Collections::CreateEventData createEventData{
-            manifestUid, {sid, cid, collection, {/*no ttl*/}}};
+            manifestUid,
+            {sid, cid, collection, {/*no ttl*/}, CanDeduplicate::Yes}};
     Collections::CreateEventDcpData eventDcpData{createEventData};
 
     VBucketPtr vb = store->getVBucket(replicaVB);

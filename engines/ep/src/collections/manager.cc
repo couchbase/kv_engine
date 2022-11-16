@@ -376,7 +376,7 @@ public:
 class CollectionsGetStatsVBucketVisitor : public VBucketVisitor {
 public:
     explicit CollectionsGetStatsVBucketVisitor(
-            const std::vector<Collections::CollectionEntry>& collections)
+            const std::vector<Collections::CollectionMetaData>& collections)
         : collections(collections) {
         for (const auto& entry : collections) {
             summary.emplace(entry.cid, Collections::AccumulatedStats{});
@@ -389,7 +389,7 @@ public:
         }
     }
 
-    const std::vector<Collections::CollectionEntry>& collections;
+    const std::vector<Collections::CollectionMetaData>& collections;
     Collections::Summary summary;
 };
 
@@ -582,7 +582,7 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::doOneCollectionStats(
     // Take a copy of the two items needed from the manifest and then release
     // the lock before vbucket visiting.
     std::string scopeName;
-    Collections::CollectionEntry entry;
+    Collections::CollectionMetaData entry;
     {
         auto current = bucket.getCollectionsManager().currentManifest.rlock();
         auto collectionItr = current->findCollection(res.getCollectionId());
@@ -737,7 +737,7 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doOneScopeStats(
     // Take a copy of the two items needed from the manifest and then release
     // the lock before vbucket visiting.
     std::string scopeName;
-    std::vector<Collections::CollectionEntry> scopeCollections;
+    std::vector<Collections::CollectionMetaData> scopeCollections;
     {
         auto current = bucket.getCollectionsManager().currentManifest.rlock();
         auto scopeItr = current->findScope(res.getScopeId());
@@ -794,7 +794,7 @@ Collections::CachedStats Collections::Manager::getPerCollectionStats(
 }
 
 Collections::CachedStats Collections::Manager::getPerCollectionStats(
-        const std::vector<Collections::CollectionEntry>& collections,
+        const std::vector<Collections::CollectionMetaData>& collections,
         KVBucket& bucket) {
     // Gather per-vbucket stats for the collections of interest
     CollectionsGetStatsVBucketVisitor visitor{collections};
@@ -820,7 +820,7 @@ Collections::CachedStats::CachedStats(
 
 void Collections::CachedStats::addStatsForCollection(
         std::string_view scopeName,
-        const CollectionEntry& collection,
+        const CollectionMetaData& collection,
         const BucketStatCollector& collector) {
     auto collectionC = collector.forScope(scopeName, collection.sid)
                                .forCollection(collection.name, collection.cid);
@@ -841,7 +841,7 @@ void Collections::CachedStats::addStatsForCollection(
 void Collections::CachedStats::addStatsForScope(
         ScopeID sid,
         std::string_view scopeName,
-        const std::vector<Collections::CollectionEntry>& scopeCollections,
+        const std::vector<Collections::CollectionMetaData>& scopeCollections,
         const BucketStatCollector& collector) {
     auto scopeC = collector.forScope(scopeName, sid);
     std::vector<CollectionID> collections;

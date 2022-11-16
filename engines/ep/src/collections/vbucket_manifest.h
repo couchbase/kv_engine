@@ -878,7 +878,7 @@ protected:
 
     void updateSummary(Summary& summary) const;
 
-    void accumulateStats(const std::vector<CollectionEntry>& collections,
+    void accumulateStats(const std::vector<CollectionMetaData>& collections,
                          Summary& summary) const;
 
     /**

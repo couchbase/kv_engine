@@ -215,14 +215,19 @@ std::ostream& operator<<(std::ostream& os, const ScopeSharedMetaData& meta) {
 
 } // namespace VB
 
+std::string to_string(const CollectionMetaData& collection) {
+    return fmt::format(
+            "cid:{}, name:{}, ttl:{{{}, {}}}, sid:{}, {}",
+            collection.cid.to_string(),
+            collection.name,
+            collection.maxTtl.has_value(),
+            collection.maxTtl.value_or(std::chrono::seconds(0)).count(),
+            collection.sid.to_string(),
+            collection.canDeduplicate);
+}
+
 std::ostream& operator<<(std::ostream& os, const CollectionMetaData& meta) {
-    os << "sid:" << meta.sid << ",cid:" << meta.cid << ",name:" << meta.name;
-
-    if (meta.maxTtl) {
-        os << ",maxTTl:" << meta.maxTtl->count();
-    }
-
-    return os;
+    return os << to_string(meta);
 }
 
 std::ostream& operator<<(std::ostream& os, const ScopeMetaData& meta) {

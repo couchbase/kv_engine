@@ -172,7 +172,7 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
             }
         }
 
-        std::vector<CollectionEntry> scopeCollections = {};
+        std::vector<CollectionMetaData> scopeCollections;
 
         // Read the collections within this scope
         auto collections =
@@ -251,12 +251,11 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
             }
 
             enableDefaultCollection(cidValue);
-            scopeCollections.push_back(
-                    CollectionEntry{cidValue,
-                                    cnameValue,
-                                    maxTtl,
-                                    sidValue,
-                                    collectionCanDeduplicate});
+            scopeCollections.emplace_back(sidValue,
+                                          cidValue,
+                                          cnameValue,
+                                          maxTtl,
+                                          collectionCanDeduplicate);
         }
 
         // Check for limits - only support for data_size
@@ -510,7 +509,7 @@ Manifest::Manifest(std::string_view flatbufferData, Manifest::FlatBuffers tag)
     uid = manifest->uid();
 
     for (const Collections::Persist::Scope* scope : *manifest->scopes()) {
-        std::vector<CollectionEntry> scopeCollections;
+        std::vector<CollectionMetaData> scopeCollections;
 
         for (const Collections::Persist::Collection* collection :
              *scope->collections()) {
@@ -521,12 +520,12 @@ Manifest::Manifest(std::string_view flatbufferData, Manifest::FlatBuffers tag)
             }
 
             enableDefaultCollection(cid);
-            scopeCollections.push_back(CollectionEntry{
+            scopeCollections.emplace_back(
+                    ScopeID{scope->scopeId()},
                     cid,
                     collection->name()->str(),
                     maxTtl,
-                    scope->scopeId(),
-                    getCanDeduplicateFromHistory(collection->history())});
+                    getCanDeduplicateFromHistory(collection->history()));
         }
 
         std::optional<size_t> dataSize;
@@ -727,11 +726,6 @@ void Manifest::dump() const {
     std::cerr << *this << std::endl;
 }
 
-bool CollectionEntry::operator==(const CollectionEntry& other) const {
-    return cid == other.cid && name == other.name && sid == other.sid &&
-           maxTtl == other.maxTtl && canDeduplicate == other.canDeduplicate;
-}
-
 bool Scope::operator==(const Scope& other) const {
     bool equal = name == other.name &&
                  collections.size() == other.collections.size() &&
@@ -890,21 +884,6 @@ std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
         os << "{key:" << key << ", " << collection << "}\n";
     }
     return os;
-}
-
-std::string to_string(const CollectionEntry& collection) {
-    return fmt::format(
-            "cid:{}, name:{}, ttl:{{{}, {}}}, sid:{}, {}",
-            collection.cid.to_string(),
-            collection.name,
-            collection.maxTtl.has_value(),
-            collection.maxTtl.value_or(std::chrono::seconds(0)).count(),
-            collection.sid.to_string(),
-            collection.canDeduplicate);
-}
-
-std::ostream& operator<<(std::ostream& os, const CollectionEntry& collection) {
-    return os << to_string(collection);
 }
 
 std::string to_string(const Scope& scope) {

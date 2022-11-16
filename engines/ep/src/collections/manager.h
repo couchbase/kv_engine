@@ -52,7 +52,7 @@ public:
      * @param collector stat collector to which stats will be added
      */
     void addStatsForCollection(std::string_view scopeName,
-                               const CollectionEntry& collection,
+                               const CollectionMetaData& collection,
                                const BucketStatCollector& collector);
 
     /**
@@ -63,11 +63,11 @@ public:
      * @param scopeCollections All collections in the scope
      * @param collector stat collector to which stats will be added
      */
-    void addStatsForScope(
-            ScopeID sid,
-            std::string_view scopeName,
-            const std::vector<Collections::CollectionEntry>& scopeCollections,
-            const BucketStatCollector& collector);
+    void addStatsForScope(ScopeID sid,
+                          std::string_view scopeName,
+                          const std::vector<Collections::CollectionMetaData>&
+                                  scopeCollections,
+                          const BucketStatCollector& collector);
 
 private:
     /**
@@ -346,7 +346,8 @@ private:
      * @return copy of the stats to use to format stats for a request
      */
     static CachedStats getPerCollectionStats(
-            const std::vector<CollectionEntry>& collections, KVBucket& bucket);
+            const std::vector<CollectionMetaData>& collections,
+            KVBucket& bucket);
 
     /**
      * validate the path is correctly formed for get_collection_id.

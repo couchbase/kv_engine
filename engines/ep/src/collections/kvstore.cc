@@ -84,7 +84,8 @@ Collections::KVStore::Manifest decodeManifest(cb::const_byte_buffer manifest,
                      Collections::CollectionMetaData{entry->scopeId(),
                                                      entry->collectionId(),
                                                      entry->name()->str(),
-                                                     maxTtl}});
+                                                     maxTtl,
+                                                     CanDeduplicate::Yes}});
         }
     } else {
         // Nothing on disk - the default collection is assumed

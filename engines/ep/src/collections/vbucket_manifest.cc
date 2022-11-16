@@ -387,7 +387,7 @@ void Manifest::completeUpdate(mutex_type::UpgradeHolder&& upgradeLock,
 
 // @return true if newEntry compared to existingEntry shows an immutable
 //              property has changed
-static bool isImmutablePropertyModified(const CollectionEntry& newEntry,
+static bool isImmutablePropertyModified(const CollectionMetaData& newEntry,
                                         const ManifestEntry& existingEntry) {
     return newEntry.sid != existingEntry.getScopeID() ||
            newEntry.name != existingEntry.getName();
@@ -1047,7 +1047,8 @@ CreateEventData Manifest::getCreateEventData(std::string_view flatbufferData) {
             {collection->scopeId(),
              collection->collectionId(),
              collection->name()->str(),
-             maxTtl}};
+             maxTtl,
+             CanDeduplicate::Yes}};
 }
 
 DropEventData Manifest::getDropEventData(std::string_view flatbufferData) {
@@ -1291,8 +1292,9 @@ void Manifest::updateSummary(Summary& summary) const {
     }
 }
 
-void Manifest::accumulateStats(const std::vector<CollectionEntry>& collections,
-                               Summary& summary) const {
+void Manifest::accumulateStats(
+        const std::vector<CollectionMetaData>& collections,
+        Summary& summary) const {
     for (const auto& entry : collections) {
         auto itr = map.find(entry.cid);
         if (itr != map.end()) {

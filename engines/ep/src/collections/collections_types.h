@@ -163,17 +163,36 @@ static inline ScopeID makeScopeID(const std::string& uid) {
  * Default construction yields the default collection
  */
 struct CollectionMetaData {
+    CollectionMetaData() = default;
+    CollectionMetaData(ScopeID sid,
+                       CollectionID cid,
+                       std::string_view name,
+                       cb::ExpiryLimit maxTtl,
+                       CanDeduplicate canDeduplicate)
+        : sid(sid),
+          cid(cid),
+          name(name),
+          maxTtl(maxTtl),
+          canDeduplicate(canDeduplicate) {
+    }
+
     ScopeID sid{ScopeID::Default}; // The scope that the collection belongs to
     CollectionID cid{CollectionID::Default}; // The collection's ID
     std::string name{DefaultCollectionName}; // The collection's name
     cb::ExpiryLimit maxTtl{}; // The collection's maxTTL
+    CanDeduplicate canDeduplicate{CanDeduplicate::Yes};
 
     bool operator==(const CollectionMetaData& other) const {
         return sid == other.sid && cid == other.cid && name == other.name &&
-               maxTtl == other.maxTtl;
+               maxTtl == other.maxTtl && canDeduplicate == other.canDeduplicate;
+    }
+
+    bool operator!=(const CollectionMetaData& other) const {
+        return !(*this == other);
     }
 };
 
+std::string to_string(const CollectionMetaData&);
 std::ostream& operator<<(std::ostream& os, const CollectionMetaData& meta);
 
 /**

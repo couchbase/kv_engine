@@ -360,8 +360,12 @@ void CollectionsDcpTest::createCollectionOnConsumer(
         ScopeID sid,
         const CollectionEntry::Entry& entry,
         uint64_t seqno) {
-    Collections::CreateEventData createEventData{
-            muid, {sid, entry.getId(), entry.name, {/*no ttl*/}}};
+    Collections::CreateEventData createEventData{muid,
+                                                 {sid,
+                                                  entry.getId(),
+                                                  entry.name,
+                                                  {/*no ttl*/},
+                                                  CanDeduplicate::Yes}};
     Collections::CreateEventDcpData createEventDcpData{createEventData};
     // Call the consumer function for handling DCP events
     EXPECT_EQ(cb::engine_errc::success,

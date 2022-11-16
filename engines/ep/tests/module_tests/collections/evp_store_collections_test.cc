@@ -4236,12 +4236,10 @@ TEST_P(CollectionsParameterizedTest, MB_45899) {
 
     // Now poke accumulateStats, which requires a vector of entries we are
     // interested in.
-    std::vector<Collections::CollectionEntry> collections;
-    collections.push_back({CollectionID::Default,
-                           "_default",
-                           {},
-                           ScopeID::Default,
-                           CanDeduplicate::Yes});
+    std::vector<Collections::CollectionMetaData> collections;
+    // emplace 1 default constructed CollectionMetaData
+    collections.emplace_back();
+
     Collections::Summary summary;
     auto vb0 = store->getVBucket(vbid0);
     auto vb1 = store->getVBucket(vbid1);
