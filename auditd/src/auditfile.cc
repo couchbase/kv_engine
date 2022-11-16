@@ -150,68 +150,69 @@ void AuditFile::close_and_rotate_log() {
 void AuditFile::cleanup_old_logfile(const std::string& log_path) {
     auto filename = cb::io::sanitizePath(log_path + "/audit.log");
 
-    if (cb::io::isFile(filename)) {
-        // open the audit.log that needs archiving
-        std::string str = cb::io::loadFile(filename);
+    if (!cb::io::isFile(filename)) {
+        return;
+    }
+    // open the audit.log that needs archiving
+    std::string str = cb::io::loadFile(filename);
 
-        if (str.empty()) {
-            // empty file, just remove it.
-            if (remove(filename.c_str()) != 0) {
-                throw std::system_error(errno,
-                                        std::system_category(),
-                                        "AuditFile::cleanup_old_logfile(): "
-                                        "Failed to remove \"" +
-                                                filename + "\"");
-            }
-            return;
+    if (str.empty()) {
+        // empty file, just remove it.
+        if (remove(filename.c_str()) != 0) {
+            throw std::system_error(errno,
+                                    std::system_category(),
+                                    "AuditFile::cleanup_old_logfile(): "
+                                    "Failed to remove \"" +
+                                            filename + "\"");
         }
+        return;
+    }
 
-        // extract the first event
-        std::size_t found = str.find_first_of("\n");
-        if (found != std::string::npos) {
-            str.erase(found+1, std::string::npos);
-        }
+    // extract the first event
+    std::size_t found = str.find_first_of("\n");
+    if (found != std::string::npos) {
+        str.erase(found + 1, std::string::npos);
+    }
 
-        nlohmann::json json;
-        try {
-            json = nlohmann::json::parse(str);
-        } catch (const nlohmann::json::exception&) {
-            throw std::runtime_error(
-                    "AuditFile::cleanup_old_logfile(): "
-                    "Failed to parse data in audit file "
-                    "(invalid JSON) " +
-                    filename);
-        }
+    nlohmann::json json;
+    try {
+        json = nlohmann::json::parse(str);
+    } catch (const nlohmann::json::exception&) {
+        throw std::runtime_error(
+                "AuditFile::cleanup_old_logfile(): "
+                "Failed to parse data in audit file "
+                "(invalid JSON) " +
+                filename);
+    }
 
-        std::string ts;
-        try {
-            ts = cb::jsonGet<std::string>(json, "timestamp");
-        } catch (const nlohmann::json::exception& e) {
-            throw std::runtime_error(
-                    "AuditFile::cleanup_old_logfile(): "
-                    "Could not parse timestamp for auditfile: " +
-                    filename + ". Exception thrown: " + e.what());
-        }
+    std::string ts;
+    try {
+        ts = cb::jsonGet<std::string>(json, "timestamp");
+    } catch (const nlohmann::json::exception& e) {
+        throw std::runtime_error(
+                "AuditFile::cleanup_old_logfile(): "
+                "Could not parse timestamp for auditfile: " +
+                filename + ". Exception thrown: " + e.what());
+    }
 
-        if (!is_timestamp_format_correct(ts)) {
-            throw std::runtime_error(
-                    R"(AuditFile::cleanup_old_logfile(): Incorrect format for
+    if (!is_timestamp_format_correct(ts)) {
+        throw std::runtime_error(
+                R"(AuditFile::cleanup_old_logfile(): Incorrect format for
                     "timestamp" in audit file ")" +
-                    filename);
-        }
+                filename);
+    }
 
-        ts = ts.substr(0, 19);
-        std::replace(ts.begin(), ts.end(), ':', '-');
-        // form the archive filename
-        auto archive_file = log_path + "/" + hostname + "-" + ts + "-audit.log";
-        archive_file = cb::io::sanitizePath(archive_file);
-        if (rename(filename.c_str(), archive_file.c_str()) != 0) {
-            throw std::system_error(
-                    errno,
-                    std::system_category(),
-                    "AuditFile::cleanup_old_logfile(): Failed to rename \"" +
-                            filename + "\" to \"" + archive_file + "\"");
-        }
+    ts = ts.substr(0, 19);
+    std::replace(ts.begin(), ts.end(), ':', '-');
+    // form the archive filename
+    auto archive_file = log_path + "/" + hostname + "-" + ts + "-audit.log";
+    archive_file = cb::io::sanitizePath(archive_file);
+    if (rename(filename.c_str(), archive_file.c_str()) != 0) {
+        throw std::system_error(
+                errno,
+                std::system_category(),
+                "AuditFile::cleanup_old_logfile(): Failed to rename \"" +
+                        filename + "\" to \"" + archive_file + "\"");
     }
 }
 
