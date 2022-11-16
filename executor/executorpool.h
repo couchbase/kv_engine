@@ -14,6 +14,7 @@
 #include <utilities/testing_hook.h>
 
 #include "task_type.h"
+#include <gsl/gsl-lite.hpp>
 #include <atomic>
 #include <memory>
 #include <mutex>
@@ -119,6 +120,19 @@ public:
 
     /// @returns the number of registered Taskables.
     virtual size_t getNumTaskables() const = 0;
+
+    /**
+     * Returns the default taskable for this ExecutorPool. The default
+     * taskable which, if specified, must outlive all other taskables.
+     * @return
+     */
+    Taskable& getDefaultTaskable() const;
+
+    /**
+     * Specify the default taskable. This value can only be set once.
+     * The specified taskable must outlive all other taskables.
+     */
+    void setDefaultTaskable(Taskable& taskable);
 
     /***************** Task Scheduling **************************************/
 
@@ -259,4 +273,10 @@ protected:
      * of available CPU cores.
      */
     const size_t maxGlobalThreads;
+
+    /**
+     * The default taskable on which to schedule tasks on. This object must
+     * outlive all other taskables.
+     */
+    Taskable* defaultTaskable = nullptr;
 };

@@ -663,6 +663,7 @@ static void startExecutorPool() {
             settings.getNumAuxIoThreads(),
             settings.getNumNonIoThreads());
     ExecutorPool::get()->registerTaskable(NoBucketTaskable::instance());
+    ExecutorPool::get()->setDefaultTaskable(NoBucketTaskable::instance());
 
     // MB-47484 Set up the settings callback for the executor pool now that
     // it is up'n'running

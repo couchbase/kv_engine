@@ -70,6 +70,20 @@ void ExecutorPool::shutdown() {
     getInstance().reset();
 }
 
+Taskable& ExecutorPool::getDefaultTaskable() const {
+    if (!defaultTaskable) {
+        throw std::runtime_error("Default taskable not set!");
+    }
+    return *defaultTaskable;
+}
+
+void ExecutorPool::setDefaultTaskable(Taskable& taskable) {
+    if (defaultTaskable) {
+        throw std::runtime_error("Default taskable cannot be reset!");
+    }
+    defaultTaskable = &taskable;
+}
+
 ExecutorPool::ExecutorPool(size_t maxThreads)
     : maxGlobalThreads(maxThreads ? maxThreads
                                   : Couchbase::get_available_cpu_count()) {

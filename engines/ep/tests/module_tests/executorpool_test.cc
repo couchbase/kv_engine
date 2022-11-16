@@ -301,6 +301,36 @@ TYPED_TEST(ExecutorPoolTest, UnregisterTaskableWaitsForTasks) {
     taskable.reset();
 }
 
+TYPED_TEST(ExecutorPoolTest, GetDefaultTaskableFailsIfUnset) {
+    this->makePool(1);
+    EXPECT_THROW(this->pool->getDefaultTaskable(), std::runtime_error);
+}
+
+TYPED_TEST(ExecutorPoolTest, CanSetDefaultTaskable) {
+    this->makePool(1);
+    auto taskable = std::make_unique<NiceMock<MockTaskable>>();
+    this->pool->registerTaskable(*taskable);
+
+    EXPECT_NO_THROW(this->pool->setDefaultTaskable(*taskable));
+    EXPECT_EQ(taskable.get(), &this->pool->getDefaultTaskable());
+
+    this->pool->unregisterTaskable(*taskable, false);
+}
+
+TYPED_TEST(ExecutorPoolTest, CanSetDefaultTaskableOnlyOnce) {
+    this->makePool(1);
+    auto taskable = std::make_unique<NiceMock<MockTaskable>>();
+    auto taskable2 = std::make_unique<NiceMock<MockTaskable>>();
+    this->pool->registerTaskable(*taskable);
+
+    EXPECT_NO_THROW(this->pool->setDefaultTaskable(*taskable));
+    EXPECT_THROW(this->pool->setDefaultTaskable(*taskable2),
+                 std::runtime_error);
+    EXPECT_EQ(taskable.get(), &this->pool->getDefaultTaskable());
+
+    this->pool->unregisterTaskable(*taskable, false);
+}
+
 /// Test that tasks are run immediately when they are woken.
 TYPED_TEST(ExecutorPoolTest, Wake) {
     this->makePool(1);
