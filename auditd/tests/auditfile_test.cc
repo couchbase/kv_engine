@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -11,12 +10,13 @@
 #include <platform/dirutils.h>
 
 #include "auditfile.h"
+#include <folly/FileUtil.h>
 #include <folly/portability/GTest.h>
+#include <memcached/isotime.h>
 #include <nlohmann/json.hpp>
 #include <platform/platform_time.h>
-#include <time.h>
 #include <atomic>
-#include <cstring>
+#include <fstream>
 #include <iostream>
 #include <map>
 
@@ -51,6 +51,11 @@ protected:
         source["user"] = "myuser";
         evt["real_userid"] = source;
         return evt;
+    }
+
+    void writeAuditFile(std::string_view content) {
+        EXPECT_TRUE(
+                folly::writeFile(content, (testdir + "/audit.log").c_str()));
     }
 };
 
@@ -215,12 +220,10 @@ TEST_F(AuditFileTest, TestRollover) {
                 secs == (AuditConfig::min_file_rotation_time - 11));
 }
 
+/// The audit log contains a valid entry and the file gets renamed
+/// to the correct filename
 TEST_F(AuditFileTest, TestSuccessfulCrashRecovery) {
-    FILE *fp = fopen((testdir + "/audit.log").c_str(), "w");
-    EXPECT_TRUE(fp != nullptr);
-
-    fprintf(fp, "%s", event.dump().c_str());
-    fclose(fp);
+    writeAuditFile(event.dump());
 
     config.set_rotate_interval(3600);
     config.set_rotate_size(100);
@@ -234,16 +237,13 @@ TEST_F(AuditFileTest, TestSuccessfulCrashRecovery) {
     EXPECT_EQ(1, files.size());
 }
 
-TEST_F(AuditFileTest, TestCrashRecoveryEmptyFile) {
+/// Verify that we don't crash if there isn't a file available
+TEST_F(AuditFileTest, TestCrashRecoveryNoFile) {
     config.set_rotate_interval(3600);
     config.set_rotate_size(100);
 
     AuditFile auditfile("testing");
     auditfile.reconfigure(config);
-
-    FILE *fp = fopen((testdir + "/audit.log").c_str(), "w");
-    EXPECT_TRUE(fp != nullptr);
-    fclose(fp);
 
     auditfile.cleanup_old_logfile(testdir);
     {
@@ -258,6 +258,30 @@ TEST_F(AuditFileTest, TestCrashRecoveryEmptyFile) {
     }
 }
 
+/// Verify that we just remove the file if it doesn't contain any data
+TEST_F(AuditFileTest, TestCrashRecoveryEmptyFile) {
+    config.set_rotate_interval(3600);
+    config.set_rotate_size(100);
+
+    AuditFile auditfile("testing");
+    auditfile.reconfigure(config);
+
+    writeAuditFile({});
+    auditfile.cleanup_old_logfile(testdir);
+    {
+        // It should not have created any new files
+        auto files = findFilesWithPrefix(testdir + "/testing");
+        EXPECT_EQ(0, files.size());
+    }
+    {
+        // File was empty and should just have been deleted
+        auto files = findFilesWithPrefix(testdir + "/audit");
+        EXPECT_EQ(0, files.size());
+    }
+}
+
+/// Verify that we don't crash if the the first line in the audit event
+/// doesn't contain a timestamp field
 TEST_F(AuditFileTest, TestCrashRecoveryNoTimestamp) {
     config.set_rotate_interval(3600);
     config.set_rotate_size(100);
@@ -265,15 +289,27 @@ TEST_F(AuditFileTest, TestCrashRecoveryNoTimestamp) {
     AuditFile auditfile("testing");
     auditfile.reconfigure(config);
 
+    event.erase("timestamp");
+    writeAuditFile(event.dump());
 
-    FILE *fp = fopen((testdir + "/audit.log").c_str(), "w");
-    EXPECT_TRUE(fp != nullptr);
-    fprintf(fp, "{}");
-    fclose(fp);
+    auditfile.cleanup_old_logfile(testdir);
 
-    EXPECT_THROW(auditfile.cleanup_old_logfile(testdir), std::exception);
+    {
+        // The file should have been renamed (read the content and verify
+        // that it is the same)
+        auto files = findFilesWithPrefix(testdir + "/testing");
+        ASSERT_EQ(1, files.size());
+        auto content = cb::io::loadFile(files.front());
+        EXPECT_EQ(event.dump(), content);
+    }
+    {
+        // rename should make the old inaccessible
+        auto files = findFilesWithPrefix(testdir + "/audit");
+        EXPECT_EQ(0, files.size());
+    }
 }
 
+/// Verify that we don't fail if the date isn't using the correct format
 TEST_F(AuditFileTest, TestCrashRecoveryGarbeledDate) {
     config.set_rotate_interval(3600);
     config.set_rotate_size(100);
@@ -281,26 +317,69 @@ TEST_F(AuditFileTest, TestCrashRecoveryGarbeledDate) {
     AuditFile auditfile("testing");
     auditfile.reconfigure(config);
 
-    FILE *fp = fopen((testdir + "/audit.log").c_str(), "w");
-    EXPECT_TRUE(fp != nullptr);
+    event["timestamp"] = "This isn't a correct date";
+    writeAuditFile(event.dump());
 
-    auto content = event.dump();
-    auto idx = content.find("2015");
-    ASSERT_NE(std::string::npos, idx);
-    content.resize(idx);
-    fprintf(fp, "%s", content.c_str());
-    fclose(fp);
+    auditfile.cleanup_old_logfile(testdir);
 
-    EXPECT_THROW(auditfile.cleanup_old_logfile(testdir), std::exception);
     {
         auto files = findFilesWithPrefix(testdir + "/testing");
-        EXPECT_EQ(0, files.size());
+        EXPECT_EQ(1, files.size());
+        // Verify that we didn't use the invalid text in the filename
+        EXPECT_EQ(std::string::npos, files.front().find("correct"));
+        auto content = cb::io::loadFile(files.front());
+        EXPECT_EQ(event.dump(), content);
     }
-    // audit.log should still be present
+
     {
         auto files = findFilesWithPrefix(testdir + "/audit.log");
-        EXPECT_EQ(1, files.size());
+        EXPECT_EQ(0, files.size());
     }
+}
+
+/// Verify that we don't crash if we fail to parse the JSON
+TEST_F(AuditFileTest, TestCrashRecoveryGarbeledData) {
+    config.set_rotate_interval(3600);
+    config.set_rotate_size(100);
+
+    AuditFile auditfile("testing");
+    auditfile.reconfigure(config);
+
+    const std::string_view content = R"({ "this is some partial JSON" : )";
+    writeAuditFile(content);
+
+    auditfile.cleanup_old_logfile(testdir);
+    {
+        auto files = findFilesWithPrefix(testdir + "/testing");
+        EXPECT_EQ(1, files.size());
+        EXPECT_EQ(content, cb::io::loadFile(files.front()));
+    }
+
+    {
+        auto files = findFilesWithPrefix(testdir + "/audit.log");
+        EXPECT_EQ(0, files.size());
+    }
+}
+
+TEST_F(AuditFileTest, TestCrashRecoveryFileAlreadyExists) {
+    writeAuditFile(event.dump());
+    std::filesystem::path dir(testdir);
+
+    std::ofstream of;
+    of.open(dir / "testing-2015-03-13T02-36-00-audit.log", std::ios::binary);
+    of << "hello" << std::endl;
+    of.close();
+
+    config.set_rotate_interval(3600);
+    config.set_rotate_size(100);
+
+    AuditFile auditfile("testing");
+    auditfile.reconfigure(config);
+
+    auditfile.cleanup_old_logfile(testdir);
+
+    auto files = findFilesWithPrefix(testdir + "/testing-2015-03-13T02-36-00");
+    EXPECT_EQ(2, files.size());
 }
 
 TEST_F(AuditFileTest, MB53282) {

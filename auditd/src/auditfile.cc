@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -10,6 +9,7 @@
  */
 #include "auditfile.h"
 
+#include <fmt/format.h>
 #include <logger/logger.h>
 #include <memcached/isotime.h>
 #include <nlohmann/json.hpp>
@@ -17,13 +17,12 @@
 #include <platform/dirutils.h>
 #include <platform/platform_time.h>
 #include <platform/strerror.h>
-#include <utilities/json_utilities.h>
-
 #include <sys/stat.h>
 #include <algorithm>
-#include <cstring>
+#include <chrono>
 #include <iostream>
 #include <sstream>
+#include <thread>
 
 bool AuditFile::maybe_rotate_files() {
     if (is_open() && time_to_rotate_log()) {
@@ -147,31 +146,13 @@ void AuditFile::close_and_rotate_log() {
     open_time = 0;
 }
 
-void AuditFile::cleanup_old_logfile(const std::string& log_path) {
-    auto filename = cb::io::sanitizePath(log_path + "/audit.log");
-
-    if (!cb::io::isFile(filename)) {
-        return;
-    }
+static std::string tryGetTimestamp(const std::filesystem::path path) {
     // open the audit.log that needs archiving
-    std::string str = cb::io::loadFile(filename);
-
-    if (str.empty()) {
-        // empty file, just remove it.
-        if (remove(filename.c_str()) != 0) {
-            throw std::system_error(errno,
-                                    std::system_category(),
-                                    "AuditFile::cleanup_old_logfile(): "
-                                    "Failed to remove \"" +
-                                            filename + "\"");
-        }
-        return;
-    }
-
+    auto str = cb::io::loadFile(path.generic_string());
     // extract the first event
     std::size_t found = str.find_first_of("\n");
     if (found != std::string::npos) {
-        str.erase(found + 1, std::string::npos);
+        str.resize(found);
     }
 
     nlohmann::json json;
@@ -179,41 +160,84 @@ void AuditFile::cleanup_old_logfile(const std::string& log_path) {
         json = nlohmann::json::parse(str);
     } catch (const nlohmann::json::exception&) {
         throw std::runtime_error(
-                "AuditFile::cleanup_old_logfile(): "
-                "Failed to parse data in audit file "
-                "(invalid JSON) " +
-                filename);
+                "AuditFile::tryGetTimestamp(): Failed to parse data in "
+                "audit file (invalid JSON)");
     }
 
+    if (!json.contains("timestamp")) {
+        throw std::runtime_error(
+                "AuditFile::tryGetTimestamp(): \"timestamp\" not present "
+                "in first event");
+    }
+
+    return json["timestamp"].get<std::string>();
+}
+
+void AuditFile::cleanup_old_logfile(const std::string& log_path) {
+    std::filesystem::path directory(log_path);
+    auto original = directory / "audit.log";
+
+    if (!std::filesystem::exists(original) ||
+        std::filesystem::file_size(original) == 0) {
+        std::filesystem::remove_all(original);
+        return;
+    }
+
+    // try to pick out the timestamp
     std::string ts;
     try {
-        ts = cb::jsonGet<std::string>(json, "timestamp");
-    } catch (const nlohmann::json::exception& e) {
-        throw std::runtime_error(
-                "AuditFile::cleanup_old_logfile(): "
-                "Could not parse timestamp for auditfile: " +
-                filename + ". Exception thrown: " + e.what());
-    }
-
-    if (!is_timestamp_format_correct(ts)) {
-        throw std::runtime_error(
-                R"(AuditFile::cleanup_old_logfile(): Incorrect format for
-                    "timestamp" in audit file ")" +
-                filename);
+        ts = tryGetTimestamp(original);
+        if (!is_timestamp_format_correct(ts)) {
+            throw std::runtime_error(
+                    "AuditFile::cleanup_old_logfile(): Incorrect format for "
+                    "\"timestamp\"");
+        }
+    } catch (const std::exception& exception) {
+        LOG_WARNING(
+                R"("{}" occurred while parsing "{}" while trying to determine timestamp. Using current time instead)",
+                exception.what(),
+                original.generic_string());
+        ts = ISOTime::generatetimestamp();
     }
 
     ts = ts.substr(0, 19);
     std::replace(ts.begin(), ts.end(), ':', '-');
-    // form the archive filename
-    auto archive_file = log_path + "/" + hostname + "-" + ts + "-audit.log";
-    archive_file = cb::io::sanitizePath(archive_file);
-    if (rename(filename.c_str(), archive_file.c_str()) != 0) {
-        throw std::system_error(
-                errno,
-                std::system_category(),
-                "AuditFile::cleanup_old_logfile(): Failed to rename \"" +
-                        filename + "\" to \"" + archive_file + "\"");
-    }
+
+    int counter = 0;
+    do {
+        // form the archive filename
+        std::string name;
+        if (counter) {
+            name = fmt::format("{}-{}-audit.log.{}", hostname, ts, counter);
+        } else {
+            name = fmt::format("{}-{}-audit.log", hostname, ts);
+        }
+        auto archive_file = directory / name;
+        if (!exists(archive_file)) {
+            // Retry the renaming the file up to 50 times and back off
+            // every time we see an error before propagating the exception
+            // up to the caller.
+            int retry = 50;
+            do {
+                try {
+                    std::filesystem::rename(original, archive_file);
+                    return;
+                } catch (const std::exception& exception) {
+                    LOG_WARNING(R"(Failed to rename "{}" to "{}": {})",
+                                original.generic_string(),
+                                archive_file.generic_string(),
+                                exception.what());
+                    if (--retry == 0) {
+                        // give up and let the caller deal with the problem
+                        throw;
+                    }
+                    // Back off and retry
+                    std::this_thread::sleep_for(std::chrono::milliseconds{50});
+                }
+            } while (true);
+        }
+        ++counter;
+    } while (true);
 }
 
 bool AuditFile::write_event_to_disk(const nlohmann::json& output) {
