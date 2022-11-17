@@ -696,6 +696,7 @@ another colon.  For example, if your client is named, =slave1=, the
 | max_buffer_bytes                       | The maximum amount of bytes that can be sent without   |
 |                                        | receiving an ack from the consumer                     |
 | noop_enabled                           | Whether or not this connection sends noops             |
+| noop_tx_interval                       | The time interval between noop messages                |
 | noop_wait                              | Whether or not this connection is waiting for a        |
 |                                        | noop response from the consumer                        |
 | pending_disconnect                     | True if we're hanging up on this client                |

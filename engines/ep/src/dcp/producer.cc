@@ -36,6 +36,7 @@
 #include <memcached/connection_iface.h>
 #include <memcached/cookie_iface.h>
 #include <memcached/server_cookie_iface.h>
+#include <platform/timeutils.h>
 #include <nlohmann/json.hpp>
 #include <spdlog/fmt/fmt.h>
 #include <statistics/cbstat_collector.h>
@@ -1495,6 +1496,10 @@ void DcpProducer::addStats(const AddStatFn& add_stat, CookieIface& c) {
     addStat("last_sent_time", lastSendTime, add_stat, c);
     addStat("last_receive_time", lastReceiveTime, add_stat, c);
     addStat("noop_enabled", noopCtx.enabled, add_stat, c);
+    addStat("noop_tx_interval",
+            cb::time2text(noopCtx.dcpNoopTxInterval),
+            add_stat,
+            c);
     addStat("noop_wait", noopCtx.pendingRecv, add_stat, c);
     addStat("force_value_compression", forceValueCompression, add_stat, c);
     addStat("cursor_dropping", supportsCursorDropping, add_stat, c);
