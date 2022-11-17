@@ -2,13 +2,12 @@ add_library(memcached_daemon STATIC
             bucket_type.cc
             buckets.cc
             buckets.h
+            client_cert_config.cc
+            client_cert_config.h
             cluster_config.cc
             cluster_config.h
             cmdline.cc
             cmdline.h
-            cookie_trace_context.h
-            client_cert_config.cc
-            client_cert_config.h
             config_parse.cc
             config_parse.h
             connection.cc
@@ -17,16 +16,9 @@ add_library(memcached_daemon STATIC
             connection_folly.h
             connection_libevent.cc
             connection_libevent.h
-            error_map_manager.cc
-            error_map_manager.h
-            nobucket_taskable.cc
-            nobucket_taskable.h
-            external_auth_manager_thread.cc
-            external_auth_manager_thread.h
-            server_socket.cc
-            server_socket.h
             cookie.cc
             cookie.h
+            cookie_trace_context.h
             datatype_filter.cc
             datatype_filter.h
             debug_helpers.cc
@@ -36,6 +28,10 @@ add_library(memcached_daemon STATIC
             enginemap.cc
             enginemap.h
             environment.cc
+            error_map_manager.cc
+            error_map_manager.h
+            external_auth_manager_thread.cc
+            external_auth_manager_thread.h
             front_end_thread.h
             get_authorization_task.cc
             get_authorization_task.h
@@ -64,6 +60,8 @@ add_library(memcached_daemon STATIC
             network_interface_description.h
             network_interface_manager.cc
             network_interface_manager.h
+            nobucket_taskable.cc
+            nobucket_taskable.h
             opentelemetry.cc
             opentelemetry.h
             protocol/mcbp/adjust_timeofday_executor.cc
@@ -109,8 +107,8 @@ add_library(memcached_daemon STATIC
             protocol/mcbp/drop_privilege_executor.cc
             protocol/mcbp/engine_wrapper.cc
             protocol/mcbp/engine_wrapper.h
-            protocol/mcbp/executors.h
             protocol/mcbp/executors.cc
+            protocol/mcbp/executors.h
             protocol/mcbp/flush_command_context.cc
             protocol/mcbp/flush_command_context.h
             protocol/mcbp/gat_context.cc
@@ -137,12 +135,12 @@ add_library(memcached_daemon STATIC
             protocol/mcbp/remove_context.h
             protocol/mcbp/sasl_auth_command_context.cc
             protocol/mcbp/sasl_auth_command_context.h
+            protocol/mcbp/sasl_refresh_command_context.cc
+            protocol/mcbp/sasl_refresh_command_context.h
             protocol/mcbp/sasl_start_command_context.cc
             protocol/mcbp/sasl_start_command_context.h
             protocol/mcbp/sasl_step_command_context.cc
             protocol/mcbp/sasl_step_command_context.h
-            protocol/mcbp/sasl_refresh_command_context.cc
-            protocol/mcbp/sasl_refresh_command_context.h
             protocol/mcbp/select_bucket_executor.cc
             protocol/mcbp/session_validated_command_context.cc
             protocol/mcbp/session_validated_command_context.h
@@ -158,6 +156,8 @@ add_library(memcached_daemon STATIC
             sendbuffer.cc
             sendbuffer.h
             server_api.cc
+            server_socket.cc
+            server_socket.h
             session_cas.cc
             session_cas.h
             settings.cc
@@ -168,6 +168,8 @@ add_library(memcached_daemon STATIC
             ssl_utils.h
             start_sasl_auth_task.cc
             start_sasl_auth_task.h
+            stat_timings.cc
+            stat_timings.h
             stats.cc
             stats.h
             stats_tasks.cc
@@ -175,8 +177,8 @@ add_library(memcached_daemon STATIC
             stdin_check.cc
             subdocument.cc
             subdocument.h
-            subdocument_context.h
             subdocument_context.cc
+            subdocument_context.h
             subdocument_traits.cc
             subdocument_traits.h
             subdocument_validators.cc
@@ -188,8 +190,6 @@ add_library(memcached_daemon STATIC
             timing_interval.h
             timings.cc
             timings.h
-            stat_timings.cc
-            stat_timings.h
             tls_configuration.cc
             tls_configuration.h
             tracing.cc
