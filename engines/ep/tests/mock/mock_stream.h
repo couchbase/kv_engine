@@ -163,7 +163,7 @@ public:
         completeBackfillHook = hook;
     }
 
-    void setNextHook(std::function<void()> hook) {
+    void setNextHook(std::function<void(const DcpResponse*)> hook) {
         nextHook = hook;
     }
 

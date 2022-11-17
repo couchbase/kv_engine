@@ -426,7 +426,7 @@ protected:
 
     // MB-37468: Test only hooks set via Mock class
     std::function<void()> completeBackfillHook;
-    std::function<void()> nextHook;
+    std::function<void(const DcpResponse*)> nextHook;
 
     // Whether the responses sent using this stream should contain the body
     const IncludeValue includeValue;
