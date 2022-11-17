@@ -266,6 +266,7 @@ INSTALL(TARGETS memcached
 # Unit tests
 #
 cb_add_test_executable(memcached_unit_tests
+                       bucket_metering_stats_test.cc
                        bucket_validator_test.cc
                        buckets_test.cc
                        client_cert_config_test.cc
@@ -281,7 +282,6 @@ cb_add_test_executable(memcached_unit_tests
                        settings_test.cc
                        sloppy_gauge_test.cc
                        ssl_utils_test.cc
-                       tests/bucket_metering_stats_test.cc
                        tls_configuration_test.cc)
 add_dependencies(memcached_unit_tests Generate_kv_engine_X509_Test_Certificates)
 cb_enable_unity_build(memcached_unit_tests)
