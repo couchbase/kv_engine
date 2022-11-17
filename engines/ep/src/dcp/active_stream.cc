@@ -1355,6 +1355,7 @@ bool ActiveStream::shouldProcessItem(const Item& item) {
     if (item.getOperation() == queue_op::system_event) {
         switch (SystemEvent(item.getFlags())) {
         case SystemEvent::Collection:
+        case SystemEvent::ModifyCollection:
         case SystemEvent::Scope:
             return true;
         }

@@ -460,6 +460,19 @@ public:
                     }
                     break;
                 }
+                case SystemEvent::ModifyCollection: {
+                    EXPECT_FALSE(qi->isDeleted());
+                    const auto* collection =
+                            Collections::VB::Manifest::getCollectionFlatbuffer(
+                                    qi->getValueView());
+                    replica.wlock().replicaModifyCollection(
+                            *vbR,
+                            Collections::ManifestUid{collection->uid()},
+                            collection->collectionId(),
+                            getCanDeduplicateFromHistory(collection->history()),
+                            qi->getBySeqno());
+                    break;
+                }
                 case SystemEvent::Scope: {
                     if (qi->isDeleted()) {
                         const auto* scope = Collections::VB::Manifest::
@@ -1291,6 +1304,18 @@ TEST_P(VBucketManifestTest, add_with_history) {
               manifest.getActiveManifest().public_getCanDeduplicate(
                       CollectionEntry::fruit));
     EXPECT_EQ(CanDeduplicate::No,
+              manifest.getReplicaManifest().public_getCanDeduplicate(
+                      CollectionEntry::fruit));
+
+    // Now modify (remove/add shop1 with a different setting)
+    EXPECT_TRUE(manifest.update(
+            cm.remove(ScopeEntry::shop1)
+                    .add(ScopeEntry::shop1)
+                    .add(CollectionEntry::fruit, ScopeEntry::shop1)));
+    EXPECT_EQ(CanDeduplicate::Yes,
+              manifest.getActiveManifest().public_getCanDeduplicate(
+                      CollectionEntry::fruit));
+    EXPECT_EQ(CanDeduplicate::Yes,
               manifest.getReplicaManifest().public_getCanDeduplicate(
                       CollectionEntry::fruit));
 }

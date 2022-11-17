@@ -16,6 +16,8 @@
 #pragma once
 
 /// underlying size of uint32_t as this is to be stored in the Item flags field.
+/// Note: The values of each enum entry are encoded into the system event key
+/// which is persisted to disk.
 enum class SystemEvent : uint32_t {
     /**
      * The Collection system event represents the beginning or end of a
@@ -23,14 +25,13 @@ enum class SystemEvent : uint32_t {
      * collection ID. When the event is queued in a checkpoint or stored on
      * disk the seqno of that item states that this is the point when that
      * collection became accessible unless that queued/stored item is deleted,
-     * then it represent when that collection became inaccesible (logically
+     * then it represent when that collection became inaccessible (logically
      * deleted).
      *
-     * A Collection system event when queued into a checkpoint carries with it
-     * a value, the value is used to maintain a per vbucket JSON collection's
-     * manifest (for persisted buckets).
+     * In-use since 7.0 (epoch of SystemEvents)
+     *
      */
-    Collection,
+    Collection = 0,
 
     /**
      * The Scope system event represents the beginning or end of a
@@ -40,8 +41,20 @@ enum class SystemEvent : uint32_t {
      * scope became accessible unless that queued/stored item is deleted,
      * then it represent when that scope became inaccessible
      *
+     * In-use since 7.0 (epoch of SystemEvents)
+     *
      */
-    Scope
+    Scope = 1,
+
+    /**
+     * The ModifyCollection system event represents a change to some mutable
+     * collection meta data. The modified event must be different to the create
+     * event (different key.
+     *
+     * Added in 7.2
+     *
+     */
+    ModifyCollection = 2
 };
 
 static inline std::string to_string(const SystemEvent se) {
@@ -50,6 +63,8 @@ static inline std::string to_string(const SystemEvent se) {
         return "Collection";
     case SystemEvent::Scope:
         return "Scope";
+    case SystemEvent::ModifyCollection:
+        return "ModifyCollection";
     }
     throw std::invalid_argument("to_string(SystemEvent) unknown " +
                                 std::to_string(int(se)));

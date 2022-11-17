@@ -171,6 +171,27 @@ std::optional<Manifest::CollectionCreation> Manifest::applyCreates(
     return rv;
 }
 
+std::optional<Manifest::CollectionModification> Manifest::applyModifications(
+        const WriteHandle& wHandle,
+        ::VBucket& vb,
+        std::vector<CollectionModification>& changes) {
+    std::optional<CollectionModification> rv;
+    if (!changes.empty()) {
+        rv = changes.back();
+        changes.pop_back();
+    }
+    for (const auto& modification : changes) {
+        modifyCollection(wHandle,
+                         vb,
+                         manifestUid,
+                         modification.cid,
+                         modification.canDeduplicate,
+                         OptionalSeqno{/*no-seqno*/});
+    }
+    changes.clear();
+    return rv;
+}
+
 std::optional<ScopeID> Manifest::applyScopeDrops(
         const WriteHandle& wHandle,
         ::VBucket& vb,
@@ -365,6 +386,17 @@ void Manifest::completeUpdate(mutex_type::UpgradeHolder&& upgradeLock,
                          OptionalSeqno{/*no-seqno*/});
     }
 
+    auto finalModification =
+            applyModifications(wHandle, vb, changeset.collectionsToModify);
+    if (finalModification) {
+        modifyCollection(wHandle,
+                         vb,
+                         changeset.getUidForChange(manifestUid),
+                         finalModification.value().cid,
+                         finalModification.value().canDeduplicate,
+                         OptionalSeqno{/*no-seqno*/});
+    }
+
     // This is done last so the scope deletion follows any collection
     // deletions
     auto finalScopeDrop = applyScopeDrops(wHandle, vb, changeset.scopesToDrop);
@@ -389,6 +421,9 @@ void Manifest::completeUpdate(mutex_type::UpgradeHolder&& upgradeLock,
 //              property has changed
 static bool isImmutablePropertyModified(const CollectionMetaData& newEntry,
                                         const ManifestEntry& existingEntry) {
+    // Scope cannot change.
+    // Name cannot change.
+    // CanDeduplicate (history) can change.
     return newEntry.sid != existingEntry.getScopeID() ||
            newEntry.name != existingEntry.getName();
 }
@@ -582,6 +617,45 @@ void Manifest::dropCollection(WriteHandle& wHandle,
     map.erase(itr);
 }
 
+void Manifest::modifyCollection(const WriteHandle& wHandle,
+                                ::VBucket& vb,
+                                ManifestUid newManUid,
+                                CollectionID cid,
+                                CanDeduplicate canDeduplicate,
+                                OptionalSeqno optionalSeqno) {
+    auto itr = map.find(cid);
+    if (itr == map.end()) {
+        throwException<std::logic_error>(
+                __FUNCTION__, "did not find collection:" + cid.to_string());
+    }
+
+    // record the uid of the manifest which modified the collection
+    updateUid(newManUid, optionalSeqno.has_value());
+
+    // Now change the value
+    itr->second.setCanDeduplicate(canDeduplicate);
+
+    auto seqno = queueCollectionSystemEvent(wHandle,
+                                            vb,
+                                            cid,
+                                            itr->second.getName(),
+                                            itr->second,
+                                            SystemEventType::Modify,
+                                            optionalSeqno,
+                                            {/*no callback*/});
+
+    EP_LOG_DEBUG(
+            "{} modify collection:id:{} from scope:{}, seq:{}, manifest:{:#x}"
+            ", {}{}",
+            vb.getId(),
+            cid,
+            itr->second.getScopeID(),
+            seqno,
+            newManUid,
+            canDeduplicate,
+            optionalSeqno.has_value() ? ", replica" : "");
+}
+
 void Manifest::collectionDropPersisted(CollectionID cid, uint64_t seqno) {
     // As soon as we get notification that a dropped collection was flushed
     // successfully, mark this flag so subsequent flushes can maintain stats
@@ -750,6 +824,9 @@ Manifest::ManifestChanges Manifest::processManifest(
         if (itr == manifest.end()) {
             // Not found, so this collection should be dropped.
             rv.collectionsToDrop.push_back(cid);
+        } else if (entry.getCanDeduplicate() != itr->second.canDeduplicate) {
+            // Found the collection and history was modified
+            rv.collectionsToModify.push_back({cid, itr->second.canDeduplicate});
         }
     }
 
@@ -891,7 +968,9 @@ std::unique_ptr<Item> Manifest::makeCollectionSystemEvent(
     flatbuffers::FlatBufferBuilder builder;
 
     switch (type) {
-    case SystemEventType::Create: {
+    case SystemEventType::Create:
+    // Modify carries the current collection metadata (same as data as create)
+    case SystemEventType::Modify: {
         auto collection = CreateCollection(
                 builder,
                 uid,
@@ -914,8 +993,20 @@ std::unique_ptr<Item> Manifest::makeCollectionSystemEvent(
     }
     }
 
-    auto item = SystemEventFactory::makeCollectionEvent(
-            cid, {builder.GetBufferPointer(), builder.GetSize()}, seq);
+    std::unique_ptr<Item> item;
+    switch (type) {
+    case SystemEventType::Create:
+    case SystemEventType::Delete: {
+        item = SystemEventFactory::makeCollectionEvent(
+                cid, {builder.GetBufferPointer(), builder.GetSize()}, seq);
+        break;
+    }
+    case SystemEventType::Modify: {
+        item = SystemEventFactory::makeModifyCollectionEvent(
+                cid, {builder.GetBufferPointer(), builder.GetSize()}, seq);
+        break;
+    }
+    }
 
     if (type == SystemEventType::Delete) {
         item->setDeleted();

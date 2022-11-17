@@ -312,11 +312,7 @@ public:
     static DropScopeEventData getDropScopeEventData(
             std::string_view flatbufferData);
 
-    enum SystemEventType {
-        Create,
-        Delete
-        // @todo Modify
-    };
+    enum SystemEventType { Create, Modify, Delete };
 
     /**
      * @return an Item that represent a collection create or delete
@@ -338,6 +334,11 @@ public:
         ScopeCollectionPair identifiers;
         std::string name;
         cb::ExpiryLimit maxTtl;
+        CanDeduplicate canDeduplicate;
+    };
+
+    struct CollectionModification {
+        CollectionID cid;
         CanDeduplicate canDeduplicate;
     };
 
@@ -367,6 +368,7 @@ public:
         std::vector<ScopeModified> scopesToModify;
         std::vector<CollectionCreation> collectionsToCreate;
         std::vector<CollectionID> collectionsToDrop;
+        std::vector<CollectionModification> collectionsToModify;
         // stores any new value (if needed)
         std::optional<bool> changeScopeWithDataLimitExists;
 
@@ -376,7 +378,8 @@ public:
         bool none() const {
             return scopesToCreate.empty() && scopesToModify.empty() &&
                    scopesToDrop.empty() && collectionsToCreate.empty() &&
-                   collectionsToDrop.empty() && !changeScopeWithDataLimitExists;
+                   collectionsToDrop.empty() && collectionsToModify.empty() &&
+                   !changeScopeWithDataLimitExists;
         }
 
         /// @return true if there are collections/scopes to create or drop
@@ -414,8 +417,8 @@ protected:
 
     /**
      * Sub-functions used by update.
-     * applyCreates/applyDrops and applyScopeCreates/applyScopeDrops follow
-     * a similar pattern as follows.
+     * applyCreates/applyDrops/applyModifications and
+     * applyScopeCreates/applyScopeDrops follow a similar pattern as follows.
      *
      * Given a 'changeset' (vector of changes) remove the last entry of the
      * changes vector and then call an 'update' function on every remaining
@@ -439,6 +442,11 @@ protected:
     std::optional<CollectionID> applyDrops(WriteHandle& wHandle,
                                            ::VBucket& vb,
                                            std::vector<CollectionID>& changes);
+
+    std::optional<CollectionModification> applyModifications(
+            const WriteHandle& wHandle,
+            ::VBucket& vb,
+            std::vector<CollectionModification>& changes);
 
     std::optional<ScopeCreation> applyScopeCreates(
             const WriteHandle& wHandle,
@@ -490,6 +498,27 @@ protected:
                         ManifestUid newManUid,
                         CollectionID cid,
                         OptionalSeqno optionalSeqno);
+
+    /**
+     * Modify the collection from the vbucket
+     *
+     * @param wHandle The manifest write handle under which this operation is
+     *        currently locked. Required to ensure we lock correctly around
+     *        VBucket::notifyNewSeqno
+     * @param vb The vbucket to modify the collection in
+     * @param newManUid the uid of the manifest which made the change
+     * @param cid CollectionID to modify
+     * @param canDeduplicate current deduplicate setting
+     * @param optionalSeqno Either a seqno to assign to the modification event
+     *        of the collection or none (none means the checkpoint assigns the
+     *        seqno).
+     */
+    void modifyCollection(const WriteHandle& wHandle,
+                          ::VBucket& vb,
+                          ManifestUid newManUid,
+                          CollectionID cid,
+                          CanDeduplicate canDeduplicate,
+                          OptionalSeqno optionalSeqno);
 
     /**
      * Create a scope in the vbucket.

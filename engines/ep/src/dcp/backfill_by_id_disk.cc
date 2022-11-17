@@ -45,8 +45,10 @@ backfill_status_t DCPBackfillByIdDisk::create() {
     // 2) the range for the collection itself
 
     // The system event start/end we can make from SystemEventFactory
-    auto sysStart = SystemEventFactory::makeCollectionEventKey(cid);
-    auto sysEnd = SystemEventFactory::makeCollectionEventKey(uint32_t{cid} + 1);
+    auto sysStart = SystemEventFactory::makeCollectionEventKey(
+            cid, SystemEvent::Collection);
+    auto sysEnd = SystemEventFactory::makeCollectionEventKey(
+            uint32_t{cid} + 1, SystemEvent::Collection);
 
     // Create the start and end keys for the collection itself
     cb::mcbp::unsigned_leb128<CollectionIDType> start(uint32_t{cid});

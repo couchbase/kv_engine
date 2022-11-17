@@ -2602,8 +2602,8 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
 
             // We've finish processing this collection.
             // Create a SystemEvent key for the collection and process it.
-            auto collectionKey =
-                    SystemEventFactory::makeCollectionEventKey(dc.collectionId);
+            auto collectionKey = SystemEventFactory::makeCollectionEventKey(
+                    dc.collectionId, SystemEvent::Collection);
 
             keySlice = {reinterpret_cast<const char*>(collectionKey.data()),
                         collectionKey.size()};

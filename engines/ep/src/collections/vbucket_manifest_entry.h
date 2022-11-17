@@ -206,6 +206,10 @@ public:
         return meta->canDeduplicate;
     }
 
+    void setCanDeduplicate(CanDeduplicate value) {
+        meta->canDeduplicate.store(value);
+    }
+
 private:
     /**
      * Return a string for use in throwException, returns:

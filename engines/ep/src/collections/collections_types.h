@@ -327,7 +327,12 @@ public:
     const std::string name;
     const ScopeID scope;
     const cb::ExpiryLimit maxTtl;
-    const CanDeduplicate canDeduplicate;
+
+    // atomic: can be changed by any thread
+    // mutable: the VB::Manifest "handle" provides a const interface (the map of
+    // collections cannot be changed), but allows some changes to be made to
+    // the values in that map.
+    mutable std::atomic<CanDeduplicate> canDeduplicate;
 };
 std::ostream& operator<<(std::ostream& os,
                          const CollectionSharedMetaData& meta);
