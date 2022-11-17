@@ -45,9 +45,17 @@ level = memcacheConstants.DURABILITY_LEVEL_MAJORITY
 timeout = 1000
 
 if op == "get":
-    print (client.get(key))
+    print (client.get(key, collection=collection))
 elif op == "set":
-    print (client.set(key, 0, 0, value))
+    print (client.set(key, 0, 0, value, collection=collection))
+elif op == "bulk_set":
+    count = int(sys.argv[9])
+    for i in range(count):
+        client.set(key + "_" + str(i),
+                   0,
+                   0,
+                   value,
+                   collection=collection)
 elif op == "loop_set":
     count = int(sys.argv[9])
     for i in range(count):
