@@ -450,7 +450,7 @@ void Manifest::createCollection(const WriteHandle& wHandle,
                                             identifiers.second,
                                             collectionName,
                                             entry,
-                                            false,
+                                            SystemEventType::Create,
                                             optionalSeqno,
                                             {/*no callback*/});
 
@@ -561,7 +561,7 @@ void Manifest::dropCollection(WriteHandle& wHandle,
             cid,
             {/*no name*/},
             itr->second,
-            true /*delete*/,
+            SystemEventType::Delete,
             optionalSeqno,
             vb.getSaveDroppedCollectionCallback(cid, wHandle, itr->second));
 
@@ -886,10 +886,12 @@ std::unique_ptr<Item> Manifest::makeCollectionSystemEvent(
         CollectionID cid,
         std::string_view collectionName,
         const ManifestEntry& entry,
-        bool deleted,
+        SystemEventType type,
         OptionalSeqno seq) {
     flatbuffers::FlatBufferBuilder builder;
-    if (!deleted) {
+
+    switch (type) {
+    case SystemEventType::Create: {
         auto collection = CreateCollection(
                 builder,
                 uid,
@@ -901,16 +903,20 @@ std::unique_ptr<Item> Manifest::makeCollectionSystemEvent(
                 builder.CreateString(collectionName.data(),
                                      collectionName.size()));
         builder.Finish(collection);
-    } else {
+        break;
+    }
+    case SystemEventType::Delete: {
         auto collection = CreateDroppedCollection(
                 builder, uid, uint32_t(entry.getScopeID()), uint32_t(cid));
         builder.Finish(collection);
+        break;
+    }
     }
 
     auto item = SystemEventFactory::makeCollectionEvent(
             cid, {builder.GetBufferPointer(), builder.GetSize()}, seq);
 
-    if (deleted) {
+    if (type == SystemEventType::Delete) {
         item->setDeleted();
     }
     return item;
@@ -922,7 +928,7 @@ uint64_t Manifest::queueCollectionSystemEvent(
         CollectionID cid,
         std::string_view collectionName,
         const ManifestEntry& entry,
-        bool deleted,
+        SystemEventType type,
         OptionalSeqno seq,
         std::function<void(int64_t)> assignedSeqnoCallback) const {
     // If seq is not set, then this is an active vbucket queueing the event.
@@ -932,7 +938,7 @@ uint64_t Manifest::queueCollectionSystemEvent(
     }
 
     auto item = makeCollectionSystemEvent(
-            getManifestUid(), cid, collectionName, entry, deleted, seq);
+            getManifestUid(), cid, collectionName, entry, type, seq);
 
     // Create and transfer Item ownership to the VBucket
     auto rv = vb.addSystemEventItem(
