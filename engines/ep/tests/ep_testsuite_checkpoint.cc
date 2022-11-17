@@ -155,7 +155,7 @@ static enum test_result test_checkpoint_deduplication(EngineIface* h) {
     for (int i = 0; i < 5; i++) {
         for (int j = 0; j < 4500; j++) {
             char key[8];
-            sprintf(key, "key%d", j);
+            snprintf(key, sizeof(key), "key%d", j);
             checkeq(cb::engine_errc::success,
                     store(h, nullptr, StoreSemantics::Set, key, "value"),
                     "Failed to store an item.");
