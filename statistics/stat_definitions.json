@@ -1760,7 +1760,8 @@
     },
     {
         "key": "cmd_lookup_10s_count",
-        "unit": "count"
+        "unit": "count",
+        "description": "The number of lookup operations performed within the last 10 seconds"
     },
 /* us suffix would be confusing in Prometheus as the stat is scaled to seconds */
     {
@@ -1768,11 +1769,13 @@
         "unit": "microseconds",
         "prometheus": {
             "family": "cmd_lookup_10s_duration"
-        }
+        },
+        "description": "The total duration of lookup operations performed over the last 10 seconds"
     },
     {
         "key": "cmd_mutation_10s_count",
-        "unit": "count"
+        "unit": "count",
+        "description": "The number of mutation operations performed within the last 10 seconds"
     },
 /* us suffix would be confusing in Prometheus as the stat is scaled to seconds */
     {
@@ -1780,7 +1783,8 @@
         "unit": "microseconds",
         "prometheus": {
             "family": "cmd_mutation_10s_duration"
-        }
+        },
+        "description": "The total duration of mutation operations performed over the last 10 seconds"
     },
     {
         "key": "total_resp_errors",
