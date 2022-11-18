@@ -818,11 +818,26 @@ public:
     /// Notify that a command was executed (needed for command rate limiting)
     void commandExecuted();
 
+    /// Try to shut down a given number of connections
+    static void tryInitiateShutdown(size_t num);
+
 protected:
     /**
      * Protected constructor so that it may only be used by MockSubclasses
      */
     explicit Connection(FrontEndThread& thr);
+
+    /**
+     * Initiate disconnect of this connection if all of the following
+     * is true:
+     *    <ol>
+     *    <li> It is not an internal client (@ns_server etc)</li>
+     *    <li> It does not have any cookies in ewb state</li>
+     *    </ol>
+     *
+     * @return true if shutdown was initiated
+     */
+    bool maybeInitiateShutdown();
 
     /**
      * Close the connection. If there is any references to the connection
@@ -889,6 +904,20 @@ protected:
 
     void updateSendBytes(size_t nbytes);
     void updateRecvBytes(size_t nbytes);
+
+    /// Update this connections location in the LRU list
+    void updateLru();
+
+    /// Remove this connection from the LRU list
+    void unlinkLru();
+
+    /// This connection LRU related information
+    struct {
+        /// Pointer to the next connection in the LRU list
+        Connection* next = {nullptr};
+        /// Pointer to the previous connection in the LRU list
+        Connection* prev = {nullptr};
+    } lru;
 
     /**
      * The "list" of commands currently being processed. We ALWAYS keep the

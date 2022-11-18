@@ -25,6 +25,21 @@
 #include <cstring>
 #include <system_error>
 
+std::string to_string(ConnectionLimitMode mode) {
+    switch (mode) {
+    case ConnectionLimitMode::Disconnect:
+        return "disconnect";
+    case ConnectionLimitMode::Recycle:
+        return "recycle";
+    }
+    throw std::invalid_argument("Invalid ConnectionLimitMode: " +
+                                std::to_string(int(mode)));
+}
+
+std::ostream& operator<<(std::ostream& os, const ConnectionLimitMode& mode) {
+    return os << to_string(mode);
+}
+
 Settings::Settings() = default;
 Settings::~Settings() = default;
 
@@ -348,6 +363,23 @@ static void handle_system_connections(Settings& s, const nlohmann::json& obj) {
     s.setSystemConnections(obj.get<size_t>());
 }
 
+void handle_free_connection_pool_size(Settings& s, const nlohmann::json& obj) {
+    s.setFreeConnectionPoolSize(obj.get<size_t>());
+}
+
+static void handle_connection_limit_mode(Settings& s,
+                                         const nlohmann::json& obj) {
+    const auto str = obj.get<std::string>();
+    if (str == "disconnect") {
+        s.setConnectionLimitMode(ConnectionLimitMode::Disconnect);
+    } else if (str == "recycle") {
+        s.setConnectionLimitMode(ConnectionLimitMode::Recycle);
+    } else {
+        throw std::invalid_argument(
+                R"(connection_limit_mode must be "disconnect" or "recycle")");
+    }
+}
+
 /**
  * Handle the "sasl_mechanisms" tag in the settings
  *
@@ -659,6 +691,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
             {"max_send_queue_size", handle_max_send_queue_size},
             {"max_connections", handle_max_connections},
             {"system_connections", handle_system_connections},
+            {"free_connection_pool_size", handle_free_connection_pool_size},
+            {"connection_limit_mode", handle_connection_limit_mode},
             {"sasl_mechanisms", handle_sasl_mechanisms},
             {"ssl_sasl_mechanisms", handle_ssl_sasl_mechanisms},
             {"stdin_listener", handle_stdin_listener},
@@ -918,6 +952,42 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                      other.system_connections);
             setSystemConnections(other.system_connections);
         }
+    }
+
+    if (other.has.free_connection_pool_size) {
+        if (other.free_connection_pool_size != free_connection_pool_size) {
+            LOG_INFO("Change free connections pool size from {} to {}",
+                     free_connection_pool_size,
+                     other.free_connection_pool_size);
+            setFreeConnectionPoolSize(other.free_connection_pool_size);
+        }
+    } else {
+        // Auto tune to 1%
+        const auto old_size = getFreeConnectionPoolSize();
+        const size_t new_size = getMaxUserConnections() / 100;
+        if (old_size != new_size) {
+            LOG_INFO("Change free connections pool size from {} to {}",
+                     old_size,
+                     new_size);
+            setFreeConnectionPoolSize(new_size);
+        }
+    }
+
+    if (other.has.connection_limit_mode &&
+        other.getConnectionLimitMode() != getConnectionLimitMode()) {
+        if (other.getConnectionLimitMode() == ConnectionLimitMode::Recycle) {
+            LOG_INFO(
+                    "Change connection limit mode from {} to {} with a pool "
+                    "size of {}",
+                    getConnectionLimitMode(),
+                    other.getConnectionLimitMode(),
+                    getFreeConnectionPoolSize());
+        } else {
+            LOG_INFO("Change connection limit mode from {} to {}",
+                     getConnectionLimitMode(),
+                     other.getConnectionLimitMode());
+        }
+        setConnectionLimitMode(other.getConnectionLimitMode());
     }
 
     if (other.has.xattr_enabled) {

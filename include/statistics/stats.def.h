@@ -450,6 +450,7 @@ STAT(curr_connections, , count, , )
 STAT(system_connections, , count, , )
 STAT(total_connections, , count, , ) // total since start/reset
 STAT(connection_structures, , count, , )
+STAT(connection_recycle_high_watermark, , none, , )
 
 // Amount of memory allocated by the daemon.
 STAT(daemon_memory_allocated, , bytes, , )

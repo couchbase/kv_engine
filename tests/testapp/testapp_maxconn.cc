@@ -37,7 +37,7 @@ protected:
         connections.clear();
         for (;;) {
             const auto [uc, sc] = getConnectionCounts();
-            if (uc == idleUser && sc == idleSystem) {
+            if (uc <= idleUser && sc <= idleSystem) {
                 break;
             }
             // back off to avoid busyloop
@@ -113,4 +113,46 @@ TEST_F(MaxConnectionTest, SystemConnection) {
     // But I should be able to create a normal connection
     auto c = user->clone();
     c->getSaslMechanisms();
+}
+
+TEST_F(MaxConnectionTest, ConnectionModeRecycle) {
+    admin->stats(
+            [](const auto& k, const auto& v) {
+                if (k == "connection_recycle_high_watermark") {
+                    FAIL() << "connection_recycle_high_watermark should not be "
+                              "reported for connection_limit_mode=disconnect";
+                }
+            },
+            "");
+    memcached_cfg["free_connection_pool_size"] = 5;
+    memcached_cfg["connection_limit_mode"] = "recycle";
+    reconfigure();
+    bool found = false;
+    admin->stats(
+            [&found](const auto& k, const auto& v) {
+                if (k == "connection_recycle_high_watermark") {
+                    EXPECT_EQ("10", v) << "Expected watermark to be max user "
+                                          "connections - 5";
+                    found = true;
+                }
+            },
+            "");
+    EXPECT_TRUE(found)
+            << "connection_recycle_high_watermark not reported in stats";
+
+    // I should be able to continue to accept new clients. The max
+    // number of user connections is 15 with a pool of 5 connections
+    for (int ii = 0; ii < 100; ++ii) {
+        connections.emplace_back(user->clone());
+        // execute a command on the first connection to make sure
+        // that it gets moved in the LRU and won't get recycled (if it
+        // gets recycled we would see a socket failure
+        connections.front()->getSaslMechanisms();
+    }
+
+    // But the current connection should not exceed user connections
+    const auto current = getConnectionCounts();
+    EXPECT_LE(current.first, USER_CONNECTIONS);
+    memcached_cfg.erase("free_connection_pool_size");
+    reconfigure();
 }
