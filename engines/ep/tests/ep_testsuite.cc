@@ -7721,7 +7721,9 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
     if (isMagmaBucket(h)) {
         for (const auto& statGroup : {"", "config"}) {
             auto& stats = statsKeys.at(statGroup);
-            stats.insert(stats.end(), {"ep_history_retention_seconds"});
+            stats.insert(stats.end(),
+                         {"ep_history_retention_seconds",
+                          "ep_history_retention_bytes"});
         }
     }
 

@@ -2142,6 +2142,49 @@ TEST_P(KVBucketParamTest, HistoryRetentionSeconds_NotMagma) {
     EXPECT_THAT(err, testing::HasSubstr("requirements not met"));
 }
 
+TEST_P(KVBucketParamTest, HistoryRetentionBytes) {
+    if (isNexus() || !hasMagma()) {
+        GTEST_SKIP();
+    }
+
+    const size_t newVal = 456;
+    ASSERT_NE(newVal, store->getHistoryRetentionBytes());
+    std::string err;
+    engine->setFlushParam(
+            "history_retention_bytes", std::to_string(newVal), err);
+    EXPECT_EQ(newVal, store->getHistoryRetentionBytes());
+}
+
+TEST_P(KVBucketParamTest, HistoryRetentionBytes_NotPersistent) {
+    if (!ephemeral()) {
+        GTEST_SKIP();
+    }
+
+    const auto initialVal = store->getHistoryRetentionBytes();
+    const auto newVal = 456;
+    ASSERT_NE(initialVal, newVal);
+    std::string err;
+    EXPECT_EQ(cb::engine_errc::invalid_arguments,
+              engine->setFlushParam(
+                      "history_retention_bytes", std::to_string(newVal), err));
+    EXPECT_THAT(err, testing::HasSubstr("requirements not met"));
+}
+
+TEST_P(KVBucketParamTest, HistoryRetentionBytes_NotMagma) {
+    if (hasMagma()) {
+        GTEST_SKIP();
+    }
+
+    const auto initialVal = store->getHistoryRetentionBytes();
+    const auto newVal = 456;
+    ASSERT_NE(initialVal, newVal);
+    std::string err;
+    EXPECT_EQ(cb::engine_errc::invalid_arguments,
+              engine->setFlushParam(
+                      "history_retention_bytes", std::to_string(newVal), err));
+    EXPECT_THAT(err, testing::HasSubstr("requirements not met"));
+}
+
 class StoreIfTest : public KVBucketTest {
 public:
     void SetUp() override {

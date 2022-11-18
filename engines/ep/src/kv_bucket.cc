@@ -141,6 +141,8 @@ public:
             store.setSeqnoPersistenceTimeout(std::chrono::seconds(value));
         } else if (key == "history_retention_seconds") {
             store.setHistoryRetentionSeconds(std::chrono::seconds(value));
+        } else if (key == "history_retention_bytes") {
+            store.setHistoryRetentionBytes(value);
         } else {
             EP_LOG_WARN("Failed to change value for unknown variable, {}", key);
         }
@@ -450,6 +452,11 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
             std::chrono::seconds(config.getHistoryRetentionSeconds()));
     config.addValueChangedListener(
             "history_retention_seconds",
+            std::make_unique<EPStoreValueChangeListener>(*this));
+
+    setHistoryRetentionBytes(config.getHistoryRetentionBytes());
+    config.addValueChangedListener(
+            "history_retention_bytes",
             std::make_unique<EPStoreValueChangeListener>(*this));
 }
 
@@ -3087,4 +3094,12 @@ void KVBucket::setHistoryRetentionSeconds(std::chrono::seconds secs) {
 
 std::chrono::seconds KVBucket::getHistoryRetentionSeconds() const {
     return historyRetentionSeconds;
+}
+
+void KVBucket::setHistoryRetentionBytes(size_t bytes) {
+    historyRetentionBytes = bytes;
+}
+
+size_t KVBucket::getHistoryRetentionBytes() const {
+    return historyRetentionBytes;
 }

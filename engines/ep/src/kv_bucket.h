@@ -936,6 +936,10 @@ public:
 
     std::chrono::seconds getHistoryRetentionSeconds() const;
 
+    void setHistoryRetentionBytes(size_t bytes);
+
+    size_t getHistoryRetentionBytes() const;
+
 protected:
     /**
      * Get the checkpoint destroyer task responsible for checkpoints from the
@@ -1197,6 +1201,9 @@ protected:
 
     /// Seconds of history a bucket should aim to retain on disk.
     std::atomic<std::chrono::seconds> historyRetentionSeconds;
+
+    /// Max bytes of history an individual vbucket should aim to retain on disk.
+    std::atomic<size_t> historyRetentionBytes;
 
     friend class KVBucketTest;
 

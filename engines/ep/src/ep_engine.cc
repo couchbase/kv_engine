@@ -849,6 +849,8 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setSeqnoPersistenceTimeout(std::stoul(val));
         } else if (key == "history_retention_seconds") {
             configuration.setHistoryRetentionSeconds(std::stoul(val));
+        } else if (key == "history_retention_bytes") {
+            configuration.setHistoryRetentionBytes(std::stoul(val));
         } else {
             msg = "Unknown config param";
             rv = cb::engine_errc::invalid_arguments;
