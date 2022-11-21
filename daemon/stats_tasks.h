@@ -64,3 +64,14 @@ protected:
     bool run() override;
     const std::string user;
 };
+
+/// Task to collect the connection details stats
+class StatsTaskClientConnectionDetails : public StatsTask {
+public:
+    StatsTaskClientConnectionDetails(Cookie& cookie);
+    std::string getDescription() const override;
+    std::chrono::microseconds maxExpectedDuration() const override;
+
+protected:
+    bool run() override;
+};

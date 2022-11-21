@@ -12,6 +12,7 @@
 #include "stats_tasks.h"
 #include "connection.h"
 #include "cookie.h"
+#include "front_end_thread.h"
 #include "memcached.h"
 #include "nobucket_taskable.h"
 #include "tenant_manager.h"
@@ -102,4 +103,31 @@ bool StatsTenantsStats::run() {
 
     notifyIoComplete(cookie, cb::engine_errc::success);
     return false;
+}
+
+StatsTaskClientConnectionDetails::StatsTaskClientConnectionDetails(
+        Cookie& cookie)
+    : StatsTask(TaskId::Core_StatsConnectionTask, cookie) {
+}
+
+bool StatsTaskClientConnectionDetails::run() {
+    const auto clientConnectionMap =
+            FrontEndThread::getClientConnectionDetails();
+    const auto now = std::chrono::steady_clock::now();
+    for (const auto& [ip, entry] : clientConnectionMap) {
+        stats.emplace_back(std::make_pair<std::string, std::string>(
+                std::string(ip), entry.to_json(now).dump()));
+    }
+
+    notifyIoComplete(cookie, cb::engine_errc::success);
+    return false;
+}
+
+std::string StatsTaskClientConnectionDetails::getDescription() const {
+    return "stats client connection info";
+}
+
+std::chrono::microseconds
+StatsTaskClientConnectionDetails::maxExpectedDuration() const {
+    return std::chrono::seconds(1);
 }

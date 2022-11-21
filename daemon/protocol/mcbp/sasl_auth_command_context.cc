@@ -69,7 +69,7 @@ cb::engine_errc SaslAuthCommandContext::tryHandleSaslOk(
     audit_auth_success(connection, &cookie);
     LOG_INFO("{}: Client {} authenticated as {}",
              connection.getId(),
-             connection.getPeername(),
+             connection.getPeername().dump(),
              cb::UserDataView(connection.getUser().name));
 
     /* associate the connection with the appropriate bucket */

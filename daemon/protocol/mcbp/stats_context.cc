@@ -314,6 +314,15 @@ static cb::engine_errc stat_connections_executor(const std::string& arg,
     return cb::engine_errc::would_block;
 }
 
+static cb::engine_errc stat_client_connection_details_executor(
+        const std::string& arg, Cookie& cookie) {
+    std::shared_ptr<StatsTask> task =
+            std::make_shared<StatsTaskClientConnectionDetails>(cookie);
+    cookie.obtainContext<StatsCommandContext>(cookie).setTask(task);
+    ExecutorPool::get()->schedule(task);
+    return cb::engine_errc::would_block;
+}
+
 /**
  * Helper function to append JSON-formatted histogram statistics for the
  * specified Bucket histogram data member.
@@ -564,6 +573,8 @@ static std::unordered_map<StatGroupId, struct command_stat_handler>
                  {true, stat_bucket_details_executor}},
                 {StatGroupId::Aggregate, {true, stat_aggregate_executor}},
                 {StatGroupId::Connections, {true, stat_connections_executor}},
+                {StatGroupId::ClientConnectionDetails,
+                 {true, stat_client_connection_details_executor}},
                 {StatGroupId::Clocks, {true, stat_clocks_executor}},
                 {StatGroupId::JsonValidate,
                  {true, stat_json_validate_executor}},

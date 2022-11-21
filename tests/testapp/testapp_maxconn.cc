@@ -124,6 +124,7 @@ TEST_F(MaxConnectionTest, ConnectionModeRecycle) {
                 }
             },
             "");
+    memcached_cfg["max_client_connection_details"] = 10;
     memcached_cfg["free_connection_pool_size"] = 5;
     memcached_cfg["connection_limit_mode"] = "recycle";
     reconfigure();
@@ -150,9 +151,53 @@ TEST_F(MaxConnectionTest, ConnectionModeRecycle) {
         connections.front()->getSaslMechanisms();
     }
 
+    // Time to verify that we update the correct stats as part of doing this
+    // Grab the current value of the stats and create 10 additional connections
+    // and the numbers should be increased with 10
+    const std::size_t ConnectionCount = 10;
+
+    const auto host = user->getFamily() == AF_INET ? "127.0.0.1" : "::1";
+    nlohmann::json before;
+    admin->stats(
+            [&before, &host](const auto& k, const auto& v) {
+                if (k == host) {
+                    before = nlohmann::json::parse(v);
+                }
+            },
+            "client_connection_details");
+
+    for (size_t ii = 0; ii < ConnectionCount; ++ii) {
+        connections.emplace_back(user->clone());
+        // execute a command on the first connection to make sure
+        // that it gets moved in the LRU and won't get recycled (if it
+        // gets recycled we would see a socket failure
+        connections.front()->getSaslMechanisms();
+    }
+
     // But the current connection should not exceed user connections
     const auto current = getConnectionCounts();
     EXPECT_LE(current.first, USER_CONNECTIONS);
+
+    nlohmann::json after;
+    admin->stats(
+            [&after, &host](const auto& k, const auto& v) {
+                if (k == host) {
+                    after = nlohmann::json::parse(v);
+                }
+            },
+            "client_connection_details");
+
+    ASSERT_FALSE(before.empty())
+            << "Failed to locate client_connection_details before";
+    ASSERT_FALSE(after.empty())
+            << "Failed to locate client_connection_details after";
+
+    EXPECT_EQ(before["total"].get<size_t>() + ConnectionCount,
+              after["total"].get<size_t>());
+    EXPECT_EQ(before["disconnect"].get<size_t>() + ConnectionCount,
+              after["disconnect"].get<size_t>());
+    EXPECT_EQ(after["current"].get<size_t>(), before["current"].get<size_t>());
+
     memcached_cfg.erase("free_connection_pool_size");
     reconfigure();
 }

@@ -840,6 +840,16 @@ public:
         notify_changed("whitelist_localhost_interface");
     }
 
+    std::size_t getMaxClientConnectionDetails() const {
+        return max_client_connection_details.load(std::memory_order_acquire);
+    }
+
+    void setMaxClientConnectionDetails(size_t val) {
+        max_client_connection_details.store(val, std::memory_order_release);
+        has.max_client_connection_details = true;
+        notify_changed("max_client_connection_details");
+    }
+
 protected:
     /// Should the server always collect trace information for commands
     std::atomic_bool always_collect_trace_info{false};
@@ -988,6 +998,9 @@ protected:
     std::atomic<ConnectionLimitMode> connection_limit_mode{
             ConnectionLimitMode::Disconnect};
 
+    /// The maximum number of client ip addresses we should keep track of
+    std::atomic<size_t> max_client_connection_details{0};
+
     /// The maximum number of commands each connection may have before
     /// blocking execution
     std::atomic<std::size_t> max_concurrent_commands_per_connection{32};
@@ -1089,6 +1102,7 @@ public:
         bool system_connections = false;
         bool free_connection_pool_size = false;
         bool connection_limit_mode = false;
+        bool max_client_connection_details = false;
         bool max_concurrent_commands_per_connection = false;
         bool opentracing_config = false;
         bool num_reader_threads = false;

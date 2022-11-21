@@ -392,6 +392,11 @@ static void handle_connection_limit_mode(Settings& s,
     }
 }
 
+static void handle_max_client_connection_details(Settings& s,
+                                                 const nlohmann::json& obj) {
+    s.setMaxClientConnectionDetails(obj.get<size_t>());
+}
+
 /**
  * Handle the "sasl_mechanisms" tag in the settings
  *
@@ -705,6 +710,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
             {"system_connections", handle_system_connections},
             {"free_connection_pool_size", handle_free_connection_pool_size},
             {"connection_limit_mode", handle_connection_limit_mode},
+            {"max_client_connection_details",
+             handle_max_client_connection_details},
             {"sasl_mechanisms", handle_sasl_mechanisms},
             {"ssl_sasl_mechanisms", handle_ssl_sasl_mechanisms},
             {"stdin_listener", handle_stdin_listener},
@@ -1030,6 +1037,16 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                      other.getConnectionLimitMode());
         }
         setConnectionLimitMode(other.getConnectionLimitMode());
+    }
+
+    if (other.has.max_client_connection_details) {
+        if (other.max_client_connection_details !=
+            max_client_connection_details) {
+            LOG_INFO("Change max client connection details from {} to {}",
+                     max_client_connection_details,
+                     other.max_client_connection_details);
+            setMaxClientConnectionDetails(other.max_client_connection_details);
+        }
     }
 
     if (other.has.xattr_enabled) {

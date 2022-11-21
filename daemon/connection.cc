@@ -198,8 +198,8 @@ nlohmann::json Connection::toJSON() const {
     ret["socket"] = socketDescriptor;
     ret["yields"] = yields.load();
     ret["protocol"] = "memcached";
-    ret["peername"] = getPeername().c_str();
-    ret["sockname"] = getSockname().c_str();
+    ret["peername"] = getPeername();
+    ret["sockname"] = getSockname();
     ret["parent_port"] = parent_port;
     ret["bucket_index"] = getBucketIndex();
     ret["internal"] = isInternal();
@@ -461,7 +461,8 @@ cb::engine_errc Connection::remapErrorCode(cb::engine_errc code) {
 }
 
 void Connection::updateDescription() {
-    description.assign("[ " + getPeername() + " - " + getSockname());
+    description.assign("[ " + getPeername().dump() + " - " +
+                       getSockname().dump());
     if (authenticated) {
         description += " (";
         if (isInternal()) {
@@ -859,10 +860,9 @@ void Connection::reEvaluateParentPort() {
     if (Settings::instance().isLocalhostInterfaceWhitelisted()) {
         // Make sure we don't tear down localhost connections
         if (listening_port->family == AF_INET) {
-            localhost =
-                    peername.find(R"("ip":"127.0.0.1")") != std::string::npos;
+            localhost = peername.value("ip", "") == "127.0.0.1";
         } else {
-            localhost = peername.find(R"("ip":"::1")") != std::string::npos;
+            localhost = peername.value("ip", "") == "::1";
         }
     }
 
@@ -1314,7 +1314,7 @@ bool Connection::tryAuthFromSslCert(const std::string& userName,
                 "{}: Client {} using cipher '{}' authenticated as '{}' via "
                 "X.509 certificate",
                 getId(),
-                getPeername(),
+                getPeername().dump(),
                 cipherName,
                 cb::UserDataView(user.name));
         // Connections authenticated by using X.509 certificates should not
@@ -1405,8 +1405,8 @@ void Connection::chainDataToOutputStream(std::unique_ptr<SendBuffer> buffer) {
 }
 
 Connection::Connection(FrontEndThread& thr)
-    : peername(R"({"ip":"unknown","port":0})"),
-      sockname(R"({"ip":"unknown","port":0})"),
+    : peername(R"({"ip":"unknown","port":0})"_json),
+      sockname(R"({"ip":"unknown","port":0})"_json),
       thread(thr),
       max_reqs_per_event(Settings::instance().getRequestsPerEventNotification(
               EventPriority::Default)),
@@ -1423,8 +1423,8 @@ Connection::Connection(SOCKET sfd,
                        FrontEndThread& thr,
                        std::shared_ptr<ListeningPort> descr,
                        uniqueSslPtr sslStructure)
-    : peername(cb::net::getPeerNameAsJson(sfd).dump()),
-      sockname(cb::net::getSockNameAsJson(sfd).dump()),
+    : peername(cb::net::getPeerNameAsJson(sfd)),
+      sockname(cb::net::getSockNameAsJson(sfd)),
       thread(thr),
       listening_port(std::move(descr)),
       max_reqs_per_event(Settings::instance().getRequestsPerEventNotification(
@@ -1433,6 +1433,7 @@ Connection::Connection(SOCKET sfd,
       parent_port(listening_port->port),
       connectedToSystemPort(listening_port->system),
       ssl(sslStructure) {
+    thread.onConnectionCreate(*this);
     updateLru();
     setTcpNoDelay(true);
     updateDescription();
@@ -1485,6 +1486,7 @@ bool Connection::maybeInitiateShutdown() {
         }
     }
 
+    thread.onConnectionForcedDisconnect(*this);
     LOG_INFO(
             "Initiate shutdown of connection: {} to avoid running out of "
             "connections",
@@ -1507,6 +1509,7 @@ void Connection::tryInitiateShutdown(size_t num) {
 }
 
 Connection::~Connection() {
+    thread.onConnectionDestroy(*this);
     unlinkLru();
     cb::audit::addSessionTerminated(*this);
 
