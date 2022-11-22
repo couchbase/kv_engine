@@ -110,6 +110,20 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
     // Read the scopes within the Manifest
     auto scopes = getJsonObject(parsed, ScopesKey, ScopesType);
 
+    // Does the top-level disable deduplication?
+    CanDeduplicate allCanDeduplicate = CanDeduplicate::Yes;
+    auto allHistoryConfigured =
+            cb::getOptionalJsonObject(parsed, HistoryKey, HistoryType);
+    if (allHistoryConfigured) {
+        if (allHistoryConfigured.value().get<bool>()) {
+            allCanDeduplicate = CanDeduplicate::No;
+        } else {
+            // Only a value of true is permitted so there cannot be conflicts
+            // as we descend the path of bucket.scope.collection
+            throwInvalid("history=false is not valid for manifest");
+        }
+    }
+
     for (const auto& scope : scopes) {
         throwIfWrongType(
                 std::string(ScopesKey), scope, nlohmann::json::value_t::object);
@@ -144,13 +158,18 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
             }
         }
 
+        CanDeduplicate scopeCanDeduplicate = allCanDeduplicate;
+
         // Does the scope disable deduplication?
-        CanDeduplicate scopeCanDeduplicate = CanDeduplicate::Yes;
         auto scopeHistoryConfigured =
                 cb::getOptionalJsonObject(scope, HistoryKey, HistoryType);
-        if (scopeHistoryConfigured &&
-            scopeHistoryConfigured.value().get<bool>()) {
-            scopeCanDeduplicate = CanDeduplicate::No;
+        if (scopeHistoryConfigured) {
+            if (scopeHistoryConfigured.value().get<bool>()) {
+                scopeCanDeduplicate = CanDeduplicate::No;
+            } else {
+                throwInvalid("history=false is not valid for scope:" +
+                             sidValue.to_string());
+            }
         }
 
         std::vector<CollectionEntry> scopeCollections = {};
@@ -221,9 +240,14 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
             CanDeduplicate collectionCanDeduplicate = scopeCanDeduplicate;
             auto historyConfigured = cb::getOptionalJsonObject(
                     collection, HistoryKey, HistoryType);
-            // Does the collection disable deduplication?
-            if (historyConfigured && historyConfigured.value().get<bool>()) {
-                collectionCanDeduplicate = CanDeduplicate::No;
+
+            if (historyConfigured) {
+                if (historyConfigured.value().get<bool>()) {
+                    collectionCanDeduplicate = CanDeduplicate::No;
+                } else {
+                    throwInvalid("history=false is not valid for collection:" +
+                                 cidValue.to_string());
+                }
             }
 
             enableDefaultCollection(cidValue);
@@ -821,14 +845,30 @@ cb::engine_error Manifest::isSuccessor(const Manifest& successor) const {
 }
 
 bool Manifest::isEpoch() const {
-    // uid of 0, 1 scope and 1 collection
-    if (uid == 0 && scopes.size() == 1 && collections.size() == 1) {
-        // The default scope and the default collection
-        const auto scope = findScope(ScopeID::Default);
-        return defaultCollectionExists && scope != scopes.end() &&
-               scope->second.name == DefaultScopeIdentifier;
+    // The epoch manifest is uid:0 with default scope and default collection.
+    if (uid > 0 || scopes.size() != 1 || collections.size() != 1) {
+        return false;
     }
-    return false;
+
+    // Now check the 1 scope and collection are the defaults
+    const auto collection = findCollection(CollectionID::Default);
+    if (collection == collections.end()) {
+        return false;
+    }
+
+    const auto scope = findScope(ScopeID::Default);
+    if (scope == scopes.end()) {
+        return false;
+    }
+
+    // Default collection has no maxTTL and no history defined
+    // Scope has no history and no data limit defined
+    return collection->second.canDeduplicate == CanDeduplicate::Yes &&
+           !collection->second.maxTtl.has_value() &&
+           collection->second.name == DefaultCollectionIdentifier &&
+           scope->second.canDeduplicate == CanDeduplicate::Yes &&
+           !scope->second.dataLimit.has_value() &&
+           scope->second.name == DefaultScopeIdentifier;
 }
 
 std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {

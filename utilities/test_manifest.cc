@@ -262,4 +262,7 @@ void CollectionsManifest::setUid(const std::string& uid) {
     updateUid();
 }
 
-
+void CollectionsManifest::setHistory(bool history) {
+    updateUid();
+    json["history"] = history;
+}
