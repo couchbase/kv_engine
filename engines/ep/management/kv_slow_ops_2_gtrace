@@ -173,6 +173,9 @@ def main():
                     event['args']['key'] = slow_op['packet']['key']
                     event['args']['vbucket'] = slow_op['packet']['vbucket']
                     event['args']['time'] = time
+                    # worker_tid added in v7.1.0.
+                    if 'worker_tid' in slow_op:
+                        event['args']['worker_tid'] = slow_op['worker_tid']
                 if node:
                     if 'args' not in event:
                         event['args'] = dict()
