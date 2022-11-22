@@ -73,6 +73,9 @@ public:
     }
 
 protected:
+    /// Set the various TCP Keepalive options to the provided socket.
+    void setTcpKeepalive(SOCKET client);
+
     /// The socket object to accept clients from
     const SOCKET sfd;
 
@@ -233,6 +236,12 @@ void LibeventServerSocketImpl::acceptNewClient() {
         return;
     }
 
+    // Connections connecting to a system port should use the TCP Keepalive
+    // configuration configured in the OS.
+    if (!interface->system) {
+        setTcpKeepalive(client);
+    }
+
     uniqueSslPtr ssl;
     bool failed = false;
     if (interface->tls) {
@@ -259,6 +268,46 @@ void LibeventServerSocketImpl::acceptNewClient() {
     }
 
     FrontEndThread::dispatch(client, interface, std::move(ssl));
+}
+
+void LibeventServerSocketImpl::setTcpKeepalive(SOCKET client) {
+    auto& settings = Settings::instance();
+    const auto idle = settings.getTcpKeepAliveIdle();
+    if (idle.count() != 0) {
+        uint32_t t = idle.count();
+#ifdef __APPLE__
+#define TCP_KEEPIDLE TCP_KEEPALIVE
+#endif
+        if (cb::net::setsockopt(
+                    client, IPPROTO_TCP, TCP_KEEPIDLE, &t, sizeof(t)) == -1) {
+            LOG_WARNING("{} Failed to set TCP_KEEPIDLE: {}",
+                        client,
+                        cb_strerror(cb::net::get_socket_error()));
+        }
+    }
+    const auto interval = settings.getTcpKeepAliveInterval();
+    if (interval.count() != 0) {
+        uint32_t val = interval.count();
+        if (cb::net::setsockopt(
+                    client, IPPROTO_TCP, TCP_KEEPINTVL, &val, sizeof(val)) ==
+            -1) {
+            LOG_WARNING("{} Failed to set TCP_KEEPINTVL: {}",
+                        client,
+                        cb_strerror(cb::net::get_socket_error()));
+        }
+    }
+    const auto probes = settings.getTcpKeepAliveProbes();
+    if (probes) {
+        if (cb::net::setsockopt(client,
+                                IPPROTO_TCP,
+                                TCP_KEEPCNT,
+                                &probes,
+                                sizeof(probes)) == -1) {
+            LOG_WARNING("{} Failed to set TCP_KEEPCNT: {}",
+                        client,
+                        cb_strerror(cb::net::get_socket_error()));
+        }
+    }
 }
 
 nlohmann::json LibeventServerSocketImpl::toJson() const {

@@ -76,6 +76,24 @@ clients. By default this number is set to 75% of the number of cores
 available on the system (but no less than 4). The value for threads
 should be specified as an integral number.
 
+=== tcp_keepalive_idle
+
+The *tcp_keepalive_idle* attribute is an integral value specifying the
+number of seconds before the first TCP keepalive probe gets sent. Set the
+value to 0 to use the operating system default value.
+
+=== tcp_keepalive_interval
+
+The *tcp_keepalive_interval* attribute is an integral value specifying the
+number of seconds between each TCP keepalive probe gets sent.Set the
+value to 0 to use the operating system default value.
+
+=== tcp_keepalive_probes
+
+The *tcp_keepalive_probes* attribute is an integral value specifying the
+number keepalive probes which should be sent before marking the connection
+as dead. Set the value to 0 to use the operating system default value.
+
 === prometheus
 
 The *prometheus* is a object with the following properties:

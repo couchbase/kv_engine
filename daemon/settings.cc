@@ -246,6 +246,18 @@ static void handle_low_reqs_event(Settings& s, const nlohmann::json& obj) {
             s, obj, EventPriority::Low, "reqs_per_event_low_priority");
 }
 
+static void handle_tcp_keepalive_idle(Settings& s, const nlohmann::json& obj) {
+    s.setTcpKeepAliveIdle(std::chrono::seconds(obj.get<uint32_t>()));
+}
+static void handle_tcp_keepalive_interval(Settings& s,
+                                          const nlohmann::json& obj) {
+    s.setTcpKeepAliveInterval(std::chrono::seconds(obj.get<uint32_t>()));
+}
+static void handle_tcp_keepalive_probes(Settings& s,
+                                        const nlohmann::json& obj) {
+    s.setTcpKeepAliveProbes(obj.get<uint32_t>());
+}
+
 /**
  * Handle the "verbosity" tag in the settings
  *
@@ -697,6 +709,9 @@ void Settings::reconfigure(const nlohmann::json& json) {
             {"ssl_sasl_mechanisms", handle_ssl_sasl_mechanisms},
             {"stdin_listener", handle_stdin_listener},
             {"dedupe_nmvb_maps", handle_dedupe_nmvb_maps},
+            {"tcp_keepalive_idle", handle_tcp_keepalive_idle},
+            {"tcp_keepalive_interval", handle_tcp_keepalive_interval},
+            {"tcp_keepalive_probes", handle_tcp_keepalive_probes},
             {"xattr_enabled", handle_xattr_enabled},
             {"client_cert_auth", handle_client_cert_auth},
             {"collections_enabled", handle_collections_enabled},
@@ -818,6 +833,33 @@ void Settings::updateSettings(const Settings& other, bool apply) {
     }
 
     // Ok, go ahead and update the settings!!
+    if (other.has.tcp_keepalive_idle) {
+        if (other.getTcpKeepAliveIdle() != getTcpKeepAliveIdle()) {
+            LOG_INFO("Change TCP_KEEPIDLE time from {}s to {}s",
+                     getTcpKeepAliveIdle().count(),
+                     other.getTcpKeepAliveIdle().count());
+            setTcpKeepAliveIdle(other.getTcpKeepAliveIdle());
+        }
+    }
+
+    if (other.has.tcp_keepalive_interval) {
+        if (other.getTcpKeepAliveInterval() != getTcpKeepAliveInterval()) {
+            LOG_INFO("Change TCP_KEEPINTVL interval from {}s to {}s",
+                     getTcpKeepAliveInterval().count(),
+                     other.getTcpKeepAliveInterval().count());
+            setTcpKeepAliveInterval(other.getTcpKeepAliveInterval());
+        }
+    }
+
+    if (other.has.tcp_keepalive_probes) {
+        if (other.tcp_keepalive_probes != tcp_keepalive_probes) {
+            LOG_INFO("Change TCP_KEEPCNT from {} to {}",
+                     getTcpKeepAliveProbes(),
+                     other.getTcpKeepAliveProbes());
+            setTcpKeepAliveProbes(other.getTcpKeepAliveProbes());
+        }
+    }
+
     if (other.has.always_collect_trace_info) {
         if (other.alwaysCollectTraceInfo() != alwaysCollectTraceInfo()) {
             if (other.alwaysCollectTraceInfo()) {
