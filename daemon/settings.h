@@ -1021,7 +1021,7 @@ protected:
             std::chrono::seconds{0}};
 
     /// Should the server always collect trace information for commands
-    std::atomic_bool always_collect_trace_info{false};
+    std::atomic_bool always_collect_trace_info{true};
 
     /// Is privilege debug enabled or not
     std::atomic_bool privilege_debug{false};

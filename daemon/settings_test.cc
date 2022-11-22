@@ -177,21 +177,11 @@ TEST_F(SettingsTest, AlwaysCollectTraceInfo) {
     nonBooleanValuesShouldFail("always_collect_trace_info");
 
     nlohmann::json json;
-    // By default it should be off
-    try {
-        Settings settings(json);
-        EXPECT_FALSE(settings.alwaysCollectTraceInfo());
-        EXPECT_FALSE(settings.has.always_collect_trace_info);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
-    }
-
-    // We can set it to true
-    json["always_collect_trace_info"] = true;
+    // By default it should be on
     try {
         Settings settings(json);
         EXPECT_TRUE(settings.alwaysCollectTraceInfo());
-        EXPECT_TRUE(settings.has.always_collect_trace_info);
+        EXPECT_FALSE(settings.has.always_collect_trace_info);
     } catch (std::exception& exception) {
         FAIL() << exception.what();
     }
@@ -201,6 +191,16 @@ TEST_F(SettingsTest, AlwaysCollectTraceInfo) {
     try {
         Settings settings(json);
         EXPECT_FALSE(settings.alwaysCollectTraceInfo());
+        EXPECT_TRUE(settings.has.always_collect_trace_info);
+    } catch (std::exception& exception) {
+        FAIL() << exception.what();
+    }
+
+    // We can set it to true
+    json["always_collect_trace_info"] = true;
+    try {
+        Settings settings(json);
+        EXPECT_TRUE(settings.alwaysCollectTraceInfo());
         EXPECT_TRUE(settings.has.always_collect_trace_info);
     } catch (std::exception& exception) {
         FAIL() << exception.what();
@@ -881,16 +881,16 @@ TEST(SettingsUpdateTest, PrometheusIsDynamic) {
 TEST(SettingsUpdateTest, AlwaysCollectTraceInfoIsDynamic) {
     Settings updated;
     Settings settings;
-    EXPECT_FALSE(settings.alwaysCollectTraceInfo());
-
-    updated.setAlwaysCollectTraceInfo(true);
-    EXPECT_NO_THROW(settings.updateSettings(updated));
     EXPECT_TRUE(settings.alwaysCollectTraceInfo());
 
-    // Changing it should also work
     updated.setAlwaysCollectTraceInfo(false);
     EXPECT_NO_THROW(settings.updateSettings(updated));
     EXPECT_FALSE(settings.alwaysCollectTraceInfo());
+
+    // Changing it should also work
+    updated.setAlwaysCollectTraceInfo(true);
+    EXPECT_NO_THROW(settings.updateSettings(updated));
+    EXPECT_TRUE(settings.alwaysCollectTraceInfo());
 }
 
 TEST(SettingsUpdateTest, BreakpadIsDynamic) {
