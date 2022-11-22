@@ -1868,6 +1868,14 @@ void VBucket::replicaCreateCollection(Collections::ManifestUid uid,
                                     bySeqno);
 }
 
+void VBucket::replicaModifyCollection(Collections::ManifestUid uid,
+                                      CollectionID cid,
+                                      CanDeduplicate canDeduplicate,
+                                      int64_t bySeqno) {
+    manifest->wlock().replicaModifyCollection(
+            *this, uid, cid, canDeduplicate, bySeqno);
+}
+
 void VBucket::replicaDropCollection(Collections::ManifestUid uid,
                                     CollectionID cid,
                                     int64_t bySeqno) {

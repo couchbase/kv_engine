@@ -317,7 +317,9 @@ void SingleThreadedKVBucketTest::resetEngineAndWarmup(std::string new_config,
 }
 
 std::shared_ptr<MockDcpProducer> SingleThreadedKVBucketTest::createDcpProducer(
-        const CookieIface* cookie, IncludeDeleteTime deleteTime) {
+        const CookieIface* cookie,
+        IncludeDeleteTime deleteTime,
+        bool flatBuffersSystemEvents) {
     int flags = cb::mcbp::request::DcpOpenPayload::IncludeXattrs;
     if (deleteTime == IncludeDeleteTime::Yes) {
         flags |= cb::mcbp::request::DcpOpenPayload::IncludeDeleteTimes;
@@ -333,9 +335,11 @@ std::shared_ptr<MockDcpProducer> SingleThreadedKVBucketTest::createDcpProducer(
 
     // Need to enable NOOP for XATTRS (and collections).
     newProducer->setNoopEnabled(true);
-    EXPECT_EQ(cb::engine_errc::success,
-              newProducer->control(
-                      1, DcpControlKeys::FlatBuffersSystemEvents, "true"));
+    if (flatBuffersSystemEvents) {
+        EXPECT_EQ(cb::engine_errc::success,
+                  newProducer->control(
+                          1, DcpControlKeys::FlatBuffersSystemEvents, "true"));
+    }
     return newProducer;
 }
 

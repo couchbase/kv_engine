@@ -371,7 +371,8 @@ cb::engine_errc CollectionsDcpTestProducers::systemEventVersion2(
     std::string_view eventView{reinterpret_cast<const char*>(eventData.data()),
                                eventData.size()};
     switch (event) {
-    case mcbp::systemevent::id::CreateCollection: {
+    case mcbp::systemevent::id::CreateCollection:
+    case mcbp::systemevent::id::ModifyCollection: {
         const auto* collection =
                 Collections::VB::Manifest::getCollectionFlatbuffer(eventView);
 

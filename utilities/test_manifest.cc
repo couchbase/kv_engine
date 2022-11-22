@@ -96,6 +96,16 @@ CollectionsManifest& CollectionsManifest::add(
     return *this;
 }
 
+CollectionsManifest& CollectionsManifest::update(
+        const CollectionEntry::Entry& collectionEntry,
+        cb::ExpiryLimit maxTtl,
+        std::optional<bool> history,
+        const ScopeEntry::Entry& scopeEntry) {
+    remove(collectionEntry, scopeEntry);
+    add(collectionEntry, maxTtl, history, scopeEntry);
+    return *this;
+}
+
 CollectionsManifest& CollectionsManifest::add(
         const CollectionEntry::Entry& collectionEntry,
         const ScopeEntry::Entry& scopeEntry) {

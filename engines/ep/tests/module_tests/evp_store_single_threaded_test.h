@@ -54,9 +54,13 @@ public:
      * collections and/or delete_times enabled
      * @param cookie cookie to associate with the new producer
      * @param deleteTime yes/no - enable/disable delete times
+     * @param flatBuffersSystemEvents enable/disable producer with FlatBuffers
+     *        system events
      */
     std::shared_ptr<MockDcpProducer> createDcpProducer(
-            const CookieIface* cookie, IncludeDeleteTime deleteTime);
+            const CookieIface* cookie,
+            IncludeDeleteTime deleteTime,
+            bool flatBuffersSystemEvents = true);
 
     /*
      * DCP helper.

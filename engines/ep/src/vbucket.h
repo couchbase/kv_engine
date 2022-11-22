@@ -810,6 +810,20 @@ public:
                                  int64_t bySeqno);
 
     /**
+     * Modify a collection in this vbucket with a pre-assigned seqno. I.e.
+     * this VB is a replica.
+     *
+     * @param uid the uid of the manifest which made the change
+     * @param cid target collection
+     * @param canDeduplicate new deduplicate setting for the collection
+     * @param bySeqno The seqno assigned to the collection create event.
+     */
+    void replicaModifyCollection(Collections::ManifestUid uid,
+                                 CollectionID cid,
+                                 CanDeduplicate canDeduplicate,
+                                 int64_t bySeqno);
+
+    /**
      * Drop a collection from this vbucket with a pre-assigned seqno. I.e.
      * this VB is a replica.
      *

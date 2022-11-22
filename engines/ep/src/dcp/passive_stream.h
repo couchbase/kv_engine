@@ -229,6 +229,15 @@ protected:
             VBucket& vb, const SystemEventConsumerMessage& event);
 
     /**
+     * Process a modify collection when FlatBuffers support is enabled
+     *
+     * @param vb Vbucket which we apply the modify to
+     * @param event The system event to process
+     */
+    cb::engine_errc processModifyCollection(
+            VBucket& vb, const SystemEventConsumerMessage& event);
+
+    /**
      * Process a drop collection when FlatBuffers support is enabled
      *
      * @param vb Vbucket which we apply the drop to

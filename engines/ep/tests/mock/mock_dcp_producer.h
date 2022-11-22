@@ -171,8 +171,10 @@ public:
     /**
      * Step the producer and expect the opcode to be returned
      */
-    cb::engine_errc stepAndExpect(MockDcpMessageProducers& producers,
-                                  cb::mcbp::ClientOpcode expectedOpcode);
+    cb::engine_errc stepAndExpect(
+            MockDcpMessageProducers& producers,
+            cb::mcbp::ClientOpcode expectedOpcode,
+            cb::engine_errc expectedStatus = cb::engine_errc::success);
 
     /**
      * Call step(), but wrap the producers with a DcpMsgProducersBorderGuard (
