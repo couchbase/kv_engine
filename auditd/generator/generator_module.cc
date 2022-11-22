@@ -132,5 +132,7 @@ void Module::parseEventDescriptorFile() {
     }
 
     // Replace the JSON with one where we've updated all default variables
-    json = {{"version", SupportedVersion}, {"name", name}, {"events", events}};
+    json = {{"version", SupportedVersion},
+            {"module", name},
+            {"events", events}};
 }
