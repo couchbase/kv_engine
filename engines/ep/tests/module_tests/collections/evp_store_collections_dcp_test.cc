@@ -4231,6 +4231,7 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollection) {
     EXPECT_EQ(producers->last_collection_id, vegetable.getId());
     EXPECT_EQ(producers->last_key, "vegetable");
     EXPECT_EQ(producers->last_scope_id, ScopeID::Default);
+    auto seq1 = producers->last_byseqno;
 
     producer->stepAndExpect(*producers, ClientOpcode::DcpSnapshotMarker);
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
@@ -4238,19 +4239,96 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollection) {
     EXPECT_EQ(producers->last_collection_id, fruit.getId());
     EXPECT_EQ(producers->last_key, "fruit");
     EXPECT_EQ(producers->last_scope_id, ScopeID::Default);
+    auto seq2 = producers->last_byseqno;
 
-    // Check again, it's changed
+    EXPECT_GT(seq2, seq1);
+
+    {
+        // Check the collection state now the modify has been processed
+        auto vb0Handle = vb0->lockCollections();
+        auto vb1Handle = vb1->lockCollections();
+
+        EXPECT_EQ(CanDeduplicate::No, vb0Handle.getCanDeduplicate(fruit));
+        EXPECT_EQ(CanDeduplicate::No, vb1Handle.getCanDeduplicate(fruit));
+
+        EXPECT_EQ(CanDeduplicate::Yes, vb0Handle.getCanDeduplicate(vegetable));
+        EXPECT_EQ(CanDeduplicate::Yes, vb1Handle.getCanDeduplicate(vegetable));
+
+        // Check stats. Expect the collection modify to of update collection
+        // high
+        EXPECT_EQ(seq1, vb0Handle.getHighSeqno(vegetable));
+        EXPECT_EQ(seq2, vb0Handle.getHighSeqno(fruit));
+        EXPECT_EQ(0, vb0Handle.getPersistedHighSeqno(vegetable));
+        EXPECT_EQ(0, vb0Handle.getPersistedHighSeqno(fruit));
+        // 0 items for these collections yet, only events have been flushed
+        EXPECT_EQ(0, vb0Handle.getItemCount(vegetable));
+        EXPECT_EQ(0, vb0Handle.getItemCount(fruit));
+    }
+
+    // Flush the active vbucket as the next phase of the test is to check
+    // warmup/backfill. No flush of the replica as the test needs the replica to
+    // remain empty ready for backfill phase
+    flush_vbucket_to_disk(vbid, 4);
+
+    {
+        auto vb0Handle = vb0->lockCollections();
+        // Re-check stats after flush
+        EXPECT_EQ(seq1, vb0Handle.getHighSeqno(vegetable));
+        EXPECT_EQ(seq2, vb0Handle.getHighSeqno(fruit));
+        EXPECT_EQ(seq1, vb0Handle.getPersistedHighSeqno(vegetable));
+        EXPECT_EQ(seq2, vb0Handle.getPersistedHighSeqno(fruit));
+        EXPECT_EQ(0, vb0Handle.getItemCount(vegetable));
+        EXPECT_EQ(0, vb0Handle.getItemCount(fruit));
+    }
+
+    vb0.reset();
+    vb1.reset();
+    resetEngineAndWarmup();
+
+    vb0 = store->getVBucket(vbid);
+    // Check state after warmup. The collections on active have the same state
+    // as before the shutdown as they get their state back from KVStore metadata
+    // Expect: fruit==No, vegetable=Yes
     EXPECT_EQ(CanDeduplicate::No,
               vb0->lockCollections().getCanDeduplicate(fruit));
-    EXPECT_EQ(CanDeduplicate::No,
-              vb1->lockCollections().getCanDeduplicate(fruit));
-
     EXPECT_EQ(CanDeduplicate::Yes,
               vb0->lockCollections().getCanDeduplicate(vegetable));
+
+    // Test backfill
+    createDcpObjects({{nullptr, 0}});
+
+    notifyAndStepToCheckpoint(ClientOpcode::DcpSnapshotMarker,
+                              false /*in-memory = false*/);
+
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_collection_id, vegetable.getId());
+
+    vb1 = store->getVBucket(replicaVB);
+
+    // replica received create state
     EXPECT_EQ(CanDeduplicate::Yes,
+              vb1->lockCollections().getCanDeduplicate(fruit));
+    EXPECT_EQ(CanDeduplicate::No,
               vb1->lockCollections().getCanDeduplicate(vegetable));
 
-    // TODO: Flush the vbucket and warmup (recheck events)
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::ModifyCollection);
+    EXPECT_EQ(producers->last_collection_id, vegetable.getId());
+
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::ModifyCollection);
+    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+
+    // replica received modified state
+    EXPECT_EQ(CanDeduplicate::No,
+              vb1->lockCollections().getCanDeduplicate(fruit));
+    EXPECT_EQ(CanDeduplicate::Yes,
+              vb1->lockCollections().getCanDeduplicate(vegetable));
 }
 
 // Test that if the flatBuffesrSystemEventsEnabled==false a modification event
@@ -4307,6 +4385,56 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionNotReplicated) {
 
     // @todo: ActiveStream changes and tests for a skipped Modify being replaced
     // by a SeqnoAdvance.
+
+    // Now make the high-seqno another change of history so backfill snapshot
+    // can be tested (history disabled)
+    cm.update(fruit, cb::NoExpiryLimit);
+    setCollections(cookie, cm);
+
+    vb0.reset();
+
+    // Flush so we can backfill the vbucket
+    // create, mutate, modify are all now flushed
+    flush_vbucket_to_disk(vbid, 3);
+
+    resetEngineAndWarmup();
+
+    // Reconnect without FlatBuffers but we do enabled sync-writes
+    producer = SingleThreadedKVBucketTest::createDcpProducer(
+            cookieP, IncludeDeleteTime::Yes, false /*no FlatBuffers*/);
+
+    // No transfer to consumer in this test - just check the data passed in
+    // each step
+    producers->consumer = nullptr;
+    producers->producerFlatBuffersSystemEventsEnabled = false;
+
+    rollbackSeqno = 0;
+    ASSERT_EQ(cb::engine_errc::success,
+              producer->streamRequest(0, // flags
+                                      1, // opaque
+                                      vbid,
+                                      0,
+                                      ~0ull, // end_seqno
+                                      0,
+                                      0,
+                                      0,
+                                      &rollbackSeqno,
+                                      &CollectionsDcpTest::dcpAddFailoverLog,
+                                      {{nullptr, 0}}));
+
+    notifyAndStepToCheckpoint(ClientOpcode::DcpSnapshotMarker,
+                              false /*in-memory = false*/);
+
+    // fruit created
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+
+    // Mutation
+    producer->stepAndExpect(*producers, ClientOpcode::DcpMutation);
+
+    // And skipped the modify
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSeqnoAdvanced);
 }
 
 // Test cases which run for persistent and ephemeral buckets

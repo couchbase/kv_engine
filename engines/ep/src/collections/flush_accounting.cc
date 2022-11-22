@@ -15,29 +15,43 @@
 
 namespace Collections::VB {
 
-static std::pair<bool, std::optional<CollectionID>> getCollectionID(
-        const DocKey& key) {
-    bool isSystemEvent = key.isInSystemCollection();
-    CollectionID cid;
-    if (isSystemEvent) {
+// Returns two optionals
+// First is only initialised if the key is a collection system event.
+// Second is only initialised if there is a collection id present.
+// Any mutation will return nullopt,cid
+// A collection create/drop/modify will return event, cid
+// A scope event will return nullopt, nullopt
+
+/**
+ * From a DocKey extract CollectionID and SystemEvent data.
+ * The function returns two optionals because depending on the key there could
+ * be no SystemEvent (regular mutation) or no CollectionID (Scope event) - or we
+ * could have both (e.g. Collection SystemEvent).
+ *
+ * @param key a DocKey from a flushed Item
+ * @return a pair of optional. first (SystemEvent) is initialised if the key
+ *         belongs to the SystemCollection (collection 1) - the value is the
+ *         type of event that the key represents. The second (CollectionID) is
+ *         initialised with a CollectionID where relevant. E.g. CreateScope
+ *         leaves this as std::nullopt but CreateCollection will set it to the
+ *         collection's ID. All non system keys will also initialise second with
+ *         the CollectionID.
+ */
+static std::pair<std::optional<SystemEvent>, std::optional<CollectionID>>
+getCollectionEventAndCollectionID(const DocKey& key) {
+    if (key.isInSystemCollection()) {
         auto [event, id] = SystemEventFactory::getTypeAndID(key);
         switch (event) {
+        case SystemEvent::ModifyCollection:
         case SystemEvent::Collection: {
-            cid = CollectionID(id);
-            break;
+            return {event, CollectionID(id)};
         }
         case SystemEvent::Scope:
-            // system event but not for a collection
-            return {true, {}};
-        case SystemEvent::ModifyCollection:
-            // @todo: separate patch to cover this.
-            throw std::runtime_error(
-                    "No ModifyCollection support in flush_accounting");
+            return {std::nullopt, std::nullopt};
         }
-    } else {
-        cid = key.getCollectionID();
     }
-    return {isSystemEvent, cid};
+    // No event, but we do have a collection id
+    return {std::nullopt, key.getCollectionID()};
 }
 
 FlushAccounting::StatisticsUpdate&
@@ -117,7 +131,7 @@ void FlushAccounting::StatisticsUpdate::insert(
         return;
     }
 
-    // else inserting a collection-start/prepare/tombstone/abort:
+    // else inserting a collection{start,modify}/prepare/tombstone/abort:
     // no item increment but account for the disk size change
     updateDiskSize(diskSizeDelta);
 }
@@ -134,8 +148,8 @@ void FlushAccounting::StatisticsUpdate::remove(
         IsDeleted isDelete,
         IsCommitted isCommitted,
         CompactionCallbacks compactionCallbacks,
-                                               size_t oldSize,
-                                               size_t newSize) {
+        size_t oldSize,
+        size_t newSize) {
     if (isSystem == IsSystem::No && isCommitted == IsCommitted::Yes) {
         decrementItemCount();
     }
@@ -171,9 +185,25 @@ void FlushAccounting::presetStats(CollectionID cid,
     }
 }
 
-bool FlushAccounting::processSystemEvent(CollectionID cid,
-                                         IsDeleted isDelete,
-                                         IsCompaction isCompaction) {
+bool FlushAccounting::checkAndMaybeProcessSystemEvent(
+        SystemEvent event,
+        CollectionID cid,
+        IsDeleted isDelete,
+        IsCompaction isCompaction) {
+    switch (event) {
+    case SystemEvent::ModifyCollection:
+        // Modify event - no processing
+        return false;
+    case SystemEvent::Collection:
+        // Collection create/drop - break and process
+        break;
+    default:
+        // E.g. Scope
+        throw std::logic_error(
+                "checkAndMaybeProcessSystemEvent unexpected event" +
+                std::to_string(int(event)));
+    }
+
     // If the update comes from compaction (where replay is copying data) then
     // unconditionally remove the collection from the stats map. A create or
     // or drop collection is the start or end of the collection - in both cases
@@ -184,6 +214,8 @@ bool FlushAccounting::processSystemEvent(CollectionID cid,
         stats.erase(cid);
     }
 
+    // caller stops processing if this function returns true - DropCollection
+    // stops the processing.
     return isDelete == IsDeleted::Yes;
 }
 
@@ -194,19 +226,26 @@ void FlushAccounting::updateStats(const DocKey& key,
                                   size_t size,
                                   IsCompaction isCompaction,
                                   CompactionCallbacks compactionCallbacks) {
-    auto [isSystemEvent, cid] = getCollectionID(key);
+    const auto [event, cid] = getCollectionEventAndCollectionID(key);
 
     if (!cid) {
-        // The key is not for a collection (e.g. a scope event).
+        // If the key is not associated with a Collection then abandon
+        // processing. This must mean the key is a Scope event and as such does
+        // not change collection stats.
         return;
     }
 
-    // System events have extra handling and may terminate the stat update
-    if (isSystemEvent && processSystemEvent(*cid, isDelete, isCompaction)) {
-        // This was a drop collection event, we don't update the collection
-        // stats for this case.
+    if (event &&
+        checkAndMaybeProcessSystemEvent(*event, *cid, isDelete, isCompaction)) {
+        // This case is reached for a DropCollection event. No collection stats
+        // are to be changed.
         return;
     }
+
+    // At this point the key is a normal mutation/delete so will for example
+    // increment or decrement the collection item count.
+    // Or the key is a SystemEvent Create/Modify collection, which needs to
+    // change the collection disk size and high-seqno.
 
     // Track high-seqno for the item
     auto& collsFlushStats = getStatsAndMaybeSetPersistedHighSeqno(
@@ -219,7 +258,7 @@ void FlushAccounting::updateStats(const DocKey& key,
     // seqno. Empty collection detection relies on start-seqno == high-seqno.
     if (!isLogicallyDeleted(cid.value(), seqno) ||
         compactionCallbacks == CompactionCallbacks::AnyRevision) {
-        collsFlushStats.insert(isSystemEvent ? IsSystem::Yes : IsSystem::No,
+        collsFlushStats.insert(event ? IsSystem::Yes : IsSystem::No,
                                isDelete,
                                isCommitted,
                                compactionCallbacks,
@@ -240,17 +279,20 @@ bool FlushAccounting::updateStats(const DocKey& key,
     bool logicalInsert = false;
 
     // Same logic (and comments) apply as per the above updateStats function.
-    auto [systemEvent, cid] = getCollectionID(key);
-    auto isSystemEvent = systemEvent ? IsSystem::Yes : IsSystem::No;
+    const auto [event, cid] = getCollectionEventAndCollectionID(key);
     if (!cid) {
         return false;
     }
 
-    // System events have extra handling and may terminate the stat update
-    if (isSystemEvent == IsSystem::Yes &&
-        processSystemEvent(*cid, isDelete, isCompaction)) {
+    if (event &&
+        checkAndMaybeProcessSystemEvent(*event, *cid, isDelete, isCompaction)) {
         return false;
     }
+
+    // At this point the key is a normal mutation/delete so will for example
+    // increment or decrement the collection item count.
+    // Or the key is a SystemEvent Create/Modify collection, which needs to
+    // change the collection disk size and high-seqno.
 
     auto& collsFlushStats = getStatsAndMaybeSetPersistedHighSeqno(
             cid.value(), seqno, compactionCallbacks);
@@ -261,6 +303,7 @@ bool FlushAccounting::updateStats(const DocKey& key,
         return false;
     }
 
+    const auto isSystemEvent = event ? IsSystem::Yes : IsSystem::No;
     if (isSystemEvent == IsSystem::No &&
         compactionCallbacks == CompactionCallbacks::AnyRevision &&
         (isLogicallyDeleted(cid.value(), oldSeqno) ||
@@ -361,16 +404,18 @@ bool FlushAccounting::updateStats(const DocKey& key,
 void FlushAccounting::maybeUpdatePersistedHighSeqno(const DocKey& key,
                                                     uint64_t seqno,
                                                     bool isDelete) {
-    // Same logic and comment as updateStats.
-    auto [isSystemEvent, cid] = getCollectionID(key);
+    const auto [event, cid] = getCollectionEventAndCollectionID(key);
 
     if (!cid) {
+        // A scope event - no high-seqno update.
         return;
     }
 
-    if (isDelete && isSystemEvent) {
+    if (isDelete && event) {
+        // A system event, but deleted (drop collection) - no high-seqno update
         return;
     }
+
     // don't care for the return value, just update the persisted high seqno
     getStatsAndMaybeSetPersistedHighSeqno(cid.value(), seqno);
 }

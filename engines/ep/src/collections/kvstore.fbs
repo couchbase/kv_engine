@@ -21,6 +21,7 @@ namespace Collections.KVStore;
 
 // Metadata for a single collection
 table Collection {
+    // The following fields all exist with the "epoch" of collections, 7.0+
     startSeqno:ulong;
     scopeId:uint;
     collectionId:uint;
@@ -29,6 +30,11 @@ table Collection {
     ttlValid:bool;
     maxTtl:uint;
     name:string;
+    // All fields after here are added from 7.2
+    //
+    // history: MB-54516: added in neo (7.2) branch. If this field is not part
+    // of a Collection structure it is defaulted to false.
+    history:bool = false;
 }
 
 // All of the open collections

@@ -184,7 +184,8 @@ public:
 
     // @return if the set of open collections is changing
     bool isOpenCollectionsChanged() const {
-        return !collections.empty() || isDroppedCollectionsChanged();
+        return !collections.empty() || !collectionMods.empty() ||
+               isDroppedCollectionsChanged();
     }
 
     // @return if the set of dropped collections is changing
@@ -225,6 +226,11 @@ public:
      * Record that a create collection was present in a commit batch
      */
     void recordCreateCollection(const Item& item);
+
+    /**
+     * Record that a collection was modified in a commit batch
+     */
+    void recordModifyCollection(const Item& item);
 
     /**
      * Record that a drop collection was present in a commit batch
@@ -341,6 +347,21 @@ private:
     void checkAndTriggerPurge(Vbid vbid, EPBucket& bucket) const;
 
     /**
+     * Return the history setting to use for the collection created @ seqno.
+     * The function will return either the createSetting parameter or the value
+     * from any modify event which may be in the flush batch (and is ordered
+     * after the create).
+     *
+     * @param cid The collection created (and maybe modified)
+     * @param seqno The sequence number of the collection create
+     * @oaram createSetting The CanDeduplicate value from the create event
+     * @return The history bool based on the CanDeduplicate setting
+     */
+    bool getHistorySetting(CollectionID cid,
+                           uint64_t seqno,
+                           CanDeduplicate createSetting);
+
+    /**
      * For each collection created in the batch, we record meta data of the
      * first and last (high/low by-seqno). If the collection was created once,
      * both entries are the same.
@@ -350,6 +371,12 @@ private:
         KVStore::OpenCollection high;
     };
     std::unordered_map<CollectionID, CollectionSpan> collections;
+
+    /**
+     * For each collection modified in the batch we record the meta data for the
+     * greatest by-seqno
+     */
+    std::unordered_map<CollectionID, KVStore::OpenCollection> collectionMods;
 
     /**
      * For each scope created in the batch, we record meta data for the greatest

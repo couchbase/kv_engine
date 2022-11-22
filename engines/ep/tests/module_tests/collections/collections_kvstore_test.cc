@@ -125,12 +125,21 @@ public:
                 if (ttl != collection.end()) {
                     maxTtl = std::chrono::seconds(ttl->get<int32_t>());
                 }
+                bool historyValue{false};
+                auto history = collection.find("history");
+                if (history != collection.end()) {
+                    historyValue = history->get<bool>();
+                }
                 ScopeID sid = Collections::makeScopeID(
                         scope["uid"].get<std::string>());
                 CollectionID cid = Collections::makeCollectionID(
                         collection["uid"].get<std::string>());
                 auto name = collection["name"].get<std::string>();
-                rv.emplace_back(sid, cid, name, maxTtl, CanDeduplicate::Yes);
+                rv.emplace_back(sid,
+                                cid,
+                                name,
+                                maxTtl,
+                                getCanDeduplicateFromHistory(historyValue));
             }
         }
         return rv;
@@ -366,11 +375,36 @@ TEST_P(CollectionsKVStoreTest, updates_and_drops_between_commits) {
                    CollectionUid::vegetable});
     cm.remove(CollectionEntry::defaultC);
     applyAndCheck(cm,
-
                   {CollectionUid::fruit,
                    CollectionUid::meat,
                    CollectionUid::vegetable,
                    CollectionUid::defaultC});
+}
+
+TEST_P(CollectionsKVStoreTest, create_and_modify) {
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit, cb::NoExpiryLimit, true)
+            .add(CollectionEntry::vegetable);
+    applyAndCheck(cm);
+    // Switch the history setting
+    cm.remove(CollectionEntry::vegetable)
+            .remove(CollectionEntry::fruit)
+            .add(CollectionEntry::fruit)
+            .add(CollectionEntry::vegetable, cb::NoExpiryLimit, true);
+    applyAndCheck(cm);
+}
+
+TEST_P(CollectionsKVStoreTest, create_and_modify_same_batch) {
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit, cb::NoExpiryLimit, true)
+            .add(CollectionEntry::vegetable);
+    manifest.update(*vbucket, makeManifest(cm));
+    // Switch the history setting
+    cm.remove(CollectionEntry::vegetable)
+            .remove(CollectionEntry::fruit)
+            .add(CollectionEntry::fruit)
+            .add(CollectionEntry::vegetable, cb::NoExpiryLimit, true);
+    applyAndCheck(cm);
 }
 
 // Related to MB-44098 test that we fail to generate 'corrupt' collection or
