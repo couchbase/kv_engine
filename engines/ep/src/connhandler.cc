@@ -389,6 +389,7 @@ void ConnHandler::addStats(const AddStatFn& add_stat, const CookieIface* c) {
             areFlatBuffersSystemEventsEnabled(),
             add_stat,
             c);
+    addStat("change_streams_enabled", areChangeStreamsEnabled(), add_stat, c);
 }
 
 void ConnHandler::pause(ConnHandler::PausedReason r) {

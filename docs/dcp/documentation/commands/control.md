@@ -61,6 +61,10 @@ receive status codes `Status::DcpStreamNotFound = 0x0A` and
 send system events with a FlatBuffers value. A configuration of `false` is
 invalid and will be rejected.
 
+* `change_streams` = `true` - Enables the DCP connection to allow history
+snapshots in DCP streams. A configuration of `false` is invalid and will be
+rejected.
+
 The following example shows the breakdown of the message:
 
       Byte/     0       |       1       |       2       |       3       |

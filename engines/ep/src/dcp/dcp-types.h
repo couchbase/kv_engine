@@ -165,4 +165,7 @@ namespace DcpControlKeys {
 constexpr std::string_view FlatBuffersSystemEvents =
         "flatbuffers_system_events";
 
+/// Control key to enable history on a DCP connection
+constexpr std::string_view ChangeStreams = "change_streams";
+
 } // namespace DcpControlKeys

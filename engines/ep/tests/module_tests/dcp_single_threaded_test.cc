@@ -99,6 +99,12 @@ protected:
      *                        threshold or just below it
      */
     void sendConsumerMutationsNearThreshold(bool beyondThreshold);
+
+    /**
+     * @param enabled Are we simulating a negotiation against a Producer
+     *  that enables change_streams?
+     */
+    void testConsumerNegotiatesChangeStreams(bool enabled);
 };
 
 /*
@@ -1123,6 +1129,107 @@ TEST_P(STDcpTest, ProducerNegotiatesFlatBuffers) {
                       0, DcpControlKeys::FlatBuffersSystemEvents, "true"));
     EXPECT_TRUE(producer->areFlatBuffersSystemEventsEnabled());
     destroy_mock_cookie(cookie);
+}
+
+TEST_P(STDcpTest, ProducerNegotiatesChangeStreams) {
+    auto* cookie = create_mock_cookie();
+
+    const auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer", 0);
+
+    // Disables by default
+    ASSERT_FALSE(producer->areChangeStreamsEnabled());
+
+    // DCP_CONTROL validation
+    EXPECT_EQ(cb::engine_errc::invalid_arguments,
+              producer->control(0, DcpControlKeys::ChangeStreams, "not-true"));
+    EXPECT_FALSE(producer->areChangeStreamsEnabled());
+
+    // Enabled
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->control(0, DcpControlKeys::ChangeStreams, "true"));
+    EXPECT_TRUE(producer->areChangeStreamsEnabled());
+
+    destroy_mock_cookie(cookie);
+}
+
+void STDcpTest::testConsumerNegotiatesChangeStreams(bool enabled) {
+    MockDcpConnMap connMap(*engine);
+    connMap.initialize();
+    auto* cookie = create_mock_cookie();
+
+    // Create a new Consumer, flag that we want it to support DeleteXattr
+    auto& consumer = dynamic_cast<MockDcpConsumer&>(
+            *connMap.newConsumer(cookie, "conn_name", "the_consumer_name"));
+
+    // Consumer::step performs multiple negotiation steps. Some of them are
+    // "blocking" steps. So, move the Consumer to the point where all the
+    // negotiation steps (but ChangeStreams) have been completed and then
+    // verifying that the negotiation of ChangeStreams flows as expected.
+    // Blocking negotiations that we need to jump are:
+    //  1. SyncRepl
+    //  2. DeletedUserXattrs
+    //  3. v7DCP
+    //  4. flatbuffers system-event
+    // , so (4) Completed is our target here.
+
+    const auto& preNegState =
+            consumer.public_getFlatbuffersSysEventNegotiation();
+    using State = DcpConsumer::BlockingDcpControlNegotiation::State;
+    ASSERT_EQ(State::PendingRequest, preNegState.state);
+
+    consumer.setPendingAddStream(false);
+    MockDcpMessageProducers producers;
+    cb::engine_errc result;
+    // Step and unblock (ie, simulate Producer response) up to completing the
+    // negotiation.
+    do {
+        result = consumer.step(producers);
+        handleProducerResponseIfStepBlocked(consumer, producers);
+    } while (preNegState.state != State::Completed);
+    EXPECT_EQ(cb::engine_errc::success, result);
+
+    // Check pre-negotiation state
+    const auto& neg = consumer.public_getChangeStreamsNegotiation();
+    ASSERT_EQ(State::PendingRequest, neg.state);
+    ASSERT_EQ(0, neg.opaque);
+    ASSERT_FALSE(consumer.areChangeStreamsEnabled());
+
+    // Start negotiation - consumer sends DcpControl
+    EXPECT_EQ(cb::engine_errc::success, consumer.step(producers));
+    EXPECT_EQ(State::PendingResponse, neg.state);
+    EXPECT_EQ(DcpControlKeys::ChangeStreams, producers.last_key);
+    EXPECT_EQ("true", producers.last_value);
+    EXPECT_GT(neg.opaque, 0);
+    EXPECT_EQ(neg.opaque, producers.last_opaque);
+
+    // Verify blocked - Consumer cannot proceed until negotiation completes
+    EXPECT_EQ(cb::engine_errc::would_block, consumer.step(producers));
+    EXPECT_EQ(State::PendingResponse, neg.state);
+
+    // Simulate Producer response
+    cb::mcbp::Status respStatus = (enabled ? cb::mcbp::Status::Success
+                                           : cb::mcbp::Status::UnknownCommand);
+    cb::mcbp::Response response{};
+    response.setMagic(cb::mcbp::Magic::ClientResponse);
+    response.setOpcode(cb::mcbp::ClientOpcode::DcpControl);
+    response.setStatus(respStatus);
+    response.setOpaque(neg.opaque);
+    consumer.handleResponse(response);
+
+    // Verify final consumer state
+    EXPECT_EQ(State::Completed, neg.state);
+    EXPECT_EQ(enabled, consumer.areChangeStreamsEnabled());
+
+    destroy_mock_cookie(cookie);
+}
+
+TEST_P(STDcpTest, ConsumerNegotiatesChangeStreams_DisabledAtProducer) {
+    testConsumerNegotiatesChangeStreams(false);
+}
+
+TEST_P(STDcpTest, ConsumerNegotiatesChangeStreams_EnabledAtProducer) {
+    testConsumerNegotiatesChangeStreams(true);
 }
 
 INSTANTIATE_TEST_SUITE_P(PersistentAndEphemeral,

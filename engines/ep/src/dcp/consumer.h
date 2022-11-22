@@ -391,6 +391,14 @@ protected:
     cb::engine_errc handleDeletedUserXattrs(
             DcpMessageProducersIface& producers);
 
+    /**
+     * Handles the negotiation of ChangeStreams.
+     *
+     * @param producers Pointers to message producers
+     * @return engine_errc
+     */
+    cb::engine_errc handleChangeStreams(DcpMessageProducersIface& producers);
+
     void notifyVbucketReady(Vbid vbucket);
 
     /**
@@ -627,6 +635,13 @@ protected:
     std::atomic_bool allowSanitizeValueInDeletion;
 
     bool alwaysBufferOperations{false};
+
+    /**
+     * Handles the negotiation for ChangeStreams.
+     * The final purpose is for the Consumer to know if the DCP connection
+     * enables history snapshots.
+     */
+    BlockingDcpControlNegotiation changeStreamsNegotiation;
 
     friend UpdateFlowControl;
 

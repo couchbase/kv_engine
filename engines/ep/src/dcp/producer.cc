@@ -1111,6 +1111,9 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
                valueStr == "true") {
         flatBuffersSystemEventsEnabled = true;
         return cb::engine_errc::success;
+    } else if (key == DcpControlKeys::ChangeStreams && valueStr == "true") {
+        changeStreams = true;
+        return cb::engine_errc::success;
     }
 
     logger->warn("Invalid ctrl parameter '{}' for {}", valueStr, keyStr);
