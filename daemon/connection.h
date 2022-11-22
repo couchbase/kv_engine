@@ -16,6 +16,7 @@
 #include "ssl_utils.h"
 #include "stats.h"
 
+#include <boost/intrusive/list.hpp>
 #include <cbsasl/client.h>
 #include <cbsasl/server.h>
 #include <daemon/protocol/mcbp/command_context.h>
@@ -61,7 +62,8 @@ const size_t MaxSavedConnectionId = 34;
 /**
  * The structure representing a connection in memcached.
  */
-class Connection : public DcpMessageProducersIface {
+class Connection : public DcpMessageProducersIface,
+                   public boost::intrusive::list_base_hook<> {
 public:
     enum class Type : uint8_t { Normal, Producer, Consumer };
     Connection(const Connection&) = delete;
@@ -107,6 +109,9 @@ public:
      * @return true if the connection was idle, false otherwise
      */
     bool signalIfIdle();
+
+    /// Is this connection connected to the system port or not
+    bool isConnectedToSystemPort() const;
 
     /**
      * Is the connection representing a system internal user
@@ -818,15 +823,6 @@ public:
     /// Notify that a command was executed (needed for command rate limiting)
     void commandExecuted();
 
-    /// Try to shut down a given number of connections
-    static void tryInitiateShutdown(size_t num);
-
-protected:
-    /**
-     * Protected constructor so that it may only be used by MockSubclasses
-     */
-    explicit Connection(FrontEndThread& thr);
-
     /**
      * Initiate disconnect of this connection if all of the following
      * is true:
@@ -838,6 +834,12 @@ protected:
      * @return true if shutdown was initiated
      */
     bool maybeInitiateShutdown();
+
+protected:
+    /**
+     * Protected constructor so that it may only be used by MockSubclasses
+     */
+    explicit Connection(FrontEndThread& thr);
 
     /**
      * Close the connection. If there is any references to the connection
@@ -904,20 +906,6 @@ protected:
 
     void updateSendBytes(size_t nbytes);
     void updateRecvBytes(size_t nbytes);
-
-    /// Update this connections location in the LRU list
-    void updateLru();
-
-    /// Remove this connection from the LRU list
-    void unlinkLru();
-
-    /// This connection LRU related information
-    struct {
-        /// Pointer to the next connection in the LRU list
-        Connection* next = {nullptr};
-        /// Pointer to the previous connection in the LRU list
-        Connection* prev = {nullptr};
-    } lru;
 
     /**
      * The "list" of commands currently being processed. We ALWAYS keep the

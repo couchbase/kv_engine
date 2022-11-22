@@ -53,105 +53,6 @@
 #include <netinet/tcp.h> // For TCP_NODELAY etc
 #endif
 
-struct ConnectionLru {
-    /// pointer to the least recently used connection
-    Connection* head = nullptr;
-    /// pointer to the most recently used connection
-    Connection* tail = nullptr;
-};
-
-/**
- * All of the connections pinned to a thread is stored within a LRU list
- * which gets updated (by the connection) in the command processing
- * code. This makes it easy to pick out an old connection when we need
- * to shut down connections without having to traverse "all" connections
- * to find a victim. Given that we spread out the connections to the threads
- * we can might as well just use a thread-specific LRU and pick a victim
- * there instead of using a shared structure and locks.
- *
- * Ideally this should have been thread_local within the Connection class
- * scope to minimize the visibility, but file scope is the second best thing ;)
- */
-static thread_local ConnectionLru thread_connection_lru;
-
-/// Remove the connection from the LRU list:
-///
-///  HEAD -> +---------+      +---------+      +----------+ <- TAIL
-///          | A       |      | B       |      | C        |
-///          |   next  | ---> |   next  | ---> |    next  | --> NIL
-///  NIL <-- |   prev  | <--- |   prev  | <--  |    prev  |
-///          +---------+      +---------+      +----------+
-///
-/// After we remove B it looks like:
-///  HEAD -> +---------+                       +----------+ <- TAIL
-///          | A       |                       | C        |
-///          |   next  | --------------------> |    next  | --> NIL
-///  NIL <-- |   prev  | <-------------------  |    prev  |
-///          +---------+                       +----------+
-void Connection::unlinkLru() {
-    // make the previous element point to our next unless we're the head
-    // of the list
-    if (lru.prev) {
-        lru.prev->lru.next = lru.next;
-    }
-
-    // make our next's previous pointer point to our previous unless we're
-    // at the tail of the list
-    if (lru.next) {
-        lru.next->lru.prev = lru.prev;
-    }
-
-    // If we're the current tail of the list we need to update the
-    // list tail pointer to our previous element
-    if (thread_connection_lru.tail == this) {
-        thread_connection_lru.tail = lru.prev;
-    }
-
-    // If we're the current head of the list we need to update the
-    // list head pointer to our next element
-    if (thread_connection_lru.head == this) {
-        thread_connection_lru.head = lru.next;
-    }
-
-    // Forget about all positions, so we don't have any dangling pointers
-    lru.next = lru.prev = nullptr;
-}
-
-/// Update the connections position in the threads LRU list
-void Connection::updateLru() {
-    // Don't insert connections to the system port to the LRU
-    // as they're accounted to the system connection count and limit
-    // Some unit tests use the mock connection which don't provide an
-    // instance of the listening port, so we need to check that its there...
-    if (listening_port && listening_port->system) {
-        return;
-    }
-
-#ifdef CB_DEVELOPMENT_ASSERTS
-    Expects(thread.eventBase.isInEventBaseThread());
-#endif
-
-    // Forget about our current position in the head
-    unlinkLru();
-    Expects(!lru.next);
-    Expects(!lru.prev);
-
-    // Insert ourselves as the tail of the list
-    if (thread_connection_lru.head) {
-        // The already contains an element, the tail should also point
-        // to something
-        Expects(thread_connection_lru.tail);
-        thread_connection_lru.tail->lru.next = this;
-        lru.prev = thread_connection_lru.tail;
-        thread_connection_lru.tail = this;
-    } else {
-        // This is the first entry into the list. This element should
-        // be both the head and the tail.
-        Expects(!thread_connection_lru.tail);
-        thread_connection_lru.head = thread_connection_lru.tail = this;
-    }
-}
-
 void Connection::shutdown() {
     state = State::closing;
 }
@@ -183,6 +84,10 @@ bool Connection::setTcpNoDelay(bool enable) {
     }
 
     return true;
+}
+
+bool Connection::isConnectedToSystemPort() const {
+    return listening_port && listening_port->system;
 }
 
 nlohmann::json Connection::toJSON() const {
@@ -763,7 +668,7 @@ void Connection::executeCommandPipeline() {
 
 void Connection::processNotifiedCookie(Cookie& cookie, cb::engine_errc status) {
     try {
-        updateLru();
+        thread.onConnectionUse(*this);
         cookie.setAiostat(status);
         cookie.setEwouldblock(false);
         if (cookie.execute()) {
@@ -888,7 +793,7 @@ bool Connection::executeCommandsCallback() {
     using std::chrono::nanoseconds;
 
     const auto start = std::chrono::steady_clock::now();
-    updateLru();
+    thread.onConnectionUse(*this);
     shutdownIfSendQueueStuck(start);
     if (state == State::running) {
         try {
@@ -1417,6 +1322,7 @@ Connection::Connection(FrontEndThread& thr)
     cookies.emplace_back(std::make_unique<Cookie>(*this));
     setConnectionId("unknown:0");
     stats.conn_structs++;
+    thread.onConnectionCreate(*this);
 }
 
 Connection::Connection(SOCKET sfd,
@@ -1433,8 +1339,6 @@ Connection::Connection(SOCKET sfd,
       parent_port(listening_port->port),
       connectedToSystemPort(listening_port->system),
       ssl(sslStructure) {
-    thread.onConnectionCreate(*this);
-    updateLru();
     setTcpNoDelay(true);
     updateDescription();
     cookies.emplace_back(std::make_unique<Cookie>(*this));
@@ -1473,6 +1377,7 @@ Connection::Connection(SOCKET sfd,
 
     bufferevent_enable(bev.get(), EV_READ);
     stats.conn_structs++;
+    thread.onConnectionCreate(*this);
 }
 
 bool Connection::maybeInitiateShutdown() {
@@ -1498,19 +1403,8 @@ bool Connection::maybeInitiateShutdown() {
     return true;
 }
 
-void Connection::tryInitiateShutdown(size_t num) {
-    Connection* ptr = thread_connection_lru.head;
-    while (ptr && num > 0) {
-        if (ptr->maybeInitiateShutdown()) {
-            --num;
-        }
-        ptr = ptr->lru.next;
-    }
-}
-
 Connection::~Connection() {
     thread.onConnectionDestroy(*this);
-    unlinkLru();
     cb::audit::addSessionTerminated(*this);
 
     if (connectedToSystemPort) {
