@@ -28,8 +28,12 @@ void VBucketCountVisitor::visitBucket(VBucket& vb) {
 
     // TODO MB-54294: This may be expensive for lots of collections.
     // consider tracking this value "upfront".
-    for (const auto& [id, collection] : vb.getManifest().lock()) {
-        logicalDiskSize += collection.getDiskSize();
+    {
+        // Lock needed because the manifest could change concurrently otherwise.
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        for (const auto& [id, collection] : vb.getManifest().lock()) {
+            logicalDiskSize += collection.getDiskSize();
+        }
     }
 
     if (desired_state != vbucket_state_dead) {
