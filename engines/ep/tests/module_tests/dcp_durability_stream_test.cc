@@ -4619,6 +4619,7 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
     // Note: We need to plant a DCP cursor on ephemeral for preventing
     // checkpoint removal at replica promotion
     auto vb = engine->getVBucket(vbid);
+
     auto& ckptMgr = static_cast<MockCheckpointManager&>(*vb->checkpointManager);
     if (ephemeral()) {
         const auto dcpCursor =
@@ -4824,6 +4825,10 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
     ASSERT_EQ(0, stream->public_readyQSize());
 
     producer->cancelCheckpointCreatorTask();
+
+    // Check item count is correct for newly committed item
+    flushVBucketToDiskIfPersistent(vbid, 4);
+    EXPECT_EQ(2, vb->getNumItems());
 }
 
 TEST_P(DurabilityPromotionStreamTest,
