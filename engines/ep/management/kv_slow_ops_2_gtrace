@@ -23,6 +23,77 @@ import json
 import re
 import unittest
 
+first = True
+
+def print_event(event):
+    """Converts the event to a JSON object and prints to stdout, adding commas
+    between each object to make a JSON list.
+    """
+    global first
+    if not first:
+        print(',', end=' ')
+    first = False
+    print(json.dumps(event))
+
+
+def parse_slow_operation(node, m):
+    """Parses a log line for a 'Slow operation', outputting to stdout a Google
+     Chrome tracing event for each span parsed.
+    """
+    time = m.group(1)
+    fd = m.group(2)
+    slow_op = parse_slow_op(m.group(3))
+
+    # Set the common fields for all events for this operation
+    common = dict()
+    common['cat'] = slow_op['command']
+    common['ph'] = 'X'
+    # clientID "should" be a tuple of "connectionID/opaque", but
+    # not all clients obey this convention.
+    # As such, we extract the opaque here "just in case" - as older
+    # server releases didn't report the full request packet, but if we
+    # do have packet.opaque then use that in preference.
+    cid = slow_op['cid']
+    (connection_id, opaque) = cid.rsplit('/', 1)
+    opaque = int(opaque, 16)
+    if 'opaque' in slow_op['packet']:
+        opaque = slow_op['packet']['opaque']
+    common['pid'] = connection_id
+
+    # Build a trace event from each span in the slow op.
+    for span in slow_op['trace'].split():
+        (name, value) = span.split('=')
+        (start_ns, dur) = map(int, value.split(':'))
+        # MB-43617: Ignore any spans which have zero time and duration;
+        # they are spurious due to missing copy-elision when recording
+        # Spans.
+        if not (start_ns or dur):
+            continue
+        event = dict()
+        event.update(common)
+        event['name'] = name
+        # Timestamp and duration need to be in microseconds.
+        event['ts'] = start_ns / 1000
+        event['dur'] = dur
+        # For the top-level 'request' event, include additional request
+        # details (redundant to repeat for every event).
+        if name == 'request':
+            event['args'] = {'opaque': opaque,
+                             'fd': fd,
+                             'peer': slow_op['peer']}
+            event['args']['key'] = slow_op['packet']['key']
+            event['args']['vbucket'] = slow_op['packet']['vbucket']
+            event['args']['time'] = time
+            # worker_tid added in v7.1.0.
+            if 'worker_tid' in slow_op:
+                event['args']['worker_tid'] = slow_op['worker_tid']
+        if node:
+            if 'args' not in event:
+                event['args'] = dict()
+            event['args']['node'] = node
+        print_event(event)
+
+
 def parse_slow_op(trace):
     """
     Parse the trace JSON from the slow operation log.
@@ -113,7 +184,7 @@ class TestParsing(unittest.TestCase):
 
 def main():
     print('[')
-    first = True
+    global first
     node = ""
     for line in fileinput.input():
         # Check if we're parsing logs from multiple nodes, extracting data for rebasing timestamps if we are.
@@ -130,61 +201,9 @@ def main():
         time_regex = "(\d{4}-\d{2}-\d{2}T[0-9:.+-]+)"
         m = re.search(time_regex + " WARNING (\d+): Slow operation. (.*)", line)
         if m:
-            time = m.group(1)
-            fd = m.group(2)
-            slow_op = parse_slow_op(m.group(3))
-
-            # Set the common fields for all events for this operation
-            common = dict()
-            common['cat'] = slow_op['command']
-            common['ph'] = 'X'
-            # clientID "should" be a tuple of "connectionID/opaque", but
-            # not all clients obey this convention.
-            # As such, we extract the opaque here "just in case" - as older
-            # server releases didn't report the full request packet, but if we
-            # do have packet.opaque then use that in preference.
-            cid = slow_op['cid']
-            (connection_id, opaque) = cid.rsplit('/', 1)
-            opaque = int(opaque, 16)
-            if 'opaque' in slow_op['packet']:
-                opaque = slow_op['packet']['opaque']
-            common['pid'] = connection_id
-
-            # Build a trace event from each span in the slow op.
-            for span in slow_op['trace'].split():
-                (name, value) = span.split('=')
-                (start_us, dur) = map(int, value.split(':'))
-                # MB-43617: Ignore any spans which have zero time and duration;
-                # they are spurious due to missing copy-elision when recording
-                # Spans.
-                if not (start_us or dur):
-                    continue
-                event = dict()
-                event.update(common)
-                event['name'] = name
-                event['ts'] = start_us / 1000
-                event['dur'] = dur
-                # For the top-level 'request' event, include additional request
-                # details (redundant to repeat for every event).
-                if name == 'request':
-                    event['args'] = {'opaque': opaque,
-                                    'fd': fd,
-                                    'peer': slow_op['peer']}
-                    event['args']['key'] = slow_op['packet']['key']
-                    event['args']['vbucket'] = slow_op['packet']['vbucket']
-                    event['args']['time'] = time
-                    # worker_tid added in v7.1.0.
-                    if 'worker_tid' in slow_op:
-                        event['args']['worker_tid'] = slow_op['worker_tid']
-                if node:
-                    if 'args' not in event:
-                        event['args'] = dict()
-                    event['args']['node'] = node
-                if not first:
-                    print(',', end=' ')
-                first = False
-                print(json.dumps(event))
+            parse_slow_operation(node, m)
     print(']')
+
 
 if __name__ == '__main__':
     import os
