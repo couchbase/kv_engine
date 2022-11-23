@@ -195,69 +195,6 @@ def parse_slow_op(trace):
 
     return json.loads(trace)
 
-class TestParsing(unittest.TestCase):
-
-    def test_6_6_2(self):
-        test_string = (
-            r'{"cid":"7E/FF/20","duration":"11 s","trace":"request=63:11 '
-            r'get=0:0 bg.wait=6308229496700500:55 get=6308229496693730:41 '
-            r'bg.load=6308229496755836:11232001 get=0:0 get=630824072879295:11"'
-            r',"command":"GET","peer":"{"ip":"0.0.0.0","port":57324}","bucket":'
-            r'"b","packet":{"bodylen":49,"cas":0,"datatype":"raw","extlen":0,"'
-            r'key":"<ud>c0ca65a1438baaab6c8a156b05d3b08d91bfacd7</ud>",'
-            r'"keylen":49,"magic":"ClientRequest","opaque":513417216,'
-            r'"opcode":"GET","vbucket":318}}'
-        )
-        obj = parse_slow_op(test_string)
-        self.assertTrue(obj['cid'] == '7E/FF/20')
-        self.assertTrue(obj['peer'] == '0.0.0.0:57324')
-
-    def test_6_6_5(self):
-        test_string = (
-            r'{"cid":"{"ip":"0.0.0.0","port":42678}/ef","duration":"521 ms",'
-            r'"trace":"request=6070831171407831:521890","command":"STAT",'
-            r'"peer":"{"ip":"0.0.0.0","port":42678}","bucket":"a","packet":'
-            r'{"bodylen":3,"cas":0,"datatype":"raw","extlen":0,"key":'
-            r'"<ud>dcp</ud>","keylen":3,"magic":"ClientRequest",'
-            r'"opaque":3724742144,"opcode":"STAT","vbucket":0}}'
-        )
-        obj = parse_slow_op(test_string)
-        self.assertTrue(obj['cid'] == '0.0.0.0:42678/ef')
-        self.assertTrue(obj['peer'] == '0.0.0.0:42678')
-
-    def test_6_6_5_IPv6(self):
-        test_string = (
-            r'{"cid":"{"ip":"684D:1111:222:3333:4444:5555:6:77","port":'
-            r'42678}/ef","duration":"521 ms","trace":'
-            r'"request=6070831171407831:521890","command":"STAT","peer":"{"ip":'
-            r'"684D:1111:222:3333:4444:5555:6:77","port":42678}","bucket":"a",'
-            r'"packet":{"bodylen":3,"cas":0,"datatype":"raw","extlen":0,"key":'
-            r'"<ud>dcp</ud>","keylen":3,"magic":"ClientRequest",'
-            r'"opaque":3724742144,"opcode":"STAT","vbucket":0}}'
-        )
-        obj = parse_slow_op(test_string)
-        print(obj)
-        self.assertTrue(obj['cid'] ==
-            '[684D:1111:222:3333:4444:5555:6:77]:42678/ef')
-        self.assertTrue(obj['peer'] ==
-            '[684D:1111:222:3333:4444:5555:6:77]:42678')
-
-    def test_7_2_0(self):
-        test_string = (
-            r'{"bucket":"c","cid":"AF12/4FC/6c","command":"GET_CLUSTER_CONFIG",'
-            r'"connection":"[ {\"ip\":\"0.0.0.0\",\"port\":54300} - '
-            r'{\"ip\":\"0.0.0.0\",\"port\":11207} (<ud>dfs</ud>) ]","duration":'
-            r'"580 ms","packet":{"bodylen":0,"cas":0,"datatype":"raw",'
-            r'"extlen":0,"key":"<ud></ud>","keylen":0,"magic":"ClientRequest",'
-            r'"opaque":693831680,"opcode":"GET_CLUSTER_CONFIG","vbucket":0},'
-            r'"peer":{"ip":"0.0.0.0","port":54300},"response":"Success",'
-            r'"trace":"request=10811483103351:580237 execute=108120633258:15",'
-            r'"worker_tid":281472829188416}'
-        )
-        obj = parse_slow_op(test_string)
-        self.assertTrue(obj['cid'] == 'AF12/4FC/6c')
-        self.assertTrue(obj['peer']['ip'] == '0.0.0.0')
-        self.assertTrue(obj['peer']['port'] == 54300)
 
 def main():
     print('[')
@@ -301,6 +238,73 @@ def main():
             "s" if skipped_slow_runtime_events else ""),
             file=sys.stderr)
 
+
+##
+## ---------------------- Unit tests ------------------------------------------
+##
+
+class TestParsing(unittest.TestCase):
+
+    def test_6_6_2(self):
+        test_string = (
+            r'{"cid":"7E/FF/20","duration":"11 s","trace":"request=63:11 '
+            r'get=0:0 bg.wait=6308229496700500:55 get=6308229496693730:41 '
+            r'bg.load=6308229496755836:11232001 get=0:0 get=630824072879295:11"'
+            r',"command":"GET","peer":"{"ip":"0.0.0.0","port":57324}","bucket":'
+            r'"b","packet":{"bodylen":49,"cas":0,"datatype":"raw","extlen":0,"'
+            r'key":"<ud>c0ca65a1438baaab6c8a156b05d3b08d91bfacd7</ud>",'
+            r'"keylen":49,"magic":"ClientRequest","opaque":513417216,'
+            r'"opcode":"GET","vbucket":318}}'
+        )
+        obj = parse_slow_op(test_string)
+        self.assertTrue(obj['cid'] == '7E/FF/20')
+        self.assertTrue(obj['peer'] == '0.0.0.0:57324')
+
+    def test_6_6_5(self):
+        test_string = (
+            r'{"cid":"{"ip":"0.0.0.0","port":42678}/ef","duration":"521 ms",'
+            r'"trace":"request=6070831171407831:521890","command":"STAT",'
+            r'"peer":"{"ip":"0.0.0.0","port":42678}","bucket":"a","packet":'
+            r'{"bodylen":3,"cas":0,"datatype":"raw","extlen":0,"key":'
+            r'"<ud>dcp</ud>","keylen":3,"magic":"ClientRequest",'
+            r'"opaque":3724742144,"opcode":"STAT","vbucket":0}}'
+        )
+        obj = parse_slow_op(test_string)
+        self.assertTrue(obj['cid'] == '0.0.0.0:42678/ef')
+        self.assertTrue(obj['peer'] == '0.0.0.0:42678')
+
+    def test_6_6_5_IPv6(self):
+        test_string = (
+            r'{"cid":"{"ip":"684D:1111:222:3333:4444:5555:6:77","port":'
+            r'42678}/ef","duration":"521 ms","trace":'
+            r'"request=6070831171407831:521890","command":"STAT","peer":"{"ip":'
+            r'"684D:1111:222:3333:4444:5555:6:77","port":42678}","bucket":"a",'
+            r'"packet":{"bodylen":3,"cas":0,"datatype":"raw","extlen":0,"key":'
+            r'"<ud>dcp</ud>","keylen":3,"magic":"ClientRequest",'
+            r'"opaque":3724742144,"opcode":"STAT","vbucket":0}}'
+        )
+        obj = parse_slow_op(test_string)
+        self.assertTrue(obj['cid'] ==
+            '[684D:1111:222:3333:4444:5555:6:77]:42678/ef')
+        self.assertTrue(obj['peer'] ==
+            '[684D:1111:222:3333:4444:5555:6:77]:42678')
+
+    def test_7_2_0(self):
+        test_string = (
+            r'{"bucket":"c","cid":"AF12/4FC/6c","command":"GET_CLUSTER_CONFIG",'
+            r'"connection":"[ {\"ip\":\"0.0.0.0\",\"port\":54300} - '
+            r'{\"ip\":\"0.0.0.0\",\"port\":11207} (<ud>dfs</ud>) ]","duration":'
+            r'"580 ms","packet":{"bodylen":0,"cas":0,"datatype":"raw",'
+            r'"extlen":0,"key":"<ud></ud>","keylen":0,"magic":"ClientRequest",'
+            r'"opaque":693831680,"opcode":"GET_CLUSTER_CONFIG","vbucket":0},'
+            r'"peer":{"ip":"0.0.0.0","port":54300},"response":"Success",'
+            r'"trace":"request=10811483103351:580237 execute=108120633258:15",'
+            r'"worker_tid":281472829188416}'
+        )
+        obj = parse_slow_op(test_string)
+        self.assertTrue(obj['cid'] == 'AF12/4FC/6c')
+        self.assertTrue(obj['peer']['ip'] == '0.0.0.0')
+        self.assertTrue(obj['peer']['port'] == 54300)
 
 
 if __name__ == '__main__':
