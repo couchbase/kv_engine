@@ -9,8 +9,8 @@
 #   the file licenses/APL2.txt.
 #
 
-"""Parses a memcached log file for 'Slow op' warnings, and converts
-into a Google Trace Event Format file
+"""Parses a memcached log file for 'Slow op' and 'Slow runtime' warnings, and
++converts into a Google Trace Event Format file
 (https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview#heading=h.yr4qxyxotyw).
 
 Usage:
@@ -18,12 +18,53 @@ Usage:
     <open Chrome -> chrome://tracing -> Load 'trace.json'
 """
 
+from datetime import datetime
 import fileinput
 import json
 import re
 import unittest
+import sys
+
 
 first = True
+system_clock_steady_clock_delta = None
+
+# Dictionary tracking which threads have already been 'seen' at least once,
+# so we only emit their metadata once.
+thread_seen = dict()
+
+
+def iso8601_to_epoch(ts):
+    """Convert an ISO 8601 time string to seconds since unix epoch."""
+    return datetime.strptime(ts, '%Y-%m-%dT%H:%M:%S.%f%z').timestamp()
+
+
+def human_duration_to_sec(h):
+    """Converts a human-readable duration to floating-point seconds.
+    e.g.
+        2 s -> 2
+        123 ms -> 0.123
+    """
+    (value, unit) = h.split(' ')
+    if unit == "s":
+        return float(value)
+    if unit == "ms":
+        return float(value) / 1000
+    raise ValueError("Unhandled unit '{}'".format(unit))
+
+
+def update_steady_clock_offset(system_clock, steady_clock):
+    """To be able to plot Slow task runtimes (see parse_slow_task_runtime) on
+    the same timeline as Slow operations, we need to map the system-clock
+    timestamp to the steady-clock timestamp used by Slow operations.
+    In theory system clock can drift relative to steady-clock, so re-calculate
+    the delta for each "Slow operation" encountered to minimise any
+    inaccuracies.
+    """
+    global system_clock_steady_clock_delta
+    system_epoch = iso8601_to_epoch(system_clock)
+    system_clock_steady_clock_delta = steady_clock - system_epoch
+
 
 def print_event(event):
     """Converts the event to a JSON object and prints to stdout, adding commas
@@ -87,11 +128,47 @@ def parse_slow_operation(node, m):
             # worker_tid added in v7.1.0.
             if 'worker_tid' in slow_op:
                 event['args']['worker_tid'] = slow_op['worker_tid']
+
+            # Calculate end of event in seconds according to steady_clock,
+            # then update clock offset.
+            ts_end_sec = (event['ts'] + event['dur']) / 1000000
+            update_steady_clock_offset(time, ts_end_sec)
         if node:
             if 'args' not in event:
                 event['args'] = dict()
             event['args']['node'] = node
         print_event(event)
+
+
+def parse_slow_task_runtime(m):
+    (time, bucket, task, thread, runtime) = m.groups()
+
+    event = dict()
+    event['cat'] = "Slow runtime"
+    event['name'] = task
+    event['ph'] = "X"
+    event['pid'] = thread
+
+    # Convert log message timestamp to same time domain as Slow operations
+    # (steady_clock seconds)
+    timestamp_epoch = iso8601_to_epoch(time)
+    timestamp_steady_clock = timestamp_epoch + system_clock_steady_clock_delta
+    runtime_sec = human_duration_to_sec(runtime)
+
+    # Timestamps and duration are expressed in microseconds
+    event['ts'] = (timestamp_steady_clock - runtime_sec) * 1000000
+    event['dur'] = runtime_sec * 1000000
+    event['args'] = {'time': time}
+    print_event(event)
+
+    if thread not in thread_seen:
+        meta = dict()
+        meta['name'] = "process_sort_index"
+        meta['ph'] = "M"
+        meta['pid'] = thread
+        meta['args'] = {'sort_index': -1}
+        print_event(meta)
+        thread_seen[thread] = True
 
 
 def parse_slow_op(trace):
@@ -186,6 +263,7 @@ def main():
     print('[')
     global first
     node = ""
+    skipped_slow_runtime_events = 0
     for line in fileinput.input():
         # Check if we're parsing logs from multiple nodes, extracting data for rebasing timestamps if we are.
         #
@@ -201,8 +279,28 @@ def main():
         time_regex = "(\d{4}-\d{2}-\d{2}T[0-9:.+-]+)"
         m = re.search(time_regex + " WARNING (\d+): Slow operation. (.*)", line)
         if m:
-            parse_slow_operation(node, m)
+            parse_slow_operation(node,m)
+            continue
+        # Check for "Slow runtime" messages from tasks, e.g.
+        #   2022-11-21T18:06:56.188574-05:00 WARNING (No Engine) Slow runtime for 'Compact DB file 421' on thread WriterPool3: 32 s
+        m = re.search(
+            time_regex + " WARNING \(([^)]+)\) Slow runtime for '(.+)' on thread (.+): (.+)",
+            line)
+        if m:
+            if system_clock_steady_clock_delta:
+                parse_slow_task_runtime(m)
+            else:
+                skipped_slow_runtime_events += 1
     print(']')
+    if skipped_slow_runtime_events > 0:
+        print(("Warning: Failed to generate traces for {} 'Slow runtime' " +
+               "event{} as system_clock delta is unset.\nEnsure there is " +
+               "at least one 'Slow operation' parsed prior to the " +
+               "Slow runtime event(s) if you want to include them.").format(
+            skipped_slow_runtime_events,
+            "s" if skipped_slow_runtime_events else ""),
+            file=sys.stderr)
+
 
 
 if __name__ == '__main__':
