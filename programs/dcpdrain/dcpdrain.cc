@@ -106,6 +106,7 @@ Options:
   --stream-request-flags         Value to use for the 4-byte stream-request
                                  flags field.
                                  Default value is DCP_ADD_STREAM_FLAG_LATEST
+  --enable-flatbuffer-sysevents  Turn on system events with flatbuffer values
   --help                         This help text
 )";
 
@@ -499,6 +500,7 @@ int main(int argc, char** argv) {
     std::string streamIdFileName;
     uint32_t streamRequestFlags = DCP_ADD_STREAM_FLAG_LATEST;
     size_t num_connections = 1;
+    bool enableFlatbufferSysEvents{false};
 
     cb::net::initialize();
 
@@ -507,6 +509,7 @@ int main(int argc, char** argv) {
     const int enableOsoOptionId = 3;
     const int disableCollectionsOptionId = 4;
     const int streamRequestFlagsOptionId = 5;
+    const int enableFlatbufferSysEventsId = 6;
 
     std::vector<option> long_options = {
             {"ipv4", no_argument, nullptr, '4'},
@@ -535,6 +538,10 @@ int main(int argc, char** argv) {
              required_argument,
              nullptr,
              streamRequestFlagsOptionId},
+            {"enable-flatbuffer-sysevents",
+             no_argument,
+             nullptr,
+             enableFlatbufferSysEventsId},
             {nullptr, 0, nullptr, 0}};
 
     while ((cmd = getopt_long(argc,
@@ -624,6 +631,9 @@ int main(int argc, char** argv) {
             break;
         case streamRequestFlagsOptionId:
             streamRequestFlags = strtoul(optarg);
+            break;
+        case enableFlatbufferSysEventsId:
+            enableFlatbufferSysEvents = true;
             break;
         default:
             usage();
@@ -790,6 +800,11 @@ int main(int argc, char** argv) {
                 if (enableOso) {
                     ctrls.emplace_back(std::make_pair(
                             "enable_out_of_order_snapshots", "true"));
+                }
+
+                if (enableFlatbufferSysEvents) {
+                    ctrls.emplace_back(std::make_pair(
+                            "flatbuffers_system_events", "true"));
                 }
 
                 setControlMessages(c, ctrls);
