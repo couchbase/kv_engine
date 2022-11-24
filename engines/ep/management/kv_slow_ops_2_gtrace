@@ -138,9 +138,16 @@ def main():
             common = dict()
             common['cat'] = slow_op['command']
             common['ph'] = 'X'
-            # cid = "connectionID/opaque"
+            # clientID "should" be a tuple of "connectionID/opaque", but
+            # not all clients obey this convention.
+            # As such, we extract the opaque here "just in case" - as older
+            # server releases didn't report the full request packet, but if we
+            # do have packet.opaque then use that in preference.
             cid = slow_op['cid']
             (connection_id, opaque) = cid.rsplit('/', 1)
+            opaque = int(opaque, 16)
+            if 'opaque' in slow_op['packet']:
+                opaque = slow_op['packet']['opaque']
             common['pid'] = connection_id
 
             # Build a trace event from each span in the slow op.
