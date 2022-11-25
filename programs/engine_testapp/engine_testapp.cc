@@ -206,7 +206,6 @@ public:
             if (initialize) {
                 const auto error = me->the_engine->initialize(cfg);
                 if (error != cb::engine_errc::success) {
-                    me->the_engine->destroy(false /*force*/);
                     throw cb::engine_error{cb::engine_errc(error),
                                            "Failed to initialize instance"};
                 }
