@@ -14,6 +14,7 @@
 #include "tagged_ptr.h"
 #include "utility.h"
 #include <platform/atomic.h>
+#include <string_view>
 
 /**
  * A blob is a minimal sized storage for data up to 2^32 bytes long.
@@ -123,6 +124,10 @@ public:
         auto* blob = reinterpret_cast<Blob*>(ptr);
         auto size = Blob::getAllocationSize(blob->valueSize());
         ::operator delete(blob, size);
+    }
+
+    operator std::string_view() const noexcept {
+        return {data, valueSize()};
     }
 
     ~Blob();

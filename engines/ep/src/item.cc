@@ -14,6 +14,7 @@
 #include "logtags.h"
 #include "objectregistry.h"
 
+#include <boost/io/ios_state.hpp>
 #include <folly/lang/Assume.h>
 #include <platform/compress.h>
 #include <xattr/blob.h>
@@ -21,6 +22,7 @@
 #include <chrono>
 #include <iomanip>
 #include <sstream>
+#include <utility>
 
 std::atomic<uint64_t> Item::casCounter(1);
 
@@ -250,23 +252,24 @@ bool operator==(const Blob& lhs, const Blob& rhs) {
 }
 
 std::ostream& operator<<(std::ostream& os, const Blob& b) {
+    boost::io::ios_flags_saver ifs(os);
     os << "Blob[" << &b << "] with"
        << " size:" << b.size
        << " age:" << int(b.age)
        << " data: <" << std::hex;
     // Print at most 40 bytes of the body.
-    auto bytes_to_print = std::min(uint32_t(40), b.size.load());
-    for (size_t ii = 0; ii < bytes_to_print; ii++) {
-        if (ii != 0) {
+    bool isFirstByte = true;
+    for (char ch : std::string_view(b).substr(0, 40)) {
+        if (!std::exchange(isFirstByte, false)) {
             os << ' ';
         }
-        if (isprint(b.data[ii])) {
-            os << b.data[ii];
+        if (isprint(ch)) {
+            os << ch;
         } else {
-            os << std::setfill('0') << std::setw(2) << int(uint8_t(b.data[ii]));
+            os << std::setfill('0') << std::setw(2) << int(uint8_t(ch));
         }
     }
-    os << std::dec << '>';
+    os << '>';
     return os;
 }
 

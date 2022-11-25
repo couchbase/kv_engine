@@ -19,6 +19,7 @@
 #include <folly/portability/GTest.h>
 #include <memcached/protocol_binary.h>
 #include <memory>
+#include <sstream>
 
 class ItemNoValuePruneTest : public ::testing::TestWithParam<
                              std::tuple<IncludeValue, IncludeXattrs>> {
@@ -80,6 +81,14 @@ public:
                                   datatype);
     }
 };
+
+TEST_F(ItemTest, formatSmallUncompressibleBlob_MB_54680) {
+    std::unique_ptr<Blob> b(Blob::New("a\nb", 3));
+    b->setUncompressible();
+    std::stringstream ss;
+    ss << *b;
+    EXPECT_NE(ss.str().find("<a 0a b>"), std::string::npos);
+}
 
 TEST_F(ItemTest, getAndSetCachedDataType) {
     std::string valueData = R"(raw data)";
