@@ -3475,6 +3475,21 @@ static enum test_result test_access_scanner(EngineIface* h) {
     checkge(num_non_resident, num_items * 6 / 100,
             "Expected num_non_resident to be at least 6% of total items");
 
+    // MB-54571: Because we run with a very small max_size = 10M, the overhead
+    // of our internal structures, other than the HashTable can cause _all_
+    // values to be evicted. Stash something so we are able to generate an
+    // access.log for shard 0.
+    checkeq(cb::engine_errc::success,
+            store(h,
+                  nullptr,
+                  StoreSemantics::Set,
+                  "something",
+                  value.c_str(),
+                  nullptr,
+                  0,
+                  Vbid(0)),
+            "Failed to store item");
+
     /* Run access scanner task once and expect it to generate access log */
     checkeq(cb::engine_errc::success,
             set_param(h,
