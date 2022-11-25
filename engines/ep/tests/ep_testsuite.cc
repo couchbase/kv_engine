@@ -4024,6 +4024,14 @@ static enum test_result test_curr_items_delete(EngineIface* h) {
 }
 
 static enum test_result test_curr_items_dead(EngineIface* h) {
+    std::string backend = get_str_stat(h, "ep_backend");
+    if (backend == "rocksdb") {
+        // RocksDBKVStore::prepareToDeleteImpl is not implemented.
+        // Some of our debug logging accesses the result and we end up
+        // with a nullptr dereference.
+        return SKIPPED_UNDER_ROCKSDB;
+    }
+
     // Verify initial case.
     verify_curr_items(h, 0, "init");
 
