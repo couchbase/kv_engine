@@ -1250,7 +1250,8 @@ void EPBucket::dropKey(VBucket& vb,
 
     auto docKey = diskKey.getDocKey();
     if (docKey.isInSystemCollection()) {
-        throw std::logic_error("EPBucket::dropKey called for a system key");
+        // SystemEvents aren't in memory so return.
+        return;
     }
 
     if (diskKey.isPrepared() && bySeqno > highCompletedSeqno) {

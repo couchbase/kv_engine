@@ -935,7 +935,9 @@ static int time_purge_hook(Db& d,
 
             // Track nothing for the individual collection as the stats doc has
             // already been deleted.
-        } else {
+        } else if (!docKey.isInSystemCollection()) {
+            // item in a collection was dropped, track how many for item count
+            // adjustment.
             if (!info->deleted) {
                 ctx.stats.collectionsItemsPurged++;
             } else {

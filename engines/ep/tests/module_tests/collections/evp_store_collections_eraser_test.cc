@@ -2177,6 +2177,65 @@ TEST_P(CollectionsEraserTest, MB_50747_delete_and_drop) {
     EXPECT_EQ(0, vb->getNumItems());
 }
 
+TEST_P(CollectionsEraserTest, drop_after_modify) {
+    // add two collections
+    CollectionsManifest cm(CollectionEntry::dairy);
+    vb->updateFromManifest(makeManifest(cm.add(CollectionEntry::fruit)));
+
+    flushVBucketToDiskIfPersistent(vbid, 2 /* 2 x system */);
+
+    // add some items
+    store_item(
+            vbid, StoredDocKey{"dairy:milk", CollectionEntry::dairy}, "nice");
+    store_item(vbid,
+               StoredDocKey{"dairy:butter", CollectionEntry::dairy},
+               "lovely");
+    store_item(
+            vbid, StoredDocKey{"fruit:apple", CollectionEntry::fruit}, "nice");
+    store_item(vbid,
+               StoredDocKey{"fruit:apricot", CollectionEntry::fruit},
+               "lovely");
+
+    flushVBucketToDiskIfPersistent(vbid, 4);
+
+    EXPECT_EQ(4, vb->getNumItems());
+
+    // Modify history setting of dairy false->true
+    vb->updateFromManifest(makeManifest(
+            cm.update(CollectionEntry::fruit, cb::NoExpiryLimit, true)));
+    store_item(
+            vbid, StoredDocKey{"fruit:apple", CollectionEntry::fruit}, "nice");
+
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // delete the collections
+    vb->updateFromManifest(makeManifest(
+            cm.remove(CollectionEntry::dairy).remove(CollectionEntry::fruit)));
+
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
+
+    flushVBucketToDiskIfPersistent(vbid, 2 /* 2 x system */);
+
+    if (!isPersistent()) {
+        // 2x create collection, 1x modify
+        EXPECT_EQ(3, vb->ht.getNumSystemItems());
+    }
+
+    runCollectionsEraser(vbid);
+
+    EXPECT_EQ(0, vb->getNumItems());
+
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::dairy));
+    EXPECT_FALSE(vb->lockCollections().exists(CollectionEntry::fruit));
+
+    if (!isPersistent()) {
+        // 2 system events remain (tombstones of dairy/fruit).
+        // modify was purged
+        EXPECT_EQ(2, vb->ht.getNumSystemItems());
+    }
+}
+
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_SUITE_P(CollectionsEraserTests,
                          CollectionsEraserTest,
