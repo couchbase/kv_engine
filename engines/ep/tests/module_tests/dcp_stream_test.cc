@@ -33,6 +33,7 @@
 #include "vbucket_state.h"
 
 #include "../couchstore/src/internal.h"
+#include "../mock/gmock_dcp_msg_producers.h"
 #include "../mock/mock_checkpoint_manager.h"
 #include "../mock/mock_dcp.h"
 #include "../mock/mock_dcp_conn_map.h"
@@ -42,6 +43,7 @@
 
 #include <engines/ep/tests/mock/mock_dcp_backfill_mgr.h>
 #include <folly/portability/GMock.h>
+#include <folly/synchronization/Baton.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
@@ -3176,7 +3178,7 @@ TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
         EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
         EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
 
-        stream->setNextHook([&tg1, &tg2]() {
+        stream->setNextHook([&tg1, &tg2](const DcpResponse* response) {
             if (!tg1.isComplete()) {
                 tg1.threadUp();
 
@@ -3216,6 +3218,125 @@ TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
     EXPECT_FALSE(producer->findStream(vbid));
     EXPECT_TRUE(producer->getReadyQueue().empty());
+}
+
+// MB-54591: An ActiveStream can lose a notification of a new seqno if
+// the notification occurs while the frontend DCP thread is finishing processing
+// the previous item(s) via ActiveStream::next(). Specifically if
+// notifyStreamReady() is called before itemsReady is cleared at the end of
+// ActiveStream::next().
+// This results in the DCP stream not waking and not sending out the affected
+// seqno(s) until another mutation for that vBucket occurs.
+TEST_P(SingleThreadedActiveStreamTest,
+       RaceBetweenNotifyAndProcessingExistingItems) {
+
+    // Replace initial stream with one registered with DCP producer.
+    auto vb = engine->getVBucket(vbid);
+    startCheckpointTask();
+    stream = producer->mockActiveStreamRequest(0,
+                                               /*opaque*/ 0,
+                                               *vb,
+                                               /*st_seqno*/ 0,
+                                               /*en_seqno*/ ~0,
+                                               /*vb_uuid*/ 0xabcd,
+                                               /*snap_start_seqno*/ 0,
+                                               /*snap_end_seqno*/ ~0);
+    auto& connMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+    connMap.addConn(cookie, producer);
+    connMap.addVBConnByVBId(*producer, vbid);
+
+    // Add an initial item which we will correctly process.
+    store_item(vbid, makeStoredDocKey("key1"), "value");
+
+    // step() the producer to schedule ActiveStreamCheckpointProcessorTask and
+    // run it once to process the items from CkptManager into the Streams'
+    // readyQ.
+    GMockDcpMsgProducers producers;
+    ASSERT_EQ(cb::engine_errc::would_block, producer->step(producers));
+    auto& nonIO = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    runNextTask(nonIO,
+                "Process checkpoint(s) for DCP producer "
+                "test_producer->test_consumer");
+
+    // Setup Mock Producer expectations - we should see two snapshot
+    // markers with one mutation each:
+    {
+        ::testing::InSequence dummy;
+        using ::testing::_;
+        using ::testing::Return;
+
+        EXPECT_CALL(producers, marker(_, vbid, _, _, _, _, _, _, _))
+                .WillOnce(Return(cb::engine_errc::success));
+
+        EXPECT_CALL(producers, mutation(_, _, vbid, /*seqno*/ 1, _, _, _, _))
+                .WillOnce(Return(cb::engine_errc::success));
+
+        EXPECT_CALL(producers, marker(_, vbid, _, _, _, _, _, _, _))
+                .WillOnce(Return(cb::engine_errc::success));
+
+        EXPECT_CALL(producers, mutation(_, _, vbid, /*seqno*/ 2, _, _, _, _))
+                .WillOnce(Return(cb::engine_errc::success));
+    }
+
+    // Step DCP producer twice to generate the initial snapshot marker and
+    // mutation to "key1"
+    ASSERT_EQ(cb::engine_errc::success, producer->step(producers));
+    ASSERT_EQ(cb::engine_errc::success, producer->step(producers));
+
+    // Step again - but this time configure a callback in ActiveStream::next()
+    // which will perform another front-end store(). This _should_ result in
+    // ActiveStream::notifyStreamReady() notifying the Producer via
+    // Producer::notifyStreamReady() and waking up the front-end again - but in
+    // the case of the bug this wakeup was missed.
+
+    // Note we must perform the store() on a different thread (instead of
+    // directly inside the hook) otherwise we will encounter lock inversions.
+    folly::Baton baton;
+    auto frontEndThread = std::thread([&] {
+        baton.wait();
+        store_item(vbid, makeStoredDocKey("key2"), "value");
+    });
+
+    bool extraStoreIssued = false;
+    stream->setNextHook([&](const DcpResponse* response) {
+        // Only want to add one extra mutation.
+        if (extraStoreIssued) {
+            return;
+        }
+        EXPECT_FALSE(response)
+                << "ActiveStream::next() hook expected to only be called for "
+                   "nullptr response when all previous items processed.";
+
+        baton.post();
+        frontEndThread.join();
+        extraStoreIssued = true;
+    });
+
+    // Call step - this calls ActiveStream::next() which initially returns
+    // nullptr as CkptManager has no more items, but our callback above adds
+    // another mutation to CM at the end of ActiveStream::next(). With the bug
+    // we miss the wakeup and producer->step() returns without scheduling
+    // any more work - so runNextTask below fails.
+    // With the bug fixed it will call ActiveStream::next() again, spot there's
+    // a new item in CM and schedule the ActiveStreamCheckpointProcessorTask.
+    ASSERT_EQ(cb::engine_errc::would_block, producer->step(producers));
+
+    runNextTask(nonIO,
+                "Process checkpoint(s) for DCP producer "
+                "test_producer->test_consumer");
+
+    // Once the task has run then it should have notified the producer again.
+    EXPECT_TRUE(producer->getReadyQueue().exists(vbid));
+
+    // Step the producer to consume the second snapshot marker and key2.
+    // Should finish with would_block to indicate no more data ready.
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
+
+    // Cleanup
+    connMap.removeVBConnByVBId(cookie, vbid);
+    connMap.removeConn(cookie);
 }
 
 void SingleThreadedActiveStreamTest::testProducerIncludesUserXattrsInDelete(

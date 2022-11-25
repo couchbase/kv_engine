@@ -146,6 +146,15 @@ ActiveStream::~ActiveStream() {
 std::unique_ptr<DcpResponse> ActiveStream::next(DcpProducer& producer) {
     std::lock_guard<std::mutex> lh(streamMutex);
 
+    // Clear notification flag before checking for a response, as if there was
+    // nothing available when we checked, we want to be notified again when
+    // more items are available. We do this to avoid a lost wake-up, in the
+    // event we are notified about a new seqno just after we have found
+    // no response is ready.
+    // Note however this does mean we can get spurious wakeups between here
+    // and when we set itemsReady at the end of this function.
+    itemsReady.store(false);
+
     std::unique_ptr<DcpResponse> response;
     switch (state_.load()) {
     case StreamState::Pending:
@@ -168,10 +177,16 @@ std::unique_ptr<DcpResponse> ActiveStream::next(DcpProducer& producer) {
     }
 
     if (nextHook) {
-        nextHook();
+        nextHook(response.get());
     }
 
-    itemsReady.store(response ? true : false);
+    // We have at least one response, and hence will call next() at least one
+    // more time (a null response is used to indicate the Stream has no items
+    // currently available) - as such set the itemsReady flag to avoid
+    // unnecessary notifications - we know we need to check again.
+    if (response) {
+        itemsReady.store(true);
+    }
     return response;
 }
 
