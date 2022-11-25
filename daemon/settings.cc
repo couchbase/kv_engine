@@ -1003,40 +1003,27 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         }
     }
 
-    if (other.has.free_connection_pool_size) {
-        if (other.free_connection_pool_size != free_connection_pool_size) {
-            LOG_INFO("Change free connections pool size from {} to {}",
-                     free_connection_pool_size,
-                     other.free_connection_pool_size);
-            setFreeConnectionPoolSize(other.free_connection_pool_size);
-        }
-    } else {
-        // Auto tune to 1%
-        const auto old_size = getFreeConnectionPoolSize();
-        const size_t new_size = getMaxUserConnections() / 100;
-        if (old_size != new_size) {
-            LOG_INFO("Change free connections pool size from {} to {}",
-                     old_size,
-                     new_size);
-            setFreeConnectionPoolSize(new_size);
-        }
-    }
-
-    if (other.has.connection_limit_mode &&
-        other.getConnectionLimitMode() != getConnectionLimitMode()) {
+    if (other.getConnectionLimitMode() != getConnectionLimitMode()) {
         if (other.getConnectionLimitMode() == ConnectionLimitMode::Recycle) {
+            setConnectionLimitMode(ConnectionLimitMode::Recycle);
+            setFreeConnectionPoolSize(other.getFreeConnectionPoolSize());
             LOG_INFO(
-                    "Change connection limit mode from {} to {} with a pool "
-                    "size of {}",
-                    getConnectionLimitMode(),
-                    other.getConnectionLimitMode(),
+                    "Change connection limit mode from disconnect to recycle "
+                    "with a pool size of {}",
                     getFreeConnectionPoolSize());
         } else {
-            LOG_INFO("Change connection limit mode from {} to {}",
-                     getConnectionLimitMode(),
-                     other.getConnectionLimitMode());
+            setConnectionLimitMode(ConnectionLimitMode::Disconnect);
+            setFreeConnectionPoolSize(0);
+            LOG_INFO_RAW(
+                    "Change connection limit mode from recycle to disconnect");
         }
-        setConnectionLimitMode(other.getConnectionLimitMode());
+    } else if (getConnectionLimitMode() == ConnectionLimitMode::Recycle &&
+               other.getFreeConnectionPoolSize() !=
+                       getFreeConnectionPoolSize()) {
+        LOG_INFO("Change free connections pool size from {} to {}",
+                 getFreeConnectionPoolSize(),
+                 other.getFreeConnectionPoolSize());
+        setFreeConnectionPoolSize(other.getFreeConnectionPoolSize());
     }
 
     if (other.has.max_client_connection_details) {

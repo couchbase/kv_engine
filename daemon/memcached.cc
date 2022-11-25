@@ -954,6 +954,13 @@ int memcached_main(int argc, char** argv) {
 
     recalculate_max_connections();
 
+    // GetFreeConnectionPoolSize will try to calculate a dynamic size if
+    // the size is set to 0. To avoid having to do that every time
+    // we'll set it to its calculated value and we'll use that until
+    // we reconfigure (which do the same thing)
+    Settings::instance().setFreeConnectionPoolSize(
+            Settings::instance().getFreeConnectionPoolSize());
+
     if (getenv("MEMCACHED_CRASH_TEST")) {
         create_crash_instance();
     }
