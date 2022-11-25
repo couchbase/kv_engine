@@ -11,6 +11,7 @@
 #pragma once
 
 #include <folly/SharedMutex.h>
+#include <folly/lang/Hint.h>
 
 namespace cb {
 
@@ -50,7 +51,7 @@ public:
         // "Touch" the memory of the lock object. The intention is to enable
         // ASan to detect a use-after-free of the lock object used to create
         // this instance. Reading out char does not break aliasing rules.
-        (void)*reinterpret_cast<const char*>(ptr);
+        folly::compiler_must_not_elide(*reinterpret_cast<const char*>(ptr));
     }
 
 private:

@@ -13,6 +13,7 @@
 
 #include <engines/ep/src/ep_engine.h>
 #include <engines/ep/src/objectregistry.h>
+#include <folly/lang/Hint.h>
 #include <climits>
 
 // These static_asserts previously were in priority_test.cc
@@ -58,7 +59,7 @@ GlobalTask::~GlobalTask() {
     // before the task). ASAN should catch such an issue. Note that the engine
     // can be null in some unit tests
     if (engine) {
-        engine->getConfiguration();
+        folly::compiler_must_not_elide(engine->getConfiguration());
     }
 }
 
