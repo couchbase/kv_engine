@@ -15,14 +15,6 @@
 
 namespace cb::logger {
 
-Config::Config(const nlohmann::json& json) {
-    filename = json.value("filename", filename);
-    buffersize = json.value("buffersize", buffersize);
-    cyclesize = json.value("cyclesize", cyclesize);
-    unit_test = json.value("unit_test", unit_test);
-    console = json.value("console", console);
-}
-
 bool Config::operator==(const Config& other) const {
     return (this->filename == other.filename) &&
            (this->buffersize == other.buffersize) &&
@@ -33,6 +25,22 @@ bool Config::operator==(const Config& other) const {
 
 bool Config::operator!=(const Config& other) const {
     return !(*this == other);
+}
+
+void to_json(nlohmann::json& json, const Config& config) {
+    json = {{"filename", config.filename},
+            {"buffersize", config.buffersize},
+            {"cyclesize", config.cyclesize},
+            {"unit_test", config.unit_test},
+            {"console", config.console}};
+}
+
+void from_json(const nlohmann::json& json, Config& config) {
+    config.filename = json.value("filename", config.filename);
+    config.buffersize = json.value("buffersize", config.buffersize);
+    config.cyclesize = json.value("cyclesize", config.cyclesize);
+    config.unit_test = json.value("unit_test", config.unit_test);
+    config.console = json.value("console", config.console);
 }
 
 } // namespace cb::logger

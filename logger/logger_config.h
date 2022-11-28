@@ -19,7 +19,6 @@ namespace cb::logger {
 
 struct Config {
     Config() = default;
-    explicit Config(const nlohmann::json& json);
 
     bool operator==(const Config& other) const;
     bool operator!=(const Config& other) const;
@@ -38,5 +37,8 @@ struct Config {
     /// The default log level to initialize the logger to
     spdlog::level::level_enum log_level = spdlog::level::level_enum::info;
 };
+
+void to_json(nlohmann::json& json, const Config& config);
+void from_json(const nlohmann::json& json, Config& config);
 
 } // namespace cb::logger

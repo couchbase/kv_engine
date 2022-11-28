@@ -12,6 +12,7 @@ target_link_libraries(memcached_logger PUBLIC platform spdlog::spdlog)
 add_sanitizers(memcached_logger)
 
 cb_add_test_executable(memcached_logger_test
+               logger_config_test.cc
                logger_test.cc
                logger_test_fixture.cc)
 kv_enable_pch(memcached_logger_test)

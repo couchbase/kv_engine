@@ -560,11 +560,9 @@ static void handle_num_storage_threads(Settings& s, const nlohmann::json& obj) {
 
 static void handle_logger(Settings& s, const nlohmann::json& obj) {
     if (!obj.is_object()) {
-        cb::throwJsonTypeError(R"("opcode_attributes_override" must be an
-                              object)");
+        cb::throwJsonTypeError(R"("logger" must be an object)");
     }
-    cb::logger::Config config(obj);
-    s.setLoggerConfig(config);
+    s.setLoggerConfig(obj.get<cb::logger::Config>());
 }
 
 static void handle_portnumber_file(Settings& s, const nlohmann::json& obj) {
