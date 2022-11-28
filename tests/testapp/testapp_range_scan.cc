@@ -614,7 +614,13 @@ void RangeScanTest::testErrorsDuringContinue(cb::mcbp::Status error) {
     BinprotRangeScanCancel cancel(Vbid(0), id);
     userConnection->sendCommand(cancel);
     userConnection->recvResponse(resp);
-    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, resp.getStatus());
+
+    // The scan is either cancelled (KeyEnoent) or still exists (Success)- note
+    // that it is on its way to "naturally" cancel, but it may not disappear
+    // from the map of available scans until the I/O task gets to modify that
+    // map - which happens after it has finished transmitting the scan state.
+    ASSERT_TRUE(cb::mcbp::Status::KeyEnoent == resp.getStatus() ||
+                cb::mcbp::Status::Success == resp.getStatus());
 }
 
 TEST_P(RangeScanTest, ErrorNMVB) {
