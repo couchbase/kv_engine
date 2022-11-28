@@ -52,6 +52,9 @@ const CollectionEntry DefaultCollectionEntry = {CollectionID::Default,
                                                 ScopeID::Default,
                                                 Metered::Yes};
 
+std::string to_string(const CollectionEntry&);
+std::ostream& operator<<(std::ostream&, const CollectionEntry&);
+
 struct Scope {
     /**
      * Store the dataLimit we will use (which is the clusters value / nVbuckets)
@@ -73,6 +76,9 @@ struct Scope {
         return !(*this == other);
     }
 };
+
+std::string to_string(const Scope&);
+std::ostream& operator<<(std::ostream&, const Scope&);
 
 /**
  * Manifest is an object that is constructed from JSON data as per
