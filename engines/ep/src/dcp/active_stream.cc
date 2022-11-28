@@ -1006,7 +1006,7 @@ static bool shouldModifyItem(const queued_item& item,
 }
 
 std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
-        const queued_item& item, SendCommitSyncWriteAs sendCommitSyncWriteAs) {
+        queued_item& item, SendCommitSyncWriteAs sendCommitSyncWriteAs) {
     // Note: This function is hot - it is called for every item to be
     // sent over the DCP connection.
 

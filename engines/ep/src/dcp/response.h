@@ -836,7 +836,7 @@ public:
             sizeof(uint32_t) + sizeof(uint8_t);
     virtual mcbp::systemevent::id getSystemEvent() const = 0;
     virtual std::string_view getKey() const = 0;
-    virtual cb::const_byte_buffer getEventData() const = 0;
+    virtual std::string_view getEventData() const = 0;
     virtual mcbp::systemevent::version getVersion() const = 0;
 };
 
@@ -884,8 +884,9 @@ public:
         return key;
     }
 
-    cb::const_byte_buffer getEventData() const override {
-        return {eventData.data(), eventData.size()};
+    std::string_view getEventData() const override {
+        return {reinterpret_cast<const char*>(eventData.data()),
+                eventData.size()};
     }
 
     mcbp::systemevent::version getVersion() const override {
@@ -921,8 +922,8 @@ public:
      * @return a SystemEventMessage unique pointer constructed from the
      *         queued_item data.
      */
-    static std::unique_ptr<SystemEventProducerMessage>
-    make(uint32_t opaque, const queued_item& item, cb::mcbp::DcpStreamId sid);
+    static std::unique_ptr<SystemEventProducerMessage> make(
+            uint32_t opaque, queued_item& item, cb::mcbp::DcpStreamId sid);
 
     uint32_t getMessageSize() const override {
         return SystemEventMessage::baseMsgBytes + getKey().size() +
@@ -989,8 +990,8 @@ public:
         return {key.data(), key.size()};
     }
 
-    cb::const_byte_buffer getEventData() const override {
-        return {reinterpret_cast<const uint8_t*>(&eventData),
+    std::string_view getEventData() const override {
+        return {reinterpret_cast<const char*>(&eventData),
                 Collections::CreateEventDcpData::size};
     }
 
@@ -1023,8 +1024,8 @@ public:
         return {key.data(), key.size()};
     }
 
-    cb::const_byte_buffer getEventData() const override {
-        return {reinterpret_cast<const uint8_t*>(&eventData),
+    std::string_view getEventData() const override {
+        return {reinterpret_cast<const char*>(&eventData),
                 Collections::CreateWithMaxTtlEventDcpData::size};
     }
 
@@ -1053,8 +1054,8 @@ public:
         return {/* no key value for a drop event*/};
     }
 
-    cb::const_byte_buffer getEventData() const override {
-        return {reinterpret_cast<const uint8_t*>(&eventData),
+    std::string_view getEventData() const override {
+        return {reinterpret_cast<const char*>(&eventData),
                 Collections::DropEventDcpData::size};
     }
 
@@ -1085,8 +1086,8 @@ public:
         return {key.data(), key.size()};
     }
 
-    cb::const_byte_buffer getEventData() const override {
-        return {reinterpret_cast<const uint8_t*>(&eventData),
+    std::string_view getEventData() const override {
+        return {reinterpret_cast<const char*>(&eventData),
                 Collections::CreateScopeEventDcpData::size};
     }
 
@@ -1115,8 +1116,8 @@ public:
         return {/* no key value for a drop event*/};
     }
 
-    cb::const_byte_buffer getEventData() const override {
-        return {reinterpret_cast<const uint8_t*>(&eventData),
+    std::string_view getEventData() const override {
+        return {reinterpret_cast<const char*>(&eventData),
                 Collections::DropScopeEventDcpData::size};
     }
 
