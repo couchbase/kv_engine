@@ -22,6 +22,12 @@ namespace cb::mcbp {
  */
 
 enum class Datatype : uint8_t { Raw = 0, JSON = 1, Snappy = 2, Xattr = 4 };
+
+static_assert((int(Datatype::Raw) | int(Datatype::JSON) |
+               int(Datatype::Snappy) | int(Datatype::Xattr)) <= 0b111,
+              "We expect datatype to require 3 bits to encode for a layout "
+              "optimisation in StoredValue.");
+
 } // namespace cb::mcbp
 
 /**

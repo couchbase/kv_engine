@@ -388,16 +388,44 @@ TYPED_TEST(ValueTest, freqCounterNotReset) {
 /// Check that StoredValue / OrderedStoredValue don't unexpectedly change in
 /// size (we've carefully crafted them to be as efficient as possible).
 TEST(StoredValueTest, expectedSize) {
-#ifdef CB_MEMORY_INEFFICIENT_TAGGED_PTR
-    const long expected_size = 64;
-#else
-    const long expected_size = 56;
-#endif
-    EXPECT_EQ(expected_size, sizeof(StoredValue))
-            << "Unexpected change in StoredValue fixed size";
     auto key = makeStoredDocKey("k");
-    EXPECT_EQ(expected_size + 3, StoredValue::getRequiredStorage(key))
+    EXPECT_EQ(sizeof(StoredValue) + 3, StoredValue::getRequiredStorage(key))
             << "Unexpected change in StoredValue storage size for key: " << key;
+}
+
+// Disable if we don't have jemalloc or if on Windows (because Win32 SVs are
+// larger due to the compiler ignoring the pack() attribute when there are
+// std::atomic members.
+#if defined(HAVE_JEMALLOC) && !defined(_WIN32)
+TEST(StoredValueTest, StoredValuesAllocatedInExpectedBin) {
+#else
+TEST(StoredValueTest, DISABLED_StoredValuesAllocatedInExpectedBin) {
+#endif
+    for (auto keySize : {23, 24, 25, 26}) {
+        const int expectedBin = 80;
+        auto stats = EPStats();
+        auto sv = StoredValueFactory(stats)(
+                make_item(Vbid(0),
+                          makeStoredDocKey(std::string(keySize, 'k').c_str()),
+                          ""),
+                {});
+
+        int usableSize = cb::ArenaMalloc::malloc_usable_size(sv.get().get());
+        EXPECT_EQ(expectedBin, usableSize) << "keySize=" << keySize;
+    }
+
+    for (auto keySize : {27, 28, 29, 30}) {
+        const int expectedBin = 96;
+        auto stats = EPStats();
+        auto sv = StoredValueFactory(stats)(
+                make_item(Vbid(0),
+                          makeStoredDocKey(std::string(keySize, 'k').c_str()),
+                          ""),
+                {});
+
+        int usableSize = cb::ArenaMalloc::malloc_usable_size(sv.get().get());
+        EXPECT_EQ(expectedBin, usableSize) << "keySize=" << keySize;
+    }
 }
 
 // Validate the deletion source propagates via setValue
@@ -426,17 +454,9 @@ TYPED_TEST(ValueTest, MB_32568) {
 class OrderedStoredValueTest : public ValueTest<OrderedStoredValueFactory> {};
 
 TEST_F(OrderedStoredValueTest, expectedSize) {
-#ifdef CB_MEMORY_INEFFICIENT_TAGGED_PTR
-    const long expected_size = 80;
-#else
-    const long expected_size = 80;
-#endif
-
-    EXPECT_EQ(expected_size, sizeof(OrderedStoredValue))
-            << "Unexpected change in OrderedStoredValue fixed size";
-
     auto key = makeStoredDocKey("k");
-    EXPECT_EQ(expected_size + 3, OrderedStoredValue::getRequiredStorage(key))
+    EXPECT_EQ(sizeof(OrderedStoredValue) + 3,
+              OrderedStoredValue::getRequiredStorage(key))
             << "Unexpected change in OrderedStoredValue storage size for key: "
             << key;
 }

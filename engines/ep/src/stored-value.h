@@ -123,7 +123,17 @@ class OrderedStoredValue;
  * ~StoredValue and not the members of the derived class. Instead a custom
  * deleter is associated with StoredValue::UniquePtr, which checks the flag
  * and dispatches to the correct destructor.
+ *
+ * We use pack(1) for this StoredValue to eliminate the trailing 4 bytes of
+ * padding that would get added otherwise. This would normally mean we could
+ * end up with unaligned reads. However, since these values are malloc()-ed,
+ * they end up having the required alignment of 8 bytes.
  */
+#ifndef CB_MEMORY_INEFFICIENT_TAGGED_PTR
+// Only pack the struct layout if we're using the efficient TaggedPtr, otherwise
+// the alignment of some fields will be wrong.
+#pragma pack(1)
+#endif // !defined(CB_MEMORY_INEFFICIENT_TAGGED_PTR)
 class StoredValue {
 public:
     /*
@@ -328,6 +338,7 @@ public:
      * Set the items datatype
      */
     void setDatatype(protocol_binary_datatype_t type) {
+        Expects(type < 0b111);
         datatype = type;
     }
 
@@ -997,7 +1008,6 @@ protected:
     uint32_t           exptime;        //!< Expiration time of this item.
     uint32_t           flags;          // 4 bytes
     cb::uint48_t revSeqno; //!< Revision id sequence number
-    protocol_binary_datatype_t datatype; // 1 byte
 
     /**
      * Various mutable flags which may be modified without taking
@@ -1018,7 +1028,8 @@ protected:
      * requirement for atomicity (i.e. either const or always modified under
      * HashBucketLock.
      */
-
+    /// 3-bit value which encodes the datatype of the StoredValue
+    protocol_binary_datatype_t datatype : 3;
     // ordered := true if this is an instance of OrderedStoredValue
     const uint8_t ordered : 1;
     /// If the stored value is deleted, this stores the source of its deletion.
@@ -1029,6 +1040,17 @@ protected:
     friend std::ostream& operator<<(std::ostream& os, const StoredValue& sv);
     friend void to_json(nlohmann::json& json, const StoredValue& sv);
 };
+#pragma pack()
+
+#ifdef CB_MEMORY_INEFFICIENT_TAGGED_PTR
+static_assert(sizeof(StoredValue) == 64);
+#elif !defined(_WIN32)
+static_assert(sizeof(StoredValue) == 52);
+#else // defined(_WIN32)
+// Win32 SVs are  larger due to the compiler ignoring the pack() attribute when
+// there are std::atomic members.
+static_assert(sizeof(StoredValue) == 56);
+#endif
 
 void to_json(nlohmann::json& json, const StoredValue& sv);
 std::ostream& operator<<(std::ostream& os, const StoredValue& sv);
@@ -1186,6 +1208,8 @@ public:
     // overridden protected methods.
     friend class StoredValue;
 };
+
+static_assert(sizeof(OrderedStoredValue) == 80);
 
 SerialisedDocKey* StoredValue::key() {
     // key is located immediately following the object.
