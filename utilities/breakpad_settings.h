@@ -13,49 +13,34 @@
 
 #include <gsl/gsl-lite.hpp>
 #include <nlohmann/json_fwd.hpp>
-
+#include <iosfwd>
 #include <string>
 
 namespace cb::breakpad {
 /**
- * What information should breakpad minidumps contain?
+ * What information should breakpad minidumps contain? Currently we
+ * only allow "default" which would be (threads+stack+env+arguments),
+ * but allow for other values once breakpad supports it
  */
 enum class Content : bool {
-    /**
-     * Default content (threads+stack+env+arguments)
-     */
+    /// Default content (threads+stack+env+arguments)
     Default
 };
+std::ostream& operator<<(std::ostream& os, const Content& content);
 
-/**
- * Settings for Breakpad crash catcher.
- */
+/// Settings for Breakpad crash catcher.
 struct Settings {
-    /**
-     * Default constructor initialize the object to be in a disabled state
-     */
-    Settings() = default;
-
-    /**
-     * Initialize the Breakpad object from the specified JSON structure
-     * which looks like:
-     *
-     *     {
-     *         "enabled" : true,
-     *         "minidump_dir" : "/var/crash",
-     *         "content" : "default"
-     *     }
-     *
-     * @param json The json to parse
-     * @throws std::invalid_argument if the json dosn't look as expected
-     */
-    explicit Settings(const nlohmann::json& json);
+    /// Perform validation on the settings (if it is enabled the
+    /// directory must be specified and exists)
+    /// @throws std::system_error if enabled and minidump_dir is nonexistent
+    /// @throws std::invalid_argument if enabled and minidump_dir is empty
+    void validate() const;
 
     std::string minidump_dir;
     Content content{Content::Default};
     bool enabled{false};
 };
 
+void to_json(nlohmann::json& json, const Settings& settings);
+void from_json(const nlohmann::json& json, Settings& settings);
 } // namespace cb::breakpad
-
-std::string to_string(cb::breakpad::Content content);

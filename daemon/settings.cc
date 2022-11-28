@@ -596,8 +596,9 @@ static void handle_interfaces(Settings& s, const nlohmann::json& obj) {
 }
 
 static void handle_breakpad(Settings& s, const nlohmann::json& obj) {
-    cb::breakpad::Settings breakpad(obj);
-    s.setBreakpadSettings(breakpad);
+    auto settings = obj.get<cb::breakpad::Settings>();
+    settings.validate();
+    s.setBreakpadSettings(settings);
 }
 
 static void handle_prometheus(Settings& s, const nlohmann::json& obj) {
@@ -1035,8 +1036,8 @@ void Settings::updateSettings(const Settings& other, bool apply) {
 
         if (b2.content != b1.content) {
             LOG_INFO("Change minidump content from {} to {}",
-                     to_string(b1.content),
-                     to_string(b2.content));
+                     b1.content,
+                     b2.content);
             b1.content = b2.content;
             changed = true;
         }

@@ -666,32 +666,6 @@ TEST_F(SettingsTest, Root) {
     expectFail<std::system_error>(obj);
 }
 
-TEST_F(SettingsTest, Breakpad) {
-    nonObjectValuesShouldFail("breakpad");
-
-    nlohmann::json json;
-
-    const auto minidump_dir = cb::io::mkdtemp("config_parse_test");
-
-    json["enabled"] = true;
-    json["minidump_dir"] = minidump_dir;
-
-    // Content is optional
-    EXPECT_NO_THROW(cb::breakpad::Settings settings(json));
-
-    // But the minidump dir is mandatory
-    cb::io::rmrf(minidump_dir);
-    EXPECT_THROW(cb::breakpad::Settings settings(json), std::system_error);
-    cb::io::mkdirp(minidump_dir);
-
-    json["content"] = "default";
-    EXPECT_NO_THROW(cb::breakpad::Settings settings(json));
-    json["content"] = "foo";
-    EXPECT_THROW(cb::breakpad::Settings settings(json), std::invalid_argument);
-
-    cb::io::rmrf(minidump_dir);
-}
-
 TEST_F(SettingsTest, max_packet_size) {
     nonNumericValuesShouldFail("max_packet_size");
 
