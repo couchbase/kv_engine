@@ -78,28 +78,27 @@ bool VBCBAdaptor::run() {
     return false;
 }
 
-CallbackAdapter::CallbackAdapter(VBucketVisitedCallback onVBucketVisited)
-    : vbucketVisitedCallback(
-              onVBucketVisited ? std::move(onVBucketVisited)
-                               : [](const CallbackAdapter&, VBucket&) {}) {
+CallbackAdapter::CallbackAdapter(ContinuationCallback continuation)
+    : continuation(std::move(continuation)) {
+    Expects(this->continuation);
 }
 
-void CallbackAdapter::onVBucketVisited(VBucket& vb) const {
-    vbucketVisitedCallback(*this, vb);
+void CallbackAdapter::callContinuation(bool runAgain) const {
+    continuation(*this, runAgain);
 }
 
 SingleSteppingVisitorAdapter::SingleSteppingVisitorAdapter(
         KVBucket* store,
         TaskId id,
         std::unique_ptr<InterruptableVBucketVisitor> visitor,
-        const char* label,
+        std::string_view label,
         bool completeBeforeShutdown,
-        VBucketVisitedCallback onVBucketVisited)
+        ContinuationCallback continuation)
     : NotifiableTask(store->getEPEngine(),
                      id,
                      0 /*initialSleepTime*/,
                      completeBeforeShutdown),
-      CallbackAdapter(std::move(onVBucketVisited)),
+      CallbackAdapter(std::move(continuation)),
       store(store),
       visitor(std::move(visitor)),
       label(label),
@@ -123,36 +122,40 @@ std::string SingleSteppingVisitorAdapter::getDescription() const {
 }
 
 bool SingleSteppingVisitorAdapter::runInner() {
-    visitor->begin();
+    bool runAgain = [this] {
+        visitor->begin();
 
-    while (!vbucketsToVisit.empty()) {
-        const auto vbid = vbucketsToVisit.front();
-        vbucketsToVisit.pop_front();
-        VBucketPtr vb = store->getVBucket(vbid);
-        if (!vb) {
-            continue;
+        while (!vbucketsToVisit.empty()) {
+            const auto vbid = vbucketsToVisit.front();
+            vbucketsToVisit.pop_front();
+            VBucketPtr vb = store->getVBucket(vbid);
+            if (!vb) {
+                continue;
+            }
+
+            using State = InterruptableVBucketVisitor::ExecutionState;
+            switch (visitor->shouldInterrupt()) {
+            case State::Continue:
+            case State::Pause:
+                break;
+            case State::Stop:
+                visitor->complete();
+                return false;
+            }
+
+            visitor->visitBucket(*vb);
+            break;
         }
 
-        using State = InterruptableVBucketVisitor::ExecutionState;
-        switch (visitor->shouldInterrupt()) {
-        case State::Continue:
-        case State::Pause:
-            break;
-        case State::Stop:
+        if (vbucketsToVisit.empty()) {
+            // Processed all vBuckets now, do not need to run again.
             visitor->complete();
             return false;
+        } else {
+            return true;
         }
+    }();
 
-        visitor->visitBucket(*vb);
-        onVBucketVisited(*vb);
-        break;
-    }
-
-    if (vbucketsToVisit.empty()) {
-        // Processed all vBuckets now, do not need to run again.
-        visitor->complete();
-        return false;
-    } else {
-        return true;
-    }
+    callContinuation(runAgain);
+    return runAgain;
 }

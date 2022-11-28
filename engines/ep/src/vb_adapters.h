@@ -93,25 +93,34 @@ private:
 };
 
 /**
- * A base class for an adapter which calls a callback on every VBucket visit.
+ * A base class for an adapter which calls a callback after every run().
  */
 class CallbackAdapter {
 public:
-    using VBucketVisitedCallback =
-            std::function<void(const CallbackAdapter&, VBucket&)>;
+    /**
+     * Callback from run() method.
+     * First argument is *this, second argument is whether the task needs to
+     * run again.
+     */
+    using ContinuationCallback =
+            std::function<void(const CallbackAdapter&, bool)>;
 
-    CallbackAdapter(VBucketVisitedCallback onVBucketVisited);
+    /**
+     * Create an instance of the adapter.
+     * @param continuation The callback to run after every run().
+     */
+    CallbackAdapter(ContinuationCallback continuation);
 
     virtual ~CallbackAdapter() = default;
 
 protected:
     /**
-     * Calls the VBucketVisitedCallback provided at construction time.
+     * Calls the continuation callback provided at construction time.
      */
-    void onVBucketVisited(VBucket& vb) const;
+    void callContinuation(bool runAgain) const;
 
 private:
-    const VBucketVisitedCallback vbucketVisitedCallback;
+    const ContinuationCallback continuation;
 };
 
 /**
@@ -132,9 +141,9 @@ public:
             KVBucket* store,
             TaskId id,
             std::unique_ptr<InterruptableVBucketVisitor> visitor,
-            const char* label,
+            std::string_view label,
             bool completeBeforeShutdown,
-            VBucketVisitedCallback onVBucketVisited = nullptr);
+            ContinuationCallback continuation);
 
     std::string getDescription() const override;
 
@@ -156,7 +165,6 @@ private:
     const std::unique_ptr<InterruptableVBucketVisitor> visitor;
     const std::string label;
     std::chrono::microseconds maxDuration;
-    const VBucketVisitedCallback vbucketVisitedCallback;
 
     /**
      * VBuckets will be sorted according to visitor->getVBucketComparator().

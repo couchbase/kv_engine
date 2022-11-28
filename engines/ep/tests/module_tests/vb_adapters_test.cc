@@ -74,9 +74,24 @@ TEST_F(VBAdaptorsTest, PausingAdapterVisitsVbuckets) {
     EXPECT_CALL(*visitor, visitBucket(HasVbid(Vbid(1)))).Times(1);
     EXPECT_CALL(*visitor, visitBucket(HasVbid(Vbid(2)))).Times(1);
 
+    StrictMock<MockFunction<void(const CallbackAdapter&, bool)>> mockCallback;
+    // We run the task 4 times so we should get 4 callbacks.
+    {
+        InSequence seq;
+        EXPECT_CALL(mockCallback, Call(_, true));
+        EXPECT_CALL(mockCallback, Call(_, true));
+        EXPECT_CALL(mockCallback, Call(_, true));
+        EXPECT_CALL(mockCallback, Call(_, false));
+    }
+
     // Create an adapter for our dummy visitor. TaskId doesn't matter.
     auto task = std::make_shared<SingleSteppingVisitorAdapter>(
-            store, TaskId::ItemPager, std::move(visitor), "", false);
+            store,
+            TaskId::ItemPager,
+            std::move(visitor),
+            "",
+            false,
+            mockCallback.AsStdFunction());
 
     EXPECT_TRUE(task->run());
     EXPECT_TRUE(task->run());
