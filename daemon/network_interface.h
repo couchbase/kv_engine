@@ -29,7 +29,6 @@ public:
     };
 
     NetworkInterface() = default;
-    explicit NetworkInterface(const nlohmann::json& json);
 
     bool operator==(const NetworkInterface& o) const {
         return host == o.host && tls == o.tls && port == o.port &&
@@ -43,11 +42,12 @@ public:
 
     std::string tag;
     std::string host;
-    bool tls = false;
     in_port_t port = 11211;
     Protocol ipv6 = Protocol::Optional;
     Protocol ipv4 = Protocol::Optional;
+    bool tls = false;
     bool system = false;
 };
 
-std::string to_string(const NetworkInterface::Protocol& proto);
+void to_json(nlohmann::json& json, const NetworkInterface& iface);
+void from_json(const nlohmann::json& json, NetworkInterface& iface);

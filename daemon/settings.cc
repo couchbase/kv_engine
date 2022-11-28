@@ -587,11 +587,7 @@ static void handle_interfaces(Settings& s, const nlohmann::json& obj) {
     }
 
     for (const auto& o : obj) {
-        if (o.type() != nlohmann::json::value_t::object) {
-            throw std::invalid_argument(
-                    "Elements in the \"interfaces\" array must be objects");
-        }
-        NetworkInterface ifc(o);
+        auto ifc = o.get<NetworkInterface>();
         if (ifc.port == 0 && ifc.tag.empty()) {
             throw std::invalid_argument("Ephemeral ports must have a tag");
         }

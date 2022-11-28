@@ -279,6 +279,7 @@ cb_add_test_executable(memcached_unit_tests
                        memcached_unit_test_main.cc
                        mc_time_test.cc
                        network_interface_description_test.cc
+                       network_interface_test.cc
                        settings_test.cc
                        sloppy_gauge_test.cc
                        ssl_utils_test.cc
