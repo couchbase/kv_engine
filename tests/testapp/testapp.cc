@@ -1281,9 +1281,12 @@ int main(int argc, char** argv) {
     ** memcached binary to start. To work around that lets just do a
     ** chdir(dirname(argv[0])).
     */
-    auto testdir = cb::io::dirname(argv[0]);
-    if (chdir(testdir.c_str()) != 0) {
-        std::cerr << "Failed to change directory to " << testdir << std::endl;
+    auto testdir = std::filesystem::path(argv[0]).parent_path();
+    try {
+        std::filesystem::current_path(testdir);
+    } catch (const std::exception& e) {
+        std::cerr << "Failed to change directory to " << testdir << ": "
+                  << e.what() << std::endl;
         exit(EXIT_FAILURE);
     }
 #endif
