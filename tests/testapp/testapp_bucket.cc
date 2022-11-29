@@ -148,8 +148,8 @@ TEST_P(BucketTest, DeleteWhileClientConnectedAndEWouldBlocked) {
         c->authenticate("Luke", mcd_env->getPassword("Luke"), "PLAIN");
         c->selectBucket("bucket");
 
-        auto cwd = cb::io::getcwd();
-        auto testfile = cwd + "/" + cb::io::mktemp("lockfile");
+        auto testfile =
+                std::filesystem::current_path() / cb::io::mktemp("lockfile");
 
         // Configure so that the engine will return
         // cb::engine_errc::would_block and not process any operation given
@@ -157,8 +157,8 @@ TEST_P(BucketTest, DeleteWhileClientConnectedAndEWouldBlocked) {
         c->configureEwouldBlockEngine(EWBEngineMode::BlockMonitorFile,
                                       cb::engine_errc::would_block /* unused */,
                                       jj,
-                                      testfile);
-        lockfiles.emplace_back(std::move(testfile));
+                                      testfile.generic_string());
+        lockfiles.emplace_back(testfile.generic_string());
         c->sendCommand(
                 BinprotGenericCommand{cb::mcbp::ClientOpcode::Get, "mykey"});
     }
