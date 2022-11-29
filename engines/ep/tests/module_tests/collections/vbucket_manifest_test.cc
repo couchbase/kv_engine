@@ -662,8 +662,9 @@ TEST_F(VBucketManifestTest, duplicate_cid_different_scope) {
     EXPECT_TRUE(manifest.exists(CollectionEntry::dairy));
 
     // Add dairy to shop1 scope
-    EXPECT_FALSE(
-            manifest.update(cm.add(CollectionEntry::dairy, ScopeEntry::shop1)));
+    EXPECT_FALSE(manifest.update(
+            cm.add(ScopeEntry::shop1)
+                    .add(CollectionEntry::dairy, ScopeEntry::shop1)));
 }
 
 TEST_F(VBucketManifestTest, add_delete_in_one_update) {
