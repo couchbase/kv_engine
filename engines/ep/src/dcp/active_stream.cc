@@ -1366,6 +1366,10 @@ void ActiveStream::snapshot(
         const auto isCkptTypeDisk = isDiskCheckpointType(checkpointType);
         uint32_t flags = isCkptTypeDisk ? MARKER_FLAG_DISK : MARKER_FLAG_MEMORY;
 
+        if (changeStreamsEnabled) {
+            flags |= MARKER_FLAG_HISTORY;
+        }
+
         // Get OptionalSeqnos which for the items list types should have values
         auto seqnoStart = items.front()->getBySeqno();
         auto seqnoEnd = items.back()->getBySeqno();

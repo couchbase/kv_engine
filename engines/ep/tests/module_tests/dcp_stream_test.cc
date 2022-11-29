@@ -5041,7 +5041,9 @@ TEST_P(CDCActiveStreamTest, CollectionNotDeduped_InMemory) {
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     auto* marker = dynamic_cast<SnapshotMarker*>(resp.get());
-    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK, marker->getFlags());
+    const uint32_t expectedMarkerFlags =
+            MARKER_FLAG_MEMORY | MARKER_FLAG_CHK | MARKER_FLAG_HISTORY;
+    EXPECT_EQ(expectedMarkerFlags, marker->getFlags());
     EXPECT_EQ(0, marker->getStartSeqno());
     EXPECT_EQ(initHighSeqno + 1, marker->getEndSeqno());
 
@@ -5062,7 +5064,7 @@ TEST_P(CDCActiveStreamTest, CollectionNotDeduped_InMemory) {
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     marker = dynamic_cast<SnapshotMarker*>(resp.get());
-    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK, marker->getFlags());
+    EXPECT_EQ(expectedMarkerFlags, marker->getFlags());
     EXPECT_EQ(initHighSeqno + 2, marker->getStartSeqno());
     EXPECT_EQ(initHighSeqno + 2, marker->getEndSeqno());
 
@@ -5078,7 +5080,7 @@ TEST_P(CDCActiveStreamTest, CollectionNotDeduped_InMemory) {
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     marker = dynamic_cast<SnapshotMarker*>(resp.get());
-    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK, marker->getFlags());
+    EXPECT_EQ(expectedMarkerFlags, marker->getFlags());
     EXPECT_EQ(initHighSeqno + 3, marker->getStartSeqno());
     EXPECT_EQ(initHighSeqno + 3, marker->getEndSeqno());
 
