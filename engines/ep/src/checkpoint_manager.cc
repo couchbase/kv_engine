@@ -836,7 +836,7 @@ bool CheckpointManager::queueDirty(
         // To process this item, create a new (empty) checkpoint which we can
         // then re-attempt the enqueuing.
         // Note this uses the lastBySeqno for snapStart / End.
-        checkOpenCheckpoint(lh, /*force*/ true);
+        addNewCheckpoint(lh);
         openCkpt = &getOpenCheckpoint(lh);
         result = openCkpt->queueDirty(qi);
         if (result.status != QueueDirtyStatus::SuccessNewItem) {
@@ -1204,7 +1204,7 @@ size_t CheckpointManager::getNumOpenChkItems() const {
 }
 
 void CheckpointManager::checkOpenCheckpoint(
-        const std::lock_guard<std::mutex>& lh, bool forceCreation) {
+        const std::lock_guard<std::mutex>& lh) {
     const auto& openCkpt = getOpenCheckpoint(lh);
 
     // Create the new open checkpoint if any of the following conditions is
@@ -1231,7 +1231,7 @@ void CheckpointManager::checkOpenCheckpoint(
             (openCkpt.getMemUsage() >= vb.getCheckpointMaxSize()) &&
             (numItems > 0);
 
-    if (forceCreation || numItemsTrigger || timeTrigger || memTrigger) {
+    if (numItemsTrigger || timeTrigger || memTrigger) {
         addNewCheckpoint(lh);
     }
 }
@@ -1803,7 +1803,7 @@ void CheckpointManager::maybeCreateNewCheckpoint(
         // CM state pre-conditions allow creating a new checkpoint.
 
         // Create a new checkpoint if required.
-        checkOpenCheckpoint(lh, false);
+        checkOpenCheckpoint(lh);
     }
 }
 

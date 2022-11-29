@@ -807,10 +807,9 @@ protected:
      * Check out the current open checkpoint state and create a new open
      * checkpoint if necessary.
      *
-     * @param forceCreation Flag to force the creation a new checkpoint
+     * @param lh Ref to CM lock
      */
-    void checkOpenCheckpoint(const std::lock_guard<std::mutex>& lh,
-                             bool forceCreation);
+    void checkOpenCheckpoint(const std::lock_guard<std::mutex>& lh);
 
     bool isLastMutationItemInCheckpoint(CheckpointCursor &cursor);
 
