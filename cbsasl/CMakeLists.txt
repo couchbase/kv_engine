@@ -3,8 +3,6 @@ add_library(cbsasl STATIC
             client.cc
             context.cc
             domain.cc
-            log.cc
-            log_callback.cc
             mechanism.cc
             plain/check_password.cc
             plain/check_password.h
@@ -35,6 +33,7 @@ target_link_libraries(cbsasl
                 fmt::fmt
                 phosphor
                 mcd_util
+                memcached_logger
                 libsodium::libsodium
                 OpenSSL::SSL)
 add_sanitizers(cbsasl)

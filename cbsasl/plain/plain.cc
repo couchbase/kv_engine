@@ -13,7 +13,6 @@
 #include "cbsasl/pwfile.h"
 #include "check_password.h"
 
-#include <cbsasl/logging.h>
 #include <cstring>
 
 namespace cb::sasl::mechanism::plain {

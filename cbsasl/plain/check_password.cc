@@ -11,7 +11,6 @@
 #include "check_password.h"
 #include "../cbcrypto.h"
 
-#include <cbsasl/logging.h>
 #include <platform/base64.h>
 
 using cb::crypto::Algorithm;

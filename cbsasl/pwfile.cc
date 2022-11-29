@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2015-Present Couchbase, Inc.
  *
@@ -9,15 +8,13 @@
  *   the file licenses/APL2.txt.
  */
 #include "pwfile.h"
-#include <cbsasl/logging.h>
 #include <cbsasl/password_database.h>
-#include <fmt/format.h>
 #include <folly/Synchronized.h>
+#include <logger/logger.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <chrono>
 #include <memory>
-#include <mutex>
 
 class PasswordDatabaseManager {
 public:
@@ -63,15 +60,10 @@ static cb::sasl::Error parse_user_db(
             PasswordDatabaseManager::instance().iterate(usercallback);
         }
     } catch (std::exception& e) {
-        cb::sasl::logging::log(
-                cb::sasl::logging::Level::Error,
-                fmt::format("Failed initializing database due to: {}",
-                            e.what()));
+        LOG_ERROR("Failed initializing database due to: {}", e.what());
         return cb::sasl::Error::FAIL;
     } catch (...) {
-        cb::sasl::logging::log(
-                cb::sasl::logging::Level::Error,
-                "Failed initializing database due to unknown error");
+        LOG_ERROR_RAW("Failed initializing database due to unknown error");
         return cb::sasl::Error::FAIL;
     }
 
@@ -92,11 +84,9 @@ cb::sasl::Error load_user_db(
             } catch (const std::bad_alloc&) {
                 return cb::sasl::Error::NO_MEM;
             } catch (const std::exception& e) {
-                cb::sasl::logging::log(
-                        cb::sasl::logging::Level::Error,
-                        fmt::format("Failed parsing JSON from \"{}\": {}",
-                                    filename,
-                                    e.what()));
+                LOG_ERROR("Failed parsing JSON from \"{}\": {}",
+                          filename,
+                          e.what());
                 return cb::sasl::Error::FAIL;
             }
             return parse_user_db(json, std::move(usercallback));

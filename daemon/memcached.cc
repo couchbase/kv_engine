@@ -32,7 +32,6 @@
 #include "stats.h"
 #include "tracing.h"
 #include "utilities/terminate_handler.h"
-#include <cbsasl/logging.h>
 #include <cbsasl/mechanism.h>
 #include <executor/executorpool.h>
 #include <fmt/chrono.h>
@@ -629,39 +628,10 @@ void cleanup_buckets() {
     }
 }
 
-/**
- * The log function used from SASL
- *
- * Try to remap the log levels to our own levels and put in the log
- * depending on the severity.
- */
-static void sasl_log_callback(cb::sasl::logging::Level level,
-                              const std::string& message) {
-    switch (level) {
-    case cb::sasl::logging::Level::Error:
-        LOG_ERROR("{}", message);
-        break;
-    case cb::sasl::logging::Level::Warning:
-        LOG_WARNING("{}", message);
-        break;
-    case cb::sasl::logging::Level::Notice:
-        LOG_INFO("{}", message);
-        break;
-    case cb::sasl::logging::Level::Fail:
-    case cb::sasl::logging::Level::Debug:
-        LOG_DEBUG("{}", message);
-        break;
-    case cb::sasl::logging::Level::Trace:
-        LOG_TRACE("{}", message);
-        break;
-    }
-}
-
 static void initialize_sasl() {
     try {
         LOG_INFO_RAW("Initialize SASL");
         using namespace cb::sasl;
-        logging::set_log_callback(sasl_log_callback);
         server::initialize();
 
         if (!getenv("MEMCACHED_UNIT_TESTS")) {

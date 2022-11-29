@@ -11,8 +11,8 @@
 #include "cbsasl/scram-sha/scram-sha.h"
 #include "cbsasl/scram-sha/stringutils.h"
 #include "cbsasl/util.h"
-#include <cbsasl/logging.h>
 #include <gsl/gsl-lite.hpp>
+#include <logger/logger.h>
 #include <platform/base64.h>
 #include <platform/random.h>
 #include <platform/string_hex.h>
@@ -36,9 +36,8 @@ ServerBackend::ServerBackend(server::ServerContext& ctx,
 
         std::array<char, 8> nonce{};
         if (!randomGenerator.getBytes(nonce.data(), nonce.size())) {
-            logging::log(&context,
-                         logging::Level::Error,
-                         "Failed to generate server nonce");
+            LOG_ERROR("UUID:[{}]: Failed to generate server nonce",
+                      context.getUuid());
             throw std::bad_alloc();
         }
 
@@ -49,10 +48,10 @@ ServerBackend::ServerBackend(server::ServerContext& ctx,
 std::pair<Error, std::string_view> ServerBackend::start(
         std::string_view input) {
     if (input.empty()) {
-        logging::log(&context,
-                     logging::Level::Error,
-                     "Invalid arguments provided to "
-                     "ScramShaServerBackend::start");
+        LOG_DEBUG(
+                "UUID:[{}]: Invalid arguments provided to "
+                "ScramShaServerBackend::start",
+                context.getUuid());
         return {Error::BAD_PARAM, {}};
     }
 
@@ -65,18 +64,16 @@ std::pair<Error, std::string_view> ServerBackend::start(
     if (client_first_message.find("n,") != 0) {
         // We don't support the p= to do channel bindings (that should
         // be advertised with SCRAM-SHA[n]-PLUS)
-        logging::log(&context,
-                     logging::Level::Error,
-                     "SCRAM: client should not try to ask for channel binding");
+        LOG_DEBUG("UUID:[{}]: client should not try to ask for channel binding",
+                  context.getUuid());
         return {Error::BAD_PARAM, {}};
     }
 
     // next up is an optional authzid which we completely ignore...
     auto idx = client_first_message.find(',', 2);
     if (idx == std::string::npos) {
-        logging::log(&context,
-                     logging::Level::Error,
-                     "SCRAM: Format error on client-first-message");
+        LOG_DEBUG("UUID:[{}]: Format error on client-first-message",
+                  context.getUuid());
         return {Error::BAD_PARAM, {}};
     }
 
@@ -84,9 +81,8 @@ std::pair<Error, std::string_view> ServerBackend::start(
 
     AttributeMap attributes;
     if (!decodeAttributeList(context, client_first_message_bare, attributes)) {
-        logging::log(&context,
-                     logging::Level::Error,
-                     "SCRAM: Failed to decode client-first-message-bare");
+        LOG_DEBUG("UUID:[{}]: Failed to decode client-first-message-bare",
+                  context.getUuid());
         return {Error::BAD_PARAM, {}};
     }
 
@@ -97,44 +93,31 @@ std::pair<Error, std::string_view> ServerBackend::start(
             // @todo note that they will then use n=@xdcr etc)
         case 'n':
             username = attribute.second;
-            logging::log(&context,
-                         logging::Level::Trace,
-                         "Using username [" + username + "]");
             break;
         case 'r':
             clientNonce = attribute.second;
-            logging::log(&context,
-                         logging::Level::Trace,
-                         "Using client nonce [" + clientNonce + "]");
             break;
         default:
-            logging::log(&context,
-                         logging::Level::Error,
-                         "Unsupported key supplied");
+            LOG_DEBUG("UUID:[{}]: Unsupported key supplied", context.getUuid());
             return {Error::BAD_PARAM, {}};
         }
     }
 
     if (username.empty() || clientNonce.empty()) {
         // mandatory fields!!!
-        logging::log(
-                &context, logging::Level::Error, "Unsupported key supplied");
+        LOG_DEBUG("UUID:[{}]: Missing mandatory fields", context.getUuid());
         return {Error::BAD_PARAM, {}};
     }
 
     try {
         username = decodeUsername(username);
     } catch (std::runtime_error&) {
-        logging::log(&context,
-                     logging::Level::Error,
-                     "Invalid character in username detected");
+        LOG_DEBUG("UUID:[{}]: Invalid character in username detected",
+                  context.getUuid());
         return {Error::BAD_PARAM, {}};
     }
 
     if (!find_user(username, user)) {
-        logging::log(&context,
-                     logging::Level::Debug,
-                     "User [" + username + "] doesn't exist.. using dummy");
         user = pwdb::UserFactory::createDummy(username, algorithm);
     }
 
@@ -160,18 +143,16 @@ std::pair<Error, std::string_view> ServerBackend::step(std::string_view input) {
     std::string client_final_message(input.data(), input.size());
     AttributeMap attributes;
     if (!decodeAttributeList(context, client_final_message, attributes)) {
-        logging::log(&context,
-                     logging::Level::Error,
-                     "SCRAM: Failed to decode client_final_message");
+        LOG_DEBUG("UUID:[{}]: Failed to decode client_final_message",
+                  context.getUuid());
         return {Error::BAD_PARAM, {}};
     }
 
     auto iter = attributes.find('p');
     if (iter == attributes.end()) {
-        logging::log(
-                &context,
-                logging::Level::Error,
-                "SCRAM: client_final_message does not contain client proof");
+        LOG_DEBUG(
+                "UUID:[{}]: client_final_message does not contain client proof",
+                context.getUuid());
         return {Error::BAD_PARAM, {}};
     }
 
@@ -189,11 +170,10 @@ std::pair<Error, std::string_view> ServerBackend::step(std::string_view input) {
         const auto clientproof = cb::base64::decode(iter->second);
         const auto client_signature = getClientSignature(key.stored_key);
         if (clientproof.size() != client_signature.size()) {
-            logging::log(
-                    &context,
-                    logging::Level::Error,
-                    "SCRAM: client proof has a different width than client "
-                    "signature");
+            LOG_DEBUG(
+                    "UUID:[{}]: client proof has a different width than client "
+                    "signature",
+                    context.getUuid());
             return {Error::BAD_PARAM, {}};
         }
         // ClientKey is Client Proof XOR ClientSignature
@@ -218,19 +198,13 @@ std::pair<Error, std::string_view> ServerBackend::step(std::string_view input) {
     }
 
     if (success) {
-        logging::log(&context, logging::Level::Trace, server_final_message);
         return {Error::OK, server_final_message};
     }
 
     if (user.isDummy()) {
-        logging::log(&context,
-                     logging::Level::Fail,
-                     "No such user [" + username + "]");
         return {Error::NO_USER, server_final_message};
     }
-    logging::log(&context,
-                 logging::Level::Fail,
-                 "Authentication fail for [" + username + "]");
+
     return {Error::PASSWORD_ERROR, server_final_message};
 }
 

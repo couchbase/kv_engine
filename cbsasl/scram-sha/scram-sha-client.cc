@@ -10,9 +10,9 @@
 
 #include "cbsasl/pwfile.h"
 #include "cbsasl/scram-sha/scram-sha.h"
-#include <cbsasl/logging.h>
 #include <fmt/format.h>
 #include <gsl/gsl-lite.hpp>
+#include <logger/logger.h>
 #include <platform/base64.h>
 #include <platform/random.h>
 #include <platform/string_hex.h>
@@ -38,9 +38,7 @@ ClientBackend::ClientBackend(client::GetUsernameCallback& user_cb,
 
         std::array<char, 8> nonce{};
         if (!randomGenerator.getBytes(nonce.data(), nonce.size())) {
-            logging::log(&context,
-                         logging::Level::Error,
-                         "Failed to generate server nonce");
+            LOG_ERROR_RAW("Failed to generate server nonce");
             throw std::bad_alloc();
         }
 
@@ -98,14 +96,14 @@ std::pair<Error, std::string_view> ClientBackend::step(std::string_view input) {
             attributes.find('s') == attributes.end() ||
             attributes.find('i') == attributes.end()) {
             errorMessage = "Missing r/s/i in server message";
-            logging::log(&context, logging::Level::Error, errorMessage);
+            LOG_ERROR("UUID:[{}]: {}", context.getUuid(), errorMessage);
             return {Error::BAD_PARAM, errorMessage};
         }
 
         // I've got the SALT, lets generate the salted password
         if (!generateSaltedPassword(passwordCallback())) {
             errorMessage = "Failed to generate salted passwod";
-            logging::log(&context, logging::Level::Error, errorMessage);
+            LOG_ERROR("UUID:[{}]: {}", context.getUuid(), errorMessage);
             return {Error::FAIL, errorMessage};
         }
 
@@ -129,9 +127,8 @@ std::pair<Error, std::string_view> ClientBackend::step(std::string_view input) {
 
         AttributeMap attributes;
         if (!decodeAttributeList(context, server_final_message, attributes)) {
-            logging::log(&context,
-                         logging::Level::Error,
-                         "SCRAM: Failed to decode server-final-message");
+            LOG_ERROR("UUID:[{}]: Failed to decode server-final-message",
+                      context.getUuid());
             return {Error::BAD_PARAM, {}};
         }
 
@@ -139,13 +136,11 @@ std::pair<Error, std::string_view> ClientBackend::step(std::string_view input) {
             errorMessage =
                     fmt::format("Failed to authenticate. Server reported: {}",
                                 attributes['e']);
-            logging::log(&context, logging::Level::Fail, errorMessage);
             return {Error::FAIL, errorMessage};
         }
 
         if (attributes.find('v') == attributes.end()) {
             errorMessage = "Syntax error server final message is missing 'v'";
-            logging::log(&context, logging::Level::Trace, errorMessage);
             return {Error::BAD_PARAM, errorMessage};
         }
 
@@ -157,7 +152,6 @@ std::pair<Error, std::string_view> ClientBackend::step(std::string_view input) {
                     "Mine: [{}]",
                     attributes['v'],
                     encoded);
-            logging::log(&context, logging::Level::Trace, errorMessage);
             return {Error::FAIL, errorMessage};
         }
 

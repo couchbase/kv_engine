@@ -12,7 +12,7 @@
 #include "cbsasl/pwfile.h"
 #include "cbsasl/scram-sha/stringutils.h"
 #include "cbsasl/util.h"
-#include <cbsasl/logging.h>
+#include <logger/logger.h>
 #include <platform/base64.h>
 #include <map>
 #include <memory>
@@ -26,26 +26,24 @@ bool ScramShaBackend::decodeAttributeList(Context& context,
                                           AttributeMap& attributes) {
     size_t pos = 0;
 
-    logging::log(&context,
-                 logging::Level::Debug,
-                 "Decoding attribute list [" + std::string{list} + "]");
+    LOG_DEBUG("Decoding attribute list [{}]", list);
 
     while (pos < list.length()) {
         auto equal = list.find('=', pos);
         if (equal == std::string::npos) {
             // syntax error!!
-            logging::log(&context,
-                         logging::Level::Error,
-                         "Decode attribute list [" + std::string{list} +
-                                 "] failed: no '='");
+            LOG_ERROR("UUID:[{}] Decode attribute list [{}]] failed: no '='",
+                      context.getUuid(),
+                      list);
             return false;
         }
 
         if ((equal - pos) != 1) {
-            logging::log(&context,
-                         logging::Level::Error,
-                         "Decode attribute list [" + std::string{list} +
-                                 "] failed: " + "key is multichar");
+            LOG_ERROR(
+                    "UUID:[{}] Decode attribute list [{}] failed: key is "
+                    "multichar",
+                    context.getUuid(),
+                    list);
             return false;
         }
 
@@ -54,11 +52,12 @@ bool ScramShaBackend::decodeAttributeList(Context& context,
 
         // Make sure we haven't seen this key before..
         if (attributes.find(key) != attributes.end()) {
-            logging::log(&context,
-                         logging::Level::Error,
-                         "Decode attribute list [" + std::string{list} +
-                                 "] failed: " + "key [" + key +
-                                 "] is multichar");
+            LOG_ERROR(
+                    "UUID:[{}] Decode attribute list [{}] failed: key [{}] "
+                    "already seen",
+                    context.getUuid(),
+                    list,
+                    key);
             return false;
         }
 
