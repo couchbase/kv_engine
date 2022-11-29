@@ -2010,7 +2010,7 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
     }
 
     try {
-        cb::io::mkdirp(dbName);
+        std::filesystem::create_directories(dbName);
     } catch (const std::system_error& error) {
         EP_LOG_WARN("Failed to create data directory [{}]:{}",
                     dbName,

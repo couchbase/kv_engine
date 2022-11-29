@@ -20,8 +20,6 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <mutex>
-#include <thread>
 
 using namespace std::chrono_literals;
 
@@ -186,7 +184,7 @@ NodeImpl::~NodeImpl() {
 void NodeImpl::parsePortnumberFile() {
     connectionMap.initialize(nlohmann::json::parse(cb::io::loadFile(
             config["portnumber_file"], std::chrono::minutes{5})));
-    cb::io::rmrf(config["portnumber_file"]);
+    std::filesystem::remove(config["portnumber_file"].get<std::string>());
 }
 
 std::unique_ptr<MemcachedConnection> NodeImpl::getConnection() const {

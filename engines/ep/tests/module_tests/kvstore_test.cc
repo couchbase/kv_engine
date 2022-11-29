@@ -139,19 +139,13 @@ KVStoreTest::KVStoreTest()
 }
 
 void KVStoreTest::SetUp() {
-    if (cb::io::isDirectory(data_dir)) {
-        try {
-            cb::io::rmrf(data_dir);
-        } catch (std::system_error& e) {
-            throw e;
-        }
-    }
+    std::filesystem::remove_all(data_dir);
 
     // Data directory creation is normally done by the engine initialization;
     // we're not running a full engine here so we have to create the directory
     // manually.
     try {
-        cb::io::mkdirp(data_dir);
+        std::filesystem::create_directories(data_dir);
     } catch (const std::system_error& error) {
         throw std::runtime_error(
                 fmt::format("Failed to create data directory [{}]:{}",
@@ -161,7 +155,7 @@ void KVStoreTest::SetUp() {
 }
 
 void KVStoreTest::TearDown() {
-    cb::io::rmrf(data_dir);
+    std::filesystem::remove_all(data_dir);
 }
 
 class KVStoreParamTestSkipRocks : public KVStoreParamTest {

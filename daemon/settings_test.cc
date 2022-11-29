@@ -374,7 +374,7 @@ TEST_F(SettingsTest, InterfacesEphemeralMissingTag) {
     root["interfaces"] = array;
 
     expectFail<std::invalid_argument>(root);
-    cb::io::rmrf(filename);
+    std::filesystem::remove(filename);
 }
 
 /// Test that "off" is correctly handled for ipv4 & ipv6 protocols.

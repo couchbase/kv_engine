@@ -73,9 +73,7 @@ KVBucketTest::KVBucketTest() : test_dbname(dbnameFromCurrentGTestInfo()) {
 void KVBucketTest::SetUp() {
     // Paranoia - kill any existing files in case they are left over
     // from a previous run.
-    if (cb::io::isDirectory(test_dbname)) {
-        cb::io::rmrf(test_dbname);
-    }
+    std::filesystem::remove_all(test_dbname);
 
     if (!ExecutorPool::exists()) {
         ExecutorPool::create();
@@ -147,11 +145,7 @@ void KVBucketTest::TearDown() {
     // registered a chance to be unregistered).
     ExecutorPool::shutdown();
     // Cleanup any files we created.
-    try {
-        cb::io::rmrf(test_dbname);
-    } catch (const std::system_error&) {
-        // ignore - test cases may destroy data dir to force a test condition
-    }
+    std::filesystem::remove_all(test_dbname);
 }
 
 void KVBucketTest::destroy(bool force) {

@@ -7990,9 +7990,8 @@ static enum test_result test_mb20744_check_incr_reject_ops(EngineIface* h) {
 
     fclose(fp);
 
-    cb::io::rmrf(filename.c_str());
-
-    cb::io::mkdirp(dbname);
+    std::filesystem::remove(filename);
+    std::filesystem::create_directories(dbname);
 
     return SUCCESS;
 }
@@ -8385,7 +8384,7 @@ static test_result test_reader_thread_starvation_warmup(EngineIface* h) {
     verify_curr_items(slowBucket, keysPerVbucket, "after warmup");
     // 12. Ensure the buckets are destroyed and shutdown at the end of the test
     testHarness->destroy_bucket(smallBucket, true);
-    cb::io::rmrf(smallBucketDir);
+    std::filesystem::remove_all(smallBucketDir);
     testHarness->destroy_bucket(slowBucket, true);
     return SUCCESS;
 }

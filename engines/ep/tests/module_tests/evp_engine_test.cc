@@ -40,13 +40,7 @@ EventuallyPersistentEngineTest::EventuallyPersistentEngineTest()
 void EventuallyPersistentEngineTest::SetUp() {
     // Paranoia - kill any existing files in case they are left over
     // from a previous run.
-    try {
-        cb::io::rmrf(test_dbname);
-    } catch (std::system_error& e) {
-        if (e.code() != std::error_code(ENOENT, std::system_category())) {
-            throw e;
-        }
-    }
+    std::filesystem::remove_all(test_dbname);
 
     // Create an ExecutorPool unless its already created by SetUp in a subclass
     if (!ExecutorPool::exists()) {
@@ -524,7 +518,7 @@ TEST_P(EPEnginePersistentTest, EngineInitReadOnlyDataDir) {
 TEST_P(EPEnginePersistentTest, EngineInitNoDataDir) {
     shutdownEngine();
 
-    cb::io::rmrf(test_dbname);
+    std::filesystem::remove_all(test_dbname);
 
     std::string config = config_string;
     config += "dbname=" + test_dbname + ";";

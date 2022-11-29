@@ -44,10 +44,7 @@ protected:
             skipTest = true;
             return;
         }
-        try {
-            cb::io::rmrf(mcd_env->getDbPath());
-        } catch (...) { /* nothing exists */
-        }
+        std::filesystem::remove_all(mcd_env->getDbPath());
 
         mcd_env->getTestBucket().setBucketCreateMode(
                 TestBucketImpl::BucketCreateMode::Clean);

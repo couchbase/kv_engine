@@ -54,7 +54,7 @@ protected:
     }
 
     void TearDown() override {
-        cb::io::rmrf(tmp_log_filename);
+        std::filesystem::remove(tmp_log_filename);
     }
 
     /**

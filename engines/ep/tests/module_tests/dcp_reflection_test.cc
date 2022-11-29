@@ -282,28 +282,16 @@ protected:
         // don't exist.
         // Paranoia - remove any previous replica disk files.
         for (auto index : {1, 2, 3}) {
-            try {
-                cb::io::rmrf(test_dbname + "-node_" + std::to_string(index));
-            } catch (std::system_error& e) {
-                if (e.code() !=
-                    std::error_code(ENOENT, std::system_category())) {
-                    throw e;
-                }
-            }
+            std::filesystem::remove_all(test_dbname + "-node_" +
+                                        std::to_string(index));
         }
     }
 
     void internalSetUp() {
         // Paranoia - remove any previous replica disk files.
-        try {
-            cb::io::rmrf(test_dbname + "-node_1");
-            cb::io::rmrf(test_dbname + "-node_2");
-            cb::io::rmrf(test_dbname + "-node_3");
-        } catch (std::system_error& e) {
-            if (e.code() != std::error_code(ENOENT, std::system_category())) {
-                throw e;
-            }
-        }
+        std::filesystem::remove_all(test_dbname + "-node_1");
+        std::filesystem::remove_all(test_dbname + "-node_2");
+        std::filesystem::remove_all(test_dbname + "-node_3");
 
         auto meta = nlohmann::json{
                 {"topology", nlohmann::json::array({{"active", "replica"}})}};

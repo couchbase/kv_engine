@@ -34,7 +34,7 @@ void SpdloggerTest::RemoveFiles() {
     Expects(!config.filename.empty());
     files = cb::io::findFilesWithPrefix(config.filename);
     for (const auto& file : files) {
-        cb::io::rmrf(file);
+        std::filesystem::remove(file);
     }
 }
 

@@ -105,14 +105,8 @@ static enum test_result skipped_test_function(EngineIface*) {
     return SKIPPED;
 }
 
-enum test_result rmdb(const char* path) {
-    if (cb::io::isDirectory(path)) {
-        cb::io::rmrf(path);
-    }
-    if (cb::io::isDirectory(path) || cb::io::isFile(path)) {
-        std::cerr << "Failed to remove: " << path << " " << std::endl;
-        return FAIL;
-    }
+enum test_result rmdb(std::string_view path) {
+    std::filesystem::remove_all(path);
     return SUCCESS;
 }
 
@@ -183,14 +177,8 @@ std::string get_dbname(const std::string& test_cfg) {
 enum test_result prepare(engine_test_t *test) {
     std::string dbname = get_dbname(test->cfg);
     /* Remove if the same DB directory already exists */
-    try {
-        rmdb(dbname.c_str());
-    } catch (std::system_error& e) {
-        if (e.code() != std::error_code(ENOENT, std::system_category())) {
-            throw e;
-        }
-    }
-    cb::io::mkdirp(dbname);
+    rmdb(dbname);
+    std::filesystem::create_directories(dbname);
     return SUCCESS;
 }
 
@@ -359,13 +347,7 @@ void cleanup(engine_test_t *test, enum test_result result) {
     // Nuke the database files we created
     std::string dbname = get_dbname(test->cfg);
     /* Remove only the db file this test created */
-    try {
-        rmdb(dbname.c_str());
-    } catch (std::system_error& e) {
-        if (e.code() != std::error_code(ENOENT, std::system_category())) {
-            throw e;
-        }
-    }
+    rmdb(dbname);
 }
 
 // Should only one test be run, and if so which number? If -1 then all tests
@@ -455,13 +437,7 @@ int create_buckets(const std::string& cfg,
             config << str_cfg << "dbname=" << dbpath.str();
         }
 
-        try {
-            rmdb(dbpath.str().c_str());
-        } catch (std::system_error& e) {
-            if (e.code() != std::error_code(ENOENT, std::system_category())) {
-                throw e;
-            }
-        }
+        rmdb(dbpath.str());
         auto* handle = testHarness->create_bucket(true, config.str());
         if (handle) {
             buckets.emplace_back(BucketHolder(handle, dbpath.str()));
@@ -475,7 +451,7 @@ int create_buckets(const std::string& cfg,
 void destroy_buckets(std::vector<BucketHolder> &buckets) {
     for(auto bucket : buckets) {
         testHarness->destroy_bucket(bucket.h, false);
-        rmdb(bucket.dbpath.c_str());
+        rmdb(bucket.dbpath);
     }
 }
 

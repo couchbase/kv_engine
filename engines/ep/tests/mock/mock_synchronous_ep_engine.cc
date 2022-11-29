@@ -134,7 +134,7 @@ SynchronousEPEngineUniquePtr SynchronousEPEngine::build(
                             "configuration: dbname must be a non-empty value"));
     }
     try {
-        cb::io::mkdirp(dbName);
+        std::filesystem::create_directories(dbName);
     } catch (const std::system_error& error) {
         throw std::runtime_error(
                 fmt::format("SynchronousEPEngine::build(): Failed to create "

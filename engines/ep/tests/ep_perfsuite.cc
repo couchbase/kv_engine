@@ -599,7 +599,7 @@ static enum test_result perf_latency_baseline_multi_thread_bucket(engine_test_t*
     // destroy the buckets and rm the db path
     for (int ii = 0; ii < n_buckets; ii++) {
         testHarness->destroy_bucket(buckets[ii].h, false);
-        rmdb(buckets[ii].dbpath.c_str());
+        rmdb(buckets[ii].dbpath);
     }
 
     // For the results, bring all the bucket timings into a single array

@@ -212,15 +212,7 @@ static enum test_result test_whitespace_db(EngineIface* h) {
     // line args)
     std::string dbname;
     dbname.assign(vals["ep_dbname"] + std::string(WHITESPACE_DB));
-
-    try {
-        rmdb(dbname.c_str());
-    } catch (std::system_error& e) {
-        // If the file doesn't exist, everything is fine and we can continue
-        if (e.code() != std::error_code(ENOENT, std::system_category())) {
-            throw e;
-        }
-    }
+    rmdb(dbname);
 
     std::string oldparam("dbname=" + vals["ep_dbname"]);
     std::string newparam("dbname=" + dbname);
@@ -251,13 +243,7 @@ void test_whitespace_db_cleanup(engine_test_t* test, enum test_result result) {
     // Cleanup the whitespace db if it exists
     std::string dbname;
     dbname.assign(vals["ep_dbname"] + std::string(WHITESPACE_DB));
-    try {
-        rmdb(dbname.c_str());
-    } catch (std::system_error& e) {
-        if (e.code() != std::error_code(ENOENT, std::system_category())) {
-            throw e;
-        }
-    }
+    rmdb(dbname);
 
     // Chain to the normal cleanup to cleanup the original db
     cleanup(test, result);

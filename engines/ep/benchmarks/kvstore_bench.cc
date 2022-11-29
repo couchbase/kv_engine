@@ -121,12 +121,8 @@ protected:
         kvstoreConfig = KVStoreConfig::createKVStoreConfig(
                 config, config.getBackend(), workload.getNumShards(), shardId);
 
-        try {
-            cb::io::rmrf(kvstoreConfig->getDBName());
-        } catch (std::system_error& e) {
-            // Do nothing - directory probably just didn't exist
-        }
-        cb::io::mkdirp(kvstoreConfig->getDBName());
+        std::filesystem::remove_all(kvstoreConfig->getDBName());
+        std::filesystem::create_directories(kvstoreConfig->getDBName());
         kvstore = setup_kv_store(*kvstoreConfig);
 
         // Load some data
@@ -153,7 +149,7 @@ protected:
 
     void TearDown(const benchmark::State& state) override {
         kvstore.reset();
-        cb::io::rmrf(kvstoreConfig->getDBName());
+        std::filesystem::remove_all(kvstoreConfig->getDBName());
     }
 
 private:

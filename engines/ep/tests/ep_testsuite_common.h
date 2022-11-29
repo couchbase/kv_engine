@@ -157,9 +157,7 @@ extern struct test_harness* testHarness;
 // Default DB name. Provided by the specific testsuite.
 extern const char* default_dbname;
 
-enum test_result rmdb(const char* path);
-enum test_result rmdb();
-
+enum test_result rmdb(std::string_view path);
 
 // Default testcase setup function
 bool test_setup(EngineIface* h);

@@ -57,7 +57,7 @@ TEST_P(CollectionsManifestUpdatePersistent, update_fail_persist) {
 
     // Remove the datadir, persistence will fail and be detected, command then
     // fails
-    cb::io::rmrf(test_dbname);
+    std::filesystem::remove_all(test_dbname);
 
     auto& lpWriterQ = *task_executor->getLpTaskQ()[WRITER_TASK_IDX];
     runNextTask(lpWriterQ);

@@ -38,7 +38,7 @@ void process_stream(FILE* stream, const std::string& output) {
     int idx = 0;
 
     try {
-        cb::io::mkdirp(output);
+        std::filesystem::create_directories(output);
     } catch (const std::system_error& error) {
         throw std::system_error(error.code(),
                                 "Failed to create directory " + output);

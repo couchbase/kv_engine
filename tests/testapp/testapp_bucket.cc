@@ -170,7 +170,7 @@ TEST_P(BucketTest, DeleteWhileClientConnectedAndEWouldBlocked) {
                 }
                 if (state == "destroying") {
                     for (const auto& f : lockfiles) {
-                        cb::io::rmrf(f);
+                        std::filesystem::remove_all(f);
                     }
 
                     lockfiles.clear();

@@ -38,7 +38,7 @@ protected:
     }
 
     void TearDown() override {
-        cb::io::rmrf(testdir);
+        std::filesystem::remove_all(testdir);
     }
 
     nlohmann::json create_audit_event() {

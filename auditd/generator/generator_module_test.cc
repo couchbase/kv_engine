@@ -173,7 +173,7 @@ TEST_F(SingleModuleParseTest, HeaderfileGeneration) {
     module.createHeaderFile(output);
     output.close();
     auto content = cb::io::loadFile(filename);
-    cb::io::rmrf(filename);
+    std::filesystem::remove(filename);
 
     // @todo add a better parser to check that we're not on a comment line etc
     EXPECT_NE(std::string::npos, content.find("MODULE1_AUDIT_EVENT_1 0"));

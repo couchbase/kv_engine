@@ -31,15 +31,15 @@ public:
         TestappClientTest::SetUp();
         reconfigure_client_cert_auth("disabled", "", "", "");
         auto logdir = mcd_env->getAuditLogDir();
-        EXPECT_NO_THROW(cb::io::rmrf(logdir));
-        cb::io::mkdirp(logdir);
+        std::filesystem::remove_all(logdir);
+        std::filesystem::create_directories(logdir);
         setEnabled(true);
     }
 
     void TearDown() override {
         reconfigure_client_cert_auth("disabled", "", "", "");
         setEnabled(false);
-        cb::io::mkdirp(mcd_env->getAuditLogDir());
+        std::filesystem::create_directories(mcd_env->getAuditLogDir());
         TestappClientTest::TearDown();
     }
 

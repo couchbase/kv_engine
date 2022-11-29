@@ -193,9 +193,7 @@ void NetworkInterfaceManager::writeInterfaceFile(bool terminate) {
 
         fprintf(file, "%s\n", json.dump().c_str());
         fclose(file);
-        if (cb::io::isFile(filename)) {
-            cb::io::rmrf(filename);
-        }
+        std::filesystem::remove(filename);
 
         LOG_INFO("Port numbers available in {}", filename);
         if (rename(tempname.c_str(), filename.c_str()) == -1) {
@@ -206,7 +204,7 @@ void NetworkInterfaceManager::writeInterfaceFile(bool terminate) {
             if (terminate) {
                 exit(EXIT_FAILURE);
             }
-            cb::io::rmrf(tempname);
+            std::filesystem::remove(tempname);
         }
     }
 }

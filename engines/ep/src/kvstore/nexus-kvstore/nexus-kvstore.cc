@@ -52,8 +52,10 @@ public:
 
 NexusKVStore::NexusKVStore(NexusKVStoreConfig& config) : configuration(config) {
     try {
-        cb::io::mkdirp(configuration.getPrimaryConfig().getDBName());
-        cb::io::mkdirp(configuration.getSecondaryConfig().getDBName());
+        std::filesystem::create_directories(
+                configuration.getPrimaryConfig().getDBName());
+        std::filesystem::create_directories(
+                configuration.getSecondaryConfig().getDBName());
     } catch (const std::system_error& error) {
         throw std::runtime_error(
                 fmt::format("Failed to create nexus data directories {}",

@@ -2357,6 +2357,20 @@ TEST_F(WarmupTest, MB_35326) {
 
 class WarmupDiskTest : public SingleThreadedKVBucketTest {
 public:
+    void TearDown() override {
+        // Add back write permissions on all files we've removed
+        // write permission on
+        for (auto& file : readonlyfiles) {
+            if (std::filesystem::exists(file)) {
+                std::filesystem::permissions(
+                        file,
+                        std::filesystem::perms::owner_read |
+                                std::filesystem::perms::owner_write);
+            }
+        }
+        SingleThreadedKVBucketTest::TearDown();
+    }
+
     std::filesystem::path getDataDir() {
         auto* kvstore = engine->getKVBucket()->getOneRWUnderlying();
         const auto dbname = kvstore->getConfig().getDBName();
@@ -2389,6 +2403,7 @@ public:
                 dataFile,
                 std::filesystem::perms::others_read |
                         std::filesystem::perms::owner_read);
+        readonlyfiles.emplace_back(std::move(dataFile));
     }
 
     void deleteStatsFile() {
@@ -2425,6 +2440,7 @@ private:
                                         CookieIface& cookie) -> bool {
         return true;
     };
+    std::vector<std::filesystem::path> readonlyfiles;
 };
 
 /**

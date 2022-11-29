@@ -275,7 +275,7 @@ void AuditFile::set_log_directory(const std::string &new_directory) {
 
     log_directory.assign(new_directory);
     try {
-        cb::io::mkdirp(log_directory);
+        std::filesystem::create_directories(log_directory);
     } catch (const std::runtime_error& error) {
         // The directory does not exist and we failed to create
         // it. This is not a fatal error, but it does mean that the
