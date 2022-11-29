@@ -21,7 +21,7 @@ namespace cb::json {
 /// across all components without having to update all of them.
 class SyntaxValidator {
 public:
-    enum class Type { JSON_checker, Nlohmann };
+    enum class Type { JSON_checker, JSON_checker_vectorized, Nlohmann };
 
     virtual ~SyntaxValidator();
 

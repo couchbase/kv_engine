@@ -19,6 +19,16 @@ namespace cb::json {
 /// Validator using the old JSON_checker
 class JSON_checkerValidator : public SyntaxValidator {
 public:
+    /**
+     * Construct a new  object
+     *
+     * @param preferVectorized Set to true to enable the use of a SIMD-enabled
+     *                         implementation (if one is available)
+     */
+    JSON_checkerValidator(bool preferVectorized = false)
+        : validator(preferVectorized) {
+    }
+
     bool validate(std::string_view view) override {
         return validator.validate(view);
     }
@@ -39,7 +49,9 @@ SyntaxValidator::~SyntaxValidator() = default;
 std::unique_ptr<SyntaxValidator> SyntaxValidator::New(Type type) {
     switch (type) {
     case Type::JSON_checker:
-        return std::make_unique<JSON_checkerValidator>();
+        return std::make_unique<JSON_checkerValidator>(false);
+    case Type::JSON_checker_vectorized:
+        return std::make_unique<JSON_checkerValidator>(true);
     case Type::Nlohmann:
         return std::make_unique<NlohmannValidator>();
     }
@@ -51,6 +63,8 @@ std::string to_string(const cb::json::SyntaxValidator::Type& type) {
     switch (type) {
     case cb::json::SyntaxValidator::Type::JSON_checker:
         return "JSON_checker";
+    case cb::json::SyntaxValidator::Type::JSON_checker_vectorized:
+        return "JSON_checker_vectorized";
     case cb::json::SyntaxValidator::Type::Nlohmann:
         return "Nlohmann";
     }
