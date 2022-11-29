@@ -89,7 +89,8 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       syncReplication(p->getSyncReplSupport()),
       flatBuffersSystemEventsEnabled(p->areFlatBuffersSystemEventsEnabled()),
       filter(std::move(f)),
-      sid(filter.getStreamId()) {
+      sid(filter.getStreamId()),
+      changeStreamsEnabled(p->areChangeStreamsEnabled()) {
     const char* type = "";
     if (isTakeoverStream()) {
         type = "takeover ";
@@ -757,6 +758,7 @@ void ActiveStream::addStats(const AddStatFn& add_stat, const CookieIface* c) {
         addStat("backfill_buffer_bytes", bufferedBackfill.bytes.load());
         addStat("backfill_buffer_items", bufferedBackfill.items.load());
         addStat("cursor_registered", cursor.lock() != nullptr);
+        addStat("change_streams_enabled", changeStreamsEnabled);
 
         if (isTakeoverSend() && takeoverStart != 0) {
             addStat("takeover_since", ep_current_time() - takeoverStart);
@@ -2362,4 +2364,8 @@ ValueFilter ActiveStream::getValueFilter() const {
 
 void ActiveStream::setEndSeqno(uint64_t seqno) {
     end_seqno_ = seqno;
+}
+
+bool ActiveStream::areChangeStreamsEnabled() const {
+    return changeStreamsEnabled;
 }

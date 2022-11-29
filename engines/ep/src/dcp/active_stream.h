@@ -435,6 +435,8 @@ public:
      */
     void setEndSeqno(uint64_t seqno);
 
+    bool areChangeStreamsEnabled() const;
+
 protected:
     void clear_UNLOCKED();
 
@@ -884,6 +886,9 @@ protected:
      * many streams-per-vbucket
      */
     const cb::mcbp::DcpStreamId sid;
+
+    /// Whether sending History Snapshots is enabled on this stream
+    const bool changeStreamsEnabled;
 
 private:
     /**

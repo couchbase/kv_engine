@@ -4991,11 +4991,19 @@ void CDCActiveStreamTest::SetUp() {
     vb->updateFromManifest(Collections::Manifest{std::string{manifest}});
     ASSERT_EQ(1, vb->getHighSeqno());
 
+    ASSERT_TRUE(producer);
+    ASSERT_FALSE(producer->areChangeStreamsEnabled());
+    ASSERT_EQ(cb::engine_errc::success,
+              producer->control(0, DcpControlKeys::ChangeStreams, "true"));
+    ASSERT_TRUE(producer->areChangeStreamsEnabled());
     startCheckpointTask();
+
     recreateStream(*vb,
                    true,
                    fmt::format(R"({{"collections":["{:x}"]}})",
                                uint32_t(CollectionEntry::historical.uid)));
+    ASSERT_TRUE(stream);
+    ASSERT_TRUE(stream->areChangeStreamsEnabled());
 
     // Control data: Add some mutations into the non-CDC collection
     for (size_t i : {1, 2, 3}) {
