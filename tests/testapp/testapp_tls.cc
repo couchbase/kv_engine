@@ -12,8 +12,14 @@
 #include "testapp.h"
 #include "testapp_client_test.h"
 
+#include <openssl/opensslv.h>
 #include <protocol/mcbp/ewb_encode.h>
 #include <algorithm>
+
+#ifndef OPENSSL_VERSION_MAJOR
+// OPENSSL_VERSION_MAJOR did not exist in OpenSSL 1.1
+#define OPENSSL_VERSION_MAJOR 1
+#endif
 
 class TlsTests : public TestappClientTest {
 protected:
@@ -85,6 +91,9 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          ::testing::PrintToStringParamName());
 
 TEST_P(TlsTests, Minimum_Tls1) {
+    if (OPENSSL_VERSION_MAJOR > 1) {
+        GTEST_SKIP();
+    }
     setTlsMinimumSpec("TLS 1");
 
     shouldPass("tlsv1");
@@ -94,6 +103,9 @@ TEST_P(TlsTests, Minimum_Tls1) {
 }
 
 TEST_P(TlsTests, Minimum_Tls1_1) {
+    if (OPENSSL_VERSION_MAJOR > 1) {
+        GTEST_SKIP();
+    }
     setTlsMinimumSpec("TLS 1.1");
 
     shouldFail("tlsv1");
@@ -126,8 +138,10 @@ TEST_P(TlsTests, TLS12_Ciphers) {
     reloadConfig();
 
     // We should be able to pick one of the other ciphers
-    shouldPass("tlsv1");
-    shouldPass("tlsv1_1");
+    if (OPENSSL_VERSION_MAJOR == 1) {
+        shouldPass("tlsv1");
+        shouldPass("tlsv1_1");
+    }
     shouldPass("tlsv1_2");
 
     // But all should fail if we set that we only want TLSv1 ciphers
