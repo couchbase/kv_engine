@@ -4597,6 +4597,7 @@ TEST_P(STPassiveStreamPersistentTest, VBStateNotLostAfterFlushFailure) {
                       vbid,
                       value,
                       opaque,
+                      {},
                       Requirements(Level::Majority, Timeout::Infinity()))));
 
     // M:2 - Logic Commit for PRE:1
@@ -4612,6 +4613,7 @@ TEST_P(STPassiveStreamPersistentTest, VBStateNotLostAfterFlushFailure) {
                                                   vbid,
                                                   value,
                                                   opaque,
+                                                  {},
                                                   {} /*DurReqs*/,
                                                   true /*deletion*/,
                                                   2 /*revSeqno*/)));
@@ -4948,6 +4950,7 @@ TEST_P(STPassiveStreamPersistentTest, DiskSnapWithPrepareSetsHPSToSnapEnd) {
                       vbid,
                       value,
                       opaque,
+                      {},
                       Requirements(Level::Majority, Timeout::Infinity()))));
 
     // M:6
@@ -5096,5 +5099,51 @@ TEST_P(CDCActiveStreamTest, CollectionNotDeduped_InMemory) {
 
 INSTANTIATE_TEST_SUITE_P(Persistent,
                          CDCActiveStreamTest,
+                         STParameterizedBucketTest::persistentConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+TEST_P(CDCPassiveStreamTest, HistorySnapshotReceived) {
+    // Replica receives Snap{1, 3, Disk|History}, with 1->3 mutations of the
+    // same key.
+    // The test verifies that replica is resilient to duplicates in the disk
+    // snapshot and that duplicates are successfully queued into the same
+    // checkpoint.
+
+    const auto& vb = *store->getVBucket(vbid);
+    ASSERT_EQ(0, vb.getHighSeqno());
+    const auto& manager = *vb.checkpointManager;
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(0, manager.getNumOpenChkItems());
+
+    const uint32_t opaque = 0;
+    SnapshotMarker snapshotMarker(
+            opaque,
+            vbid,
+            1 /*start*/,
+            3 /*end*/,
+            MARKER_FLAG_CHK | MARKER_FLAG_DISK | MARKER_FLAG_HISTORY,
+            std::optional<uint64_t>(0), /*HCS*/
+            {}, /*maxVisibleSeqno*/
+            {}, /*timestamp*/
+            {} /*streamId*/);
+    stream->processMarker(&snapshotMarker);
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(0, manager.getNumOpenChkItems());
+
+    const std::string key("key");
+    const std::string value("value");
+    for (size_t seqno = 1; seqno <= 3; ++seqno) {
+        EXPECT_EQ(cb::engine_errc::success,
+                  stream->messageReceived(makeMutationConsumerMessage(
+                          seqno, vbid, value, opaque, key)));
+    }
+
+    EXPECT_EQ(3, vb.getHighSeqno());
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(3, manager.getNumOpenChkItems());
+}
+
+INSTANTIATE_TEST_SUITE_P(Persistent,
+                         CDCPassiveStreamTest,
                          STParameterizedBucketTest::persistentConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);

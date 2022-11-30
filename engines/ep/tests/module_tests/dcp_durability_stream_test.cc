@@ -1819,6 +1819,7 @@ TEST_P(DurabilityPassiveStreamTest, SeqnoAckAtSnapshotEndReceived) {
                       vbid,
                       value,
                       opaque,
+                      {},
                       Requirements(Level::Majority, Timeout::Infinity()))));
     // readyQ still empty, we have not received the snap-end mutation yet
     EXPECT_EQ(0, readyQ.size());
@@ -1873,6 +1874,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, SeqnoAckAtPersistedSnapEnd) {
                       vbid,
                       value,
                       opaque,
+                      {},
                       Requirements(Level::PersistToMajority,
                                    Timeout::Infinity()))));
     // No SeqnoAck, HPS has not moved as Level:PersistToMajority requires to be
@@ -1977,6 +1979,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DurabilityFence) {
                       vbid,
                       value,
                       opaque,
+                      {},
                       Requirements(Level::Majority, Timeout::Infinity()))));
     EXPECT_EQ(0, readyQ.size());
 
@@ -1993,6 +1996,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DurabilityFence) {
                       vbid,
                       value,
                       opaque,
+                      {},
                       Requirements(Level::MajorityAndPersistOnMaster,
                                    Timeout::Infinity()))));
     EXPECT_EQ(0, readyQ.size());
@@ -2010,6 +2014,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DurabilityFence) {
                       vbid,
                       value,
                       opaque,
+                      {},
                       Requirements(Level::PersistToMajority,
                                    Timeout::Infinity()))));
     EXPECT_EQ(0, readyQ.size());
@@ -2021,6 +2026,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DurabilityFence) {
                       vbid,
                       value,
                       opaque,
+                      {},
                       Requirements(Level::Majority, Timeout::Infinity()))));
     EXPECT_EQ(0, readyQ.size());
 
@@ -2031,6 +2037,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, DurabilityFence) {
                       vbid,
                       value,
                       opaque,
+                      {},
                       Requirements(Level::MajorityAndPersistOnMaster,
                                    Timeout::Infinity()))));
     EXPECT_EQ(0, readyQ.size());
