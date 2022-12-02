@@ -26,13 +26,13 @@ Once the connection is created, the client can send one or more [control](comman
 
 Once you have a connection established with the server then the next thing to do is to open a stream to the server to stream out data for a specific VBucket. For a basic client the simplest thing to do is to always stream data starting with the first mutation that was received in the VBucket. To do this the Consumer should send [Stream Request](commands/stream-request.md) messages for each VBucket that it wants to recieve data for.
 
-* VBucket - Set this to the VBucket ID that you want your client to receive data for. This number should always be between 0 and 1023 inclusive.
-* Flags - The flags field is used to define specialized behavior for a stream. Since we don't need any specialized behavior we set the flags field to 0.
-* Start Seqno - Should be set to 0 since sequence numbers are assigned starting at sequence number 1. The Start sequence number is the last sequence number that the Consumer received and since for our basic streaming case we want to always start from the beginning we send 0 in this field.
-* End Seqno - For our basic client we want to recieve a continuous stream and receive all data as in enters Couchbase Server. To do this the highest sequence number possible should be specified. In this case the end sequence number should be 2^64-1.
-* VBucket UUID - Since we that are starting to recieve data for the first time 0 should be specified.
-* Snapshot Start Seqno - Since we that are starting to recieve data for the first time 0 should be specified.
-* Snapshot End Seqno - Since we that are starting to recieve data for the first time 0 should be specified.
+* `VBucket` - Set this to the VBucket ID that you want your client to receive data for. This number should always be between 0 and 1023 inclusive.
+* `Flags` - The flags field is used to define specialized behavior for a stream. Since we don't need any specialized behavior we set the flags field to 0.
+* `Start Seqno` - Should be set to 0 since sequence numbers are assigned starting at sequence number 1. The Start sequence number is the last sequence number that the Consumer received and since for our basic streaming case we want to always start from the beginning we send 0 in this field.
+* `End Seqno` - For our basic client we want to receive a continuous stream and receive all data as in enters Couchbase Server. To do this the highest sequence number possible should be specified. In this case the end sequence number should be 2^64-1.
+* `VBucket UUID` - Since we that are starting to recieve data for the first time 0 should be specified.
+* `Snapshot Start Seqno` - Since we that are starting to recieve data for the first time 0 should be specified.
+* `Snapshot End Seqno` - Since we that are starting to recieve data for the first time 0 should be specified.
 
 
 ### Client Side State for a Stream
@@ -44,22 +44,32 @@ A DCP client has to maintain the following state variables for a stream.
 * Last Snapshot Start Seqno
 * Last Snapshot End Seqno
 
-Everytime a stream start or re-starts and the server decides to continue based on the parameters passed by the client (that is it does not decide on the rollback), the server sends over the failover log to the client. The client should replace its previous failover log with the new failover log sent by the server. This is because DCP is a master-slave protocol where all the slaves (DCP clients) follow the master (active vbucket on the server) get eventually consistent data.
+Everytime a stream starts or re-starts and the server decides to continue based on the parameters passed by the client (that is it does not decide on the rollback), the server sends over the failover log to the client. The client should replace its previous failover log with the new failover log sent by the server, so it can record the current "timeline" it is on.
 
-Last Snapshot Start Seqno, Last Snapshot End Seqno, Last Recieved Seqno can keep changing as the server keeps sending data on the stream. The client is supposed to save atleast the final copy of these 3 sequence numbers that it receives on the stream.
+Last Snapshot Start Seqno, Last Snapshot End Seqno, Last Received Seqno can keep changing as the server keeps sending data on the stream. The client is supposed to save at least the final copy of these 3 sequence numbers that it receives on the stream.
 
 Maintaining these state variables help in restarting from the point where the client had left off.
 
 ### Restarting from where you left off
 A DCP stream can get dropped due to a number of reasons like drop in the connection, an error for that stream on the server side, an error for that stream on client, etc. So it is quite common for the stream to re-start.
 
-Resumability upon restart of a DCP stream is decided through the use of client side state variables. Upon every start or re-start, the client should sent latest VBucket UUID from the failover log, Last Recieved Seqno as Start Seqno, Last Snapshot Start Seqno as Snapshot Start Seqno and Last Snapshot End Seqno as Snapshot End Seqno. A correct request will have the below invariant
+Resumability upon restart of a DCP stream is decided through the use of client side state variables. Upon every start or re-start, the client should issue a [Stream Request](commands/stream-request.md) with the following updates to the original parameters: 
+
+* `Start Seqno` - Set to the last sequence number that the Consumer received.
+* `End Seqno` - Set to whatever seqno the client wants to receive up to - typically 2^64-1 to stream everything
+* `VBucket UUID` - Set to the latest vBucket UUID from the failover log.
+* `Snapshot Start Seqno` - Set to the `start` seqno from the last received Snapshot Marker.
+* `Snapshot End Seqno` - Set to the `end` seqno from the last received Snapshot Marker.
+
+A correct request will have the below invariant:
 
 						Snap Start Seqno <= Start Seqno <= Snap End Seqno
 
 The server decides to whether to resume from that start seqno or to ask client to rollback based on the [rollback logic](rollback.md).
 
 If the server decides to resume the stream then the client has to maintain the state variables as explained in the [previous section](building-a-simple-client.md#client-side-state-for-a-stream). If the client is asked to rollback then it should do as explained in the [next section](building-a-simple-client.md#handling-a-rollback).
+
+See [Discussion - Why does a client need to provide snapshot start & end seqnos](discussion.md#why-does-a-client-need-to-provide-snapshot-start--end-seqnos-to-resume-a-stream) for more details on why snapshot start and end are necessary for correct resumption.
 
 ### Handling a rollback
 A rollback is necessary when a DCP client has a different history from the server for that particular vbucket. Clients can choose to handle the rollback in different ways.
