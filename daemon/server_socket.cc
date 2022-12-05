@@ -76,6 +76,10 @@ protected:
     /// Set the various TCP Keepalive options to the provided socket.
     void setTcpKeepalive(SOCKET client);
 
+    /// Set TCP_USER_TIMEOUT on platforms which supports that (currently
+    /// linux only)
+    void setTcpUserTimeout(SOCKET client);
+
     /// The socket object to accept clients from
     const SOCKET sfd;
 
@@ -237,9 +241,11 @@ void LibeventServerSocketImpl::acceptNewClient() {
     }
 
     // Connections connecting to a system port should use the TCP Keepalive
-    // configuration configured in the OS.
+    // configuration configured in the OS and be protected against
+    // TCP_USER_TIMEOUT
     if (!interface->system) {
         setTcpKeepalive(client);
+        setTcpUserTimeout(client);
     }
 
     FrontEndThread::dispatch(client, interface);
@@ -283,6 +289,26 @@ void LibeventServerSocketImpl::setTcpKeepalive(SOCKET client) {
                         cb_strerror(cb::net::get_socket_error()));
         }
     }
+}
+
+void LibeventServerSocketImpl::setTcpUserTimeout(SOCKET client) {
+#ifdef __linux__
+    uint32_t val = Settings::instance().getTcpUserTimeout().count();
+    if (!val) {
+        // timeout is set to 0 -> not configured
+        return;
+    }
+    if (cb::net::setsockopt(
+                client, IPPROTO_TCP, TCP_USER_TIMEOUT, &val, sizeof(val)) ==
+        -1) {
+        LOG_WARNING("{} Failed to set TCP_USER_TIMEOUT to {}: {}",
+                    client,
+                    val,
+                    cb_strerror(cb::net::get_socket_error()));
+    }
+#else
+    (void)client;
+#endif
 }
 
 nlohmann::json LibeventServerSocketImpl::to_json() const {

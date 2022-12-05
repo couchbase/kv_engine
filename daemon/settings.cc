@@ -195,6 +195,14 @@ void Settings::reconfigure(const nlohmann::json& json) {
                     std::chrono::seconds(value.get<uint32_t>()));
         } else if (key == "tcp_keepalive_probes"sv) {
             setTcpKeepAliveProbes(value.get<uint32_t>());
+        } else if (key == "tcp_user_timeout"sv) {
+#ifdef __linux__
+            setTcpUserTimeout(std::chrono::seconds(value.get<uint32_t>()));
+#else
+            if (value.get<uint32_t>()) {
+                LOG_WARNING_RAW("TCP_USER_TIMEOUT is only supported on Linux");
+            }
+#endif
         } else if (key == "xattr_enabled"sv) {
             setXattrEnabled(value.get<bool>());
         } else if (key == "client_cert_auth"sv) {
@@ -426,6 +434,16 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                      getTcpKeepAliveProbes(),
                      other.getTcpKeepAliveProbes());
             setTcpKeepAliveProbes(other.getTcpKeepAliveProbes());
+        }
+    }
+
+    if (other.has.tcp_user_timeout) {
+        if (other.getTcpUserTimeout() != getTcpUserTimeout()) {
+            using namespace std::chrono;
+            LOG_INFO("Change TCP_USER_TIMEOUT from {}s to {}s",
+                     duration_cast<seconds>(getTcpUserTimeout()).count(),
+                     duration_cast<seconds>(other.getTcpUserTimeout()).count());
+            setTcpUserTimeout(other.getTcpUserTimeout());
         }
     }
 

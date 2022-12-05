@@ -630,6 +630,17 @@ public:
         return tcp_keepalive_probes.load(std::memory_order_acquire);
     }
 
+    /// Set time to use for TCP_USER_TIMEOUT
+    void setTcpUserTimeout(std::chrono::milliseconds val) {
+        tcp_user_timeout.store(val, std::memory_order_release);
+        has.tcp_user_timeout = true;
+        notify_changed("tcp_user_timeout");
+    }
+    /// Get the time configured for TCP_USER_TIMEOUT
+    std::chrono::milliseconds getTcpUserTimeout() const {
+        return tcp_user_timeout.load(std::memory_order_acquire);
+    }
+
     /**
      * Collections prototype means certain work-in-progress parts of collections
      * are enabled/disabled and also means DCP auto-enables collections for
@@ -955,6 +966,10 @@ protected:
     /// The number of missing probes before the connection is considered dead
     std::atomic<uint32_t> tcp_keepalive_probes{3};
 
+    /// The number of milliseconds for tcp user timeout (0 == disable)
+    std::atomic<std::chrono::milliseconds> tcp_user_timeout{
+            std::chrono::seconds{0}};
+
     /// Should the server always collect trace information for commands
     std::atomic_bool always_collect_trace_info{false};
 
@@ -1043,6 +1058,7 @@ public:
         bool tcp_keepalive_idle = false;
         bool tcp_keepalive_interval = false;
         bool tcp_keepalive_probes = false;
+        bool tcp_user_timeout = false;
         bool active_external_users_push_interval = false;
         bool max_connections = false;
         bool system_connections = false;
