@@ -187,14 +187,14 @@ public:
     cb::mcbp::DcpStreamId last_stream_id;
     std::string last_collection_filter;
     uint64_t last_prepared_seqno;
-    uint64_t last_high_completed_seqno;
     std::optional<uint64_t> last_timestamp;
     uint64_t last_commit_seqno;
     uint64_t last_abort_seqno;
     uint32_t last_oso_snapshot_flags;
     cb::mcbp::DcpStreamEndStatus last_end_status =
             cb::mcbp::DcpStreamEndStatus::Ok;
-
+    std::optional<uint64_t> last_high_completed_seqno;
+    std::optional<uint64_t> last_max_visible_seqno;
     bool isCollectionsSupported = false;
 
 protected:

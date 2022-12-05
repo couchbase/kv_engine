@@ -141,9 +141,8 @@ cb::engine_errc MockDcpMessageProducers::marker(
         last_packet_size += sizeof(cb::mcbp::DcpStreamIdFrameInfo);
         last_stream_id = sid;
     }
-    if (highCompletedSeqno) {
-        last_high_completed_seqno = *highCompletedSeqno;
-    }
+    last_high_completed_seqno = highCompletedSeqno;
+    last_max_visible_seqno = maxVisibleSeqno;
     last_timestamp = timestamp;
     return cb::engine_errc::success;
 }
@@ -560,4 +559,6 @@ void MockDcpMessageProducers::clear_dcp_data() {
     last_commit_seqno = 0;
     last_abort_seqno = 0;
     last_end_status = cb::mcbp::DcpStreamEndStatus::Ok;
+    last_high_completed_seqno = std::nullopt;
+    last_max_visible_seqno = std::nullopt;
 }

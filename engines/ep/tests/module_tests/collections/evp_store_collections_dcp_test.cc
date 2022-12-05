@@ -4383,13 +4383,17 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionNotReplicated) {
     // DCP goes straight to the mutation
     producer->stepAndExpect(*producers, ClientOpcode::DcpMutation);
 
-    // @todo: ActiveStream changes and tests for a skipped Modify being replaced
-    // by a SeqnoAdvance.
-
     // Now make the high-seqno another change of history so backfill snapshot
     // can be tested (history disabled)
     cm.update(fruit, cb::NoExpiryLimit);
     setCollections(cookie, cm);
+    notifyAndStepToCheckpoint();
+
+    // Expect no mvs/hcs as sync-replication is off
+    EXPECT_FALSE(producers->last_max_visible_seqno.has_value());
+    EXPECT_FALSE(producers->last_high_completed_seqno.has_value());
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSeqnoAdvanced);
+    EXPECT_EQ(vb0->getHighSeqno(), producers->last_byseqno);
 
     vb0.reset();
 
@@ -4424,6 +4428,9 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionNotReplicated) {
 
     notifyAndStepToCheckpoint(ClientOpcode::DcpSnapshotMarker,
                               false /*in-memory = false*/);
+    // Expect no mvs/hcs as sync-replication is off
+    EXPECT_FALSE(producers->last_max_visible_seqno.has_value());
+    EXPECT_FALSE(producers->last_high_completed_seqno.has_value());
 
     // fruit created
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
@@ -4435,6 +4442,7 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionNotReplicated) {
 
     // And skipped the modify
     producer->stepAndExpect(*producers, ClientOpcode::DcpSeqnoAdvanced);
+    EXPECT_EQ(store->getVBucket(vbid)->getHighSeqno(), producers->last_byseqno);
 }
 
 // Test cases which run for persistent and ephemeral buckets

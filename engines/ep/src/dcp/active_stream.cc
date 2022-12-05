@@ -1257,19 +1257,11 @@ void ActiveStream::processItems(
                     mutations.push_back(makeResponseFromItem(
                             qi, SendCommitSyncWriteAs::Commit));
                 }
-
-            } else if (isSeqnoAdvancedEnabled()) {
-                /*
-                 * If we're a collection stream that does not support sync
-                 * writes then we want to be able to send a SeqnoAdvanced op.
-                 * Thus, if we see a non visible mutation i.e. an abort or
-                 * prepare then up highNonVisibleSeqno with the items seqno only
-                 * if the item is for the streaming collections.
-                 */
-                if ((qi->isPending() || qi->isAbort()) &&
-                    filter.checkAndUpdate(*qi)) {
-                    highNonVisibleSeqno = qi->getBySeqno();
-                }
+            } else if (isSeqnoAdvancedEnabled() &&
+                       !qi->isCheckPointMetaItem() &&
+                       filter.checkAndUpdate(*qi)) {
+                // Can replace with SeqnoAdvance and the item is for this stream
+                highNonVisibleSeqno = qi->getBySeqno();
             }
         }
 
@@ -2307,7 +2299,13 @@ bool ActiveStream::isTakeoverStream() const {
 }
 
 bool ActiveStream::isSeqnoAdvancedEnabled() const {
-    return isCollectionEnabledStream() && !supportSyncReplication();
+    // SeqnoAdvance can only be sent if collections enabled as that's what added
+    // the message.
+    // Then we only require SeqnoAdvance for streams which don't enable:
+    // sync-writes - so we can replace abort/prepare with seqno-advance
+    // FlatBuffers - so we can replace ModifyCollection with seqno-advance
+    return isCollectionEnabledStream() &&
+           (!supportSyncReplication() || !flatBuffersSystemEventsEnabled);
 }
 
 bool ActiveStream::isSeqnoAdvancedNeededBackFill() const {
