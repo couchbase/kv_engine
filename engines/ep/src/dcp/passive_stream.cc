@@ -217,6 +217,10 @@ void PassiveStream::acceptStream(cb::mcbp::Status status, uint32_t add_opaque) {
     // correctly process Snapshot Markers.
     supportsSyncReplication = consumer->isSyncReplicationEnabled();
 
+    // as above, but check if FlatBuffers was enabled
+    flatBuffersSystemEventsEnabled =
+            consumer->areFlatBuffersSystemEventsEnabled();
+
     // For SyncReplication streams lookup the highPreparedSeqno to check if
     // we need to re-ACK (after accepting the stream).
     const int64_t highPreparedSeqno =

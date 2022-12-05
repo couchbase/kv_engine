@@ -411,5 +411,5 @@ protected:
     bool alwaysBufferOperations{false};
 
     // True if the consumer/producer enabled FlatBuffers
-    const bool flatBuffersSystemEventsEnabled{false};
+    bool flatBuffersSystemEventsEnabled{false};
 };
