@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -52,13 +51,8 @@ public:
 };
 
 void SettingsTest::nonStringValuesShouldFail(const std::string& tag) {
-    // Boolean values should not be accepted
     nlohmann::json json;
-    json[tag] = true;
-    expectFail(json);
-
-    json[tag] = false;
-    expectFail(json);
+    // nlohmann::json accepts true/false when parsing numbers
 
     // Numbers should not be accepted
     json[tag] = 5;
@@ -99,13 +93,8 @@ void SettingsTest::nonBooleanValuesShouldFail(const std::string& tag) {
 }
 
 void SettingsTest::nonNumericValuesShouldFail(const std::string& tag) {
-    // Boolean values should not be accepted
     nlohmann::json json;
-    json[tag] = true;
-    expectFail(json);
-
-    json[tag] = false;
-    expectFail(json);
+    // nlohmann::json accepts true/false when parsing numbers
 
     // String values should not be accepted
     json[tag] = "foo";

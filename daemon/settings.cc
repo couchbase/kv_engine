@@ -11,7 +11,6 @@
 #include "settings.h"
 #include "log_macros.h"
 #include "ssl_utils.h"
-#include <gsl/gsl-lite.hpp>
 #include <mcbp/mcbp.h>
 #include <memcached/util.h>
 #include <nlohmann/json.hpp>
@@ -35,427 +34,6 @@ Settings::Settings(const nlohmann::json& json) {
 Settings& Settings::instance() {
     static Settings settings;
     return settings;
-}
-
-/**
- * Handle deprecated tags in the settings by simply ignoring them
- */
-static void ignore_entry(Settings&, const nlohmann::json&) {
-}
-
-static void handle_always_collect_trace_info(Settings& s,
-                                             const nlohmann::json& obj) {
-    s.setAlwaysCollectTraceInfo(obj.get<bool>());
-}
-
-/**
- * Handle the "rbac_file" tag in the settings
- *
- * ns_server don't synchronize updates to the files with memcached
- * (see MB-38270) we can't really check for the file existence as
- * we may race with ns_server trying to install a new version of the
- * file.
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
-static void handle_rbac_file(Settings& s, const nlohmann::json& obj) {
-    s.setRbacFile(obj.get<std::string>());
-}
-
-/**
- * Handle the "privilege_debug" tag in the settings
- *
- *  The value must be a boolean value
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
-static void handle_privilege_debug(Settings& s, const nlohmann::json& obj) {
-    s.setPrivilegeDebug(obj.get<bool>());
-}
-
-/**
- * Handle the "audit_file" tag in the settings
- *
- * ns_server don't synchronize updates to the files with memcached
- * (see MB-38270) we can't really check for the file existence as
- * we may race with ns_server trying to install a new version of the
- * file.
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
-static void handle_audit_file(Settings& s, const nlohmann::json& obj) {
-    s.setAuditFile(obj.get<std::string>());
-}
-
-static void handle_deployment_model(Settings& s, const nlohmann::json& obj) {
-    if (obj.get<std::string>() == "serverless") {
-        s.setDeploymentModel(DeploymentModel::Serverless);
-    }
-}
-
-static void handle_error_maps_dir(Settings& s, const nlohmann::json& obj) {
-    s.setErrorMapsDir(obj.get<std::string>());
-}
-
-/**
- * Handle the "threads" tag in the settings
- *
- *  The value must be an integer value
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
-static void handle_threads(Settings& s, const nlohmann::json& obj) {
-    if (!obj.is_number_unsigned()) {
-        cb::throwJsonTypeError("\"threads\" must be an unsigned int");
-    }
-    s.setNumWorkerThreads(gsl::narrow_cast<size_t>(obj.get<unsigned int>()));
-}
-
-static void handle_scramsha_fallback_salt(Settings& s,
-                                          const nlohmann::json& obj) {
-    // Try to base64 decode it to validate that it is a legal value..
-    auto salt = obj.get<std::string>();
-    cb::base64::decode(salt);
-    s.setScramshaFallbackSalt(salt);
-}
-
-static void handle_phosphor_config(Settings& s, const nlohmann::json& obj) {
-    auto config = obj.get<std::string>();
-    // throw an exception if the config is invalid
-    phosphor::TraceConfig::fromString(config);
-    s.setPhosphorConfig(config);
-}
-
-static void handle_external_auth_service(Settings& s,
-                                         const nlohmann::json& obj) {
-    s.setExternalAuthServiceEnabled(obj.get<bool>());
-}
-
-static void handle_active_external_users_push_interval(
-        Settings& s, const nlohmann::json& obj) {
-    switch (obj.type()) {
-    case nlohmann::json::value_t::number_unsigned:
-        s.setActiveExternalUsersPushInterval(
-                std::chrono::seconds(obj.get<int>()));
-        break;
-    case nlohmann::json::value_t::string:
-        s.setActiveExternalUsersPushInterval(
-                std::chrono::duration_cast<std::chrono::microseconds>(
-                        cb::text2time(obj.get<std::string>())));
-        break;
-    default:
-        cb::throwJsonTypeError(R"("active_external_users_push_interval" must
-                                be a number or string)");
-    }
-}
-
-static void handle_max_concurrent_commands_per_connection(
-        Settings& s, const nlohmann::json& obj) {
-    if (!obj.is_number_unsigned()) {
-        cb::throwJsonTypeError(
-                R"("max_concurrent_commands_per_connection" must be a positive number)");
-    }
-    s.setMaxConcurrentCommandsPerConnection(obj.get<size_t>());
-}
-
-/**
- * Handle the "tracing_enabled" tag in the settings
- *
- *  The value must be a boolean value
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
-static void handle_tracing_enabled(Settings& s, const nlohmann::json& obj) {
-    s.setTracingEnabled(obj.get<bool>());
-}
-
-/**
- * Handle the "stdin_listener" tag in the settings
- *
- *  The value must be a boolean value
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
-static void handle_stdin_listener(Settings& s, const nlohmann::json& obj) {
-    s.setStdinListenerEnabled(obj.get<bool>());
-}
-
-/**
- * Handle "default_reqs_per_event", "reqs_per_event_high_priority",
- * "reqs_per_event_med_priority" and "reqs_per_event_low_priority" tag in
- * the settings
- *
- *  The value must be a integer value
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
-static void handle_reqs_event(Settings& s,
-                              const nlohmann::json& obj,
-                              EventPriority priority,
-                              const std::string& msg) {
-    // Throw if not an unsigned int. Bool values can be converted to an int
-    // in an nlohmann::json.get<unsigned int>() so we need to check this
-    // explicitly.
-    if (!obj.is_number_unsigned()) {
-        cb::throwJsonTypeError(msg + " must be an unsigned int");
-    }
-
-    s.setRequestsPerEventNotification(gsl::narrow<int>(obj.get<unsigned int>()),
-                                      priority);
-}
-
-static void handle_default_reqs_event(Settings& s, const nlohmann::json& obj) {
-    handle_reqs_event(s, obj, EventPriority::Default, "default_reqs_per_event");
-}
-
-static void handle_high_reqs_event(Settings& s, const nlohmann::json& obj) {
-    handle_reqs_event(
-            s, obj, EventPriority::High, "reqs_per_event_high_priority");
-}
-
-static void handle_med_reqs_event(Settings& s, const nlohmann::json& obj) {
-    handle_reqs_event(
-            s, obj, EventPriority::Medium, "reqs_per_event_med_priority");
-}
-
-static void handle_low_reqs_event(Settings& s, const nlohmann::json& obj) {
-    handle_reqs_event(
-            s, obj, EventPriority::Low, "reqs_per_event_low_priority");
-}
-
-static void handle_tcp_keepalive_idle(Settings& s, const nlohmann::json& obj) {
-    s.setTcpKeepAliveIdle(std::chrono::seconds(obj.get<uint32_t>()));
-}
-static void handle_tcp_keepalive_interval(Settings& s,
-                                          const nlohmann::json& obj) {
-    s.setTcpKeepAliveInterval(std::chrono::seconds(obj.get<uint32_t>()));
-}
-static void handle_tcp_keepalive_probes(Settings& s,
-                                        const nlohmann::json& obj) {
-    s.setTcpKeepAliveProbes(obj.get<uint32_t>());
-}
-
-/**
- * Handle the "verbosity" tag in the settings
- *
- *  The value must be a numeric value
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
-static void handle_verbosity(Settings& s, const nlohmann::json& obj) {
-    if (!obj.is_number_unsigned()) {
-        cb::throwJsonTypeError("\"verbosity\" must be an unsigned int");
-    }
-    s.setVerbose(gsl::narrow<int>(obj.get<unsigned int>()));
-}
-
-/**
- * Handle the "connection_idle_time" tag in the settings
- *
- *  The value must be a numeric value
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
-static void handle_connection_idle_time(Settings& s,
-                                        const nlohmann::json& obj) {
-    if (!obj.is_number_unsigned()) {
-        cb::throwJsonTypeError(
-                "\"connection_idle_time\" must be an unsigned "
-                "int");
-    }
-    s.setConnectionIdleTime(obj.get<unsigned int>());
-}
-
-/**
- * Handle the "datatype_snappy" tag in the settings
- *
- *  The value must be a boolean value
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
-static void handle_datatype_json(Settings& s, const nlohmann::json& obj) {
-    s.setDatatypeJsonEnabled(obj.get<bool>());
-}
-
-static void handle_enable_deprecated_bucket_autoselect(
-        Settings& s, const nlohmann::json& obj) {
-    s.setDeprecatedBucketAutoselectEnabled(obj.get<bool>());
-}
-
-static void handle_event_framework(Settings& s, const nlohmann::json& obj) {
-    auto val = obj.get<std::string>();
-    if (val == "bufferevent") {
-        s.setEventFramework(EventFramework::Bufferevent);
-    } else if (val == "folly") {
-        s.setEventFramework(EventFramework::Folly);
-    } else {
-        throw std::invalid_argument(
-                R"("event_framework" must be "bufferevent" or "folly")");
-    }
-}
-
-/**
- * Handle the "datatype_snappy" tag in the settings
- *
- *  The value must be a boolean value
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
-static void handle_datatype_snappy(Settings& s, const nlohmann::json& obj) {
-    s.setDatatypeSnappyEnabled(obj.get<bool>());
-}
-
-/**
- * Handle the "root" tag in the settings
- *
- * The value must be a string that points to a directory that must exist
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
-static void handle_root(Settings& s, const nlohmann::json& obj) {
-    auto dir = obj.get<std::string>();
-
-    if (!cb::io::isDirectory(dir)) {
-        throw std::system_error(
-                std::make_error_code(std::errc::no_such_file_or_directory),
-                "'root': '" + dir + "'");
-    }
-
-    s.setRoot(dir);
-}
-
-/**
- * Handle the "get_max_packet_size" tag in the settings
- *
- *  The value must be a numeric value
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
-static void handle_max_packet_size(Settings& s, const nlohmann::json& obj) {
-    if (!obj.is_number_unsigned()) {
-        cb::throwJsonTypeError("\"max_packet_size\" must be an unsigned int");
-    }
-    s.setMaxPacketSize(gsl::narrow<uint32_t>(obj.get<unsigned int>()) * 1024 *
-                       1024);
-}
-
-static void handle_max_send_queue_size(Settings& s, const nlohmann::json& obj) {
-    if (!obj.is_number_unsigned()) {
-        cb::throwJsonTypeError(
-                R"("max_send_queue_size" must be an unsigned number)");
-    }
-    s.setMaxSendQueueSize(obj.get<size_t>() * 1024 * 1024);
-}
-
-static void handle_max_connections(Settings& s, const nlohmann::json& obj) {
-    if (!obj.is_number_unsigned()) {
-        cb::throwJsonTypeError(
-                R"("max_connections" must be a positive number)");
-    }
-    s.setMaxConnections(obj.get<size_t>());
-}
-
-static void handle_system_connections(Settings& s, const nlohmann::json& obj) {
-    if (!obj.is_number_unsigned()) {
-        cb::throwJsonTypeError(
-                R"("system_connections" must be a positive number)");
-    }
-    s.setSystemConnections(obj.get<size_t>());
-}
-
-/**
- * Handle the "sasl_mechanisms" tag in the settings
- *
- * The value must be a string
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
-static void handle_sasl_mechanisms(Settings& s, const nlohmann::json& obj) {
-    s.setSaslMechanisms(obj.get<std::string>());
-}
-
-/**
- * Handle the "ssl_sasl_mechanisms" tag in the settings
- *
- * The value must be a string
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
-static void handle_ssl_sasl_mechanisms(Settings& s, const nlohmann::json& obj) {
-    s.setSslSaslMechanisms(obj.get<std::string>());
-}
-
-/**
- * Handle the "dedupe_nmvb_maps" tag in the settings
- *
- *  The value must be a boolean value
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
-static void handle_dedupe_nmvb_maps(Settings& s, const nlohmann::json& obj) {
-    s.setDedupeNmvbMaps(obj.get<bool>());
-}
-
-/**
- * Handle the "xattr_enabled" tag in the settings
- *
- *  The value must be a boolean value
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
-static void handle_xattr_enabled(Settings& s, const nlohmann::json& obj) {
-    s.setXattrEnabled(obj.get<bool>());
-}
-
-/**
- * Handle the "client_cert_auth" tag in the settings
- *
- *  The value must be a string value
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
-static void handle_client_cert_auth(Settings& s, const nlohmann::json& obj) {
-    auto config = cb::x509::ClientCertConfig::create(obj);
-    s.reconfigureClientCertAuth(std::move(config));
-}
-
-/**
- * Handle the "collections_enabled" tag in the settings
- *
- *  The value must be a boolean value
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
-static void handle_collections_enabled(Settings& s, const nlohmann::json& obj) {
-    s.setCollectionsPrototype(obj.get<bool>());
-}
-
-static void handle_opcode_attributes_override(Settings& s,
-                                              const nlohmann::json& obj) {
-    if (obj.type() != nlohmann::json::value_t::object) {
-        throw std::invalid_argument(
-                R"("opcode_attributes_override" must be an object)");
-    }
-    s.setOpcodeAttributesOverride(obj.dump());
 }
 
 std::string storageThreadConfig2String(int val) {
@@ -504,229 +82,236 @@ static int parseThreadConfigSpec(const std::string& variable,
     }
 }
 
-static void handle_num_reader_threads(Settings& s,  const nlohmann::json& obj) {
-    if (obj.is_number_unsigned()) {
-        s.setNumReaderThreads(obj.get<size_t>());
-    } else {
-        const auto val = obj.get<std::string>();
-        s.setNumReaderThreads(parseThreadConfigSpec("num_reader_threads", val));
-    }
-}
-
-static void handle_num_writer_threads(Settings& s,  const nlohmann::json& obj) {
-    if (obj.is_number_unsigned()) {
-        s.setNumWriterThreads(obj.get<size_t>());
-    } else {
-        const auto val = obj.get<std::string>();
-        s.setNumWriterThreads(parseThreadConfigSpec("num_writer_threads", val));
-    }
-}
-
-static void handle_num_auxio_threads(Settings& s, const nlohmann::json& obj) {
-    if (obj.is_number_unsigned()) {
-        s.setNumAuxIoThreads(obj.get<size_t>());
-    } else if (obj.is_string() && obj.get<std::string>() == "default") {
-        s.setNumAuxIoThreads(0);
-    } else {
-        throw std::invalid_argument(
-                fmt::format("Value to set number of AuxIO threads must be an "
-                            "unsigned integer or \"default\"! Value:'{}'",
-                            obj.dump()));
-    }
-}
-
-static void handle_num_nonio_threads(Settings& s, const nlohmann::json& obj) {
-    if (obj.is_number_unsigned()) {
-        s.setNumNonIoThreads(obj.get<size_t>());
-    } else if (obj.is_string() && obj.get<std::string>() == "default") {
-        s.setNumNonIoThreads(0);
-    } else {
-        throw std::invalid_argument(
-                fmt::format("Value to set number of NonIO threads must be an "
-                            "unsigned integer or \"default\"!! Value:'{}'",
-                            obj.dump()));
-    }
-}
-
-static void handle_num_storage_threads(Settings& s, const nlohmann::json& obj) {
-    if (obj.is_number_unsigned()) {
-        s.setNumStorageThreads(obj.get<size_t>());
-    } else {
-        const auto val = obj.get<std::string>();
-        s.setNumStorageThreads(
-                parseStorageThreadConfigSpec("num_storage_threads", val));
-    }
-}
-
-static void handle_logger(Settings& s, const nlohmann::json& obj) {
-    if (!obj.is_object()) {
-        cb::throwJsonTypeError(R"("logger" must be an object)");
-    }
-    s.setLoggerConfig(obj.get<cb::logger::Config>());
-}
-
-static void handle_portnumber_file(Settings& s, const nlohmann::json& obj) {
-    s.setPortnumberFile(obj.get<std::string>());
-}
-
-static void handle_parent_identifier(Settings& s, const nlohmann::json& obj) {
-    s.setParentIdentifier(obj.get<int>());
-}
-
-/**
- * Handle the "interfaces" tag in the settings
- *
- *  The value must be an array
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
-static void handle_interfaces(Settings& s, const nlohmann::json& obj) {
-    if (obj.type() != nlohmann::json::value_t::array) {
-        cb::throwJsonTypeError("\"interfaces\" must be an array");
-    }
-
-    for (const auto& o : obj) {
-        auto ifc = o.get<NetworkInterface>();
-        if (ifc.port == 0 && ifc.tag.empty()) {
-            throw std::invalid_argument("Ephemeral ports must have a tag");
-        }
-        s.addInterface(ifc);
-    }
-}
-
-static void handle_breakpad(Settings& s, const nlohmann::json& obj) {
-    auto settings = obj.get<cb::breakpad::Settings>();
-    settings.validate();
-    s.setBreakpadSettings(settings);
-}
-
-static void handle_prometheus(Settings& s, const nlohmann::json& obj) {
-    if (!obj.is_object()) {
-        cb::throwJsonTypeError(R"("prometheus" must be an object)");
-    }
-    auto iter = obj.find("port");
-    if (iter == obj.end() || !iter->is_number()) {
-        throw std::invalid_argument(
-                R"("prometheus.port" must be present and a number)");
-    }
-    const auto port = iter->get<in_port_t>();
-    iter = obj.find("family");
-    if (iter == obj.end() || !iter->is_string()) {
-        throw std::invalid_argument(
-                R"("prometheus.family" must be present and a string)");
-    }
-    const auto val = iter->get<std::string>();
-    sa_family_t family;
-    if (val == "inet") {
-        family = AF_INET;
-    } else if (val == "inet6") {
-        family = AF_INET6;
-    } else {
-        throw std::invalid_argument(
-                R"("prometheus.family" must be "inet" or "inet6")");
-    }
-
-    s.setPrometheusConfig({port, family});
-}
-
-static void handle_allow_localhost_interface(Settings& s,
-                                             const nlohmann::json& obj) {
-    s.setAllowLocalhostInterface(obj.get<bool>());
-}
-
 void Settings::reconfigure(const nlohmann::json& json) {
     // Nuke the default interface added to the system in settings_init and
-    // use the ones in the configuration file.. (this is a bit messy)
+    // use the ones in the configuration file (this is a bit messy).
     interfaces.wlock()->clear();
 
-    struct settings_config_tokens {
-        /**
-         * The key in the configuration
-         */
-        std::string key;
-
-        /**
-         * A callback method used by the Settings object when we're parsing
-         * the config attributes.
-         *
-         * @param settings the Settings object to update
-         * @param obj the current object in the configuration we're looking at
-         * @throws nlohmann::json::exception if the json cannot be parsed
-         * @throws std::invalid_argument for other json input errors
-         */
-        void (*handler)(Settings& settings, const nlohmann::json& obj);
-    };
-
-    std::vector<settings_config_tokens> handlers = {
-            {"admin", ignore_entry},
-            {"always_collect_trace_info", handle_always_collect_trace_info},
-            {"rbac_file", handle_rbac_file},
-            {"privilege_debug", handle_privilege_debug},
-            {"audit_file", handle_audit_file},
-            {"deployment_model", handle_deployment_model},
-            {"error_maps_dir", handle_error_maps_dir},
-            {"enable_deprecated_bucket_autoselect",
-             handle_enable_deprecated_bucket_autoselect},
-            {"event_framework", handle_event_framework},
-            {"threads", handle_threads},
-            {"interfaces", handle_interfaces},
-            {"logger", handle_logger},
-            {"default_reqs_per_event", handle_default_reqs_event},
-            {"reqs_per_event_high_priority", handle_high_reqs_event},
-            {"reqs_per_event_med_priority", handle_med_reqs_event},
-            {"reqs_per_event_low_priority", handle_low_reqs_event},
-            {"verbosity", handle_verbosity},
-            {"connection_idle_time", handle_connection_idle_time},
-            {"datatype_json", handle_datatype_json},
-            {"datatype_snappy", handle_datatype_snappy},
-            {"root", handle_root},
-            {"breakpad", handle_breakpad},
-            {"max_packet_size", handle_max_packet_size},
-            {"max_send_queue_size", handle_max_send_queue_size},
-            {"max_connections", handle_max_connections},
-            {"system_connections", handle_system_connections},
-            {"sasl_mechanisms", handle_sasl_mechanisms},
-            {"ssl_sasl_mechanisms", handle_ssl_sasl_mechanisms},
-            {"stdin_listener", handle_stdin_listener},
-            {"dedupe_nmvb_maps", handle_dedupe_nmvb_maps},
-            {"tcp_keepalive_idle", handle_tcp_keepalive_idle},
-            {"tcp_keepalive_interval", handle_tcp_keepalive_interval},
-            {"tcp_keepalive_probes", handle_tcp_keepalive_probes},
-            {"xattr_enabled", handle_xattr_enabled},
-            {"client_cert_auth", handle_client_cert_auth},
-            {"collections_enabled", handle_collections_enabled},
-            {"opcode_attributes_override", handle_opcode_attributes_override},
-            {"num_reader_threads", handle_num_reader_threads},
-            {"num_writer_threads", handle_num_writer_threads},
-            {"num_storage_threads", handle_num_storage_threads},
-            {"num_auxio_threads", handle_num_auxio_threads},
-            {"num_nonio_threads", handle_num_nonio_threads},
-            {"tracing_enabled", handle_tracing_enabled},
-            {"scramsha_fallback_salt", handle_scramsha_fallback_salt},
-            {"external_auth_service", handle_external_auth_service},
-            {"active_external_users_push_interval",
-             handle_active_external_users_push_interval},
-            {"max_concurrent_commands_per_connection",
-             handle_max_concurrent_commands_per_connection},
-            {"phosphor_config", handle_phosphor_config},
-            {"prometheus", handle_prometheus},
-            {"portnumber_file", handle_portnumber_file},
-            {"parent_identifier", handle_parent_identifier},
-            {"allow_localhost_interface", handle_allow_localhost_interface}};
-
     for (const auto& obj : json.items()) {
-        bool found = false;
-        for (auto& handler : handlers) {
-            if (handler.key == obj.key()) {
-                handler.handler(*this, obj.value());
-                found = true;
-                break;
-            }
-        }
+        const auto key = obj.key();
+        const auto value = obj.value();
+        using namespace std::string_view_literals;
 
-        if (!found) {
-            LOG_WARNING(R"(Unknown key "{}" in config ignored.)", obj.key());
+        if (key == "admin"sv) {
+            // ignore
+        } else if (key == "always_collect_trace_info"sv) {
+            setAlwaysCollectTraceInfo(value.get<bool>());
+        } else if (key == "rbac_file"sv) {
+            setRbacFile(value.get<std::string>());
+        } else if (key == "privilege_debug"sv) {
+            setPrivilegeDebug(value.get<bool>());
+        } else if (key == "audit_file"sv) {
+            setAuditFile(value.get<std::string>());
+        } else if (key == "deployment_model"sv) {
+            if (value.get<std::string>() == "serverless") {
+                setDeploymentModel(DeploymentModel::Serverless);
+            }
+        } else if (key == "error_maps_dir"sv) {
+            setErrorMapsDir(value.get<std::string>());
+        } else if (key == "enable_deprecated_bucket_autoselect"sv) {
+            setDeprecatedBucketAutoselectEnabled(value.get<bool>());
+        } else if (key == "event_framework"sv) {
+            auto val = value.get<std::string>();
+            if (val == "bufferevent") {
+                setEventFramework(EventFramework::Bufferevent);
+            } else if (val == "folly") {
+                setEventFramework(EventFramework::Folly);
+            } else {
+                throw std::invalid_argument(
+                        R"("event_framework" must be "bufferevent" or "folly")");
+            }
+        } else if (key == "threads"sv) {
+            setNumWorkerThreads(value.get<size_t>());
+        } else if (key == "interfaces") {
+            if (value.type() != nlohmann::json::value_t::array) {
+                cb::throwJsonTypeError("\"interfaces\" must be an array");
+            }
+            for (const auto& o : value) {
+                auto ifc = o.get<NetworkInterface>();
+                if (ifc.port == 0 && ifc.tag.empty()) {
+                    throw std::invalid_argument(
+                            "Ephemeral ports must have a tag");
+                }
+                addInterface(ifc);
+            }
+        } else if (key == "logger"sv) {
+            setLoggerConfig(value.get<cb::logger::Config>());
+        } else if (key == "default_reqs_per_event"sv) {
+            setRequestsPerEventNotification(value.get<int>(),
+                                            EventPriority::Default);
+        } else if (key == "reqs_per_event_high_priority"sv) {
+            setRequestsPerEventNotification(value.get<int>(),
+                                            EventPriority::High);
+        } else if (key == "reqs_per_event_med_priority"sv) {
+            setRequestsPerEventNotification(value.get<int>(),
+                                            EventPriority::Medium);
+        } else if (key == "reqs_per_event_low_priority"sv) {
+            setRequestsPerEventNotification(value.get<int>(),
+                                            EventPriority::Low);
+        } else if (key == "verbosity"sv) {
+            setVerbose(value.get<int>());
+        } else if (key == "connection_idle_time"sv) {
+            setConnectionIdleTime(value.get<unsigned int>());
+        } else if (key == "datatype_json"sv) {
+            setDatatypeJsonEnabled(value.get<bool>());
+        } else if (key == "datatype_snappy"sv) {
+            setDatatypeSnappyEnabled(value.get<bool>());
+        } else if (key == "root"sv) {
+            auto dir = value.get<std::string>();
+
+            if (!cb::io::isDirectory(dir)) {
+                throw std::system_error(
+                        std::make_error_code(
+                                std::errc::no_such_file_or_directory),
+                        "'root': '" + dir + "'");
+            }
+
+            setRoot(dir);
+        } else if (key == "breakpad"sv) {
+            auto settings = value.get<cb::breakpad::Settings>();
+            settings.validate();
+            setBreakpadSettings(settings);
+        } else if (key == "max_packet_size"sv) {
+            setMaxPacketSize(value.get<uint32_t>() * uint32_t(1024) *
+                             uint32_t(1024));
+        } else if (key == "max_send_queue_size"sv) {
+            setMaxSendQueueSize(value.get<size_t>() * 1024 * 1024);
+        } else if (key == "max_connections"sv) {
+            setMaxConnections(value.get<size_t>());
+        } else if (key == "system_connections"sv) {
+            setSystemConnections(value.get<size_t>());
+        } else if (key == "sasl_mechanisms"sv) {
+            setSaslMechanisms(value.get<std::string>());
+        } else if (key == "ssl_sasl_mechanisms"sv) {
+            setSslSaslMechanisms(value.get<std::string>());
+        } else if (key == "stdin_listener"sv) {
+            setStdinListenerEnabled(value.get<bool>());
+        } else if (key == "dedupe_nmvb_maps"sv) {
+            setDedupeNmvbMaps(value.get<bool>());
+        } else if (key == "tcp_keepalive_idle"sv) {
+            setTcpKeepAliveIdle(std::chrono::seconds(value.get<uint32_t>()));
+        } else if (key == "tcp_keepalive_interval"sv) {
+            setTcpKeepAliveInterval(
+                    std::chrono::seconds(value.get<uint32_t>()));
+        } else if (key == "tcp_keepalive_probes"sv) {
+            setTcpKeepAliveProbes(value.get<uint32_t>());
+        } else if (key == "xattr_enabled"sv) {
+            setXattrEnabled(value.get<bool>());
+        } else if (key == "client_cert_auth"sv) {
+            auto config = cb::x509::ClientCertConfig::create(value);
+            reconfigureClientCertAuth(std::move(config));
+        } else if (key == "collections_enabled"sv) {
+            setCollectionsPrototype(value.get<bool>());
+        } else if (key == "opcode_attributes_override"sv) {
+            setOpcodeAttributesOverride(value.dump());
+        } else if (key == "num_reader_threads"sv) {
+            if (value.is_number_unsigned()) {
+                setNumReaderThreads(value.get<size_t>());
+            } else {
+                const auto val = value.get<std::string>();
+                setNumReaderThreads(
+                        parseThreadConfigSpec("num_reader_threads", val));
+            }
+        } else if (key == "num_writer_threads"sv) {
+            if (value.is_number_unsigned()) {
+                setNumWriterThreads(value.get<size_t>());
+            } else {
+                const auto val = value.get<std::string>();
+                setNumWriterThreads(
+                        parseThreadConfigSpec("num_writer_threads", val));
+            }
+        } else if (key == "num_storage_threads"sv) {
+            if (value.is_number_unsigned()) {
+                setNumStorageThreads(value.get<size_t>());
+            } else {
+                setNumStorageThreads(parseStorageThreadConfigSpec(
+                        "num_storage_threads", value.get<std::string>()));
+            }
+        } else if (key == "num_auxio_threads"sv) {
+            if (value.is_number_unsigned()) {
+                setNumAuxIoThreads(value.get<size_t>());
+            } else if (value.is_string() &&
+                       value.get<std::string>() == "default") {
+                setNumAuxIoThreads(0);
+            } else {
+                throw std::invalid_argument(fmt::format(
+                        "Value to set number of AuxIO threads must be an "
+                        "unsigned integer or \"default\"! Value:'{}'",
+                        value.dump()));
+            }
+        } else if (key == "num_nonio_threads"sv) {
+            if (value.is_number_unsigned()) {
+                setNumNonIoThreads(value.get<size_t>());
+            } else if (value.is_string() &&
+                       value.get<std::string>() == "default") {
+                setNumNonIoThreads(0);
+            } else {
+                throw std::invalid_argument(fmt::format(
+                        "Value to set number of NonIO threads must be an "
+                        "unsigned integer or \"default\"!! Value:'{}'",
+                        value.dump()));
+            }
+        } else if (key == "tracing_enabled"sv) {
+            setTracingEnabled(value.get<bool>());
+        } else if (key == "scramsha_fallback_salt"sv) {
+            // Try to base64 decode it to validate that it is a legal value..
+            auto salt = value.get<std::string>();
+            cb::base64::decode(salt);
+            setScramshaFallbackSalt(salt);
+        } else if (key == "external_auth_service"sv) {
+            setExternalAuthServiceEnabled(value.get<bool>());
+        } else if (key == "active_external_users_push_interval"sv) {
+            switch (value.type()) {
+            case nlohmann::json::value_t::number_unsigned:
+                setActiveExternalUsersPushInterval(
+                        std::chrono::seconds(value.get<int>()));
+                break;
+            case nlohmann::json::value_t::string:
+                setActiveExternalUsersPushInterval(
+                        std::chrono::duration_cast<std::chrono::microseconds>(
+                                cb::text2time(value.get<std::string>())));
+                break;
+            default:
+                cb::throwJsonTypeError(
+                        "\"active_external_users_push_interval\" must be a "
+                        "number or string");
+            }
+        } else if (key == "max_concurrent_commands_per_connection"sv) {
+            setMaxConcurrentCommandsPerConnection(value.get<size_t>());
+        } else if (key == "phosphor_config"sv) {
+            auto config = value.get<std::string>();
+            // throw an exception if the config is invalid
+            phosphor::TraceConfig::fromString(config);
+            setPhosphorConfig(config);
+        } else if (key == "prometheus"sv) {
+            if (!value.contains("port")) {
+                throw std::invalid_argument(
+                        "\"prometheus.port\" must be present");
+            }
+            if (!value.contains("family")) {
+                throw std::invalid_argument(
+                        "\"prometheus.family\" must be present");
+            }
+            const auto port = value["port"].get<in_port_t>();
+            const auto val = value["family"].get<std::string>();
+            sa_family_t family;
+            if (val == "inet") {
+                family = AF_INET;
+            } else if (val == "inet6") {
+                family = AF_INET6;
+            } else {
+                throw std::invalid_argument(
+                        R"("prometheus.family" must be "inet" or "inet6")");
+            }
+            setPrometheusConfig({port, family});
+        } else if (key == "portnumber_file"sv) {
+            setPortnumberFile(value.get<std::string>());
+        } else if (key == "parent_identifier"sv) {
+            setParentIdentifier(value.get<int>());
+        } else if (key == "allow_localhost_interface"sv) {
+            setAllowLocalhostInterface(value.get<bool>());
+        } else {
+            LOG_WARNING(R"(Unknown key "{}" in config ignored.)", key);
         }
     }
 }
