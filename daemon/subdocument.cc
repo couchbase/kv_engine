@@ -656,27 +656,21 @@ static bool operate_single_doc(SubdocCmdContext& context,
     return true;
 }
 
-static cb::engine_errc validate_vattr_privilege(SubdocCmdContext& context,
-                                                std::string_view key) {
-    // The $document vattr doesn't require any xattr permissions,
-    // but in order to get the system XATTRs included in XTOC you need
-    // the system xattr privilege
-    if (key[1] == 'X' &&
-        context.cookie.checkPrivilege(cb::rbac::Privilege::SystemXattrRead)
-                .success()) {
-        context.xtocSemantics = XtocSemantics::All;
-    }
-    return cb::engine_errc::success;
-}
-
 static cb::engine_errc validate_xattr_privilege(SubdocCmdContext& context) {
-    // Look at all of the operations we've got in there:
+    // Look at all the operations we've got in there:
     for (const auto& op :
          context.getOperations(SubdocCmdContext::Phase::XATTR)) {
         if (cb::xattr::is_vattr(op.path)) {
-            auto ret = validate_vattr_privilege(context, op.path);
-            if (ret != cb::engine_errc::success) {
-                return ret;
+            // The $document vattr doesn't require any xattr permissions,
+            // but in order to get the system XATTRs included in XTOC you need
+            // the system xattr privilege. Use testPrivilege instead of
+            // checkPrivilege as we don't want the system to log that
+            // you don't have access (we just return the user attrs)
+            if (op.path.rfind(cb::xattr::vattrs::XTOC, 0) == 0 &&
+                context.cookie
+                        .testPrivilege(cb::rbac::Privilege::SystemXattrRead)
+                        .success()) {
+                context.xtocSemantics = XtocSemantics::All;
             }
         }
     }
