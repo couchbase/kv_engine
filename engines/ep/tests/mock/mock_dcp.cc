@@ -561,4 +561,5 @@ void MockDcpMessageProducers::clear_dcp_data() {
     last_end_status = cb::mcbp::DcpStreamEndStatus::Ok;
     last_high_completed_seqno = std::nullopt;
     last_max_visible_seqno = std::nullopt;
+    last_can_deduplicate = CanDeduplicate::Yes;
 }

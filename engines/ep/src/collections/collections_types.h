@@ -297,14 +297,12 @@ class CollectionSharedMetaDataView {
 public:
     CollectionSharedMetaDataView(std::string_view name,
                                  ScopeID scope,
-                                 cb::ExpiryLimit maxTtl,
-                                 CanDeduplicate canDeduplicate);
+                                 cb::ExpiryLimit maxTtl);
     CollectionSharedMetaDataView(const CollectionSharedMetaData&);
     std::string to_string() const;
     std::string_view name;
     const ScopeID scope;
     const cb::ExpiryLimit maxTtl;
-    const CanDeduplicate canDeduplicate;
 };
 
 // The type stored by the Manager SharedMetaDataTable
@@ -312,8 +310,7 @@ class CollectionSharedMetaData : public RCValue {
 public:
     CollectionSharedMetaData(std::string_view name,
                              ScopeID scope,
-                             cb::ExpiryLimit maxTtl,
-                             CanDeduplicate canDeduplicate);
+                             cb::ExpiryLimit maxTtl);
     CollectionSharedMetaData(const CollectionSharedMetaDataView& view);
     bool operator==(const CollectionSharedMetaDataView& view) const;
     bool operator!=(const CollectionSharedMetaDataView& view) const {
@@ -327,13 +324,8 @@ public:
     const std::string name;
     const ScopeID scope;
     const cb::ExpiryLimit maxTtl;
-
-    // atomic: can be changed by any thread
-    // mutable: the VB::Manifest "handle" provides a const interface (the map of
-    // collections cannot be changed), but allows some changes to be made to
-    // the values in that map.
-    mutable std::atomic<CanDeduplicate> canDeduplicate;
 };
+
 std::ostream& operator<<(std::ostream& os,
                          const CollectionSharedMetaData& meta);
 

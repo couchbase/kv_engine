@@ -83,14 +83,13 @@ Manifest::Manifest(Manifest& other) : manager(other.manager) {
 
     // Collection/Scope maps are not trivially copyable, so we do it manually
     for (auto& [cid, entry] : other.map) {
-        CollectionSharedMetaDataView meta{entry.getName(),
-                                          entry.getScopeID(),
-                                          entry.getMaxTtl(),
-                                          entry.getCanDeduplicate()};
+        CollectionSharedMetaDataView meta{
+                entry.getName(), entry.getScopeID(), entry.getMaxTtl()};
         auto [itr, inserted] =
                 map.try_emplace(cid,
                                 other.manager->createOrReferenceMeta(cid, meta),
-                                entry.getStartSeqno());
+                                entry.getStartSeqno(),
+                                entry.getCanDeduplicate());
         Expects(inserted);
         itr->second.setItemCount(entry.getItemCount());
         itr->second.setDiskSize(entry.getDiskSize());
@@ -516,11 +515,12 @@ ManifestEntry& Manifest::addNewCollectionEntry(ScopeCollectionPair identifiers,
                                                CanDeduplicate canDeduplicate,
                                                int64_t startSeqno) {
     CollectionSharedMetaDataView meta{
-            collectionName, identifiers.first, maxTtl, canDeduplicate};
+            collectionName, identifiers.first, maxTtl};
     auto [itr, inserted] = map.try_emplace(
             identifiers.second,
             manager->createOrReferenceMeta(identifiers.second, meta),
-            startSeqno);
+            startSeqno,
+            canDeduplicate);
 
     if (!inserted) {
         throwException<std::logic_error>(

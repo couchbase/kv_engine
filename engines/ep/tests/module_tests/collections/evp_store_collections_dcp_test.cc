@@ -4486,6 +4486,74 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionNotReplicated) {
     EXPECT_EQ(store->getVBucket(vbid)->getHighSeqno(), producers->last_byseqno);
 }
 
+TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionTwoVbuckets) {
+    using namespace cb::mcbp;
+    using namespace mcbp::systemevent;
+    using namespace CollectionEntry;
+
+    // Create a second producer to simplify the step/expect. 1 VB per producer
+    auto* cookieP2 = create_mock_cookie(engine.get());
+
+    auto producer2 = SingleThreadedKVBucketTest::createDcpProducer(
+            cookieP2, IncludeDeleteTime::Yes, true /*FlatBuffers*/);
+    auto& mockConnMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+    mockConnMap.addConn(cookieP2, producer);
+
+    // No transfer to consumer in this test - just check the data passed in
+    // each step
+    producers->consumer = nullptr;
+
+    // test uses 2 active VBuckets
+    store->setVBucketState(replicaVB, vbucket_state_active);
+
+    uint64_t rollbackSeqno = 0;
+    ASSERT_EQ(cb::engine_errc::success,
+              producer2->streamRequest(0, // flags
+                                       1, // opaque
+                                       replicaVB,
+                                       0,
+                                       ~0ull, // end_seqno
+                                       0,
+                                       0,
+                                       0,
+                                       &rollbackSeqno,
+                                       &CollectionsDcpTest::dcpAddFailoverLog,
+                                       {{nullptr, 0}}));
+
+    // Create with history and then disable
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::vegetable, cb::NoExpiryLimit, true);
+    setCollections(cookie, cm);
+    cm.update(vegetable, cb::NoExpiryLimit);
+    setCollections(cookie, cm);
+
+    // expect 4 events
+    // create, modify on two vbuckets.
+    std::array<std::shared_ptr<MockDcpProducer>, 2> dcpProducers{
+            {producer, producer2}};
+    for (auto& dcp : dcpProducers) {
+        SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
+                *dcp,
+                *producers,
+                ClientOpcode::DcpSnapshotMarker,
+                true /*memory*/);
+        dcp->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+        EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+        EXPECT_EQ(producers->last_collection_id, vegetable.getId());
+        EXPECT_EQ(producers->last_can_deduplicate, CanDeduplicate::No);
+
+        // checkpoint split...
+        dcp->stepAndExpect(*producers, ClientOpcode::DcpSnapshotMarker);
+        dcp->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+        EXPECT_EQ(producers->last_system_event, id::ModifyCollection);
+        EXPECT_EQ(producers->last_collection_id, vegetable.getId());
+        EXPECT_EQ(producers->last_can_deduplicate, CanDeduplicate::Yes);
+    }
+    producer2->closeAllStreams();
+    mockConnMap.removeConn(cookieP2);
+    destroy_mock_cookie(cookieP2);
+}
+
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
                          CollectionsDcpParameterizedTest,
