@@ -312,7 +312,7 @@ cb::const_char_buffer SubdocCmdContext::get_xtoc_vattr() {
         cb::xattr::Blob xattr_blob(blob_buffer,
                                    mcbp::datatype::is_snappy(in_datatype));
 
-        nlohmann::json arr;
+        nlohmann::json arr = nlohmann::json::array();
         for (const auto& kvPair : xattr_blob) {
             bool isSystemXattr = cb::xattr::is_system_xattr(
                     const_cast<cb::const_char_buffer&>(kvPair.first));
