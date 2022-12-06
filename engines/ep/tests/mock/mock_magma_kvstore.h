@@ -65,10 +65,16 @@ public:
         fileHandleSyncStatusHook = hook;
     }
 
+    StorageProperties getStorageProperties() const override {
+        return storageProperties;
+    }
+
     TestingHook<> readVBStateFromDiskHook;
 
     std::function<int(VB::Commit&, kvstats_ctx&)> saveDocsErrorInjector;
     std::function<bool()> snapshotVBucketErrorInjector;
+
+    StorageProperties storageProperties;
 };
 
 #endif

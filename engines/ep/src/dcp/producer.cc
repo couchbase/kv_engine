@@ -1112,6 +1112,10 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
         flatBuffersSystemEventsEnabled = true;
         return cb::engine_errc::success;
     } else if (key == DcpControlKeys::ChangeStreams && valueStr == "true") {
+        if (!engine_.getKVBucket()->getStorageProperties().canRetainHistory()) {
+            return cb::engine_errc::not_supported;
+        }
+
         changeStreams = true;
         return cb::engine_errc::success;
     }

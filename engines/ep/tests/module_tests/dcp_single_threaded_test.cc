@@ -1132,15 +1132,19 @@ TEST_P(STDcpTest, ProducerNegotiatesFlatBuffers) {
 }
 
 TEST_P(STDcpTest, ProducerNegotiatesChangeStreams) {
-    auto* cookie = create_mock_cookie();
+    if (!isMagma()) {
+        GTEST_SKIP();
+    }
 
+    // @todo CDC: Can remove when magma has enabled history support
+    replaceMagmaKVStore();
+
+    auto* cookie = create_mock_cookie();
     const auto producer = std::make_shared<MockDcpProducer>(
             *engine, cookie, "test_producer", 0);
-
-    // Disables by default
     ASSERT_FALSE(producer->areChangeStreamsEnabled());
 
-    // DCP_CONTROL validation
+    // Value validation
     EXPECT_EQ(cb::engine_errc::invalid_arguments,
               producer->control(0, DcpControlKeys::ChangeStreams, "not-true"));
     EXPECT_FALSE(producer->areChangeStreamsEnabled());
@@ -1149,6 +1153,23 @@ TEST_P(STDcpTest, ProducerNegotiatesChangeStreams) {
     EXPECT_EQ(cb::engine_errc::success,
               producer->control(0, DcpControlKeys::ChangeStreams, "true"));
     EXPECT_TRUE(producer->areChangeStreamsEnabled());
+
+    destroy_mock_cookie(cookie);
+}
+
+TEST_P(STDcpTest, ProducerNegotiatesChangeStreams_NotMagma) {
+    if (isMagma()) {
+        GTEST_SKIP();
+    }
+
+    auto* cookie = create_mock_cookie();
+    const auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer", 0);
+    ASSERT_FALSE(producer->areChangeStreamsEnabled());
+
+    EXPECT_EQ(cb::engine_errc::not_supported,
+              producer->control(0, DcpControlKeys::ChangeStreams, "true"));
+    EXPECT_FALSE(producer->areChangeStreamsEnabled());
 
     destroy_mock_cookie(cookie);
 }
