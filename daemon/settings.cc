@@ -107,9 +107,7 @@ void Settings::reconfigure(const nlohmann::json& json) {
         const auto value = obj.value();
         using namespace std::string_view_literals;
 
-        if (key == "admin"sv) {
-            // ignore
-        } else if (key == "always_collect_trace_info"sv) {
+        if (key == "always_collect_trace_info"sv) {
             setAlwaysCollectTraceInfo(value.get<bool>());
         } else if (key == "rbac_file"sv) {
             setRbacFile(value.get<std::string>());
