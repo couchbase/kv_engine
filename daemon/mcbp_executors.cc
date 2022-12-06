@@ -372,13 +372,7 @@ static void ioctl_set_executor(Cookie& cookie) {
 
 static void config_validate_executor(Cookie& cookie) {
     const auto& request = cookie.getRequest();
-    const auto value = request.getValue();
-
-    // the config validator needs a null-terminated string...
-    std::string val_buffer(reinterpret_cast<const char*>(value.data()),
-                           value.size());
-
-    auto errors = validate_proposed_config_changes(val_buffer.c_str());
+    auto errors = validate_proposed_config_changes(request.getValueString());
     if (!errors) {
         cookie.sendResponse(cb::mcbp::Status::Success);
         return;

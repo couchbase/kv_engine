@@ -16,6 +16,7 @@
 
 #include <nlohmann/json_fwd.hpp>
 #include <optional>
+#include <string_view>
 
 class Settings;
 void load_config_file(const std::string& filename, Settings& settings);
@@ -26,5 +27,4 @@ void load_config_file(const std::string& filename, Settings& settings);
  * describing what could not be applied.
  */
 std::optional<nlohmann::json> validate_proposed_config_changes(
-        const char* new_cfg);
-
+        std::string_view new_cfg);

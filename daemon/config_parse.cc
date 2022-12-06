@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -12,7 +11,6 @@
 #include "cmdline.h"
 #include "settings.h"
 
-#include <logger/logger.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 
@@ -26,13 +24,13 @@ void load_config_file(const std::string& file, Settings& settings) {
 }
 
 std::optional<nlohmann::json> validate_proposed_config_changes(
-        const char* new_cfg) {
+        std::string_view new_cfg) {
     nlohmann::json errors = nlohmann::json::array();
-    // Earlier we returned all of the errors, now I'm terminating on
-    // the first... Ideally all of the errors would be best, but
+    // Earlier we returned all the errors, now I'm terminating on
+    // the first... Ideally all the errors would be best, but
     // the code is easier if we can use exceptions to abort the parsing
     // when we hit an error. Given that this isn't something that the
-    // user would be calling every time I don't think it is a big problem..
+    // user would be calling every time I don't think it is a big problem...
     try {
         auto json = nlohmann::json::parse(new_cfg);
         Settings new_settings(json);
