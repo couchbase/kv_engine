@@ -646,7 +646,7 @@ public:
      *
      * @param enable true if the system should enable collections
      */
-    void setCollectionsPrototype(bool enable) {
+    void setCollectionsEnabled(bool enable) {
         collections_enabled.store(enable);
         has.collections_enabled = true;
         notify_changed("collections_enabled");

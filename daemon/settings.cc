@@ -201,7 +201,7 @@ void Settings::reconfigure(const nlohmann::json& json) {
             auto config = cb::x509::ClientCertConfig::create(value);
             reconfigureClientCertAuth(std::move(config));
         } else if (key == "collections_enabled"sv) {
-            setCollectionsPrototype(value.get<bool>());
+            setCollectionsEnabled(value.get<bool>());
         } else if (key == "opcode_attributes_override"sv) {
             setOpcodeAttributesOverride(value.dump());
         } else if (key == "num_reader_threads"sv) {
@@ -595,7 +595,7 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         if (other.collections_enabled != collections_enabled) {
             LOG_INFO("{} collections_enabled",
                      other.collections_enabled.load() ? "Enable" : "Disable");
-            setCollectionsPrototype(other.collections_enabled.load());
+            setCollectionsEnabled(other.collections_enabled.load());
         }
     }
 
