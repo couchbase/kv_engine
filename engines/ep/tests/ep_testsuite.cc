@@ -9381,28 +9381,40 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 prepare,
+                 // RocksDBKVStore::prepareToDeleteImpl is not implemented.
+                 // Some of our debug logging accesses the result and we end up
+                 // with a nullptr dereference.
+                 prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("test sync vbucket destroy",
                  test_sync_vbucket_destroy,
                  test_setup,
                  teardown,
                  nullptr,
-                 prepare,
+                 // RocksDBKVStore::prepareToDeleteImpl is not implemented.
+                 // Some of our debug logging accesses the result and we end up
+                 // with a nullptr dereference.
+                 prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("test async vbucket destroy (multitable)",
                  test_async_vbucket_destroy,
                  test_setup,
                  teardown,
                  "max_vbuckets=16;max_num_shards=4;ht_size=7;ht_locks=3",
-                 prepare,
+                 // RocksDBKVStore::prepareToDeleteImpl is not implemented.
+                 // Some of our debug logging accesses the result and we end up
+                 // with a nullptr dereference.
+                 prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("test sync vbucket destroy (multitable)",
                  test_sync_vbucket_destroy,
                  test_setup,
                  teardown,
                  "max_vbuckets=16;max_num_shards=4;ht_size=7;ht_locks=3",
-                 prepare,
+                 // RocksDBKVStore::prepareToDeleteImpl is not implemented.
+                 // Some of our debug logging accesses the result and we end up
+                 // with a nullptr dereference.
+                 prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase(
                 "test vbucket destroy stats",
@@ -9416,22 +9428,32 @@ BaseTestCase testsuite_testcases[] = {
                  * because the test checks for items being removed by
                  * monitoring the ep_items_rm_from_checkpoints stat.  If the
                  * items have already been expelled the stat will not change.
+                 *
+                 * Also RocksDBKVStore::prepareToDeleteImpl is not implemented.
+                 * Some of our debug logging accesses the result and we end up
+                 * with a nullptr dereference.
                  */
-                prepare_ep_bucket,
+                prepare_ep_bucket_skip_broken_under_rocks,
                 cleanup),
         TestCase("test async vbucket destroy restart",
                  test_async_vbucket_destroy_restart,
                  test_setup,
                  teardown,
                  nullptr,
-                 prepare,
+                 // RocksDBKVStore::prepareToDeleteImpl is not implemented.
+                 // Some of our debug logging accesses the result and we end up
+                 // with a nullptr dereference.
+                 prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("test sync vbucket destroy restart",
                  test_sync_vbucket_destroy_restart,
                  test_setup,
                  teardown,
                  nullptr,
-                 prepare,
+                 // RocksDBKVStore::prepareToDeleteImpl is not implemented.
+                 // Some of our debug logging accesses the result and we end up
+                 // with a nullptr dereference.
+                 prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("test takeover stats race with vbucket create (DCP)",
                  test_takeover_stats_race_with_vb_create_DCP,
@@ -9513,7 +9535,10 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 prepare,
+                 // RocksDBKVStore::prepareToDeleteImpl is not implemented.
+                 // Some of our debug logging accesses the result and we end up
+                 // with a nullptr dereference.
+                 prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("test add ret meta",
                  test_add_ret_meta,
@@ -9527,7 +9552,10 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 prepare,
+                 // RocksDBKVStore::prepareToDeleteImpl is not implemented.
+                 // Some of our debug logging accesses the result and we end up
+                 // with a nullptr dereference.
+                 prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("test del ret meta",
                  test_del_ret_meta,
@@ -9541,7 +9569,10 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 prepare,
+                 // RocksDBKVStore::prepareToDeleteImpl is not implemented.
+                 // Some of our debug logging accesses the result and we end up
+                 // with a nullptr dereference.
+                 prepare_skip_broken_under_rocks,
                  cleanup),
 
         TestCase("test set with item_eviction",
@@ -9740,7 +9771,10 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  nullptr,
-                 prepare,
+                 // RocksDBKVStore::prepareToDeleteImpl is not implemented.
+                 // Some of our debug logging accesses the result and we end up
+                 // with a nullptr dereference.
+                 prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("test_mb20744_check_incr_reject_ops",
                  test_mb20744_check_incr_reject_ops,

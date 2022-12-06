@@ -8271,7 +8271,10 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "dcp_enable_noop=false",
-                 prepare,
+                 // RocksDBKVStore::prepareToDeleteImpl is not implemented.
+                 // Some of our debug logging accesses the result and we end up
+                 // with a nullptr dereference.
+                 prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase(
                 "test chk manager rollback",
