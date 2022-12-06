@@ -4338,6 +4338,38 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollection) {
               vb1->lockCollections().getCanDeduplicate(fruit));
     EXPECT_EQ(CanDeduplicate::Yes,
               vb1->lockCollections().getCanDeduplicate(vegetable));
+
+    // Final stage of the test - drop one of the modified collections and check
+    // backfill does not play back the modify
+    cm.remove(CollectionEntry::vegetable);
+    setCollections(cookie, cm);
+    flush_vbucket_to_disk(vbid, 1);
+
+    vb0.reset();
+    vb1.reset();
+    resetEngineAndWarmup();
+
+    createDcpObjects({{nullptr, 0}});
+    notifyAndStepToCheckpoint(ClientOpcode::DcpSnapshotMarker, false);
+
+    // Verify that modify vegetable is not transmitted
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::ModifyCollection);
+    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::DeleteCollection);
+    EXPECT_EQ(producers->last_collection_id, vegetable.getId());
+
+    // Reacquire replica and check the backfill events
+    vb1 = store->getVBucket(replicaVB);
+    // replica received modified state
+    EXPECT_EQ(CanDeduplicate::No,
+              vb1->lockCollections().getCanDeduplicate(fruit));
 }
 
 // Test that if the flatBuffesrSystemEventsEnabled==false a modification event
