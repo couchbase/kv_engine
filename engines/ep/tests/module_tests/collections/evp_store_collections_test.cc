@@ -4328,6 +4328,7 @@ TEST_P(CollectionsParameterizedTest, MB_45899) {
                            "_default",
                            {},
                            ScopeID::Default,
+                           CanDeduplicate::Yes,
                            Collections::Metered::Yes});
     Collections::Summary summary;
     auto vb0 = store->getVBucket(vbid0);

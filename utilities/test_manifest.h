@@ -152,10 +152,9 @@ public:
     explicit CollectionsManifest(const CollectionEntry::Entry& entry);
 
     /// Add the scope entry - allows duplicates
-    CollectionsManifest& add(const ScopeEntry::Entry& entry);
-
-    /// Add the scope entry and set a limit
-    CollectionsManifest& add(const ScopeEntry::Entry& entry, size_t dataLimit);
+    CollectionsManifest& add(const ScopeEntry::Entry& entry,
+                             std::optional<size_t> dataLimit = {},
+                             std::optional<bool> history = {});
 
     /// Add the collection entry to the given scope - allows duplicates
     /// caller specifies the collection maxTTL
@@ -163,6 +162,7 @@ public:
     CollectionsManifest& add(
             const CollectionEntry::Entry& collectionEntry,
             cb::ExpiryLimit maxTtl,
+            std::optional<bool> history = {},
             const ScopeEntry::Entry& scopeEntry = ScopeEntry::defaultS);
 
     /// Add the collection entry to the given scope - allows duplicates

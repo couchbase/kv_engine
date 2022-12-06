@@ -48,6 +48,20 @@ enum class IsDeleted : char { No, Yes };
 enum class IsCommitted : char { No, Yes };
 enum class IsCompaction : char { No, Yes };
 enum class IsPiTR : char { No, Yes };
+enum class CanDeduplicate : char { No, Yes };
+
+static inline CanDeduplicate getCanDeduplicateFromHistory(bool value) {
+    // history:true => CanDeduplicate::No
+    return value ? CanDeduplicate::No : CanDeduplicate::Yes;
+}
+
+static inline bool getHistoryFromCanDeduplicate(CanDeduplicate value) {
+    // CanDeduplicate::No => history:true
+    return value == CanDeduplicate::No;
+}
+
+std::string to_string(CanDeduplicate);
+std::ostream& operator<<(std::ostream&, CanDeduplicate);
 
 // Is the compaction callback invoked for the latest revision only, or any
 // revision?
