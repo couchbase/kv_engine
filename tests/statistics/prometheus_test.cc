@@ -273,3 +273,58 @@ TEST_F(PrometheusStatTest, ThrottleSecondsTotalScaledToSeconds) {
 
     EXPECT_NEAR(10.5, exposedValue, 0.0001);
 }
+
+TEST_F(PrometheusStatTest, HistogramsHaveCorrectMetricType) {
+    // MB-54789: Verify that adding a histogram stat will correctly provide
+    // prometheus-cpp with prometheus::MetricType::Histogram
+
+    using namespace cb::stats;
+
+    StatMap stats;
+    PrometheusStatCollector collector(stats);
+
+    HistogramData hist;
+    hist.buckets.push_back(HistogramBucket{0, 10, 1});
+    hist.sampleCount = 1;
+    hist.mean = 5;
+    hist.sampleSum = 5;
+
+    // hdrhistogram as if declared in stats_definitions.json as "histogram"
+    collector.addStat(StatDef({},
+                              cb::stats::units::none,
+                              "DeclaredAsHistogram",
+                              prometheus::MetricType::Histogram),
+                      hist);
+
+    // hdrhistogram as if declared in stats_definitions.json without a
+    // specified type
+    collector.addStat(StatDef({},
+                              cb::stats::units::none,
+                              "DeclaredAsDefault",
+                              prometheus::MetricType::Untyped),
+                      hist);
+
+    for (auto type : {prometheus::MetricType::Gauge,
+                      prometheus::MetricType::Counter,
+                      prometheus::MetricType::Summary}) {
+        EXPECT_THROW(collector.addStat(StatDef({},
+                                               cb::stats::units::none,
+                                               "DeclaredWrong",
+                                               type),
+                                       hist),
+                     std::logic_error)
+                << "Stat collector allowed a histogram value to be exposed "
+                   "for a metric declared as type "
+                << int(type);
+    }
+
+    // check that each added stat will provide prometheus-ccp with
+    // prometheus::MetricType::Histogram as the type.
+    using namespace ::testing;
+    EXPECT_THAT(stats, SizeIs(2));
+
+    EXPECT_THAT(stats,
+                Each(Pair(_,
+                          Field(&prometheus::MetricFamily::type,
+                                prometheus::MetricType::Histogram))));
+}

@@ -49,7 +49,10 @@ void PrometheusStatCollector::addStat(const cb::stats::StatDef& spec,
                 {cumulativeCount, gsl::narrow_cast<double>(normalised)});
     }
 
-    addClientMetric(spec, additionalLabels, std::move(metric), spec.type);
+    addClientMetric(spec,
+                    additionalLabels,
+                    std::move(metric),
+                    prometheus::MetricType::Histogram);
 }
 
 void PrometheusStatCollector::addStat(const cb::stats::StatDef& spec,
