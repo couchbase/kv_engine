@@ -33,6 +33,8 @@ public:
  * To avoid an address error being raised it is important to mask out the top
  * 16-bits when using the pointer.  This is achieved by using the getOBj method.
  * setObj is used to set the pointer value, without affecting the tag.
+ *
+ * Also, see PackedPtr<T>, which is a 48-bit pointer type.
  */
 
 template <typename T>
