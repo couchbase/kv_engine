@@ -27,6 +27,7 @@
 #include "dockey_validator.h"
 #include "environment.h"
 #include "ep_bucket.h"
+#include "ep_engine_group.h"
 #include "ep_engine_public.h"
 #include "ep_engine_storage.h"
 #include "ep_vb.h"
@@ -2151,6 +2152,10 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
             "dcp_consumer_buffer_ratio",
             std::make_unique<EpEngineValueChangeListener>(*this));
 
+    if (configuration.isCrossBucketHtQuotaSharing()) {
+        getQuotaSharingManager().getGroup().add(*this);
+    }
+
     return cb::engine_errc::success;
 }
 
@@ -2174,6 +2179,10 @@ void EventuallyPersistentEngine::setConflictResolutionMode(
 void EventuallyPersistentEngine::destroyInner(bool force) {
     stats.forceShutdown = force;
     stats.isShutdown = true;
+
+    if (configuration.isCrossBucketHtQuotaSharing()) {
+        getQuotaSharingManager().getGroup().remove(*this);
+    }
 
     if (dcpConnMap_) {
         dcpConnMap_->shutdownAllConnections();
@@ -7016,4 +7025,21 @@ void EventuallyPersistentEngine::setDcpConsumerBufferRatio(float ratio) {
     if (dcpFlowControlManager) {
         dcpFlowControlManager->setDcpConsumerBufferRatio(ratio);
     }
+}
+
+QuotaSharingManager& EventuallyPersistentEngine::getQuotaSharingManager() {
+    struct QuotaSharingManagerImpl : public QuotaSharingManager {
+        QuotaSharingManagerImpl(ServerBucketIface& bucketApi)
+            : group(bucketApi) {
+        }
+
+        EPEngineGroup& getGroup() override {
+            return group;
+        }
+
+        EPEngineGroup group;
+    };
+
+    static QuotaSharingManagerImpl manager(*serverApi->bucket);
+    return manager;
 }

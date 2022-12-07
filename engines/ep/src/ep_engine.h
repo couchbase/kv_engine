@@ -36,6 +36,7 @@ class Request;
 enum class ClientOpcode : uint8_t;
 } // namespace cb::mcbp
 
+class EPEngineGroup;
 class CheckpointConfig;
 struct CompactionConfig;
 struct ConnCounter;
@@ -88,6 +89,19 @@ public:
 
 private:
     EventuallyPersistentEngine* myEngine;
+};
+
+/**
+ * An object responsible for quota sharing engines.
+ */
+class QuotaSharingManager {
+public:
+    /**
+     * Returns a reference to the EPEngineGroup which provides access to the
+     * active quota sharing engine instances.
+     */
+    virtual EPEngineGroup& getGroup() = 0;
+    virtual ~QuotaSharingManager() = default;
 };
 
 /**
@@ -918,6 +932,11 @@ public:
      * @param ratio
      */
     void setDcpConsumerBufferRatio(float ratio);
+
+    /**
+     * Returns the quota sharing manager.
+     */
+    virtual QuotaSharingManager& getQuotaSharingManager();
 
 protected:
     friend class EpEngineValueChangeListener;
