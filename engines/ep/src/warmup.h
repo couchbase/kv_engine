@@ -112,6 +112,8 @@ private:
                                      const WarmupState &state);
 };
 
+std::string to_string(WarmupState::State val);
+
 /**
  * The Warmup class is responsible for "warming-up" an ep-engine bucket on
  * startup to restore its state from disk.
@@ -242,6 +244,12 @@ public:
     void addCommonStats(const StatCollector& collector) const;
 
     void addStats(const StatCollector& c) const;
+
+    /**
+     * Add state-labelled one-hot metrics expressing the current state of
+     * warmup.
+     */
+    void addStatusMetrics(const StatCollector& c) const;
 
     std::chrono::steady_clock::duration getTime() {
         return warmup.load();

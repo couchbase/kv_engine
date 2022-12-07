@@ -400,6 +400,11 @@ cb::engine_errc EventuallyPersistentEngine::get_prometheus_stats(
                 status != cb::engine_errc::success) {
                 return status;
             }
+
+            if (const auto* warmup = getKVBucket()->getWarmup()) {
+                warmup->addStatusMetrics(collector);
+            }
+
             // do dcp aggregated stats, using ":" as the separator to split
             // connection names to find the connection type.
             if (status = doConnAggStatsInner(collector, ":");

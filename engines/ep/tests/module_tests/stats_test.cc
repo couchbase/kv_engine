@@ -398,6 +398,12 @@ MATCHER_P(StatDefNameMatcher,
     return arg.cbstatsKey.key == expectedName;
 }
 
+MATCHER_P(MetricFamilyMatcher,
+          expectedName,
+          "Check the Prometheus metric family of the StatDef matches") {
+    return arg.metricFamily == expectedName;
+}
+
 TEST_F(StatTest, ConfigStatDefinitions) {
     // Confirm that Configuration.addStats(...) looks up stat definitions
     // and adds the expected value, mapped to the appropriate StatCollector
@@ -498,6 +504,49 @@ TEST_F(StatTest, StringStats) {
     // config stats are per-bucket, wrap the collector up with a bucket label
     auto bucketC = collector.forBucket("bucket-name");
     engine->doEngineStats(bucketC);
+}
+
+TEST_F(StatTest, WarmupState) {
+    // Confirm the warmup state is correctly exposed as a one-hot metric
+    //  kv_ep_warmup_status{bucket="default",state="Initialize"} 0.000000
+    //  1673626962000
+    //  kv_ep_warmup_status{bucket="default",state="CreateVBuckets"} 0.000000
+    //  1673626962000
+    //  ...
+    //  kv_ep_warmup_status{bucket="default",state="Done"} 1.000000
+    //  1673626962000
+
+    using namespace std::string_view_literals;
+    using namespace testing;
+
+    std::vector<std::string_view> expectedLabels = {
+            "Initialize"sv,
+            "CreateVBuckets"sv,
+            "LoadingCollectionCounts"sv,
+            "EstimateDatabaseItemCount"sv,
+            "LoadPreparedSyncWrites"sv,
+            "PopulateVBucketMap"sv,
+            "KeyDump"sv,
+            "CheckForAccessLog"sv,
+            "LoadingAccessLog"sv,
+            "LoadingKVPairs"sv,
+            "LoadingData"sv,
+            "Done"sv,
+    };
+
+    // create a collector to which stats will be added
+    StrictMock<MockStatCollector> collector;
+
+    // check for all the expected states
+    for (const auto& label : expectedLabels) {
+        EXPECT_CALL(collector,
+                    addStat(MetricFamilyMatcher("ep_warmup_status"),
+                            Matcher<bool>(_),
+                            Contains(Pair("state"sv, label))));
+    }
+
+    resetEngineAndWarmup();
+    engine->getKVBucket()->getWarmup()->addStatusMetrics(collector);
 }
 
 TEST_F(StatTest, CBStatsScopeCollectionPrefix) {
