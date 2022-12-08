@@ -126,6 +126,9 @@ protected:
     uint64_t snap_start_seqno_;
     uint64_t snap_end_seqno_;
 
+    // Notification flag set to true by notifyStreamReady() (and next()) if
+    // there are new item(s) waiting to be processed by this Stream. Cleared
+    // once the Stream wants to be notified again about new seqnos.
     std::atomic<bool> itemsReady;
     mutable std::mutex streamMutex;
 
