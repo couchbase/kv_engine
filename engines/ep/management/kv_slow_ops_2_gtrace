@@ -180,11 +180,16 @@ def parse_slow_op(trace):
     # These values are JSON objects wrapped in quotes, but the strings inside
     # the objects are unescaped and cause deserialisation to fail.
 
-    # The cid object with IPv4
-    trace = re.sub('"{"ip":"([\d\.]+)","port":(\d+)}\/(\w+)"',
+    # The cid object with IPv4, potentially with port number partially /
+    # entirely omitted, and potentially without closing JSON object '}'.
+    trace = re.sub('"{"ip":"([\d\.]+)","port":(\d*)}?\/(\w+)"',
                    '"\\1:\\2/\\3"', trace)
-    # The cid object with IPv6
-    trace = re.sub('"{"ip":"([0-9a-fA-F\.:]+)","port":(\d+)}\/(\w+)"',
+    # The cid object with IPv6.
+    # This can be quite corrupted:
+    # - potentially with only part of IPv6 address
+    # - potentially with only part of / none of port
+    # - potentially without closing JSON object '}'
+    trace = re.sub('"{"ip":"([0-9a-fA-F\.:]+)"?,?"?p?o?r?t?"?:?(\d*)}?\/(\w+)"',
                    '"[\\1]:\\2/\\3"', trace)
     # Peer object with IPv4
     trace = re.sub('"{"ip":"([\d\.]+)","port":(\d+)}"',
@@ -272,6 +277,51 @@ class TestParsing(unittest.TestCase):
         obj = parse_slow_op(test_string)
         self.assertTrue(obj['cid'] == '0.0.0.0:42678/ef')
         self.assertTrue(obj['peer'] == '0.0.0.0:42678')
+
+    def test_6_6_5_capped_connId(self):
+        """In 6.6.5, if the client doesn't specify a connectionId via HELO, KV
+        generates a JSON from IP and port. However, KV only stores the first
+        34 bytes of the connectionId - so the JSON object can get cropped.
+        Worst case is an IP where each octet is >=100 and a 5 digit port
+        is 40 characters (including nul-termination):
+
+            {"ip": "111.222.333.444", "port":55555}
+                                             XXXXXX
+
+        We can therefore lose up to 6 bytes, losing a variable amount from
+        after "port:"  (marked XXX above).
+        """
+        test_string = (
+            r'{"cid":"{"ip":"10.149.225.86","port":4541/0","duration":"82 s",'
+            r'"trace":"request=363957733255087:82601665","command":'
+            r'"SASL_AUTH","peer":"{"ip":"10.149.225.86","port":45418}",'
+            r'"bucket":"","packet":{"bodylen":44,"cas":0,"datatype":"raw",'
+            r'"extlen":0,"key":"<ud>PLAIN</ud>","keylen":5,"magic":'
+            r'"ClientRequest","opaque":0,"opcode":"SASL_AUTH","vbucket":0}}')
+        obj = parse_slow_op(test_string)
+        self.assertEqual(obj['cid'], '10.149.225.86:4541/0')
+
+    def test_6_6_5_capped_connId_IPv6(self):
+        """Similar to test_6_6_5_capped_connId, but with IPv6 addresses, which
+        can have even worse cropping. Worst case is a full 128bit address with
+        no leading zeros omitted, and 5 digit port which is 62 bytes (including
+        nul-termination):
+
+            {"ip":"1111:2222:3333:4444:5555:6666:7777:8888","port":55555}
+                                             XXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
+        We can therefore lose up to 28 bytes - part of the IPv6 address and
+        potentially all of the port (marked XXX above).
+        """
+        test_string = (
+            r'{"cid":"{"ip":"2001:f547:23:4705::e156","/0","duration":'
+            r'"12m:0s","trace":"request=398965059065164:720026408","command":'
+            r'"SASL_AUTH","peer":"{"ip":"2001:f547:23:4705::e156","port":'
+            r'55610}","bucket":"","packet":{"bodylen":46,"cas":0,"datatype":'
+            r'"raw","extlen":0,"key":"<ud>PLAIN</ud>","keylen":5,"magic":'
+            r'"ClientRequest","opaque":0,"opcode":"SASL_AUTH","vbucket":0}}')
+        obj = parse_slow_op(test_string)
+        self.assertEqual(obj['cid'], '[2001:f547:23:4705::e156]:/0')
 
     def test_6_6_5_IPv6(self):
         test_string = (
