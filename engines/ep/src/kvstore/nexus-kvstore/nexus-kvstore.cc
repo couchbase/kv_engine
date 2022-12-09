@@ -544,10 +544,18 @@ StorageProperties NexusKVStore::getStorageProperties() const {
                     ? StorageProperties::CompactionStaleItemCallbacks::Yes
                     : StorageProperties::CompactionStaleItemCallbacks::No;
 
+    // Only return HistoryRetentionAvailable if both stores support it
+    auto canRetainHistory = StorageProperties::HistoryRetentionAvailable::No;
+    if (primaryProperties.canRetainHistory() &&
+        secondaryProperties.canRetainHistory()) {
+        canRetainHistory = StorageProperties::HistoryRetentionAvailable::Yes;
+    }
+
     return StorageProperties(byIdScan,
                              autoDedupe,
                              prepareCounting,
-                             compactionStaleItemCallbacks);
+                             compactionStaleItemCallbacks,
+                             canRetainHistory);
 }
 
 void NexusKVStore::set(TransactionContext& txnCtx, queued_item item) {

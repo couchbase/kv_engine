@@ -684,14 +684,21 @@ public:
      */
     enum class CompactionStaleItemCallbacks : bool { Yes, No };
 
+    /**
+     * Does the KVStore support history retention (suitable for change streams)
+     */
+    enum class HistoryRetentionAvailable : bool { Yes, No };
+
     StorageProperties(ByIdScan byIdScan,
                       AutomaticDeduplication automaticDeduplication,
                       PrepareCounting prepareCounting,
-                      CompactionStaleItemCallbacks compactionStaleItemCallbacks)
+                      CompactionStaleItemCallbacks compactionStaleItemCallbacks,
+                      HistoryRetentionAvailable historyRetentionAvailable)
         : byIdScan(byIdScan),
           automaticDeduplication(automaticDeduplication),
           prepareCounting(prepareCounting),
-          compactionStaleItemCallbacks(compactionStaleItemCallbacks) {
+          compactionStaleItemCallbacks(compactionStaleItemCallbacks),
+          historyRetentionAvailable(historyRetentionAvailable) {
     }
 
     bool hasByIdScan() const {
@@ -711,11 +718,16 @@ public:
                CompactionStaleItemCallbacks::Yes;
     }
 
+    bool canRetainHistory() const {
+        return historyRetentionAvailable == HistoryRetentionAvailable::Yes;
+    }
+
 private:
     ByIdScan byIdScan;
     AutomaticDeduplication automaticDeduplication;
     PrepareCounting prepareCounting;
     CompactionStaleItemCallbacks compactionStaleItemCallbacks;
+    HistoryRetentionAvailable historyRetentionAvailable;
 };
 
 
