@@ -47,9 +47,9 @@ protected:
      */
     virtual bool runInner() = 0;
 
-    virtual size_t getSleepTime() const {
-        return INT_MAX;
-    };
+    virtual std::chrono::microseconds getSleepTime() const {
+        return std::chrono::seconds(INT_MAX);
+    }
 
     std::atomic<bool> pendingRun{false};
 };

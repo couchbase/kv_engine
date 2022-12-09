@@ -94,8 +94,8 @@ public:
     std::vector<std::pair<Vbid, size_t>> getVbucketsSortedByChkMem() const;
 
 protected:
-    size_t getSleepTime() const override {
-        return sleepTime;
+    std::chrono::microseconds getSleepTime() const override {
+        return std::chrono::seconds(sleepTime);
     }
 
     enum class ReductionRequired : uint8_t { No, Yes };

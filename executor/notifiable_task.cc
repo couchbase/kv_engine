@@ -13,7 +13,7 @@
 #include "executorpool.h"
 
 bool NotifiableTask::run() {
-    snooze(getSleepTime());
+    snooze(std::chrono::duration<double>(getSleepTime()).count());
     pendingRun.store(false);
     return runInner();
 }
