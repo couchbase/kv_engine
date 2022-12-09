@@ -128,6 +128,13 @@ public:
     std::vector<VBucketFilter> split(size_t count) const;
 
     /**
+     * Create a new filter by selecting every (start + i * stride) item.
+     *
+     * VBucketFilter{0,1,2,3,4,5,6,7,8,9}.slice(2, 3) -> VBucketFilter{2,5,8}
+     */
+    VBucketFilter slice(size_t start, size_t stride = 1) const;
+
+    /**
      * Dump the filter in a human readable form ( "{ bucket, bucket, bucket }"
      * to the specified output stream.
      */

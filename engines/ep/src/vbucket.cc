@@ -35,6 +35,7 @@
 #include "vb_filter.h"
 #include "vbucket_queue_item_ctx.h"
 #include "vbucket_state.h"
+#include <boost/range/adaptor/strided.hpp>
 #include <folly/lang/Assume.h>
 #include <gsl/gsl-lite.hpp>
 #include <memcached/protocol_binary.h>
@@ -83,6 +84,21 @@ std::vector<VBucketFilter> VBucketFilter::split(size_t count) const {
     }
 
     return filters;
+}
+
+VBucketFilter VBucketFilter::slice(size_t start, size_t stride) const {
+    using namespace boost::adaptors;
+    Expects(start < stride);
+    Expects(start < acceptable.size());
+
+    auto it = acceptable.begin();
+    std::advance(it, start);
+
+    VBucketFilter filter;
+    for (auto vbid : std::make_pair(it, acceptable.end()) | strided(stride)) {
+        filter.addVBucket(vbid);
+    }
+    return filter;
 }
 
 static bool isRange(std::set<Vbid>::const_iterator it,
