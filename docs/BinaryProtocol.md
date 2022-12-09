@@ -2379,32 +2379,40 @@ The following example tries to select the bucket named engineering
 ### 0x8a Pause Bucket
 
 The `Pause Bucket` command is used to inform memcached to pause all traffic
-(apart from a few exceptions[*]) on the specified bucket, and to complete any
-outstanding disk modification operations.
+(apart from a few exceptions - see below) on the specified bucket, and to
+complete any outstanding disk modification operations.
 
 On a successful request, `Pause Bucket` will:
 
-# Wait for all in-flight client requests to complete
-# Disconnect all connections associated with the bucket
-# Instruct the disk substem to quiesce
-# Prevent any clients from associating with the bucket (via `Select Bucket`).
+1. Wait for all in-flight client requests to complete.
+2. Disconnect all connections associated with the bucket.
+3. Instruct the disk subsystem to quiesce.
+4. Prevent any clients from associating with the bucket (via `Select Bucket`).
 
-[*] After a successful `Pause Bucket` command, the bucket cannot be selected
+After a successful `Pause Bucket` command, the bucket cannot be selected
 (via `Select Bucket`) and hence all "normal" commands operating on the selected
 bucket cannot be issued. Only the following administrative commands can be
-issued reating to the pausec bucket:
+issued to the paused bucket:
 
-* `Stat("bucket_details [bucket_name]")` - to determine the state of the bucket.
-* `Resume Bucket`
+* `Stat("bucket_details [bucket_name]")` - to determine the state of the
+bucket / monitor the progress of `Pause Bucket` command.
+* `Resume Bucket` - to unpause the bucket and return to the Ready state.
 * `Delete Bucket`
 
-Request:
+Given `Pause Bucket` requires in-flight IO to complete, it can take
+an arbitrary amount of time to complete (although it should typically be fast
+if the bucket is idle). As such, it is possible to _cancel_ an in-flight
+`Pause Bucket` command by issuing a `Resume Bucket` command (on a different
+connection, given `Pause Bucket` is blocking). This will cancel the runnng pause at the next
+cancellation point, returning the bucket to the running state.
+
+#### Request:
 
 * MUST NOT have extra
 * MUST have key
 * MUST NOT have value
 
-Response:
+#### Response:
 
 * MUST NOT have extras.
 * MUST NOT have key.
@@ -2417,19 +2425,20 @@ on failure a textual description of why the request failed.
 
 ### 0x8b Resume Bucket
 
-The Resume Bucket' is used to inform memcached to resume all traffic on the
-specified bucket - normally after a bucket has been paused via `Pause Bucket`.
+The `Resume Bucket` command is used to inform memcached to resume all traffic
+on the specified bucket - normally after a bucket has been paused via
+[Pause Bucket](#0x8a-pause-bucket).
 
 After successful execution the bucket can again be selected by clients via
-`Select Bucket` and operations performed.
+[Select bucket](#0x89-select-bucket) and operations performed.
 
-Request:
+#### Request:
 
 * MUST NOT have extra
 * MUST have key
 * MUST NOT have value
 
-Response:
+#### Response:
 
 * MUST NOT have extras.
 * MUST NOT have key.
