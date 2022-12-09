@@ -263,8 +263,8 @@ class TestParsing(unittest.TestCase):
             r'"opcode":"GET","vbucket":318}}'
         )
         obj = parse_slow_op(test_string)
-        self.assertTrue(obj['cid'] == '7E/FF/20')
-        self.assertTrue(obj['peer'] == '0.0.0.0:57324')
+        self.assertEqual(obj['cid'], '7E/FF/20')
+        self.assertEqual(obj['peer'], '0.0.0.0:57324')
 
     def test_6_6_5(self):
         test_string = (
@@ -276,8 +276,8 @@ class TestParsing(unittest.TestCase):
             r'"opaque":3724742144,"opcode":"STAT","vbucket":0}}'
         )
         obj = parse_slow_op(test_string)
-        self.assertTrue(obj['cid'] == '0.0.0.0:42678/ef')
-        self.assertTrue(obj['peer'] == '0.0.0.0:42678')
+        self.assertEqual(obj['cid'], '0.0.0.0:42678/ef')
+        self.assertEqual(obj['peer'], '0.0.0.0:42678')
 
     def test_6_6_5_capped_connId(self):
         """In 6.6.5, if the client doesn't specify a connectionId via HELO, KV
@@ -335,10 +335,10 @@ class TestParsing(unittest.TestCase):
             r'"opaque":3724742144,"opcode":"STAT","vbucket":0}}'
         )
         obj = parse_slow_op(test_string)
-        self.assertTrue(obj['cid'] ==
-            '[684D:1111:222:3333:4444:5555:6:77]:42678/ef')
-        self.assertTrue(obj['peer'] ==
-            '[684D:1111:222:3333:4444:5555:6:77]:42678')
+        self.assertEqual(obj['cid'],
+                         '[684D:1111:222:3333:4444:5555:6:77]:42678/ef')
+        self.assertEqual(obj['peer'],
+                         '[684D:1111:222:3333:4444:5555:6:77]:42678')
 
     def test_7_2_0(self):
         test_string = (
@@ -353,9 +353,9 @@ class TestParsing(unittest.TestCase):
             r'"worker_tid":281472829188416}'
         )
         obj = parse_slow_op(test_string)
-        self.assertTrue(obj['cid'] == 'AF12/4FC/6c')
-        self.assertTrue(obj['peer']['ip'] == '0.0.0.0')
-        self.assertTrue(obj['peer']['port'] == 54300)
+        self.assertEqual(obj['cid'], 'AF12/4FC/6c')
+        self.assertEqual(obj['peer']['ip'], '0.0.0.0')
+        self.assertEqual(obj['peer']['port'], 54300)
 
 
 if __name__ == '__main__':
