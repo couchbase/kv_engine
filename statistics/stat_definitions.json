@@ -2483,7 +2483,12 @@
         "unit": "seconds",
         "cbstat": "maxTTL"
     },
-     {
+    {
+        "key": "collection_history",
+        "unit": "none",
+        "cbstat": "history"
+    },
+    {
         "key": "collection_metered",
         "unit": "none",
         "cbstat": "metered"

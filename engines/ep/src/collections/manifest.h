@@ -18,6 +18,7 @@
 #include <unordered_map>
 
 #include "collections/collections_types.h"
+#include "ep_types.h"
 #include "memcached/engine_common.h"
 #include "memcached/engine_error.h"
 
@@ -38,7 +39,9 @@ struct CollectionEntry {
     std::string name;
     cb::ExpiryLimit maxTtl;
     ScopeID sid;
+    CanDeduplicate canDeduplicate;
     Metered metered;
+
     bool operator==(const CollectionEntry& other) const;
     bool operator!=(const CollectionEntry& other) const {
         return !(*this == other);
@@ -50,6 +53,7 @@ const CollectionEntry DefaultCollectionEntry = {CollectionID::Default,
                                                 DefaultCollectionName,
                                                 cb::NoExpiryLimit,
                                                 ScopeID::Default,
+                                                CanDeduplicate::Yes,
                                                 Metered::Yes};
 
 std::string to_string(const CollectionEntry&);
@@ -71,6 +75,8 @@ struct Scope {
 
     std::string name;
     std::vector<CollectionEntry> collections;
+    CanDeduplicate canDeduplicate;
+
     bool operator==(const Scope& other) const;
     bool operator!=(const Scope& other) const {
         return !(*this == other);
@@ -304,6 +310,13 @@ public:
                        const BucketStatCollector& collector) const;
 
     /**
+     * The use-case for this method is not to fail for unknown collection
+     *
+     * @return if the collection exists return its setting, else return Yes
+     */
+    CanDeduplicate getCanDeduplicate(CollectionID cid) const;
+
+    /**
      * Write to std::cerr this
      */
     void dump() const;
@@ -363,9 +376,12 @@ private:
      * scopes stores all of the known scopes and the 'epoch' Manifest i.e.
      * default initialisation stores just the default scope.
      */
-    scopeContainer scopes = {
-            {ScopeID::Default,
-             {NoDataLimit, 0, DefaultScopeName, {DefaultCollectionEntry}}}};
+    scopeContainer scopes = {{ScopeID::Default,
+                              {NoDataLimit,
+                               0,
+                               DefaultScopeName,
+                               {DefaultCollectionEntry},
+                               CanDeduplicate::Yes}}};
     collectionContainer collections;
     ManifestUid uid{0};
 };

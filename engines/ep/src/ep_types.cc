@@ -139,3 +139,17 @@ std::ostream& operator<<(std::ostream& os, const snapshot_range_t& range) {
 std::ostream& operator<<(std::ostream& os, const snapshot_info_t& info) {
     return os << "start:" << info.start << ", range:" << info.range;
 }
+
+std::string to_string(CanDeduplicate value) {
+    switch (value) {
+    case CanDeduplicate::Yes:
+        return "CanDeduplicate::Yes";
+    case CanDeduplicate::No:
+        return "CanDeduplicate::No";
+    }
+    folly::assume_unreachable();
+}
+
+std::ostream& operator<<(std::ostream& os, CanDeduplicate value) {
+    return os << to_string(value);
+}

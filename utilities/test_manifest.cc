@@ -33,7 +33,9 @@ CollectionsManifest::CollectionsManifest(const CollectionEntry::Entry& entry)
     add(entry);
 }
 
-CollectionsManifest& CollectionsManifest::add(const ScopeEntry::Entry& entry) {
+CollectionsManifest& CollectionsManifest::add(const ScopeEntry::Entry& entry,
+                                              std::optional<size_t> dataLimit,
+                                              std::optional<bool> history) {
     updateUid();
 
     nlohmann::json jsonEntry;
@@ -44,31 +46,25 @@ CollectionsManifest& CollectionsManifest::add(const ScopeEntry::Entry& entry) {
     jsonEntry["uid"] = ss.str();
     jsonEntry["collections"] = std::vector<nlohmann::json>();
 
+    if (history) {
+        jsonEntry["history"] = history.value();
+    }
+
+    if (dataLimit) {
+        nlohmann::json limitObject;
+        limitObject["kv"]["data_size"] = dataLimit.value();
+        jsonEntry["limits"] = limitObject;
+    }
+
     json["scopes"].push_back(jsonEntry);
 
     return *this;
 }
 
-CollectionsManifest& CollectionsManifest::add(const ScopeEntry::Entry& entry,
-                                              size_t limit) {
-    add(entry);
-
-    for (auto& scope : json["scopes"]) {
-        if (scope["name"] == entry.name) {
-            nlohmann::json jsonEntry;
-            jsonEntry["kv"]["data_size"] = limit;
-            scope["limits"] = jsonEntry;
-            return *this;
-        }
-    }
-    throw std::logic_error(
-            "CollectionsManifest::add(scope, limit) could not find the new "
-            "scope");
-}
-
 CollectionsManifest& CollectionsManifest::add(
         const CollectionEntry::Entry& collectionEntry,
         cb::ExpiryLimit maxTtl,
+        std::optional<bool> history,
         const ScopeEntry::Entry& scopeEntry) {
     updateUid();
 
@@ -87,6 +83,10 @@ CollectionsManifest& CollectionsManifest::add(
         jsonEntry["metered"] = false;
     }
 
+    if (history) {
+        jsonEntry["history"] = history.value();
+    }
+
     // Add the new collection to the set of collections belonging to the
     // given scope
     for (auto itr = json["scopes"].begin(); itr != json["scopes"].end();
@@ -103,7 +103,10 @@ CollectionsManifest& CollectionsManifest::add(
 CollectionsManifest& CollectionsManifest::add(
         const CollectionEntry::Entry& collectionEntry,
         const ScopeEntry::Entry& scopeEntry) {
-    return add(collectionEntry, {/*no ttl*/}, scopeEntry);
+    return add(collectionEntry,
+               {/*no ttl*/},
+               {/* no history setting defined*/},
+               scopeEntry);
 }
 
 CollectionsManifest& CollectionsManifest::remove(
