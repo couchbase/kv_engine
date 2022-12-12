@@ -345,6 +345,10 @@ void EPBucket::deinitialize() {
  * `lastFlushed` already supercedes it.
  */
 static bool canDeDuplicate(Item* lastFlushed, Item& candidate) {
+    if (!candidate.canDeduplicate()) {
+        return false;
+    }
+
     if (!lastFlushed) {
         // Nothing to de-duplicate against.
         return false;
