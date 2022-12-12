@@ -94,7 +94,7 @@ public:
     void itemDecayerCompleted(ItemFreqDecayerTask& task);
 
 private:
-    std::atomic_bool notified;
+    std::atomic_bool notified{false};
     /**
      * The set of tasks we're still waiting to complete before we can schedule
      * again.
