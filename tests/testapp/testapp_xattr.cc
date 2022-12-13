@@ -2214,3 +2214,24 @@ TEST_P(XattrTest, ReplaceBodyWithXattr_WithoutXattrFlag) {
             0});
     ASSERT_EQ(cb::mcbp::Status::Einval, rsp.getStatus());
 }
+
+/// 6.5 introduced a regression where we would return "null" if the document
+/// only contains system xattrs and the connection don't have access
+/// to system xattrs
+TEST_P(XattrTest, MB54776) {
+    setBodyAndXattr(value, {{sysXattr, xattrVal}});
+    userConnection->dropPrivilege(cb::rbac::Privilege::SystemXattrRead);
+
+    BinprotSubdocMultiLookupCommand cmd;
+    cmd.setKey(name);
+    cmd.addGet("$XTOC", SUBDOC_FLAG_XATTR_PATH);
+    cmd.addLookup("", cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE);
+
+    BinprotSubdocMultiLookupResponse multiResp;
+    multiResp.clear();
+    userConnection->sendCommand(cmd);
+    userConnection->recvResponse(multiResp);
+    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
+    EXPECT_EQ("[]", multiResp.getResults()[0].value);
+}
