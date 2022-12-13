@@ -50,6 +50,12 @@ class ReadHandle;
 class StatsReadHandle;
 class WriteHandle;
 
+// These are flatbuffer types from events.fbs
+struct Collection;
+struct Scope;
+struct DroppedCollection;
+struct DroppedScope;
+
 /**
  * Collections::VB::Manifest is a container for all of the collections a VBucket
  * knows about.
@@ -244,6 +250,27 @@ public:
     void setDropInProgress(bool value) {
         dropInProgress.store(value);
     }
+
+    /**
+     * @return Collection (system event) flatbuffer object from the given view
+     */
+    static const Collection* getCollectionFlatbuffer(std::string_view view);
+
+    /**
+     * @return Scope (system event) flatbuffer object from the given view
+     */
+    static const Scope* getScopeFlatbuffer(std::string_view view);
+
+    /**
+     * @return Collection (system event) flatbuffer object from the given view
+     */
+    static const DroppedCollection* getDroppedCollectionFlatbuffer(
+            std::string_view view);
+
+    /**
+     * @return Scope (system event) flatbuffer object from the given view
+     */
+    static const DroppedScope* getDroppedScopeFlatbuffer(std::string_view view);
 
     /**
      * Get the system event collection create data from a SystemEvent

@@ -1086,10 +1086,34 @@ static void verifyFlatbuffersData(std::string_view buf,
     throw std::runtime_error(ss.str());
 }
 
+const Collection* Manifest::getCollectionFlatbuffer(std::string_view view) {
+    verifyFlatbuffersData<Collection>(view, "getCreateFlatbuffer");
+    return flatbuffers::GetRoot<Collection>(
+            reinterpret_cast<const uint8_t*>(view.data()));
+}
+
+const Scope* Manifest::getScopeFlatbuffer(std::string_view view) {
+    verifyFlatbuffersData<Scope>(view, "getScopeFlatbuffer");
+    return flatbuffers::GetRoot<Scope>(
+            reinterpret_cast<const uint8_t*>(view.data()));
+}
+
+const DroppedCollection* Manifest::getDroppedCollectionFlatbuffer(
+        std::string_view view) {
+    verifyFlatbuffersData<DroppedCollection>(view,
+                                             "getDroppedCollectionFlatbuffer");
+    return flatbuffers::GetRoot<DroppedCollection>(
+            reinterpret_cast<const uint8_t*>(view.data()));
+}
+
+const DroppedScope* Manifest::getDroppedScopeFlatbuffer(std::string_view view) {
+    verifyFlatbuffersData<DroppedScope>(view, "getDroppedScopeFlatbuffer");
+    return flatbuffers::GetRoot<DroppedScope>(
+            reinterpret_cast<const uint8_t*>(view.data()));
+}
+
 CreateEventData Manifest::getCreateEventData(std::string_view flatbufferData) {
-    verifyFlatbuffersData<Collection>(flatbufferData, "getCreateEventData");
-    auto collection = flatbuffers::GetRoot<Collection>(
-            reinterpret_cast<const uint8_t*>(flatbufferData.data()));
+    const auto* collection = getCollectionFlatbuffer(flatbufferData);
 
     // if maxTtlValid needs considering
     cb::ExpiryLimit maxTtl;
@@ -1104,11 +1128,8 @@ CreateEventData Manifest::getCreateEventData(std::string_view flatbufferData) {
 }
 
 DropEventData Manifest::getDropEventData(std::string_view flatbufferData) {
-    verifyFlatbuffersData<DroppedCollection>(flatbufferData,
-                                             "getDropEventData");
-    auto droppedCollection = flatbuffers::GetRoot<DroppedCollection>(
-            (const uint8_t*)flatbufferData.data());
-
+    const auto* droppedCollection =
+            getDroppedCollectionFlatbuffer(flatbufferData);
     return {ManifestUid(droppedCollection->uid()),
             droppedCollection->scopeId(),
             droppedCollection->collectionId()};
@@ -1116,21 +1137,14 @@ DropEventData Manifest::getDropEventData(std::string_view flatbufferData) {
 
 CreateScopeEventData Manifest::getCreateScopeEventData(
         std::string_view flatbufferData) {
-    verifyFlatbuffersData<Scope>(flatbufferData, "getCreateScopeEventData");
-    auto scope = flatbuffers::GetRoot<Scope>(
-            reinterpret_cast<const uint8_t*>(flatbufferData.data()));
-
+    const auto* scope = getScopeFlatbuffer(flatbufferData);
     return {ManifestUid(scope->uid()),
             {scope->scopeId(), scope->name()->str()}};
 }
 
 DropScopeEventData Manifest::getDropScopeEventData(
         std::string_view flatbufferData) {
-    verifyFlatbuffersData<DroppedScope>(flatbufferData,
-                                        "getDropScopeEventData");
-    auto droppedScope = flatbuffers::GetRoot<DroppedScope>(
-            reinterpret_cast<const uint8_t*>(flatbufferData.data()));
-
+    const auto* droppedScope = getDroppedScopeFlatbuffer(flatbufferData);
     return {ManifestUid(droppedScope->uid()), droppedScope->scopeId()};
 }
 
