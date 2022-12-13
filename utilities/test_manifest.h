@@ -211,6 +211,9 @@ public:
         this->uid = uid;
     }
 
+    /// Add history to the top-level of the manifest
+    void setHistory(bool history);
+
     void updateUid(uint64_t uid);
 
     void setUid(const std::string& uid);
