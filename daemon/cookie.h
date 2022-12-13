@@ -48,19 +48,19 @@ class Buffer;
  */
 class Cookie : public CookieIface {
 public:
+    /// All cookies must belong to a connection
+    Cookie() = delete;
+    /// Create a new cookie owned by the provided connection
     explicit Cookie(Connection& conn);
-
     ~Cookie() override;
 
     /**
      * Initialize this cookie.
      *
      * At some point we'll refactor this into being the constructor
-     * for the cookie. Currently we create a single cookie object per
-     * connection which handle all of the commands (and we'll call the
-     * initialize method every time we're starting on a new one), but
-     * in the future we'll have multiple commands per connection and
-     * this method should be the constructor).
+     * for the cookie, but given that we allow for object reuse across
+     * commands (DCP depends on this feature) we have a separate method
+     * to initialize the object.
      *
      * @param packet the entire packet
      * @param tracing_enabled if tracing is enabled for this request
