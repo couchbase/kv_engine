@@ -56,12 +56,8 @@ nlohmann::json Cookie::to_json() const {
         }
     }
 
-    if (!event_id.empty()) {
-        ret["event_id"] = event_id;
-    }
-
-    if (!error_context.empty()) {
-        ret["error_context"] = error_context;
+    if (!error_json.empty()) {
+        ret["error_json"] = error_json;
     }
 
     if (cas != 0) {
@@ -88,48 +84,55 @@ nlohmann::json Cookie::to_json() const {
     return ret;
 }
 
-const std::string& Cookie::getEventId() const {
-    if (event_id.empty()) {
-        event_id = to_string(cb::uuid::random());
+std::string Cookie::getEventId() {
+    if (!error_json.contains("error") || !error_json["error"].contains("ref")) {
+        error_json["error"]["ref"] = to_string(cb::uuid::random());
     }
 
-    return event_id;
+    return error_json["error"]["ref"];
+}
+
+void Cookie::setEventId(std::string uuid) {
+    error_json["error"]["ref"] = std::move(uuid);
 }
 
 void Cookie::setErrorJsonExtras(const nlohmann::json& json) {
-    if (json.find("error") != json.end()) {
-        throw std::invalid_argument(
-                "Cookie::setErrorJsonExtras: cannot use \"error\" as a key, "
-                "json:" +
-                json.dump());
+    // verify that we don't override the generated ref and context
+    if (json.contains("error")) {
+        if (json["error"].contains("ref")) {
+            throw std::runtime_error(fmt::format(
+                    "Cookie::setErrorJsonExtras: cannot specify a value for "
+                    "\"error.ref\". Provided JSON: {}",
+                    json.dump()));
+        }
+        if (json["error"].contains("context")) {
+            throw std::runtime_error(fmt::format(
+                    "Cookie::setErrorJsonExtras: cannot specify a value for "
+                    "\"error.context\". Provided JSON: {}",
+                    json.dump()));
+        }
     }
 
-    error_extra_json = json;
+    error_json.update(json);
+}
+
+void Cookie::setErrorContext(std::string message) {
+    error_json["error"]["context"] = std::move(message);
+}
+
+std::string Cookie::getErrorContext() const {
+    if (error_json.contains("error")) {
+        return error_json["error"].value("context", std::string{});
+    }
+    return {};
 }
 
 std::string Cookie::getErrorJson() {
-    if (error_context.empty() && event_id.empty() && error_extra_json.empty()) {
+    if (error_json.empty()) {
         return {};
     }
 
-    nlohmann::json error;
-    if (!error_context.empty()) {
-        error["context"] = error_context;
-    }
-    if (!event_id.empty()) {
-        error["ref"] = event_id;
-    }
-
-    nlohmann::json root;
-
-    if (!error.empty()) {
-        root["error"] = error;
-    }
-
-    if (!error_extra_json.empty()) {
-        root.update(error_extra_json);
-    }
-    return root.dump();
+    return error_json.dump();
 }
 
 bool Cookie::doExecute() {
@@ -318,7 +321,7 @@ void Cookie::sendResponse(cb::mcbp::Status status,
         return;
     }
 
-    const auto error_json = getErrorJson();
+    const auto error_json_string = getErrorJson();
 
     if (cb::mcbp::isStatusSuccess(status)) {
         setCas(casValue);
@@ -326,7 +329,7 @@ void Cookie::sendResponse(cb::mcbp::Status status,
         // This is an error message.. Inject the error JSON!
         extras = {};
         key = {};
-        value = error_json;
+        value = error_json_string;
         datatype = value.empty() ? cb::mcbp::Datatype::Raw
                                  : cb::mcbp::Datatype::JSON;
     }
@@ -770,9 +773,7 @@ void Cookie::reset() {
     document_bytes_read = 0;
     document_bytes_written = 0;
     total_throttle_time = total_throttle_time.zero();
-    event_id.clear();
-    error_context.clear();
-    error_extra_json.clear();
+    error_json.clear();
     packet = {};
     validated = false;
     cas = 0;
@@ -1126,7 +1127,7 @@ void Cookie::setUnknownCollectionErrorContext(uint64_t manifestUid) {
 
     // ensure that a valid collection which is 'invisible' from a priv check
     // doesn't expose the priv check failure via an event_id
-    event_id.clear();
+    error_json["error"].erase("ref");
 }
 
 bool Cookie::isMutationExtrasSupported() const {

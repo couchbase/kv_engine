@@ -105,25 +105,19 @@ public:
     nlohmann::json to_json() const;
 
     /**
-     * Get the unique event identifier created for this command. It should
-     * be included in all log messages related to a given request, and
-     * returned in the response sent back to the client.
+     * Get the unique event identifier created for this command (an id
+     * gets created the first time this method gets called for the command
+     * and the same UUID gets returned for the remaining duration of
+     * the command making it easy to log multiple entries with the same
+     * ID). Calling getEventId inserts the UUID into the error context
+     * for the cookie causing it to be returned back to the client
+     * as part of the sendResponse methods with a failure status.
      *
      * @return A "random" UUID
      */
-    const std::string& getEventId() const;
+    std::string getEventId();
 
-    void setEventId(std::string uuid) {
-        event_id = std::move(uuid);
-    }
-
-    /**
-     * Does this cookie contain a UUID to be inserted into the error
-     * message to be sent back to the client.
-     */
-    bool hasEventId() const {
-        return !event_id.empty();
-    }
+    void setEventId(std::string uuid);
 
     /**
      * Add a more descriptive error context to response sent back for
@@ -138,9 +132,10 @@ public:
      * @param message a string which will become the value of the "context" key
      *        in the JSON response object
      */
-    void setErrorContext(std::string message) override {
-        error_context = std::move(message);
-    }
+    void setErrorContext(std::string message) override;
+
+    /// Get the context to send back for this command.
+    std::string getErrorContext() const;
 
     /**
      * Add additional arbitrary JSON to the response, this is in addition to
@@ -156,13 +151,6 @@ public:
      * @param json an object which is appended to the JSON response object.
      */
     void setErrorJsonExtras(const nlohmann::json& json);
-
-    /**
-     * Get the context to send back for this command.
-     */
-    const std::string& getErrorContext() const {
-        return error_context;
-    }
 
     /**
      * Return the error "object" to return to the client.
@@ -671,9 +659,27 @@ protected:
      */
     Connection& connection;
 
-    mutable std::string event_id;
-    std::string error_context;
-    nlohmann::json error_extra_json;
+    /**
+     * When the server returns an error message it'll add the content
+     * of the error_json in the response message. It is currently 3
+     * different ways to inject data into the response:
+     *
+     *    * Call getEventId() which will generate a UUID. This UUID should
+     *      be logged on the server side with more detailed information of
+     *      the error as it get returned under { "error: { "ref" : "uuid"}}
+     *      and the client should log the uuid with more details and by
+     *      grep'ing in the client and server logs we should be able to
+     *      locate both sides.
+     *
+     *    * setErrorContext(message) This adds the provided message in
+     *      the response as { "error" : { "context" : "message" }}
+     *
+     *    * setErrorJsonExtras(json) This adds the content of the provided
+     *      json into the object returned. The provided JSON cannot replace
+     *      "error.ref" and "error.context", but apart from that it may
+     *      contain any legal JSON.
+     */
+    nlohmann::json error_json;
 
     /**
      * The input packet used in this command context
