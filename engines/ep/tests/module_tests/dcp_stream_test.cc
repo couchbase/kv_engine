@@ -3301,7 +3301,8 @@ TEST_P(SingleThreadedActiveStreamTest,
     store_item(vbid, makeStoredDocKey("key1"), "value");
 
     // step() the producer to schedule ActiveStreamCheckpointProcessorTask and
-    // run it once to process the items from CkptManager into the Streams' readyQ.
+    // run it once to process the items from CkptManager into the Streams'
+    // readyQ.
     GMockDcpMsgProducers producers;
     ASSERT_EQ(cb::engine_errc::would_block, producer->step(producers));
     auto& nonIO = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
@@ -3342,7 +3343,7 @@ TEST_P(SingleThreadedActiveStreamTest,
 
     // Note we must perform the store() on a different thread (instead of
     // directly inside the hook) otherwise we will encounter lock inversions.
-    folly::Baton<> baton;
+    folly::Baton baton;
     auto frontEndThread = std::thread([&] {
         baton.wait();
         store_item(vbid, makeStoredDocKey("key2"), "value");
