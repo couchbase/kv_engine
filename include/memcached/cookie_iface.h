@@ -87,8 +87,13 @@ public:
             protocol_binary_datatype_t datatype) const = 0;
 
     /**
-     * Test if the cookie posess the requested privilege in its effective
-     * set.
+     * Test if the cookie possess the requested privilege in its effective
+     * set. If the cookie is using imposed users the privilege must be in
+     * both sets.
+     *
+     * The caller should use checkPrivilege() if the lack of the privilege is
+     * a fatal error for the operation as it will generate an audit record and
+     * update the error context
      *
      * @param privilege The privilege to check
      * @param sid If the privilege is not found for the bucket, try looking in
@@ -101,6 +106,30 @@ public:
             cb::rbac::Privilege privilege,
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) const = 0;
+
+    /**
+     * Test if the cookie possess the requested privilege in its effective
+     * set, and if it does _not_ hold the requested privilege in its effective
+     * set an audit record gets submitted and the error context gets updated
+     * with a message describing the failure.
+     *
+     * If the cookie is using imposed users the privilege must be in both sets
+     *
+     * The caller should use testPrivilege() if the lack of the privilege
+     * isn't a fatal error for the operation (for instance it could just
+     * return less detailed information etc).
+     *
+     * @param privilege The privilege to check
+     * @param sid If the privilege is not found for the bucket, try looking in
+     *            this scope.
+     * @param cid If the privilege is not found for the scope, try looking in
+     *            this collection.
+     * @throws invalid_argument if cid defined but not sid
+     */
+    virtual cb::rbac::PrivilegeAccess checkPrivilege(
+            cb::rbac::Privilege privilege,
+            std::optional<ScopeID> sid,
+            std::optional<CollectionID> cid) = 0;
 
     virtual cb::rbac::PrivilegeAccess checkForPrivilegeAtLeastInOneCollection(
             cb::rbac::Privilege privilege) const = 0;

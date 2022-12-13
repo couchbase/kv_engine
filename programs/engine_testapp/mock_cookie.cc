@@ -120,6 +120,14 @@ cb::rbac::PrivilegeAccess MockCookie::testPrivilege(
 
     return cb::rbac::PrivilegeAccessOk;
 }
+
+cb::rbac::PrivilegeAccess MockCookie::checkPrivilege(
+        cb::rbac::Privilege privilege,
+        std::optional<ScopeID> sid,
+        std::optional<CollectionID> cid) {
+    return testPrivilege(privilege, sid, cid);
+}
+
 cb::rbac::PrivilegeAccess MockCookie::checkForPrivilegeAtLeastInOneCollection(
         cb::rbac::Privilege privilege) const {
     if (checkForPrivilegeAtLeastInOneCollectionFunction) {

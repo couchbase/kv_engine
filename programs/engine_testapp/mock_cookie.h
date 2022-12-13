@@ -154,6 +154,11 @@ public:
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) const override;
 
+    cb::rbac::PrivilegeAccess checkPrivilege(
+            cb::rbac::Privilege privilege,
+            std::optional<ScopeID> sid,
+            std::optional<CollectionID> cid) override;
+
     using CheckForPrivilegeAtLeastInOneCollectionFunction =
             std::function<cb::rbac::PrivilegeAccess(const CookieIface&,
                                                     cb::rbac::Privilege)>;
