@@ -61,6 +61,7 @@ bool Collections::VB::ManifestEntry::addStats(
     addStat("ops_get"sv, getOpsGet());
     addStat("ops_store"sv, getOpsStore());
     addStat("ops_delete"sv, getOpsDelete());
+    addStat("history"sv, getCanDeduplicate() == CanDeduplicate::No);
     if (getMaxTtl()) {
         addStat("maxTTL"sv, getMaxTtl().value().count());
     }
@@ -78,7 +79,8 @@ std::ostream& Collections::VB::operator<<(
        << ", highSeqno:" << manifestEntry.getHighSeqno()
        << ", persistedHighSeqno:" << manifestEntry.getPersistedHighSeqno()
        << ", itemCount:" << manifestEntry.getItemCount()
-       << ", diskSize:" << manifestEntry.getDiskSize()
+       << ", diskSize:" << manifestEntry.getDiskSize() << ", "
+       << manifestEntry.getCanDeduplicate()
        << ", r/w/d:" << manifestEntry.getOpsGet() << "/"
        << manifestEntry.getOpsStore() << "/" << manifestEntry.getOpsDelete();
 

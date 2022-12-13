@@ -11,12 +11,13 @@
 
 #pragma once
 
-#include <platform/monotonic.h>
+#include "ep_types.h"
 
 #include <folly/Synchronized.h>
 #include <gsl/gsl-lite.hpp>
 #include <memcached/types.h>
 #include <platform/atomic.h>
+#include <platform/monotonic.h>
 
 #include <functional>
 #include <unordered_map>
@@ -205,13 +206,15 @@ public:
     CollectionSharedMetaDataView(std::string_view name,
                                  ScopeID scope,
                                  cb::ExpiryLimit maxTtl,
-                                 Metered metered);
+                                 Metered metered,
+                                 CanDeduplicate canDeduplicate);
     CollectionSharedMetaDataView(const CollectionSharedMetaData&);
     std::string to_string() const;
     std::string_view name;
     const ScopeID scope;
     const cb::ExpiryLimit maxTtl;
     Metered metered;
+    const CanDeduplicate canDeduplicate;
 };
 
 // The type stored by the Manager SharedMetaDataTable
@@ -220,7 +223,8 @@ public:
     CollectionSharedMetaData(std::string_view name,
                              ScopeID scope,
                              cb::ExpiryLimit maxTtl,
-                             Metered metered);
+                             Metered metered,
+                             CanDeduplicate canDeduplicate);
     CollectionSharedMetaData(const CollectionSharedMetaDataView& view);
     bool operator==(const CollectionSharedMetaDataView& view) const;
     bool operator!=(const CollectionSharedMetaDataView& view) const {
@@ -236,6 +240,7 @@ public:
     const cb::ExpiryLimit maxTtl;
     // can be updated (corrected) post creation from any thread
     std::atomic<Metered> metered;
+    const CanDeduplicate canDeduplicate;
 };
 std::ostream& operator<<(std::ostream& os,
                          const CollectionSharedMetaData& meta);

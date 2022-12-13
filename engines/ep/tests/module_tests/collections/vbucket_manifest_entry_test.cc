@@ -22,7 +22,8 @@ TEST(ManifestEntry, test_getters) {
             "name",
             ScopeID{101},
             cb::ExpiryLimit{5000},
-            Collections::Metered::No);
+            Collections::Metered::No,
+            CanDeduplicate::No);
 
     Collections::VB::ManifestEntry m(meta, 1000);
     EXPECT_EQ(1000, m.getStartSeqno());
@@ -32,11 +33,16 @@ TEST(ManifestEntry, test_getters) {
     EXPECT_EQ("name", m.getName());
     EXPECT_EQ(ScopeID{101}, m.getScopeID());
     EXPECT_EQ(Collections::Metered::No, m.isMetered());
+    EXPECT_EQ(CanDeduplicate::No, m.getCanDeduplicate());
 }
 
 TEST(ManifestEntry, exceptions) {
     auto meta = make_STRCPtr<Collections::VB::CollectionSharedMetaData>(
-            "name", ScopeID{101}, cb::NoExpiryLimit, Collections::Metered::Yes);
+            "name",
+            ScopeID{101},
+            cb::NoExpiryLimit,
+            Collections::Metered::Yes,
+            CanDeduplicate::Yes);
 
     // Collection starts at seqno 1000, note these test require a name because
     // the ManifestEntry ostream<< will be invoked by the exception path

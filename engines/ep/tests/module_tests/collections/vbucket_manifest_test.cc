@@ -141,6 +141,16 @@ public:
         return scopeWithDataLimitExists;
     }
 
+    CanDeduplicate public_getCanDeduplicate(CollectionID id) const {
+        std::shared_lock<mutex_type> readLock(rwlock);
+        if (exists_UNLOCKED(id)) {
+            auto itr = map.find(id);
+            return itr->second.getCanDeduplicate();
+        }
+        throw std::logic_error(
+                "public_getCanDeduplicate failed to find collection");
+    }
+
     void dump() {
         std::cerr << *this << std::endl;
     }
@@ -1048,7 +1058,8 @@ TEST_F(VBucketManifestTest, check_applyChanges) {
     changes.collectionsToCreate.push_back({std::make_pair(0, 8),
                                            "name1",
                                            cb::NoExpiryLimit,
-                                           Collections::Metered::Yes});
+                                           Collections::Metered::Yes,
+                                           CanDeduplicate::Yes});
     value = manifest.getActiveManifest().public_applyCreates(
             manifest.getActiveVB(), changes);
     ASSERT_TRUE(value.has_value());
@@ -1060,11 +1071,13 @@ TEST_F(VBucketManifestTest, check_applyChanges) {
     changes.collectionsToCreate.push_back({std::make_pair(0, 8),
                                            "name2",
                                            cb::NoExpiryLimit,
-                                           Collections::Metered::Yes});
+                                           Collections::Metered::Yes,
+                                           CanDeduplicate::Yes});
     changes.collectionsToCreate.push_back({std::make_pair(0, 9),
                                            "name3",
                                            cb::NoExpiryLimit,
-                                           Collections::Metered::Yes});
+                                           Collections::Metered::Yes,
+                                           CanDeduplicate::No});
     EXPECT_EQ(1, manifest.getActiveManifest().size());
     value = manifest.getActiveManifest().public_applyCreates(
             manifest.getActiveVB(), changes);
@@ -1073,6 +1086,7 @@ TEST_F(VBucketManifestTest, check_applyChanges) {
     EXPECT_EQ(9, value.value().identifiers.second);
     EXPECT_EQ("name3", value.value().name);
     EXPECT_EQ(2, manifest.getActiveManifest().size());
+    EXPECT_EQ(CanDeduplicate::No, value.value().canDeduplicate);
 }
 
 TEST_F(VBucketManifestTest, isLogicallyDeleted) {
@@ -1189,6 +1203,39 @@ TEST_F(VBucketManifestTest, scope_limits_corrected_by_update_drop_two_scopes) {
                       Collections::Manifest{
                               std::string{cm.remove(ScopeEntry::shop2)}}));
     EXPECT_FALSE(manifest.getReplicaManifest().doesScopeWithDataLimitExist());
+}
+
+TEST_F(VBucketManifestTest, add_with_history) {
+    // Add a scope with history=true and check the status on active/replica
+    // The replica won't equal active, so for now EXPECT_FALSE.
+    EXPECT_FALSE(manifest.update(
+            cm.add(ScopeEntry::shop1, {/*no data limit*/}, true)
+                    .add(CollectionEntry::fruit, ScopeEntry::shop1)));
+
+    // Check default and vegetable collection which have no explicit history
+    // so expect CanDeduplicate::Yes
+    EXPECT_EQ(CanDeduplicate::Yes,
+              manifest.getActiveManifest().public_getCanDeduplicate(
+                      CollectionID::Default));
+    EXPECT_EQ(CanDeduplicate::Yes,
+              manifest.getActiveManifest().public_getCanDeduplicate(
+                      CollectionEntry::vegetable));
+    EXPECT_EQ(CanDeduplicate::Yes,
+              manifest.getReplicaManifest().public_getCanDeduplicate(
+                      CollectionID::Default));
+    EXPECT_EQ(CanDeduplicate::Yes,
+              manifest.getReplicaManifest().public_getCanDeduplicate(
+                      CollectionEntry::vegetable));
+
+    // Check fruit, which has a non-default history=true, so expect
+    // CanDeduplicate::No, but currently only the active VB will know about the
+    // correct setting (no replica setting yet available)
+    EXPECT_EQ(CanDeduplicate::No,
+              manifest.getActiveManifest().public_getCanDeduplicate(
+                      CollectionEntry::fruit));
+    EXPECT_EQ(CanDeduplicate::Yes,
+              manifest.getReplicaManifest().public_getCanDeduplicate(
+                      CollectionEntry::fruit));
 }
 
 class VBucketManifestCachingReadHandle : public VBucketManifestTest {};
