@@ -346,9 +346,9 @@ void Cookie::sendResponse(cb::engine_errc status,
                           std::string_view key,
                           std::string_view value,
                           cb::mcbp::Datatype datatype,
-                          uint64_t cas) {
+                          uint64_t casval) {
     sendResponse(
-            cb::mcbp::to_status(status), extras, key, value, datatype, cas);
+            cb::mcbp::to_status(status), extras, key, value, datatype, casval);
 }
 
 const DocKey Cookie::getRequestKey() const {
