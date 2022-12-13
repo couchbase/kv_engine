@@ -119,19 +119,6 @@ public:
 
     void setEventId(std::string uuid);
 
-    /**
-     * Add a more descriptive error context to response sent back for
-     * this command.
-     * Note this has no affect for the following response codes.
-     *   cb::mcbp::Status::Success
-     *   cb::mcbp::Status::SubdocSuccessDeleted
-     *   cb::mcbp::Status::SubdocMultiPathFailure
-     *   cb::mcbp::Status::Rollback
-     *   cb::mcbp::Status::NotMyVbucket
-     *
-     * @param message a string which will become the value of the "context" key
-     *        in the JSON response object
-     */
     void setErrorContext(std::string message) override;
 
     /// Get the context to send back for this command.
@@ -481,11 +468,6 @@ public:
      */
     bool inflateSnappy(std::string_view input, cb::compression::Buffer& output);
 
-    /// Set the current collection meta information. The packet validator
-    /// is responsible for checking that the requested collection identifier
-    /// is a legal scope (and return an error if it isn't) and to avoid having
-    /// to redo the check as part of privilege checks (as the lookup needs
-    /// a lock for the manifest) we'll keep the the result in the cookie
     void setCurrentCollectionInfo(ScopeID sid,
                                   CollectionID cid,
                                   uint64_t manifestUid,
@@ -503,7 +485,6 @@ public:
     /// currentCollectionInfo.
     void setUnknownCollectionErrorContext();
 
-    /// Set the JSON extras to return the manifestId
     void setUnknownCollectionErrorContext(uint64_t manifestUid) override;
 
     /// Check if the current command have the requested privilege
@@ -599,9 +580,7 @@ public:
      */
     std::pair<size_t, size_t> getDocumentMeteringRWUnits() const;
 
-    /// Cookie implementation checks the bucket throttle
     bool checkThrottle(size_t pendingRBytes, size_t pendingWBytes) override;
-    /// Cookie implementation calls through to Connection::sendResponse
     bool sendResponse(cb::engine_errc status,
                       std::string_view extras,
                       std::string_view value) override;

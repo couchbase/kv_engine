@@ -152,6 +152,11 @@ public:
                 document_bytes_written.load(std::memory_order_acquire)};
     }
 
+    /// Set the current collection meta information. The packet validator
+    /// is responsible for checking that the requested collection identifier
+    /// is a legal scope (and return an error if it isn't) and to avoid having
+    /// to redo the check as part of privilege checks (as the lookup needs
+    /// a lock for the manifest) we'll keep the the result in the cookie
     virtual void setCurrentCollectionInfo(ScopeID sid,
                                           CollectionID cid,
                                           uint64_t manifestUid,
