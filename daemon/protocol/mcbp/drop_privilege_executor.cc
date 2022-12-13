@@ -16,7 +16,6 @@
 #include <mcbp/protocol/request.h>
 
 void drop_privilege_executor(Cookie& cookie) {
-    cookie.logCommand();
     const auto& request = cookie.getRequest();
 
     cb::engine_errc status;

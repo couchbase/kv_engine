@@ -24,7 +24,6 @@
 
 SteppableCommandContext::SteppableCommandContext(Cookie& cookie_)
     : cookie(cookie_), connection(cookie.getConnection()) {
-    cookie.logCommand();
 }
 
 void SteppableCommandContext::drive() {
@@ -49,7 +48,6 @@ void SteppableCommandContext::drive() {
         }
     }
 
-    cookie.logResponse(ret);
     if (ret != cb::engine_errc::success) {
         handle_executor_status(cookie, ret);
     }

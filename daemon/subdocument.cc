@@ -131,8 +131,6 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
     // possible bugs in our code ;)
     const int MAXIMUM_ATTEMPTS = 100;
 
-    cookie.logCommand();
-
     int attempts = 0;
     do {
         attempts++;

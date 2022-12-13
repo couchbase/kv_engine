@@ -383,44 +383,6 @@ std::string Cookie::getPrintableRequestCollectionID() const {
     return getRequestKey().getCollectionID().to_string();
 }
 
-void Cookie::logCommand() const {
-    if (Settings::instance().getVerbose() == 0) {
-        // Info is not enabled.. we don't want to try to format
-        // output
-        return;
-    }
-
-    const auto opcode = getRequest().getClientOpcode();
-    LOG_DEBUG("{}> {} {}",
-              connection.getId(),
-              to_string(opcode),
-              getPrintableRequestKey());
-}
-
-void Cookie::logResponse(const char* reason) const {
-    const auto opcode = getRequest().getClientOpcode();
-    LOG_DEBUG("{}< {} {} - {}",
-              connection.getId(),
-              to_string(opcode),
-              getPrintableRequestKey(),
-              reason);
-}
-
-void Cookie::logResponse(cb::engine_errc code) const {
-    if (Settings::instance().getVerbose() == 0) {
-        // Info is not enabled.. we don't want to try to format
-        // output
-        return;
-    }
-
-    if (code == cb::engine_errc::would_block) {
-        // This is a temporary state
-        return;
-    }
-
-    logResponse(cb::to_string(cb::engine_errc(code)).c_str());
-}
-
 void Cookie::setCommandContext(CommandContext* ctx) {
     commandContext.reset(ctx);
 }

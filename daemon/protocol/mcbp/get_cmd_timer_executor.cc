@@ -198,14 +198,12 @@ std::pair<cb::engine_errc, std::string> get_cmd_timer(Cookie& cookie) {
 }
 
 void get_cmd_timer_executor(Cookie& cookie) {
-    cookie.logCommand();
     std::pair<cb::engine_errc, std::string> ret;
     try {
         ret = get_cmd_timer(cookie);
     } catch (const std::bad_alloc&) {
         ret.first = cb::engine_errc::no_memory;
     }
-    cookie.logResponse(ret.first);
 
     if (ret.first == cb::engine_errc::success) {
         cookie.sendResponse(cb::mcbp::Status::Success,

@@ -285,23 +285,6 @@ public:
     std::string getPrintableRequestCollectionID() const;
 
     /**
-     * Log the start of processing a command received from the client in the
-     * generic form which (may change over time, but currently it) looks like:
-     *
-     *     id> COMMAND KEY
-     */
-    void logCommand() const;
-
-    /**
-     * Log the end of processing a command and the result of the command:
-     *
-     *     id< COMMAND KEY - STATUS
-     *
-     * @param code The execution result
-     */
-    void logResponse(cb::engine_errc code) const;
-
-    /**
      * Set the aiostat and return the previous value
      */
     cb::engine_errc swapAiostat(cb::engine_errc value);
@@ -730,13 +713,6 @@ protected:
      *  Between each command this is deleted and reset to nullptr.
      */
     std::unique_ptr<CommandContext> commandContext;
-
-    /**
-     * Log a preformatted response text
-     *
-     * @param reason the text to log
-     */
-    void logResponse(const char* reason) const;
 
     cb::compression::Buffer inflated_input_payload;
 
