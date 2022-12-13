@@ -17,6 +17,7 @@
 #include <folly/portability/Stdlib.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
+#include <platform/split_string.h>
 #include <platform/strerror.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
@@ -435,7 +436,8 @@ public:
             {"larry", "larrypassword"},
             {"legacy", "new"},
             {"jones", "jonespassword"},
-            {"Luke", "Skywalker"}};
+            {"Luke", "Skywalker"},
+            {"UserWithoutProfile", "password"}};
 
     void setupPasswordDatabase() {
         // Write the initial password database:
@@ -622,6 +624,24 @@ public:
         if (!rsp.isSuccess()) {
             throw ConnectionError(
                     "refreshPasswordDatabase: Failed to reload database", rsp);
+        }
+    }
+
+    void iterateLogLines(const std::function<bool(std::string_view line)>&
+                                 callback) const override {
+        for (const auto& p : boost::filesystem::directory_iterator(log_dir)) {
+            if (is_regular_file(p)) {
+                auto content = cb::io::loadFile(p.path().generic_string());
+                auto lines = cb::string::split(content, '\n');
+                for (auto line : lines) {
+                    while (line.back() == '\r') {
+                        line.remove_suffix(1);
+                    }
+                    if (!callback(line)) {
+                        return;
+                    }
+                }
+            }
         }
     }
 

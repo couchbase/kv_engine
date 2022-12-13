@@ -11,7 +11,9 @@
 #pragma once
 
 #include <nlohmann/json_fwd.hpp>
+#include <functional>
 #include <string>
+#include <string_view>
 
 class MemcachedConnection;
 enum class BucketType : uint8_t;
@@ -200,6 +202,10 @@ public:
     virtual std::string getMinidumpDir() const = 0;
 
     virtual std::string getLogDir() const = 0;
+
+    virtual void iterateLogLines(
+            const std::function<bool(std::string_view line)>& callback)
+            const = 0;
 
     virtual std::string getLogFilePattern() const = 0;
 
