@@ -1093,9 +1093,6 @@ bool Cookie::fetchEuidPrivilegeSet() {
     if (checkPrivilege(
                 privilegeContext, cb::rbac::Privilege::Impersonate, {}, {})
                 .failed()) {
-        setErrorContext(
-                "You need the Impersonate privilege in order to impersonate "
-                "users");
         sendResponse(cb::mcbp::Status::Eaccess);
         return false;
     }
