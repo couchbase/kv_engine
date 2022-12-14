@@ -559,6 +559,14 @@ public:
         return op == queue_op::checkpoint_end;
     }
 
+    bool canDeduplicate() const {
+        return deduplicate;
+    }
+
+    void setCanDeduplicate(CanDeduplicate value) {
+        deduplicate = value == CanDeduplicate::Yes;
+    }
+
 private:
     /**
      * Set the item's data. This is only used by constructors, so we
@@ -603,6 +611,9 @@ private:
     /// True if this item should try to preserve the Ttl of the item
     /// it tries to replace
     uint8_t preserveTtl : 1;
+
+    /// True if this Item can be deduplicated
+    uint8_t deduplicate : 1;
 
     // Keep a cached version of the datatype. It allows for using
     // "partial" items created from from the hashtable. Every time the

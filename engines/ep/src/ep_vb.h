@@ -397,15 +397,19 @@ private:
                                   const VBQueueItemCtx& queueItmCtx,
                                   std::optional<int64_t> commitSeqno) override;
 
-    VBNotifyCtx abortStoredValue(const HashTable::HashBucketLock& hbl,
-                                 StoredValue& v,
-                                 int64_t prepareSeqno,
-                                 std::optional<int64_t> abortSeqno) override;
+    VBNotifyCtx abortStoredValue(
+            const HashTable::HashBucketLock& hbl,
+            StoredValue& v,
+            int64_t prepareSeqno,
+            std::optional<int64_t> abortSeqno,
+            const Collections::VB::CachingReadHandle& cHandle) override;
 
-    VBNotifyCtx addNewAbort(const HashTable::HashBucketLock& hbl,
-                            const DocKey& key,
-                            int64_t prepareSeqno,
-                            int64_t abortSeqno) override;
+    VBNotifyCtx addNewAbort(
+            const HashTable::HashBucketLock& hbl,
+            const DocKey& key,
+            int64_t prepareSeqno,
+            int64_t abortSeqno,
+            const Collections::VB::CachingReadHandle& cHandle) override;
 
     void bgFetch(HashTable::HashBucketLock&& hbl,
                  const DocKey& key,

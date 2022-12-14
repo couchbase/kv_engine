@@ -118,7 +118,7 @@ bool EphemeralVBucket::pageOut(VBucketStateLockRef,
         !readHandle.exists(cid)) {
         return false;
     }
-    VBQueueItemCtx queueCtx;
+    VBQueueItemCtx queueCtx{readHandle.getCanDeduplicate(cid)};
     v->setRevSeqno(v->getRevSeqno() + 1);
     DeletionStatus status;
     VBNotifyCtx notifyCtx;
@@ -717,7 +717,8 @@ VBNotifyCtx EphemeralVBucket::abortStoredValue(
         const HashTable::HashBucketLock& hbl,
         StoredValue& prepared,
         int64_t prepareSeqno,
-        std::optional<int64_t> abortSeqno) {
+        std::optional<int64_t> abortSeqno,
+        const Collections::VB::CachingReadHandle& cHandle) {
     // From MB-36650 this function is enabled to accept also Completed Prepares
     // (Committed/Aborted) for converting/updating the SV in input to
     // PrepareAborted.
@@ -735,7 +736,7 @@ VBNotifyCtx EphemeralVBucket::abortStoredValue(
     // separately as we would have to special case a few things for prepares
     // that would make the code less readable.
 
-    VBQueueItemCtx queueItmCtx;
+    VBQueueItemCtx queueItmCtx{cHandle.getCanDeduplicate()};
     VBNotifyCtx notifyCtx;
 
     // Need the sequenceLock as we may be generating a new seqno
@@ -796,14 +797,16 @@ VBNotifyCtx EphemeralVBucket::abortStoredValue(
     return notifyCtx;
 }
 
-VBNotifyCtx EphemeralVBucket::addNewAbort(const HashTable::HashBucketLock& hbl,
-                                          const DocKey& key,
-                                          int64_t prepareSeqno,
-                                          int64_t abortSeqno) {
+VBNotifyCtx EphemeralVBucket::addNewAbort(
+        const HashTable::HashBucketLock& hbl,
+        const DocKey& key,
+        int64_t prepareSeqno,
+        int64_t abortSeqno,
+        const Collections::VB::CachingReadHandle& cHandle) {
     // Reached this method because an abort was received without previously
     // receiving a prepare.
 
-    VBQueueItemCtx queueItmCtx;
+    VBQueueItemCtx queueItmCtx{cHandle.getCanDeduplicate()};
     queueItmCtx.genBySeqno = GenerateBySeqno::No;
 
     // Need the sequenceLock as we may be generating a new seqno
@@ -999,7 +1002,7 @@ uint64_t EphemeralVBucket::addSystemEventItem(
     auto* v = htRes.storedValue;
     auto& hbl = htRes.lock;
 
-    VBQueueItemCtx queueItmCtx;
+    VBQueueItemCtx queueItmCtx{CanDeduplicate::Yes};
     queueItmCtx.genBySeqno = getGenerateBySeqno(seqno);
     if (v) {
         std::tie(v, std::ignore, std::ignore) =

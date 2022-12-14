@@ -1670,8 +1670,9 @@ TEST_P(SingleThreadedActiveStreamTest, DiskSnapshotSendsChkMarker) {
     const std::string value = "value";
     auto item = make_item(vbid, key, value);
 
-    EXPECT_EQ(MutationStatus::WasClean,
-              public_processSet(*vb, item, VBQueueItemCtx()));
+    EXPECT_EQ(
+            MutationStatus::WasClean,
+            public_processSet(*vb, item, VBQueueItemCtx(CanDeduplicate::Yes)));
 
     // Ensure mutation is on disk; no longer present in CheckpointManager.
     vb->checkpointManager->createNewCheckpoint();

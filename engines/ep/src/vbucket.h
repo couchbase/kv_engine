@@ -2385,12 +2385,15 @@ private:
      * @param prepareSeqno The seqno of the Prepare sync-write being aborted
      * @param abortSeqno Optional seqno to use for the aborted item. If omitted
      *     then CheckpointManager will generate one.
+     * @param cHandle valid handle for the collection being updated
      * @return Information on who should be notified of the commit.
      */
-    virtual VBNotifyCtx abortStoredValue(const HashTable::HashBucketLock& hbl,
-                                         StoredValue& v,
-                                         int64_t prepareSeqno,
-                                         std::optional<int64_t> abortSeqno) = 0;
+    virtual VBNotifyCtx abortStoredValue(
+            const HashTable::HashBucketLock& hbl,
+            StoredValue& v,
+            int64_t prepareSeqno,
+            std::optional<int64_t> abortSeqno,
+            const Collections::VB::CachingReadHandle& cHandle) = 0;
 
     /**
      * Add a new abort item. To be used when an abort has been received, but the
@@ -2405,10 +2408,12 @@ private:
      *                   in a replica, where the abortSeqno is always available.
      * @return Information on who should be notified of the commit.
      */
-    virtual VBNotifyCtx addNewAbort(const HashTable::HashBucketLock& hbl,
-                                    const DocKey& key,
-                                    int64_t prepareSeqno,
-                                    int64_t abortSeqno) = 0;
+    virtual VBNotifyCtx addNewAbort(
+            const HashTable::HashBucketLock& hbl,
+            const DocKey& key,
+            int64_t prepareSeqno,
+            int64_t abortSeqno,
+            const Collections::VB::CachingReadHandle& cHandle) = 0;
 
     /**
      * Add a temporary item in hash table and enqueue a background fetch for a
