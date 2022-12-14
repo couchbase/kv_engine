@@ -159,6 +159,10 @@ public:
                 (BySeqnoScanContext & sctx),
                 (const, override));
     MOCK_METHOD(scan_error_t,
+                scanAllVersions,
+                (BySeqnoScanContext & sctx),
+                (const, override));
+    MOCK_METHOD(scan_error_t,
                 scan,
                 (ByIdScanContext & sctx),
                 (const, override));

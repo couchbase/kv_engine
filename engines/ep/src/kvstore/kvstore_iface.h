@@ -522,6 +522,20 @@ public:
     virtual scan_error_t scan(BySeqnoScanContext& sctx) const = 0;
 
     /**
+     * Run a BySeqno scan that retrieves all versions of a document from the
+     * configured "window of history".
+     *
+     * This function is only valid to call when the KVStore reports
+     * StorageProperties::HistoryRetentionAvailable::Yes and that the scan
+     * is with the range of retained history as reported by
+     * ScanContext::historyStartSeqno
+     *
+     * @param sctx non-const reference to the context, internal callbacks may
+     *        write to the object as progress is made through the scan
+     */
+    virtual scan_error_t scanAllVersions(BySeqnoScanContext& sctx) const = 0;
+
+    /**
      * Run a ById scan
      * @param sctx non-const reference to the context, internal callbacks may
      *        write to the object as progress is made through the scan

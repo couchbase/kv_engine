@@ -1805,6 +1805,12 @@ std::unique_ptr<ByIdScanContext> MagmaKVStore::initByIdScanContext(
     return sctx;
 }
 
+scan_error_t MagmaKVStore::scanAllVersions(BySeqnoScanContext& ctx) const {
+    // @todo use magma's mode
+    // return scan(ctx, magma::Magma::SeqIterator::Mode::History);
+    return scan(ctx);
+}
+
 scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
     if (ctx.lastReadSeqno == ctx.maxSeqno) {
         logger->TRACE("MagmaKVStore::scan {} lastReadSeqno:{} == maxSeqno:{}",

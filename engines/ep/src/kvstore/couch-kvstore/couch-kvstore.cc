@@ -2376,6 +2376,11 @@ scan_error_t CouchKVStore::scan(BySeqnoScanContext& ctx) const {
     return scan_success;
 }
 
+scan_error_t CouchKVStore::scanAllVersions(BySeqnoScanContext& sctx) const {
+    // StorageProperties reported this feature is not available
+    throw std::runtime_error("CouchKVStore::scanAllVersions was invoked");
+}
+
 scan_error_t CouchKVStore::scan(ByIdScanContext& ctx) const {
     TRACE_EVENT_START2("CouchKVStore",
                        "scan by id",

@@ -2789,6 +2789,10 @@ scan_error_t NexusKVStore::scan(BySeqnoScanContext& ctx) const {
     return primaryScanResult;
 }
 
+scan_error_t NexusKVStore::scanAllVersions(BySeqnoScanContext& ctx) const {
+    throw std::runtime_error("NexusKVStore::scanAllVersions unimplemented");
+}
+
 scan_error_t NexusKVStore::scan(ByIdScanContext& ctx) const {
     auto& nexusCtx = dynamic_cast<NexusKVStoreByIdScanContext&>(ctx);
     auto& primaryCtx = *nexusCtx.primaryCtx;

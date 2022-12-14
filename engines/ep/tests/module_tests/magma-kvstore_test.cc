@@ -57,6 +57,21 @@ protected:
         rollbackTest = true;
     }
 
+    queued_item doWrite(uint64_t seqno,
+                        bool expected,
+                        const std::string& key = "key") {
+        auto ctx =
+                kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
+        auto qi = makeCommittedItem(makeStoredDocKey(key),
+                                    "value" + std::to_string(seqno));
+        qi->setBySeqno(seqno);
+        flush.proposedVBState.lastSnapStart = seqno;
+        flush.proposedVBState.lastSnapEnd = seqno;
+        kvstore->set(*ctx, qi);
+        EXPECT_EQ(expected, kvstore->commit(std::move(ctx), flush));
+        return qi;
+    };
+
 private:
     bool rollbackTest{false};
 };
@@ -697,4 +712,34 @@ TEST_F(MagmaKVStoreTest, makeFileHandleSyncFailed) {
     setupSyncStatus(magma::Status(magma::Status::Internal, "Internal"));
     fileHandle = kvstore->makeFileHandle(vbid);
     EXPECT_FALSE(fileHandle);
+}
+
+// @todo: This is a basic test that will be expanded to cover scanning history
+// at the moment this test is equivalent to "scan"
+TEST_F(MagmaKVStoreTest, scanAllVersions) {
+    initialize_kv_store(kvstore.get(), vbid);
+    std::vector<queued_item> expectedItems;
+    expectedItems.push_back(doWrite(1, true, "k1"));
+    expectedItems.push_back(doWrite(2, true, "k2"));
+    auto validate = [&expectedItems](GetValue gv) {
+        ASSERT_TRUE(gv.item);
+        ASSERT_GE(expectedItems.size(), size_t(gv.item->getBySeqno()));
+        EXPECT_EQ(*expectedItems[gv.item->getBySeqno() - 1], *gv.item);
+    };
+    auto bySeq = kvstore->initBySeqnoScanContext(
+            std::make_unique<CustomCallback<GetValue>>(validate),
+            std::make_unique<CustomCallback<CacheLookup>>(),
+            vbid,
+            1,
+            DocumentFilter::ALL_ITEMS,
+            ValueFilter::VALUES_COMPRESSED,
+            SnapshotSource::Head);
+    ASSERT_TRUE(bySeq);
+    // @todo: This must be the expected seqno where history begins
+    EXPECT_EQ(0, bySeq->historyStartSeqno);
+    EXPECT_EQ(scan_success, kvstore->scanAllVersions(*bySeq));
+
+    auto& cb =
+            static_cast<CustomCallback<GetValue>&>(bySeq->getValueCallback());
+    EXPECT_EQ(2, cb.getProcessedCount());
 }
