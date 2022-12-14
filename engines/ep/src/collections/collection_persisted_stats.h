@@ -57,7 +57,11 @@ struct PersistedStats {
 
     cb::NonNegativeCounter<uint64_t> itemCount;
     cb::NonNegativeCounter<uint64_t> highSeqno;
-    cb::NonNegativeCounter<uint64_t> diskSize;
+    // TEMP MB-54829: diskSize is underflowing and throwing due to default
+    // ThrowExceptionUnderflowPolicy in pre-release builds. Temporarily
+    // change to ClampAtZeroUnderflowPolicy to unblock testing.
+    // *** This should be reverted before GA ***.
+    cb::NonNegativeCounter<uint64_t, cb::ClampAtZeroUnderflowPolicy> diskSize;
 };
 
 std::ostream& operator<<(std::ostream& os, const PersistedStats& ps);
