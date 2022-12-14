@@ -259,6 +259,14 @@ public:
         return manifest->getSystemEventItemCount();
     }
 
+    /**
+     * @throw if collection does not exist
+     * @return the CanDeduplicate status for the collection
+     */
+    CanDeduplicate getCanDeduplicate(CollectionID cid) const {
+        return manifest->getCanDeduplicate(cid);
+    }
+
 protected:
     friend std::ostream& operator<<(std::ostream& os,
                                     const ReadHandle& readHandle);
@@ -532,6 +540,13 @@ public:
         return itr->second.isMetered();
     }
 
+    CanDeduplicate getCanDeduplicate() const {
+        if (!valid()) {
+            return CanDeduplicate::Yes;
+        }
+        return itr->second.getCanDeduplicate();
+    }
+
     /**
      * Dump this VB::Manifest to std::cerr
      */
@@ -696,15 +711,20 @@ public:
                        int64_t startSeqno) {
         // note: metered set to 'yes' and will later be checked/corrected if a
         // change to active occurs
-        manifest.createCollection(vbStateLock,
-                                  *this,
-                                  vb,
-                                  manifestUid,
-                                  identifiers,
-                                  collectionName,
-                                  maxTtl,
-                                  Metered::Yes,
-                                  OptionalSeqno{startSeqno});
+        manifest.createCollection(
+                vbStateLock,
+                *this,
+                vb,
+                manifestUid,
+                identifiers,
+                collectionName,
+                maxTtl,
+                Metered::Yes,
+                // This is the incorrect value with no path yet to correct.
+                // For now replicas runs out of sync, only the active applies
+                // correct deduplication logic.
+                CanDeduplicate::Yes,
+                OptionalSeqno{startSeqno});
     }
 
     /**

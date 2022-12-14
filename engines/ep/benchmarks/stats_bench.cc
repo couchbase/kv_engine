@@ -57,6 +57,7 @@ public:
                     "collection-" + std::to_string(cid),
                     cb::NoExpiryLimit,
                     Collections::Metered::Yes,
+                    CanDeduplicate::Yes,
                     0);
         }
     }
