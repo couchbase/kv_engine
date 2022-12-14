@@ -84,7 +84,7 @@ void VBucketDurabilityTest::storeSyncWrites(
             item->setPreparedMaybeVisible();
         }
 
-        VBQueueItemCtx ctx;
+        VBQueueItemCtx ctx{CanDeduplicate::Yes};
         ctx.genBySeqno = GenerateBySeqno::No;
         ctx.durability = DurabilityItemCtx{item->getDurabilityReqs(), cookie};
         ASSERT_EQ(MutationStatus::WasClean,
@@ -219,7 +219,7 @@ TEST_P(VBucketDurabilityTest, CommitSyncWriteThenWriteToSameKey) {
     auto reqs = Requirements{Level::Majority, Timeout::Infinity()};
     pending->setPendingSyncWrite(reqs);
 
-    VBQueueItemCtx ctx;
+    VBQueueItemCtx ctx{CanDeduplicate::Yes};
     ctx.durability = DurabilityItemCtx{reqs, cookie};
 
     ASSERT_EQ(MutationStatus::WasClean,
@@ -263,7 +263,7 @@ TEST_P(VBucketDurabilityTest, CommitSyncWriteLoop) {
     // Do 3 iterations. Why? The 1st and 2nd iterations take different paths
     // (add vs update) so we want to verify everything is correct with the 3rd.
     for (int i = 0; i < 3; i++) {
-        VBQueueItemCtx ctx;
+        VBQueueItemCtx ctx{CanDeduplicate::Yes};
         ctx.durability = DurabilityItemCtx{reqs, cookie};
 
         // Do the prepare (should be clean/dirty)
@@ -299,7 +299,7 @@ TEST_P(VBucketDurabilityTest, AbortSyncWriteLoop) {
     pending->setPendingSyncWrite(reqs);
 
     for (int i = 0; i < 10; i++) {
-        VBQueueItemCtx ctx;
+        VBQueueItemCtx ctx{CanDeduplicate::Yes};
         ctx.durability = DurabilityItemCtx{reqs, cookie};
 
         // Do the prepare (should be clean/dirty)
@@ -749,7 +749,7 @@ TEST_P(VBucketDurabilityTest, NonPendingKeyAtAbort) {
     auto nonPendingKey = makeStoredDocKey("key1");
     auto nonPendingItem = make_item(vbucket->getId(), nonPendingKey, "value");
     EXPECT_EQ(MutationStatus::WasClean,
-              public_processSet(nonPendingItem, 0 /*cas*/, VBQueueItemCtx()));
+              public_processSet(nonPendingItem, 0 /*cas*/));
     EXPECT_EQ(1, ht->getNumItems());
     // Visible at read
     const auto* sv = ht->findForRead(nonPendingKey).storedValue;
@@ -847,7 +847,7 @@ TEST_P(VBucketDurabilityTest, NonPendingKeyAtAbortReplica) {
 
     auto nonPendingItem = make_item(vbucket->getId(), key, "value");
     nonPendingItem.setBySeqno(lastSeqno + 1);
-    VBQueueItemCtx ctx;
+    VBQueueItemCtx ctx{CanDeduplicate::Yes};
     ctx.genBySeqno = GenerateBySeqno::No;
     // store a normal item
     EXPECT_EQ(MutationStatus::WasClean,
@@ -1064,7 +1064,7 @@ TEST_P(VBucketDurabilityTest, Active_ParallelSet) {
                              PROTOCOL_BINARY_RAW_BYTES);
             using namespace cb::durability;
             item.setPendingSyncWrite(Requirements());
-            VBQueueItemCtx ctx;
+            VBQueueItemCtx ctx{CanDeduplicate::Yes};
             ctx.durability = DurabilityItemCtx{item.getDurabilityReqs(),
                                                nullptr /*cookie*/};
 
@@ -1144,11 +1144,11 @@ void VBucketDurabilityTest::testHTCommitExisting() {
 
     auto key = makeStoredDocKey("key");
     auto committed = makeCommittedItem(key, "valueA"s);
-    ASSERT_EQ(MutationStatus::WasClean, public_processSet(*committed, 0, {}));
+    ASSERT_EQ(MutationStatus::WasClean, public_processSet(*committed, 0));
     ASSERT_EQ(1, ht->getNumItems());
 
     auto pending = makePendingItem(key, "valueB"s);
-    VBQueueItemCtx ctx;
+    VBQueueItemCtx ctx{CanDeduplicate::Yes};
     ctx.durability = DurabilityItemCtx{pending->getDurabilityReqs(), cookie};
     ASSERT_EQ(MutationStatus::WasClean, public_processSet(*pending, 0, ctx));
 
@@ -1212,7 +1212,7 @@ TEST_P(EphemeralVBucketDurabilityTest, CommitExisting_RangeRead) {
 
         // Now do a commit on top of the existing commit (within the range read)
         auto pending = makePendingItem(key, "valueC"s);
-        VBQueueItemCtx ctx;
+        VBQueueItemCtx ctx{CanDeduplicate::Yes};
         ctx.durability =
                 DurabilityItemCtx{pending->getDurabilityReqs(), cookie};
         ASSERT_EQ(MutationStatus::WasClean,
@@ -1261,7 +1261,7 @@ TEST_P(EphemeralVBucketDurabilityTest, CommitExisting_RangeRead) {
 TEST_P(EphemeralVBucketDurabilityTest, PrepareOnCommitted) {
     auto key = makeStoredDocKey("key1");
     auto item = makePendingItem(key, "value");
-    VBQueueItemCtx ctx;
+    VBQueueItemCtx ctx{CanDeduplicate::Yes};
     ctx.durability = DurabilityItemCtx{item->getDurabilityReqs(), cookie};
     ASSERT_EQ(MutationStatus::WasClean,
               public_processSet(*item, 0 /*cas*/, ctx));
@@ -1293,7 +1293,7 @@ TEST_P(EphemeralVBucketDurabilityTest, PrepareOnCommitted) {
 void VBucketDurabilityTest::testHTSyncDeleteCommit() {
     auto key = makeStoredDocKey("key");
     auto committed = makeCommittedItem(key, "value"s);
-    ASSERT_EQ(MutationStatus::WasClean, public_processSet(*committed, 0, {}));
+    ASSERT_EQ(MutationStatus::WasClean, public_processSet(*committed, 0));
 
     // Because we called public_processSet (which calls VBucket::set) we skip
     // the call to update the collections stats using the notifyCtx. This is
@@ -1311,7 +1311,7 @@ void VBucketDurabilityTest::testHTSyncDeleteCommit() {
     // Do a SyncDelete
     auto* writeView = ht->findForWrite(key).storedValue;
     ASSERT_TRUE(writeView);
-    VBQueueItemCtx ctx;
+    VBQueueItemCtx ctx{CanDeduplicate::Yes};
     ctx.durability = DurabilityItemCtx{
             cb::durability::Requirements{cb::durability::Level::Majority, {}},
             cookie};
@@ -1380,7 +1380,7 @@ void VBucketDurabilityTest::testSyncDeleteUpdateMaxDelRevSeqno(Resolution res) {
     prepared->setDeleted(DeleteSource::Explicit);
     auto preparedSeqno = vbucket->getHighSeqno() + 1;
     prepared->setBySeqno(preparedSeqno);
-    VBQueueItemCtx ctx;
+    VBQueueItemCtx ctx{CanDeduplicate::Yes};
     ctx.durability = DurabilityItemCtx{prepared->getDurabilityReqs(), cookie};
     ASSERT_EQ(MutationStatus::WasClean, public_processSet(*prepared, 0, ctx));
 
@@ -1486,7 +1486,7 @@ TEST_P(EphemeralVBucketDurabilityTest, SyncDeleteCommit_RangeRead) {
                                          notifyCtx);
 
     // Make our prepare outside of the range read
-    VBQueueItemCtx ctx;
+    VBQueueItemCtx ctx{CanDeduplicate::Yes};
     ctx.durability = DurabilityItemCtx{
             cb::durability::Requirements{cb::durability::Level::Majority, {}},
             cookie};
@@ -1525,7 +1525,7 @@ TEST_P(EphemeralVBucketDurabilityTest, SyncDeleteCommit_RangeRead) {
 TEST_P(VBucketDurabilityTest, CommitNonPendingFails) {
     auto key = makeStoredDocKey("key");
     auto committed = makeCommittedItem(key, "valueA"s);
-    ASSERT_EQ(MutationStatus::WasClean, public_processSet(*committed, 0, {}));
+    ASSERT_EQ(MutationStatus::WasClean, public_processSet(*committed, 0));
 
     // Check preconditions - item should be found as committed.
     auto result = ht->findForWrite(key).storedValue;
@@ -1570,7 +1570,7 @@ TEST_P(VBucketDurabilityTest, MutationAfterCommit) {
 
     // Test - attempt to update with a normal Mutation (should be allowed).
     auto committed = makeCommittedItem(key, "mutation"s);
-    ASSERT_EQ(MutationStatus::WasDirty, public_processSet(*committed, 0, {}));
+    ASSERT_EQ(MutationStatus::WasDirty, public_processSet(*committed, 0));
 
     // Check postconditions
     // 1. Should only have 1 item (and should be same)
@@ -1611,7 +1611,7 @@ TEST_P(VBucketDurabilityTest, SyncWriteSyncDeleteEmptyValue) {
     // then
     doSyncWriteAndCommit();
 
-    VBQueueItemCtx ctx;
+    VBQueueItemCtx ctx{CanDeduplicate::Yes};
     ctx.durability = DurabilityItemCtx{
             cb::durability::Requirements{cb::durability::Level::Majority, {}},
             cookie};
@@ -1647,7 +1647,7 @@ void VBucketDurabilityTest::doSyncDelete() {
     auto key = makeStoredDocKey("key");
     auto prepared = makePendingItem(key, "prepared");
     prepared->setDeleted(DeleteSource::Explicit);
-    VBQueueItemCtx ctx;
+    VBQueueItemCtx ctx{CanDeduplicate::Yes};
     ctx.durability = DurabilityItemCtx{prepared->getDurabilityReqs(), cookie};
     ASSERT_EQ(MutationStatus::WasClean, public_processSet(*prepared, 0, ctx));
 
@@ -1667,7 +1667,7 @@ MutationStatus VBucketDurabilityTest::doPrepareSyncSet(const StoredDocKey& key,
     auto prepared = makePendingItem(key, value);
     prepared->setDataType(PROTOCOL_BINARY_DATATYPE_JSON);
 
-    VBQueueItemCtx ctx;
+    VBQueueItemCtx ctx{CanDeduplicate::Yes};
     ctx.durability = DurabilityItemCtx{prepared->getDurabilityReqs(), cookie};
     return public_processSet(*prepared, 0, ctx);
 }
@@ -1676,7 +1676,7 @@ AddStatus VBucketDurabilityTest::doPrepareSyncAdd(const StoredDocKey& key,
                                                   std::string value) {
     auto prepared = makePendingItem(key, value);
     prepared->setDataType(PROTOCOL_BINARY_DATATYPE_JSON);
-    VBQueueItemCtx ctx;
+    VBQueueItemCtx ctx{CanDeduplicate::Yes};
     ctx.durability = DurabilityItemCtx{prepared->getDurabilityReqs(), cookie};
     return public_processAdd(*prepared, ctx);
 }
@@ -1707,7 +1707,7 @@ TEST_P(EPVBucketDurabilityTest, StatsCommittedSyncWritePreExisting) {
     auto key = makeStoredDocKey("key");
     StoredDocKey existing = makeStoredDocKey("existing");
     auto item = makeCommittedItem(key, "value");
-    ASSERT_EQ(MutationStatus::WasClean, public_processSet(*item, 0, {}));
+    ASSERT_EQ(MutationStatus::WasClean, public_processSet(*item, 0));
 
     doSyncWriteAndCommit();
 
@@ -1722,7 +1722,7 @@ TEST_P(EphemeralVBucketDurabilityTest, StatsCommittedSyncWritePreExisting) {
     auto key = makeStoredDocKey("key");
     StoredDocKey existing = makeStoredDocKey("existing");
     auto item = makeCommittedItem(key, "value");
-    ASSERT_EQ(MutationStatus::WasClean, public_processSet(*item, 0, {}));
+    ASSERT_EQ(MutationStatus::WasClean, public_processSet(*item, 0));
 
     doSyncWriteAndCommit();
 
@@ -2316,7 +2316,7 @@ TEST_P(VBucketDurabilityTest, ConvertActiveDMToPassiveDMPreparedSyncWrites) {
     // - which shouldn't move HPS backwards.
     auto key = makeStoredDocKey("key3");
     auto pending = makePendingItem(key, "replica_value"s);
-    VBQueueItemCtx ctx;
+    VBQueueItemCtx ctx{CanDeduplicate::Yes};
     using namespace cb::durability;
     ctx.durability = DurabilityItemCtx{
             Requirements{Level::Majority, Timeout::Infinity()}, cookie};
@@ -2696,7 +2696,7 @@ void VBucketDurabilityTest::setupPendingDelete(StoredDocKey key) {
     // Test: Now delete it via a SyncDelete.
     auto result = ht->findForWrite(key).storedValue;
     ASSERT_TRUE(result);
-    VBQueueItemCtx ctx;
+    VBQueueItemCtx ctx{CanDeduplicate::Yes};
     ctx.durability = DurabilityItemCtx{
             cb::durability::Requirements{cb::durability::Level::Majority, {}},
             cookie};
@@ -2726,7 +2726,7 @@ void VBucketDurabilityTest::setupPendingDelete(StoredDocKey key) {
 TEST_P(VBucketDurabilityTest, DenyReplacePendingWithCommitted) {
     auto key = makeStoredDocKey("key");
     auto pending = makePendingItem(key, "pending"s);
-    VBQueueItemCtx ctx;
+    VBQueueItemCtx ctx{CanDeduplicate::Yes};
     ctx.durability = DurabilityItemCtx{
             cb::durability::Requirements{cb::durability::Level::Majority, {}},
             cookie};
@@ -2743,7 +2743,7 @@ TEST_P(VBucketDurabilityTest, DenyReplacePendingWithCommitted) {
 TEST_P(VBucketDurabilityTest, DenyReplacePendingWithPending) {
     auto key = makeStoredDocKey("key");
     auto pending = makePendingItem(key, "pending"s);
-    VBQueueItemCtx ctx;
+    VBQueueItemCtx ctx{CanDeduplicate::Yes};
     ctx.durability = DurabilityItemCtx{
             cb::durability::Requirements{cb::durability::Level::Majority, {}},
             cookie};
@@ -2773,7 +2773,7 @@ TEST_P(VBucketDurabilityTest, PendingSyncDeleteToPendingWriteFails) {
     // Test - attempt to mutate a key which has a pending SyncDelete against it
     // with a pending SyncWrite.
     auto pending = makePendingItem(key, "pending"s);
-    VBQueueItemCtx ctx;
+    VBQueueItemCtx ctx{CanDeduplicate::Yes};
     ctx.genBySeqno = GenerateBySeqno::No;
     ctx.durability = DurabilityItemCtx{pending->getDurabilityReqs(), cookie};
     ASSERT_EQ(MutationStatus::IsPendingSyncWrite,
@@ -2788,7 +2788,7 @@ TEST_P(VBucketDurabilityTest, PendingSyncWriteToPendingDeleteFails) {
     // Test - attempt to mutate a key which has a pending SyncWrite against it
     // with a pending SyncDelete.
     auto pending = makePendingItem(key, "pending"s);
-    VBQueueItemCtx ctx;
+    VBQueueItemCtx ctx{CanDeduplicate::Yes};
     ctx.durability = DurabilityItemCtx{
             cb::durability::Requirements{cb::durability::Level::Majority, {}},
             cookie};
@@ -2810,7 +2810,7 @@ TEST_P(VBucketDurabilityTest, PendingSyncDeleteToPendingDeleteFails) {
     auto result = ht->findForWrite(key).storedValue;
     ASSERT_TRUE(result);
 
-    VBQueueItemCtx ctx;
+    VBQueueItemCtx ctx{CanDeduplicate::Yes};
     ctx.durability = DurabilityItemCtx{
             cb::durability::Requirements{cb::durability::Level::Majority, {}},
             cookie};
@@ -3076,7 +3076,7 @@ TEST_P(EPVBucketDurabilityTest,
     // Dirty SV with a Prepared, Dirty SV.
     auto prepared = makePendingItem(key, R"("valueB")");
     prepared->setDataType(PROTOCOL_BINARY_DATATYPE_JSON);
-    VBQueueItemCtx ctx;
+    VBQueueItemCtx ctx{CanDeduplicate::Yes};
     ctx.durability = DurabilityItemCtx{prepared->getDurabilityReqs(), cookie};
     ASSERT_EQ(AddStatus::UnDel, public_processAdd(*prepared, ctx));
     ASSERT_EQ(1, ht->getNumPreparedSyncWrites());
@@ -3195,11 +3195,10 @@ TEST_P(VBucketDurabilityTest, DoNotExpireCommittedIfPending) {
     auto key = makeStoredDocKey("key");
     auto item = makeCommittedItem(key, "value");
     item->setExpTime(5);
-    EXPECT_EQ(MutationStatus::WasClean,
-              public_processSet(*item, 0 /*cas*/, VBQueueItemCtx()));
+    EXPECT_EQ(MutationStatus::WasClean, public_processSet(*item, 0 /*cas*/));
 
     auto pending = makePendingItem(key, "value");
-    VBQueueItemCtx ctx;
+    VBQueueItemCtx ctx{CanDeduplicate::Yes};
     ctx.durability = DurabilityItemCtx{pending->getDurabilityReqs(), cookie};
     EXPECT_EQ(MutationStatus::WasClean,
               public_processSet(*pending, 0 /*cas*/, ctx));
@@ -3264,8 +3263,7 @@ TEST_P(VBucketDurabilityTest, SyncAddUsesCommittedValueRevSeqno) {
     EXPECT_EQ(1, sv->getRevSeqno());
 
     // non-sync delete the item
-    ASSERT_EQ(MutationStatus::WasDirty,
-              public_processSoftDelete(key, {}).first);
+    ASSERT_EQ(MutationStatus::WasDirty, public_processSoftDelete(key).first);
 
     // committed, deleted item has rev seqno one greater than the item it
     // deleted, and has updated the max deleted rev seqno to that value

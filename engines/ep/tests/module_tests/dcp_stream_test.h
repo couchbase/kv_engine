@@ -54,7 +54,8 @@ protected:
 
     MutationStatus public_processSet(VBucket& vb,
                                      Item& item,
-                                     const VBQueueItemCtx& ctx = {});
+                                     const VBQueueItemCtx& ctx = VBQueueItemCtx{
+                                             CanDeduplicate::Yes});
     /**
      * Reset the current producer and stream and recreate with the given params.
      *
