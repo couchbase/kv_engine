@@ -50,16 +50,18 @@ TEST(ManifestTest, defaultState) {
 }
 
 TEST(ManifestTest, validation) {
-    std::vector<std::string> invalidManifests = {
+    std::vector<std::string> invalidJson = {
             "", // empty
             "not json", // definitely not json
             R"({"uid"})", // illegal json
-
+    };
+    // Following should all be legal JSON, but not valid manifests
+    std::vector<std::string> invalidManifests = {
             // valid uid, no scopes object
             R"({"uid" : "1"})",
 
             // valid uid, invalid scopes type
-            R"({"uid":"1"
+            R"({"uid":"1",
                 "scopes" : 0})",
 
             // valid uid, no scopes
@@ -81,12 +83,12 @@ TEST(ManifestTest, validation) {
 
             // valid uid, invalid collections type
             R"({"uid" : "1",
-                "scopes" : [{"name":"_default", "uid":"0","
+                "scopes" : [{"name":"_default", "uid":"0",
                 "collections":[0]}]})",
 
             // valid uid, valid name, no collection uid
             R"({"uid" : "1",
-                "scopes" : [{"name":"_default", "uid":"0","
+                "scopes" : [{"name":"_default", "uid":"0",
                 "collections":[{"name":"beer"}]}]})",
 
             // valid uid, valid name, no scope uid
@@ -98,7 +100,7 @@ TEST(ManifestTest, validation) {
 
             // valid uid, valid collection uid, no collection name
             R"({"uid": "1",
-                "scopes" : [{"name":"_default", "uid":"0","
+                "scopes" : [{"name":"_default", "uid":"0",
                 "collections":[{"uid":"8"}]}]})",
 
             // valid uid, valid scope uid, no scope name
@@ -110,7 +112,7 @@ TEST(ManifestTest, validation) {
 
             // valid name, invalid collection uid (wrong type)
             R"({"uid": "1",
-                "scopes" : [{"name":"_default", "uid":"0","
+                "scopes" : [{"name":"_default", "uid":"0",
                 "collections":[{"name":"beer", "uid":8}]}]})",
 
             // valid name, invalid scope uid (wrong type)
@@ -122,7 +124,7 @@ TEST(ManifestTest, validation) {
 
             // valid name, invalid collection uid (not hex)
             R"({"uid":"0",
-                "scopes" : [{"name":"_default", "uid":"0","
+                "scopes" : [{"name":"_default", "uid":"0",
                 "collections":[{"name":"beer", "uid":"turkey"}]}]})",
 
             // valid name, invalid scope uid (not hex)
@@ -134,7 +136,7 @@ TEST(ManifestTest, validation) {
 
             // invalid collection name (wrong type), valid uid
             R"({"uid" : "1",
-                "scopes" : [{"name":"_default", "uid":"0","
+                "scopes" : [{"name":"_default", "uid":"0",
                 "collections":[{"name":1, "uid":"8"}]}]})",
 
             // invalid scope name (wrong type), valid uid
@@ -146,7 +148,7 @@ TEST(ManifestTest, validation) {
 
             // duplicate CID
             R"({"uid" : "1",
-                "scopes" : [{"name":"_default", "uid":"0","
+                "scopes" : [{"name":"_default", "uid":"0",
                 "collections":[{"name":"beer", "uid":"8"},
                                {"name":"lager", "uid":"8"}]}]})",
 
@@ -161,7 +163,7 @@ TEST(ManifestTest, validation) {
             R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                                 "collections":[
-                                    {"name":"brewery", "uid":"8"},
+                                    {"name":"brewery", "uid":"8"}]},
                           {"name":"brewerA", "uid":"8",
                                 "collections":[
                                     {"name":"brewery", "uid":"8"}]}]})",
@@ -180,7 +182,7 @@ TEST(ManifestTest, validation) {
 
             // UID cannot be converted to a value
             R"({"uid" : "12345678901234567890112111",
-                "scopes":[{"name":"_default", "uid":"0}]})",
+                "scopes":[{"name":"_default", "uid":"0"}]})",
 
             // UID cannot be 0x prefixed
             R"({"uid" : "0x101",
@@ -330,7 +332,39 @@ TEST(ManifestTest, validation) {
             R"({"uid" : "0",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"_default","uid":"0", "metered":"true"}]}]})",
-    };
+            // Invalid history type
+            R"({"uid" : "1",
+                "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"brewery","uid":"8","history":"true"}]}]})",
+            // history = false is invalid (no need to specify)
+            R"({"uid" : "1", "history":false,
+                "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"brewery","uid":"8"}]}]})",
+            // history redefined at lower level (bucket + collection)
+            R"({"uid" : "1", "history":true,
+                "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"brewery","uid":"8","history":false}]}]})",
+            // history redefined at lower level (bucket + scope)
+            R"({"uid" : "1", "history":true,
+                "scopes":[{"name":"_default", "uid":"0", "history":false,
+                "collections":[{"name":"brewery","uid":"8"}]}]})",
+            // history redefined at lower level (collection + scope)
+            R"({"uid" : "1",
+                "scopes":[{"name":"_default", "uid":"0", "history":true,
+                "collections":[{"name":"brewery","uid":"8", "history":false}]}]})",
+            // nearly, but not quite epoch
+            R"({"uid" : "0", "history": true,
+                "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"_default","uid":"0"}]}]})",
+            R"({"uid" : "0",
+                "scopes":[{"name":"_default", "uid":"0", "history": true,
+                "collections":[{"name":"_default","uid":"0"}]}]})",
+            R"({"uid" : "0",
+                "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"_default","uid":"0", "history": true}]}]})",
+            R"({"uid" : "0",
+                "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"_default", "uid":"0", "maxTTL": 100}]}]})"};
 
     std::vector<std::string> validManifests = {
             // this is the 'epoch' state of collections
@@ -461,9 +495,36 @@ TEST(ManifestTest, validation) {
             // collection which supports change history
             R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"brewery","uid":"8","history":true}]}]})",
+            // scope.collection which define history is permitted
+            R"({"uid" : "1",
+                "scopes":[{"name":"_default", "uid":"0","history":true,
+                "collections":[{"name":"brewery","uid":"8","history":true}]}]})",
+            // bucket.scope.collection which define history is permitted
+            R"({"uid" : "1","history":true,
+                "scopes":[{"name":"_default", "uid":"0","history":true,
                 "collections":[{"name":"brewery","uid":"8","history":true}]}]})"};
 
+    for (auto& manifest : invalidJson) {
+        try {
+            Collections::Manifest m(manifest);
+            FAIL() << "No exception thrown for invalid manifest:" << manifest
+                   << std::endl;
+        } catch (std::invalid_argument&) {
+        }
+    }
+
     for (auto& manifest : invalidManifests) {
+        try {
+            // This ensures we're not passing the test because of an incorrect
+            // json object when it should be some other reason
+            auto parsed = nlohmann::json::parse(manifest);
+
+        } catch (const nlohmann::json::exception& e) {
+            FAIL() << e.what() << std::endl
+                   << "invalidManifests should all be valid JSON: " << manifest
+                   << std::endl;
+        }
         try {
             Collections::Manifest m(manifest);
             FAIL() << "No exception thrown for invalid manifest:" << manifest
@@ -1020,6 +1081,26 @@ TEST(ManifestTest, configureHistory) {
 
     // Both the following are defined to keep history. Can these collections be
     // deduplicated? No
+    EXPECT_EQ(CanDeduplicate::No,
+              manifest.getCanDeduplicate(CollectionEntry::vegetable));
+    EXPECT_EQ(CanDeduplicate::No,
+              manifest.getCanDeduplicate(CollectionEntry::dairy));
+}
+
+TEST(ManifestTest, configureAllHistory) {
+    CollectionsManifest cm;
+    // A collection in default scope and then a new scope with history
+    cm.add(CollectionEntry::fruit);
+    cm.add(CollectionEntry::vegetable);
+    cm.add(ScopeEntry::shop1);
+    cm.add(CollectionEntry::dairy, ScopeEntry::shop1);
+    cm.setHistory(true);
+
+    Collections::Manifest manifest{std::string{cm}};
+    EXPECT_EQ(CanDeduplicate::No,
+              manifest.getCanDeduplicate(CollectionID::Default));
+    EXPECT_EQ(CanDeduplicate::No,
+              manifest.getCanDeduplicate(CollectionEntry::fruit));
     EXPECT_EQ(CanDeduplicate::No,
               manifest.getCanDeduplicate(CollectionEntry::vegetable));
     EXPECT_EQ(CanDeduplicate::No,
