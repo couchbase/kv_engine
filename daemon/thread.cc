@@ -158,6 +158,16 @@ static void worker_libevent(void *arg) {
 void FrontEndThread::dispatch_new_connections() {
     std::vector<ConnectionQueue::Entry> accept_connections;
     new_conn_queue.swap(accept_connections);
+    const auto& settings = Settings::instance();
+    const auto free_pool_size = settings.getFreeConnectionPoolSize();
+    if (free_pool_size) {
+        const auto current = stats.getUserConnections();
+        if (current >= (settings.getMaxUserConnections() - free_pool_size)) {
+            // We're above the limit. Initiate shutdown of as many connections
+            // as I am going to initialize
+            Connection::tryInitiateShutdown(accept_connections.size());
+        }
+    }
 
     for (auto& entry : accept_connections) {
         const bool system = entry.descr->system;

@@ -1461,6 +1461,10 @@
         "key": "connection_structures",
         "unit": "count"
     },
+    {
+        "key": "connection_recycle_high_watermark",
+        "unit": "none"
+    },
 /* Amount of memory allocated by the daemon. */
     {
         "key": "daemon_memory_allocated",

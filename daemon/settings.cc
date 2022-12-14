@@ -24,6 +24,21 @@
 #include <cstring>
 #include <system_error>
 
+std::string to_string(ConnectionLimitMode mode) {
+    switch (mode) {
+    case ConnectionLimitMode::Disconnect:
+        return "disconnect";
+    case ConnectionLimitMode::Recycle:
+        return "recycle";
+    }
+    throw std::invalid_argument("Invalid ConnectionLimitMode: " +
+                                std::to_string(int(mode)));
+}
+
+std::ostream& operator<<(std::ostream& os, const ConnectionLimitMode& mode) {
+    return os << to_string(mode);
+}
+
 Settings::Settings() = default;
 Settings::~Settings() = default;
 
@@ -318,6 +333,18 @@ void Settings::reconfigure(const nlohmann::json& json) {
             setParentIdentifier(value.get<int>());
         } else if (key == "allow_localhost_interface"sv) {
             setAllowLocalhostInterface(value.get<bool>());
+        } else if (key == "free_connection_pool_size"sv) {
+            setFreeConnectionPoolSize(value.get<size_t>());
+        } else if (key == "connection_limit_mode"sv) {
+            const auto str = value.get<std::string>();
+            if (str == "disconnect") {
+                setConnectionLimitMode(ConnectionLimitMode::Disconnect);
+            } else if (str == "recycle") {
+                setConnectionLimitMode(ConnectionLimitMode::Recycle);
+            } else {
+                throw std::invalid_argument(
+                        R"(connection_limit_mode must be "disconnect" or "recycle")");
+            }
         } else {
             LOG_WARNING(R"(Unknown key "{}" in config ignored.)", key);
         }
@@ -599,6 +626,42 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                      other.system_connections);
             setSystemConnections(other.system_connections);
         }
+    }
+
+    if (other.has.free_connection_pool_size) {
+        if (other.free_connection_pool_size != free_connection_pool_size) {
+            LOG_INFO("Change free connections pool size from {} to {}",
+                     free_connection_pool_size,
+                     other.free_connection_pool_size);
+            setFreeConnectionPoolSize(other.free_connection_pool_size);
+        }
+    } else {
+        // Auto tune to 1%
+        const auto old_size = getFreeConnectionPoolSize();
+        const size_t new_size = getMaxUserConnections() / 100;
+        if (old_size != new_size) {
+            LOG_INFO("Change free connections pool size from {} to {}",
+                     old_size,
+                     new_size);
+            setFreeConnectionPoolSize(new_size);
+        }
+    }
+
+    if (other.has.connection_limit_mode &&
+        other.getConnectionLimitMode() != getConnectionLimitMode()) {
+        if (other.getConnectionLimitMode() == ConnectionLimitMode::Recycle) {
+            LOG_INFO(
+                    "Change connection limit mode from {} to {} with a pool "
+                    "size of {}",
+                    getConnectionLimitMode(),
+                    other.getConnectionLimitMode(),
+                    getFreeConnectionPoolSize());
+        } else {
+            LOG_INFO("Change connection limit mode from {} to {}",
+                     getConnectionLimitMode(),
+                     other.getConnectionLimitMode());
+        }
+        setConnectionLimitMode(other.getConnectionLimitMode());
     }
 
     if (other.has.xattr_enabled) {

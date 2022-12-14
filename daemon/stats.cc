@@ -52,6 +52,13 @@ static void server_global_stats(const StatCollector& collector) {
     collector.addStat(Key::total_connections, stats.total_conns);
     collector.addStat(Key::connection_structures, stats.conn_structs);
 
+    auto pool_size = Settings::instance().getFreeConnectionPoolSize();
+    if (pool_size != 0) {
+        collector.addStat(
+                Key::connection_recycle_high_watermark,
+                Settings::instance().getMaxUserConnections() - pool_size);
+    }
+
     std::unordered_map<std::string, size_t> allocStats;
     cb::ArenaMalloc::getGlobalStats(allocStats);
     auto allocated = allocStats.find("allocated");

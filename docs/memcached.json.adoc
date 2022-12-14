@@ -229,6 +229,36 @@ By default the connection idle time is set to 5 minutes.
 *connection_idle_time* may be updated by instructing memcached to reread the
 configuration file.
 
+=== connection_limit_mode
+
+The *connection_limit_mode* attribute is a string value specifying how
+the system should behave when it reach the maximum number of user
+connections. It may be one of the following values:
+
+    disconnect      Accept the new connection and immediately close the
+                    socket and disconnect the client. This is the default
+                    behavior if no mode is specified.
+
+    recycle         Accept the connection and immediately try to disconnect
+                    a client which is "least recently used" on the thread
+                    chosen to serve the client. Once 99% of the user
+                    connections (or the number specified by
+                    *free_connection_pool_size* described below) are in
+                    use the system will try to disconnect another client.
+                    Once the hard limit is reached new connections will
+                    be disconnected immediately.
+
+Note that this mode *only* applies to user connections and connections
+not bound to the system interfaces. Connections authenticated as
+internal users will not be forcefully disconnected.
+
+=== free_connection_pool_size
+
+The *free_connection_pool_size* attribute is an integral number specifying
+the size of the pool the system should try to keep available (by disconnecting
+least recently used connections) in "connection_limit_mode=recycle".
+ If not specified the number is 1% of the maximum user connections.
+
 === datatype_json
 
 The *datatype_json* attribute is a boolean value to enable the support
