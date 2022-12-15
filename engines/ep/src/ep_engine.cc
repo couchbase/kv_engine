@@ -40,6 +40,7 @@
 #include "hash_table_stat_visitor.h"
 #include "htresizer.h"
 #include "kvstore/kvstore.h"
+#include "quota_sharing_item_pager.h"
 #include "range_scans/range_scan_callbacks.h"
 #include "replicationthrottle.h"
 #include "server_document_iface_border_guard.h"
@@ -2106,6 +2107,9 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
             std::make_unique<EpEngineValueChangeListener>(*this));
 
     if (configuration.isCrossBucketHtQuotaSharing()) {
+        // Ephemeral bucket are not supported together with quota sharing,
+        // because we're not handling the fail_new_data policy.
+        Expects(configuration.getBucketType() != "ephemeral");
         getQuotaSharingManager().getGroup().add(*this);
     }
 
@@ -6966,4 +6970,29 @@ QuotaSharingManager& EventuallyPersistentEngine::getQuotaSharingManager() {
 
     static QuotaSharingManagerImpl manager(*serverApi->bucket);
     return manager;
+}
+
+ExTask EventuallyPersistentEngine::createItemPager() {
+    if (getConfiguration().isCrossBucketHtQuotaSharing()) {
+        // TODO: Figure out where we want to get this value from
+        auto numConcurrentPagers = getConfiguration().getConcurrentPagers();
+        auto sleepTime = std::chrono::milliseconds(5000);
+        // TODO: Move the QuotaSharingItemPager to the QuotaSharingManager,
+        // so it can be shared between engine instances.
+        auto task = std::make_shared<QuotaSharingItemPager>(
+                *serverApi->bucket,
+                getQuotaSharingManager().getGroup(),
+                // TODO: Use the default taskable here
+                taskable,
+                numConcurrentPagers,
+                sleepTime);
+        ExecutorPool::get()->cancel(task->getId());
+        return task;
+    } else {
+        auto numConcurrentPagers = getConfiguration().getConcurrentPagers();
+        auto task = std::make_shared<StrictQuotaItemPager>(
+                *this, stats, numConcurrentPagers);
+        ExecutorPool::get()->cancel(task->getId());
+        return task;
+    }
 }

@@ -172,6 +172,8 @@ public:
      * @param s the store that will handle the bulk removal
      * @param st the stats where we'll track what we've done
      * @param strategy the eviction strategy to use
+     * @param pagerSemaphore an optional semaphore which will be released
+     *                       once this visitor completes
      * @param pause flag indicating if PagingVisitor can pause between vbucket
      *              visits
      * @param vbFilter the filter used to select which vbuckets to visit
@@ -198,6 +200,11 @@ public:
     void update() override;
 
 protected:
+    /**
+     * Have we freed enough memory to stop paging?
+     */
+    virtual bool shouldStopPaging() const;
+
     // Protected for testing purposes
     // Holds the data structures used during the selection of documents to
     // evict from the hash table.

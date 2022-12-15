@@ -162,6 +162,7 @@ public:
                 this->oneExecutes(taskRescheduled, /*min*/ 0, /*max*/ 2);
             };
         } else if (getTaskName() == "Paging out items." ||
+                   getTaskName() == "Paging out items (quota sharing)." ||
                    getTaskName() == "Paging expired items." ||
                    getTaskName() == "Generating access log") {
             checker = [=](bool taskRescheduled) {

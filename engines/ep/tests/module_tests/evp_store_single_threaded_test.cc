@@ -653,6 +653,9 @@ std::string STParameterizedBucketTest::PrintToStringParamName(
             config, "pitr_max_history_age=", "pitr_max_history_age_");
     boost::replace_all(
             config, "item_eviction_strategy=", "item_eviction_strategy_");
+    boost::replace_all(
+            config, "cross_bucket_ht_quota_sharing=true", "quota_sharing");
+    boost::replace_all(config, "cross_bucket_ht_quota_sharing=false_", "");
     return config;
 }
 

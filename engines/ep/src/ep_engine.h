@@ -949,6 +949,12 @@ public:
      */
     virtual QuotaSharingManager& getQuotaSharingManager();
 
+    /**
+     * Create the item pager task for the engine's bucket. Scheduling of the
+     * task is left up to the caller.
+     */
+    ExTask createItemPager();
+
 protected:
     friend class EpEngineValueChangeListener;
 

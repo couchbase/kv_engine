@@ -398,13 +398,7 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
 
     xattrEnabled = config.isXattrEnabled();
 
-    auto numConcurrentPagers = config.getConcurrentPagers();
-
-    // Always create the item pager; but initially disable, leaving scheduling
-    // up to the specific KVBucket subclasses.
-    itemPagerTask = std::make_shared<StrictQuotaItemPager>(
-            engine, stats, numConcurrentPagers);
-    disableItemPager();
+    itemPagerTask = engine.createItemPager();
 
     minDurabilityLevel =
             cb::durability::to_level(config.getDurabilityMinLevel());
@@ -2241,6 +2235,7 @@ void KVBucket::enableItemPager() {
 }
 
 void KVBucket::disableItemPager() {
+    Expects(!isCrossBucketHtQuotaSharing());
     ExecutorPool::get()->cancel(itemPagerTask->getId());
 }
 

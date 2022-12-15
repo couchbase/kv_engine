@@ -97,9 +97,11 @@ void PagingVisitor::update() {
 void PagingVisitor::complete() {
     update();
 
-    // visitor done, return token so parent is aware when all visitors
-    // have finished.
-    pagerSemaphore->release();
+    if (pagerSemaphore) {
+        // visitor done, return token so parent is aware when all visitors
+        // have finished.
+        pagerSemaphore->release();
+    }
 
     // Wake up any sleeping backfill tasks if the memory usage is lowered
     // below the backfill threshold as a result of item ejection.
@@ -294,11 +296,7 @@ bool ItemPagingVisitor::visit(const HashTable::HashBucketLock& lh,
 void ItemPagingVisitor::visitBucket(VBucket& vb) {
     update();
 
-    auto current = static_cast<double>(stats.getEstimatedTotalMemoryUsed());
-    auto lower = static_cast<double>(stats.mem_low_wat);
-
-    if (current <= lower) {
-        // stop eviction whenever memory usage is below low watermark
+    if (shouldStopPaging()) {
         return;
     }
 
@@ -376,6 +374,13 @@ void ItemPagingVisitor::update() {
         EP_LOG_DEBUG("Paged out {} values", ejected);
         ejected = 0;
     }
+}
+
+bool ItemPagingVisitor::shouldStopPaging() const {
+    auto current = static_cast<double>(stats.getEstimatedTotalMemoryUsed());
+    auto lower = static_cast<double>(stats.mem_low_wat);
+    // stop eviction whenever memory usage is below low watermark
+    return current <= lower;
 }
 
 uint64_t ItemPagingVisitor::casToAge(uint64_t cas) const {

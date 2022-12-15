@@ -387,6 +387,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/pre_link_document_context.h
             src/probabilistic_counter.cc
             src/progress_tracker.cc
+            src/quota_sharing_item_pager.cc
             src/replicationthrottle.cc
             src/linked_list.cc
             src/range_lock_manager.cc

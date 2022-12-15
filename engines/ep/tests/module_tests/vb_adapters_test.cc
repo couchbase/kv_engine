@@ -140,7 +140,8 @@ TEST_F(VBAdaptorsTest, CrossBucketVisitorsWorksForSingleBucket) {
             CrossBucketVisitorAdapter::ScheduleOrder::RoundRobin,
             TaskId::ItemPager,
             "test",
-            std::chrono::microseconds(0));
+            std::chrono::microseconds(0),
+            nullptr);
     crossBucketVisitor->scheduleNow();
 
     EXPECT_FALSE(crossBucketVisitor->hasCompleted());
@@ -282,7 +283,8 @@ TEST_F(VBAdaptorsTest, CrossBucketVisitorIgnoresUnexpectedWakeups) {
             CrossBucketVisitorAdapter::ScheduleOrder::RoundRobin,
             TaskId::ItemPager,
             "test",
-            std::chrono::microseconds(0));
+            std::chrono::microseconds(0),
+            nullptr);
 
     bool wasHookExecuted = false;
     crossBucketVisitor->scheduleNextHook = [&wasHookExecuted](

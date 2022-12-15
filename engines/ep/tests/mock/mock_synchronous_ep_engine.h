@@ -47,6 +47,9 @@ public:
      */
     static SynchronousEPEngineUniquePtr build(const std::string& config);
 
+    /** Construct independent managers, even for quota sharing configs. */
+    QuotaSharingManager& getQuotaSharingManager() override;
+
     /* Allow us to call normally protected methods */
 
     cb::engine_errc public_doDcpVbTakeoverStats(CookieIface& cookie,
@@ -90,4 +93,7 @@ public:
     using EventuallyPersistentEngine::doConnAggStats;
     using EventuallyPersistentEngine::doEngineStats;
     MockReplicationThrottle& getMockReplicationThrottle();
+
+private:
+    std::unique_ptr<QuotaSharingManager> quotaSharingManager;
 };

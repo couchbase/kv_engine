@@ -42,9 +42,15 @@ class Semaphore;
  */
 class ItemPager : public NotifiableTask {
 public:
-    ItemPager(Taskable& t, size_t numConcurrentPagers);
+    ItemPager(Taskable& t,
+              size_t numConcurrentPagers,
+              std::chrono::milliseconds sleepTime);
 
     bool runInner(bool manuallyNotified) override;
+
+    std::chrono::microseconds getSleepTime() const override {
+        return sleepTime;
+    }
 
 protected:
     struct PageableMemInfo {
@@ -103,6 +109,12 @@ protected:
     const std::shared_ptr<cb::Semaphore> pagerSemaphore;
     // Should eviction continue until the low watermark is reached?
     bool doEvict;
+
+    /**
+     * How long this task sleeps for if not requested to run. Initialised from
+     * the configuration parameter - pager_sleep_time_ms
+     */
+    std::chrono::milliseconds sleepTime;
 };
 
 /**
@@ -134,10 +146,6 @@ public:
         return std::chrono::milliseconds(25);
     }
 
-    std::chrono::microseconds getSleepTime() const override {
-        return sleepTime;
-    }
-
     PageableMemInfo getPageableMemInfo() const override;
 
     EvictionRatios getEvictionRatios(
@@ -164,12 +172,6 @@ private:
 
     EventuallyPersistentEngine& engine;
     EPStats& stats;
-
-    /**
-     * How long this task sleeps for if not requested to run. Initialised from
-     * the configuration parameter - pager_sleep_time_ms
-     */
-    std::chrono::milliseconds sleepTime;
 };
 
 /**

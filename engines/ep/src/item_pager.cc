@@ -27,6 +27,7 @@
 #include <executor/executorpool.h>
 
 #include <folly/lang/Assume.h>
+#include <folly/portability/Unistd.h>
 #include <phosphor/phosphor.h>
 #include <platform/platform_time.h>
 #include <platform/semaphore.h>
@@ -42,11 +43,14 @@
 
 #include <memory>
 
-ItemPager::ItemPager(Taskable& t, size_t numConcurrentPagers)
+ItemPager::ItemPager(Taskable& t,
+                     size_t numConcurrentPagers,
+                     std::chrono::milliseconds sleepTime)
     : NotifiableTask(t, TaskId::ItemPager, 10, false),
       numConcurrentPagers(numConcurrentPagers),
       pagerSemaphore(std::make_shared<cb::Semaphore>(numConcurrentPagers)),
-      doEvict(false) {
+      doEvict(false),
+      sleepTime(sleepTime) {
 }
 
 std::optional<VBucketFilter> ItemPager::createVBucketFilter(
@@ -84,35 +88,36 @@ PermittedVBStates ItemPager::getStatesForEviction(EvictionRatios ratios) const {
 StrictQuotaItemPager::StrictQuotaItemPager(EventuallyPersistentEngine& e,
                                            EPStats& st,
                                            size_t numConcurrentPagers)
-    : ItemPager(e.getTaskable(), numConcurrentPagers),
+    : ItemPager(e.getTaskable(),
+                numConcurrentPagers,
+                std::chrono::milliseconds(
+                        e.getConfiguration().getPagerSleepTimeMs())),
       engine(e),
-      stats(st),
-      sleepTime(std::chrono::milliseconds(
-              e.getConfiguration().getPagerSleepTimeMs())) {
+      stats(st) {
 }
 
 EvictionRatios StrictQuotaItemPager::getEvictionRatios(
         const std::vector<std::reference_wrapper<KVBucket>>& kvBuckets,
-        std::size_t bytesToEvict_) const {
-    auto bytesToEvict = gsl::narrow<std::ptrdiff_t>(bytesToEvict_);
+        const std::size_t bytesToEvict) const {
     if (kvBuckets.size() != 1) {
         throw std::invalid_argument("Only 1 bucket can be specified");
     }
     auto& kvBucket = kvBuckets[0].get();
 
+    auto remainingBytesToEvict = gsl::narrow<ssize_t>(bytesToEvict);
     double replicaEvictionRatio = 0.0;
     if (kvBucket.canEvictFromReplicas()) {
         const double replicaEvictableMem =
                 getEvictableBytes(kvBucket, {vbucket_state_replica});
         // try evict from replicas first if we can
         replicaEvictionRatio =
-                std::min(1.0, bytesToEvict / replicaEvictableMem);
+                std::min(1.0, remainingBytesToEvict / replicaEvictableMem);
 
-        bytesToEvict -= replicaEvictableMem;
+        remainingBytesToEvict -= replicaEvictableMem;
     }
 
     double activeAndPendingEvictionRatio = 0.0;
-    if (bytesToEvict > 0) {
+    if (remainingBytesToEvict > 0) {
         const double activePendingEvictableMem = getEvictableBytes(
                 kvBucket, {vbucket_state_active, vbucket_state_pending});
         // replicas are not sufficient (or are not eligible for eviction if
@@ -121,8 +126,8 @@ EvictionRatios StrictQuotaItemPager::getEvictionRatios(
         // Consider active and pending vbuckets too.
         // active and pending share an eviction ratio, it need only be
         // set once
-        activeAndPendingEvictionRatio =
-                std::min(1.0, bytesToEvict / activePendingEvictableMem);
+        activeAndPendingEvictionRatio = std::min(
+                1.0, remainingBytesToEvict / activePendingEvictableMem);
     }
 
     return {activeAndPendingEvictionRatio, replicaEvictionRatio};

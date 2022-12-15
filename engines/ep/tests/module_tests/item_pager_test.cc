@@ -294,9 +294,16 @@ protected:
 class STItemPagerTest : virtual public STBucketQuotaTest {
 public:
     static auto allConfigValuesAllEvictionStrategiesNoNexus() {
+        auto quotaSharing = config::Config{
+                {"cross_bucket_ht_quota_sharing", {"true", "false"}}};
+        // For upfront_mfu_only, also test with quota sharing on/off.
+        auto mfuOnly =
+                config::Config{{"item_eviction_strategy", "upfront_mfu_only"}} *
+                quotaSharing;
+
         auto evictionStrategies =
-                config::Config{{"item_eviction_strategy",
-                                {"learning_age_and_mfu", "upfront_mfu_only"}}};
+                mfuOnly | config::Config{{"item_eviction_strategy",
+                                          "learning_age_and_mfu"}};
         return allConfigValuesNoNexus() * evictionStrategies;
     }
 
@@ -338,9 +345,40 @@ protected:
         // ready.
         try {
             SCOPED_TRACE("");
-            runNextTask(lpNonioQ, "Paging out items.");
+            runNextTask(lpNonioQ, itemPagerTaskName());
             FAIL() << "Unexpectedly managed to run Item Pager";
         } catch (std::logic_error&) {
+        }
+    }
+
+    bool isCrossBucketHtQuotaSharing() {
+        return config_string.find("cross_bucket_ht_quota_sharing=true") !=
+               std::string::npos;
+    }
+
+    std::string itemPagerTaskName() {
+        if (isCrossBucketHtQuotaSharing()) {
+            return "Paging out items (quota sharing).";
+        }
+        return "Paging out items.";
+    }
+
+    void runPagingAdapterTask() {
+        auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+        if (isCrossBucketHtQuotaSharing()) {
+            // The cross-bucket adapter runs one task per vBucket so we schedule
+            // it until completed
+            while (initialNonIoTasks < lpNonioQ.getFutureQueueSize()) {
+                try {
+                    runNextTask(lpNonioQ,
+                                "Item pager (quota sharing) "
+                                "(SynchronousEPEngine:default)");
+                } catch (const std::runtime_error&) {
+                    break;
+                }
+            }
+        } else {
+            runNextTask(lpNonioQ, "Item pager no vbucket assigned");
         }
     }
 
@@ -359,10 +397,10 @@ protected:
             // Item pager consists of two Tasks - the parent ItemPager task,
             // and then a task (via VCVBAdapter) to process each vBucket (which
             // there is just one of as we only have one vBucket online).
-            runNextTask(lpNonioQ, "Paging out items.");
+            runNextTask(lpNonioQ, itemPagerTaskName());
             ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
             ASSERT_EQ(initialNonIoTasks + 1, lpNonioQ.getFutureQueueSize());
-            runNextTask(lpNonioQ, "Item pager no vbucket assigned");
+            runPagingAdapterTask();
         } else {
             runNextTask(lpNonioQ, "Paging expired items.");
             // Multiple vBuckets are processed in a single task run.
@@ -689,8 +727,8 @@ TEST_P(STItemPagerTest, ReplicaItemsVisitedFirst) {
     auto count = populateUntilTmpFail(replicaVB);
     store->setVBucketState(replicaVB, vbucket_state_replica);
 
-    runNextTask(lpNonioQ, "Paging out items.");
-    runNextTask(lpNonioQ, "Item pager no vbucket assigned");
+    runNextTask(lpNonioQ, itemPagerTaskName());
+    runPagingAdapterTask();
 
     if (ephemeral()) {
         // We should have not evicted from replica vbuckets
@@ -1164,8 +1202,8 @@ TEST_P(STItemPagerTest, ReplicaEvictedBeforeActive) {
     // Run the item pager
     auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
     // This creates the paging visitor
-    runNextTask(lpNonioQ, "Paging out items.");
-    runNextTask(lpNonioQ, "Item pager no vbucket assigned");
+    runNextTask(lpNonioQ, itemPagerTaskName());
+    runPagingAdapterTask();
 
     // nothing left to do
     EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
@@ -1246,8 +1284,8 @@ TEST_P(STItemPagerTest, ActiveEvictedIfReplicaEvictionInsufficient) {
     auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
 
     // run the item pager. This creates the paging visitor
-    ASSERT_NO_THROW(runNextTask(lpNonioQ, "Paging out items."));
-    ASSERT_NO_THROW(runNextTask(lpNonioQ, "Item pager no vbucket assigned"));
+    ASSERT_NO_THROW(runNextTask(lpNonioQ, itemPagerTaskName()));
+    ASSERT_NO_THROW(runPagingAdapterTask());
 
     // nothing left to do
     EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
@@ -2087,7 +2125,7 @@ TEST_P(STItemPagerTest, MB43055_MemUsedDropDoesNotBreakEviction) {
 
     auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
     // run the item pager. It should _not_ create and schedule a PagingVisitor
-    runNextTask(lpNonioQ, "Paging out items.");
+    runNextTask(lpNonioQ, itemPagerTaskName());
 
     EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
     EXPECT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
@@ -2096,8 +2134,8 @@ TEST_P(STItemPagerTest, MB43055_MemUsedDropDoesNotBreakEviction) {
     // a paging visitor
     populateUntilAboveHighWaterMark(vbid);
 
-    runNextTask(lpNonioQ, "Paging out items.");
-    runNextTask(lpNonioQ, "Item pager no vbucket assigned");
+    runNextTask(lpNonioQ, itemPagerTaskName());
+    runPagingAdapterTask();
 }
 
 /**
@@ -2440,7 +2478,7 @@ TEST_P(MultiPagingVisitorTest, ItemPagerCreatesMultiplePagers) {
     ASSERT_EQ(initialNonIoTasks, lpNonioQ.getFutureQueueSize());
 
     // Run the parent ItemPager task, and then N PagingVisitor tasks
-    runNextTask(lpNonioQ, "Paging out items.");
+    runNextTask(lpNonioQ, itemPagerTaskName());
     ASSERT_EQ(0, lpNonioQ.getReadyQueueSize());
 
     auto numConcurrentPagers = engine->getConfiguration().getConcurrentPagers();
@@ -2448,7 +2486,7 @@ TEST_P(MultiPagingVisitorTest, ItemPagerCreatesMultiplePagers) {
               lpNonioQ.getFutureQueueSize());
 
     for (size_t i = 0; i < numConcurrentPagers; ++i) {
-        runNextTask(lpNonioQ, "Item pager no vbucket assigned");
+        runPagingAdapterTask();
     }
 }
 

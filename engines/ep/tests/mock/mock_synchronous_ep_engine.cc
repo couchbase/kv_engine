@@ -22,6 +22,7 @@
 #include "mock_ephemeral_bucket.h"
 #include "mock_replicationthrottle.h"
 #include "objectregistry.h"
+#include <executor/executorpool.h>
 #include <fmt/format.h>
 #include <platform/cb_arena_malloc.h>
 #include <platform/cbassert.h>
@@ -29,7 +30,9 @@
 #include <programs/engine_testapp/mock_server.h>
 #include <string>
 
+#include <ep_engine_group.h>
 #include <memcached/server_core_iface.h>
+#include <quota_sharing_item_pager.h>
 
 SynchronousEPEngine::SynchronousEPEngine(const cb::ArenaMallocClient& client,
                                          std::string extra_config)
@@ -153,6 +156,28 @@ SynchronousEPEngineUniquePtr SynchronousEPEngine::build(
     engine->setMaxDataSize(engine->getConfiguration().getMaxSize());
 
     return engine;
+}
+
+QuotaSharingManager& SynchronousEPEngine::getQuotaSharingManager() {
+    struct QuotaSharingManagerImpl : public QuotaSharingManager {
+        QuotaSharingManagerImpl(SynchronousEPEngine& engine)
+            : engine(engine), group(*engine.getServerApi()->bucket) {
+        }
+
+        EPEngineGroup& getGroup() override {
+            return group;
+        }
+
+        SynchronousEPEngine& engine;
+        EPEngineGroup group;
+    };
+
+    if (!quotaSharingManager) {
+        quotaSharingManager = std::make_unique<QuotaSharingManagerImpl>(*this);
+        quotaSharingManager->getGroup().add(*this);
+    }
+
+    return *quotaSharingManager;
 }
 
 void SynchronousEPEngineDeleter::operator()(SynchronousEPEngine* engine) {
