@@ -54,7 +54,7 @@ ScanContext::ScanContext(
         std::unique_ptr<StatusCallback<CacheLookup>> cl,
         const std::vector<Collections::KVStore::DroppedCollection>&
                 droppedCollections,
-        int64_t maxSeqno)
+        uint64_t maxSeqno)
     : vbid(vbid),
       handle(std::move(handle)),
       docFilter(docFilter),
@@ -73,8 +73,8 @@ BySeqnoScanContext::BySeqnoScanContext(
         std::unique_ptr<StatusCallback<CacheLookup>> cl,
         Vbid vb,
         std::unique_ptr<KVFileHandle> handle,
-        int64_t start,
-        int64_t end,
+        uint64_t start,
+        uint64_t end,
         uint64_t purgeSeqno,
         DocumentFilter _docFilter,
         ValueFilter _valFilter,
@@ -110,7 +110,7 @@ ByIdScanContext::ByIdScanContext(
         ValueFilter _valFilter,
         const std::vector<Collections::KVStore::DroppedCollection>&
                 droppedCollections,
-        int64_t maxSeqno)
+        uint64_t maxSeqno)
     : ScanContext(vb,
                   std::move(handle),
                   _docFilter,
