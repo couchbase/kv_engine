@@ -999,6 +999,14 @@ public:
         return kvstoreScanTracker;
     }
 
+    void setHistoryRetentionSeconds(std::chrono::seconds secs);
+
+    std::chrono::seconds getHistoryRetentionSeconds() const;
+
+    void setHistoryRetentionBytes(size_t bytes);
+
+    size_t getHistoryRetentionBytes() const;
+
 protected:
     /**
      * Get the checkpoint destroyer task responsible for checkpoints from the
@@ -1256,6 +1264,12 @@ protected:
      * requested will always be used over a currently running change request
      */
     std::shared_ptr<BucketQuotaChangeTask> bucketQuotaChangeTask;
+
+    /// Seconds of history a bucket should aim to retain on disk.
+    std::atomic<std::chrono::seconds> historyRetentionSeconds;
+
+    /// Max bytes of history an individual vbucket should aim to retain on disk.
+    std::atomic<size_t> historyRetentionBytes;
 
     friend class KVBucketTest;
 

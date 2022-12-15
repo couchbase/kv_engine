@@ -870,6 +870,10 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             getConfiguration().setItemEvictionStrategy(val);
         } else if (key == "magma_per_document_compression_enabled") {
             configuration.setMagmaPerDocumentCompressionEnabled(cb_stob(val));
+        } else if (key == "history_retention_seconds") {
+            configuration.setHistoryRetentionSeconds(std::stoul(val));
+        } else if (key == "history_retention_bytes") {
+            configuration.setHistoryRetentionBytes(std::stoul(val));
         } else {
             msg = "Unknown config param";
             rv = cb::engine_errc::invalid_arguments;

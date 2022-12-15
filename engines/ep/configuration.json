@@ -1560,6 +1560,26 @@
                 ]
             }
         },
+        "history_retention_seconds": {
+            "default": "0",
+            "dynamic": true,
+            "descr": "Seconds of history the bucket should aim to retain on disk.",
+            "type": "size_t",
+            "requires": {
+                "bucket_type": "persistent",
+                "backend": "magma"
+            }
+        },
+        "history_retention_bytes": {
+            "default": "0",
+            "dynamic": true,
+            "descr": "Max bytes of history a bucket should aim to retain on disk.",
+            "type": "size_t",
+            "requires": {
+                "bucket_type": "persistent",
+                "backend": "magma"
+            }
+        },
         "warmup": {
             "default": "true",
             "dynamic": false,
