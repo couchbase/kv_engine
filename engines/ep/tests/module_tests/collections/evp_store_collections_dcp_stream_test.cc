@@ -783,7 +783,9 @@ TEST_F(CollectionsDcpStreamsTest,
              {ScopeEntry::defaultS.getId(),
               CollectionEntry::dairy.getId(),
               CollectionEntry::dairy.name,
-              {}}}};
+              {},
+              Collections::Metered::Yes,
+              CanDeduplicate::Yes}}};
     EXPECT_EQ(cb::engine_errc::success,
               consumer->systemEvent(
                       opaque,

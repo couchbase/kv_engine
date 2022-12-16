@@ -84,7 +84,12 @@ Collections::KVStore::Manifest decodeManifest(cb::const_byte_buffer manifest,
                      Collections::CollectionMetaData{entry->scopeId(),
                                                      entry->collectionId(),
                                                      entry->name()->str(),
-                                                     maxTtl}});
+                                                     maxTtl,
+                                                     // metered: not persisted
+                                                     // correct value comes from
+                                                     // bucket manifest
+                                                     Collections::Metered::Yes,
+                                                     CanDeduplicate::Yes}});
         }
     } else {
         // Nothing on disk - the default collection is assumed

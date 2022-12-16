@@ -86,6 +86,12 @@ static_assert(sizeof(ManifestUidNetworkOrder) == 8,
  */
 ManifestUid makeManifestUid(std::string_view uid);
 
+/// Collection metering yes/no
+enum class Metered : bool { Yes, No };
+
+std::string to_string(Metered);
+std::ostream& operator<<(std::ostream&, Metered);
+
 /**
  * The metadata of a single collection. This represents the data we persist
  * in KVStore meta and is used to communicate back to kv from KVStore
@@ -93,17 +99,40 @@ ManifestUid makeManifestUid(std::string_view uid);
  * Default construction yields the default collection
  */
 struct CollectionMetaData {
+    CollectionMetaData() = default;
+    CollectionMetaData(ScopeID sid,
+                       CollectionID cid,
+                       std::string_view name,
+                       cb::ExpiryLimit maxTtl,
+                       Metered metered,
+                       CanDeduplicate canDeduplicate)
+        : sid(sid),
+          cid(cid),
+          name(name),
+          maxTtl(maxTtl),
+          metered(metered),
+          canDeduplicate(canDeduplicate) {
+    }
+
     ScopeID sid{ScopeID::Default}; // The scope that the collection belongs to
     CollectionID cid{CollectionID::Default}; // The collection's ID
     std::string name{DefaultCollectionName}; // The collection's name
     cb::ExpiryLimit maxTtl{}; // The collection's maxTTL
+    Metered metered{Metered::Yes};
+    CanDeduplicate canDeduplicate{CanDeduplicate::Yes};
 
     bool operator==(const CollectionMetaData& other) const {
         return sid == other.sid && cid == other.cid && name == other.name &&
-               maxTtl == other.maxTtl;
+               maxTtl == other.maxTtl && metered == other.metered &&
+               canDeduplicate == other.canDeduplicate;
+    }
+
+    bool operator!=(const CollectionMetaData& other) const {
+        return !(*this == other);
     }
 };
 
+std::string to_string(const CollectionMetaData&);
 std::ostream& operator<<(std::ostream& os, const CollectionMetaData& meta);
 
 /**
@@ -170,12 +199,6 @@ using IsVisibleFunction =
 using DataLimit = std::optional<size_t>;
 
 static const DataLimit NoDataLimit{};
-
-/// Collection metering yes/no
-enum class Metered : bool { Yes, No };
-
-std::string to_string(Metered);
-std::ostream& operator<<(std::ostream&, Metered);
 
 namespace VB {
 enum class ManifestUpdateStatus {

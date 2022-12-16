@@ -239,3 +239,12 @@ class ReplicaCheckpointTest : public CheckpointTest {
 public:
     void SetUp() override;
 };
+
+/**
+ * Test fixture that verifies the behaviour of Checkpoints in a CDC
+ * configuration.
+ */
+class ChangeStreamCheckpointTest : public SingleThreadedCheckpointTest {
+public:
+    void SetUp() override;
+};

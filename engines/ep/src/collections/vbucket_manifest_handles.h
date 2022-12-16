@@ -214,7 +214,7 @@ public:
      * Update the 'summary' object with all the 'summary' stats for the given
      * collections
      */
-    void accumulateStats(const std::vector<CollectionEntry> collections,
+    void accumulateStats(const std::vector<CollectionMetaData> collections,
                          Summary& summary) const {
         manifest->accumulateStats(collections, summary);
     }

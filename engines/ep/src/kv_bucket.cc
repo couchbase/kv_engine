@@ -2719,7 +2719,7 @@ std::pair<uint64_t, std::optional<ScopeID>> KVBucket::getScopeID(
     return collectionsManager->getScopeID(cid);
 }
 
-std::pair<uint64_t, std::optional<Collections::CollectionEntry>>
+std::pair<uint64_t, std::optional<Collections::CollectionMetaData>>
 KVBucket::getCollectionEntry(CollectionID cid) const {
     return collectionsManager->getCollectionEntry(cid);
 }

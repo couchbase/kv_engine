@@ -679,7 +679,7 @@ public:
      *              does not exist in the manifest with the returned
      *              uid
      */
-    std::pair<uint64_t, std::optional<Collections::CollectionEntry>>
+    std::pair<uint64_t, std::optional<Collections::CollectionMetaData>>
     getCollectionEntry(CollectionID cid) const;
 
     /**
