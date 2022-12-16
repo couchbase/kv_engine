@@ -168,8 +168,23 @@ QuotaSharingManager& SynchronousEPEngine::getQuotaSharingManager() {
             return group;
         }
 
+        ExTask getItemPager() override {
+            if (!pager) {
+                pager = std::make_shared<QuotaSharingItemPager>(
+                        *engine.getServerApi()->bucket,
+                        group,
+                        engine.getTaskable(),
+                        engine.getConfiguration().getConcurrentPagers(),
+                        std::chrono::milliseconds(
+                                engine.getConfiguration()
+                                        .getPagerSleepTimeMs()));
+            }
+            return pager;
+        }
+
         SynchronousEPEngine& engine;
         EPEngineGroup group;
+        ExTask pager{nullptr};
     };
 
     if (!quotaSharingManager) {

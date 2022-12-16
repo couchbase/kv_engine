@@ -21,6 +21,21 @@ namespace cb::test {
 class Bucket;
 class Cluster;
 
+struct MemStats {
+    size_t current{0};
+    size_t lower{0};
+    size_t upper{0};
+
+    bool isBelowLowWatermark() const {
+        return current <= lower;
+    }
+    bool isAboveHighWatermark() const {
+        return current >= upper;
+    }
+};
+
+std::ostream& operator<<(std::ostream& os, const MemStats& stats);
+
 /**
  * Base class to build clustered tests. The test suite starts up a
  * cluster with 4 nodes, and creates a bucket named default with 8 vbuckets
@@ -55,6 +70,16 @@ protected:
     void getReplica(MemcachedConnection& conn,
                     Vbid vbid,
                     const std::string& key);
+
+    MemStats getMemStats(MemcachedConnection& conn);
+
+    void setFlushParam(MemcachedConnection& conn,
+                       const std::string& paramName,
+                       const std::string& paramValue);
+
+    void setMemWatermarks(MemcachedConnection& conn,
+                          size_t memLowWat,
+                          size_t memHighWat);
 
     static std::unique_ptr<Cluster> cluster;
 };

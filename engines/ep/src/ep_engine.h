@@ -105,6 +105,7 @@ public:
      * active quota sharing engine instances.
      */
     virtual EPEngineGroup& getGroup() = 0;
+    virtual ExTask getItemPager() = 0;
     virtual ~QuotaSharingManager() = default;
 };
 

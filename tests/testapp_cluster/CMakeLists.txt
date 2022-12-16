@@ -10,6 +10,7 @@ cb_add_test_executable(cluster_test
                misc_tests.cc
                out_of_order_tests.cc
                pitr_tests.cc
+               quota_sharing_paging_test.cc
                rbac_tests.cc
                regression_tests.cc
                upgrade_test.cc

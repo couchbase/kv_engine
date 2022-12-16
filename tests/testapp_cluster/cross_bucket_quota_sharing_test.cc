@@ -20,11 +20,13 @@ public:
     void SetUp() override {
         // cross_bucket_ht_quota_sharing is not a default configuration for any
         // type of deployment (yet) so we have to enable it manually for these
-        // tests. We don't care about replicas so we will disable those here,
-        // and we need to set the freq_counter_increment_factor to a lower value
-        // than the default to trigger the ItemFreqDecayer more quickly in the
-        // tests that care about that. Setting it to 0 means that we always
-        // increment the frequency counter.
+        // tests. Replicas disabled makes the tests simpler. Note that we cover
+        // eviction from replicas in a quota-sharing configuration in the
+        // parametric bucket unit tests for the ItemPager. We need to set the
+        // freq_counter_increment_factor to a lower value than the default to
+        // trigger the ItemFreqDecayer more quickly in the tests that care about
+        // that. Setting it to 0 means that we always increment the frequency
+        // counter.
         bucket1 =
                 cluster->createBucket("bucket1",
                                       {{"replicas", 0},

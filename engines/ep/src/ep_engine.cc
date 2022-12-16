@@ -6964,37 +6964,45 @@ void EventuallyPersistentEngine::setDcpConsumerBufferRatio(float ratio) {
 
 QuotaSharingManager& EventuallyPersistentEngine::getQuotaSharingManager() {
     struct QuotaSharingManagerImpl : public QuotaSharingManager {
-        QuotaSharingManagerImpl(ServerBucketIface& bucketApi)
-            : group(bucketApi) {
+        QuotaSharingManagerImpl(ServerBucketIface& bucketApi,
+                                size_t numConcurrentPagers)
+            : bucketApi(bucketApi),
+              group(bucketApi),
+              numConcurrentPagers(numConcurrentPagers) {
         }
 
         EPEngineGroup& getGroup() override {
             return group;
         }
 
+        ExTask getItemPager() override {
+            static ExTask task = [this]() {
+                auto sleepTime = std::chrono::milliseconds(5000);
+                return std::make_shared<QuotaSharingItemPager>(
+                        bucketApi,
+                        group,
+                        ExecutorPool::get()->getDefaultTaskable(),
+                        numConcurrentPagers,
+                        sleepTime);
+            }();
+            return task;
+        }
+
+        ServerBucketIface& bucketApi;
         EPEngineGroup group;
+        const size_t numConcurrentPagers;
     };
 
-    static QuotaSharingManagerImpl manager(*serverApi->bucket);
+    static QuotaSharingManagerImpl manager(
+            *serverApi->bucket,
+            // TODO: React to changes in the number of concurrent pagers.
+            serverApi->core->getQuotaSharingPagerConcurrency());
     return manager;
 }
 
 ExTask EventuallyPersistentEngine::createItemPager() {
     if (getConfiguration().isCrossBucketHtQuotaSharing()) {
-        // TODO: Figure out where we want to get this value from
-        auto numConcurrentPagers = getConfiguration().getConcurrentPagers();
-        auto sleepTime = std::chrono::milliseconds(5000);
-        // TODO: Move the QuotaSharingItemPager to the QuotaSharingManager,
-        // so it can be shared between engine instances.
-        auto task = std::make_shared<QuotaSharingItemPager>(
-                *serverApi->bucket,
-                getQuotaSharingManager().getGroup(),
-                // TODO: Use the default taskable here
-                taskable,
-                numConcurrentPagers,
-                sleepTime);
-        ExecutorPool::get()->cancel(task->getId());
-        return task;
+        return getQuotaSharingManager().getItemPager();
     } else {
         auto numConcurrentPagers = getConfiguration().getConcurrentPagers();
         auto task = std::make_shared<StrictQuotaItemPager>(

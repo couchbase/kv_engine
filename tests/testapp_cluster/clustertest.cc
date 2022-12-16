@@ -18,6 +18,13 @@
 
 std::unique_ptr<cb::test::Cluster> cb::test::ClusterTest::cluster;
 
+std::ostream& cb::test::operator<<(std::ostream& os,
+                                   const cb::test::MemStats& stats) {
+    return os << "{current: " << stats.current / 1024.0 / 1024.0
+              << " MiB, lower: " << stats.lower / 1024.0 / 1024.0
+              << " MiB, upper: " << stats.upper / 1024.0 / 1024.0 << " MiB}";
+}
+
 void cb::test::ClusterTest::StartCluster() {
     cluster = Cluster::create(4);
     if (!cluster) {
@@ -89,4 +96,35 @@ void cb::test::ClusterTest::getReplica(MemcachedConnection& conn,
         rsp = conn.execute(cmd);
     } while (rsp.getStatus() == cb::mcbp::Status::KeyEnoent);
     EXPECT_TRUE(rsp.isSuccess());
+}
+
+cb::test::MemStats cb::test::ClusterTest::getMemStats(
+        MemcachedConnection& conn) {
+    auto stats = conn.stats("memory");
+    return MemStats{
+            stats["mem_used"].get<size_t>(),
+            stats["ep_mem_low_wat"].get<size_t>(),
+            stats["ep_mem_high_wat"].get<size_t>(),
+    };
+}
+
+void cb::test::ClusterTest::setFlushParam(MemcachedConnection& conn,
+                                          const std::string& paramName,
+                                          const std::string& paramValue) {
+    auto cmd = BinprotSetParamCommand(
+            cb::mcbp::request::SetParamPayload::Type::Flush,
+            paramName,
+            paramValue);
+    const auto resp = BinprotMutationResponse(conn.execute(cmd));
+    EXPECT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+}
+
+void cb::test::ClusterTest::setMemWatermarks(MemcachedConnection& conn,
+                                             size_t memLowWat,
+                                             size_t memHighWat) {
+    setFlushParam(conn, "mem_low_wat", std::to_string(memLowWat));
+    setFlushParam(conn, "mem_high_wat", std::to_string(memHighWat));
+    auto stats = getMemStats(conn);
+    EXPECT_EQ(stats.lower, memLowWat);
+    EXPECT_EQ(stats.upper, memHighWat);
 }

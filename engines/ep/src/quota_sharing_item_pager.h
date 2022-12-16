@@ -12,9 +12,7 @@
 #include "item_pager.h"
 
 #include <executor/notifiable_task.h>
-#include <folly/Synchronized.h>
 #include <memcached/server_bucket_iface.h>
-#include <mutex>
 #include <vector>
 
 class EPEngineGroup;
