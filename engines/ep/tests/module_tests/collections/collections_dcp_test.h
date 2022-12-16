@@ -102,6 +102,18 @@ public:
                                     const CollectionEntry::Entry& entry,
                                     uint64_t seqno);
 
+    /**
+     * This function (created for OSO tests) writes to two collections (fruit
+     * and vegetable). The keys are "a", "b", "c" and "d" to demonstrate the
+     * lexicographical ordering of an OSO snapshot.
+     *
+     * @param endOnVegetable true and the last item written will be for the
+     *         vegetable collection
+     * @return manifest and high-seqno
+     */
+    std::pair<CollectionsManifest, uint64_t> setupTwoCollections(
+            bool endOnVegetable = false);
+
     static cb::engine_errc dcpAddFailoverLog(
             const std::vector<vbucket_failover_t>&);
 
