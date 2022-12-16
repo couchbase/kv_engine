@@ -628,7 +628,7 @@ protected:
 
     // MB-37468: Test only hooks set via Mock class
     TestingHook<> completeBackfillHook;
-    std::function<void(const DcpResponse*)> nextHook;
+    TestingHook<const DcpResponse*> nextHook;
     TestingHook<> takeoverSendPhaseHook;
 
     // Whether the responses sent using this stream should contain the body
