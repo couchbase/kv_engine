@@ -107,6 +107,7 @@ Options:
                                  flags field.
                                  Default value is DCP_ADD_STREAM_FLAG_LATEST
   --enable-flatbuffer-sysevents  Turn on system events with flatbuffer values
+  --enable-change-streams        Turn on change-stream support
   --help                         This help text
 )";
 
@@ -501,6 +502,7 @@ int main(int argc, char** argv) {
     uint32_t streamRequestFlags = DCP_ADD_STREAM_FLAG_LATEST;
     size_t num_connections = 1;
     bool enableFlatbufferSysEvents{false};
+    bool enableChangeStreams{false};
 
     cb::net::initialize();
 
@@ -510,6 +512,7 @@ int main(int argc, char** argv) {
     const int disableCollectionsOptionId = 4;
     const int streamRequestFlagsOptionId = 5;
     const int enableFlatbufferSysEventsId = 6;
+    const int enableChangeStreamsId = 7;
 
     std::vector<option> long_options = {
             {"ipv4", no_argument, nullptr, '4'},
@@ -542,6 +545,10 @@ int main(int argc, char** argv) {
              no_argument,
              nullptr,
              enableFlatbufferSysEventsId},
+            {"enable-change-streams",
+             no_argument,
+             nullptr,
+             enableChangeStreamsId},
             {nullptr, 0, nullptr, 0}};
 
     while ((cmd = getopt_long(argc,
@@ -634,6 +641,9 @@ int main(int argc, char** argv) {
             break;
         case enableFlatbufferSysEventsId:
             enableFlatbufferSysEvents = true;
+            break;
+        case enableChangeStreamsId:
+            enableChangeStreams = true;
             break;
         default:
             usage();
@@ -805,6 +815,11 @@ int main(int argc, char** argv) {
                 if (enableFlatbufferSysEvents) {
                     ctrls.emplace_back(std::make_pair(
                             "flatbuffers_system_events", "true"));
+                }
+
+                if (enableChangeStreams) {
+                    ctrls.emplace_back(std::make_pair(
+                            "change_streams", "true"));
                 }
 
                 setControlMessages(c, ctrls);
