@@ -3401,6 +3401,8 @@ TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
 TEST_P(SingleThreadedActiveStreamTest,
        RaceBetweenNotifyAndProcessingExistingItems) {
     // Replace initial stream with one registered with DCP producer.
+    setupProducer({}, true);
+
     auto vb = engine->getVBucket(vbid);
     producer->scheduleCheckpointProcessorTask();
     stream = producer->mockActiveStreamRequest(0,
@@ -3423,7 +3425,10 @@ TEST_P(SingleThreadedActiveStreamTest,
     // readyQ.
     GMockDcpMsgProducers producers;
     ASSERT_EQ(cb::engine_errc::would_block, producer->step(false, producers));
-    producer->getCheckpointSnapshotTask()->run();
+    auto& nonIO = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    runNextTask(nonIO,
+                "Process checkpoint(s) for DCP producer "
+                "test_producer->test_consumer");
 
     // Setup Mock Producer expectations - we should see two snapshot
     // markers with one mutation each:
@@ -3458,7 +3463,7 @@ TEST_P(SingleThreadedActiveStreamTest,
 
     // Note we must perform the store() on a different thread (instead of
     // directly inside the hook) otherwise we will encounter lock inversions.
-    folly::Baton<> baton;
+    folly::Baton baton;
     auto frontEndThread = std::thread([&] {
         baton.wait();
         store_item(vbid, makeStoredDocKey("key2"), "value");
