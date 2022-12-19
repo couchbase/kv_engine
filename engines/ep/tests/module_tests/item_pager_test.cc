@@ -294,60 +294,10 @@ protected:
 class STItemPagerTest : virtual public STBucketQuotaTest {
 public:
     static auto allConfigValuesAllEvictionStrategiesNoNexus() {
-        // TODO MB-54072: make test config parameters more composable, and
-        // then reuse the values in allConfigValuesNoNexus()
-        using namespace std::string_literals;
-        return ::testing::Values(
-                "bucket_type=ephemeral:"
-                "ephemeral_full_policy=auto_delete:"
-                "item_eviction_strategy=upfront_mfu_only"s,
-                "bucket_type=ephemeral:"
-                "ephemeral_full_policy=fail_new_data:"
-                "item_eviction_strategy=upfront_mfu_only"s,
-                "bucket_type=persistent:"
-                "backend=couchstore:"
-                "item_eviction_policy=value_only:"
-                "item_eviction_strategy=upfront_mfu_only"s,
-                "bucket_type=persistent:"
-                "backend=couchstore:"
-                "item_eviction_policy=full_eviction:"
-                "item_eviction_strategy=upfront_mfu_only"s,
-
-                "bucket_type=ephemeral:"
-                "ephemeral_full_policy=auto_delete:"
-                "item_eviction_strategy=learning_age_and_mfu"s,
-                "bucket_type=ephemeral:"
-                "ephemeral_full_policy=fail_new_data:"
-                "item_eviction_strategy=learning_age_and_mfu"s,
-                "bucket_type=persistent:"
-                "backend=couchstore:"
-                "item_eviction_policy=value_only:"
-                "item_eviction_strategy=learning_age_and_mfu"s,
-                "bucket_type=persistent:"
-                "backend=couchstore:"
-                "item_eviction_policy=full_eviction:"
-                "item_eviction_strategy=learning_age_and_mfu"s
-#ifdef EP_USE_MAGMA
-                ,
-                "bucket_type=persistent:"
-                "backend=magma:"
-                "item_eviction_policy=value_only:"
-                "item_eviction_strategy=upfront_mfu_only"s,
-                "bucket_type=persistent:"
-                "backend=magma:"
-                "item_eviction_policy=full_eviction:"
-                "item_eviction_strategy=upfront_mfu_only"s,
-
-                "bucket_type=persistent:"
-                "backend=magma:"
-                "item_eviction_policy=value_only:"
-                "item_eviction_strategy=learning_age_and_mfu"s,
-                "bucket_type=persistent:"
-                "backend=magma:"
-                "item_eviction_policy=full_eviction:"
-                "item_eviction_strategy=learning_age_and_mfu"s
-#endif
-        );
+        auto evictionStrategies =
+                config::Config{{"item_eviction_strategy",
+                                {"learning_age_and_mfu", "upfront_mfu_only"}}};
+        return allConfigValuesNoNexus() * evictionStrategies;
     }
 
 protected:
