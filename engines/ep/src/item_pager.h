@@ -17,6 +17,7 @@
 #include <memcached/types.h> // for ssize_t
 #include <chrono>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "eviction_ratios.h"
@@ -67,10 +68,11 @@ protected:
 
     /**
      * Creates a VBucketFilter object which only accepts VBuckets in one of
-     * the specified states.
+     * the specified states. Returns an empty optional if there are no VBuckets
+     * in any of the specified states.
      */
-    static VBucketFilter createVBucketFilter(KVBucket& kvBucket,
-                                             PermittedVBStates acceptedStates);
+    static std::optional<VBucketFilter> createVBucketFilter(
+            KVBucket& kvBucket, PermittedVBStates acceptedStates);
 
     /**
      * Returns the list of state we need to consider for eviction according

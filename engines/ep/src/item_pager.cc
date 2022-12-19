@@ -49,8 +49,8 @@ ItemPager::ItemPager(Taskable& t, size_t numConcurrentPagers)
       doEvict(false) {
 }
 
-VBucketFilter ItemPager::createVBucketFilter(KVBucket& kvBucket,
-                                             PermittedVBStates acceptedStates) {
+std::optional<VBucketFilter> ItemPager::createVBucketFilter(
+        KVBucket& kvBucket, PermittedVBStates acceptedStates) {
     VBucketFilter filter;
     for (auto state : {vbucket_state_active,
                        vbucket_state_pending,
@@ -62,6 +62,9 @@ VBucketFilter ItemPager::createVBucketFilter(KVBucket& kvBucket,
         for (auto vbid : kvBucket.getVBucketsInState(state)) {
             filter.addVBucket(vbid);
         }
+    }
+    if (filter.empty()) {
+        return {};
     }
     return filter;
 }
@@ -255,7 +258,10 @@ private:
 size_t ItemPager::getEvictableBytes(KVBucket& kvBucket,
                                     PermittedVBStates states) const {
     auto filter = createVBucketFilter(kvBucket, states);
-    VBucketEvictableMemVisitor visitor(filter);
+    if (!filter) {
+        return 0;
+    }
+    VBucketEvictableMemVisitor visitor(*filter);
     kvBucket.visit(visitor);
 
     return visitor.getTotalEvictableMemory();
@@ -289,7 +295,12 @@ void StrictQuotaItemPager::schedulePagingVisitors(std::size_t bytesToEvict) {
     // distribute the vbuckets that should be visited among multiple
     // paging visitors.
     auto filter = createVBucketFilter(*kvBucket, statesToEvictFrom);
-    for (const auto& partFilter : filter.split(numConcurrentPagers)) {
+    if (!filter) {
+        // No vBuckets in the states we wanted to evict from.
+        return;
+    }
+
+    for (const auto& partFilter : filter->split(numConcurrentPagers)) {
         auto pv = std::make_unique<ItemPagingVisitor>(
                 *kvBucket,
                 stats,

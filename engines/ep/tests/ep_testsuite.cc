@@ -8537,6 +8537,17 @@ static enum test_result test_bucket_quota_reduction(EngineIface* h) {
               EngineParamCategory::Flush,
               "pager_sleep_time_ms",
               std::to_string(1000 * 60 * 60).c_str());
+    // However, if we don't have any active/pending/replica vBuckets, and we
+    // don't have the item pager running periodically, once we re-enable the
+    // item pager by increasing the non-IO to 1 there will be nothing to
+    // trigger it (we normally wake up the task in memoryCondition(), when we
+    // have an incoming mutation, however these will be blocked by the
+    // quota change task).
+    // Hack number 2 - Have an empty active vBucket. The item pager will ignore
+    // the dead vb:0, and reschedule until the low_wat is reached (but there
+    // is nothing to be evicted). Once we re-enable the non-IO tasks, it will
+    // run immediately, freeing up memory and completing the quota change.
+    set_vbucket_state(h, Vbid(1), vbucket_state_active);
 
     // Write up to 75%, we need to be more than 93% (mem_mutation_threshold)
     // of the new quota (50% of the current) so anything above 50% of the
@@ -8552,7 +8563,7 @@ static enum test_result test_bucket_quota_reduction(EngineIface* h) {
               "max_size",
               std::to_string(newQuota).c_str());
 
-    // Hack number 2 - To set the new quota we need to run a NonIO task but
+    // Hack number 3 - To set the new quota we need to run a NonIO task but
     // we've just disabled all of the threads. To avoid paging things out, we
     // can cheat the ItemPager by setting the vBucket to dead (ItemPager will
     // skip it) but not delete it (different code path). Then, we can enable
