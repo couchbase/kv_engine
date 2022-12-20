@@ -14,6 +14,7 @@
 #include <engines/ep/src/ep_engine.h>
 #include <engines/ep/src/objectregistry.h>
 #include <folly/lang/Hint.h>
+#include <utilities/debug_variable.h>
 #include <climits>
 
 // These static_asserts previously were in priority_test.cc
@@ -71,6 +72,10 @@ bool GlobalTask::execute(std::string_view threadName) {
 
     // Invoke run with the engine as the target for alloc/dalloc
     BucketAllocationGuard guard(engine);
+
+    // Put the taskable name on the stack so we know which bucket's task was
+    // running if we happen to crash.
+    cb::DebugVariable taskableName(cb::toCharArrayN<32>(taskable.getName()));
 
     // Call GlobalTask::run(), noting the result.
     // If true: Read GlobalTask::wakeTime. If "now", then re-queue

@@ -12,6 +12,7 @@
 
 #include "ep_engine.h"
 #include "kv_bucket.h"
+#include "utilities/debug_variable.h"
 #include "vb_visitors.h"
 
 VBCBAdaptor::VBCBAdaptor(KVBucket* s,
@@ -48,6 +49,9 @@ std::string VBCBAdaptor::getDescription() const {
 }
 
 bool VBCBAdaptor::run() {
+    // It might be useful to have the visitor that is running recorded
+    // in minidumps.
+    cb::DebugVariable visitorName{cb::toCharArrayN<32>(label)};
     visitor->begin();
 
     while (!vbucketsToVisit.empty()) {
@@ -55,6 +59,8 @@ bool VBCBAdaptor::run() {
         VBucketPtr vb = store->getVBucket(vbid);
         if (vb) {
             currentvb = vbid.get();
+            // Also record the vbid.
+            cb::DebugVariable debugVbid{vbid.get()};
 
             using State = InterruptableVBucketVisitor::ExecutionState;
             switch (visitor->shouldInterrupt()) {
