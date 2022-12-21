@@ -27,12 +27,13 @@ cb::engine_errc GetCommandContext::getItem() {
     if (ret.first == cb::engine_errc::success) {
         it = std::move(ret.second);
         if (!bucket_get_item_info(connection, *it, info)) {
-            LOG_WARNING("{}: Failed to get item info", connection.getId());
+            LOG_WARNING("{}: Failed to get item info for document {}",
+                        connection.getId(),
+                        cookie.getPrintableRequestKey());
             return cb::engine_errc::failed;
         }
 
-        payload = {static_cast<const char*>(info.value[0].iov_base),
-                   info.value[0].iov_len};
+        payload = it->getValueView();
 
         bool need_inflate = false;
         if (cb::mcbp::datatype::is_snappy(info.datatype)) {
@@ -56,7 +57,9 @@ cb::engine_errc GetCommandContext::getItem() {
 cb::engine_errc GetCommandContext::inflateItem() {
     try {
         if (!cookie.inflateSnappy(payload, buffer)) {
-            LOG_WARNING("{}: Failed to inflate item", connection.getId());
+            LOG_WARNING("{}: Failed to inflate document {}",
+                        connection.getId(),
+                        cookie.getPrintableRequestKey());
             return cb::engine_errc::failed;
         }
         payload = buffer;
