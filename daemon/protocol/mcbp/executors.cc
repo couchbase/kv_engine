@@ -10,7 +10,6 @@
 
 #include "executors.h"
 
-#include "engine_wrapper.h"
 #include "utilities.h"
 #include <memcached/protocol_binary.h>
 
@@ -31,9 +30,7 @@ void handle_executor_status(Cookie& cookie, cb::engine_errc status) {
 
     case engine_errc::rollback:
         throw std::logic_error(
-                "handle_executor_status: should not be called for "
-                "rollback");
-        break;
+                "handle_executor_status: should not be called for rollback");
 
     case engine_errc::success:
     case engine_errc::no_such_key:
