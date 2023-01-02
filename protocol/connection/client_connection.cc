@@ -13,6 +13,7 @@
 
 #include <cbsasl/client.h>
 #include <fmt/format.h>
+#include <fmt/ostream.h>
 #include <folly/io/IOBuf.h>
 #include <folly/io/async/AsyncSSLSocket.h>
 #include <mcbp/codec/dcp_snapshot_marker.h>
@@ -2103,27 +2104,20 @@ MemcachedConnection::getAllVBucketSequenceNumbers(uint32_t state,
 /////////////////////////////////////////////////////////////////////////
 
 // Generates error msgs like ``<prefix>: ["<context>", ]<reason> (#<reason>)``
-static std::string formatMcbpExceptionMsg(const std::string& prefix,
+static std::string formatMcbpExceptionMsg(std::string_view prefix,
                                           cb::mcbp::Status reason,
-                                          const std::string& context = "") {
+                                          std::string_view context = {}) {
     // Format the error message
-    std::string errormessage(prefix);
-    errormessage.append(": ");
-
-    if (!context.empty()) {
-        errormessage.append("'");
-        errormessage.append(context);
-        errormessage.append("', ");
-    }
-
-    errormessage.append(to_string(reason));
-    errormessage.append(" (");
-    errormessage.append(std::to_string(uint16_t(reason)));
-    errormessage.append(")");
-    return errormessage;
+    return fmt::format("{}: {}{}{}, {} ({})",
+                       prefix,
+                       context.empty() ? "" : "'",
+                       context,
+                       context.empty() ? "" : "'",
+                       reason,
+                       uint16_t(reason));
 }
 
-static std::string formatMcbpExceptionMsg(const std::string& prefix,
+static std::string formatMcbpExceptionMsg(std::string_view prefix,
                                           const BinprotResponse& response) {
     std::string context;
     // If the response was not a success and the datatype is json then there's
@@ -2133,13 +2127,10 @@ static std::string formatMcbpExceptionMsg(const std::string& prefix,
         try {
             auto json = nlohmann::json::parse(response.getDataString());
             if (json.type() == nlohmann::json::value_t::object) {
-                auto error = json.find("error");
-                if (error != json.end()) {
-                    auto ctx = error->find("context");
-                    if (ctx != error->end() &&
-                        ctx->type() == nlohmann::json::value_t::string) {
-                        context = ctx->get<std::string>();
-                    }
+                if (json.contains("error") &&
+                    json["error"].contains("context") &&
+                    json["error"]["context"].is_string()) {
+                    context = json["error"]["context"].get<std::string>();
                 }
             }
         } catch (const nlohmann::json::exception&) {
