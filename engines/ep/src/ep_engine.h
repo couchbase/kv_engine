@@ -149,6 +149,8 @@ public:
     cb::EngineErrorItemPair get_replica(CookieIface& cookie,
                                         const DocKey& key,
                                         Vbid vbucket) override;
+    cb::EngineErrorItemPair get_random_document(CookieIface& cookie,
+                                                CollectionID cid) override;
     cb::EngineErrorItemPair get_if(
             CookieIface& cookie,
             const DocKey& key,
@@ -455,6 +457,8 @@ public:
     cb::EngineErrorItemPair getReplicaInner(CookieIface& cookie,
                                             const DocKey& key,
                                             Vbid vbucket);
+    cb::EngineErrorItemPair getRandomDocument(CookieIface& cookie,
+                                              CollectionID cid);
 
     /**
      * Fetch an item only if the specified filter predicate returns true.
@@ -746,10 +750,6 @@ public:
     void setWorkloadPriority(bucket_priority_t p) {
         workloadPriority = p;
     }
-
-    cb::engine_errc getRandomKey(CookieIface& cookie,
-                                 const cb::mcbp::Request& request,
-                                 const AddResponseFn& response);
 
     void setCompressionMode(const std::string& compressModeStr);
 

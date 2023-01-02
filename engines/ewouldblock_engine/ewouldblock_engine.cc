@@ -171,6 +171,8 @@ public:
                                 const DocKey& key,
                                 Vbid vbucket,
                                 DocStateFilter documentStateFilter) override;
+    cb::EngineErrorItemPair get_random_document(CookieIface& cookie,
+                                                CollectionID cid) override;
     cb::EngineErrorItemPair get_if(
             CookieIface& cookie,
             const DocKey& key,
@@ -1016,6 +1018,17 @@ cb::EngineErrorItemPair EWB_Engine::get(CookieIface& cookie,
     } else {
         return real_engine->get(cookie, key, vbucket, documentStateFilter);
     }
+}
+
+cb::EngineErrorItemPair EWB_Engine::get_random_document(CookieIface& cookie,
+                                                        CollectionID cid) {
+    cb::engine_errc err;
+    if (should_inject_error(Cmd::GET, &cookie, err)) {
+        return std::make_pair(
+                cb::engine_errc(err),
+                cb::unique_item_ptr{nullptr, cb::ItemDeleter{this}});
+    }
+    return real_engine->get_random_document(cookie, cid);
 }
 
 cb::EngineErrorItemPair EWB_Engine::get_if(

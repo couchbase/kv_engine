@@ -500,7 +500,7 @@ void addSessionTerminated(const Connection& c) {
 
 namespace document {
 
-void add(Cookie& cookie, Operation operation) {
+void add(Cookie& cookie, Operation operation, const DocKey& key) {
     uint32_t id = 0;
     switch (operation) {
     case Operation::Read:
@@ -530,9 +530,8 @@ void add(Cookie& cookie, Operation operation) {
     auto root = create_memcached_audit_object(
             id, connection, connection.getUser(), cookie.getEffectiveUser());
     root["bucket"] = connection.getBucket().name;
-    root["collection_id"] = cookie.getPrintableRequestCollectionID();
-    root["key"] = cookie.getPrintableRequestKey(false, true);
-
+    root["key"] = key.makeDocKeyWithoutCollectionID().toPrintableString();
+    root["collection_id"] = key.getCollectionID().to_string();
     switch (operation) {
     case Operation::Read:
         do_audit(&cookie,

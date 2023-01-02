@@ -1277,7 +1277,9 @@ static void subdoc_single_response(Cookie& cookie, SubdocCmdContext& context) {
     // will have already recorded a Docuemnt Modify event when they called
     // bucket_store.
     if (!context.traits.is_mutator) {
-        cb::audit::document::add(cookie, cb::audit::document::Operation::Read);
+        cb::audit::document::add(cookie,
+                                 cb::audit::document::Operation::Read,
+                                 cookie.getRequestKey());
     }
 
     // Add mutation descr to response buffer if requested.
@@ -1417,7 +1419,9 @@ static void subdoc_multi_lookup_response(Cookie& cookie,
     // Allocated required resource - build the header.
     auto status_code = context.overall_status;
     if (status_code == cb::mcbp::Status::Success) {
-        cb::audit::document::add(cookie, cb::audit::document::Operation::Read);
+        cb::audit::document::add(cookie,
+                                 cb::audit::document::Operation::Read,
+                                 cookie.getRequestKey());
         if (context.in_document_state == DocumentState::Deleted) {
             status_code = cb::mcbp::Status::SubdocSuccessDeleted;
         }

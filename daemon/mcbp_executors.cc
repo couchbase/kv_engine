@@ -53,10 +53,6 @@
 #include <nlohmann/json.hpp>
 #include <utilities/engine_errc_2_mcbp.h>
 
-static void process_bin_get(Cookie& cookie) {
-    cookie.obtainContext<GetCommandContext>(cookie).drive();
-}
-
 static void process_bin_get_meta(Cookie& cookie) {
     cookie.obtainContext<GetMetaCommandContext>(cookie).drive();
 }
@@ -155,7 +151,7 @@ static void append_prepend_executor(Cookie& cookie) {
 }
 
 static void get_executor(Cookie& cookie) {
-    process_bin_get(cookie);
+    cookie.obtainContext<GetCommandContext>(cookie).drive();
 }
 
 static void get_meta_executor(Cookie& cookie) {
@@ -739,6 +735,7 @@ void initialize_mbcp_lookup_map() {
     setup_handler(cb::mcbp::ClientOpcode::Prepend, append_prepend_executor);
     setup_handler(cb::mcbp::ClientOpcode::Get, get_executor);
     setup_handler(cb::mcbp::ClientOpcode::GetReplica, get_executor);
+    setup_handler(cb::mcbp::ClientOpcode::GetRandomKey, get_executor);
     setup_handler(cb::mcbp::ClientOpcode::Getq, get_executor);
     setup_handler(cb::mcbp::ClientOpcode::Getk, get_executor);
     setup_handler(cb::mcbp::ClientOpcode::Getkq, get_executor);

@@ -340,6 +340,10 @@ struct EngineIface {
                                                 const DocKey& key,
                                                 Vbid vbucket);
 
+    /// Get a random document from the provided collection
+    virtual cb::EngineErrorItemPair get_random_document(CookieIface& cookie,
+                                                        CollectionID cid);
+
     /**
      * Optionally retrieve an item. Only non-deleted items may be fetched
      * through this interface (Documents in deleted state may be evicted

@@ -14,6 +14,7 @@
 #include <memcached/systemevent.h>
 #include <platform/socket.h>
 #include <spdlog/fmt/fmt.h>
+#include <cctype>
 #include <ostream>
 #include <sstream>
 #include <string_view>
@@ -146,6 +147,16 @@ std::string DocKey::to_string() const {
         }
     }
     return fmt::format(FMT_STRING("cid:{:#x}:{}"), uint32_t(cid), remainingKey);
+}
+
+std::string DocKey::toPrintableString() const {
+    std::string buffer(getBuffer());
+    for (auto& ii : buffer) {
+        if (!std::isgraph(ii)) {
+            ii = '.';
+        }
+    }
+    return buffer;
 }
 
 CollectionID DocKey::getCollectionID() const {

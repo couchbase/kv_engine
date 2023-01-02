@@ -97,7 +97,9 @@ cb::engine_errc GatCommandContext::sendResponse() {
     STATS_HIT(&connection, get);
 
     // Audit the modification to the document (change of EXP)
-    cb::audit::document::add(cookie, cb::audit::document::Operation::Modify);
+    cb::audit::document::add(cookie,
+                             cb::audit::document::Operation::Modify,
+                             cookie.getRequestKey());
 
     if (cookie.getHeader().getRequest().getClientOpcode() ==
         cb::mcbp::ClientOpcode::Touch) {
@@ -138,7 +140,9 @@ cb::engine_errc GatCommandContext::sendResponse() {
             datatype,
             std::move(sendbuffer));
 
-    cb::audit::document::add(cookie, cb::audit::document::Operation::Read);
+    cb::audit::document::add(cookie,
+                             cb::audit::document::Operation::Read,
+                             cookie.getRequestKey());
     state = State::Done;
     return cb::engine_errc::success;
 }

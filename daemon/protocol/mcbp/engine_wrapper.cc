@@ -109,7 +109,8 @@ cb::engine_errc bucket_store(
         using namespace cb::audit::document;
         add(cookie,
             document_state == DocumentState::Alive ? Operation::Modify
-                                                   : Operation::Delete);
+                                                   : Operation::Delete,
+            cookie.getRequestKey());
         cookie.addDocumentWriteBytes(item_.getValueView().size() +
                                      item_.getDocKey().size());
     } else if (ret == cb::engine_errc::disconnect) {
@@ -144,7 +145,8 @@ cb::EngineErrorCasPair bucket_store_if(
         using namespace cb::audit::document;
         add(cookie,
             document_state == DocumentState::Alive ? Operation::Modify
-                                                   : Operation::Delete);
+                                                   : Operation::Delete,
+            cookie.getRequestKey());
         cookie.addDocumentWriteBytes(item_.getValueView().size() +
                                      item_.getDocKey().size());
     } else if (rstatus == cb::engine_errc::disconnect) {
@@ -168,8 +170,8 @@ cb::engine_errc bucket_remove(
     auto ret = c.getBucketEngine().remove(
             cookie, key, cas, vbucket, durability, mut_info);
     if (ret == cb::engine_errc::success) {
-        cb::audit::document::add(cookie,
-                                 cb::audit::document::Operation::Delete);
+        cb::audit::document::add(
+                cookie, cb::audit::document::Operation::Delete, key);
         // @todo it should be 1 WCU for the tombstone?
         cookie.addDocumentWriteBytes(1);
     } else if (ret == cb::engine_errc::disconnect) {
@@ -226,6 +228,24 @@ cb::EngineErrorItemPair bucket_get_replica(Cookie& cookie,
               vbucket,
               ret.first);
 
+    return ret;
+}
+
+cb::EngineErrorItemPair bucket_get_random_document(Cookie& cookie,
+                                                   CollectionID cid) {
+    auto& c = cookie.getConnection();
+    auto ret = c.getBucketEngine().get_random_document(cookie, cid);
+    if (ret.first == cb::engine_errc::success) {
+        cookie.addDocumentReadBytes(ret.second->getValueView().size() +
+                                    ret.second->getDocKey().size());
+    } else if (ret.first == cb::engine_errc::disconnect) {
+        LOG_WARNING(
+                "{}: {} bucket_get_random_document return "
+                "cb::engine_errc::disconnect",
+                c.getId(),
+                c.getDescription());
+        c.setTerminationReason("Engine forced disconnect");
+    }
     return ret;
 }
 
@@ -294,7 +314,8 @@ cb::EngineErrorItemPair bucket_get_locked(Cookie& cookie,
             c.getBucketEngine().get_locked(cookie, key, vbucket, lock_timeout);
 
     if (ret.first == cb::engine_errc::success) {
-        cb::audit::document::add(cookie, cb::audit::document::Operation::Lock);
+        cb::audit::document::add(
+                cookie, cb::audit::document::Operation::Lock, key);
         cookie.addDocumentReadBytes(ret.second->getValueView().size() +
                                     ret.second->getDocKey().size());
     } else if (ret.first == cb::engine_errc::disconnect) {

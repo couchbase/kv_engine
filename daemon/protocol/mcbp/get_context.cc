@@ -21,20 +21,29 @@
 #include <xattr/utils.h>
 
 cb::engine_errc GetCommandContext::getItem() {
-    const auto key = cookie.getRequestKey();
+    const auto& req = cookie.getRequest();
+    const auto opcode = req.getClientOpcode();
     cb::EngineErrorItemPair ret;
-    if (cookie.getRequest().getClientOpcode() ==
-        cb::mcbp::ClientOpcode::GetReplica) {
-        ret = bucket_get_replica(cookie, key, vbucket);
+    if (opcode == cb::mcbp::ClientOpcode::GetReplica) {
+        ret = bucket_get_replica(cookie, cookie.getRequestKey(), vbucket);
+    } else if (opcode == cb::mcbp::ClientOpcode::GetRandomKey) {
+        CollectionID cid{CollectionID::Default};
+        if (req.getExtlen()) {
+            const auto& payload = req.getCommandSpecifics<
+                    cb::mcbp::request::GetRandomKeyPayload>();
+            cid = payload.getCollectionId();
+        }
+        ret = bucket_get_random_document(cookie, cid);
     } else {
-        ret = bucket_get(cookie, key, vbucket);
+        ret = bucket_get(cookie, cookie.getRequestKey(), vbucket);
     }
     if (ret.first == cb::engine_errc::success) {
         it = std::move(ret.second);
         if (!bucket_get_item_info(connection, *it, info)) {
             LOG_WARNING("{}: Failed to get item info for document {}",
                         connection.getId(),
-                        cookie.getPrintableRequestKey());
+                        cb::tagUserData(
+                                cookie.getRequestKey().toPrintableString()));
             return cb::engine_errc::failed;
         }
 
@@ -64,7 +73,8 @@ cb::engine_errc GetCommandContext::inflateItem() {
         if (!cookie.inflateSnappy(payload, buffer)) {
             LOG_WARNING("{}: Failed to inflate document {}",
                         connection.getId(),
-                        cookie.getPrintableRequestKey());
+                        cb::tagUserData(
+                                cookie.getRequestKey().toPrintableString()));
             return cb::engine_errc::failed;
         }
         payload = buffer;
@@ -88,7 +98,8 @@ cb::engine_errc GetCommandContext::sendResponse() {
     std::size_t keylen = 0;
     auto key = info.key;
 
-    if (shouldSendKey()) {
+    if (shouldSendKey() || cookie.getRequest().getClientOpcode() ==
+                                   cb::mcbp::ClientOpcode::GetRandomKey) {
         // Client doesn't support collection-ID in the key
         if (!connection.isCollectionsSupported()) {
             key = key.makeDocKeyWithoutCollectionID();
@@ -98,6 +109,9 @@ cb::engine_errc GetCommandContext::sendResponse() {
 
     // Set the CAS to add into the header
     cookie.setCas(info.cas);
+
+    cb::audit::document::add(
+            cookie, cb::audit::document::Operation::Read, it->getDocKey());
 
     std::unique_ptr<SendBuffer> sendbuffer;
     if (payload.size() > SendBuffer::MinimumDataSize) {
@@ -120,8 +134,6 @@ cb::engine_errc GetCommandContext::sendResponse() {
             info.datatype,
             std::move(sendbuffer));
 
-    cb::audit::document::add(cookie, cb::audit::document::Operation::Read);
-
     STATS_HIT(&connection, get);
 
     state = State::Done;
@@ -131,13 +143,12 @@ cb::engine_errc GetCommandContext::sendResponse() {
 cb::engine_errc GetCommandContext::noSuchItem() {
     STATS_MISS(&connection, get);
 
-    const auto key = cookie.getRequestKey();
-
     if (cookie.getRequest().isQuiet()) {
         ++connection.getBucket()
                   .responseCounters[int(cb::mcbp::Status::KeyEnoent)];
     } else {
         if (shouldSendKey()) {
+            const auto key = cookie.getRequestKey();
             cookie.sendResponse(
                     cb::mcbp::Status::KeyEnoent,
                     {},

@@ -167,31 +167,6 @@ static cb::engine_errc sendResponse(const AddResponseFn& response,
     return cb::engine_errc::failed;
 }
 
-/**
- * Call the response callback and return the appropriate value so that
- * the core knows what to do..
- */
-static cb::engine_errc sendResponse(const AddResponseFn& response,
-                                    const DocKey& key,
-                                    std::string_view ext,
-                                    std::string_view body,
-                                    uint8_t datatype,
-                                    cb::mcbp::Status status,
-                                    uint64_t cas,
-                                    CookieIface& cookie) {
-    if (response(std::string_view(key),
-                 ext,
-                 body,
-                 datatype,
-                 status,
-                 cas,
-                 cookie)) {
-        return cb::engine_errc::success;
-    }
-
-    return cb::engine_errc::failed;
-}
-
 template <typename T>
 static void validate(T v, T l, T h) {
     if (v < l || v > h) {
@@ -301,6 +276,11 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get(
 cb::EngineErrorItemPair EventuallyPersistentEngine::get_replica(
         CookieIface& cookie, const DocKey& key, Vbid vbucket) {
     return acquireEngine(this)->getReplicaInner(cookie, key, vbucket);
+}
+
+cb::EngineErrorItemPair EventuallyPersistentEngine::get_random_document(
+        CookieIface& cookie, CollectionID cid) {
+    return acquireEngine(this)->getRandomDocument(cookie, cid);
 }
 
 cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(
@@ -1172,8 +1152,6 @@ cb::engine_errc EventuallyPersistentEngine::processUnknownCommandInner(
     case cb::mcbp::ClientOpcode::EnableTraffic:
     case cb::mcbp::ClientOpcode::DisableTraffic:
         return handleTrafficControlCmd(cookie, request, response);
-    case cb::mcbp::ClientOpcode::GetRandomKey:
-        return getRandomKey(cookie, request, response);
     case cb::mcbp::ClientOpcode::GetKeys:
         return getAllKeys(cookie, request, response);
     default:
@@ -6196,45 +6174,19 @@ void EventuallyPersistentEngine::scheduleDcpStep(CookieIface& cookie) {
     cookie.getConnectionIface().scheduleDcpStep();
 }
 
-cb::engine_errc EventuallyPersistentEngine::getRandomKey(
-        CookieIface& cookie,
-        const cb::mcbp::Request& request,
-        const AddResponseFn& response) {
-    CollectionID cid{CollectionID::Default};
-
-    if (request.getExtlen()) {
-        const auto& payload = request.getCommandSpecifics<
-                cb::mcbp::request::GetRandomKeyPayload>();
-        cid = payload.getCollectionId();
-    }
-
+cb::EngineErrorItemPair EventuallyPersistentEngine::getRandomDocument(
+        CookieIface& cookie, CollectionID cid) {
     auto priv = checkPrivilege(cookie, cb::rbac::Privilege::Read, cid);
     if (priv != cb::engine_errc::success) {
-        return cb::engine_errc(priv);
+        return cb::makeEngineErrorItemPair(cb::engine_errc::no_access);
     }
-
     GetValue gv(kvBucket->getRandomKey(cid, cookie));
     cb::engine_errc ret = gv.getStatus();
-
     if (ret == cb::engine_errc::success) {
-        auto* it = gv.item.get();
-        cookie.addDocumentReadBytes(it->getNBytes());
-        const auto flags = it->getFlags();
-        ret = sendResponse(
-                response,
-                cookie.isCollectionsSupported()
-                        ? DocKey{it->getKey()}
-                        : it->getKey().makeDocKeyWithoutCollectionID(),
-                std::string_view{reinterpret_cast<const char*>(&flags),
-                                 sizeof(flags)},
-                std::string_view{it->getData(), it->getNBytes()},
-                it->getDataType(),
-                cb::mcbp::Status::Success,
-                it->getCas(),
-                cookie);
+        return cb::makeEngineErrorItemPair(
+                cb::engine_errc::success, gv.item.release(), this);
     }
-
-    return ret;
+    return cb::makeEngineErrorItemPair(ret);
 }
 
 cb::engine_errc EventuallyPersistentEngine::dcpOpen(

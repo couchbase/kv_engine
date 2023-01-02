@@ -158,6 +158,15 @@ cb::EngineErrorItemPair MockEngine::get_replica(CookieIface& cookie,
     return do_blocking_engine_call<cb::unique_item_ptr>(cookie, engine_fn);
 }
 
+cb::EngineErrorItemPair MockEngine::get_random_document(CookieIface& cookie,
+                                                        CollectionID cid) {
+    auto engine_fn = [this, &cookie, cid]() {
+        return the_engine->get_random_document(cookie, cid);
+    };
+
+    return do_blocking_engine_call<cb::unique_item_ptr>(cookie, engine_fn);
+}
+
 cb::EngineErrorItemPair MockEngine::get_if(
         CookieIface& cookie,
         const DocKey& key,

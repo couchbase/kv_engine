@@ -6252,10 +6252,8 @@ static enum test_result test_get_random_key(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
 
     // An empty database should return no key
-    auto pkt = createPacket(cb::mcbp::ClientOpcode::GetRandomKey);
-
     checkeq(cb::engine_errc::no_such_key,
-            h->unknown_command(*cookie, *pkt, add_response),
+            h->get_random_document(*cookie, {CollectionID::Default}).first,
             "Database should be empty");
 
     StoredDocKey key("key", CollectionID::Default);
@@ -6281,12 +6279,11 @@ static enum test_result test_get_random_key(EngineIface* h) {
     wait_for_flusher_to_settle(h);
 
     // We should be able to get one if there is something in there
-    checkeq(cb::engine_errc::success,
-            h->unknown_command(*cookie, *pkt, add_response),
-            "get random should work");
-    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
+    const auto [status, item] =
+            h->get_random_document(*cookie, {CollectionID::Default});
+    checkeq(cb::engine_errc::success, status, "get random should work");
     checkeq(PROTOCOL_BINARY_DATATYPE_JSON,
-            last_datatype.load(),
+            item->getDataType(),
             "Expected datatype to be JSON");
 
     // Since it is random we can't really check that we don't get the

@@ -245,21 +245,6 @@ public:
     const DocKey getRequestKey() const;
 
     /**
-     * Get a printable key from the header. Replace all non-printable
-     * charachters with '.'
-     *
-     * @param addUserDataTags when set to true the returned data contains
-     *                        the userdata tags which allows for redaction
-     */
-    std::string getPrintableRequestKey(bool addUserDataTags = true,
-                                       bool stripCollection = false) const;
-
-    /**
-     * Get a printable representation of the key's collection ID
-     */
-    std::string getPrintableRequestCollectionID() const;
-
-    /**
      * Set the aiostat and return the previous value
      */
     cb::engine_errc swapAiostat(cb::engine_errc value);

@@ -465,6 +465,12 @@ struct DocKey : DocKeyInterface<DocKey> {
      */
     std::string to_string() const;
 
+    /**
+     * Get a printable representation of the doc key. Replace all non-printable
+     * characters with '.'
+     */
+    std::string toPrintableString() const;
+
     /// Get the view of the underlying keys data
     std::string_view getBuffer() const {
         return {reinterpret_cast<const char*>(buffer.data()), buffer.size()};

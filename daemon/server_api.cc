@@ -78,7 +78,7 @@ struct ServerDocumentApi : public ServerDocumentIface {
             CookieIface& void_cookie,
             cb::audit::document::Operation operation) override {
         auto& cookie = dynamic_cast<Cookie&>(void_cookie);
-        cb::audit::document::add(cookie, operation);
+        cb::audit::document::add(cookie, operation, cookie.getRequestKey());
     }
 
     void document_expired(const EngineIface& engine, size_t nbytes) override {

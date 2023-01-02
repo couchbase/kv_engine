@@ -47,6 +47,8 @@ struct MockEngine : public EngineIface, public DcpIface {
     cb::EngineErrorItemPair get_replica(CookieIface& cookie,
                                         const DocKey& key,
                                         Vbid vbucket) override;
+    cb::EngineErrorItemPair get_random_document(CookieIface& cookie,
+                                                CollectionID cid) override;
     cb::EngineErrorItemPair get_if(
             CookieIface& cookie,
             const DocKey& key,

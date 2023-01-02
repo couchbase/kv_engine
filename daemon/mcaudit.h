@@ -116,7 +116,8 @@ void addSessionTerminated(const Connection& c);
 namespace document {
 enum class Operation;
 
-void add(Cookie& c, Operation operation);
+/// Add a document operation for the provided key
+void add(Cookie& c, Operation operation, const DocKey& key);
 } // namespace document
 } // namespace cb::audit
 

@@ -66,3 +66,8 @@ cb::EngineErrorItemPair EngineIface::get_replica(CookieIface& cookie,
                                                  Vbid vbucket) {
     return cb::makeEngineErrorItemPair(cb::engine_errc::not_supported);
 }
+
+cb::EngineErrorItemPair EngineIface::get_random_document(CookieIface& cookie,
+                                                         CollectionID cid) {
+    return cb::makeEngineErrorItemPair(cb::engine_errc::not_supported);
+}
