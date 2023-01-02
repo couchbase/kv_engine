@@ -206,6 +206,29 @@ cb::EngineErrorItemPair bucket_get(Cookie& cookie,
     return ret;
 }
 
+cb::EngineErrorItemPair bucket_get_replica(Cookie& cookie,
+                                           const DocKey& key,
+                                           Vbid vbucket) {
+    auto& c = cookie.getConnection();
+    auto ret = c.getBucketEngine().get_replica(cookie, key, vbucket);
+    if (ret.first == cb::engine_errc::success) {
+        cookie.addDocumentReadBytes(ret.second->getValueView().size() +
+                                    ret.second->getDocKey().size());
+    } else if (ret.first == cb::engine_errc::disconnect) {
+        LOG_WARNING(
+                "{}: {} bucket_get_replica return cb::engine_errc::disconnect",
+                c.getId(),
+                c.getDescription());
+        c.setTerminationReason("Engine forced disconnect");
+    }
+    LOG_TRACE("bucket_get_replica() key:{} vbucket:{} -> {}",
+              cb::UserDataView(std::string_view{key}),
+              vbucket,
+              ret.first);
+
+    return ret;
+}
+
 BucketCompressionMode bucket_get_compression_mode(Cookie& cookie) {
     auto& c = cookie.getConnection();
     return c.getBucketEngine().getCompressionMode();

@@ -148,6 +148,16 @@ cb::EngineErrorItemPair MockEngine::get(CookieIface& cookie,
     return do_blocking_engine_call<cb::unique_item_ptr>(cookie, engine_fn);
 }
 
+cb::EngineErrorItemPair MockEngine::get_replica(CookieIface& cookie,
+                                                const DocKey& key,
+                                                Vbid vbucket) {
+    auto engine_fn = [this, &cookie, k = std::cref(key), vbucket]() {
+        return the_engine->get_replica(cookie, k, vbucket);
+    };
+
+    return do_blocking_engine_call<cb::unique_item_ptr>(cookie, engine_fn);
+}
+
 cb::EngineErrorItemPair MockEngine::get_if(
         CookieIface& cookie,
         const DocKey& key,

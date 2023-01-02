@@ -738,6 +738,7 @@ void initialize_mbcp_lookup_map() {
     setup_handler(cb::mcbp::ClientOpcode::Prependq, append_prepend_executor);
     setup_handler(cb::mcbp::ClientOpcode::Prepend, append_prepend_executor);
     setup_handler(cb::mcbp::ClientOpcode::Get, get_executor);
+    setup_handler(cb::mcbp::ClientOpcode::GetReplica, get_executor);
     setup_handler(cb::mcbp::ClientOpcode::Getq, get_executor);
     setup_handler(cb::mcbp::ClientOpcode::Getk, get_executor);
     setup_handler(cb::mcbp::ClientOpcode::Getkq, get_executor);

@@ -215,10 +215,6 @@ cb::EngineErrorItemPair getl(EngineIface* h,
                              Vbid vb,
                              uint32_t lock_timeout);
 
-[[nodiscard]] unique_request_ptr prepare_get_replica(
-        EngineIface* h, vbucket_state_t state, bool makeinvalidkey = false);
-
-void get_replica(EngineIface* h, const char* key, Vbid vb);
 cb::engine_errc observe(EngineIface* h, std::map<std::string, Vbid> obskeys);
 cb::engine_errc observe_seqno(EngineIface* h, Vbid vb_id, uint64_t uuid);
 

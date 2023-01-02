@@ -146,6 +146,9 @@ public:
                                 const DocKey& key,
                                 Vbid vbucket,
                                 DocStateFilter documentStateFilter) override;
+    cb::EngineErrorItemPair get_replica(CookieIface& cookie,
+                                        const DocKey& key,
+                                        Vbid vbucket) override;
     cb::EngineErrorItemPair get_if(
             CookieIface& cookie,
             const DocKey& key,
@@ -449,6 +452,9 @@ public:
                                      const DocKey& key,
                                      Vbid vbucket,
                                      get_options_t options);
+    cb::EngineErrorItemPair getReplicaInner(CookieIface& cookie,
+                                            const DocKey& key,
+                                            Vbid vbucket);
 
     /**
      * Fetch an item only if the specified filter predicate returns true.
@@ -659,10 +665,6 @@ public:
                                     const std::string& key,
                                     const std::string& val,
                                     std::string& msg);
-
-    cb::engine_errc getReplicaCmd(CookieIface& cookie,
-                                  const cb::mcbp::Request& request,
-                                  const AddResponseFn& response);
 
     EPStats& getEpStats() {
         return stats;

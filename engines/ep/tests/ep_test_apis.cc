@@ -687,45 +687,6 @@ cb::engine_errc observe_seqno(EngineIface* h, Vbid vb_id, uint64_t uuid) {
     return h->unknown_command(*cookie, *request, add_response);
 }
 
-void get_replica(EngineIface* h, const char* key, Vbid vbid) {
-    auto request = createPacket(cb::mcbp::ClientOpcode::GetReplica,
-                                vbid,
-                                0,
-                                {},
-                                {key, strlen(key)});
-    std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    checkeq(cb::engine_errc::success,
-            h->unknown_command(*cookie, *request, add_response),
-            "Get Replica Failed");
-}
-
-unique_request_ptr prepare_get_replica(EngineIface* h,
-                                       vbucket_state_t state,
-                                       bool makeinvalidkey) {
-    Vbid id(0);
-    const char *key = "k0";
-    auto request = createPacket(
-            cb::mcbp::ClientOpcode::GetReplica, id, 0, {}, {key, strlen(key)});
-
-    if (!makeinvalidkey) {
-        checkeq(cb::engine_errc::success,
-                store(h,
-                      nullptr,
-                      StoreSemantics::Set,
-                      key,
-                      "replicadata",
-                      nullptr,
-                      0,
-                      id),
-                "Get Replica Failed");
-
-        check(set_vbucket_state(h, id, state),
-              "Failed to set vbucket active state, Get Replica Failed");
-    }
-
-    return request;
-}
-
 cb::engine_errc set_param(EngineIface* h,
                           EngineParamCategory paramtype,
                           const char* param,

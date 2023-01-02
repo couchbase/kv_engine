@@ -44,6 +44,9 @@ struct MockEngine : public EngineIface, public DcpIface {
                                 const DocKey& key,
                                 Vbid vbucket,
                                 DocStateFilter documentStateFilter) override;
+    cb::EngineErrorItemPair get_replica(CookieIface& cookie,
+                                        const DocKey& key,
+                                        Vbid vbucket) override;
     cb::EngineErrorItemPair get_if(
             CookieIface& cookie,
             const DocKey& key,

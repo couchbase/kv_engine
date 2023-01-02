@@ -75,6 +75,10 @@ cb::EngineErrorItemPair bucket_get(
         Vbid vbucket,
         DocStateFilter documentStateFilter = DocStateFilter::Alive);
 
+cb::EngineErrorItemPair bucket_get_replica(Cookie& cookie,
+                                           const DocKey& key,
+                                           Vbid vbucket);
+
 cb::EngineErrorItemPair bucket_get_if(
         Cookie& cookie,
         const DocKey& key,

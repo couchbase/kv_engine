@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -23,7 +22,13 @@
 
 cb::engine_errc GetCommandContext::getItem() {
     const auto key = cookie.getRequestKey();
-    auto ret = bucket_get(cookie, key, vbucket);
+    cb::EngineErrorItemPair ret;
+    if (cookie.getRequest().getClientOpcode() ==
+        cb::mcbp::ClientOpcode::GetReplica) {
+        ret = bucket_get_replica(cookie, key, vbucket);
+    } else {
+        ret = bucket_get(cookie, key, vbucket);
+    }
     if (ret.first == cb::engine_errc::success) {
         it = std::move(ret.second);
         if (!bucket_get_item_info(connection, *it, info)) {
@@ -96,7 +101,7 @@ cb::engine_errc GetCommandContext::sendResponse() {
 
     std::unique_ptr<SendBuffer> sendbuffer;
     if (payload.size() > SendBuffer::MinimumDataSize) {
-        // we may use the item if we've didn't inflate it
+        // we may use the item if we didn't inflate it
         if (buffer.empty()) {
             sendbuffer = std::make_unique<ItemSendBuffer>(
                     std::move(it), payload, connection.getBucket());

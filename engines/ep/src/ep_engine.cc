@@ -298,6 +298,11 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get(
     return acquireEngine(this)->getInner(cookie, key, vbucket, options);
 }
 
+cb::EngineErrorItemPair EventuallyPersistentEngine::get_replica(
+        CookieIface& cookie, const DocKey& key, Vbid vbucket) {
+    return acquireEngine(this)->getReplicaInner(cookie, key, vbucket);
+}
+
 cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(
         CookieIface& cookie,
         const DocKey& key,
@@ -1070,43 +1075,28 @@ cb::engine_errc EventuallyPersistentEngine::setVBucketInner(
     return setVBucketState(cookie, vbid, state, meta, TransferVB::No, cas);
 }
 
-cb::engine_errc EventuallyPersistentEngine::getReplicaCmd(
-        CookieIface& cookie,
-        const cb::mcbp::Request& request,
-        const AddResponseFn& response) {
-    DocKey key = makeDocKey(cookie, request.getKey());
-
+cb::EngineErrorItemPair EventuallyPersistentEngine::getReplicaInner(
+        CookieIface& cookie, const DocKey& key, Vbid vbucket) {
     auto options = static_cast<get_options_t>(
             QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
             HIDE_LOCKED_CAS | TRACK_STATISTICS);
 
-    GetValue rv(getKVBucket()->getReplica(
-            key, request.getVBucket(), &cookie, options));
+    GetValue rv(getKVBucket()->getReplica(key, vbucket, &cookie, options));
     auto error_code = rv.getStatus();
     if (error_code != cb::engine_errc::would_block) {
         ++(getEpStats().numOpsGet);
     }
 
     if (error_code == cb::engine_errc::success) {
-        uint32_t flags = rv.item->getFlags();
-        ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
-        guardedIface.audit_document_access(
-                cookie, cb::audit::document::Operation::Read);
-        cookie.addDocumentReadBytes(rv.item->getNBytes());
-        return sendResponse(
-                response,
-                rv.item->getKey(), // key
-                {reinterpret_cast<const char*>(&flags), sizeof(flags)}, // extra
-                {rv.item->getData(), rv.item->getNBytes()}, // body
-                rv.item->getDataType(),
-                cb::mcbp::Status::Success,
-                rv.item->getCas(),
-                cookie);
-    } else if (error_code == cb::engine_errc::temporary_failure) {
-        return cb::engine_errc::no_such_key;
+        return cb::makeEngineErrorItemPair(
+                cb::engine_errc::success, rv.item.release(), this);
     }
 
-    return error_code;
+    if (error_code == cb::engine_errc::temporary_failure) {
+        return cb::makeEngineErrorItemPair(cb::engine_errc::no_such_key);
+    }
+
+    return cb::makeEngineErrorItemPair(error_code);
 }
 
 cb::engine_errc EventuallyPersistentEngine::compactDatabaseInner(
@@ -1179,8 +1169,6 @@ cb::engine_errc EventuallyPersistentEngine::processUnknownCommandInner(
         return deleteWithMeta(cookie, request, response);
     case cb::mcbp::ClientOpcode::ReturnMeta:
         return returnMeta(cookie, request, response);
-    case cb::mcbp::ClientOpcode::GetReplica:
-        return getReplicaCmd(cookie, request, response);
     case cb::mcbp::ClientOpcode::EnableTraffic:
     case cb::mcbp::ClientOpcode::DisableTraffic:
         return handleTrafficControlCmd(cookie, request, response);

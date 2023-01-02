@@ -1297,20 +1297,47 @@ static enum test_result test_bug3522(EngineIface* h) {
 
 static enum test_result test_get_replica_active_state(EngineIface* h) {
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    auto pkt = prepare_get_replica(h, vbucket_state_active);
-    checkeq(cb::engine_errc::not_my_vbucket,
-            h->unknown_command(*cookie, *pkt, add_response),
+    checkeq(cb::engine_errc::success,
+            store(h,
+                  nullptr,
+                  StoreSemantics::Set,
+                  "k0",
+                  "replicadata",
+                  nullptr,
+                  0,
+                  Vbid{0}),
             "Get Replica Failed");
-
+    check(set_vbucket_state(h, Vbid{0}, vbucket_state_active),
+          "Failed to set vbucket active state");
+    checkeq(cb::engine_errc::not_my_vbucket,
+            h->get_replica(*cookie,
+                           DocKey("k0", DocKeyEncodesCollectionId::No),
+                           Vbid{0})
+                    .first,
+            "Get Replica Failed");
     return SUCCESS;
 }
 
 static enum test_result test_get_replica_pending_state(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
     testHarness->set_ewouldblock_handling(cookie, false);
-    auto pkt = prepare_get_replica(h, vbucket_state_pending);
+    checkeq(cb::engine_errc::success,
+            store(h,
+                  nullptr,
+                  StoreSemantics::Set,
+                  "k0",
+                  "replicadata",
+                  nullptr,
+                  0,
+                  Vbid{0}),
+            "Get Replica Failed");
+    check(set_vbucket_state(h, Vbid{0}, vbucket_state_pending),
+          "Failed to set vbucket pending state");
     checkeq(cb::engine_errc::not_my_vbucket,
-            h->unknown_command(*cookie, *pkt, add_response),
+            h->get_replica(*cookie,
+                           DocKey("k0", DocKeyEncodesCollectionId::No),
+                           Vbid{0})
+                    .first,
             "Should have returned NOT_MY_VBUCKET for pending state");
     checkeq(1, get_int_stat(h, "ep_num_not_my_vbuckets"), "Expected 1 get");
     testHarness->destroy_cookie(cookie);
@@ -1319,22 +1346,48 @@ static enum test_result test_get_replica_pending_state(EngineIface* h) {
 
 static enum test_result test_get_replica_dead_state(EngineIface* h) {
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    auto pkt = prepare_get_replica(h, vbucket_state_dead);
+    checkeq(cb::engine_errc::success,
+            store(h,
+                  nullptr,
+                  StoreSemantics::Set,
+                  "k0",
+                  "replicadata",
+                  nullptr,
+                  0,
+                  Vbid{0}),
+            "Get Replica Failed");
+    check(set_vbucket_state(h, Vbid{0}, vbucket_state_dead),
+          "Failed to set vbucket dead state");
     checkeq(cb::engine_errc::not_my_vbucket,
-            h->unknown_command(*cookie, *pkt, add_response),
+            h->get_replica(*cookie,
+                           DocKey("k0", DocKeyEncodesCollectionId::No),
+                           Vbid{0})
+                    .first,
             "Get Replica Failed");
     return SUCCESS;
 }
 
 static enum test_result test_get_replica(EngineIface* h) {
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    auto pkt = prepare_get_replica(h, vbucket_state_replica);
     checkeq(cb::engine_errc::success,
-            h->unknown_command(*cookie, *pkt, add_response),
+            store(h,
+                  nullptr,
+                  StoreSemantics::Set,
+                  "k0",
+                  "replicadata",
+                  nullptr,
+                  0,
+                  Vbid{0}),
             "Get Replica Failed");
-    checkeq(cb::mcbp::Status::Success, last_status.load(),
-            "Expected cb::mcbp::Status::Success response.");
-    checkeq("replicadata"s, last_body, "Should have returned identical value");
+    check(set_vbucket_state(h, Vbid{0}, vbucket_state_replica),
+          "Failed to set vbucket replica state");
+
+    auto [status, item] = h->get_replica(
+            *cookie, DocKey("k0", DocKeyEncodesCollectionId::No), Vbid{0});
+    checkeq(cb::engine_errc::success, status, "Get Replica Failed");
+    checkeq("replicadata"sv,
+            item->getValueView(),
+            "Should have returned identical value");
     checkeq(1, get_int_stat(h, "vb_replica_ops_get"), "Expected 1 get");
 
     return SUCCESS;
@@ -1351,9 +1404,14 @@ static enum test_result test_get_replica_non_resident(EngineIface* h) {
     check(set_vbucket_state(h, Vbid(0), vbucket_state_replica),
           "Failed to set vbucket to replica");
 
-    get_replica(h, "key", Vbid(0));
-    checkeq(cb::mcbp::Status::Success, last_status.load(),
-            "Expected success");
+    std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
+    checkeq(cb::engine_errc::success,
+            h->get_replica(*cookie,
+                           DocKey("key", DocKeyEncodesCollectionId::No),
+                           Vbid{0})
+                    .first,
+            "Get Replica Failed");
+
     checkeq(1, get_int_stat(h, "vb_replica_ops_get"), "Expected 1 get");
 
     return SUCCESS;
@@ -1361,10 +1419,11 @@ static enum test_result test_get_replica_non_resident(EngineIface* h) {
 
 static enum test_result test_get_replica_invalid_key(EngineIface* h) {
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    bool makeinvalidkey = true;
-    auto pkt = prepare_get_replica(h, vbucket_state_replica, makeinvalidkey);
     checkeq(cb::engine_errc::not_my_vbucket,
-            h->unknown_command(*cookie, *pkt, add_response),
+            h->get_replica(*cookie,
+                           DocKey("k0", DocKeyEncodesCollectionId::No),
+                           Vbid{0})
+                    .first,
             "Get Replica Failed");
     return SUCCESS;
 }

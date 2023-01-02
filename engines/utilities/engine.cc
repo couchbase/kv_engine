@@ -60,3 +60,9 @@ cb::engine_errc EngineIface::cancelRangeScan(CookieIface& cookie,
 cb::engine_errc EngineIface::pause(folly::CancellationToken cancellationToken) {
     return cb::engine_errc::not_supported;
 }
+
+cb::EngineErrorItemPair EngineIface::get_replica(CookieIface& cookie,
+                                                 const DocKey& key,
+                                                 Vbid vbucket) {
+    return cb::makeEngineErrorItemPair(cb::engine_errc::not_supported);
+}

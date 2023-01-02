@@ -334,6 +334,12 @@ struct EngineIface {
                                         Vbid vbucket,
                                         DocStateFilter documentStateFilter) = 0;
 
+    /// Same as get, except that it only allows alive documents
+    /// from a _REPLICA_ vbucket
+    virtual cb::EngineErrorItemPair get_replica(CookieIface& cookie,
+                                                const DocKey& key,
+                                                Vbid vbucket);
+
     /**
      * Optionally retrieve an item. Only non-deleted items may be fetched
      * through this interface (Documents in deleted state may be evicted
