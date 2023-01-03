@@ -115,6 +115,10 @@ void SynchronousEPEngine::setDcpConnMap(
     dcpConnMap_ = std::move(dcpConnMap);
 }
 
+void SynchronousEPEngine::setServerApi(ServerApi* api) {
+    serverApi = api;
+}
+
 SynchronousEPEngineUniquePtr SynchronousEPEngine::build(
         const std::string& config) {
     auto client = cb::ArenaMalloc::registerClient();

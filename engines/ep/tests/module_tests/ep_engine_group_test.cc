@@ -40,10 +40,14 @@ public:
         KVBucketTest::SetUp();
         // tryAssociateBucket will always succeed
         bucketApi.associateBucketFilter = engine.get();
-        engine->getServerApi()->bucket = &bucketApi;
+        // Replace the serverApi with the testing one
+        serverApi = *engine->getServerApi();
+        serverApi.bucket = &bucketApi;
+        engine->setServerApi(&serverApi);
     }
 
     MockBucketApi bucketApi;
+    ServerApi serverApi;
 };
 
 TEST_F(EPEngineGroupTest, AddEngine) {

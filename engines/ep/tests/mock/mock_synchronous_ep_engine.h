@@ -35,6 +35,7 @@ public:
 
     void setKVBucket(std::unique_ptr<KVBucket> store);
     void setDcpConnMap(std::unique_ptr<DcpConnMap> dcpConnMap);
+    void setServerApi(ServerApi* api);
 
     /**
      * Constructs a SynchronousEPEngine instance, along with the necessary
