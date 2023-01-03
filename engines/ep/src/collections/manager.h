@@ -57,7 +57,7 @@ public:
      * @param collector stat collector to which stats will be added
      */
     void addStatsForCollection(std::string_view scopeName,
-                               const CollectionEntry& collection,
+                               const CollectionMetaData& collection,
                                const BucketStatCollector& collector);
 
     /**
@@ -68,11 +68,11 @@ public:
      * @param scopeCollections All collections in the scope
      * @param collector stat collector to which stats will be added
      */
-    void addStatsForScope(
-            ScopeID sid,
-            std::string_view scopeName,
-            const std::vector<Collections::CollectionEntry>& scopeCollections,
-            const BucketStatCollector& collector);
+    void addStatsForScope(ScopeID sid,
+                          std::string_view scopeName,
+                          const std::vector<Collections::CollectionMetaData>&
+                                  scopeCollections,
+                          const BucketStatCollector& collector);
 
 private:
     /**
@@ -169,7 +169,7 @@ public:
      * @return pair of manifest-id (which was used in the search) and an
      * optional. If the lookup was successful the optional contains the entry
      */
-    std::pair<uint64_t, std::optional<CollectionEntry>> getCollectionEntry(
+    std::pair<uint64_t, std::optional<CollectionMetaData>> getCollectionEntry(
             CollectionID) const;
 
     /**
@@ -370,7 +370,8 @@ private:
      * @return copy of the stats to use to format stats for a request
      */
     static CachedStats getPerCollectionStats(
-            const std::vector<CollectionEntry>& collections, KVBucket& bucket);
+            const std::vector<CollectionMetaData>& collections,
+            KVBucket& bucket);
 
     /**
      * validate the path is correctly formed for get_collection_id.

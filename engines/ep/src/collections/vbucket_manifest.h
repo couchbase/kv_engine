@@ -314,6 +314,12 @@ public:
     static DropScopeEventData getDropScopeEventData(
             std::string_view flatbufferData);
 
+    enum SystemEventType {
+        Create,
+        Delete
+        // @todo Modify
+    };
+
     /**
      * @return an Item that represent a collection create or delete
      */
@@ -322,7 +328,7 @@ public:
             CollectionID cid,
             std::string_view collectionName,
             const ManifestEntry& entry,
-            bool deleted,
+            SystemEventType type,
             OptionalSeqno seq);
 
     bool operator==(const Manifest& rhs) const;
@@ -939,7 +945,7 @@ protected:
 
     void updateSummary(Summary& summary) const;
 
-    void accumulateStats(const std::vector<CollectionEntry>& collections,
+    void accumulateStats(const std::vector<CollectionMetaData>& collections,
                          Summary& summary) const;
 
     /**
@@ -1028,7 +1034,7 @@ protected:
      * @param cid The collection ID added/removed
      * @param collectionName Name of the collection (only used by create)
      * @param entry The ManifestEntry added or removed
-     * @param deleted If the Item created should be marked as deleted.
+     * @param type The type of event to queue
      * @param seqno An optional seqno which if set will be assigned to the
      *        system event.
      * @param assignedSeqnoCallback a function that queueDirty will call with
@@ -1043,7 +1049,7 @@ protected:
             CollectionID cid,
             std::string_view collectionName,
             const ManifestEntry& entry,
-            bool deleted,
+            SystemEventType type,
             OptionalSeqno seq,
             std::function<void(int64_t)> assignedSeqnoCallback) const;
 

@@ -78,8 +78,8 @@ struct Manifest {
      * - no dropped collections
      */
     explicit Manifest(Default)
-        : collections{{CollectionID::Default, {0, {}}}},
-          scopes{{ScopeID::Default, {0, {}}}} {
+        : collections{{0 /*seqno*/, CollectionMetaData{}}},
+          scopes{{0 /*seqno*/, ScopeMetaData{}}} {
     }
 
     /**

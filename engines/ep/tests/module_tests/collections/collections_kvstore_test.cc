@@ -129,8 +129,12 @@ public:
                 ScopeID sid{scope["uid"].get<std::string>()};
                 CollectionID cid{collection["uid"].get<std::string>()};
                 auto name = collection["name"].get<std::string>();
-
-                rv.push_back({sid, cid, name, maxTtl});
+                rv.emplace_back(sid,
+                                cid,
+                                name,
+                                maxTtl,
+                                Collections::Metered::Yes,
+                                CanDeduplicate::Yes);
             }
         }
         return rv;
@@ -273,8 +277,12 @@ TEST(CollectionsKVStoreTest, test_KVStore_comparison) {
     EXPECT_EQ(m1, m2);
     m2.collections.push_back(OpenCollection{
             0,
-            Collections::CollectionMetaData{
-                    ScopeID{88}, CollectionID{101}, "c101", {}}});
+            Collections::CollectionMetaData{ScopeID{88},
+                                            CollectionID{101},
+                                            "c101",
+                                            {},
+                                            Collections::Metered::Yes,
+                                            CanDeduplicate::Yes}});
     EXPECT_NE(m1, m2);
     m2.collections = m1.collections;
 

@@ -175,7 +175,7 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
             }
         }
 
-        std::vector<CollectionEntry> scopeCollections = {};
+        std::vector<CollectionMetaData> scopeCollections;
 
         // Read the collections within this scope
         auto collections =
@@ -262,12 +262,12 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
             }
 
             enableDefaultCollection(cidValue);
-            scopeCollections.push_back(CollectionEntry{cidValue,
-                                                       cnameValue,
-                                                       maxTtl,
-                                                       sidValue,
-                                                       collectionCanDeduplicate,
-                                                       meteredState});
+            scopeCollections.emplace_back(sidValue,
+                                          cidValue,
+                                          cnameValue,
+                                          maxTtl,
+                                          meteredState,
+                                          collectionCanDeduplicate);
         }
 
         // Check for limits - only support for data_size
@@ -525,7 +525,7 @@ Manifest::Manifest(std::string_view flatbufferData, Manifest::FlatBuffers tag)
     uid = manifest->uid();
 
     for (const Collections::Persist::Scope* scope : *manifest->scopes()) {
-        std::vector<CollectionEntry> scopeCollections;
+        std::vector<CollectionMetaData> scopeCollections;
 
         for (const Collections::Persist::Collection* collection :
              *scope->collections()) {
@@ -536,13 +536,13 @@ Manifest::Manifest(std::string_view flatbufferData, Manifest::FlatBuffers tag)
             }
 
             enableDefaultCollection(cid);
-            scopeCollections.push_back(CollectionEntry{
+            scopeCollections.emplace_back(
+                    ScopeID{scope->scopeId()},
                     cid,
                     collection->name()->str(),
                     maxTtl,
-                    scope->scopeId(),
-                    getCanDeduplicateFromHistory(collection->history()),
-                    collection->metered() ? Metered::Yes : Metered::No});
+                    collection->metered() ? Metered::Yes : Metered::No,
+                    getCanDeduplicateFromHistory(collection->history()));
         }
 
         std::optional<size_t> dataSize;
@@ -744,7 +744,7 @@ std::optional<Metered> Manifest::isMetered(CollectionID cid) const {
     return {};
 }
 
-std::optional<CollectionEntry> Manifest::getCollectionEntry(
+std::optional<CollectionMetaData> Manifest::getCollectionEntry(
         CollectionID cid) const {
     auto itr = collections.find(cid);
     if (itr != collections.end()) {
@@ -763,12 +763,6 @@ CanDeduplicate Manifest::getCanDeduplicate(CollectionID cid) const {
 
 void Manifest::dump() const {
     std::cerr << *this << std::endl;
-}
-
-bool CollectionEntry::operator==(const CollectionEntry& other) const {
-    return cid == other.cid && name == other.name && sid == other.sid &&
-           maxTtl == other.maxTtl && metered == other.metered &&
-           canDeduplicate == other.canDeduplicate;
 }
 
 bool Scope::operator==(const Scope& other) const {
@@ -929,22 +923,6 @@ std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
         os << "{key:" << key << ", " << collection << "}\n";
     }
     return os;
-}
-
-std::string to_string(const CollectionEntry& collection) {
-    return fmt::format(
-            "cid:{}, name:{}, ttl:{{{}, {}}}, sid:{}, {}, {}",
-            collection.cid.to_string(),
-            collection.name,
-            collection.maxTtl.has_value(),
-            collection.maxTtl.value_or(std::chrono::seconds(0)).count(),
-            collection.sid.to_string(),
-            collection.canDeduplicate,
-            collection.metered);
-}
-
-std::ostream& operator<<(std::ostream& os, const CollectionEntry& collection) {
-    return os << to_string(collection);
 }
 
 std::string to_string(const Scope& scope) {

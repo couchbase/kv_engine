@@ -430,7 +430,7 @@ void Manifest::completeUpdate(VBucketStateLockRef vbStateLock,
 
 // @return true if newEntry compared to existingEntry shows an immutable
 //              property has changed
-static bool isImmutablePropertyModified(const CollectionEntry& newEntry,
+static bool isImmutablePropertyModified(const CollectionMetaData& newEntry,
                                         const ManifestEntry& existingEntry) {
     return newEntry.sid != existingEntry.getScopeID() ||
            newEntry.name != existingEntry.getName();
@@ -496,7 +496,7 @@ void Manifest::createCollection(VBucketStateLockRef vbStateLock,
                                             identifiers.second,
                                             collectionName,
                                             entry,
-                                            false,
+                                            SystemEventType::Create,
                                             optionalSeqno,
                                             {/*no callback*/});
 
@@ -612,7 +612,7 @@ void Manifest::dropCollection(VBucketStateLockRef vbStateLock,
             cid,
             {/*no name*/},
             itr->second,
-            true /*delete*/,
+            SystemEventType::Delete,
             optionalSeqno,
             vb.getSaveDroppedCollectionCallback(cid, wHandle, itr->second));
 
@@ -967,10 +967,12 @@ std::unique_ptr<Item> Manifest::makeCollectionSystemEvent(
         CollectionID cid,
         std::string_view collectionName,
         const ManifestEntry& entry,
-        bool deleted,
+        SystemEventType type,
         OptionalSeqno seq) {
     flatbuffers::FlatBufferBuilder builder;
-    if (!deleted) {
+
+    switch (type) {
+    case SystemEventType::Create: {
         auto collection = CreateCollection(
                 builder,
                 uid,
@@ -982,16 +984,20 @@ std::unique_ptr<Item> Manifest::makeCollectionSystemEvent(
                 builder.CreateString(collectionName.data(),
                                      collectionName.size()));
         builder.Finish(collection);
-    } else {
+        break;
+    }
+    case SystemEventType::Delete: {
         auto collection = CreateDroppedCollection(
                 builder, uid, uint32_t(entry.getScopeID()), uint32_t(cid));
         builder.Finish(collection);
+        break;
+    }
     }
 
     auto item = SystemEventFactory::makeCollectionEvent(
             cid, {builder.GetBufferPointer(), builder.GetSize()}, seq);
 
-    if (deleted) {
+    if (type == SystemEventType::Delete) {
         item->setDeleted();
     }
     return item;
@@ -1004,7 +1010,7 @@ uint64_t Manifest::queueCollectionSystemEvent(
         CollectionID cid,
         std::string_view collectionName,
         const ManifestEntry& entry,
-        bool deleted,
+        SystemEventType type,
         OptionalSeqno seq,
         std::function<void(int64_t)> assignedSeqnoCallback) const {
     // If seq is not set, then this is an active vbucket queueing the event.
@@ -1014,7 +1020,7 @@ uint64_t Manifest::queueCollectionSystemEvent(
     }
 
     auto item = makeCollectionSystemEvent(
-            getManifestUid(), cid, collectionName, entry, deleted, seq);
+            getManifestUid(), cid, collectionName, entry, type, seq);
 
     // Create and transfer Item ownership to the VBucket
     auto rv = vb.addSystemEventItem(
@@ -1129,7 +1135,9 @@ CreateEventData Manifest::getCreateEventData(std::string_view flatbufferData) {
             {collection->scopeId(),
              collection->collectionId(),
              collection->name()->str(),
-             maxTtl}};
+             maxTtl,
+             Collections::Metered::Yes,
+             CanDeduplicate::Yes}};
 }
 
 DropEventData Manifest::getDropEventData(std::string_view flatbufferData) {
@@ -1377,8 +1385,9 @@ void Manifest::updateSummary(Summary& summary) const {
     }
 }
 
-void Manifest::accumulateStats(const std::vector<CollectionEntry>& collections,
-                               Summary& summary) const {
+void Manifest::accumulateStats(
+        const std::vector<CollectionMetaData>& collections,
+        Summary& summary) const {
     for (const auto& entry : collections) {
         auto itr = map.find(entry.cid);
         if (itr != map.end()) {

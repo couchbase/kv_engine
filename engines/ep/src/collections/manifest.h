@@ -34,31 +34,6 @@ namespace Collections {
 
 static const size_t MaxScopeOrCollectionNameSize = 251;
 
-struct CollectionEntry {
-    CollectionID cid;
-    std::string name;
-    cb::ExpiryLimit maxTtl;
-    ScopeID sid;
-    CanDeduplicate canDeduplicate;
-    Metered metered;
-
-    bool operator==(const CollectionEntry& other) const;
-    bool operator!=(const CollectionEntry& other) const {
-        return !(*this == other);
-    }
-};
-
-/// collection 0, the default collection has the following entry
-const CollectionEntry DefaultCollectionEntry = {CollectionID::Default,
-                                                DefaultCollectionName,
-                                                cb::NoExpiryLimit,
-                                                ScopeID::Default,
-                                                CanDeduplicate::Yes,
-                                                Metered::Yes};
-
-std::string to_string(const CollectionEntry&);
-std::ostream& operator<<(std::ostream&, const CollectionEntry&);
-
 struct Scope {
     /**
      * Store the dataLimit we will use (which is the clusters value / nVbuckets)
@@ -74,7 +49,7 @@ struct Scope {
     size_t dataLimitFromCluster{0};
 
     std::string name;
-    std::vector<CollectionEntry> collections;
+    std::vector<CollectionMetaData> collections;
     CanDeduplicate canDeduplicate;
 
     bool operator==(const Scope& other) const;
@@ -124,9 +99,9 @@ public:
     // This manifest object stores UID to Scope mappings
     using scopeContainer = std::unordered_map<ScopeID, Scope>;
 
-    // And a map from cid to the CollectionEntry
+    // And a map from cid to the CollectionMetaData stored in scope.collections
     using collectionContainer =
-            std::unordered_map<CollectionID, CollectionEntry&>;
+            std::unordered_map<CollectionID, CollectionMetaData&>;
 
     collectionContainer::const_iterator begin() const {
         return collections.begin();
@@ -277,7 +252,8 @@ public:
      */
     std::optional<Metered> isMetered(CollectionID cid) const;
 
-    std::optional<CollectionEntry> getCollectionEntry(CollectionID cid) const;
+    std::optional<CollectionMetaData> getCollectionEntry(
+            CollectionID cid) const;
 
     /**
      * @returns this manifest as nlohmann::json object
@@ -373,15 +349,18 @@ private:
     bool defaultCollectionExists{true};
 
     /**
-     * scopes stores all of the known scopes and the 'epoch' Manifest i.e.
-     * default initialisation stores just the default scope.
+     * scopes stores all of the known scopes.
+     * The default initialisation configures the default scope which stores only
+     * the default collection (CollectionMetaData initialises to the default
+     * collection)
      */
     scopeContainer scopes = {{ScopeID::Default,
                               {NoDataLimit,
                                0,
                                DefaultScopeName,
-                               {DefaultCollectionEntry},
+                               {CollectionMetaData{}},
                                CanDeduplicate::Yes}}};
+
     collectionContainer collections;
     ManifestUid uid{0};
 };

@@ -282,7 +282,7 @@ std::pair<uint64_t, std::optional<ScopeID>> Collections::Manager::getScopeID(
             current->getUid(), current->getScopeID(cid));
 }
 
-std::pair<uint64_t, std::optional<Collections::CollectionEntry>>
+std::pair<uint64_t, std::optional<Collections::CollectionMetaData>>
 Collections::Manager::getCollectionEntry(CollectionID cid) const {
     // 'shortcut' For the default collection, just return the default scope.
     // If the default collection was deleted the vbucket will have the final say
@@ -290,13 +290,13 @@ Collections::Manager::getCollectionEntry(CollectionID cid) const {
     if (cid.isDefaultCollection()) {
         // Allow the default collection in the default scope...
         return std::make_pair<uint64_t,
-                              std::optional<Collections::CollectionEntry>>(
-                0, Collections::DefaultCollectionEntry);
+                              std::optional<Collections::CollectionMetaData>>(
+                0, Collections::CollectionMetaData{});
     }
 
     auto current = currentManifest.rlock();
     return std::make_pair<uint64_t,
-                          std::optional<Collections::CollectionEntry>>(
+                          std::optional<Collections::CollectionMetaData>>(
             current->getUid(), current->getCollectionEntry(cid));
 }
 
@@ -423,7 +423,7 @@ public:
 class CollectionsGetStatsVBucketVisitor : public VBucketVisitor {
 public:
     explicit CollectionsGetStatsVBucketVisitor(
-            const std::vector<Collections::CollectionEntry>& collections)
+            const std::vector<Collections::CollectionMetaData>& collections)
         : collections(collections) {
         for (const auto& entry : collections) {
             summary.emplace(entry.cid, Collections::AccumulatedStats{});
@@ -436,7 +436,7 @@ public:
         }
     }
 
-    const std::vector<Collections::CollectionEntry>& collections;
+    const std::vector<Collections::CollectionMetaData>& collections;
     Collections::Summary summary;
 };
 
@@ -630,7 +630,7 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::doOneCollectionStats(
     // Take a copy of the two items needed from the manifest and then release
     // the lock before vbucket visiting.
     std::string scopeName;
-    Collections::CollectionEntry entry;
+    Collections::CollectionMetaData entry;
     {
         auto current = bucket.getCollectionsManager().currentManifest.rlock();
         auto collectionItr = current->findCollection(res.getCollectionId());
@@ -785,7 +785,7 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doOneScopeStats(
     // Take a copy of the two items needed from the manifest and then release
     // the lock before vbucket visiting.
     std::string scopeName;
-    std::vector<Collections::CollectionEntry> scopeCollections;
+    std::vector<Collections::CollectionMetaData> scopeCollections;
     {
         auto current = bucket.getCollectionsManager().currentManifest.rlock();
         auto scopeItr = current->findScope(res.getScopeId());
@@ -842,7 +842,7 @@ Collections::CachedStats Collections::Manager::getPerCollectionStats(
 }
 
 Collections::CachedStats Collections::Manager::getPerCollectionStats(
-        const std::vector<Collections::CollectionEntry>& collections,
+        const std::vector<Collections::CollectionMetaData>& collections,
         KVBucket& bucket) {
     // Gather per-vbucket stats for the collections of interest
     CollectionsGetStatsVBucketVisitor visitor{collections};
@@ -868,7 +868,7 @@ Collections::CachedStats::CachedStats(
 
 void Collections::CachedStats::addStatsForCollection(
         std::string_view scopeName,
-        const CollectionEntry& collection,
+        const CollectionMetaData& collection,
         const BucketStatCollector& collector) {
     auto collectionC = collector.forScope(scopeName, collection.sid)
                                .forCollection(collection.name, collection.cid);
@@ -889,7 +889,7 @@ void Collections::CachedStats::addStatsForCollection(
 void Collections::CachedStats::addStatsForScope(
         ScopeID sid,
         std::string_view scopeName,
-        const std::vector<Collections::CollectionEntry>& scopeCollections,
+        const std::vector<Collections::CollectionMetaData>& scopeCollections,
         const BucketStatCollector& collector) {
     auto scopeC = collector.forScope(scopeName, sid);
     std::vector<CollectionID> collections;
