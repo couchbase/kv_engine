@@ -348,10 +348,10 @@ struct DocKey : DocKeyInterface<DocKey> {
         : buffer(key, nkey), encoding(encoding) {
         if (encoding == DocKeyEncodesCollectionId::Yes) {
             if (nkey == 0) {
-                throw std::invalid_argument("DocKey: invalid nkey:" +
-                                            std::to_string(nkey));
+                throw std::invalid_argument("DocKey: invalid nkey: 0");
             } else if (key == nullptr) {
-                throw std::invalid_argument("DocKey: invalid key:");
+                throw std::invalid_argument(
+                        "DocKey: invalid key: can't be nullptr");
             } else if (key[0] == CollectionID::DurabilityPrepare) {
                 // DurabilityPrepare is special-case that we disallow a view on
                 throw std::invalid_argument(
@@ -359,7 +359,7 @@ struct DocKey : DocKeyInterface<DocKey> {
             }
         }
         if (key == nullptr && nkey > 0) {
-            throw std::invalid_argument("DocKey: invalid key/nkey:" +
+            throw std::invalid_argument("DocKey: invalid key(nullptr)/nkey:" +
                                         std::to_string(nkey));
         }
     }
