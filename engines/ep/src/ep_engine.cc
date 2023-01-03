@@ -1143,9 +1143,6 @@ cb::engine_errc EventuallyPersistentEngine::processUnknownCommandInner(
         return deleteWithMeta(cookie, request, response);
     case cb::mcbp::ClientOpcode::ReturnMeta:
         return returnMeta(cookie, request, response);
-    case cb::mcbp::ClientOpcode::EnableTraffic:
-    case cb::mcbp::ClientOpcode::DisableTraffic:
-        return handleTrafficControlCmd(cookie, request, response);
     case cb::mcbp::ClientOpcode::GetKeys:
         return getAllKeys(cookie, request, response);
     default:
@@ -5856,17 +5853,17 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
 }
 
 cb::engine_errc EventuallyPersistentEngine::handleTrafficControlCmd(
-        CookieIface& cookie,
-        const cb::mcbp::Request& request,
-        const AddResponseFn& response) {
-    switch (request.getClientOpcode()) {
-    case cb::mcbp::ClientOpcode::EnableTraffic:
+        CookieIface& cookie, TrafficControlMode mode) {
+    switch (mode) {
+    case TrafficControlMode::Enabled:
         if (kvBucket->isWarmupLoadingData()) {
             // engine is still warming up, do not turn on data traffic yet
             setErrorContext(cookie, "Persistent engine is still warming up!");
             return cb::engine_errc::temporary_failure;
-        } else if (configuration.isFailpartialwarmup() &&
-                   kvBucket->isWarmupOOMFailure()) {
+        }
+
+        if (configuration.isFailpartialwarmup() &&
+            kvBucket->isWarmupOOMFailure()) {
             // engine has completed warm up, but data traffic cannot be
             // turned on due to an OOM failure
             setErrorContext(
@@ -5874,26 +5871,28 @@ cb::engine_errc EventuallyPersistentEngine::handleTrafficControlCmd(
                     "Data traffic to persistent engine cannot be enabled"
                     " due to out of memory failures during warmup");
             return cb::engine_errc::no_memory;
-        } else if (kvBucket->hasWarmupSetVbucketStateFailed()) {
+        }
+
+        if (kvBucket->hasWarmupSetVbucketStateFailed()) {
             setErrorContext(
                     cookie,
                     "Data traffic to persistent engine cannot be enabled"
                     " due to write failures when persisting vbucket state to "
                     "disk");
             return cb::engine_errc::failed;
-        } else {
-            if (enableTraffic(true)) {
-                setErrorContext(
-                        cookie,
-                        "Data traffic to persistence engine is enabled");
-            } else {
-                setErrorContext(cookie,
-                                "Data traffic to persistence engine was "
-                                "already enabled");
-            }
         }
-        break;
-    case cb::mcbp::ClientOpcode::DisableTraffic:
+
+        if (enableTraffic(true)) {
+            setErrorContext(cookie,
+                            "Data traffic to persistence engine is enabled");
+        } else {
+            setErrorContext(cookie,
+                            "Data traffic to persistence engine was "
+                            "already enabled");
+        }
+        return cb::engine_errc::success;
+
+    case TrafficControlMode::Disabled:
         if (enableTraffic(false)) {
             setErrorContext(cookie,
                             "Data traffic to persistence engine is disabled");
@@ -5902,21 +5901,12 @@ cb::engine_errc EventuallyPersistentEngine::handleTrafficControlCmd(
                     cookie,
                     "Data traffic to persistence engine was already disabled");
         }
-        break;
-    default:
-        throw std::invalid_argument(
-                "EPE::handleTrafficControlCmd can only be called with "
-                "EnableTraffic or DisableTraffic");
+        return cb::engine_errc::success;
     }
 
-    return sendResponse(response,
-                        {}, // key
-                        {}, // extra
-                        {}, // body
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        cb::mcbp::Status::Success,
-                        0,
-                        cookie);
+    throw std::invalid_argument(
+            "EPE::handleTrafficControlCmd can only be called with "
+            "Enabled or Disabled");
 }
 
 bool EventuallyPersistentEngine::isDegradedMode() const {
@@ -6821,6 +6811,11 @@ void EventuallyPersistentEngine::set_num_storage_threads(
 
 void EventuallyPersistentEngine::disconnect(CookieIface& cookie) {
     acquireEngine(this)->handleDisconnect(cookie);
+}
+
+cb::engine_errc EventuallyPersistentEngine::set_traffic_control_mode(
+        CookieIface& cookie, TrafficControlMode mode) {
+    return acquireEngine(this)->handleTrafficControlCmd(cookie, mode);
 }
 
 cb::engine_errc EventuallyPersistentEngine::compactDatabase(

@@ -19,6 +19,8 @@ struct MockEngine : public EngineIface, public DcpIface {
     }
 
     cb::engine_errc initialize(std::string_view config_str) override;
+    cb::engine_errc set_traffic_control_mode(CookieIface& cookie,
+                                             TrafficControlMode mode) override;
     void destroy(bool force) override;
     void disconnect(CookieIface& cookie) override;
     cb::unique_item_ptr allocateItem(CookieIface& cookie,

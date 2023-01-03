@@ -3769,9 +3769,8 @@ static enum test_result test_warmup_oom(EngineIface* h) {
     wait_for_warmup_complete(h);
 
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    auto pkt = createPacket(cb::mcbp::ClientOpcode::EnableTraffic);
     checkeq(cb::engine_errc::no_memory,
-            h->unknown_command(*cookie, *pkt, add_response),
+            h->set_traffic_control_mode(*cookie, TrafficControlMode::Enabled),
             "Data traffic command should have failed with enomem");
 
     return SUCCESS;
@@ -5275,24 +5274,13 @@ static enum test_result test_control_data_traffic(EngineIface* h) {
             store(h, nullptr, StoreSemantics::Set, "key", "value1"),
             "Failed to set key");
 
-    std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    auto pkt = createPacket(cb::mcbp::ClientOpcode::DisableTraffic);
-    checkeq(cb::engine_errc::success,
-            h->unknown_command(*cookie, *pkt, add_response),
-            "Failed to send data traffic command to the server");
-    checkeq(cb::mcbp::Status::Success, last_status.load(),
-          "Faile to disable data traffic");
+    disable_traffic(h);
 
     checkeq(cb::engine_errc::temporary_failure,
             store(h, nullptr, StoreSemantics::Set, "key", "value2"),
             "Expected to receive temporary failure");
 
-    pkt = createPacket(cb::mcbp::ClientOpcode::EnableTraffic);
-    checkeq(cb::engine_errc::success,
-            h->unknown_command(*cookie, *pkt, add_response),
-            "Failed to send data traffic command to the server");
-    checkeq(cb::mcbp::Status::Success, last_status.load(),
-          "Faile to enable data traffic");
+    enable_traffic(h);
 
     checkeq(cb::engine_errc::success,
             store(h, nullptr, StoreSemantics::Set, "key", "value2"),

@@ -132,6 +132,8 @@ cb::engine_errc bucket_get_stats(Cookie& cookie,
                                  const AddStatFn& add_stat);
 cb::engine_errc bucket_start_persistence(Cookie& cookie);
 cb::engine_errc bucket_stop_persistence(Cookie& cookie);
+cb::engine_errc bucket_set_traffic_control_mode(Cookie& cookie,
+                                                TrafficControlMode mode);
 
 /**
  * Calls the underlying engine DCP add-stream

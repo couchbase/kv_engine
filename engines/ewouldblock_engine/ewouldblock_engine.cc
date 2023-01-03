@@ -151,6 +151,8 @@ public:
     void disconnect(CookieIface& cookie) override;
     cb::engine_errc initialize(std::string_view config_str) override;
     void destroy(bool force) override;
+    cb::engine_errc set_traffic_control_mode(CookieIface& cookie,
+                                             TrafficControlMode mode) override;
     cb::unique_item_ptr allocateItem(CookieIface& cookie,
                                      const DocKey& key,
                                      size_t nbytes,
@@ -958,6 +960,11 @@ void EWB_Engine::destroy(bool force) {
     real_engine->destroy(force);
     (void)real_engine.release();
     delete this;
+}
+
+cb::engine_errc EWB_Engine::set_traffic_control_mode(CookieIface& cookie,
+                                                     TrafficControlMode mode) {
+    return real_engine->set_traffic_control_mode(cookie, mode);
 }
 
 cb::unique_item_ptr EWB_Engine::allocateItem(CookieIface& cookie,

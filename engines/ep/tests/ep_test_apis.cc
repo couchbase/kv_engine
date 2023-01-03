@@ -1010,24 +1010,16 @@ cb::engine_errc del_ret_meta(EngineIface* h,
 
 void disable_traffic(EngineIface* h) {
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    auto pkt = createPacket(cb::mcbp::ClientOpcode::DisableTraffic);
     checkeq(cb::engine_errc::success,
-            h->unknown_command(*cookie, *pkt, add_response),
-            "Failed to send data traffic command to the server");
-    checkeq(cb::mcbp::Status::Success,
-            last_status.load(),
-            "Failed to disable data traffic");
+            h->set_traffic_control_mode(*cookie, TrafficControlMode::Disabled),
+            "Failed to disable traffic in the engine");
 }
 
 void enable_traffic(EngineIface* h) {
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    auto pkt = createPacket(cb::mcbp::ClientOpcode::EnableTraffic);
     checkeq(cb::engine_errc::success,
-            h->unknown_command(*cookie, *pkt, add_response),
-            "Failed to send data traffic command to the server");
-    checkeq(cb::mcbp::Status::Success,
-            last_status.load(),
-            "Failed to enable data traffic");
+            h->set_traffic_control_mode(*cookie, TrafficControlMode::Enabled),
+            "Failed to enable traffic in the engine");
 }
 
 void start_persistence(EngineIface* h) {

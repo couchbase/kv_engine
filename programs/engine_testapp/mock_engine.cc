@@ -71,6 +71,14 @@ cb::engine_errc MockEngine::initialize(std::string_view config_str) {
     return the_engine->initialize(config_str);
 }
 
+cb::engine_errc MockEngine::set_traffic_control_mode(CookieIface& cookie,
+                                                     TrafficControlMode mode) {
+    auto engine_fn = [this, &cookie, mode]() {
+        return the_engine->set_traffic_control_mode(cookie, mode);
+    };
+    return call_engine_and_handle_EWOULDBLOCK(cookie, engine_fn);
+}
+
 void MockEngine::destroy(const bool force) {
     // We've got an annoying binding from the cookies to
     // the engine. As part of shutting down the engine they

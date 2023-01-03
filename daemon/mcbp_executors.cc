@@ -85,6 +85,20 @@ static void stop_persistence_executor(Cookie& cookie) {
           }).drive();
 }
 
+static void enable_traffic_control_mode_executor(Cookie& cookie) {
+    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& cookie) {
+              return bucket_set_traffic_control_mode(
+                      cookie, TrafficControlMode::Enabled);
+          }).drive();
+}
+
+static void disable_traffic_control_mode_executor(Cookie& cookie) {
+    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& cookie) {
+              return bucket_set_traffic_control_mode(
+                      cookie, TrafficControlMode::Disabled);
+          }).drive();
+}
+
 /**
  * The handler function is used to handle and incomming packet (command or
  * response).
@@ -852,6 +866,10 @@ void initialize_mbcp_lookup_map() {
                   start_persistence_executor);
     setup_handler(cb::mcbp::ClientOpcode::StopPersistence,
                   stop_persistence_executor);
+    setup_handler(cb::mcbp::ClientOpcode::EnableTraffic,
+                  enable_traffic_control_mode_executor);
+    setup_handler(cb::mcbp::ClientOpcode::DisableTraffic,
+                  disable_traffic_control_mode_executor);
 }
 
 static cb::engine_errc getEngineErrorCode(

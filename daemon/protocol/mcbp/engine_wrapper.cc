@@ -470,6 +470,22 @@ cb::engine_errc bucket_stop_persistence(Cookie& cookie) {
     return ret;
 }
 
+cb::engine_errc bucket_set_traffic_control_mode(Cookie& cookie,
+                                                TrafficControlMode mode) {
+    auto& c = cookie.getConnection();
+    auto ret = c.getBucketEngine().set_traffic_control_mode(cookie, mode);
+    if (ret == cb::engine_errc::disconnect) {
+        LOG_WARNING(
+                "{}: {} bucket_set_traffic_control_mode returned "
+                "cb::engine_errc::disconnect when setting the mode to {}",
+                c.getId(),
+                c.getDescription(),
+                mode);
+        c.setTerminationReason("Engine forced disconnect");
+    }
+    return ret;
+}
+
 cb::engine_errc dcpAddStream(Cookie& cookie,
                              uint32_t opaque,
                              Vbid vbid,

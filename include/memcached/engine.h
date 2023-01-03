@@ -162,6 +162,10 @@ public:
 };
 } // namespace std
 
+enum class TrafficControlMode : bool { Enabled, Disabled };
+std::string to_string(const TrafficControlMode mode);
+std::ostream& operator<<(std::ostream& os, const TrafficControlMode& mode);
+
 /**
  * Definition of the first version of the engine interface
  */
@@ -199,6 +203,18 @@ struct EngineIface {
      */
     virtual void initiate_shutdown() {
         // empty
+    }
+
+    /**
+     * Set the traffic control mode to Enabled or Disabled
+     *
+     * @param cookie The cookie performing the operation
+     * @param mode The requested mode
+     * @return The status code representing the result of the operation
+     */
+    virtual cb::engine_errc set_traffic_control_mode(CookieIface& cookie,
+                                                     TrafficControlMode mode) {
+        return cb::engine_errc::not_supported;
     }
 
     virtual void notify_num_writer_threads_changed() {

@@ -2422,24 +2422,12 @@ public:
 
     void sendEnableTrafficRequest(
             cb::engine_errc expectedStatus = cb::engine_errc::failed) {
-        cb::mcbp::Request request;
-        request.setMagic(cb::mcbp::Magic::ClientRequest);
-        request.setOpcode(cb::mcbp::ClientOpcode::EnableTraffic);
         EXPECT_EQ(expectedStatus,
-                  engine->handleTrafficControlCmd(
-                          *cookie, request, dummyRespHandler));
+                  engine->set_traffic_control_mode(
+                          *cookie, TrafficControlMode::Enabled));
     }
 
 private:
-    AddResponseFn dummyRespHandler = [](std::string_view key,
-                                        std::string_view extras,
-                                        std::string_view body,
-                                        protocol_binary_datatype_t datatype,
-                                        cb::mcbp::Status status,
-                                        uint64_t cas,
-                                        CookieIface& cookie) -> bool {
-        return true;
-    };
     std::vector<std::filesystem::path> readonlyfiles;
 };
 

@@ -8,6 +8,7 @@
  *   the file licenses/APL2.txt.
  */
 
+#include <fmt/format.h>
 #include <folly/CancellationToken.h>
 #include <memcached/collections.h>
 #include <memcached/engine.h>
@@ -70,4 +71,19 @@ cb::EngineErrorItemPair EngineIface::get_replica(CookieIface& cookie,
 cb::EngineErrorItemPair EngineIface::get_random_document(CookieIface& cookie,
                                                          CollectionID cid) {
     return cb::makeEngineErrorItemPair(cb::engine_errc::not_supported);
+}
+
+std::string to_string(const TrafficControlMode mode) {
+    switch (mode) {
+    case TrafficControlMode::Enabled:
+        return "enabled";
+    case TrafficControlMode::Disabled:
+        return "disabled";
+    }
+    return fmt::format("TrafficControlMode::Invalid({})", int(mode));
+}
+
+std::ostream& operator<<(std::ostream& os, const TrafficControlMode& mode) {
+    os << to_string(mode);
+    return os;
 }

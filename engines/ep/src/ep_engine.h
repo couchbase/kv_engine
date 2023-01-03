@@ -120,6 +120,8 @@ public:
     cb::engine_errc initialize(std::string_view config) override;
     void destroy(bool force) override;
     void disconnect(CookieIface& cookie) override;
+    cb::engine_errc set_traffic_control_mode(CookieIface& cookie,
+                                             TrafficControlMode mode) override;
     void initiate_shutdown() override;
     void notify_num_writer_threads_changed() override;
     void notify_num_auxio_threads_changed() override;
@@ -724,8 +726,7 @@ public:
                                            const AddResponseFn& response);
 
     cb::engine_errc handleTrafficControlCmd(CookieIface& cookie,
-                                            const cb::mcbp::Request& request,
-                                            const AddResponseFn& response);
+                                            TrafficControlMode mode);
 
     size_t getGetlDefaultTimeout() const {
         return getlDefaultTimeout;

@@ -132,14 +132,21 @@ bool test_setup(EngineIface* h) {
         return false;
     }
 
-    std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     // warmup is complete, notify ep engine that it must now enable
     // data traffic
-    auto request = createPacket(cb::mcbp::ClientOpcode::EnableTraffic);
-
+    std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     checkeq(cb::engine_errc::success,
-            h->unknown_command(*cookie, *request, add_response),
-            "Failed to enable data traffic");
+            h->set_traffic_control_mode(*cookie, TrafficControlMode::Enabled),
+            "Failed to enable traffic in the engine");
+    // For some unknown reasons _some_ unit tests _fail_ after we moved to
+    // call set_traffic_control_mode instead of the "unknown_command" method.
+    // The "only" difference between those calls is that the old one would
+    // call the response handler (which holds a mutex and then resets a
+    // bunch of last_xxx variables). Instead of trying to identify which
+    // variable it is and all the test cases which incorrectly inherits
+    // the "wrong" value and fix those we'll just call add_response to
+    // reset all of them to "clean" values.
+    add_response({}, {}, {}, 0, cb::mcbp::Status::Success, 0, *cookie);
 
     return true;
 }
