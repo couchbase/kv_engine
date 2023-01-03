@@ -901,7 +901,16 @@ TEST_F(CollectionsDcpTest, test_dcp_create_delete_create) {
 
     // Test against a different VB as our old replica will have data
     replicaVB++;
+
+    // MB-54967: Enable compression to extend the coverage of the collection
+    // tombstone replication path
+    cookie_to_mock_cookie(cookieP)->setDatatypeSupport(
+            PROTOCOL_BINARY_DATATYPE_SNAPPY);
+
     createDcpObjects({{nullptr, 0}});
+
+    ASSERT_EQ(cb::engine_errc::success,
+              producer->control(0, "force_value_compression", "true"));
 
     // Streamed from disk, we won't see the 2x create events or the intermediate
     // delete. So check DCP sends only 1 collection create (of dairy2) and the
