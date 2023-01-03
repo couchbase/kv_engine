@@ -48,6 +48,9 @@ public:
         : itr(std::move(itr)) {
     }
     ~DomainAwareSeqIterator() override;
+    magma::Status Initialize(const magma::Magma::SeqNo startSeqno,
+                             const magma::Magma::SeqNo endSeqno,
+                             Mode mode) override;
     void Seek(const magma::Magma::SeqNo startSeqno,
               const magma::Magma::SeqNo endSeqno) override;
     bool Valid() override;
@@ -205,6 +208,9 @@ public:
     void EnableBlockCache(bool enable);
     void SetMemoryQuota(const size_t quota);
     void SetNumThreads(magma::Magma::ThreadType threadType, size_t nThreads);
+    void SetHistoryRetentionSize(size_t historyBytes);
+    void SetHistoryRetentionTime(uint64_t historySeconds);
+
     magma::Status Sync(bool flushAll);
     magma::Status SyncKVStore(const magma::Magma::KVStoreID kvID);
 
@@ -220,6 +226,9 @@ public:
     magma::Status NewCheckpoint(const magma::Magma::KVStoreID kvID);
     magma::Status StopBGCompaction(const magma::Magma::KVStoreID kvID);
     magma::Status ResumeBGCompaction(const magma::Magma::KVStoreID kvID);
+
+    magma::Magma::SeqNo GetOldestHistorySeqno(magma::Magma::KVStoreID kvid);
+    magma::Magma::SeqNo GetOldestHistorySeqno(magma::Magma::Snapshot& snapshot);
 
 private:
     std::unique_ptr<magma::Magma> magma;

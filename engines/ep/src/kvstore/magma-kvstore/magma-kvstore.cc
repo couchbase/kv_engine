@@ -2894,6 +2894,7 @@ RollbackResult MagmaKVStore::rollback(Vbid vbid,
     case Status::NotFound:
     case Status::Cancelled:
     case Status::RetryCompaction:
+    case Status::RangeNotFound:
         logger->critical("MagmaKVStore::rollback Rollback {} status:{}",
                          vbid,
                          status.String());
