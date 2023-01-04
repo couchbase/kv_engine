@@ -368,9 +368,6 @@ public:
      */
     void replaceMagmaKVStore();
 
-    unique_request_ptr createObserveRequest(
-            const std::vector<std::string>& key);
-
     /**
      * Initialise test objects - e.g. engine/store/cookie
      */

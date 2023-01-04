@@ -416,6 +416,26 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
             const std::optional<cb::durability::Requirements>& durability) = 0;
 
     /**
+     * Get information about the provided key
+     *
+     * @param cookie cookie representing the front end request
+     * @param key The key to look up
+     * @param vbucket The virtual bucket to search for the key
+     * @param key_handler The callback for the key (
+     * @param persist_time_hint (out) A hint for roughly the persistence time
+     *                          for items (queue size * rough-per-item-time).
+     * @return Standard engine error code
+     */
+    virtual cb::engine_errc observe(
+            CookieIface& cookie,
+            const DocKey& key,
+            Vbid vbucket,
+            std::function<void(uint8_t, uint64_t)> key_handler,
+            uint64_t& persist_time_hint) {
+        return cb::engine_errc::not_supported;
+    }
+
+    /**
      * Store an item into the underlying engine with the given
      * state. If the DocumentState is set to DocumentState::Deleted
      * the document shall not be returned unless explicitly asked for

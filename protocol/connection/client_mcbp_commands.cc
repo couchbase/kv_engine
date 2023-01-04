@@ -2073,7 +2073,7 @@ BinprotObserveResponse::getResults() {
         if (ptr + 1 > value.end()) {
             throw std::runtime_error("no status present");
         }
-        r.status = *ptr;
+        r.status = ObserveKeyState(*ptr);
         ++ptr;
         if (ptr + sizeof(uint64_t) > value.end()) {
             throw std::runtime_error("no cas present");

@@ -73,6 +73,12 @@ struct MockEngine : public EngineIface, public DcpIface {
             const std::optional<cb::durability::Requirements>& durability)
             override;
 
+    cb::engine_errc observe(CookieIface& cookie,
+                            const DocKey& key,
+                            Vbid vbucket,
+                            std::function<void(uint8_t, uint64_t)> key_handler,
+                            uint64_t& persist_time_hint) override;
+
     cb::engine_errc store(
             const CookieIface& cookie,
             ItemIface& item,

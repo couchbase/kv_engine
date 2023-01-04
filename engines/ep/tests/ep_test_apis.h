@@ -219,7 +219,10 @@ cb::EngineErrorItemPair getl(EngineIface* h,
         EngineIface* h, vbucket_state_t state, bool makeinvalidkey = false);
 
 void get_replica(EngineIface* h, const char* key, Vbid vb);
-cb::engine_errc observe(EngineIface* h, std::map<std::string, Vbid> obskeys);
+cb::engine_errc observe(EngineIface* h,
+                        std::string key,
+                        Vbid vb,
+                        std::function<void(uint8_t, uint64_t)> callback);
 cb::engine_errc observe_seqno(EngineIface* h, Vbid vb_id, uint64_t uuid);
 
 cb::engine_errc set_param(EngineIface* h,

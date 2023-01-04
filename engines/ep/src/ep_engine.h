@@ -597,9 +597,11 @@ public:
                               const cb::mcbp::Request& request,
                               const char** msg);
 
-    cb::engine_errc observe(const CookieIface* cookie,
-                            const cb::mcbp::Request& request,
-                            const AddResponseFn& response);
+    cb::engine_errc observe(CookieIface& cookie,
+                            const DocKey& key,
+                            Vbid vbucket,
+                            std::function<void(uint8_t, uint64_t)> key_handler,
+                            uint64_t& persist_time_hint) override;
 
     cb::engine_errc observe_seqno(const CookieIface* cookie,
                                   const cb::mcbp::Request& request,
@@ -698,6 +700,13 @@ public:
     cb::engine_errc handleCreateCheckpoint(const CookieIface* cookie,
                                            const cb::mcbp::Request& request,
                                            const AddResponseFn& response);
+
+    cb::engine_errc handleObserve(
+            CookieIface& cookie,
+            const DocKey& key,
+            Vbid vbucket,
+            std::function<void(uint8_t, uint64_t)> key_handler,
+            uint64_t& persist_time_hint);
 
     cb::engine_errc handleSeqnoPersistence(const CookieIface* cookie,
                                            const cb::mcbp::Request& req,

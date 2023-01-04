@@ -410,6 +410,25 @@ cb::EngineErrorGetScopeIDResult MockEngine::get_scope_id(
     return the_engine->get_scope_id(cookie, key, vbid);
 }
 
+cb::engine_errc MockEngine::observe(
+        CookieIface& cookie,
+        const DocKey& key,
+        Vbid vbucket,
+        std::function<void(uint8_t, uint64_t)> key_handler,
+        uint64_t& persist_time_hint) {
+    auto engine_fn = [this,
+                      &cookie,
+                      k = std::cref(key),
+                      vbucket,
+                      key_handler,
+                      r = std::ref(persist_time_hint)]() {
+        return the_engine->observe(cookie, k, vbucket, key_handler, r);
+    };
+
+    auto* c = cookie_to_mock_cookie(&cookie);
+    return call_engine_and_handle_EWOULDBLOCK(c, engine_fn);
+}
+
 cb::engine_errc MockEngine::step(const CookieIface& cookie,
                                  DcpMessageProducersIface& producers) {
     return the_engine_dcp->step(cookie, producers);

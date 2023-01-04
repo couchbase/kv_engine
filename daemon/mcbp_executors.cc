@@ -17,7 +17,6 @@
 #include "mcaudit.h"
 #include "mcbp.h"
 #include "mcbp_privileges.h"
-#include "network_interface_manager.h"
 #include "protocol/mcbp/appendprepend_context.h"
 #include "protocol/mcbp/arithmetic_context.h"
 #include "protocol/mcbp/audit_configure_context.h"
@@ -35,6 +34,7 @@
 #include "protocol/mcbp/get_meta_context.h"
 #include "protocol/mcbp/ifconfig_context.h"
 #include "protocol/mcbp/mutation_context.h"
+#include "protocol/mcbp/observe_context.h"
 #include "protocol/mcbp/rbac_reload_command_context.h"
 #include "protocol/mcbp/remove_context.h"
 #include "protocol/mcbp/sasl_refresh_command_context.h"
@@ -75,6 +75,10 @@ static void gat_executor(Cookie& cookie) {
 
 static void ifconfig_executor(Cookie& cookie) {
     cookie.obtainContext<IfconfigCommandContext>(cookie).drive();
+}
+
+static void observe_executor(Cookie& cookie) {
+    cookie.obtainContext<ObserveCommandContext>(cookie).drive();
 }
 
 /**
@@ -789,6 +793,7 @@ void initialize_mbcp_lookup_map() {
     setup_handler(cb::mcbp::ClientOpcode::DelVbucket, delete_vbucket_executor);
     setup_handler(cb::mcbp::ClientOpcode::CompactDb, compact_db_executor);
     setup_handler(cb::mcbp::ClientOpcode::Ifconfig, ifconfig_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Observe, observe_executor);
 }
 
 static cb::engine_errc getEngineErrorCode(

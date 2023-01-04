@@ -4575,13 +4575,6 @@ static enum test_result test_mb3466(EngineIface* h) {
     return SUCCESS;
 }
 
-static enum test_result test_observe_no_data(EngineIface* h) {
-    std::map<std::string, Vbid> obskeys;
-    checkeq(cb::engine_errc::success, observe(h, obskeys), "expected success");
-    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
-    return SUCCESS;
-}
-
 static enum test_result test_observe_seqno_basic_tests(EngineIface* h) {
     // Check observe seqno for vbucket with id 1
     check(set_vbucket_state(h, Vbid(1), vbucket_state_active),
@@ -4809,33 +4802,18 @@ static enum test_result test_observe_single_key(EngineIface* h) {
                         cas1),
             "Set should work");
 
-    // Do an observe
-    std::map<std::string, Vbid> obskeys;
-    obskeys["key"] = Vbid(0);
-    checkeq(cb::engine_errc::success, observe(h, obskeys), "Expected success");
-    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
-
-    // Check that the key is not persisted
-    Vbid vb;
-    uint16_t keylen;
-    char key[3];
-    uint8_t persisted;
-    uint64_t cas;
-
-    memcpy(&vb, last_body.data(), sizeof(Vbid));
-    checkeq(Vbid(0), vb.ntoh(), "Wrong vbucket in result");
-    memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
-    checkeq(uint16_t{3}, ntohs(keylen), "Wrong keylen in result");
-    memcpy(&key, last_body.data() + 4, ntohs(keylen));
-    checkeq(std::string_view("key", 3),
-            std::string_view(key, 3),
-            "Wrong key in result");
-    memcpy(&persisted, last_body.data() + 7, sizeof(uint8_t));
-    checkeq(uint8_t{OBS_STATE_NOT_PERSISTED},
-            persisted,
-            "Expected persisted in result");
-    memcpy(&cas, last_body.data() + 8, sizeof(uint64_t));
-    checkeq(cas1, ntohll(cas), "Wrong cas in result");
+    // observe the item
+    checkeq(cb::engine_errc::success,
+            observe(h,
+                    "key",
+                    Vbid{0},
+                    [&cas1](auto state, auto cas) {
+                        checkeq(ObserveKeyState::NotPersisted,
+                                ObserveKeyState(state),
+                                "Expected persisted in result");
+                        checkeq(cas1, cas, "Wrong cas in result");
+                    }),
+            "Expected success");
 
     return SUCCESS;
 }
@@ -4869,359 +4847,41 @@ static enum test_result test_observe_temp_item(EngineIface* h) {
     }
 
     // Do an observe
-    std::map<std::string, Vbid> obskeys;
-    obskeys["key"] = Vbid(0);
-    checkeq(cb::engine_errc::success, observe(h, obskeys), "Expected success");
-    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
-
-    // Check that the key is not found
-    Vbid vb;
-    uint16_t keylen;
-    char key[3];
-    uint8_t persisted;
-    uint64_t cas;
-
-    memcpy(&vb, last_body.data(), sizeof(Vbid));
-    memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
-    memcpy(&key, last_body.data() + 4, ntohs(keylen));
-    memcpy(&persisted, last_body.data() + 7, sizeof(uint8_t));
-    memcpy(&cas, last_body.data() + 8, sizeof(uint64_t));
-
-    checkeq(Vbid(0), vb.ntoh(), "Wrong vbucket in result");
-    checkeq(uint16_t{3}, ntohs(keylen), "Wrong keylen in result");
-    checkeq(std::string_view("key", 3),
-            std::string_view(key, 3),
-            "Wrong key in result");
-    if (isPersistentBucket(h)) {
-        checkeq(OBS_STATE_NOT_FOUND,
-                int(persisted),
-                "Expected NOT_FOUND in result");
-        checkeq(uint64_t(0), ntohll(cas), "Wrong cas in result");
-    } else {
-        // For ephemeral buckets, deleted items are kept in HT hence we check
-        // for LOGICAL_DEL and a valid CAS.
-        checkeq(OBS_STATE_LOGICAL_DEL,
-                int(persisted),
-                "Expected LOGICAL_DEL in result");
-        checkne(uint64_t(0), ntohll(cas), "Wrong cas in result");
-    }
+    checkeq(cb::engine_errc::success,
+            observe(h,
+                    "key",
+                    Vbid{0},
+                    [&h](auto state, auto cas) {
+                        if (isPersistentBucket(h)) {
+                            checkeq(ObserveKeyState::NotFound,
+                                    ObserveKeyState(state),
+                                    "Expected NOT_FOUND in result");
+                            checkeq(uint64_t(0), cas, "Wrong cas in result");
+                        } else {
+                            // For ephemeral buckets, deleted items are kept in
+                            // HT hence we check for LOGICAL_DEL and a valid
+                            // CAS.
+                            checkeq(ObserveKeyState::LogicalDeleted,
+                                    ObserveKeyState(state),
+                                    "Expected LOGICAL_DEL in result");
+                            checkne(uint64_t(0), cas, "Wrong cas in result");
+                        }
+                    }),
+            "Expected success");
 
     return SUCCESS;
 }
 
-static enum test_result test_observe_multi_key(EngineIface* h) {
-    // Create some vbuckets
-    check(set_vbucket_state(h, Vbid(1), vbucket_state_active),
-          "Failed to set vbucket state.");
-
-    // Set some keys to observe
-    ItemIface* it = nullptr;
-    uint64_t cas1, cas2, cas3;
-    std::string value('x', 100);
-    checkeq(cb::engine_errc::success,
-            storeCasOut(h,
-                        nullptr,
-                        Vbid(0),
-                        "key1",
-                        value,
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        it,
-                        cas1),
-            "Set should work");
-
-    checkeq(cb::engine_errc::success,
-            storeCasOut(h,
-                        nullptr,
-                        Vbid(1),
-                        "key2",
-                        value,
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        it,
-                        cas2),
-            "Set should work");
-
-    checkeq(cb::engine_errc::success,
-            storeCasOut(h,
-                        nullptr,
-                        Vbid(1),
-                        "key3",
-                        value,
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        it,
-                        cas3),
-            "Set should work");
-
-    if (isPersistentBucket(h)) {
-        wait_for_stat_to_be(h, "ep_total_persisted", 3);
-    }
-
-    // Do observe
-    std::map<std::string, Vbid> obskeys;
-    obskeys["key1"] = Vbid(0);
-    obskeys["key2"] = Vbid(1);
-    obskeys["key3"] = Vbid(1);
-    checkeq(cb::engine_errc::success, observe(h, obskeys), "Expected success");
-    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
-
-    // Check the result
-    Vbid vb;
-    uint16_t keylen;
-    char key[10];
-    uint8_t persisted;
-    uint64_t cas;
-
-    const int expected_persisted = isPersistentBucket(h)
-                                           ? OBS_STATE_PERSISTED
-                                           : OBS_STATE_NOT_PERSISTED;
-
-    memcpy(&vb, last_body.data(), sizeof(Vbid));
-    checkeq(Vbid(0), vb.ntoh(), "Wrong vbucket in result");
-    memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
-    checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
-    memcpy(&key, last_body.data() + 4, ntohs(keylen));
-    checkeq(std::string_view("key1", 4),
-            std::string_view(key, 4),
-            "Wrong key in result");
-    memcpy(&persisted, last_body.data() + 8, sizeof(uint8_t));
-    checkeq(expected_persisted, int(persisted), "Expected persisted in result");
-    memcpy(&cas, last_body.data() + 9, sizeof(uint64_t));
-    checkeq(cas1, ntohll(cas), "Wrong cas in result");
-
-    memcpy(&vb, last_body.data() + 17, sizeof(Vbid));
-    checkeq(Vbid(1), vb.ntoh(), "Wrong vbucket in result");
-    memcpy(&keylen, last_body.data() + 19, sizeof(uint16_t));
-    checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
-    memcpy(&key, last_body.data() + 21, ntohs(keylen));
-    checkeq(std::string_view("key2", 4),
-            std::string_view(key, 4),
-            "Wrong key in result");
-    memcpy(&persisted, last_body.data() + 25, sizeof(uint8_t));
-    checkeq(expected_persisted, int(persisted), "Expected persisted in result");
-    memcpy(&cas, last_body.data() + 26, sizeof(uint64_t));
-    checkeq(cas2, ntohll(cas), "Wrong cas in result");
-
-    memcpy(&vb, last_body.data() + 34, sizeof(Vbid));
-    checkeq(Vbid(1), vb.ntoh(),  "Wrong vbucket in result");
-    memcpy(&keylen, last_body.data() + 36, sizeof(uint16_t));
-    checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
-    memcpy(&key, last_body.data() + 38, ntohs(keylen));
-    checkeq(std::string_view("key3", 4),
-            std::string_view(key, 4),
-            "Wrong key in result");
-    memcpy(&persisted, last_body.data() + 42, sizeof(uint8_t));
-    checkeq(expected_persisted, int(persisted), "Expected persisted in result");
-    memcpy(&cas, last_body.data() + 43, sizeof(uint64_t));
-    checkeq(cas3, ntohll(cas), "Wrong cas in result");
-
-    return SUCCESS;
-}
-
-static enum test_result test_multiple_observes(EngineIface* h) {
-    // Holds the result
-    Vbid vb;
-    uint16_t keylen;
-    char key[10];
-    uint8_t persisted;
-    uint64_t cas;
-
-    // Set some keys
-    ItemIface* it = nullptr;
-    uint64_t cas1, cas2;
-    std::string value('x', 100);
-    checkeq(cb::engine_errc::success,
-            storeCasOut(h,
-                        nullptr,
-                        Vbid(0),
-                        "key1",
-                        value,
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        it,
-                        cas1),
-            "Set should work");
-
-    checkeq(cb::engine_errc::success,
-            storeCasOut(h,
-                        nullptr,
-                        Vbid(0),
-                        "key2",
-                        value,
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        it,
-                        cas2),
-            "Set should work");
-
-    if (isPersistentBucket(h)) {
-        wait_for_stat_to_be(h, "ep_total_persisted", 2);
-    }
-
-    // Do observe
-    std::map<std::string, Vbid> obskeys;
-    obskeys["key1"] = Vbid(0);
-    checkeq(cb::engine_errc::success, observe(h, obskeys), "Expected success");
-    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
-
-    const int expected_persisted = isPersistentBucket(h)
-                                           ? OBS_STATE_PERSISTED
-                                           : OBS_STATE_NOT_PERSISTED;
-
-    memcpy(&vb, last_body.data(), sizeof(Vbid));
-    checkeq(Vbid(0), vb.ntoh(), "Wrong vbucket in result");
-    memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
-    checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
-    memcpy(&key, last_body.data() + 4, ntohs(keylen));
-    checkeq(std::string_view("key1", 4),
-            std::string_view(key, 4),
-            "Wrong key in result");
-    memcpy(&persisted, last_body.data() + 8, sizeof(uint8_t));
-    checkeq(expected_persisted, int(persisted), "Expected persisted in result");
-    memcpy(&cas, last_body.data() + 9, sizeof(uint64_t));
-    checkeq(cas1, ntohll(cas), "Wrong cas in result");
-    checkeq(size_t{17}, last_body.size(), "Incorrect body length");
-
-    // Do another observe
-    obskeys.clear();
-    obskeys["key2"] = Vbid(0);
-    checkeq(cb::engine_errc::success, observe(h, obskeys), "Expected success");
-    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
-
-    memcpy(&vb, last_body.data(), sizeof(Vbid));
-    checkeq(Vbid(0), vb.ntoh(), "Wrong vbucket in result");
-    memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
-    checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
-    memcpy(&key, last_body.data() + 4, ntohs(keylen));
-    checkeq(std::string_view("key2", 4),
-            std::string_view(key, 4),
-            "Wrong key in result");
-    memcpy(&persisted, last_body.data() + 8, sizeof(uint8_t));
-    checkeq(expected_persisted, int(persisted), "Expected persisted in result");
-    memcpy(&cas, last_body.data() + 9, sizeof(uint64_t));
-    checkeq(cas2, ntohll(cas),"Wrong cas in result");
-    checkeq(size_t{17}, last_body.size(), "Incorrect body length");
-
-    return SUCCESS;
-}
-
-static enum test_result test_observe_with_not_found(EngineIface* h) {
-    // Create some vbuckets
-    check(set_vbucket_state(h, Vbid(1), vbucket_state_active),
-          "Failed to set vbucket state.");
-
-    // Set some keys
-    ItemIface* it = nullptr;
-    uint64_t cas1, cas3;
-    std::string value('x', 100);
-    checkeq(cb::engine_errc::success,
-            storeCasOut(h,
-                        nullptr,
-                        Vbid(0),
-                        "key1",
-                        value,
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        it,
-                        cas1),
-            "Set should work");
-
-    if (isPersistentBucket(h)) {
-        wait_for_stat_to_be(h, "ep_total_persisted", 1);
-        stop_persistence(h);
-    }
-
-    checkeq(cb::engine_errc::success,
-            storeCasOut(h,
-                        nullptr,
-                        Vbid(1),
-                        "key3",
-                        value,
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        it,
-                        cas3),
-            "Set should work");
-
-    checkeq(cb::engine_errc::success,
-            del(h, "key3", 0, Vbid(1)),
-            "Failed to remove a key");
-
-    // Do observe
-    std::map<std::string, Vbid> obskeys;
-    obskeys["key1"] = Vbid(0);
-    obskeys["key2"] = Vbid(0);
-    obskeys["key3"] = Vbid(1);
-    checkeq(cb::engine_errc::success, observe(h, obskeys), "Expected success");
-    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
-
-    // Check the result
-    Vbid vb;
-    uint16_t keylen;
-    char key[10];
-    uint8_t persisted;
-    uint64_t cas;
-
-    const int expected_persisted = isPersistentBucket(h)
-                                           ? OBS_STATE_PERSISTED
-                                           : OBS_STATE_NOT_PERSISTED;
-
-    memcpy(&vb, last_body.data(), sizeof(Vbid));
-    checkeq(Vbid(0), vb.ntoh(), "Wrong vbucket in result");
-    memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
-    checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
-    memcpy(&key, last_body.data() + 4, ntohs(keylen));
-    checkeq(std::string_view("key1", 4),
-            std::string_view(key, 4),
-            "Wrong key in result");
-    memcpy(&persisted, last_body.data() + 8, sizeof(uint8_t));
-    checkeq(expected_persisted, int(persisted), "Expected persisted in result");
-    memcpy(&cas, last_body.data() + 9, sizeof(uint64_t));
-    checkeq(ntohll(cas), cas1, "Wrong cas in result");
-
-    memcpy(&keylen, last_body.data() + 19, sizeof(uint16_t));
-    checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
-    memcpy(&key, last_body.data() + 21, ntohs(keylen));
-    checkeq(std::string_view("key2", 4),
-            std::string_view(key, 4),
-            "Wrong key in result");
-    memcpy(&persisted, last_body.data() + 25, sizeof(uint8_t));
-    checkeq(OBS_STATE_NOT_FOUND, int(persisted), "Expected key_not_found key status");
-
-    memcpy(&vb, last_body.data() + 34, sizeof(Vbid));
-    checkeq(Vbid(1), vb.ntoh(), "Wrong vbucket in result");
-    memcpy(&keylen, last_body.data() + 36, sizeof(uint16_t));
-    checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
-    memcpy(&key, last_body.data() + 38, ntohs(keylen));
-    checkeq(std::string_view("key3", 4),
-            std::string_view(key, 4),
-            "Wrong key in result");
-    memcpy(&persisted, last_body.data() + 42, sizeof(uint8_t));
-    checkeq(OBS_STATE_LOGICAL_DEL, int(persisted), "Expected persisted in result");
-    memcpy(&cas, last_body.data() + 43, sizeof(uint64_t));
-    checkne(cas3, ntohll(cas), "Expected cas to be different");
-
-    return SUCCESS;
-}
-
-static enum test_result test_observe_errors(EngineIface* h) {
-    std::map<std::string, Vbid> obskeys;
-
-    // Check not my vbucket error
-    obskeys["key"] = Vbid(1);
-
+static enum test_result test_observe_not_my_vbucket(EngineIface* h) {
+    auto cookie = std::make_unique<MockCookie>();
+    uint64_t hint;
     checkeq(cb::engine_errc::not_my_vbucket,
-            observe(h, obskeys),
+            h->observe(*cookie,
+                       DocKey{"key", DocKeyEncodesCollectionId::No},
+                       Vbid{1},
+                       {},
+                       hint),
             "Expected not my vbucket");
-
-    // Check invalid packets
-    auto pkt = createPacket(
-            cb::mcbp::ClientOpcode::Observe, Vbid(0), 0, {}, {}, {"0", 1});
-    std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    checkeq(cb::engine_errc::invalid_arguments,
-            h->unknown_command(cookie.get(), *pkt, add_response),
-            "Observe failed.");
-
-    pkt = createPacket(
-            cb::mcbp::ClientOpcode::Observe, Vbid(0), 0, {}, {}, {"0000", 4});
-    checkeq(cb::engine_errc::invalid_arguments,
-            h->unknown_command(cookie.get(), *pkt, add_response),
-            "Observe failed.");
-
     return SUCCESS;
 }
 
@@ -5983,13 +5643,9 @@ static enum test_result test_del_with_item_eviction(EngineIface* h) {
 }
 
 static enum test_result test_observe_with_item_eviction(EngineIface* h) {
-    // Create some vbuckets
-    check(set_vbucket_state(h, Vbid(1), vbucket_state_active),
-          "Failed to set vbucket state.");
-
-    // Set some keys to observe
+    // Set the keys to observe
     ItemIface* it = nullptr;
-    uint64_t cas1, cas2, cas3;
+    uint64_t cas1;
 
     std::string value('x', 100);
     checkeq(cb::engine_errc::success,
@@ -6002,92 +5658,22 @@ static enum test_result test_observe_with_item_eviction(EngineIface* h) {
                         it,
                         cas1),
             "Set should work.");
-    checkeq(cb::engine_errc::success,
-            storeCasOut(h,
-                        nullptr,
-                        Vbid(1),
-                        "key2",
-                        value,
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        it,
-                        cas2),
-            "Set should work.");
-    checkeq(cb::engine_errc::success,
-            storeCasOut(h,
-                        nullptr,
-                        Vbid(1),
-                        "key3",
-                        value,
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        it,
-                        cas3),
-            "Set should work.");
-
-    wait_for_stat_to_be(h, "ep_total_persisted", 3);
+    wait_for_stat_to_be(h, "ep_total_persisted", 1);
 
     evict_key(h, "key1", Vbid(0), "Ejected.");
-    evict_key(h, "key2", Vbid(1), "Ejected.");
 
     // Do observe
-    std::map<std::string, Vbid> obskeys;
-    obskeys["key1"] = Vbid(0);
-    obskeys["key2"] = Vbid(1);
-    obskeys["key3"] = Vbid(1);
-    checkeq(cb::engine_errc::success, observe(h, obskeys), "Expected success");
-    checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
-
-    // Check the result
-    Vbid vb;
-    uint16_t keylen;
-    char key[10];
-    uint8_t persisted;
-    uint64_t cas;
-
-    memcpy(&vb, last_body.data(), sizeof(Vbid));
-    checkeq(Vbid(0), vb.ntoh(), "Wrong vbucket in result");
-    memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
-    checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
-    memcpy(&key, last_body.data() + 4, ntohs(keylen));
-    checkeq(std::string_view("key1", 4),
-            std::string_view(key, 4),
-            "Wrong key in result");
-    memcpy(&persisted, last_body.data() + 8, sizeof(uint8_t));
-    checkeq(uint8_t{OBS_STATE_PERSISTED},
-            persisted,
-            "Expected persisted in result");
-    memcpy(&cas, last_body.data() + 9, sizeof(uint64_t));
-    checkeq(ntohll(cas), cas1, "Wrong cas in result");
-
-    memcpy(&vb, last_body.data() + 17, sizeof(Vbid));
-    checkeq(Vbid(1), vb.ntoh(), "Wrong vbucket in result");
-    memcpy(&keylen, last_body.data() + 19, sizeof(uint16_t));
-    checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
-    memcpy(&key, last_body.data() + 21, ntohs(keylen));
-    checkeq(std::string_view("key2", 4),
-            std::string_view(key, 4),
-            "Wrong key in result");
-    memcpy(&persisted, last_body.data() + 25, sizeof(uint8_t));
-    checkeq(uint8_t{OBS_STATE_PERSISTED},
-            persisted,
-            "Expected persisted in result");
-    memcpy(&cas, last_body.data() + 26, sizeof(uint64_t));
-    checkeq(ntohll(cas), cas2, "Wrong cas in result");
-
-    memcpy(&vb, last_body.data() + 34, sizeof(Vbid));
-    checkeq(Vbid(1), vb.ntoh(), "Wrong vbucket in result");
-    memcpy(&keylen, last_body.data() + 36, sizeof(uint16_t));
-    checkeq(uint16_t{4}, ntohs(keylen), "Wrong keylen in result");
-    memcpy(&key, last_body.data() + 38, ntohs(keylen));
-    checkeq(std::string_view("key3", 4),
-            std::string_view(key, 4),
-            "Wrong key in result");
-    memcpy(&persisted, last_body.data() + 42, sizeof(uint8_t));
-    checkeq(uint8_t{OBS_STATE_PERSISTED},
-            persisted,
-            "Expected persisted in result");
-    memcpy(&cas, last_body.data() + 43, sizeof(uint64_t));
-    checkeq(ntohll(cas), cas3, "Wrong cas in result");
-
+    checkeq(cb::engine_errc::success,
+            observe(h,
+                    "key1",
+                    Vbid{0},
+                    [&cas1](auto state, auto cas) {
+                        checkeq(ObserveKeyState::Persisted,
+                                ObserveKeyState(state),
+                                "Expected persisted in result");
+                        checkeq(cas, cas1, "Wrong cas in result");
+                    }),
+            "Expected success");
     return SUCCESS;
 }
 
@@ -8795,13 +8381,6 @@ BaseTestCase testsuite_testcases[] = {
                  nullptr,
                  prepare_ep_bucket,
                  cleanup),
-        TestCase("test observe no data",
-                 test_observe_no_data,
-                 test_setup,
-                 teardown,
-                 nullptr,
-                 prepare,
-                 cleanup),
         TestCase("test observe single key",
                  test_observe_single_key,
                  test_setup,
@@ -8817,29 +8396,8 @@ BaseTestCase testsuite_testcases[] = {
                  /* TODO RDB: curr_items not correct under Rocks */
                  prepare_skip_broken_under_rocks,
                  cleanup),
-        TestCase("test observe multi key",
-                 test_observe_multi_key,
-                 test_setup,
-                 teardown,
-                 nullptr,
-                 prepare,
-                 cleanup),
-        TestCase("test multiple observes",
-                 test_multiple_observes,
-                 test_setup,
-                 teardown,
-                 nullptr,
-                 prepare,
-                 cleanup),
-        TestCase("test observe with not found",
-                 test_observe_with_not_found,
-                 test_setup,
-                 teardown,
-                 nullptr,
-                 prepare,
-                 cleanup),
         TestCase("test observe not my vbucket",
-                 test_observe_errors,
+                 test_observe_not_my_vbucket,
                  test_setup,
                  teardown,
                  nullptr,

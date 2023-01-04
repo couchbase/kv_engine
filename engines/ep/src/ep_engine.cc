@@ -1184,8 +1184,6 @@ cb::engine_errc EventuallyPersistentEngine::processUnknownCommandInner(
     case cb::mcbp::ClientOpcode::EvictKey:
         res = evictKey(cookie, request, &msg);
         break;
-    case cb::mcbp::ClientOpcode::Observe:
-        return observe(cookie, request, response);
     case cb::mcbp::ClientOpcode::ObserveSeqno:
         return observe_seqno(cookie, request, response);
     case cb::mcbp::ClientOpcode::LastClosedCheckpoint:
@@ -5394,108 +5392,65 @@ uint32_t EventuallyPersistentEngine::getPrivilegeRevision(
     return serverApi->cookie->get_privilege_context_revision(*cookie);
 }
 
-cb::engine_errc EventuallyPersistentEngine::observe(
-        const CookieIface* cookie,
-        const cb::mcbp::Request& req,
-        const AddResponseFn& response) {
-    size_t offset = 0;
+cb::engine_errc EventuallyPersistentEngine::handleObserve(
+        CookieIface& cookie,
+        const DocKey& key,
+        Vbid vbucket,
+        std::function<void(uint8_t, uint64_t)> key_handler,
+        uint64_t& persist_time_hint) {
+    EP_LOG_DEBUG("Observing key {} in {}",
+                 cb::UserDataView(key.to_string()),
+                 vbucket);
 
-    const auto value = req.getValue();
-    const uint8_t* data = value.data();
-    std::stringstream result;
-
-    while (offset < value.size()) {
-        // Each entry is built up by:
-        // 2 bytes vb id
-        // 2 bytes key length
-        // n bytes key
-
-        // Parse a key
-        if (value.size() - offset < 4) {
-            setErrorContext(cookie, "Requires vbid and keylen.");
-            return cb::engine_errc::invalid_arguments;
-        }
-
-        Vbid vb_id;
-        memcpy(&vb_id, data + offset, sizeof(Vbid));
-        vb_id = vb_id.ntoh();
-        offset += sizeof(Vbid);
-
-        uint16_t keylen;
-        memcpy(&keylen, data + offset, sizeof(uint16_t));
-        keylen = ntohs(keylen);
-        offset += sizeof(uint16_t);
-
-        if (value.size() - offset < keylen) {
-            setErrorContext(cookie, "Incorrect keylen");
-            return cb::engine_errc::invalid_arguments;
-        }
-
-        DocKey key = makeDocKey(cookie, {data + offset, keylen});
-        offset += keylen;
-        EP_LOG_DEBUG("Observing key {} in {}",
-                     cb::UserDataView(key.to_string()),
-                     vb_id);
-
-        auto rv = checkPrivilege(cookie, cb::rbac::Privilege::Read, key);
-        if (rv != cb::engine_errc::success) {
-            return rv;
-        }
-
-        // Get key stats
-        uint8_t keystatus = 0;
-        struct key_stats kstats = {};
-        rv = kvBucket->getKeyStats(
-                key, vb_id, cookie, kstats, WantsDeleted::Yes);
-        if (rv == cb::engine_errc::success) {
-            if (kstats.logically_deleted) {
-                keystatus = OBS_STATE_LOGICAL_DEL;
-            } else if (!kstats.dirty) {
-                keystatus = OBS_STATE_PERSISTED;
-            } else {
-                keystatus = OBS_STATE_NOT_PERSISTED;
-            }
-        } else if (rv == cb::engine_errc::no_such_key) {
-            keystatus = OBS_STATE_NOT_FOUND;
-        } else if (rv == cb::engine_errc::not_my_vbucket) {
-            return cb::engine_errc::not_my_vbucket;
-        } else if (rv == cb::engine_errc::would_block) {
-            return rv;
-        } else if (rv == cb::engine_errc::sync_write_re_commit_in_progress) {
-            return rv;
-        } else {
-            return cb::engine_errc::failed;
-        }
-
-        // Put the result into a response buffer
-        vb_id = vb_id.hton();
-        keylen = htons(keylen);
-        uint64_t cas = htonll(kstats.cas);
-        result.write((char*)&vb_id, sizeof(Vbid));
-        result.write((char*) &keylen, sizeof(uint16_t));
-        result.write(reinterpret_cast<const char*>(key.data()), key.size());
-        result.write((char*) &keystatus, sizeof(uint8_t));
-        result.write((char*) &cas, sizeof(uint64_t));
+    auto rv = checkPrivilege(&cookie, cb::rbac::Privilege::Read, key);
+    if (rv != cb::engine_errc::success) {
+        return rv;
     }
 
-    uint64_t persist_time = 0;
-    auto queue_size = static_cast<double>(stats.diskQueueSize);
-    double item_trans_time = kvBucket->getTransactionTimePerItem();
+    ObserveKeyState keystatus = ObserveKeyState::NotFound;
+    struct key_stats kstats = {};
+    rv = kvBucket->getKeyStats(
+            key, vbucket, &cookie, kstats, WantsDeleted::Yes);
+    if (rv == cb::engine_errc::success) {
+        if (kstats.logically_deleted) {
+            keystatus = ObserveKeyState::LogicalDeleted;
+        } else if (kstats.dirty) {
+            keystatus = ObserveKeyState::NotPersisted;
+        } else {
+            keystatus = ObserveKeyState::Persisted;
+        }
+    } else if (rv == cb::engine_errc::no_such_key) {
+        keystatus = ObserveKeyState::NotFound;
+    } else {
+        return rv;
+    }
+
+    {
+        // Toggle allocation guard when calling back into the engine
+        NonBucketAllocationGuard guard;
+        key_handler(uint8_t(keystatus), kstats.cas);
+    }
+
+    persist_time_hint = 0;
+    const auto queue_size = static_cast<double>(stats.diskQueueSize);
+    const double item_trans_time = kvBucket->getTransactionTimePerItem();
 
     if (item_trans_time > 0 && queue_size > 0) {
-        persist_time = static_cast<uint32_t>(queue_size * item_trans_time);
+        persist_time_hint = static_cast<uint32_t>(queue_size * item_trans_time);
     }
-    persist_time = persist_time << 32;
+    persist_time_hint = persist_time_hint << 32;
 
-    const auto result_string = result.str();
-    return sendResponse(response,
-                        {}, // key
-                        {}, // extra
-                        result_string, // body
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        cb::mcbp::Status::Success,
-                        persist_time,
-                        cookie);
+    return cb::engine_errc::success;
+}
+
+cb::engine_errc EventuallyPersistentEngine::observe(
+        CookieIface& cookie,
+        const DocKey& key,
+        Vbid vbucket,
+        std::function<void(uint8_t, uint64_t)> key_handler,
+        uint64_t& persist_time_hint) {
+    return acquireEngine(this)->handleObserve(
+            cookie, key, vbucket, key_handler, persist_time_hint);
 }
 
 cb::engine_errc EventuallyPersistentEngine::observe_seqno(

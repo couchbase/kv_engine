@@ -127,6 +127,12 @@ cb::engine_errc bucket_get_stats(Cookie& cookie,
                                  std::string_view key,
                                  cb::const_byte_buffer value,
                                  const AddStatFn& add_stat);
+cb::engine_errc bucket_observe(
+        Cookie& cookie,
+        const DocKey& key,
+        Vbid vbucket,
+        std::function<void(uint8_t, uint64_t)> key_handler,
+        uint64_t& persist_time_hint);
 
 /**
  * Calls the underlying engine DCP add-stream

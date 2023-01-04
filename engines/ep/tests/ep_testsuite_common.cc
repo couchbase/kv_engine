@@ -550,3 +550,21 @@ void checkPersistentBucketTempItems(EngineIface* h, int exp) {
                 "expected");
     }
 }
+
+std::ostream& operator<<(std::ostream& os, const ObserveKeyState& oks) {
+    switch (oks) {
+    case ObserveKeyState::NotPersisted:
+        os << "NotPersisted";
+        return os;
+    case ObserveKeyState::Persisted:
+        os << "Persisted";
+        return os;
+    case ObserveKeyState::NotFound:
+        os << "NotFound";
+        return os;
+    case ObserveKeyState::LogicalDeleted:
+        os << "LogicalDeleted";
+        return os;
+    }
+    throw std::invalid_argument("Unknown value for ObserveKeyState");
+}
