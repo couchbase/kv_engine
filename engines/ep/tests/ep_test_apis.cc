@@ -569,14 +569,7 @@ cb::engine_errc seqnoPersistence(EngineIface* h,
                                  CookieIface& cookie,
                                  Vbid vbucket,
                                  uint64_t seqno) {
-    seqno = htonll(seqno);
-    std::array<char, 8> buffer;
-    memcpy(buffer.data(), &seqno, sizeof(uint64_t));
-    auto request = createPacket(cb::mcbp::ClientOpcode::SeqnoPersistence,
-                                vbucket,
-                                0,
-                                {buffer.data(), buffer.size()});
-    return h->unknown_command(cookie, *request, add_response);
+    return h->wait_for_seqno_persistence(cookie, seqno, vbucket);
 }
 
 cb::EngineErrorItemPair gat(EngineIface* h,

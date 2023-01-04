@@ -275,6 +275,9 @@ public:
     cb::engine_errc resume() override;
     cb::engine_errc start_persistence(CookieIface& cookie) override;
     cb::engine_errc stop_persistence(CookieIface& cookie) override;
+    cb::engine_errc wait_for_seqno_persistence(CookieIface& cookie,
+                                               uint64_t seqno,
+                                               Vbid vbid) override;
     cb::engine_errc evict_key(CookieIface& cookie,
                               const DocKey& key,
                               Vbid vbucket) override;
@@ -725,8 +728,8 @@ public:
     }
 
     cb::engine_errc handleSeqnoPersistence(CookieIface& cookie,
-                                           const cb::mcbp::Request& req,
-                                           const AddResponseFn& response);
+                                           uint64_t seqno,
+                                           Vbid vbid);
 
     cb::engine_errc handleTrafficControlCmd(CookieIface& cookie,
                                             TrafficControlMode mode);

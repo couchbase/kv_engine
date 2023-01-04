@@ -866,6 +866,12 @@ struct EngineIface {
     virtual cb::engine_errc stop_persistence(CookieIface& cookie) {
         return cb::engine_errc::not_supported;
     }
+
+    virtual cb::engine_errc wait_for_seqno_persistence(CookieIface& cookie,
+                                                       uint64_t seqno,
+                                                       Vbid vbid) {
+        return cb::engine_errc::not_supported;
+    }
 };
 
 namespace cb {

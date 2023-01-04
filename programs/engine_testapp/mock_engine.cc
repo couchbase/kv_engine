@@ -374,6 +374,15 @@ cb::engine_errc MockEngine::stop_persistence(CookieIface& cookie) {
     return call_engine_and_handle_EWOULDBLOCK(cookie, engine_fn);
 }
 
+cb::engine_errc MockEngine::wait_for_seqno_persistence(CookieIface& cookie,
+                                                       uint64_t seqno,
+                                                       Vbid vbid) {
+    auto engine_fn = [this, &cookie, seqno, vbid]() {
+        return the_engine->wait_for_seqno_persistence(cookie, seqno, vbid);
+    };
+    return call_engine_and_handle_EWOULDBLOCK(cookie, engine_fn);
+}
+
 cb::engine_errc MockEngine::evict_key(CookieIface& cookie,
                                       const DocKey& key,
                                       Vbid vbucket) {

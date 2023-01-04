@@ -137,7 +137,9 @@ cb::engine_errc bucket_set_traffic_control_mode(Cookie& cookie,
 cb::engine_errc bucket_evict_key(Cookie& cookie,
                                  const DocKey& key,
                                  Vbid vbucket);
-
+cb::engine_errc bucket_wait_for_seqno_persistence(Cookie& cookie,
+                                                  uint64_t seqno,
+                                                  Vbid vbid);
 /**
  * Calls the underlying engine DCP add-stream
  *

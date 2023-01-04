@@ -289,6 +289,9 @@ public:
     cb::engine_errc resume() override;
     cb::engine_errc start_persistence(CookieIface& cookie) override;
     cb::engine_errc stop_persistence(CookieIface& cookie) override;
+    cb::engine_errc wait_for_seqno_persistence(CookieIface& cookie,
+                                               uint64_t seqno,
+                                               Vbid vbid) override;
 
     ///////////////////////////////////////////////////////////////////////////
     //             All of the methods used in the DCP interface              //
@@ -1454,6 +1457,12 @@ cb::engine_errc EWB_Engine::start_persistence(CookieIface& cookie) {
 
 cb::engine_errc EWB_Engine::stop_persistence(CookieIface& cookie) {
     return real_engine->stop_persistence(cookie);
+}
+
+cb::engine_errc EWB_Engine::wait_for_seqno_persistence(CookieIface& cookie,
+                                                       uint64_t seqno,
+                                                       Vbid vbid) {
+    return real_engine->wait_for_seqno_persistence(cookie, seqno, vbid);
 }
 
 cb::engine_errc EWB_Engine::step(CookieIface& cookie,

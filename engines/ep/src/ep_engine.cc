@@ -1130,8 +1130,6 @@ cb::engine_errc EventuallyPersistentEngine::processUnknownCommandInner(
         return observe(cookie, request, response);
     case cb::mcbp::ClientOpcode::ObserveSeqno:
         return observe_seqno(cookie, request, response);
-    case cb::mcbp::ClientOpcode::SeqnoPersistence:
-        return handleSeqnoPersistence(cookie, request, response);
     case cb::mcbp::ClientOpcode::SetWithMeta:
     case cb::mcbp::ClientOpcode::SetqWithMeta:
     case cb::mcbp::ClientOpcode::AddWithMeta:
@@ -5209,21 +5207,14 @@ VBucketPtr EventuallyPersistentEngine::getVBucket(Vbid vbucket) const {
 }
 
 cb::engine_errc EventuallyPersistentEngine::handleSeqnoPersistence(
-        CookieIface& cookie,
-        const cb::mcbp::Request& req,
-        const AddResponseFn& response) {
-    const Vbid vbucket = req.getVBucket();
+        CookieIface& cookie, uint64_t seqno, Vbid vbucket) {
     VBucketPtr vb = getVBucket(vbucket);
     if (!vb) {
         return cb::engine_errc::not_my_vbucket;
     }
 
-    auto status = cb::mcbp::Status::Success;
-    auto extras = req.getExtdata();
-    uint64_t seqno = ntohll(*reinterpret_cast<const uint64_t*>(extras.data()));
-
     if (!getEngineSpecific<ScheduledSeqnoPersistenceToken>(cookie)) {
-        auto persisted_seqno = vb->getPersistenceSeqno();
+        const auto persisted_seqno = vb->getPersistenceSeqno();
         if (seqno > persisted_seqno) {
             const auto res = vb->checkAddHighPriorityVBEntry(
                     std::make_unique<SeqnoPersistenceRequest>(
@@ -5237,41 +5228,32 @@ cb::engine_errc EventuallyPersistentEngine::handleSeqnoPersistence(
                 return cb::engine_errc::would_block;
 
             case HighPriorityVBReqStatus::NotSupported:
-                status = cb::mcbp::Status::NotSupported;
                 EP_LOG_WARN(
-                        "EventuallyPersistentEngine::handleSeqnoCmds(): "
-                        "High priority async seqno request "
-                        "for {} is NOT supported",
+                        "EventuallyPersistentEngine::handleSeqnoCmds(): High "
+                        "priority async seqno request for {} is NOT supported",
                         vbucket);
-                break;
+                return cb::engine_errc::not_supported;
 
             case HighPriorityVBReqStatus::RequestNotScheduled:
-                /* 'HighPriorityVBEntry' was not added, hence just return
-                   success */
+                /// 'HighPriorityVBEntry' was not added, hence just return
+                /// success
                 EP_LOG_INFO(
-                        "EventuallyPersistentEngine::handleSeqnoCmds(): "
-                        "Did NOT add high priority async seqno request "
-                        "for {}, Persisted seqno {} > requested seqno "
-                        "{}",
+                        "EventuallyPersistentEngine::handleSeqnoCmds(): Did "
+                        "NOT add high priority async seqno request for {}, "
+                        "Persisted seqno {} > requested seqno {}",
                         vbucket,
                         persisted_seqno,
                         seqno);
-                break;
+                return cb::engine_errc::success;
             }
         }
-    } else {
-        clearEngineSpecific(cookie);
-        EP_LOG_DEBUG("Sequence number {} persisted for {}", seqno, vbucket);
+        // Already persisted up to the number
+        return cb::engine_errc::success;
     }
 
-    return sendResponse(response,
-                        {}, // key
-                        {}, // extra
-                        {}, // body
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        status,
-                        0,
-                        cookie);
+    clearEngineSpecific(cookie);
+    EP_LOG_DEBUG("Sequence number {} persisted for {}", seqno, vbucket);
+    return cb::engine_errc::success;
 }
 
 cb::EngineErrorMetadataPair EventuallyPersistentEngine::getMetaInner(
@@ -6950,6 +6932,11 @@ cb::engine_errc EventuallyPersistentEngine::start_persistence(
 cb::engine_errc EventuallyPersistentEngine::stop_persistence(
         CookieIface& cookie) {
     return acquireEngine(this)->stopFlusher(cookie);
+}
+
+cb::engine_errc EventuallyPersistentEngine::wait_for_seqno_persistence(
+        CookieIface& cookie, uint64_t seqno, Vbid vbid) {
+    return acquireEngine(this)->handleSeqnoPersistence(cookie, seqno, vbid);
 }
 
 cb::engine_errc EventuallyPersistentEngine::evict_key(CookieIface& cookie,

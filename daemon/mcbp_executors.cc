@@ -39,6 +39,7 @@
 #include "protocol/mcbp/sasl_refresh_command_context.h"
 #include "protocol/mcbp/sasl_start_command_context.h"
 #include "protocol/mcbp/sasl_step_command_context.h"
+#include "protocol/mcbp/seqno_persistence_context.h"
 #include "protocol/mcbp/session_validated_command_context.h"
 #include "protocol/mcbp/settings_reload_command_context.h"
 #include "protocol/mcbp/single_state_steppable_context.h"
@@ -75,6 +76,10 @@ static void evict_key_executor(Cookie& cookie) {
                                       cookie.getRequestKey(),
                                       cookie.getRequest().getVBucket());
           }).drive();
+}
+
+static void seqno_persistence_executor(Cookie& cookie) {
+    cookie.obtainContext<SeqnoPersistenceCommandContext>(cookie).drive();
 }
 
 static void ifconfig_executor(Cookie& cookie) {
@@ -874,6 +879,8 @@ void initialize_mbcp_lookup_map() {
                   start_persistence_executor);
     setup_handler(cb::mcbp::ClientOpcode::StopPersistence,
                   stop_persistence_executor);
+    setup_handler(cb::mcbp::ClientOpcode::SeqnoPersistence,
+                  seqno_persistence_executor);
     setup_handler(cb::mcbp::ClientOpcode::EnableTraffic,
                   enable_traffic_control_mode_executor);
     setup_handler(cb::mcbp::ClientOpcode::DisableTraffic,

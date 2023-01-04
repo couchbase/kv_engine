@@ -502,6 +502,23 @@ cb::engine_errc bucket_evict_key(Cookie& cookie,
     return ret;
 }
 
+cb::engine_errc bucket_wait_for_seqno_persistence(Cookie& cookie,
+                                                  uint64_t seqno,
+                                                  Vbid vbid) {
+    auto& c = cookie.getConnection();
+    auto ret =
+            c.getBucketEngine().wait_for_seqno_persistence(cookie, seqno, vbid);
+    if (ret == cb::engine_errc::disconnect) {
+        LOG_WARNING(
+                "{}: {} bucket_wait_for_seqno_persistence returned "
+                "cb::engine_errc::disconnect",
+                c.getId(),
+                c.getDescription());
+        c.setTerminationReason("Engine forced disconnect");
+    }
+    return ret;
+}
+
 cb::engine_errc dcpAddStream(Cookie& cookie,
                              uint32_t opaque,
                              Vbid vbid,
