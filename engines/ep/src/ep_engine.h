@@ -641,8 +641,10 @@ public:
                              Vbid vbucket);
 
     cb::engine_errc observe(CookieIface& cookie,
-                            const cb::mcbp::Request& request,
-                            const AddResponseFn& response);
+                            const DocKey& key,
+                            Vbid vbucket,
+                            std::function<void(uint8_t, uint64_t)> key_handler,
+                            uint64_t& persist_time_hint) override;
 
     cb::engine_errc observe_seqno(CookieIface& cookie,
                                   const cb::mcbp::Request& request,
@@ -730,6 +732,13 @@ public:
     const Configuration& getConfiguration() const {
         return configuration;
     }
+
+    cb::engine_errc handleObserve(
+            CookieIface& cookie,
+            const DocKey& key,
+            Vbid vbucket,
+            std::function<void(uint8_t, uint64_t)> key_handler,
+            uint64_t& persist_time_hint);
 
     cb::engine_errc handleSeqnoPersistence(CookieIface& cookie,
                                            uint64_t seqno,

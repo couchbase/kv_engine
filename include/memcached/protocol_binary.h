@@ -1872,10 +1872,13 @@ protected:
 static_assert(sizeof(CompactDbPayload) == 24, "Unexpected struct size");
 } // namespace cb::mcbp::request
 
-#define OBS_STATE_NOT_PERSISTED 0x00
-#define OBS_STATE_PERSISTED 0x01
-#define OBS_STATE_NOT_FOUND 0x80
-#define OBS_STATE_LOGICAL_DEL 0x81
+/// The values for the state of a key in Observe
+enum class ObserveKeyState : uint8_t {
+    NotPersisted = 0x00,
+    Persisted = 0x01,
+    NotFound = 0x80,
+    LogicalDeleted = 0x81
+};
 
 /**
  * The physical layout for the PROTOCOL_BINARY_CMD_AUDIT_PUT

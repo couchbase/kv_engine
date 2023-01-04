@@ -16,7 +16,6 @@
 #include "mcaudit.h"
 #include "mcbp.h"
 #include "mcbp_privileges.h"
-#include "network_interface_manager.h"
 #include "protocol/mcbp/appendprepend_context.h"
 #include "protocol/mcbp/arithmetic_context.h"
 #include "protocol/mcbp/audit_configure_context.h"
@@ -34,12 +33,12 @@
 #include "protocol/mcbp/get_meta_context.h"
 #include "protocol/mcbp/ifconfig_context.h"
 #include "protocol/mcbp/mutation_context.h"
+#include "protocol/mcbp/observe_context.h"
 #include "protocol/mcbp/rbac_reload_command_context.h"
 #include "protocol/mcbp/remove_context.h"
 #include "protocol/mcbp/sasl_refresh_command_context.h"
 #include "protocol/mcbp/sasl_start_command_context.h"
 #include "protocol/mcbp/sasl_step_command_context.h"
-#include "protocol/mcbp/seqno_persistence_context.h"
 #include "protocol/mcbp/session_validated_command_context.h"
 #include "protocol/mcbp/settings_reload_command_context.h"
 #include "protocol/mcbp/single_state_steppable_context.h"
@@ -79,7 +78,13 @@ static void evict_key_executor(Cookie& cookie) {
 }
 
 static void seqno_persistence_executor(Cookie& cookie) {
-    cookie.obtainContext<SeqnoPersistenceCommandContext>(cookie).drive();
+    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& cookie) {
+              auto data = cookie.getHeader().getExtdata();
+              auto seqno =
+                      ntohll(*reinterpret_cast<const uint64_t*>(data.data()));
+              return bucket_wait_for_seqno_persistence(
+                      cookie, seqno, cookie.getRequest().getVBucket());
+          }).drive();
 }
 
 static void ifconfig_executor(Cookie& cookie) {
@@ -96,6 +101,10 @@ static void stop_persistence_executor(Cookie& cookie) {
     cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& cookie) {
               return bucket_stop_persistence(cookie);
           }).drive();
+}
+
+static void observe_executor(Cookie& cookie) {
+    cookie.obtainContext<ObserveCommandContext>(cookie).drive();
 }
 
 static void enable_traffic_control_mode_executor(Cookie& cookie) {
@@ -886,6 +895,7 @@ void initialize_mbcp_lookup_map() {
     setup_handler(cb::mcbp::ClientOpcode::DisableTraffic,
                   disable_traffic_control_mode_executor);
     setup_handler(cb::mcbp::ClientOpcode::EvictKey, evict_key_executor);
+    setup_handler(cb::mcbp::ClientOpcode::Observe, observe_executor);
 }
 
 static cb::engine_errc getEngineErrorCode(

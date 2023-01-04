@@ -542,3 +542,21 @@ void setAndWaitForQuotaChange(EngineIface* h, uint64_t newQuota) {
               std::to_string(newQuota).c_str());
     wait_for_stat_to_be(h, "ep_max_size", newQuota);
 }
+
+std::ostream& operator<<(std::ostream& os, const ObserveKeyState& oks) {
+    switch (oks) {
+    case ObserveKeyState::NotPersisted:
+        os << "NotPersisted";
+        return os;
+    case ObserveKeyState::Persisted:
+        os << "Persisted";
+        return os;
+    case ObserveKeyState::NotFound:
+        os << "NotFound";
+        return os;
+    case ObserveKeyState::LogicalDeleted:
+        os << "LogicalDeleted";
+        return os;
+    }
+    throw std::invalid_argument("Unknown value for ObserveKeyState");
+}

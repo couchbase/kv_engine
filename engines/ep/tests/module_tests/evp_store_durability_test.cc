@@ -4608,28 +4608,23 @@ TEST_P(DurabilityBucketTest, ObserveReturnsErrorIfRecommitInProgress) {
     auto committed = makeCommittedItem(makeStoredDocKey(keyCommitted), "value");
     store->set(*committed, cookie);
 
-    const auto dummyAddResponse = [](std::string_view key,
-                                     std::string_view extras,
-                                     std::string_view body,
-                                     uint8_t datatype,
-                                     cb::mcbp::Status status,
-                                     uint64_t cas,
-                                     CookieIface& cookie) { return true; };
-
-    auto requestPtr = createObserveRequest({keyCommitted});
-    auto res = engine->observe(*cookie, *requestPtr, dummyAddResponse);
+    uint64_t hint;
+    auto res = engine->observe(
+            *cookie,
+            DocKey{keyCommitted, DocKeyEncodesCollectionId::No},
+            Vbid{0},
+            [](auto, auto) {},
+            hint);
     EXPECT_EQ(cb::engine_errc::success, res);
 
     // Verify that observing a maybe visble prepare causes
     // the entire Observe to fail
-    requestPtr = createObserveRequest({keyMaybeVisible});
-    res = engine->observe(*cookie, *requestPtr, dummyAddResponse);
-    EXPECT_EQ(cb::engine_errc::sync_write_re_commit_in_progress, res);
-
-    // a request with one prepared maybe visible key should still
-    // fail the entire request
-    requestPtr = createObserveRequest({keyMaybeVisible, keyCommitted});
-    res = engine->observe(*cookie, *requestPtr, dummyAddResponse);
+    res = engine->observe(
+            *cookie,
+            DocKey{keyMaybeVisible, DocKeyEncodesCollectionId::No},
+            Vbid{0},
+            [](auto, auto) {},
+            hint);
     EXPECT_EQ(cb::engine_errc::sync_write_re_commit_in_progress, res);
 }
 

@@ -100,7 +100,7 @@ TEST_F(BasicClusterTest, Observe) {
     ASSERT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus());
     auto keys = rsp.getResults();
     ASSERT_EQ(1, keys.size());
-    EXPECT_EQ(OBS_STATE_NOT_FOUND, keys.front().status);
+    EXPECT_EQ(ObserveKeyState::NotFound, keys.front().status);
 
     // store it on the primary
     {
@@ -117,10 +117,53 @@ TEST_F(BasicClusterTest, Observe) {
         ASSERT_TRUE(rsp.isSuccess());
         keys = rsp.getResults();
         ASSERT_EQ(1, keys.size());
-        if (keys.front().status != OBS_STATE_NOT_FOUND) {
+        if (keys.front().status != ObserveKeyState::NotFound) {
             found = true;
             ASSERT_NE(0, keys.front().cas);
         }
+    } while (!found);
+}
+
+TEST_F(BasicClusterTest, ObserveMulti) {
+    auto bucket = cluster->getBucket("default");
+    auto replica = bucket->getConnection(Vbid(0), vbucket_state_replica, 0);
+    replica->authenticate("@admin", "password", "PLAIN");
+    replica->selectBucket(bucket->getName());
+
+    BinprotObserveCommand observe(
+            {{Vbid{0}, "ObserveMulti"}, {Vbid{0}, "Document2"}});
+    // check that it don't exist on the replica
+    auto rsp = BinprotObserveResponse{replica->execute(observe)};
+    ASSERT_TRUE(rsp.isSuccess()) << to_string(rsp.getStatus());
+    auto keys = rsp.getResults();
+    ASSERT_EQ(2, keys.size());
+    EXPECT_EQ(ObserveKeyState::NotFound, keys[0].status);
+    EXPECT_EQ("ObserveMulti", keys[0].key);
+    EXPECT_EQ(ObserveKeyState::NotFound, keys[1].status);
+    EXPECT_EQ("Document2", keys[1].key);
+
+    // store it on the primary
+    {
+        auto conn = bucket->getConnection(Vbid(0));
+        conn->authenticate("@admin", "password", "PLAIN");
+        conn->selectBucket(bucket->getName());
+        conn->store("ObserveMulti", Vbid{0}, "value");
+    }
+
+    // loop and wait for it to hit the replica
+    bool found = false;
+    do {
+        rsp = BinprotObserveResponse{replica->execute(observe)};
+        ASSERT_TRUE(rsp.isSuccess());
+        keys = rsp.getResults();
+        ASSERT_EQ(2, keys.size());
+        if (keys.front().status != ObserveKeyState::NotFound) {
+            found = true;
+            ASSERT_NE(0, keys.front().cas);
+        }
+        EXPECT_EQ("ObserveMulti", keys[0].key);
+        EXPECT_EQ("Document2", keys[1].key);
+        EXPECT_EQ(ObserveKeyState::NotFound, keys[1].status);
     } while (!found);
 }
 

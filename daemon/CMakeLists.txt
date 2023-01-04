@@ -126,6 +126,8 @@ add_library(memcached_daemon STATIC
             protocol/mcbp/list_bucket_executor.cc
             protocol/mcbp/mutation_context.cc
             protocol/mcbp/mutation_context.h
+            protocol/mcbp/observe_context.cc
+            protocol/mcbp/observe_context.h
             protocol/mcbp/range_scan_cancel_executor.cc
             protocol/mcbp/range_scan_continue_executor.cc
             protocol/mcbp/range_scan_create_executor.cc
@@ -142,8 +144,6 @@ add_library(memcached_daemon STATIC
             protocol/mcbp/sasl_step_command_context.cc
             protocol/mcbp/sasl_step_command_context.h
             protocol/mcbp/select_bucket_executor.cc
-            protocol/mcbp/seqno_persistence_context.cc
-            protocol/mcbp/seqno_persistence_context.h
             protocol/mcbp/session_validated_command_context.cc
             protocol/mcbp/session_validated_command_context.h
             protocol/mcbp/settings_reload_command_context.cc

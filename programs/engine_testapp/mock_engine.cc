@@ -392,6 +392,23 @@ cb::engine_errc MockEngine::evict_key(CookieIface& cookie,
     return call_engine_and_handle_EWOULDBLOCK(cookie, engine_fn);
 }
 
+cb::engine_errc MockEngine::observe(
+        CookieIface& cookie,
+        const DocKey& key,
+        Vbid vbucket,
+        std::function<void(uint8_t, uint64_t)> key_handler,
+        uint64_t& persist_time_hint) {
+    auto engine_fn = [this,
+                      &cookie,
+                      k = std::cref(key),
+                      vbucket,
+                      key_handler,
+                      r = std::ref(persist_time_hint)]() {
+        return the_engine->observe(cookie, k, vbucket, key_handler, r);
+    };
+    return call_engine_and_handle_EWOULDBLOCK(cookie, engine_fn);
+}
+
 cb::engine_errc MockEngine::step(CookieIface& cookie,
                                  bool throttled,
                                  DcpMessageProducersIface& producers) {

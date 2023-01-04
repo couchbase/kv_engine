@@ -17,6 +17,8 @@
 #include <sstream>
 #include <vector>
 
+std::ostream& operator<<(std::ostream& os, const ObserveKeyState& oks);
+
 template <typename T>
 static void checkeqfn(T exp,
                       T got,

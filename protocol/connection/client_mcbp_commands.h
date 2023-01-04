@@ -1116,7 +1116,7 @@ public:
 
     struct Result {
         Vbid vbid = {};
-        uint8_t status{};
+        ObserveKeyState status{};
         std::string key;
         uint64_t cas{};
     };

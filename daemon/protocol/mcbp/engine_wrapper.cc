@@ -519,6 +519,25 @@ cb::engine_errc bucket_wait_for_seqno_persistence(Cookie& cookie,
     return ret;
 }
 
+cb::engine_errc bucket_observe(
+        Cookie& cookie,
+        const DocKey& key,
+        Vbid vbucket,
+        std::function<void(uint8_t, uint64_t)> key_handler,
+        uint64_t& persist_time_hint) {
+    auto& c = cookie.getConnection();
+    auto ret = c.getBucketEngine().observe(
+            cookie, key, vbucket, std::move(key_handler), persist_time_hint);
+    if (ret == cb::engine_errc::disconnect) {
+        LOG_WARNING(
+                "{}: {} bucket_observe returned cb::engine_errc::disconnect",
+                c.getId(),
+                c.getDescription());
+        c.setTerminationReason("Engine forced disconnect");
+    }
+    return ret;
+}
+
 cb::engine_errc dcpAddStream(Cookie& cookie,
                              uint32_t opaque,
                              Vbid vbid,

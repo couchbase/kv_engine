@@ -652,21 +652,17 @@ bool get_meta(EngineIface* h,
     return out.first == cb::engine_errc::success;
 }
 
-cb::engine_errc observe(EngineIface* h, std::map<std::string, Vbid> obskeys) {
-    std::stringstream value;
-    std::map<std::string, Vbid>::iterator it;
-    for (it = obskeys.begin(); it != obskeys.end(); ++it) {
-        Vbid vb = it->second.hton();
-        uint16_t keylen = htons(it->first.length());
-        value.write((char*)&vb, sizeof(Vbid));
-        value.write((char*) &keylen, sizeof(uint16_t));
-        value.write(it->first.c_str(), it->first.length());
-    }
-
-    auto request = createPacket(
-            cb::mcbp::ClientOpcode::Observe, Vbid(0), 0, {}, {}, value.str());
-    std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    return h->unknown_command(*cookie, *request, add_response);
+cb::engine_errc observe(EngineIface* h,
+                        std::string key,
+                        Vbid vb,
+                        std::function<void(uint8_t, uint64_t)> callback) {
+    auto cookie = std::make_unique<MockCookie>();
+    uint64_t hint;
+    return h->observe(*cookie,
+                      DocKey{key, DocKeyEncodesCollectionId::No},
+                      vb,
+                      callback,
+                      hint);
 }
 
 cb::engine_errc observe_seqno(EngineIface* h, Vbid vb_id, uint64_t uuid) {

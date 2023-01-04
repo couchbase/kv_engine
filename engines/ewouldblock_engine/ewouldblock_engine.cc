@@ -201,6 +201,11 @@ public:
     cb::engine_errc evict_key(CookieIface& cookie,
                               const DocKey& key,
                               Vbid vbucket) override;
+    cb::engine_errc observe(CookieIface& cookie,
+                            const DocKey& key,
+                            Vbid vbucket,
+                            std::function<void(uint8_t, uint64_t)> key_handler,
+                            uint64_t& persist_time_hint) override;
     cb::engine_errc store(
             CookieIface& cookie,
             ItemIface& item,
@@ -1113,6 +1118,16 @@ cb::engine_errc EWB_Engine::evict_key(CookieIface& cookie,
                                       const DocKey& key,
                                       Vbid vbucket) {
     return real_engine->evict_key(cookie, key, vbucket);
+}
+
+cb::engine_errc EWB_Engine::observe(
+        CookieIface& cookie,
+        const DocKey& key,
+        Vbid vbucket,
+        std::function<void(uint8_t, uint64_t)> key_handler,
+        uint64_t& persist_time_hint) {
+    return real_engine->observe(
+            cookie, key, vbucket, key_handler, persist_time_hint);
 }
 
 cb::engine_errc EWB_Engine::store(

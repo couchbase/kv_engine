@@ -140,6 +140,13 @@ cb::engine_errc bucket_evict_key(Cookie& cookie,
 cb::engine_errc bucket_wait_for_seqno_persistence(Cookie& cookie,
                                                   uint64_t seqno,
                                                   Vbid vbid);
+cb::engine_errc bucket_observe(
+        Cookie& cookie,
+        const DocKey& key,
+        Vbid vbucket,
+        std::function<void(uint8_t, uint64_t)> key_handler,
+        uint64_t& persist_time_hint);
+
 /**
  * Calls the underlying engine DCP add-stream
  *
