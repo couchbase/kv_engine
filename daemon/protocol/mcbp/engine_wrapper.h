@@ -134,6 +134,9 @@ cb::engine_errc bucket_start_persistence(Cookie& cookie);
 cb::engine_errc bucket_stop_persistence(Cookie& cookie);
 cb::engine_errc bucket_set_traffic_control_mode(Cookie& cookie,
                                                 TrafficControlMode mode);
+cb::engine_errc bucket_evict_key(Cookie& cookie,
+                                 const DocKey& key,
+                                 Vbid vbucket);
 
 /**
  * Calls the underlying engine DCP add-stream

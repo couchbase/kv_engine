@@ -396,6 +396,20 @@ struct EngineIface {
                                                  Vbid vbucket) = 0;
 
     /**
+     * Evict a document from memory.
+     *
+     * @param cookie The cookie provided by the frontend
+     * @param key the document to evict
+     * @param vbucket the virtual bucket id
+     * @return The status of the operation
+     */
+    virtual cb::engine_errc evict_key(CookieIface& cookie,
+                                      const DocKey& key,
+                                      Vbid vbucket) {
+        return cb::engine_errc::not_supported;
+    }
+
+    /**
      * Lock and Retrieve an item.
      *
      * @param cookie The cookie provided by the frontend

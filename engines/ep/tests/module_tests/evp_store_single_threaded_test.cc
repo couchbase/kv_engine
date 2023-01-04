@@ -4310,7 +4310,7 @@ TEST_P(STParameterizedBucketTest, MB_41255_evicted_xattr) {
         const char* msg;
         folly::SharedMutex::ReadHolder rlh(replicaVB->getStateLock());
         auto cHandle = replicaVB->lockCollections(key);
-        EXPECT_EQ(cb::mcbp::Status::Success,
+        EXPECT_EQ(cb::engine_errc::success,
                   replicaVB->evictKey(&msg, rlh, cHandle));
     }
 

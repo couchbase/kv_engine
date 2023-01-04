@@ -392,9 +392,9 @@ public:
 
     void setRW(size_t shardId, std::unique_ptr<KVStoreIface> rw) override;
 
-    cb::mcbp::Status evictKey(const DocKey& key,
-                              Vbid vbucket,
-                              const char** msg) override;
+    cb::engine_errc evictKey(const DocKey& key,
+                             Vbid vbucket,
+                             const char** msg) override;
 
     /**
      * Run the server-api pre-expiry hook against the Item - the function

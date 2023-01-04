@@ -203,6 +203,10 @@ public:
     virtual void setErrorContext(std::string message) {
     }
 
+    virtual std::string getErrorContext() const {
+        return {};
+    }
+
     /**
      * Set the cookie state ready for an unknown collection (scope)
      * response. This ensures the manifestUid is added as extra state

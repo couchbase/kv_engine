@@ -16,6 +16,7 @@
 #include "ep_test_apis.h"
 #include "ep_testsuite_common.h"
 
+#include <fmt/format.h>
 #include <folly/portability/SysStat.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <memcached/util.h>
@@ -529,25 +530,22 @@ void evict_key(EngineIface* h,
                bool expectError) {
     int nonResidentItems = get_int_stat(h, "ep_num_non_resident");
     int numEjectedItems = get_int_stat(h, "ep_num_value_ejects");
-    auto pkt = createPacket(cb::mcbp::ClientOpcode::EvictKey,
-                            vbucketId,
-                            0,
-                            {},
-                            {key, strlen(key)});
+
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    checkeq(cb::engine_errc::success,
-            h->unknown_command(*cookie, *pkt, add_response),
-            "Failed to perform CMD_EVICT_KEY.");
+    const auto status = h->evict_key(
+            *cookie, DocKey{key, DocKeyEncodesCollectionId::No}, vbucketId);
 
     if (expectError) {
-        checkeq(cb::mcbp::Status::KeyEexists, last_status.load(),
+        checkeq(cb::engine_errc::key_already_exists,
+                status,
                 "evict_key: expected KEY_EEXISTS when evicting key");
     } else {
-        if (last_body != "Already ejected.") {
+        if (cookie->getErrorContext() != "Already ejected.") {
             nonResidentItems++;
             numEjectedItems++;
         }
-        checkeq(cb::mcbp::Status::Success, last_status.load(),
+        checkeq(cb::engine_errc::success,
+                status,
                 "evict_key: expected SUCCESS when evicting key.");
     }
 
@@ -558,9 +556,11 @@ void evict_key(EngineIface* h,
             get_int_stat(h, "ep_num_value_ejects"),
             "Incorrect number of ejected items");
 
-    if (msg != nullptr && last_body != msg) {
-        fprintf(stderr, "Expected evict to return ``%s'', but it returned ``%s''\n",
-                msg, last_body.c_str());
+    if (msg != nullptr && cookie->getErrorContext() != msg) {
+        fmt::print(stderr,
+                   "Expected evict to return '{}', but it returned '{}'\n",
+                   msg,
+                   cookie->getErrorContext());
         abort();
     }
 }

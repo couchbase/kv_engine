@@ -4423,7 +4423,8 @@ TEST_P(DurabilityEPBucketTest, PrematureEvictionOfDirtyCommit) {
     // item would be evicted successfully and a subsequent get would perform a
     // BGFetch and return KEY_ENOENT.
     const char* msg;
-    EXPECT_EQ(cb::mcbp::Status::KeyEexists, store->evictKey(key, vbid, &msg));
+    EXPECT_EQ(cb::engine_errc::key_already_exists,
+              store->evictKey(key, vbid, &msg));
 
     // 3) Get returns the value without BGFetch (and not KEY_ENOENT)
     auto options = static_cast<get_options_t>(
@@ -4484,7 +4485,8 @@ TEST_P(DurabilityEPBucketTest, PrematureEvictionOfDirtyCommitExistingCommit) {
     // item would be evicted successfully and a subsequent get would perform a
     // BGFetch and return KEY_ENOENT.
     const char* msg;
-    EXPECT_EQ(cb::mcbp::Status::KeyEexists, store->evictKey(key, vbid, &msg));
+    EXPECT_EQ(cb::engine_errc::key_already_exists,
+              store->evictKey(key, vbid, &msg));
 
     // 4) Get returns the new value without BGFetch (and does not return a stale
     // value).
@@ -4669,7 +4671,7 @@ void DurabilityBucketTest::testReplaceAtPendingSW(DocState docState) {
         ASSERT_TRUE(cHandle.valid());
         const auto buffer = std::make_unique<const char[]>(128);
         const char* msg = buffer.get();
-        ASSERT_EQ(cb::mcbp::Status::Success, vb.evictKey(&msg, rlh, cHandle));
+        ASSERT_EQ(cb::engine_errc::success, vb.evictKey(&msg, rlh, cHandle));
         ASSERT_TRUE(std::strcmp("Ejected.", msg) == 0);
         break;
     }

@@ -564,7 +564,7 @@ UniqueDCPBackfillPtr EPVBucket::createDCPBackfill(
     return std::make_unique<DCPBackfillByIdDisk>(*e.getKVBucket(), stream, cid);
 }
 
-cb::mcbp::Status EPVBucket::evictKey(
+cb::engine_errc EPVBucket::evictKey(
         const char** msg,
         VBucketStateLockRef vbStateLock,
         const Collections::VB::CachingReadHandle& cHandle) {
@@ -574,10 +574,10 @@ cb::mcbp::Status EPVBucket::evictKey(
     if (!v) {
         if (eviction == EvictionPolicy::Value) {
             *msg = "Not found.";
-            return cb::mcbp::Status::KeyEnoent;
+            return cb::engine_errc::no_such_key;
         }
         *msg = "Already ejected.";
-        return cb::mcbp::Status::Success;
+        return cb::engine_errc::success;
     }
 
     if (v->isResident()) {
@@ -588,14 +588,14 @@ cb::mcbp::Status EPVBucket::evictKey(
             if (eviction == EvictionPolicy::Full) {
                 addToFilter(cHandle.getKey());
             }
-            return cb::mcbp::Status::Success;
+            return cb::engine_errc::success;
         }
         *msg = "Can't eject: Dirty object.";
-        return cb::mcbp::Status::KeyEexists;
+        return cb::engine_errc::key_already_exists;
     }
 
     *msg = "Already ejected.";
-    return cb::mcbp::Status::Success;
+    return cb::engine_errc::success;
 }
 
 bool EPVBucket::pageOut(VBucketStateLockRef,

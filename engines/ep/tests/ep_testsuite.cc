@@ -4177,29 +4177,29 @@ static enum test_result test_value_eviction(EngineIface* h) {
     evict_key(h, "k1", Vbid(0), "Already ejected.");
     evict_key(h, "k2", Vbid(1), "Already ejected.");
 
-    auto pkt = createPacket(cb::mcbp::ClientOpcode::EvictKey,
-                            Vbid(0),
-                            0,
-                            {},
-                            {"missing-key", 11});
-
-    std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    checkeq(cb::engine_errc::success,
-            h->unknown_command(*cookie, *pkt, add_response),
-            "Failed to evict key.");
-
     checkeq(cb::engine_errc::success,
             get_stats(h, {}, {}, add_stats),
             "Failed to get stats.");
-    std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
+    const auto eviction_policy = vals.find("ep_item_eviction_policy")->second;
+
+    std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
+    const auto status =
+            h->evict_key(*cookie,
+                         DocKey{"missing-key", DocKeyEncodesCollectionId::No},
+                         Vbid{0});
+
     if (eviction_policy == "value_only") {
-        checkeq(cb::mcbp::Status::KeyEnoent, last_status.load(),
+        checkeq(cb::engine_errc::no_such_key,
+                status,
                 "expected the key to be missing...");
     } else {
         // Note that we simply return SUCCESS when EVICT_KEY is issued to
-        // a non-resident or non-existent key with full eviction to avoid a disk lookup.
-        checkeq(cb::mcbp::Status::Success, last_status.load(),
-            "expected the success for evicting a non-existent key with full eviction");
+        // a non-resident or non-existent key with full eviction to avoid a disk
+        // lookup.
+        checkeq(cb::engine_errc::success,
+                status,
+                "expected the success for evicting a non-existent key with "
+                "full eviction");
     }
 
     reset_stats(h);

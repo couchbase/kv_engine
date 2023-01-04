@@ -69,6 +69,14 @@ static void gat_executor(Cookie& cookie) {
     cookie.obtainContext<GatCommandContext>(cookie).drive();
 }
 
+static void evict_key_executor(Cookie& cookie) {
+    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& cookie) {
+              return bucket_evict_key(cookie,
+                                      cookie.getRequestKey(),
+                                      cookie.getRequest().getVBucket());
+          }).drive();
+}
+
 static void ifconfig_executor(Cookie& cookie) {
     cookie.obtainContext<IfconfigCommandContext>(cookie).drive();
 }
@@ -870,6 +878,7 @@ void initialize_mbcp_lookup_map() {
                   enable_traffic_control_mode_executor);
     setup_handler(cb::mcbp::ClientOpcode::DisableTraffic,
                   disable_traffic_control_mode_executor);
+    setup_handler(cb::mcbp::ClientOpcode::EvictKey, evict_key_executor);
 }
 
 static cb::engine_errc getEngineErrorCode(

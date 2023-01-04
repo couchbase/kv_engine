@@ -548,25 +548,25 @@ void KVBucket::wakeUpFlusher() {
     // Nothing do to - no flusher in this class
 }
 
-cb::mcbp::Status KVBucket::evictKey(const DocKey& key,
-                                    Vbid vbucket,
-                                    const char** msg) {
+cb::engine_errc KVBucket::evictKey(const DocKey& key,
+                                   Vbid vbucket,
+                                   const char** msg) {
     auto vb = getVBucket(vbucket);
     if (!vb) {
         ++stats.numNotMyVBuckets;
-        return cb::mcbp::Status::NotMyVbucket;
+        return cb::engine_errc::not_my_vbucket;
     }
 
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (vb->getState() != vbucket_state_active) {
-        return cb::mcbp::Status::NotMyVbucket;
+        return cb::engine_errc::not_my_vbucket;
     }
 
     // collections read-lock scope
     auto cHandle = vb->lockCollections(key);
     if (!cHandle.valid()) {
-        return cb::mcbp::Status::UnknownCollection;
-    } // now hold collections read access for the duration of the evict
+        return cb::engine_errc::unknown_collection;
+    } // now hold collections read access for the duration of the eviction
 
     return vb->evictKey(msg, rlh, cHandle);
 }

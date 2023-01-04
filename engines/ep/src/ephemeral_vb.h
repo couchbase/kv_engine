@@ -86,13 +86,13 @@ public:
         return false;
     }
 
-    cb::mcbp::Status evictKey(
+    cb::engine_errc evictKey(
             const char** msg,
             VBucketStateLockRef,
             const Collections::VB::CachingReadHandle& readHandle) override {
         /* There is nothing (no disk) to evictKey to. Later on if we decide to
            use this as a deletion, then we can handle it differently */
-        return cb::mcbp::Status::NotSupported;
+        return cb::engine_errc::not_supported;
     }
 
     bool pageOut(VBucketStateLockRef vbStateLock,

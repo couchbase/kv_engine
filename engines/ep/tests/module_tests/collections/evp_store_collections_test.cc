@@ -350,7 +350,7 @@ TEST_P(CollectionsParameterizedTest, unknown_collection_errors) {
 
     if (persistent()) {
         const char* msg = nullptr;
-        EXPECT_EQ(cb::mcbp::Status::UnknownCollection,
+        EXPECT_EQ(cb::engine_errc::unknown_collection,
                   store->evictKey(item2.getKey(), vbid, &msg));
     }
 }

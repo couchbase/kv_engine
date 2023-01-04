@@ -275,6 +275,9 @@ public:
     cb::engine_errc resume() override;
     cb::engine_errc start_persistence(CookieIface& cookie) override;
     cb::engine_errc stop_persistence(CookieIface& cookie) override;
+    cb::engine_errc evict_key(CookieIface& cookie,
+                              const DocKey& key,
+                              Vbid vbucket) override;
 
     /////////////////////////////////////////////////////////////
     // DcpIface implementation //////////////////////////////////
@@ -626,9 +629,9 @@ public:
                                        const CompactionConfig& c,
                                        CookieIface* cookie);
 
-    cb::mcbp::Status evictKey(CookieIface& cookie,
-                              const cb::mcbp::Request& request,
-                              const char** msg);
+    cb::engine_errc evictKey(CookieIface& cookie,
+                             const DocKey& key,
+                             Vbid vbucket);
 
     cb::engine_errc observe(CookieIface& cookie,
                             const cb::mcbp::Request& request,

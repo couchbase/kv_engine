@@ -971,19 +971,24 @@ cb::engine_errc EventuallyPersistentEngine::setVbucketParam(
     return rv;
 }
 
-cb::mcbp::Status EventuallyPersistentEngine::evictKey(
-        CookieIface& cookie,
-        const cb::mcbp::Request& request,
-        const char** msg) {
-    const auto key = makeDocKey(cookie, request.getKey());
+cb::engine_errc EventuallyPersistentEngine::evictKey(CookieIface& cookie,
+                                                     const DocKey& key,
+                                                     Vbid vbucket) {
     EP_LOG_DEBUG("Manually evicting object with key {}",
                  cb::UserDataView(key.to_string()));
-    auto rv = kvBucket->evictKey(key, request.getVBucket(), msg);
-    if (rv == cb::mcbp::Status::NotMyVbucket ||
-        rv == cb::mcbp::Status::KeyEnoent) {
+    const char* msg = nullptr;
+    const auto rv = kvBucket->evictKey(key, vbucket, &msg);
+    if (rv == cb::engine_errc::not_my_vbucket ||
+        rv == cb::engine_errc::no_such_key) {
         if (isDegradedMode()) {
-            return cb::mcbp::Status::Etmpfail;
+            if (msg) {
+                setErrorContext(cookie, msg);
+            }
+            return cb::engine_errc::temporary_failure;
         }
+    }
+    if (msg) {
+        setErrorContext(cookie, msg);
     }
     return rv;
 }
@@ -1117,16 +1122,10 @@ cb::engine_errc EventuallyPersistentEngine::processUnknownCommandInner(
         const cb::mcbp::Request& request,
         const AddResponseFn& response) {
     auto res = cb::mcbp::Status::UnknownCommand;
-    std::string dynamic_msg;
-    const char* msg = nullptr;
-    size_t msg_size = 0;
 
     switch (request.getClientOpcode()) {
     case cb::mcbp::ClientOpcode::GetAllVbSeqnos:
         return getAllVBucketSequenceNumbers(cookie, request, response);
-    case cb::mcbp::ClientOpcode::EvictKey:
-        res = evictKey(cookie, request, &msg);
-        break;
     case cb::mcbp::ClientOpcode::Observe:
         return observe(cookie, request, response);
     case cb::mcbp::ClientOpcode::ObserveSeqno:
@@ -1149,11 +1148,10 @@ cb::engine_errc EventuallyPersistentEngine::processUnknownCommandInner(
         res = cb::mcbp::Status::UnknownCommand;
     }
 
-    msg_size = (msg_size > 0 || msg == nullptr) ? msg_size : strlen(msg);
     return sendResponse(response,
                         {}, // key
                         {}, // extra
-                        {msg, msg_size}, // body
+                        {}, // body
                         PROTOCOL_BINARY_RAW_BYTES,
                         res,
                         0,
@@ -6952,6 +6950,12 @@ cb::engine_errc EventuallyPersistentEngine::start_persistence(
 cb::engine_errc EventuallyPersistentEngine::stop_persistence(
         CookieIface& cookie) {
     return acquireEngine(this)->stopFlusher(cookie);
+}
+
+cb::engine_errc EventuallyPersistentEngine::evict_key(CookieIface& cookie,
+                                                      const DocKey& key,
+                                                      Vbid vbucket) {
+    return acquireEngine(this)->evictKey(cookie, key, vbucket);
 }
 
 void EventuallyPersistentEngine::setDcpConsumerBufferRatio(float ratio) {

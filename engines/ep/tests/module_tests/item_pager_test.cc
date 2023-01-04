@@ -2135,7 +2135,7 @@ TEST_P(STValueEvictionExpiryPagerTest, MB_25931) {
     flushDirectlyIfPersistent(vbid, {MoreAvailable::No, 1});
 
     const char* msg;
-    EXPECT_EQ(cb::mcbp::Status::Success, store->evictKey(key, vbid, &msg));
+    EXPECT_EQ(cb::engine_errc::success, store->evictKey(key, vbid, &msg));
     EXPECT_STREQ("Ejected.", msg);
 
     runBGFetcherTask();

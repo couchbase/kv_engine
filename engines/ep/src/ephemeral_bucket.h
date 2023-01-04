@@ -41,10 +41,10 @@ public:
 
     /// Eviction not supported for Ephemeral buckets - without some backing
     /// storage, there is nowhere to evict /to/.
-    cb::mcbp::Status evictKey(const DocKey& key,
-                              Vbid vbucket,
-                              const char** msg) override {
-        return cb::mcbp::Status::NotSupported;
+    cb::engine_errc evictKey(const DocKey& key,
+                             Vbid vbucket,
+                             const char** msg) override {
+        return cb::engine_errc::not_supported;
     }
 
     uint64_t getTotalDiskSize() override {

@@ -1197,7 +1197,7 @@ public:
      *                 evicted), or the reason why the request failed.
      *
      */
-    virtual cb::mcbp::Status evictKey(
+    virtual cb::engine_errc evictKey(
             const char** msg,
             VBucketStateLockRef vbStateLock,
             const Collections::VB::CachingReadHandle& cHandle) = 0;

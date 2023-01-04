@@ -102,7 +102,7 @@ public:
 
     void completeStatsVKey(const DocKey& key, const GetValue& gcb) override;
 
-    cb::mcbp::Status evictKey(
+    cb::engine_errc evictKey(
             const char** msg,
             VBucketStateLockRef vbStateLock,
             const Collections::VB::CachingReadHandle& cHandle) override;

@@ -177,6 +177,12 @@ public:
     bool sendResponse(cb::engine_errc status,
                       std::string_view extras,
                       std::string_view value) override;
+    void setErrorContext(std::string message) override {
+        error_context = std::move(message);
+    }
+    std::string getErrorContext() const override {
+        return error_context;
+    }
 
     /// An alternative function to call for notifyIoComplete
     void setUserNotifyIoComplete(std::function<void(cb::engine_errc)> func) {
@@ -198,7 +204,7 @@ protected:
     std::string authenticatedUser{"nobody"};
     in_port_t parent_port{666};
     DcpConnHandlerIface* connHandlerIface = nullptr;
-
+    std::string error_context;
     cb::compression::Buffer inflated_payload;
     EngineIface* engine = nullptr;
     std::unique_ptr<MockConnection> connection;

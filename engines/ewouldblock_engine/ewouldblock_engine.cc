@@ -198,6 +198,9 @@ public:
     cb::EngineErrorMetadataPair get_meta(CookieIface& cookie,
                                          const DocKey& key,
                                          Vbid vbucket) override;
+    cb::engine_errc evict_key(CookieIface& cookie,
+                              const DocKey& key,
+                              Vbid vbucket) override;
     cb::engine_errc store(
             CookieIface& cookie,
             ItemIface& item,
@@ -1101,6 +1104,12 @@ cb::EngineErrorMetadataPair EWB_Engine::get_meta(CookieIface& cookie,
     } else {
         return real_engine->get_meta(cookie, key, vbucket);
     }
+}
+
+cb::engine_errc EWB_Engine::evict_key(CookieIface& cookie,
+                                      const DocKey& key,
+                                      Vbid vbucket) {
+    return real_engine->evict_key(cookie, key, vbucket);
 }
 
 cb::engine_errc EWB_Engine::store(

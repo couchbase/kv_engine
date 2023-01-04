@@ -156,6 +156,9 @@ struct MockEngine : public EngineIface, public DcpIface {
 
     cb::engine_errc start_persistence(CookieIface& cookie) override;
     cb::engine_errc stop_persistence(CookieIface& cookie) override;
+    cb::engine_errc evict_key(CookieIface& cookie,
+                              const DocKey& key,
+                              Vbid vbucket) override;
 
     // DcpIface implementation ////////////////////////////////////////////////
 

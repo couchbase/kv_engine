@@ -122,7 +122,7 @@ public:
     void setErrorContext(std::string message) override;
 
     /// Get the context to send back for this command.
-    std::string getErrorContext() const;
+    std::string getErrorContext() const override;
 
     /**
      * Add additional arbitrary JSON to the response, this is in addition to

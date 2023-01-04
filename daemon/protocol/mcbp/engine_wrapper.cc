@@ -486,6 +486,22 @@ cb::engine_errc bucket_set_traffic_control_mode(Cookie& cookie,
     return ret;
 }
 
+cb::engine_errc bucket_evict_key(Cookie& cookie,
+                                 const DocKey& key,
+                                 Vbid vbucket) {
+    auto& c = cookie.getConnection();
+    auto ret = c.getBucketEngine().evict_key(
+            cookie, cookie.getRequestKey(), vbucket);
+    if (ret == cb::engine_errc::disconnect) {
+        LOG_WARNING(
+                "{}: {} bucket_evict_key returned cb::engine_errc::disconnect",
+                c.getId(),
+                c.getDescription());
+        c.setTerminationReason("Engine forced disconnect");
+    }
+    return ret;
+}
+
 cb::engine_errc dcpAddStream(Cookie& cookie,
                              uint32_t opaque,
                              Vbid vbid,

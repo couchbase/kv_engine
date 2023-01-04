@@ -351,7 +351,7 @@ void KVBucketTest::delete_item(Vbid vbid, const DocKey& key) {
 
 void KVBucketTest::evict_key(Vbid vbid, const DocKey& key) {
     const char* msg;
-    EXPECT_EQ(cb::mcbp::Status::Success, store->evictKey(key, vbid, &msg));
+    EXPECT_EQ(cb::engine_errc::success, store->evictKey(key, vbid, &msg));
     EXPECT_STREQ("Ejected.", msg);
 }
 
@@ -1802,7 +1802,7 @@ TEST_P(KVBucketParamTest, ReplicaExpiredItem) {
     // Evict the item (to check bgfetch logic)
     if (!ephemeral()) {
         const char* msg = nullptr;
-        ASSERT_EQ(cb::mcbp::Status::Success, store->evictKey(key, vbid, &msg))
+        ASSERT_EQ(cb::engine_errc::success, store->evictKey(key, vbid, &msg))
                 << msg;
     }
 
