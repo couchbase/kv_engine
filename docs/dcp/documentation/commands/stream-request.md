@@ -304,6 +304,8 @@ This error code may be returned for one of the following reason. Check the serve
 **PROTOCOL_BINARY_RESPONSE_ROLLBACK (0x23)**
 
 If the consumer needs to rollback its data before reconnecting.
+See [Rollback](../rollback.md) for details on why a rollback response is
+returned and how a client should handle it.
 
 **PROTOCOL_BINARY_RESPONSE_ENOMEM (0x82)**
 
