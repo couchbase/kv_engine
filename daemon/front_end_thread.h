@@ -36,6 +36,39 @@ class Connection;
 class ListeningPort;
 struct thread_stats;
 
+/// For each unique IP address (we differentiate between IPv4 and IPv6)
+/// we maintain a few counters to determine the overall client connection
+/// details:
+struct ClientConnectionDetails {
+    /// The current number of connections
+    size_t current_connections = 0;
+    /// The total number of connections from this client
+    size_t total_connections = 0;
+    /// The number of times the server forced shutdown of a connection
+    /// from the client
+    size_t forced_disconnect = 0;
+    /// Timestamp when the entry was last used
+    std::chrono::steady_clock::time_point last_used;
+
+    /// Update all of the members required when a connection gets created
+    /// (current, total and timestamp)
+    void onConnect();
+
+    /// Update all of the members required when a connection gets disconnected
+    /// (current and timestamp)
+    void onDisconnect();
+
+    /// Update all of the members required when a forced disconnect on a
+    /// connection gets initiated (forced_disconnect and timestamp)
+    void onForcedDisconnect();
+
+    /// Get a JSON representation of this object
+    /// @param now the current timestamp (to avoid having to fetch the clock
+    ///            within the method in the case we want to dump hundreds
+    ///            of these)
+    nlohmann::json to_json(std::chrono::steady_clock::time_point now) const;
+};
+
 struct FrontEndThread {
     FrontEndThread();
     ~FrontEndThread();
@@ -95,6 +128,24 @@ struct FrontEndThread {
         return cb::char_buffer{const_cast<char*>(scratch_buffer.data()),
                                scratch_buffer.size()};
     }
+
+    /// Notify the thread that a new connection was created
+    void onConnectionCreate(const Connection& connection);
+    /// Notify the thread that a connection will be destroyed
+    void onConnectionDestroy(const Connection& connection);
+    /// Notify the thread that a connection will be disconnected
+    void onConnectionForcedDisconnect(const Connection& connection);
+
+    /// Get the (aggregated from all threads) map of client connection details
+    static std::unordered_map<std::string, ClientConnectionDetails>
+    getClientConnectionDetails();
+
+    /// We have a bug where we can end up in a hang situation during shutdown
+    /// and stuck in a tight loop logging (and flooding) the log files.
+    /// While trying to solve that bug let's reduce the amount being logged
+    /// so that we only log every 5 second (so that we can find the root cause
+    /// of the problem)
+    time_t shutdown_next_log = 0;
 
     /**
      * Iterate over all of the front end threads and run the callback
@@ -195,6 +246,30 @@ protected:
 
     /// All connections bound to this connection
     std::unordered_map<Connection*, std::unique_ptr<Connection>> connections;
+
+    /// A per-thread map containing the connection details for connections bound
+    /// to this thread (to avoid locking for updating the map as it'll get
+    /// more updates than reads)
+    std::unordered_map<std::string, ClientConnectionDetails>
+            clientConnectionMap;
+
+    /// The maximum number of client ip addresses we should keep track of.
+    /// When we hit the max number of IP addresses one of two things may
+    /// happen:
+    ///    a) If we find an entry with 0 current connections that entry
+    ///       gets evicted and the new IP address get inserted
+    ///    b) If we fail to find any entries with 0 current connections
+    ///       no information get recorded for the client
+    ///
+    /// The reason for this logic is:
+    ///    1) We don't want the size of the map to be able to grow to
+    ///       an infinite size
+    ///    2) We cannot evict an item with current items as we'll run
+    ///       into problems with keeping the counters correct.
+    ///
+    ///  Given there is an overhead of locating the item to evict you should
+    ///  tune this number to match your expected use-case when enabled.
+    bool maybeTrimClientConnectionMap();
 };
 
 class Hdr1sfMicroSecHistogram;

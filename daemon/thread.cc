@@ -28,12 +28,41 @@
 #include <platform/scope_timer.h>
 #include <platform/socket.h>
 #include <platform/strerror.h>
+#include <platform/timeutils.h>
 #include <xattr/utils.h>
 #include <atomic>
 #include <condition_variable>
 #include <cstdlib>
 #include <mutex>
 #include <queue>
+
+void ClientConnectionDetails::onConnect() {
+    ++current_connections;
+    ++total_connections;
+    last_used = std::chrono::steady_clock::now();
+}
+
+void ClientConnectionDetails::onDisconnect() {
+    --current_connections;
+    last_used = std::chrono::steady_clock::now();
+}
+
+void ClientConnectionDetails::onForcedDisconnect() {
+    ++forced_disconnect;
+    last_used = std::chrono::steady_clock::now();
+}
+
+nlohmann::json ClientConnectionDetails::to_json(
+        std::chrono::steady_clock::time_point now) const {
+    const auto duration = now - last_used;
+    return nlohmann::json{
+            {"current", current_connections},
+            {"total", total_connections},
+            {"disconnect", forced_disconnect},
+            {"last_used",
+             cb::time2text(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                     duration))}};
+}
 
 /* An item in the connection queue. */
 FrontEndThread::ConnectionQueue::~ConnectionQueue() {
@@ -122,6 +151,71 @@ void FrontEndThread::forEach(std::function<void(FrontEndThread&)> callback,
             });
         }
     }
+}
+
+void FrontEndThread::onConnectionCreate(const Connection& connection) {
+    const std::string ip = connection.getPeername()["ip"];
+    // The common case is updating an existing entry.
+    auto iter = clientConnectionMap.find(ip);
+    if (iter == clientConnectionMap.end()) {
+        if (maybeTrimClientConnectionMap()) {
+            // there is room in the map for this entry (insert or update)
+            clientConnectionMap[ip].onConnect();
+        }
+    } else {
+        iter->second.onConnect();
+    }
+}
+
+void FrontEndThread::onConnectionDestroy(const Connection& connection) {
+    auto iter = clientConnectionMap.find(connection.getPeername()["ip"]);
+    if (iter != clientConnectionMap.end()) {
+        iter->second.onDisconnect();
+    }
+}
+
+void FrontEndThread::onConnectionForcedDisconnect(
+        const Connection& connection) {
+    auto iter = clientConnectionMap.find(connection.getPeername()["ip"]);
+    if (iter != clientConnectionMap.end()) {
+        iter->second.onForcedDisconnect();
+    }
+}
+
+bool FrontEndThread::maybeTrimClientConnectionMap() {
+    if (clientConnectionMap.size() <
+        Settings::instance().getMaxClientConnectionDetails()) {
+        return true;
+    }
+
+    for (auto i = clientConnectionMap.begin(), last = clientConnectionMap.end();
+         i != last;) {
+        if (i->second.current_connections == 0) {
+            clientConnectionMap.erase(i);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+std::unordered_map<std::string, ClientConnectionDetails>
+FrontEndThread::getClientConnectionDetails() {
+    std::unordered_map<std::string, ClientConnectionDetails> ret;
+    forEach(
+            [&ret](auto& thread) {
+                for (const auto& [ip, info] : thread.clientConnectionMap) {
+                    auto& entry = ret[ip];
+                    entry.current_connections += info.current_connections;
+                    entry.forced_disconnect += info.forced_disconnect;
+                    entry.total_connections += info.total_connections;
+                    if (entry.last_used < info.last_used) {
+                        entry.last_used = info.last_used;
+                    }
+                }
+            },
+            true);
+    return ret;
 }
 
 /****************************** LIBEVENT THREADS *****************************/

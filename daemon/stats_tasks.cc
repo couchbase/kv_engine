@@ -13,6 +13,7 @@
 #include "connection.h"
 #include "cookie.h"
 #include "daemon/protocol/mcbp/engine_wrapper.h"
+#include "front_end_thread.h"
 #include "memcached.h"
 #include "nobucket_taskable.h"
 #include <logger/logger.h>
@@ -103,5 +104,32 @@ std::string StatsTaskConnectionStats::getDescription() const {
 
 std::chrono::microseconds StatsTaskConnectionStats::maxExpectedDuration()
         const {
+    return std::chrono::seconds(1);
+}
+
+StatsTaskClientConnectionDetails::StatsTaskClientConnectionDetails(
+        Cookie& cookie)
+    : StatsTask(TaskId::Core_StatsConnectionTask, cookie) {
+}
+
+bool StatsTaskClientConnectionDetails::run() {
+    const auto clientConnectionMap =
+            FrontEndThread::getClientConnectionDetails();
+    const auto now = std::chrono::steady_clock::now();
+    std::vector<std::pair<std::string, std::string>> vec;
+    for (const auto& [ip, entry] : clientConnectionMap) {
+        vec.emplace_back(std::string(ip), entry.to_json(now).dump());
+    }
+    stats.swap(vec);
+    cookie.notifyIoComplete(cb::engine_errc::success);
+    return false;
+}
+
+std::string StatsTaskClientConnectionDetails::getDescription() const {
+    return "stats client connection info";
+}
+
+std::chrono::microseconds
+StatsTaskClientConnectionDetails::maxExpectedDuration() const {
     return std::chrono::seconds(1);
 }

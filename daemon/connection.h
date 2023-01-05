@@ -24,7 +24,7 @@
 #include <memcached/dcp.h>
 #include <memcached/openssl.h>
 #include <memcached/rbac.h>
-#include <nlohmann/json_fwd.hpp>
+#include <nlohmann/json.hpp>
 #include <platform/socket.h>
 
 #include <array>

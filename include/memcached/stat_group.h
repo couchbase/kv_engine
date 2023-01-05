@@ -23,6 +23,7 @@ enum class StatGroupId {
     BucketDetails,
     Aggregate,
     Connections,
+    ClientConnectionDetails,
     Clocks,
     JsonValidate,
     SnappyDecompress,

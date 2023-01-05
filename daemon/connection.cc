@@ -1243,6 +1243,7 @@ Connection::Connection(SOCKET sfd,
       max_reqs_per_event(Settings::instance().getRequestsPerEventNotification(
               EventPriority::Default)),
       socketDescriptor(sfd) {
+    thread.onConnectionCreate(*this);
     updateLru();
     setTcpNoDelay(true);
     updateDescription();
@@ -1262,6 +1263,7 @@ bool Connection::maybeInitiateShutdown() {
         }
     }
 
+    thread.onConnectionForcedDisconnect(*this);
     LOG_INFO(
             "Initiate shutdown of connection: {} to avoid running out of "
             "connections",
@@ -1284,6 +1286,7 @@ void Connection::tryInitiateShutdown(size_t num) {
 }
 
 Connection::~Connection() {
+    thread.onConnectionDestroy(*this);
     unlinkLru();
     cb::audit::addSessionTerminated(*this);
 

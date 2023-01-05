@@ -343,6 +343,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
                 throw std::invalid_argument(
                         R"(connection_limit_mode must be "disconnect" or "recycle")");
             }
+        } else if (key == "max_client_connection_details"sv) {
+            setMaxClientConnectionDetails(value.get<size_t>());
         } else {
             LOG_WARNING(R"(Unknown key "{}" in config ignored.)", key);
         }
@@ -660,6 +662,16 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                      other.getConnectionLimitMode());
         }
         setConnectionLimitMode(other.getConnectionLimitMode());
+    }
+
+    if (other.has.max_client_connection_details) {
+        if (other.max_client_connection_details !=
+            max_client_connection_details) {
+            LOG_INFO("Change max client connection details from {} to {}",
+                     max_client_connection_details,
+                     other.max_client_connection_details);
+            setMaxClientConnectionDetails(other.max_client_connection_details);
+        }
     }
 
     if (other.has.xattr_enabled) {
