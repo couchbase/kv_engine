@@ -90,3 +90,44 @@ magma::Status MockMagmaKVStore::runImplicitCompactKVStore(Vbid vbid) {
 magma::Status MockMagmaKVStore::newCheckpoint(Vbid vbid) {
     return magma->NewCheckpoint(vbid.get());
 }
+
+std::unique_ptr<BySeqnoScanContext> MockMagmaKVStore::initBySeqnoScanContext(
+        std::unique_ptr<StatusCallback<GetValue>> cb,
+        std::unique_ptr<StatusCallback<CacheLookup>> cl,
+        Vbid vbid,
+        uint64_t startSeqno,
+        DocumentFilter options,
+        ValueFilter valOptions,
+        SnapshotSource source,
+        std::unique_ptr<KVFileHandle> fileHandle) const {
+    auto scanContext =
+            MagmaKVStore::initBySeqnoScanContext(std::move(cb),
+                                                 std::move(cl),
+                                                 vbid,
+                                                 startSeqno,
+                                                 options,
+                                                 valOptions,
+                                                 source,
+                                                 std::move(fileHandle));
+
+    if (historyStartSeqno) {
+        scanContext->historyStartSeqno = historyStartSeqno.value();
+    }
+    return scanContext;
+}
+
+std::unique_ptr<ByIdScanContext> MockMagmaKVStore::initByIdScanContext(
+        std::unique_ptr<StatusCallback<GetValue>> cb,
+        std::unique_ptr<StatusCallback<CacheLookup>> cl,
+        Vbid vbid,
+        const std::vector<ByIdRange>& ranges,
+        DocumentFilter options,
+        ValueFilter valOptions) const {
+    auto scanContext = MagmaKVStore::initByIdScanContext(
+            std::move(cb), std::move(cl), vbid, ranges, options, valOptions);
+
+    if (historyStartSeqno) {
+        scanContext->historyStartSeqno = historyStartSeqno.value();
+    }
+    return scanContext;
+}

@@ -54,7 +54,8 @@ ScanContext::ScanContext(
         std::unique_ptr<StatusCallback<CacheLookup>> cl,
         const std::vector<Collections::KVStore::DroppedCollection>&
                 droppedCollections,
-        uint64_t maxSeqno)
+        uint64_t maxSeqno,
+        uint64_t historyStartSeqno)
     : vbid(vbid),
       handle(std::move(handle)),
       docFilter(docFilter),
@@ -62,6 +63,7 @@ ScanContext::ScanContext(
       logger(getGlobalBucketLogger().get()),
       collectionsContext(droppedCollections),
       maxSeqno(maxSeqno),
+      historyStartSeqno(historyStartSeqno),
       callback(std::move(cb)),
       lookup(std::move(cl)) {
     Expects(callback != nullptr);
@@ -82,7 +84,8 @@ BySeqnoScanContext::BySeqnoScanContext(
         const vbucket_state& vbucketState,
         const std::vector<Collections::KVStore::DroppedCollection>&
                 droppedCollections,
-        std::optional<uint64_t> timestamp)
+        std::optional<uint64_t> timestamp,
+        uint64_t historyStartSeqno)
 
     : ScanContext(vb,
                   std::move(handle),
@@ -91,7 +94,8 @@ BySeqnoScanContext::BySeqnoScanContext(
                   std::move(cb),
                   std::move(cl),
                   droppedCollections,
-                  end),
+                  end,
+                  historyStartSeqno),
       startSeqno(start),
       purgeSeqno(purgeSeqno),
       documentCount(_documentCount),
@@ -110,7 +114,8 @@ ByIdScanContext::ByIdScanContext(
         ValueFilter _valFilter,
         const std::vector<Collections::KVStore::DroppedCollection>&
                 droppedCollections,
-        uint64_t maxSeqno)
+        uint64_t maxSeqno,
+        uint64_t historyStartSeqno)
     : ScanContext(vb,
                   std::move(handle),
                   _docFilter,
@@ -118,7 +123,8 @@ ByIdScanContext::ByIdScanContext(
                   std::move(cb),
                   std::move(cl),
                   droppedCollections,
-                  maxSeqno),
+                  maxSeqno,
+                  historyStartSeqno),
       ranges(std::move(ranges)),
       lastReadKey(nullptr, 0) {
 }

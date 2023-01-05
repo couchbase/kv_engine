@@ -392,7 +392,8 @@ public:
                 std::unique_ptr<StatusCallback<CacheLookup>> cl,
                 const std::vector<Collections::KVStore::DroppedCollection>&
                         droppedCollections,
-                uint64_t maxSeqno);
+                uint64_t maxSeqno,
+                uint64_t historyStartSeqno = 0);
 
     virtual ~ScanContext() = default;
 
@@ -412,14 +413,15 @@ public:
         return *lookup;
     }
 
-    const Vbid vbid;
+    const Vbid vbid{0};
     uint64_t lastReadSeqno{0};
     std::unique_ptr<KVFileHandle> handle;
-    const DocumentFilter docFilter;
-    const ValueFilter valFilter;
-    BucketLogger* logger;
+    const DocumentFilter docFilter{DocumentFilter::ALL_ITEMS};
+    const ValueFilter valFilter{ValueFilter::KEYS_ONLY};
+    BucketLogger* logger{nullptr};
     const Collections::VB::ScanContext collectionsContext;
-    uint64_t maxSeqno;
+    uint64_t maxSeqno{0};
+    uint64_t historyStartSeqno{0};
 
     /**
      * Cumulative count of bytes read from disk during this scan. Counts
@@ -454,7 +456,8 @@ public:
             const vbucket_state& vbucketState,
             const std::vector<Collections::KVStore::DroppedCollection>&
                     droppedCollections,
-            std::optional<uint64_t> timestamp = {});
+            std::optional<uint64_t> timestamp = {},
+            uint64_t historyStartSeqno = 0);
 
     const uint64_t startSeqno;
     const uint64_t purgeSeqno;
@@ -516,7 +519,8 @@ public:
                     ValueFilter _valFilter,
                     const std::vector<Collections::KVStore::DroppedCollection>&
                             droppedCollections,
-                    uint64_t maxSeqno);
+                    uint64_t maxSeqno,
+                    uint64_t historyStartSeqno = 0);
     std::vector<ByIdRange> ranges;
     // Key should be set by KVStore when a scan must be paused, this is where
     // a scan can resume from

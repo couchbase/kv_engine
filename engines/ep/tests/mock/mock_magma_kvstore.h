@@ -19,6 +19,34 @@ class MockMagmaKVStore : public MagmaKVStore {
 public:
     explicit MockMagmaKVStore(MagmaKVStoreConfig& config);
 
+    /**
+     * See base-class comments for usage. However this "mock" version will
+     * override the ScanContext::historyStartSeqno if this class defines
+     * historyStartSeqno (see historyStartSeqno member below).
+     */
+    std::unique_ptr<BySeqnoScanContext> initBySeqnoScanContext(
+            std::unique_ptr<StatusCallback<GetValue>> cb,
+            std::unique_ptr<StatusCallback<CacheLookup>> cl,
+            Vbid vbid,
+            uint64_t startSeqno,
+            DocumentFilter options,
+            ValueFilter valOptions,
+            SnapshotSource source,
+            std::unique_ptr<KVFileHandle> fileHandle = nullptr) const override;
+
+    /**
+     * See base-class comments for usage. However this "mock" version will
+     * override the ScanContext::historyStartSeqno if this class defines
+     * historyStartSeqno (see historyStartSeqno member below).
+     */
+    std::unique_ptr<ByIdScanContext> initByIdScanContext(
+            std::unique_ptr<StatusCallback<GetValue>> cb,
+            std::unique_ptr<StatusCallback<CacheLookup>> cl,
+            Vbid vbid,
+            const std::vector<ByIdRange>& ranges,
+            DocumentFilter options,
+            ValueFilter valOptions) const override;
+
     ReadVBStateResult readVBStateFromDisk(Vbid vbid);
 
     ReadVBStateResult readVBStateFromDisk(
@@ -75,6 +103,13 @@ public:
     std::function<bool()> snapshotVBucketErrorInjector;
 
     StorageProperties storageProperties;
+
+    /**
+     * The historyStartSeqno in this class when set will override the value
+     * MagmaKVStore sets. This allows arbitrary placement of the history range
+     * for testing of various two-phase backfills.
+     */
+    std::optional<uint64_t> historyStartSeqno;
 };
 
 #endif
