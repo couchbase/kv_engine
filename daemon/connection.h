@@ -16,6 +16,7 @@
 #include "ssl_utils.h"
 #include "stats.h"
 
+#include <boost/intrusive/list.hpp>
 #include <cbsasl/client.h>
 #include <cbsasl/server.h>
 #include <daemon/protocol/mcbp/command_context.h>
@@ -60,7 +61,9 @@ const size_t MaxSavedConnectionId = 34;
 /**
  * The structure representing a connection in memcached.
  */
-class Connection : public ConnectionIface, public DcpMessageProducersIface {
+class Connection : public ConnectionIface,
+                   public DcpMessageProducersIface,
+                   public boost::intrusive::list_base_hook<> {
 public:
     /// A class representing the states the connection may be in
     enum class State : int8_t {
@@ -121,6 +124,9 @@ public:
      * @return true if the connection was idle, false otherwise
      */
     bool signalIfIdle();
+
+    /// Is this connection connected to the system port or not
+    bool isConnectedToSystemPort() const;
 
     /**
      * Reset throttled cookies for the connection.
@@ -872,8 +878,17 @@ public:
                 std::memory_order::memory_order_release);
     }
 
-    /// Try to shut down a given number of connections
-    static void tryInitiateShutdown(size_t num);
+    /**
+     * Initiate disconnect of this connection if all of the following
+     * is true:
+     *    <ol>
+     *    <li> It is not an internal client (@ns_server etc)</li>
+     *    <li> It does not have any cookies in ewb state</li>
+     *    </ol>
+     *
+     * @return true if shutdown was initiated
+     */
+    bool maybeInitiateShutdown();
 
 protected:
     /// Protected constructor so that it may only be used from create();
@@ -888,18 +903,6 @@ protected:
 
     /// connected to a TLS enabled port or not
     bool isTlsEnabled() const;
-
-    /**
-     * Initiate disconnect of this connection if all of the following
-     * is true:
-     *    <ol>
-     *    <li> It is not an internal client (@ns_server etc)</li>
-     *    <li> It does not have any cookies in ewb state</li>
-     *    </ol>
-     *
-     * @return true if shutdown was initiated
-     */
-    bool maybeInitiateShutdown();
 
     /**
      * Close the connection. If there is any references to the connection
@@ -994,20 +997,6 @@ protected:
     /// Update the privilege context and drop all of the previously dropped
     /// privileges and update any cached variables
     void updatePrivilegeContext();
-
-    /// Update this connections location in the LRU list
-    void updateLru();
-
-    /// Remove this connection from the LRU list
-    void unlinkLru();
-
-    /// This connection LRU related information
-    struct {
-        /// Pointer to the next connection in the LRU list
-        Connection* next = {nullptr};
-        /// Pointer to the previous connection in the LRU list
-        Connection* prev = {nullptr};
-    } lru;
 
     /**
      * The "list" of commands currently being processed. We ALWAYS keep the

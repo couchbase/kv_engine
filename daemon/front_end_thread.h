@@ -11,6 +11,7 @@
 #pragma once
 
 #include "auditd/src/audit_event_filter.h"
+#include "connection.h"
 #include "ssl_utils.h"
 #include <folly/Synchronized.h>
 #include <folly/io/async/EventBase.h>
@@ -130,11 +131,13 @@ struct FrontEndThread {
     }
 
     /// Notify the thread that a new connection was created
-    void onConnectionCreate(const Connection& connection);
+    void onConnectionCreate(Connection& connection);
     /// Notify the thread that a connection will be destroyed
     void onConnectionDestroy(const Connection& connection);
     /// Notify the thread that a connection will be disconnected
     void onConnectionForcedDisconnect(const Connection& connection);
+    /// Notify the thread that the connection was used
+    void onConnectionUse(Connection& connection);
 
     /// Get the (aggregated from all threads) map of client connection details
     static std::unordered_map<std::string, ClientConnectionDetails>
@@ -270,6 +273,23 @@ protected:
     ///  Given there is an overhead of locating the item to evict you should
     ///  tune this number to match your expected use-case when enabled.
     bool maybeTrimClientConnectionMap();
+
+    /**
+     * All of the connections pinned to a thread is stored within a LRU list
+     * which gets updated (by the connection) in the command processing
+     * code. This makes it easy to pick out an old connection when we need
+     * to shut down connections without having to traverse "all" connections
+     * to find a victim. Given that we spread out the connections to the threads
+     * we can might as well just use a thread-specific LRU and pick a victim
+     * there instead of using a shared structure and locks.
+     *
+     * List is ordered from least to most recently used (head = least,
+     * tail = most).
+     */
+    boost::intrusive::list<Connection> connectionLruList;
+
+    /// Try to shut down a given number of connections
+    void tryInitiateConnectionShutdown(size_t num);
 };
 
 class Hdr1sfMicroSecHistogram;

@@ -153,7 +153,15 @@ void FrontEndThread::forEach(std::function<void(FrontEndThread&)> callback,
     }
 }
 
-void FrontEndThread::onConnectionCreate(const Connection& connection) {
+void FrontEndThread::onConnectionCreate(Connection& connection) {
+    if (!connection.isConnectedToSystemPort()) {
+        // Don't insert connections to the system port to the LRU
+        // as they're accounted to the system connection count and limit
+        // Some unit tests use the mock connection which don't provide an
+        // instance of the listening port, so we need to check that its there...
+        connectionLruList.push_back(connection);
+    }
+
     const std::string ip = connection.getPeername()["ip"];
     // The common case is updating an existing entry.
     auto iter = clientConnectionMap.find(ip);
@@ -172,6 +180,10 @@ void FrontEndThread::onConnectionDestroy(const Connection& connection) {
     if (iter != clientConnectionMap.end()) {
         iter->second.onDisconnect();
     }
+
+    if (connection.is_linked()) {
+        connectionLruList.erase(connectionLruList.s_iterator_to(connection));
+    }
 }
 
 void FrontEndThread::onConnectionForcedDisconnect(
@@ -180,6 +192,18 @@ void FrontEndThread::onConnectionForcedDisconnect(
     if (iter != clientConnectionMap.end()) {
         iter->second.onForcedDisconnect();
     }
+}
+
+void FrontEndThread::onConnectionUse(Connection& connection) {
+    // Not all connections are tracked in LRU (e.g. system connections) -
+    // skip if not already linked.
+    if (!connection.is_linked()) {
+        return;
+    }
+
+    // Move this Connection to the tail (most recently used) of the list.
+    auto& lru = connectionLruList;
+    lru.splice(lru.end(), lru, lru.s_iterator_to(connection));
 }
 
 bool FrontEndThread::maybeTrimClientConnectionMap() {
@@ -259,7 +283,7 @@ void FrontEndThread::dispatch_new_connections() {
         if (current >= (settings.getMaxUserConnections() - free_pool_size)) {
             // We're above the limit. Initiate shutdown of as many connections
             // as I am going to initialize
-            Connection::tryInitiateShutdown(accept_connections.size());
+            tryInitiateConnectionShutdown(accept_connections.size());
         }
     }
 
@@ -295,6 +319,17 @@ void FrontEndThread::destroy_connection(Connection& connection) {
     auto node = connections.extract(&connection);
     if (node.key() != &connection) {
         throw std::logic_error("destroy_connection: Connection not found");
+    }
+}
+
+void FrontEndThread::tryInitiateConnectionShutdown(size_t num) {
+    // Attempt to close 'num' items, trying from least to most recently used.
+    for (auto& conn : connectionLruList) {
+        if (conn.maybeInitiateShutdown()) {
+            if (--num == 0) {
+                return;
+            }
+        }
     }
 }
 
