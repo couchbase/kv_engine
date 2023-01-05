@@ -239,6 +239,7 @@ target_link_libraries(memcached_daemon
                       memcached_rbac
                       phosphor
                       xattr
+                      sigar
                       ${SNAPPY_LIBRARIES}
                       ${MALLOC_LIBRARIES}
                       ${LIBEVENT_LIBRARIES}

@@ -726,3 +726,20 @@ TEST_P(StatsTest, TestSettingAndGettingThreadCount) {
     }
     EXPECT_TRUE(seenThreadsKey);
 }
+
+TEST_P(StatsTest, ThreadDetails) {
+    nlohmann::json json;
+
+    adminConnection->stats(
+            [&json](const auto&, const auto& value) -> void {
+                json = nlohmann::json::parse(value);
+            },
+            "threads details");
+    EXPECT_FALSE(json.empty()) << "Expected a JSON payload to be returned";
+    EXPECT_TRUE(json.contains("num_auxio_threads"));
+    EXPECT_TRUE(json.contains("num_frontend_threads"));
+    EXPECT_TRUE(json.contains("num_nonio_threads"));
+    EXPECT_TRUE(json.contains("num_reader_threads"));
+    EXPECT_TRUE(json.contains("num_writer_threads"));
+    EXPECT_LT(5, json.size()) << "There should be some threads reported";
+}

@@ -25,6 +25,7 @@
 #include <daemon/stats_tasks.h>
 #include <executor/executorpool.h>
 #include <gsl/gsl-lite.hpp>
+#include <logger/logger.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/header.h>
 #include <memcached/stat_group.h>
@@ -33,9 +34,11 @@
 #include <phosphor/trace_log.h>
 #include <platform/cb_arena_malloc.h>
 #include <platform/checked_snprintf.h>
+#include <sigar.h>
 #include <statistics/cbstat_collector.h>
 #include <statistics/labelled_collector.h>
 #include <utilities/engine_errc_2_mcbp.h>
+#include <utilities/string_utilities.h>
 #include <chrono>
 #include <cinttypes>
 #include <stdexcept>
@@ -573,27 +576,67 @@ static cb::engine_errc stat_timings_executor(const std::string&,
     return cb::engine_errc::success;
 }
 
-static cb::engine_errc stat_threads_executor(const std::string&,
+static cb::engine_errc stat_threads_executor(const std::string& arg,
                                              Cookie& cookie) {
     auto& setting = Settings::instance();
 
-    append_stats(std::string{"num_frontend_threads"},
-                 std::to_string(setting.getNumWorkerThreads()),
-                 cookie);
-    append_stats(std::string{"num_reader_threads"},
-                 std::to_string(setting.getNumReaderThreads()),
-                 cookie);
-    append_stats(std::string{"num_writer_threads"},
-                 std::to_string(setting.getNumWriterThreads()),
-                 cookie);
-    append_stats(std::string{"num_auxio_threads"},
-                 std::to_string(setting.getNumAuxIoThreads()),
-                 cookie);
-    append_stats(std::string{"num_nonio_threads"},
-                 std::to_string(setting.getNumNonIoThreads()),
-                 cookie);
+    if (arg.empty()) {
+        append_stats(std::string{"num_frontend_threads"},
+                     std::to_string(setting.getNumWorkerThreads()),
+                     cookie);
+        append_stats(std::string{"num_reader_threads"},
+                     std::to_string(setting.getNumReaderThreads()),
+                     cookie);
+        append_stats(std::string{"num_writer_threads"},
+                     std::to_string(setting.getNumWriterThreads()),
+                     cookie);
+        append_stats(std::string{"num_auxio_threads"},
+                     std::to_string(setting.getNumAuxIoThreads()),
+                     cookie);
+        append_stats(std::string{"num_nonio_threads"},
+                     std::to_string(setting.getNumNonIoThreads()),
+                     cookie);
+        return cb::engine_errc::success;
+    }
 
-    return cb::engine_errc::success;
+    if (arg == "details") {
+        nlohmann::json json{
+                {"num_frontend_threads", setting.getNumWorkerThreads()},
+                {"num_reader_threads", setting.getNumReaderThreads()},
+                {"num_writer_threads", setting.getNumWriterThreads()},
+                {"num_auxio_threads", setting.getNumAuxIoThreads()},
+                {"num_nonio_threads", setting.getNumNonIoThreads()}};
+
+        try {
+            const auto pid = getpid();
+            sigar::iterate_threads([&json, &pid](auto tid,
+                                                 auto name,
+                                                 auto user,
+                                                 auto system) {
+                nlohmann::json entry = {{"user", user}, {"system", system}};
+                if (pid == tid) {
+                    entry["main"] = true;
+                }
+                if (!name.empty()) {
+                    entry["name"] = name;
+                    auto pool = get_thread_pool_name(name);
+                    if (!pool.empty()) {
+                        entry["pool"] = pool;
+                    }
+                }
+                json[std::to_string(tid)] = std::move(entry);
+            });
+        } catch (const std::exception& e) {
+            LOG_WARNING("{} - sigar::iterate_process_threads: {}",
+                        cookie.getConnectionId(),
+                        e.what());
+        }
+
+        append_stats("details", json.dump(), cookie);
+        return cb::engine_errc::success;
+    }
+
+    return cb::engine_errc::invalid_arguments;
 }
 
 static cb::engine_errc stat_tasks_all_executor(const std::string&,

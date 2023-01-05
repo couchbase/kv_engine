@@ -101,3 +101,30 @@ std::string to_string(cb::byte_buffer buf) {
 std::string to_string(cb::const_byte_buffer buf) {
     return std::string(reinterpret_cast<const char*>(buf.data()), buf.size());
 }
+
+std::string_view get_thread_pool_name(std::string_view threadname) {
+    using namespace std::string_view_literals;
+    std::string_view thread_pool;
+    auto prefix_end = threadname.find_first_of("0123456789");
+    if (prefix_end != threadname.npos) {
+        // Clean up the thread pool name by removing any
+        // uninteresting characters from the end of a non-empty
+        // prefix. We have different naming conventions between
+        // memcached, ep-engine and magma - some have no
+        // separator between pool name and thread number, some
+        // have ':' and others have '_'. However, we cannot
+        // simply include ':' and '_' in the prefix end search
+        // as they are also used in the middle of some thread
+        // names. If the last character is one of the possible
+        // separators then drop it.
+        if (prefix_end > 0) {
+            const auto last_prefix_char = threadname.at(prefix_end - 1);
+            const auto skip_chars = ":_"sv;
+            if (skip_chars.find(last_prefix_char) != skip_chars.npos) {
+                --prefix_end;
+            }
+        }
+        thread_pool = {threadname.data(), prefix_end};
+    }
+    return thread_pool;
+}

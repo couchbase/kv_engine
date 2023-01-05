@@ -1747,6 +1747,10 @@
         "unit": "count"
     },
     {
+        "key": "thread_cpu_usage",
+        "unit": "microseconds"
+    },
+    {
         "key": "conn_yields",
         "unit": "count"
     },

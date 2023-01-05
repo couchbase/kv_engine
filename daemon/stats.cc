@@ -16,16 +16,17 @@
 #include "memcached.h"
 #include "network_interface_manager.h"
 #include "settings.h"
-
 #include <fmt/chrono.h>
 #include <folly/Chrono.h>
+#include <logger/logger.h>
 #include <platform/cb_arena_malloc.h>
 #include <platform/timeutils.h>
+#include <sigar.h>
 #include <statistics/collector.h>
 #include <statistics/labelled_collector.h>
 #include <statistics/prometheus.h>
 #include <statistics/prometheus_collector.h>
-
+#include <utilities/string_utilities.h>
 #include <string_view>
 
 // add global stats
@@ -240,7 +241,31 @@ cb::engine_errc server_prometheus_stats(
         if (metricGroup == MetricGroup::Low) {
             server_global_stats(kvCollector);
             stats_audit(kvCollector);
-        } else if (isServerlessDeployment()) {
+        } else {
+            try {
+                sigar::iterate_threads([&kvCollector](auto tid,
+                                                      auto name,
+                                                      auto user,
+                                                      auto system) {
+                    auto thread_pool = get_thread_pool_name(name);
+                    kvCollector.addStat(cb::stats::Key::thread_cpu_usage,
+                                        user,
+                                        {{"tid", std::to_string(tid)},
+                                         {"thread_name", name},
+                                         {"thread_pool", thread_pool},
+                                         {"domain", "user"}});
+                    kvCollector.addStat(cb::stats::Key::thread_cpu_usage,
+                                        system,
+                                        {{"tid", std::to_string(tid)},
+                                         {"thread_name", name},
+                                         {"thread_pool", thread_pool},
+                                         {"domain", "system"}});
+                });
+            } catch (const std::exception& e) {
+                LOG_WARNING("sigar::iterate_threads: {}", e.what());
+            }
+        }
+        if (isServerlessDeployment()) {
             // include all metering metrics, without the "kv_" prefix
             server_prometheus_metering(collector);
         }

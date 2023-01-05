@@ -93,3 +93,15 @@ std::ostream& operator<<(std::ostream& ostr, const std::optional<T>& optional) {
 
     return ostr << "<none>";
 }
+
+/**
+ * Get the name of "our" thread pools from the name of a thread. Inside
+ * our system we use different schemes for our naming (some use: name:number,
+ * other use name_number etc). This method tries to pick out the "name" field
+ * from our known mappings, or an empty view if it doesn't look like one of
+ * our schemes.
+ *
+ * @param threadname the name of the thread
+ * @return the part of the name which represents the thread pool
+ */
+std::string_view get_thread_pool_name(std::string_view threadname);
