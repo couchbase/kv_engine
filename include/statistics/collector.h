@@ -164,6 +164,23 @@ public:
     [[nodiscard]] BucketStatCollector forBucket(std::string_view bucket) const;
 
     /**
+     * Create a new LabelledStatCollector with all the labels of the current
+     * instance (if any), plus the _additional_ labels provided as arguments.
+     */
+    [[nodiscard]] virtual LabelledStatCollector withLabels(
+            Labels&& labels) const;
+
+    /**
+     * Create a new LabelledStatCollector with all the labels of the current
+     * instance (if any), plus the _additional_ single label provided as key +
+     * value arguments.
+     *
+     * Convenience method, less verbose than withLabels for a single value.
+     */
+    [[nodiscard]] LabelledStatCollector withLabel(const char* key,
+                                                  std::string_view value) const;
+
+    /**
      * Add a textual stat to the collector.
      *
      * Try to use other type specific overloads where possible.

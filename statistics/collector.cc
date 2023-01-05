@@ -22,6 +22,15 @@ BucketStatCollector StatCollector::forBucket(std::string_view bucket) const {
     return {*this, bucket};
 }
 
+LabelledStatCollector StatCollector::withLabels(Labels&& labels) const {
+    return {*this, labels};
+}
+
+LabelledStatCollector StatCollector::withLabel(const char* key,
+                                               std::string_view value) const {
+    return withLabels({{key, value}});
+}
+
 const cb::stats::StatDef& StatCollector::lookup(cb::stats::Key key) {
     Expects(size_t(key) < size_t(cb::stats::Key::enum_max));
     return cb::stats::statDefinitions[size_t(key)];

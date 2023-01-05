@@ -14,6 +14,8 @@
 #include <programs/engine_testapp/mock_cookie.h>
 #include <statistics/cbstat_collector.h>
 #include <statistics/collector.h>
+#include <statistics/labelled_collector.h>
+#include <statistics/tests/mock/mock_stat_collector.h>
 
 #include <string_view>
 
@@ -49,4 +51,54 @@ TEST_F(CollectorTest, FloatValueStringRepresentation) {
     // 0.009999999776482582
     // It appears this derives from fmt::format's behaviour when called with
     // a double converted from a float.
+}
+
+TEST_F(CollectorTest, LabelledCollector) {
+    // Verify collector.withLabels() can be used to create a collector
+    // which will add the provided labels for all uses of addStat
+
+    using namespace testing;
+    StrictMock<MockStatCollector> collector;
+
+    using namespace std::string_view_literals;
+    auto labelled = collector.withLabels({{"foo", "bar"}});
+
+    auto key1 = "apples"sv;
+    auto key2 = "oranges"sv;
+
+    InSequence s;
+    EXPECT_CALL(collector,
+                addStat(_,
+                        Matcher<double>(0.0),
+                        UnorderedElementsAre(Pair("foo"sv, "bar"sv))))
+            .Times(1);
+    EXPECT_CALL(collector,
+                addStat(_,
+                        Matcher<double>(1.0),
+                        UnorderedElementsAre(Pair("foo"sv, "bar"sv))))
+            .Times(1);
+
+    labelled.addStat(key1, 0.0);
+    labelled.addStat(key2, 1.0);
+
+    // and test that further labels can be added by chaining another call to
+    // withLabels
+
+    auto moreLabelled = labelled.withLabels({{"baz", "qux"}});
+
+    EXPECT_CALL(collector,
+                addStat(_,
+                        Matcher<double>(0.0),
+                        UnorderedElementsAre(Pair("foo"sv, "bar"sv),
+                                             Pair("baz"sv, "qux"sv))))
+            .Times(1);
+    EXPECT_CALL(collector,
+                addStat(_,
+                        Matcher<double>(1.0),
+                        UnorderedElementsAre(Pair("foo"sv, "bar"sv),
+                                             Pair("baz"sv, "qux"sv))))
+            .Times(1);
+
+    moreLabelled.addStat(key1, 0.0);
+    moreLabelled.addStat(key2, 1.0);
 }

@@ -87,19 +87,8 @@ public:
      * Create a new LabelledStatCollector with all the labels of the current
      * instance, plus the _additional_ labels provided as arguments.
      */
-    [[nodiscard]] LabelledStatCollector withLabels(Labels&& labels) const;
-
-    /**
-     * Create a new LabelledStatCollector with all the labels of the current
-     * instance, plus the _additional_ single label provided as key + value
-     * arguments.
-     *
-     * Convenience method, less verbose than withLabels for a single value.
-     */
-    [[nodiscard]] LabelledStatCollector withLabel(
-            const char* key, std::string_view value) const {
-        return withLabels({{key, value}});
-    }
+    [[nodiscard]] LabelledStatCollector withLabels(
+            Labels&& labels) const override;
 
     /**
      * Test if a label has been set with the provided key.
@@ -115,7 +104,21 @@ protected:
      * call.
      *
      * Not to be constructed directly, instead use the derived
-     * Bucket/Scope/Collection types.
+     * Bucket/Scope/Collection types:
+     *
+     *  auto b = someOtherCollector.forBucket("default");
+     *  auto s = b.forScope("_default");
+     *  auto c = s.forCollection("_default");
+     *
+     * Methods may choose to take e.g., BucketStatCollector as an argument
+     * to ensure a bucket label has been provided, and to indicate that
+     * it will add per-bucket metrics.
+     *
+     * For general labels, construct an instance via
+     *
+     *  auto foo = someOtherCollector.withLabels({{"foo", "bar"}});
+     *  foo.addStat(Key::baz, value);
+     *  foo.addStat(Key::qux, value);
      *
      * @param parent collector to pass stats to
      * @param labels labels to add to each stat forwarded to parent
@@ -147,6 +150,9 @@ protected:
 
     const StatCollector& parent;
     const std::unordered_map<std::string, std::string> defaultLabels;
+
+    // Allow StatCollector::withLabels() access to the constructor.
+    friend class StatCollector;
 };
 
 class ScopeStatCollector;
