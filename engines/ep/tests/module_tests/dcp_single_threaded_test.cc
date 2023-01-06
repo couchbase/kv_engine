@@ -1107,6 +1107,25 @@ TEST_P(STDcpTest, ConnHandlerLoggerRegisterUnregister) {
     EXPECT_FALSE(spdlog::get(loggerName));
 }
 
+TEST_P(STDcpTest, ProducerNegotiatesFlatBuffers) {
+    auto* cookie = create_mock_cookie();
+    const auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer", 0);
+    // Disables by default
+    ASSERT_FALSE(producer->areFlatBuffersSystemEventsEnabled());
+    // DCP_CONTROL validation
+    EXPECT_EQ(cb::engine_errc::invalid_arguments,
+              producer->control(
+                      0, DcpControlKeys::FlatBuffersSystemEvents, "not-true"));
+    EXPECT_FALSE(producer->areFlatBuffersSystemEventsEnabled());
+    // Enabled
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->control(
+                      0, DcpControlKeys::FlatBuffersSystemEvents, "true"));
+    EXPECT_TRUE(producer->areFlatBuffersSystemEventsEnabled());
+    destroy_mock_cookie(cookie);
+}
+
 INSTANTIATE_TEST_SUITE_P(PersistentAndEphemeral,
                          STDcpTest,
                          STParameterizedBucketTest::allConfigValues());

@@ -31,6 +31,10 @@ The extras of a system event encodes
 * The type of the event
 * A version for the event data - clients must read the version before assuming
   the value and key format
+  * version 0 and 1: Custom protocol structures (see following sections).
+  * version 2: the value contains a FlatBuffers structure using the schema from
+  `kv_engine/engines/ep/src/collections/events.fbs`. Only available when the
+  client enables using [DCP Control with flatbuffers_system_events](control.md)
 
 ```
      Byte/     0       |       1       |       2       |       3       |

@@ -12,6 +12,7 @@
 
 namespace Collections.VB;
 
+// FlatBuffers SystemEvents: This is the structure used by CreateCollection
 table Collection {
     uid:ulong;
     scopeId:uint;
@@ -21,18 +22,21 @@ table Collection {
     name:string;
 }
 
+// FlatBuffers SystemEvents: This is the structure used by DropCollection
 table DroppedCollection {
    uid:ulong;
    scopeId:uint;
    collectionId:uint;
 }
 
+// FlatBuffers SystemEvents: This is the structure used by CreateScope
 table Scope {
     uid:ulong;
     scopeId:uint;
     name:string;
 }
 
+// FlatBuffers SystemEvents: This is the structure used by DropScope
 table DroppedScope {
     uid:ulong;
     scopeId:uint;

@@ -385,6 +385,10 @@ void ConnHandler::addStats(const AddStatFn& add_stat, CookieIface& c) {
         break;
     }
     addStat("priority", priString, add_stat, c);
+    addStat(DcpControlKeys::FlatBuffersSystemEvents,
+            areFlatBuffersSystemEventsEnabled(),
+            add_stat,
+            c);
 }
 
 void ConnHandler::pause(ConnHandler::PausedReason r) {
@@ -430,7 +434,7 @@ void ConnHandler::scheduleNotify() {
 
 // Explicit instantiation of addStat() used outside ConnHandler and
 // derived classes - for example from BackfillManager::addStats().
-template void ConnHandler::addStat<std::string>(const char* nm,
+template void ConnHandler::addStat<std::string>(std::string_view,
                                                 const std::string& val,
                                                 const AddStatFn& add_stat,
                                                 CookieIface& c) const;

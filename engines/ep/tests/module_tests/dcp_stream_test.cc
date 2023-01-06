@@ -1612,6 +1612,16 @@ void SingleThreadedPassiveStreamTest::setupConsumer() {
     if (enableSyncReplication) {
         consumer->enableSyncReplication();
     }
+
+    EXPECT_FALSE(static_cast<MockPassiveStream*>(
+                         (consumer->getVbucketStream(vbid)).get())
+                         ->public_areFlatBuffersSystemEventsEnabled());
+
+    // Similar to sync-repl, FlatBuffer enablement follows the same pattern.
+    // PassiveStream can be created before control negotiation completes, the
+    // FlatBuffer setting at construction time could be wrong, it is corrected
+    // when the PassiveStream processes the AddStream (::acceptStream)
+    consumer->enableFlatBuffersSystemEvents();
 }
 
 void SingleThreadedPassiveStreamTest::setupPassiveStream() {
@@ -1630,6 +1640,7 @@ void SingleThreadedPassiveStreamTest::consumePassiveStreamStreamReq() {
     ASSERT_EQ(DcpResponse::Event::StreamReq, msg->getEvent());
     stream->acceptStream(cb::mcbp::Status::Success, 0);
     ASSERT_TRUE(stream->isActive());
+    EXPECT_TRUE(stream->public_areFlatBuffersSystemEventsEnabled());
 }
 
 void SingleThreadedPassiveStreamTest::consumePassiveStreamAddStream() {
