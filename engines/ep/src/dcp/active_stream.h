@@ -529,8 +529,7 @@ protected:
      *         AbortSyncWrite.
      */
     std::unique_ptr<DcpResponse> makeResponseFromItem(
-            const queued_item& item,
-            SendCommitSyncWriteAs sendCommitSyncWriteAs);
+            queued_item& item, SendCommitSyncWriteAs sendCommitSyncWriteAs);
 
     /* The transitionState function is protected (as opposed to private) for
      * testing purposes.

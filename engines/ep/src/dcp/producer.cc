@@ -865,7 +865,8 @@ cb::engine_errc DcpProducer::step(bool throttled,
                     s->getVersion(),
                     {reinterpret_cast<const uint8_t*>(s->getKey().data()),
                      s->getKey().size()},
-                    s->getEventData(),
+                    {reinterpret_cast<const uint8_t*>(s->getEventData().data()),
+                     s->getEventData().size()},
                     resp->getStreamId());
             break;
         }
