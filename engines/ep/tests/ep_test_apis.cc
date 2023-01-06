@@ -1036,14 +1036,10 @@ void start_persistence(EngineIface* h) {
         return;
     }
 
-    auto pkt = createPacket(cb::mcbp::ClientOpcode::StartPersistence);
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     checkeq(cb::engine_errc::success,
-            h->unknown_command(*cookie, *pkt, add_response),
-            "Failed to stop persistence.");
-    checkeq(cb::mcbp::Status::Success,
-            last_status.load(),
-            "Error starting persistence.");
+            h->start_persistence(*cookie),
+            "Failed to start persistence.");
 }
 
 void stop_persistence(EngineIface* h) {
@@ -1060,13 +1056,9 @@ void stop_persistence(EngineIface* h) {
         decayingSleep(&sleepTime);
     }
     std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
-    auto pkt = createPacket(cb::mcbp::ClientOpcode::StopPersistence);
     checkeq(cb::engine_errc::success,
-            h->unknown_command(*cookie, *pkt, add_response),
+            h->stop_persistence(*cookie),
             "Failed to stop persistence.");
-    checkeq(cb::mcbp::Status::Success,
-            last_status.load(),
-            "Error stopping persistence.");
 }
 
 cb::engine_errc store(

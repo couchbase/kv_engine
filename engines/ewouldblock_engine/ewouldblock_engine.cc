@@ -282,6 +282,8 @@ public:
                                     cb::rangescan::Id uuid) override;
     cb::engine_errc pause(folly::CancellationToken cancellationToken) override;
     cb::engine_errc resume() override;
+    cb::engine_errc start_persistence(CookieIface& cookie) override;
+    cb::engine_errc stop_persistence(CookieIface& cookie) override;
 
     ///////////////////////////////////////////////////////////////////////////
     //             All of the methods used in the DCP interface              //
@@ -1428,6 +1430,14 @@ cb::engine_errc EWB_Engine::pause(folly::CancellationToken cancellationToken) {
 
 cb::engine_errc EWB_Engine::resume() {
     return real_engine->resume();
+}
+
+cb::engine_errc EWB_Engine::start_persistence(CookieIface& cookie) {
+    return real_engine->start_persistence(cookie);
+}
+
+cb::engine_errc EWB_Engine::stop_persistence(CookieIface& cookie) {
+    return real_engine->stop_persistence(cookie);
 }
 
 cb::engine_errc EWB_Engine::step(CookieIface& cookie,

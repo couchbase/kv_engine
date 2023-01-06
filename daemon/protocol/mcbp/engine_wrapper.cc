@@ -442,6 +442,34 @@ cb::engine_errc bucket_get_stats(Cookie& cookie,
     return ret;
 }
 
+cb::engine_errc bucket_start_persistence(Cookie& cookie) {
+    auto& c = cookie.getConnection();
+    auto ret = c.getBucketEngine().start_persistence(cookie);
+    if (ret == cb::engine_errc::disconnect) {
+        LOG_WARNING(
+                "{}: {} bucket_start_persistence return "
+                "cb::engine_errc::disconnect",
+                c.getId(),
+                c.getDescription());
+        c.setTerminationReason("Engine forced disconnect");
+    }
+    return ret;
+}
+
+cb::engine_errc bucket_stop_persistence(Cookie& cookie) {
+    auto& c = cookie.getConnection();
+    auto ret = c.getBucketEngine().stop_persistence(cookie);
+    if (ret == cb::engine_errc::disconnect) {
+        LOG_WARNING(
+                "{}: {} bucket_stop_persistence return "
+                "cb::engine_errc::disconnect",
+                c.getId(),
+                c.getDescription());
+        c.setTerminationReason("Engine forced disconnect");
+    }
+    return ret;
+}
+
 cb::engine_errc dcpAddStream(Cookie& cookie,
                              uint32_t opaque,
                              Vbid vbid,

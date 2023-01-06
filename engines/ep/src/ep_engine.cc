@@ -1124,12 +1124,6 @@ cb::engine_errc EventuallyPersistentEngine::processUnknownCommandInner(
     switch (request.getClientOpcode()) {
     case cb::mcbp::ClientOpcode::GetAllVbSeqnos:
         return getAllVBucketSequenceNumbers(cookie, request, response);
-    case cb::mcbp::ClientOpcode::StopPersistence:
-        res = stopFlusher(&msg, &msg_size);
-        break;
-    case cb::mcbp::ClientOpcode::StartPersistence:
-        res = startFlusher(&msg, &msg_size);
-        break;
     case cb::mcbp::ClientOpcode::EvictKey:
         res = evictKey(cookie, request, &msg);
         break;
@@ -6299,30 +6293,24 @@ void EventuallyPersistentEngine::cancel_all_operations_in_ewb_state() {
     kvBucket->releaseBlockedCookies();
 }
 
-cb::mcbp::Status EventuallyPersistentEngine::stopFlusher(const char** msg,
-                                                         size_t* msg_size) {
-    (void)msg_size;
-    auto rv = cb::mcbp::Status::Success;
-    *msg = nullptr;
+cb::engine_errc EventuallyPersistentEngine::stopFlusher(CookieIface& cookie) {
     if (!kvBucket->pauseFlusher()) {
         EP_LOG_DEBUG_RAW("Unable to stop flusher");
-        *msg = "Flusher not running.";
-        rv = cb::mcbp::Status::Einval;
+        setErrorContext(cookie, "Flusher not running."sv);
+        return cb::engine_errc::invalid_arguments;
     }
-    return rv;
+
+    return cb::engine_errc::success;
 }
 
-cb::mcbp::Status EventuallyPersistentEngine::startFlusher(const char** msg,
-                                                          size_t* msg_size) {
-    (void)msg_size;
-    auto rv = cb::mcbp::Status::Success;
-    *msg = nullptr;
+cb::engine_errc EventuallyPersistentEngine::startFlusher(CookieIface& cookie) {
     if (!kvBucket->resumeFlusher()) {
         EP_LOG_DEBUG_RAW("Unable to start flusher");
-        *msg = "Flusher not shut down.";
-        rv = cb::mcbp::Status::Einval;
+        setErrorContext(cookie, "Flusher not shut down."sv);
+        return cb::engine_errc::invalid_arguments;
     }
-    return rv;
+
+    return cb::engine_errc::success;
 }
 
 cb::engine_errc EventuallyPersistentEngine::deleteVBucketInner(
@@ -6959,6 +6947,16 @@ cb::engine_errc EventuallyPersistentEngine::pause(
 
 cb::engine_errc EventuallyPersistentEngine::resume() {
     return kvBucket->prepareForResume();
+}
+
+cb::engine_errc EventuallyPersistentEngine::start_persistence(
+        CookieIface& cookie) {
+    return acquireEngine(this)->startFlusher(cookie);
+}
+
+cb::engine_errc EventuallyPersistentEngine::stop_persistence(
+        CookieIface& cookie) {
+    return acquireEngine(this)->stopFlusher(cookie);
 }
 
 void EventuallyPersistentEngine::setDcpConsumerBufferRatio(float ratio) {

@@ -152,6 +152,9 @@ struct MockEngine : public EngineIface, public DcpIface {
         return the_engine->getFeatures();
     }
 
+    cb::engine_errc start_persistence(CookieIface& cookie) override;
+    cb::engine_errc stop_persistence(CookieIface& cookie) override;
+
     // DcpIface implementation ////////////////////////////////////////////////
 
     cb::engine_errc step(CookieIface& cookie,

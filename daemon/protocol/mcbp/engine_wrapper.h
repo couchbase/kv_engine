@@ -15,8 +15,12 @@
  * If you want to know more information of a function or the arguments
  * it takes, you should look in `memcached/engine.h`.
  *
- * The `handle` and `cookie` parameter in the engine interface methods is
- * replaced by the connection object.
+ * The cookie contains the connection with the engine to use, and the
+ * wrapper methods performs accounting of metering data (when appropriate).
+ *
+ * If the underlying engine requests the connection to disconnect the
+ * wrapper method should log it, and update the termination reason for
+ * the cookie (as it gets injected in the audit event).
  *
  * Note: We're working on cleaning up this API from a C api to a C++ API, so
  * it is no longer consistent (some methods takes pointers, whereas others
@@ -126,6 +130,8 @@ cb::engine_errc bucket_get_stats(Cookie& cookie,
                                  std::string_view key,
                                  cb::const_byte_buffer value,
                                  const AddStatFn& add_stat);
+cb::engine_errc bucket_start_persistence(Cookie& cookie);
+cb::engine_errc bucket_stop_persistence(Cookie& cookie);
 
 /**
  * Calls the underlying engine DCP add-stream

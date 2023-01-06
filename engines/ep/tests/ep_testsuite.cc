@@ -241,16 +241,10 @@ static int checkCurrItemsAfterShutdown(EngineIface* h,
             "Expected ep_total_persisted equals 0");
     checkeq(0, get_int_stat(h, "curr_items"), "Expected curr_items equals 0");
 
-    std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     // stop flusher before loading new items
-    auto pkt = createPacket(cb::mcbp::ClientOpcode::StopPersistence);
-    checkeq(cb::engine_errc::success,
-            h->unknown_command(*cookie, *pkt, add_response),
-            "CMD_STOP_PERSISTENCE failed!");
-    checkeq(cb::mcbp::Status::Success,
-            last_status.load(),
-            "Failed to stop persistence!");
+    stop_persistence(h);
 
+    std::unique_ptr<MockCookie> cookie = std::make_unique<MockCookie>();
     std::vector<std::string>::iterator itr;
     for (itr = keys.begin(); itr != keys.end(); ++itr) {
         checkeq(cb::engine_errc::success,
@@ -272,12 +266,7 @@ static int checkCurrItemsAfterShutdown(EngineIface* h,
     }
 
     // resume flusher before shutdown + warmup
-    pkt = createPacket(cb::mcbp::ClientOpcode::StartPersistence);
-    checkeq(cb::engine_errc::success,
-            h->unknown_command(*cookie, *pkt, add_response),
-            "CMD_START_PERSISTENCE failed!");
-    checkeq(cb::mcbp::Status::Success, last_status.load(),
-          "Failed to start persistence!");
+    start_persistence(h);
 
     // shutdown engine force and restart
     testHarness->reload_engine(&h,

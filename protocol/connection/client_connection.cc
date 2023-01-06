@@ -1676,8 +1676,7 @@ void MemcachedConnection::enablePersistence(GetFrameInfoFunction getFrameInfo) {
 
     const auto response = execute(command);
     if (!response.isSuccess()) {
-        throw ConnectionError("Failed to enablePersistence ",
-                              response.getStatus());
+        throw ConnectionError("Failed to enablePersistence ", response);
     }
 }
 
@@ -1687,8 +1686,7 @@ void MemcachedConnection::disablePersistence(
     applyFrameInfos(command, getFrameInfo);
     const auto response = execute(command);
     if (!response.isSuccess()) {
-        throw ConnectionError("Failed to disablePersistence ",
-                              response.getStatus());
+        throw ConnectionError("Failed to disablePersistence ", response);
     }
 }
 

@@ -352,6 +352,20 @@ cb::EngineErrorGetCollectionMetaResult MockEngine::get_collection_meta(
     return the_engine->get_collection_meta(cookie, cid, vbid);
 }
 
+cb::engine_errc MockEngine::start_persistence(CookieIface& cookie) {
+    auto engine_fn = [this, &cookie]() {
+        return the_engine->start_persistence(cookie);
+    };
+    return call_engine_and_handle_EWOULDBLOCK(cookie, engine_fn);
+}
+
+cb::engine_errc MockEngine::stop_persistence(CookieIface& cookie) {
+    auto engine_fn = [this, &cookie]() {
+        return the_engine->stop_persistence(cookie);
+    };
+    return call_engine_and_handle_EWOULDBLOCK(cookie, engine_fn);
+}
+
 cb::engine_errc MockEngine::step(CookieIface& cookie,
                                  bool throttled,
                                  DcpMessageProducersIface& producers) {

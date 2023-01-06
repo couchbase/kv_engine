@@ -271,6 +271,8 @@ public:
                                     cb::rangescan::Id uuid) override;
     cb::engine_errc pause(folly::CancellationToken cancellationToken) override;
     cb::engine_errc resume() override;
+    cb::engine_errc start_persistence(CookieIface& cookie) override;
+    cb::engine_errc stop_persistence(CookieIface& cookie) override;
 
     /////////////////////////////////////////////////////////////
     // DcpIface implementation //////////////////////////////////
@@ -613,9 +615,9 @@ public:
 
     void handleDisconnect(CookieIface& cookie);
 
-    cb::mcbp::Status stopFlusher(const char** msg, size_t* msg_size);
+    cb::engine_errc stopFlusher(CookieIface& cookie);
 
-    cb::mcbp::Status startFlusher(const char** msg, size_t* msg_size);
+    cb::engine_errc startFlusher(CookieIface& cookie);
 
     /// Schedule compaction (used by unit tests)
     cb::engine_errc scheduleCompaction(Vbid vbid,

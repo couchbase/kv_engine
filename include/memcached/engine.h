@@ -826,6 +826,16 @@ struct EngineIface {
     virtual cb::engine_errc resume() {
         return cb::engine_errc::not_supported;
     }
+
+    /// Request the engine to start persistence of modified documents.
+    virtual cb::engine_errc start_persistence(CookieIface& cookie) {
+        return cb::engine_errc::not_supported;
+    }
+
+    /// Request the engine to stop persistence of modified documents.
+    virtual cb::engine_errc stop_persistence(CookieIface& cookie) {
+        return cb::engine_errc::not_supported;
+    }
 };
 
 namespace cb {

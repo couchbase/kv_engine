@@ -8,7 +8,6 @@
  */
 #include "mcbp_executors.h"
 
-#include "cmdline.h"
 #include "config_parse.h"
 #include "error_map_manager.h"
 #include "external_auth_manager_thread.h"
@@ -42,6 +41,7 @@
 #include "protocol/mcbp/sasl_step_command_context.h"
 #include "protocol/mcbp/session_validated_command_context.h"
 #include "protocol/mcbp/settings_reload_command_context.h"
+#include "protocol/mcbp/single_state_steppable_context.h"
 #include "protocol/mcbp/stats_context.h"
 #include "protocol/mcbp/unlock_context.h"
 #include "session_cas.h"
@@ -71,6 +71,18 @@ static void gat_executor(Cookie& cookie) {
 
 static void ifconfig_executor(Cookie& cookie) {
     cookie.obtainContext<IfconfigCommandContext>(cookie).drive();
+}
+
+static void start_persistence_executor(Cookie& cookie) {
+    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& cookie) {
+              return bucket_start_persistence(cookie);
+          }).drive();
+}
+
+static void stop_persistence_executor(Cookie& cookie) {
+    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& cookie) {
+              return bucket_stop_persistence(cookie);
+          }).drive();
 }
 
 /**
@@ -836,6 +848,10 @@ void initialize_mbcp_lookup_map() {
                   range_scan_continue_executor);
     setup_handler(cb::mcbp::ClientOpcode::RangeScanCancel,
                   range_scan_cancel_executor);
+    setup_handler(cb::mcbp::ClientOpcode::StartPersistence,
+                  start_persistence_executor);
+    setup_handler(cb::mcbp::ClientOpcode::StopPersistence,
+                  stop_persistence_executor);
 }
 
 static cb::engine_errc getEngineErrorCode(
