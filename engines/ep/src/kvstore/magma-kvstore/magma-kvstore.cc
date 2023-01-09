@@ -609,6 +609,14 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
             configuration.getMagmaIndexCompressionAlgo();
     configuration.magmaCfg.DataCompressionAlgo =
             configuration.getMagmaDataCompressionAlgo();
+    configuration.magmaCfg.SeqTreeBlockSize =
+            configuration.getMagmaSeqTreeDataBlockSize();
+    configuration.magmaCfg.SeqTreeIndexBlockSize =
+            configuration.getMagmaSeqTreeIndexBlockSize();
+    configuration.magmaCfg.KeyTreeBlockSize =
+            configuration.getMagmaKeyTreeDataBlockSize();
+    configuration.magmaCfg.KeyTreeIndexBlockSize =
+            configuration.getMagmaKeyTreeIndexBlockSize();
 
     configuration.setStore(this);
 
@@ -3738,6 +3746,22 @@ void MagmaKVStore::setMagmaFragmentationPercentage(size_t value) {
 
 void MagmaKVStore::setMagmaEnableBlockCache(bool enable) {
     magma->EnableBlockCache(enable);
+}
+
+void MagmaKVStore::setMagmaSeqTreeDataBlockSize(size_t value) {
+    magma->SetSeqTreeDataBlockSize(value);
+}
+
+void MagmaKVStore::setMagmaSeqTreeIndexBlockSize(size_t value) {
+    magma->SetSeqTreeIndexBlockSize(value);
+}
+
+void MagmaKVStore::setMagmaKeyTreeDataBlockSize(size_t value) {
+    magma->SetKeyTreeDataBlockSize(value);
+}
+
+void MagmaKVStore::setMagmaKeyTreeIndexBlockSize(size_t value) {
+    magma->SetKeyTreeIndexBlockSize(value);
 }
 
 void MagmaKVStore::setStorageThreads(ThreadPoolConfig::StorageThreadCount num) {

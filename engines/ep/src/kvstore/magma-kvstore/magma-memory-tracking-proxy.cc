@@ -539,3 +539,23 @@ magma::Status MagmaMemoryTrackingProxy::ResumeBGCompaction(
     cb::UseArenaMallocSecondaryDomain domainGuard;
     return magma->ResumeBGCompaction(kvID);
 }
+
+void MagmaMemoryTrackingProxy::SetSeqTreeDataBlockSize(size_t value) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    magma->SetSeqTreeDataBlockSize(value);
+}
+
+void MagmaMemoryTrackingProxy::SetSeqTreeIndexBlockSize(size_t value) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    magma->SetSeqTreeIndexBlockSize(value);
+}
+
+void MagmaMemoryTrackingProxy::SetKeyTreeDataBlockSize(size_t value) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    magma->SetKeyTreeDataBlockSize(value);
+}
+
+void MagmaMemoryTrackingProxy::SetKeyTreeIndexBlockSize(size_t value) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    magma->SetKeyTreeIndexBlockSize(value);
+}

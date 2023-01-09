@@ -223,6 +223,11 @@ public:
     magma::Status StopBGCompaction(const magma::Magma::KVStoreID kvID);
     magma::Status ResumeBGCompaction(const magma::Magma::KVStoreID kvID);
 
+    void SetSeqTreeDataBlockSize(size_t value);
+    void SetSeqTreeIndexBlockSize(size_t value);
+    void SetKeyTreeDataBlockSize(size_t value);
+    void SetKeyTreeIndexBlockSize(size_t value);
+
 private:
     std::unique_ptr<magma::Magma> magma;
 };
