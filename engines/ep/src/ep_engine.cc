@@ -844,6 +844,14 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             }
         } else if (key == "magma_enable_block_cache") {
             configuration.setMagmaEnableBlockCache(cb_stob(val));
+        } else if (key == "magma_seq_tree_data_block_size") {
+            configuration.setMagmaSeqTreeDataBlockSize(std::stoull(val));
+        } else if (key == "magma_seq_tree_index_block_size") {
+            configuration.setMagmaSeqTreeIndexBlockSize(std::stoull(val));
+        } else if (key == "magma_key_tree_data_block_size") {
+            configuration.setMagmaKeyTreeDataBlockSize(std::stoull(val));
+        } else if (key == "magma_key_tree_index_block_size") {
+            configuration.setMagmaKeyTreeIndexBlockSize(std::stoull(val));
         } else if (key == "compaction_expire_from_start") {
             configuration.setCompactionExpireFromStart(cb_stob(val));
         } else if (key == "vbucket_mapping_sanity_checking") {
