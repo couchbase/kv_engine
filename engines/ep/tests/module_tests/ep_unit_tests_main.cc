@@ -66,6 +66,10 @@ public:
         return 0;
     }
 
+    size_t getQuotaSharingPagerConcurrency() override {
+        return 2;
+    }
+
     bool isCollectionsEnabled() const override {
         return true;
     }

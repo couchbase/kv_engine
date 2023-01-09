@@ -155,6 +155,9 @@ struct MockServerCoreApi : public ServerCoreIface {
         // environment to calculate the value.
         return 1024;
     }
+    size_t getQuotaSharingPagerConcurrency() override {
+        return 2;
+    }
     bool isCollectionsEnabled() const override {
         return true;
     }

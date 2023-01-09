@@ -893,6 +893,16 @@ public:
         notify_changed("max_client_connection_details");
     }
 
+    int getQuotaSharingPagerConcurrencyPercentage() const {
+        return quota_sharing_pager_concurrency_percentage;
+    }
+
+    void setQuotaSharingPagerConcurrencyPercentage(int val) {
+        quota_sharing_pager_concurrency_percentage = val;
+        has.quota_sharing_pager_concurrency_percentage = true;
+        notify_changed("quota_sharing_pager_concurrency_percentage");
+    }
+
 protected:
     /// The file containing audit configuration
     std::string audit_file;
@@ -1075,6 +1085,10 @@ protected:
 
     std::atomic_bool enable_deprecated_bucket_autoselect{false};
 
+    /// The number of concurrent paging visitors to use for quota sharing,
+    /// expressed as a fraction of the number of NonIO threads.
+    std::atomic_int quota_sharing_pager_concurrency_percentage{50};
+
     void notify_changed(const std::string& key);
 
 public:
@@ -1141,6 +1155,7 @@ public:
         bool phosphor_config = false;
         bool allow_localhost_interface = false;
         bool event_framework = false;
+        bool quota_sharing_pager_concurrency_percentage = false;
     } has;
 };
 

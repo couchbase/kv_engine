@@ -43,6 +43,15 @@ struct ServerCoreApi : public ServerCoreIface {
         return environment.engine_file_descriptors;
     }
 
+    size_t getQuotaSharingPagerConcurrency() override {
+        auto& instance = Settings::instance();
+        // Calculate number of concurrent paging visitors to use as a percentage
+        // of the number of NonIO threads.
+        int userValue = instance.getQuotaSharingPagerConcurrencyPercentage() *
+                        instance.getNumNonIoThreads() / 100;
+        return std::clamp(userValue, 1, instance.getNumNonIoThreads());
+    }
+
     bool isCollectionsEnabled() const override {
         return Settings::instance().isCollectionsEnabled();
     }

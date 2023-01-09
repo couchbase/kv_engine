@@ -133,6 +133,14 @@ void Settings::reconfigure(const nlohmann::json& json) {
                 throw std::invalid_argument(
                         R"("event_framework" must be "bufferevent" or "folly")");
             }
+        } else if (key == "quota_sharing_pager_concurrency_percentage") {
+            auto val = value.get<int>();
+            if (val <= 0 || val > 100) {
+                throw std::invalid_argument(
+                        "\"quota_sharing_pager_concurrency_percentage\" must "
+                        "be a valid non-zero percentage");
+            }
+            setQuotaSharingPagerConcurrencyPercentage(val);
         } else if (key == "threads"sv) {
             setNumWorkerThreads(value.get<size_t>());
         } else if (key == "interfaces") {
@@ -856,6 +864,18 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                  getNumNonIoThreads(),
                  other.getNumNonIoThreads());
         setNumNonIoThreads(other.getNumNonIoThreads());
+    }
+
+    if (other.has.quota_sharing_pager_concurrency_percentage &&
+        other.getQuotaSharingPagerConcurrencyPercentage() !=
+                getQuotaSharingPagerConcurrencyPercentage()) {
+        LOG_INFO(
+                "Change pager concurrency percentage for quota sharing from: "
+                "{} to {}",
+                getQuotaSharingPagerConcurrencyPercentage(),
+                other.getQuotaSharingPagerConcurrencyPercentage());
+        setQuotaSharingPagerConcurrencyPercentage(
+                other.getQuotaSharingPagerConcurrencyPercentage());
     }
 
     if (other.has.prometheus_config) {
