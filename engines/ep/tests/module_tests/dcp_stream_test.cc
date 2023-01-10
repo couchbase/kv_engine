@@ -5078,6 +5078,7 @@ TEST_P(STPassiveStreamPersistentTest, VBStateNotLostAfterFlushFailure) {
                       vbid,
                       value,
                       opaque,
+                      {},
                       Requirements(Level::Majority, Timeout::Infinity()))));
 
     // M:2 - Logic Commit for PRE:1
@@ -5093,6 +5094,7 @@ TEST_P(STPassiveStreamPersistentTest, VBStateNotLostAfterFlushFailure) {
                                                   vbid,
                                                   value,
                                                   opaque,
+                                                  {},
                                                   {} /*DurReqs*/,
                                                   true /*deletion*/,
                                                   2 /*revSeqno*/)));
@@ -5425,6 +5427,7 @@ TEST_P(STPassiveStreamPersistentTest, DiskSnapWithPrepareSetsHPSToSnapEnd) {
                       vbid,
                       value,
                       opaque,
+                      {},
                       Requirements(Level::Majority, Timeout::Infinity()))));
 
     // M:6
@@ -5469,11 +5472,19 @@ void CDCActiveStreamTest::SetUp() {
                            Collections::Manifest{std::string{manifest}});
     ASSERT_EQ(1, vb->getHighSeqno());
 
+    ASSERT_TRUE(producer);
+    ASSERT_FALSE(producer->areChangeStreamsEnabled());
+    ASSERT_EQ(cb::engine_errc::success,
+              producer->control(0, DcpControlKeys::ChangeStreams, "true"));
+    ASSERT_TRUE(producer->areChangeStreamsEnabled());
     startCheckpointTask();
+
     recreateStream(*vb,
                    true,
                    fmt::format(R"({{"collections":["{:x}"]}})",
                                uint32_t(CollectionEntry::historical.uid)));
+    ASSERT_TRUE(stream);
+    ASSERT_TRUE(stream->areChangeStreamsEnabled());
 
     // Control data: Add some mutations into the non-CDC collection
     for (size_t i : {1, 2, 3}) {
@@ -5511,7 +5522,9 @@ TEST_P(CDCActiveStreamTest, CollectionNotDeduped_InMemory) {
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     auto* marker = dynamic_cast<SnapshotMarker*>(resp.get());
-    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK, marker->getFlags());
+    const uint32_t expectedMarkerFlags =
+            MARKER_FLAG_MEMORY | MARKER_FLAG_CHK | MARKER_FLAG_HISTORY;
+    EXPECT_EQ(expectedMarkerFlags, marker->getFlags());
     EXPECT_EQ(0, marker->getStartSeqno());
     EXPECT_EQ(initHighSeqno + 1, marker->getEndSeqno());
 
@@ -5532,7 +5545,7 @@ TEST_P(CDCActiveStreamTest, CollectionNotDeduped_InMemory) {
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     marker = dynamic_cast<SnapshotMarker*>(resp.get());
-    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK, marker->getFlags());
+    EXPECT_EQ(expectedMarkerFlags, marker->getFlags());
     EXPECT_EQ(initHighSeqno + 2, marker->getStartSeqno());
     EXPECT_EQ(initHighSeqno + 2, marker->getEndSeqno());
 
@@ -5548,7 +5561,7 @@ TEST_P(CDCActiveStreamTest, CollectionNotDeduped_InMemory) {
     ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     marker = dynamic_cast<SnapshotMarker*>(resp.get());
-    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK, marker->getFlags());
+    EXPECT_EQ(expectedMarkerFlags, marker->getFlags());
     EXPECT_EQ(initHighSeqno + 3, marker->getStartSeqno());
     EXPECT_EQ(initHighSeqno + 3, marker->getEndSeqno());
 
@@ -5564,5 +5577,51 @@ TEST_P(CDCActiveStreamTest, CollectionNotDeduped_InMemory) {
 
 INSTANTIATE_TEST_SUITE_P(Persistent,
                          CDCActiveStreamTest,
+                         STParameterizedBucketTest::persistentConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+TEST_P(CDCPassiveStreamTest, HistorySnapshotReceived) {
+    // Replica receives Snap{1, 3, Disk|History}, with 1->3 mutations of the
+    // same key.
+    // The test verifies that replica is resilient to duplicates in the disk
+    // snapshot and that duplicates are successfully queued into the same
+    // checkpoint.
+
+    const auto& vb = *store->getVBucket(vbid);
+    ASSERT_EQ(0, vb.getHighSeqno());
+    const auto& manager = *vb.checkpointManager;
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(2, manager.getNumOpenChkItems());
+
+    const uint32_t opaque = 0;
+    SnapshotMarker snapshotMarker(
+            opaque,
+            vbid,
+            1 /*start*/,
+            3 /*end*/,
+            MARKER_FLAG_CHK | MARKER_FLAG_DISK | MARKER_FLAG_HISTORY,
+            std::optional<uint64_t>(0), /*HCS*/
+            {}, /*maxVisibleSeqno*/
+            {}, /*timestamp*/
+            {} /*streamId*/);
+    stream->processMarker(&snapshotMarker);
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(1, manager.getNumOpenChkItems());
+
+    const std::string key("key");
+    const std::string value("value");
+    for (size_t seqno = 1; seqno <= 3; ++seqno) {
+        EXPECT_EQ(cb::engine_errc::success,
+                  stream->messageReceived(makeMutationConsumerMessage(
+                          seqno, vbid, value, opaque, key)));
+    }
+
+    EXPECT_EQ(3, vb.getHighSeqno());
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(4, manager.getNumOpenChkItems());
+}
+
+INSTANTIATE_TEST_SUITE_P(Persistent,
+                         CDCPassiveStreamTest,
                          STParameterizedBucketTest::persistentConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);

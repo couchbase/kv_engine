@@ -95,10 +95,12 @@ std::unique_ptr<MutationConsumerMessage> makeMutationConsumerMessage(
         Vbid vbid,
         const std::string& value,
         uint64_t opaque,
+        std::optional<std::string> key,
         std::optional<cb::durability::Requirements> reqs,
         bool deletion,
         uint64_t revSeqno) {
-    queued_item qi(new Item(makeStoredDocKey("key_" + std::to_string(seqno)),
+    const auto key_ = key ? *key : "key_" + std::to_string(seqno);
+    queued_item qi(new Item(makeStoredDocKey(key_),
                             0 /*flags*/,
                             0 /*expiry*/,
                             value.c_str(),

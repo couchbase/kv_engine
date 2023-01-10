@@ -1898,6 +1898,7 @@ void VBucket::replicaCreateCollection(Collections::ManifestUid uid,
                                       ScopeCollectionPair identifiers,
                                       std::string_view collectionName,
                                       cb::ExpiryLimit maxTtl,
+                                      CanDeduplicate canDeduplicate,
                                       int64_t bySeqno) {
     // The state of the VBucket should not change here, because replicaCreate
     // will generate SystemEvent items.
@@ -1905,8 +1906,13 @@ void VBucket::replicaCreateCollection(Collections::ManifestUid uid,
     // function is only called from PassiveStream, so the lock is not
     // technically required for now.
     folly::SharedMutex::ReadHolder rlh(stateLock);
-    manifest->wlock(rlh).replicaCreate(
-            *this, uid, identifiers, collectionName, maxTtl, bySeqno);
+    manifest->wlock(rlh).replicaCreate(*this,
+                                       uid,
+                                       identifiers,
+                                       collectionName,
+                                       maxTtl,
+                                       canDeduplicate,
+                                       bySeqno);
 }
 
 void VBucket::replicaDropCollection(Collections::ManifestUid uid,

@@ -455,6 +455,8 @@ public:
         return logPrefix;
     }
 
+    bool areChangeStreamsEnabled() const;
+
     // Introduced in MB-45757 for testing a race condition on invalidate-cursor
     TestingHook<> removeCursorPreLockHook;
 
@@ -926,6 +928,9 @@ protected:
      * many streams-per-vbucket
      */
     const cb::mcbp::DcpStreamId sid;
+
+    /// Whether sending History Snapshots is enabled on this stream
+    const bool changeStreamsEnabled;
 
 private:
     /**
