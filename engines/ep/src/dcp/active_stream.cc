@@ -90,6 +90,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
                                     ? ForceValueCompression::Yes
                                     : ForceValueCompression::No),
       syncReplication(p->getSyncReplSupport()),
+      flatBuffersSystemEventsEnabled(p->areFlatBuffersSystemEventsEnabled()),
       filter(std::move(f)),
       sid(filter.getStreamId()) {
     const char* type = "";
@@ -1197,6 +1198,11 @@ std::unique_ptr<DcpResponse> ActiveStream::makeResponseFromItem(
                                                   includeCollectionID,
                                                   enableExpiryOutput,
                                                   sid);
+    }
+
+    if (flatBuffersSystemEventsEnabled) {
+        return SystemEventProducerMessage::makeWithFlatBuffersValue(
+                opaque_, item, sid);
     }
     return SystemEventProducerMessage::make(opaque_, item, sid);
 }

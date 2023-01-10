@@ -16,7 +16,7 @@
 #include <sstream>
 
 /*
- * Contains implementation details of ConnHandler which arn't part of the
+ * Contains implementation details of ConnHandler which aren't part of the
  * (public) interface but /are/ required inline by ConnHandler and its
  * subclasses, or if called by clients.
  *
@@ -25,7 +25,7 @@
  */
 
 template <typename T>
-void ConnHandler::addStat(const char* nm,
+void ConnHandler::addStat(std::string_view nm,
                           const T& val,
                           const AddStatFn& add_stat,
                           CookieIface& c) const {

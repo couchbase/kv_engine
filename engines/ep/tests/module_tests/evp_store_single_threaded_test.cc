@@ -312,7 +312,9 @@ std::shared_ptr<MockDcpProducer> SingleThreadedKVBucketTest::createDcpProducer(
 
     // Need to enable NOOP for XATTRS (and collections).
     newProducer->setNoopEnabled(true);
-
+    EXPECT_EQ(cb::engine_errc::success,
+              newProducer->control(
+                      1, DcpControlKeys::FlatBuffersSystemEvents, "true"));
     return newProducer;
 }
 

@@ -12,6 +12,7 @@
 #include "systemevent_factory.h"
 
 #include "collections/collections_types.h"
+#include "collections/events_generated.h"
 #include "collections/vbucket_manifest.h"
 #include "dcp/response.h"
 #include "diskdockey.h"
@@ -167,4 +168,42 @@ std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(
 
     throw std::logic_error("SystemEventProducerMessage::make not valid for " +
                            std::to_string(item->getFlags()));
+}
+
+std::unique_ptr<SystemEventFlatBuffers>
+SystemEventProducerMessage::makeWithFlatBuffersValue(
+        uint32_t opaque, queued_item& item, cb::mcbp::DcpStreamId sid) {
+    std::string_view name;
+
+    switch (SystemEvent(item->getFlags())) {
+    case SystemEvent::Collection:
+        if (!item->isDeleted()) {
+            item->decompressValue();
+
+            // Need the name for the outbound message
+            const auto* fb = Collections::VB::Manifest::getCollectionFlatbuffer(
+                    item->getValueView());
+            name = fb->name()->string_view();
+        }
+        // else drop collection doesn't use the collection name
+        break;
+    case SystemEvent::Scope:
+        if (!item->isDeleted()) {
+            item->decompressValue();
+
+            // Need the name for the outbound message
+            const auto* fb = Collections::VB::Manifest::getScopeFlatbuffer(
+                    item->getValueView());
+            name = fb->name()->string_view();
+        }
+        // else drop scope doesn't use the scope name
+        break;
+    default:
+        throw std::logic_error(
+                "SystemEventProducerMessage::makeWithFlatBuffersValue not"
+                " valid for event:" +
+                std::to_string(item->getFlags()));
+    }
+
+    return std::make_unique<SystemEventFlatBuffers>(opaque, name, item, sid);
 }

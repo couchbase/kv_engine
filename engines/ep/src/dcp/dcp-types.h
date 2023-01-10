@@ -18,6 +18,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string_view>
 
 template <class S, class Pointer, class Deleter> class SingleThreadedRCPtr;
 
@@ -156,3 +157,12 @@ enum class SyncReplication : char { No, SyncWrites, SyncReplication };
  * No - feature disabled
  */
 enum class OutOfOrderSnapshots : char { Yes, YesWithSeqnoAdvanced, No };
+
+namespace DcpControlKeys {
+/**
+ * Control key to enable FlatBuffers system events
+ */
+constexpr std::string_view FlatBuffersSystemEvents =
+        "flatbuffers_system_events";
+
+} // namespace DcpControlKeys

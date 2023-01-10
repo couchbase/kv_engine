@@ -14,6 +14,7 @@
  */
 #include "checkpoint_manager.h"
 #include "collections/collection_persisted_stats.h"
+#include "collections/events_generated.h"
 #include "collections/manager.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/backfill-manager.h"
@@ -54,6 +55,10 @@
 
 TEST_P(CollectionsDcpParameterizedTest, test_dcp_consumer) {
     store->setVBucketState(vbid, vbucket_state_replica);
+    // MB-54516: Test keeps coverage of the 'custom' binary system event so here
+    // we disable the FlatBuffers configuration.
+    consumer->disableFlatBuffersSystemEvents();
+
     ASSERT_EQ(cb::engine_errc::success,
               consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ 0));
 
@@ -152,6 +157,15 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_consumer) {
  * Test that we are sending the manifest uid when resuming a stream
  */
 TEST_F(CollectionsDcpTest, stream_request_uid) {
+    // MB-54516: This test calls consumer directly using the non-FlatBuffers API
+    // (giving some coverage of the older mechanism. Here we must explicitly
+    // disable the FlatBuffers assumption and re-create the stream
+    consumer->disableFlatBuffersSystemEvents();
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->closeStream(/*opaque*/ 0, replicaVB, {}));
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->addStream(/*opaque*/ 0, replicaVB, /*flags*/ 0));
+
     // We shouldn't have tried to create a filtered producer
     EXPECT_EQ("", producers->last_collection_filter);
 
@@ -174,12 +188,12 @@ TEST_F(CollectionsDcpTest, stream_request_uid) {
     EXPECT_FALSE(vb->lockCollections().doesKeyContainValidCollection(
             StoredDocKey{"meat:bacon", CollectionEntry::meat}));
 
-    uint32_t opaque = 1;
+    uint32_t opaque = 2;
     uint32_t seqno = 1;
 
     // Setup a snapshot on the consumer
     ASSERT_EQ(cb::engine_errc::success,
-              consumer->snapshotMarker(/*opaque*/ 1,
+              consumer->snapshotMarker(opaque,
                                        /*vbucket*/ replicaVB,
                                        /*start_seqno*/ 0,
                                        /*end_seqno*/ 100,
@@ -465,14 +479,19 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_with_ttl) {
                   dcpCallBacks.last_system_event);
         EXPECT_EQ(CollectionUid::meat, dcpCallBacks.last_collection_id);
 
-        // Assert version1, i.e. a TTL is encoded
-        ASSERT_EQ(mcbp::systemevent::version::version1,
+        // Assert version2, FlatBuffers enabled.
+        ASSERT_EQ(mcbp::systemevent::version::version2,
                   dcpCallBacks.last_system_event_version);
 
-        auto eventData = reinterpret_cast<
-                const Collections::CreateWithMaxTtlEventDcpData*>(
-                dcpCallBacks.last_system_event_data.data());
-        EXPECT_EQ(100, ntohl(eventData->maxTtl));
+        std::string_view eventView{
+                reinterpret_cast<const char*>(
+                        dcpCallBacks.last_system_event_data.data()),
+                dcpCallBacks.last_system_event_data.size()};
+        const auto* collection =
+                Collections::VB::Manifest::getCollectionFlatbuffer(eventView);
+
+        EXPECT_TRUE(collection->ttlValid());
+        EXPECT_EQ(100, collection->maxTtl());
     };
     {
         VBucketPtr vb = store->getVBucket(vbid);
@@ -1236,6 +1255,9 @@ void CollectionsDcpTest::tombstone_snapshots_test(bool forceWarmup) {
 
     producer = SingleThreadedKVBucketTest::createDcpProducer(
             cookieP, IncludeDeleteTime::No);
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->control(
+                      1, DcpControlKeys::FlatBuffersSystemEvents, "true"));
     producers->consumer = nullptr;
 
     uint64_t rollbackSeqno = 0;
@@ -3620,6 +3642,11 @@ TEST_P(CollectionsDcpParameterizedTest, replica_active_state_diverge) {
     // Make the vb replica
     store->setVBucketState(vbid, vbucket_state_replica);
 
+    // MB-54516: Test keeps coverage of the 'custom' binary system event so here
+    // we disable the FlatBuffers configuration so the test can call consumer
+    // directly with the binary data.
+    consumer->disableFlatBuffersSystemEvents();
+
     // Now drive changes as a replica, and drop fruit
     ASSERT_EQ(cb::engine_errc::success,
               consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ 0));
@@ -4166,6 +4193,7 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
     auto consumerTwo = std::make_shared<MockDcpConsumer>(
             *engine, cookieC2, "test_consumer2");
     mockConnMap.addConn(cookieC2, consumerTwo);
+    consumerTwo->enableFlatBuffersSystemEvents();
     ASSERT_EQ(cb::engine_errc::success,
               consumerTwo->addStream(/*opaque*/ 0,
                                      fruitVbid,

@@ -202,6 +202,11 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
     v7DcpStatusCodesNegotiation.state =
             BlockingDcpControlNegotiation::State::PendingRequest;
 
+    // Consumer unconditionally will attempt to negotiate "FlatBuffers"
+    // SystemEvents using DCP Control.
+    flatBuffersNegotiation.state =
+            BlockingDcpControlNegotiation::State::PendingRequest;
+
     allowSanitizeValueInDeletion.store(config.isAllowSanitizeValueInDeletion());
 }
 
@@ -895,6 +900,11 @@ cb::engine_errc DcpConsumer::step(bool throttled,
         return ret;
     }
 
+    if ((ret = enableFlatBuffersSystemEvents(producers)) !=
+        cb::engine_errc::failed) {
+        return ret;
+    }
+
     auto resp = getNextItem();
     if (resp == nullptr) {
         return cb::engine_errc::would_block;
@@ -1055,6 +1065,11 @@ bool DcpConsumer::handleResponse(const cb::mcbp::Response& response) {
             v7DcpStatusCodesNegotiation.state =
                     BlockingDcpControlNegotiation::State::Completed;
             isV7DcpStatusEnabled =
+                    response.getStatus() == cb::mcbp::Status::Success;
+        } else if (response.getOpaque() == flatBuffersNegotiation.opaque) {
+            flatBuffersNegotiation.state =
+                    BlockingDcpControlNegotiation::State::Completed;
+            flatBuffersSystemEventsEnabled =
                     response.getStatus() == cb::mcbp::Status::Success;
         }
         return true;
@@ -1641,6 +1656,26 @@ cb::engine_errc DcpConsumer::enableV7DcpStatus(
         v7DcpStatusCodesNegotiation.state =
                 BlockingDcpControlNegotiation::State::PendingResponse;
         v7DcpStatusCodesNegotiation.opaque = opaque;
+        return ret;
+    }
+    case BlockingDcpControlNegotiation::State::PendingResponse:
+        return cb::engine_errc::would_block;
+    case BlockingDcpControlNegotiation::State::Completed:
+        break;
+    }
+    return cb::engine_errc::failed;
+}
+
+cb::engine_errc DcpConsumer::enableFlatBuffersSystemEvents(
+        DcpMessageProducersIface& producers) {
+    switch (flatBuffersNegotiation.state) {
+    case BlockingDcpControlNegotiation::State::PendingRequest: {
+        uint32_t opaque = ++opaqueCounter;
+        auto ret = producers.control(
+                opaque, DcpControlKeys::FlatBuffersSystemEvents, "true");
+        flatBuffersNegotiation.state =
+                BlockingDcpControlNegotiation::State::PendingResponse;
+        flatBuffersNegotiation.opaque = opaque;
         return ret;
     }
     case BlockingDcpControlNegotiation::State::PendingResponse:

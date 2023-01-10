@@ -78,6 +78,16 @@ public:
                            uint64_t prepare_seqno,
                            uint64_t commit_seqno) override;
 
+    cb::engine_errc systemEventVersion2(uint32_t opaque,
+                                        Vbid vbucket,
+                                        mcbp::systemevent::id event,
+                                        uint64_t bySeqno,
+                                        mcbp::systemevent::version version,
+                                        cb::const_byte_buffer key,
+                                        cb::const_byte_buffer eventData,
+                                        cb::mcbp::DcpStreamId sid);
+
+    bool producerFlatBuffersSystemEventsEnabled = true;
     MockDcpConsumer* consumer = nullptr;
     Vbid replicaVB;
 };

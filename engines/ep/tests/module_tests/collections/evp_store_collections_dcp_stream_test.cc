@@ -654,7 +654,7 @@ TEST_F(CollectionsDcpStreamsTest, two_streams) {
     size_t systemEventSz = sizeof(cb::mcbp::Request) +
                            sizeof(cb::mcbp::request::DcpSystemEventPayload) +
                            sizeof(cb::mcbp::DcpStreamIdFrameInfo) +
-                           sizeof(Collections::CreateEventDcpData) +
+                           producers->last_system_event_data.size() +
                            sizeof("fruit") - 1; // adjust for \0
     outstanding += systemEventSz;
     EXPECT_EQ(outstanding, producer->getBytesOutstanding());
