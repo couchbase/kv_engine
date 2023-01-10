@@ -982,7 +982,8 @@ std::unique_ptr<Item> Manifest::makeCollectionSystemEvent(
                 entry.getMaxTtl().has_value() ? (*entry.getMaxTtl()).count()
                                               : 0,
                 builder.CreateString(collectionName.data(),
-                                     collectionName.size()));
+                                     collectionName.size()),
+                getHistoryFromCanDeduplicate(entry.getCanDeduplicate()));
         builder.Finish(collection);
         break;
     }
@@ -1137,7 +1138,7 @@ CreateEventData Manifest::getCreateEventData(std::string_view flatbufferData) {
              collection->name()->str(),
              maxTtl,
              Collections::Metered::Yes,
-             CanDeduplicate::Yes}};
+             getCanDeduplicateFromHistory(collection->history())}};
 }
 
 DropEventData Manifest::getDropEventData(std::string_view flatbufferData) {

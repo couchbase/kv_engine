@@ -950,11 +950,15 @@ cb::engine_errc PassiveStream::processSystemEventFlatBuffers(
 cb::engine_errc PassiveStream::processCreateCollection(
         VBucket& vb, const CreateCollectionEvent& event) {
     try {
+        // This creation event comes from a node which didn't support
+        // FlatBuffers. Assume "old" node so we default the CanDeduplicate
+        // setting to Yes.
         vb.replicaCreateCollection(
                 event.getManifestUid(),
                 {event.getScopeID(), event.getCollectionID()},
                 event.getKey(),
                 event.getMaxTtl(),
+                CanDeduplicate::Yes,
                 event.getBySeqno());
     } catch (std::exception& e) {
         log(spdlog::level::level_enum::warn,
@@ -1034,6 +1038,7 @@ cb::engine_errc PassiveStream::processCreateCollection(
                 {collection->scopeId(), collection->collectionId()},
                 event.getKey(),
                 maxTtl,
+                getCanDeduplicateFromHistory(collection->history()),
                 *event.getBySeqno());
     } catch (std::exception& e) {
         log(spdlog::level::level_enum::warn,

@@ -88,6 +88,11 @@ public:
         return createCheckpointMetaItem(checkpointId, op);
     }
 
+    void forceNewCheckpoint() {
+        std::lock_guard<std::mutex> lh(queueLock);
+        addNewCheckpoint(lh);
+    }
+
     bool incrCursor(CheckpointCursor& cursor) {
         return CheckpointManager::incrCursor(cursor);
     }

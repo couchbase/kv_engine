@@ -701,6 +701,7 @@ public:
      * @param identifiers ScopeID and CollectionID pair for the new collection
      * @param collectionName name of the new collection
      * @param maxTtl An optional maxTtl for the collection
+     * @param canDeduplicate Can the collection do any deduplication?
      * @param startSeqno The start-seqno assigned to the collection.
      */
     void replicaCreate(::VBucket& vb,
@@ -708,23 +709,20 @@ public:
                        ScopeCollectionPair identifiers,
                        std::string_view collectionName,
                        cb::ExpiryLimit maxTtl,
+                       CanDeduplicate canDeduplicate,
                        int64_t startSeqno) {
         // note: metered set to 'yes' and will later be checked/corrected if a
         // change to active occurs
-        manifest.createCollection(
-                vbStateLock,
-                *this,
-                vb,
-                manifestUid,
-                identifiers,
-                collectionName,
-                maxTtl,
-                Metered::Yes,
-                // This is the incorrect value with no path yet to correct.
-                // For now replicas runs out of sync, only the active applies
-                // correct deduplication logic.
-                CanDeduplicate::Yes,
-                OptionalSeqno{startSeqno});
+        manifest.createCollection(vbStateLock,
+                                  *this,
+                                  vb,
+                                  manifestUid,
+                                  identifiers,
+                                  collectionName,
+                                  maxTtl,
+                                  Metered::Yes,
+                                  canDeduplicate,
+                                  OptionalSeqno{startSeqno});
     }
 
     /**
