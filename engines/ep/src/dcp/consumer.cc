@@ -208,6 +208,10 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
             BlockingDcpControlNegotiation::State::PendingRequest;
 
     allowSanitizeValueInDeletion.store(config.isAllowSanitizeValueInDeletion());
+
+    // Enable ChangeStreams on this connection
+    changeStreamsNegotiation.state =
+            BlockingDcpControlNegotiation::State::PendingRequest;
 }
 
 DcpConsumer::~DcpConsumer() {
@@ -905,6 +909,10 @@ cb::engine_errc DcpConsumer::step(bool throttled,
         return ret;
     }
 
+    if ((ret = handleChangeStreams(producers)) != cb::engine_errc::failed) {
+        return ret;
+    }
+
     auto resp = getNextItem();
     if (resp == nullptr) {
         return cb::engine_errc::would_block;
@@ -1047,21 +1055,21 @@ bool DcpConsumer::handleResponse(const cb::mcbp::Response& response) {
         // so here we can identify it and complete the negotiation. Note that a
         // pre-6.5 Producer sends EINVAL as it does not recognize the Sync
         // Replication negotiation-key.
-        if (response.getOpaque() == syncReplNegotiation.opaque) {
+        const auto opaque = response.getOpaque();
+        if (opaque == syncReplNegotiation.opaque) {
             syncReplNegotiation.state =
                     BlockingDcpControlNegotiation::State::Completed;
             if (response.getStatus() == cb::mcbp::Status::Success) {
                 supportsSyncReplication.store(SyncReplication::SyncReplication);
             }
-        } else if (response.getOpaque() ==
-                   deletedUserXattrsNegotiation.opaque) {
+        } else if (opaque == deletedUserXattrsNegotiation.opaque) {
             deletedUserXattrsNegotiation.state =
                     BlockingDcpControlNegotiation::State::Completed;
             includeDeletedUserXattrs =
                     (response.getStatus() == cb::mcbp::Status::Success
                              ? IncludeDeletedUserXattrs::Yes
                              : IncludeDeletedUserXattrs::No);
-        } else if (response.getOpaque() == v7DcpStatusCodesNegotiation.opaque) {
+        } else if (opaque == v7DcpStatusCodesNegotiation.opaque) {
             v7DcpStatusCodesNegotiation.state =
                     BlockingDcpControlNegotiation::State::Completed;
             isV7DcpStatusEnabled =
@@ -1071,6 +1079,10 @@ bool DcpConsumer::handleResponse(const cb::mcbp::Response& response) {
                     BlockingDcpControlNegotiation::State::Completed;
             flatBuffersSystemEventsEnabled =
                     response.getStatus() == cb::mcbp::Status::Success;
+        } else if (opaque == changeStreamsNegotiation.opaque) {
+            changeStreamsNegotiation.state =
+                    BlockingDcpControlNegotiation::State::Completed;
+            changeStreams = (response.getStatus() == cb::mcbp::Status::Success);
         }
         return true;
     } else if (opcode == cb::mcbp::ClientOpcode::GetErrorMap) {
@@ -1698,6 +1710,27 @@ cb::engine_errc DcpConsumer::handleDeletedUserXattrs(
         deletedUserXattrsNegotiation.state =
                 BlockingDcpControlNegotiation::State::PendingResponse;
         deletedUserXattrsNegotiation.opaque = opaque;
+        return ret;
+    }
+    case BlockingDcpControlNegotiation::State::PendingResponse:
+        return cb::engine_errc::would_block;
+    case BlockingDcpControlNegotiation::State::Completed:
+        return cb::engine_errc::failed;
+    }
+    folly::assume_unreachable();
+}
+
+cb::engine_errc DcpConsumer::handleChangeStreams(
+        DcpMessageProducersIface& producers) {
+    switch (changeStreamsNegotiation.state) {
+    case BlockingDcpControlNegotiation::State::PendingRequest: {
+        uint32_t opaque = ++opaqueCounter;
+        NonBucketAllocationGuard guard;
+        const auto ret = producers.control(
+                opaque, DcpControlKeys::ChangeStreams, "true");
+        changeStreamsNegotiation.state =
+                BlockingDcpControlNegotiation::State::PendingResponse;
+        changeStreamsNegotiation.opaque = opaque;
         return ret;
     }
     case BlockingDcpControlNegotiation::State::PendingResponse:

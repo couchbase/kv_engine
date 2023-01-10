@@ -979,6 +979,11 @@ TEST(ManifestTest, isSuccesor) {
 
     // b2 and c are the same (but not default constructed)
     EXPECT_EQ(cb::engine_errc::success, b2.isSuccessor(c).code());
+
+    // Permit a change of history.
+    cm.setHistory(true);
+    Collections::Manifest d{std::string{cm}};
+    EXPECT_EQ(cb::engine_errc::success, c.isSuccessor(d).code());
 }
 
 TEST(ManifestTest, isNotSuccesor) {

@@ -813,9 +813,15 @@ cb::engine_error Manifest::isSuccessor(const Manifest& successor) const {
 
         // Log collection creations
         for (auto itr = successor.begin(); itr != successor.end(); ++itr) {
-            if (collections.count(itr->first) == 0) {
+            auto collection = findCollection(itr->first);
+            if (collection == collections.end()) {
                 EP_LOG_INFO("create collection manifest:{:#x}, {}",
                             successor.getUid(),
+                            itr->second);
+            } else if (collection->second != itr->second) {
+                EP_LOG_INFO("modify collection manifest:{:#x}, {} -> {}",
+                            successor.getUid(),
+                            collection->second,
                             itr->second);
             }
         }
@@ -844,8 +850,9 @@ cb::engine_error Manifest::isSuccessor(const Manifest& successor) const {
         for (const auto& [cid, collection] : collections) {
             auto itr = successor.findCollection(cid);
             if (itr != successor.end()) {
-                // CollectionEntry must be equal (no maxTTL changes either)
-                if (collection != itr->second) {
+                // CollectionEntry must be equal in a number of properties, but
+                // not all.
+                if (!collection.compareImmutableProperties(itr->second)) {
                     return cb::engine_error(
                             cb::engine_errc::cannot_apply_collections_manifest,
                             fmt::format(
@@ -911,16 +918,21 @@ std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
        << ", collections.size:" << manifest.collections.size() << std::endl;
     for (const auto& [sid, scope] : manifest.scopes) {
         os << "scope:{" << sid << ", " << scope;
-        os << ", collections:[";
 
-        for (const auto& collection : scope.collections) {
-            os << "{" << collection << "}\n";
+        if (!scope.collections.empty()) {
+            os << ",\n  collections:[\n";
+
+            for (const auto& collection : scope.collections) {
+                os << "    {" << collection << "}\n";
+            }
+            os << "]";
         }
-        os << "]\n";
+        os << "}\n";
     }
 
+    os << "manifest.collections.size:" << manifest.collections.size() << "\n";
     for (const auto& [key, collection] : manifest.collections) {
-        os << "{key:" << key << ", " << collection << "}\n";
+        os << "  {key:" << key << ", " << collection << "}\n";
     }
     return os;
 }

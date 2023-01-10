@@ -21,7 +21,9 @@ table Collection {
     ttlValid:bool;
     maxTtl:uint;
     name:string;
-    history:bool;
+    // "history" added in 7.2 (neo)
+    history:bool = false;
+    // "metered" added in "7.5" (elixir)
     metered:bool;
 }
 
@@ -36,7 +38,8 @@ table Scope {
     name:string;
     collections:[Collection];
     limits:ScopeLimits;
-    history:bool;
+    // "history" added in 7.2
+    history:bool = false;
 }
 
 table Manifest {

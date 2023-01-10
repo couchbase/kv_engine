@@ -370,6 +370,13 @@ public:
         return flatBuffersSystemEventsEnabled;
     }
 
+    /**
+     * @return true if the connection enables history.
+     */
+    bool areChangeStreamsEnabled() const {
+        return changeStreams;
+    }
+
 protected:
     EventuallyPersistentEngine &engine_;
     EPStats &stats;
@@ -403,6 +410,9 @@ protected:
      * processed a DCP control to enable.
      */
     std::atomic<bool> flatBuffersSystemEventsEnabled{false};
+
+    /// Indicates whether this connection enables sending history on the streams
+    std::atomic<bool> changeStreams = false;
 
 private:
 

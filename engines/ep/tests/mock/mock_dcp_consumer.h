@@ -103,7 +103,7 @@ public:
      * @return the entire SyncReplNegotiation struct used to send DCP_CONTROL
      *         messages for testing.
      */
-    BlockingDcpControlNegotiation public_getSyncReplNegotiation() const {
+    const BlockingDcpControlNegotiation& public_getSyncReplNegotiation() const {
         return syncReplNegotiation;
     }
 
@@ -125,6 +125,11 @@ public:
         supportsSyncReplication = SyncReplication::No;
     }
 
+    const BlockingDcpControlNegotiation&
+    public_getFlatbuffersSysEventNegotiation() const {
+        return flatBuffersNegotiation;
+    }
+
     /**
      * Enable the use of V7 status codes for DCP in tests
      */
@@ -136,7 +141,8 @@ public:
         return v7DcpStatusCodesNegotiation.opaque == opaque ||
                syncReplNegotiation.opaque == opaque ||
                deletedUserXattrsNegotiation.opaque == opaque ||
-               flatBuffersNegotiation.opaque == opaque;
+               flatBuffersNegotiation.opaque == opaque ||
+               changeStreamsNegotiation.opaque == opaque;
     }
 
     /**
@@ -157,8 +163,8 @@ public:
         streamAccepted(opaque, status, body, bodylen);
     }
 
-    BlockingDcpControlNegotiation public_getDeletedUserXattrsNegotiation()
-            const {
+    const BlockingDcpControlNegotiation&
+    public_getDeletedUserXattrsNegotiation() const {
         return deletedUserXattrsNegotiation;
     }
 
@@ -183,5 +189,13 @@ public:
     // Set FlatBuffers configuration without the full control tx/rx loop
     void enableFlatBuffersSystemEvents() {
         flatBuffersSystemEventsEnabled = true;
+    }
+
+    /**
+     * @return the ChangeStreams negotiation state of this Consumer
+     */
+    const BlockingDcpControlNegotiation& public_getChangeStreamsNegotiation()
+            const {
+        return changeStreamsNegotiation;
     }
 };
