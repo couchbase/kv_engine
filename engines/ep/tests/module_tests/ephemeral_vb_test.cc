@@ -24,6 +24,7 @@
 #include "vbucket_test.h"
 
 #include <folly/portability/GTest.h>
+#include <gmock/gmock-matchers.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <utilities/test_manifest.h>
 
@@ -916,4 +917,78 @@ TEST_F(EphTombstoneTest, PurgePauseResumeWithUpdateAtPausedPoint) {
             << "Should have purged up to 4th update (1st delete, after 3 sets)";
     EXPECT_GE(numPaused, 1)
             << "Test expected to simulate atleast one pause-resume";
+}
+
+TEST_F(EphTombstoneTest, MB54801_DanglingReplacementPtr) {
+    // Ensure a stale item cannot be purged while an _older_ stale item
+    // points to it as its replacment - e.g.,
+
+    // V1 Stale -> V2 Stale -> V3 Alive
+
+    // it would be unsafe to purge V2, as backfills including V1 would
+    // dereference the dangling replacement ptr.
+
+    // run tombstone purging, and pause after one item.
+    // This prepares the "pause point" _after_ V1 from the example above,
+    // but _before_ V2 (which will be created below).
+    // If purging resumed from this point, it could try to purge V2
+    // despite V1 still referencing it.
+    // Nothing at all should be purge-able at this point.
+    ASSERT_EQ(0, mockEpheVB->purgeStaleItems([] { return true; }));
+
+    // Add fake range read cursor on vb and update items
+    {
+        auto itr = mockEpheVB->makeRangeIterator(/*isBackfill*/ true);
+
+        // Store can't update the document as it is covered by the
+        // range lock, so creates V2 and appends it
+        ASSERT_EQ(MutationStatus::WasClean, setOne(keys.at(0)));
+    }
+
+    // We want _two_ stale versions of a document, so repeat
+    {
+        auto itr = mockEpheVB->makeRangeIterator(/*isBackfill*/ true);
+        // Store can't update the document as it is covered by the
+        // range lock, so creates V3 and appends it
+        ASSERT_EQ(MutationStatus::WasClean, setOne(keys.at(0)));
+    }
+
+    auto doRangeRead = [this] {
+        auto rangeItrOpt = mockEpheVB->makeRangeIterator(true /*isBackfill*/);
+        EXPECT_TRUE(rangeItrOpt);
+        auto& rangeItr = *rangeItrOpt;
+        int counter = 0;
+        while (rangeItr.curr() != rangeItr.end()) {
+            // advancing the range iterator reads the
+            // replacement ptr of stale items, so
+            // provokes ASAN without the fix for
+            // MB-54801
+            ++rangeItr;
+            ++counter;
+        }
+        return counter;
+    };
+
+    // scan the seqlist at each stage to ensure it doesn't
+    // derefence a danging ptr
+    // seqlist should have 3 initial items, plus 2
+    // updated versions of one of them.
+    EXPECT_EQ(3 + 2, mockEpheVB->getLL()->getNumItems());
+    // but stale versions should not appear in a range read
+    EXPECT_EQ(3, doRangeRead());
+
+    // Now try to purge more items.
+    // Purger should run to completion without finding any items
+    // which are safe to remove.
+    EXPECT_EQ(0, mockEpheVB->purgeStaleItems());
+
+    EXPECT_EQ(3 + 2, mockEpheVB->getLL()->getNumItems());
+    EXPECT_EQ(3, doRangeRead());
+    // run again - this time it will start again from the beginning of the
+    // seqlist, and will purge V1, then encounter V2 again - this time
+    // it _can_ be purged, because V1 has been removed already.
+    EXPECT_EQ(2, mockEpheVB->purgeStaleItems());
+
+    EXPECT_EQ(3, mockEpheVB->getLL()->getNumItems());
+    EXPECT_EQ(3, doRangeRead());
 }

@@ -263,10 +263,12 @@ size_t BasicLinkedList::purgeTombstones(
         }
 
         bool replaced = false;
+        bool isReplacement = false;
         {
             std::lock_guard<std::mutex> writeGuard(getListWriteLock());
             stale = it->isStale(writeGuard);
             replaced = it->getReplacementIfStale(writeGuard);
+            isReplacement = it->isStaleReplacement();
         }
 
         bool isDropped = false;
@@ -274,8 +276,10 @@ size_t BasicLinkedList::purgeTombstones(
             isDropped = isDroppedKeyCb(it->getKey(), it->getBySeqno());
         }
 
-        // Only stale or dropped items are purged.
-        if (stale || isDropped) {
+        // Only stale or dropped items are purged, but they _cannot_ be
+        // purged if they are pointed-to by an even older stale version of
+        // the same value which has not yet been purged
+        if (!isReplacement && (stale || isDropped)) {
             // Checks pass, remove from list and delete.
             it = purgeListElem(it, stale, replaced);
             ++purgedCount;

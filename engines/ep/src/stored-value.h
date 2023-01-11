@@ -122,6 +122,82 @@ class OrderedStoredValue;
  * ~StoredValue and not the members of the derived class. Instead a custom
  * deleter is associated with StoredValue::UniquePtr, which checks the flag
  * and dispatches to the correct destructor.
+ *
+ * Stale and StaleReplacement OSVs
+ * ===============================
+ *
+ * OrderedStoredValues are not only present in the HashTable; they are also
+ * included in the SequenceList (an intrusive linked list using the additional
+ * member hook in OSV). This is used to scan values in seqno order for backfill.
+ *
+ * When updating a value in the HT, it may not be safe to modify the existing
+ * OSV if it is required for an ongoing sequence list scan with a RangeIterator,
+ * as for a backfill (see use of RangeLockManager for tracking the ranges which
+ * must be protected).
+ * In this case, the existing OSV is marked "stale" (see markStale()) and
+ * unlinked from the HT. A new OSV is then allocated for the updated value,
+ * inserted in the HT, and appended to the SequenceList.
+ *
+ * Items are also made stale when they are unlinked from the HT by the
+ * EphTombstoneHTCleaner, for similar reasons.
+ *
+ * "stale" items will be lazily destroyed by the
+ * EphTombstoneStaleItemDeleter, which walks the SequenceList. This can only
+ * be done when _no_ backfill covers the seqno of the stale item.
+ *
+ * _Just_ tracking that an OSV is stale is not quite sufficient. Backfills
+ * should contain a single version of a given document. If a backfill encounters
+ * a stale item in the SequenceList, it needs to know if the updated version of
+ * the document is _also_ covered by this backfill, to skip the stale
+ * version(s).
+ *
+ * To solve this, stale items store a pointer to the updated version of the
+ * value. This currently reuses the chain_next_or_replacement pointer to avoid
+ * bloating OSV - see markStale().
+ *
+ * A backfill can use this to check the seqno of the replacement value.
+ * Either:
+ *  * The replacement lies outside the range of seqnos this backfill needs
+ *    (backfills set the seqno range they will scan at creation, so this implies
+ *    the new version came into existence _after_ the backfill started).
+ *    The stale item _should_ be included.
+ *  * The replacement lies _inside_ the range of seqnos this backfill needs.
+ *    This means the backfill will eventually reach the newer version of this
+ *    document, so the stale item should NOT be included.
+ *
+ * There may be _several_ versions of a document (with at most one non-stale).
+ * The same logic is applied when each stale item is encountered.
+ *
+ * Implicitly, making this decision about a stale item means the replacement
+ * must still exist - both in terms of safely accessing the replacement ptr,
+ * and correctness of backfills. If a replacement could be purged before the
+ * value it replaces, a backfill could end up inconsistent, with a document
+ * appearing to revert to the older stale version, or having _no_ version of
+ * the document.
+ *
+ * Thus, it must be enforced that versions of a document are purged _in order_.
+ * I.e., if there exists some stale V1 of a document, and a newer V2, V2 cannot
+ * be purged until after V1.
+ *
+ * This is achieved by also tracking if an OSV is itself a replacement for a
+ * stale item (see setStaleReplacement()). This bit is set when constructing
+ * an OSV to replace an older, stale version, and is cleared when that stale
+ * value is destroyed (uses the replacement ptr to find the newer version to
+ * clear this flag).
+ *
+ * While staleReplacement is set, an OSV is ineligible for purging.
+ * It will _eventually_ be purged, but not until after the preceding version.
+ *
+ * V1(Stale) -> V2(Stale,StaleReplacement) -> V3(StaleReplacement)
+ * Both V1 and V2 are stale, but V2 _cannot_ be purged safely before V1.
+ *
+ * Once V1 is purged, StaleReplacement is cleared on V2:
+ *              V2(Stale)                  -> V3(StaleReplacement)
+ *
+ * Now V2 can be purged:
+ *
+ *                                            V3()
+ *
  */
 class StoredValue {
 public:
@@ -1014,6 +1090,19 @@ protected:
     //          part of OSV, but is physically located in SV as there are spare
     //          bits here. Guarded by the SequenceList's writeLock.
     static constexpr size_t staleIndex = 3;
+    // staleReplacement indicates this OSV _replaces a stale item_.
+    // This is cleared when the older version of the value is destroyed.
+    // While this is set, it is not safe to purge this item, even if this
+    // OSV is itself stale.
+    // Doing so would leave the pointing-to OSV with a dangling replacment
+    // ptr, e.g.,
+    // V1(Stale) -> V2(Stale,StaleReplacement) -> V3(StaleReplacement)
+    // Both V1 and V2 are stale, but V2 _cannot_ be purged safely before V1.
+    // Once V1 is purged, this bit will be cleared on V2, and V2 can then be
+    // purged.
+    // This is only relevant for OSVs, but is stored here to make use of
+    // spare bits.
+    static constexpr size_t staleReplacementIndex = 4;
 
     folly::AtomicBitSet<sizeof(uint8_t)> bits;
 
@@ -1053,6 +1142,15 @@ public:
             // This points to the replacement OSV which we do not actually own.
             // We are reusing a unique_ptr so we explicitly release it in this
             // case. We /do/ own the chain_next if we are not stale.
+            if (chain_next_or_replacement) {
+                // Clear the stale replacment flag on the pointed-to object.
+                // That flag prevented the replacement being purged while
+                // this value still pointed to it; now that _this_ OSV is
+                // being purged, there is no longer a danger of a dangling ptr
+                // and it would be safe to now purge the replacement too.
+                static_cast<OrderedStoredValue&>(*chain_next_or_replacement)
+                        .setStaleReplacement(false);
+            }
             chain_next_or_replacement.release();
         }
     }
@@ -1082,6 +1180,11 @@ public:
         chain_next_or_replacement.reset(
                 TaggedPtr<StoredValue>(newSv, TaggedPtrBase::NoTagValue));
         setStale(true);
+        if (newSv) {
+            // flag that the replacement OSV cannot be safely purged until
+            // after _this_ OSV, otherwise the replacement ptr would be dangling
+            static_cast<OrderedStoredValue*>(newSv)->setStaleReplacement(true);
+        }
     }
 
     StoredValue* getReplacementIfStale(
@@ -1091,6 +1194,26 @@ public:
         }
 
         return chain_next_or_replacement.get().get();
+    }
+
+    /**
+     * Check if this OSV is the replacement for an older, stale version of
+     * this value.
+     *
+     * If this is true, there exists a stale OSV with a replacement pointer
+     * pointing to this OSV. Given that, it is not safe to delete/purge
+     * this OSV while this flag is set.
+     *
+     * This bit will be set when this OSV is allocated and appended to the
+     * seqlist iff there is an older version which cannot be moved within the
+     * seqlist due to a rangelock (backfill, tombstone purging).
+     *
+     * It will be cleared once the older version of the document has been
+     * purged. Once cleared, this flag will never be set again; it is safe
+     * to expect it to stay false.
+     */
+    bool isStaleReplacement() const {
+        return bits.test(staleReplacementIndex);
     }
 
     /**
@@ -1167,6 +1290,16 @@ private:
                        UniquePtr n,
                        EPStats& stats)
         : StoredValue(other, std::move(n), stats) {
+    }
+
+    /**
+     * Track whether this OSV is a replacement for an older version of this
+     * value.
+     *
+     * See isStaleReplacement().
+     */
+    bool setStaleReplacement(bool value) {
+        return bits.set(staleReplacementIndex, value);
     }
 
     // Prepare seqno of a commit or abort StoredValue.
