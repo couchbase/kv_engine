@@ -557,8 +557,6 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
             configuration.getMagmaMinCheckpointInterval();
     configuration.magmaCfg.HeartbeatInterval =
             configuration.getMagmaHeartbeatInterval();
-    configuration.magmaCfg.MinValueSize =
-            configuration.getMagmaValueSeparationSize();
     configuration.magmaCfg.MaxWriteCacheSize =
             configuration.getMagmaMaxWriteCache();
     configuration.magmaCfg.WALBufferSize =
