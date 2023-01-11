@@ -42,9 +42,6 @@
 // * Set vb:0 to active
 // * Expect that the vbucket knows the limit
 //
-// Note: this test exercises replica->active promotion and covers MB-51979 which
-// uses the same flow as the data-limit setting
-//
 TEST_P(CollectionsDcpParameterizedTest,
        replica_create_scope_with_limit_to_active) {
     store->setVBucketState(vbid, vbucket_state_replica);
@@ -54,9 +51,7 @@ TEST_P(CollectionsDcpParameterizedTest,
     CollectionsManifest cm;
     cm.add(ScopeEntry::shop1,
            limit * store->getEPEngine().getConfiguration().getMaxVbuckets());
-    auto e = CollectionEntry::fruit;
-    e.metered = false; // MB-51979 set to false so we can test the change
-    cm.add(e, ScopeEntry::shop1);
+    cm.add(CollectionEntry::fruit, ScopeEntry::shop1);
     setCollections(cookie, cm);
 
     // MB-54516: Test keeps coverage of the 'custom' binary system event so here
@@ -86,8 +81,6 @@ TEST_P(CollectionsDcpParameterizedTest,
     auto vb = store->getVBucket(vbid);
     // No no, no no no no...
     EXPECT_FALSE(vb->getManifest().lock().getDataLimit(ScopeEntry::shop1));
-    EXPECT_EQ(Collections::Metered::Yes,
-              vb->getManifest().lock().isMetered(CollectionEntry::fruit));
 
     // Will trigger a modification of the shop1 scope to update the limit and
     // a modification of fruit collection for metered
@@ -97,9 +90,6 @@ TEST_P(CollectionsDcpParameterizedTest,
     EXPECT_TRUE(vb->getManifest().lock().getDataLimit(ScopeEntry::shop1));
     EXPECT_EQ(limit,
               vb->getManifest().lock().getDataLimit(ScopeEntry::shop1).value());
-    // Now false as we've picked up the Manifest value during promotion
-    EXPECT_EQ(Collections::Metered::No,
-              vb->getManifest().lock().isMetered(CollectionEntry::fruit));
 
     // Check we fail limits on the active vbucket
     store_item(vbid,

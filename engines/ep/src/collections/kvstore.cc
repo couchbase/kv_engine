@@ -81,15 +81,13 @@ Collections::KVStore::Manifest decodeManifest(cb::const_byte_buffer manifest,
             }
             rv.collections.push_back(
                     {entry->startSeqno(),
-                     Collections::CollectionMetaData{entry->scopeId(),
-                                                     entry->collectionId(),
-                                                     entry->name()->str(),
-                                                     maxTtl,
-                                                     // metered: not persisted
-                                                     // correct value comes from
-                                                     // bucket manifest
-                                                     Collections::Metered::Yes,
-                                                     CanDeduplicate::Yes}});
+                     Collections::CollectionMetaData{
+                             entry->scopeId(),
+                             entry->collectionId(),
+                             entry->name()->str(),
+                             maxTtl,
+                             Collections::getMetered(entry->metered()),
+                             CanDeduplicate::Yes}});
         }
     } else {
         // Nothing on disk - the default collection is assumed

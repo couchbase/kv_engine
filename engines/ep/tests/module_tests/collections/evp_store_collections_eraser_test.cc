@@ -1996,6 +1996,7 @@ TEST_P(CollectionsEraserPersistentOnly, DropDuringFlush) {
                                 {ScopeID::Default, CollectionEntry::dairy},
                                 "dairy",
                                 {},
+                                Collections::Metered::Yes,
                                 CanDeduplicate::Yes,
                                 1);
     ASSERT_EQ(0, vb->getNumItems());

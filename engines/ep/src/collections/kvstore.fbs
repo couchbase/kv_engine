@@ -29,6 +29,17 @@ table Collection {
     ttlValid:bool;
     maxTtl:uint;
     name:string;
+    // All fields after here are added from 7.2
+    //
+    // history: MB-54516: added in neo (7.2) branch. If this field is not part
+    // of a Collection structure it is defaulted to false.
+    // placeholder for history:bool = false;
+
+    // All fields after here are added from 7.5
+    //
+    // metered: MB-51979: The default is true - for all collections which exist
+    // and didn't define this value, true is correct - they should be metered.
+    metered:bool = true;
 }
 
 // All of the open collections

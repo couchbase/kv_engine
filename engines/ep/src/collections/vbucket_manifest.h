@@ -358,12 +358,6 @@ public:
         DataLimit dataLimit;
     };
 
-    // struct for managing collection modification
-    struct CollectionModified {
-        CollectionID cid;
-        Metered metered;
-    };
-
     /**
      * The changes that we need to make to the VB:Manifest manifest derived from
      * the bucket Collections::Manifest.
@@ -376,7 +370,6 @@ public:
         std::vector<ScopeModified> scopesToModify;
         std::vector<CollectionCreation> collectionsToCreate;
         std::vector<CollectionID> collectionsToDrop;
-        std::vector<CollectionModified> collectionsToModify;
         // stores any new value (if needed)
         std::optional<bool> changeScopeWithDataLimitExists;
 
@@ -509,21 +502,6 @@ protected:
                         ManifestUid newManUid,
                         CollectionID cid,
                         OptionalSeqno optionalSeqno);
-
-    /**
-     * Modify the collection from the vbucket
-     *
-     * @param wHandle The manifest write handle under which this operation is
-     *        currently locked. Required to ensure we lock correctly around
-     *        VBucket::notifyNewSeqno
-     * @param vb The vbucket to drop the collection from
-     * @param newManUid the uid of the manifest which made the change
-     * @param modification object holding modification data
-     */
-    void modifyCollection(const WriteHandle& wHandle,
-                          ::VBucket& vb,
-                          ManifestUid newManUid,
-                          const CollectionModified& modification);
 
     /**
      * Create a scope in the vbucket.

@@ -92,6 +92,14 @@ enum class Metered : bool { Yes, No };
 std::string to_string(Metered);
 std::ostream& operator<<(std::ostream&, Metered);
 
+static inline Metered getMetered(bool metered) {
+    return metered ? Metered::Yes : Metered::No;
+}
+
+static inline bool getMeteredFromEnum(Metered metered) {
+    return metered == Metered::Yes ? true : false;
+}
+
 /**
  * The metadata of a single collection. This represents the data we persist
  * in KVStore meta and is used to communicate back to kv from KVStore

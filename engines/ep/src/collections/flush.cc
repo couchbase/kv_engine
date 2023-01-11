@@ -347,7 +347,8 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
                         meta.maxTtl.value_or(std::chrono::seconds::zero())
                                 .count(),
                         builder.CreateString(meta.name.data(),
-                                             meta.name.size())));
+                                             meta.name.size()),
+                        Collections::getMeteredFromEnum(meta.metered)));
     }
 
     // And 'merge' with the data we read
@@ -372,7 +373,8 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
                                 entry->collectionId(),
                                 entry->ttlValid(),
                                 entry->maxTtl(),
-                                builder.CreateString(entry->name())));
+                                builder.CreateString(entry->name()),
+                                entry->metered()));
             } else {
                 // Here we maintain the startSeqno of the dropped collection
                 result->second.startSeqno = entry->startSeqno();
@@ -392,7 +394,8 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
                         0,
                         builder.CreateString(
                                 Collections::DefaultCollectionIdentifier
-                                        .data())));
+                                        .data()),
+                        true /* metered */));
     }
 
     auto collectionsVector = builder.CreateVector(finalisedOpenCollection);

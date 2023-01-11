@@ -701,6 +701,7 @@ public:
      * @param identifiers ScopeID and CollectionID pair for the new collection
      * @param collectionName name of the new collection
      * @param maxTtl An optional maxTtl for the collection
+     * @param metered Is the collection metered or "free"?
      * @param canDeduplicate Can the collection do any deduplication?
      * @param startSeqno The start-seqno assigned to the collection.
      */
@@ -709,10 +710,9 @@ public:
                        ScopeCollectionPair identifiers,
                        std::string_view collectionName,
                        cb::ExpiryLimit maxTtl,
+                       Metered metered,
                        CanDeduplicate canDeduplicate,
                        int64_t startSeqno) {
-        // note: metered set to 'yes' and will later be checked/corrected if a
-        // change to active occurs
         manifest.createCollection(vbStateLock,
                                   *this,
                                   vb,
@@ -720,7 +720,7 @@ public:
                                   identifiers,
                                   collectionName,
                                   maxTtl,
-                                  Metered::Yes,
+                                  metered,
                                   canDeduplicate,
                                   OptionalSeqno{startSeqno});
     }

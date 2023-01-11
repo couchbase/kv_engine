@@ -152,6 +152,15 @@ public:
                 "public_getCanDeduplicate failed to find collection");
     }
 
+    Collections::Metered public_getMetered(CollectionID id) const {
+        std::shared_lock<mutex_type> readLock(rwlock);
+        if (exists_UNLOCKED(id)) {
+            auto itr = map.find(id);
+            return itr->second.isMetered();
+        }
+        throw std::logic_error("public_getMetered failed to find collection");
+    }
+
     void dump() {
         std::cerr << *this << std::endl;
     }
@@ -389,6 +398,7 @@ public:
                                 {dcpData.metaData.sid, dcpData.metaData.cid},
                                 dcpData.metaData.name,
                                 dcpData.metaData.maxTtl,
+                                Collections::Metered::Yes,
                                 CanDeduplicate::Yes,
                                 qi->getBySeqno());
                     }
@@ -460,6 +470,7 @@ public:
                                  collection->collectionId()},
                                 collection->name()->str(),
                                 maxTtl,
+                                Collections::getMetered(collection->metered()),
                                 getCanDeduplicateFromHistory(
                                         collection->history()),
                                 qi->getBySeqno());
@@ -1321,6 +1332,40 @@ TEST_P(VBucketManifestTest, add_with_history) {
                       CollectionEntry::fruit));
     EXPECT_EQ(CanDeduplicate::No,
               manifest.getReplicaManifest().public_getCanDeduplicate(
+                      CollectionEntry::fruit));
+}
+
+TEST_P(VBucketManifestTest, add_with_metered) {
+    // Test requires FlatBuffers event to pass most up-to-date event data.
+    if (!GetParam()) {
+        GTEST_SKIP();
+    }
+
+    // Add a scope with metered=false and check the status on active/replica
+    auto fruitEntry = CollectionEntry::fruit;
+    fruitEntry.metered = false;
+    EXPECT_TRUE(manifest.update(cm.add(fruitEntry)));
+
+    // Check default and vegetable collection which are metered
+    EXPECT_EQ(Collections::Metered::Yes,
+              manifest.getActiveManifest().public_getMetered(
+                      CollectionID::Default));
+    EXPECT_EQ(Collections::Metered::Yes,
+              manifest.getActiveManifest().public_getMetered(
+                      CollectionEntry::vegetable));
+    EXPECT_EQ(Collections::Metered::Yes,
+              manifest.getReplicaManifest().public_getMetered(
+                      CollectionID::Default));
+    EXPECT_EQ(Collections::Metered::Yes,
+              manifest.getReplicaManifest().public_getMetered(
+                      CollectionEntry::vegetable));
+
+    // Check fruit which is unmetered
+    EXPECT_EQ(Collections::Metered::No,
+              manifest.getActiveManifest().public_getMetered(
+                      CollectionEntry::fruit));
+    EXPECT_EQ(Collections::Metered::No,
+              manifest.getReplicaManifest().public_getMetered(
                       CollectionEntry::fruit));
 }
 

@@ -3130,6 +3130,7 @@ TEST_P(CollectionsParameterizedTest, GetScopeIdForGivenKeyAndVbucket) {
             {ScopeUid::shop1, CollectionEntry::meat.getId()},
             CollectionEntry::meat.name,
             {},
+            Collections::Metered::Yes,
             CanDeduplicate::Yes,
             2);
     // Trigger a flush to disk. Flushes the dairy create event.

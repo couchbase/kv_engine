@@ -129,12 +129,15 @@ public:
                 ScopeID sid{scope["uid"].get<std::string>()};
                 CollectionID cid{collection["uid"].get<std::string>()};
                 auto name = collection["name"].get<std::string>();
-                rv.emplace_back(sid,
-                                cid,
-                                name,
-                                maxTtl,
-                                Collections::Metered::Yes,
-                                CanDeduplicate::Yes);
+
+                auto jsonMetered = collection.find("metered");
+                auto metered = Collections::Metered::Yes;
+                if (jsonMetered != collection.end()) {
+                    metered = Collections::getMetered(jsonMetered->get<bool>());
+                }
+
+                rv.emplace_back(
+                        sid, cid, name, maxTtl, metered, CanDeduplicate::Yes);
             }
         }
         return rv;
@@ -267,7 +270,6 @@ TEST(CollectionsKVStoreTest, test_KVStore_comparison) {
     m2.droppedCollectionsExist = true;
     EXPECT_NE(m1, m2);
     m1.droppedCollectionsExist = m2.droppedCollectionsExist;
-
     EXPECT_EQ(m1, m2);
     m2.collections.push_back(
             OpenCollection{0, Collections::CollectionMetaData{}});
@@ -295,6 +297,20 @@ TEST(CollectionsKVStoreTest, test_KVStore_comparison) {
     m2.scopes.push_back(
             OpenScope{0, Collections::ScopeMetaData{ScopeID{91}, "s91"}});
     EXPECT_NE(m1, m2);
+
+    m1 = m2;
+    EXPECT_EQ(m1, m2);
+    // Add a collection but check a different metered state is noticed
+    auto c1 = Collections::CollectionMetaData{ScopeID{88},
+                                              CollectionID{102},
+                                              "c1",
+                                              {},
+                                              Collections::Metered::No,
+                                              CanDeduplicate::Yes};
+    m1.collections.push_back(OpenCollection{0, c1});
+    c1.metered = Collections::Metered::Yes;
+    m2.collections.push_back(OpenCollection{0, c1});
+    EXPECT_NE(m1, m2);
 }
 
 TEST_P(CollectionsKVStoreTest, initial_meta) {
@@ -313,6 +329,7 @@ TEST_P(CollectionsKVStoreTest, initial_meta) {
     EXPECT_EQ(CollectionID::Default, md.collections[0].metaData.cid);
     EXPECT_EQ(ScopeID(ScopeID::Default), md.collections[0].metaData.sid);
     EXPECT_FALSE(md.collections[0].metaData.maxTtl.has_value());
+    EXPECT_EQ(Collections::Metered::Yes, md.collections[0].metaData.metered);
 
     EXPECT_EQ(0, md.scopes[0].startSeqno);
     EXPECT_EQ(ScopeID(ScopeID::Default), md.scopes[0].metaData.sid);
@@ -370,11 +387,19 @@ TEST_P(CollectionsKVStoreTest, updates_and_drops_between_commits) {
                    CollectionUid::vegetable});
     cm.remove(CollectionEntry::defaultC);
     applyAndCheck(cm,
-
                   {CollectionUid::fruit,
                    CollectionUid::meat,
                    CollectionUid::vegetable,
                    CollectionUid::defaultC});
+}
+
+// Check that the metered state persists and comes back
+TEST_P(CollectionsKVStoreTest, one_metered_update) {
+    CollectionsManifest cm;
+    auto vegetable = CollectionEntry::vegetable;
+    vegetable.metered = false;
+    cm.add(vegetable);
+    applyAndCheck(cm);
 }
 
 // Related to MB-44098 test that we fail to generate 'corrupt' collection or

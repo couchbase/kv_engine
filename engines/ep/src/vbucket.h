@@ -795,6 +795,7 @@ public:
      * @param identifiers ScopeID and CollectionID pair
      * @param collectionName name of the added collection
      * @param maxTtl An optional maxTTL for the collection
+     * @param metered metering setting for the new collection
      * @param canDeduplicate deduplicate setting for the collection
      * @param bySeqno The seqno assigned to the collection create event.
      */
@@ -802,6 +803,7 @@ public:
                                  ScopeCollectionPair identifiers,
                                  std::string_view collectionName,
                                  cb::ExpiryLimit maxTtl,
+                                 Collections::Metered metered,
                                  CanDeduplicate canDeduplicate,
                                  int64_t bySeqno);
 

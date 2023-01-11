@@ -1898,6 +1898,7 @@ void VBucket::replicaCreateCollection(Collections::ManifestUid uid,
                                       ScopeCollectionPair identifiers,
                                       std::string_view collectionName,
                                       cb::ExpiryLimit maxTtl,
+                                      Collections::Metered metered,
                                       CanDeduplicate canDeduplicate,
                                       int64_t bySeqno) {
     // The state of the VBucket should not change here, because replicaCreate
@@ -1911,6 +1912,7 @@ void VBucket::replicaCreateCollection(Collections::ManifestUid uid,
                                        identifiers,
                                        collectionName,
                                        maxTtl,
+                                       metered,
                                        canDeduplicate,
                                        bySeqno);
 }

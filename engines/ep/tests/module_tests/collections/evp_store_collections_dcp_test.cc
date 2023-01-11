@@ -380,18 +380,21 @@ TEST_F(CollectionsDcpTest, MB_38019) {
                                      {ScopeID::Default, CollectionEntry::fruit},
                                      "fruit",
                                      {},
+                                     Collections::Metered::Yes,
                                      CanDeduplicate::Yes,
                                      1);
     replica->replicaCreateCollection(Collections::ManifestUid(++uid),
                                      {ScopeID::Default, CollectionEntry::meat},
                                      "meat",
                                      {},
+                                     Collections::Metered::Yes,
                                      CanDeduplicate::Yes,
                                      2);
     replica->replicaCreateCollection(Collections::ManifestUid(++uid),
                                      {ScopeID::Default, CollectionEntry::dairy},
                                      "dairy",
                                      {},
+                                     Collections::Metered::Yes,
                                      CanDeduplicate::Yes,
                                      3);
 
@@ -2684,12 +2687,14 @@ void MB48010CollectionsDCPParamTest::SetUp() {
                                 {ScopeID::Default, CollectionEntry::dairy},
                                 "dairy",
                                 {},
+                                Collections::Metered::Yes,
                                 CanDeduplicate::Yes,
                                 1);
     vb->replicaCreateCollection(Collections::ManifestUid(++uid),
                                 {ScopeID::Default, CollectionEntry::fruit},
                                 "fruit",
                                 {},
+                                Collections::Metered::Yes,
                                 CanDeduplicate::Yes,
                                 2);
 

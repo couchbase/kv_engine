@@ -88,10 +88,6 @@ public:
         return meta->metered;
     }
 
-    void setMetered(Metered metered) {
-        meta->metered = metered;
-    }
-
     /// increment how many items are stored for this collection
     void incrementItemCount() const {
         itemCount++;

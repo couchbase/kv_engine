@@ -60,13 +60,12 @@ Manifest::Manifest(std::shared_ptr<Manager> manager,
         // collection via DCP ahead of ns_server pushing via set_collections +
         // we then warmed up (note this is also a replica). The value of Yes
         // will be checked/corrected when/if the VB is made active
-        addNewCollectionEntry(
-                {meta.sid, meta.cid},
-                meta.name,
-                meta.maxTtl,
-                bucketManifest->isMetered(meta.cid).value_or(Metered::Yes),
-                bucketManifest->getCanDeduplicate(meta.cid),
-                e.startSeqno);
+        addNewCollectionEntry({meta.sid, meta.cid},
+                              meta.name,
+                              meta.maxTtl,
+                              meta.metered,
+                              bucketManifest->getCanDeduplicate(meta.cid),
+                              e.startSeqno);
     }
 }
 
@@ -106,7 +105,6 @@ Manifest::Manifest(Manifest& other) : manager(other.manager) {
         itr->second.setDiskSize(entry.getDiskSize());
         itr->second.setHighSeqno(entry.getHighSeqno());
         itr->second.setPersistedHighSeqno(entry.getPersistedHighSeqno());
-        itr->second.setMetered(entry.isMetered());
     }
 
     for (auto& [sid, entry] : other.scopes) {
@@ -421,11 +419,6 @@ void Manifest::completeUpdate(VBucketStateLockRef vbStateLock,
         // Here the changeset.uid is used as it's for logging
         modifyScope(wHandle, vb, changeset.uid, modified);
     }
-
-    for (const auto& modified : changeset.collectionsToModify) {
-        // Here the changeset.uid is used as it's for logging
-        modifyCollection(wHandle, vb, changeset.uid, modified);
-    }
 }
 
 // @return true if newEntry compared to existingEntry shows an immutable
@@ -642,27 +635,6 @@ void Manifest::collectionDropPersisted(CollectionID cid, uint64_t seqno) {
     droppedCollections.wlock()->remove(cid, seqno);
 }
 
-void Manifest::modifyCollection(const WriteHandle& wHandle,
-                                ::VBucket& vb,
-                                ManifestUid newManUid,
-                                const CollectionModified& modification) {
-    auto itr = map.find(modification.cid);
-    if (itr == map.end()) {
-        throwException<std::logic_error>(
-                __FUNCTION__,
-                "did not find collection:" + modification.cid.to_string());
-    }
-
-    itr->second.setMetered(modification.metered);
-
-    // Keep this logging - it's new and should be rare/interesting to know
-    EP_LOG_INFO("{} modifying collection:id:{} manifest:{:#x} metered:{}",
-                vb.getId(),
-                modification.cid,
-                manifestUid,
-                modification.metered);
-}
-
 const ManifestEntry& Manifest::getManifestEntry(CollectionID identifier) const {
     auto itr = map.find(identifier);
     if (itr == map.end()) {
@@ -824,12 +796,6 @@ Manifest::ManifestChanges Manifest::processManifest(
         if (itr == manifest.end()) {
             // Not found, so this collection should be dropped.
             rv.collectionsToDrop.push_back(cid);
-        } else if (itr->second.metered != entry.isMetered()) {
-            // We have the incorrect meter setting, we may have a
-            // collection created via DCP which doesn't replicate the meter
-            // state we just pick it up from ns_server direct. Or ns_server
-            // could of changed it, which we'll accept
-            rv.collectionsToModify.push_back({cid, itr->second.metered});
         }
     }
 
@@ -983,7 +949,8 @@ std::unique_ptr<Item> Manifest::makeCollectionSystemEvent(
                                               : 0,
                 builder.CreateString(collectionName.data(),
                                      collectionName.size()),
-                getHistoryFromCanDeduplicate(entry.getCanDeduplicate()));
+                getHistoryFromCanDeduplicate(entry.getCanDeduplicate()),
+                getMeteredFromEnum(entry.isMetered()));
         builder.Finish(collection);
         break;
     }
@@ -1137,7 +1104,7 @@ CreateEventData Manifest::getCreateEventData(std::string_view flatbufferData) {
              collection->collectionId(),
              collection->name()->str(),
              maxTtl,
-             Collections::Metered::Yes,
+             Collections::getMetered(collection->metered()),
              getCanDeduplicateFromHistory(collection->history())}};
 }
 
