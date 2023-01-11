@@ -50,7 +50,6 @@ struct Scope {
 
     std::string name;
     std::vector<CollectionMetaData> collections;
-    CanDeduplicate canDeduplicate;
 
     bool operator==(const Scope& other) const;
     bool operator!=(const Scope& other) const {
@@ -345,12 +344,9 @@ private:
      * the default collection (CollectionMetaData initialises to the default
      * collection)
      */
-    scopeContainer scopes = {{ScopeID::Default,
-                              {NoDataLimit,
-                               0,
-                               DefaultScopeName,
-                               {CollectionMetaData{}},
-                               CanDeduplicate::Yes}}};
+    scopeContainer scopes = {
+            {ScopeID::Default,
+             {NoDataLimit, 0, DefaultScopeName, {CollectionMetaData{}}}}};
 
     collectionContainer collections;
     ManifestUid uid{0};

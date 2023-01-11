@@ -332,35 +332,25 @@ TEST(ManifestTest, validation) {
             R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"brewery","uid":"8","history":"true"}]}]})",
-            // history = false is invalid (no need to specify)
-            R"({"uid" : "1", "history":false,
-                "scopes":[{"name":"_default", "uid":"0",
-                "collections":[{"name":"brewery","uid":"8"}]}]})",
-            // history redefined at lower level (bucket + collection)
-            R"({"uid" : "1", "history":true,
+            // expect only history=true, just omit for false.
+            R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"brewery","uid":"8","history":false}]}]})",
-            // history redefined at lower level (bucket + scope)
-            R"({"uid" : "1", "history":true,
-                "scopes":[{"name":"_default", "uid":"0", "history":false,
-                "collections":[{"name":"brewery","uid":"8"}]}]})",
-            // history redefined at lower level (collection + scope)
+            // History invalid on default collection
             R"({"uid" : "1",
-                "scopes":[{"name":"_default", "uid":"0", "history":true,
-                "collections":[{"name":"brewery","uid":"8", "history":false}]}]})",
-            // nearly, but not quite epoch
-            R"({"uid" : "0", "history": true,
                 "scopes":[{"name":"_default", "uid":"0",
-                "collections":[{"name":"_default","uid":"0"}]}]})",
-            R"({"uid" : "0",
-                "scopes":[{"name":"_default", "uid":"0", "history": true,
-                "collections":[{"name":"_default","uid":"0"}]}]})",
+                "collections":[{"name":"_default","uid":"0", "history": true}]}]})",
+            // The following are nearly, but not quite epoch manifests
             R"({"uid" : "0",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"_default","uid":"0", "history": true}]}]})",
             R"({"uid" : "0",
                 "scopes":[{"name":"_default", "uid":"0",
-                "collections":[{"name":"_default", "uid":"0", "maxTTL": 100}]}]})"};
+                "collections":[{"name":"_default", "uid":"0", "maxTTL": 100}]}]})",
+            R"({"uid" : "0",
+                "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"_default","uid":"0", "history":true}]}]})",
+    };
 
     std::vector<std::string> validManifests = {
             // this is the 'epoch' state of collections
@@ -968,7 +958,7 @@ TEST(ManifestTest, isSuccesor) {
     EXPECT_EQ(cb::engine_errc::success, b2.isSuccessor(c).code());
 
     // Permit a change of history.
-    cm.setHistory(true);
+    cm.update(CollectionEntry::meat, cb::NoExpiryLimit, true);
     Collections::Manifest d{std::string{cm}};
     EXPECT_EQ(cb::engine_errc::success, c.isSuccessor(d).code());
 }
@@ -1059,13 +1049,8 @@ TEST(ManifestTest, scopeDataSize) {
 
 TEST(ManifestTest, configureHistory) {
     CollectionsManifest cm;
-    // A collection in default scope and then a new scope with history
     cm.add(CollectionEntry::fruit); // expect no history
     cm.add(CollectionEntry::vegetable, cb::NoExpiryLimit, true /*history*/);
-
-    // dairy collection will get 'history' from the scope
-    cm.add(ScopeEntry::shop1, {/*no datalimit*/}, true /*history*/);
-    cm.add(CollectionEntry::dairy, ScopeEntry::shop1);
 
     Collections::Manifest manifest{std::string{cm}};
     EXPECT_EQ(CanDeduplicate::Yes,
@@ -1075,26 +1060,4 @@ TEST(ManifestTest, configureHistory) {
     // deduplicated? No
     EXPECT_EQ(CanDeduplicate::No,
               manifest.getCanDeduplicate(CollectionEntry::vegetable));
-    EXPECT_EQ(CanDeduplicate::No,
-              manifest.getCanDeduplicate(CollectionEntry::dairy));
-}
-
-TEST(ManifestTest, configureAllHistory) {
-    CollectionsManifest cm;
-    // A collection in default scope and then a new scope with history
-    cm.add(CollectionEntry::fruit);
-    cm.add(CollectionEntry::vegetable);
-    cm.add(ScopeEntry::shop1);
-    cm.add(CollectionEntry::dairy, ScopeEntry::shop1);
-    cm.setHistory(true);
-
-    Collections::Manifest manifest{std::string{cm}};
-    EXPECT_EQ(CanDeduplicate::No,
-              manifest.getCanDeduplicate(CollectionID::Default));
-    EXPECT_EQ(CanDeduplicate::No,
-              manifest.getCanDeduplicate(CollectionEntry::fruit));
-    EXPECT_EQ(CanDeduplicate::No,
-              manifest.getCanDeduplicate(CollectionEntry::vegetable));
-    EXPECT_EQ(CanDeduplicate::No,
-              manifest.getCanDeduplicate(CollectionEntry::dairy));
 }
