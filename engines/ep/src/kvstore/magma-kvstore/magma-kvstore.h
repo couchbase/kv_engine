@@ -546,14 +546,6 @@ public:
 
     void setMagmaEnableBlockCache(bool enable);
 
-    void setMagmaSeqTreeDataBlockSize(size_t value);
-
-    void setMagmaSeqTreeIndexBlockSize(size_t value);
-
-    void setMagmaKeyTreeDataBlockSize(size_t value);
-
-    void setMagmaKeyTreeIndexBlockSize(size_t value);
-
     void setStorageThreads(ThreadPoolConfig::StorageThreadCount num) override;
 
     /**

@@ -131,30 +131,6 @@ public:
         return magmaMaxDefaultStorageThreads;
     }
 
-    size_t getMagmaSeqTreeDataBlockSize() const {
-        return magmaSeqTreeDataBlockSize.load();
-    }
-
-    void setMagmaSeqTreeDataBlockSize(size_t value);
-
-    size_t getMagmaSeqTreeIndexBlockSize() const {
-        return magmaSeqTreeIndexBlockSize.load();
-    }
-
-    void setMagmaSeqTreeIndexBlockSize(size_t value);
-
-    size_t getMagmaKeyTreeDataBlockSize() const {
-        return magmaKeyTreeDataBlockSize.load();
-    }
-
-    void setMagmaKeyTreeDataBlockSize(size_t value);
-
-    size_t getMagmaKeyTreeIndexBlockSize() const {
-        return magmaKeyTreeIndexBlockSize.load();
-    }
-
-    void setMagmaKeyTreeIndexBlockSize(size_t value);
-
     size_t getMagmaMinValueBlockSizeThreshold() const {
         return magmaMinValueBlockSizeThreshold;
     }
@@ -377,26 +353,6 @@ private:
      */
     std::atomic<ThreadPoolConfig::StorageThreadCount> storageThreads{
             ThreadPoolConfig::StorageThreadCount::Default};
-
-    /**
-     * Data block size for SeqIndex SSTable.
-     */
-    std::atomic<size_t> magmaSeqTreeDataBlockSize{4096};
-
-    /**
-     * Index block size for SeqIndex SSTable.
-     */
-    std::atomic<size_t> magmaSeqTreeIndexBlockSize{4096};
-
-    /**
-     * Data block size for KeyIndex SSTable.
-     */
-    std::atomic<size_t> magmaKeyTreeDataBlockSize{4096};
-
-    /**
-     * Index block size for KeyIndex SSTable.
-     */
-    std::atomic<size_t> magmaKeyTreeIndexBlockSize{4096};
 
     /**
      * If the number of storage threads = 0, then we set the number

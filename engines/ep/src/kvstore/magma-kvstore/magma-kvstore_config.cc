@@ -30,14 +30,6 @@ public:
             config.setMagmaFlusherThreadPercentage(value);
         } else if (key == "persistent_metadata_purge_age") {
             config.setMetadataPurgeAge(value);
-        } else if (key == "magma_seq_tree_data_block_size") {
-            config.setMagmaSeqTreeDataBlockSize(value);
-        } else if (key == "magma_seq_tree_index_block_size") {
-            config.setMagmaSeqTreeIndexBlockSize(value);
-        } else if (key == "magma_key_tree_data_block_size") {
-            config.setMagmaKeyTreeDataBlockSize(value);
-        } else if (key == "magma_key_tree_index_block_size") {
-            config.setMagmaKeyTreeIndexBlockSize(value);
         }
     }
 
@@ -139,18 +131,6 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     config.addValueChangedListener(
             "magma_mem_quota_ratio",
             std::make_unique<ConfigChangeListener>(*this));
-    config.addValueChangedListener(
-            "magma_seq_tree_data_block_size",
-            std::make_unique<ConfigChangeListener>(*this));
-    config.addValueChangedListener(
-            "magma_seq_tree_index_block_size",
-            std::make_unique<ConfigChangeListener>(*this));
-    config.addValueChangedListener(
-            "magma_key_tree_data_block_size",
-            std::make_unique<ConfigChangeListener>(*this));
-    config.addValueChangedListener(
-            "magma_key_tree_index_block_size",
-            std::make_unique<ConfigChangeListener>(*this));
 
     sanityCheckVBucketMapping = config.isVbucketMappingSanityChecking();
     vBucketMappingErrorHandlingMethod = cb::getErrorHandlingMethod(
@@ -210,33 +190,5 @@ void MagmaKVStoreConfig::setMagmaEnableBlockCache(bool enable) {
     magmaEnableBlockCache.store(enable);
     if (store) {
         store->setMagmaEnableBlockCache(enable);
-    }
-}
-
-void MagmaKVStoreConfig::setMagmaSeqTreeDataBlockSize(size_t value) {
-    magmaSeqTreeDataBlockSize.store(value);
-    if (store) {
-        store->setMagmaSeqTreeDataBlockSize(value);
-    }
-}
-
-void MagmaKVStoreConfig::setMagmaSeqTreeIndexBlockSize(size_t value) {
-    magmaSeqTreeIndexBlockSize.store(value);
-    if (store) {
-        store->setMagmaSeqTreeIndexBlockSize(value);
-    }
-}
-
-void MagmaKVStoreConfig::setMagmaKeyTreeDataBlockSize(size_t value) {
-    magmaKeyTreeDataBlockSize.store(value);
-    if (store) {
-        store->setMagmaKeyTreeDataBlockSize(value);
-    }
-}
-
-void MagmaKVStoreConfig::setMagmaKeyTreeIndexBlockSize(size_t value) {
-    magmaKeyTreeIndexBlockSize.store(value);
-    if (store) {
-        store->setMagmaKeyTreeIndexBlockSize(value);
     }
 }
