@@ -1152,12 +1152,6 @@
             "descr": "Frequency of heartbeat interval; in seconds. A heartbeat task is scheduled to provide cleanup and maintenance when magma is idle.",
             "type": "size_t"
         },
-        "magma_value_separation_size": {
-            "default": "32",
-            "dynamic": false,
-            "descr": "Values smaller than this will not be separated from their keys.",
-            "type": "size_t"
-        },
         "magma_write_cache_ratio": {
             "default": "0.2",
             "dynamic": false,

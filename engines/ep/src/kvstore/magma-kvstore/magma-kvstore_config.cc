@@ -79,7 +79,6 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     magmaCheckpointThreshold = config.getMagmaCheckpointThreshold();
     magmaHeartbeatInterval =
             std::chrono::milliseconds(1s * config.getMagmaHeartbeatInterval());
-    magmaValueSeparationSize = config.getMagmaValueSeparationSize();
     magmaMemQuotaRatio = config.getMagmaMemQuotaRatio();
     magmaWriteCacheRatio = config.getMagmaWriteCacheRatio();
     magmaMaxWriteCache = config.getMagmaMaxWriteCache();

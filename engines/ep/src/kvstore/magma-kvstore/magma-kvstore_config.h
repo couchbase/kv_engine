@@ -73,9 +73,6 @@ public:
     std::chrono::milliseconds getMagmaHeartbeatInterval() const {
         return magmaHeartbeatInterval;
     }
-    size_t getMagmaValueSeparationSize() const {
-        return magmaValueSeparationSize;
-    }
     size_t getMagmaMaxWriteCache() const {
         return magmaMaxWriteCache;
     }
@@ -278,10 +275,6 @@ private:
 
     // Time interval (in milliseconds) between heartbeat tasks
     std::chrono::milliseconds magmaHeartbeatInterval;
-
-    // Magma minimum value for key value separation.
-    // Values < magmaValueSeparationSize, value remains in key index.
-    size_t magmaValueSeparationSize;
 
     // WAL ensures Magma's atomicity, durability. Disabling it is useful in
     // performance analysis.
