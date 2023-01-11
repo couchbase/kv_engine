@@ -4463,11 +4463,11 @@ void ChangeStreamCheckpointTest::SetUp() {
     SingleThreadedKVBucketTest::SetUp();
 
     CollectionsManifest manifest;
-    manifest.add(CollectionEntry::vegetable,
+    manifest.add(CollectionEntry::fruit,
                  cb::NoExpiryLimit,
                  {} /*no history*/,
                  ScopeEntry::defaultS);
-    manifest.add(CollectionEntry::fruit,
+    manifest.add(CollectionEntry::historical,
                  cb::NoExpiryLimit,
                  true /*history*/,
                  ScopeEntry::defaultS);
@@ -4495,10 +4495,11 @@ TEST_F(ChangeStreamCheckpointTest, CollectionNotDeduped) {
     ASSERT_EQ(queue_op::empty, pos->getOperation());
 
     // Normal in-memory deduplication for collection(history=false)
-    const auto keyVeg = makeStoredDocKey("key", CollectionEntry::vegetable);
+    const auto keyNonHistorical =
+            makeStoredDocKey("key", CollectionEntry::fruit);
     const auto value = "value";
-    store_item(vbid, keyVeg, value);
-    store_item(vbid, keyVeg, value);
+    store_item(vbid, keyNonHistorical, value);
+    store_item(vbid, keyNonHistorical, value);
     EXPECT_EQ(1, manager.getNumCheckpoints());
     EXPECT_EQ(2, manager.getNumItems()); // cs + mut
     EXPECT_EQ(2, manager.getNumOpenChkItems()); // cs + mut
@@ -4508,14 +4509,15 @@ TEST_F(ChangeStreamCheckpointTest, CollectionNotDeduped) {
     manager.createNewCheckpoint();
     flushVBucket(vbid);
     EXPECT_EQ(1, manager.getNumCheckpoints());
-    const auto keyFruit = makeStoredDocKey("key", CollectionEntry::fruit);
-    store_item(vbid, keyFruit, value);
+    const auto keyHistorical =
+            makeStoredDocKey("key", CollectionEntry::historical);
+    store_item(vbid, keyHistorical, value);
     EXPECT_EQ(1, manager.getNumCheckpoints());
     EXPECT_EQ(2, manager.getNumItems()); // cs + mut
     EXPECT_EQ(2, manager.getNumOpenChkItems()); // cs + mut
     EXPECT_EQ(5, manager.getHighSeqno());
     // Now queue duplicate
-    store_item(vbid, keyFruit, value);
+    store_item(vbid, keyHistorical, value);
     EXPECT_EQ(2, manager.getNumCheckpoints());
     EXPECT_EQ(5, manager.getNumItems()); // cs, m, ce, cs, m
     EXPECT_EQ(2, manager.getNumOpenChkItems());
@@ -4542,42 +4544,44 @@ TEST_F(ChangeStreamCheckpointTest, CollectionNotDeduped_Interleaved) {
             *manager.getPersistenceCursor());
     ASSERT_EQ(queue_op::empty, pos->getOperation());
 
-    const auto keyVeg = makeStoredDocKey("key", CollectionEntry::vegetable);
-    const auto keyFruit = makeStoredDocKey("key", CollectionEntry::fruit);
+    const auto keyNonHistorical =
+            makeStoredDocKey("key", CollectionEntry::fruit);
+    const auto keyHistorical =
+            makeStoredDocKey("key", CollectionEntry::historical);
     const auto value = "value";
 
     // history=false
-    store_item(vbid, keyVeg, value);
+    store_item(vbid, keyNonHistorical, value);
     EXPECT_EQ(1, manager.getNumCheckpoints());
     EXPECT_EQ(2, manager.getNumItems()); // [cs mut)
     EXPECT_EQ(2, manager.getNumOpenChkItems()); // cs + 1x mut
     EXPECT_EQ(3, manager.getHighSeqno());
 
-    // history=true, but keyFruit not in the checkpoint index, so no need to
-    // dedup anything yet
-    store_item(vbid, keyFruit, value);
+    // history=true, but keyHistorical not in the checkpoint index, so no need
+    // to dedup anything yet
+    store_item(vbid, keyHistorical, value);
     EXPECT_EQ(1, manager.getNumCheckpoints());
     EXPECT_EQ(3, manager.getNumItems()); // [cs mutV mutF)
     EXPECT_EQ(3, manager.getNumOpenChkItems()); // cs + 2x mut
     EXPECT_EQ(4, manager.getHighSeqno());
 
-    // history=false, keyVeg in the index, deduped
-    store_item(vbid, keyVeg, value);
+    // history=false, keyNonHistorical in the index, deduped
+    store_item(vbid, keyNonHistorical, value);
     EXPECT_EQ(1, manager.getNumCheckpoints());
     EXPECT_EQ(3, manager.getNumItems()); // [cs x mutF mutV)
     EXPECT_EQ(3, manager.getNumOpenChkItems()); // cs + 2x mut
     EXPECT_EQ(5, manager.getHighSeqno());
 
-    // history=true, keyFruit in the index, dedup
-    store_item(vbid, keyFruit, value);
+    // history=true, keyHistorical in the index, dedup
+    store_item(vbid, keyHistorical, value);
     EXPECT_EQ(2, manager.getNumCheckpoints());
     EXPECT_EQ(6, manager.getNumItems()); // [cs x mutF mutV ce] [cs mutF)
     EXPECT_EQ(2, manager.getNumOpenChkItems()); // cs + 1x mut
     EXPECT_EQ(6, manager.getHighSeqno());
 
-    // history=false, keyVeg could be dedup but it doesn't, as now we queue the
-    // new mutation for it into a different checkpoint
-    store_item(vbid, keyVeg, value);
+    // history=false, keyNonHistorical could be dedup but it doesn't, as now we
+    // queue the new mutation for it into a different checkpoint
+    store_item(vbid, keyNonHistorical, value);
     EXPECT_EQ(2, manager.getNumCheckpoints());
     EXPECT_EQ(7, manager.getNumItems()); // [cs x mutF mutV ce] [cs mutF mutV)
     EXPECT_EQ(3, manager.getNumOpenChkItems()); // cs + 2x mut
