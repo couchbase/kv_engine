@@ -13,6 +13,8 @@
 
 #include <executor/notifiable_task.h>
 #include <memcached/server_bucket_iface.h>
+#include <functional>
+#include <mutex>
 #include <vector>
 
 class EPEngineGroup;
@@ -32,13 +34,14 @@ public:
      * @param bucketApi The bucket interface to use to interact with buckets.
      * @param group The group of engines to consider during paging.
      * @param t The taskable which this task is associated with.
-     * @param numConcurrentPagers The number of concurrent pagers to create.
+     * @param getNumConcurrentPagers Used to determine the number of concurrent
+     * pagers to create.
      * @param sleepTime The initial sleep time of the task.
      */
     QuotaSharingItemPager(ServerBucketIface& bucketApi,
                           EPEngineGroup& group,
                           Taskable& t,
-                          size_t numConcurrentPagers,
+                          std::function<size_t()> getNumConcurrentPagers,
                           std::chrono::milliseconds sleepTime);
 
     std::string getDescription() const override;
@@ -71,4 +74,9 @@ private:
      * The group of engines to consider during paging.
      */
     EPEngineGroup& group;
+
+    /**
+     * Used to determine the number of concurrent pagers to create.
+     */
+    std::function<size_t()> getNumConcurrentPagers;
 };

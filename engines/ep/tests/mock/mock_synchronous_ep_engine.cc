@@ -179,10 +179,12 @@ QuotaSharingManager& SynchronousEPEngine::getQuotaSharingManager() {
                         *engine.getServerApi()->bucket,
                         group,
                         engine.getTaskable(),
-                        engine.getConfiguration().getConcurrentPagers(),
+                        [n = engine.getConfiguration()
+                                     .getConcurrentPagers()]() { return n; },
                         std::chrono::milliseconds(
                                 engine.getConfiguration()
                                         .getPagerSleepTimeMs()));
+                ExecutorPool::get()->cancel(pager->getId());
             }
             return pager;
         }

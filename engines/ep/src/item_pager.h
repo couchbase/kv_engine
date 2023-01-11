@@ -104,7 +104,7 @@ protected:
             const std::vector<std::reference_wrapper<KVBucket>>& kvBuckets,
             std::size_t bytesToEvict) const = 0;
 
-    const size_t numConcurrentPagers;
+    size_t numConcurrentPagers;
     // used to avoid creating more paging visitors while any are still running
     const std::shared_ptr<cb::Semaphore> pagerSemaphore;
     // Should eviction continue until the low watermark is reached?

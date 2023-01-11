@@ -82,6 +82,7 @@
 #include <utilities/engine_errc_2_mcbp.h>
 #include <utilities/logtags.h>
 #include <xattr/utils.h>
+#include <functional>
 
 #include <charconv>
 #include <chrono>
@@ -6958,10 +6959,10 @@ void EventuallyPersistentEngine::setDcpConsumerBufferRatio(float ratio) {
 QuotaSharingManager& EventuallyPersistentEngine::getQuotaSharingManager() {
     struct QuotaSharingManagerImpl : public QuotaSharingManager {
         QuotaSharingManagerImpl(ServerBucketIface& bucketApi,
-                                size_t numConcurrentPagers)
+                                std::function<size_t()> getNumConcurrentPagers)
             : bucketApi(bucketApi),
               group(bucketApi),
-              numConcurrentPagers(numConcurrentPagers) {
+              getNumConcurrentPagers(std::move(getNumConcurrentPagers)) {
         }
 
         EPEngineGroup& getGroup() override {
@@ -6975,7 +6976,7 @@ QuotaSharingManager& EventuallyPersistentEngine::getQuotaSharingManager() {
                         bucketApi,
                         group,
                         ExecutorPool::get()->getDefaultTaskable(),
-                        numConcurrentPagers,
+                        getNumConcurrentPagers,
                         sleepTime);
             }();
             return task;
@@ -6983,13 +6984,13 @@ QuotaSharingManager& EventuallyPersistentEngine::getQuotaSharingManager() {
 
         ServerBucketIface& bucketApi;
         EPEngineGroup group;
-        const size_t numConcurrentPagers;
+        const std::function<size_t()> getNumConcurrentPagers;
     };
 
     static QuotaSharingManagerImpl manager(
-            *serverApi->bucket,
-            // TODO: React to changes in the number of concurrent pagers.
-            serverApi->core->getQuotaSharingPagerConcurrency());
+            *serverApi->bucket, [coreApi = serverApi->core]() {
+                return coreApi->getQuotaSharingPagerConcurrency();
+            });
     return manager;
 }
 

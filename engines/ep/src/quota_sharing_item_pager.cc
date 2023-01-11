@@ -63,11 +63,12 @@ QuotaSharingItemPager::QuotaSharingItemPager(
         ServerBucketIface& bucketApi,
         EPEngineGroup& group,
         Taskable& t,
-        size_t numConcurrentPagers,
+        std::function<size_t()> getNumConcurrentPagers,
         std::chrono::milliseconds sleepTime)
-    : ItemPager(t, numConcurrentPagers, sleepTime),
+    : ItemPager(t, getNumConcurrentPagers(), sleepTime),
       bucketApi(bucketApi),
-      group(group) {
+      group(group),
+      getNumConcurrentPagers(std::move(getNumConcurrentPagers)) {
 }
 
 std::string QuotaSharingItemPager::getDescription() const {
@@ -231,6 +232,18 @@ void QuotaSharingItemPager::schedulePagingVisitors(std::size_t bytesToEvict) {
 
     auto thresholds =
             createUpfrontEvictionThresholds(kvBuckets, evictionRatios);
+
+    // Detect changes in the number of concurrent pagers
+    auto newNumConcurrentPagers = getNumConcurrentPagers();
+    if (numConcurrentPagers != newNumConcurrentPagers) {
+        EP_LOG_INFO(
+                "Changing the number of concurrent pagers for "
+                "QuotaSharingItemPager from {} to {}",
+                numConcurrentPagers,
+                newNumConcurrentPagers);
+        numConcurrentPagers = newNumConcurrentPagers;
+        pagerSemaphore->setCapacity(newNumConcurrentPagers);
+    }
 
     for (size_t i = 0; i < numConcurrentPagers; i++) {
         CrossBucketVisitorAdapter::VisitorMap visitors;
