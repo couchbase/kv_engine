@@ -56,7 +56,7 @@ Manifest::Manifest(std::shared_ptr<Manager> manager,
         addNewCollectionEntry({meta.sid, meta.cid},
                               meta.name,
                               meta.maxTtl,
-                              bucketManifest->getCanDeduplicate(meta.cid),
+                              meta.canDeduplicate,
                               e.startSeqno);
     }
 }
