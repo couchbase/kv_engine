@@ -939,7 +939,8 @@ StorageProperties RocksDBKVStore::getStorageProperties() const {
     StorageProperties rv(StorageProperties::ByIdScan::No,
                          StorageProperties::AutomaticDeduplication::Yes,
                          StorageProperties::PrepareCounting::No,
-                         StorageProperties::CompactionStaleItemCallbacks::No);
+                         StorageProperties::CompactionStaleItemCallbacks::No,
+                         StorageProperties::HistoryRetentionAvailable::No);
     return rv;
 }
 

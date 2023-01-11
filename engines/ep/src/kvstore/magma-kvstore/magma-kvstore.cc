@@ -892,7 +892,8 @@ StorageProperties MagmaKVStore::getStorageProperties() const {
                          // supports it
                          StorageProperties::AutomaticDeduplication::No,
                          StorageProperties::PrepareCounting::No,
-                         StorageProperties::CompactionStaleItemCallbacks::Yes);
+                         StorageProperties::CompactionStaleItemCallbacks::Yes,
+                         StorageProperties::HistoryRetentionAvailable::No);
     return rv;
 }
 
