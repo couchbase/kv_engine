@@ -483,7 +483,8 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
     // KVStore implementations since a lookup isn't needed. This scenario
     // commonly occurs in rebalance where a vbucket is taken over by a new node.
     if (toFlush.ranges.size() == 1 &&
-        toFlush.checkpointType == CheckpointType::InitialDisk) {
+        toFlush.checkpointType == CheckpointType::InitialDisk &&
+        toFlush.historical == CheckpointHistorical::No) {
         writeOp = WriteOperation::Insert;
     }
 

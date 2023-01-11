@@ -106,6 +106,11 @@ CheckpointType CheckpointManager::getOpenCheckpointType() const {
     return getOpenCheckpoint(lh).getCheckpointType();
 }
 
+CheckpointHistorical CheckpointManager::getOpenCheckpointHistorical() const {
+    std::lock_guard<std::mutex> lh(queueLock);
+    return getOpenCheckpoint(lh).getHistorical();
+}
+
 Checkpoint& CheckpointManager::getOpenCheckpoint(
         const std::lock_guard<std::mutex>&) const {
     // During its lifetime, the checkpointList can only be in one of the
@@ -966,11 +971,12 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
 
     // Fetch whole checkpoints; as long as we don't exceed the approx item
     // limit.
-    ItemsForCursor result(
-            (*cursor.getCheckpoint())->getCheckpointType(),
-            (*cursor.getCheckpoint())->getMaxDeletedRevSeqno(),
-            (*cursor.getCheckpoint())->getHighCompletedSeqno(),
-            (*cursor.getCheckpoint())->getVisibleSnapshotEndSeqno());
+    const auto& checkpoint = **cursor.getCheckpoint();
+    ItemsForCursor result(checkpoint.getCheckpointType(),
+                          checkpoint.getMaxDeletedRevSeqno(),
+                          checkpoint.getHighCompletedSeqno(),
+                          checkpoint.getVisibleSnapshotEndSeqno(),
+                          checkpoint.getHistorical());
 
     // Only enforce a hard limit for Disk Checkpoints (i.e backfill). This will
     // prevent huge memory growth due to flushing vBuckets on replicas during a
@@ -1309,6 +1315,7 @@ void CheckpointManager::createSnapshot(
         openCkpt.setSnapshotStartSeqno(snapStartSeqno);
         openCkpt.setSnapshotEndSeqno(snapEndSeqno, visibleSnapEnd);
         openCkpt.setCheckpointType(checkpointType);
+        openCkpt.setHistorical(historical);
         openCkpt.setHighCompletedSeqno(highCompletedSeqno);
         return;
     }

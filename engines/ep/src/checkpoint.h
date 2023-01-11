@@ -434,6 +434,10 @@ public:
         checkpointType = type;
     }
 
+    void setHistorical(CheckpointHistorical hist) {
+        historical = hist;
+    }
+
     void setHighCompletedSeqno(std::optional<uint64_t> seqno) {
         highCompletedSeqno = seqno;
     }
@@ -629,6 +633,10 @@ public:
      */
     void applyQueuedItemsMemUsageDecrement(size_t size);
 
+    CheckpointHistorical getHistorical() const {
+        return historical;
+    }
+
     // Memory overhead of the toWrite container (a list), ie 3 ptrs (forward,
     // backwards and element pointers) per element in the list.
     static constexpr uint8_t per_item_queue_overhead = 3 * sizeof(uintptr_t);
@@ -764,7 +772,7 @@ private:
 
     // Whether the snapshot stored in this checkpoint is part of a historical
     // sequence of mutation.
-    const CheckpointHistorical historical;
+    CheckpointHistorical historical;
 
     friend std::ostream& operator <<(std::ostream& os, const Checkpoint& m);
 };

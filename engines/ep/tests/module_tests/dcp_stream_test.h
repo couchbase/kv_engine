@@ -229,4 +229,15 @@ protected:
  * connections.
  */
 class CDCPassiveStreamTest : public STPassiveStreamPersistentTest {
+protected:
+    void SetUp() override;
+
+    /**
+     * Create an historical collection at replica.
+     * SysEvent received in a snapshot with range defined by the user.
+     *
+     * @param snapStart
+     * @parma snapEnd
+     */
+    void createHistoricalCollection(uint64_t snapStart, uint64_t snapEnd);
 };

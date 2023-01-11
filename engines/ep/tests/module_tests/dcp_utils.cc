@@ -127,3 +127,32 @@ std::unique_ptr<MutationConsumerMessage> makeMutationConsumerMessage(
             nullptr,
             cb::mcbp::DcpStreamId{});
 }
+
+std::unique_ptr<MutationConsumerMessage> makeMutationConsumerMessage(
+        uint64_t opaque,
+        uint64_t seqno,
+        Vbid vbid,
+        const std::string& value,
+        const std::string& key,
+        CollectionID cid) {
+    queued_item qi(new Item(makeStoredDocKey(key, cid),
+                            0,
+                            0,
+                            value.c_str(),
+                            value.size(),
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            0,
+                            seqno,
+                            vbid,
+                            1));
+    return std::make_unique<MutationConsumerMessage>(
+            std::move(qi),
+            opaque,
+            IncludeValue::Yes,
+            IncludeXattrs::Yes,
+            IncludeDeleteTime::No,
+            IncludeDeletedUserXattrs::Yes,
+            DocKeyEncodesCollectionId::No,
+            nullptr,
+            cb::mcbp::DcpStreamId{});
+}
