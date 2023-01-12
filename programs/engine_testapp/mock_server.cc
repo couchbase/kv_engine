@@ -283,10 +283,6 @@ struct MockServerCookieApi : public ServerCookieIface {
         return asMockCookie(cookie).getAuthedUser();
     }
 
-    in_port_t get_connected_port(CookieIface& cookie) override {
-        return asMockCookie(cookie).getParentPort();
-    }
-
     bool is_valid_json(CookieIface&, std::string_view view) override {
         auto validator = cb::json::SyntaxValidator::New();
         return validator->validate(view);

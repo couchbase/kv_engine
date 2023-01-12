@@ -134,10 +134,6 @@ struct ServerCookieApi : public ServerCookieIface {
         return asCookie(cookie).getConnection().getUser().name;
     }
 
-    in_port_t get_connected_port(CookieIface& cookie) override {
-        return asCookie(cookie).getConnection().getParentPort();
-    }
-
     bool is_valid_json(CookieIface& cookieIface,
                        std::string_view view) override {
         auto& cookie = asCookie(cookieIface);

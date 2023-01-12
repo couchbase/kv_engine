@@ -58,9 +58,6 @@ public:
     std::string get_authenticated_user(CookieIface& cookie) override {
         return wrapped->get_authenticated_user(cookie);
     }
-    in_port_t get_connected_port(CookieIface& cookie) override {
-        return wrapped->get_connected_port(cookie);
-    }
     bool is_valid_json(CookieIface& cookie, std::string_view view) override {
         return wrapped->is_valid_json(cookie, view);
     }

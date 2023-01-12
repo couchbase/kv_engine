@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <nlohmann/json.hpp>
 #include <cstdint>
 #include <string_view>
 
@@ -27,6 +28,10 @@ enum class ConnectionPriority : uint8_t;
  */
 class ConnectionIface {
 public:
+    ConnectionIface() = delete;
+    ConnectionIface(nlohmann::json peername, nlohmann::json sockname)
+        : peername(std::move(peername)), sockname(std::move(sockname)) {
+    }
     virtual ~ConnectionIface();
 
     /**
@@ -53,4 +58,16 @@ public:
      * so the std::string_view should not be cached.
      */
     virtual std::string_view getDescription() const = 0;
+
+    const nlohmann::json& getPeername() const {
+        return peername;
+    }
+
+    const nlohmann::json& getSockname() const {
+        return sockname;
+    }
+
+protected:
+    const nlohmann::json peername;
+    const nlohmann::json sockname;
 };

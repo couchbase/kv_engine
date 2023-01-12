@@ -99,14 +99,6 @@ public:
         return uint32_t(socketDescriptor);
     }
 
-    const nlohmann::json& getPeername() const {
-        return peername;
-    }
-
-    const nlohmann::json& getSockname() const {
-        return sockname;
-    }
-
     std::string_view getDescription() const override {
         return description;
     }
@@ -1019,12 +1011,6 @@ protected:
 
     /// The description of the connection
     std::string description;
-
-    /// Name of the peer if known
-    const nlohmann::json peername;
-
-    /// Name of the local socket if known
-    const nlohmann::json sockname;
 
     /// The reason why the session was terminated
     std::string terminationReason;

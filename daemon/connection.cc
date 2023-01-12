@@ -1083,8 +1083,8 @@ void Connection::updateRecvBytes(size_t nbytes) {
 }
 
 Connection::Connection(FrontEndThread& thr)
-    : peername({{"ip", "unknown"}, {"port", 0}}),
-      sockname({{"ip", "unknown"}, {"port", 0}}),
+    : ConnectionIface({{"ip", "unknown"}, {"port", 0}},
+                      {{"ip", "unknown"}, {"port", 0}}),
       thread(thr),
       listening_port(std::make_shared<ListeningPort>(
               "dummy", "127.0.0.1", 11210, AF_INET, false, false)),
@@ -1142,8 +1142,8 @@ std::unique_ptr<Connection> Connection::create(
 Connection::Connection(SOCKET sfd,
                        FrontEndThread& thr,
                        std::shared_ptr<ListeningPort> descr)
-    : peername(cb::net::getPeerNameAsJson(sfd)),
-      sockname(cb::net::getSockNameAsJson(sfd)),
+    : ConnectionIface(cb::net::getPeerNameAsJson(sfd),
+                      cb::net::getSockNameAsJson(sfd)),
       thread(thr),
       listening_port(std::move(descr)),
       max_reqs_per_event(Settings::instance().getRequestsPerEventNotification(

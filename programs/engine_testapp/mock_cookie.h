@@ -26,6 +26,10 @@ struct EngineIface;
 
 class MockConnection : public ConnectionIface {
 public:
+    MockConnection()
+        : ConnectionIface({{"ip", "127.0.0.1"}, {"port", 665}},
+                          {{"ip", "127.0.0.1"}, {"port", 666}}) {
+    }
     void scheduleDcpStep() override;
     void setUserScheduleDcpStep(std::function<void()> func);
     std::function<void()> userScheduleDcpStep;
@@ -138,10 +142,6 @@ public:
         return authenticatedUser;
     }
 
-    in_port_t getParentPort() const {
-        return parent_port;
-    }
-
     using CheckPrivilegeFunction = std::function<cb::rbac::PrivilegeAccess(
             const CookieIface&,
             cb::rbac::Privilege,
@@ -204,7 +204,6 @@ protected:
     std::mutex mutex;
     std::atomic<uint8_t> references{1};
     std::string authenticatedUser{"nobody"};
-    in_port_t parent_port{666};
     DcpConnHandlerIface* connHandlerIface = nullptr;
     std::string error_context;
     cb::compression::Buffer inflated_payload;
