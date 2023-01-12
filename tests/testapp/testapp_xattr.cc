@@ -1444,10 +1444,7 @@ TEST_P(XattrTest, MB_25562_IncludeValueCrc32cInDocumentVAttr) {
     EXPECT_EQ(R"({"a":1})", resp.getValue());
 
     // Compute the expected value checksum
-    auto _crc32c = crc32c(
-            reinterpret_cast<const unsigned char*>(document.value.c_str()),
-            document.value.size(),
-            0 /*crc_in*/);
+    auto _crc32c = crc32c(document.value);
     auto expectedValueCrc32c = "\"" + cb::to_hex(_crc32c) + "\"";
 
     // Get and verify the actual value checksum
@@ -1489,9 +1486,7 @@ TEST_P(XattrTest, MB_25562_StampValueCrc32cInUserXAttr) {
 
     // Compute the expected value_crc32c
     auto value = userConnection->get(name, Vbid(0)).value;
-    auto _crc32c = crc32c(reinterpret_cast<const unsigned char*>(value.c_str()),
-                          value.size(),
-                          0 /*crc_in*/);
+    auto _crc32c = crc32c(value);
     auto expectedValueCrc32c = "\"" + cb::to_hex(_crc32c) + "\"";
 
     // Fetch the xattr and verify that the macro expanded to the

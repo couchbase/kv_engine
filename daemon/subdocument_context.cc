@@ -731,7 +731,5 @@ uint32_t SubdocCmdContext::computeValueCRC32C() {
     } else {
         value = in_doc.view;
     }
-    return crc32c(reinterpret_cast<const unsigned char*>(value.data()),
-                  value.size(),
-                  0 /*crc_in*/);
+    return crc32c(value);
 }
