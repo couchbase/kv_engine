@@ -162,7 +162,7 @@ TEST_F(MagmaKVStoreTest, prepareToCreate) {
 }
 
 TEST_F(MagmaKVStoreTest, getStats) {
-    constexpr std::array<std::string_view, 43> statNames = {{
+    constexpr std::array<std::string_view, 45> statNames = {{
             "magma_MemoryQuotaLowWaterMark",
             "magma_BloomFilterMemoryQuota",
             "magma_WriteCacheQuota",
@@ -205,6 +205,8 @@ TEST_F(MagmaKVStoreTest, getStats) {
             "magma_ReadAheadBufferMemUsed",
             "magma_LSMTreeObjectMemUsed",
             "magma_HistogramMemUsed",
+            "magma_DataBlocksSize",
+            "magma_DataBlocksCompressSize",
             "foo",
     }};
     auto stats = kvstore->getStats(statNames);
@@ -274,6 +276,8 @@ TEST_F(MagmaKVStoreTest, getStat) {
     ASSERT_TRUE(kvstore->getStat("magma_NTableFiles", value));
     // NSyncs.
     ASSERT_TRUE(kvstore->getStat("magma_NSyncs", value));
+    ASSERT_TRUE(kvstore->getStat("magma_DataBlocksSize", value));
+    ASSERT_TRUE(kvstore->getStat("magma_DataBlocksCompressSize", value));
 }
 
 TEST_F(MagmaKVStoreTest, setMaxDataSize) {

@@ -3414,6 +3414,8 @@ GetStatsMap MagmaKVStore::getStats(
     fill("magma_NTablesCreated", magmaStats->NTablesCreated);
     fill("magma_NTableFiles", magmaStats->NTableFiles);
     fill("magma_NSyncs", magmaStats->NSyncs);
+    fill("magma_DataBlocksSize", magmaStats->DataBlocksSize);
+    fill("magma_DataBlocksCompressSize", magmaStats->DataBlocksCompressSize);
     return stats;
 }
 

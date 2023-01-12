@@ -354,6 +354,10 @@ STAT(ep_magma_tables_deleted, , count, , )
 STAT(ep_magma_tables, , count, , )
 // NSync.
 STAT(ep_magma_syncs, , count, , )
+STAT(ep_magma_data_blocks_uncompressed_size, , count, , )
+STAT(ep_magma_data_blocks_compressed_size, , count, , )
+STAT(ep_magma_data_blocks_compression_ratio, , ratio, , )
+STAT(ep_magma_data_blocks_space_reduction_estimate_pct, , percent, , )
 
 STAT(ep_rocksdb_kMemTableTotal, , bytes, , )
 STAT(ep_rocksdb_kMemTableUnFlushed, , bytes, , )
