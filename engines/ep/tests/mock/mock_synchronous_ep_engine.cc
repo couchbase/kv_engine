@@ -150,6 +150,11 @@ SynchronousEPEngineUniquePtr SynchronousEPEngine::build(
                             error.code().message()));
     }
 
+    // Make sure the cached configuration parameters normally initialised in
+    // EPEngine::initialise() are also initialised.
+    engine->isCrossBucketHtQuotaSharing =
+            engine->getConfiguration().isCrossBucketHtQuotaSharing();
+
     engine->setKVBucket(
             engine->public_makeMockBucket(engine->getConfiguration()));
 

@@ -1777,6 +1777,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       getServerApiFunc(get_server_api),
       checkpointConfig(nullptr),
       trafficEnabled(false),
+      isCrossBucketHtQuotaSharing(false),
       startupTime(0),
       taskable(this),
       compressionMode(BucketCompressionMode::Off),
@@ -1999,6 +2000,14 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
         return cb::engine_errc::failed;
     }
 
+    isCrossBucketHtQuotaSharing = configuration.isCrossBucketHtQuotaSharing();
+    if (isCrossBucketHtQuotaSharing) {
+        // Ephemeral bucket are not supported together with quota sharing,
+        // because we're not handling the fail_new_data policy.
+        Expects(configuration.getBucketType() != "ephemeral");
+        getQuotaSharingManager().getGroup().add(*this);
+    }
+
     maxItemSize = configuration.getMaxItemSize();
     configuration.addValueChangedListener(
             "max_item_size",
@@ -2116,13 +2125,6 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
             "dcp_consumer_buffer_ratio",
             std::make_unique<EpEngineValueChangeListener>(*this));
 
-    if (configuration.isCrossBucketHtQuotaSharing()) {
-        // Ephemeral bucket are not supported together with quota sharing,
-        // because we're not handling the fail_new_data policy.
-        Expects(configuration.getBucketType() != "ephemeral");
-        getQuotaSharingManager().getGroup().add(*this);
-    }
-
     return cb::engine_errc::success;
 }
 
@@ -2147,7 +2149,7 @@ void EventuallyPersistentEngine::destroyInner(bool force) {
     stats.forceShutdown = force;
     stats.isShutdown = true;
 
-    if (configuration.isCrossBucketHtQuotaSharing()) {
+    if (isCrossBucketHtQuotaSharing) {
         getQuotaSharingManager().getGroup().remove(*this);
     }
 
@@ -6992,7 +6994,7 @@ QuotaSharingManager& EventuallyPersistentEngine::getQuotaSharingManager() {
 }
 
 ExTask EventuallyPersistentEngine::createItemPager() {
-    if (getConfiguration().isCrossBucketHtQuotaSharing()) {
+    if (isCrossBucketHtQuotaSharing) {
         return getQuotaSharingManager().getItemPager();
     } else {
         auto numConcurrentPagers = getConfiguration().getConcurrentPagers();

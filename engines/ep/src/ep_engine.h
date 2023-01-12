@@ -1476,6 +1476,8 @@ protected:
     size_t getlMaxTimeout;
     size_t maxFailoverEntries;
     std::atomic<bool> trafficEnabled;
+    // Indicates whether we are sharing quota with any other buckets.
+    std::atomic_bool isCrossBucketHtQuotaSharing;
 
     // a unique system generated token initialized at each time
     // ep_engine starts up.
