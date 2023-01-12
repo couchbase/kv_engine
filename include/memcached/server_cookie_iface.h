@@ -91,24 +91,6 @@ struct ServerCookieIface {
     /// the sid / cid is costly.
     virtual uint32_t get_privilege_context_revision(CookieIface& cookie) = 0;
 
-    /**
-     * Get the log information to be used for a log entry.
-     *
-     * The typical log entry from the core is:
-     *
-     *  `id> message` - Data read from ta client
-     *  `id: message` - Status messages for this client
-     *  `id< message` - Data sent back to the client
-     *
-     * If the caller wants to dump more information about the connection
-     * (like socket name, peer name, user name) the pair returns this
-     * info as the second field. The info may be invalidated by the core
-     * at any time (but not while the engine is operating in a single call
-     * from the core) so it should _not_ be cached.
-     */
-    virtual std::pair<uint32_t, std::string> get_log_info(
-            CookieIface& cookie) = 0;
-
     virtual std::string get_authenticated_user(CookieIface& cookie) = 0;
 
     virtual in_port_t get_connected_port(CookieIface& cookie) = 0;

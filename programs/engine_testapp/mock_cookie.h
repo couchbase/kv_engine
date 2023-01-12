@@ -38,6 +38,8 @@ public:
         priority = value;
     }
 
+    std::string_view getDescription() const override;
+
 protected:
     ConnectionPriority priority{ConnectionPriority::Medium};
 };

@@ -419,8 +419,8 @@ cb::engine_errc Connection::remapErrorCode(cb::engine_errc code) {
             "{} - Client {} not aware of extended error code ({}). "
             "Disconnecting",
             getId(),
-            getDescription().c_str(),
-            errc.message().c_str());
+            getDescription(),
+            errc.message());
     setTerminationReason("XError not enabled on client");
 
     return cb::engine_errc::disconnect;

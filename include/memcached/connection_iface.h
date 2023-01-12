@@ -11,6 +11,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string_view>
 
 enum class ConnectionPriority : uint8_t;
 
@@ -41,4 +42,15 @@ public:
 
     /// Set the priority for this connection
     virtual void setPriority(ConnectionPriority value) = 0;
+
+    /**
+     * Returns a descriptive name for the connection, of the form:
+     *   "[peer_name - local_name ]"
+     * (system) is appended to the string for system connections.
+     *
+     * Note that the content of the std::string_view may be modified
+     * in the context of the front end thread as part of authentication
+     * so the std::string_view should not be cached.
+     */
+    virtual std::string_view getDescription() const = 0;
 };

@@ -23,6 +23,10 @@ void MockConnection::scheduleDcpStep() {
 void MockConnection::setUserScheduleDcpStep(std::function<void()> func) {
     userScheduleDcpStep = std::move(func);
 }
+std::string_view MockConnection::getDescription() const {
+    using namespace std::string_view_literals;
+    return "[you - me]"sv;
+}
 
 MockCookie::CheckPrivilegeFunction MockCookie::checkPrivilegeFunction;
 MockCookie::CheckForPrivilegeAtLeastInOneCollectionFunction

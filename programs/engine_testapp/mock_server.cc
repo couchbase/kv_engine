@@ -279,13 +279,6 @@ struct MockServerCookieApi : public ServerCookieIface {
         return privilege_context_revision;
     }
 
-    std::pair<uint32_t, std::string> get_log_info(
-            CookieIface& cookie) override {
-        // The DCP test suite don't use a real cookie, and until we've
-        // fixed that we can't try to use the provided cookie
-        return std::make_pair(uint32_t(0xdead), std::string{"[you - me]"});
-    }
-
     std::string get_authenticated_user(CookieIface& cookie) override {
         return asMockCookie(cookie).getAuthedUser();
     }

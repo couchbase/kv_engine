@@ -55,10 +55,6 @@ public:
     uint32_t get_privilege_context_revision(CookieIface& cookie) override {
         return wrapped->get_privilege_context_revision(cookie);
     }
-    std::pair<uint32_t, std::string> get_log_info(
-            CookieIface& cookie) override {
-        return wrapped->get_log_info(cookie);
-    }
     std::string get_authenticated_user(CookieIface& cookie) override {
         return wrapped->get_authenticated_user(cookie);
     }

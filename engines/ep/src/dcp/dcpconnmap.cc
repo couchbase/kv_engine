@@ -19,6 +19,7 @@
 #include "ep_engine.h"
 #include "objectregistry.h"
 #include <daemon/tracing.h>
+#include <memcached/connection_iface.h>
 #include <memcached/server_cookie_iface.h>
 #include <memcached/vbucket.h>
 #include <phosphor/phosphor.h>
@@ -290,11 +291,9 @@ void DcpConnMap::disconnect(CookieIface* cookie) {
             {
                 NonBucketAllocationGuard guard;
                 if (epe) {
-                    auto conn_desc = epe->getServerApi()
-                                             ->cookie->get_log_info(*cookie)
-                                             .second;
-                    connForCookie->getLogger().info("Removing connection {}",
-                                                    conn_desc);
+                    connForCookie->getLogger().info(
+                            "Removing connection {}",
+                            cookie->getConnectionIface().getDescription());
                 } else {
                     connForCookie->getLogger().info(
                             "Removing connection {}",

@@ -107,12 +107,7 @@ public:
         return sockname;
     }
 
-    /**
-     * Returns a descriptive name for the connection, of the form:
-     *   "[peer_name - local_name ]"
-     * (system) is appended to the string for system connections.
-     */
-    const std::string& getDescription() const {
+    std::string_view getDescription() const override {
         return description;
     }
 
