@@ -540,6 +540,8 @@ void VBucket::setState_UNLOCKED(
     state = to;
 
     setupSyncReplication(meta ? &meta->at("topology") : nullptr);
+
+    updateStatsForStateChange(oldstate, to);
 }
 
 vbucket_transition_state VBucket::getTransitionState() const {
