@@ -24,7 +24,7 @@ void validateKeyMapping(std::string_view caller,
                         DocKey key,
                         Vbid vbid,
                         size_t maxVbuckets) {
-    auto crc = crc32buf((uint8_t*)key.data(), key.size());
+    auto crc = crc32buf(key.data(), key.size());
     auto hashedVb = Vbid(((crc >> 16) & 0x7fff) % maxVbuckets);
     if (hashedVb != vbid) {
         cb::handleError(

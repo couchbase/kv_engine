@@ -915,7 +915,7 @@ uint16_t MutationLog::calculateCrc(cb::const_byte_buffer data) const {
     case MutationLogVersion::V1:
     case MutationLogVersion::V2:
     case MutationLogVersion::V3:
-        crc32 = crc32buf(const_cast<uint8_t*>(data.data()), data.size());
+        crc32 = crc32buf(data.data(), data.size());
         break;
     case MutationLogVersion::V4:
         crc32 = crc32c(data.data(), data.size(), 0);
