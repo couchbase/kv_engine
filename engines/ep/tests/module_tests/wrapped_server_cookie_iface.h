@@ -52,13 +52,6 @@ public:
     void release(CookieIface& cookie) override {
         wrapped->release(cookie);
     }
-    cb::rbac::PrivilegeAccess check_privilege(
-            CookieIface& cookie,
-            cb::rbac::Privilege privilege,
-            std::optional<ScopeID> sid,
-            std::optional<CollectionID> cid) override {
-        return wrapped->check_privilege(cookie, privilege, sid, cid);
-    }
     uint32_t get_privilege_context_revision(CookieIface& cookie) override {
         return wrapped->get_privilege_context_revision(cookie);
     }

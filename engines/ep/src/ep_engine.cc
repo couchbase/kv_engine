@@ -4698,8 +4698,7 @@ void EventuallyPersistentEngine::doDiskFailureStats(
 cb::engine_errc EventuallyPersistentEngine::doPrivilegedStats(
         CookieIface& cookie, const AddStatFn& add_stat, std::string_view key) {
     // Privileged stats - need Stats priv (and not just SimpleStats).
-    const auto acc = getServerApi()->cookie->check_privilege(
-            cookie, cb::rbac::Privilege::Stats, {}, {});
+    const auto acc = cookie.testPrivilege(cb::rbac::Privilege::Stats, {}, {});
 
     if (acc.success()) {
         if (cb_isPrefix(key, "_checkpoint-dump")) {
@@ -4975,8 +4974,7 @@ cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
         // Upon failure check_privilege may set an error message in the
         // cookie about the missing privilege
         NonBucketAllocationGuard guard;
-        switch (serverApi->cookie->check_privilege(cookie, priv, sid, cid)
-                        .getStatus()) {
+        switch (cookie.checkPrivilege(priv, sid, cid).getStatus()) {
         case cb::rbac::PrivilegeAccess::Status::Ok:
             return cb::engine_errc::success;
         case cb::rbac::PrivilegeAccess::Status::Fail:
