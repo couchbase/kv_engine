@@ -62,10 +62,6 @@ public:
     uint32_t get_privilege_context_revision(CookieIface& cookie) override {
         return wrapped->get_privilege_context_revision(cookie);
     }
-    cb::mcbp::Status engine_error2mcbp(CookieIface& cookie,
-                                       cb::engine_errc code) override {
-        return wrapped->engine_error2mcbp(cookie, code);
-    }
     std::pair<uint32_t, std::string> get_log_info(
             CookieIface& cookie) override {
         return wrapped->get_log_info(cookie);

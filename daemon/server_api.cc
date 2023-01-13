@@ -137,21 +137,6 @@ struct ServerCookieApi : public ServerCookieIface {
     uint32_t get_privilege_context_revision(CookieIface& cookie) override {
         return asCookie(cookie).getPrivilegeContext().getGeneration();
     }
-    cb::mcbp::Status engine_error2mcbp(CookieIface& void_cookie,
-                                       cb::engine_errc code) override {
-        auto& cookie = dynamic_cast<const Cookie&>(void_cookie);
-        auto& connection = cookie.getConnection();
-
-        code = connection.remapErrorCode(code);
-        if (code == cb::engine_errc::disconnect) {
-            throw cb::engine_error(
-                    cb::engine_errc::disconnect,
-                    "engine_error2mcbp: " + std::to_string(connection.getId()) +
-                            ": Disconnect client");
-        }
-
-        return cb::mcbp::to_status(cb::engine_errc(code));
-    }
 
     std::pair<uint32_t, std::string> get_log_info(
             CookieIface& void_cookie) override {

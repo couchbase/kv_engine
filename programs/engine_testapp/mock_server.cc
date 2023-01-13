@@ -287,15 +287,6 @@ struct MockServerCookieApi : public ServerCookieIface {
         return privilege_context_revision;
     }
 
-    cb::mcbp::Status engine_error2mcbp(CookieIface& cookie,
-                                       cb::engine_errc code) override {
-        if (code == cb::engine_errc::disconnect) {
-            return cb::mcbp::Status(cb::engine_errc(-1));
-        }
-
-        return cb::mcbp::to_status(cb::engine_errc(code));
-    }
-
     std::pair<uint32_t, std::string> get_log_info(
             CookieIface& cookie) override {
         // The DCP test suite don't use a real cookie, and until we've

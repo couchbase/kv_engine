@@ -109,22 +109,6 @@ struct ServerCookieIface {
     virtual uint32_t get_privilege_context_revision(CookieIface& cookie) = 0;
 
     /**
-     * Method to map an engine error code to the appropriate mcbp response
-     * code (the client may not support all error codes so we may have
-     * to remap some).
-     *
-     * @param cookie the client cookie (to look up the client connection)
-     * @param code the engine error code to get the mcbp response code.
-     * @return the mcbp response status to use
-     * @throws std::engine_error if the error code results in being
-     *                           cb::engine_errc::disconnect after remapping
-     *         std::logic_error if the error code doesn't make sense
-     *         std::invalid_argument if the code doesn't exist
-     */
-    virtual cb::mcbp::Status engine_error2mcbp(CookieIface& cookie,
-                                               cb::engine_errc code) = 0;
-
-    /**
      * Get the log information to be used for a log entry.
      *
      * The typical log entry from the core is:
