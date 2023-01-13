@@ -116,12 +116,6 @@ struct ServerCookieApi : public ServerCookieIface {
                     cookie.getConnection().triggerCallback();
                 });
     }
-
-    bool is_valid_json(CookieIface& cookieIface,
-                       std::string_view view) override {
-        auto& cookie = asCookie(cookieIface);
-        return cookie.getConnection().getThread().isValidJson(cookie, view);
-    }
 };
 
 class ServerApiImpl : public ServerApi {

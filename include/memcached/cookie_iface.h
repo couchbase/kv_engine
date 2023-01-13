@@ -77,6 +77,21 @@ public:
     /// Set the engine storage to the provided value.
     void setEngineStorage(cb::unique_engine_storage_ptr value);
 
+    /**
+     * Check if the view contains valid JSON (and add a trace span
+     * containing the time used for JSON validation). The method must
+     * <b>only</b> be called in the context of the front end thread
+     * at it utilize the shared json validator for the attached front
+     * end thread.
+     *
+     * This method will allocate memory, and the caller must toggle
+     * memory allocation domain before calling the method!
+     *
+     * @param view The data to check
+     * @return true if view represents valid JSON, false otherwise
+     */
+    virtual bool isValidJson(std::string_view view) = 0;
+
     /// Check if mutation extras is supported by the connection.
     virtual bool isMutationExtrasSupported() const = 0;
     /// Check if collections is supported by the connection

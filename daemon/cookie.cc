@@ -1167,3 +1167,7 @@ bool Cookie::sendResponse(cb::engine_errc status,
 uint32_t Cookie::getPrivilegeContextRevision() {
     return privilegeContext.getGeneration();
 }
+
+bool Cookie::isValidJson(std::string_view view) {
+    return getConnection().getThread().isValidJson(*this, view);
+}

@@ -134,6 +134,8 @@ public:
         return {inflated_payload.data(), inflated_payload.size()};
     }
 
+    bool isValidJson(std::string_view view) override;
+
     uint32_t getPrivilegeContextRevision() override;
 
     using CheckPrivilegeFunction = std::function<cb::rbac::PrivilegeAccess(

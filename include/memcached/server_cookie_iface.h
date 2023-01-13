@@ -57,8 +57,4 @@ struct ServerCookieIface {
      */
     virtual void setDcpFlowControlBufferSize(CookieIface& cookie,
                                              std::size_t size) = 0;
-
-    /// Validate the JSON. This method must NOT be called from a background
-    /// thread as it use the front-end-threads instance for a JSON validator
-    virtual bool is_valid_json(CookieIface& cookie, std::string_view) = 0;
 };

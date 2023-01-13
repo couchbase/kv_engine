@@ -430,6 +430,8 @@ public:
         return reorder;
     }
 
+    bool isValidJson(std::string_view view) override;
+
     std::string_view getInflatedInputPayload() const override;
 
     /**

@@ -10,6 +10,7 @@
 
 #include "mock_cookie.h"
 #include "mock_server.h"
+#include <json/syntax_validator.h>
 
 void MockConnection::scheduleDcpStep() {
     if (userScheduleDcpStep) {
@@ -185,6 +186,11 @@ uint32_t mock_get_privilege_context_revision() {
 
 uint32_t MockCookie::getPrivilegeContextRevision() {
     return privilege_context_revision;
+}
+
+bool MockCookie::isValidJson(std::string_view view) {
+    auto validator = cb::json::SyntaxValidator::New();
+    return validator->validate(view);
 }
 
 MockCookie* cookie_to_mock_cookie(CookieIface* cookie) {

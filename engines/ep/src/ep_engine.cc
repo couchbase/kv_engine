@@ -5375,7 +5375,7 @@ protocol_binary_datatype_t EventuallyPersistentEngine::checkForDatatypeJson(
         }
 
         NonBucketAllocationGuard guard;
-        if (serverApi->cookie->is_valid_json(cookie, body)) {
+        if (cookie.isValidJson(body)) {
             datatype |= PROTOCOL_BINARY_DATATYPE_JSON;
         }
     }
