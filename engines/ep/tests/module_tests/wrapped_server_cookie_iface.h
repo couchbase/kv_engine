@@ -45,9 +45,6 @@ public:
     void release(CookieIface& cookie) override {
         wrapped->release(cookie);
     }
-    uint32_t get_privilege_context_revision(CookieIface& cookie) override {
-        return wrapped->get_privilege_context_revision(cookie);
-    }
     bool is_valid_json(CookieIface& cookie, std::string_view view) override {
         return wrapped->is_valid_json(cookie, view);
     }

@@ -174,6 +174,19 @@ bool MockCookie::sendResponse(cb::engine_errc,
     return true;
 }
 
+static uint32_t privilege_context_revision = 0;
+void mock_set_privilege_context_revision(uint32_t rev) {
+    privilege_context_revision = rev;
+}
+
+uint32_t mock_get_privilege_context_revision() {
+    return privilege_context_revision;
+}
+
+uint32_t MockCookie::getPrivilegeContextRevision() {
+    return privilege_context_revision;
+}
+
 MockCookie* cookie_to_mock_cookie(CookieIface* cookie) {
     return &asMockCookie(*cookie);
 }

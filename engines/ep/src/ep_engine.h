@@ -926,11 +926,6 @@ public:
                                   std::optional<ScopeID> sid,
                                   std::optional<CollectionID> cid) const;
 
-    /**
-     * @return the privilege revision, which changes when privileges do.
-     */
-    uint32_t getPrivilegeRevision(CookieIface& cookie) const;
-
     cb::engine_errc doRangeScanStats(const BucketStatCollector& collector,
                                      std::string_view statKey);
 

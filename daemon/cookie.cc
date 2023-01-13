@@ -1163,3 +1163,7 @@ bool Cookie::sendResponse(cb::engine_errc status,
                                    uint8_t(cb::mcbp::Datatype::Raw),
                                    {});
 }
+
+uint32_t Cookie::getPrivilegeContextRevision() {
+    return privilegeContext.getGeneration();
+}

@@ -451,7 +451,7 @@ void Filter::addStats(const AddStatFn& add_stat,
 
 cb::engine_errc Filter::checkPrivileges(
         CookieIface& cookie, const EventuallyPersistentEngine& engine) {
-    const auto rev = engine.getPrivilegeRevision(cookie);
+    const auto rev = cookie.getPrivilegeContextRevision();
     if (!lastCheckedPrivilegeRevision ||
         lastCheckedPrivilegeRevision.value() != rev) {
         lastCheckedPrivilegeRevision = rev;

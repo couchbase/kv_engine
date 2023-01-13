@@ -203,15 +203,6 @@ struct MockServerBucketApi : public ServerBucketIface {
     }
 };
 
-static uint32_t privilege_context_revision = 0;
-void mock_set_privilege_context_revision(uint32_t rev) {
-    privilege_context_revision = rev;
-}
-
-uint32_t mock_get_privilege_context_revision() {
-    return privilege_context_revision;
-}
-
 void mock_register_cookie(CookieIface& cookie) {
     auto [it, inserted] = cookieNotifications.lock()->try_emplace(&cookie);
     if (!inserted) {
@@ -269,10 +260,6 @@ struct MockServerCookieApi : public ServerCookieIface {
         if (c.decrementRefcount() == 0) {
             delete &c;
         }
-    }
-
-    uint32_t get_privilege_context_revision(CookieIface& cookie) override {
-        return privilege_context_revision;
     }
 
     bool is_valid_json(CookieIface&, std::string_view view) override {

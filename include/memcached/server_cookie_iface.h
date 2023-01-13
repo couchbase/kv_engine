@@ -58,11 +58,6 @@ struct ServerCookieIface {
     virtual void setDcpFlowControlBufferSize(CookieIface& cookie,
                                              std::size_t size) = 0;
 
-    /// Get the revision number for the privilege context for the cookie to
-    /// allow the engine to cache the result of a privilege check if locating
-    /// the sid / cid is costly.
-    virtual uint32_t get_privilege_context_revision(CookieIface& cookie) = 0;
-
     /// Validate the JSON. This method must NOT be called from a background
     /// thread as it use the front-end-threads instance for a JSON validator
     virtual bool is_valid_json(CookieIface& cookie, std::string_view) = 0;

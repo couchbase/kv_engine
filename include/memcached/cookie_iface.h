@@ -86,6 +86,11 @@ public:
     virtual bool isDatatypeSupported(
             protocol_binary_datatype_t datatype) const = 0;
 
+    /// Get the revision number for the privilege context for the cookie to
+    /// allow the engine to cache the result of a privilege check if locating
+    /// the sid / cid is costly.
+    virtual uint32_t getPrivilegeContextRevision() = 0;
+
     /**
      * Test if the cookie possess the requested privilege in its effective
      * set. If the cookie is using imposed users the privilege must be in

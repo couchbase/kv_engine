@@ -117,10 +117,6 @@ struct ServerCookieApi : public ServerCookieIface {
                 });
     }
 
-    uint32_t get_privilege_context_revision(CookieIface& cookie) override {
-        return asCookie(cookie).getPrivilegeContext().getGeneration();
-    }
-
     bool is_valid_json(CookieIface& cookieIface,
                        std::string_view view) override {
         auto& cookie = asCookie(cookieIface);

@@ -472,6 +472,8 @@ public:
 
     void setUnknownCollectionErrorContext(uint64_t manifestUid) override;
 
+    uint32_t getPrivilegeContextRevision() override;
+
     /// Check if the current command have the requested privilege
     cb::rbac::PrivilegeAccess checkPrivilege(cb::rbac::Privilege privilege) {
         return checkPrivilege(privilege,
