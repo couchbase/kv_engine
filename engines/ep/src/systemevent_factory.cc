@@ -41,8 +41,18 @@ std::unique_ptr<Item> SystemEventFactory::make(const DocKey& key,
 
 std::unique_ptr<Item> SystemEventFactory::makeCollectionEvent(
         CollectionID cid, cb::const_byte_buffer data, OptionalSeqno seqno) {
-    return make(
-            makeCollectionEventKey(cid), SystemEvent::Collection, data, seqno);
+    return make(makeCollectionEventKey(cid, SystemEvent::Collection),
+                SystemEvent::Collection,
+                data,
+                seqno);
+}
+
+std::unique_ptr<Item> SystemEventFactory::makeModifyCollectionEvent(
+        CollectionID cid, cb::const_byte_buffer data, OptionalSeqno seqno) {
+    return make(makeCollectionEventKey(cid, SystemEvent::ModifyCollection),
+                SystemEvent::ModifyCollection,
+                data,
+                seqno);
 }
 
 std::unique_ptr<Item> SystemEventFactory::makeScopeEvent(
@@ -58,18 +68,25 @@ std::unique_ptr<Item> SystemEventFactory::makeScopeEvent(
                 seqno);
 }
 
-StoredDocKey SystemEventFactory::makeCollectionEventKey(CollectionID cid) {
+StoredDocKey SystemEventFactory::makeCollectionEventKey(CollectionID cid,
+                                                        SystemEvent type) {
+    Expects(type != SystemEvent::Scope);
     // Make a key which is:
-    // [0x01] [0x00] [0xcid] _collection
-    StoredDocKey key1{std::string_view{Collections::CollectionEventDebugTag},
-                      cid};
-    StoredDocKey key2{key1, CollectionID{uint32_t(SystemEvent::Collection)}};
-    return StoredDocKey(key2, CollectionID::System);
+    // [0x01] [type] [0xcid] _collection
+    // i.e.
+    // [System Collection] [SystemEvent type] [cid] _collection
+    std::string key;
+    auto lebType = cb::mcbp::unsigned_leb128<uint32_t>(uint32_t(type));
+    key.append(lebType.begin(), lebType.end());
+    auto lebCid = cb::mcbp::unsigned_leb128<uint32_t>(uint32_t(cid));
+    key.append(lebCid.begin(), lebCid.end());
+    key.append(Collections::CollectionEventDebugTag);
+    return StoredDocKey(key, CollectionID::System);
 }
 
 std::pair<DiskDocKey, DiskDocKey>
 SystemEventFactory::makeCollectionEventKeyPairForRangeScan(CollectionID cid) {
-    auto start = makeCollectionEventKey(cid);
+    auto start = makeCollectionEventKey(cid, SystemEvent::Collection);
     std::string end(start.keyData(), start.size());
     // Append 255 so that end now encompasses the required range
     end += std::numeric_limits<uint8_t>::max();
@@ -122,7 +139,9 @@ std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(
     // Always ensure decompressed as we are about to use the value
     item->decompressValue();
     switch (SystemEvent(item->getFlags())) {
-    case SystemEvent::Collection: {
+    case SystemEvent::Collection:
+    // Modify stores/sends the same data as create
+    case SystemEvent::ModifyCollection: {
         if (!item->isDeleted()) {
             // Note: constructor is private and make_unique is a pain to make
             // friend
@@ -137,6 +156,8 @@ std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(
                         opaque, item, data, sid);
             }
         } else {
+            // Only create can be marked isDeleted
+            Expects(SystemEvent(item->getFlags()) == SystemEvent::Collection);
             // Note: constructor is private and make_unique is a pain to make
             // friend
             return std::make_unique<CollectionDropProducerMessage>(
@@ -175,8 +196,10 @@ SystemEventProducerMessage::makeWithFlatBuffersValue(
         uint32_t opaque, queued_item& item, cb::mcbp::DcpStreamId sid) {
     std::string_view name;
 
-    switch (SystemEvent(item->getFlags())) {
+    const auto event = SystemEvent(item->getFlags());
+    switch (event) {
     case SystemEvent::Collection:
+    case SystemEvent::ModifyCollection:
         if (!item->isDeleted()) {
             item->decompressValue();
 
@@ -184,6 +207,9 @@ SystemEventProducerMessage::makeWithFlatBuffersValue(
             const auto* fb = Collections::VB::Manifest::getCollectionFlatbuffer(
                     item->getValueView());
             name = fb->name()->string_view();
+        } else {
+            // Only create can be marked isDeleted
+            Expects(event == SystemEvent::Collection);
         }
         // else drop collection doesn't use the collection name
         break;

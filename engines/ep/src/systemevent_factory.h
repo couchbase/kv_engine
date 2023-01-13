@@ -46,6 +46,17 @@ public:
                                                      OptionalSeqno seqno);
 
     /**
+     * Make an Item representing the modification of a collection.
+     * @param cid The ID of the collection
+     * @param data The data which will be written to the value of the Item
+     * @param seqno An OptionalSeqno - if defined the returned Item will have
+     *        the seqno value set as its bySeqno.
+     * @return Item with correct configuration for a system event
+     */
+    static std::unique_ptr<Item> makeModifyCollectionEvent(
+            CollectionID cid, cb::const_byte_buffer data, OptionalSeqno seqno);
+
+    /**
      * Make an Item representing the Scope SystemEvent, the returned Item
      * will represent a "Create of SID" but can be marked deleted by the caller
      * to represent a "Drop of SID"
@@ -66,7 +77,8 @@ public:
      * @param cid The ID of the collection
      * @return StoredDocKey with a collection system event key
      */
-    static StoredDocKey makeCollectionEventKey(CollectionID cid);
+    static StoredDocKey makeCollectionEventKey(CollectionID cid,
+                                               SystemEvent type);
 
     /**
      * make a pair of keys (start and end) for use in a OSO range scan. This

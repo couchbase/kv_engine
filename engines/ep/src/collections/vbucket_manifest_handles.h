@@ -726,6 +726,31 @@ public:
     }
 
     /**
+     * Modify a collection for a replica VB, this is for receiving
+     * collection updates via DCP when the collection already has a start
+     * seqno assigned (assigned by the active).
+     *
+     * @param vb The vbucket to create the collection in
+     * @param manifestUid the uid of the manifest which made the change
+     * @param cid The collection id
+     * @param canDeduplicate New deduplicate value
+     * @param startSeqno The start-seqno assigned to the collection.
+     */
+    void replicaModifyCollection(::VBucket& vb,
+                                 ManifestUid manifestUid,
+                                 CollectionID cid,
+                                 CanDeduplicate canDeduplicate,
+                                 int64_t startSeqno) {
+        manifest.modifyCollection(vbStateLock,
+                                  *this,
+                                  vb,
+                                  manifestUid,
+                                  cid,
+                                  canDeduplicate,
+                                  OptionalSeqno{startSeqno});
+    }
+
+    /**
      * Drop collection for a replica VB, this is for receiving
      * collection updates via DCP and the collection already has an end
      * seqno assigned.

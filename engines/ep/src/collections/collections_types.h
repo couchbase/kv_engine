@@ -280,7 +280,9 @@ public:
     const cb::ExpiryLimit maxTtl;
     // can be updated (corrected) post creation from any thread
     std::atomic<Metered> metered;
-    const CanDeduplicate canDeduplicate;
+
+    // atomic: can be changed by any thread
+    std::atomic<CanDeduplicate> canDeduplicate;
 };
 std::ostream& operator<<(std::ostream& os,
                          const CollectionSharedMetaData& meta);
