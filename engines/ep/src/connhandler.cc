@@ -55,8 +55,7 @@ ConnHandler::ConnHandler(EventuallyPersistentEngine& e,
     logger = BucketLogger::createBucketLogger(
             std::to_string(reinterpret_cast<uintptr_t>(this)));
 
-    auto* cookie_api = e.getServerApi()->cookie;
-    cookie_api->setDcpConnHandler(*c, this);
+    c->getConnectionIface().setDcpConnHandler(this);
     logger->setConnectionId(c->getConnectionId());
 
     engine_.reserveCookie(*cookie);

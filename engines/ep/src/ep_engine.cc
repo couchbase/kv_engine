@@ -6229,7 +6229,7 @@ cb::engine_errc EventuallyPersistentEngine::dcpAddStream(CookieIface& cookie,
 
 ConnHandler* EventuallyPersistentEngine::tryGetConnHandler(
         CookieIface& cookie) {
-    auto* iface = serverApi->cookie->getDcpConnHandler(cookie);
+    auto* iface = cookie.getConnectionIface().getDcpConnHandler();
     if (iface) {
         auto* handler = dynamic_cast<ConnHandler*>(iface);
         if (handler) {

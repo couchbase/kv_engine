@@ -320,10 +320,6 @@ public:
     /// Set the reason for why the connection is being shut down
     void setTerminationReason(std::string reason);
 
-    bool isDCP() const {
-        return dcpConnHandlerIface.load() != nullptr;
-    }
-
     bool isDcpXattrAware() const {
         return dcpXattrAware;
     }
@@ -576,14 +572,6 @@ public:
 
     /// Initiate shutdown of the connection
     void shutdown();
-
-    DcpConnHandlerIface* getDcpConnHandlerIface() const {
-        return dcpConnHandlerIface.load(std::memory_order_acquire);
-    }
-
-    void setDcpConnHandlerIface(DcpConnHandlerIface* handler) {
-        dcpConnHandlerIface.store(handler, std::memory_order_release);
-    }
 
     /**
      * Set the name of the connected agent
@@ -1045,9 +1033,6 @@ protected:
     std::chrono::nanoseconds min_sched_time = std::chrono::nanoseconds::max();
     /// The longest time this connection was occupying the thread
     std::chrono::nanoseconds max_sched_time = std::chrono::nanoseconds::zero();
-
-    /// The stored DCP Connection Interface
-    std::atomic<DcpConnHandlerIface*> dcpConnHandlerIface{nullptr};
 
     /// Total number of bytes received on the network
     size_t totalRecv = 0;

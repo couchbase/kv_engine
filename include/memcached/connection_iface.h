@@ -11,6 +11,7 @@
 #pragma once
 
 #include <nlohmann/json.hpp>
+#include <atomic>
 #include <cstdint>
 #include <string_view>
 
@@ -18,6 +19,7 @@ enum class ConnectionPriority : uint8_t;
 namespace cb::rbac {
 struct UserIdent;
 }
+class DcpConnHandlerIface;
 
 /**
  * ConnectionIface is a base class for all of the connection objects in
@@ -77,7 +79,41 @@ public:
         return sockname;
     }
 
+    bool isDCP() const {
+        return dcpConnHandlerIface.load() != nullptr;
+    }
+
+    /**
+     * Set the DCP connection handler to be used for the connection the
+     * provided cookie belongs to.
+     *
+     * NOTE: No logging or memory allocation is allowed in the impl
+     *       of this as ep-engine will not try to set the memory
+     *       allocation guard before calling it
+     *
+     * @param handler The new handler (may be nullptr to clear the handler)
+     */
+    void setDcpConnHandler(DcpConnHandlerIface* handler) {
+        dcpConnHandlerIface.store(handler, std ::memory_order_release);
+    }
+
+    /**
+     * Get the DCP connection handler for the connection the provided
+     * cookie belongs to
+     *
+     * NOTE: No logging or memory allocation is allowed in the impl
+     *       of this as ep-engine will not try to set the memory
+     *       allocation guard before calling it
+     *
+     * @return The handler stored for the connection (may be nullptr if
+     *         none is specified)
+     */
+    DcpConnHandlerIface* getDcpConnHandler() const {
+        return dcpConnHandlerIface.load(std::memory_order_acquire);
+    }
+
 protected:
     const nlohmann::json peername;
     const nlohmann::json sockname;
+    std::atomic<DcpConnHandlerIface*> dcpConnHandlerIface{nullptr};
 };

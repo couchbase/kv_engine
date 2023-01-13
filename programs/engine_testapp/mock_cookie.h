@@ -107,13 +107,6 @@ public:
         return --references;
     }
 
-    void setConHandler(DcpConnHandlerIface* handler) {
-        connHandlerIface = handler;
-    }
-    DcpConnHandlerIface* getConHandler() const {
-        return connHandlerIface;
-    }
-
     void setMutationExtrasHandling(bool enable);
     bool isMutationExtrasSupported() const override;
 
@@ -202,7 +195,6 @@ protected:
     bool handle_collections_support{false};
     std::mutex mutex;
     std::atomic<uint8_t> references{1};
-    DcpConnHandlerIface* connHandlerIface = nullptr;
     std::string error_context;
     cb::compression::Buffer inflated_payload;
     EngineIface* engine = nullptr;

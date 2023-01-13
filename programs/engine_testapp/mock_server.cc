@@ -253,13 +253,6 @@ bool mock_cookie_notified(CookieIface* cookie) {
 }
 
 struct MockServerCookieApi : public ServerCookieIface {
-    void setDcpConnHandler(CookieIface& cookie,
-                           DcpConnHandlerIface* handler) override {
-        asMockCookie(cookie).setConHandler(handler);
-    }
-    DcpConnHandlerIface* getDcpConnHandler(CookieIface& cookie) override {
-        return asMockCookie(cookie).getConHandler();
-    }
     void setDcpFlowControlBufferSize(CookieIface& cookie,
                                      std::size_t size) override {
     }

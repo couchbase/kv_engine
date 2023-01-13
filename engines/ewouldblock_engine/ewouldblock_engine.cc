@@ -60,6 +60,7 @@
 #include <gsl/gsl-lite.hpp>
 #include <logger/logger.h>
 #include <memcached/collections.h>
+#include <memcached/connection_iface.h>
 #include <memcached/cookie_iface.h>
 #include <memcached/dcp.h>
 #include <memcached/durability_spec.h>
@@ -1517,7 +1518,7 @@ cb::engine_errc EWB_Engine::open(CookieIface& cookie,
                     std::make_pair(false, std::numeric_limits<uint64_t>::max());
         }
 
-        real_api->cookie->setDcpConnHandler(cookie, this);
+        cookie.getConnectionIface().setDcpConnHandler(this);
         return cb::engine_errc::success;
     }
 

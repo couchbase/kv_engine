@@ -35,13 +35,6 @@ public:
     ~WrappedServerCookieIface() override {
         get_mock_server_api()->cookie = wrapped;
     }
-    void setDcpConnHandler(CookieIface& cookie,
-                           DcpConnHandlerIface* handler) override {
-        wrapped->setDcpConnHandler(cookie, handler);
-    }
-    DcpConnHandlerIface* getDcpConnHandler(CookieIface& cookie) override {
-        return wrapped->getDcpConnHandler(cookie);
-    }
     void setDcpFlowControlBufferSize(CookieIface& cookie,
                                      std::size_t size) override {
         wrapped->setDcpFlowControlBufferSize(cookie, size);

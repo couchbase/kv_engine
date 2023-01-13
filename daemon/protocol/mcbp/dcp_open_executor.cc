@@ -100,7 +100,7 @@ void dcp_open_executor(Cookie& cookie) {
         connection.setType(dcpProducer ? Connection::Type::Producer
                                        : Connection::Type::Consumer);
 
-        if (!connection.getDcpConnHandlerIface()) {
+        if (!connection.getDcpConnHandler()) {
             throw std::logic_error(
                     "dcp_open_executor(): The underlying engine returned "
                     "success but did not set up a DCP connection handler "

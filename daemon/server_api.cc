@@ -93,15 +93,6 @@ struct ServerDocumentApi : public ServerDocumentIface {
 };
 
 struct ServerCookieApi : public ServerCookieIface {
-    void setDcpConnHandler(CookieIface& cookie,
-                           DcpConnHandlerIface* handler) override {
-        asCookie(cookie).getConnection().setDcpConnHandlerIface(handler);
-    }
-
-    DcpConnHandlerIface* getDcpConnHandler(CookieIface& cookie) override {
-        return asCookie(cookie).getConnection().getDcpConnHandlerIface();
-    }
-
     void setDcpFlowControlBufferSize(CookieIface& cookie,
                                      std::size_t size) override {
         asCookie(cookie).getConnection().setDcpFlowControlBufferSize(size);
