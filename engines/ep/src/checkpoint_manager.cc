@@ -64,7 +64,8 @@ CheckpointManager::CheckpointManager(EPStats& st,
                       maxVisibleSeqno,
                       {},
                       maxPrepareSeqno,
-                      CheckpointType::Memory);
+                      CheckpointType::Memory,
+                      CheckpointHistorical::No);
 
     if (checkpointConfig.isPersistenceEnabled()) {
         // Register the persistence cursor
@@ -130,7 +131,8 @@ void CheckpointManager::addNewCheckpoint(
                      lastBySeqno + 1,
                      maxVisibleSeqno,
                      {},
-                     CheckpointType::Memory);
+                     CheckpointType::Memory,
+                     CheckpointHistorical::No);
 }
 
 void CheckpointManager::addNewCheckpoint(
@@ -139,7 +141,8 @@ void CheckpointManager::addNewCheckpoint(
         uint64_t snapEndSeqno,
         uint64_t visibleSnapEnd,
         std::optional<uint64_t> highCompletedSeqno,
-        CheckpointType checkpointType) {
+        CheckpointType checkpointType,
+        CheckpointHistorical historical) {
     // First, we must close the open checkpoint.
     auto* const oldOpenCkptPtr = checkpointList.back().get();
     auto& oldOpenCkpt = *oldOpenCkptPtr;
@@ -173,7 +176,8 @@ void CheckpointManager::addNewCheckpoint(
                       visibleSnapEnd,
                       highCompletedSeqno,
                       hps,
-                      checkpointType);
+                      checkpointType,
+                      historical);
 
     // If cursors reached to the end of its current checkpoint, move it to the
     // next checkpoint. That is done to help in making checkpoints eligible for
@@ -219,7 +223,8 @@ void CheckpointManager::addOpenCheckpoint(
         uint64_t visibleSnapEnd,
         std::optional<uint64_t> highCompletedSeqno,
         uint64_t highPreparedSeqno,
-        CheckpointType checkpointType) {
+        CheckpointType checkpointType,
+        CheckpointHistorical historical) {
     Expects(checkpointList.empty() ||
             checkpointList.back()->getState() ==
                     checkpoint_state::CHECKPOINT_CLOSED);
@@ -249,7 +254,8 @@ void CheckpointManager::addOpenCheckpoint(
                                              highCompletedSeqno,
                                              highPreparedSeqno,
                                              vb.getId(),
-                                             checkpointType);
+                                             checkpointType,
+                                             historical);
     // Add an empty-item into the new checkpoint.
     // We need this because every CheckpointCursor will point to this empty-item
     // at creation. So, the cursor will point at the first actual non-meta item
@@ -1157,7 +1163,8 @@ void CheckpointManager::clear(const std::lock_guard<std::mutex>& lh,
                       maxVisibleSeqno,
                       {},
                       0, // HPS=0 because we have correct val on disk and in PDM
-                      CheckpointType::Memory);
+                      CheckpointType::Memory,
+                      CheckpointHistorical::No);
     resetCursors();
 }
 
@@ -1288,7 +1295,8 @@ void CheckpointManager::createSnapshot(
         uint64_t snapEndSeqno,
         std::optional<uint64_t> highCompletedSeqno,
         CheckpointType checkpointType,
-        uint64_t visibleSnapEnd) {
+        uint64_t visibleSnapEnd,
+        CheckpointHistorical historical) {
     if (isDiskCheckpointType(checkpointType)) {
         Expects(highCompletedSeqno.has_value());
     }
@@ -1310,7 +1318,8 @@ void CheckpointManager::createSnapshot(
                      snapEndSeqno,
                      visibleSnapEnd,
                      highCompletedSeqno,
-                     checkpointType);
+                     checkpointType,
+                     historical);
 }
 
 void CheckpointManager::extendOpenCheckpoint(uint64_t snapEnd,

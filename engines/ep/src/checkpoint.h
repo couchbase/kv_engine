@@ -284,7 +284,8 @@ public:
                std::optional<uint64_t> highCompletedSeqno,
                uint64_t highPreparedSeqno,
                Vbid vbid,
-               CheckpointType checkpointType);
+               CheckpointType checkpointType,
+               CheckpointHistorical historical);
 
     ~Checkpoint();
 
@@ -760,6 +761,10 @@ private:
     // and allows the flusher to get the max value irrespective of
     // de-duplication.
     std::optional<uint64_t> maxDeletedRevSeqno;
+
+    // Whether the snapshot stored in this checkpoint is part of a historical
+    // sequence of mutation.
+    const CheckpointHistorical historical;
 
     friend std::ostream& operator <<(std::ostream& os, const Checkpoint& m);
 };
