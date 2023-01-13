@@ -15,6 +15,7 @@
 #include <protocol/connection/frameinfo.h>
 #include <protocol/mcbp/ewb_encode.h>
 #include <algorithm>
+#include <filesystem>
 
 class RegressionTest : public TestappClientTest {};
 
@@ -585,4 +586,63 @@ TEST_P(RegressionTest, MB49126) {
             "/all/", cb::mcbp::ClientOpcode::CreateBucket});
     ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
     ASSERT_NE(0, rsp.getDataJson()["total"].get<int>());
+}
+
+/// Verify that the correct username get logged as part of authentication
+/// failures
+TEST_P(RegressionTest, MB54848) {
+    auto& conn = getConnection();
+    try {
+        conn.authenticate("jones", "invalidpassword", "PLAIN");
+        FAIL() << "authentication should fail";
+    } catch (const std::exception& e) {
+        EXPECT_STREQ("Authentication failed: Auth failure (32)", e.what());
+    }
+
+    try {
+        conn.authenticate("nouser", "password", "PLAIN");
+        FAIL() << "authentication should fail";
+    } catch (const std::exception& e) {
+        EXPECT_STREQ("Authentication failed: Auth failure (32)", e.what());
+    }
+
+    try {
+        conn.authenticate("UserWithoutProfile", "password", "PLAIN");
+        FAIL() << "authentication should fail";
+    } catch (const std::exception& e) {
+        EXPECT_STREQ("Authentication failed: Auth failure (32)", e.what());
+    }
+
+    // logging is async, so we need to iterate over the files until we've fond
+    // the entries
+    const auto timeout =
+            std::chrono::steady_clock::now() + std::chrono::seconds{30};
+    bool found_no_user = false;
+    bool found_wrong_passwd = false;
+    bool found_no_profile = false;
+    do {
+        mcd_env->iterateLogLines([&found_no_user,
+                                  &found_wrong_passwd,
+                                  &found_no_profile](auto line) {
+            if (line.find(": User [<ud>nouser</ud>] not found") !=
+                std::string_view::npos) {
+                found_no_user = true;
+            } else if (line.find(": Invalid password specified for "
+                                 "[<ud>jones</ud>].") !=
+                       std::string_view::npos) {
+                found_wrong_passwd = true;
+            } else if (line.find(": User [<ud>UserWithoutProfile</ud>] is not "
+                                 "defined as a user in Couchbase.") !=
+                       std::string_view::npos) {
+                found_no_profile = true;
+            }
+
+            return true;
+        });
+        if (found_no_user && found_wrong_passwd && found_no_profile) {
+            // We've found everything we're waiting for
+            return;
+        }
+    } while (std::chrono::steady_clock::now() < timeout);
+    FAIL() << "Timed out waiting for log messages to appear";
 }

@@ -2106,11 +2106,11 @@ static std::string formatMcbpExceptionMsg(std::string_view prefix,
                                           cb::mcbp::Status reason,
                                           std::string_view context = {}) {
     // Format the error message
-    return fmt::format("{}: {}{}{}, {} ({})",
+    return fmt::format("{}: {}{}{}{} ({})",
                        prefix,
                        context.empty() ? "" : "'",
                        context,
-                       context.empty() ? "" : "'",
+                       context.empty() ? "" : "', ",
                        reason,
                        uint16_t(reason));
 }

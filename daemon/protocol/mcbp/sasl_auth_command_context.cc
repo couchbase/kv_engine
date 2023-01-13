@@ -138,7 +138,7 @@ cb::engine_errc SaslAuthCommandContext::doHandleSaslAuthTaskResult(
     case cb::sasl::Error::NO_USER:
         LOG_WARNING("{}: User [{}] not found. Mechanism:[{}], UUID:[{}]",
                     connection.getId(),
-                    cb::UserDataView(connection.getUser().name),
+                    cb::UserDataView(serverContext.getUser().name),
                     mechanism,
                     cookie.getEventId());
         audit_auth_failure(
@@ -150,7 +150,7 @@ cb::engine_errc SaslAuthCommandContext::doHandleSaslAuthTaskResult(
                 "{}: Invalid password specified for [{}]. Mechanism:[{}], "
                 "UUID:[{}]",
                 connection.getId(),
-                cb::UserDataView(connection.getUser().name),
+                cb::UserDataView(serverContext.getUser().name),
                 mechanism,
                 cookie.getEventId());
         audit_auth_failure(connection,
@@ -165,7 +165,7 @@ cb::engine_errc SaslAuthCommandContext::doHandleSaslAuthTaskResult(
                 "{}: User [{}] is not defined as a user in Couchbase. "
                 "Mechanism:[{}], UUID:[{}]",
                 connection.getId(),
-                cb::UserDataView(connection.getUser().name),
+                cb::UserDataView(serverContext.getUser().name),
                 mechanism,
                 cookie.getEventId());
         return authFailure(error);
