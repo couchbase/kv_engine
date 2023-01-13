@@ -61,8 +61,7 @@ struct ServerDocumentApi : public ServerDocumentIface {
                              item_info& info) override {
         // Sanity check that people aren't calling the method with a bogus
         // cookie
-        auto& cookie = dynamic_cast<Cookie&>(void_cookie);
-
+        auto& cookie = asCookie(void_cookie);
         auto* context = cookie.getCommandContext();
         if (context != nullptr) {
             return context->pre_link_document(info);
@@ -77,7 +76,7 @@ struct ServerDocumentApi : public ServerDocumentIface {
     void audit_document_access(
             CookieIface& void_cookie,
             cb::audit::document::Operation operation) override {
-        auto& cookie = dynamic_cast<Cookie&>(void_cookie);
+        auto& cookie = asCookie(void_cookie);
         cb::audit::document::add(cookie, operation, cookie.getRequestKey());
     }
 
@@ -140,7 +139,7 @@ struct ServerCookieApi : public ServerCookieIface {
 
     std::pair<uint32_t, std::string> get_log_info(
             CookieIface& void_cookie) override {
-        auto& cookie = dynamic_cast<const Cookie&>(void_cookie);
+        auto& cookie = asCookie(void_cookie);
         return std::make_pair(cookie.getConnectionId(),
                               cookie.getConnection().getDescription());
     }
