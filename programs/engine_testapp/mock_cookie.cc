@@ -193,6 +193,16 @@ bool MockCookie::isValidJson(std::string_view view) {
     return validator->validate(view);
 }
 
+void MockCookie::reserve() {
+    incrementRefcount();
+}
+
+void MockCookie::release() {
+    if (decrementRefcount() == 0) {
+        delete this;
+    }
+}
+
 MockCookie* cookie_to_mock_cookie(CookieIface* cookie) {
     return &asMockCookie(*cookie);
 }

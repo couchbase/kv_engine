@@ -1171,3 +1171,19 @@ uint32_t Cookie::getPrivilegeContextRevision() {
 bool Cookie::isValidJson(std::string_view view) {
     return getConnection().getThread().isValidJson(*this, view);
 }
+
+void Cookie::reserve() {
+    incrementRefcount();
+}
+
+void Cookie::release() {
+    connection.getThread().eventBase.runInEventBaseThreadAlwaysEnqueue(
+            [this]() {
+                TRACE_LOCKGUARD_TIMED(connection.getThread().mutex,
+                                      "mutex",
+                                      "release",
+                                      SlowMutexThreshold);
+                decrementRefcount();
+                getConnection().triggerCallback();
+            });
+}

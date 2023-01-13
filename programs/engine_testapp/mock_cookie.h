@@ -121,6 +121,9 @@ public:
         return sfd;
     }
 
+    void reserve() override;
+    void release() override;
+
     void notifyIoComplete(cb::engine_errc status) override;
 
     std::mutex& getMutex();

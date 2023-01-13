@@ -1263,11 +1263,10 @@ cb::engine_errc EWB_Engine::unknown_command(CookieIface& cookie,
             // Reserve the cookie and schedule a release of the
             // cookie and throw an exception for the cookie
             {
-                auto* cookie_api = gsa()->cookie;
-                cookie_api->reserve(cookie);
-                std::thread release{[cookie_api, &cookie]() {
+                cookie.reserve();
+                std::thread release{[&cookie]() {
                     // This will block on the thread mutex
-                    cookie_api->release(cookie);
+                    cookie.release();
                 }};
                 release.detach();
             }

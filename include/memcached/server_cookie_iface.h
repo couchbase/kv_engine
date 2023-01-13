@@ -35,20 +35,6 @@ struct ServerCookieIface {
     virtual ~ServerCookieIface() = default;
 
     /**
-     * Notify the core that we're holding on to this cookie for
-     * future use. (The core guarantees it will not invalidate the
-     * memory until the cookie is invalidated by calling release())
-     */
-    virtual void reserve(CookieIface& cookie) = 0;
-
-    /**
-     * Notify the core that we're releasing the reference to the
-     * The engine is not allowed to use the cookie (the core may invalidate
-     * the memory)
-     */
-    virtual void release(CookieIface& cookie) = 0;
-
-    /**
      * Set the size of the DCP flow control buffer size used by this
      * DCP producer
      *

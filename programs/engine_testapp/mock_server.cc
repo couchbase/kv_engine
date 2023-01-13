@@ -250,17 +250,6 @@ struct MockServerCookieApi : public ServerCookieIface {
     void setDcpFlowControlBufferSize(CookieIface& cookie,
                                      std::size_t size) override {
     }
-
-    void reserve(CookieIface& cookie) override {
-        asMockCookie(cookie).incrementRefcount();
-    }
-
-    void release(CookieIface& cookie) override {
-        auto& c = asMockCookie(cookie);
-        if (c.decrementRefcount() == 0) {
-            delete &c;
-        }
-    }
 };
 
 ServerApi* get_mock_server_api() {

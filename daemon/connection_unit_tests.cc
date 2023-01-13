@@ -86,9 +86,7 @@ TEST_F(ConnectionUnitTests, NotificationOrder) {
 
     auto cookie = std::make_unique<Cookie>(connection);
     // fake the engine creating a ConnHandler and reserving the cookie
-    auto* cookieIface = get_server_api()->cookie;
-    ASSERT_TRUE(cookieIface);
-    cookieIface->reserve(*cookie);
+    cookie->reserve();
 
     folly::Baton<> eventBaseThreadBusy;
     folly::Baton<> callbackOneScheduled;
@@ -128,7 +126,7 @@ TEST_F(ConnectionUnitTests, NotificationOrder) {
 
         // *Callback 2* queued inside release
         ASSERT_TRUE(evb.inRunningEventBaseThread());
-        cookieIface->release(*cookie);
+        cookie->release();
     });
 
     // wait for the event base thread to have started draining the

@@ -1780,12 +1780,12 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
 
 void EventuallyPersistentEngine::reserveCookie(CookieIface& cookie) {
     NonBucketAllocationGuard guard;
-    serverApi->cookie->reserve(cookie);
+    cookie.reserve();
 }
 
 void EventuallyPersistentEngine::releaseCookie(CookieIface& cookie) {
     NonBucketAllocationGuard guard;
-    serverApi->cookie->release(cookie);
+    cookie.release();
 }
 
 void EventuallyPersistentEngine::setErrorContext(CookieIface& cookie,

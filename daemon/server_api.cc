@@ -97,25 +97,6 @@ struct ServerCookieApi : public ServerCookieIface {
                                      std::size_t size) override {
         asCookie(cookie).getConnection().setDcpFlowControlBufferSize(size);
     }
-
-    void reserve(CookieIface& void_cookie) override {
-        asCookie(void_cookie).incrementRefcount();
-    }
-
-    void release(CookieIface& void_cookie) override {
-        auto& cookie = asCookie(void_cookie);
-        auto& connection = cookie.getConnection();
-        connection.getThread().eventBase.runInEventBaseThreadAlwaysEnqueue(
-                [&cookie]() {
-                    TRACE_LOCKGUARD_TIMED(
-                            cookie.getConnection().getThread().mutex,
-                            "mutex",
-                            "release",
-                            SlowMutexThreshold);
-                    cookie.decrementRefcount();
-                    cookie.getConnection().triggerCallback();
-                });
-    }
 };
 
 class ServerApiImpl : public ServerApi {

@@ -61,6 +61,20 @@ public:
     /// so the cookie is no longer blocked.
     virtual void notifyIoComplete(cb::engine_errc status) = 0;
 
+    /**
+     * Notify the core that we're holding on to this cookie for
+     * future use. (The core guarantees it will not invalidate the
+     * memory until the cookie is invalidated by calling release())
+     */
+    virtual void reserve() = 0;
+
+    /**
+     * Notify the core that we're releasing the reference to the
+     * The engine is not allowed to use the cookie (the core may invalidate
+     * the memory).
+     */
+    virtual void release() = 0;
+
     // The underlying engine may store information bound to the given cookie
     // in an opaque pointer. The framework will _NOT_ take ownership of the
     // data, and the engine must deal with all allocation/deallocation of the
