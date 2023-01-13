@@ -397,8 +397,6 @@ ADD_LIBRARY(ep_objs OBJECT
             src/range_scans/range_scan_create_task.cc
             src/range_scans/range_scan_owner.cc
             src/rollback_result.cc
-            src/server_document_iface_border_guard.cc
-            src/server_document_iface_border_guard.h
             src/seqlist.cc
             src/seqno_persistence_notify_task.cc
             src/serialised_dockey.cc

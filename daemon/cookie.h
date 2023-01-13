@@ -552,7 +552,7 @@ public:
     void reserve() override;
     void release() override;
     void notifyIoComplete(cb::engine_errc status) override;
-
+    cb::engine_errc preLinkDocument(item_info& info) override;
     /// Mark this cookie as a durable request
     void setDurable() {
         durable = true;

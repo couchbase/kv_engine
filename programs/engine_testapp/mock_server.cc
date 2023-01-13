@@ -60,12 +60,6 @@ std::condition_variable cookieNotificationSignal;
 
 /* Forward declarations */
 
-static PreLinkFunction pre_link_function;
-
-void mock_set_pre_link_function(PreLinkFunction function) {
-    pre_link_function = std::move(function);
-}
-
 /* time-sensitive callers can call it by hand with this, outside the
    normal ever-1-second timer */
 static rel_time_t mock_get_current_time() {
@@ -166,14 +160,6 @@ struct MockServerCoreApi : public ServerCoreIface {
 };
 
 struct MockServerDocumentApi : public ServerDocumentIface {
-    cb::engine_errc pre_link(CookieIface& cookie, item_info& info) override {
-        if (pre_link_function) {
-            pre_link_function(info);
-        }
-
-        return cb::engine_errc::success;
-    }
-
     std::string pre_expiry(const item_info& itm_info) override {
         return document_pre_expiry(itm_info);
     }

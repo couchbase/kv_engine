@@ -36,7 +36,7 @@ class CollectionID;
 class ScopeID;
 using protocol_binary_datatype_t = uint8_t;
 class ConnectionIface;
-
+struct item_info;
 namespace cb::audit::document {
 enum class Operation;
 }
@@ -268,6 +268,29 @@ public:
     ///       ep-engine and to the core
     virtual void auditDocumentAccess(
             cb::audit::document::Operation operation){};
+
+    /**
+     * This callback is called from the underlying engine right before
+     * it is linked into the list of available documents (it is currently
+     * not visible to anyone). The engine should have validated all
+     * properties set in the document by the client and the core, and
+     * assigned a new CAS number for the document (and sequence number if
+     * the underlying engine use those).
+     *
+     * The callback may at this time do post processing of the document
+     * content (it is allowed to modify the content data, but not
+     * reallocate or change the size of the data in any way).
+     *
+     * Given that the engine MAY HOLD LOCKS when calling this function
+     * the core is *NOT* allowed to acquire *ANY* locks (except for doing
+     * some sort of memory allocation for a temporary buffer).
+     *
+     * @return cb::engine_errc::success means that the underlying engine should
+     *                        proceed to link the item. All other
+     *                        error codes means that the engine should
+     *                        *NOT* link the item
+     */
+    virtual cb::engine_errc preLinkDocument(item_info& info) = 0;
 
 protected:
     std::atomic<size_t> document_bytes_read = 0;

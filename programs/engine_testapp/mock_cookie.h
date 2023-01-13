@@ -190,6 +190,8 @@ public:
         userNotifyIoComplete = std::move(func);
     }
 
+    cb::engine_errc preLinkDocument(item_info& info) override;
+
 protected:
     static CheckPrivilegeFunction checkPrivilegeFunction;
     static CheckForPrivilegeAtLeastInOneCollectionFunction

@@ -203,6 +203,20 @@ void MockCookie::release() {
     }
 }
 
+static PreLinkFunction pre_link_function;
+
+void mock_set_pre_link_function(PreLinkFunction function) {
+    pre_link_function = std::move(function);
+}
+
+cb::engine_errc MockCookie::preLinkDocument(item_info& info) {
+    if (pre_link_function) {
+        pre_link_function(info);
+    }
+
+    return cb::engine_errc::success;
+}
+
 MockCookie* cookie_to_mock_cookie(CookieIface* cookie) {
     return &asMockCookie(*cookie);
 }

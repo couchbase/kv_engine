@@ -13,6 +13,7 @@
 
 #include "ep_engine.h"
 #include "item.h"
+#include "objectregistry.h"
 
 #include <memcached/server_document_iface.h>
 
@@ -22,5 +23,6 @@ void PreLinkDocumentContext::preLink(uint64_t cas, uint64_t seqno) {
     item_info info = item->toItemInfo(0, HlcCasSeqnoUninitialised);
     info.cas = cas;
     info.seqno = seqno;
-    engine.getServerApi()->document->pre_link(*cookie, info);
+    NonBucketAllocationGuard guard;
+    cookie->preLinkDocument(info);
 }

@@ -56,19 +56,6 @@ struct ServerBucketApi : public ServerBucketIface {
 };
 
 struct ServerDocumentApi : public ServerDocumentIface {
-    cb::engine_errc pre_link(CookieIface& void_cookie,
-                             item_info& info) override {
-        // Sanity check that people aren't calling the method with a bogus
-        // cookie
-        auto& cookie = asCookie(void_cookie);
-        auto* context = cookie.getCommandContext();
-        if (context != nullptr) {
-            return context->pre_link_document(info);
-        }
-
-        return cb::engine_errc::success;
-    }
-
     std::string pre_expiry(const item_info& itm_info) override {
         return document_pre_expiry(itm_info);
     }

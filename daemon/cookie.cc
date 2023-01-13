@@ -1191,3 +1191,10 @@ void Cookie::release() {
 void Cookie::auditDocumentAccess(cb::audit::document::Operation operation) {
     cb::audit::document::add(*this, operation, getRequestKey());
 }
+cb::engine_errc Cookie::preLinkDocument(item_info& info) {
+    if (commandContext) {
+        return commandContext->pre_link_document(info);
+    }
+
+    return cb::engine_errc::success;
+}

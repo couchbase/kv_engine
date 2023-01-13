@@ -43,7 +43,6 @@
 #include "quota_sharing_item_pager.h"
 #include "range_scans/range_scan_callbacks.h"
 #include "replicationthrottle.h"
-#include "server_document_iface_border_guard.h"
 #include "stats-info.h"
 #include "string_utils.h"
 #include "trace_helpers.h"

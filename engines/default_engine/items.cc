@@ -11,6 +11,7 @@
 #include "default_engine_internal.h"
 #include "engine_manager.h"
 #include <logger/logger.h>
+#include <memcached/cookie_iface.h>
 #include <memcached/server_core_iface.h>
 #include <memcached/server_document_iface.h>
 #include <platform/cb_malloc.h>
@@ -321,8 +322,7 @@ int do_item_link(struct default_engine* engine,
     info.value[0].iov_len = it->nbytes;
     info.datatype = it->datatype;
 
-    if (engine->server.document->pre_link(*cookie, info) !=
-        cb::engine_errc::success) {
+    if (cookie->preLinkDocument(info) != cb::engine_errc::success) {
         return 0;
     }
 
