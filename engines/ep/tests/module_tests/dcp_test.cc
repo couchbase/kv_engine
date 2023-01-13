@@ -44,7 +44,6 @@
 #include "test_helpers.h"
 #include "vbucket.h"
 #include "warmup.h"
-#include "wrapped_server_cookie_iface.h"
 
 #include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>
