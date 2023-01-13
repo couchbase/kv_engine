@@ -27,7 +27,12 @@ static std::pair<bool, std::optional<CollectionID>> getCollectionID(
             break;
         }
         case SystemEvent::Scope:
+            // system event but not for a collection
             return {true, {}};
+        case SystemEvent::ModifyCollection:
+            // @todo: separate patch to cover this.
+            throw std::runtime_error(
+                    "No ModifyCollection support in flush_accounting");
         }
     } else {
         cid = key.getCollectionID();
