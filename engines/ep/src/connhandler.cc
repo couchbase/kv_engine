@@ -48,7 +48,7 @@ ConnHandler::ConnHandler(EventuallyPersistentEngine& e,
       created(ep_current_time()),
       disconnect(false),
       paused(false),
-      authenticatedUser(e.getServerApi()->cookie->get_authenticated_user(*c)),
+      authenticatedUser(c->getConnectionIface().getUser().name),
       connected_port(
               c->getConnectionIface().getSockname()["port"].get<in_port_t>()),
       idleTimeout(e.getConfiguration().getDcpIdleTimeout()) {

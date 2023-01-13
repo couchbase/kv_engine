@@ -15,6 +15,9 @@
 #include <string_view>
 
 enum class ConnectionPriority : uint8_t;
+namespace cb::rbac {
+struct UserIdent;
+}
 
 /**
  * ConnectionIface is a base class for all of the connection objects in
@@ -58,6 +61,13 @@ public:
      * so the std::string_view should not be cached.
      */
     virtual std::string_view getDescription() const = 0;
+
+    /**
+     * Get the username this connection is authenticated as (should only be
+     * called in the context of the front end thread and not be cached as
+     * it may updated by the front end threads as part of authentication)
+     */
+    virtual const cb::rbac::UserIdent& getUser() const = 0;
 
     const nlohmann::json& getPeername() const {
         return peername;

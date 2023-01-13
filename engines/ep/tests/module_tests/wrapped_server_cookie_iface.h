@@ -55,9 +55,6 @@ public:
     uint32_t get_privilege_context_revision(CookieIface& cookie) override {
         return wrapped->get_privilege_context_revision(cookie);
     }
-    std::string get_authenticated_user(CookieIface& cookie) override {
-        return wrapped->get_authenticated_user(cookie);
-    }
     bool is_valid_json(CookieIface& cookie, std::string_view view) override {
         return wrapped->is_valid_json(cookie, view);
     }

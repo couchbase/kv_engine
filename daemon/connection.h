@@ -157,10 +157,7 @@ public:
      */
     bool setTcpNoDelay(bool enable);
 
-    /**
-     * Get the username this connection is authenticated as
-     */
-    const cb::rbac::UserIdent& getUser() const {
+    const cb::rbac::UserIdent& getUser() const override {
         return user;
     }
 

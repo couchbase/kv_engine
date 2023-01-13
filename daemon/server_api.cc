@@ -130,10 +130,6 @@ struct ServerCookieApi : public ServerCookieIface {
         return asCookie(cookie).getPrivilegeContext().getGeneration();
     }
 
-    std::string get_authenticated_user(CookieIface& cookie) override {
-        return asCookie(cookie).getConnection().getUser().name;
-    }
-
     bool is_valid_json(CookieIface& cookieIface,
                        std::string_view view) override {
         auto& cookie = asCookie(cookieIface);

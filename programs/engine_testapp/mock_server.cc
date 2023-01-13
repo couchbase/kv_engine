@@ -279,10 +279,6 @@ struct MockServerCookieApi : public ServerCookieIface {
         return privilege_context_revision;
     }
 
-    std::string get_authenticated_user(CookieIface& cookie) override {
-        return asMockCookie(cookie).getAuthedUser();
-    }
-
     bool is_valid_json(CookieIface&, std::string_view view) override {
         auto validator = cb::json::SyntaxValidator::New();
         return validator->validate(view);

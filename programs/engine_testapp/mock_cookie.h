@@ -12,6 +12,7 @@
 #include <memcached/connection_iface.h>
 #include <memcached/cookie_iface.h>
 #include <memcached/engine_error.h>
+#include <memcached/rbac/privilege_database.h>
 #include <memcached/tracer.h>
 #include <memcached/types.h>
 #include <platform/compression/buffer.h>
@@ -43,9 +44,11 @@ public:
     }
 
     std::string_view getDescription() const override;
+    const cb::rbac::UserIdent& getUser() const override;
 
 protected:
     ConnectionPriority priority{ConnectionPriority::Medium};
+    cb::rbac::UserIdent user{"nobody", cb::rbac::Domain::Local};
 };
 
 class MockCookie : public CookieIface {
@@ -138,10 +141,6 @@ public:
         return {inflated_payload.data(), inflated_payload.size()};
     }
 
-    std::string getAuthedUser() const {
-        return authenticatedUser;
-    }
-
     using CheckPrivilegeFunction = std::function<cb::rbac::PrivilegeAccess(
             const CookieIface&,
             cb::rbac::Privilege,
@@ -203,7 +202,6 @@ protected:
     bool handle_collections_support{false};
     std::mutex mutex;
     std::atomic<uint8_t> references{1};
-    std::string authenticatedUser{"nobody"};
     DcpConnHandlerIface* connHandlerIface = nullptr;
     std::string error_context;
     cb::compression::Buffer inflated_payload;

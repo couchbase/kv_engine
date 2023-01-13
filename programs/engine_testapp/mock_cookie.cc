@@ -27,6 +27,9 @@ std::string_view MockConnection::getDescription() const {
     using namespace std::string_view_literals;
     return "[you - me]"sv;
 }
+const cb::rbac::UserIdent& MockConnection::getUser() const {
+    return user;
+}
 
 MockCookie::CheckPrivilegeFunction MockCookie::checkPrivilegeFunction;
 MockCookie::CheckForPrivilegeAtLeastInOneCollectionFunction
