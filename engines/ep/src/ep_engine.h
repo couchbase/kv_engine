@@ -59,6 +59,10 @@ namespace cb::prometheus {
 enum class MetricGroup;
 } // namespace cb::prometheus
 
+namespace cb::audit::document {
+enum class Operation;
+}
+
 /**
     To allow Engines to run tasks.
 **/
@@ -976,6 +980,9 @@ protected:
     cb::engine_errc checkPrivilege(CookieIface& cookie,
                                    cb::rbac::Privilege priv,
                                    DocKey key) const;
+
+    void auditDocumentAccess(CookieIface& cookie,
+                             cb::audit::document::Operation operation) const;
 
     void setMaxItemSize(size_t value) {
         maxItemSize = value;

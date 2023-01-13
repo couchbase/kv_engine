@@ -29,9 +29,6 @@ public:
     explicit ServerDocumentIfaceBorderGuard(ServerDocumentIface& guarded);
     cb::engine_errc pre_link(CookieIface& cookie, item_info& info) override;
     std::string pre_expiry(const item_info& itm_info) override;
-    void audit_document_access(
-            CookieIface& cookie,
-            cb::audit::document::Operation operation) override;
     void document_expired(const EngineIface& engine, size_t nbytes) override;
 
 protected:

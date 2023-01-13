@@ -67,16 +67,6 @@ struct ServerDocumentIface {
     virtual std::string pre_expiry(const item_info& itm_info) = 0;
 
     /**
-     * Add an entry to the audit trail for access to the document specified
-     * in the key for this cookie.
-     *
-     * @param cookie The cookie representing the operation
-     * @param operation The type of access for the operation
-     */
-    virtual void audit_document_access(
-            CookieIface& cookie, cb::audit::document::Operation operation) = 0;
-
-    /**
      * Notify the core that the engine expired the document
      *
      * @param engine The engine which expired a document

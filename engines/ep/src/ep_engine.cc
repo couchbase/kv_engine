@@ -4902,6 +4902,12 @@ cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
     return checkPrivilege(cookie, priv, key.getCollectionID());
 }
 
+void EventuallyPersistentEngine::auditDocumentAccess(
+        CookieIface& cookie, cb::audit::document::Operation operation) const {
+    NonBucketAllocationGuard guard;
+    cookie.auditDocumentAccess(operation);
+}
+
 cb::engine_errc EventuallyPersistentEngine::checkPrivilege(
         CookieIface& cookie, cb::rbac::Privilege priv, CollectionID cid) const {
     ScopeID sid{ScopeID::Default};
@@ -5461,9 +5467,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
 
     if (ret == cb::engine_errc::success) {
         cookie.addDocumentWriteBytes(value.size() + request.getKey().size());
-        ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
-        guardedIface.audit_document_access(
-                cookie, cb::audit::document::Operation::Modify);
+        auditDocumentAccess(cookie, cb::audit::document::Operation::Modify);
         ++stats.numOpsSetMeta;
         auto endTime = std::chrono::steady_clock::now();
         if (cookie.isTracingEnabled()) {
@@ -5760,9 +5764,7 @@ cb::engine_errc EventuallyPersistentEngine::deleteWithMeta(
 
     if (ret == cb::engine_errc::success) {
         cookie.addDocumentWriteBytes(value.size() + request.getKey().size());
-        ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
-        guardedIface.audit_document_access(
-                cookie, cb::audit::document::Operation::Delete);
+        auditDocumentAccess(cookie, cb::audit::document::Operation::Delete);
         stats.numOpsDelMeta++;
     } else if (ret == cb::engine_errc::no_memory) {
         return memoryCondition();
@@ -5992,9 +5994,7 @@ cb::engine_errc EventuallyPersistentEngine::returnMeta(
             ret = kvBucket->add(*itm, &cookie);
         }
         if (ret == cb::engine_errc::success) {
-            ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
-            guardedIface.audit_document_access(
-                    cookie, cb::audit::document::Operation::Modify);
+            auditDocumentAccess(cookie, cb::audit::document::Operation::Modify);
             ++stats.numOpsSetRetMeta;
             cookie.addDocumentWriteBytes(req.getKeylen() + value.size());
         }
@@ -6011,9 +6011,7 @@ cb::engine_errc EventuallyPersistentEngine::returnMeta(
                                    &itm_meta,
                                    mutation_descr);
         if (ret == cb::engine_errc::success) {
-            ServerDocumentIfaceBorderGuard guardedIface(*serverApi->document);
-            guardedIface.audit_document_access(
-                    cookie, cb::audit::document::Operation::Delete);
+            auditDocumentAccess(cookie, cb::audit::document::Operation::Delete);
             ++stats.numOpsDelRetMeta;
             cookie.addDocumentWriteBytes(1);
         }

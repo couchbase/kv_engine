@@ -29,12 +29,6 @@ std::string ServerDocumentIfaceBorderGuard::pre_expiry(
     return guarded.pre_expiry(itm_info);
 }
 
-void ServerDocumentIfaceBorderGuard::audit_document_access(
-        CookieIface& cookie, cb::audit::document::Operation operation) {
-    NonBucketAllocationGuard guard;
-    guarded.audit_document_access(cookie, operation);
-}
-
 void ServerDocumentIfaceBorderGuard::document_expired(const EngineIface& engine,
                                                       size_t nbytes) {
     NonBucketAllocationGuard guard;

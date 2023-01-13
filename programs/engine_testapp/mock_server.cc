@@ -178,12 +178,6 @@ struct MockServerDocumentApi : public ServerDocumentIface {
         return document_pre_expiry(itm_info);
     }
 
-    void audit_document_access(
-            CookieIface& cookie,
-            cb::audit::document::Operation operation) override {
-        // empty
-    }
-
     void document_expired(const EngineIface&, size_t) override {
         // empty
     }

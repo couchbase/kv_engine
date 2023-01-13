@@ -72,12 +72,6 @@ struct ServerDocumentApi : public ServerDocumentIface {
     std::string pre_expiry(const item_info& itm_info) override {
         return document_pre_expiry(itm_info);
     }
-    void audit_document_access(
-            CookieIface& void_cookie,
-            cb::audit::document::Operation operation) override {
-        auto& cookie = asCookie(void_cookie);
-        cb::audit::document::add(cookie, operation, cookie.getRequestKey());
-    }
 
     void document_expired(const EngineIface& engine, size_t nbytes) override {
         BucketManager::instance().forEach([&engine, nbytes](Bucket& bucket) {

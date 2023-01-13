@@ -37,6 +37,10 @@ class ScopeID;
 using protocol_binary_datatype_t = uint8_t;
 class ConnectionIface;
 
+namespace cb::audit::document {
+enum class Operation;
+}
+
 /**
  * The CookieIface is an abstract class representing a single command
  * when used from the frontend calling down into the underlying engine
@@ -257,6 +261,13 @@ public:
      */
     virtual void setUnknownCollectionErrorContext(uint64_t manifestUid) {
     }
+
+    /// Generate an audit event for access to the document represented
+    /// in this cookie (request key).
+    /// @todo remove this method when moving withMeta operations out of
+    ///       ep-engine and to the core
+    virtual void auditDocumentAccess(
+            cb::audit::document::Operation operation){};
 
 protected:
     std::atomic<size_t> document_bytes_read = 0;

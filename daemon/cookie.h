@@ -244,6 +244,8 @@ public:
      */
     const DocKey getRequestKey() const;
 
+    void auditDocumentAccess(cb::audit::document::Operation operation) override;
+
     /**
      * Set the aiostat and return the previous value
      */

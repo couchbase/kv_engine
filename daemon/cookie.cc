@@ -1187,3 +1187,7 @@ void Cookie::release() {
                 getConnection().triggerCallback();
             });
 }
+
+void Cookie::auditDocumentAccess(cb::audit::document::Operation operation) {
+    cb::audit::document::add(*this, operation, getRequestKey());
+}
