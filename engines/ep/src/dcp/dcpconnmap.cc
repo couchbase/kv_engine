@@ -20,7 +20,6 @@
 #include "objectregistry.h"
 #include <daemon/tracing.h>
 #include <memcached/connection_iface.h>
-#include <memcached/server_cookie_iface.h>
 #include <memcached/vbucket.h>
 #include <phosphor/phosphor.h>
 #include <statistics/cbstat_collector.h>

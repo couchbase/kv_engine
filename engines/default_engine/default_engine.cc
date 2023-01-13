@@ -10,7 +10,6 @@
 #include <memcached/cookie_iface.h>
 #include <memcached/durability_spec.h>
 #include <memcached/protocol_binary.h>
-#include <memcached/server_cookie_iface.h>
 #include <memcached/server_core_iface.h>
 #include <memcached/util.h>
 #include <platform/cb_malloc.h>

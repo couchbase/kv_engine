@@ -22,7 +22,6 @@
 #include <memcached/engine.h>
 #include <memcached/rbac/privileges.h>
 #include <memcached/server_bucket_iface.h>
-#include <memcached/server_cookie_iface.h>
 #include <memcached/server_document_iface.h>
 #include <phosphor/phosphor.h>
 #include <utilities/engine_errc_2_mcbp.h>
@@ -92,25 +91,16 @@ struct ServerDocumentApi : public ServerDocumentIface {
     }
 };
 
-struct ServerCookieApi : public ServerCookieIface {
-    void setDcpFlowControlBufferSize(CookieIface& cookie,
-                                     std::size_t size) override {
-        asCookie(cookie).getConnection().setDcpFlowControlBufferSize(size);
-    }
-};
-
 class ServerApiImpl : public ServerApi {
 public:
     ServerApiImpl() : ServerApi() {
         core = &core_api;
-        cookie = &server_cookie_api;
         document = &document_api;
         bucket = &bucket_api;
     }
 
 protected:
     ServerCoreApi core_api;
-    ServerCookieApi server_cookie_api;
     ServerDocumentApi document_api;
     ServerBucketApi bucket_api;
 };

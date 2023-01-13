@@ -18,7 +18,6 @@
 #include <memcached/engine.h>
 #include <memcached/engine_error.h>
 #include <memcached/rbac/privileges.h>
-#include <memcached/server_cookie_iface.h>
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/fmt/ostr.h>
 

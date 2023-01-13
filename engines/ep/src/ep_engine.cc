@@ -65,7 +65,6 @@
 #include <memcached/limits.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/range_scan_optional_configuration.h>
-#include <memcached/server_cookie_iface.h>
 #include <memcached/server_core_iface.h>
 #include <memcached/util.h>
 #include <nlohmann/json.hpp>

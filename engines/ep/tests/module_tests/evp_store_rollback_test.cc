@@ -39,7 +39,6 @@
 #include <utilities/test_manifest.h>
 
 #include <mcbp/protocol/framebuilder.h>
-#include <memcached/server_cookie_iface.h>
 
 using FlushResult = EPBucket::FlushResult;
 using MoreAvailable = EPBucket::MoreAvailable;

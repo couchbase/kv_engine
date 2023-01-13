@@ -112,6 +112,15 @@ public:
         return dcpConnHandlerIface.load(std::memory_order_acquire);
     }
 
+    /**
+     * Set the size of the DCP flow control buffer size used by this
+     * DCP producer
+     *
+     * @param size The new buffer size
+     */
+    virtual void setDcpFlowControlBufferSize(std::size_t size) {
+    }
+
 protected:
     const nlohmann::json peername;
     const nlohmann::json sockname;

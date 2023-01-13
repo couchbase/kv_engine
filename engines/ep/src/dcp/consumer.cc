@@ -26,8 +26,6 @@
 #include "replicationthrottle.h"
 #include "vbucket.h"
 #include <executor/executorpool.h>
-
-#include <memcached/server_cookie_iface.h>
 #include <phosphor/phosphor.h>
 #include <xattr/utils.h>
 

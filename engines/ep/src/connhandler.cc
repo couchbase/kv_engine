@@ -18,7 +18,7 @@
 #include <memcached/connection_iface.h>
 #include <memcached/cookie_iface.h>
 #include <memcached/durability_spec.h>
-#include <memcached/server_cookie_iface.h>
+#include <memcached/rbac/privilege_database.h>
 #include <phosphor/phosphor.h>
 #include <platform/timeutils.h>
 

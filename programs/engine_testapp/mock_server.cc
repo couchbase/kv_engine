@@ -20,7 +20,6 @@
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
 #include <memcached/server_bucket_iface.h>
-#include <memcached/server_cookie_iface.h>
 #include <memcached/server_core_iface.h>
 #include <memcached/server_document_iface.h>
 #include <platform/platform_time.h>
@@ -246,15 +245,8 @@ bool mock_cookie_notified(CookieIface* cookie) {
     return !cookieNotifications.lock()->at(cookie).empty();
 }
 
-struct MockServerCookieApi : public ServerCookieIface {
-    void setDcpFlowControlBufferSize(CookieIface& cookie,
-                                     std::size_t size) override {
-    }
-};
-
 ServerApi* get_mock_server_api() {
     static MockServerCoreApi core_api;
-    static MockServerCookieApi server_cookie_api;
     static MockServerBucketApi server_bucket_api;
     static ServerApi rv;
     static MockServerDocumentApi document_api;
@@ -262,7 +254,6 @@ ServerApi* get_mock_server_api() {
     if (!init) {
         init = 1;
         rv.core = &core_api;
-        rv.cookie = &server_cookie_api;
         rv.bucket = &server_bucket_api;
         rv.document = &document_api;
     }

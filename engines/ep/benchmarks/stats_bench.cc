@@ -23,7 +23,6 @@
 
 #include <collections/manager.h>
 #include <collections/vbucket_manifest.h>
-#include <memcached/server_cookie_iface.h>
 #include <nlohmann/json.hpp>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>

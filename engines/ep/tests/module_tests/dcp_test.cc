@@ -47,7 +47,6 @@
 
 #include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>
-#include <memcached/server_cookie_iface.h>
 #include <platform/cbassert.h>
 #include <platform/compress.h>
 #include <platform/dirutils.h>

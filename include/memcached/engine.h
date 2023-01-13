@@ -86,13 +86,11 @@ class CancellationToken;
 struct DocKey;
 struct ServerBucketIface;
 struct ServerCoreIface;
-struct ServerCookieIface;
 struct ServerDocumentIface;
 union protocol_binary_request_header;
 
 struct ServerApi {
     ServerCoreIface* core = nullptr;
-    ServerCookieIface* cookie = nullptr;
     ServerDocumentIface* document = nullptr;
     ServerBucketIface* bucket = nullptr;
 };

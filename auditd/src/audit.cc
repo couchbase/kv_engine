@@ -17,7 +17,6 @@
 #include <auditd/couchbase_audit_events.h>
 #include <logger/logger.h>
 #include <memcached/isotime.h>
-#include <memcached/server_cookie_iface.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <platform/dirutils.h>

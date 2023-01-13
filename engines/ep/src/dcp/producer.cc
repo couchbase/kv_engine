@@ -35,9 +35,8 @@
 #include <executor/executorpool.h>
 #include <memcached/connection_iface.h>
 #include <memcached/cookie_iface.h>
-#include <memcached/server_cookie_iface.h>
-#include <platform/timeutils.h>
 #include <nlohmann/json.hpp>
+#include <platform/timeutils.h>
 #include <spdlog/fmt/fmt.h>
 #include <statistics/cbstat_collector.h>
 
@@ -995,8 +994,7 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
                flow control */
             log.setBufferSize(size);
             NonBucketAllocationGuard guard;
-            engine_.getServerApi()->cookie->setDcpFlowControlBufferSize(
-                    *getCookie(), size);
+            getCookie()->getConnectionIface().setDcpFlowControlBufferSize(size);
             return cb::engine_errc::success;
         }
     } else if (strncmp(param, "stream_buffer_size", key.size()) == 0) {

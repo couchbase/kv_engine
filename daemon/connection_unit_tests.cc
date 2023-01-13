@@ -15,7 +15,6 @@
 #include "memcached.h"
 
 #include <daemon/cookie.h>
-#include <memcached/server_cookie_iface.h>
 #include <platform/socket.h>
 
 #include <folly/portability/GTest.h>

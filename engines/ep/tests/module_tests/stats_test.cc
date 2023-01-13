@@ -32,7 +32,6 @@
 #include <statistics/tests/mock/mock_stat_collector.h>
 
 #include <folly/portability/GMock.h>
-#include <memcached/server_cookie_iface.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <statistics/cbstat_collector.h>

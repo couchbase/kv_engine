@@ -357,8 +357,7 @@ public:
         dcpNoValue = enable;
     }
 
-    /// Set the size of the flow control buffer used by this producer
-    void setDcpFlowControlBufferSize(std::size_t size);
+    void setDcpFlowControlBufferSize(std::size_t size) override;
 
     /**
      * Copy the provided data to the end of the output stream.

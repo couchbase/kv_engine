@@ -22,7 +22,6 @@
 #include <memcached/dcp.h>
 #include <memcached/durability_spec.h>
 #include <memcached/engine_testapp.h>
-#include <memcached/server_cookie_iface.h>
 #include <phosphor/phosphor.h>
 #include <platform/cbassert.h>
 #include <platform/dirutils.h>
