@@ -396,8 +396,10 @@ std::pair<Status, bool> MagmaKVStore::compactionCore(
         auto diskKey = makeDiskDocKey(keySlice);
 
         if (cbCtx.canPurge(diskKey.getDocKey().getCollectionID()) &&
-            cbCtx.ctx->eraserContext->isLogicallyDeleted(diskKey.getDocKey(),
-                                                         seqno)) {
+            cbCtx.ctx->eraserContext->isLogicallyDeleted(
+                    diskKey.getDocKey(),
+                    magmakv::isDeleted(metaSlice),
+                    seqno)) {
             try {
                 // Inform vb that the key@seqno is dropped
                 cbCtx.ctx->droppedKeyCb(diskKey,
@@ -2019,7 +2021,9 @@ MagmaScanResult MagmaKVStore::scanOne(
     // Determine if the key is logically deleted before trying cache/disk read
     if (ctx.docFilter != DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS) {
         if (ctx.collectionsContext.isLogicallyDeleted(
-                    lookup.getKey().getDocKey(), seqno)) {
+                    lookup.getKey().getDocKey(),
+                    magmakv::isDeleted(metaSlice),
+                    seqno)) {
             ctx.lastReadSeqno = seqno;
             if (logger->should_log(spdlog::level::TRACE)) {
                 logger->TRACE(

@@ -29,18 +29,24 @@ ScanContext::ScanContext(
     }
 }
 
-bool ScanContext::isLogicallyDeleted(const DocKey& key, uint64_t seqno) const {
+bool ScanContext::isLogicallyDeleted(const DocKey& key,
+                                     bool isDeleted,
+                                     uint64_t seqno) const {
     if (dropped.empty()) {
         return false;
     }
 
     CollectionID cid;
     if (key.isInSystemCollection()) {
-        auto modify = SystemEventFactory::isModifyCollection(key);
-        if (!modify) {
+        // For a system event key extract the type and id
+        auto [event, id] = SystemEventFactory::getTypeAndID(key);
+
+        // For Scope events return false, they don't require processing
+        // or the event is a dropped collection "marker"
+        if (event == SystemEvent::Scope || isDeleted) {
             return false;
         }
-        cid = modify.value();
+        cid = CollectionID(id);
     } else {
         cid = key.getCollectionID();
     }
