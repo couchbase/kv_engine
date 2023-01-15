@@ -11,6 +11,7 @@
 
 #include "dcp/backfill_disk.h"
 #include "active_stream.h"
+#include "bucket_logger.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
@@ -150,6 +151,8 @@ backfill_status_t DCPBackfillDisk::run() {
         return create();
     case backfill_state_scanning:
         return scan();
+    case backfill_state_scanning_history_snapshot:
+        return scanHistory();
     case backfill_state_completing:
         complete(false);
         return backfill_finished;
@@ -174,6 +177,8 @@ static std::string backfillStateToString(backfill_state_t state) {
         return "initalizing";
     case backfill_state_scanning:
         return "scanning";
+    case backfill_state_scanning_history_snapshot:
+        return "scanning_history_snapshot";
     case backfill_state_completing:
         return "completing";
     case backfill_state_done:
@@ -197,13 +202,21 @@ void DCPBackfillDisk::transitionState(backfill_state_t newState) {
             validTransition = true;
         }
         break;
+    case backfill_state_scanning_history_snapshot: {
+        if (state == backfill_state_scanning || state == backfill_state_init) {
+            validTransition = true;
+        }
+        break;
+    }
     case backfill_state_completing:
-        if (state == backfill_state_init || state == backfill_state_scanning) {
+        if (state == backfill_state_init || state == backfill_state_scanning ||
+            state == backfill_state_scanning_history_snapshot) {
             validTransition = true;
         }
         break;
     case backfill_state_done:
         if (state == backfill_state_init || state == backfill_state_scanning ||
+            state == backfill_state_scanning_history_snapshot ||
             state == backfill_state_completing) {
             validTransition = true;
         }
@@ -220,4 +233,162 @@ void DCPBackfillDisk::transitionState(backfill_state_t newState) {
     }
 
     state = newState;
+}
+
+bool DCPBackfillDisk::setupForHistoryScan(ActiveStream& stream,
+                                          ScanContext& scanCtx,
+                                          uint64_t startSeqno) {
+    Expects(!historyScan);
+    if (!stream.areChangeStreamsEnabled()) {
+        return false;
+    }
+
+    if (scanCtx.historyStartSeqno == 0) {
+        // If historyStartSeqno is zero, no history is retained.
+        return false;
+    }
+
+    // Record the maxSeqno for the history scan phase, it will scan to the max
+    historyScan =
+            std::make_unique<HistoryScanCtx>(startSeqno, scanCtx.maxSeqno);
+
+    // Adjust the current scan so that it doesn't enter into the history range
+    scanCtx.maxSeqno = scanCtx.historyStartSeqno - 1;
+
+    // Return true if the start of the scan is inside the history window, the
+    // caller can then skip to a history scan.
+    return startSeqno >= scanCtx.historyStartSeqno;
+}
+
+bool DCPBackfillDisk::createHistoryScanContext() {
+    Expects(historyScan);
+    Expects(!historyScan->scanCtx);
+
+    auto& historyScanCtx = *historyScan;
+
+    auto* kvstore = bucket.getROUnderlying(getVBucketId());
+    Expects(kvstore);
+
+    return historyScanCtx.createScanContext(
+            scanCtx->historyStartSeqno, *kvstore, *scanCtx);
+}
+
+bool DCPBackfillDisk::HistoryScanCtx::createScanContext(uint64_t startSeqno,
+                                                        const KVStoreIface& kvs,
+                                                        ScanContext& ctx) {
+    // Create a new BySeqno scan, but move the callback and most importantly
+    // the KVFileHandle - so this scan uses the original snapshot
+    scanCtx = kvs.initBySeqnoScanContext(std::move(ctx.callback),
+                                         std::move(ctx.lookup),
+                                         ctx.vbid,
+                                         startSeqno,
+                                         ctx.docFilter,
+                                         ctx.valFilter,
+                                         SnapshotSource::Head,
+                                         std::move(ctx.handle));
+    if (!scanCtx) {
+        // initBySeqnoScanContext logs for failure
+        return false;
+    }
+    return true;
+}
+DCPBackfillDisk::HistoryScanCtx::HistoryScanCtx(uint64_t startSeqno,
+                                                uint64_t snapshotMaxSeqno)
+    : startSeqno(startSeqno), snapshotMaxSeqno(snapshotMaxSeqno) {
+}
+DCPBackfillDisk::HistoryScanCtx::~HistoryScanCtx() = default;
+
+// Creation "step"
+bool DCPBackfillDisk::scanHistoryCreate(ActiveStream& stream) {
+    Expects(historyScan);
+
+    auto& historyScanCtx = *historyScan;
+    Expects(!historyScanCtx.scanCtx);
+
+    // try to create historyScanCtx.scanCtx
+    if (!createHistoryScanContext()) {
+        EP_LOG_WARN(
+                "DCPBackfillDisk::scanHistoryCreate(): ({}) failure "
+                "creating history ScanContext",
+                getVBucketId());
+        transitionState(backfill_state_done);
+        return false;
+    }
+
+    // snapshot marker (only once per call to scanHistory)
+    const auto& ctx =
+            dynamic_cast<const BySeqnoScanContext&>(*historyScanCtx.scanCtx);
+    if (!stream.markDiskSnapshot(historyScanCtx.startSeqno,
+                                 ctx.maxSeqno,
+                                 ctx.persistedCompletedSeqno,
+                                 ctx.maxVisibleSeqno,
+                                 ctx.timestamp,
+                                 ActiveStream::SnapshotSource::History)) {
+        transitionState(backfill_state_completing);
+        return false;
+    }
+    return true;
+}
+
+backfill_status_t DCPBackfillDisk::scanHistory() {
+    Expects(historyScan);
+
+    auto stream = streamPtr.lock();
+    if (!stream) {
+        EP_LOG_WARN(
+                "DCPBackfillDisk::scanHistory(): "
+                "({}) backfill create ended prematurely as the associated "
+                "stream is deleted by the producer conn ",
+                getVBucketId());
+        transitionState(backfill_state_done);
+        return backfill_finished;
+    }
+
+    EP_LOG_DEBUG("DCPBackfillDisk::scanHistory ({}) running", getVBucketId());
+
+    // If there is no historyScanCtx.scanCtx create it now (one-off creation).
+    // The existing ScanContext cannot be re-used because it could of been
+    // created by DCPBackfillBySeqnoDisk or DCPBackfillByIdDisk. In the ByID
+    // case it is completely unusable in this scan phase. The simplest approach
+    // is to create a new BySeqnoScanContext (moving the KVFileHandle).
+    auto& historyScanCtx = *historyScan;
+    if (!historyScanCtx.scanCtx && !scanHistoryCreate(*stream)) {
+        // Failed to create the new ScanContext, inform the stream
+        stream->setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
+        return backfill_finished;
+    }
+
+    auto& bySeqnoCtx =
+            dynamic_cast<BySeqnoScanContext&>(*historyScanCtx.scanCtx);
+
+    auto* const kvstore = bucket.getROUnderlying(getVBucketId());
+    Expects(kvstore);
+    switch (kvstore->scanAllVersions(bySeqnoCtx)) {
+    case scan_success:
+        stream->setBackfillScanLastRead(bySeqnoCtx.lastReadSeqno);
+        // Call complete and transition straight to done (via complete). This
+        // avoids the sub-class (by_id or by_seq) complete function being called
+        stream->completeBackfill(runtime, bySeqnoCtx.diskBytesRead);
+        transitionState(backfill_state_completing);
+        transitionState(backfill_state_done);
+        return backfill_success;
+    case scan_again:
+        // Scan should run again (e.g. was paused by callback)
+        return backfill_success;
+    case scan_failed:
+        // Scan did not complete successfully. Backfill is missing data,
+        // propagate error to stream and (unsuccessfully) finish scan.
+        stream->log(spdlog::level::err,
+                    "DCPBackfillDisk::scanHistory(): ({}, startSeqno:{}, "
+                    "maxSeqno:{}) Scan failed at lastReadSeqno:{}. Setting "
+                    "stream to dead state.",
+                    getVBucketId(),
+                    bySeqnoCtx.startSeqno,
+                    bySeqnoCtx.maxSeqno,
+                    bySeqnoCtx.lastReadSeqno);
+        scanCtx.reset();
+        stream->setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
+        return backfill_finished;
+    }
+    folly::assume_unreachable();
 }

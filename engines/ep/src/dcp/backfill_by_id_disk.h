@@ -50,6 +50,8 @@ protected:
      */
     void complete(bool cancelled) override;
 
+    void complete(ActiveStream& stream, bool cancelled);
+
     /// collection to scan for
     CollectionID cid;
 };

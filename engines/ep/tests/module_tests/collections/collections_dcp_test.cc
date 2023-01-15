@@ -110,7 +110,8 @@ void CollectionsDcpTest::createDcpObjects(
         OutOfOrderSnapshots outOfOrderSnapshots,
         uint32_t flags,
         bool enableSyncRep,
-        uint64_t streamEndSeqno) {
+        uint64_t streamEndSeqno,
+        ChangeStreams changeStreams) {
     createDcpConsumer();
 
     auto& mockConnMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
@@ -148,6 +149,11 @@ void CollectionsDcpTest::createDcpObjects(
     EXPECT_EQ(cb::engine_errc::success,
               producer->control(
                       1, DcpControlKeys::FlatBuffersSystemEvents, "true"));
+
+    if (changeStreams == ChangeStreams::Yes) {
+        EXPECT_EQ(cb::engine_errc::success,
+                  producer->control(1, DcpControlKeys::ChangeStreams, "true"));
+    }
 
     createDcpStream(
             collections, vbid, cb::engine_errc::success, flags, streamEndSeqno);

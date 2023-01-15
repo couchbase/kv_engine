@@ -93,6 +93,9 @@ backfill_status_t DCPBackfillByIdDisk::create() {
         stream->setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
         transitionState(backfill_state_done);
     } else {
+        // Will check if a history scan is required.
+        setupForHistoryScan(*stream, *scanCtx, 0);
+
         bool markerSent = stream->markOSODiskSnapshot(scanCtx->maxSeqno);
         if (markerSent) {
             transitionState(backfill_state_scanning);
@@ -125,9 +128,27 @@ backfill_status_t DCPBackfillByIdDisk::scan() {
         return backfill_success;
     }
 
-    transitionState(backfill_state_completing);
+    if (historyScan) {
+        complete(*stream, false);
+        transitionState(backfill_state_scanning_history_snapshot);
+    } else {
+        transitionState(backfill_state_completing);
+    }
 
     return backfill_success;
+}
+
+void DCPBackfillByIdDisk::complete(ActiveStream& stream, bool cancelled) {
+    stream.completeOSOBackfill(
+            scanCtx->maxSeqno, runtime, scanCtx->diskBytesRead);
+
+    auto severity = cancelled ? spdlog::level::level_enum::info
+                              : spdlog::level::level_enum::debug;
+    stream.log(severity,
+               "({}) Backfill task cid:{} {}",
+               vbid,
+               cid.to_string(),
+               cancelled ? "cancelled" : "finished");
 }
 
 void DCPBackfillByIdDisk::complete(bool cancelled) {
@@ -143,16 +164,7 @@ void DCPBackfillByIdDisk::complete(bool cancelled) {
         return;
     }
 
-    stream->completeOSOBackfill(
-            scanCtx->maxSeqno, runtime, scanCtx->diskBytesRead);
-
-    auto severity = cancelled ? spdlog::level::level_enum::info
-                              : spdlog::level::level_enum::debug;
-    stream->log(severity,
-                "({}) Backfill task cid:{} {}",
-                vbid,
-                cid.to_string(),
-                cancelled ? "cancelled" : "finished");
+    complete(*stream, cancelled);
 
     transitionState(backfill_state_done);
 }

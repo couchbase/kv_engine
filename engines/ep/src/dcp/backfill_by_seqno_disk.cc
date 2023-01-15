@@ -141,6 +141,13 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
 
         stream->setDead(cb::mcbp::DcpStreamEndStatus::Rollback);
         transitionState(backfill_state_done);
+        return backfill_success;
+    }
+
+    // Check if a history scan is required or if only a history scan is required
+    if (setupForHistoryScan(*stream, *scanCtx, startSeqno)) {
+        // The scan is completely inside the history window
+        transitionState(backfill_state_scanning_history_snapshot);
     } else {
         bool markerSent = markDiskSnapshot(*stream, *scanCtx, *kvstore);
 
@@ -177,8 +184,12 @@ backfill_status_t DCPBackfillBySeqnoDisk::scan() {
     auto& bySeqnoCtx = dynamic_cast<BySeqnoScanContext&>(*scanCtx);
     switch (kvstore->scan(bySeqnoCtx)) {
     case scan_success:
-        stream->setBackfillScanLastRead(scanCtx->lastReadSeqno);
-        transitionState(backfill_state_completing);
+        if (historyScan) {
+            transitionState(backfill_state_scanning_history_snapshot);
+        } else {
+            stream->setBackfillScanLastRead(scanCtx->lastReadSeqno);
+            transitionState(backfill_state_completing);
+        }
         return backfill_success;
     case scan_again:
         // Scan should run again (e.g. was paused by callback)
@@ -269,11 +280,22 @@ bool DCPBackfillBySeqnoDisk::markDiskSnapshot(ActiveStream& stream,
     if (stream.getFilter().isLegacyFilter()) {
         return markLegacyDiskSnapshot(stream, scanCtx, kvs);
     }
-    return stream.markDiskSnapshot(startSeqno,
-                                   scanCtx.maxSeqno,
-                                   scanCtx.persistedCompletedSeqno,
-                                   scanCtx.maxVisibleSeqno,
-                                   scanCtx.timestamp);
+    // HistoryScan: If a disk snapshot is being "split" into non-history and
+    // history ranges, then the endSeqno of this first range should show the
+    // entire snapshot. E.g.
+    // disk snapshot is [a...d], but split
+    // no-history[a..b]
+    // history[c..d]
+    // Then all of the markers from this backfill stats start:a, end:d and mvs
+    // hcs can only be valid once d is reached.
+    return stream.markDiskSnapshot(
+            startSeqno,
+            historyScan ? historyScan->snapshotMaxSeqno : scanCtx.maxSeqno,
+            scanCtx.persistedCompletedSeqno,
+            scanCtx.maxVisibleSeqno,
+            scanCtx.timestamp,
+            historyScan ? ActiveStream::SnapshotSource::NoHistoryPrologue
+                        : ActiveStream::SnapshotSource::NoHistory);
 }
 
 // This function is used for backfills where the stream is configured as a
@@ -348,7 +370,8 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
                                        scanCtx.maxSeqno,
                                        scanCtx.persistedCompletedSeqno,
                                        scanCtx.maxVisibleSeqno,
-                                       scanCtx.timestamp);
+                                       scanCtx.timestamp,
+                                       ActiveStream::SnapshotSource::NoHistory);
     }
 
     // Need to figure out the maxSeqno/maxVisibleSeqno for calling
@@ -433,7 +456,12 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
         if (gv.item->isCommitted()) {
             // Step 3. If this is a committed item, done.
             return stream.markDiskSnapshot(
-                    startSeqno, stats.highSeqno, {}, stats.highSeqno, {});
+                    startSeqno,
+                    stats.highSeqno,
+                    {},
+                    stats.highSeqno,
+                    {},
+                    ActiveStream::SnapshotSource::NoHistory);
         }
     } else if (gv.getStatus() != cb::engine_errc::no_such_key) {
         stream.log(spdlog::level::level_enum::warn,
@@ -546,8 +574,12 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
             cb.maxVisibleSeqno < backfillRangeEndSeqno) {
             stream.setEndSeqno(cb.maxVisibleSeqno);
         }
-        return stream.markDiskSnapshot(
-                startSeqno, cb.maxVisibleSeqno, {}, cb.maxVisibleSeqno, {});
+        return stream.markDiskSnapshot(startSeqno,
+                                       cb.maxVisibleSeqno,
+                                       {},
+                                       cb.maxVisibleSeqno,
+                                       {},
+                                       ActiveStream::SnapshotSource::NoHistory);
     } else {
         endStreamIfNeeded();
         // Found nothing committed at all

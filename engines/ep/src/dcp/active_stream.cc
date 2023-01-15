@@ -279,7 +279,8 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
                                     uint64_t endSeqno,
                                     std::optional<uint64_t> highCompletedSeqno,
                                     uint64_t maxVisibleSeqno,
-                                    std::optional<uint64_t> timestamp) {
+                                    std::optional<uint64_t> timestamp,
+                                    SnapshotSource source) {
     {
         std::unique_lock<std::mutex> lh(streamMutex);
 
@@ -322,7 +323,8 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
         /* We may need to send the requested 'snap_start_seqno_' as the snapshot
            start when we are sending the first snapshot because the first
            snapshot could be resumption of a previous snapshot */
-        startSeqno = adjustStartIfFirstSnapshot(startSeqno);
+        startSeqno = adjustStartIfFirstSnapshot(
+                startSeqno, source != SnapshotSource::NoHistoryPrologue);
 
         VBucketPtr vb = engine->getVBucket(vb_);
         if (!vb) {
@@ -361,24 +363,32 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
         auto mvsToSend = supportSyncReplication()
                                  ? std::make_optional(maxVisibleSeqno)
                                  : std::nullopt;
+
+        auto flags = MARKER_FLAG_DISK | MARKER_FLAG_CHK;
+
+        if (source == SnapshotSource::History) {
+            flags |= (MARKER_FLAG_HISTORY |
+                      MARKER_FLAG_MAY_CONTAIN_DUPLICATE_KEYS);
+        }
+
         log(spdlog::level::level_enum::info,
             "{} ActiveStream::markDiskSnapshot: Sending disk snapshot with "
-            "start {}, end {}, and high completed {}, max visible {}",
+            "start:{}, end:{}, flags:0x{:x}, hcs:{}, mvs:{}",
             logPrefix,
             startSeqno,
             endSeqno,
+            flags,
             to_string_or_none(hcsToSend),
             to_string_or_none(mvsToSend));
-        pushToReadyQ(std::make_unique<SnapshotMarker>(
-                opaque_,
-                vb_,
-                startSeqno,
-                endSeqno,
-                MARKER_FLAG_DISK | MARKER_FLAG_CHK,
-                hcsToSend,
-                mvsToSend,
-                timestamp,
-                sid));
+        pushToReadyQ(std::make_unique<SnapshotMarker>(opaque_,
+                                                      vb_,
+                                                      startSeqno,
+                                                      endSeqno,
+                                                      flags,
+                                                      hcsToSend,
+                                                      mvsToSend,
+                                                      timestamp,
+                                                      sid));
         lastSentSnapEndSeqno.store(endSeqno, std::memory_order_relaxed);
 
         if (!isDiskOnly()) {
@@ -2343,7 +2353,7 @@ bool ActiveStream::isSeqnoGapAtEndOfSnapshot(uint64_t streamSeqno) const {
 void ActiveStream::sendSnapshotAndSeqnoAdvanced(CheckpointType checkpointType,
                                                 uint64_t start,
                                                 uint64_t end) {
-    start = adjustStartIfFirstSnapshot(start);
+    start = adjustStartIfFirstSnapshot(start, true);
 
     const auto isCkptTypeDisk = isDiskCheckpointType(checkpointType);
     uint32_t flags = isCkptTypeDisk ? MARKER_FLAG_DISK : MARKER_FLAG_MEMORY;
@@ -2364,9 +2374,12 @@ void ActiveStream::sendSnapshotAndSeqnoAdvanced(CheckpointType checkpointType,
     queueSeqnoAdvanced();
 }
 
-uint64_t ActiveStream::adjustStartIfFirstSnapshot(uint64_t start) {
+uint64_t ActiveStream::adjustStartIfFirstSnapshot(uint64_t start,
+                                                  bool isCompleteSnapshot) {
     if (!firstMarkerSent) {
-        firstMarkerSent = true;
+        if (isCompleteSnapshot) {
+            firstMarkerSent = true;
+        }
         return std::min(snap_start_seqno_, start);
     }
     return start;
