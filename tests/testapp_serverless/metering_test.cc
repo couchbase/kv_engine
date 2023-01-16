@@ -351,11 +351,12 @@ protected:
         }
     }
 
-    void waitForPersistence() {
+    void waitForPersistence(MemcachedConnection* c = nullptr) {
+        MemcachedConnection& connection = c ? *c : *conn;
         size_t ep_queue_size;
         do {
             using namespace std::string_view_literals;
-            conn->stats([&ep_queue_size](auto k, auto v) {
+            connection.stats([&ep_queue_size](auto k, auto v) {
                 if (k == "ep_queue_size"sv) {
                     ep_queue_size = std::stoi(v);
                 }
@@ -366,9 +367,11 @@ protected:
         } while (ep_queue_size != 0);
     }
 
-    std::string getStatForKey(std::string_view key) {
+    std::string getStatForKey(std::string_view key,
+                              MemcachedConnection* c = nullptr) {
+        MemcachedConnection& connection = c ? *c : *conn;
         std::string value;
-        conn->stats([&key, &value](auto k, auto v) {
+        connection.stats([&key, &value](auto k, auto v) {
             if (k == key) {
                 value = v;
             }
@@ -3365,6 +3368,89 @@ TEST_P(MeteringTest, ImposedUsersMayMeter) {
     admin->stats([&after](auto k, auto v) { after = nlohmann::json::parse(v); },
                  "bucket_details metering");
     EXPECT_EQ(before["ru"].get<int>() + 2, after["ru"].get<int>());
+}
+
+// Store a document in vbucket 2 and wait for it to expire, and
+// verify that once it is gone on the replica we didn't charge any
+// write units
+TEST_P(MeteringTest, MB54479) {
+    auto bucket = cluster->getBucket("metering");
+    auto active = bucket->getConnection(Vbid{2}, vbucket_state_active);
+    auto replica = bucket->getConnection(Vbid{2}, vbucket_state_replica, 1);
+
+    active->authenticate("@admin", "password");
+    active->selectBucket("metering");
+    replica->authenticate("@admin", "password");
+    replica->selectBucket("metering");
+
+    nlohmann::json before;
+    replica->stats(
+            [&before](auto k, auto v) { before = nlohmann::json::parse(v); },
+            "bucket_details metering");
+
+    const size_t vb_replica_curr_items =
+            std::stoull(getStatForKey("vb_replica_curr_items", replica.get()));
+
+    const StoredDocKey id{"MB54479", getTestCollection()};
+    Document doc;
+    doc.info.id = std::string{id};
+    doc.info.expiration = 2;
+    doc.value = getStringValue(false, 100);
+    active->mutate(doc, Vbid{2}, MutationType::Set);
+    waitForPersistence(active.get());
+
+    // wait for the item to be replicated over
+    waitForPredicateUntil(
+            [&vb_replica_curr_items, this, &replica]() {
+                return vb_replica_curr_items !=
+                       std::stoull(getStatForKey("vb_replica_curr_items",
+                                                 replica.get()));
+            },
+            std::chrono::seconds{3});
+
+    {
+        // verify that it is actually the document we expected
+        BinprotGenericCommand cmd{ClientOpcode::GetReplica, std::string{id}};
+        cmd.setVBucket(Vbid{2});
+        EXPECT_TRUE(replica->execute(cmd).isSuccess());
+    }
+
+    // and to be persisted on disk
+    waitForPersistence(replica.get());
+
+    // Wait for the object to expire (and by requesting it on the active
+    // vbucket we'll make sure we push a DCP Expiration message to the
+    // replica to trigger TTL.
+    BinprotResponse rsp;
+    waitForPredicateUntil(
+            [&rsp, &id, &active]() {
+                BinprotGetCommand cmd{std::string{id}};
+                cmd.setVBucket(Vbid{2});
+                rsp = active->execute(cmd);
+                return !rsp.isSuccess();
+            },
+            std::chrono::seconds{10});
+    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, rsp.getStatus())
+            << "should have been TTL expired";
+
+    // Wait until we're back at the expected number of items on the replica
+    waitForPredicateUntil(
+            [&replica, vb_replica_curr_items, this]() {
+                // Wait for persistence again to make sure that the replica
+                // count gets updated
+                waitForPersistence(replica.get());
+                return vb_replica_curr_items ==
+                       std::stoull(getStatForKey("vb_replica_curr_items",
+                                                 replica.get()));
+            },
+            std::chrono::seconds{10});
+
+    // Verify that we didn't charge any WUs on the replica
+    nlohmann::json after;
+    replica->stats(
+            [&after](auto k, auto v) { after = nlohmann::json::parse(v); },
+            "bucket_details metering");
+    EXPECT_EQ(after["wu"].get<int>(), before["wu"].get<int>());
 }
 
 INSTANTIATE_TEST_SUITE_P(MeteringTest,

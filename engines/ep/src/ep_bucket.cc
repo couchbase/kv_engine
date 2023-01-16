@@ -1236,9 +1236,13 @@ void EPBucket::flushOneDelOrSet(TransactionContext& txnCtx,
             rwUnderlying->set(txnCtx, qi);
         }
     } else {
-        if (qi->deletionSource() == DeleteSource::TTL) {
-            engine.getServerApi()->document->document_expired(engine,
-                                                              qi->getNBytes());
+        {
+            folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+            if (qi->deletionSource() == DeleteSource::TTL &&
+                vb->getState() == vbucket_state_active) {
+                engine.getServerApi()->document->document_expired(
+                        engine, qi->getNBytes());
+            }
         }
         HdrMicroSecBlockTimer timer(
                 &stats.diskDelHisto, "disk_delete", stats.timingLog.get());
