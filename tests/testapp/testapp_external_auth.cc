@@ -396,6 +396,8 @@ TEST_P(ExternalAuthTest, TestErrorIncludeLdapInfo) {
         FAIL() << "scram should not work";
     } catch (const ConnectionError& e) {
         const auto json = e.getErrorJsonContext();
+        ASSERT_TRUE(json.contains("error") && json["error"].contains("context"))
+                << json.dump(2);
         auto message = json["error"]["context"].get<std::string>();
         const std::string blueprint =
                 "Authentication failed. This could be due to invalid "
