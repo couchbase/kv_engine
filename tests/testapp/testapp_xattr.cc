@@ -2227,19 +2227,29 @@ TEST_P(XattrTest, ReplaceBodyWithXattr_WithoutXattrFlag) {
 /// only contains system xattrs and the connection don't have access
 /// to system xattrs
 TEST_P(XattrTest, MB54776) {
-    userConnection->dropPrivilege(cb::rbac::Privilege::SystemXattrRead);
-
+    setBodyAndXattr(value, {{sysXattr, xattrVal}});
     BinprotSubdocMultiLookupCommand cmd;
     cmd.setKey(name);
     cmd.addGet("$XTOC", SUBDOC_FLAG_XATTR_PATH);
     cmd.addLookup("", cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE);
 
-    BinprotSubdocMultiLookupResponse multiResp;
-    multiResp.clear();
-    userConnection->sendCommand(cmd);
-    userConnection->recvResponse(multiResp);
-    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
-    EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
-    EXPECT_EQ("[]", multiResp.getResults()[0].value);
+    {
+        BinprotSubdocMultiLookupResponse multiResp(
+                userConnection->execute(cmd));
+        EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
+        EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
+        EXPECT_EQ(R"(["_sync"])", multiResp.getResults()[0].value);
+    }
+
+    // Drop the privilege and rerun the command and verify
+    userConnection->dropPrivilege(cb::rbac::Privilege::SystemXattrRead);
+
+    {
+        BinprotSubdocMultiLookupResponse multiResp(
+                userConnection->execute(cmd));
+        EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getStatus());
+        EXPECT_EQ(cb::mcbp::Status::Success, multiResp.getResults()[0].status);
+        EXPECT_EQ("[]", multiResp.getResults()[0].value);
+    }
     userConnection.reset();
 }
