@@ -946,19 +946,20 @@ public:
     }
 
     mcbp::systemevent::id getSystemEvent() const override {
-        mcbp::systemevent::id rv;
-        // Map a deleted Collection to be an explicit BeginDelete event
-        if (SystemEvent(item->getFlags()) == SystemEvent::Collection) {
-            rv = item->isDeleted() ? mcbp::systemevent::id::DeleteCollection
-                                   : mcbp::systemevent::id::CreateCollection;
-        } else if (SystemEvent(item->getFlags()) == SystemEvent::Scope) {
-            rv = item->isDeleted() ? mcbp::systemevent::id::DropScope
-                                   : mcbp::systemevent::id::CreateScope;
-        } else {
-            throw std::logic_error("getSystemEvent incorrect event:" +
-                                   std::to_string(item->getFlags()));
+        switch (SystemEvent(item->getFlags())) {
+        case SystemEvent::Collection:
+            return item->isDeleted() ? mcbp::systemevent::id::DeleteCollection
+                                     : mcbp::systemevent::id::CreateCollection;
+        case SystemEvent::ModifyCollection:
+            return mcbp::systemevent::id::ModifyCollection;
+        case SystemEvent::Scope:
+            return item->isDeleted() ? mcbp::systemevent::id::DropScope
+                                     : mcbp::systemevent::id::CreateScope;
         }
-        return rv;
+
+        throw std::logic_error(
+                "SystemEventProducerMessage::getSystemEvent unexpected event:" +
+                std::to_string(item->getFlags()));
     }
 
     OptionalSeqno getBySeqno() const override {

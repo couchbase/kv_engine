@@ -12,7 +12,8 @@
 
 namespace Collections.VB;
 
-// FlatBuffers SystemEvents: This is the structure used by CreateCollection
+// FlatBuffers SystemEvents: This is the structure used by CreateCollection and
+// ModifyCollection
 table Collection {
     // The following fields all exist with the "epoch" of collections, 7.0+
     uid:ulong;

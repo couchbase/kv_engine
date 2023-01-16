@@ -1273,11 +1273,12 @@ static_assert(sizeof(DcpSeqnoAdvancedPayload) == 8, "Unexpected struct size");
 namespace mcbp::systemevent {
 
 enum class id : uint32_t {
-    CreateCollection = 0,
-    DeleteCollection = 1,
-    FlushCollection = 2,
-    CreateScope = 3,
-    DropScope = 4
+    CreateCollection = 0, // Since 7.0 (epoch of SystemEvents)
+    DeleteCollection = 1, // Since 7.0 (epoch of SystemEvents)
+    FlushCollection = 2, // Defined but never used
+    CreateScope = 3, // Since 7.0 (epoch of SystemEvents)
+    DropScope = 4, // Since 7.0 (epoch of SystemEvents)
+    ModifyCollection = 5 // Since 7.2 (requires opt-in on DCP)
 };
 
 // versions define the format of the value transmitted by a SystemEvent.
@@ -1333,6 +1334,7 @@ public:
         case id::FlushCollection:
         case id::CreateScope:
         case id::DropScope:
+        case id::ModifyCollection:
             return true;
         }
         return false;

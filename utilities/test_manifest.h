@@ -191,6 +191,12 @@ public:
                                 const ScopeEntry::Entry& scopeEntry,
                                 const std::string& newName);
 
+    CollectionsManifest& update(
+            const CollectionEntry::Entry& collectionEntry,
+            cb::ExpiryLimit maxTtl,
+            std::optional<bool> history = {},
+            const ScopeEntry::Entry& scopeEntry = ScopeEntry::defaultS);
+
     /// @return true if collection exists
     bool exists(
             const CollectionEntry::Entry& collectionEntry,

@@ -12,6 +12,7 @@ type identifier for the event, the following events are defined (values shown).
 * 2 - Reserved for future use
 * 3 - A scope has been created
 * 4 - A scope has been droppped
+* 5 - A collection has been modified
 
 Each event is free to define if a key or value is present, and the format of each.
 
@@ -181,11 +182,11 @@ __Value__: version 0 and version 1 values are defined.
     }
 ```
 
-### Drop/Flush Collection
+### Drop
 
 __Key__: A drop collection system event has no key.
 
-__Value__: A drop or flush collection system event with version 0 contains:
+__Value__: A drop collection system event with version 0 contains:
 
 * The ID of last completely processed manifest as a 8-byte integer (network endian)
 * The Scope-ID that the dropped collection belonged to as a 4-byte integer (network endian)
@@ -198,6 +199,14 @@ __Value__: A drop or flush collection system event with version 0 contains:
         uint32_t collection_id;
     }
 ```
+
+### Modify Collection
+
+This event is only transmitted if FlatBuffers are enabled with DCP Control [flatbuffers_system_events](control.md).
+
+__Key__: A modify collection system event has a key which is the name of the modified collection.
+
+__Value__: This is the same data as a create collection event.
 
 ### Create Scope
 

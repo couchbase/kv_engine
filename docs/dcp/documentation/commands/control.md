@@ -58,7 +58,9 @@ receive status codes `Status::DcpStreamNotFound = 0x0A` and
 `Status::OpaqueNoMatch = 0x0B`, introduced as of Couchbase 7.0.0.
 
 * `flatbuffers_system_events` = `true` - Tells  the DCP producer that it must
-send system events with a FlatBuffers value. A configuration of `false` is
+send system events with a FlatBuffers value. The enabling of FlatBuffers events
+also enables the transmission of modification events permitting some collection
+or scope metadata to be changed post creation. A configuration of `false` is
 invalid and will be rejected.
 
 * `change_streams` = `true` - Enables the DCP connection to allow history
