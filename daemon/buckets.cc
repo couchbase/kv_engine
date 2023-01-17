@@ -15,7 +15,6 @@
 #include "log_macros.h"
 #include "memcached.h"
 #include "stats.h"
-#include <daemon/server_core_api.h>
 #include <daemon/settings.h>
 #include <logger/logger.h>
 #include <mcbp/protocol/header.h>

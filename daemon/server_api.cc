@@ -9,22 +9,15 @@
  */
 
 #include "buckets.h"
-#include "connection.h"
-#include "cookie.h"
 #include "doc_pre_expiry.h"
 #include "enginemap.h"
 #include "environment.h"
-#include "front_end_thread.h"
-#include "mcaudit.h"
-#include "memcached.h"
-#include "server_core_api.h"
-#include "tracing.h"
+#include "mc_time.h"
+#include "settings.h"
 #include <memcached/engine.h>
-#include <memcached/rbac/privileges.h>
 #include <memcached/server_bucket_iface.h>
+#include <memcached/server_core_iface.h>
 #include <memcached/server_document_iface.h>
-#include <phosphor/phosphor.h>
-#include <utilities/engine_errc_2_mcbp.h>
 
 struct ServerBucketApi : public ServerBucketIface {
     unique_engine_ptr createBucket(
@@ -52,6 +45,52 @@ struct ServerBucketApi : public ServerBucketIface {
         return AssociatedBucketHandle(engine, [bucket](EngineIface*) {
             BucketManager::instance().disassociateBucket(bucket);
         });
+    }
+};
+
+struct ServerCoreApi : public ServerCoreIface {
+    rel_time_t get_current_time() override {
+        return mc_time_get_current_time();
+    }
+
+    rel_time_t realtime(rel_time_t exptime) override {
+        return mc_time_convert_to_real_time(exptime);
+    }
+
+    time_t abstime(rel_time_t exptime) override {
+        return mc_time_convert_to_abs_time(exptime);
+    }
+
+    time_t limit_abstime(time_t t, std::chrono::seconds limit) override {
+        return mc_time_limit_abstime(t, limit);
+    }
+
+    ThreadPoolConfig getThreadPoolSizes() override {
+        auto& instance = Settings::instance();
+        return {instance.getNumReaderThreads(), instance.getNumWriterThreads()};
+    }
+
+    size_t getMaxEngineFileDescriptors() override {
+        return environment.engine_file_descriptors;
+    }
+
+    size_t getQuotaSharingPagerConcurrency() override {
+        auto& instance = Settings::instance();
+        // Calculate number of concurrent paging visitors to use as a percentage
+        // of the number of NonIO threads.
+        int userValue = instance.getQuotaSharingPagerConcurrencyPercentage() *
+                        instance.getNumNonIoThreads() / 100;
+        return std::clamp(userValue, 1, instance.getNumNonIoThreads());
+    }
+
+    bool isCollectionsEnabled() const override {
+        return Settings::instance().isCollectionsEnabled();
+    }
+
+    bool isServerlessDeployment() const override {
+        // Call isServerlessDeployment() from settings.h to get hold of the
+        // state from memcached side of KV.
+        return ::isServerlessDeployment();
     }
 };
 
