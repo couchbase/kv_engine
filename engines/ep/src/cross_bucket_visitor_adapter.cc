@@ -137,12 +137,7 @@ CrossBucketVisitorAdapter::schedule(
     };
     auto lbl = fmt::format("{} ({})", label, bucket.getEPEngine().getName());
     auto task = std::make_shared<SingleSteppingVisitorAdapter>(
-            &bucket,
-            id,
-            std::move(visitor),
-            lbl.c_str(),
-            /* completeBeforeShutdown */ true,
-            callback);
+            &bucket, id, std::move(visitor), lbl.c_str(), callback);
     task->setMaxExpectedDuration(maxExpectedDuration);
 
     ExecutorPool::get()->schedule(task);
@@ -160,12 +155,11 @@ void CrossBucketVisitorAdapter::onVisitorRunCompleted(
         // Check whether this is the expected task, to avoid spurious
         // wake-ups from engines shutting down and waking up their tasks.
         if (expectedTask != &task) {
-            Expects(engine.getEpStats().isShutdown);
+            Expects(engine.getEpStats().isShutdown && !runAgain);
             EP_LOG_DEBUG(
                     "Cross-bucket visitor '{}' ({}) was signalled by an "
                     "unexpected task '{}' ({}) (expected: '{}' ({})). The "
-                    "engine is shutting-down so we will ignore the task from "
-                    "now on.",
+                    "engine is shutting-down.",
                     label,
                     (void*)this,
                     task.getDescription(),
@@ -173,8 +167,7 @@ void CrossBucketVisitorAdapter::onVisitorRunCompleted(
                     expectedTask->getDescription(),
                     (void*)expectedTask);
             // Remove the task from the queue. It is no longer managed by the
-            // adaptor, so it will run until its visitor completes or decides
-            // to stop.
+            // adaptor.
             orderedTasks.erase(std::remove_if(orderedTasks.begin(),
                                               orderedTasks.end(),
                                               [&task](const auto& t) {

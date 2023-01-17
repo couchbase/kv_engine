@@ -92,7 +92,6 @@ TEST_F(VBAdaptorsTest, PausingAdapterVisitsVbuckets) {
             TaskId::ItemPager,
             std::move(visitor),
             "",
-            false,
             mockCallback.AsStdFunction());
 
     EXPECT_TRUE(task->run());

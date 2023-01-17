@@ -133,6 +133,9 @@ private:
  *
  * The set of VBuckets to visit is obtained by applying
  * VBucketVisitor::getVBucketFilter() to the set of vBuckets the Bucket has.
+ *
+ * The callback will be called with runAgain=false when the engine starts
+ * shutting down.
  */
 class SingleSteppingVisitorAdapter : public NotifiableTask,
                                      public CallbackAdapter {
@@ -142,7 +145,6 @@ public:
             TaskId id,
             std::unique_ptr<InterruptableVBucketVisitor> visitor,
             std::string_view label,
-            bool completeBeforeShutdown,
             ContinuationCallback continuation);
 
     std::string getDescription() const override;

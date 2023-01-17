@@ -98,12 +98,11 @@ SingleSteppingVisitorAdapter::SingleSteppingVisitorAdapter(
         TaskId id,
         std::unique_ptr<InterruptableVBucketVisitor> visitor,
         std::string_view label,
-        bool completeBeforeShutdown,
         ContinuationCallback continuation)
     : NotifiableTask(store->getEPEngine(),
                      id,
                      INT_MAX /*initialSleepTime*/,
-                     completeBeforeShutdown),
+                     true /*completeBeforeShutdown*/),
       CallbackAdapter(std::move(continuation)),
       store(store),
       visitor(std::move(visitor)),
@@ -129,6 +128,10 @@ std::string SingleSteppingVisitorAdapter::getDescription() const {
 
 bool SingleSteppingVisitorAdapter::runInner(bool) {
     bool runAgain = [this] {
+        if (engine->getEpStats().isShutdown) {
+            return false;
+        }
+
         visitor->begin();
 
         while (!vbucketsToVisit.empty()) {
