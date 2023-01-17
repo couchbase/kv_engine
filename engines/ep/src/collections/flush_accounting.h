@@ -13,6 +13,7 @@
 
 #include "collections/kvstore.h"
 #include "ep_types.h"
+#include <memcached/systemevent.h>
 
 #include <unordered_map>
 #include <vector>
@@ -381,17 +382,19 @@ private:
 
     /**
      * Helper for updateStats
-     * Processes the collection create or drop event that was seen by
-     * updateStats and applies changes to the stats maps.
+     * Check the event - return false if ModifyCollection
+     * Else continue to process the create/drop event apply changes to the stats
+     * maps.
+     * @param event a SystemEvent type extracted from the key of an event
      * @param cid The collection associated with the event
      * @param isDelete Yes/No - drop vs create collection
      * @param isCompaction Yes if called from compaction replay
      * @return true if isDelete is Yes (i.e. drop collection)
      */
-    bool processSystemEvent(CollectionID cid,
-                            IsDeleted isDelete,
-                            IsCompaction isCompaction);
-
+    bool checkAndMaybeProcessSystemEvent(SystemEvent event,
+                                         CollectionID cid,
+                                         IsDeleted isDelete,
+                                         IsCompaction isCompaction);
     /**
      * A map of collections that have had items flushed and the statistics
      * gathered. E.g. the delta of disk and item count changes and the high

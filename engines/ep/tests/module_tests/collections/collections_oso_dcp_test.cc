@@ -42,17 +42,10 @@ public:
     void MB_43700(CollectionID cid);
 
     void emptyDiskSnapshot(OutOfOrderSnapshots osoMode);
-
-    /**
-     *  @param endOnTarget true and the last item written will be for the target
-     *         collection
-     */
-    std::pair<CollectionsManifest, uint64_t> setupTwoCollections(
-            bool endOnTarget = false);
 };
 
 std::pair<CollectionsManifest, uint64_t>
-CollectionsOSODcpTest::setupTwoCollections(bool endOnTarget) {
+CollectionsDcpTest::setupTwoCollections(bool endOnTarget) {
     VBucketPtr vb = store->getVBucket(vbid);
     CollectionsManifest cm(CollectionEntry::fruit);
     setCollections(cookie, cm.add(CollectionEntry::vegetable));
@@ -75,7 +68,7 @@ CollectionsOSODcpTest::setupTwoCollections(bool endOnTarget) {
         store_item(vbid, makeStoredDocKey("c", CollectionEntry::fruit), "y");
     }
     flush_vbucket_to_disk(vbid, 10); // 8 keys + 2 events
-    return {cm, 10};
+    return {cm, vb->getHighSeqno()};
 }
 
 // Run through how we expect OSO to work, this is a minimal test which will

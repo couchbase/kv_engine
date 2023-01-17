@@ -87,7 +87,7 @@ Collections::KVStore::Manifest decodeManifest(cb::const_byte_buffer manifest,
                              entry->name()->str(),
                              maxTtl,
                              Collections::getMetered(entry->metered()),
-                             CanDeduplicate::Yes}});
+                             getCanDeduplicateFromHistory(entry->history())}});
         }
     } else {
         // Nothing on disk - the default collection is assumed
@@ -196,12 +196,13 @@ bool DroppedCollection::operator==(const DroppedCollection& other) const {
 std::ostream& operator<<(
         std::ostream& os,
         const Collections::KVStore::OpenCollection& collection) {
-    return os << collection.metaData << ",startSeqno:" << collection.startSeqno;
+    return os << collection.metaData
+              << ", startSeqno:" << collection.startSeqno;
 }
 
 std::ostream& operator<<(std::ostream& os,
                          const Collections::KVStore::OpenScope& scope) {
-    return os << scope.metaData << ",startSeqno:" << scope.startSeqno;
+    return os << scope.metaData << ", startSeqno:" << scope.startSeqno;
 }
 
 std::ostream& operator<<(std::ostream& os,
