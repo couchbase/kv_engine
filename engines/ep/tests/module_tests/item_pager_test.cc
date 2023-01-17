@@ -202,6 +202,14 @@ protected:
     /**
      * Store items evenly into the provided vbuckets until the given
      * predicate is met.
+     *
+     * NOTE: If you rely on super-precise memory usage measurements within the
+     * predicate, be careful with how the arguments passed into this function
+     * are constructed. Constructing the std::vector (and std::function)
+     * as temporaries, will mean the memory usage for the buffers for these
+     * structures will be included in the engine's memory usage (if they have to
+     * allocate memory).
+     *
      * @return the number of items stored into each vbucket NB: may be off by 1
      *         for some vbuckets, dependent on when the predicate is satisfied
      */
@@ -1163,8 +1171,10 @@ TEST_P(STItemPagerTest, ReplicaEvictedBeforeActive) {
     // populate the replica vbs until its evictable memory _exceeds_ the gap
     // between the high and low water mark. When the mem usage later passes the
     // high water mark, evicting from the replica should reclaim enough memory.
+    std::vector<Vbid> replicaVbsToPopulate{replicaVb};
     auto replicaItemCount = populateVbsUntil(
-            {replicaVb}, [&stats, &store = store, replicaVb, watermarkDiff] {
+            replicaVbsToPopulate,
+            [&stats, &store = store, replicaVb, watermarkDiff] {
                 // sanity check - if this fails the quota is too low -
                 EXPECT_LT(stats.getPreciseTotalMemoryUsed(),
                           stats.mem_high_wat);
@@ -1175,7 +1185,8 @@ TEST_P(STItemPagerTest, ReplicaEvictedBeforeActive) {
     EXPECT_GT(replicaItemCount, 0);
 
     // Now fill the active VB until the high watermark is reached
-    auto activeItemCount = populateVbsUntil({activeVb}, [&stats] {
+    std::vector<Vbid> activeVbsToPopulate{activeVb};
+    auto activeItemCount = populateVbsUntil(activeVbsToPopulate, [&stats] {
         return stats.getPreciseTotalMemoryUsed() > stats.mem_high_wat;
     });
     store->attemptToFreeMemory();
@@ -1248,8 +1259,10 @@ TEST_P(STItemPagerTest, ActiveEvictedIfReplicaEvictionInsufficient) {
 
     // store items in the replica vb such that evicting everything in the
     // replica when at the high watermark will _not_ reach the low watermark
+    std::vector<Vbid> replicaVbsToPopulate = {replicaVB};
     auto replicaItemCount = populateVbsUntil(
-            {replicaVB}, [&stats, &store = store, replicaVB, watermarkDiff] {
+            replicaVbsToPopulate,
+            [&stats, &store = store, replicaVB, watermarkDiff] {
                 // sanity check - if this fails the quota is too low -
                 EXPECT_LT(stats.getPreciseTotalMemoryUsed(),
                           stats.mem_high_wat);
@@ -1266,7 +1279,8 @@ TEST_P(STItemPagerTest, ActiveEvictedIfReplicaEvictionInsufficient) {
     EXPECT_GT(replicaItemCount, 0);
 
     // Now fill the active VB until the high watermark is reached
-    auto activeItemCount = populateVbsUntil({activeVB}, [&stats] {
+    std::vector<Vbid> activeVbsToPopulate = {activeVB};
+    auto activeItemCount = populateVbsUntil(activeVbsToPopulate, [&stats] {
         return stats.getPreciseTotalMemoryUsed() > stats.mem_high_wat;
     });
     store->attemptToFreeMemory();
