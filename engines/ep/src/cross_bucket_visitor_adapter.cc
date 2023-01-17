@@ -33,13 +33,11 @@ void randomShuffle(RandomAccessIt first, RandomAccessIt last) {
 
 CrossBucketVisitorAdapter::CrossBucketVisitorAdapter(
         ServerBucketIface& serverBucketApi,
-        CrossBucketVisitorAdapter::VisitorMap visitors,
         CrossBucketVisitorAdapter::ScheduleOrder order,
         TaskId id,
         std::string_view label,
         std::chrono::microseconds maxExpectedDuration,
-        std::shared_ptr<cb::Semaphore> semaphore,
-        bool randomShuffle_)
+        std::shared_ptr<cb::Semaphore> semaphore)
     : serverBucketApi(serverBucketApi),
       order(order),
       id(id),
@@ -48,6 +46,11 @@ CrossBucketVisitorAdapter::CrossBucketVisitorAdapter(
       completed(false),
       expectedTask(nullptr),
       semaphore(std::move(semaphore)) {
+}
+
+void CrossBucketVisitorAdapter::scheduleNow(
+        CrossBucketVisitorAdapter::VisitorMap visitors, bool randomShuffle_) {
+    Expects(!expectedTask && !completed);
     // Populate the list of tasks we've scheduled
     for (auto& [engine, visitor] : visitors) {
         auto& ep = dynamic_cast<EventuallyPersistentEngine&>(*engine.get());
@@ -67,13 +70,19 @@ CrossBucketVisitorAdapter::CrossBucketVisitorAdapter(
     EP_LOG_DEBUG("Cross-bucket visitor: '{}' created with {} tasks.",
                  label,
                  orderedTasks.size());
+
+    scheduleNext();
 }
 
 void CrossBucketVisitorAdapter::scheduleNext() {
     std::lock_guard lock(schedulingMutex);
     while (!orderedTasks.empty()) {
-        auto task = orderedTasks.front();
+        auto task = orderedTasks.front().lock();
         orderedTasks.pop_front();
+        if (!task) {
+            // The task object has been destroyed, so we can ignore it
+            continue;
+        }
 
         if (auto handle =
                     serverBucketApi.tryAssociateBucket(task->getEngine())) {
@@ -121,9 +130,10 @@ std::shared_ptr<SingleSteppingVisitorAdapter>
 CrossBucketVisitorAdapter::schedule(
         KVBucket& bucket,
         std::unique_ptr<InterruptableVBucketVisitor> visitor) {
-    auto callback = [&bucket, this](auto& task, auto runAgain) {
+    auto callback = [&bucket, self = shared_from_this()](auto& task,
+                                                         auto runAgain) {
         auto& t = static_cast<const SingleSteppingVisitorAdapter&>(task);
-        onVisitorRunCompleted(bucket.getEPEngine(), t, runAgain);
+        self->onVisitorRunCompleted(bucket.getEPEngine(), t, runAgain);
     };
     auto lbl = fmt::format("{} ({})", label, bucket.getEPEngine().getName());
     auto task = std::make_shared<SingleSteppingVisitorAdapter>(
@@ -168,7 +178,8 @@ void CrossBucketVisitorAdapter::onVisitorRunCompleted(
             orderedTasks.erase(std::remove_if(orderedTasks.begin(),
                                               orderedTasks.end(),
                                               [&task](const auto& t) {
-                                                  return t.get() == &task;
+                                                  return t.lock().get() ==
+                                                         &task;
                                               }),
                                orderedTasks.end());
             return;

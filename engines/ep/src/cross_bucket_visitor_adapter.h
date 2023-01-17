@@ -27,7 +27,8 @@
  * Each visitor will be allowed to visit one vBucket, and then paused until
  * woken up again according to the ScheduleOrder specified.
  */
-class CrossBucketVisitorAdapter {
+class CrossBucketVisitorAdapter
+    : public std::enable_shared_from_this<CrossBucketVisitorAdapter> {
 public:
     /**
      * Bucket -> Visitor map
@@ -55,34 +56,29 @@ public:
     /**
      * Create an instance of the CrossBucketVisitorAdapter.
      * @param serverBucketApi The server bucket interface to use
-     * @param visitors A map of bucket -> visitor
-     * @param order The order in which to schedule the visitors
      * @param id The TaskId to use for each visitor task
      * @param label The label to use for each visitor task
      * @param maxExpectedDuration The expected duration of a vBucket visit
      * @param semaphore An optional semaphore object. This adapter will release
      *                  one token to the semaphore once completed.
-     * @param randomShuffle If true, the relative order between the visitors
-     *                      will be randomised. If false, the iteration order
-     *                      of the visitor map will be used.
      */
     CrossBucketVisitorAdapter(
             ServerBucketIface& serverBucketApi,
-            VisitorMap visitors,
             ScheduleOrder order,
             TaskId id,
             std::string_view label,
             std::chrono::microseconds maxExpectedDuration,
-            std::shared_ptr<cb::Semaphore> semaphore = nullptr,
-            bool randomShuffle = true);
+            std::shared_ptr<cb::Semaphore> semaphore = nullptr);
 
     /**
      * Starts running the visitors.
+     * @param visitors A map of bucket -> visitor
+     * @param order The order in which to schedule the visitors
+     * @param randomShuffle If true, the relative order between the visitors
+     *                      will be randomised. If false, the iteration order
+     *                      of the visitor map will be used.
      */
-    void scheduleNow() {
-        Expects(!expectedTask && !completed);
-        scheduleNext();
-    }
+    void scheduleNow(VisitorMap visitors, bool randomShuffle = true);
 
     /**
      * Have all visitors completed.
@@ -96,7 +92,8 @@ public:
      * Testing hook which is called back after scheduleNext schedules a task, so
      * we can test what happens if an unexpected task signals completion.
      */
-    TestingHook<std::deque<ExTask>&, GlobalTask*> scheduleNextHook;
+    TestingHook<std::deque<std::weak_ptr<GlobalTask>>&, GlobalTask*>
+            scheduleNextHook;
 
 private:
     /**
@@ -141,7 +138,7 @@ private:
      * The list of tasks we will wake up in the order specified by the
      * ScheduleOrder.
      */
-    std::deque<ExTask> orderedTasks;
+    std::deque<std::weak_ptr<GlobalTask>> orderedTasks;
 
     /**
      * The task that was scheduled and is expected to run and callback.

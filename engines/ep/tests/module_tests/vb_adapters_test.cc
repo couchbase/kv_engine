@@ -135,14 +135,13 @@ TEST_F(VBAdaptorsTest, CrossBucketVisitorsWorksForSingleBucket) {
 
     auto crossBucketVisitor = std::make_shared<CrossBucketVisitorAdapter>(
             *bucketApi,
-            std::move(visitors),
             // ScheduleOrder doesn't matter for a single bucket
             CrossBucketVisitorAdapter::ScheduleOrder::RoundRobin,
             TaskId::ItemPager,
             "test",
             std::chrono::microseconds(0),
             nullptr);
-    crossBucketVisitor->scheduleNow();
+    crossBucketVisitor->scheduleNow(std::move(visitors));
 
     EXPECT_FALSE(crossBucketVisitor->hasCompleted());
     // Expect to visit one Vbucket per task wakeup.
@@ -166,6 +165,8 @@ TEST_F(VBAdaptorsTest, CrossBucketVisitorsWorksForSingleBucket) {
                          NONIO_TASK_IDX, "test (SynchronousEPEngine:default)"),
                  std::logic_error);
     EXPECT_TRUE(crossBucketVisitor->hasCompleted());
+    // Task objects should have been destroyed, this is the only strong ref.
+    EXPECT_EQ(1, crossBucketVisitor.use_count());
 }
 
 TEST_F(VBAdaptorsTest, CrossBucketVisitorsWorksForTwoBuckets) {
@@ -197,14 +198,13 @@ TEST_F(VBAdaptorsTest, CrossBucketVisitorsWorksForTwoBuckets) {
 
     auto crossBucketVisitor = std::make_shared<CrossBucketVisitorAdapter>(
             *bucketApi,
-            std::move(visitors),
             CrossBucketVisitorAdapter::ScheduleOrder::RoundRobin,
             TaskId::ItemPager,
             "test",
             std::chrono::microseconds(0),
-            nullptr,
-            /* randomShuffle */ false);
-    crossBucketVisitor->scheduleNow();
+            nullptr);
+    crossBucketVisitor->scheduleNow(std::move(visitors),
+                                    /* randomShuffle */ false);
 
     // Expect to visit one Vbucket per task wakeup.
     EXPECT_EQ(std::nullopt, lastVbidBucket1);
@@ -255,6 +255,8 @@ TEST_F(VBAdaptorsTest, CrossBucketVisitorsWorksForTwoBuckets) {
     EXPECT_THROW(task_executor->runNextTask(
                          NONIO_TASK_IDX, "test (SynchronousEPEngine:engine2)"),
                  std::logic_error);
+    // Task objects should have been destroyed, this is the only strong ref.
+    EXPECT_EQ(1, crossBucketVisitor.use_count());
 }
 
 /**
@@ -279,7 +281,6 @@ TEST_F(VBAdaptorsTest, CrossBucketVisitorIgnoresUnexpectedWakeups) {
 
     auto crossBucketVisitor = std::make_shared<CrossBucketVisitorAdapter>(
             *bucketApi,
-            std::move(visitors),
             CrossBucketVisitorAdapter::ScheduleOrder::RoundRobin,
             TaskId::ItemPager,
             "test",
@@ -287,23 +288,23 @@ TEST_F(VBAdaptorsTest, CrossBucketVisitorIgnoresUnexpectedWakeups) {
             nullptr);
 
     bool wasHookExecuted = false;
-    crossBucketVisitor->scheduleNextHook = [&wasHookExecuted](
-                                                   std::deque<ExTask>& queue,
-                                                   GlobalTask* expected) {
-        // Make the unexpected task run instead.
-        auto unexpected =
-                queue.front().get() == expected ? queue.back() : queue.front();
-        // The task will signal its completion from within
-        // GlobalTask::run() and callback into the CrossBucket adapter.
-        // We should detect this and remove the task from the queue.
-        EXPECT_THROW(unexpected->execute(""), std::logic_error);
-        unexpected->getEngine()->getEpStats().isShutdown = true;
-        EXPECT_NO_THROW(unexpected->execute(""));
-        // The unexpected task is removed from the queue.
-        EXPECT_EQ(1, queue.size());
-        EXPECT_EQ(expected, queue.front().get());
-        wasHookExecuted = true;
-    };
-    crossBucketVisitor->scheduleNow();
+    crossBucketVisitor->scheduleNextHook =
+            [&wasHookExecuted](auto& queue, GlobalTask* expected) {
+                // Make the unexpected task run instead.
+                auto unexpected = queue.front().lock().get() == expected
+                                          ? queue.back().lock()
+                                          : queue.front().lock();
+                // The task will signal its completion from within
+                // GlobalTask::run() and callback into the CrossBucket adapter.
+                // We should detect this and remove the task from the queue.
+                EXPECT_THROW(unexpected->execute(""), std::logic_error);
+                unexpected->getEngine()->getEpStats().isShutdown = true;
+                EXPECT_NO_THROW(unexpected->execute(""));
+                // The unexpected task is removed from the queue.
+                EXPECT_EQ(1, queue.size());
+                EXPECT_EQ(expected, queue.front().lock().get());
+                wasHookExecuted = true;
+            };
+    crossBucketVisitor->scheduleNow(std::move(visitors));
     ASSERT_TRUE(wasHookExecuted);
 }

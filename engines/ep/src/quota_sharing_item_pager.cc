@@ -80,18 +80,6 @@ std::chrono::microseconds QuotaSharingItemPager::maxExpectedDuration() const {
     return std::chrono::milliseconds(25);
 }
 
-void QuotaSharingItemPager::releaseCompletedAdapters(
-        typename RetainedAdapterList::DataType& adapters) {
-    adapters.erase(std::partition(adapters.begin(),
-                                  adapters.end(),
-                                  [](const auto& adapter) {
-                                      // Completed adapters come after
-                                      // ones which are still running
-                                      return !adapter->hasCompleted();
-                                  }),
-                   adapters.end());
-}
-
 ItemPager::PageableMemInfo QuotaSharingItemPager::getPageableMemInfo() const {
     ItemPager::PageableMemInfo memInfo;
     for (const auto& handle : group.getActive()) {
@@ -288,19 +276,11 @@ void QuotaSharingItemPager::schedulePagingVisitors(std::size_t bytesToEvict) {
 
         auto visitorAdapter = std::make_shared<CrossBucketVisitorAdapter>(
                 bucketApi,
-                std::move(visitors),
                 CrossBucketVisitorAdapter::ScheduleOrder::RoundRobin,
                 TaskId::ItemPagerVisitor,
                 "Item pager (quota sharing)",
                 maxExpectedDurationForVisitorTask,
                 pagerSemaphore);
-        visitorAdapter->scheduleNow();
-
-        auto lockedAdapters = retainedAdapters.lock();
-        // Drop references to any existing adapters that have already completed.
-        releaseCompletedAdapters(*lockedAdapters);
-        // And add this one to the list, so it is not destroyed while still
-        // running.
-        lockedAdapters->push_back(visitorAdapter);
+        visitorAdapter->scheduleNow(std::move(visitors));
     }
 }

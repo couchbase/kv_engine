@@ -56,19 +56,6 @@ public:
             std::size_t bytesToEvict) const override;
 
 private:
-    using RetainedAdapterList = folly::Synchronized<
-            std::vector<std::shared_ptr<CrossBucketVisitorAdapter>>,
-            std::mutex>;
-
-    /**
-     * Removes any references to completed adapters.
-     *
-     * We might keep up to numConcurrentPagers of these alive at any time after
-     * they have completed.
-     */
-    void releaseCompletedAdapters(
-            typename RetainedAdapterList::DataType& adapters);
-
     /**
      * Calculates the number of evictable bytes from buckets in the specified
      * states.
@@ -86,18 +73,4 @@ private:
      * The group of engines to consider during paging.
      */
     EPEngineGroup& group;
-
-    /**
-     * Adapter instances which should be retained (not destroyed) until
-     * completed. The adapters are not tasks themselves, but they own tasks
-     * and have callbacks from these tasks, so if we don't retain the
-     * shared_ptrs somewhere, we will get a use-after-free when a task calls
-     * back into a destroyed adapter. We might keep up to numConcurrentPagers of
-     * these alive at any time after they have completed.
-     *
-     * We remove completed instances by calling releaseCompletedAdapters when
-     * appropriate (we have no callback mechanism to know exactly when an
-     * adapter has completed).
-     */
-    RetainedAdapterList retainedAdapters;
 };
