@@ -4316,6 +4316,136 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
     destroy_mock_cookie(cookieC2);
 }
 
+TEST_P(CollectionsDcpPersistentOnly, ModifyCollection) {
+    using namespace cb::mcbp;
+    using namespace mcbp::systemevent;
+    using namespace CollectionEntry;
+
+    CollectionsManifest cm;
+    // Two collections. One with and one without history
+    cm.add(CollectionEntry::fruit);
+    cm.add(CollectionEntry::vegetable, cb::NoExpiryLimit, true);
+    setCollections(cookie, cm);
+
+    // Wake and step DCP
+    // Expect snap1, create fruit, snap2, create vegetable
+    notifyAndStepToCheckpoint();
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+
+    // New snapshot for next SystemEvent (create vegetable)
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSnapshotMarker);
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_collection_id, vegetable.getId());
+
+    // Check the deduplicate setting on active/vb0 and replica/vb1
+    auto vb0 = store->getVBucket(vbid);
+    auto vb1 = store->getVBucket(replicaVB);
+
+    // fruit can deduplicate
+    EXPECT_EQ(CanDeduplicate::Yes,
+              vb0->lockCollections().getCanDeduplicate(fruit));
+    EXPECT_EQ(CanDeduplicate::Yes,
+              vb1->lockCollections().getCanDeduplicate(fruit));
+    // vegetable cannot deduplicate
+    EXPECT_EQ(CanDeduplicate::No,
+              vb0->lockCollections().getCanDeduplicate(vegetable));
+    EXPECT_EQ(CanDeduplicate::No,
+              vb1->lockCollections().getCanDeduplicate(vegetable));
+
+    // Switch the configuration (two collection modifications)
+    cm.update(fruit, cb::NoExpiryLimit, true /*history*/);
+    cm.update(vegetable, cb::NoExpiryLimit);
+    setCollections(cookie, cm);
+
+    // Wake and step DCP
+    // Expect snap1, modify fruit, snap2, modify vegetable
+    notifyAndStepToCheckpoint();
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::ModifyCollection);
+    EXPECT_EQ(producers->last_collection_id, vegetable.getId());
+    EXPECT_EQ(producers->last_key, "vegetable");
+    EXPECT_EQ(producers->last_scope_id, ScopeID::Default);
+
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSnapshotMarker);
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::ModifyCollection);
+    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+    EXPECT_EQ(producers->last_key, "fruit");
+    EXPECT_EQ(producers->last_scope_id, ScopeID::Default);
+
+    // Check again, it's changed
+    EXPECT_EQ(CanDeduplicate::No,
+              vb0->lockCollections().getCanDeduplicate(fruit));
+    EXPECT_EQ(CanDeduplicate::No,
+              vb1->lockCollections().getCanDeduplicate(fruit));
+
+    EXPECT_EQ(CanDeduplicate::Yes,
+              vb0->lockCollections().getCanDeduplicate(vegetable));
+    EXPECT_EQ(CanDeduplicate::Yes,
+              vb1->lockCollections().getCanDeduplicate(vegetable));
+
+    // TODO: Flush the vbucket and warmup (recheck events)
+}
+
+// Test that if the flatBuffesrSystemEventsEnabled==false a modification event
+// isn't transmitted (client has not opted in).
+TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionNotReplicated) {
+    using namespace cb::mcbp;
+    using namespace mcbp::systemevent;
+    using namespace CollectionEntry;
+
+    producer = SingleThreadedKVBucketTest::createDcpProducer(
+            cookieP, IncludeDeleteTime::Yes, false /*no FlatBuffers*/);
+
+    // No transfer to consumer in this test - just check the data passed in
+    // each step
+    producers->consumer = nullptr;
+    producers->producerFlatBuffersSystemEventsEnabled = false;
+
+    uint64_t rollbackSeqno = 0;
+    ASSERT_EQ(cb::engine_errc::success,
+              producer->streamRequest(0, // flags
+                                      1, // opaque
+                                      vbid,
+                                      0,
+                                      ~0ull, // end_seqno
+                                      0,
+                                      0,
+                                      0,
+                                      &rollbackSeqno,
+                                      &CollectionsDcpTest::dcpAddFailoverLog,
+                                      {{nullptr, 0}}));
+
+    CollectionsManifest cm;
+    cm.add(fruit);
+    auto vb0 = store->getVBucket(vbid);
+    setCollections(cookie, cm);
+    notifyAndStepToCheckpoint();
+
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+
+    EXPECT_EQ(CanDeduplicate::Yes,
+              vb0->lockCollections().getCanDeduplicate(fruit));
+
+    // Now change the setting of fruit - history now enabled
+    cm.update(fruit, cb::NoExpiryLimit, true /*history*/);
+    setCollections(cookie, cm);
+
+    store_item(vbid, makeStoredDocKey("key", fruit), "value");
+
+    notifyAndStepToCheckpoint();
+    // DCP goes straight to the mutation
+    producer->stepAndExpect(*producers, ClientOpcode::DcpMutation);
+
+    // @todo: ActiveStream changes and tests for a skipped Modify being replaced
+    // by a SeqnoAdvance.
+}
+
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
                          CollectionsDcpParameterizedTest,

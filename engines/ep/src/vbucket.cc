@@ -1917,6 +1917,20 @@ void VBucket::replicaCreateCollection(Collections::ManifestUid uid,
                                        bySeqno);
 }
 
+void VBucket::replicaModifyCollection(Collections::ManifestUid uid,
+                                      CollectionID cid,
+                                      CanDeduplicate canDeduplicate,
+                                      int64_t bySeqno) {
+    // The state of the VBucket must not change here, because
+    // replicaModifyCollection will generate SystemEvent items.
+    // NOTE: We kill all streams when changing the VBucket state and this
+    // function is only called from PassiveStream, so the lock is not
+    // technically required for now.
+    folly::SharedMutex::ReadHolder rlh(stateLock);
+    manifest->wlock(rlh).replicaModifyCollection(
+            *this, uid, cid, canDeduplicate, bySeqno);
+}
+
 void VBucket::replicaDropCollection(Collections::ManifestUid uid,
                                     CollectionID cid,
                                     int64_t bySeqno) {

@@ -1425,9 +1425,11 @@ bool ActiveStream::shouldProcessItem(const Item& item) {
     if (item.getOperation() == queue_op::system_event) {
         switch (SystemEvent(item.getFlags())) {
         case SystemEvent::Collection:
-        case SystemEvent::ModifyCollection:
         case SystemEvent::Scope:
             return true;
+        case SystemEvent::ModifyCollection:
+            // Modify cannot be transmitted unless opted-in
+            return flatBuffersSystemEventsEnabled;
         }
         return false;
     }

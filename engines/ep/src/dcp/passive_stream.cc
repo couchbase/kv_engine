@@ -918,6 +918,8 @@ cb::engine_errc PassiveStream::processSystemEvent(
         return processCreateScope(vb, CreateScopeEvent(event));
     case id::DropScope:
         return processDropScope(vb, DropScopeEvent(event));
+    case id::ModifyCollection:
+        [[fallthrough]]; // invalid event for non-FlatBuffers
     case id::FlushCollection:
         // Event unused since epoch of system events (7.0)
         return cb::engine_errc::invalid_arguments;
@@ -940,6 +942,8 @@ cb::engine_errc PassiveStream::processSystemEventFlatBuffers(
         return processCreateScope(vb, event);
     case id::DropScope:
         return processDropScope(vb, event);
+    case id::ModifyCollection:
+        return processModifyCollection(vb, event);
     case id::FlushCollection:
         // Event unused since epoch of system events (7.0)
         return cb::engine_errc::invalid_arguments;
@@ -1046,6 +1050,28 @@ cb::engine_errc PassiveStream::processCreateCollection(
         log(spdlog::level::level_enum::warn,
             "PassiveStream::processCreateCollection FlatBuffers {} exception "
             "{}",
+            vb.getId(),
+            e.what());
+        return cb::engine_errc::invalid_arguments;
+    }
+    return cb::engine_errc::success;
+}
+
+cb::engine_errc PassiveStream::processModifyCollection(
+        VBucket& vb, const SystemEventConsumerMessage& event) {
+    try {
+        const auto* collection =
+                Collections::VB::Manifest::getCollectionFlatbuffer(
+                        event.getEventData());
+
+        vb.replicaModifyCollection(
+                Collections::ManifestUid{collection->uid()},
+                collection->collectionId(),
+                getCanDeduplicateFromHistory(collection->history()),
+                *event.getBySeqno());
+    } catch (std::exception& e) {
+        log(spdlog::level::level_enum::warn,
+            "PassiveStream::processModifyCollection flatbuffer {} exception {}",
             vb.getId(),
             e.what());
         return cb::engine_errc::invalid_arguments;

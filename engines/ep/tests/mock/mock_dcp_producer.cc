@@ -82,9 +82,11 @@ std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
 
 cb::engine_errc MockDcpProducer::stepAndExpect(
         MockDcpMessageProducers& producers,
-        cb::mcbp::ClientOpcode expectedOpcode) {
+        cb::mcbp::ClientOpcode expectedOpcode,
+        cb::engine_errc expectedStatus) {
     auto rv = step(false, producers);
     EXPECT_EQ(expectedOpcode, producers.last_op);
+    EXPECT_EQ(rv, expectedStatus);
     return rv;
 }
 
