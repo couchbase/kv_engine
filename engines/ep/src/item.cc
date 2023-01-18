@@ -26,6 +26,18 @@
 
 std::atomic<uint64_t> Item::casCounter(1);
 
+/**
+ * We want to distinguish between Items which have had their freqCounter set
+ * explicitly to some value by calling setFreqCounter vs having the default
+ * value.
+ *
+ * The freqCounter is 8-bits wide, but we have 16 tag bits in the pointer, so
+ * we use these extra 8 bits to distinguish to between these two cases without
+ * having to change the type we use for the freqCounter itself (stays an 8-bit
+ * integer).
+ */
+static constexpr uint16_t unsetFreqCount = std::numeric_limits<uint16_t>::max();
+
 Item::Item(const DocKey& k,
            const uint32_t fl,
            const time_t exp,
@@ -36,7 +48,7 @@ Item::Item(const DocKey& k,
            Vbid vbid,
            uint64_t sno)
     : metaData(theCas, sno, fl, exp),
-      value(TaggedPtr<Blob>(val.get().get(), initialFreqCount)),
+      value(TaggedPtr<Blob>(val.get().get(), unsetFreqCount)),
       key(k),
       bySeqno(i),
       vbucketId(vbid),
@@ -64,9 +76,9 @@ Item::Item(const DocKey& k,
            int64_t i,
            Vbid vbid,
            uint64_t sno,
-           uint8_t freqCount)
+           std::optional<uint8_t> freqCount)
     : metaData(theCas, sno, fl, exp),
-      value(TaggedPtr<Blob>(nullptr, initialFreqCount)),
+      value(TaggedPtr<Blob>(nullptr, freqCount ? *freqCount : unsetFreqCount)),
       key(k),
       bySeqno(i),
       vbucketId(vbid),
@@ -91,7 +103,7 @@ Item::Item(const DocKey& k,
            const uint64_t revSeq,
            const int64_t bySeq)
     : metaData(),
-      value(TaggedPtr<Blob>(nullptr, initialFreqCount)),
+      value(TaggedPtr<Blob>(nullptr, unsetFreqCount)),
       key(k),
       bySeqno(bySeq),
       vbucketId(vb),
@@ -354,6 +366,19 @@ void Item::setDeleted(DeleteSource cause) {
         throw std::logic_error("Item::setDeleted cannot delete " +
                                to_string(op));
     }
+}
+
+void Item::setFreqCounterValue(std::optional<uint8_t> newValue) {
+    value.unsafeGetPointer().setTag(newValue ? *newValue : unsetFreqCount);
+}
+
+/// Gets the frequency counter value
+std::optional<uint8_t> Item::getFreqCounterValue() const {
+    auto tag = value.get().getTag();
+    if (tag == unsetFreqCount) {
+        return {};
+    }
+    return gsl::narrow<uint8_t>(value.get().getTag());
 }
 
 uint64_t Item::nextCas() {

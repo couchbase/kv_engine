@@ -612,7 +612,8 @@ cb::engine_errc DcpProducer::streamRequest(
 }
 
 uint8_t DcpProducer::encodeItemHotness(const Item& item) const {
-    auto freqCount = item.getFreqCounterValue();
+    auto freqCount =
+            item.getFreqCounterValue().value_or(Item::initialFreqCount);
     if (consumerSupportsHifiMfu) {
         // The consumer supports the hifi_mfu eviction
         // policy, therefore use the frequency counter.

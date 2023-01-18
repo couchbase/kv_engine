@@ -24,8 +24,8 @@
 #include <memcached/types.h>
 #include <platform/n_byte_integer.h>
 
+#include <optional>
 #include <string>
-
 
 const uint64_t DEFAULT_REV_SEQ_NUM = 1;
 
@@ -99,7 +99,7 @@ public:
          int64_t i = -1,
          Vbid vbid = Vbid(0),
          uint64_t sno = 1,
-         uint8_t freqCount = initialFreqCount);
+         std::optional<uint8_t> freqCount = {});
 
     Item(const DocKey& k,
          const Vbid vb,
@@ -161,6 +161,11 @@ public:
         return value ? value->getData() : nullptr;
     }
 
+    /**
+     * Provides access to the stored value.
+     * Note: The value of the tag bits is _unspecified_, do not rely on it from
+     * outside of the Item class.
+     */
     const value_t& getValue() const {
         return value;
     }
@@ -362,15 +367,17 @@ public:
         return isCheckPointMetaItem() && (op != queue_op::empty);
     }
 
-    /// Set the frequency counter value to the input value
-    void setFreqCounterValue(uint8_t newValue) {
-        value.unsafeGetPointer().setTag(newValue);
-    }
+    /**
+     * Set the frequency counter value to the input value
+     * @param newValue The frequencyValue to set. Set to empty to clear.
+     */
+    void setFreqCounterValue(std::optional<uint8_t> newValue);
 
-    /// Gets the frequency counter value
-    uint8_t getFreqCounterValue() const {
-        return value.get().getTag();
-    }
+    /**
+     * Gets the frequency counter value.
+     * @returns an empty optional if no frequency counter has been set.
+     */
+    std::optional<uint8_t> getFreqCounterValue() const;
 
     static uint64_t nextCas();
 

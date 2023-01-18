@@ -51,6 +51,8 @@ StoredValue::StoredValue(const Item& itm,
     setStale(false);
     setCommitted(itm.getCommitted());
     setAge(0);
+    setFreqCounterValue(
+            itm.getFreqCounterValue().value_or(Item::initialFreqCount));
     // dirty initialised below
 
     // Placement-new the key which lives in memory directly after this
@@ -137,7 +139,7 @@ void StoredValue::restoreValue(const Item& itm) {
 
     value = itm.getValue();
 
-    setFreqCounterValue(freq);
+    setFreqCounterValue(freq.value_or(Item::initialFreqCount));
     setCommitted(itm.getCommitted());
     setAge(age);
     setResident(true);
@@ -154,7 +156,8 @@ void StoredValue::restoreMeta(const Item& itm) {
     } else { /* Regular item with the full eviction */
         bySeqno = itm.getBySeqno();
     }
-    setFreqCounterValue(itm.getFreqCounterValue());
+    setFreqCounterValue(
+            itm.getFreqCounterValue().value_or(Item::initialFreqCount));
     setCommitted(itm.getCommitted());
 }
 

@@ -304,7 +304,7 @@ TEST_P(EPBucketTest, FreqCountOnlyMutationsTest) {
 
     // Check that the frequency counter of the document has increased
     EXPECT_LT(freqCount, result.item->getFreqCounterValue());
-    freqCount = result.item->getFreqCounterValue();
+    freqCount = *result.item->getFreqCounterValue();
 
     ii = 0;
     do {
