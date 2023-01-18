@@ -11,12 +11,11 @@
 
 #include "collector_test.h"
 
-#include <programs/engine_testapp/mock_cookie.h>
 #include <statistics/cbstat_collector.h>
 #include <statistics/collector.h>
 #include <statistics/labelled_collector.h>
 #include <statistics/tests/mock/mock_stat_collector.h>
-
+#include <test/dummy_cookie.h>
 #include <string_view>
 
 TEST_F(CollectorTest, FloatValueStringRepresentation) {
@@ -39,7 +38,7 @@ TEST_F(CollectorTest, FloatValueStringRepresentation) {
     EXPECT_CALL(mockAddStat, Call(key, "0.1"sv, _)).Times(1);
     EXPECT_CALL(mockAddStat, Call(key, "0.9"sv, _)).Times(1);
 
-    MockCookie cookie;
+    cb::test::DummyCookie cookie;
     CBStatCollector collector(mockAddStat.AsStdFunction(), cookie);
 
     collector.addStat(key, 0.001f);
