@@ -463,7 +463,8 @@ magma::Status MagmaMemoryTrackingProxy::WriteDocs(
         const std::vector<magma::Magma::WriteOperation>& docOperations,
         const magma::Magma::KVStoreRevision kvsRev,
         const magma::Magma::WriteDocsCallback docCallback,
-        const magma::Magma::PostWriteDocsCallback postCallback) {
+        const magma::Magma::PostWriteDocsCallback postCallback,
+        const magma::Magma::HistoryMode historyMode) {
     magma::Magma::WriteDocsCallback wrappedDocCallback = nullptr;
     magma::Magma::PostWriteDocsCallback wrappedPostCallback = nullptr;
 
@@ -491,7 +492,8 @@ magma::Status MagmaMemoryTrackingProxy::WriteDocs(
                             docOperations,
                             kvsRev,
                             wrappedDocCallback,
-                            wrappedPostCallback);
+                            wrappedPostCallback,
+                            historyMode);
 }
 
 magma::Status MagmaMemoryTrackingProxy::NewCheckpoint(

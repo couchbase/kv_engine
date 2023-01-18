@@ -17,10 +17,12 @@ namespace VB {
 Commit::Commit(Collections::VB::Manifest& manifest,
                WriteOperation writeOp,
                vbucket_state vbs,
-               SysErrorCallback sysErrorCallback)
+               SysErrorCallback sysErrorCallback,
+               CheckpointHistorical historical)
     : collections(manifest),
       writeOp(writeOp),
       proposedVBState(std::move(vbs)),
-      sysErrorCallback(std::move(sysErrorCallback)) {
+      sysErrorCallback(std::move(sysErrorCallback)),
+      historical(historical) {
 }
 } // namespace VB

@@ -35,12 +35,13 @@ KVStoreIface::ReadVBStateResult MockMagmaKVStore::readVBStateFromDisk(
 
 int MockMagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
                                VB::Commit& commitData,
-                               kvstats_ctx& kvctx) {
+                               kvstats_ctx& kvctx,
+                               magma::Magma::HistoryMode historyMode) {
     if (saveDocsErrorInjector) {
         return saveDocsErrorInjector(commitData, kvctx);
     }
 
-    return MagmaKVStore::saveDocs(txnCtx, commitData, kvctx);
+    return MagmaKVStore::saveDocs(txnCtx, commitData, kvctx, historyMode);
 }
 
 bool MockMagmaKVStore::snapshotVBucket(Vbid vbid,

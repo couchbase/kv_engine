@@ -73,17 +73,21 @@ public:
                         std::make_shared<Collections::Manager>()));
     }
 
-    void getEventsFromCheckpoint(std::vector<queued_item>& events) {
+    CheckpointManager::ItemsForCursor getEventsFromCheckpoint(
+            std::vector<queued_item>& events) {
         std::vector<queued_item> items;
-        vbucket->checkpointManager->getNextItemsForPersistence(items);
+        auto res =
+                vbucket->checkpointManager->getNextItemsForPersistence(items);
         for (const auto& qi : items) {
             if (qi->getOperation() == queue_op::system_event) {
                 events.push_back(qi);
             }
         }
 
-        ASSERT_FALSE(events.empty())
+        EXPECT_FALSE(events.empty())
                 << "getEventsFromCheckpoint: no events in " << vbucket->getId();
+
+        return res;
     }
 
     void applyEvents(TransactionContext& txnCtx,
@@ -92,7 +96,8 @@ public:
         manifest.update(*vbucket, makeManifest(cm));
 
         std::vector<queued_item> events;
-        getEventsFromCheckpoint(events);
+        auto res = getEventsFromCheckpoint(events);
+        commitData.historical = res.historical;
 
         for (auto& ev : events) {
             commitData.collections.recordSystemEvent(*ev);

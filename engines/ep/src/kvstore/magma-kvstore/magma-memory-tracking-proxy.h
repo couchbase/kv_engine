@@ -207,12 +207,16 @@ public:
     void SetNumThreads(magma::Magma::ThreadType threadType, size_t nThreads);
     magma::Status Sync(bool flushAll);
     magma::Status SyncKVStore(const magma::Magma::KVStoreID kvID);
+
     magma::Status WriteDocs(
             const magma::Magma::KVStoreID kvID,
             const std::vector<magma::Magma::WriteOperation>& docOperations,
             const magma::Magma::KVStoreRevision kvsRev = 1,
             const magma::Magma::WriteDocsCallback docCallback = nullptr,
-            const magma::Magma::PostWriteDocsCallback postCallback = nullptr);
+            const magma::Magma::PostWriteDocsCallback postCallback = nullptr,
+            const magma::Magma::HistoryMode historyMode =
+                    magma::Magma::HistoryMode::Disabled);
+
     magma::Status NewCheckpoint(const magma::Magma::KVStoreID kvID);
     magma::Status StopBGCompaction(const magma::Magma::KVStoreID kvID);
     magma::Status ResumeBGCompaction(const magma::Magma::KVStoreID kvID);

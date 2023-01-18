@@ -488,7 +488,8 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
         writeOp = WriteOperation::Insert;
     }
 
-    VB::Commit commitData(vb->getManifest(), writeOp, vbstate, callback);
+    VB::Commit commitData(
+            vb->getManifest(), writeOp, vbstate, callback, toFlush.historical);
 
     vbucket_state& proposedVBState = commitData.proposedVBState;
 
