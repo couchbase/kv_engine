@@ -18,11 +18,15 @@
 
 #include "configuration.h"
 #include "failover-table.h"
+#include <boost/algorithm/string/classification.hpp>
+#include <boost/algorithm/string/split.hpp>
+#include <memcached/document_expired.h>
 #include <fstream>
 #include <iostream>
-#include <sstream>
-#include "boost/algorithm/string/classification.hpp"
-#include "boost/algorithm/string/split.hpp"
+
+void cb::server::document_expired(const EngineIface&, size_t) {
+    // empty
+}
 
 int main(int argc, char** argv) {
     if (argc != 4) {

@@ -55,8 +55,8 @@
 #include <folly/CancellationToken.h>
 #include <memcached/collections.h>
 #include <memcached/cookie_iface.h>
+#include <memcached/document_expired.h>
 #include <memcached/range_scan_optional_configuration.h>
-#include <memcached/server_document_iface.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <platform/timeutils.h>

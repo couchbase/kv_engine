@@ -39,8 +39,8 @@
 #include <boost/range/adaptor/strided.hpp>
 #include <folly/lang/Assume.h>
 #include <gsl/gsl-lite.hpp>
+#include <memcached/document_expired.h>
 #include <memcached/protocol_binary.h>
-#include <memcached/server_document_iface.h>
 #include <platform/atomic.h>
 #include <platform/optional.h>
 #include <statistics/cbstat_collector.h>

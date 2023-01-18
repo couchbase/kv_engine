@@ -37,8 +37,13 @@
 #include "stored-value.h"
 #include "vbucket.h"
 #include "vbucketmap.h"
+#include <memcached/document_expired.h>
 #include <platform/histogram.h>
 #include <spdlog/fmt/fmt.h>
+
+void cb::server::document_expired(const EngineIface&, size_t) {
+    // empty
+}
 
 template <typename T>
 static void display(const char* name, T size) {

@@ -15,7 +15,7 @@
 #include "item.h"
 #include "objectregistry.h"
 
-#include <memcached/server_document_iface.h>
+#include <memcached/document_expired.h>
 
 void PreLinkDocumentContext::preLink(uint64_t cas, uint64_t seqno) {
     // The vbucket_uuid is currently not being used by the pre_link callback

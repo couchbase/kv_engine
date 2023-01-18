@@ -16,11 +16,11 @@
 #include <json/syntax_validator.h>
 #include <logger/logger.h>
 #include <memcached/config_parser.h>
+#include <memcached/document_expired.h>
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
 #include <memcached/server_bucket_iface.h>
 #include <memcached/server_core_iface.h>
-#include <memcached/server_document_iface.h>
 #include <platform/platform_time.h>
 #include <utilities/engine_errc_2_mcbp.h>
 #include <xattr/blob.h>
@@ -158,11 +158,9 @@ struct MockServerCoreApi : public ServerCoreIface {
     }
 };
 
-struct MockServerDocumentApi : public ServerDocumentIface {
-    void document_expired(const EngineIface&, size_t) override {
-        // empty
-    }
-};
+void cb::server::document_expired(const EngineIface&, size_t) {
+    // empty
+}
 
 struct MockServerBucketApi : public ServerBucketIface {
     unique_engine_ptr createBucket(
@@ -224,13 +222,11 @@ ServerApi* get_mock_server_api() {
     static MockServerCoreApi core_api;
     static MockServerBucketApi server_bucket_api;
     static ServerApi rv;
-    static MockServerDocumentApi document_api;
     static int init;
     if (!init) {
         init = 1;
         rv.core = &core_api;
         rv.bucket = &server_bucket_api;
-        rv.document = &document_api;
     }
 
    return &rv;

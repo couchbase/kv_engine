@@ -17,12 +17,15 @@
  */
 
 #include "pid_controller.h"
-
 #include <getopt.h>
+#include <memcached/document_expired.h>
 #include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <vector>
+void cb::server::document_expired(const EngineIface&, size_t) {
+    // empty
+}
 
 struct FauxClock {
     static std::chrono::milliseconds currentTime;

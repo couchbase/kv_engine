@@ -13,10 +13,10 @@
 #include "environment.h"
 #include "mc_time.h"
 #include "settings.h"
+#include <memcached/document_expired.h>
 #include <memcached/engine.h>
 #include <memcached/server_bucket_iface.h>
 #include <memcached/server_core_iface.h>
-#include <memcached/server_document_iface.h>
 
 struct ServerBucketApi : public ServerBucketIface {
     unique_engine_ptr createBucket(
@@ -93,30 +93,26 @@ struct ServerCoreApi : public ServerCoreIface {
     }
 };
 
-struct ServerDocumentApi : public ServerDocumentIface {
-    void document_expired(const EngineIface& engine, size_t nbytes) override {
-        BucketManager::instance().forEach([&engine, nbytes](Bucket& bucket) {
-            if (bucket.type != BucketType::ClusterConfigOnly &&
-                &engine == &bucket.getEngine()) {
-                bucket.documentExpired(nbytes);
-                return false;
-            }
-            return true;
-        });
-    }
-};
+void cb::server::document_expired(const EngineIface& engine, size_t nbytes) {
+    BucketManager::instance().forEach([&engine, nbytes](Bucket& bucket) {
+        if (bucket.type != BucketType::ClusterConfigOnly &&
+            &engine == &bucket.getEngine()) {
+            bucket.documentExpired(nbytes);
+            return false;
+        }
+        return true;
+    });
+}
 
 class ServerApiImpl : public ServerApi {
 public:
     ServerApiImpl() : ServerApi() {
         core = &core_api;
-        document = &document_api;
         bucket = &bucket_api;
     }
 
 protected:
     ServerCoreApi core_api;
-    ServerDocumentApi document_api;
     ServerBucketApi bucket_api;
 };
 
