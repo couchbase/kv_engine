@@ -56,6 +56,7 @@
 
 #include "ewouldblock_engine.h"
 #include "ewouldblock_engine_public.h"
+#include <daemon/enginemap.h>
 #include <folly/CancellationToken.h>
 #include <gsl/gsl-lite.hpp>
 #include <logger/logger.h>
@@ -80,6 +81,20 @@
 #include <thread>
 #include <unordered_map>
 #include <utility>
+
+static unique_engine_ptr createBucket(const std::string& module,
+                                      ServerApi* (*get_server_api)()) {
+    auto type = module_to_bucket_type(module);
+    if (type == BucketType::Unknown) {
+        return {};
+    }
+
+    try {
+        return new_engine_instance(type, get_server_api);
+    } catch (const std::exception&) {
+        return {};
+    }
+}
 
 // Current DCP mutation `item`. We return an instance of this
 // (in the dcp step() function) back to the server, and then in
@@ -952,7 +967,7 @@ cb::engine_errc EWB_Engine::initialize(std::string_view config_str) {
         real_engine_config = config.substr(seperator + 1);
     }
 
-    real_engine = real_api->bucket->createBucket(real_engine_name, gsa);
+    real_engine = createBucket(real_engine_name, gsa);
 
     if (!real_engine) {
         LOG_CRITICAL(

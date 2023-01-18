@@ -5,6 +5,7 @@ add_library(ewouldblock_engine STATIC
 kv_enable_pch(ewouldblock_engine)
 target_link_libraries(ewouldblock_engine PRIVATE
                       engine_utilities
+                      hdrhistogram
                       mcbp
                       mcd_util
                       platform

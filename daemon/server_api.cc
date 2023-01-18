@@ -19,21 +19,6 @@
 #include <memcached/server_core_iface.h>
 
 struct ServerBucketApi : public ServerBucketIface {
-    unique_engine_ptr createBucket(
-            const std::string& module,
-            ServerApi* (*get_server_api)()) const override {
-        auto type = module_to_bucket_type(module);
-        if (type == BucketType::Unknown) {
-            return {};
-        }
-
-        try {
-            return new_engine_instance(type, get_server_api);
-        } catch (const std::exception&) {
-            return {};
-        }
-    }
-
     std::optional<AssociatedBucketHandle> tryAssociateBucket(
             EngineIface* engine) const override {
         auto* bucket = BucketManager::instance().tryAssociateBucket(engine);

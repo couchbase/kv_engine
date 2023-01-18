@@ -28,17 +28,6 @@ struct ServerBucketIface {
     virtual ~ServerBucketIface() = default;
 
     /**
-     * Create a new bucket
-     *
-     * @param module the name of the shared object containing the bucket
-     * @param get_server_api the method to provide to the instance
-     * @return the newly created engine, or {} if not found
-     */
-    virtual unique_engine_ptr createBucket(
-            const std::string& module,
-            ServerApi* (*get_server_api)()) const = 0;
-
-    /**
      * Associates with the bucket with the given engine. The bucket must be in
      * the Ready state (otherwise, it will fail to associate). The bucket will
      * not be destroyed until all handles obtained by calling this method have

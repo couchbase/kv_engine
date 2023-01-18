@@ -163,12 +163,6 @@ void cb::server::document_expired(const EngineIface&, size_t) {
 }
 
 struct MockServerBucketApi : public ServerBucketIface {
-    unique_engine_ptr createBucket(
-            const std::string& module,
-            ServerApi* (*get_server_api)()) const override {
-        throw std::runtime_error("Not implemented");
-    }
-
     std::optional<AssociatedBucketHandle> tryAssociateBucket(
             EngineIface* engine) const override {
         return AssociatedBucketHandle(engine, [](auto*) {});

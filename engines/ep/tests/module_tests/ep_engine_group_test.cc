@@ -14,15 +14,7 @@
 #include "kv_bucket_test.h"
 #include <tests/mock/mock_synchronous_ep_engine.h>
 
-struct BucketApiBase : public ServerBucketIface {
-    unique_engine_ptr createBucket(
-            const std::string& module,
-            ServerApi* (*get_server_api)()) const override {
-        throw std::runtime_error("Not implemented");
-    }
-};
-
-struct MockBucketApi : public BucketApiBase {
+struct MockBucketApi : public ServerBucketIface {
     EngineIface* associateBucketFilter{nullptr};
     std::optional<AssociatedBucketHandle> tryAssociateBucket(
             EngineIface* engine) const override {
