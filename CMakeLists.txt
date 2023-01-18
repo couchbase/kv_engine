@@ -187,7 +187,6 @@ ADD_SUBDIRECTORY(tracing)
 ADD_SUBDIRECTORY(statistics)
 add_subdirectory(cluster_framework)
 
-add_subdirectory(testsuite)
 add_subdirectory(tests)
 enable_code_coverage_report()
 
