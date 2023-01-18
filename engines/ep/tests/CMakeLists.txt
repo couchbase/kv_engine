@@ -75,6 +75,7 @@ cb_add_test_executable(ep-engine_ep_unit_tests
         module_tests/dcp_test.cc
         module_tests/dcp_utils.cc
         module_tests/diskdockey_test.cc
+        module_tests/doc_pre_expiry_test.cc
         module_tests/durability_monitor_test.cc
         module_tests/ep_bucket_tests.cc
         module_tests/ep_engine_group_test.cc
@@ -133,7 +134,6 @@ cb_add_test_executable(ep-engine_ep_unit_tests
         $<TARGET_OBJECTS:ep_mocks>
         $<TARGET_OBJECTS:couchstore_test_fileops>
         $<TARGET_OBJECTS:couchfile_upgrade_objects>
-        ${Memcached_SOURCE_DIR}/daemon/doc_pre_expiry.cc
         ${Memcached_SOURCE_DIR}/logger/logger_test_fixture.cc)
 kv_enable_pch(ep-engine_ep_unit_tests)
 IF(EP_USE_MAGMA)

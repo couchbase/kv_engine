@@ -17,6 +17,7 @@
 #include "collections/vbucket_manifest_handles.h"
 #include "conflict_resolution.h"
 #include "dcp/dcpconnmap.h"
+#include "doc_pre_expiry.h"
 #include "durability/active_durability_monitor.h"
 #include "durability/dead_durability_monitor.h"
 #include "durability/passive_durability_monitor.h"
@@ -864,22 +865,17 @@ void VBucket::handlePreExpiry(const HashTable::HashBucketLock& hbl,
     value_t value = v.getValue();
     if (value) {
         std::unique_ptr<Item> itm(v.toItem(id));
-        item_info itm_info;
-        EventuallyPersistentEngine* engine = ObjectRegistry::getCurrentEngine();
-        itm_info =
-                itm->toItemInfo(failovers->getLatestUUID(), getHLCEpochSeqno());
-
-        ServerApi* sapi = engine->getServerApi();
         /* TODO: In order to minimize allocations, the callback needs to
          * allocate an item whose value size will be exactly the size of the
          * value after pre-expiry is performed.
          */
-        auto result = sapi->document->pre_expiry(itm_info);
+        const auto result =
+                document_pre_expiry(itm->getValueView(), itm->getDataType());
 
         // The API states only uncompressed xattr values are returned, but an
         // empty value has datatype:raw
-        auto datatype = result.empty() ? PROTOCOL_BINARY_RAW_BYTES
-                                       : PROTOCOL_BINARY_DATATYPE_XATTR;
+        const auto datatype = result.empty() ? PROTOCOL_BINARY_RAW_BYTES
+                                             : PROTOCOL_BINARY_DATATYPE_XATTR;
         std::unique_ptr<Blob> val(Blob::New(result.data(), result.size()));
         ht.unlocked_replaceValueAndDatatype(hbl, v, std::move(val), datatype);
     }

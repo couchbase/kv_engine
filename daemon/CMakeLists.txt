@@ -23,8 +23,6 @@ add_library(memcached_daemon STATIC
             datatype_filter.h
             debug_helpers.cc
             debug_helpers.h
-            doc_pre_expiry.cc
-            doc_pre_expiry.h
             enginemap.cc
             enginemap.h
             environment.cc
@@ -278,7 +276,6 @@ cb_add_test_executable(memcached_unit_tests
                        connection_unit_tests.cc
                        datatype_filter_test.cc
                        error_map_manager_test.cc
-                       doc_pre_expiry_test.cc
                        function_chain_test.cc
                        json_validator_test.cc
                        memcached_unit_test_main.cc

@@ -9,7 +9,6 @@
  */
 
 #include "buckets.h"
-#include "doc_pre_expiry.h"
 #include "enginemap.h"
 #include "environment.h"
 #include "mc_time.h"
@@ -95,10 +94,6 @@ struct ServerCoreApi : public ServerCoreIface {
 };
 
 struct ServerDocumentApi : public ServerDocumentIface {
-    std::string pre_expiry(const item_info& itm_info) override {
-        return document_pre_expiry(itm_info);
-    }
-
     void document_expired(const EngineIface& engine, size_t nbytes) override {
         BucketManager::instance().forEach([&engine, nbytes](Bucket& bucket) {
             if (bucket.type != BucketType::ClusterConfigOnly &&

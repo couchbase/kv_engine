@@ -22,6 +22,7 @@
 #include "connmap.h"
 #include "dcp/dcpconnmap.h"
 #include "defragmenter.h"
+#include "doc_pre_expiry.h"
 #include "durability/durability_completion_task.h"
 #include "durability_timeout_task.h"
 #include "ep_engine.h"
@@ -594,9 +595,7 @@ const StorageProperties KVBucket::getStorageProperties() const {
 
 void KVBucket::runPreExpiryHook(VBucket& vb, Item& it) {
     it.decompressValue(); // A no-op for already decompressed items
-    auto info =
-            it.toItemInfo(vb.failovers->getLatestUUID(), vb.getHLCEpochSeqno());
-    auto result = engine.getServerApi()->document->pre_expiry(info);
+    auto result = document_pre_expiry(it.getValueView(), it.getDataType());
     if (!result.empty()) {
         // A modified value was returned, use it
         it.replaceValue(TaggedPtr<Blob>(Blob::New(result.data(), result.size()),

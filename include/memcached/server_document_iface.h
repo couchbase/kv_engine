@@ -27,20 +27,6 @@ struct ServerDocumentIface {
     virtual ~ServerDocumentIface() = default;
 
     /**
-     * This callback is called from the underlying engine right before
-     * a particular document expires. The callback is responsible examining
-     * the value and possibly returning a new and modified value.
-     *
-     * @param itm_info info pertaining to the item that is to be expired.
-     * @return std::string empty if the value required no modification, not
-     *         empty then the string contains the modified value. When not empty
-     *         the datatype of the new value is datatype xattr only.
-     *
-     * @throws std::bad_alloc in case of memory allocation failure
-     */
-    virtual std::string pre_expiry(const item_info& itm_info) = 0;
-
-    /**
      * Notify the core that the engine expired the document
      *
      * @param engine The engine which expired a document

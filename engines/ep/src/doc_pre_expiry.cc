@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -13,18 +12,17 @@
 #include <memcached/protocol_binary.h>
 #include <xattr/blob.h>
 
-std::string document_pre_expiry(const item_info& itm_info) {
-    if (!cb::mcbp::datatype::is_xattr(itm_info.datatype)) {
+std::string document_pre_expiry(std::string_view view, uint8_t datatype) {
+    if (!cb::mcbp::datatype::is_xattr(datatype)) {
         // The object does not contain any XATTRs so we should remove
         // the entire content
         return {};
     }
 
     // Operate on a copy
-    cb::char_buffer payload{static_cast<char*>(itm_info.value[0].iov_base),
-                            itm_info.value[0].iov_len};
-    cb::xattr::Blob originalBlob(
-            payload, cb::mcbp::datatype::is_snappy(itm_info.datatype));
+    cb::char_buffer payload{const_cast<char*>(view.data()), view.size()};
+    cb::xattr::Blob originalBlob(payload,
+                                 cb::mcbp::datatype::is_snappy(datatype));
     auto copy = cb::xattr::Blob(originalBlob);
     copy.prune_user_keys();
     const auto final = copy.finalize();

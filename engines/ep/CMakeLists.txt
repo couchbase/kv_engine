@@ -104,7 +104,6 @@ add_subdirectory(tools/humpty_dumpty)
 cb_add_test_executable(kvstore_gen tools/kvstore_gen.cc
         ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_cookie.cc
         ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc
-        ${Memcached_SOURCE_DIR}/daemon/doc_pre_expiry.cc
         $<TARGET_OBJECTS:ep_objs>)
 kv_enable_pch(kvstore_gen)
 
@@ -331,6 +330,8 @@ ADD_LIBRARY(ep_objs OBJECT
             src/defragmenter_visitor.cc
             src/diskdockey.cc
             src/dockey_validator.cc
+            src/doc_pre_expiry.cc
+            src/doc_pre_expiry.h
             src/durability/active_durability_monitor.cc
             src/durability/dead_durability_monitor.cc
             src/durability/durability_completion_task.cc
@@ -558,7 +559,6 @@ cb_add_test_executable(ep_engine_benchmarks
                $<TARGET_OBJECTS:couchstore_test_fileops>
                ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_cookie.cc
                ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc
-               ${Memcached_SOURCE_DIR}/daemon/doc_pre_expiry.cc
                ${Memcached_SOURCE_DIR}/engines/ep/tests/module_tests/test_helpers.cc)
 kv_enable_pch(ep_engine_benchmarks)
 

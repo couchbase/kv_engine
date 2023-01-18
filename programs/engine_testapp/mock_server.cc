@@ -10,7 +10,6 @@
  */
 
 #include "mock_server.h"
-#include "daemon/doc_pre_expiry.h"
 #include "mock_cookie.h"
 
 #include <gsl/gsl-lite.hpp>
@@ -160,10 +159,6 @@ struct MockServerCoreApi : public ServerCoreIface {
 };
 
 struct MockServerDocumentApi : public ServerDocumentIface {
-    std::string pre_expiry(const item_info& itm_info) override {
-        return document_pre_expiry(itm_info);
-    }
-
     void document_expired(const EngineIface&, size_t) override {
         // empty
     }
