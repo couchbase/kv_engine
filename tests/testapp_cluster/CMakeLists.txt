@@ -22,3 +22,7 @@ kv_enable_pch(cluster_test)
 add_test(NAME cluster_test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND cluster_test)
+# The cluster_test spins up 4 memcached instances and is relatively heavyweight.
+# Don't run it concurrently with any other tests.
+set_tests_properties(cluster_test
+        PROPERTIES RUN_SERIAL TRUE)
