@@ -293,22 +293,28 @@ bool MagmaKVStore::MagmaCompactionCB::canPurge(CollectionID collection) {
     return onlyThisCollection.value() == collection;
 }
 
-struct MagmaKVStoreTransactionContext : public TransactionContext {
-    MagmaKVStoreTransactionContext(KVStore& kvstore,
-                                   Vbid vbid,
-                                   std::unique_ptr<PersistenceCallback> cb)
-        : TransactionContext(kvstore, vbid, std::move(cb)) {
-    }
-    /**
-     * Container for pending Magma requests.
-     *
-     * Using deque as as the expansion behaviour is less aggressive compared to
-     * std::vector (MagmaRequest objects are ~176 bytes in size).
-     */
-    using PendingRequestQueue = std::deque<MagmaRequest>;
+MagmaKVStoreTransactionContext::MagmaKVStoreTransactionContext(
+        KVStore& kvstore, Vbid vbid, std::unique_ptr<PersistenceCallback> cb)
+    : TransactionContext(kvstore, vbid, std::move(cb)) {
+}
 
-    PendingRequestQueue pendingReqs;
-};
+void MagmaKVStoreTransactionContext::preparePendingRequests() {
+    // MB-55199: Magma requires key/seqno order, but ascending seqno.
+    // KV-engine flusher writes out the batch in key/seqno, but descending seqno
+    // order.
+    std::sort(pendingReqs.begin(),
+              pendingReqs.end(),
+              [](const auto& lhs, const auto& rhs) {
+                  const auto comp = lhs->getItem().getKey().compare(
+                          rhs->getItem().getKey());
+                  // When keys are equal, sort by seqno.
+                  if (comp == 0) {
+                      return lhs->getItem().getBySeqno() <
+                             rhs->getItem().getBySeqno();
+                  }
+                  return comp < 0;
+              });
+}
 
 std::pair<Status, bool> MagmaKVStore::compactionCallBack(
         MagmaKVStore::MagmaCompactionCB& cbCtx,
@@ -778,7 +784,8 @@ void MagmaKVStore::commitCallback(MagmaKVStoreTransactionContext& txnCtx,
                                   int errCode,
                                   kvstats_ctx&) {
     const auto flushSuccess = (errCode == Status::Code::Ok);
-    for (const auto& req : txnCtx.pendingReqs) {
+    for (const auto& reqPtr : txnCtx.pendingReqs) {
+        const auto& req = *reqPtr;
         size_t mutationSize = req.getRawKeyLen() + req.getBodySize() +
                               req.getDocMeta().size();
         st.io_num_write++;
@@ -900,7 +907,8 @@ void MagmaKVStore::set(TransactionContext& txnCtx, queued_item item) {
     }
 
     auto& ctx = static_cast<MagmaKVStoreTransactionContext&>(txnCtx);
-    ctx.pendingReqs.emplace_back(std::move(item));
+    ctx.pendingReqs.emplace_back(
+            std::make_unique<MagmaRequest>(std::move(item)));
 }
 
 GetValue MagmaKVStore::get(const DiskDocKey& key,
@@ -1111,7 +1119,8 @@ void MagmaKVStore::del(TransactionContext& txnCtx, queued_item item) {
     }
 
     auto& ctx = dynamic_cast<MagmaKVStoreTransactionContext&>(txnCtx);
-    ctx.pendingReqs.emplace_back(std::move(item));
+    ctx.pendingReqs.emplace_back(
+            std::make_unique<MagmaRequest>(std::move(item)));
 }
 
 void MagmaKVStore::delVBucket(Vbid vbid,
@@ -1487,6 +1496,7 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
     };
 
     auto& ctx = dynamic_cast<MagmaKVStoreTransactionContext&>(txnCtx);
+    ctx.preparePendingRequests();
 
     // Vector of updates to be written to the data store.
     WriteOps writeOps;
@@ -1495,7 +1505,8 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
     // TODO: Replace writeOps with Magma::WriteOperations when it
     // becomes available. This will allow us to pass pendingReqs
     // in and create the WriteOperation from the pendingReqs queue.
-    for (auto& req : ctx.pendingReqs) {
+    for (auto& reqPtr : ctx.pendingReqs) {
+        auto& req = *reqPtr;
         Slice valSlice{req.getBodyData(), req.getBodySize()};
 
         auto docMeta = req.getDocMeta();
