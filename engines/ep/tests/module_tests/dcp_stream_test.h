@@ -236,8 +236,11 @@ protected:
      * Create an historical collection at replica.
      * SysEvent received in a snapshot with range defined by the user.
      *
-     * @param snapStart
-     * @parma snapEnd
+     * @param snapType Disk or Memory
+     * @param snapStart Start seqno of the snap range
+     * @parma snapEnd End seqno of the snap range
      */
-    void createHistoricalCollection(uint64_t snapStart, uint64_t snapEnd);
+    void createHistoricalCollection(CheckpointType snapType,
+                                    uint64_t snapStart,
+                                    uint64_t snapEnd);
 };

@@ -1040,10 +1040,9 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
             // Use CM::moveCursorToNextCheckpoint() instead, which moves the
             // cursor to the empty item in the next checkpoint (if any).
 
-            // MB-36971: We never want to return (1) multiple Disk checkpoints
-            // or (2) checkpoints of different type. So, break if we have just
-            // finished with processing a Disk Checkpoint, regardless of what
-            // comes next.
+            // MB-36971: We never want to return multiple Disk checkpoints, So,
+            // break if we have just finished processing a Disk Checkpoint,
+            // regardless of what comes next.
             if ((*cursor.getCheckpoint())->isDiskCheckpoint()) {
                 // Moving the cursor to the next checkpoint potentially allows
                 // the CheckpointRemover to free the checkpoint that we are
@@ -1058,8 +1057,9 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
             // ActiveStream needing to send Disk checkpoint items as Disk
             // snapshots to the replica.
             if (moveCursorToNextCheckpoint(cursor)) {
-                if ((*cursor.getCheckpoint())->getCheckpointType() !=
-                    result.checkpointType) {
+                auto it = cursor.getCheckpoint();
+                if (!canBeMerged(
+                            lh, **cursor.getCheckpoint(), **std::prev(it))) {
                     break;
                 }
             }
@@ -2094,4 +2094,20 @@ size_t CheckpointManager::getMemFreedByItemExpel() const {
 
 size_t CheckpointManager::getMemFreedByCheckpointRemoval() const {
     return memFreedByCheckpointRemoval;
+}
+
+bool CheckpointManager::canBeMerged(const std::lock_guard<std::mutex>& lh,
+                                    const Checkpoint& first,
+                                    const Checkpoint& second) const {
+    // MB-36971: We never want to return checkpoints of different type.
+    if (first.getCheckpointType() != second.getCheckpointType()) {
+        return false;
+    }
+    // CDC: The history flag that we pass within the flush-batch to magma is
+    // expected to be a per-snapshot flag. Thus, merging checkpoints with
+    // different History characteristic would be incorrect.
+    if (first.getHistorical() != second.getHistorical()) {
+        return false;
+    }
+    return true;
 }
