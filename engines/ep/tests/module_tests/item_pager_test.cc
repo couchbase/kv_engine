@@ -1707,7 +1707,9 @@ protected:
         auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
         runNextTask(lpNonioQ, "Paging expired items.");
         EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
-        auto pagers = engine->getConfiguration().getExpiryPagerConcurrency();
+        auto pagers = std::min(
+                engine->getKVBucket()->getVBuckets().getBuckets().size(),
+                engine->getConfiguration().getExpiryPagerConcurrency());
         EXPECT_EQ(initialNonIoTasks + pagers, lpNonioQ.getFutureQueueSize());
         for (size_t i = 0; i < pagers; ++i) {
             runNextTask(lpNonioQ, "Expired item remover no vbucket assigned");
@@ -2550,62 +2552,6 @@ TEST_P(MultiPagingVisitorTest, ExpiryPagerCreatesMultiplePagers) {
         // each task should only visit one of the vbuckets, and there's
         // one expired item per vbucket - expired count should increase by one
         EXPECT_EQ(i + 1, stats.expired_pager);
-    }
-}
-
-// Confirm that splitting a filter into several disjoint filters works as
-// expected. Used when creating multiple PagingVisitors
-TEST(VbucketFilterTest, Split) {
-    const VBucketFilter filter(
-            std::vector<Vbid>{Vbid(0), Vbid(1), Vbid(2), Vbid(3)});
-
-    using namespace testing;
-    {
-        SCOPED_TRACE("Identity");
-        auto filters = filter.split(1);
-        EXPECT_THAT(filters, SizeIs(1));
-        EXPECT_TRUE(filter == filters.at(0));
-    }
-
-    {
-        SCOPED_TRACE("Split N");
-        // Expected: {0}, {1}, {2}, {3}
-        auto filters = filter.split(4);
-        EXPECT_THAT(filters, SizeIs(4));
-        for (int i = 0; i < 4; ++i) {
-            EXPECT_THAT(filters.at(i), SizeIs(1));
-            EXPECT_TRUE(filters.at(i)(Vbid(i)));
-        }
-    }
-
-    {
-        SCOPED_TRACE("Split >N");
-        // Expected: {0}, {1}, {2}, {3}, {}
-        auto filters = filter.split(5);
-        EXPECT_THAT(filters, SizeIs(5));
-        for (int i = 0; i < 4; ++i) {
-            EXPECT_THAT(filters.at(i), SizeIs(1));
-            EXPECT_TRUE(filters.at(i)(Vbid(i)));
-        }
-        // last filter is empty
-        EXPECT_THAT(filters.at(4), SizeIs(0));
-    }
-
-    {
-        SCOPED_TRACE("Split <N");
-        // Expected: {0, 3}, {1}, {2}
-        auto filters = filter.split(3);
-        EXPECT_THAT(filters, SizeIs(3));
-        // round robin means first filter has more items
-
-        EXPECT_THAT(filters.at(0), SizeIs(2));
-        EXPECT_TRUE(filters.at(0)(Vbid(0)));
-        EXPECT_TRUE(filters.at(0)(Vbid(3)));
-
-        for (int i = 1; i < 3; ++i) {
-            EXPECT_THAT(filters.at(i), SizeIs(1));
-            EXPECT_TRUE(filters.at(i)(Vbid(i)));
-        }
     }
 }
 

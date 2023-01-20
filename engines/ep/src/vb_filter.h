@@ -65,36 +65,6 @@ public:
         acceptable.clear();
     }
 
-    /**
-     * Calculate the difference between this and another filter.
-     * If "this" contains elements, [1,2,3,4] and other contains [3,4,5,6]
-     * the returned filter contains: [1,2,5,6]
-     * @param other the other filter to compare with
-     * @return a new filter with the elements present in only one of the two
-     *         filters.
-     */
-    VBucketFilter filter_diff(const VBucketFilter& other) const;
-
-    /**
-     * Calculate the intersection between this and another filter.
-     * If "this" contains elements, [1,2,3,4] and other contains [3,4,5,6]
-     * the returned filter contains: [3,4]
-     * @param other the other filter to compare with
-     * @return a new filter with the elements present in both of the two
-     *         filters.
-     */
-    VBucketFilter filter_intersection(const VBucketFilter& other) const;
-
-    /**
-     * Calculate the union between this and another filter.
-     * If "this" contains elements, [1,2,3,4] and other contains [3,4,5,6]
-     * the returned filter contains: [1,2,3,4,5,6]
-     * @param other the other filter to compare with
-     * @return a new filter with the elements present in both of the two
-     *         filters.
-     */
-    VBucketFilter filter_union(const VBucketFilter& other) const;
-
     const std::set<Vbid>& getVBSet() const {
         return acceptable;
     }
@@ -104,10 +74,6 @@ public:
         return rv.second;
     }
 
-    void removeVBucket(Vbid vbucket) {
-        acceptable.erase(vbucket);
-    }
-
     /**
      * Distribute the vbuckets in the current filter across @p count separate
      * filters.
@@ -115,14 +81,11 @@ public:
      * Each Vbid this filter matches will appear in exactly one of the resulting
      * filters. Vbids are round-robinned between the filters.
      *
-     * If @p count exceeds the number of Vbids in the current filter, empty
-     * filters will be present in the result, e.g.,
-     *
      *  VBucketFilter({1,2,3,4}).split(6);
      *
-     * results in 6 filters:
+     * results in 4 filters:
      *
-     *  {1}, {2}, {3}, {4}, {}, {}
+     *  {1}, {2}, {3}, {4}
      *
      */
     std::vector<VBucketFilter> split(size_t count) const;

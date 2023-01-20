@@ -394,8 +394,7 @@ TEST_P(BucketQuotaChangeTest, QuotaChangeDownMemoryUsageHigh) {
     runQuotaChangeTaskOnce();
     EXPECT_NE(newQuota, engine->getEpStats().getMaxDataSize());
 
-    // Now the two ItemPager tasks can run
-    runNextTask(lpNonioQ, "Item pager no vbucket assigned");
+    // Now the ItemPager visitor task can run.
     runNextTask(lpNonioQ, "Item pager no vbucket assigned");
 
     if (ephemeral()) {

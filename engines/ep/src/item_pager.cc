@@ -305,7 +305,13 @@ void StrictQuotaItemPager::schedulePagingVisitors(std::size_t bytesToEvict) {
         return;
     }
 
-    for (const auto& partFilter : filter->split(numConcurrentPagers)) {
+    auto partFilters = filter->split(numConcurrentPagers);
+    if (partFilters.size() < numConcurrentPagers) {
+        // Couldn't split into as many visitors. The number of vBuckets
+        // to visit is less than the desired concurrency.
+        pagerSemaphore->release(numConcurrentPagers - partFilters.size());
+    }
+    for (const auto& partFilter : partFilters) {
         auto pv = std::make_unique<ItemPagingVisitor>(
                 *kvBucket,
                 stats,
@@ -435,7 +441,13 @@ bool ExpiredItemPager::run() {
 
         // distribute the vbuckets that should be visited among multiple
         // paging visitors.
-        for (const auto& partFilter : filter.split(concurrentVisitors)) {
+        auto partFilters = filter.split(concurrentVisitors);
+        if (partFilters.size() < concurrentVisitors) {
+            // Couldn't split into as many visitors. The number of vBuckets
+            // to visit is less than the desired concurrency.
+            pagerSemaphore->release(concurrentVisitors - partFilters.size());
+        }
+        for (const auto& partFilter : partFilters) {
             // TODO MB-53980: consider splitting a simpler expiry visitor out of
             //       paging visitor. Expiry behaviour is shared, but it
             //       may be cleaner to introduce a subtype for eviction.

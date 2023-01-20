@@ -60,12 +60,6 @@ const SyncWriteTimeoutHandlerFactory NoopSyncWriteTimeoutFactory =
             return std::make_unique<NoopEventDrivenDurabilityTimeout>();
         };
 
-VBucketFilter VBucketFilter::filter_union(const VBucketFilter& other) const {
-    auto copy = *this;
-    copy.acceptable.insert(other.acceptable.begin(), other.acceptable.end());
-    return copy;
-}
-
 std::vector<VBucketFilter> VBucketFilter::split(size_t count) const {
     if (count == 0) {
         throw std::invalid_argument("VBucketFilter::split requires count != 0");
@@ -74,6 +68,9 @@ std::vector<VBucketFilter> VBucketFilter::split(size_t count) const {
     if (count == 1) {
         return {*this};
     }
+
+    // Do not create more filters than there are acceptable vBuckets.
+    count = std::min(acceptable.size(), count);
 
     std::vector<VBucketFilter> filters(count);
 
