@@ -136,8 +136,18 @@ public:
                     metered = Collections::getMetered(jsonMetered->get<bool>());
                 }
 
-                rv.emplace_back(
-                        sid, cid, name, maxTtl, metered, CanDeduplicate::Yes);
+                bool historyValue{false};
+                auto history = collection.find("history");
+                if (history != collection.end()) {
+                    historyValue = history->get<bool>();
+                }
+
+                rv.emplace_back(sid,
+                                cid,
+                                name,
+                                maxTtl,
+                                metered,
+                                getCanDeduplicateFromHistory(historyValue));
             }
         }
         return rv;
@@ -399,6 +409,34 @@ TEST_P(CollectionsKVStoreTest, one_metered_update) {
     auto vegetable = CollectionEntry::vegetable;
     vegetable.metered = false;
     cm.add(vegetable);
+    applyAndCheck(cm);
+}
+
+TEST_P(CollectionsKVStoreTest, create_and_modify) {
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit, cb::NoExpiryLimit, true)
+            .add(CollectionEntry::vegetable);
+    applyAndCheck(cm);
+    // Switch the history setting
+    cm.remove(CollectionEntry::vegetable)
+            .remove(CollectionEntry::fruit)
+            .add(CollectionEntry::fruit)
+            .add(CollectionEntry::vegetable, cb::NoExpiryLimit, true);
+    applyAndCheck(cm);
+}
+
+TEST_P(CollectionsKVStoreTest, create_and_modify_same_batch) {
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit, cb::NoExpiryLimit, true)
+            .add(CollectionEntry::vegetable);
+    manifest.update(folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
+                    *vbucket,
+                    makeManifest(cm));
+    // Switch the history setting
+    cm.remove(CollectionEntry::vegetable)
+            .remove(CollectionEntry::fruit)
+            .add(CollectionEntry::fruit)
+            .add(CollectionEntry::vegetable, cb::NoExpiryLimit, true);
     applyAndCheck(cm);
 }
 

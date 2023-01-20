@@ -176,6 +176,10 @@ void Flush::recordSystemEvent(const Item& item) {
         }
         break;
     }
+    case SystemEvent::ModifyCollection: {
+        recordModifyCollection(item);
+        break;
+    }
     case SystemEvent::Scope: {
         if (item.isDeleted()) {
             recordDropScope(item);
@@ -209,6 +213,24 @@ void Flush::recordCreateCollection(const Item& item) {
             itr->second.high = collection;
         } else if (uint64_t(item.getBySeqno()) < itr->second.low.startSeqno) {
             itr->second.low = collection;
+        }
+    }
+    setManifestUid(createEvent.manifestUid);
+}
+
+void Flush::recordModifyCollection(const Item& item) {
+    // Modify and Create carry the same data - all of the collection meta, hence
+    // call to getCreateEventData
+    auto createEvent = Collections::VB::Manifest::getCreateEventData(
+            {item.getData(), item.getNBytes()});
+    KVStore::OpenCollection collection{uint64_t(item.getBySeqno()),
+                                       createEvent.metaData};
+    auto [itr, emplaced] =
+            collectionMods.try_emplace(collection.metaData.cid, collection);
+    if (!emplaced) {
+        // Collection already in the map, only keep this event if >
+        if (uint64_t(item.getBySeqno()) > itr->second.startSeqno) {
+            itr->second = collection;
         }
     }
     setManifestUid(createEvent.manifestUid);
@@ -334,8 +356,14 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
             }
         }
 
-        // generate
         const auto& meta = span.high.metaData;
+
+        // This will set the value based on any modification which may have
+        // been flushed
+        auto history = getHistorySetting(
+                meta.cid, span.high.startSeqno, meta.canDeduplicate);
+
+        // generate
         exclusiveInsertCollection(
                 meta.cid,
                 Collections::KVStore::CreateCollection(
@@ -348,6 +376,7 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
                                 .count(),
                         builder.CreateString(meta.name.data(),
                                              meta.name.size()),
+                        history,
                         Collections::getMeteredFromEnum(meta.metered)));
     }
 
@@ -374,7 +403,13 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
                                 entry->ttlValid(),
                                 entry->maxTtl(),
                                 builder.CreateString(entry->name()),
+                                // getHistorySetting checks for modifications
+                                getHistorySetting(entry->collectionId(),
+                                                  entry->startSeqno(),
+                                                  getCanDeduplicateFromHistory(
+                                                          entry->history())),
                                 entry->metered()));
+
             } else {
                 // Here we maintain the startSeqno of the dropped collection
                 result->second.startSeqno = entry->startSeqno();
@@ -395,6 +430,7 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
                         builder.CreateString(
                                 Collections::DefaultCollectionIdentifier
                                         .data()),
+                        false /* default to no history*/,
                         true /* metered */));
     }
 
@@ -681,6 +717,19 @@ void Flush::setManifest(Manifest& newManifest) {
 
 VB::Manifest& Flush::getManifest() const {
     return manifest;
+}
+
+bool Flush::getHistorySetting(CollectionID cid,
+                              uint64_t seqno,
+                              CanDeduplicate createSetting) {
+    auto modification = collectionMods.find(cid);
+    if (modification != collectionMods.end() &&
+        modification->second.startSeqno > seqno) {
+        return getHistoryFromCanDeduplicate(
+                modification->second.metaData.canDeduplicate);
+    }
+    // No modification, or it was before the create - return input value.
+    return getHistoryFromCanDeduplicate(createSetting);
 }
 
 } // namespace Collections::VB
