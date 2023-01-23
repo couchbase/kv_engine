@@ -341,6 +341,12 @@ public:
 
     void unPause();
 
+    /**
+     * @returns a textual description of the current paused state, and details
+     * of how previous paused reaons.
+     */
+    std::string getPausedDetails() const;
+
     const std::string& getAuthenticatedUser() const {
         return authenticatedUser;
     }
@@ -398,6 +404,9 @@ protected:
     IncludeDeletedUserXattrs includeDeletedUserXattrs{
             IncludeDeletedUserXattrs::No};
 
+    //! Connection creation time
+    const rel_time_t created;
+
     /**
      * Flag used to state if we've received a control message with
      * "v7_dcp_status_codes" = "true".
@@ -421,9 +430,6 @@ private:
 
     //! The cookie representing this connection (provided by the memcached code)
     std::atomic<CookieIface*> cookie;
-
-    //! Connection creation time
-    const rel_time_t created;
 
     //! Should we disconnect as soon as possible?
     std::atomic<bool> disconnect;

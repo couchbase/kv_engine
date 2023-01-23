@@ -42,9 +42,9 @@ ConnHandler::ConnHandler(EventuallyPersistentEngine& e,
                          std::string n)
     : engine_(e),
       stats(engine_.getEpStats()),
+      created(ep_current_time()),
       name(std::move(n)),
       cookie(const_cast<CookieIface*>(c)),
-      created(ep_current_time()),
       disconnect(false),
       paused(false),
       authenticatedUser(e.getServerApi()->cookie->get_authenticated_user(*c)),
@@ -61,38 +61,6 @@ ConnHandler::ConnHandler(EventuallyPersistentEngine& e,
 }
 
 ConnHandler::~ConnHandler() {
-    // Log runtime / pause information when we destruct.
-    using namespace std::chrono;
-    const auto details = pausedDetails.copy();
-    fmt::memory_buffer buf;
-    bool addComma = false;
-    size_t totalCount = 0;
-    nanoseconds totalDuration{};
-    for (uint8_t reason = 0; size_t{reason} < PausedReasonCount; reason++) {
-        const auto count = details.reasonCounts[reason];
-        if (count) {
-            if (addComma) {
-                format_to(buf, ",");
-            }
-            addComma = true;
-            const auto duration = details.reasonDurations[reason];
-            format_to(buf,
-                      R"("{}": {{"count":{}, "duration":"{}"}})",
-                      to_string(PausedReason{reason}),
-                      count,
-                      cb::time2text(duration));
-            totalCount += count;
-            totalDuration += duration;
-        }
-    }
-    logger->info(
-            "Destroying connection. Created {} s ago. Paused {} times, for {} "
-            "total. "
-            "Details: {{{}}}",
-            (ep_current_time() - created),
-            totalCount,
-            cb::time2text(totalDuration),
-            std::string_view{buf.data(), buf.size()});
     logger->unregister();
     engine_.releaseCookie(cookie);
 }
@@ -422,6 +390,35 @@ void ConnHandler::unPause() {
         details.reasonCounts[index]++;
         details.reasonDurations[index] += (now - details.lastPaused);
     });
+}
+
+std::string ConnHandler::getPausedDetails() const {
+    const auto details = pausedDetails.copy();
+    fmt::memory_buffer buf;
+    bool addComma = false;
+    size_t totalCount = 0;
+    std::chrono::nanoseconds totalDuration{};
+    for (uint8_t reason = 0; size_t{reason} < PausedReasonCount; reason++) {
+        const auto count = details.reasonCounts[reason];
+        if (count) {
+            if (addComma) {
+                format_to(buf, ",");
+            }
+            addComma = true;
+            const auto duration = details.reasonDurations[reason];
+            format_to(buf,
+                      R"("{}": {{"count":{}, "duration":"{}"}})",
+                      to_string(ConnHandler::PausedReason{reason}),
+                      count,
+                      cb::time2text(duration));
+            totalCount += count;
+            totalDuration += duration;
+        }
+    }
+    return fmt::format("Paused {} times, for {} total. Details: {{{}}}",
+                       totalCount,
+                       cb::time2text(totalDuration),
+                       std::string_view{buf.data(), buf.size()});
 }
 
 void ConnHandler::scheduleNotify() {
