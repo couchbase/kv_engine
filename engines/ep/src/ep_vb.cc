@@ -531,11 +531,14 @@ void EPVBucket::addStats(VBucketStatsDetailLevel detail,
 
     if (detail == VBucketStatsDetailLevel::Full) {
         DBFileInfo fileInfo;
+        std::optional<uint64_t> historyStartSeqno;
 
         // Only try to read disk if we believe the file has been created
         if (!isBucketCreation()) {
             try {
                 fileInfo = shard->getRWUnderlying()->getDbFileInfo(getId());
+                historyStartSeqno =
+                        shard->getRWUnderlying()->getHistoryStartSeqno(getId());
             } catch (std::runtime_error& e) {
                 EP_LOG_WARN(
                         "VBucket::addStats: Exception caught during "
@@ -548,6 +551,13 @@ void EPVBucket::addStats(VBucketStatsDetailLevel detail,
         addStat("db_data_size", fileInfo.getEstimatedLiveData(), add_stat, c);
         addStat("db_file_size", fileInfo.fileSize, add_stat, c);
         addStat("db_prepare_size", fileInfo.prepareBytes, add_stat, c);
+
+        if (historyStartSeqno) {
+            addStat("history_start_seqno",
+                    historyStartSeqno.value(),
+                    add_stat,
+                    c);
+        }
     }
 }
 

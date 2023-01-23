@@ -773,6 +773,8 @@ public:
      * Method to configure the history a vbucket should retain, by age.
      */
     virtual void setHistoryRetentionSeconds(std::chrono::seconds secs) = 0;
+
+    virtual std::optional<uint64_t> getHistoryStartSeqno(Vbid vbid) = 0;
 };
 
 std::string to_string(KVStoreIface::ReadVBStateStatus status);

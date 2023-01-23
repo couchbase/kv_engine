@@ -3734,3 +3734,7 @@ void MagmaKVStore::setHistoryRetentionBytes(size_t size) {
 void MagmaKVStore::setHistoryRetentionSeconds(std::chrono::seconds seconds) {
     magma->SetHistoryRetentionTime(seconds.count());
 }
+
+std::optional<uint64_t> MagmaKVStore::getHistoryStartSeqno(Vbid vbid) {
+    return magma->GetOldestHistorySeqno(vbid.get());
+}

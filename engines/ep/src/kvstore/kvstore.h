@@ -876,6 +876,13 @@ public:
         // For all other backends this function is allowed, but does nothing.
     }
 
+    std::optional<uint64_t> getHistoryStartSeqno(Vbid vbid) override {
+        // Only truly supported by backends which report
+        // StorageProperties::HistoryRetentionAvailable::Yes
+        // For all other backends this function is allowed and returns nullopt
+        return std::nullopt;
+    }
+
     /**
      * Check if the specified document metadata is /potentially/ affected
      * by a datatype corruption issue (MB-52793) - a deleted document with
