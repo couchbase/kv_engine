@@ -542,13 +542,24 @@ bool RangeScan::handleKey(DocKey key) {
 }
 
 bool RangeScan::handleItem(std::unique_ptr<Item> item, Source source) {
+    Expects(continueRunState.cState.cookie);
+
     if (source == Source::Memory) {
         incrementValueFromMemory();
     } else {
         incrementValueFromDisk();
     }
+
+    // Disk items should be in the correct state, but memory sourced values may
+    // need to be decompressed. MB-55225
+    if (!continueRunState.cState.cookie->isDatatypeSupported(
+                PROTOCOL_BINARY_DATATYPE_SNAPPY)) {
+        // no-op if already decompressed.
+        item->decompressValue();
+    }
+
     incrementItemCounters(item->getNBytes() + item->getKey().size());
-    Expects(continueRunState.cState.cookie);
+
     switch (handler->handleItem(*continueRunState.cState.cookie,
                                 std::move(item))) {
     case RangeScanDataHandler::Status::OK:
@@ -569,7 +580,7 @@ bool RangeScan::handleStatus(cb::engine_errc status) {
         switch (handler->handleStatus(*continueRunState.cState.cookie,
                                       status)) {
         case RangeScanDataHandler::Status::Throttle:
-            // Don't expext handleStatus to do the throttling
+            // Don't expect handleStatus to do the throttling
             Expects(false);
         case RangeScanDataHandler::Status::Disconnected:
             rv = false;

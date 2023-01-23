@@ -127,9 +127,14 @@ public:
 
         for (const auto& kv : keysForTest) {
             nlohmann::json value = {{"key", kv.second}};
+            // MB-55225: For Snappy::No tests write the document compressed.
+            // This ensures when the range scan runs without snappy - we see can
+            // validate that no snappy value comes back.
             store_document(std::string{kv.first},
                            value.dump(),
-                           docFlags /* non-zero flags */);
+                           docFlags /* non-zero flags */,
+                           0,
+                           hasSnappySupport() == ClientSnappySupport::No);
         }
 
         for (const auto& kv : keysForTest) {
@@ -334,7 +339,11 @@ size_t RangeScanTest::drainItemResponse(
         auto [itr, emplaced] = allKeys.emplace(record.key);
         EXPECT_TRUE(emplaced) << "Duplicate key returned " << record.key;
         std::string value;
+
         if (cb::mcbp::datatype::is_snappy(record.meta.getDatatype())) {
+            EXPECT_TRUE(hasSnappySupport() == ClientSnappySupport::Yes)
+                    << "Snappy is disabled but a RangeScan value is "
+                    << "snappy compressed";
             cb::compression::Buffer buffer;
             EXPECT_TRUE(cb::compression::inflate(
                     cb::compression::Algorithm::Snappy, record.value, buffer));
@@ -351,8 +360,10 @@ size_t RangeScanTest::drainItemResponse(
         const auto& meta = userKeysMeta.at(collectionKey);
         EXPECT_EQ(meta.flags, record.meta.getFlags());
         EXPECT_EQ(meta.expiry, record.meta.getExpiry());
-        // compare and ignore snappy as it varies based on test
-        EXPECT_EQ(meta.datatype,
+        // compare and ignore snappy as it varies based on test and where the
+        // value came from. Above we validate that no snappy was present for
+        // the none snappy test.
+        EXPECT_EQ(meta.datatype & ~PROTOCOL_BINARY_DATATYPE_SNAPPY,
                   record.meta.getDatatype() & ~PROTOCOL_BINARY_DATATYPE_SNAPPY);
 
         record = payload.next();
