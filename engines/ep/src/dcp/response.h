@@ -995,9 +995,7 @@ public:
     SystemEventFlatBuffers(uint32_t opaque,
                            std::string_view key,
                            const queued_item& item,
-                           cb::mcbp::DcpStreamId sid)
-        : SystemEventProducerMessage(opaque, item, sid), key(key) {
-    }
+                           cb::mcbp::DcpStreamId sid);
 
     std::string_view getKey() const override {
         return {key.data(), key.size()};

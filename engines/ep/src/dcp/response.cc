@@ -400,3 +400,12 @@ bool SeqnoAdvanced::isEqual(const DcpResponse& rsp) const {
     return vbucket == other.vbucket && advancedSeqno == other.advancedSeqno &&
            DcpResponse::isEqual(rsp);
 }
+
+SystemEventFlatBuffers::SystemEventFlatBuffers(uint32_t opaque,
+                                               std::string_view key,
+                                               const queued_item& item,
+                                               cb::mcbp::DcpStreamId sid)
+    : SystemEventProducerMessage(opaque, item, sid), key(key) {
+    // MB-54967: Decompress the value so the FlatBuffers content can be used.
+    item->decompressValue();
+}
