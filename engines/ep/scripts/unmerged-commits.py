@@ -95,7 +95,9 @@ sequences = {
          ('couchbase/7.0.1',
           'couchbase/cheshire-cat')],
         # kv_engine 7.1.x release train; merging into neo branch.
-        [('couchbase/7.1.4',
+        [('couchbase/cheshire-cat',
+          'couchbase/7.1.4'),
+         ('couchbase/7.1.4',
           'couchbase/neo')]
     ],
 
