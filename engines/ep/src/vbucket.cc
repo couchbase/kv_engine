@@ -1361,7 +1361,9 @@ VBNotifyCtx VBucket::queueDirty(const HashTable::HashBucketLock& hbl,
         setMightContainXattrs();
     }
 
-    qi->setCanDeduplicate(ctx.deduplicate);
+    if (bucket && bucket->isHistoryRetentionEnabled()) {
+        qi->setCanDeduplicate(ctx.deduplicate);
+    }
 
     // Enqueue the item for persistence and replication
     VBNotifyCtx notifyCtx = queueItem(qi, ctx);
