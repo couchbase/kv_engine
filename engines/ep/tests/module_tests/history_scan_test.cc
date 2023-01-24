@@ -12,11 +12,14 @@
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint_manager.h"
 #include "collections/collections_dcp_test.h"
+#include "failover-table.h"
 #include "kv_bucket.h"
 #include "tests/mock/mock_dcp.h"
 #include "tests/mock/mock_dcp_consumer.h"
 #include "tests/mock/mock_dcp_producer.h"
 #include "tests/mock/mock_magma_kvstore.h"
+#include "tests/module_tests/dcp_producer_config.h"
+#include "tests/module_tests/dcp_stream_request_config.h"
 #include "tests/module_tests/test_helpers.h"
 #include "vbucket.h"
 
@@ -175,6 +178,60 @@ TEST_P(HistoryScanTest, DISABLED_basic_duplicates) {
     validateSnapshot(vbid,
                      0,
                      3,
+                     MARKER_FLAG_HISTORY |
+                             MARKER_FLAG_MAY_CONTAIN_DUPLICATE_KEYS |
+                             MARKER_FLAG_CHK | MARKER_FLAG_DISK,
+                     0 /*hcs*/,
+                     3 /*mvs*/,
+                     {},
+                     {},
+                     items);
+}
+
+// Test a backfill which is a resume of a stream, i.e. start >0
+// In this test 3 items are written and then history is mocked to begin at
+// seqno:2 a DCP stream request then starts within the history window.
+TEST_P(HistoryScanTest, stream_start_within_history_window_unique_keys) {
+    std::vector<Item> items;
+    setHistoryStartSeqno(2);
+
+    store_item(vbid, makeStoredDocKey("a", CollectionID::Default), "val-a");
+    // Stream-request will expect the items stored from here.
+    items.emplace_back(store_item(
+            vbid, makeStoredDocKey("b", CollectionID::Default), "val-b"));
+    items.emplace_back(store_item(
+            vbid, makeStoredDocKey("c", CollectionID::Default), "val-c"));
+    flush_vbucket_to_disk(vbid, items.size() + 1);
+    ensureDcpWillBackfill();
+
+    // DCP stream with no filter - all collections visible.
+    auto vb = store->getVBucket(vbid);
+
+    createDcpObjects(DcpProducerConfig{"test_producer",
+                                       OutOfOrderSnapshots::No,
+                                       true,
+                                       ChangeStreams::Yes,
+                                       IncludeXattrs::Yes,
+                                       IncludeDeleteTime::Yes},
+                     // Request says start=1, recall that stream-request uses
+                     // the "last received seqno" as input. So here start=1 will
+                     // result in the backfill sending inclusive of 2.
+                     DcpStreamRequestConfig{vbid,
+                                            0, // flags
+                                            1, // opaque
+                                            1, // 1 results in backfill from 2
+                                            ~0ull, // no end
+                                            1, // snap start 1
+                                            1, // snap end 2
+                                            vb->failovers->getLatestUUID(),
+                                            std::string_view{},
+                                            cb::engine_errc::success});
+
+    runBackfill();
+    // Expect a single marker which states "history"
+    validateSnapshot(vbid,
+                     1, // snap start
+                     3, // snap end
                      MARKER_FLAG_HISTORY |
                              MARKER_FLAG_MAY_CONTAIN_DUPLICATE_KEYS |
                              MARKER_FLAG_CHK | MARKER_FLAG_DISK,

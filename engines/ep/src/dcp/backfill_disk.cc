@@ -248,16 +248,32 @@ bool DCPBackfillDisk::setupForHistoryScan(ActiveStream& stream,
         return false;
     }
 
-    // Record the maxSeqno for the history scan phase, it will scan to the max
-    historyScan =
-            std::make_unique<HistoryScanCtx>(startSeqno, scanCtx.maxSeqno);
+    // The scan will be proceding into the history range.
+    // Either  the scan is all within the history range, or the scan will cross
+    // from the non-history to history range. The next blocks create a
+    // HistoryScanCtx, which stores with it data required for the history
+    // snapshot.
+    snapshot_range_t completeRange{startSeqno, scanCtx.maxSeqno};
+    if (startSeqno >= scanCtx.historyStartSeqno) {
+        // The scan will be completely in the history range.
+        // Set the start then as the requested startSeqno
+        historyScan = std::make_unique<HistoryScanCtx>(snapshot_info_t{
+                startSeqno, completeRange});
+        return true;
+    } else {
+        // The scan will be in both ranges, scan crosses from the non-history
+        // into the history window.
+        // Set the start then as the historyStartSeqno
+        historyScan = std::make_unique<HistoryScanCtx>(snapshot_info_t{
+                scanCtx.historyStartSeqno,
+                completeRange});
+        // Adjust the current scan so that it doesn't enter into the history
+        // range, it will include, then stop after the last seqno before history
+        // begins.
+        scanCtx.maxSeqno = scanCtx.historyStartSeqno - 1;
+    }
 
-    // Adjust the current scan so that it doesn't enter into the history range
-    scanCtx.maxSeqno = scanCtx.historyStartSeqno - 1;
-
-    // Return true if the start of the scan is inside the history window, the
-    // caller can then skip to a history scan.
-    return startSeqno >= scanCtx.historyStartSeqno;
+    return false;
 }
 
 bool DCPBackfillDisk::createHistoryScanContext() {
@@ -269,19 +285,17 @@ bool DCPBackfillDisk::createHistoryScanContext() {
     auto* kvstore = bucket.getROUnderlying(getVBucketId());
     Expects(kvstore);
 
-    return historyScanCtx.createScanContext(
-            scanCtx->historyStartSeqno, *kvstore, *scanCtx);
+    return historyScanCtx.createScanContext(*kvstore, *scanCtx);
 }
 
-bool DCPBackfillDisk::HistoryScanCtx::createScanContext(uint64_t startSeqno,
-                                                        const KVStoreIface& kvs,
+bool DCPBackfillDisk::HistoryScanCtx::createScanContext(const KVStoreIface& kvs,
                                                         ScanContext& ctx) {
     // Create a new BySeqno scan, but move the callback and most importantly
     // the KVFileHandle - so this scan uses the original snapshot
     scanCtx = kvs.initBySeqnoScanContext(std::move(ctx.callback),
                                          std::move(ctx.lookup),
                                          ctx.vbid,
-                                         startSeqno,
+                                         snapshotInfo.start,
                                          ctx.docFilter,
                                          ctx.valFilter,
                                          SnapshotSource::Head,
@@ -292,10 +306,11 @@ bool DCPBackfillDisk::HistoryScanCtx::createScanContext(uint64_t startSeqno,
     }
     return true;
 }
-DCPBackfillDisk::HistoryScanCtx::HistoryScanCtx(uint64_t startSeqno,
-                                                uint64_t snapshotMaxSeqno)
-    : startSeqno(startSeqno), snapshotMaxSeqno(snapshotMaxSeqno) {
+
+DCPBackfillDisk::HistoryScanCtx::HistoryScanCtx(snapshot_info_t snapshotInfo)
+    : snapshotInfo(snapshotInfo) {
 }
+
 DCPBackfillDisk::HistoryScanCtx::~HistoryScanCtx() = default;
 
 // Creation "step"
@@ -318,8 +333,8 @@ bool DCPBackfillDisk::scanHistoryCreate(ActiveStream& stream) {
     // snapshot marker (only once per call to scanHistory)
     const auto& ctx =
             dynamic_cast<const BySeqnoScanContext&>(*historyScanCtx.scanCtx);
-    if (!stream.markDiskSnapshot(historyScanCtx.startSeqno,
-                                 ctx.maxSeqno,
+    if (!stream.markDiskSnapshot(historyScanCtx.snapshotInfo.range.getStart(),
+                                 historyScanCtx.snapshotInfo.range.getEnd(),
                                  ctx.persistedCompletedSeqno,
                                  ctx.maxVisibleSeqno,
                                  ctx.timestamp,
