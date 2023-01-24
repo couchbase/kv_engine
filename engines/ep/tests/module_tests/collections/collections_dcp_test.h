@@ -18,6 +18,8 @@
 #include <memcached/dcp_stream_id.h>
 #include <utilities/test_manifest.h>
 
+class DcpProducerConfig;
+class DcpStreamRequestConfig;
 class MockDcpConsumer;
 class MockDcpProducer;
 
@@ -39,6 +41,8 @@ public:
             uint32_t flags = 0,
             uint64_t streamEndSeqno = ~0ull);
 
+    void createDcpStream(const DcpStreamRequestConfig& config);
+
     void createDcpConsumer();
 
     void createDcpObjects(
@@ -48,6 +52,9 @@ public:
             bool enableSyncRep = false,
             uint64_t streamEndSeqno = ~0ull,
             ChangeStreams changeStreams = ChangeStreams::No);
+
+    void createDcpObjects(const DcpProducerConfig& producerConfig,
+                          const DcpStreamRequestConfig& streamRequestConfig);
 
     void TearDown() override;
 
