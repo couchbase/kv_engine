@@ -1005,7 +1005,6 @@ void KVBucket::setVBucketState_UNLOCKED(
     }
 
     auto oldstate = vbMap.setState_UNLOCKED(*vb, to, meta, vbStateLock);
-    vb->updateStatsForStateChange(oldstate, to);
 
     if (oldstate != to && notify_dcp) {
         bool closeInboundStreams = false;
