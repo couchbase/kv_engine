@@ -434,6 +434,7 @@ private:
 
     rocksdb::Slice getKeySlice(const DiskDocKey& key) const;
     rocksdb::Slice getSeqnoSlice(const int64_t* seqno) const;
+    rocksdb::Slice getSeqnoSlice(const uint64_t* seqno) const;
     int64_t getNumericSeqno(const rocksdb::Slice& seqnoSlice) const;
 
     std::unique_ptr<Item> makeItem(Vbid vb,

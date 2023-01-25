@@ -3055,6 +3055,9 @@ TEST_P(CheckpointTest, CheckpointItemToString) {
     auto event =
             SystemEventFactory::makeCollectionEvent(CollectionID(99), {}, {});
     EXPECT_EQ("cid:0x1:0x0:0x63:_collection", event->getKey().to_string());
+    event = SystemEventFactory::makeModifyCollectionEvent(
+            CollectionID(999), {}, {});
+    EXPECT_EQ("cid:0x1:0x2:0x3e7:_collection", event->getKey().to_string());
     event = SystemEventFactory::makeScopeEvent(ScopeID(99), {}, {});
     EXPECT_EQ("cid:0x1:0x1:0x63:_scope", event->getKey().to_string());
 }

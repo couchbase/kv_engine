@@ -310,6 +310,77 @@ using VBucketStateLockRef = cb::SharedLockRef<internal::VBucketStateLockTag>;
 template <typename Lock>
 using VBucketStateLockMap = folly::F14FastMap<Vbid, Lock>;
 
+/**
+ * Properties of the storage layer.
+ */
+class StorageProperties {
+public:
+    enum class ByIdScan : bool { Yes, No };
+
+    /**
+     * Will the KVStore de-dupe items such that only the highest seqno for any
+     * given key in a single flush batch is persisted?
+     */
+    enum class AutomaticDeduplication : bool { Yes, No };
+
+    /**
+     * Will the KVStore count items in the prepare namespace (and update the
+     * values appropriately in the vbstate)
+     */
+    enum class PrepareCounting : bool { Yes, No };
+
+    /**
+     * Will the KVStore make callbacks with stale (superseded) items during
+     * compaction?
+     */
+    enum class CompactionStaleItemCallbacks : bool { Yes, No };
+
+    /**
+     * Does the KVStore support history retention (suitable for change streams)
+     */
+    enum class HistoryRetentionAvailable : bool { Yes, No };
+
+    StorageProperties(ByIdScan byIdScan,
+                      AutomaticDeduplication automaticDeduplication,
+                      PrepareCounting prepareCounting,
+                      CompactionStaleItemCallbacks compactionStaleItemCallbacks,
+                      HistoryRetentionAvailable historyRetentionAvailable)
+        : byIdScan(byIdScan),
+          automaticDeduplication(automaticDeduplication),
+          prepareCounting(prepareCounting),
+          compactionStaleItemCallbacks(compactionStaleItemCallbacks),
+          historyRetentionAvailable(historyRetentionAvailable) {
+    }
+
+    bool hasByIdScan() const {
+        return byIdScan == ByIdScan::Yes;
+    }
+
+    bool hasAutomaticDeduplication() const {
+        return automaticDeduplication == AutomaticDeduplication::Yes;
+    }
+
+    bool hasPrepareCounting() const {
+        return prepareCounting == PrepareCounting::Yes;
+    }
+
+    bool hasCompactionStaleItemCallbacks() const {
+        return compactionStaleItemCallbacks ==
+               CompactionStaleItemCallbacks::Yes;
+    }
+
+    bool canRetainHistory() const {
+        return historyRetentionAvailable == HistoryRetentionAvailable::Yes;
+    }
+
+private:
+    ByIdScan byIdScan;
+    AutomaticDeduplication automaticDeduplication;
+    PrepareCounting prepareCounting;
+    CompactionStaleItemCallbacks compactionStaleItemCallbacks;
+    HistoryRetentionAvailable historyRetentionAvailable;
+};
+
 namespace cb {
 
 /**

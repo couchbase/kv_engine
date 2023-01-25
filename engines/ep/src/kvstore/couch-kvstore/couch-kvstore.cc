@@ -941,7 +941,9 @@ static int time_purge_hook(Db& d,
 
             // Track nothing for the individual collection as the stats doc has
             // already been deleted.
-        } else {
+        } else if (!docKey.isInSystemCollection()) {
+            // item in a collection was dropped, track how many for item count
+            // adjustment.
             if (!info->deleted) {
                 ctx.stats.collectionsItemsPurged++;
             } else {
@@ -2823,18 +2825,17 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
 
     auto diskKey = makeDiskDocKey(docinfo->id);
 
-    // Determine if the key is logically deleted, if it is we skip the key
-    // Note that system event keys (like create scope) are never skipped here
+    // Determine if the key is logically deleted
     auto docKey = diskKey.getDocKey();
-    if (!docKey.isInSystemCollection()) {
-        if (sctx->docFilter !=
-            DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS) {
-            if (sctx->collectionsContext.isLogicallyDeleted(docKey, byseqno)) {
-                sctx->lastReadSeqno = byseqno;
-                return COUCHSTORE_SUCCESS;
-            }
+    if (sctx->docFilter != DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS) {
+        if (sctx->collectionsContext.isLogicallyDeleted(docKey, byseqno)) {
+            sctx->lastReadSeqno = byseqno;
+            return COUCHSTORE_SUCCESS;
         }
+    }
 
+    // Only do cache lookup for non-system events
+    if (!docKey.isInSystemCollection()) {
         CacheLookup lookup(diskKey, byseqno, vbucketId);
 
         cl.callback(lookup);

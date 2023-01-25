@@ -318,10 +318,16 @@ std::optional<SequenceList::RangeIterator> EphemeralVBucket::makeRangeIterator(
 
 bool EphemeralVBucket::isKeyLogicallyDeleted(const DocKey& key,
                                              int64_t bySeqno) const {
-    if (key.isInSystemCollection()) {
+    if (key.isInSystemCollection() &&
+        !SystemEventFactory::isModifyCollection(key)) {
         return false;
+        // else Modify events can be dropped
     }
-    auto cHandle = lockCollections(key);
+
+    // ReadLock the manifest and permit system keys - this ensures a Modify
+    // can lookup the correct collection
+    auto cHandle =
+            manifest->lock(key, Collections::VB::Manifest::AllowSystemKeys{});
     return !cHandle.valid() || cHandle.isLogicallyDeleted(bySeqno);
 }
 
@@ -939,11 +945,6 @@ size_t EphemeralVBucket::getNumPersistedDeletes() const {
 }
 
 void EphemeralVBucket::dropKey(const DocKey& key, int64_t bySeqno) {
-    // The system event doesn't get dropped here (tombstone purger will deal)
-    if (key.isInSystemCollection()) {
-        return;
-    }
-
     // if there is a pending item which will need removing from the DM,
     // store its seqno here for use after the HT lock has been released.
     int64_t prepareSeqno = 0;

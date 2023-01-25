@@ -12,6 +12,7 @@
 #include "collections/scan_context.h"
 
 #include "collections/kvstore.h"
+#include "systemevent_factory.h"
 
 namespace Collections::VB {
 
@@ -29,13 +30,23 @@ ScanContext::ScanContext(
 }
 
 bool ScanContext::isLogicallyDeleted(const DocKey& key, uint64_t seqno) const {
-    if (dropped.empty() || key.isInSystemCollection()) {
+    if (dropped.empty()) {
         return false;
     }
 
+    CollectionID cid;
+    if (key.isInSystemCollection()) {
+        auto modify = SystemEventFactory::isModifyCollection(key);
+        if (!modify) {
+            return false;
+        }
+        cid = modify.value();
+    } else {
+        cid = key.getCollectionID();
+    }
+
     // Is the key in a range which contains dropped collections and in the set?
-    return (seqno >= startSeqno && seqno <= endSeqno) &&
-           dropped.count(key.getCollectionID()) > 0;
+    return (seqno >= startSeqno && seqno <= endSeqno) && dropped.count(cid) > 0;
 }
 
 std::ostream& operator<<(std::ostream& os, const ScanContext& scanContext) {
