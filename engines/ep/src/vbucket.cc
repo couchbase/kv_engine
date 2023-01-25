@@ -195,6 +195,7 @@ VBucket::VBucket(Vbid i,
       id(i),
       state(newState),
       initialState(initState),
+      bucket(bucket),
       checkpointManager(std::make_unique<CheckpointManager>(st,
                                                             *this,
                                                             chkConfig,
@@ -205,7 +206,6 @@ VBucket::VBucket(Vbid i,
                                                             maxPrepareSeqno,
                                                             flusherCb,
                                                             ckptDisposer)),
-      bucket(bucket),
       syncWriteTimeoutFactory(std::move(syncWriteTimeoutFactory)),
       replicationTopology(std::make_unique<nlohmann::json>()),
       purge_seqno(purgeSeqno),
@@ -4251,4 +4251,12 @@ void VBucket::failAllSeqnoPersistenceReqs(EventuallyPersistentEngine& engine) {
     for (auto& notify : toNotify) {
         engine.notifyIOComplete(notify.first, notify.second);
     }
+}
+
+bool VBucket::isHistoryRetentionEnabled() const {
+    if (!bucket) {
+        // Test only path
+        return true;
+    }
+    return bucket->isHistoryRetentionEnabled();
 }

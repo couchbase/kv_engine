@@ -3907,6 +3907,16 @@ TEST_P(CollectionsDcpParameterizedTest, MB_50543) {
     EXPECT_EQ(11, producers->last_byseqno);
 }
 
+// @todo: Consider replacing all the stepAndExpect() and
+//   notifyAndStepToCheckpoint() calls in this test by calls to
+//   Producer::step(). By that, the test would pull data automatically
+//   from the right source (ie, stream readyQ or checkpoints) depending
+//   on how the real production code behaves.
+//
+// @todo: Review the test and use the proper calls against active and
+//   replica vbuckets. Currently here we deal with replica vbuckets by
+//   using an API that is used only by active vbuckets in the production
+//   code.
 TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
     // Make sure there's no streams set, so we can freely create a new sync
     // write stream
@@ -4197,23 +4207,10 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
 
     {
         SCOPED_TRACE("");
-        // @todo: Consider replacing all the stepAndExpect() and
-        //   notifyAndStepToCheckpoint() calls in this test by calls to
-        //   Producer::step(). By that, the test would pull data automatically
-        //   from the right source (ie, stream readyQ or checkpoints) depending
-        //   on how the real production code behaves.
-        // @todo: Review the test and use the proper calls against active and
-        //   replica vbuckets. Currently here we deal with replica vbuckets by
-        //   using an API that is used only by active vbuckets in the production
-        //   code.
-        // At the time of writing this comment, the above produces an
-        // interleaving of History and NonHistory checkpoints that isn't really
-        // possible in the prod code. As consequence, here we need to call into
-        // the CM again for moving forward.
-        SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
-                *replicProducer,
-                *producers2,
-                cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+        EXPECT_EQ(cb::engine_errc::success,
+                  replicProducer->stepAndExpect(
+                          *producers2,
+                          cb::mcbp::ClientOpcode::DcpSnapshotMarker));
     }
     EXPECT_EQ(8, producers2->last_snap_start_seqno);
     EXPECT_EQ(9, producers2->last_snap_end_seqno);

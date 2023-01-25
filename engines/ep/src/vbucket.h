@@ -1764,6 +1764,8 @@ public:
             // persistence
     };
 
+    bool isHistoryRetentionEnabled() const;
+
 protected:
     /**
      * This function checks for the various states of the value & depending on
@@ -2475,6 +2477,9 @@ private:
 
     vbucket_state_t                 initialState;
 
+protected:
+    KVBucket* const bucket;
+
 public:
     /**
      * Manager of this vBucket's checkpoints. unique_ptr for pimpl.
@@ -2484,8 +2489,6 @@ public:
     std::unique_ptr<CheckpointManager> checkpointManager;
 
 protected:
-    KVBucket* const bucket;
-
     /**
      * Factory method which when invoked returns an object to be used by
      * ActiveDurabilityMonitor for handling aborting of SyncWrites after they

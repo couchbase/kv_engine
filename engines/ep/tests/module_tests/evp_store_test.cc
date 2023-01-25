@@ -2682,13 +2682,6 @@ protected:
                      ScopeEntry::defaultS);
         vb->updateFromManifest(Collections::Manifest{std::string{manifest}});
         flushVBucketToDiskIfPersistent(vbid, 1);
-        auto& manager = *vb->checkpointManager;
-        manager.createNewCheckpoint(true);
-
-        ASSERT_EQ(1, manager.getNumCheckpoints());
-        ASSERT_EQ(1, manager.getNumItems()); // [cs
-        ASSERT_EQ(0, manager.getNumOpenChkItems()); // no mutation
-        ASSERT_EQ(1, manager.getHighSeqno()); // sysevent
     }
 };
 
@@ -2696,6 +2689,11 @@ TEST_P(EPBucketCDCTest, CollectionNonHistorical) {
     auto vb = store->getVBucket(vbid);
     const uint64_t initialHighSeqno = 1;
     ASSERT_EQ(initialHighSeqno, vb->getHighSeqno()); // From SetUp
+    auto& manager = *vb->checkpointManager;
+    manager.createNewCheckpoint(true);
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(1, manager.getNumItems()); // [cs
+    ASSERT_EQ(0, manager.getNumOpenChkItems()); // no mutation
 
     const auto collection = CollectionEntry::defaultC;
     const auto key = makeStoredDocKey("key", collection);
@@ -2703,7 +2701,6 @@ TEST_P(EPBucketCDCTest, CollectionNonHistorical) {
     store_item(vbid, key, "valueB");
     EXPECT_EQ(initialHighSeqno + 2, vb->getHighSeqno());
 
-    const auto& manager = *vb->checkpointManager;
     EXPECT_EQ(1, manager.getNumCheckpoints());
     EXPECT_EQ(2, manager.getNumItems()); // [cs x m)
     EXPECT_EQ(1, manager.getNumOpenChkItems());
@@ -2733,6 +2730,11 @@ TEST_P(EPBucketCDCTest, CollectionHistorical) {
     auto vb = store->getVBucket(vbid);
     const uint64_t initialHighSeqno = 1;
     ASSERT_EQ(initialHighSeqno, vb->getHighSeqno()); // From SetUp
+    auto& manager = *vb->checkpointManager;
+    manager.createNewCheckpoint(true);
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(1, manager.getNumItems()); // [cs
+    ASSERT_EQ(0, manager.getNumOpenChkItems()); // no mutation
 
     const auto collection = CollectionEntry::historical;
     const auto key = makeStoredDocKey("key", collection);
@@ -2740,7 +2742,6 @@ TEST_P(EPBucketCDCTest, CollectionHistorical) {
     store_item(vbid, key, "valueB");
     EXPECT_EQ(initialHighSeqno + 2, vb->getHighSeqno());
 
-    const auto& manager = *vb->checkpointManager;
     EXPECT_EQ(2, manager.getNumCheckpoints());
     EXPECT_EQ(5, manager.getNumItems()); // [cs m ce] [cs m)
     EXPECT_EQ(1, manager.getNumOpenChkItems());
@@ -2766,10 +2767,92 @@ TEST_P(EPBucketCDCTest, CollectionHistorical) {
     EXPECT_EQ(1, manifest.lock(collection).getItemCount());
 }
 
+TEST_P(EPBucketCDCTest, CollectionHistorical_RetentionDisabled_MemoryDedup) {
+    auto& config = engine->getConfiguration();
+    config.setHistoryRetentionBytes(0);
+
+    auto vb = store->getVBucket(vbid);
+    const uint64_t initialHighSeqno = 1;
+    ASSERT_EQ(initialHighSeqno, vb->getHighSeqno()); // From SetUp
+    auto& manager = *vb->checkpointManager;
+    manager.createNewCheckpoint(true);
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(1, manager.getNumItems()); // [cs
+    ASSERT_EQ(0, manager.getNumOpenChkItems()); // no mutation
+
+    const auto collection = CollectionEntry::historical;
+    const auto key = makeStoredDocKey("key", collection);
+    store_item(vbid, key, "valueA");
+    store_item(vbid, key, "valueB");
+    EXPECT_EQ(initialHighSeqno + 2, vb->getHighSeqno());
+
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(2, manager.getNumItems()); // [cs x m:2)
+    EXPECT_EQ(1, manager.getNumOpenChkItems());
+    EXPECT_EQ(initialHighSeqno + 2, manager.getHighSeqno());
+}
+
+TEST_P(EPBucketCDCTest, CollectionHistorical_RetentionDisabled_FlusherDedup) {
+    auto& config = engine->getConfiguration();
+    config.setHistoryRetentionBytes(0);
+
+    auto vb = store->getVBucket(vbid);
+    const uint64_t initialHighSeqno = 1;
+    ASSERT_EQ(initialHighSeqno, vb->getHighSeqno()); // From SetUp
+    auto& manager = *vb->checkpointManager;
+    manager.createNewCheckpoint(true);
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(1, manager.getNumItems()); // [cs
+    ASSERT_EQ(0, manager.getNumOpenChkItems()); // no mutation
+
+    const auto collection = CollectionEntry::historical;
+    const auto key = makeStoredDocKey("key", collection);
+    store_item(vbid, key, "valueA");
+
+    // Note: Need to queue the 2 mutations into different checkpoints for
+    // verifying what happens at Flusher-dedup - duplicates would never reach
+    // the flusher otherwise
+    manager.createNewCheckpoint(true);
+
+    store_item(vbid, key, "valueB");
+    EXPECT_EQ(initialHighSeqno + 2, vb->getHighSeqno());
+
+    EXPECT_EQ(2, manager.getNumCheckpoints());
+    EXPECT_EQ(5, manager.getNumItems()); // [cs m ce] [cs m)
+    EXPECT_EQ(1, manager.getNumOpenChkItems());
+    EXPECT_EQ(initialHighSeqno + 2, manager.getHighSeqno());
+    EXPECT_EQ(2, manager.getNumItemsForPersistence());
+
+    // Preconditions before flushing
+    // magma
+    constexpr auto statName = "magma_NSets";
+    size_t nSets = 0;
+    const auto& underlying = *store->getRWUnderlying(vbid);
+    ASSERT_TRUE(underlying.getStat(statName, nSets));
+    ASSERT_EQ(1, nSets);
+    // KV
+    const auto& manifest = vb->getManifest();
+    ASSERT_EQ(0, manifest.lock(collection).getItemCount());
+
+    // Test + postconditions
+    flush_vbucket_to_disk(vbid, 1);
+    // magma
+    ASSERT_TRUE(underlying.getStat(statName, nSets));
+    // Test: Only increased by 1, only the latest mutation persisted
+    EXPECT_EQ(2, nSets);
+    // KV
+    EXPECT_EQ(1, manifest.lock(collection).getItemCount());
+}
+
 TEST_P(EPBucketCDCTest, CollectionInterleaved) {
     auto vb = store->getVBucket(vbid);
     const uint64_t initialHighSeqno = 1;
     ASSERT_EQ(initialHighSeqno, vb->getHighSeqno()); // From SetUp
+    auto& manager = *vb->checkpointManager;
+    manager.createNewCheckpoint(true);
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(1, manager.getNumItems()); // [cs
+    ASSERT_EQ(0, manager.getNumOpenChkItems()); // no mutation
 
     const auto keyHistorical =
             makeStoredDocKey("key", CollectionEntry::historical);
@@ -2784,7 +2867,6 @@ TEST_P(EPBucketCDCTest, CollectionInterleaved) {
 
     // Note: It is important to ensure that both revisions for keyNonHistorical
     // survived in-memory deduplication - We are verifying flusher-dedup here
-    const auto& manager = *vb->checkpointManager;
     const auto& list =
             CheckpointManagerTestIntrospector::public_getCheckpointList(
                     manager);

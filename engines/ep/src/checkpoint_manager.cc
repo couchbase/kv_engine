@@ -65,7 +65,9 @@ CheckpointManager::CheckpointManager(EPStats& st,
                       {},
                       maxPrepareSeqno,
                       CheckpointType::Memory,
-                      CheckpointHistorical::Yes);
+                      vb.isHistoryRetentionEnabled()
+                              ? CheckpointHistorical::Yes
+                              : CheckpointHistorical::No);
 
     if (checkpointConfig.isPersistenceEnabled()) {
         // Register the persistence cursor
@@ -137,7 +139,8 @@ void CheckpointManager::addNewCheckpoint(
                      maxVisibleSeqno,
                      {},
                      CheckpointType::Memory,
-                     CheckpointHistorical::Yes);
+                     vb.isHistoryRetentionEnabled() ? CheckpointHistorical::Yes
+                                                    : CheckpointHistorical::No);
 }
 
 void CheckpointManager::addNewCheckpoint(
@@ -1170,7 +1173,9 @@ void CheckpointManager::clear(const std::lock_guard<std::mutex>& lh,
                       {},
                       0, // HPS=0 because we have correct val on disk and in PDM
                       CheckpointType::Memory,
-                      CheckpointHistorical::Yes);
+                      vb.isHistoryRetentionEnabled()
+                              ? CheckpointHistorical::Yes
+                              : CheckpointHistorical::No);
     resetCursors();
 }
 
