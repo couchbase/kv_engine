@@ -5574,6 +5574,42 @@ TEST_P(CDCPassiveStreamTest, MemorySnapshotTransitionToHistory) {
     auto res = manager.getItemsForPersistence(
             items, std::numeric_limits<size_t>::max());
     EXPECT_EQ(1, res.ranges.size());
+
+    // Coverage for MB-55337 from now on.
+
+    // Note: The previous step simulates the flusher in the middle of execution,
+    // the backup cursor is still registered into the first (closed) checkpoint.
+    EXPECT_EQ(CHECKPOINT_CLOSED,
+              (*manager.getBackupPersistenceCursor()->getCheckpoint())
+                      ->getState());
+    EXPECT_EQ(2, manager.getNumCheckpoints());
+
+    // Simulate a new DCP Producer connection
+    const auto outboundDcpCursor =
+            manager.registerCursorBySeqno(
+                           "dcp-cursor", 0, CheckpointCursor::Droppable::Yes)
+                    .cursor.lock();
+    // Registered into the first/closed checkpoint
+    EXPECT_EQ(CHECKPOINT_CLOSED,
+              (*outboundDcpCursor->getCheckpoint())->getState());
+
+    // Flusher completes and removes the backup cursor from the first
+    res.flushHandle.reset();
+
+    // State here is
+    // [ .. ] [ .. )
+    // ^      ^
+    // dcp    persistence
+
+    // Now move the dcp cursor.
+    // Before the fix for MB-55337:
+    //  1. The DCP cursor is moved to the open checkpoint
+    //  2. The closed checkpoint becomes unreferenced and it's removed (detached
+    //     to the CheckpointDestroyer.
+    //  3. Our code tries to access the removed checkpoint by
+    //     std::prev(CM::checkpointList::begin()), which is undefined behaviour.
+    items.clear();
+    manager.getItemsForCursor(outboundDcpCursor.get(), items, 1000);
 }
 
 INSTANTIATE_TEST_SUITE_P(Persistent,

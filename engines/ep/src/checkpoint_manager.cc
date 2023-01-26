@@ -1060,10 +1060,15 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
             // ActiveStream needing to send Disk checkpoint items as Disk
             // snapshots to the replica.
             if (moveCursorToNextCheckpoint(cursor)) {
-                auto it = cursor.getCheckpoint();
-                if (!canBeMerged(
-                            lh, **cursor.getCheckpoint(), **std::prev(it))) {
-                    break;
+                const auto it = cursor.getCheckpoint();
+                Expects(it != checkpointList.end());
+
+                if (it != checkpointList.begin()) {
+                    const auto prev = std::prev(it);
+                    Expects(prev != checkpointList.end());
+                    if (!canBeMerged(lh, **prev, **it)) {
+                        break;
+                    }
                 }
             }
         }
