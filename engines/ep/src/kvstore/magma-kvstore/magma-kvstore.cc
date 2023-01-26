@@ -3721,3 +3721,11 @@ std::pair<Status, uint64_t> MagmaKVStore::getOldestRollbackableHighSeqno(
 
     return {status, seqno};
 }
+
+void MagmaKVStore::setHistoryRetentionBytes(size_t size) {
+    // @todo: connect to magma when API available
+}
+
+void MagmaKVStore::setHistoryRetentionSeconds(std::chrono::seconds seconds) {
+    // @todo: connect to magma when API available
+}

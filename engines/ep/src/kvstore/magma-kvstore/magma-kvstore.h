@@ -568,6 +568,13 @@ public:
     std::unique_ptr<TransactionContext> begin(
             Vbid vbid, std::unique_ptr<PersistenceCallback> pcb) override;
 
+    /**
+     * Informs magma of how much history must be retained using
+     * Magma::SetHistoryRetentionTime
+     */
+    void setHistoryRetentionBytes(size_t size) override;
+    void setHistoryRetentionSeconds(std::chrono::seconds secs) override;
+
     // Magma uses a unique logger with a prefix of magma so that all logging
     // calls from the wrapper thru magma will be prefixed with magma.
     std::shared_ptr<BucketLogger> logger;

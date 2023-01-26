@@ -3088,8 +3088,12 @@ KVBucket::getSeqnoPersistenceNotifyTaskWakeTime() const {
     return seqnoPersistenceNotifyTask->getWaketime();
 }
 
-void KVBucket::setHistoryRetentionSeconds(std::chrono::seconds secs) {
-    historyRetentionSeconds = secs;
+void KVBucket::setHistoryRetentionSeconds(std::chrono::seconds seconds) {
+    for (auto& i : vbMap.shards) {
+        KVShard* shard = i.get();
+        shard->getRWUnderlying()->setHistoryRetentionSeconds(seconds);
+    }
+    historyRetentionSeconds = seconds;
 }
 
 std::chrono::seconds KVBucket::getHistoryRetentionSeconds() const {
@@ -3097,6 +3101,15 @@ std::chrono::seconds KVBucket::getHistoryRetentionSeconds() const {
 }
 
 void KVBucket::setHistoryRetentionBytes(size_t bytes) {
+    // KVStore needs to know bytes per vbucket. However for simpler small-scale
+    // or unit testing just use the bytes directly.
+    auto vbucketBytes =
+            bytes && vbMap.getSize() > bytes ? bytes / vbMap.getSize() : bytes;
+
+    for (auto& i : vbMap.shards) {
+        KVShard* shard = i.get();
+        shard->getRWUnderlying()->setHistoryRetentionBytes(vbucketBytes);
+    }
     historyRetentionBytes = bytes;
 }
 

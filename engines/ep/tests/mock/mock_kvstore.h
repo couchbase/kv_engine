@@ -225,6 +225,11 @@ public:
                 prepareToRollback,
                 (Vbid vbid),
                 (override));
+    MOCK_METHOD(void, setHistoryRetentionBytes, (size_t size), (override));
+    MOCK_METHOD(void,
+                setHistoryRetentionSeconds,
+                (std::chrono::seconds seconds),
+                (override));
 
     /**
      * Helper function to replace the existing read-write KVStore in the given
