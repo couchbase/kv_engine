@@ -134,8 +134,11 @@ std::string DocKey::to_string() const {
         auto [cidOrSid, keySuffix] =
                 cb::mcbp::unsigned_leb128<uint32_t>::decode(
                         {keyWithoutEvent.data(), keyWithoutEvent.size()});
-        if (systemEventID == uint32_t(SystemEvent::Collection) ||
-            systemEventID == uint32_t(SystemEvent::Scope)) {
+
+        switch (SystemEvent(systemEventID)) {
+        case SystemEvent::Collection:
+        case SystemEvent::Scope:
+        case SystemEvent::ModifyCollection:
             // Get the string view to the remaining string part of the key
             remainingKey = {reinterpret_cast<const char*>(keySuffix.data()),
                             keySuffix.size()};

@@ -95,10 +95,12 @@ SystemEventFactory::makeCollectionEventKeyPairForRangeScan(CollectionID cid) {
 
 CollectionID SystemEventFactory::getCollectionIDFromKey(const DocKey& key) {
     // Input key is made up of a sequence of prefixes as per makeCollectionEvent
-    // or makeScopeEvent
+    // or makeModifyCollectionEvent
     // This function skips (1), checks (2) and returns 3
     auto se = getSystemEventType(key);
-    Expects(se.first == SystemEvent::Collection); // expected Collection
+    // expected Collection/ModifyCollection event
+    Expects(se.first == SystemEvent::Collection ||
+            se.first == SystemEvent::ModifyCollection);
     return cb::mcbp::unsigned_leb128<CollectionIDType>::decode(se.second).first;
 }
 
@@ -132,6 +134,15 @@ std::pair<SystemEvent, uint32_t> SystemEventFactory::getTypeAndID(
     // This function skips (1) and returns (2) and (3)
     auto [type, buffer] = getSystemEventType(key);
     return {type, cb::mcbp::unsigned_leb128<uint32_t>::decode(buffer).first};
+}
+
+std::optional<CollectionID> SystemEventFactory::isModifyCollection(
+        const DocKey& key) {
+    auto [event, id] = SystemEventFactory::getTypeAndID(key);
+    if (event != SystemEvent::ModifyCollection) {
+        return {};
+    }
+    return CollectionID(id);
 }
 
 std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(

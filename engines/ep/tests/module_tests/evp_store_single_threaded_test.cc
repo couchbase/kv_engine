@@ -438,6 +438,8 @@ void SingleThreadedKVBucketTest::runCompaction(Vbid id,
 void SingleThreadedKVBucketTest::scheduleAndRunCollectionsEraser(
         Vbid id, bool expectSuccess) {
     if (isPersistent()) {
+        auto failures = engine->getEpStats().compactionFailed;
+
         runCompaction(id, 0, false);
 
         if (expectSuccess) {
@@ -456,6 +458,9 @@ void SingleThreadedKVBucketTest::scheduleAndRunCollectionsEraser(
                 // are still present on disk for PiTR tests.
                 EXPECT_TRUE(dropped.empty());
             }
+            EXPECT_EQ(failures, engine->getEpStats().compactionFailed);
+        } else {
+            EXPECT_LT(failures, engine->getEpStats().compactionFailed);
         }
     } else {
         auto* bucket = dynamic_cast<EphemeralBucket*>(store);

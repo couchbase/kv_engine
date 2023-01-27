@@ -15,13 +15,6 @@
 
 namespace Collections::VB {
 
-// Returns two optionals
-// First is only initialised if the key is a collection system event.
-// Second is only initialised if there is a collection id present.
-// Any mutation will return nullopt,cid
-// A collection create/drop/modify will return event, cid
-// A scope event will return nullopt, nullopt
-
 /**
  * From a DocKey extract CollectionID and SystemEvent data.
  * The function returns two optionals because depending on the key there could

@@ -998,6 +998,10 @@ rocksdb::Slice RocksDBKVStore::getSeqnoSlice(const int64_t* seqno) const {
     return rocksdb::Slice(reinterpret_cast<const char*>(seqno), sizeof(*seqno));
 }
 
+rocksdb::Slice RocksDBKVStore::getSeqnoSlice(const uint64_t* seqno) const {
+    return getSeqnoSlice(reinterpret_cast<const int64_t*>(seqno));
+}
+
 int64_t RocksDBKVStore::getNumericSeqno(
         const rocksdb::Slice& seqnoSlice) const {
     assert(seqnoSlice.size() == sizeof(int64_t));

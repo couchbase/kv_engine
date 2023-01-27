@@ -2110,29 +2110,25 @@ MagmaScanResult MagmaKVStore::scanOne(
         return MagmaScanResult::Next();
     }
 
-    // Determine if the key is logically deleted, if it is we skip the key
-    // Note that system event keys (like create scope) are never skipped
-    // here
-    if (!lookup.getKey().getDocKey().isInSystemCollection()) {
-        if (ctx.docFilter !=
-            DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS) {
-            if (ctx.collectionsContext.isLogicallyDeleted(
-                        lookup.getKey().getDocKey(), seqno)) {
-                ctx.lastReadSeqno = seqno;
-                if (logger->should_log(spdlog::level::TRACE)) {
-                    logger->TRACE(
-                            "MagmaKVStore::scanOne SKIPPED(Collection "
-                            "Deleted) {} "
-                            "key:{} "
-                            "seqno:{}",
-                            ctx.vbid,
-                            cb::UserData{lookup.getKey().to_string()},
-                            seqno);
-                }
-                return MagmaScanResult::Next();
+    // Determine if the key is logically deleted before trying cache/disk read
+    if (ctx.docFilter != DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS) {
+        if (ctx.collectionsContext.isLogicallyDeleted(
+                    lookup.getKey().getDocKey(), seqno)) {
+            ctx.lastReadSeqno = seqno;
+            if (logger->should_log(spdlog::level::TRACE)) {
+                logger->TRACE(
+                        "MagmaKVStore::scanOne SKIPPED(Collection "
+                        "Deleted) {} key:{} seqno:{}",
+                        ctx.vbid,
+                        cb::UserData{lookup.getKey().to_string()},
+                        seqno);
             }
+            return MagmaScanResult::Next();
         }
+    }
 
+    // system collections aren't in cache so we can skip that lookup
+    if (!lookup.getKey().getDocKey().isInSystemCollection()) {
         ctx.getCacheCallback().callback(lookup);
         if (ctx.getCacheCallback().getStatus() ==
             cb::engine_errc::key_already_exists) {

@@ -480,7 +480,8 @@ static std::string getSystemEventsValueFromStoredValue(const StoredValue& sv) {
     std::string_view itemValue{sv.getValue()->getData(),
                                sv.getValue()->getSize()};
 
-    if (systemEventType == SystemEvent::Scope) {
+    switch (systemEventType) {
+    case SystemEvent::Scope: {
         if (sv.isDeleted()) {
             auto eventData = Manifest::getDropScopeEventData(itemValue);
             return to_string(eventData);
@@ -488,7 +489,10 @@ static std::string getSystemEventsValueFromStoredValue(const StoredValue& sv) {
             auto eventData = Manifest::getCreateScopeEventData(itemValue);
             return to_string(eventData);
         }
-    } else if (systemEventType == SystemEvent::Collection) {
+        break;
+    }
+    case SystemEvent::Collection:
+    case SystemEvent::ModifyCollection: {
         if (sv.isDeleted()) {
             auto eventData = Manifest::getDropEventData(itemValue);
             return to_string(eventData);
@@ -496,7 +500,10 @@ static std::string getSystemEventsValueFromStoredValue(const StoredValue& sv) {
             auto eventData = Manifest::getCreateEventData(itemValue);
             return to_string(eventData);
         }
+        break;
     }
+    }
+
     throw std::invalid_argument(
             "getSystemEventsValueFromStoredValue(): StoredValue must be a "
             "SystemEvent for a collection or scope");

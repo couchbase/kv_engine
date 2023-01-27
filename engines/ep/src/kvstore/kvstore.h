@@ -388,7 +388,7 @@ public:
                 std::unique_ptr<StatusCallback<CacheLookup>> cl,
                 const std::vector<Collections::KVStore::DroppedCollection>&
                         droppedCollections,
-                int64_t maxSeqno);
+                uint64_t maxSeqno);
 
     virtual ~ScanContext() = default;
 
@@ -409,13 +409,13 @@ public:
     }
 
     const Vbid vbid;
-    int64_t lastReadSeqno{0};
+    uint64_t lastReadSeqno{0};
     std::unique_ptr<KVFileHandle> handle;
     const DocumentFilter docFilter;
     const ValueFilter valFilter;
     BucketLogger* logger;
     const Collections::VB::ScanContext collectionsContext;
-    int64_t maxSeqno;
+    uint64_t maxSeqno;
 
     /**
      * Cumulative count of bytes read from disk during this scan. Counts
@@ -441,8 +441,8 @@ public:
             std::unique_ptr<StatusCallback<CacheLookup>> cl,
             Vbid vb,
             std::unique_ptr<KVFileHandle> handle,
-            int64_t start,
-            int64_t end,
+            uint64_t start,
+            uint64_t end,
             uint64_t purgeSeqno,
             DocumentFilter _docFilter,
             ValueFilter _valFilter,
@@ -452,7 +452,7 @@ public:
                     droppedCollections,
             std::optional<uint64_t> timestamp = {});
 
-    const int64_t startSeqno;
+    const uint64_t startSeqno;
     const uint64_t purgeSeqno;
     const uint64_t documentCount;
 
@@ -512,7 +512,7 @@ public:
                     ValueFilter _valFilter,
                     const std::vector<Collections::KVStore::DroppedCollection>&
                             droppedCollections,
-                    int64_t maxSeqno);
+                    uint64_t maxSeqno);
     std::vector<ByIdRange> ranges;
     // Key should be set by KVStore when a scan must be paused, this is where
     // a scan can resume from
@@ -649,83 +649,6 @@ public:
                flusherWriteAmplificationHisto.getMemFootPrint();
     }
 };
-
-/**
- * Properties of the storage layer.
- *
- * If concurrent filesystem access is possible, maxConcurrency() will
- * be greater than one.  One will need to determine whether more than
- * one writer is possible as well as whether more than one reader is
- * possible.
- */
-class StorageProperties {
-public:
-    enum class ByIdScan : bool { Yes, No };
-
-    /**
-     * Will the KVStore de-dupe items such that only the highest seqno for any
-     * given key in a single flush batch is persisted?
-     */
-    enum class AutomaticDeduplication : bool { Yes, No };
-
-    /**
-     * Will the KVStore count items in the prepare namespace (and update the
-     * values appropriately in the vbstate)
-     */
-    enum class PrepareCounting : bool { Yes, No };
-
-    /**
-     * Will the KVStore make callbacks with stale (superseded) items during
-     * compaction?
-     */
-    enum class CompactionStaleItemCallbacks : bool { Yes, No };
-
-    /**
-     * Does the KVStore support history retention (suitable for change streams)
-     */
-    enum class HistoryRetentionAvailable : bool { Yes, No };
-
-    StorageProperties(ByIdScan byIdScan,
-                      AutomaticDeduplication automaticDeduplication,
-                      PrepareCounting prepareCounting,
-                      CompactionStaleItemCallbacks compactionStaleItemCallbacks,
-                      HistoryRetentionAvailable historyRetentionAvailable)
-        : byIdScan(byIdScan),
-          automaticDeduplication(automaticDeduplication),
-          prepareCounting(prepareCounting),
-          compactionStaleItemCallbacks(compactionStaleItemCallbacks),
-          historyRetentionAvailable(historyRetentionAvailable) {
-    }
-
-    bool hasByIdScan() const {
-        return byIdScan == ByIdScan::Yes;
-    }
-
-    bool hasAutomaticDeduplication() const {
-        return automaticDeduplication == AutomaticDeduplication::Yes;
-    }
-
-    bool hasPrepareCounting() const {
-        return prepareCounting == PrepareCounting::Yes;
-    }
-
-    bool hasCompactionStaleItemCallbacks() const {
-        return compactionStaleItemCallbacks ==
-               CompactionStaleItemCallbacks::Yes;
-    }
-
-    bool canRetainHistory() const {
-        return historyRetentionAvailable == HistoryRetentionAvailable::Yes;
-    }
-
-private:
-    ByIdScan byIdScan;
-    AutomaticDeduplication automaticDeduplication;
-    PrepareCounting prepareCounting;
-    CompactionStaleItemCallbacks compactionStaleItemCallbacks;
-    HistoryRetentionAvailable historyRetentionAvailable;
-};
-
 
 /**
  * Base class for some KVStores that implements common functionality.

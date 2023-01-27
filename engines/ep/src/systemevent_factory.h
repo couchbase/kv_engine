@@ -118,6 +118,13 @@ public:
      */
     static std::pair<SystemEvent, uint32_t> getTypeAndID(const DocKey& key);
 
+    /**
+     * Given a key which the caller knows isSystemCollection return an optional
+     * which stores the ID of the modified collection iff the key represent a
+     * ModifyCollection event.
+     */
+    static std::optional<CollectionID> isModifyCollection(const DocKey& key);
+
 private:
     /**
      * Make an Item representing the SystemEvent
