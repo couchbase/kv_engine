@@ -381,6 +381,8 @@ cb::engine_errc CollectionsDcpTestProducers::systemEventVersion2(
         last_collection_manifest_uid = collection->uid();
         last_key.assign(reinterpret_cast<const char*>(key.data()), key.size());
         EXPECT_NE(0, key.size());
+        last_can_deduplicate =
+                getCanDeduplicateFromHistory(collection->history());
         break;
     }
     case mcbp::systemevent::id::DeleteCollection: {

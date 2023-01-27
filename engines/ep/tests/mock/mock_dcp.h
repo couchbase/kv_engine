@@ -12,6 +12,7 @@
 #pragma once
 
 #include <dcp/dcp-types.h>
+#include <ep_types.h>
 #include <mcbp/protocol/opcode.h>
 #include <memcached/dcp.h>
 #include <memcached/engine.h>
@@ -197,6 +198,7 @@ public:
     std::optional<uint64_t> last_high_completed_seqno;
     std::optional<uint64_t> last_max_visible_seqno;
     bool isCollectionsSupported = false;
+    CanDeduplicate last_can_deduplicate = CanDeduplicate::Yes;
 
 protected:
     /// Helper method for deletion / deletion_v2 / expiration

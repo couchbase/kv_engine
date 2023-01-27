@@ -5455,10 +5455,12 @@ INSTANTIATE_TEST_SUITE_P(Persistent,
                          STPassiveStreamMagmaTest,
                          STParameterizedBucketTest::magmaConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
-#endif /*EP_USE_MAGMA*/
 
 void CDCActiveStreamTest::SetUp() {
     STActiveStreamPersistentTest::SetUp();
+
+    // @todo CDC: Can remove as soon as magma enables history
+    replaceMagmaKVStore();
 
     CollectionsManifest manifest;
     manifest.add(CollectionEntry::historical,
@@ -5577,7 +5579,7 @@ TEST_P(CDCActiveStreamTest, CollectionNotDeduped_InMemory) {
 
 INSTANTIATE_TEST_SUITE_P(Persistent,
                          CDCActiveStreamTest,
-                         STParameterizedBucketTest::persistentConfigValues(),
+                         STParameterizedBucketTest::magmaConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
 TEST_P(CDCPassiveStreamTest, HistorySnapshotReceived) {
@@ -5623,5 +5625,7 @@ TEST_P(CDCPassiveStreamTest, HistorySnapshotReceived) {
 
 INSTANTIATE_TEST_SUITE_P(Persistent,
                          CDCPassiveStreamTest,
-                         STParameterizedBucketTest::persistentConfigValues(),
+                         STParameterizedBucketTest::magmaConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
+
+#endif /*EP_USE_MAGMA*/
