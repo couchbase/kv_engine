@@ -569,6 +569,21 @@ void SingleThreadedKVBucketTest::replaceCouchKVStoreWithMock() {
     store->setRW(0, std::move(rw));
 }
 
+void SingleThreadedKVBucketTest::purgeTombstonesBefore(uint64_t purgeSeqno) {
+    if (persistent()) {
+        TimeTraveller jordan(
+                engine->getConfiguration().getPersistentMetadataPurgeAge() + 1);
+        runCompaction(vbid, purgeSeqno);
+    } else {
+        EphemeralVBucket::HTTombstonePurger purger(0);
+        auto vbptr = store->getVBucket(vbid);
+        auto* evb = dynamic_cast<EphemeralVBucket*>(vbptr.get());
+        purger.setCurrentVBucket(*evb);
+        evb->ht.visit(purger);
+        evb->purgeStaleItems();
+    }
+}
+
 void SingleThreadedKVBucketTest::runEphemeralHTCleaner() {
     auto& bucket = dynamic_cast<EphemeralBucket&>(*store);
     bucket.enableTombstonePurgerTask();
@@ -1119,20 +1134,7 @@ TEST_P(STParameterizedBucketTest, SlowStreamBackfillPurgeSeqnoCheck) {
     ASSERT_TRUE(mock_stream->isBackfilling());
 
     // Advance the purgeSeqno
-    if (persistent()) {
-        TimeTraveller jordan(
-                engine->getConfiguration().getPersistentMetadataPurgeAge() + 1);
-        runCompaction(vbid, 3);
-    } else {
-        EphemeralVBucket::HTTombstonePurger purger(0);
-        auto vbptr = store->getVBucket(vbid);
-        auto* evb = dynamic_cast<EphemeralVBucket*>(vbptr.get());
-        purger.setCurrentVBucket(*evb);
-        evb->ht.visit(purger);
-
-        evb->purgeStaleItems();
-    }
-
+    purgeTombstonesBefore(3);
     ASSERT_EQ(3, vb->getPurgeSeqno());
 
     // Run the backfill we scheduled when we transitioned to the backfilling
@@ -3482,7 +3484,20 @@ TEST_P(STParamPersistentBucketTest, MB_29480) {
 
 // MB-29512: Ensure if compaction ran in between stream-request and backfill
 // starting, we don't backfill from before the purge-seqno.
-TEST_P(STParamPersistentBucketTest, MB_29512) {
+TEST_P(STParameterizedBucketTest, PurgeSeqnoAdvancesAfterStreamRequest) {
+        testPurgeSeqnoAdvancesAfterStreamRequest(false);
+}
+
+// Similar to the above test, but checks that if the stream request used the
+// DCP_ADD_STREAM_FLAG_IGNORE_PURGED_TOMBSTONES flag, the backfill _does_ run
+// and purgeSeqno is essentially ignored.
+TEST_P(STParameterizedBucketTest,
+       PurgeSeqnoAdvancesAfterStreamRequest_IgnorePurgedTombstones) {
+        testPurgeSeqnoAdvancesAfterStreamRequest(true);
+}
+
+void STParameterizedBucketTest::testPurgeSeqnoAdvancesAfterStreamRequest(
+        bool ignorePurgedTombstones) {
     // Make vbucket active.
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     auto vb = store->getVBuckets().getBucket(vbid);
@@ -3503,7 +3518,7 @@ TEST_P(STParamPersistentBucketTest, MB_29512) {
     for (const auto& key : initialKeys) {
         store_item(vbid, makeStoredDocKey(key), key);
     }
-    flush_vbucket_to_disk(vbid, initialKeys.size());
+    flushVBucketToDiskIfPersistent(vbid, initialKeys.size());
 
     // Assume the DCP client connects here and receives seq 1 and 2 then drops
 
@@ -3511,7 +3526,7 @@ TEST_P(STParamPersistentBucketTest, MB_29512) {
     for (const auto& key : initialKeys) {
         delete_item(vbid, makeStoredDocKey(key));
     }
-    flush_vbucket_to_disk(vbid, initialKeys.size());
+    flushVBucketToDiskIfPersistent(vbid, initialKeys.size());
 
     // Disk index now has two items, seq3 and seq4 (deletes of k1/k2)
 
@@ -3520,17 +3535,21 @@ TEST_P(STParamPersistentBucketTest, MB_29512) {
     vb->checkpointManager->createNewCheckpoint();
     // Force persistence into new CP
     store_item(vbid, makeStoredDocKey("k3"), "k3");
-    flush_vbucket_to_disk(vbid, 1);
+    flushVBucketToDiskIfPersistent(vbid, 1);
     EXPECT_EQ(2, vb->checkpointManager->removeClosedUnrefCheckpoints().count);
 
     // 4) Stream request picking up where we left off.
+    const uint32_t flags =
+            ignorePurgedTombstones
+                    ? DCP_ADD_STREAM_FLAG_IGNORE_PURGED_TOMBSTONES
+                    : 0;
     uint64_t rollbackSeqno = 0;
     EXPECT_EQ(cb::engine_errc::success,
-              producer->streamRequest(0, // flags
+              producer->streamRequest(flags,
                                       1, // opaque
                                       vb->getId(),
                                       2, // start_seqno
-                                      ~0, // end_seqno
+                                      5, // end_seqno
                                       vb->failovers->getLatestUUID(),
                                       0, // snap_start_seqno,
                                       2,
@@ -3538,13 +3557,10 @@ TEST_P(STParamPersistentBucketTest, MB_29512) {
                                       &dcpAddFailoverLog,
                                       {})); // snap_end_seqno,
 
-    // 5) Now compaction kicks in, which will purge the deletes of k1/k2 setting
-    //    the purgeSeqno to seq 4 (the last purged seqno)
-    TimeTraveller quinn(
-            engine->getConfiguration().getPersistentMetadataPurgeAge() + 1);
-    runCompaction(vbid, 5);
-
-    EXPECT_EQ(vb->getPurgeSeqno(), 4);
+    // 5) Now purge the deletes of k1/k2 setting the purgeSeqno to seq 4
+    // (the last purged seqno)
+    purgeTombstonesBefore(4);
+    ASSERT_EQ(vb->getPurgeSeqno(), 4);
 
     auto vb0Stream = producer->findStream(Vbid(0));
     ASSERT_NE(nullptr, vb0Stream.get());
@@ -3552,13 +3568,40 @@ TEST_P(STParamPersistentBucketTest, MB_29512) {
     auto* as0 = static_cast<ActiveStream*>(vb0Stream.get());
     EXPECT_TRUE(as0->isBackfilling());
 
-    // 6) Backfill now starts up, but should quickly cancel
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX]);
+    // 6) Backfill now starts up, but should quickly cancel if
+    //    ignorePurgedTombstones is false - but should be valid if
+    //    ignorePurgedTombstones is true.
+    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    runNextTask(lpAuxioQ);
 
-    EXPECT_FALSE(vb0Stream->isActive());
+    EXPECT_EQ(ignorePurgedTombstones, vb0Stream->isActive());
 
     EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
-    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers.last_op);
+    if (ignorePurgedTombstones) {
+        // Should successfully fetch the Snapshot and mutations.
+        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
+
+        // Need to run backfill task again to scan items.
+        runNextTask(lpAuxioQ);
+        EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+        EXPECT_EQ(5, producers.last_byseqno);
+
+        // Complete backfill task; advancing so we get a StreamEnd message.
+        runNextTask(lpAuxioQ);
+        EXPECT_EQ(cb::engine_errc::success, producer->step(producers));
+
+        // 1 Extra step for persistent backfill
+        if (isPersistent()) {
+            // backfill:finished()
+            runNextTask(lpAuxioQ);
+            EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
+        }
+        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers.last_op);
+    } else {
+        // Stream should have been ended.
+        EXPECT_EQ(cb::mcbp::ClientOpcode::DcpStreamEnd, producers.last_op);
+    }
 
     // Stop Producer checkpoint processor task
     producer->cancelCheckpointCreatorTask();
@@ -5821,6 +5864,77 @@ TEST_P(STParamPersistentBucketTest,
     store->releaseBlockedCookies();
 
     EXPECT_EQ(cb::engine_errc::failed, mock_waitfor_cookie(cookie));
+}
+
+// Positive functional test for DCP AddStream flag
+// 'DCP_ADD_STREAM_FLAG_IGNORE_PURGED_TOMBSTONES' - verify that rollback is
+// avoided when this flag is specified (and the client is behind the purge
+// seqno.
+TEST_P(STParameterizedBucketTest, DcpRollbackIgnorePurgedSeqnos) {
+    // Setup a VBucket with a non-zero purgeSeqno so we can test DCP client
+    // behaviour. Need:
+    // 1. At least one valid seqno which the client has already received (a
+    //   start seqno of zero doesn't cause rollback)
+    // 2. A delete which we will purge (to advance purgeSeqno)
+    // 3. Another mutation to move the high seqno one greater, as we never
+    //   purge the high_seqno.
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    store_item(vbid, makeStoredDocKey("key1"), {});
+    store_deleted_item(vbid, makeStoredDocKey("key2"), {});
+    store_item(vbid, makeStoredDocKey("key3"), {});
+    flushVBucketToDiskIfPersistent(vbid, 3);
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_EQ(3, vb->getHighSeqno());
+    purgeTombstonesBefore(3);
+    ASSERT_EQ(2, vb->getPurgeSeqno());
+
+    auto cookie = create_mock_cookie(engine.get());
+    auto producer = createDcpProducer(cookie, IncludeDeleteTime::Yes);
+    MockDcpMessageProducers producers;
+
+    // Stream request function for "resuming" from seqno 1 (as-if the client
+    // previously received only the first mutation, disconnected and wants to
+    // continue from where it left off.
+    uint64_t rollbackSeqno;
+    auto streamRequest = [&](uint32_t flags, uint64_t uuid) -> cb::engine_errc {
+        rollbackSeqno = std::numeric_limits<uint64_t>::max();
+        return producer->streamRequest(flags,
+                                       1,
+                                       vbid,
+                                       1,
+                                       ~0ull,
+                                       uuid,
+                                       1,
+                                       1,
+                                       &rollbackSeqno,
+                                       &dcpAddFailoverLog,
+                                       {});
+    };
+
+    // Sanity check - should get a rollback with default flags if we attempt
+    // to start from non-zero
+    const auto latestUuid = vb->failovers->getLatestUUID();
+    ASSERT_EQ(cb::engine_errc::rollback, streamRequest(0, latestUuid));
+    ASSERT_EQ(0, rollbackSeqno);
+
+    // Test - rollback due to other reasons (UUID mismatch) should still occur
+    // even when IgnorePurgedTombstones flag is set.
+    EXPECT_EQ(cb::engine_errc::rollback,
+              streamRequest(DCP_ADD_STREAM_FLAG_IGNORE_PURGED_TOMBSTONES,
+                            latestUuid + 1));
+    EXPECT_EQ(0, rollbackSeqno);
+
+    // Test - StreamRequest with ignore purged tombstones flag should succeed
+    //        without rollback if just behind purgeSeqno (UUID correct).
+    EXPECT_EQ(cb::engine_errc::success,
+              streamRequest(DCP_ADD_STREAM_FLAG_IGNORE_PURGED_TOMBSTONES,
+                            latestUuid));
+
+    destroy_mock_cookie(cookie);
+    producer->closeAllStreams();
+    producer->cancelCheckpointCreatorTask();
+    producer.reset();
 }
 
 TEST_P(STParamPersistentBucketTest,

@@ -422,6 +422,12 @@ public:
     }
 
     /**
+     * @returns true if the stream requested that purged tombstones should be
+     * ignored, and not cause rollback.
+     */
+    bool isIgnoringPurgedTombstones() const;
+
+    /**
      * Used to set the last read seqno from a scan of the data store layer.
      * (This is for external use only and ensures that
      * maxScanSeqno is zero prior to being set).

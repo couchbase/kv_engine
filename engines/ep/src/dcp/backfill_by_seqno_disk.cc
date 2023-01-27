@@ -103,12 +103,18 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
         return backfill_finished;
     }
 
-    bool allowNonRollBackCollectionStream = false;
+    bool allowNonRollBackStream = false;
     if (collHigh.has_value()) {
-        allowNonRollBackCollectionStream =
+        allowNonRollBackStream =
                 stream->getStartSeqno() < scanCtx->purgeSeqno &&
                 stream->getStartSeqno() >= collHigh.value() &&
                 collHigh.value() <= scanCtx->purgeSeqno;
+    }
+
+    // We also permit rollback to be skipped if the Stream explicitly asked
+    // to ignore purged tombstones.
+    if (stream->isIgnoringPurgedTombstones()) {
+        allowNonRollBackStream = true;
     }
 
     // Check startSeqno against the purge-seqno of the opened datafile.
@@ -125,7 +131,7 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
     // If the startSeqno != 1 (a client 0 to n request becomes 1 to n) then
     // start-seqno must be above purge-seqno
     if (startSeqno != 1 && (startSeqno <= scanCtx->purgeSeqno) &&
-        !allowNonRollBackCollectionStream) {
+        !allowNonRollBackStream) {
         auto vb = bucket.getVBucket(getVBucketId());
         stream->log(spdlog::level::level_enum::warn,
                     "DCPBackfillBySeqnoDisk::create(): ({}) cannot be "
