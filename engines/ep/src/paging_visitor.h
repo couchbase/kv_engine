@@ -120,7 +120,7 @@ private:
 
     time_t startTime;
     std::shared_ptr<cb::Semaphore> pagerSemaphore;
-    bool isPausingAllowed;
+    const bool isPausingAllowed;
 
     /**
      * Flag used to identify if memory usage was above the backfill threshold
