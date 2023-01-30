@@ -203,7 +203,22 @@ public:
         connection->enterMessagePumpMode(
                 [this](const cb::mcbp::Header& header) {
                     if (verbose) {
-                        std::cout << header.toJSON(true).dump() << std::endl;
+                        std::stringstream ss;
+                        ss << header.toJSON(true).dump();
+                        if (header.isRequest()) {
+                            const auto& req = header.getRequest();
+                            if (req.getClientOpcode() ==
+                                cb::mcbp::ClientOpcode::DcpMutation) {
+                                const auto& extras = req.getCommandSpecifics<
+                                        cb::mcbp::request::
+                                                DcpMutationPayload>();
+                                ss << " - extras:{bySeqno:"
+                                   << extras.getBySeqno()
+                                   << ", revSeqno:" << extras.getRevSeqno()
+                                   << "}";
+                            }
+                        }
+                        std::cout << ss.str() << std::endl;
                     }
                     if (header.isRequest()) {
                         handleRequest(header.getRequest());
