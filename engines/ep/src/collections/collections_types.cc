@@ -104,13 +104,8 @@ CollectionSharedMetaDataView::CollectionSharedMetaDataView(
         std::string_view name,
         ScopeID scope,
         cb::ExpiryLimit maxTtl,
-        Metered metered,
-        CanDeduplicate canDeduplicate)
-    : name(name),
-      scope(scope),
-      maxTtl(std::move(maxTtl)),
-      metered(metered),
-      canDeduplicate(canDeduplicate) {
+        Metered metered)
+    : name(name), scope(scope), maxTtl(std::move(maxTtl)), metered(metered) {
 }
 
 CollectionSharedMetaDataView::CollectionSharedMetaDataView(
@@ -118,8 +113,7 @@ CollectionSharedMetaDataView::CollectionSharedMetaDataView(
     : name(meta.name),
       scope(meta.scope),
       maxTtl(meta.maxTtl),
-      metered(meta.metered),
-      canDeduplicate(meta.canDeduplicate) {
+      metered(meta.metered) {
 }
 
 std::string CollectionSharedMetaDataView::to_string() const {
@@ -131,21 +125,14 @@ std::string CollectionSharedMetaDataView::to_string() const {
         rv += ", maxTtl:" + std::to_string(maxTtl.value().count());
     }
 
-    rv += ", " + ::to_string(canDeduplicate);
     return rv;
 }
 
-CollectionSharedMetaData::CollectionSharedMetaData(
-        std::string_view name,
-        ScopeID scope,
-        cb::ExpiryLimit maxTtl,
-        Metered metered,
-        CanDeduplicate canDeduplicate)
-    : name(name),
-      scope(scope),
-      maxTtl(std::move(maxTtl)),
-      metered(metered),
-      canDeduplicate(canDeduplicate) {
+CollectionSharedMetaData::CollectionSharedMetaData(std::string_view name,
+                                                   ScopeID scope,
+                                                   cb::ExpiryLimit maxTtl,
+                                                   Metered metered)
+    : name(name), scope(scope), maxTtl(std::move(maxTtl)), metered(metered) {
 }
 
 CollectionSharedMetaData::CollectionSharedMetaData(
@@ -153,14 +140,13 @@ CollectionSharedMetaData::CollectionSharedMetaData(
     : name(view.name),
       scope(view.scope),
       maxTtl(view.maxTtl),
-      metered(view.metered),
-      canDeduplicate(view.canDeduplicate) {
+      metered(view.metered) {
 }
 
 bool CollectionSharedMetaData::operator==(
         const CollectionSharedMetaDataView& view) const {
     return name == view.name && scope == view.scope && maxTtl == view.maxTtl &&
-           metered == view.metered && canDeduplicate == view.canDeduplicate;
+           metered == view.metered;
 }
 
 bool CollectionSharedMetaData::operator==(
@@ -174,8 +160,7 @@ std::ostream& operator<<(std::ostream& os,
     if (meta.maxTtl) {
         os << ", maxTtl:" << meta.maxTtl.value().count();
     }
-    os << ", " << meta.metered;
-    return os << ", " << to_string(meta.canDeduplicate);
+    return os << ", " << meta.metered;
 }
 
 ScopeSharedMetaDataView::ScopeSharedMetaDataView(

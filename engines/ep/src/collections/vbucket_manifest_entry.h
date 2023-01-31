@@ -36,12 +36,14 @@ namespace VB {
 class ManifestEntry {
 public:
     ManifestEntry(SingleThreadedRCPtr<VB::CollectionSharedMetaData> meta,
-                  uint64_t startSeqno)
+                  uint64_t startSeqno,
+                  CanDeduplicate canDeduplicate)
         : startSeqno(startSeqno),
           itemCount(0),
           highSeqno(startSeqno),
           persistedHighSeqno(startSeqno),
-          meta(std::move(meta)) {
+          meta(std::move(meta)),
+          canDeduplicate(canDeduplicate) {
     }
 
     // Mark copy and move as deleted as it simplifies the lifetime of
@@ -208,11 +210,11 @@ public:
 
     /// @return Yes/No if this collection removes duplicate keys when possible
     CanDeduplicate getCanDeduplicate() const {
-        return meta->canDeduplicate;
+        return canDeduplicate;
     }
 
     void setCanDeduplicate(CanDeduplicate value) {
-        meta->canDeduplicate.store(value);
+        canDeduplicate.store(value);
     }
 
 private:
@@ -307,6 +309,8 @@ private:
      * a reference to the data, which is stored inside the Manager.
      */
     SingleThreadedRCPtr<CollectionSharedMetaData> meta;
+
+    std::atomic<CanDeduplicate> canDeduplicate;
 };
 
 std::ostream& operator<<(std::ostream& os, const ManifestEntry& manifestEntry);

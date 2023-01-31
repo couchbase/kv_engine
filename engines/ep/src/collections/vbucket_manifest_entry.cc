@@ -23,7 +23,8 @@ bool Collections::VB::ManifestEntry::operator==(
            itemCount == other.itemCount && diskSize == other.diskSize &&
            persistedHighSeqno == other.persistedHighSeqno &&
            numOpsGet == other.numOpsGet && numOpsDelete == other.numOpsDelete &&
-           numOpsStore == other.numOpsStore && meta == other.meta;
+           numOpsStore == other.numOpsStore && meta == other.meta &&
+           canDeduplicate == other.canDeduplicate;
 }
 
 std::string Collections::VB::ManifestEntry::getExceptionString(
@@ -87,5 +88,7 @@ std::ostream& Collections::VB::operator<<(
     if (manifestEntry.getMaxTtl()) {
         os << ", maxTtl:" << manifestEntry.getMaxTtl().value().count();
     }
+
+    os << ", " << manifestEntry.getCanDeduplicate();
     return os;
 }

@@ -1,7 +1,8 @@
 ### Snapshot Marker (opcode 0x56)
 
 Sent by the producer to tell the consumer that a new snapshot is being sent.
-A snapshot is simply a series of commands that is guaranteed to contain a unique set of keys.
+
+Until 7.2 a snapshot is a series of commands that is guaranteed to contain a unique set of keys. 7.2 introduced DCP change streams and now DCP can produce snapshots which include duplicated keys, a flag in the snapshot type field indicates if this has occurred.
 
 There are more than one version of this message, which differ in the definition of the extras.
 
@@ -26,12 +27,14 @@ The `high completed seqno` should only be considered valid for use when the flag
 
 Snapshot Type is a bit field and stores the following flags:
 
-| Type |   | Description |
+| Flag | Name   | Description |
 |------|---|------------|
-| 0x01 | (memory) | Specifies that the snapshot contains in-memory items only. |
-| 0x02 | (disk) | Specifies that the snapshot contains on-disk items only. |
-| 0x04 | (checkpoint) | An internally used flag for intra-cluster replication to help to keep in-memory datastructures look similar. |
-| 0x08 | (ack) | Specifies that this snapshot marker should return a response once the entire snapshot is received |
+| 0x01 | Memory | Specifies that the snapshot contains in-memory items only. |
+| 0x02 | Disk | Specifies that the snapshot contains on-disk items only. |
+| 0x04 | Checkpoint | An internally used flag for intra-cluster replication to help to keep in-memory data structures look similar. |
+| 0x08 | Ack | Specifies that this snapshot marker should return a response once the entire snapshot is received |
+| 0x10 | History | The snapshot represents a view of history, for collections which have history=true, this snapshot will not deduplicate the mutations of those collections |
+| 0x20 | May Duplicate Keys | The snapshot may contain duplicate keys, breaking a snapshots "unique key" definition which has existed since DCPs inception. Without this flag the snapshot contains a set of unique keys |
 
 ##### 0x01
 

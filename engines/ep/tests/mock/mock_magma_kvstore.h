@@ -70,11 +70,16 @@ public:
     // allow users of this mock to set the test hook directly
     using MagmaKVStore::updateStatsHook;
 
+    StorageProperties getStorageProperties() const override {
+        return storageProperties;
+    }
+
     TestingHook<> readVBStateFromDiskHook;
 
     std::function<int(VB::Commit&, kvstats_ctx&)> saveDocsErrorInjector;
     std::function<bool()> snapshotVBucketErrorInjector;
     std::function<ScanStatus()> scanErrorInjector;
+    StorageProperties storageProperties;
 };
 
 #endif
