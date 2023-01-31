@@ -862,7 +862,7 @@ cb::engine_error Manifest::isSuccessor(const Manifest& successor) const {
                                     itr->second));
                 }
             } else {
-                EP_LOG_INFO("drop collection manifest:{:#x} cid:{}, sid:{}, ",
+                EP_LOG_INFO("drop collection manifest:{:#x} cid:{}, sid:{}",
                             successor.getUid(),
                             cid,
                             collection.sid);

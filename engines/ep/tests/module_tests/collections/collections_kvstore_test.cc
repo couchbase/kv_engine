@@ -321,6 +321,18 @@ TEST(CollectionsKVStoreTest, test_KVStore_comparison) {
     c1.metered = Collections::Metered::Yes;
     m2.collections.push_back(OpenCollection{0, c1});
     EXPECT_NE(m1, m2);
+
+    // Add a collection but check a different history state is noticed
+    auto c2 = Collections::CollectionMetaData{ScopeID{88},
+                                              CollectionID{103},
+                                              "c2",
+                                              {},
+                                              Collections::Metered::No,
+                                              CanDeduplicate::Yes};
+    m1.collections.push_back(OpenCollection{0, c2});
+    c2.canDeduplicate = CanDeduplicate::No;
+    m2.collections.push_back(OpenCollection{0, c2});
+    EXPECT_NE(m1, m2);
 }
 
 TEST_P(CollectionsKVStoreTest, initial_meta) {
@@ -437,6 +449,13 @@ TEST_P(CollectionsKVStoreTest, create_and_modify_same_batch) {
             .remove(CollectionEntry::fruit)
             .add(CollectionEntry::fruit)
             .add(CollectionEntry::vegetable, cb::NoExpiryLimit, true);
+    applyAndCheck(cm);
+}
+
+// Check that the history state persists and comes back
+TEST_P(CollectionsKVStoreTest, one_update_with_history) {
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::vegetable, {}, true);
     applyAndCheck(cm);
 }
 

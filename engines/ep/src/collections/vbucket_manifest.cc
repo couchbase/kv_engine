@@ -64,7 +64,7 @@ Manifest::Manifest(std::shared_ptr<Manager> manager,
                               meta.name,
                               meta.maxTtl,
                               meta.metered,
-                              bucketManifest->getCanDeduplicate(meta.cid),
+                              meta.canDeduplicate,
                               e.startSeqno);
     }
 }
