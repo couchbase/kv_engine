@@ -18,17 +18,19 @@
 
 DcpProducerConfig::DcpProducerConfig(std::string_view name,
                                      OutOfOrderSnapshots outOfOrderSnapshots,
-                                     bool enableSyncRep,
+                                     SyncReplication syncReplication,
                                      ChangeStreams changeStreams,
                                      IncludeXattrs includeXattrs,
-                                     IncludeDeleteTime includeDeleteTime)
+                                     IncludeDeleteTime includeDeleteTime,
+                                     FlatBuffersEvents flatBuffersEvents)
 
     : name(name),
       outOfOrderSnapshots(outOfOrderSnapshots),
-      enableSyncRep(enableSyncRep),
+      syncReplication(syncReplication),
       changeStreams(changeStreams),
       includeXattrs(includeXattrs),
-      includeDeleteTime(includeDeleteTime) {
+      includeDeleteTime(includeDeleteTime),
+      flatBuffersEvents(flatBuffersEvents) {
 }
 
 const std::string& DcpProducerConfig::getName() const {
@@ -40,11 +42,11 @@ bool DcpProducerConfig::useOSOSnapshots() const {
 }
 
 bool DcpProducerConfig::useSyncReplication() const {
-    return enableSyncRep;
+    return syncReplication != SyncReplication::No;
 }
 
 bool DcpProducerConfig::useFlatBufferEvents() const {
-    return true;
+    return flatBuffersEvents == FlatBuffersEvents::Yes;
 }
 
 bool DcpProducerConfig::useChangeStreams() const {

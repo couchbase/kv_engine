@@ -162,6 +162,11 @@ enum class OutOfOrderSnapshots : char { Yes, YesWithSeqnoAdvanced, No };
 
 enum class ChangeStreams : bool { Yes, No };
 
+enum class FlatBuffersEvents : bool {
+    Yes,
+    No,
+};
+
 namespace DcpControlKeys {
 /**
  * Control key to enable FlatBuffers system events
