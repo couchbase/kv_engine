@@ -639,7 +639,7 @@ std::string_view SubdocCmdContext::get_xtoc_vattr() {
         cb::xattr::Blob xattr_blob(blob_buffer,
                                    mcbp::datatype::is_snappy(in_datatype));
 
-        nlohmann::json arr;
+        nlohmann::json arr = nlohmann::json::array();
         for (const auto [key, value] : xattr_blob) {
             (void)value;
             bool isSystemXattr = cb::xattr::is_system_xattr(key);
