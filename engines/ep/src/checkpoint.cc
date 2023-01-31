@@ -610,8 +610,7 @@ void Checkpoint::addStats(const AddStatFn& add_stat,
                      "vb_%d:id_%" PRIu64 ":type",
                      vbucketId.get(),
                      getId());
-    add_casted_stat(
-            buf.data(), to_string(getCheckpointType()), add_stat, cookie);
+    add_casted_stat(buf.data(), to_string(checkpointType), add_stat, cookie);
 
     checked_snprintf(buf.data(),
                      buf.size(),
@@ -633,6 +632,14 @@ void Checkpoint::addStats(const AddStatFn& add_stat,
                      vbucketId.get(),
                      getId());
     add_casted_stat(buf.data(), getVisibleSnapshotEndSeqno(), add_stat, cookie);
+
+    checked_snprintf(buf.data(),
+                     buf.size(),
+                     "vb_%d:id_%" PRIu64 ":historical",
+                     vbucketId.get(),
+                     getId());
+    add_casted_stat(
+            buf.data(), isCheckpointHistorical(historical), add_stat, cookie);
 }
 
 void Checkpoint::detachFromManager() {
