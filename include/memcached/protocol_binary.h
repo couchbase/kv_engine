@@ -817,7 +817,9 @@ enum class DcpSnapshotMarkerFlag : uint32_t {
     Memory = 0x01,
     Disk = 0x02,
     Checkpoint = 0x04,
-    Acknowledge = 0x08
+    Acknowledge = 0x08,
+    History = 0x10,
+    MayContainDuplicates = 0x20
 };
 
 enum class DcpSnapshotMarkerV2xVersion : uint8_t { Zero = 0, One = 1 };
