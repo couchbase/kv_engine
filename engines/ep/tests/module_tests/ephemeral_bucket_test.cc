@@ -239,6 +239,23 @@ TEST_F(EphemeralBucketStatTest, ReplicaMemoryTrackingStateChange) {
 
     EXPECT_EQ(0, stats.replicaHTMemory);
     EXPECT_EQ(0, stats.replicaCheckpointOverhead);
+
+    // Now check what happens when we delete a vBucket, we first need to change
+    // back to replica though to start tracking memory against the replica
+    // counters again.
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    // Check that the replica mem usage has gone up by some amount - not
+    // checking it is an exact value to avoid a brittle test
+    EXPECT_GT(stats.replicaHTMemory, 80);
+    EXPECT_GT(stats.replicaCheckpointOverhead, 80);
+
+    // Deleting a vBucket should also reset the tracked value.
+    EXPECT_EQ(cb::engine_errc::success,
+              engine->deleteVBucket(*cookie, vbid, false));
+
+    EXPECT_EQ(0, stats.replicaHTMemory);
+    EXPECT_EQ(0, stats.replicaCheckpointOverhead);
 }
 
 TEST_F(EphemeralBucketStatTest, ReplicaCheckpointMemoryTracking) {
