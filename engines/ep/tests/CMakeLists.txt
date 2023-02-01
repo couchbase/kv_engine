@@ -130,6 +130,7 @@ cb_add_test_executable(ep-engine_ep_unit_tests
 kv_enable_pch(ep-engine_ep_unit_tests)
 IF(EP_USE_MAGMA)
     target_sources(ep-engine_ep_unit_tests PUBLIC
+            module_tests/history_dcp_test.cc
             module_tests/history_scan_test.cc
             module_tests/magma_bucket_tests.cc
             module_tests/magma-kvstore_test.cc)
