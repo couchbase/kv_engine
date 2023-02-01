@@ -1383,7 +1383,8 @@ void ActiveStream::snapshot(const OutstandingItemsResult& meta,
         const auto isCkptTypeDisk = isDiskCheckpointType(meta.checkpointType);
         uint32_t flags = isCkptTypeDisk ? MARKER_FLAG_DISK : MARKER_FLAG_MEMORY;
 
-        if (changeStreamsEnabled) {
+        if (changeStreamsEnabled &&
+            (meta.historical == CheckpointHistorical::Yes)) {
             flags |= MARKER_FLAG_HISTORY;
         }
 

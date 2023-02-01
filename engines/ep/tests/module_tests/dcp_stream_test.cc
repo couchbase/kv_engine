@@ -5122,8 +5122,14 @@ void CDCActiveStreamTest::SetUp() {
     if (!config_string.empty()) {
         config_string += ";";
     }
+    // Note: Checkpoint removal isn't under test at all here.
+    // Eager checkpoint removal, default prod setting in Neo and post-Neo.
+    // That helps in cleaning up the CheckpointManager during the test and
+    // we won't need to fix the testsuite when merging into the master
+    // branch.
+    config_string += "checkpoint_removal_mode=eager";
     // Enable history retention
-    config_string += "history_retention_bytes=10485760";
+    config_string += ";history_retention_bytes=10485760";
     STActiveStreamPersistentTest::SetUp();
 
     // @todo CDC: Can remove as soon as magma enables history
@@ -5238,6 +5244,70 @@ TEST_P(CDCActiveStreamTest, CollectionNotDeduped_InMemory) {
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
     EXPECT_EQ(initHighSeqno + 3, resp->getBySeqno());
     mut = dynamic_cast<const MutationResponse*>(resp.get());
+    EXPECT_EQ(key, mut->getItem()->getKey());
+
+    EXPECT_EQ(0, readyQ.size());
+}
+
+TEST_P(CDCActiveStreamTest, MarkerHistoryFlagClearIfCheckpointNotHistorical) {
+    auto& config = engine->getConfiguration();
+    config.setHistoryRetentionBytes(0);
+    ASSERT_FALSE(store->isHistoryRetentionEnabled());
+
+    auto& vb = *store->getVBucket(vbid);
+    const auto initHighSeqno = vb.getHighSeqno();
+    ASSERT_GT(initHighSeqno, 0); // From SetUp
+
+    // Move the stream cursor at the end of checkpoint
+    auto& manager = *vb.checkpointManager;
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    const auto& readyQ = stream->public_readyQ();
+    ASSERT_EQ(0, readyQ.size());
+    stream->nextCheckpointItemTask();
+    ASSERT_EQ(2, readyQ.size()); // Marker + Sysevent
+    while (readyQ.size() > 0) {
+        stream->public_nextQueuedItem(*producer);
+    }
+    ASSERT_EQ(0, readyQ.size());
+    // Move the persistence cursor at the end of checkpoint
+    flushVBucket(vbid);
+
+    // @todo MB-55336: Manual checkpoint creation won't be necessary here when
+    //  MB-55336 fixed.
+    manager.createNewCheckpoint(true);
+    // Eager removal of old checkpoint
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(0, manager.getNumOpenChkItems());
+    // Main precondition
+    ASSERT_EQ(CheckpointHistorical::No, manager.getOpenCheckpointHistorical());
+
+    // Write a doc into the historical collection
+    const auto key = makeStoredDocKey("key", CollectionEntry::historical);
+    store_item(vbid, key, "value");
+    ASSERT_EQ(initHighSeqno + 1, vb.getHighSeqno());
+
+    // Check the outbound stream
+    ASSERT_EQ(0, readyQ.size());
+
+    stream->nextCheckpointItemTask();
+    ASSERT_EQ(2, readyQ.size()); // Marker + Mutation
+
+    auto resp = stream->public_nextQueuedItem(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto* marker = dynamic_cast<SnapshotMarker*>(resp.get());
+    // Core of the test: MARKER_FLAG_HISTORY isn't set in the marker
+    const uint32_t expectedMarkerFlags = MARKER_FLAG_MEMORY | MARKER_FLAG_CHK;
+    EXPECT_EQ(expectedMarkerFlags, marker->getFlags());
+    EXPECT_EQ(initHighSeqno + 1, marker->getStartSeqno());
+    EXPECT_EQ(initHighSeqno + 1, marker->getEndSeqno());
+
+    // Verify the rest of the stream for completeness
+    resp = stream->public_nextQueuedItem(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    EXPECT_EQ(initHighSeqno + 1, resp->getBySeqno());
+    auto* mut = dynamic_cast<const MutationResponse*>(resp.get());
     EXPECT_EQ(key, mut->getItem()->getKey());
 
     EXPECT_EQ(0, readyQ.size());
