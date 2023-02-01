@@ -366,6 +366,12 @@ public:
          * as this results in the most fastidious error checking on the replica
          */
         CheckpointType checkpointType = CheckpointType::Memory;
+
+        /**
+         * Whether this items are part of a seamless historical sequence of data
+         */
+        CheckpointHistorical historical = CheckpointHistorical::No;
+
         std::vector<queued_item> items;
 
         /**

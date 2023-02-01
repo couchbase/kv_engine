@@ -967,6 +967,8 @@ ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
                 *itemsForCursor.highCompletedSeqno;
     }
 
+    result.historical = itemsForCursor.historical;
+
     result.visibleSeqno = itemsForCursor.visibleSeqno;
     if (vb.checkpointManager->hasClosedCheckpointWhichCanBeRemoved()) {
         engine->getKVBucket()->wakeUpCheckpointMemRecoveryTask();
