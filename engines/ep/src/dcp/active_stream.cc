@@ -1227,9 +1227,8 @@ void ActiveStream::processItems(
                    previous checkpoint and hence we must create a snapshot and
                    put them onto readyQ */
                 if (!mutations.empty()) {
-                    snapshot(outstandingItemsResult.checkpointType,
+                    snapshot(outstandingItemsResult,
                              mutations,
-                             outstandingItemsResult.diskCheckpointState,
                              visibleSeqno,
                              highNonVisibleSeqno);
                     /* clear out all the mutations since they are already put
@@ -1278,9 +1277,8 @@ void ActiveStream::processItems(
         }
 
         if (!mutations.empty()) {
-            snapshot(outstandingItemsResult.checkpointType,
+            snapshot(outstandingItemsResult,
                      mutations,
-                     outstandingItemsResult.diskCheckpointState,
                      visibleSeqno,
                      highNonVisibleSeqno);
         } else if (isSeqnoAdvancedEnabled()) {
@@ -1370,13 +1368,10 @@ bool ActiveStream::shouldProcessItem(const Item& item) {
     return true;
 }
 
-void ActiveStream::snapshot(
-        CheckpointType checkpointType,
-        std::deque<std::unique_ptr<DcpResponse>>& items,
-        std::optional<OutstandingItemsResult::DiskCheckpointState>
-                diskCheckpointState,
-        uint64_t maxVisibleSeqno,
-        std::optional<uint64_t> highNonVisibleSeqno) {
+void ActiveStream::snapshot(const OutstandingItemsResult& meta,
+                            std::deque<std::unique_ptr<DcpResponse>>& items,
+                            uint64_t maxVisibleSeqno,
+                            std::optional<uint64_t> highNonVisibleSeqno) {
     if (items.empty()) {
         return;
     }
@@ -1385,7 +1380,7 @@ void ActiveStream::snapshot(
     lastReadSeqno.store(lastReadSeqnoUnSnapshotted);
 
     if (isCurrentSnapshotCompleted()) {
-        const auto isCkptTypeDisk = isDiskCheckpointType(checkpointType);
+        const auto isCkptTypeDisk = isDiskCheckpointType(meta.checkpointType);
         uint32_t flags = isCkptTypeDisk ? MARKER_FLAG_DISK : MARKER_FLAG_MEMORY;
 
         if (changeStreamsEnabled) {
@@ -1440,8 +1435,8 @@ void ActiveStream::snapshot(
         const auto sendHCS = supportSyncReplication() && isCkptTypeDisk;
         std::optional<uint64_t> hcsToSend;
         if (sendHCS) {
-            Expects(diskCheckpointState);
-            hcsToSend = diskCheckpointState->highCompletedSeqno;
+            Expects(meta.diskCheckpointState);
+            hcsToSend = meta.diskCheckpointState->highCompletedSeqno;
             log(spdlog::level::level_enum::info,
                 "{} ActiveStream::snapshot: Sending disk snapshot with start "
                 "seqno {}, end seqno {}, and"
@@ -1449,7 +1444,7 @@ void ActiveStream::snapshot(
                 logPrefix,
                 snapStart,
                 snapEnd,
-                diskCheckpointState->highCompletedSeqno);
+                *hcsToSend);
         }
 
         /* We need to send the requested 'snap_start_seqno_' as the snapshot
