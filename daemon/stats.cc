@@ -241,6 +241,10 @@ cb::engine_errc server_prometheus_stats(
         if (metricGroup == MetricGroup::Low) {
             server_global_stats(kvCollector);
             stats_audit(kvCollector);
+            if (isServerlessDeployment()) {
+                // include all metering metrics, without the "kv_" prefix
+                server_prometheus_metering(collector);
+            }
         } else {
             try {
                 sigar::iterate_threads([&kvCollector](auto tid,
@@ -264,10 +268,6 @@ cb::engine_errc server_prometheus_stats(
             } catch (const std::exception& e) {
                 LOG_WARNING("sigar::iterate_threads: {}", e.what());
             }
-        }
-        if (isServerlessDeployment()) {
-            // include all metering metrics, without the "kv_" prefix
-            server_prometheus_metering(collector);
         }
         BucketManager::instance().forEach([&kvCollector,
                                            metricGroup](Bucket& bucket) {

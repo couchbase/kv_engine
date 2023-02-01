@@ -154,8 +154,8 @@ TEST_F(PrometheusStatTest, MeteringIncludedInHighCardinality) {
     {
         auto metrics = getMetrics();
 
-        EXPECT_THAT(metrics.high, Contains(Key("boot_timestamp_seconds")));
-        EXPECT_THAT(metrics.high,
+        EXPECT_THAT(metrics.low, Contains(Key("boot_timestamp_seconds")));
+        EXPECT_THAT(metrics.low,
                     Not(Contains(Key("kv_boot_timestamp_seconds"))));
     }
 }
