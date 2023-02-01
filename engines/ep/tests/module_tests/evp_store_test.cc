@@ -25,6 +25,7 @@
 #include "bgfetcher.h"
 #include "checkpoint_manager.h"
 #include "checkpoint_remover.h"
+#include "checkpoint_utils.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/dcpconnmap.h"
 #include "ep_bucket.h"
@@ -2625,3 +2626,172 @@ INSTANTIATE_TEST_SUITE_P(EPBucketTestCouchstore,
                          EPBucketTestCouchstore,
                          STParameterizedBucketTest::couchstoreConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
+
+#ifdef EP_USE_MAGMA
+
+/**
+ * Test fixture for CDC tests - Magma only
+ */
+class EPBucketCDCTest : public EPBucketTest {
+protected:
+    void SetUp() override {
+        // Note: Checkpoint removal isn't under test at all here.
+        // Eager checkpoint removal, default prod setting in Neo and post-Neo.
+        // That helps in cleaning up the CheckpointManager during the test and
+        // we won't need to fix the testsuite when merging into the master
+        // branch.
+        if (!config_string.empty()) {
+            config_string += ";";
+        }
+        config_string += "checkpoint_removal_mode=eager";
+        EPBucketTest::SetUp();
+
+        auto vb = store->getVBucket(vbid);
+        ASSERT_TRUE(vb);
+
+        CollectionsManifest manifest;
+        manifest.add(CollectionEntry::historical,
+                     cb::NoExpiryLimit,
+                     true /*history*/,
+                     ScopeEntry::defaultS);
+        vb->updateFromManifest(
+                folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                Collections::Manifest{std::string{manifest}});
+        flushVBucketToDiskIfPersistent(vbid, 1);
+        auto& manager = *vb->checkpointManager;
+        manager.createNewCheckpoint();
+
+        ASSERT_EQ(1, manager.getNumCheckpoints());
+        ASSERT_EQ(1, manager.getNumItems()); // [cs
+        ASSERT_EQ(1, manager.getNumOpenChkItems()); // no mutation
+        ASSERT_EQ(1, manager.getHighSeqno()); // sysevent
+    }
+};
+
+TEST_P(EPBucketCDCTest, CollectionNonHistorical) {
+    auto vb = store->getVBucket(vbid);
+    const uint64_t initialHighSeqno = 1;
+    ASSERT_EQ(initialHighSeqno, vb->getHighSeqno()); // From SetUp
+
+    const auto key = makeStoredDocKey("key", CollectionEntry::defaultC);
+    store_item(vbid, key, "valueA");
+    store_item(vbid, key, "valueB");
+    EXPECT_EQ(initialHighSeqno + 2, vb->getHighSeqno());
+
+    const auto& manager = *vb->checkpointManager;
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(2, manager.getNumItems()); // [cs x m)
+    EXPECT_EQ(2, manager.getNumOpenChkItems());
+    EXPECT_EQ(initialHighSeqno + 2, manager.getHighSeqno());
+
+    constexpr auto statName = "magma_NSets";
+    size_t nSets = 0;
+    const auto& underlying = *store->getRWUnderlying(vbid);
+    ASSERT_TRUE(underlying.getStat(statName, nSets));
+    ASSERT_EQ(1, nSets);
+
+    flush_vbucket_to_disk(vbid, 1);
+    ASSERT_TRUE(underlying.getStat(statName, nSets));
+    EXPECT_EQ(2, nSets);
+}
+
+TEST_P(EPBucketCDCTest, CollectionHistorical) {
+    auto vb = store->getVBucket(vbid);
+    const uint64_t initialHighSeqno = 1;
+    ASSERT_EQ(initialHighSeqno, vb->getHighSeqno()); // From SetUp
+
+    const auto key = makeStoredDocKey("key", CollectionEntry::historical);
+    store_item(vbid, key, "valueA");
+    store_item(vbid, key, "valueB");
+    EXPECT_EQ(initialHighSeqno + 2, vb->getHighSeqno());
+
+    const auto& manager = *vb->checkpointManager;
+    EXPECT_EQ(2, manager.getNumCheckpoints());
+    EXPECT_EQ(5, manager.getNumItems()); // [cs m ce] [cs m)
+    EXPECT_EQ(2, manager.getNumOpenChkItems());
+    EXPECT_EQ(initialHighSeqno + 2, manager.getHighSeqno());
+
+    constexpr auto statName = "magma_NSets";
+    size_t nSets = 0;
+    const auto& underlying = *store->getRWUnderlying(vbid);
+    ASSERT_TRUE(underlying.getStat(statName, nSets));
+    ASSERT_EQ(1, nSets);
+
+    flush_vbucket_to_disk(vbid, 2);
+    ASSERT_TRUE(underlying.getStat(statName, nSets));
+    EXPECT_EQ(3, nSets);
+}
+
+TEST_P(EPBucketCDCTest, CollectionInterleaved) {
+    auto vb = store->getVBucket(vbid);
+    const uint64_t initialHighSeqno = 1;
+    ASSERT_EQ(initialHighSeqno, vb->getHighSeqno()); // From SetUp
+
+    const auto keyHistorical =
+            makeStoredDocKey("key", CollectionEntry::historical);
+    const auto keyNonHistorical =
+            makeStoredDocKey("key", CollectionEntry::defaultC);
+    const auto value = "value";
+    for (uint8_t i = 0; i < 2; ++i) {
+        store_item(vbid, keyHistorical, value);
+        store_item(vbid, keyNonHistorical, value);
+    }
+    EXPECT_EQ(initialHighSeqno + 4, vb->getHighSeqno());
+
+    // Note: It is important to ensure that both revisions for keyNonHistorical
+    // survived in-memory deduplication - We are verifying flusher-dedup here
+    const auto& manager = *vb->checkpointManager;
+    const auto& list =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    manager);
+    ASSERT_EQ(2, list.size());
+    // First checkpoint
+    auto ckptIt = list.begin();
+    EXPECT_EQ(CHECKPOINT_CLOSED, (*ckptIt)->getState());
+    auto it = (*ckptIt)->begin();
+    ++it;
+    ++it;
+    EXPECT_EQ(queue_op::mutation, (*it)->getOperation());
+    EXPECT_EQ(initialHighSeqno + 1, (*it)->getBySeqno());
+    EXPECT_EQ(keyHistorical, (*it)->getDocKey());
+    ++it;
+    EXPECT_EQ(queue_op::mutation, (*it)->getOperation());
+    EXPECT_EQ(initialHighSeqno + 2, (*it)->getBySeqno());
+    EXPECT_EQ(keyNonHistorical, (*it)->getDocKey());
+    ++it;
+    EXPECT_EQ(queue_op::checkpoint_end, (*it)->getOperation());
+    // Second checkpoint
+    ++ckptIt;
+    EXPECT_EQ(CHECKPOINT_OPEN, (*ckptIt)->getState());
+    it = (*ckptIt)->begin();
+    ++it;
+    ++it;
+    EXPECT_EQ(queue_op::mutation, (*it)->getOperation());
+    EXPECT_EQ(initialHighSeqno + 3, (*it)->getBySeqno());
+    EXPECT_EQ(keyHistorical, (*it)->getDocKey());
+    ++it;
+    EXPECT_EQ(queue_op::mutation, (*it)->getOperation());
+    EXPECT_EQ(initialHighSeqno + 4, (*it)->getBySeqno());
+    EXPECT_EQ(keyNonHistorical, (*it)->getDocKey());
+
+    constexpr auto statName = "magma_NSets";
+    size_t initialNSets = 0;
+    const auto& underlying = *store->getRWUnderlying(vbid);
+    ASSERT_TRUE(underlying.getStat(statName, initialNSets));
+    EXPECT_EQ(1, initialNSets);
+
+    // Note:
+    // . 2 historical mutations -> both persisted
+    // . 2 non-historical mutations -> only 1 persisted
+    const auto expectedNumPersisted = 3;
+    flush_vbucket_to_disk(vbid, expectedNumPersisted);
+    size_t nSets = 0;
+    ASSERT_TRUE(underlying.getStat(statName, nSets));
+    EXPECT_EQ(initialNSets + expectedNumPersisted, nSets);
+}
+
+INSTANTIATE_TEST_SUITE_P(EPBucketCDCTest,
+                         EPBucketCDCTest,
+                         STParameterizedBucketTest::magmaConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+#endif // EP_USE_MAGMA
