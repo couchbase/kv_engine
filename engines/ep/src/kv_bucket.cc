@@ -3089,11 +3089,23 @@ KVBucket::getSeqnoPersistenceNotifyTaskWakeTime() const {
 }
 
 void KVBucket::setHistoryRetentionSeconds(std::chrono::seconds seconds) {
+    if (historyRetentionSeconds.load() == seconds) {
+        return;
+    }
+
+    const auto wasEnabled = isHistoryRetentionEnabled();
+
     for (auto& i : vbMap.shards) {
         KVShard* shard = i.get();
         shard->getRWUnderlying()->setHistoryRetentionSeconds(seconds);
     }
     historyRetentionSeconds = seconds;
+
+    if (isHistoryRetentionEnabled() != wasEnabled) {
+        // New mutations needs to be queued in a new checkpoint created with the
+        // correct history flag.
+        createNewActiveCheckpoints();
+    }
 }
 
 std::chrono::seconds KVBucket::getHistoryRetentionSeconds() const {
@@ -3101,6 +3113,12 @@ std::chrono::seconds KVBucket::getHistoryRetentionSeconds() const {
 }
 
 void KVBucket::setHistoryRetentionBytes(size_t bytes) {
+    if (historyRetentionBytes == bytes) {
+        return;
+    }
+
+    const auto wasEnabled = isHistoryRetentionEnabled();
+
     // KVStore needs to know bytes per vbucket. However for simpler small-scale
     // or unit testing just use the bytes directly.
     auto vbucketBytes =
@@ -3111,6 +3129,12 @@ void KVBucket::setHistoryRetentionBytes(size_t bytes) {
         shard->getRWUnderlying()->setHistoryRetentionBytes(vbucketBytes);
     }
     historyRetentionBytes = bytes;
+
+    if (isHistoryRetentionEnabled() != wasEnabled) {
+        // New mutations needs to be queued in a new checkpoint created with the
+        // correct history flag.
+        createNewActiveCheckpoints();
+    }
 }
 
 size_t KVBucket::getHistoryRetentionBytes() const {
@@ -3120,4 +3144,17 @@ size_t KVBucket::getHistoryRetentionBytes() const {
 bool KVBucket::isHistoryRetentionEnabled() const {
     return historyRetentionBytes > 0 ||
            historyRetentionSeconds.load().count() > 0;
+}
+
+void KVBucket::createNewActiveCheckpoints() {
+    for (auto vbid : vbMap.getBuckets()) {
+        auto vb = getVBucket(vbid);
+        Expects(vb);
+        {
+            const auto l = folly::SharedMutex::ReadHolder(vb->getStateLock());
+            if (vb->getState() == vbucket_state_active) {
+                vb->checkpointManager->createNewCheckpoint(true);
+            }
+        }
+    }
 }
