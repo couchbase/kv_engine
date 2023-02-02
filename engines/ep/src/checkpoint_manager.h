@@ -178,7 +178,7 @@ public:
 
     virtual ~CheckpointManager();
 
-    uint64_t getOpenCheckpointId();
+    uint64_t getOpenCheckpointId() const;
 
     uint64_t getLastClosedCheckpointId();
 
@@ -662,7 +662,7 @@ protected:
      * @param lh Lock to CM::queueLock
      * @return the id of the open checkpoint
      */
-    uint64_t getOpenCheckpointId(const std::lock_guard<std::mutex>& lh);
+    uint64_t getOpenCheckpointId(const std::lock_guard<std::mutex>& lh) const;
 
     /**
      *
