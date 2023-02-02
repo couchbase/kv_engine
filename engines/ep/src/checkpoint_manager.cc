@@ -93,12 +93,12 @@ uint64_t CheckpointManager::getOpenCheckpointId() const {
 }
 
 uint64_t CheckpointManager::getLastClosedCheckpointId(
-        const std::lock_guard<std::mutex>& lh) {
+        const std::lock_guard<std::mutex>& lh) const {
     auto id = getOpenCheckpointId(lh);
     return id > 0 ? (id - 1) : 0;
 }
 
-uint64_t CheckpointManager::getLastClosedCheckpointId() {
+uint64_t CheckpointManager::getLastClosedCheckpointId() const {
     std::lock_guard<std::mutex> lh(queueLock);
     return getLastClosedCheckpointId(lh);
 }
