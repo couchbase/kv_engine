@@ -1053,7 +1053,9 @@ uint64_t EPVBucket::addSystemEventItem(
 
     // We don't record anything interesting for scopes
     if (cid) {
-        doCollectionsStats(wHandle, *cid, notifyCtx);
+        wHandle.setHighSeqno(cid.value(),
+                             qi->getBySeqno(),
+                             Collections::VB::HighSeqnoType::SystemEvent);
         if (qi->isDeleted()) {
             stats.dropCollectionStats(*cid);
 

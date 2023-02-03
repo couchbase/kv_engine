@@ -3942,22 +3942,16 @@ void VBucket::notifyNewSeqno(
 void VBucket::doCollectionsStats(
         const Collections::VB::CachingReadHandle& cHandle,
         const VBNotifyCtx& notifyCtx) {
-    cHandle.setHighSeqno(notifyCtx.bySeqno, !notifyCtx.isSyncWrite());
+    cHandle.setHighSeqno(notifyCtx.bySeqno,
+                         notifyCtx.isSyncWrite()
+                                 ? Collections::VB::HighSeqnoType::PrepareAbort
+                                 : Collections::VB::HighSeqnoType::Committed);
 
     if (notifyCtx.itemCountDifference == 1) {
         cHandle.incrementItemCount();
     } else if (notifyCtx.itemCountDifference == -1) {
         cHandle.decrementItemCount();
     }
-}
-
-
-void VBucket::doCollectionsStats(
-        const Collections::VB::WriteHandle& writeHandle,
-        CollectionID collection,
-        const VBNotifyCtx& notifyCtx) {
-    writeHandle.setHighSeqno(
-            collection, notifyCtx.bySeqno, !notifyCtx.isSyncWrite());
 }
 
 void VBucket::updateRevSeqNoOfNewStoredValue(StoredValue& v) {
