@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <limits>
 
+#include "bgfetcher.h"
 #include "checkpoint.h"
 #include "checkpoint_config.h"
 #include "checkpoint_manager.h"
@@ -90,6 +91,7 @@ int main(int, char **) {
     ruler();
 
     display("Blob", sizeof(Blob));
+    display("BGFetcher", sizeof(BgFetcher));
     display("CheckpointManager", sizeof(CheckpointManager));
     display("Checkpoint", sizeof(Checkpoint));
     display("CheckpointConfig", sizeof(CheckpointConfig));
