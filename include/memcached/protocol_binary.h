@@ -395,6 +395,11 @@ enum class doc_flag : uint8_t {
      * document as a "live" document instead of a deleted document.
      */
     ReviveDocument = 0x10,
+
+    /**
+     * (Lookup) Operate on a replica vbucket instead of an active one
+     */
+    ReplicaRead = 0x20,
 };
 
 /**
@@ -402,7 +407,7 @@ enum class doc_flag : uint8_t {
  * The value depends on how many bits the doc_flag enum is actually using and
  * must change accordingly.
  */
-static constexpr uint8_t extrasDocFlagMask = 0xe0;
+static constexpr uint8_t extrasDocFlagMask = 0b11000000;
 
 } // namespace cb::mcbp::subdoc
 
@@ -2191,12 +2196,19 @@ inline std::string to_string(cb::mcbp::subdoc::doc_flag a) {
         return "CreateAsDeleted";
     case doc_flag::ReviveDocument:
         return "ReviveDocument";
+    case doc_flag::ReplicaRead:
+        return "ReplicaRead";
     }
     return std::to_string(static_cast<uint8_t>(a));
 }
 
 inline bool hasAccessDeleted(cb::mcbp::subdoc::doc_flag a) {
     return (a & cb::mcbp::subdoc::doc_flag::AccessDeleted) !=
+           cb::mcbp::subdoc::doc_flag::None;
+}
+
+inline bool hasReplicaRead(cb::mcbp::subdoc::doc_flag a) {
+    return (a & cb::mcbp::subdoc::doc_flag::ReplicaRead) !=
            cb::mcbp::subdoc::doc_flag::None;
 }
 

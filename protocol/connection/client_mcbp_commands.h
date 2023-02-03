@@ -430,10 +430,10 @@ public:
     BinprotSubdocMultiLookupCommand& addExists(
             const std::string& path,
             protocol_binary_subdoc_flag flags = SUBDOC_FLAG_NONE);
-    BinprotSubdocMultiLookupCommand& addGetcount(
+    BinprotSubdocMultiLookupCommand& addGetCount(
             const std::string& path,
             protocol_binary_subdoc_flag flags = SUBDOC_FLAG_NONE);
-    BinprotSubdocMultiLookupCommand& addDocFlag(
+    BinprotSubdocMultiLookupCommand& addDocFlags(
             cb::mcbp::subdoc::doc_flag docFlag);
 
     void clearLookups();

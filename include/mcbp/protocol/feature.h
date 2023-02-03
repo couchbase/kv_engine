@@ -93,6 +93,9 @@ enum class Feature : uint16_t {
 
     /// Return ewouldthrottle instead of block on throttling
     NonBlockingThrottlingMode = 0x1b,
+
+    /// Does the server support subdoc lookup operations on replica vbuckets
+    SubdocReplicaRead = 0x1c,
 };
 
 } // namespace cb::mcbp

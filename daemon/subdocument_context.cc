@@ -281,6 +281,7 @@ SubdocCmdContext::SubdocCmdContext(Cookie& cookie_,
       traits(traits_),
       vbucket(vbucket_),
       do_allow_deleted_docs(cb::mcbp::subdoc::hasAccessDeleted(doc_flags)),
+      do_read_replica(cb::mcbp::subdoc::hasReplicaRead(doc_flags)),
       createState(cb::mcbp::subdoc::hasCreateAsDeleted(doc_flags)
                           ? DocumentState::Deleted
                           : DocumentState::Alive),

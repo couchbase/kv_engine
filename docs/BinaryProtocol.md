@@ -1928,6 +1928,8 @@ The following features is defined:
   the server. The fields will only be inserted if non-zero.
 * `NonBlockingThrottlingMode` cause the server to return ewouldthrottle on a request
   instead of throttle the command.
+* `SubdocReplicaRead` Does the server support the ReplicaRead option to subdoc
+   lookup operations
 
 Response:
 

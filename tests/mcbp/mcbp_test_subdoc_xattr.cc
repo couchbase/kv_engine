@@ -285,7 +285,7 @@ TEST_P(SubdocXattrMultiLookupTest, XattrFlagsMakeSense) {
 
     // Let's try a valid access deleted flag
     request[0].flags = SUBDOC_FLAG_NONE;
-    request.addDocFlag(cb::mcbp::subdoc::doc_flag::AccessDeleted);
+    request.addDocFlags(cb::mcbp::subdoc::doc_flag::AccessDeleted);
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 
     // We should be able to access deleted docs if both flags are set
@@ -298,7 +298,7 @@ TEST_P(SubdocXattrMultiLookupTest, AllowWholeDocAndXattrLookup) {
                        SUBDOC_FLAG_XATTR_PATH,
                        "_sync"});
     request.addLookup({cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE, ""});
-    request.addDocFlag(cb::mcbp::subdoc::doc_flag::AccessDeleted);
+    request.addDocFlags(cb::mcbp::subdoc::doc_flag::AccessDeleted);
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 

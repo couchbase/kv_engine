@@ -20,7 +20,68 @@
 #include <protocol/connection/frameinfo.h>
 #include <string>
 
-class BasicClusterTest : public cb::test::ClusterTest {};
+class BasicClusterTest : public cb::test::ClusterTest {
+protected:
+    template <typename T>
+    void testSingleSubdocReplicaCommand(T& cmd) {
+        auto bucket = cluster->getBucket("default");
+        auto conn = bucket->getAuthedConnection(Vbid(0));
+        auto replica =
+                bucket->getAuthedConnection(Vbid(0), vbucket_state_replica);
+
+        Document doc;
+        doc.info.id = cmd.getKey();
+        doc.value = R"({"array":[ "foo", "bar"]})";
+
+        conn->mutate(doc, Vbid{0}, MutationType::Set, []() -> FrameInfoVector {
+            FrameInfoVector ret;
+            ret.emplace_back(std::make_unique<DurabilityFrameInfo>(
+                    cb::durability::Level::Majority));
+            return ret;
+        });
+
+        // Unfortunately there is no "All" and we don't know the order it
+        // got replicated, and I've seen failures where we got a "not found".
+        // Just wait until it got replicated to the node we're going to check
+        auto rsp = replica->execute(BinprotGenericCommand{
+                cb::mcbp::ClientOpcode::GetReplica, cmd.getKey()});
+        while (rsp.getStatus() == cb::mcbp::Status::KeyEnoent) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            rsp = replica->execute(BinprotGenericCommand{
+                    cb::mcbp::ClientOpcode::GetReplica, cmd.getKey()});
+        }
+
+        // We can read it from the active vbucket
+        rsp = conn->execute(cmd);
+        EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+
+        // We should not be able to fetch it from the replica unless asking for
+        // it
+        rsp = replica->execute(cmd);
+        EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, rsp.getStatus());
+
+        // Add ReplicaRead, and we should get it!
+        cmd.addDocFlags(cb::mcbp::subdoc::doc_flag::ReplicaRead);
+        rsp = replica->execute(cmd);
+        EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+
+        // It should fail on the active vbucket
+        rsp = conn->execute(cmd);
+        EXPECT_EQ(cb::mcbp::Status::NotMyVbucket, rsp.getStatus());
+
+        // But we can't mix that with access deleted
+        cmd.addDocFlags(cb::mcbp::subdoc::doc_flag::AccessDeleted);
+        rsp = replica->execute(cmd);
+        EXPECT_EQ(cb::mcbp::Status::Einval, rsp.getStatus())
+                << rsp.getDataString();
+    }
+
+    void testSingleSubdocReplicaCommand(cb::mcbp::ClientOpcode opcode) {
+        BinprotSubdocCommand cmd{
+                opcode, "testSingleSubdocReplicaCommand", "array"};
+        testSingleSubdocReplicaCommand<BinprotSubdocCommand>(cmd);
+    }
+};
 
 TEST_F(BasicClusterTest, GetReplica) {
     auto bucket = cluster->getBucket("default");
@@ -375,4 +436,24 @@ TEST_F(BasicClusterTest, AllStatGroups) {
             EXPECT_NO_THROW(conn->stats(key));
         }
     });
+}
+
+TEST_F(BasicClusterTest, SubdocReplicaRead) {
+    testSingleSubdocReplicaCommand(cb::mcbp::ClientOpcode::SubdocGet);
+}
+
+TEST_F(BasicClusterTest, SubdocReplicaExists) {
+    testSingleSubdocReplicaCommand(cb::mcbp::ClientOpcode::SubdocExists);
+}
+
+TEST_F(BasicClusterTest, SubdocReplicaGetCount) {
+    testSingleSubdocReplicaCommand(cb::mcbp::ClientOpcode::SubdocGetCount);
+}
+
+TEST_F(BasicClusterTest, SubdocReplicaMulti) {
+    BinprotSubdocMultiLookupCommand cmd;
+    cmd.setKey("testMultiSubdocReplicaCommand");
+    cmd.setVBucket(Vbid{0});
+    cmd.addGet("array").addExists("array").addGetCount("array");
+    testSingleSubdocReplicaCommand<BinprotSubdocMultiLookupCommand>(cmd);
 }

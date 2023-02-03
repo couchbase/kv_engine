@@ -321,7 +321,9 @@ BinprotSubdocCommand& BinprotSubdocCommand::addDocFlags(
         cb::mcbp::subdoc::doc_flag flags_) {
     using namespace cb::mcbp::subdoc;
     constexpr doc_flag validFlags = doc_flag::Mkdoc | doc_flag::AccessDeleted |
-                                    doc_flag::Add | doc_flag::CreateAsDeleted;
+                                    doc_flag::Add | doc_flag::CreateAsDeleted |
+                                    doc_flag::ReplicaRead |
+                                    doc_flag::ReviveDocument;
     if ((flags_ & ~validFlags) == cb::mcbp::subdoc::doc_flag::None) {
         doc_flags = doc_flags | flags_;
     } else {
@@ -1209,20 +1211,22 @@ BinprotSubdocMultiLookupCommand& BinprotSubdocMultiLookupCommand::addExists(
         const std::string& path, protocol_binary_subdoc_flag flags) {
     return addLookup(path, cb::mcbp::ClientOpcode::SubdocExists, flags);
 }
-BinprotSubdocMultiLookupCommand& BinprotSubdocMultiLookupCommand::addGetcount(
+BinprotSubdocMultiLookupCommand& BinprotSubdocMultiLookupCommand::addGetCount(
         const std::string& path, protocol_binary_subdoc_flag flags) {
     return addLookup(path, cb::mcbp::ClientOpcode::SubdocGetCount, flags);
 }
-BinprotSubdocMultiLookupCommand& BinprotSubdocMultiLookupCommand::addDocFlag(
+BinprotSubdocMultiLookupCommand& BinprotSubdocMultiLookupCommand::addDocFlags(
         cb::mcbp::subdoc::doc_flag docFlag) {
     static const cb::mcbp::subdoc::doc_flag validFlags =
             cb::mcbp::subdoc::doc_flag::Mkdoc |
             cb::mcbp::subdoc::doc_flag::AccessDeleted |
-            cb::mcbp::subdoc::doc_flag::Add;
+            cb::mcbp::subdoc::doc_flag::Add |
+            cb::mcbp::subdoc::doc_flag::ReplicaRead;
+
     if ((docFlag & ~validFlags) == cb::mcbp::subdoc::doc_flag::None) {
         docFlags = docFlags | docFlag;
     } else {
-        throw std::invalid_argument("addDocFlag: docFlag (Which is " +
+        throw std::invalid_argument("addDocFlags: docFlag (Which is " +
                                     to_string(docFlag) + ") is not a doc flag");
     }
     return *this;

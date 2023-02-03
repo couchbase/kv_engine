@@ -250,13 +250,26 @@ static bool subdoc_fetch(Cookie& cookie,
             if (ctx.do_allow_deleted_docs) {
                 state = DocStateFilter::AliveOrDeleted;
             }
-            auto r = bucket_get(cookie, get_key, ctx.vbucket, state);
-            if (r.first == cb::engine_errc::success) {
-                ctx.fetchedItem = std::move(r.second);
-                ret = cb::engine_errc::success;
+
+            if (ctx.do_read_replica) {
+                // we can't read deleted items from here...
+                auto [status, item] =
+                        bucket_get_replica(cookie, get_key, ctx.vbucket);
+                if (status == cb::engine_errc::success) {
+                    ctx.fetchedItem = std::move(item);
+                    ret = cb::engine_errc::success;
+                } else {
+                    ret = ctx.connection.remapErrorCode(status);
+                }
             } else {
-                ret = cb::engine_errc(r.first);
-                ret = ctx.connection.remapErrorCode(ret);
+                auto [status, item] =
+                        bucket_get(cookie, get_key, ctx.vbucket, state);
+                if (status == cb::engine_errc::success) {
+                    ctx.fetchedItem = std::move(item);
+                    ret = cb::engine_errc::success;
+                } else {
+                    ret = ctx.connection.remapErrorCode(status);
+                }
             }
         }
 

@@ -43,7 +43,8 @@ const std::map<cb::mcbp::Feature, std::string> featureBlueprint = {
           "SubdocReplaceBodyWithXattr"},
          {cb::mcbp::Feature::ReportUnitUsage, "ReportUnitUsage"},
          {cb::mcbp::Feature::NonBlockingThrottlingMode,
-          "NonBlockingThrottlingMode"}}};
+          "NonBlockingThrottlingMode"},
+         {cb::mcbp::Feature::SubdocReplicaRead, "SubdocReplicaRead"}}};
 
 TEST(to_string, LegalValues) {
     for (const auto& entry : featureBlueprint) {

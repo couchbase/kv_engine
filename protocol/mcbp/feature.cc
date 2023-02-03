@@ -69,6 +69,8 @@ std::string to_string(cb::mcbp::Feature feature) {
         return "ReportUnitUsage";
     case cb::mcbp::Feature::NonBlockingThrottlingMode:
         return "NonBlockingThrottlingMode";
+    case cb::mcbp::Feature::SubdocReplicaRead:
+        return "SubdocReplicaRead";
     }
 
     throw std::invalid_argument(

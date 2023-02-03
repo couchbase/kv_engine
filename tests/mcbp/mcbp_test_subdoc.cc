@@ -302,18 +302,18 @@ TEST_P(SubdocMultiLookupTest, InvalidLocationFlags) {
         EXPECT_EQ("Request flags invalid", validate_error_context(request));
         request.at(0).flags = SUBDOC_FLAG_NONE;
 
-        request.addDocFlag(cb::mcbp::subdoc::doc_flag::Mkdoc);
+        request.addDocFlags(cb::mcbp::subdoc::doc_flag::Mkdoc);
         EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
         EXPECT_EQ("Request document flags invalid",
                   validate_error_context(request));
         request.clearDocFlags();
 
-        request.addDocFlag(cb::mcbp::subdoc::doc_flag::Add);
+        request.addDocFlags(cb::mcbp::subdoc::doc_flag::Add);
         EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
         EXPECT_EQ("Request document flags invalid",
                   validate_error_context(request));
 
-        request.addDocFlag(cb::mcbp::subdoc::doc_flag::Mkdoc);
+        request.addDocFlags(cb::mcbp::subdoc::doc_flag::Mkdoc);
         EXPECT_EQ(cb::mcbp::Status::Einval, validate(request));
         EXPECT_EQ("Request must not contain both add and mkdoc flags",
                   validate_error_context(request));

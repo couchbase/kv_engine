@@ -249,6 +249,9 @@ public:
     // Set to true if we want to operate on deleted documents
     const bool do_allow_deleted_docs;
 
+    // Set to true if we want to read a replica
+    const bool do_read_replica;
+
     // Set to true if we want to delete the document after modifying it
     bool do_delete_doc = false;
 
