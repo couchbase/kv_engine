@@ -3534,12 +3534,21 @@ void CollectionsDcpPersistentOnly::resurrectionStatsTest(
                       MetaData::getMetaDataSize(MetaData::Version::V1);
     if (isMagma()) {
         // magma doesn't account the same bits and bytes
-        // 49 = compressed system event value size (56 raw), 14 = key size
-        systemeventSize = 49 + 14 + magmaMetaV0Size;
-
-        auto compressedSize = getCompressedSize(value1);
-        EXPECT_EQ(compressedSize, 6) << "Compressed value1 has unexpected size";
-        itemSize = compressedSize + key1.size() + magmaMetaV0Size;
+        // 14 = key size
+        systemeventSize = 14 + magmaMetaV0Size;
+        itemSize = key1.size() + magmaMetaV0Size;
+        if (isSnappyCompressedAtPersistence()) {
+            // 49 = compressed system event value size
+            systemeventSize += 49;
+            auto compressedSize = getCompressedSize(value1);
+            EXPECT_EQ(compressedSize, 6)
+                    << "Compressed value1 has unexpected size";
+            itemSize += compressedSize;
+        } else {
+            // 56 = raw, uncompressed value size
+            systemeventSize += 56;
+            itemSize += value1.size();
+        }
     }
     EXPECT_EQ(1, stats.itemCount);
     EXPECT_EQ(systemeventSize + itemSize, stats.diskSize);
@@ -3610,7 +3619,13 @@ void CollectionsDcpPersistentOnly::resurrectionStatsTest(
         // magma doesn't account the same bits and bytes
         auto compressedSize = getCompressedSize(value2);
         EXPECT_EQ(compressedSize, 7) << "Compressed value2 has unexpected size";
-        itemSize = compressedSize + key1.size() + magmaMetaV0Size;
+
+        itemSize = key1.size() + magmaMetaV0Size;
+        if (isSnappyCompressedAtPersistence()) {
+            itemSize += compressedSize;
+        } else {
+            itemSize += value2.size();
+        }
     }
     EXPECT_EQ(1, stats.itemCount);
     EXPECT_EQ(systemeventSize + itemSize, stats.diskSize);
@@ -4694,7 +4709,7 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionTwoVbuckets) {
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
                          CollectionsDcpParameterizedTest,
-                         STParameterizedBucketTest::allConfigValues(),
+                         CollectionsDcpParameterizedTest::allConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
@@ -4702,10 +4717,11 @@ INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
                          STParameterizedBucketTest::allConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
-INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
-                         CollectionsDcpPersistentOnly,
-                         STParameterizedBucketTest::persistentConfigValues(),
-                         STParameterizedBucketTest::PrintToStringParamName);
+INSTANTIATE_TEST_SUITE_P(
+        CollectionsDcpEphemeralOrPersistent,
+        CollectionsDcpPersistentOnly,
+        CollectionsDcpParameterizedTest::persistentConfigValues(),
+        STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
                          MB48010CollectionsDCPParamTest,

@@ -623,6 +623,12 @@ bool STParameterizedBucketTest::isMagma() const {
            isNexusMagmaPrimary();
 }
 
+bool STParameterizedBucketTest::isSnappyCompressedAtPersistence() const {
+    return isCouchstore() ||
+           (isMagma() &&
+            engine->getConfiguration().isMagmaPerDocumentCompressionEnabled());
+}
+
 bool STParameterizedBucketTest::isNexusMagmaPrimary() const {
     return engine->getConfiguration().getBackend() == "nexus" &&
            engine->getConfiguration().getNexusPrimaryBackend() == "magma";
@@ -665,6 +671,11 @@ std::string STParameterizedBucketTest::PrintToStringParamName(
     boost::replace_all(
             config, "cross_bucket_ht_quota_sharing=true", "quota_sharing");
     boost::replace_all(config, "cross_bucket_ht_quota_sharing=false_", "");
+    boost::replace_all(config,
+                       "magma_per_document_compression_enabled=true",
+                       "per_doc_comp");
+    boost::replace_all(
+            config, "magma_per_document_compression_enabled=false", "");
     return config;
 }
 

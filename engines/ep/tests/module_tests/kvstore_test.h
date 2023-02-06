@@ -99,6 +99,12 @@ protected:
     bool supportsFetchingAsSnappy() const;
 
     /**
+     * @returns true if the KVStore implementation this test is parameterized
+     * such that Snappy compression will be applied to documents at persistence
+     */
+    bool isSnappyCompressedAtPersistence() const;
+
+    /**
      * Test that the io_bg_fetch_docs_read stat is tracked correctly for gets
      *
      * @param deleted run the test for a deleted doc?

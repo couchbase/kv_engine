@@ -560,6 +560,13 @@ public:
                itemEvictionPolicy();
     }
 
+    static auto magmaPerDocumentCompressionConfigValues() {
+        return config::Config{
+                { "magma_per_document_compression_enabled",
+                  { "true",
+                    "false" } }};
+    }
+
 #endif
 
 #ifdef EP_USE_ROCKSDB
@@ -624,6 +631,11 @@ public:
 
     /// @returns true if this is a magma bucket
     bool isMagma() const;
+
+    /**
+     * Check if Snappy compression will be applied at persistence
+     */
+    bool isSnappyCompressedAtPersistence() const;
 
     bool isNexusMagmaPrimary() const;
 

@@ -1497,7 +1497,12 @@ TEST_P(EPBucketTest, GetNonResidentCompressed) {
     cookie_to_mock_cookie(cookie)->setDatatypeSupport(JsonSnappy);
 
     auto item = doGet();
-    if (supportsFetchingAsSnappy()) {
+
+    // TODO: MB-54829 magma per-document compression is temporarily
+    // disabled; magma still supports _fetching_ as Snappy, but will not
+    // have compressed the value. Check if compression is enabled here,
+    // and update the test once compression issues are resolved.
+    if (supportsFetchingAsSnappy() && !isMagma()) {
         EXPECT_EQ(JsonSnappy, item->getDataType());
     } else {
         EXPECT_EQ(Json, item->getDataType());
