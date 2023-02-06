@@ -17,8 +17,9 @@ Extra looks like:
       0| flags                                                         |
        +---------------+---------------+---------------+---------------+
 
-Flags is specified as a bitmask in network byte order with the
-following bits defined:
+`flags` specifies the flags to be passed in
+the [StreamRequest](stream-request.md) to the Producer. They are specified as a
+bitmask in network byte order with the following bits defined:
 
 * 0x01 (Takeover) - Specifies that the stream should send over all remaining data to the remote node and then set the remote nodes vbucket to active state and the source nodes vbucket to dead.
 * 0x02 (Disk Only) - Specifies that the stream should only send items only if they are on disk. The first item sent is specified by the start sequence number and items will be sent up to the sequence number specified by the end sequence number or the last on disk item when the stream is created.
