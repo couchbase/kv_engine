@@ -104,7 +104,7 @@ protected:
      * @param enabled Are we simulating a negotiation against a Producer
      *  that enables change_streams?
      */
-    void testConsumerNegotiatesChangeStreams(bool enabled);
+    void testConsumerNegotiatesCDC(bool enabled);
 };
 
 /*
@@ -1131,7 +1131,7 @@ TEST_P(STDcpTest, ProducerNegotiatesFlatBuffers) {
     destroy_mock_cookie(cookie);
 }
 
-TEST_P(STDcpTest, ProducerNegotiatesChangeStreams) {
+TEST_P(STDcpTest, ProducerNegotiatesCDC) {
     if (!isMagma()) {
         GTEST_SKIP();
     }
@@ -1157,7 +1157,7 @@ TEST_P(STDcpTest, ProducerNegotiatesChangeStreams) {
     destroy_mock_cookie(cookie);
 }
 
-TEST_P(STDcpTest, ProducerNegotiatesChangeStreams_NotMagma) {
+TEST_P(STDcpTest, ProducerNegotiatesCDC_NotMagma) {
     if (isMagma()) {
         GTEST_SKIP();
     }
@@ -1174,7 +1174,7 @@ TEST_P(STDcpTest, ProducerNegotiatesChangeStreams_NotMagma) {
     destroy_mock_cookie(cookie);
 }
 
-void STDcpTest::testConsumerNegotiatesChangeStreams(bool enabled) {
+void STDcpTest::testConsumerNegotiatesCDC(bool enabled) {
     MockDcpConnMap connMap(*engine);
     connMap.initialize();
     auto* cookie = create_mock_cookie();
@@ -1245,12 +1245,12 @@ void STDcpTest::testConsumerNegotiatesChangeStreams(bool enabled) {
     destroy_mock_cookie(cookie);
 }
 
-TEST_P(STDcpTest, ConsumerNegotiatesChangeStreams_DisabledAtProducer) {
-    testConsumerNegotiatesChangeStreams(false);
+TEST_P(STDcpTest, ConsumerNegotiatesCDC_DisabledAtProducer) {
+    testConsumerNegotiatesCDC(false);
 }
 
-TEST_P(STDcpTest, ConsumerNegotiatesChangeStreams_EnabledAtProducer) {
-    testConsumerNegotiatesChangeStreams(true);
+TEST_P(STDcpTest, ConsumerNegotiatesCDC_EnabledAtProducer) {
+    testConsumerNegotiatesCDC(true);
 }
 
 INSTANTIATE_TEST_SUITE_P(PersistentAndEphemeral,
