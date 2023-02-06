@@ -1335,8 +1335,6 @@ int main(int argc, char** argv) {
         }
     }
 
-    // If not running in embedded mode we need the McdEnvironment to manageSSL
-    // initialization and shutdown.
     try {
         mcd_env.reset(McdEnvironment::create(engine_name, engine_config));
     } catch (const std::exception& e) {
@@ -1349,7 +1347,7 @@ int main(int argc, char** argv) {
     try {
         cb::backtrace::initialize();
     } catch (const std::exception& e) {
-        std::cerr << "Failed to setup bactrace support: " << e.what()
+        std::cerr << "Failed to setup backtrace support: " << e.what()
                   << std::endl;
         mcd_env->terminate(EXIT_FAILURE);
     }
