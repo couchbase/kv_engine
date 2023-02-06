@@ -23,6 +23,7 @@
 #include <utilities/string_utilities.h>
 #include <utilities/terminal_color.h>
 #include <utilities/terminate_handler.h>
+#include <charconv>
 #include <csignal>
 #include <cstdlib>
 #include <iostream>
@@ -106,6 +107,8 @@ Options:
   --stream-request-flags         Value to use for the 4-byte stream-request
                                  flags field.
                                  Default value is DCP_ADD_STREAM_FLAG_LATEST
+  --vbuckets=1,2,...             Only stream from a subset of vBuckets. List
+                                 vbucket as a comma-separated list of integers.
   --enable-flatbuffer-sysevents  Turn on system events with flatbuffer values
   --enable-change-streams        Turn on change-stream support
   --help                         This help text
@@ -419,6 +422,39 @@ std::pair<std::string, std::string> parseControlMessage(std::string value) {
                                                     value.substr(idx + 1));
 }
 
+/**
+ * Given a string in the form of comma-separated integers, parse and return
+ * a set of Vbids of those numbers.
+ */
+std::unordered_set<Vbid> parseVBuckets(std::string value) {
+    std::unordered_set<Vbid> vbuckets;
+    for (auto& element : split_string(value, ",")) {
+        Vbid::id_type vb;
+        auto result = std::from_chars(
+                element.data(), element.data() + element.size(), vb);
+        if (result.ec == std::errc()) {
+            vbuckets.emplace(vb);
+        } else {
+            std::cerr << "Error: Invalid vbucket specified: " << element << " - "
+                      << std::make_error_code(result.ec).message() << "\n";
+            std::exit(EXIT_FAILURE);
+        }
+    }
+    if (verbose) {
+        std::cout << "Streaming a subset of vBuckets: ";
+        bool first = true;
+        for (auto& vb : vbuckets) {
+            if (!first) {
+                std::cout << ',';
+            }
+            first = false;
+            std::cout << vb.get();
+        }
+        std::cout << "\n";
+    }
+    return vbuckets;
+}
+
 /// The vucketmap is a vector of pairs where the first entry is the
 /// hostname (and port) and the second entry is a vector containing
 /// all of the vbuckets there
@@ -431,6 +467,7 @@ void setupVBMap(const std::string& host,
                 const std::string& password,
                 const std::string& bucket,
                 bool enableCollections,
+                const std::unordered_set<Vbid>& vbuckets,
                 std::shared_ptr<folly::EventBase> base) {
     MemcachedConnection connection(host, in_port, family, tls, base);
     connection.setSslCertFile(tls_certificate_file);
@@ -486,10 +523,17 @@ void setupVBMap(const std::string& host,
     }
 
     auto map = vbservermap["vBucketMap"];
-    size_t max_vbuckets = 0;
+    Vbid current_vbucket{0};
     for (const auto& e : map) {
-        int nodeidx = e[0].get<int>();
-        vbucketmap[nodeidx].second.emplace_back(max_vbuckets++);
+        // If user specified a subset of vBuckets, we only add to map if
+        // this vbucket was included.
+        if (vbuckets.empty() ||
+            std::find(vbuckets.begin(), vbuckets.end(), current_vbucket) !=
+                    vbuckets.end()) {
+            int nodeidx = e[0].get<int>();
+            vbucketmap[nodeidx].second.emplace_back(current_vbucket.get());
+        }
+        current_vbucket++;
     }
 }
 
@@ -518,16 +562,21 @@ int main(int argc, char** argv) {
     size_t num_connections = 1;
     bool enableFlatbufferSysEvents{false};
     bool enableChangeStreams{false};
+    std::unordered_set<Vbid> vbuckets;
 
     cb::net::initialize();
 
-    const int valueOptionId = 1;
-    const int streamIdOptionId = 2;
-    const int enableOsoOptionId = 3;
-    const int disableCollectionsOptionId = 4;
-    const int streamRequestFlagsOptionId = 5;
-    const int enableFlatbufferSysEventsId = 6;
-    const int enableChangeStreamsId = 7;
+    //values for getopt_long option.val fields. Must start from non-zero.
+    enum Options {
+        Value = 1,
+        StreamId,
+        EnableOso,
+        DisableCollections,
+        StreamRequestFlags,
+        EnableFlatbufferSysEvents,
+        EnableChangeStreams,
+        VBuckets,
+    };
 
     std::vector<option> long_options = {
             {"ipv4", no_argument, nullptr, '4'},
@@ -545,25 +594,29 @@ int main(int argc, char** argv) {
             {"name", required_argument, nullptr, 'N'},
             {"num-connections", required_argument, nullptr, 'n'},
             {"verbose", no_argument, nullptr, 'v'},
-            {"enable-oso", no_argument, nullptr, enableOsoOptionId},
+            {"enable-oso", no_argument, nullptr, Options::EnableOso},
             {"disable-collections",
              no_argument,
              nullptr,
-             disableCollectionsOptionId},
-            {"stream-request-value", required_argument, nullptr, valueOptionId},
-            {"stream-id", required_argument, nullptr, streamIdOptionId},
+             Options::DisableCollections},
+            {"stream-request-value",
+             required_argument,
+             nullptr,
+             Options::Value},
+            {"stream-id", required_argument, nullptr, Options::StreamId},
             {"stream-request-flags",
              required_argument,
              nullptr,
-             streamRequestFlagsOptionId},
+             Options::StreamRequestFlags},
+            {"vbuckets", required_argument, nullptr, Options::VBuckets},
             {"enable-flatbuffer-sysevents",
              no_argument,
              nullptr,
-             enableFlatbufferSysEventsId},
+             Options::EnableFlatbufferSysEvents},
             {"enable-change-streams",
              no_argument,
              nullptr,
-             enableChangeStreamsId},
+             Options::EnableChangeStreams},
             {nullptr, 0, nullptr, 0}};
 
     while ((cmd = getopt_long(argc,
@@ -639,26 +692,29 @@ int main(int argc, char** argv) {
         case 'N':
             name = optarg;
             break;
-        case enableOsoOptionId:
+        case Options::EnableOso:
             enableOso = true;
             break;
-        case disableCollectionsOptionId:
+        case Options::DisableCollections:
             enableCollections = false;
             break;
-        case valueOptionId:
+        case Options::Value:
             streamRequestFileName = optarg;
             break;
-        case streamIdOptionId:
+        case Options::StreamId:
             streamIdFileName = optarg;
             break;
-        case streamRequestFlagsOptionId:
+        case Options::StreamRequestFlags:
             streamRequestFlags = strtoul(optarg);
             break;
-        case enableFlatbufferSysEventsId:
+        case Options::EnableFlatbufferSysEvents:
             enableFlatbufferSysEvents = true;
             break;
-        case enableChangeStreamsId:
+        case Options::EnableChangeStreams:
             enableChangeStreams = true;
+            break;
+        case Options::VBuckets:
+            vbuckets = parseVBuckets(optarg);
             break;
         default:
             usage();
@@ -733,6 +789,7 @@ int main(int argc, char** argv) {
                    password,
                    bucket,
                    enableCollections,
+                   vbuckets,
                    event_base);
 
         std::vector<cb::mcbp::Feature> features = {
