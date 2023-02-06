@@ -13,6 +13,7 @@
 
 #include "dcp_test.h"
 #include "hash_table.h"
+#include "test_manifest.h"
 #include "vbucket_queue_item_ctx.h"
 
 class MockDcpConsumer;
@@ -236,6 +237,8 @@ protected:
     enum class HistoryRetentionMetric : uint8_t { BYTES, SECONDS };
 
     void testResilientToRetentionConfigChanges(HistoryRetentionMetric metric);
+
+    CollectionsManifest manifest;
 };
 
 /**
