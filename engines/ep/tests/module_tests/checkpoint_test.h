@@ -145,7 +145,7 @@ public:
  * Test fixture that verifies the behaviour of Checkpoints in a CDC
  * configuration.
  */
-class ChangeStreamCheckpointTest : public SingleThreadedCheckpointTest {
+class CDCCheckpointTest : public SingleThreadedCheckpointTest {
 public:
     void SetUp() override;
 };

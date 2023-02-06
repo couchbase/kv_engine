@@ -3887,7 +3887,7 @@ TEST_F(CheckpointConfigTest, CheckpointPeriod) {
     EXPECT_EQ(1234, manager.getCheckpointConfig().getCheckpointPeriod());
 }
 
-void ChangeStreamCheckpointTest::SetUp() {
+void CDCCheckpointTest::SetUp() {
     if (!config_string.empty()) {
         config_string += ";";
     }
@@ -3917,7 +3917,7 @@ void ChangeStreamCheckpointTest::SetUp() {
     vb->checkpointManager->createNewCheckpoint(true);
 }
 
-TEST_F(ChangeStreamCheckpointTest, CollectionNotDeduped) {
+TEST_F(CDCCheckpointTest, CollectionNotDeduped) {
     auto vb = store->getVBuckets().getBucket(vbid);
     auto& manager = *vb->checkpointManager;
 
@@ -3968,7 +3968,7 @@ TEST_F(ChangeStreamCheckpointTest, CollectionNotDeduped) {
  * collections interleave with mutations that belong to some
  * collection(history=true).
  */
-TEST_F(ChangeStreamCheckpointTest, CollectionNotDeduped_Interleaved) {
+TEST_F(CDCCheckpointTest, CollectionNotDeduped_Interleaved) {
     auto vb = store->getVBuckets().getBucket(vbid);
     auto& manager = *vb->checkpointManager;
 
