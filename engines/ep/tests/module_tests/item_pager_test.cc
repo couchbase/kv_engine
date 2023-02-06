@@ -1050,6 +1050,7 @@ TEST_P(STItemPagerTest, EvictBGFetchedDeletedItem) {
     checkItemStatePostFetch(false /*expect item to not exist*/);
 }
 
+// See MB-51958, disabled due to consistent failures
 TEST_P(STItemPagerTest, DISABLED_ReplicaEvictedBeforeActive) {
     // MB-40531 test that the item pager does not evict from active vbuckets
     // if evicting from replicas can reclaim enough memory to reach the low
