@@ -212,18 +212,8 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
             auto collectionCanDeduplicate = CanDeduplicate::Yes;
             auto historyConfigured = cb::getOptionalJsonObject(
                     collection, HistoryKey, HistoryType);
-            if (historyConfigured) {
-                if (historyConfigured.value().get<bool>()) {
-                    // Disallow this on default collection.
-                    if (cidValue.isDefaultCollection()) {
-                        throwInvalid(
-                                "default collection cannot enable history");
-                    }
-                    collectionCanDeduplicate = CanDeduplicate::No;
-                } else {
-                    throwInvalid("history=false is not valid for collection:" +
-                                 cidValue.to_string());
-                }
+            if (historyConfigured && historyConfigured.value().get<bool>()) {
+                collectionCanDeduplicate = CanDeduplicate::No;
             }
 
             enableDefaultCollection(cidValue);

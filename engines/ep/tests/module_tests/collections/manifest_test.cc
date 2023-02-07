@@ -332,12 +332,8 @@ TEST(ManifestTest, validation) {
             R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"brewery","uid":"8","history":"true"}]}]})",
-            // expect only history=true, just omit for false.
-            R"({"uid" : "1",
-                "scopes":[{"name":"_default", "uid":"0",
-                "collections":[{"name":"brewery","uid":"8","history":false}]}]})",
-            // History invalid on default collection
-            R"({"uid" : "1",
+            // History invalid on epoch config
+            R"({"uid" : "0",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"_default","uid":"0", "history": true}]}]})",
             // The following are nearly, but not quite epoch manifests
