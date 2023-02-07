@@ -58,10 +58,6 @@ public:
                 "UnitTestServerCore::limit_abstime() not implemented");
     }
 
-    ThreadPoolConfig getThreadPoolSizes() override {
-        return {};
-    }
-
     size_t getMaxEngineFileDescriptors() override {
         return 0;
     }

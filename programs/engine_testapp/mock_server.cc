@@ -137,9 +137,6 @@ struct MockServerCoreApi : public ServerCoreIface {
     time_t limit_abstime(time_t t, std::chrono::seconds limit) override {
         return mock_limit_abstime(t, limit);
     }
-    ThreadPoolConfig getThreadPoolSizes() override {
-        return {};
-    }
     size_t getMaxEngineFileDescriptors() override {
         // 1024 is kind of an abitrary limit (it just needs to be greater than
         // the number of reserved file descriptors in the environment) but we

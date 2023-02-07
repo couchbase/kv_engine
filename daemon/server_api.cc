@@ -49,11 +49,6 @@ struct ServerCoreApi : public ServerCoreIface {
         return mc_time_limit_abstime(t, limit);
     }
 
-    ThreadPoolConfig getThreadPoolSizes() override {
-        auto& instance = Settings::instance();
-        return {instance.getNumReaderThreads(), instance.getNumWriterThreads()};
-    }
-
     size_t getMaxEngineFileDescriptors() override {
         return environment.engine_file_descriptors;
     }

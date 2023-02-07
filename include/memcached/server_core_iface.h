@@ -63,9 +63,6 @@ struct ServerCoreIface {
      */
     virtual time_t limit_abstime(time_t t, std::chrono::seconds limit) = 0;
 
-    /// Get the configured size for the reader and writer pool
-    virtual ThreadPoolConfig getThreadPoolSizes() = 0;
-
     virtual size_t getMaxEngineFileDescriptors() = 0;
 
     /// The number of concurrent paging visitors to use for quota sharing.
