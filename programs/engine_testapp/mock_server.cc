@@ -147,9 +147,6 @@ struct MockServerCoreApi : public ServerCoreIface {
     size_t getQuotaSharingPagerConcurrency() override {
         return 2;
     }
-    bool isCollectionsEnabled() const override {
-        return true;
-    }
     bool isServerlessDeployment() const override {
         return false;
     }

@@ -62,10 +62,6 @@ struct ServerCoreApi : public ServerCoreIface {
         return std::clamp(userValue, 1, instance.getNumNonIoThreads());
     }
 
-    bool isCollectionsEnabled() const override {
-        return Settings::instance().isCollectionsEnabled();
-    }
-
     bool isServerlessDeployment() const override {
         // Call isServerlessDeployment() from settings.h to get hold of the
         // state from memcached side of KV.

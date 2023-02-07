@@ -68,7 +68,5 @@ struct ServerCoreIface {
     /// The number of concurrent paging visitors to use for quota sharing.
     virtual size_t getQuotaSharingPagerConcurrency() = 0;
 
-    virtual bool isCollectionsEnabled() const = 0;
-
     virtual bool isServerlessDeployment() const = 0;
 };
