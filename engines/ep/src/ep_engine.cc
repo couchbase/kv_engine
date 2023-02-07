@@ -48,11 +48,10 @@
 #include "trace_helpers.h"
 #include "vb_count_visitor.h"
 #include "warmup.h"
-#include <executor/executorpool.h>
-
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/trim.hpp>
+#include <executor/executorpool.h>
 #include <folly/CancellationToken.h>
 #include <hdrhistogram/hdrhistogram.h>
 #include <logger/logger.h>
@@ -75,6 +74,7 @@
 #include <platform/platform_time.h>
 #include <platform/scope_timer.h>
 #include <platform/string_hex.h>
+#include <serverless/config.h>
 #include <statistics/cbstat_collector.h>
 #include <statistics/collector.h>
 #include <statistics/labelled_collector.h>
@@ -1756,7 +1756,7 @@ cb::HlcTime EventuallyPersistentEngine::getVBucketHlcNow(Vbid vbucket) {
 
 EventuallyPersistentEngine::EventuallyPersistentEngine(
         GET_SERVER_API get_server_api, cb::ArenaMallocClient arena)
-    : configuration(get_server_api()->core->isServerlessDeployment()),
+    : configuration(cb::serverless::isEnabled()),
       kvBucket(nullptr),
       workload(nullptr),
       workloadPriority(NO_BUCKET_PRIORITY),

@@ -9,8 +9,27 @@
  */
 #include <nlohmann/json.hpp>
 #include <serverless/config.h>
+#include <atomic>
 
 namespace cb::serverless {
+
+static std::atomic_bool enabled{false};
+
+bool isEnabled() {
+    return enabled;
+}
+
+void setEnabled(bool value) {
+    static std::atomic_bool initialized{false};
+    if (initialized && getenv("MEMCACHED_UNIT_TESTS") == nullptr) {
+        throw std::runtime_error(
+                "cb::serverless::setEnabled(): serverless deployment status "
+                "may only be reconfigured in unit test");
+    }
+    initialized = true;
+    enabled = value;
+}
+
 Config& Config::instance() {
     static Config instance;
     return instance;

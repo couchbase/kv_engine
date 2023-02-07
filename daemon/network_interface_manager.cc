@@ -23,6 +23,7 @@
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
+#include <serverless/config.h>
 #include <statistics/prometheus.h>
 
 /**
@@ -47,7 +48,7 @@ static nlohmann::json prometheus_init(
     cb::prometheus::addEndpoint("/_prometheusMetricsHighNoTS",
                                 IncludeTimestamps::No,
                                 server_prometheus_stats_high);
-    if (isServerlessDeployment()) {
+    if (cb::serverless::isEnabled()) {
         cb::prometheus::addEndpoint("/_metering",
                                     IncludeTimestamps::No,
                                     server_prometheus_metering);

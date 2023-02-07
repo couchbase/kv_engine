@@ -51,6 +51,7 @@
 #include <logger/logger.h>
 #include <mcbp/protocol/header.h>
 #include <nlohmann/json.hpp>
+#include <serverless/config.h>
 #include <utilities/engine_errc_2_mcbp.h>
 
 static void process_bin_get_meta(Cookie& cookie) {
@@ -485,7 +486,7 @@ static void shutdown_executor(Cookie& cookie) {
 }
 
 static void set_bucket_unit_throttle_limits_executor(Cookie& cookie) {
-    if (!isServerlessDeployment()) {
+    if (!cb::serverless::isEnabled()) {
         cookie.sendResponse(cb::mcbp::Status::NotSupported);
         return;
     }
@@ -514,7 +515,7 @@ static void set_bucket_unit_throttle_limits_executor(Cookie& cookie) {
 }
 
 static void set_bucket_data_limit_exceeded_executor(Cookie& cookie) {
-    if (!isServerlessDeployment()) {
+    if (!cb::serverless::isEnabled()) {
         cookie.sendResponse(cb::mcbp::Status::NotSupported);
         return;
     }

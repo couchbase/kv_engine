@@ -66,4 +66,10 @@ private:
     Config() = default;
 };
 
+/// Return true if the current deployment is serverless
+bool isEnabled();
+
+/// Set or disable serverless mode
+void setEnabled(bool enable);
+
 } // namespace cb::serverless

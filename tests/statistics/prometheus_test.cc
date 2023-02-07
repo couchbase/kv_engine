@@ -28,6 +28,7 @@
 #include <statistics/prometheus_collector.h>
 #include <statistics/statdef.h>
 
+#include <serverless/config.h>
 #include <chrono>
 #include <vector>
 
@@ -149,7 +150,7 @@ TEST_F(PrometheusStatTest, MeteringIncludedInHighCardinality) {
                     Not(Contains(Key("kv_boot_timestamp_seconds"))));
     }
 
-    Settings::instance().setDeploymentModel(DeploymentModel::Serverless);
+    cb::serverless::setEnabled(true);
 
     {
         auto metrics = getMetrics();

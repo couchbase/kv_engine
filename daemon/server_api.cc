@@ -61,12 +61,6 @@ struct ServerCoreApi : public ServerCoreIface {
                         instance.getNumNonIoThreads() / 100;
         return std::clamp(userValue, 1, instance.getNumNonIoThreads());
     }
-
-    bool isServerlessDeployment() const override {
-        // Call isServerlessDeployment() from settings.h to get hold of the
-        // state from memcached side of KV.
-        return ::isServerlessDeployment();
-    }
 };
 
 void cb::server::document_expired(const EngineIface& engine, size_t nbytes) {

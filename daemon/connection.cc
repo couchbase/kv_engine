@@ -34,13 +34,13 @@
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <platform/backtrace.h>
-#include <platform/checked_snprintf.h>
 #include <platform/exceptions.h>
 #include <platform/scope_timer.h>
 #include <platform/socket.h>
 #include <platform/strerror.h>
 #include <platform/string_hex.h>
 #include <platform/timeutils.h>
+#include <serverless/config.h>
 #include <utilities/logtags.h>
 
 #include <exception>
@@ -603,7 +603,7 @@ bool Connection::processAllReadyCookies() {
 void Connection::executeCommandPipeline() {
     // We don't want to look up if this is a serverless deployment every
     // time (as it can't change).
-    static const auto serverless = isServerlessDeployment();
+    static const auto serverless = cb::serverless::isEnabled();
 
     numEvents = max_reqs_per_event;
     const auto maxActiveCommands =

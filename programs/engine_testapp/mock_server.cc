@@ -147,9 +147,6 @@ struct MockServerCoreApi : public ServerCoreIface {
     size_t getQuotaSharingPagerConcurrency() override {
         return 2;
     }
-    bool isServerlessDeployment() const override {
-        return false;
-    }
 };
 
 void cb::server::document_expired(const EngineIface&, size_t) {

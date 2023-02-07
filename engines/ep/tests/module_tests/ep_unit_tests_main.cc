@@ -65,10 +65,6 @@ public:
     size_t getQuotaSharingPagerConcurrency() override {
         return 2;
     }
-
-    bool isServerlessDeployment() const override {
-        return false;
-    }
 };
 
 int main(int argc, char **argv) {

@@ -17,6 +17,7 @@
 #include <executor/executorpool.h>
 #include <logger/logger.h>
 #include <memcached/config_parser.h>
+#include <serverless/config.h>
 #include <utilities/json_utilities.h>
 
 cb::engine_errc BucketManagementCommandContext::initial() {
@@ -50,7 +51,7 @@ cb::engine_errc BucketManagementCommandContext::create() {
     }
 
     auto type = module_to_bucket_type(value);
-    if (isServerlessDeployment() && type == BucketType::Memcached) {
+    if (cb::serverless::isEnabled() && type == BucketType::Memcached) {
         cookie.setErrorContext(
                 "memcached buckets can't be used in serverless configuration");
         return cb::engine_errc::not_supported;

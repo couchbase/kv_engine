@@ -21,6 +21,7 @@
 #include <logger/logger.h>
 #include <platform/cb_arena_malloc.h>
 #include <platform/timeutils.h>
+#include <serverless/config.h>
 #include <sigar.h>
 #include <statistics/collector.h>
 #include <statistics/labelled_collector.h>
@@ -241,7 +242,7 @@ cb::engine_errc server_prometheus_stats(
         if (metricGroup == MetricGroup::Low) {
             server_global_stats(kvCollector);
             stats_audit(kvCollector);
-            if (isServerlessDeployment()) {
+            if (cb::serverless::isEnabled()) {
                 // include all metering metrics, without the "kv_" prefix
                 server_prometheus_metering(collector);
             }

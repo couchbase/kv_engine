@@ -501,6 +501,8 @@ static void update_settings_from_config()
     settings.addChangeListener(
             "opcode_attributes_override",
             opcode_attributes_override_changed_listener);
+    cb::serverless::setEnabled(Settings::instance().getDeploymentModel() ==
+                               DeploymentModel::Serverless);
 }
 
 void safe_close(SOCKET sfd) {
@@ -866,7 +868,7 @@ int memcached_main(int argc, char** argv) {
 
     LOG_INFO("Using SLA configuration: {}", cb::mcbp::sla::to_json().dump());
 
-    if (isServerlessDeployment()) {
+    if (cb::serverless::isEnabled()) {
         initialize_serverless_config();
     }
 

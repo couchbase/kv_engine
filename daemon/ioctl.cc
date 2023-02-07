@@ -178,7 +178,7 @@ static cb::engine_errc ioctlSetMcbpSla(Cookie& cookie,
 
 static cb::engine_errc ioctlSetServerlessMaxConnectionsPerBucket(
         Cookie& cookie, const StrToStrMap&, const std::string& value) {
-    if (isServerlessDeployment()) {
+    if (cb::serverless::isEnabled()) {
         try {
             auto& config = cb::serverless::Config::instance();
             auto val = std::stoul(value);
@@ -211,7 +211,7 @@ static cb::engine_errc ioctlSetServerlessMaxConnectionsPerBucket(
 static cb::engine_errc ioctlSetServerlessUnitSize(Cookie& cookie,
                                                   cb::ioctl::Id id,
                                                   const std::string& value) {
-    if (isServerlessDeployment()) {
+    if (cb::serverless::isEnabled()) {
         try {
             auto& config = cb::serverless::Config::instance();
             auto val = std::stoul(value);

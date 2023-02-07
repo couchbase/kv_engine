@@ -856,11 +856,6 @@ public:
         return deployment_model;
     }
 
-    void setDeploymentModel(DeploymentModel val) {
-        deployment_model.store(val, std::memory_order_release);
-        has.deployment_model = true;
-    }
-
     bool isDeprecatedBucketAutoselectEnabled() {
         return enable_deprecated_bucket_autoselect.load(
                 std::memory_order_acquire);
@@ -1078,6 +1073,10 @@ protected:
     /// tests
     std::atomic_bool allow_localhost_interface{true};
 
+    void setDeploymentModel(DeploymentModel val) {
+        deployment_model.store(val, std::memory_order_release);
+        has.deployment_model = true;
+    }
     std::atomic<DeploymentModel> deployment_model{DeploymentModel::Normal};
 
     /// The event framework to use
@@ -1158,8 +1157,3 @@ public:
         bool quota_sharing_pager_concurrency_percentage = false;
     } has;
 };
-
-static inline bool isServerlessDeployment() {
-    return Settings::instance().getDeploymentModel() ==
-           DeploymentModel::Serverless;
-}

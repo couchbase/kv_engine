@@ -28,6 +28,7 @@
 #include <memcached/protocol_binary.h>
 #include <nlohmann/json.hpp>
 #include <platform/string_hex.h>
+#include <serverless/config.h>
 #include <utilities/engine_errc_2_mcbp.h>
 #include <utilities/json_utilities.h>
 #include <string_view>
@@ -416,7 +417,7 @@ Status McbpValidator::verify_header(Cookie& cookie,
     if (connection.getBucket().isCollectionCapable() &&
         cb::mcbp::is_collection_command(request.getClientOpcode()) &&
         (cookie.getPrivilegeContext().hasScopePrivileges() ||
-         cookie.getEffectiveUser() || isServerlessDeployment())) {
+         cookie.getEffectiveUser() || cb::serverless::isEnabled())) {
         // verify that we can map the connection to sid. To make our
         // unit tests easier lets go through the connection
         auto key = cookie.getRequestKey();
@@ -2481,7 +2482,7 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::EvictKey, evict_key_validator);
     setup(cb::mcbp::ClientOpcode::Scrub, scrub_validator);
 
-    if (isServerlessDeployment()) {
+    if (cb::serverless::isEnabled()) {
         // No need to start allowing quiet commands in a serverless
         // deployment
         setup(cb::mcbp::ClientOpcode::Quitq, not_supported_validator);

@@ -53,7 +53,7 @@ cb::engine_errc select_bucket(Cookie& cookie, const std::string& bucketname) {
             return cb::engine_errc::not_supported;
         }
 
-        if (isServerlessDeployment() && !connection.isInternal()) {
+        if (cb::serverless::isEnabled() && !connection.isInternal()) {
             using cb::serverless::Config;
             if (connection.getBucket().clients >=
                 Config::instance().maxConnectionsPerBucket.load(

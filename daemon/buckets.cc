@@ -41,7 +41,7 @@ void Bucket::reset() {
     read_units_used = 0;
     write_units_used = 0;
     throttle_gauge.reset();
-    if (isServerlessDeployment()) {
+    if (cb::serverless::isEnabled()) {
         throttle_limit.store(
                 cb::serverless::Config::instance().defaultThrottleLimit.load(
                         std::memory_order_acquire),
@@ -76,7 +76,7 @@ bool Bucket::supports(cb::engine::Feature feature) {
 }
 
 nlohmann::json Bucket::to_json() const {
-    const bool serverless = isServerlessDeployment();
+    const bool serverless = cb::serverless::isEnabled();
     std::lock_guard<std::mutex> guard(mutex);
 
     if (state != State::None) {
