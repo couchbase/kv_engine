@@ -55,6 +55,8 @@ enum dcp_marker_flag_t {
     MARKER_FLAG_MAY_CONTAIN_DUPLICATE_KEYS = 0x20
 };
 
+std::string dcpMarkerFlagsToString(uint32_t dcpMarkerFlags);
+
 /*
  * IncludeValue is used to state whether an active stream needs to send the
  * value in the response.

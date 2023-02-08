@@ -5526,6 +5526,8 @@ TEST_P(CDCActiveStreamTest, SnapshotAndSeqnoAdvanceCorrectHistoryFlag) {
     //  than the previous one. Out of scope in this test, deferring to its
     //  dedicated ticket.
     EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_HISTORY, marker->getFlags());
+    // Verify the string representation of marker's flags
+    EXPECT_EQ("[MEMORY,HISTORY]", dcpMarkerFlagsToString(marker->getFlags()));
     // SeqnoAdvance in place of SysEvent(modify), as flatbuffers sys-events are
     // disabled
     resp = stream->public_nextQueuedItem(*producer);
