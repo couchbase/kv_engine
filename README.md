@@ -55,6 +55,7 @@ built via the Couchbase
     * [Duplex mode](docs/Duplex.md)
     * [External Authentication Provider](docs/ExternalAuthProvider.md)
     * [DCP](docs/dcp/documentation/protocol.md)
+    * [Subdoc](docs/SubDocument.md)
 
 ### Policies / Guidelines
 
