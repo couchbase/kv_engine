@@ -2872,15 +2872,22 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
         const StatCollector& collector) {
     using namespace cb::stats;
     auto divide = [](double a, double b) { return b ? a / b : 0; };
-    constexpr std::array<std::string_view, 43> statNames = {
+    constexpr std::array<std::string_view, 51> statNames = {
             {"magma_NCompacts",
+             "magma_KeyIndex_NCompacts",
+             "magma_SeqIndex_NCompacts",
              "magma_NFlushes",
              "magma_NTTLCompacts",
              "magma_NFileCountCompacts",
+             "magma_KeyIndex_FileCountCompacts",
+             "magma_SeqIndex_FileCountCompacts",
              "magma_NWriterCompacts",
+             "magma_KeyIndex_NWriterCompacts",
+             "magma_SeqIndex_NWriterCompacts",
              "magma_BytesOutgoing",
              "magma_NReadBytes",
              "magma_NReadBytesGet",
+             "magma_CheckpointOverhead",
              "magma_NGets",
              "magma_NSets",
              "magma_NInserts",
@@ -2889,6 +2896,7 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
              "magma_BytesIncoming",
              "magma_NWriteBytes",
              "magma_NWriteBytesCompact",
+             "magma_ActiveDiskUsage",
              "magma_LogicalDataSize",
              "magma_LogicalDiskSize",
              "magma_HistoryLogicalDiskSize",
@@ -2943,10 +2951,20 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
 
     // Compaction counter stats.
     addStat(Key::ep_magma_compactions, "magma_NCompacts");
+    addStat(Key::ep_magma_keyindex_compactions, "magma_KeyIndex_NCompacts");
+    addStat(Key::ep_magma_seqindex_compactions, "magma_SeqIndex_NCompacts");
     addStat(Key::ep_magma_flushes, "magma_NFlushes");
     addStat(Key::ep_magma_ttl_compactions, "magma_NTTLCompacts");
     addStat(Key::ep_magma_filecount_compactions, "magma_NFileCountCompacts");
+    addStat(Key::ep_magma_keyindex_filecount_compactions,
+            "magma_KeyIndex_NFileCountCompacts");
+    addStat(Key::ep_magma_seqindex_filecount_compactions,
+            "magma_SeqIndex_NFileCountCompacts");
     addStat(Key::ep_magma_writer_compactions, "magma_NWriterCompacts");
+    addStat(Key::ep_magma_keyindex_writer_compactions,
+            "magma_KeyIndex_NWriterCompacts");
+    addStat(Key::ep_magma_seqindex_writer_compactions,
+            "magma_SeqIndex_NWriterCompacts");
 
     // Read amp, ReadIOAmp.
     size_t bytesOutgoing = 0;
@@ -3016,6 +3034,11 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
     // Disk usage.
     addStat(Key::ep_magma_total_disk_usage, "magma_TotalDiskUsage");
     addStat(Key::ep_magma_wal_disk_usage, "magma_WALDiskUsage");
+
+    // Checkpointing related stats to make sure the overhead is within
+    // configured limits.
+    addStat(Key::ep_magma_checkpoint_disk_usage, "magma_CheckpointOverhead");
+    addStat(Key::ep_magma_active_disk_usage, "magma_ActiveDiskUsage");
 
     // Memory usage.
     size_t blockCacheMemUsed = 0;
