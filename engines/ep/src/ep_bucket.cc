@@ -1533,11 +1533,13 @@ cb::engine_errc EPBucket::getFileStats(const BucketStatCollector& collector) {
         totalInfo.spaceUsed += dbInfo.spaceUsed;
         totalInfo.fileSize += dbInfo.fileSize;
         totalInfo.prepareBytes += dbInfo.prepareBytes;
+        totalInfo.historyDiskSize += dbInfo.historyDiskSize;
     }
 
     using namespace cb::stats;
     collector.addStat(Key::ep_db_data_size, totalInfo.getEstimatedLiveData());
     collector.addStat(Key::ep_db_file_size, totalInfo.fileSize);
+    collector.addStat(Key::ep_db_history_file_size, totalInfo.historyDiskSize);
     collector.addStat(Key::ep_db_prepare_size, totalInfo.prepareBytes);
 
     return cb::engine_errc::success;

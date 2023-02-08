@@ -329,6 +329,8 @@ STAT(ep_magma_write_bytes_compact, , bytes, , )
 // Fragmentation.
 STAT(ep_magma_logical_data_size, , bytes, , )
 STAT(ep_magma_logical_disk_size, , bytes, , )
+STAT(ep_magma_history_logical_data_size, , bytes, , )
+STAT(ep_magma_history_logical_disk_size, , bytes, , )
 STAT(ep_magma_fragmentation, , ratio, , )
 // Disk usage.
 STAT(ep_magma_total_disk_usage, , bytes, , )
@@ -379,6 +381,7 @@ STAT(ep_rocksdb_scan_oldSeqnoHits, , count, , )
 STAT(ep_db_data_size, , bytes, , )
 STAT(ep_db_file_size, , bytes, , )
 STAT(ep_db_prepare_size, , bytes, , )
+STAT(ep_db_history_file_size, , bytes, , )
 
 // Timing stats
 PSTAT(cmd_duration, microseconds, )

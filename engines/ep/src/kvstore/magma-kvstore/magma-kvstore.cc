@@ -3428,6 +3428,8 @@ GetStatsMap MagmaKVStore::getStats(
     fill("magma_NWriteBytesCompact", magmaStats->NWriteBytesCompact);
     fill("magma_LogicalDataSize", magmaStats->LogicalDataSize);
     fill("magma_LogicalDiskSize", magmaStats->LogicalDiskSize);
+    fill("magma_HistoryLogicalDiskSize", magmaStats->HistoryLogicalDiskSize);
+    fill("magma_HistoryLogicalDataSize", magmaStats->HistoryLogicalDataSize);
     fill("magma_TotalDiskUsage", magmaStats->TotalDiskUsage);
     fill("magma_WALDiskUsage", magmaStats->WalStats.DiskUsed);
     fill("magma_BlockCacheMemUsed", magmaStats->BlockCacheMemUsed);
@@ -3553,8 +3555,11 @@ DBFileInfo MagmaKVStore::getDbFileInfo(Vbid vbid) {
 DBFileInfo MagmaKVStore::getAggrDbFileInfo() {
     auto stats = magma->GetStats();
     // @todo MB-42900: Track on-disk-prepare-bytes
-    DBFileInfo vbinfo{
-            stats->ActiveDiskUsage, stats->ActiveDataSize, 0 /*prepareBytes*/};
+    size_t nonHistoryDataSize = stats->ActiveDataSize - stats->HistoryDataSize;
+    DBFileInfo vbinfo{stats->ActiveDiskUsage,
+                      nonHistoryDataSize,
+                      0 /*prepareBytes*/,
+                      stats->HistoryDiskUsage};
     return vbinfo;
 }
 

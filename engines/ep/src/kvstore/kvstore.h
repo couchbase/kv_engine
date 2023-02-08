@@ -334,12 +334,12 @@ public:
 struct DBFileInfo {
     /// Total size of the file (what 'stat()' would return). Includes both
     /// current data (spaceUsed) plus any previous data which is no longer
-    /// referenced in current file header.
+    /// referenced in current file header. This includes historyDiskSize.
     uint64_t fileSize = 0;
 
     /// Total size of "current" data in the file - sum of all
     /// keys+metdata+values (included deleted docs) plus overheads to manage it
-    /// (indexes such as B-Trees, headers etc).
+    /// (indexes such as B-Trees, headers etc). This does not include history.
     uint64_t spaceUsed = 0;
 
     /// Total size of all SyncWrite prepares, both completed and pending.
