@@ -2431,7 +2431,14 @@ std::pair<cb::engine_errc, cb::rangescan::Id> EPBucket::createRangeScan(
         ++stats.numNotMyVBuckets;
         return {cb::engine_errc::not_my_vbucket, {}};
     }
+    // Scanning of active only
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    if (vb->getState() != vbucket_state_active) {
+        ++stats.numNotMyVBuckets;
+        return {cb::engine_errc::not_my_vbucket, {}};
+    }
 
+    // read lock on collections - the collection must exist to continue.
     auto handle = vb->getManifest().lock(cid);
     cb::engine_errc status = cb::engine_errc::success;
     if (!handle.valid()) {

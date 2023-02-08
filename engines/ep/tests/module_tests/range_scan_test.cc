@@ -1239,6 +1239,22 @@ TEST_P(RangeScanTest, scan_detects_vbucket_change) {
     EXPECT_EQ(cb::engine_errc::vbuuid_not_equal, mock_waitfor_cookie(cookie));
 }
 
+TEST_P(RangeScanTest, create_on_replica) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+    // create only allowed on active
+    EXPECT_EQ(cb::engine_errc::not_my_vbucket,
+              store->createRangeScan(vbid,
+                                     scanCollection,
+                                     {"user"},
+                                     {"user\xFF"},
+                                     std::move(handler),
+                                     *cookie,
+                                     getScanType(),
+                                     {},
+                                     {})
+                      .first);
+}
+
 // Test that if the vbucket changes after during the continue phase, the scan
 // stops. In theory we could still keep scanning as we have the correct
 // snapshot open, but some event has occurred that the scan client should be
