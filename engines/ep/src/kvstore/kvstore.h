@@ -349,6 +349,9 @@ struct DBFileInfo {
     /// be considered part of the "Fragmented" count.
     uint64_t prepareBytes = 0;
 
+    /// Total size of history as reported by magma.
+    uint64_t historyDiskSize = 0;
+
     /**
      * @returns An estimate of the number of bytes which are "live" data and
      * hence are not subject to being discarded during compactionn. This

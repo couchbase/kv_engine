@@ -3533,12 +3533,15 @@ DBFileInfo MagmaKVStore::getDbFileInfo(Vbid vbid) {
     if (status) {
         vbinfo.spaceUsed = kvstats.ActiveDiskUsage;
         vbinfo.fileSize = kvstats.TotalDiskUsage;
+        vbinfo.historyDiskSize = kvstats.HistoryDiskUsage;
     }
     logger->debug(
-            "MagmaKVStore::getDbFileInfo {} spaceUsed:{} fileSize:{} status:{}",
+            "MagmaKVStore::getDbFileInfo {} spaceUsed:{} fileSize:{} "
+            "historyDiskSize:{} status:{}",
             vbid,
             vbinfo.spaceUsed,
             vbinfo.fileSize,
+            vbinfo.historyDiskSize,
             status.String());
     return vbinfo;
 }
