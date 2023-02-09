@@ -1243,7 +1243,7 @@ bool MagmaKVStore::snapshotVBucket(Vbid vbid, const VB::Commit& meta) {
 
     auto start = std::chrono::steady_clock::now();
 
-    if (!writeVBStateToDisk(vbid, meta.proposedVBState)) {
+    if (!writeVBStateToDisk(vbid, meta)) {
         return false;
     }
 
@@ -3544,17 +3544,21 @@ DBFileInfo MagmaKVStore::getAggrDbFileInfo() {
     return vbinfo;
 }
 
-Status MagmaKVStore::writeVBStateToDisk(Vbid vbid,
-                                        const vbucket_state& vbstate) {
+Status MagmaKVStore::writeVBStateToDisk(Vbid vbid, const VB::Commit& meta) {
     LocalDbReqs localDbReqs;
-    addVBStateUpdateToLocalDbReqs(
-            localDbReqs, vbstate, kvstoreRevList[getCacheSlot(vbid)]);
+    addVBStateUpdateToLocalDbReqs(localDbReqs,
+                                  meta.proposedVBState,
+                                  kvstoreRevList[getCacheSlot(vbid)]);
 
     WriteOps writeOps;
     addLocalDbReqs(localDbReqs, writeOps);
 
-    auto status = magma->WriteDocs(
-            vbid.get(), writeOps, kvstoreRevList[getCacheSlot(vbid)]);
+    auto status = magma->WriteDocs(vbid.get(),
+                                   writeOps,
+                                   kvstoreRevList[getCacheSlot(vbid)],
+                                   nullptr,
+                                   nullptr,
+                                   toHistoryMode(meta.historical));
     if (!status) {
         ++st.numVbSetFailure;
         logger->critical(

@@ -33,6 +33,9 @@
 #include "flusher.h"
 #include "item_eviction.h"
 #include "kvstore/kvstore.h"
+#ifdef EP_USE_MAGMA
+#include "kvstore/magma-kvstore/magma-kvstore.h"
+#endif
 #include "tasks.h"
 #include "test_manifest.h"
 #include "tests/mock/mock_ep_bucket.h"
@@ -2928,6 +2931,51 @@ TEST_P(EPBucketCDCTest, CollectionInterleaved) {
     // Note: item count doesn't increase for historical revisions
     EXPECT_EQ(1, manifest.lock(CollectionEntry::historical).getItemCount());
     EXPECT_EQ(1, manifest.lock(CollectionEntry::defaultC).getItemCount());
+}
+
+TEST_P(EPBucketCDCTest, SetVBState) {
+    auto vb = store->getVBucket(vbid);
+    const uint64_t initialHighSeqno = 1;
+    ASSERT_EQ(initialHighSeqno, vb->getHighSeqno()); // From SetUp
+    auto& manager = *vb->checkpointManager;
+    manager.createNewCheckpoint(true);
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(1, manager.getNumItems()); // [cs
+    ASSERT_EQ(0, manager.getNumOpenChkItems()); // no mutation
+
+    // Write a couple of mutations to disk
+    const auto collection = CollectionEntry::historical;
+    const auto key = makeStoredDocKey("key", collection);
+    store_item(vbid, key, "valueA");
+    store_item(vbid, key, "valueB");
+    EXPECT_EQ(initialHighSeqno + 2, vb->getHighSeqno());
+    // Preconditions before flushing
+    constexpr auto statName = "magma_NSets";
+    size_t nSets = 0;
+    auto& underlying =
+            dynamic_cast<MagmaKVStore&>(*store->getRWUnderlying(vbid));
+    ASSERT_TRUE(underlying.getStat(statName, nSets));
+    ASSERT_EQ(1, nSets);
+    // Flush + Postconditions
+    flush_vbucket_to_disk(vbid, 2);
+    ASSERT_TRUE(underlying.getStat(statName, nSets));
+    EXPECT_EQ(3, nSets);
+
+    // History enabled since bucket creation
+    ASSERT_EQ(1, underlying.getHistoryStartSeqno(vbid));
+
+    // Now a simple vbstate change (eg, new SyncRepl topology by ns_server)
+    auto meta =
+            nlohmann::json{{"topology", nlohmann::json::array({{"a", "b"}})}};
+    ASSERT_EQ(cb::engine_errc::success,
+              store->setVBucketState(vbid, vbucket_state_active, &meta));
+    // Flush it to disk.
+    // Before the fix for MB-55467, this step wrongly resets the history at
+    // storage level.
+    flushVBucket(vbid);
+    // History still there, nothing discarded. Before the fix
+    // history_start_seqno=0 at this point.
+    EXPECT_EQ(1, underlying.getHistoryStartSeqno(vbid));
 }
 
 INSTANTIATE_TEST_SUITE_P(EPBucketCDCTest,

@@ -467,10 +467,10 @@ public:
      * create a WriteDocs batch to write it.
      *
      * @param vbid vbucket id
-     * @param vbstate vbucket state
+     * @param meta Information to be passed to the storage
      * @return status
      */
-    magma::Status writeVBStateToDisk(Vbid vbid, const vbucket_state& vbstate);
+    magma::Status writeVBStateToDisk(Vbid vbid, const VB::Commit& meta);
 
     /**
      * Read the encoded vstate + docCount from the local db.
