@@ -146,9 +146,10 @@ protected:
 private:
     std::unique_ptr<KVStoreIface> setup_kv_store(KVStoreConfig& config) {
         auto kvstore = KVStoreFactory::create(config);
-        vbucket_state state;
-        state.transition.state = vbucket_state_active;
-        kvstore->snapshotVBucket(vbid, state);
+        Collections::VB::Manifest m{std::make_shared<Collections::Manager>()};
+        VB::Commit meta(m);
+        meta.proposedVBState.transition.state = vbucket_state_active;
+        kvstore->snapshotVBucket(vbid, meta);
         return kvstore;
     }
 

@@ -58,7 +58,7 @@ public:
                  magma::Magma::HistoryMode historyMode =
                          magma::Magma::HistoryMode::Disabled) override;
 
-    bool snapshotVBucket(Vbid vbid, const vbucket_state& newVBState) override;
+    bool snapshotVBucket(Vbid vbid, const VB::Commit& meta) override;
 
     magma::Status addLocalDoc(Vbid vbid,
                               std::string_view key,

@@ -807,9 +807,8 @@ void RocksDBKVStore::delVBucket(Vbid vbid,
     }
 }
 
-bool RocksDBKVStore::snapshotVBucket(Vbid vbucketId,
-                                     const vbucket_state& vbstate) {
-    if (!needsToBePersisted(vbucketId, vbstate)) {
+bool RocksDBKVStore::snapshotVBucket(Vbid vbucketId, const VB::Commit& meta) {
+    if (!needsToBePersisted(vbucketId, meta.proposedVBState)) {
         return true;
     }
 
@@ -817,13 +816,13 @@ bool RocksDBKVStore::snapshotVBucket(Vbid vbucketId,
 
     const auto vbh = getOrCreateVBHandle(vbucketId);
     rocksdb::WriteBatch batch;
-    auto status = saveVBStateToBatch(*vbh, vbstate, batch);
+    auto status = saveVBStateToBatch(*vbh, meta.proposedVBState, batch);
     if (!status.ok()) {
         ++st.numVbSetFailure;
         logger.warn(
                 "RocksDBKVStore::snapshotVBucket: saveVBStateToBatch() "
                 "failed state:{} {} :{}",
-                VBucket::toString(vbstate.transition.state),
+                VBucket::toString(meta.proposedVBState.transition.state),
                 vbucketId,
                 status.getState());
         return false;
@@ -834,17 +833,17 @@ bool RocksDBKVStore::snapshotVBucket(Vbid vbucketId,
         logger.warn(
                 "RocksDBKVStore::snapshotVBucket: Write() "
                 "failed state:{} {} :{}",
-                VBucket::toString(vbstate.transition.state),
+                VBucket::toString(meta.proposedVBState.transition.state),
                 vbucketId,
                 status.getState());
         return false;
     }
 
-    updateCachedVBState(vbucketId, vbstate);
+    updateCachedVBState(vbucketId, meta.proposedVBState);
 
     EP_LOG_DEBUG("RocksDBKVStore::snapshotVBucket: Snapshotted {} state:{}",
                  vbucketId,
-                 nlohmann::json(vbstate).dump());
+                 nlohmann::json(meta.proposedVBState).dump());
 
     st.snapshotHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now() - start));

@@ -123,11 +123,12 @@ void checkGetValue(GetValue& result,
 void initialize_kv_store(KVStoreIface* kvstore, Vbid vbid) {
     // simulate the setVbState by incrementing the rev
     kvstore->prepareToCreate(vbid);
-    vbucket_state state;
-    state.transition.state = vbucket_state_active;
+    Collections::VB::Manifest m{std::make_shared<Collections::Manager>()};
+    VB::Commit meta(m);
+    meta.proposedVBState.transition.state = vbucket_state_active;
     // simulate the setVbState by incrementing the rev
     kvstore->prepareToCreate(vbid);
-    kvstore->snapshotVBucket(vbid, state);
+    kvstore->snapshotVBucket(vbid, meta);
 }
 
 std::unique_ptr<KVStoreIface> setup_kv_store(KVStoreConfig& config,

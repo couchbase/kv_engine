@@ -99,7 +99,7 @@ public:
                 (override));
     MOCK_METHOD(bool,
                 snapshotVBucket,
-                (Vbid vbucketId, const vbucket_state& vbstate),
+                (Vbid vbucketId, const VB::Commit& meta),
                 (override));
     MOCK_METHOD(CompactDBStatus,
                 compactDB,

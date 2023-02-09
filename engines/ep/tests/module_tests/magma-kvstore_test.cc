@@ -153,9 +153,10 @@ TEST_F(MagmaKVStoreRollbackTest, RollbackNoValidCheckpoint) {
 }
 
 TEST_F(MagmaKVStoreTest, prepareToCreate) {
-    vbucket_state state;
-    state.transition.state = vbucket_state_active;
-    kvstore->snapshotVBucket(vbid, state);
+    Collections::VB::Manifest m{std::make_shared<Collections::Manager>()};
+    VB::Commit meta(m);
+    meta.proposedVBState.transition.state = vbucket_state_active;
+    kvstore->snapshotVBucket(vbid, meta);
     auto kvsRev = kvstore->prepareToDelete(Vbid(0));
     ASSERT_EQ(0, kvsRev->getRevision());
     EXPECT_NO_THROW(kvstore->prepareToCreate(Vbid(0)));
@@ -487,9 +488,11 @@ TEST_F(MagmaKVStoreTest, ScanReadsVBStateFromSnapshot) {
     // Change the vBucket state after grabbing the snapshot but before reading
     // the state. If we read the state from the snapshot then it should not
     // see the following change to the maxVisibleSeqno.
-    auto vbstate = kvstore->getCachedVBucketState(vbid);
-    vbstate->maxVisibleSeqno = 999;
-    kvstore->snapshotVBucket(vbid, *vbstate);
+    Collections::VB::Manifest m{std::make_shared<Collections::Manager>()};
+    VB::Commit meta(m);
+    meta.proposedVBState = *kvstore->getCachedVBucketState(vbid);
+    meta.proposedVBState.maxVisibleSeqno = 999;
+    kvstore->snapshotVBucket(vbid, meta);
 
     // Finish creating the scanCtx and join up the other thread
     tg2.threadUp();

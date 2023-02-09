@@ -283,13 +283,13 @@ public:
     virtual std::vector<vbucket_state*> listPersistedVbuckets() = 0;
 
     /**
-     * Snapshot vbucket state
+     * Persist a snapshot of the vbucket states in the underlying storage
+     * system.
+     *
      * @param vbucketId id of the vbucket that needs to be snapshotted
-     * @param vbstate   state of the vbucket
-     * @param cb        stats callback
+     * @param meta Information to be passed to the storage
      */
-    virtual bool snapshotVBucket(Vbid vbucketId,
-                                 const vbucket_state& vbstate) = 0;
+    virtual bool snapshotVBucket(Vbid vbucketId, const VB::Commit& meta) = 0;
 
     /**
      * Compact a database file.

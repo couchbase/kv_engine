@@ -150,10 +150,7 @@ public:
 
     std::vector<vbucket_state*> listPersistedVbuckets() override;
 
-    /**
-     * Take a snapshot of the vbucket states in the main DB.
-     */
-    bool snapshotVBucket(Vbid vbucketId, const vbucket_state& vbstate) override;
+    bool snapshotVBucket(Vbid vbucketId, const VB::Commit& meta) override;
 
     // Compaction in magma is asynchronous. Its triggered by 3 conditions:
     //  - Level compaction

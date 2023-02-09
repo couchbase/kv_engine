@@ -64,7 +64,7 @@ public:
     void delVBucket(Vbid vbucket,
                     std::unique_ptr<KVStoreRevision> fileRev) override;
     std::vector<vbucket_state*> listPersistedVbuckets() override;
-    bool snapshotVBucket(Vbid vbucketId, const vbucket_state& vbstate) override;
+    bool snapshotVBucket(Vbid vbucketId, const VB::Commit& meta) override;
     CompactDBStatus compactDB(std::unique_lock<std::mutex>& vbLock,
                               std::shared_ptr<CompactionContext> c) override;
     void abortCompactionIfRunning(std::unique_lock<std::mutex>& vbLock,

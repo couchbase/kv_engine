@@ -2084,28 +2084,27 @@ bool CouchKVStore::writeVBucketState(Vbid vbucketId,
     return true;
 }
 
-bool CouchKVStore::snapshotVBucket(Vbid vbucketId,
-                                   const vbucket_state& vbstate) {
-    if (!needsToBePersisted(vbucketId, vbstate)) {
+bool CouchKVStore::snapshotVBucket(Vbid vbucketId, const VB::Commit& meta) {
+    if (!needsToBePersisted(vbucketId, meta.proposedVBState)) {
         return true;
     }
 
     auto start = std::chrono::steady_clock::now();
 
-    if (!writeVBucketState(vbucketId, vbstate)) {
+    if (!writeVBucketState(vbucketId, meta.proposedVBState)) {
         logger.warn(
                 "CouchKVStore::snapshotVBucket: writeVBucketState failed "
                 "state:{}, {}",
-                VBucket::toString(vbstate.transition.state),
+                VBucket::toString(meta.proposedVBState.transition.state),
                 vbucketId);
         return false;
     }
 
-    updateCachedVBState(vbucketId, vbstate);
+    updateCachedVBState(vbucketId, meta.proposedVBState);
 
     EP_LOG_DEBUG("CouchKVStore::snapshotVBucket: Snapshotted {} state:{}",
                  vbucketId,
-                 vbstate);
+                 meta.proposedVBState);
 
     st.snapshotHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now() - start));

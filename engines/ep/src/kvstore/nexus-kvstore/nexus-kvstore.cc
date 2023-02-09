@@ -997,10 +997,9 @@ std::vector<vbucket_state*> NexusKVStore::listPersistedVbuckets() {
     return primaryVbStates;
 }
 
-bool NexusKVStore::snapshotVBucket(Vbid vbucketId,
-                                   const vbucket_state& vbstate) {
-    auto primaryResult = primary->snapshotVBucket(vbucketId, vbstate);
-    auto secondaryResult = secondary->snapshotVBucket(vbucketId, vbstate);
+bool NexusKVStore::snapshotVBucket(Vbid vbucketId, const VB::Commit& meta) {
+    auto primaryResult = primary->snapshotVBucket(vbucketId, meta);
+    auto secondaryResult = secondary->snapshotVBucket(vbucketId, meta);
 
     if (primaryResult != secondaryResult) {
         auto msg = fmt::format(
