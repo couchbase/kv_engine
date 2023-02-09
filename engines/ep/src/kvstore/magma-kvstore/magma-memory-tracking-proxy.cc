@@ -461,7 +461,7 @@ void MagmaMemoryTrackingProxy::SetHistoryRetentionSize(size_t historyBytes) {
 }
 
 void MagmaMemoryTrackingProxy::SetHistoryRetentionTime(
-        uint64_t historySeconds) {
+        std::chrono::seconds historySeconds) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
     magma->SetHistoryRetentionTime(historySeconds);
 }

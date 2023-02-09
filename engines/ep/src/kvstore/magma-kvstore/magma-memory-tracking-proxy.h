@@ -209,7 +209,7 @@ public:
     void SetMemoryQuota(const size_t quota);
     void SetNumThreads(magma::Magma::ThreadType threadType, size_t nThreads);
     void SetHistoryRetentionSize(size_t historyBytes);
-    void SetHistoryRetentionTime(uint64_t historySeconds);
+    void SetHistoryRetentionTime(std::chrono::seconds historySeconds);
 
     magma::Status Sync(bool flushAll);
     magma::Status SyncKVStore(const magma::Magma::KVStoreID kvID);
