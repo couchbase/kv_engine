@@ -380,7 +380,7 @@ public:
                     } else {
                         auto dcpData =
                                 Collections::VB::Manifest::getCreateEventData(
-                                        {qi->getData(), qi->getNBytes()});
+                                        *qi);
                         replica.wlock().replicaCreate(
                                 *vbR,
                                 dcpData.manifestUid,
@@ -441,35 +441,35 @@ public:
                                 collection->collectionId(),
                                 qi->getBySeqno());
                     } else {
-                        const auto* collection = Collections::VB::Manifest::
+                        const auto& collection = Collections::VB::Manifest::
                                 getCollectionFlatbuffer(qi->getValueView());
                         cb::ExpiryLimit maxTtl;
-                        if (collection->ttlValid()) {
-                            maxTtl = std::chrono::seconds(collection->maxTtl());
+                        if (collection.ttlValid()) {
+                            maxTtl = std::chrono::seconds(collection.maxTtl());
                         }
                         replica.wlock().replicaCreate(
                                 *vbR,
-                                Collections::ManifestUid{collection->uid()},
-                                {collection->scopeId(),
-                                 collection->collectionId()},
-                                collection->name()->str(),
+                                Collections::ManifestUid{collection.uid()},
+                                {collection.scopeId(),
+                                 collection.collectionId()},
+                                collection.name()->str(),
                                 maxTtl,
                                 getCanDeduplicateFromHistory(
-                                        collection->history()),
+                                        collection.history()),
                                 qi->getBySeqno());
                     }
                     break;
                 }
                 case SystemEvent::ModifyCollection: {
                     EXPECT_FALSE(qi->isDeleted());
-                    const auto* collection =
+                    const auto& collection =
                             Collections::VB::Manifest::getCollectionFlatbuffer(
                                     qi->getValueView());
                     replica.wlock().replicaModifyCollection(
                             *vbR,
-                            Collections::ManifestUid{collection->uid()},
-                            collection->collectionId(),
-                            getCanDeduplicateFromHistory(collection->history()),
+                            Collections::ManifestUid{collection.uid()},
+                            collection.collectionId(),
+                            getCanDeduplicateFromHistory(collection.history()),
                             qi->getBySeqno());
                     break;
                 }

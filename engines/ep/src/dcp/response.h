@@ -1002,7 +1002,11 @@ public:
     }
 
     std::string_view getEventData() const override {
-        return item->getValueView();
+        // It's possible that the Item has been given an XATTR value for the
+        // storing of the default collection legacy "max DCP seqno". The XATTR
+        // data must not be replicated. This function call will obtain the
+        // correct view of the data if XATTRs are present.
+        return item->getValueViewWithoutXattrs();
     }
 
     mcbp::systemevent::version getVersion() const override {

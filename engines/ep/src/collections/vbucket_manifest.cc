@@ -20,10 +20,14 @@
 #include "collections/manifest.h"
 #include "ep_time.h"
 #include "item.h"
+#include "kvstore/kvstore_iface.h"
 #include "systemevent_factory.h"
+#include "tagged_ptr.h"
 #include "vbucket.h"
 
+#include <nlohmann/json_fwd.hpp>
 #include <statistics/cbstat_collector.h>
+#include <xattr/blob.h>
 
 #include <memory>
 
@@ -1032,11 +1036,109 @@ uint64_t Manifest::queueCollectionSystemEvent(
     auto item = makeCollectionSystemEvent(
             getManifestUid(), cid, collectionName, entry, type, seq);
 
+    if (type == SystemEventType::Modify && cid.isDefaultCollection()) {
+        attachMaxLegacyDCPSeqno(*item);
+    }
+
     // Create and transfer Item ownership to the VBucket
     auto rv = vb.addSystemEventItem(
             std::move(item), seq, cid, wHandle, assignedSeqnoCallback);
 
     return rv;
+}
+
+void Manifest::setDefaultCollectionLegacySeqnos(uint64_t maxCommittedSeqno,
+                                                Vbid vb,
+                                                KVStoreIface& kvs) {
+    uint64_t highSeqno{0};
+    {
+        auto handle = lock();
+        if (!handle.doesDefaultCollectionExist()) {
+            return;
+        }
+        highSeqno = handle.getHighSeqno(CollectionID::Default);
+    }
+
+    // Not locking around this as it will call down to KVStore
+    auto maxLegacyDCPSeqno =
+            computeDefaultCollectionMaxLegacyDCPSeqno(highSeqno, vb, kvs);
+
+    // Re-lock for the update to the object
+    auto handle = lock();
+    setDefaultCollectionLegacySeqnos(maxCommittedSeqno, maxLegacyDCPSeqno);
+}
+
+// Build an XATTR pair which records the defaultCollectionMaxLegacyDCPSeqno
+void Manifest::attachMaxLegacyDCPSeqno(Item& item) const {
+    Expects(!mcbp::datatype::is_xattr(item.getDataType()));
+    cb::xattr::Blob xattrs;
+    xattrs.set(
+            LegacyXattrKey,
+            fmt::format(LegacyJSONFormat, defaultCollectionMaxLegacyDCPSeqno));
+
+    std::string xattrValue;
+    xattrValue.reserve(xattrs.size() + item.getNBytes());
+    xattrValue.append(xattrs.data(), xattrs.size());
+    xattrValue.append(item.getData(), item.getNBytes());
+    item.replaceValue(
+            TaggedPtr<Blob>(Blob::New(xattrValue.data(), xattrValue.size()),
+                            TaggedPtrBase::NoTagValue));
+    item.setDataType(PROTOCOL_BINARY_DATATYPE_XATTR | item.getDataType());
+}
+
+uint64_t Manifest::computeDefaultCollectionMaxLegacyDCPSeqno(
+        uint64_t highSeqno, Vbid vb, KVStoreIface& kvs) {
+    // Try and read an event for the modification of the default collection.
+    // always read decompressed as if found we need the value
+    auto gv = kvs.get(DiskDocKey{SystemEventFactory::makeCollectionEventKey(
+                                         CollectionID::Default,
+                                         SystemEvent::ModifyCollection),
+                                 false},
+                      vb,
+                      ValueFilter::VALUES_DECOMPRESSED);
+
+    if (gv.getStatus() != cb::engine_errc::success) {
+        // Default collection was not modified. The highSeqno is also the max
+        // legacy seqno
+        return highSeqno;
+    }
+
+    auto& item = *gv.item;
+
+    if (uint64_t(item.getBySeqno()) < highSeqno) {
+        // The modify is below the highSeqno.
+        // The default collections current high-seqno is the maxLegacyDCP value
+        return highSeqno;
+    }
+
+    // else the modify is the highSeqno and it stores the correct legacy seqno
+    // see attachMaxLegacyDCPSeqno which is the encoder of this data.
+
+    // Found it. All modify events have xattr
+    Expects(mcbp::datatype::is_xattr(item.getDataType()));
+    // This should be decompressed
+    Expects(!mcbp::datatype::is_snappy(item.getDataType()));
+    // It cannot be greater
+    Expects(uint64_t(item.getBySeqno()) == highSeqno);
+
+    // pull out the stashed seqno which the VB:Manifest needs
+    cb::xattr::Blob xattr({const_cast<char*>(item.getData()), item.getNBytes()},
+                          mcbp::datatype::is_snappy(item.getDataType()));
+
+    auto value = xattr.get(LegacyXattrKey);
+    auto legacy = nlohmann::json::parse(value.begin(), value.end());
+
+    auto max = legacy.find(LegacyMaxSeqnoKey);
+    Expects(max != legacy.end());
+
+    // Convert it and sanity check - it should be lower then the modify
+    auto stashedSeqno = std::stoull(max->get<std::string>());
+
+    Expects(stashedSeqno < uint64_t(item.getBySeqno()));
+    Expects(stashedSeqno < highSeqno);
+
+    // return this value to use as the max-legacy seqno
+    return stashedSeqno;
 }
 
 size_t Manifest::getSystemEventItemCount() const {
@@ -1107,9 +1209,14 @@ static void verifyFlatbuffersData(std::string_view buf,
     throw std::runtime_error(ss.str());
 }
 
-const Collection* Manifest::getCollectionFlatbuffer(std::string_view view) {
+const Collection& Manifest::getCollectionFlatbuffer(const Item& item) {
+    Expects(!mcbp::datatype::is_snappy(item.getDataType()));
+    return getCollectionFlatbuffer(item.getValueViewWithoutXattrs());
+}
+
+const Collection& Manifest::getCollectionFlatbuffer(std::string_view view) {
     verifyFlatbuffersData<Collection>(view, "getCreateFlatbuffer");
-    return flatbuffers::GetRoot<Collection>(
+    return *flatbuffers::GetRoot<Collection>(
             reinterpret_cast<const uint8_t*>(view.data()));
 }
 
@@ -1133,20 +1240,14 @@ const DroppedScope* Manifest::getDroppedScopeFlatbuffer(std::string_view view) {
             reinterpret_cast<const uint8_t*>(view.data()));
 }
 
-CreateEventData Manifest::getCreateEventData(std::string_view flatbufferData) {
-    const auto* collection = getCollectionFlatbuffer(flatbufferData);
+CreateEventData Manifest::getCreateEventData(const Item& item) {
+    const auto& collection = getCollectionFlatbuffer(item);
+    return getCreateEventData(collection);
+}
 
-    // if maxTtlValid needs considering
-    cb::ExpiryLimit maxTtl;
-    if (collection->ttlValid()) {
-        maxTtl = std::chrono::seconds(collection->maxTtl());
-    }
-    return {ManifestUid(collection->uid()),
-            {collection->scopeId(),
-             collection->collectionId(),
-             collection->name()->str(),
-             maxTtl,
-             getCanDeduplicateFromHistory(collection->history())}};
+CreateEventData Manifest::getCreateEventData(std::string_view flatbufferData) {
+    const auto& collection = getCollectionFlatbuffer(flatbufferData);
+    return getCreateEventData(collection);
 }
 
 DropEventData Manifest::getDropEventData(std::string_view flatbufferData) {
@@ -1155,6 +1256,20 @@ DropEventData Manifest::getDropEventData(std::string_view flatbufferData) {
     return {ManifestUid(droppedCollection->uid()),
             droppedCollection->scopeId(),
             droppedCollection->collectionId()};
+}
+
+CreateEventData Manifest::getCreateEventData(const Collection& collection) {
+    // if maxTtlValid needs considering
+    cb::ExpiryLimit maxTtl;
+    if (collection.ttlValid()) {
+        maxTtl = std::chrono::seconds(collection.maxTtl());
+    }
+    return {ManifestUid(collection.uid()),
+            {collection.scopeId(),
+             collection.collectionId(),
+             collection.name()->str(),
+             maxTtl,
+             getCanDeduplicateFromHistory(collection.history())}};
 }
 
 CreateScopeEventData Manifest::getCreateScopeEventData(
@@ -1463,23 +1578,23 @@ cb::engine_errc Manifest::getScopeDataLimitStatus(
     return cb::engine_errc::success;
 }
 
-void Manifest::setDefaultCollectionMaxVisibleSeqnoFromWarmup(uint64_t seqno) {
-    // callers logic is simpler if they don't have to check for default exists
-    if (!doesDefaultCollectionExist()) {
-        return;
-    }
-
-    // This highSeqno represents committed and !committed
-    auto highSeqno = getHighSeqno(CollectionID::Default);
+void Manifest::setDefaultCollectionLegacySeqnos(uint64_t maxCommittedSeqno,
+                                                uint64_t maxLegacyDCPSeqno) {
+    // The given value is the correct seqno
+    // This highSeqno represents committed and !committed (but never modify)
+    defaultCollectionMaxLegacyDCPSeqno = maxLegacyDCPSeqno;
 
     // If warmup loadPrepareSyncWrites found a default collection committed item
     // and that is less than the collection's high-seqno, then we set the
     // max-visible to seqno
-    if (seqno && seqno < highSeqno) {
-        defaultCollectionMaxVisibleSeqno = seqno;
+    if (maxCommittedSeqno &&
+        maxCommittedSeqno < defaultCollectionMaxLegacyDCPSeqno) {
+        defaultCollectionMaxVisibleSeqno = maxCommittedSeqno;
     } else {
         // The collection's high-seqno is visible
-        defaultCollectionMaxVisibleSeqno = highSeqno;
+
+        defaultCollectionMaxVisibleSeqno =
+                defaultCollectionMaxLegacyDCPSeqno.load();
     }
 }
 

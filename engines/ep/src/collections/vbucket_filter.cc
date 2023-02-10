@@ -297,8 +297,7 @@ bool Filter::processCollectionEvent(const Item& item) {
     CollectionID cid;
     std::optional<ScopeID> sid;
     if (!item.isDeleted()) {
-        auto dcpData = VB::Manifest::getCreateEventData(
-                {item.getData(), item.getNBytes()});
+        auto dcpData = VB::Manifest::getCreateEventData(item);
         sid = dcpData.metaData.sid;
         cid = dcpData.metaData.cid;
     } else {

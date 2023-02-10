@@ -28,6 +28,7 @@
 #include <unordered_map>
 
 class Item;
+class KVStoreIface;
 class VBucket;
 class StatCollector;
 
@@ -250,9 +251,33 @@ public:
     }
 
     /**
-     * @return Collection (system event) flatbuffer object from the given view
+     * Function called from warmup to (re)establish the default collection's
+     * legacy sequence numbers.
+     *
+     * 1) defaultCollectionMaxVisibleSeqno
+     * 2) defaultCollectionMaxLegacyDCPSeqno
+     *
+     * Warmup is modified so that during the loadPreparedSyncWrites scan
+     * committed default collection items are looked for, and when found, the
+     * max committed seqno is recorded and passed to this function for use in
+     * figuring out the true MVS. Except for problems tracked in MB-55451...
+     *
+     * Warmup also passes the vbucket and KVStore reference so the DCP max seqno
+     * can be retrieved.
      */
-    static const Collection* getCollectionFlatbuffer(std::string_view view);
+    void setDefaultCollectionLegacySeqnos(uint64_t maxCommittedSeqno,
+                                          Vbid vb,
+                                          KVStoreIface& kvs);
+
+    /**
+     * @return Collection (system event) FlatBuffers object from the given Item
+     */
+    static const Collection& getCollectionFlatbuffer(const Item& item);
+
+    /**
+     * @return Collection (system event) FlatBuffers object from the given view
+     */
+    static const Collection& getCollectionFlatbuffer(std::string_view view);
 
     /**
      * @return Scope (system event) flatbuffer object from the given view
@@ -271,14 +296,36 @@ public:
     static const DroppedScope* getDroppedScopeFlatbuffer(std::string_view view);
 
     /**
-     * Get the system event collection create data from a SystemEvent
-     * Item's value.
+     * Get the Collection CreateEventData collection from a SystemEvent Item.
      *
-     * @param flatbufferData buffer storing flatbuffer Collections.VB.Collection
+     * The supplied Item can be a create or modify collection. The item cannot
+     * be compressed.
+     *
+     * @param item create or modify collection event
+     * @returns CreateEventData which carries all of the data which needs to be
+     *          marshalled into a DCP system event message.
+     */
+    static CreateEventData getCreateEventData(const Item& item);
+
+    /**
+     * Get the Collection CreateEventData collection from the supplied view. The
+     * view must be a FlatBuffers Collection object (validation will be done)
+     *
+     * @param flatbufferData string_view of FlatBuffers Collection data
      * @returns CreateEventData which carries all of the data which needs to be
      *          marshalled into a DCP system event message.
      */
     static CreateEventData getCreateEventData(std::string_view flatbufferData);
+
+    /**
+     * Get the Collection CreateEventData collection from FlatBuffers Collection
+     * object.
+     *
+     * @param collection FlatBuffers Collection object
+     * @returns CreateEventData which carries all of the data which needs to be
+     *          marshalled into a DCP system event message.
+     */
+    static CreateEventData getCreateEventData(const Collection& collection);
 
     /**
      * Get the system event collection drop data from a SystemEvent
@@ -1080,6 +1127,17 @@ protected:
     void setDefaultCollectionMaxVisibleSeqnoFromWarmup(uint64_t seqno);
 
     /**
+     * Set both of the default collection's legacy seqnos.
+     *
+     * 1) The max-visible seqno. The given maxCommittedSeqno is used to figure
+     *    out what the correct max-visible seqno is. There are issues with this
+     *    as tracked by MB-55451.
+     * 2) The max DCP seqno is set to the given value.
+     */
+    void setDefaultCollectionLegacySeqnos(uint64_t maxCommittedSeqno,
+                                          uint64_t maxLegacyDCPSeqno);
+
+    /**
      * Gets the default collections max-visible seqno which is the only
      * collection to track this value to support non-collection aware clients
      * Caller must check for existence of the collection before calling
@@ -1100,6 +1158,27 @@ protected:
      * @return the CanDeduplicate setting for the collection
      */
     CanDeduplicate getCanDeduplicate(CollectionID cid) const;
+
+    /**
+     * Store the value of defaultCollectionMaxLegacyDCPSeqno inside the Item
+     * This function utilises xattrs so that only a modify of the default
+     * collection carries this extra data. No other event needs this data.
+     */
+    void attachMaxLegacyDCPSeqno(Item& item) const;
+
+    /**
+     * Function returns the correct value for defaultCollectionMaxLegacyDCPSeqno
+     * by reading any modify of the default collection from KVStore and then
+     * comparing the value added in attachMaxLegacyDCPSeqno with the current
+     * high-seqno
+     *
+     * @param highSeqno default collection highSeqno
+     * @param vb being warmed-up
+     * @param kvs KVStore to (try) load the modify event from
+     */
+    uint64_t computeDefaultCollectionMaxLegacyDCPSeqno(uint64_t highSeqno,
+                                                       Vbid vb,
+                                                       KVStoreIface& kvs);
 
     /**
      * Return a string for use in throwException, returns:

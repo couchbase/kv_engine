@@ -368,6 +368,13 @@ std::ostream& operator<<(std::ostream& os, const ScopeSharedMetaData& meta);
  */
 enum class HighSeqnoType { Committed, PrepareAbort, SystemEvent };
 
+/// Key to locate default collection legacy data from an xattr blob
+constexpr std::string_view LegacyXattrKey = "_default_collection_legacy";
+/// The JSON key which stores the value of defaultCollectionMaxLegacyDCPSeqno
+constexpr std::string_view LegacyMaxSeqnoKey = "max_dcp_seqno";
+/// Formatting string to create the JSON value of the LegacyMaxSeqnoKey
+constexpr std::string_view LegacyJSONFormat = R"({{"max_dcp_seqno":"{}"}})";
+
 } // namespace VB
 
 } // end namespace Collections
