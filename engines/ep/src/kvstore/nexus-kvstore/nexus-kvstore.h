@@ -143,7 +143,7 @@ public:
     void delSystemEvent(TransactionContext& txnCtx,
                         const queued_item item) override;
     void endTransaction(Vbid vbid) override;
-    void setHistoryRetentionBytes(size_t size) override {
+    void setHistoryRetentionBytes(size_t size, size_t nVbuckets) override {
         // not supported on Nexus
     }
     void setHistoryRetentionSeconds(std::chrono::seconds secs) override {

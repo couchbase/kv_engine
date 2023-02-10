@@ -932,14 +932,33 @@ public:
     std::chrono::steady_clock::time_point
     getSeqnoPersistenceNotifyTaskWakeTime() const;
 
+    /**
+     * Set how many of seconds of history the bucket should retain.
+     * This function can influence the return result of
+     *  KVBucket::isHistoryRetentionEnabled
+     * In the case when the new configuration changes the return value of that
+     * function (history now on or off), further actions are taken to ensure
+     * the configuration is applied appropriately, e.g. open checkpoints.
+     *
+     * @param secs How many seconds of history should be retained by the bucket
+     */
     void setHistoryRetentionSeconds(std::chrono::seconds secs);
 
     std::chrono::seconds getHistoryRetentionSeconds() const;
 
+    /**
+     * Set how many of bytes of history the bucket should retain.
+     *
+     * See setHistoryRetentionSeconds for further information about this
+     * function.
+     *
+     * @param bytes How many bytes of history should be retained by the bucket
+     */
     void setHistoryRetentionBytes(size_t bytes);
 
     size_t getHistoryRetentionBytes() const;
 
+    /// @return true if the configuration defines retention seconds or size
     bool isHistoryRetentionEnabled() const;
 
 protected:

@@ -154,6 +154,10 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     config.addValueChangedListener(
             "vbucket_mapping_sanity_checking_error_mode",
             std::make_unique<ConfigChangeListener>(*this));
+
+    historyRetentionTime =
+            std::chrono::seconds(config.getHistoryRetentionSeconds());
+    historyRetentionSize = config.getHistoryRetentionBytes();
 }
 
 void MagmaKVStoreConfig::setStore(MagmaKVStore* store) {

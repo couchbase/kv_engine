@@ -225,7 +225,10 @@ public:
                 prepareToRollback,
                 (Vbid vbid),
                 (override));
-    MOCK_METHOD(void, setHistoryRetentionBytes, (size_t size), (override));
+    MOCK_METHOD(void,
+                setHistoryRetentionBytes,
+                (size_t size, size_t nVbuckets),
+                (override));
     MOCK_METHOD(void,
                 setHistoryRetentionSeconds,
                 (std::chrono::seconds seconds),

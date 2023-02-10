@@ -865,7 +865,7 @@ public:
      */
     void checkIfInTransaction(Vbid vbid, std::string_view caller);
 
-    void setHistoryRetentionBytes(size_t size) override {
+    void setHistoryRetentionBytes(size_t size, size_t nVbuckets) override {
         // no-op.
         // Only supported by backends which report
         // StorageProperties::HistoryRetentionAvailable::Yes

@@ -30,7 +30,7 @@ protected:
     void SetUp() override {
         KVStoreTest::SetUp();
 
-        auto configStr =
+        configStr +=
                 "dbname="s + data_dir + ";"s + "backend=magma;" + magmaConfig;
         if (rollbackTest) {
             configStr += ";" + magmaRollbackConfig;
@@ -73,7 +73,7 @@ protected:
         return qi;
     };
 
-private:
+    std::string configStr;
     bool rollbackTest{false};
 };
 
@@ -711,11 +711,22 @@ TEST_F(MagmaKVStoreTest, makeFileHandleSyncFailed) {
     EXPECT_FALSE(fileHandle);
 }
 
+class MagmaKVStoreHistoryTest : public MagmaKVStoreTest {
+protected:
+    void SetUp() override {
+        configStr = "history_retention_bytes=104857600;";
+        MagmaKVStoreTest::SetUp();
+    }
+
+    void TearDown() override {
+        MagmaKVStoreTest::TearDown();
+    }
+};
+
 // Test scanAllVersions returns the expected number of keys and the expected
 // history start seqno.
-TEST_F(MagmaKVStoreTest, scanAllVersions1) {
+TEST_F(MagmaKVStoreHistoryTest, scanAllVersions1) {
     initialize_kv_store(kvstore.get(), vbid);
-    kvstore->setHistoryRetentionBytes(1024 * 1024);
 
     // History is enabled
     flush.historical = CheckpointHistorical::Yes;
@@ -775,9 +786,8 @@ TEST_F(MagmaKVStoreTest, preparePendingRequests) {
 
 // Test scanAllVersions returns the expected number of keys and the expected
 // history start seqno. This test uses the same key for all mutations.
-TEST_F(MagmaKVStoreTest, scanAllVersions2) {
+TEST_F(MagmaKVStoreHistoryTest, scanAllVersions2) {
     initialize_kv_store(kvstore.get(), vbid);
-    kvstore->setHistoryRetentionBytes(1024 * 1024);
     flush.historical = CheckpointHistorical::Yes;
 
     std::vector<queued_item> expectedItems;
@@ -808,9 +818,8 @@ TEST_F(MagmaKVStoreTest, scanAllVersions2) {
 
 // ScanContext now exposes historyStartSeqno which is tracked by magma provided
 // it is retaining history.
-TEST_F(MagmaKVStoreTest, historyStartSeqno) {
+TEST_F(MagmaKVStoreHistoryTest, historyStartSeqno) {
     initialize_kv_store(kvstore.get(), vbid);
-    kvstore->setHistoryRetentionBytes(100 * 1024 * 1024);
 
     auto validate = [this](uint64_t expectedHistoryStartSeqno) {
         EXPECT_EQ(expectedHistoryStartSeqno,
@@ -855,4 +864,21 @@ TEST_F(MagmaKVStoreTest, historyStartSeqno) {
     flush.historical = CheckpointHistorical::No;
     doWrite(5, true); // write seqno 5
     validate(0); // back to no history
+}
+
+TEST_F(MagmaKVStoreHistoryTest, restartKvStore) {
+    initialize_kv_store(kvstore.get(), vbid);
+
+    // Now enable history
+    flush.historical = CheckpointHistorical::Yes;
+    doWrite(1, true);
+    EXPECT_EQ(1,
+                  kvstore->getHistoryStartSeqno(vbid).value_or(~0ull));
+
+    kvstore->deinitialize();
+    // New KVStore
+    kvstore = std::make_unique<MockMagmaKVStore>(*kvstoreConfig);
+
+    // MB-55533: before this bug was closed history was lost
+    EXPECT_EQ(1, kvstore->getHistoryStartSeqno(vbid).value_or(~0ull));
 }

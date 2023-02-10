@@ -693,6 +693,11 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
             configuration.getMagmaFragmentationPercentage());
     calculateAndSetMagmaThreads();
 
+    // MB-55533: These must be set before calling Open
+    setHistoryRetentionSeconds(configuration.getHistoryRetentionTime());
+    setHistoryRetentionBytes(configuration.getHistoryRetentionSize(),
+                             configuration.getMaxVBuckets());
+
     // Open the magma instance for this shard and populate the vbstate.
     auto status = magma->Open();
 
@@ -3782,8 +3787,11 @@ std::pair<Status, uint64_t> MagmaKVStore::getOldestRollbackableHighSeqno(
     return {status, seqno};
 }
 
-void MagmaKVStore::setHistoryRetentionBytes(size_t size) {
-    magma->SetHistoryRetentionSize(size);
+void MagmaKVStore::setHistoryRetentionBytes(size_t bytes, size_t nVbuckets) {
+    // Need to know bytes per vbucket. However for simpler small-scale or unit
+    // testing just use the bytes directly.
+    auto vbucketBytes = bytes && nVbuckets > bytes ? bytes / nVbuckets : bytes;
+    magma->SetHistoryRetentionSize(vbucketBytes);
 }
 
 void MagmaKVStore::setHistoryRetentionSeconds(std::chrono::seconds seconds) {

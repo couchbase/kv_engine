@@ -223,6 +223,14 @@ public:
         vBucketMappingErrorHandlingMethod = value;
     }
 
+    size_t getHistoryRetentionSize() const {
+        return historyRetentionSize;
+    }
+
+    std::chrono::seconds getHistoryRetentionTime() const {
+        return historyRetentionTime;
+    }
+
     magma::Magma::Config magmaCfg;
 
     /**
@@ -431,4 +439,7 @@ private:
      * be incorrect.
      */
     std::atomic<cb::ErrorHandlingMethod> vBucketMappingErrorHandlingMethod;
+
+    size_t historyRetentionSize{0};
+    std::chrono::seconds historyRetentionTime{0};
 };
