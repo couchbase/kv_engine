@@ -195,7 +195,9 @@ add_library(memcached_daemon STATIC
             tls_configuration.cc
             tls_configuration.h
             tracing.cc
-            tracing.h)
+            tracing.h
+            $<TARGET_OBJECTS:folly_io_callbacks>
+        )
 
 if (NUMA_FOUND)
     target_include_directories(memcached_daemon

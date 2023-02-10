@@ -14,10 +14,10 @@
 #include <folly/io/async/DelayedDestruction.h>
 #include <memory>
 
-namespace cb::daemon {
+namespace cb::io::network {
 class AsyncReadCallback;
 class AsyncWriteCallback;
-} // namespace cb::daemon
+} // namespace cb::io::network
 
 namespace folly {
 class AsyncSocket;
@@ -43,7 +43,7 @@ public:
     const cb::mcbp::Header& getPacket() const override;
     cb::const_byte_buffer getAvailableBytes(size_t max = 1024) const override;
     size_t getSendQueueSize() const override;
-    void drainInputPipe(size_t bytes) override;
+    void nextPacket() override;
     void triggerCallback() override;
     void disableReadEvent() override;
     void enableReadEvent() override;
@@ -60,13 +60,10 @@ public:
     ///////// End handshake callback API override
 
 protected:
-    friend class cb::daemon::AsyncReadCallback;
-    friend class cb::daemon::AsyncWriteCallback;
-
     /// The async read callback in use
-    std::unique_ptr<cb::daemon::AsyncReadCallback> asyncReadCallback;
+    std::unique_ptr<cb::io::network::AsyncReadCallback> asyncReadCallback;
     /// The async write callback in use
-    std::unique_ptr<cb::daemon::AsyncWriteCallback> asyncWriteCallback;
+    std::unique_ptr<cb::io::network::AsyncWriteCallback> asyncWriteCallback;
     /// The underlying Folly Async Socket object
     AsyncSocketUniquePtr asyncSocket;
 

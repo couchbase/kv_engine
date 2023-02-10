@@ -28,7 +28,7 @@ public:
     void chainDataToOutputStream(std::unique_ptr<SendBuffer> buffer) override;
     bool isPacketAvailable() const override;
     const cb::mcbp::Header& getPacket() const override;
-    void drainInputPipe(size_t bytes) override;
+    void nextPacket() override;
     cb::const_byte_buffer getAvailableBytes(size_t max = 1024) const override;
     size_t getSendQueueSize() const override;
     void triggerCallback() override;

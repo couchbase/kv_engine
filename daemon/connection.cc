@@ -630,9 +630,7 @@ void Connection::executeCommandPipeline() {
             // We always want to collect trace information if we're running
             // for a serverless configuration
             cookie.initialize(getPacket(), serverless || isTracingEnabled());
-            auto drainSize = cookie.getPacket().size();
-
-            updateRecvBytes(drainSize);
+            updateRecvBytes(cookie.getPacket().size());
 
             const auto status = cookie.validate();
             if (status == cb::mcbp::Status::Success) {
@@ -678,8 +676,8 @@ void Connection::executeCommandPipeline() {
                     stop = !isDCP() && (getSendQueueSize() >= maxSendQueueSize);
                 } else {
                     active = true;
-                    // We need to block so we need to preserve the request
-                    // as we'll drain the data from the buffer)
+                    // We need to block, so we need to preserve the request
+                    // as we'll drain the data from the buffer.
                     cookie.preserveRequest();
                     if (!cookie.mayReorder()) {
                         // Don't add commands as we need the last one to
@@ -695,7 +693,7 @@ void Connection::executeCommandPipeline() {
                 cookie.reset();
             }
 
-            drainInputPipe(drainSize);
+            nextPacket();
         }
     }
 

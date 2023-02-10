@@ -27,12 +27,11 @@ DcpDrain::DcpDrain(std::string host,
       password(std::move(password)),
       bucketname(std::move(bucketname)),
       connection(AsyncClientConnection::create(base)) {
-    connection->setIoErrorListener(
-            [this](AsyncClientConnection::Direction dir,
-                   const folly::AsyncSocketException& ex) {
-                error = ex.what();
-                base.terminateLoopSoon();
-            });
+    connection->setIoErrorListener([this](AsyncClientConnection::Direction dir,
+                                          std::string_view message) {
+        error = message;
+        base.terminateLoopSoon();
+    });
 }
 
 void DcpDrain::drain() {
@@ -225,11 +224,7 @@ void DcpDrain::handleDcpNoop(const cb::mcbp::Request& header) {
     resp.setMagic(cb::mcbp::Magic::ClientResponse);
     resp.setOpaque(header.getOpaque());
     resp.setOpcode(header.getClientOpcode());
-
-    auto iob = folly::IOBuf::createCombined(sizeof(resp));
-    std::memcpy(iob->writableData(), &resp, sizeof(resp));
-    iob->append(sizeof(resp));
-    connection->send(std::move(iob));
+    connection->send({reinterpret_cast<const char*>(&resp), sizeof(resp)});
 }
 
 } // namespace cb::test

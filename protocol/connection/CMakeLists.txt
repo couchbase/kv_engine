@@ -7,7 +7,9 @@ add_library(mc_client_connection STATIC
             client_connection_map.h
             client_mcbp_commands.cc
             client_mcbp_commands.h
-            frameinfo.cc frameinfo.h)
+            frameinfo.cc frameinfo.h
+            $<TARGET_OBJECTS:folly_io_callbacks>
+        )
 kv_enable_pch(mc_client_connection)
 cb_enable_unity_build(mc_client_connection)
 

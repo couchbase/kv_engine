@@ -64,7 +64,7 @@ protected:
     const cb::mcbp::Header& getPacket() const override {
         throw std::runtime_error("FuzzConnection: Not implemented");
     }
-    void drainInputPipe(size_t bytes) override {
+    void nextPacket() override {
         throw std::runtime_error("FuzzConnection: Not implemented");
     }
     void disableReadEvent() override {

@@ -908,8 +908,8 @@ protected:
      */
     virtual const cb::mcbp::Header& getPacket() const = 0;
 
-    /// Drain the provided number of bytes from the input pipe
-    virtual void drainInputPipe(size_t bytes) = 0;
+    /// Move to the next packet in the pipe
+    virtual void nextPacket() = 0;
 
     /**
      * Update the description string for the connection. This

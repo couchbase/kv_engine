@@ -56,10 +56,9 @@ public:
     /// Set up the EOF listener to be called once we reach end of stream
     virtual void setEofListener(std::function<void(Direction)> listener) = 0;
 
-    /// Set up the Error listener which is called when an IO error occurrs
+    /// Set up the Error listener which is called when an IO error occurs
     virtual void setIoErrorListener(
-            std::function<void(Direction, const folly::AsyncSocketException&)>
-                    listener) = 0;
+            std::function<void(Direction, std::string_view)> listener) = 0;
 
     /// Set up the protocol error listener which is to be called if we
     /// encounter an error on the stream
@@ -70,11 +69,11 @@ public:
     virtual void setFrameReceivedListener(
             std::function<void(const cb::mcbp::Header&)> listener) = 0;
 
-    /// Send a folly IOBuf to the other end
-    virtual void send(std::unique_ptr<folly::IOBuf> frame) = 0;
-
     /// Send a BinprotCommand to the other end
     virtual void send(const BinprotCommand& cmd) = 0;
+
+    /// Send a "blob" to the other end
+    virtual void send(std::string_view data) = 0;
 
     // The following API don't belong in a async client,  but it makes
     // it a lot easier to use in a common way. They will mock around with the

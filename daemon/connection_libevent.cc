@@ -413,7 +413,8 @@ const cb::mcbp::Header& LibeventConnection::getPacket() const {
             evbuffer_pullup(input, sizeof(cb::mcbp::Header)));
 }
 
-void LibeventConnection::drainInputPipe(size_t bytes) {
+void LibeventConnection::nextPacket() {
+    const size_t bytes = getPacket().getFrame().size();
     auto* event = bev.get();
     auto* input = bufferevent_get_input(event);
     if (evbuffer_drain(input, bytes) == -1) {

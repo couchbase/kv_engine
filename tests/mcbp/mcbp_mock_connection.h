@@ -45,7 +45,7 @@ protected:
     const cb::mcbp::Header& getPacket() const override {
         throw std::runtime_error("MockConnection: Not implemented");
     }
-    void drainInputPipe(size_t bytes) override {
+    void nextPacket() override {
         throw std::runtime_error("MockConnection: Not implemented");
     }
     void disableReadEvent() override {
