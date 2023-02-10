@@ -1434,6 +1434,15 @@ bool Manifest::addCollectionStats(Vbid vbid,
     format_to(key, "vb_{}:manifest:uid", vbid.get());
     collector.addStat(std::string_view(key.data(), key.size()), manifestUid);
 
+    if (doesDefaultCollectionExist()) {
+        format_to(key, "vb_{}:default_mvs", vbid.get());
+        collector.addStat(std::string_view(key.data(), key.size()),
+                          defaultCollectionMaxVisibleSeqno);
+        format_to(key, "vb_{}:default_legacy_max_dcp_seqno", vbid.get());
+        collector.addStat(std::string_view(key.data(), key.size()),
+                          defaultCollectionMaxLegacyDCPSeqno);
+    }
+
     for (const auto& entry : map) {
         if (!entry.second.addStats(entry.first.to_string(), vbid, collector)) {
             return false;
@@ -1815,7 +1824,9 @@ std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
        << "uid:" << manifest.manifestUid
        << ", scopeWithDataLimitExists:" << manifest.scopeWithDataLimitExists
        << ", dropInProgress:" << manifest.dropInProgress.load()
-       << ", defaultMVS:" << manifest.defaultCollectionMaxVisibleSeqno
+       << ", defaultCollectionMVS:" << manifest.defaultCollectionMaxVisibleSeqno
+       << ", defaultCollectionMaxLegacyDCPSeqno:"
+       << manifest.defaultCollectionMaxLegacyDCPSeqno
        << ", scopes.size:" << manifest.scopes.size()
        << ", map.size:" << manifest.map.size() << std::endl;
     os << "collections:[" << std::endl;
