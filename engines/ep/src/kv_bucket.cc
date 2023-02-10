@@ -1404,6 +1404,9 @@ void KVBucket::appendAggregatedVBucketStats(
         stateCol.addStat(Key::vb_queue_drain, visitor.getQueueDrain());
         stateCol.addStat(Key::vb_rollback_item_count,
                          visitor.getRollbackItemCount());
+        // Add stat for the max history disk size of a vbucket
+        stateCol.addStat(Key::vb_max_history_disk_size,
+                         visitor.getMaxHistoryDiskSize());
     }
 
     for (const auto& visitor : {active, replica}) {

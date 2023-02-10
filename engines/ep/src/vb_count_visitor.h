@@ -217,6 +217,10 @@ public:
         return syncWriteAbortedCount;
     }
 
+    uint64_t getMaxHistoryDiskSize() const {
+        return maxHistoryDiskSize;
+    }
+
 private:
     size_t numItems{0};
     size_t numTempItems{0};
@@ -269,6 +273,7 @@ private:
     size_t syncWriteAcceptedCount{0};
     size_t syncWriteCommittedCount{0};
     size_t syncWriteAbortedCount{0};
+    uint64_t maxHistoryDiskSize{0};
 };
 
 /**

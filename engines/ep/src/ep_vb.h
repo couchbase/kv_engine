@@ -97,6 +97,8 @@ public:
 
     size_t getNumSystemItems() const override;
 
+    uint64_t getHistoryDiskSize() override;
+
     cb::engine_errc statsVKey(const DocKey& key,
                               const CookieIface* cookie,
                               EventuallyPersistentEngine& engine) override;

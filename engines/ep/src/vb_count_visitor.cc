@@ -88,6 +88,9 @@ void VBucketCountVisitor::visitBucket(VBucket& vb) {
         syncWriteAcceptedCount += vb.getSyncWriteAcceptedCount();
         syncWriteCommittedCount += vb.getSyncWriteCommittedCount();
         syncWriteAbortedCount += vb.getSyncWriteAbortedCount();
+
+        maxHistoryDiskSize =
+                std::max(maxHistoryDiskSize, vb.getHistoryDiskSize());
     }
 }
 

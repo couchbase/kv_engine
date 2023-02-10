@@ -641,6 +641,10 @@ STAT(vb_rollback_item_count,
      FMT("vb_{state}_rollback_item_count"),
      count,
      vb_rollback_item_count, )
+STAT(vb_max_history_disk_size,
+     FMT("vb_{state}_max_history_disk_size"),
+     bytes,
+     vb_max_history_disk_size, )
 
 STAT(curr_items, , count, , )
 STAT(curr_temp_items, , count, , )

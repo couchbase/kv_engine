@@ -547,6 +547,11 @@ public:
 
     virtual size_t getNumTotalItems() const = 0;
 
+    /**
+     * Get the total disk size of history as reported by magma.
+     */
+    virtual uint64_t getHistoryDiskSize() = 0;
+
     /// Reset all statistics assocated with this vBucket.
     virtual void resetStats();
 
