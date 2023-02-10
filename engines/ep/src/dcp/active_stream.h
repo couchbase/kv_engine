@@ -800,6 +800,15 @@ private:
     uint64_t adjustStartIfFirstSnapshot(uint64_t start,
                                         bool isCompleteSnapshot);
 
+    /**
+     * Encodes the marker flags based on the stream state and the snapshot meta
+     * information provided.
+     *
+     * @param meta Information on the snapshot being processed
+     * @return
+     */
+    uint32_t getMarkerFlags(const OutstandingItemsResult& meta) const;
+
     /* The last sequence number queued from memory, but is yet to be
        snapshotted and put onto readyQ */
     std::atomic<uint64_t> lastReadSeqnoUnSnapshotted;

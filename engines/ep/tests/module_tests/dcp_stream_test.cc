@@ -5521,13 +5521,11 @@ TEST_P(CDCActiveStreamTest, SnapshotAndSeqnoAdvanceCorrectHistoryFlag) {
     EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
     marker = dynamic_cast<SnapshotMarker*>(resp.get());
     // Core of the test: MARKER_FLAG_HISTORY is set in the marker
-    // @todo MB-55465: Note that flags here are unexpectedly missing the
-    //  MARKER_FLAG_CHK, as this marker is generated from a different checkpoint
-    //  than the previous one. Out of scope in this test, deferring to its
-    //  dedicated ticket.
-    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_HISTORY, marker->getFlags());
+    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK | MARKER_FLAG_HISTORY,
+              marker->getFlags());
     // Verify the string representation of marker's flags
-    EXPECT_EQ("[MEMORY,HISTORY]", dcpMarkerFlagsToString(marker->getFlags()));
+    EXPECT_EQ("[MEMORY,CHK,HISTORY]",
+              dcpMarkerFlagsToString(marker->getFlags()));
     // SeqnoAdvance in place of SysEvent(modify), as flatbuffers sys-events are
     // disabled
     resp = stream->public_nextQueuedItem(*producer);

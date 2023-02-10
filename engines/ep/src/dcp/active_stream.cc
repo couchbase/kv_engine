@@ -1379,14 +1379,6 @@ void ActiveStream::snapshot(const OutstandingItemsResult& meta,
     lastReadSeqno.store(lastReadSeqnoUnSnapshotted);
 
     if (isCurrentSnapshotCompleted()) {
-        const auto isCkptTypeDisk = isDiskCheckpointType(meta.checkpointType);
-        uint32_t flags = isCkptTypeDisk ? MARKER_FLAG_DISK : MARKER_FLAG_MEMORY;
-
-        if (changeStreamsEnabled &&
-            (meta.historical == CheckpointHistorical::Yes)) {
-            flags |= MARKER_FLAG_HISTORY;
-        }
-
         // Get OptionalSeqnos which for the items list types should have values
         auto seqnoStart = items.front()->getBySeqno();
         auto seqnoEnd = items.back()->getBySeqno();
@@ -1422,17 +1414,15 @@ void ActiveStream::snapshot(const OutstandingItemsResult& meta,
             snapEnd = highNonVisibleSeqno.value();
         }
 
-        if (nextSnapshotIsCheckpoint) {
-            flags |= MARKER_FLAG_CHK;
-        }
-
+        auto flags = getMarkerFlags(meta);
         if (isTakeoverSend()) {
             waitForSnapshot++;
             flags |= MARKER_FLAG_ACK;
         }
 
         // If the stream supports SyncRep then send the HCS for CktpType::disk
-        const auto sendHCS = supportSyncReplication() && isCkptTypeDisk;
+        const auto sendHCS = supportSyncReplication() &&
+                             isDiskCheckpointType(meta.checkpointType);
         std::optional<uint64_t> hcsToSend;
         if (sendHCS) {
             Expects(meta.diskCheckpointState);
@@ -2355,19 +2345,11 @@ void ActiveStream::sendSnapshotAndSeqnoAdvanced(
         const OutstandingItemsResult& meta, uint64_t start, uint64_t end) {
     start = adjustStartIfFirstSnapshot(start, true);
 
-    const auto isCkptTypeDisk = isDiskCheckpointType(meta.checkpointType);
-    uint32_t flags = isCkptTypeDisk ? MARKER_FLAG_DISK : MARKER_FLAG_MEMORY;
-
-    if (changeStreamsEnabled &&
-        (meta.historical == CheckpointHistorical::Yes)) {
-        flags |= MARKER_FLAG_HISTORY;
-    }
-
     pushToReadyQ(std::make_unique<SnapshotMarker>(opaque_,
                                                   vb_,
                                                   start,
                                                   end,
-                                                  flags,
+                                                  getMarkerFlags(meta),
                                                   std::nullopt,
                                                   std::nullopt,
                                                   std::nullopt,
@@ -2388,6 +2370,24 @@ uint64_t ActiveStream::adjustStartIfFirstSnapshot(uint64_t start,
         return std::min(snap_start_seqno_, start);
     }
     return start;
+}
+
+uint32_t ActiveStream::getMarkerFlags(
+        const OutstandingItemsResult& meta) const {
+    uint32_t flags = isDiskCheckpointType(meta.checkpointType)
+                             ? MARKER_FLAG_DISK
+                             : MARKER_FLAG_MEMORY;
+
+    if (changeStreamsEnabled &&
+        (meta.historical == CheckpointHistorical::Yes)) {
+        flags |= MARKER_FLAG_HISTORY;
+    }
+
+    if (nextSnapshotIsCheckpoint) {
+        flags |= MARKER_FLAG_CHK;
+    }
+
+    return flags;
 }
 
 ValueFilter ActiveStream::getValueFilter() const {
