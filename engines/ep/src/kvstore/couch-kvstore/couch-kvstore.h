@@ -818,6 +818,16 @@ protected:
     ReadVBStateResult readVBStateAndUpdateCache(Db* db, Vbid vbid);
 
     /**
+     * Read the database header and update the cache for the stats available
+     * in the header.
+     *
+     * Note that the header does not include the onDiskPrepareSize (we store
+     * that separately in the vbstate file) and so that stat is not updated
+     * by this function.
+     */
+    cb::couchstore::Header readHeaderAndUpdateCache(Db& db, Vbid vbid) const;
+
+    /**
      * Internal getWithHeader that uses Db type for the get
      */
     GetValue getWithHeader(DbHolder& db,
@@ -935,11 +945,16 @@ protected:
      */
     std::unique_ptr<FileOpsInterface> statCollectingFileOpsCompaction;
 
-    /* deleted docs in each file, indexed by vBucket. RelaxedAtomic
-       to allow stats access witout lock */
-    std::vector<cb::RelaxedAtomic<size_t>> cachedDeleteCount;
-    std::vector<cb::RelaxedAtomic<uint64_t>> cachedFileSize;
-    std::vector<cb::RelaxedAtomic<uint64_t>> cachedSpaceUsed;
+    /**
+     * deleted docs in each file, indexed by vBucket. RelaxedAtomic
+     * to allow stats access witout lock. Mutable because we update these from
+     * const members without changing the observable state of the object in a
+     * thread-safe manner.
+     */
+    mutable std::vector<cb::RelaxedAtomic<size_t>> cachedDeleteCount;
+    /// Disk stats cache
+    mutable std::vector<cb::RelaxedAtomic<uint64_t>> cachedFileSize;
+    mutable std::vector<cb::RelaxedAtomic<uint64_t>> cachedSpaceUsed;
     /// Size of on-disk prepares, indexed by vBucket RelaxedAtomic to allow
     /// stats access without lock.
     std::vector<cb::RelaxedAtomic<size_t>> cachedOnDiskPrepareSize;

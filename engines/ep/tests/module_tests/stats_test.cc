@@ -69,6 +69,22 @@ std::map<std::string, std::string> StatTest::get_stat(const char* statkey) {
     return stats;
 }
 
+class ParameterizedStatTest
+    : public StatTest,
+      public ::testing::WithParamInterface<std::string> {
+    void SetUp() override {
+        /**
+         * Items left in the WAL or the memtable do not get counted against the
+         * logical disk size so we force them items into the LSM tree.
+         */
+        config_string +=
+                "magma_checkpoint_interval=0;"
+                "magma_min_checkpoint_interval=0;"
+                "magma_sync_every_batch=true";
+        StatTest::SetUp();
+    }
+};
+
 class DatatypeStatTest : public StatTest,
                          public ::testing::WithParamInterface<std::string> {
 protected:
@@ -781,6 +797,84 @@ TEST_F(StatTest, EngineStatsWarmup) {
     engine->doEngineStats(bucketCollector);
 }
 
+TEST_P(ParameterizedStatTest, DiskInfoStatsAfterWarmup) {
+    using namespace cb::durability;
+    using namespace testing;
+
+    setVBucketState(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    // Write some items
+    int num_keys = 2;
+    for (int ii = 0; ii < num_keys; ++ii) {
+        const auto key = makeStoredDocKey(fmt::format("key {}", ii));
+        auto item = make_item(vbid,
+                              key,
+                              {} /*value*/,
+                              0 /*exptime*/,
+                              PROTOCOL_BINARY_RAW_BYTES);
+
+        uint64_t cas = 0;
+        ASSERT_EQ(cb::engine_errc::success,
+                  engine->store(*cookie,
+                                item,
+                                cas,
+                                StoreSemantics::Set,
+                                {},
+                                DocumentState::Alive,
+                                false));
+
+        // Delete some items to bump up the on_disk_deletes
+        if (ii % 2 == 0) {
+            mutation_descr_t mutInfo;
+            ASSERT_EQ(cb::engine_errc::success,
+                      engine->remove(*cookie, key, cas, vbid, {}, mutInfo));
+        }
+    }
+
+    // Write a pending item to bump up ep_db_prepare_size
+    auto pendingKey = makeStoredDocKey("pending");
+    auto pendingItem = makePendingItem(pendingKey, "value");
+    EXPECT_EQ(cb::engine_errc::sync_write_pending,
+              store->set(*pendingItem, cookie));
+
+    dynamic_cast<EPBucket&>(*store).flushVBucket(vbid);
+
+    auto stats = get_stat("diskinfo");
+    EXPECT_LT(0, std::stoi(stats["ep_db_file_size"]));
+    EXPECT_LT(0, std::stoi(stats["ep_db_data_size"]));
+
+    if (!hasMagma()) {
+        // Magma does not track on-disk-prepare-bytes, see MB-42900 for details
+        EXPECT_LT(0, std::stoi(stats["ep_db_prepare_size"]));
+        // Magma always returns 0 from getNumPersistedDeletes
+        auto onDiskDeletes =
+                get_stat(fmt::format("dcp-vbtakeover {}", vbid.get())
+                                   .c_str())["on_disk_deletes"];
+        EXPECT_LT(0, std::stoi(onDiskDeletes));
+    }
+
+    resetEngineAndWarmup();
+
+    // Check the disk stats again after warmup
+    // MB-53829: these would be 0 after warmup
+    auto newStats = get_stat("diskinfo");
+    EXPECT_LT(0, std::stoi(newStats["ep_db_file_size"]));
+    EXPECT_LT(0, std::stoi(newStats["ep_db_data_size"]));
+
+    if (!hasMagma()) {
+        // Magma does not track on-disk-prepare-bytes, see MB-42900 for details
+        EXPECT_LT(0, std::stoi(newStats["ep_db_prepare_size"]));
+        // Magma always returns 0 from getNumPersistedDeletes
+        auto onDiskDeletes =
+                get_stat(fmt::format("dcp-vbtakeover {}", vbid.get())
+                                   .c_str())["on_disk_deletes"];
+        EXPECT_LT(0, std::stoi(onDiskDeletes));
+    }
+}
+
 TEST_P(DatatypeStatTest, datatypesInitiallyZero) {
     // Check that the datatype stats initialise to 0
     auto vals = get_stat(nullptr);
@@ -983,6 +1077,11 @@ TEST_P(DatatypeStatTest, MB23892) {
     getEPBucket().flushVBucket(vbid);
     setDatatypeItem(store, cookie, PROTOCOL_BINARY_DATATYPE_JSON, "jsonXattrDoc", "[1]");
 }
+
+INSTANTIATE_TEST_SUITE_P(Persistent,
+                         ParameterizedStatTest,
+                         STParameterizedBucketTest::persistentConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_SUITE_P(FullAndValueEviction,
                          DatatypeStatTest,

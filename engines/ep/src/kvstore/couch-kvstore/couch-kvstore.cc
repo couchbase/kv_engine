@@ -505,14 +505,15 @@ void CouchKVStore::initialize(
             throw std::runtime_error(msg);
         }
 
-        const auto readRes = readVBStateAndUpdateCache(db, vbid).status;
+        const auto [readRes, state] = readVBStateAndUpdateCache(db, vbid);
 
         switch (readRes) {
         case ReadVBStateStatus::Success:
             // Success, update stats
             ++st.numLoadedVb;
-            cachedDeleteCount[getCacheSlot(vbid)] =
-                    cb::couchstore::getHeader(*db.getDb()).deletedCount;
+            readHeaderAndUpdateCache(*db.getDb(), vbid);
+            cachedOnDiskPrepareSize[getCacheSlot(vbid)] =
+                    state.getOnDiskPrepareBytes();
             break;
         case ReadVBStateStatus::NotFound:
             // No vBucket state found. It's possible for a vBucket header to
@@ -1786,18 +1787,14 @@ bool CouchKVStore::compactDBTryAndSwitchToNewFile(
         hookCtx->completionCallback(*hookCtx);
     }
 
-    auto info = cb::couchstore::getHeader(*targetDb.getDb());
+    auto info = readHeaderAndUpdateCache(*targetDb.getDb(), vbid);
     hookCtx->stats.post = toFileInfo(info);
-
-    cachedFileSize[getCacheSlot(vbid)] = info.fileSize;
-    cachedSpaceUsed[getCacheSlot(vbid)] = info.spaceUsed;
 
     // also update cached state with dbinfo (the disk entry is already updated)
     auto* state = getCachedVBucketState(vbid);
     if (state) {
         state->highSeqno = info.updateSeqNum;
         state->purgeSeqno = info.purgeSeqNum;
-        cachedDeleteCount[getCacheSlot(vbid)] = info.deletedCount;
         state->onDiskPrepares = prepareStats.onDiskPrepares;
         state->setOnDiskPrepareBytes(prepareStats.onDiskPrepareBytes);
         cachedOnDiskPrepareSize[getCacheSlot(vbid)] =
@@ -2077,9 +2074,7 @@ bool CouchKVStore::writeVBucketState(Vbid vbucketId,
         return false;
     }
 
-    const auto info = cb::couchstore::getHeader(*db);
-    cachedSpaceUsed[getCacheSlot(vbucketId)] = info.spaceUsed;
-    cachedFileSize[getCacheSlot(vbucketId)] = info.fileSize;
+    readHeaderAndUpdateCache(*db, vbucketId);
 
     return true;
 }
@@ -3229,10 +3224,7 @@ couchstore_error_t CouchKVStore::saveDocs(
     }
 
     // retrieve storage system stats for file fragmentation computation
-    const auto info = cb::couchstore::getHeader(*db);
-    cachedSpaceUsed[getCacheSlot(vbid)] = info.spaceUsed;
-    cachedFileSize[getCacheSlot(vbid)] = info.fileSize;
-    cachedDeleteCount[getCacheSlot(vbid)] = info.deletedCount;
+    const auto info = readHeaderAndUpdateCache(*db, vbid);
     cachedOnDiskPrepareSize[getCacheSlot(vbid)] = state.getOnDiskPrepareBytes();
 
     // Check seqno if we wrote documents
@@ -3311,7 +3303,7 @@ CouchKVStore::ReadVBStateResult CouchKVStore::readVBState(Db* db,
     // by couchstore.
     int64_t highSeqno = 0;
     uint64_t purgeSeqno = 0;
-    const auto info = cb::couchstore::getHeader(*db);
+    const auto info = readHeaderAndUpdateCache(*db, vbId);
     highSeqno = info.updateSeqNum;
     purgeSeqno = info.purgeSeqNum;
 
@@ -3439,6 +3431,15 @@ CouchKVStore::ReadVBStateResult CouchKVStore::readVBStateAndUpdateCache(
                 std::make_unique<vbucket_state>(res.state);
     }
     return res;
+}
+
+cb::couchstore::Header CouchKVStore::readHeaderAndUpdateCache(Db& db,
+                                                              Vbid vbid) const {
+    auto info = cb::couchstore::getHeader(db);
+    cachedDeleteCount[getCacheSlot(vbid)] = info.deletedCount;
+    cachedFileSize[getCacheSlot(vbid)] = info.fileSize;
+    cachedSpaceUsed[getCacheSlot(vbid)] = info.spaceUsed;
+    return info;
 }
 
 std::string CouchKVStore::makeJsonVBState(const vbucket_state& vbState) {
