@@ -60,8 +60,10 @@ magma::Status MockMagmaKVStore::addLocalDoc(Vbid vbid,
     localDbReqs.emplace_back(MagmaLocalReq(key, std::move(value)));
 
     addLocalDbReqs(localDbReqs, writeOps);
-    auto ret = magma->WriteDocs(
-            vbid.get(), writeOps, kvstoreRevList[getCacheSlot(vbid)]);
+    auto ret = magma->WriteDocs(vbid.get(),
+                                writeOps,
+                                kvstoreRevList[getCacheSlot(vbid)],
+                                magma::Magma::HistoryMode::Disabled);
 
     magma->Sync(true);
 
@@ -75,8 +77,10 @@ magma::Status MockMagmaKVStore::deleteLocalDoc(Vbid vbid,
     localDbReqs.emplace_back(MagmaLocalReq::makeDeleted(key));
 
     addLocalDbReqs(localDbReqs, writeOps);
-    auto ret = magma->WriteDocs(
-            vbid.get(), writeOps, kvstoreRevList[getCacheSlot(vbid)]);
+    auto ret = magma->WriteDocs(vbid.get(),
+                                writeOps,
+                                kvstoreRevList[getCacheSlot(vbid)],
+                                magma::Magma::HistoryMode::Disabled);
 
     magma->Sync(true);
 

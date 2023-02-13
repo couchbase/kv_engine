@@ -1582,9 +1582,9 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
     auto status = magma->WriteDocs(vbid.get(),
                                    writeOps,
                                    kvstoreRevList[getCacheSlot(vbid)],
+                                   historyMode,
                                    writeDocsCB,
-                                   postWriteDocsCB,
-                                   historyMode);
+                                   postWriteDocsCB);
 
     saveDocsPostWriteDocsHook();
 
@@ -2775,8 +2775,6 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
         status = magma->WriteDocs(vbid.get(),
                                   writeOps,
                                   kvstoreRevList[getCacheSlot(vbid)],
-                                  nullptr,
-                                  nullptr,
                                   historyMode);
         if (!status) {
             logger->critical(
@@ -3572,8 +3570,6 @@ Status MagmaKVStore::writeVBStateToDisk(Vbid vbid, const VB::Commit& meta) {
     auto status = magma->WriteDocs(vbid.get(),
                                    writeOps,
                                    kvstoreRevList[getCacheSlot(vbid)],
-                                   nullptr,
-                                   nullptr,
                                    toHistoryMode(meta.historical));
     if (!status) {
         ++st.numVbSetFailure;

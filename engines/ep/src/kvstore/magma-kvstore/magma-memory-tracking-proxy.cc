@@ -481,9 +481,9 @@ magma::Status MagmaMemoryTrackingProxy::WriteDocs(
         const magma::Magma::KVStoreID kvID,
         const std::vector<magma::Magma::WriteOperation>& docOperations,
         const magma::Magma::KVStoreRevision kvsRev,
+        const magma::Magma::HistoryMode historyMode,
         const magma::Magma::WriteDocsCallback docCallback,
-        const magma::Magma::PostWriteDocsCallback postCallback,
-        const magma::Magma::HistoryMode historyMode) {
+        const magma::Magma::PostWriteDocsCallback postCallback) {
     magma::Magma::WriteDocsCallback wrappedDocCallback = nullptr;
     magma::Magma::PostWriteDocsCallback wrappedPostCallback = nullptr;
 
