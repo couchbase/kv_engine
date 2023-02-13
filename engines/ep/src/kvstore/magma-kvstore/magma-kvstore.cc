@@ -3789,10 +3789,8 @@ std::pair<Status, uint64_t> MagmaKVStore::getOldestRollbackableHighSeqno(
 }
 
 void MagmaKVStore::setHistoryRetentionBytes(size_t bytes, size_t nVbuckets) {
-    // Need to know bytes per vbucket. However for simpler small-scale or unit
-    // testing just use the bytes directly.
-    auto vbucketBytes = bytes && nVbuckets > bytes ? bytes / nVbuckets : bytes;
-    magma->SetHistoryRetentionSize(vbucketBytes);
+    Expects(nVbuckets);
+    magma->SetHistoryRetentionSize(bytes / nVbuckets);
 }
 
 void MagmaKVStore::setHistoryRetentionSeconds(std::chrono::seconds seconds) {
