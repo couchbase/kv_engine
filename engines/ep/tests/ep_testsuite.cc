@@ -25,6 +25,7 @@
 #include "kvstore/storage_common/storage_common/local_doc_constants.h"
 #include "module_tests/thread_gate.h"
 #include <executor/executorpool.h>
+#include <fmt/format.h>
 #include <libcouchstore/couch_db.h>
 #include <memcached/engine.h>
 #include <memcached/engine_error.h>
@@ -315,13 +316,11 @@ static enum test_result test_shutdown_snapshot_range(EngineIface* h) {
 
     const int num_items = 100;
     for (int j = 0; j < num_items; ++j) {
-        std::stringstream ss;
-        ss << "key" << j;
         checkeq(cb::engine_errc::success,
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
-                      ss.str().c_str(),
+                      fmt::format("key{}", j),
                       "data"),
                 "Failed to store a value");
     }
@@ -2433,7 +2432,6 @@ static enum test_result test_bg_meta_stats(EngineIface* h) {
             "Expected bg_meta_fetched to be 1");
 
     // store new key with some random metadata
-    const size_t keylen = strlen("k3");
     ItemMetaData itemMeta;
     itemMeta.revSeqno = 10;
     itemMeta.cas = 0xdeadbeef;
@@ -2441,7 +2439,7 @@ static enum test_result test_bg_meta_stats(EngineIface* h) {
     itemMeta.flags = 0xdeadbeef;
 
     checkeq(cb::engine_errc::success,
-            add_with_meta(h, "k3", keylen, nullptr, 0, Vbid(0), &itemMeta),
+            add_with_meta(h, "k3", {}, Vbid(0), &itemMeta),
             "Expected to add item");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Set meta failed");
 
@@ -3109,14 +3107,7 @@ static enum test_result test_bloomfilters_with_store_apis(EngineIface* h) {
 
             const std::string key = "swm-" + std::to_string(j);
             checkeq(cb::engine_errc::success,
-                    set_with_meta(h,
-                                  key.data(),
-                                  key.size(),
-                                  "somevalue",
-                                  9,
-                                  Vbid(0),
-                                  &itm_meta,
-                                  0),
+                    set_with_meta(h, key, "somevalue", Vbid(0), &itm_meta, 0),
                     "Expected to store item");
         }
 
@@ -3258,9 +3249,7 @@ static enum test_result test_datatype(EngineIface* h) {
     checkeq(cb::engine_errc::success,
             set_with_meta(h,
                           key1,
-                          strlen(key1),
                           val1,
-                          strlen(val1),
                           Vbid(0),
                           &itm_meta,
                           last_cas,
@@ -3296,17 +3285,8 @@ static enum test_result test_datatype_with_unknown_command(EngineIface* h) {
 
     //SET_WITH_META
     checkeq(cb::engine_errc::success,
-            set_with_meta(h,
-                          key,
-                          strlen(key),
-                          val,
-                          strlen(val),
-                          Vbid(0),
-                          &itm_meta,
-                          0,
-                          0,
-                          datatype,
-                          cookie),
+            set_with_meta(
+                    h, key, val, Vbid(0), &itm_meta, 0, 0, datatype, cookie),
             "Expected to store item");
 
     auto ret = get(h, cookie, key, Vbid(0));
@@ -3320,17 +3300,7 @@ static enum test_result test_datatype_with_unknown_command(EngineIface* h) {
 
     //SET_RETURN_META
     checkeq(cb::engine_errc::success,
-            set_ret_meta(h,
-                         "foo1",
-                         4,
-                         val,
-                         strlen(val),
-                         Vbid(0),
-                         0,
-                         0,
-                         0,
-                         datatype,
-                         cookie),
+            set_ret_meta(h, "foo1", val, Vbid(0), 0, 0, 0, datatype, cookie),
             "Expected success");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
             "Expected set returing meta to succeed");
@@ -4585,9 +4555,7 @@ static enum test_result test_regression_mb4314(EngineIface* h) {
     checkeq(cb::engine_errc::success,
             set_with_meta(h,
                           "test_regression_mb4314",
-                          22,
-                          nullptr,
-                          0,
+                          {},
                           Vbid(0),
                           &itm_meta,
                           errorMetaPair.second.cas),
@@ -5058,7 +5026,7 @@ static enum test_result test_multiple_transactions(EngineIface* h) {
 static enum test_result test_set_ret_meta(EngineIface* h) {
     // Check that set without cas succeeds
     checkeq(cb::engine_errc::success,
-            set_ret_meta(h, "key", 3, "value", 5, Vbid(0), 0, 0, 0),
+            set_ret_meta(h, "key", "value", Vbid(0), 0, 0, 0),
             "Expected success");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Expected set returing meta to succeed");
@@ -5073,15 +5041,8 @@ static enum test_result test_set_ret_meta(EngineIface* h) {
 
     // Check that set with correct cas succeeds
     checkeq(cb::engine_errc::success,
-            set_ret_meta(h,
-                         "key",
-                         3,
-                         "value",
-                         5,
-                         Vbid(0),
-                         last_meta.cas,
-                         10,
-                         1735689600),
+            set_ret_meta(
+                    h, "key", "value", Vbid(0), last_meta.cas, 10, 1735689600),
             "Expected success");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Expected set returing meta to succeed");
@@ -5098,7 +5059,7 @@ static enum test_result test_set_ret_meta(EngineIface* h) {
 
     // Check that updating an item with no cas succeeds
     checkeq(cb::engine_errc::success,
-            set_ret_meta(h, "key", 3, "value", 5, Vbid(0), 0, 5, 0),
+            set_ret_meta(h, "key", "value", Vbid(0), 0, 5, 0),
             "Expected success");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Expected set returing meta to succeed");
@@ -5113,8 +5074,7 @@ static enum test_result test_set_ret_meta(EngineIface* h) {
 
     // Check that updating an item with the wrong cas fails
     checkeq(cb::engine_errc::key_already_exists,
-            set_ret_meta(
-                    h, "key", 3, "value", 5, Vbid(0), last_meta.cas + 1, 5, 0),
+            set_ret_meta(h, "key", "value", Vbid(0), last_meta.cas + 1, 5, 0),
             "Expected success");
     checkeq(3,
             get_int_stat(h, "ep_num_ops_set_ret_meta"),
@@ -5127,19 +5087,19 @@ static enum test_result test_set_ret_meta_error(EngineIface* h) {
     // Check tmp fail errors
     disable_traffic(h);
     checkeq(cb::engine_errc::temporary_failure,
-            set_ret_meta(h, "key", 3, "value", 5, Vbid(0)),
+            set_ret_meta(h, "key", "value", Vbid(0)),
             "Expected success");
     enable_traffic(h);
 
     // Check not my vbucket errors
     checkeq(cb::engine_errc::not_my_vbucket,
-            set_ret_meta(h, "key", 3, "value", 5, Vbid(1)),
+            set_ret_meta(h, "key", "value", Vbid(1)),
             "Expected NMVB");
 
     check(set_vbucket_state(h, Vbid(1), vbucket_state_replica),
           "Failed to set vbucket state.");
     checkeq(cb::engine_errc::not_my_vbucket,
-            set_ret_meta(h, "key", 3, "value", 5, Vbid(1)),
+            set_ret_meta(h, "key", "value", Vbid(1)),
             "Expected NMVB");
     checkeq(cb::engine_errc::success,
             vbucketDelete(h, Vbid(1)),
@@ -5148,7 +5108,7 @@ static enum test_result test_set_ret_meta_error(EngineIface* h) {
     check(set_vbucket_state(h, Vbid(1), vbucket_state_dead),
           "Failed to set vbucket state.");
     checkeq(cb::engine_errc::not_my_vbucket,
-            set_ret_meta(h, "key", 3, "value", 5, Vbid(1)),
+            set_ret_meta(h, "key", "value", Vbid(1)),
             "Expected NMVB");
     checkeq(cb::engine_errc::success,
             vbucketDelete(h, Vbid(1)),
@@ -5160,12 +5120,12 @@ static enum test_result test_set_ret_meta_error(EngineIface* h) {
 static enum test_result test_add_ret_meta(EngineIface* h) {
     // Check that add with cas fails
     checkeq(cb::engine_errc::not_stored,
-            add_ret_meta(h, "key", 3, "value", 5, Vbid(0), 10, 0, 0),
+            add_ret_meta(h, "key", "value", Vbid(0), 10, 0, 0),
             "Expected success");
 
     // Check that add without cas succeeds.
     checkeq(cb::engine_errc::success,
-            add_ret_meta(h, "key", 3, "value", 5, Vbid(0), 0, 0, 0),
+            add_ret_meta(h, "key", "value", Vbid(0), 0, 0, 0),
             "Expected success");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Expected set returing meta to succeed");
@@ -5180,12 +5140,12 @@ static enum test_result test_add_ret_meta(EngineIface* h) {
 
     // Check that re-adding a key fails
     checkeq(cb::engine_errc::not_stored,
-            add_ret_meta(h, "key", 3, "value", 5, Vbid(0), 0, 0, 0),
+            add_ret_meta(h, "key", "value", Vbid(0), 0, 0, 0),
             "Expected success");
 
     // Check that adding a key with flags and exptime returns the correct values
     checkeq(cb::engine_errc::success,
-            add_ret_meta(h, "key2", 4, "value", 5, Vbid(0), 0, 10, 1735689600),
+            add_ret_meta(h, "key2", "value", Vbid(0), 0, 10, 1735689600),
             "Expected success");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Expected set returing meta to succeed");
@@ -5207,19 +5167,19 @@ static enum test_result test_add_ret_meta_error(EngineIface* h) {
     // Check tmp fail errors
     disable_traffic(h);
     checkeq(cb::engine_errc::temporary_failure,
-            add_ret_meta(h, "key", 3, "value", 5, Vbid(0)),
+            add_ret_meta(h, "key", "value", Vbid(0)),
             "Expected success");
     enable_traffic(h);
 
     // Check not my vbucket errors
     checkeq(cb::engine_errc::not_my_vbucket,
-            add_ret_meta(h, "key", 3, "value", 5, Vbid(1)),
+            add_ret_meta(h, "key", "value", Vbid(1)),
             "Expected NMVB");
 
     check(set_vbucket_state(h, Vbid(1), vbucket_state_replica),
           "Failed to set vbucket state.");
     checkeq(cb::engine_errc::not_my_vbucket,
-            add_ret_meta(h, "key", 3, "value", 5, Vbid(1)),
+            add_ret_meta(h, "key", "value", Vbid(1)),
             "Expected NMVB");
     checkeq(cb::engine_errc::success,
             vbucketDelete(h, Vbid(1)),
@@ -5228,7 +5188,7 @@ static enum test_result test_add_ret_meta_error(EngineIface* h) {
     check(set_vbucket_state(h, Vbid(1), vbucket_state_dead),
           "Failed to add vbucket state.");
     checkeq(cb::engine_errc::not_my_vbucket,
-            add_ret_meta(h, "key", 3, "value", 5, Vbid(1)),
+            add_ret_meta(h, "key", "value", Vbid(1)),
             "Expected NMVB");
     checkeq(cb::engine_errc::success,
             vbucketDelete(h, Vbid(1)),
@@ -5240,17 +5200,17 @@ static enum test_result test_add_ret_meta_error(EngineIface* h) {
 static enum test_result test_del_ret_meta(EngineIface* h) {
     // Check that deleting a non-existent key fails
     checkeq(cb::engine_errc::no_such_key,
-            del_ret_meta(h, "key", 3, Vbid(0), 0),
+            del_ret_meta(h, "key", Vbid(0), 0),
             "Expected success");
 
     // Check that deleting a non-existent key with a cas fails
     checkeq(cb::engine_errc::no_such_key,
-            del_ret_meta(h, "key", 3, Vbid(0), 10),
+            del_ret_meta(h, "key", Vbid(0), 10),
             "Expeced success");
 
     // Check that deleting a key with no cas succeeds
     checkeq(cb::engine_errc::success,
-            add_ret_meta(h, "key", 3, "value", 5, Vbid(0), 0, 0, 0),
+            add_ret_meta(h, "key", "value", Vbid(0), 0, 0, 0),
             "Expected success");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Expected set returing meta to succeed");
@@ -5261,7 +5221,7 @@ static enum test_result test_del_ret_meta(EngineIface* h) {
     checkeq(cb::uint48_t{1}, last_meta.revSeqno, "Invalid result for seqno");
 
     checkeq(cb::engine_errc::success,
-            del_ret_meta(h, "key", 3, Vbid(0), 0),
+            del_ret_meta(h, "key", Vbid(0), 0),
             "Expected success");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Expected set returing meta to succeed");
@@ -5276,7 +5236,7 @@ static enum test_result test_del_ret_meta(EngineIface* h) {
 
     // Check that deleting a key with a cas succeeds.
     checkeq(cb::engine_errc::success,
-            add_ret_meta(h, "key", 3, "value", 5, Vbid(0), 0, 10, 1735689600),
+            add_ret_meta(h, "key", "value", Vbid(0), 0, 10, 1735689600),
             "Expected success");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Expected set returing meta to succeed");
@@ -5289,7 +5249,7 @@ static enum test_result test_del_ret_meta(EngineIface* h) {
     checkeq(cb::uint48_t{3}, last_meta.revSeqno, "Invalid result for seqno");
 
     checkeq(cb::engine_errc::success,
-            del_ret_meta(h, "key", 3, Vbid(0), last_meta.cas),
+            del_ret_meta(h, "key", Vbid(0), last_meta.cas),
             "Expected success");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Expected set returing meta to succeed");
@@ -5306,7 +5266,7 @@ static enum test_result test_del_ret_meta(EngineIface* h) {
 
     // Check that deleting a key with the wrong cas fails
     checkeq(cb::engine_errc::success,
-            add_ret_meta(h, "key", 3, "value", 5, Vbid(0), 0, 0, 0),
+            add_ret_meta(h, "key", "value", Vbid(0), 0, 0, 0),
             "Expected success");
     checkeq(cb::mcbp::Status::Success, last_status.load(),
           "Expected set returing meta to succeed");
@@ -5317,7 +5277,7 @@ static enum test_result test_del_ret_meta(EngineIface* h) {
     checkeq(cb::uint48_t{5}, last_meta.revSeqno, "Invalid result for seqno");
 
     checkeq(cb::engine_errc::key_already_exists,
-            del_ret_meta(h, "key", 3, Vbid(0), last_meta.cas + 1),
+            del_ret_meta(h, "key", Vbid(0), last_meta.cas + 1),
             "Expected success");
     checkeq(2,
             get_int_stat(h, "ep_num_ops_del_ret_meta"),
@@ -5330,19 +5290,19 @@ static enum test_result test_del_ret_meta_error(EngineIface* h) {
     // Check tmp fail errors
     disable_traffic(h);
     checkeq(cb::engine_errc::temporary_failure,
-            del_ret_meta(h, "key", 3, Vbid(0)),
+            del_ret_meta(h, "key", Vbid(0)),
             "Expected success");
     enable_traffic(h);
 
     // Check not my vbucket errors
     checkeq(cb::engine_errc::not_my_vbucket,
-            del_ret_meta(h, "key", 3, Vbid(1), 0, nullptr),
+            del_ret_meta(h, "key", Vbid(1), 0, nullptr),
             "Expected NMVB");
 
     check(set_vbucket_state(h, Vbid(1), vbucket_state_replica),
           "Failed to set vbucket state.");
     checkeq(cb::engine_errc::not_my_vbucket,
-            del_ret_meta(h, "key", 3, Vbid(1), 0, nullptr),
+            del_ret_meta(h, "key", Vbid(1), 0, nullptr),
             "Expected NMVB");
     checkeq(cb::engine_errc::success,
             vbucketDelete(h, Vbid(1)),
@@ -5351,7 +5311,7 @@ static enum test_result test_del_ret_meta_error(EngineIface* h) {
     check(set_vbucket_state(h, Vbid(1), vbucket_state_dead),
           "Failed to add vbucket state.");
     checkeq(cb::engine_errc::not_my_vbucket,
-            del_ret_meta(h, "key", 3, Vbid(1), 0, nullptr),
+            del_ret_meta(h, "key", Vbid(1), 0, nullptr),
             "Expected NMVB");
     checkeq(cb::engine_errc::success,
             vbucketDelete(h, Vbid(1)),
@@ -5374,11 +5334,9 @@ static enum test_result test_set_with_item_eviction(EngineIface* h) {
 }
 
 static enum test_result test_setWithMeta_with_item_eviction(EngineIface* h) {
-    const char* key = "set_with_meta_key";
-    size_t keylen = strlen(key);
-    const char* val = "somevalue";
-    const char* newVal = "someothervalue";
-    size_t newValLen = strlen(newVal);
+    std::string_view key = "set_with_meta_key";
+    std::string_view val = "somevalue";
+    std::string_view newVal = "someothervalue";
 
     // create a new key
     checkeq(cb::engine_errc::success,
@@ -5398,14 +5356,7 @@ static enum test_result test_setWithMeta_with_item_eviction(EngineIface* h) {
 
     // set with meta for a non-resident item should pass.
     checkeq(cb::engine_errc::success,
-            set_with_meta(h,
-                          key,
-                          keylen,
-                          newVal,
-                          newValLen,
-                          Vbid(0),
-                          &itm_meta,
-                          cas_for_set),
+            set_with_meta(h, key, newVal, Vbid(0), &itm_meta, cas_for_set),
             "Expected to store item");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
@@ -5432,14 +5383,7 @@ static enum test_result test_multiple_set_delete_with_metas_full_eviction(
     for (int ii = 0; ii < 1000; ++ii) {
         std::string key = "key" + std::to_string(ii);
         checkeq(cb::engine_errc::success,
-                set_with_meta(h,
-                              key.data(),
-                              key.size(),
-                              "somevalue",
-                              9,
-                              Vbid(0),
-                              &itm_meta,
-                              0),
+                set_with_meta(h, key, "somevalue", Vbid(0), &itm_meta, 0),
                 "Expected to store item");
     }
 
@@ -5461,14 +5405,8 @@ static enum test_result test_multiple_set_delete_with_metas_full_eviction(
         for (int ii = 0; ii < 100; ii++) {
             std::string key = "key" + std::to_string(ii);
             checkeq(cb::engine_errc::success,
-                    set_with_meta(h,
-                                  key.data(),
-                                  key.size(),
-                                  "somevalueEdited",
-                                  15,
-                                  Vbid(0),
-                                  &itm_meta,
-                                  0),
+                    set_with_meta(
+                            h, key, "somevalueEdited", Vbid(0), &itm_meta, 0),
                     "Expected to modify the item");
             checkeq(cb::mcbp::Status::Success,
                     last_status.load(),
@@ -5480,8 +5418,7 @@ static enum test_result test_multiple_set_delete_with_metas_full_eviction(
         for (int ii = curr_vb_items - 100; ii < curr_vb_items; ii++) {
             std::string key = "key" + std::to_string(ii);
             checkeq(cb::engine_errc::success,
-                    del_with_meta(
-                            h, key.data(), key.size(), Vbid(0), &itm_meta, 0),
+                    del_with_meta(h, key, Vbid(0), &itm_meta, 0),
                     "Expected to delete the item");
             checkeq(cb::mcbp::Status::Success,
                     last_status.load(),
@@ -5594,8 +5531,7 @@ static enum test_result test_keyStats_with_item_eviction(EngineIface* h) {
 }
 
 static enum test_result test_delWithMeta_with_item_eviction(EngineIface* h) {
-    const char *key = "delete_with_meta_key";
-    const size_t keylen = strlen(key);
+    const std::string_view key = "delete_with_meta_key";
     ItemMetaData itemMeta;
     // put some random meta data
     itemMeta.revSeqno = 10;
@@ -5612,7 +5548,7 @@ static enum test_result test_delWithMeta_with_item_eviction(EngineIface* h) {
 
     // delete an item with meta data
     checkeq(cb::engine_errc::success,
-            del_with_meta(h, key, keylen, Vbid(0), &itemMeta),
+            del_with_meta(h, key, Vbid(0), &itemMeta),
             "Expected delete success");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 

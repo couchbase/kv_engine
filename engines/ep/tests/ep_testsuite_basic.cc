@@ -271,11 +271,7 @@ static enum test_result test_set(EngineIface* h) {
 
             std::string err_str_store("Error setting " + k);
             checkeq(cb::engine_errc::success,
-                    store(h,
-                          nullptr,
-                          StoreSemantics::Set,
-                          k.c_str(),
-                          "somevalue"),
+                    store(h, nullptr, StoreSemantics::Set, k, "somevalue"),
                     err_str_store.c_str());
 
             std::string err_str_get_item_info("Error getting " + k);
@@ -375,7 +371,7 @@ extern "C" {
                     store(msa->h,
                           nullptr,
                           StoreSemantics::Set,
-                          key.c_str(),
+                          key,
                           "somevalue"),
                     "Set failure!");
         }
@@ -476,9 +472,7 @@ static enum test_result test_getl_set_del_with_meta(EngineIface* h) {
     checkeq(cb::engine_errc::locked,
             set_with_meta(h,
                           key,
-                          strlen(key),
                           newval,
-                          strlen(newval),
                           Vbid(0),
                           &itm_meta,
                           errorMetaPair.second.cas),
@@ -486,7 +480,7 @@ static enum test_result test_getl_set_del_with_meta(EngineIface* h) {
 
     //do a del with meta
     checkeq(cb::engine_errc::locked_tmpfail,
-            del_with_meta(h, key, strlen(key), Vbid(0), &itm_meta, last_cas),
+            del_with_meta(h, key, Vbid(0), &itm_meta, last_cas),
             "Expected item to be locked");
     return SUCCESS;
 }
@@ -1983,7 +1977,7 @@ static test_result get_if(EngineIface* h) {
     const std::string key("get_if");
 
     checkeq(cb::engine_errc::success,
-            store(h, nullptr, StoreSemantics::Set, key.c_str(), "somevalue"),
+            store(h, nullptr, StoreSemantics::Set, key, "somevalue"),
             "Failed set.");
 
     if (isPersistentBucket(h)) {
@@ -2152,14 +2146,7 @@ static test_result max_ttl_setWithMeta(EngineIface* h) {
     // SWM with 0 expiry which results in an expiry being set
     ItemMetaData itemMeta(0xdeadbeef, 10, 0xf1a95, 0 /*expiry*/);
     checkeq(cb::engine_errc::success,
-            set_with_meta(h,
-                          keyAbs.c_str(),
-                          keyAbs.size(),
-                          keyAbs.c_str(),
-                          keyAbs.size(),
-                          Vbid(0),
-                          &itemMeta,
-                          0 /*cas*/),
+            set_with_meta(h, keyAbs, keyAbs, Vbid(0), &itemMeta, 0 /*cas*/),
             "Expected to store item");
 
     cb::EngineErrorMetadataPair errorMetaPair;
@@ -2187,14 +2174,7 @@ static test_result max_ttl_setWithMeta(EngineIface* h) {
             "max_ttl didn't change");
 
     checkeq(cb::engine_errc::success,
-            set_with_meta(h,
-                          keyRel.c_str(),
-                          keyRel.size(),
-                          keyRel.c_str(),
-                          keyRel.size(),
-                          Vbid(0),
-                          &itemMeta,
-                          0 /*cas*/),
+            set_with_meta(h, keyRel, keyRel, Vbid(0), &itemMeta, 0 /*cas*/),
             "Expected to store item");
 
     check(get_meta(h, keyRel.c_str(), errorMetaPair), "Get meta failed");

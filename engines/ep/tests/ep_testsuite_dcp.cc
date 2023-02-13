@@ -23,6 +23,7 @@
 #include "mock/mock_dcp.h"
 
 #include <executor/executorpool.h>
+#include <fmt/format.h>
 #include <nlohmann/json.hpp>
 #include <platform/cb_malloc.h>
 #include <platform/cbassert.h>
@@ -528,7 +529,7 @@ void TestDcpConsumer::run(bool openConn) {
                                 store(h,
                                       nullptr,
                                       StoreSemantics::Set,
-                                      key.c_str(),
+                                      key,
                                       "data",
                                       nullptr,
                                       0,
@@ -1234,7 +1235,7 @@ extern "C" {
                     store(wtc->h,
                           nullptr,
                           StoreSemantics::Set,
-                          key.c_str(),
+                          key,
                           "somevalue",
                           nullptr,
                           0,
@@ -2295,10 +2296,11 @@ static enum test_result test_dcp_producer_stream_req_dgm(EngineIface* h) {
             }
         }
 
-        std::stringstream ss;
-        ss << "key" << i;
-        cb::engine_errc ret = store(
-                h, cookie, StoreSemantics::Set, ss.str().c_str(), "somevalue");
+        const auto ret = store(h,
+                               cookie,
+                               StoreSemantics::Set,
+                               fmt::format("key{}", i),
+                               "somevalue");
         if (ret == cb::engine_errc::success) {
             i++;
         }
@@ -2346,9 +2348,11 @@ static enum test_result test_dcp_producer_stream_req_coldness(EngineIface* h) {
     auto* cookie = testHarness->create_cookie(h);
 
     for (int ii = 0; ii < 10; ii++) {
-        std::stringstream ss;
-        ss << "key" << ii;
-        store(h, cookie, StoreSemantics::Set, ss.str().c_str(), "somevalue");
+        store(h,
+              cookie,
+              StoreSemantics::Set,
+              fmt::format("key{}", ii),
+              "somevalue");
     }
 
     wait_for_flusher_to_settle(h);
@@ -2715,9 +2719,12 @@ static enum test_result test_dcp_producer_stream_cursor_movement(
         if (j % 10 == 0) {
             wait_for_flusher_to_settle(h);
         }
-        std::string key("key" + std::to_string(j));
         checkeq(cb::engine_errc::success,
-                store(h, nullptr, StoreSemantics::Set, key.c_str(), "data"),
+                store(h,
+                      nullptr,
+                      StoreSemantics::Set,
+                      fmt::format("key{}", j),
+                      "data"),
                 "Failed to store a value");
     }
 
@@ -3871,13 +3878,11 @@ static enum test_result test_chk_manager_rollback(EngineIface* h) {
     stop_persistence(h);
 
     for (int j = 0; j < num_items / 2; ++j) {
-        std::stringstream ss;
-        ss << "key" << (j + num_items);
         checkeq(cb::engine_errc::success,
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
-                      ss.str().c_str(),
+                      fmt::format("key{}", j + num_items),
                       "data"),
                 "Failed to store a value");
     }
@@ -5744,8 +5749,7 @@ static enum test_result test_dcp_replica_stream_expiry_disabled(
  */
 static test_result test_stream_deleteWithMeta_expiration(
         EngineIface* h, EnableExpiryOutput enableExpiryOutput) {
-    const char* key = "delete_with_meta_key";
-    const size_t keylen = strlen(key);
+    const std::string_view key = "delete_with_meta_key";
     ItemMetaData itemMeta;
     itemMeta.revSeqno = 10;
     itemMeta.cas = 0x1;
@@ -5770,7 +5774,7 @@ static test_result test_stream_deleteWithMeta_expiration(
 
     // delete an item with meta data indicating expiration
     checkeq(cb::engine_errc::success,
-            del_with_meta(h, key, keylen, Vbid(0), &itemMeta, 0, IS_EXPIRATION),
+            del_with_meta(h, key, Vbid(0), &itemMeta, 0, IS_EXPIRATION),
             "Expected delete success");
     checkeq(cb::mcbp::Status::Success, last_status.load(), "Expected success");
 
@@ -6955,7 +6959,7 @@ static enum test_result test_dcp_multiple_streams(EngineIface* h) {
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
-                      key.c_str(),
+                      key,
                       "data",
                       nullptr,
                       0,
@@ -6967,7 +6971,7 @@ static enum test_result test_dcp_multiple_streams(EngineIface* h) {
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
-                      key.c_str(),
+                      key,
                       "data",
                       nullptr,
                       0,
@@ -7261,7 +7265,7 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
                     store(h,
                           cookie,
                           StoreSemantics::Set,
-                          key.c_str(),
+                          key,
                           "value",
                           nullptr,
                           0,
@@ -7413,13 +7417,11 @@ static enum test_result test_mb19153(EngineIface* h) {
     int num_items = 10000;
 
     for (int j = 0; j < num_items; ++j) {
-        std::stringstream ss;
-        ss << "key-" << j;
         checkeq(cb::engine_errc::success,
                 store(h,
                       nullptr,
                       StoreSemantics::Set,
-                      ss.str().c_str(),
+                      fmt::format("key-{}", j),
                       "data"),
                 "Failed to store a value");
     }

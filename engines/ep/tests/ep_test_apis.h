@@ -170,13 +170,13 @@ void decayingSleep(std::chrono::microseconds* sleepTime);
 
 // Basic Operations
 cb::engine_errc del(EngineIface* h,
-                    const char* key,
+                    std::string_view key,
                     uint64_t cas,
                     Vbid vbucket,
                     CookieIface* cookie = nullptr);
 
 cb::engine_errc del(EngineIface* h,
-                    const char* key,
+                    std::string_view key,
                     uint64_t* cas,
                     Vbid vbucket,
                     CookieIface* cookie,
@@ -189,29 +189,29 @@ cb::engine_errc delete_with_value(
         EngineIface* h,
         CookieIface* cookie,
         uint64_t cas,
-        const char* key,
+        std::string_view key,
         std::string_view value,
         cb::mcbp::Datatype datatype = cb::mcbp::Datatype::Raw);
 
 void disable_traffic(EngineIface* h);
 void enable_traffic(EngineIface* h);
 void evict_key(EngineIface* h,
-               const char* key,
+               std::string_view key,
                Vbid vbucketId = Vbid(0),
                const char* msg = nullptr,
                bool expectError = false);
 cb::EngineErrorItemPair gat(EngineIface* h,
-                            const char* key,
+                            std::string_view key,
                             Vbid vb,
                             uint32_t exp);
 bool get_item_info(EngineIface* h,
                    item_info* info,
-                   const char* key,
+                   std::string_view key,
                    Vbid vb = Vbid(0));
 
 cb::EngineErrorItemPair getl(EngineIface* h,
                              CookieIface* cookie,
-                             const char* key,
+                             std::string_view key,
                              Vbid vb,
                              uint32_t lock_timeout);
 
@@ -255,8 +255,8 @@ cb::engine_errc store(
         EngineIface* h,
         CookieIface* cookie,
         StoreSemantics op,
-        const char* key,
-        const char* value,
+        std::string_view key,
+        std::string_view value,
         ItemIface** outitem = nullptr,
         uint64_t casIn = 0,
         Vbid vb = Vbid(0),
@@ -267,7 +267,7 @@ cb::engine_errc store(
 
 cb::EngineErrorItemPair allocate(EngineIface* h,
                                  CookieIface* cookie,
-                                 const std::string& key,
+                                 std::string_view key,
                                  size_t nbytes,
                                  int flags,
                                  rel_time_t exptime,
@@ -277,7 +277,7 @@ cb::EngineErrorItemPair allocate(EngineIface* h,
 cb::EngineErrorItemPair get(
         EngineIface* h,
         CookieIface* cookie,
-        const std::string& key,
+        std::string_view key,
         Vbid vb,
         DocStateFilter documentStateFilter = DocStateFilter::Alive);
 
@@ -287,8 +287,8 @@ cb::EngineErrorItemPair get(
 cb::engine_errc storeCasOut(EngineIface* h,
                             CookieIface* cookie,
                             Vbid vb,
-                            const std::string& key,
-                            const std::string& value,
+                            std::string_view key,
+                            std::string_view value,
                             protocol_binary_datatype_t datatype,
                             ItemIface*& out_item,
                             uint64_t& out_cas,
@@ -298,7 +298,7 @@ cb::EngineErrorItemPair storeCasVb11(
         EngineIface* h,
         CookieIface* cookie,
         StoreSemantics op,
-        const char* key,
+        std::string_view key,
         const char* value,
         size_t vlen,
         uint32_t flags,
@@ -311,19 +311,22 @@ cb::EngineErrorItemPair storeCasVb11(
 
 cb::engine_errc replace(EngineIface* h,
                         CookieIface* cookie,
-                        const char* key,
+                        std::string_view key,
                         const char* value,
                         uint32_t flags,
                         Vbid vb);
 
-cb::engine_errc touch(EngineIface* h, const char* key, Vbid vb, uint32_t exp);
+cb::engine_errc touch(EngineIface* h,
+                      std::string_view key,
+                      Vbid vb,
+                      uint32_t exp);
 cb::engine_errc unl(EngineIface* h,
                     CookieIface* cookie,
-                    const char* key,
+                    std::string_view key,
                     Vbid vb,
                     uint64_t cas = 0);
 cb::engine_errc verify_key(EngineIface* h,
-                           const char* key,
+                           std::string_view key,
                            Vbid vbucket = Vbid(0));
 
 /**
@@ -332,7 +335,7 @@ cb::engine_errc verify_key(EngineIface* h,
  */
 std::pair<cb::engine_errc, std::string> get_value(EngineIface* h,
                                                   CookieIface* cookie,
-                                                  const char* key,
+                                                  std::string_view key,
                                                   Vbid vbucket,
                                                   DocStateFilter state);
 
@@ -469,7 +472,7 @@ void wait_for_flusher_to_settle(EngineIface* h);
 void wait_for_item_compressor_to_settle(EngineIface* h);
 void wait_for_rollback_to_finish(EngineIface* h);
 void wait_for_persisted_value(EngineIface* h,
-                              const char* key,
+                              std::string_view key,
                               const char* val,
                               Vbid vbucketId = Vbid(0));
 
@@ -500,18 +503,18 @@ void compact_db(EngineIface* h,
                 const uint64_t purge_before_seq,
                 const uint8_t drop_deletes);
 
-bool get_meta(EngineIface* h, const char* key, CookieIface* cookie = nullptr);
+bool get_meta(EngineIface* h,
+              std::string_view key,
+              CookieIface* cookie = nullptr);
 
 bool get_meta(EngineIface* h,
-              const char* key,
+              std::string_view key,
               cb::EngineErrorMetadataPair& out,
               CookieIface* cookie = nullptr);
 
 cb::engine_errc set_with_meta(EngineIface* h,
-                              const char* key,
-                              const size_t keylen,
-                              const char* val,
-                              const size_t vallen,
+                              std::string_view key,
+                              std::string_view value,
                               const Vbid vb,
                               ItemMetaData* itemMeta,
                               uint64_t cas_for_set,
@@ -519,12 +522,9 @@ cb::engine_errc set_with_meta(EngineIface* h,
                               uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES,
                               CookieIface* cookie = nullptr,
                               const std::vector<char>& nmeta = {});
-
 cb::engine_errc add_with_meta(EngineIface* h,
-                              const char* key,
-                              const size_t keylen,
-                              const char* val,
-                              const size_t vallen,
+                              std::string_view key,
+                              std::string_view value,
                               const Vbid vb,
                               ItemMetaData* itemMeta,
                               uint64_t cas_for_add = 0,
@@ -532,11 +532,9 @@ cb::engine_errc add_with_meta(EngineIface* h,
                               uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES,
                               CookieIface* cookie = nullptr,
                               const std::vector<char>& nmeta = {});
-
 cb::engine_errc del_with_meta(
         EngineIface* h,
-        const char* key,
-        const size_t keylen,
+        std::string_view key,
         const Vbid vb,
         ItemMetaData* itemMeta,
         uint64_t cas_for_delete = 0,
@@ -549,8 +547,7 @@ cb::engine_errc del_with_meta(
 // This version takes a RawItemMetaData allowing for 64-bit rev-seqno tests
 cb::engine_errc del_with_meta(
         EngineIface* h,
-        const char* key,
-        const size_t keylen,
+        std::string_view key,
         const Vbid vb,
         RawItemMetaData* itemMeta,
         uint64_t cas_for_delete = 0,
@@ -561,10 +558,8 @@ cb::engine_errc del_with_meta(
         const std::vector<char>& value = {} /*optional value*/);
 
 cb::engine_errc set_ret_meta(EngineIface* h,
-                             const char* key,
-                             const size_t keylen,
-                             const char* val,
-                             const size_t vallen,
+                             std::string_view key,
+                             std::string_view value,
                              const Vbid vb,
                              const uint64_t cas = 0,
                              const uint32_t flags = 0,
@@ -573,10 +568,8 @@ cb::engine_errc set_ret_meta(EngineIface* h,
                              CookieIface* cookie = nullptr);
 
 cb::engine_errc add_ret_meta(EngineIface* h,
-                             const char* key,
-                             const size_t keylen,
-                             const char* val,
-                             const size_t vallen,
+                             std::string_view key,
+                             std::string_view value,
                              const Vbid vb,
                              const uint64_t cas = 0,
                              const uint32_t flags = 0,
@@ -585,14 +578,13 @@ cb::engine_errc add_ret_meta(EngineIface* h,
                              CookieIface* cookie = nullptr);
 
 cb::engine_errc del_ret_meta(EngineIface* h,
-                             const char* key,
-                             const size_t keylen,
+                             std::string_view key,
                              const Vbid vb,
                              const uint64_t cas = 0,
                              CookieIface* cookie = nullptr);
 
 // Fetches the CAS of the specified key.
-uint64_t get_CAS(EngineIface* h, const std::string& key);
+uint64_t get_CAS(EngineIface* h, std::string_view key);
 
 /**
  * Helper function to write unique "num_items" starting from {key_prefix}XX,
@@ -619,7 +611,7 @@ void write_items(EngineIface* h,
 int write_items_upto_mem_perc(EngineIface* h,
                               int mem_thresh_perc,
                               int start_seqno = 0,
-                              const char* key_prefix = "key",
+                              std::string_view key_prefix = "key",
                               const char* value = "data");
 
 template <typename T>
