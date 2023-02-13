@@ -217,7 +217,7 @@ public:
     magma::Status WriteDocs(
             const magma::Magma::KVStoreID kvID,
             const std::vector<magma::Magma::WriteOperation>& docOperations,
-            const magma::Magma::KVStoreRevision kvsRev = 1,
+            const magma::Magma::KVStoreRevision kvsRev,
             const magma::Magma::WriteDocsCallback docCallback = nullptr,
             const magma::Magma::PostWriteDocsCallback postCallback = nullptr,
             const magma::Magma::HistoryMode historyMode =
