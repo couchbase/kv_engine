@@ -14,6 +14,8 @@
 #include <fmt/ostream.h>
 #include <getopt.h>
 #include <nlohmann/json.hpp>
+#include <prometheus/metric_type.h>
+#include <statistics/units.h>
 #include <fstream>
 #include <iostream>
 #include <optional>
@@ -21,8 +23,6 @@
 #include <set>
 #include <stdexcept>
 #include <unordered_map>
-
-#include <prometheus/metric_type.h>
 
 namespace prometheus {
 // inject json deserialisation def as it needs to be in the same namespace
@@ -297,20 +297,84 @@ nlohmann::json readJsonFile(const char* filename) {
     }
 }
 
+void addDocumentation(const Spec& spec,
+                      const nlohmann::json& statJson,
+                      nlohmann::json& documentation) {
+    if (!spec.prometheusEnabled) {
+        return;
+    }
+    // begin building json representation matching the format
+    // documentation requires
+
+    // documentation specification does not allow for untyped metrics.
+    // If a type has not been provided, assume a gauge - this is the
+    // most generic option.
+    auto type = spec.type == prometheus::MetricType::Untyped
+                        ? prometheus::MetricType::Gauge
+                        : spec.type;
+
+    using namespace nlohmann;
+    json statDoc{{"type", type}, {"help", statJson.value("description", "")}};
+
+    if (auto itr = statJson.find("stability"); itr != statJson.end()) {
+        statDoc["stability"] = itr.value();
+    }
+
+    if (auto itr = statJson.find("added"); itr != statJson.end()) {
+        statDoc["added"] = itr.value();
+    }
+
+    if (statJson.contains("/prometheus/labels"_json_pointer)) {
+        auto labels = json::array();
+        for (const auto& elem :
+             statJson["/prometheus/labels"_json_pointer].items()) {
+            labels.push_back(elem.key());
+        }
+
+        if (!labels.empty()) {
+            statDoc["labels"] = std::move(labels);
+        }
+    }
+
+    // work out the full name
+    // TODO: This duplicates logic done in StatDef, but that is
+    // used in memcached itself, not here for code generation.
+    // consider whether this can be consolidated.
+    std::string_view suffix;
+    if (!spec.unit.empty() && spec.unit != "none") {
+        auto unit = cb::stats::Unit::from_string(spec.unit);
+        auto baseUnitStr = to_string(unit.getBaseUnit());
+        suffix = unit.getSuffix();
+        statDoc["unit"] = baseUnitStr;
+    }
+    auto name =
+            "kv_" + (spec.prometheus.family.empty() ? spec.enumKey
+                                                    : spec.prometheus.family);
+    name += suffix;
+
+    statDoc["enumKey"] = spec.enumKey;
+
+    documentation[name] = std::move(statDoc);
+}
+
 int main(int argc, char** argv) {
     int cmd;
     const char* statjsonfile = nullptr;
     const char* configjsonfile = nullptr;
+    const char* docoutputjsonfile = nullptr;
     const char* hfile = nullptr;
     const char* cfile = nullptr;
 
-    while ((cmd = getopt(argc, argv, "j:C:c:h:")) != -1) {
+    while ((cmd = getopt(argc, argv, "j:C:d:c:h:")) != -1) {
         switch (cmd) {
         case 'j':
             statjsonfile = optarg;
             break;
         case 'C':
             configjsonfile = optarg;
+            break;
+        case 'd':
+            docoutputjsonfile = optarg;
             break;
         case 'c':
             cfile = optarg;
@@ -324,7 +388,7 @@ int main(int argc, char** argv) {
     }
 
     if (statjsonfile == nullptr || configjsonfile == nullptr ||
-        hfile == nullptr || cfile == nullptr) {
+        docoutputjsonfile == nullptr || hfile == nullptr || cfile == nullptr) {
         usage();
     }
 
@@ -333,6 +397,10 @@ int main(int argc, char** argv) {
 
     fmt::memory_buffer enumKeysBuf;
     fmt::memory_buffer statDefsBuf;
+
+    // json output with a structure common to all components for consumption
+    // by docs
+    nlohmann::json documentation;
 
     for (const auto& statJson : stats) {
         // parse fields from json
@@ -343,7 +411,21 @@ int main(int argc, char** argv) {
         fmt::format_to(std::back_inserter(enumKeysBuf), "{},\n", spec.enumKey);
         // format the whole stat def for the .cc
         fmt::format_to(std::back_inserter(statDefsBuf), "{},\n", spec);
+
+        addDocumentation(spec, statJson, documentation);
     }
+
+    // generate header, containing enum keys and definition array decl
+    std::ofstream docfile(docoutputjsonfile);
+    if (!docfile.is_open()) {
+        fmt::print(stderr,
+                   "Unable to create documentation JSON file:{}\n",
+                   docoutputjsonfile);
+        return 1;
+    }
+
+    docfile << documentation.dump(/* indent */ 4);
+    docfile.close();
 
     for (const auto& configParam : config.at("params").items()) {
         // config params use only the key currently, no units or description

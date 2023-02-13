@@ -30,6 +30,22 @@ enum class BaseUnit {
     Ratio,
 };
 
+inline std::string to_string(const BaseUnit& unit) {
+    switch (unit) {
+    case BaseUnit::None:
+        return "none";
+    case BaseUnit::Count:
+        return "count";
+    case BaseUnit::Seconds:
+        return "seconds";
+    case BaseUnit::Bytes:
+        return "bytes";
+    case BaseUnit::Ratio:
+        return "ratio";
+    }
+    folly::assume_unreachable();
+}
+
 /**
  * Type representing a unit (kilobytes, microseconds etc.).
  * This is encoded as a BaseUnit (see above) and a scaling factor stored as
@@ -76,6 +92,10 @@ public:
         return (value * numerator) / denominator;
     }
 
+    [[nodiscard]] constexpr BaseUnit getBaseUnit() const {
+        return baseUnit;
+    }
+
     [[nodiscard]] std::string_view getSuffix() const {
         using namespace std::string_view_literals;
         switch (baseUnit) {
@@ -91,6 +111,8 @@ public:
         }
         folly::assume_unreachable();
     }
+
+    static Unit from_string(const std::string& s);
 
 private:
     int64_t numerator;
@@ -130,4 +152,32 @@ constexpr Unit kilobytes{std::kilo{}, BaseUnit::Bytes};
 constexpr Unit megabytes{std::mega{}, BaseUnit::Bytes};
 constexpr Unit gigabytes{std::giga{}, BaseUnit::Bytes};
 } // namespace units
+
+inline Unit Unit::from_string(const std::string& s) {
+    using namespace units;
+#define X(unitname)       \
+    if (s == #unitname) { \
+        return unitname;  \
+    }
+    X(none)
+    X(count)
+    X(ratio)
+    X(percent)
+    X(nanoseconds)
+    X(microseconds)
+    X(milliseconds)
+    X(seconds)
+    X(minutes)
+    X(hours)
+    X(days)
+
+    X(bits)
+    X(bytes)
+    X(kilobytes)
+    X(megabytes)
+    X(gigabytes)
+#undef X
+
+    throw std::invalid_argument("Unknown unit: " + s);
+}
 } // namespace cb::stats

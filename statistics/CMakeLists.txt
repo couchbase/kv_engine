@@ -2,7 +2,8 @@ add_executable(genstats gen_stat_definitions.cc)
 target_link_libraries(genstats PRIVATE
         nlohmann_json::nlohmann_json
         fmt::fmt
-        prometheus-cpp::core)
+        prometheus-cpp::core
+        Folly::folly)
 kv_enable_pch(genstats)
 
 if (WIN32)
@@ -13,11 +14,13 @@ endif()
 ADD_CUSTOM_COMMAND(
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/src/generated_stats.cc
                ${CMAKE_CURRENT_BINARY_DIR}/src/generated_stats.h
+               ${CMAKE_CURRENT_BINARY_DIR}/metrics_metadata.json
         COMMAND
             ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/src
         COMMAND
             genstats -j ${CMAKE_CURRENT_SOURCE_DIR}/stat_definitions.json
                      -C ${Memcached_SOURCE_DIR}/engines/ep/configuration.json
+                     -d ${CMAKE_CURRENT_BINARY_DIR}/metrics_metadata.json
                      -h ${CMAKE_CURRENT_BINARY_DIR}/src/generated_stats.h
                      -c ${CMAKE_CURRENT_BINARY_DIR}/src/generated_stats.cc
         DEPENDS
