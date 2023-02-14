@@ -1,15 +1,15 @@
 PROJECT(Memcached LANGUAGES C CXX)
 
-INCLUDE(CheckCSourceCompiles)
-INCLUDE(CheckIncludeFiles)
-INCLUDE(CheckIncludeFileCXX)
-INCLUDE(CTest)
-INCLUDE(GenerateExportHeader)
+include(CheckCSourceCompiles)
+include(CheckIncludeFiles)
+include(CheckIncludeFileCXX)
+include(CTest)
+include(GenerateExportHeader)
 include(HeaderObjectLibrary)
 
-IF(COUCHBASE_KV_COMMIT_VALIDATION AND NOT CB_DEVELOPMENT_ASSERTS)
+if (COUCHBASE_KV_COMMIT_VALIDATION AND NOT CB_DEVELOPMENT_ASSERTS)
     message(FATAL_ERROR "CB_DEVELOPMENT_ASSERTS MUST have been enabled for KV_COMMIT_VALIDATION builds to ensure that tests are valid.")
-ENDIF(COUCHBASE_KV_COMMIT_VALIDATION AND NOT CB_DEVELOPMENT_ASSERTS)
+endif (COUCHBASE_KV_COMMIT_VALIDATION AND NOT CB_DEVELOPMENT_ASSERTS)
 
 # The test program expects to find the output files in
 # the root directory (that's how we built them earlier)
@@ -37,18 +37,18 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
 # re-linked.
 set(CMAKE_LINK_DEPENDS_NO_SHARED 1)
 
-IF (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
-    EXECUTE_PROCESS(COMMAND git log -1 --pretty=format:%H
-                    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-                    OUTPUT_VARIABLE MEMCACHED_VERSION
-                    ERROR_QUIET
-                    OUTPUT_STRIP_TRAILING_WHITESPACE)
-ENDIF (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
+if (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
+    execute_process(COMMAND git log -1 --pretty=format:%H
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            OUTPUT_VARIABLE MEMCACHED_VERSION
+            ERROR_QUIET
+            OUTPUT_STRIP_TRAILING_WHITESPACE)
+endif (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
 
-IF ("${MEMCACHED_VERSION}" STREQUAL "")
+if ("${MEMCACHED_VERSION}" STREQUAL "")
     string(TIMESTAMP _timestamp UTC)
     set(MEMCACHED_VERSION "unknown:${_timestamp}")
-ENDIF ("${MEMCACHED_VERSION}" STREQUAL "")
+endif ("${MEMCACHED_VERSION}" STREQUAL "")
 add_definitions(-DMEMCACHED_VERSION="${MEMCACHED_VERSION}")
 add_definitions(-DPRODUCT_VERSION="${PRODUCT_VERSION}")
 add_definitions(-DDESTINATION_ROOT="${CMAKE_INSTALL_PREFIX}")
@@ -58,37 +58,38 @@ add_definitions(-D_FILE_OFFSET_BITS=64)
 add_definitions(-DGOOGLE_GLOG_DLL_DECL=)
 
 if (WIN32)
-   # 'conversion' conversion from 'type1' to 'type2', possible loss of data
-   add_definitions(/wd4244)
-   # 'var' : conversion from 'size_t' to 'type', possible loss of data
-   add_definitions(/wd4267)
-endif()
+    # 'conversion' conversion from 'type1' to 'type2', possible loss of data
+    add_definitions(/wd4244)
+    # 'var' : conversion from 'size_t' to 'type', possible loss of data
+    add_definitions(/wd4267)
+endif ()
 
 include_directories(BEFORE
-                    ${CMAKE_CURRENT_SOURCE_DIR}/include
-                    ${CMAKE_CURRENT_SOURCE_DIR}
-                    ${CMAKE_CURRENT_BINARY_DIR}/include)
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_BINARY_DIR}/include)
 
 include_directories(AFTER SYSTEM
-                    ${phosphor_SOURCE_DIR}/include
-                    ${gsl_lite_SOURCE_DIR}/include
-                    ${LIBEVENT_INCLUDE_DIR}
-                    ${BOOST_INCLUDE_DIR})
+        ${phosphor_SOURCE_DIR}/include
+        ${gsl_lite_SOURCE_DIR}/include
+        ${LIBEVENT_INCLUDE_DIR}
+        ${BOOST_INCLUDE_DIR})
 
 if (WIN32)
     include_directories(BEFORE SYSTEM ${Platform_SOURCE_DIR}/include/win32)
 endif (WIN32)
 
-IF (MEMORY_ALLOCATOR)
+if (MEMORY_ALLOCATOR)
     include_directories(AFTER SYSTEM ${MALLOC_INCLUDE_DIR})
-ELSE (MEMORY_ALLOCATOR)
+else (MEMORY_ALLOCATOR)
     SET(MALLOC_LIBRARIES "")
-ENDIF (MEMORY_ALLOCATOR)
+endif (MEMORY_ALLOCATOR)
 
-IF (BREAKPAD_FOUND)
-    ADD_DEFINITIONS(-DHAVE_BREAKPAD)
-ENDIF (BREAKPAD_FOUND)
-IF (UNIX)
+if (BREAKPAD_FOUND)
+    add_definitions(-DHAVE_BREAKPAD)
+endif (BREAKPAD_FOUND)
+
+if (UNIX)
     # On Linux Breakpad unit test relies on examining the minidump -> core
     # file with GDB.
     find_program(GDB_EXECUTABLE gdb)
@@ -98,16 +99,16 @@ IF (UNIX)
     endif ()
     if (MINIDUMP2CORE)
         list(APPEND test_extra_args --md2core_exe=${MINIDUMP2CORE})
-    endif()
+    endif ()
     if (GDB_EXECUTABLE)
         list(APPEND test_extra_args --gdb_exe=${GDB_EXECUTABLE})
-    endif()
+    endif ()
     function(add_breakpad_test VARIANT)
         add_test(memcached-breakpad-test-${VARIANT}
-             ${Memcached_SOURCE_DIR}/tests/breakpad_test.py
-             ${Memcached_BINARY_DIR}/memcached ${VARIANT} ${test_extra_args})
+                ${Memcached_SOURCE_DIR}/tests/breakpad_test.py
+                ${Memcached_BINARY_DIR}/memcached ${VARIANT} ${test_extra_args})
         set_tests_properties(memcached-breakpad-test-${VARIANT}
-            PROPERTIES TIMEOUT 60)
+                PROPERTIES TIMEOUT 60)
     endfunction()
 
     add_breakpad_test(segfault)
@@ -117,16 +118,16 @@ IF (UNIX)
     add_breakpad_test(unknown_exception)
     add_breakpad_test(dump_fail_perm)
 
-# ELSEIF (WIN32)
-# Disable the test on Windows until we understand why we're seeing all
-# of the temporary test failures caused by python not detecting that
-# the processes died.
+    # ELSEIF (WIN32)
+    # Disable the test on Windows until we understand why we're seeing all
+    # of the temporary test failures caused by python not detecting that
+    # the processes died.
     # On Windows the test doesn't use minidump-2-core or GDB.
     # ADD_TEST(breakpad-test
     #          ${PYTHON_EXECUTABLE}
     #          ${Memcached_SOURCE_DIR}/tests/breakpad_test.py
     #          ${Memcached_BINARY_DIR}/memcached)
-ENDIF (UNIX)
+endif (UNIX)
 
 # We commonly use a bunch of expensive headers so pre-compiling them should give
 # us a speed-up. It's simpler to define a single target and just re-use the
@@ -139,23 +140,23 @@ ENDIF (UNIX)
 if (CB_PCH)
     # Given consumers of precompiled headers must have the same compile flags,
     # we need two PCH targets - with and without position-independent code.
-    foreach(pch_lib kv_pch kv_pch_fpic)
+    foreach (pch_lib kv_pch kv_pch_fpic)
         # Need to give the target a SOURCE to make cmake happy so just including
         # an empty .cc file.
         add_library(${pch_lib} OBJECT precompiled_headers.cc)
         target_link_libraries(${pch_lib}
-                              PUBLIC
-                                 Folly::headers
-                              PRIVATE
-                                 nlohmann_json::nlohmann_json
-                                 GTest::gtest)
+                PUBLIC
+                Folly::headers
+                PRIVATE
+                nlohmann_json::nlohmann_json
+                GTest::gtest)
         # Hmm.. If I remove the target_include_directories I get all sort of
         # other errors. Just point to the project include directory for now..
         target_include_directories(${pch_lib} PUBLIC ${Memcached_SOURCE_DIR}/include)
         target_precompile_headers(${pch_lib} PUBLIC precompiled_headers.h)
-    endforeach()
+    endforeach ()
     set_property(TARGET kv_pch_fpic PROPERTY POSITION_INDEPENDENT_CODE 1)
-endif()
+endif ()
 
 function(kv_enable_pch target)
     if (CB_PCH)
@@ -164,27 +165,27 @@ function(kv_enable_pch target)
         get_property(fpic TARGET ${target} PROPERTY POSITION_INDEPENDENT_CODE)
         if (fpic)
             reuse_pch(${target} kv_pch_fpic)
-        else()
+        else ()
             reuse_pch(${target} kv_pch)
-        endif()
-    endif()
+        endif ()
+    endif ()
 endfunction()
 
 add_subdirectory(json)
-ADD_SUBDIRECTORY(etc)
-ADD_SUBDIRECTORY(auditd)
-ADD_SUBDIRECTORY(cbsasl)
+add_subdirectory(etc)
+add_subdirectory(auditd)
+add_subdirectory(cbsasl)
 add_subdirectory(executor)
-ADD_SUBDIRECTORY(time)
-ADD_SUBDIRECTORY(rbac)
-ADD_SUBDIRECTORY(protocol)
-ADD_SUBDIRECTORY(utilities)
-ADD_SUBDIRECTORY(engines)
-ADD_SUBDIRECTORY(xattr)
-ADD_SUBDIRECTORY(logger)
-ADD_SUBDIRECTORY(daemon)
-ADD_SUBDIRECTORY(tracing)
-ADD_SUBDIRECTORY(statistics)
+add_subdirectory(time)
+add_subdirectory(rbac)
+add_subdirectory(protocol)
+add_subdirectory(utilities)
+add_subdirectory(engines)
+add_subdirectory(xattr)
+add_subdirectory(logger)
+add_subdirectory(daemon)
+add_subdirectory(tracing)
+add_subdirectory(statistics)
 add_subdirectory(cluster_framework)
 
 add_subdirectory(tests)
@@ -194,32 +195,32 @@ add_subdirectory(programs)
 
 # Customize some CTest properties
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/CTestCustom.cmake
-               ${CMAKE_CURRENT_BINARY_DIR}/CTestCustom.cmake COPYONLY)
+        ${CMAKE_CURRENT_BINARY_DIR}/CTestCustom.cmake COPYONLY)
 
 option(CB_ENABLE_HEADER_INCLUDE_CHECK
-       "Enable building of just headers objs, for header include correctness.")
+        "Enable building of just headers objs, for header include correctness.")
 
-if(CB_ENABLE_HEADER_INCLUDE_CHECK)
+if (CB_ENABLE_HEADER_INCLUDE_CHECK)
     # Extra (non-default) target to compile all memcached headers (for
     # build profiling / checking for correct #includes).
     file(GLOB_RECURSE memcached_headers
-      RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
-      CONFIGURE_DEPENDS
-      *.h)
+            RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
+            CONFIGURE_DEPENDS
+            *.h)
     # Excluded ep_engine - it requires additional include directories and
     # hence is handled in it's own CMakeLists.txt
     list(FILTER memcached_headers EXCLUDE REGEX "engines\/ep\/")
 
     # List of headers to ignore / not attempt to compile
     list(REMOVE_ITEM memcached_headers
-      config.cmake.h  # Not directly compilable.
-      include/memcached/collections.h  # Not directly compilable; used via engine.h
-    )
+            config.cmake.h  # Not directly compilable.
+            include/memcached/collections.h  # Not directly compilable; used via engine.h
+            )
 
     add_header_object_library(NAME memcached_headers_obj HEADERS ${memcached_headers})
     target_include_directories(memcached_headers_obj SYSTEM PRIVATE
-      ${OPENTRACING_INCLUDE_DIR})
-endif(CB_ENABLE_HEADER_INCLUDE_CHECK)
+            ${OPENTRACING_INCLUDE_DIR})
+endif (CB_ENABLE_HEADER_INCLUDE_CHECK)
 
 # Add to top level generated_source_files target dependency
 add_dependencies(generated_source_files ep_generated_source_files generated_stats_source_files)
