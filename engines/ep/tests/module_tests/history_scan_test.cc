@@ -554,6 +554,55 @@ TEST_P(HistoryScanTest, BackfillWithDroppedCollection) {
                      items);
 }
 
+TEST_P(HistoryScanTest, DoubleSnapshotMarker_MB_55590) {
+    // Disable history and move the high-seqno forwards
+    store->setHistoryRetentionBytes(0);
+
+    store_item(vbid, makeStoredDocKey("key"), "v0");
+    delete_item(vbid, makeStoredDocKey("key"));
+    flush_vbucket_to_disk(vbid, 1);
+
+    // Now purge tombstones, there is no data from start-seqno 0
+    runCompaction(vbid, 0, true);
+
+    // Now enable history and flush some items
+    store->setHistoryRetentionBytes(1024 * 1024 * 100);
+
+    // Now store 1 item to default (which will be in the snapshot)
+    std::vector<Item> items;
+    items.emplace_back(store_item(vbid, makeStoredDocKey("key"), "v0"));
+
+    flush_vbucket_to_disk(vbid, 1);
+
+    items.emplace_back(store_item(vbid, makeStoredDocKey("key"), "v1"));
+
+    flush_vbucket_to_disk(vbid, 1);
+
+    ensureDcpWillBackfill();
+
+    createDcpObjects(std::string_view{},
+                     OutOfOrderSnapshots::No,
+                     0,
+                     true, // sync-repl enabled
+                     ~0ull,
+                     ChangeStreams::Yes);
+
+    runBackfill();
+
+    // Single snapshot produced. With MB-55590 a double marker was sent
+    validateSnapshot(vbid,
+                     0,
+                     items.back().getBySeqno(),
+                     MARKER_FLAG_HISTORY |
+                             MARKER_FLAG_MAY_CONTAIN_DUPLICATE_KEYS |
+                             MARKER_FLAG_CHK | MARKER_FLAG_DISK,
+                     0 /*hcs*/,
+                     items.back().getBySeqno() /*mvs*/,
+                     {},
+                     {},
+                     items);
+}
+
 // Tests which don't need executing in two eviction modes
 class HistoryScanTestSingleEvictionMode : public HistoryScanTest {};
 

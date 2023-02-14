@@ -372,26 +372,44 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
                       MARKER_FLAG_MAY_CONTAIN_DUPLICATE_KEYS);
         }
 
-        log(spdlog::level::level_enum::info,
-            "{} ActiveStream::markDiskSnapshot: Sending disk snapshot with "
-            "start:{}, end:{}, flags:0x{:x}, flagsDecoded:{}, hcs:{}, mvs:{}",
-            logPrefix,
-            startSeqno,
-            endSeqno,
-            flags,
-            dcpMarkerFlagsToString(flags),
-            to_string_or_none(hcsToSend),
-            to_string_or_none(mvsToSend));
-        pushToReadyQ(std::make_unique<SnapshotMarker>(opaque_,
-                                                      vb_,
-                                                      startSeqno,
-                                                      endSeqno,
-                                                      flags,
-                                                      hcsToSend,
-                                                      mvsToSend,
-                                                      timestamp,
-                                                      sid));
-        lastSentSnapEndSeqno.store(endSeqno, std::memory_order_relaxed);
+        if (source == SnapshotSource::NoHistoryPrologue) {
+            // When the source is the prologue to history, don't send the marker
+            // but stash it until the backfill definitely returns data.
+            // backfillRecevied can send it if it exists.
+            pendingDiskMarker = std::make_unique<SnapshotMarker>(opaque_,
+                                                                 vb_,
+                                                                 startSeqno,
+                                                                 endSeqno,
+                                                                 flags,
+                                                                 hcsToSend,
+                                                                 mvsToSend,
+                                                                 timestamp,
+                                                                 sid);
+        } else {
+            log(spdlog::level::level_enum::info,
+                "{} ActiveStream::markDiskSnapshot: Sending disk snapshot with "
+                "start:{}, end:{}, flags:0x{:x}, flagsDecoded:{}, hcs:{}, "
+                "mvs:{}",
+                logPrefix,
+                startSeqno,
+                endSeqno,
+                flags,
+                dcpMarkerFlagsToString(flags),
+                to_string_or_none(hcsToSend),
+                to_string_or_none(mvsToSend));
+            // clear the pending marker, it's no longer needed.
+            pendingDiskMarker.reset();
+            pushToReadyQ(std::make_unique<SnapshotMarker>(opaque_,
+                                                          vb_,
+                                                          startSeqno,
+                                                          endSeqno,
+                                                          flags,
+                                                          hcsToSend,
+                                                          mvsToSend,
+                                                          timestamp,
+                                                          sid));
+            lastSentSnapEndSeqno.store(endSeqno, std::memory_order_relaxed);
+        }
 
         if (!isDiskOnly()) {
             // Only re-register the cursor if we still need to get memory
@@ -495,6 +513,25 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
         if (!producer->recordBackfillManagerBytesRead(
                     resp->getApproximateSize())) {
             return false;
+        }
+
+        if (pendingDiskMarker) {
+            log(spdlog::level::level_enum::info,
+                "{} ActiveStream::backfillReceived: Sending pending disk "
+                "snapshot with "
+                "start:{}, end:{}, flags:0x{:x}, flagsDecoded:{}, hcs:{}, "
+                "mvs:{}",
+                logPrefix,
+                pendingDiskMarker->getStartSeqno(),
+                pendingDiskMarker->getEndSeqno(),
+                pendingDiskMarker->getFlags(),
+                dcpMarkerFlagsToString(pendingDiskMarker->getFlags()),
+                to_string_or_none(pendingDiskMarker->getHighCompletedSeqno()),
+                to_string_or_none(pendingDiskMarker->getMaxVisibleSeqno()));
+            // There is a marker, move it to the readyQ
+            lastSentSnapEndSeqno.store(pendingDiskMarker->getEndSeqno(),
+                                       std::memory_order_relaxed);
+            pushToReadyQ(std::move(pendingDiskMarker));
         }
 
         // Passed all checks, item will be added to ready queue now.
