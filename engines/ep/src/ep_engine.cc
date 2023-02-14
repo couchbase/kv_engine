@@ -3098,6 +3098,8 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
 
     collector.addStat(Key::ep_total_enqueued, epstats.totalEnqueued);
     collector.addStat(Key::ep_total_deduplicated, epstats.totalDeduplicated);
+    collector.addStat(Key::ep_total_deduplicated_flusher,
+                      epstats.totalDeduplicatedFlusher);
     collector.addStat(Key::ep_expired_access, epstats.expired_access);
     collector.addStat(Key::ep_expired_compactor, epstats.expired_compactor);
     collector.addStat(Key::ep_expired_pager, epstats.expired_pager);

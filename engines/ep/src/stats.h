@@ -265,6 +265,8 @@ public:
     Counter totalEnqueued;
     //! Cumulative count of items de-duplicated when queued to CheckpointManager
     Counter totalDeduplicated;
+    //! Cumulative count of items de-duplicated when processed at Flusher
+    Counter totalDeduplicatedFlusher;
     //! Number of times an item flush failed.
     Counter flushFailed;
     //! Number of times an item is not flushed due to the item's expiry

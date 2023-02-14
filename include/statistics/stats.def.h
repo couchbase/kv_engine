@@ -140,6 +140,7 @@ STAT(ep_bucket_priority,
      , ) // TODO: make 0/1 rather than text for Prometheus?
 STAT(ep_total_enqueued, , count, , )
 STAT(ep_total_deduplicated, , count, , )
+STAT(ep_total_deduplicated_flusher, , count, , )
 STAT(ep_expired_access, , count, , )
 STAT(ep_expired_compactor, , count, , )
 STAT(ep_expired_pager, , count, , )

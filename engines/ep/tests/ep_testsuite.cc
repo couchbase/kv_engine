@@ -7442,6 +7442,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_tmp_oom_errors",
               "ep_total_cache_size",
               "ep_total_deduplicated",
+              "ep_total_deduplicated_flusher",
               "ep_total_del_items",
               "ep_total_enqueued",
               "ep_total_new_items",

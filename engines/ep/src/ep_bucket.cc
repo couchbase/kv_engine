@@ -702,6 +702,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
             //     This means we only write the highest (i.e. newest)
             //     item for a given key, and discard any duplicate,
             //     older items.
+            ++stats.totalDeduplicatedFlusher;
         }
 
         // Register the item for deferred (flush success only) stats update.

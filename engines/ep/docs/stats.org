@@ -36,6 +36,8 @@ For introductory information on stats within Couchbase, start with the
 | ep_bucket_priority                    | Priority assigned to the bucket         |
 | ep_total_deduplicated                 | Total number of items de-duplicated     |
 |                                       | when queued to CheckpointManager        |
+| ep_total_deduplicated_flusher         | Total number of items de-duplicated     |
+|                                       | when processed at Flusher               |
 | ep_total_enqueued                     | Total number of items queued for        |
 |                                       | persistence                             |
 | ep_total_new_items                    | Total number of persisted new items     |
