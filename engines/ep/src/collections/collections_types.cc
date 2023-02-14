@@ -10,6 +10,7 @@
  */
 
 #include "collections/collections_types.h"
+#include "ep_types.h"
 #include "systemevent_factory.h"
 
 #include <mcbp/protocol/unsigned_leb128.h>
