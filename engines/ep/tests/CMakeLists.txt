@@ -57,6 +57,7 @@ cb_add_test_executable(ep-engine_ep_unit_tests
         module_tests/collections/vbucket_manifest_test.cc
         module_tests/collections/vbucket_manifest_entry_test.cc
         module_tests/configuration_test.cc
+        module_tests/conflict_resolution_test.cc
         module_tests/conn_store_test.cc
         module_tests/couch-kvstore_test.cc
         module_tests/couchstore_bucket_tests.cc
