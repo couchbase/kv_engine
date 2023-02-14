@@ -25,28 +25,40 @@ bool RevisionSeqnoResolution::resolve(const StoredValue& v,
                                       const ItemMetaData& meta,
                                       const protocol_binary_datatype_t meta_datatype,
                                       bool isDelete) const {
-    if (!v.isTempNonExistentItem()) {
-        if (v.getRevSeqno() > meta.revSeqno) {
-            return false;
-        } else if (v.getRevSeqno() == meta.revSeqno) {
-            if (v.getCas() > meta.cas) {
-                return false;
-            } else if (v.getCas() == meta.cas) {
-                if (isDelete || v.getExptime() > meta.exptime) {
-                    return false;
-                } else if (v.getExptime() == meta.exptime) {
-                    if (v.getFlags() > meta.flags) {
-                        return false;
-                    } else if (v.getFlags() == meta.flags) {
-                        return (cb::mcbp::datatype::is_xattr(meta_datatype) &&
-                                !cb::mcbp::datatype::is_xattr(v.getDatatype()));
-                    }
-                }
-            }
-        }
+    if (v.isTempNonExistentItem()) {
+        return true;
     }
-    return true;
 
+    if (isDelete) {
+        // *RevSeqno* checked first for seqno resolution
+        auto existing = std::make_tuple(v.getRevSeqno(), v.getCas());
+
+        auto incoming = std::make_tuple(meta.revSeqno, meta.cas);
+
+        if (incoming > existing) {
+            // accept the incoming version, it is ahead
+            return true;
+        }
+        return false;
+    } else {
+        auto existing = std::make_tuple(
+                v.getRevSeqno(), v.getCas(), v.getExptime(), v.getFlags());
+
+        auto incoming = std::make_tuple(
+                meta.revSeqno, meta.cas, meta.exptime, meta.flags);
+
+        if (incoming > existing) {
+            // accept the incoming version, it is ahead
+            return true;
+        }
+
+        if (incoming < existing) {
+            // reject the incoming version, it is behind
+            return false;
+        }
+        return (cb::mcbp::datatype::is_xattr(meta_datatype) &&
+                !cb::mcbp::datatype::is_xattr(v.getDatatype()));
+    }
 }
 
 /**
@@ -63,25 +75,38 @@ bool LastWriteWinsResolution::resolve(const StoredValue& v,
                                       const ItemMetaData& meta,
                                       const protocol_binary_datatype_t meta_datatype,
                                       bool isDelete) const {
-    if (!v.isTempNonExistentItem()) {
-        if (v.getCas() > meta.cas) {
-            return false;
-        } else if (v.getCas() == meta.cas) {
-            if (v.getRevSeqno() > meta.revSeqno) {
-                return false;
-            } else if (v.getRevSeqno() == meta.revSeqno) {
-                if (isDelete || v.getExptime() > meta.exptime) {
-                    return false;
-                } else if (v.getExptime() == meta.exptime) {
-                    if (v.getFlags() > meta.flags) {
-                        return false;
-                    } else if (v.getFlags() == meta.flags) {
-                        return (cb::mcbp::datatype::is_xattr(meta_datatype) &&
-                                !cb::mcbp::datatype::is_xattr(v.getDatatype()));
-                    }
-                }
-            }
-        }
+    if (v.isTempNonExistentItem()) {
+        return true;
     }
-    return true;
+
+    if (isDelete) {
+        // *CAS* checked first for LWW resolution
+        auto existing = std::make_tuple(v.getCas(), v.getRevSeqno());
+
+        auto incoming = std::make_tuple(meta.cas, meta.revSeqno);
+
+        if (incoming > existing) {
+            // accept the incoming version, it is ahead
+            return true;
+        }
+        return false;
+    } else {
+        auto existing = std::make_tuple(
+                v.getCas(), v.getRevSeqno(), v.getExptime(), v.getFlags());
+
+        auto incoming = std::make_tuple(
+                meta.cas, meta.revSeqno, meta.exptime, meta.flags);
+
+        if (incoming > existing) {
+            // accept the incoming version, it is ahead
+            return true;
+        }
+
+        if (incoming < existing) {
+            // reject the incoming version, it is behind
+            return false;
+        }
+        return (cb::mcbp::datatype::is_xattr(meta_datatype) &&
+                !cb::mcbp::datatype::is_xattr(v.getDatatype()));
+    }
 }
