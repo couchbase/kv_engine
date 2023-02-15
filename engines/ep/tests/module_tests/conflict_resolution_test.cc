@@ -220,7 +220,7 @@ public:
      * Used by tests to check the _expected_ result of conflict resolution,
      * using a declared vector of cases where "accept" is the expected result.
      */
-    bool shouldBeAccepted(
+    bool paramMatchesAnyCase(
             const std::vector<ConflictResolutionParamTest::ParamType>&
                     acceptCases) {
         return std::find_if(acceptCases.begin(),
@@ -256,6 +256,42 @@ public:
         item.setExpTime(time_t(std::get<ExpTime>(GetParam())));
         item.setFlags(uint32_t(std::get<Flags>(GetParam())));
         return item;
+    }
+
+    bool isIdentical(bool isDelete) {
+        if (isDelete) {
+            // delete with meta does not check exptime/flags/xattrs, so
+            // values will be rejected as "identical" if cas and revseqno match
+            return paramMatchesAnyCase({{Cas::Same,
+                                         Rev::Same,
+                                         ExpTime::Any,
+                                         Flags::Any,
+                                         Xattrs::Any}});
+        }
+
+        // a set with meta will be rejected as "identical" if they exactly match
+        // the existing value in cas/revseqno/exptime/flags, AND one of:
+        // * Both the existing and incoming values have xattrs
+        // * Both the existing and incoming values do not have xattrs
+        // * The existing value has xattrs but the incoming does not
+        // That is, if the existing value _has_ xattrs, but the incoming
+        // value _does not_, but is otherwise identical, this will still be
+        // rejected as "identical" rather than "behind"
+        return paramMatchesAnyCase({{Cas::Same,
+                                     Rev::Same,
+                                     ExpTime::Same,
+                                     Flags::Same,
+                                     Xattrs::Both},
+                                    {Cas::Same,
+                                     Rev::Same,
+                                     ExpTime::Same,
+                                     Flags::Same,
+                                     Xattrs::ExistingOnly},
+                                    {Cas::Same,
+                                     Rev::Same,
+                                     ExpTime::Same,
+                                     Flags::Same,
+                                     Xattrs::None}});
     }
 
     /**
@@ -327,26 +363,30 @@ TEST_P(ConflictResolutionParamTest, NonExistent) {
     const auto& meta = item.getMetaData();
 
     // set with meta
-    EXPECT_TRUE(seqnoResolution.resolve(*nonExistentValue,
-                                        meta,
-                                        item.getDataType(),
-                                        /*isDelete*/ false));
-
-    EXPECT_TRUE(lwwResolution.resolve(*nonExistentValue,
+    EXPECT_EQ(ConflictResolution::Result::Accept,
+              seqnoResolution.resolve(*nonExistentValue,
                                       meta,
                                       item.getDataType(),
                                       /*isDelete*/ false));
 
-    // del with meta
-    EXPECT_TRUE(seqnoResolution.resolve(*nonExistentValue,
-                                        meta,
-                                        item.getDataType(),
-                                        /*isDelete*/ true));
+    EXPECT_EQ(ConflictResolution::Result::Accept,
+              lwwResolution.resolve(*nonExistentValue,
+                                    meta,
+                                    item.getDataType(),
+                                    /*isDelete*/ false));
 
-    EXPECT_TRUE(lwwResolution.resolve(*nonExistentValue,
+    // del with meta
+    EXPECT_EQ(ConflictResolution::Result::Accept,
+              seqnoResolution.resolve(*nonExistentValue,
                                       meta,
                                       item.getDataType(),
                                       /*isDelete*/ true));
+
+    EXPECT_EQ(ConflictResolution::Result::Accept,
+              lwwResolution.resolve(*nonExistentValue,
+                                    meta,
+                                    item.getDataType(),
+                                    /*isDelete*/ true));
 }
 
 TEST_P(ConflictResolutionParamTest, SeqnoResolution_Set) {
@@ -374,9 +414,16 @@ TEST_P(ConflictResolutionParamTest, SeqnoResolution_Set) {
     Item item = getTestItem();
     const auto& meta = item.getMetaData();
 
-    auto expectAccept = shouldBeAccepted(acceptCases);
+    ConflictResolution::Result expectedResult;
+    if (paramMatchesAnyCase(acceptCases)) {
+        expectedResult = ConflictResolution::Result::Accept;
+    } else if (isIdentical(/*isDelete*/ false)) {
+        expectedResult = ConflictResolution::Result::RejectIdentical;
+    } else {
+        expectedResult = ConflictResolution::Result::RejectBehind;
+    }
     // check that a set with meta would be accepted/rejected
-    EXPECT_EQ(expectAccept,
+    EXPECT_EQ(expectedResult,
               seqnoResolution.resolve(*localValue,
                                       meta,
                                       item.getDataType(),
@@ -398,9 +445,16 @@ TEST_P(ConflictResolutionParamTest, LwwResolution_Set) {
     Item item = getTestItem();
     const auto& meta = item.getMetaData();
 
-    auto expectAccept = shouldBeAccepted(acceptCases);
+    ConflictResolution::Result expectedResult;
+    if (paramMatchesAnyCase(acceptCases)) {
+        expectedResult = ConflictResolution::Result::Accept;
+    } else if (isIdentical(/*isDelete*/ false)) {
+        expectedResult = ConflictResolution::Result::RejectIdentical;
+    } else {
+        expectedResult = ConflictResolution::Result::RejectBehind;
+    }
 
-    EXPECT_EQ(expectAccept,
+    EXPECT_EQ(expectedResult,
               lwwResolution.resolve(*localValue,
                                     meta,
                                     item.getDataType(),
@@ -419,10 +473,17 @@ TEST_P(ConflictResolutionParamTest, SeqnoResolution_Del) {
     Item item = getTestItem();
     const auto& meta = item.getMetaData();
 
-    auto expectAccept = shouldBeAccepted(acceptCases);
+    ConflictResolution::Result expectedResult;
+    if (paramMatchesAnyCase(acceptCases)) {
+        expectedResult = ConflictResolution::Result::Accept;
+    } else if (isIdentical(/*isDelete*/ true)) {
+        expectedResult = ConflictResolution::Result::RejectIdentical;
+    } else {
+        expectedResult = ConflictResolution::Result::RejectBehind;
+    }
 
     // check that a del with meta would be accepted/rejected
-    EXPECT_EQ(expectAccept,
+    EXPECT_EQ(expectedResult,
               seqnoResolution.resolve(*localValue,
                                       meta,
                                       item.getDataType(),
@@ -441,10 +502,17 @@ TEST_P(ConflictResolutionParamTest, LwwResolution_Del) {
     Item item = getTestItem();
     const auto& meta = item.getMetaData();
 
-    auto expectAccept = shouldBeAccepted(acceptCases);
+    ConflictResolution::Result expectedResult;
+    if (paramMatchesAnyCase(acceptCases)) {
+        expectedResult = ConflictResolution::Result::Accept;
+    } else if (isIdentical(/*isDelete*/ true)) {
+        expectedResult = ConflictResolution::Result::RejectIdentical;
+    } else {
+        expectedResult = ConflictResolution::Result::RejectBehind;
+    }
 
     // check that a del with meta would be accepted/rejected
-    EXPECT_EQ(expectAccept,
+    EXPECT_EQ(expectedResult,
               lwwResolution.resolve(*localValue,
                                     meta,
                                     item.getDataType(),

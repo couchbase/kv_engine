@@ -809,3 +809,4 @@ STAT(collection_ops_delete,
      collection_ops,
      LABEL(op, delete))
 STAT(collection_ops_get, "ops_get", count, collection_ops, LABEL(op, get))
+STAT(conflicts_resolved, FMT("ep_conflicts_resolved_{op}_{result}"), none, , )

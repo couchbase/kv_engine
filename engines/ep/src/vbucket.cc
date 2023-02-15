@@ -2032,10 +2032,11 @@ cb::engine_errc VBucket::setWithMeta(
                 return cb::engine_errc::would_block;
             }
 
-            if (!(conflictResolver->resolve(*v,
-                                            itm.getMetaData(),
-                                            itm.getDataType(),
-                                            itm.isDeleted()))) {
+            switch (conflictResolver->resolve(*v,
+                                              itm.getMetaData(),
+                                              itm.getDataType(),
+                                              itm.isDeleted())) {
+            case ConflictResolution::Result::RejectBehind:
                 ++stats.numOpsSetMetaResolutionFailed;
                 // If the existing item happens to be a temporary item,
                 // delete the item to save memory in the hash table
@@ -2043,6 +2044,13 @@ cb::engine_errc VBucket::setWithMeta(
                     deleteStoredValue(hbl, *v);
                 }
                 return cb::engine_errc::key_already_exists;
+            case ConflictResolution::Result::RejectIdentical:
+                ++stats.numOpsSetMetaResolutionFailedIdentical;
+                if (v->isTempItem()) {
+                    deleteStoredValue(hbl, *v);
+                }
+                return cb::engine_errc::key_already_exists;
+            case ConflictResolution::Result::Accept:;
             }
         } else {
             if (maybeKeyExistsInFilter(itm.getKey())) {
@@ -2340,12 +2348,16 @@ cb::engine_errc VBucket::deleteWithMeta(
                 return cb::engine_errc::would_block;
             }
 
-            if (!(conflictResolver->resolve(*v,
-                                            itemMeta,
-                                            PROTOCOL_BINARY_RAW_BYTES,
-                                            true))) {
+            switch (conflictResolver->resolve(
+                    *v, itemMeta, PROTOCOL_BINARY_RAW_BYTES, true)) {
+            case ConflictResolution::Result::RejectBehind:
                 ++stats.numOpsDelMetaResolutionFailed;
                 return cb::engine_errc::key_already_exists;
+            case ConflictResolution::Result::RejectIdentical:
+                ++stats.numOpsDelMetaResolutionFailedIdentical;
+                return cb::engine_errc::key_already_exists;
+            case ConflictResolution::Result::Accept:;
+                // continue
             }
         } else {
             // Item is 1) deleted or not existent in the value eviction case OR

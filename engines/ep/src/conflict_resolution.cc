@@ -21,12 +21,13 @@
  * compared in the following order: rev seqno, cas, expiration, flags, datatype.
  * If all fields are equal than the local document is chosen as the winner.
  */
-bool RevisionSeqnoResolution::resolve(const StoredValue& v,
-                                      const ItemMetaData& meta,
-                                      const protocol_binary_datatype_t meta_datatype,
-                                      bool isDelete) const {
+ConflictResolution::Result RevisionSeqnoResolution::resolve(
+        const StoredValue& v,
+        const ItemMetaData& meta,
+        const protocol_binary_datatype_t meta_datatype,
+        bool isDelete) const {
     if (v.isTempNonExistentItem()) {
-        return true;
+        return Result::Accept;
     }
 
     if (isDelete) {
@@ -37,9 +38,13 @@ bool RevisionSeqnoResolution::resolve(const StoredValue& v,
 
         if (incoming > existing) {
             // accept the incoming version, it is ahead
-            return true;
+            return Result::Accept;
         }
-        return false;
+
+        if (incoming < existing) {
+            // reject the incoming version, it is behind
+            return Result::RejectBehind;
+        }
     } else {
         auto existing = std::make_tuple(
                 v.getRevSeqno(), v.getCas(), v.getExptime(), v.getFlags());
@@ -49,16 +54,20 @@ bool RevisionSeqnoResolution::resolve(const StoredValue& v,
 
         if (incoming > existing) {
             // accept the incoming version, it is ahead
-            return true;
+            return Result::Accept;
         }
 
         if (incoming < existing) {
             // reject the incoming version, it is behind
-            return false;
+            return Result::RejectBehind;
         }
-        return (mcbp::datatype::is_xattr(meta_datatype) &&
-                !mcbp::datatype::is_xattr(v.getDatatype()));
+
+        if (mcbp::datatype::is_xattr(meta_datatype) &&
+            !mcbp::datatype::is_xattr(v.getDatatype())) {
+            return Result::Accept;
+        }
     }
+    return Result::RejectIdentical;
 }
 
 /**
@@ -71,12 +80,13 @@ bool RevisionSeqnoResolution::resolve(const StoredValue& v,
  * a Hybrid Logical Clock (HLC), so a larger CAS is the last write.
  * If all fields are equal than the local document is chosen as the winner.
  */
-bool LastWriteWinsResolution::resolve(const StoredValue& v,
-                                      const ItemMetaData& meta,
-                                      const protocol_binary_datatype_t meta_datatype,
-                                      bool isDelete) const {
+ConflictResolution::Result LastWriteWinsResolution::resolve(
+        const StoredValue& v,
+        const ItemMetaData& meta,
+        const protocol_binary_datatype_t meta_datatype,
+        bool isDelete) const {
     if (v.isTempNonExistentItem()) {
-        return true;
+        return Result::Accept;
     }
 
     if (isDelete) {
@@ -87,9 +97,13 @@ bool LastWriteWinsResolution::resolve(const StoredValue& v,
 
         if (incoming > existing) {
             // accept the incoming version, it is ahead
-            return true;
+            return Result::Accept;
         }
-        return false;
+
+        if (incoming < existing) {
+            // reject the incoming version, it is behind
+            return Result::RejectBehind;
+        }
     } else {
         auto existing = std::make_tuple(
                 v.getCas(), v.getRevSeqno(), v.getExptime(), v.getFlags());
@@ -99,14 +113,17 @@ bool LastWriteWinsResolution::resolve(const StoredValue& v,
 
         if (incoming > existing) {
             // accept the incoming version, it is ahead
-            return true;
+            return Result::Accept;
         }
 
         if (incoming < existing) {
             // reject the incoming version, it is behind
-            return false;
+            return Result::RejectBehind;
         }
-        return (mcbp::datatype::is_xattr(meta_datatype) &&
-                !mcbp::datatype::is_xattr(v.getDatatype()));
+        if (mcbp::datatype::is_xattr(meta_datatype) &&
+            !mcbp::datatype::is_xattr(v.getDatatype())) {
+            return Result::Accept;
+        }
     }
+    return Result::RejectIdentical;
 }
