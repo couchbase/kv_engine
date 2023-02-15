@@ -17,6 +17,7 @@
 #include "dcp/response.h"
 #include "ep_time.h"
 #include "kv_bucket.h"
+#include "queue_op.h"
 #include "vbucket.h"
 
 #include <fmt/chrono.h>
@@ -1672,14 +1673,25 @@ void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
             return;
         }
 
+        // Note: We have just registered a cursor and then unlocked the CM at
+        // return. Might cursor-drop kick in before we even try to access the
+        // cursor for logging here?
+        std::optional<queue_op> op{};
+        {
+            const auto lockedCursor = registerResult.cursor.lock();
+            if (lockedCursor) {
+                op = (*lockedCursor->getPos())->getOperation();
+            }
+        }
         log(spdlog::level::level_enum::info,
             "{} ActiveStream::scheduleBackfill_UNLOCKED register cursor "
             "with "
-            "name \"{}\" backfill:{}, seqno:{}",
+            "name \"{}\" backfill:{}, seqno:{}, op:{}",
             logPrefix,
             name_,
             registerResult.tryBackfill,
-            registerResult.seqno);
+            registerResult.seqno,
+            op ? ::to_string(*op) : "N/A");
 
         curChkSeqno = registerResult.seqno;
         tryBackfill = registerResult.tryBackfill;
