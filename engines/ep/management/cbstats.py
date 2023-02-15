@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Copyright 2017-Present Couchbase, Inc.
 
@@ -18,6 +20,7 @@ import json
 import math
 import mc_bin_client
 import re
+import shutil
 import sys
 
 from collections import defaultdict
@@ -49,7 +52,7 @@ def cmd(f = None, needs_bucket=True):
         global force_utf8
         force_utf8 = kwargs.pop('force_utf8', None)
         if force_utf8:
-            sys.stdout = codecs.getwriter('utf-8')(sys.stdout)
+            sys.stdout.reconfigure(encoding='utf-8')
 
         # cli_auth_utils.cmd_decorator() adds kwarg bucketName.
         # Default value for that arg is 'default', used when the user doesn't
@@ -428,19 +431,12 @@ def histograms(mc, raw_stats, default_label_func=time_label):
     default_label_func: The default formatting function to use for labels.
     Will be ignored for sizes, ratios and some other special-cased keys.
     """
-    # Try to figure out the terminal width.  If we can't, 79 is good
+
     def termWidth():
-        try:
-            import fcntl, termios, struct
-            h, w, hp, wp = struct.unpack('HHHH',
-                                         fcntl.ioctl(0, termios.TIOCGWINSZ,
-                                                     struct.pack('HHHH', 0, 0, 0, 0)))
-            return w
-        except:
-            return 79
+        return shutil.get_terminal_size().columns
 
     def useUTF8():
-        return force_utf8 or sys.stdout.encoding == 'UTF-8'
+        return force_utf8 or sys.stdout.encoding == 'utf-8'
 
     special_labels = {'item_alloc_sizes': size_label,
                       'bg_batch_size' : no_label,
