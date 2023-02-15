@@ -862,8 +862,11 @@ struct MagmaKVStoreTransactionContext : public TransactionContext {
     /**
      * Prepare the requests before handing them over to Magma. This currently
      * orders by seqno (ascending) see MB-55199
+     *
+     * @param batchHistoryMode If the batch is a history batch
+     *        (which can include duplicates)
      */
-    void preparePendingRequests();
+    void preparePendingRequests(magma::Magma::HistoryMode batchHistoryMode);
 
     /**
      * Container for pending Magma requests.
