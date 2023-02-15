@@ -162,11 +162,12 @@ void FollyConnection::scheduleExecution() {
 
 void FollyConnection::copyToOutputStream(std::string_view data) {
     std::array<std::string_view, 1> d{{data}};
-    asyncWriteCallback->send(d);
+    copyToOutputStream(d);
 }
 
 void FollyConnection::copyToOutputStream(gsl::span<std::string_view> data) {
-    asyncWriteCallback->send(data);
+    asyncSocket->getEventBase()->runImmediatelyOrRunInEventBaseThreadAndWait(
+            [this, &data]() { asyncWriteCallback->send(data); });
 }
 
 void FollyConnection::chainDataToOutputStream(
@@ -176,7 +177,8 @@ void FollyConnection::chainDataToOutputStream(
                 "Connection::chainDataToOutputStream: buffer must be set");
     }
 
-    asyncWriteCallback->send(std::move(buffer));
+    asyncSocket->getEventBase()->runImmediatelyOrRunInEventBaseThreadAndWait(
+            [this, &buffer]() { asyncWriteCallback->send(std::move(buffer)); });
 }
 
 bool FollyConnection::isPacketAvailable() const {
