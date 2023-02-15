@@ -2644,5 +2644,12 @@
         "cbstat": "vb_{state}_logical_data_size",
         "unit": "bytes",
         "description": "The logical size of all user data on disk (per-bucket), with compression applied"
+    },
+    {
+        "key": "conflicts_resolved",
+        "cbstat": "ep_conflicts_resolved_{op}_{result}",
+        "unit": "none",
+        "type": "counter",
+        "description": "Counter of all SetWithMeta/DelWithMeta conflict resolution results. The result may be that the incoming operation was: accepted as it is 'ahead', rejected as it is 'behind', or rejected as it appears identical (by metadata, not comparing document bodies)"
     }
 ]

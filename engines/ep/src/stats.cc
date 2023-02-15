@@ -50,7 +50,7 @@ EPStats::EPStats()
 
 EPStats::~EPStats() = default;
 
-static_assert(sizeof(EPStats) == 1632,
+static_assert(sizeof(EPStats) == 1648,
               "EPStats size is unexpected - have you added/removed stats?");
 
 void EPStats::setMaxDataSize(size_t size) {
@@ -294,7 +294,9 @@ void EPStats::reset() {
     numOpsSetMeta.reset();
     numOpsDelMeta.reset();
     numOpsSetMetaResolutionFailed.reset();
+    numOpsSetMetaResolutionFailedIdentical.reset();
     numOpsDelMetaResolutionFailed.reset();
+    numOpsDelMetaResolutionFailedIdentical.reset();
     numOpsSetRetMeta.reset();
     numOpsDelRetMeta.reset();
     numOpsGetMetaOnSetWithMeta.reset();

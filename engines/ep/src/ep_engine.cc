@@ -3087,15 +3087,39 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
     collector.addStat(Key::ep_num_ops_set_meta, epstats.numOpsSetMeta);
     collector.addStat(Key::ep_num_ops_del_meta, epstats.numOpsDelMeta);
     collector.addStat(Key::ep_num_ops_set_meta_res_fail,
-                      epstats.numOpsSetMetaResolutionFailed);
+                      epstats.numOpsSetMetaResolutionFailed +
+                              epstats.numOpsSetMetaResolutionFailedIdentical);
     collector.addStat(Key::ep_num_ops_del_meta_res_fail,
-                      epstats.numOpsDelMetaResolutionFailed);
+                      epstats.numOpsDelMetaResolutionFailed +
+                              epstats.numOpsDelMetaResolutionFailedIdentical);
     collector.addStat(Key::ep_num_ops_set_ret_meta, epstats.numOpsSetRetMeta);
     collector.addStat(Key::ep_num_ops_del_ret_meta, epstats.numOpsDelRetMeta);
     collector.addStat(Key::ep_num_ops_get_meta_on_set_meta,
                       epstats.numOpsGetMetaOnSetWithMeta);
     collector.addStat(Key::ep_workload_pattern,
                       workload->stringOfWorkLoadPattern());
+
+    // these metrics do expose some duplicated information - for the sake
+    // of supportability and understandability this is deemed acceptable
+
+    collector.withLabels({{"op", "set"}, {"result", "accepted"}})
+            .addStat(Key::conflicts_resolved, epstats.numOpsSetMeta);
+    collector.withLabels({{"op", "del"}, {"result", "accepted"}})
+            .addStat(Key::conflicts_resolved, epstats.numOpsDelMeta);
+
+    collector.withLabels({{"op", "set"}, {"result", "rejected_behind"}})
+            .addStat(Key::conflicts_resolved,
+                     epstats.numOpsSetMetaResolutionFailed);
+    collector.withLabels({{"op", "del"}, {"result", "rejected_behind"}})
+            .addStat(Key::conflicts_resolved,
+                     epstats.numOpsDelMetaResolutionFailed);
+
+    collector.withLabels({{"op", "set"}, {"result", "rejected_identical"}})
+            .addStat(Key::conflicts_resolved,
+                     epstats.numOpsSetMetaResolutionFailedIdentical);
+    collector.withLabels({{"op", "del"}, {"result", "rejected_identical"}})
+            .addStat(Key::conflicts_resolved,
+                     epstats.numOpsDelMetaResolutionFailedIdentical);
 
     doDiskFailureStats(collector);
 

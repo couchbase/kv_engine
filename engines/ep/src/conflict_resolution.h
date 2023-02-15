@@ -21,6 +21,12 @@ class StoredValue;
  */
 class ConflictResolution {
 public:
+    enum class Result {
+        Accept,
+        RejectIdentical,
+        RejectBehind,
+    };
+
     ConflictResolution() {}
 
     virtual ~ConflictResolution() {}
@@ -35,25 +41,24 @@ public:
      *                 for delete operations
      * @return true is the remote document is the winner, false otherwise
      */
-    virtual bool resolve(const StoredValue& v,
-                         const ItemMetaData& meta,
-                         const protocol_binary_datatype_t meta_datatype,
-                         bool isDelete = false) const = 0;
-
+    virtual Result resolve(const StoredValue& v,
+                           const ItemMetaData& meta,
+                           const protocol_binary_datatype_t meta_datatype,
+                           bool isDelete = false) const = 0;
 };
 
 class RevisionSeqnoResolution : public ConflictResolution {
 public:
-    bool resolve(const StoredValue& v,
-                 const ItemMetaData& meta,
-                 const protocol_binary_datatype_t meta_datatype,
-                 bool isDelete = false) const override;
+    Result resolve(const StoredValue& v,
+                   const ItemMetaData& meta,
+                   const protocol_binary_datatype_t meta_datatype,
+                   bool isDelete = false) const override;
 };
 
 class LastWriteWinsResolution : public ConflictResolution {
 public:
-    bool resolve(const StoredValue& v,
-                 const ItemMetaData& meta,
-                 const protocol_binary_datatype_t meta_datatype,
-                 bool isDelete = false) const override;
+    Result resolve(const StoredValue& v,
+                   const ItemMetaData& meta,
+                   const protocol_binary_datatype_t meta_datatype,
+                   bool isDelete = false) const override;
 };

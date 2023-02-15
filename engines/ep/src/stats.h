@@ -429,10 +429,26 @@ public:
     Counter  numOpsSetMeta;
     //! The number of delete with meta operations
     Counter  numOpsDelMeta;
-    //! The number of failed set meta ops due to conflict resoltion
+    /* The number of failed set meta ops due to conflict resolution
+     * where the incoming value was considered "behind"/"older" than the
+     * existing value.
+     */
     Counter numOpsSetMetaResolutionFailed;
-    //! The number of failed del meta ops due to conflict resoltion
+    /* The number of failed set meta ops due to conflict resolution
+     * where the existing document appears to be the same as the incoming
+     * mutation (by cas, revSeqno, Exp time, flags, xattr presence).
+     */
+    Counter numOpsSetMetaResolutionFailedIdentical;
+    /* The number of failed del meta ops due to conflict resolution
+     * where the incoming value was considered "behind"/"older" than the
+     * existing value.
+     */
     Counter numOpsDelMetaResolutionFailed;
+    /* The number of failed del meta ops due to conflict resolution
+     * where the existing document appears to be the same as the incoming
+     * delete (by cas, revSeqno).
+     */
+    Counter numOpsDelMetaResolutionFailedIdentical;
     //! The number of set returning meta operations
     Counter  numOpsSetRetMeta;
     //! The number of delete returning meta operations
