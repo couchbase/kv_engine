@@ -4718,6 +4718,64 @@ TEST_P(CollectionsDcpPersistentOnly, DefaultCollectionLegacySeqnos) {
     }
 }
 
+TEST_P(CollectionsDcpPersistentOnly, getRangeCountingSystemEvents) {
+    using namespace CollectionEntry;
+
+    CollectionsManifest cm;
+    cm.add(fruit);
+    cm.add(dairy);
+    cm.add(meat);
+    cm.add(vegetable);
+    setCollections(cookie, cm);
+    store_item(vbid, makeStoredDocKey("key", fruit), "value");
+    flush_vbucket_to_disk(vbid, 5);
+
+    auto* kvstore = store->getRWUnderlying(vbid);
+    ASSERT_TRUE(kvstore);
+
+    // under nexus a bug was noted in getRange KEYS_ONLY of the system namespace
+    auto start = StoredDocKey{{}, CollectionID::System};
+    auto end = StoredDocKey{"\xff", CollectionID::System};
+    size_t count{0};
+    kvstore->getRange(vbid,
+                      DiskDocKey{start},
+                      DiskDocKey{end},
+                      ValueFilter::KEYS_ONLY,
+                      [&count](GetValue&& cb) { ++count; });
+    EXPECT_EQ(4, count);
+    count = 0;
+
+    // Modify them all
+    cm.update(fruit, cb::NoExpiryLimit, true /*history*/);
+    cm.update(dairy, cb::NoExpiryLimit, true /*history*/);
+    cm.update(meat, cb::NoExpiryLimit, true /*history*/);
+    cm.update(vegetable, cb::NoExpiryLimit, true /*history*/);
+    setCollections(cookie, cm);
+    flush_vbucket_to_disk(vbid, 4);
+
+    kvstore->getRange(vbid,
+                      DiskDocKey{start},
+                      DiskDocKey{end},
+                      ValueFilter::KEYS_ONLY,
+                      [&count](GetValue&& cb) { ++count; });
+    EXPECT_EQ(8, count);
+    count = 0;
+
+    // Drop events not included
+    cm.remove(vegetable);
+    cm.remove(dairy);
+    setCollections(cookie, cm);
+    flush_vbucket_to_disk(vbid, 2);
+
+    kvstore->getRange(vbid,
+                      DiskDocKey{start},
+                      DiskDocKey{end},
+                      ValueFilter::KEYS_ONLY,
+                      [&count](GetValue&& cb) { ++count; });
+    EXPECT_EQ(6, count);
+    count = 0;
+}
+
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
                          CollectionsDcpParameterizedTest,
