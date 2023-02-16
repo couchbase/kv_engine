@@ -53,8 +53,8 @@ void PrometheusStatCollector::addStat(const cb::stats::StatDef& spec,
 
     if (v.getValueCount() > 0) {
         histData.mean = std::round(v.getMean());
-        histData.sampleCount = v.getValueCount();
     }
+    histData.sampleCount = v.getValueCount() + v.getOverflowCount();
 
     for (const auto& bucket :
          v.logViewRepresentable(1 /*firstBucketWidth*/, 2 /* logBase */)) {
@@ -67,6 +67,8 @@ void PrometheusStatCollector::addStat(const cb::stats::StatDef& spec,
         auto avgBucketValue = (bucket.lower_bound + bucket.upper_bound) / 2;
         histData.sampleSum += avgBucketValue * bucket.count;
     }
+    // Include overflowed samples sum in total histogram sum.
+    histData.sampleSum += v.getOverflowSum();
 
     // ns_server may rely on some stats being present in prometheus,
     // even if they are empty.
