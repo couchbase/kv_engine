@@ -50,49 +50,15 @@ Collections::KVStore::Manifest decodeManifest(cb::const_byte_buffer manifest,
                                               cb::const_byte_buffer dropped) {
     Collections::KVStore::Manifest rv{Collections::KVStore::Manifest::Empty{}};
 
-    // As we build the lists of collections and scopes we want to validate that
-    // they are unique, use a set of ids for checking
-    std::unordered_set<CollectionID> openCollections;
+    // As we build the vector of scopes we want to validate that they are unique
+    // use a set of ids for checking
     std::unordered_set<ScopeID> openScopes;
 
     if (!manifest.empty()) {
         rv.manifestUid = decodeManifestUid(manifest);
     }
-    if (!collections.empty()) {
-        verifyFlatbuffersData<Collections::KVStore::OpenCollections>(
-                collections, "decodeManifest(open)");
 
-        auto fbData =
-                flatbuffers::GetRoot<Collections::KVStore::OpenCollections>(
-                        collections.data());
-        for (const auto* entry : *fbData->entries()) {
-            cb::ExpiryLimit maxTtl;
-            if (entry->ttlValid()) {
-                maxTtl = std::chrono::seconds(entry->maxTtl());
-            }
-
-            auto emplaced = openCollections.emplace(entry->collectionId());
-            // same collection exists already
-            if (!emplaced.second) {
-                throw std::invalid_argument(
-                        "decodeManifest: duplicate collection:" +
-                        CollectionID(entry->collectionId()).to_string() +
-                        " in stored data");
-            }
-            rv.collections.push_back(
-                    {entry->startSeqno(),
-                     Collections::CollectionMetaData{
-                             entry->scopeId(),
-                             entry->collectionId(),
-                             entry->name()->str(),
-                             maxTtl,
-                             getCanDeduplicateFromHistory(entry->history())}});
-        }
-    } else {
-        // Nothing on disk - the default collection is assumed
-        rv.collections.push_back(
-                OpenCollection{0, Collections::CollectionMetaData{}});
-    }
+    rv.collections = decodeOpenCollections(collections);
 
     if (!scopes.empty()) {
         verifyFlatbuffersData<Collections::KVStore::Scopes>(
@@ -121,6 +87,50 @@ Collections::KVStore::Manifest decodeManifest(cb::const_byte_buffer manifest,
     // Do dropped collections exist?
     auto dc = decodeDroppedCollections(dropped);
     rv.droppedCollectionsExist = !dc.empty();
+    return rv;
+}
+
+std::vector<Collections::KVStore::OpenCollection> decodeOpenCollections(
+        cb::const_byte_buffer data) {
+    using namespace Collections::KVStore;
+    if (data.empty()) {
+        // Nothing on disk - the default collection is assumed.
+        // start-seqno:0
+        // CollectionMetaData{} default ctor is the default collection
+        return {OpenCollection{0, Collections::CollectionMetaData{}}};
+    }
+    // Disk has data, decode it and populate the vector
+    verifyFlatbuffersData<OpenCollections>(data, "decodeOpenCollections");
+
+    // As we build the vector of collections to validate that they are unique,
+    // use a set of ids for checking
+    std::unordered_set<CollectionID> openCollections;
+    std::vector<OpenCollection> rv;
+
+    auto fbData = flatbuffers::GetRoot<OpenCollections>(data.data());
+    for (const auto* entry : *fbData->entries()) {
+        cb::ExpiryLimit maxTtl;
+        if (entry->ttlValid()) {
+            maxTtl = std::chrono::seconds(entry->maxTtl());
+        }
+
+        auto emplaced = openCollections.emplace(entry->collectionId());
+        // same collection exists already
+        if (!emplaced.second) {
+            throw std::invalid_argument(
+                    "decodeOpenCollections: duplicate collection:" +
+                    CollectionID(entry->collectionId()).to_string() +
+                    " in stored data");
+        }
+        rv.emplace_back(
+                entry->startSeqno(),
+                Collections::CollectionMetaData{
+                        entry->scopeId(),
+                        entry->collectionId(),
+                        entry->name()->str(),
+                        maxTtl,
+                        getCanDeduplicateFromHistory(entry->history())});
+    }
     return rv;
 }
 
