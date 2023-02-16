@@ -49,7 +49,7 @@ public:
     }
 
     uint64_t getTotal() const {
-        return total;
+        return total + overflowed;
     }
 
     void dumpHistogram(const std::string& opcode) {
@@ -67,6 +67,8 @@ public:
                 maxCount = count;
             }
         }
+        maxCount = std::max(maxCount, overflowed);
+
         // If no buckets have no recorded values do not try to render buckets
         if (maxCount > 0) {
             // create double versions of sec, ms, us so we can print them to 2dp
@@ -116,9 +118,22 @@ public:
                 // Set the low bucket value to this buckets high width value.
                 lastBuckLow = buckHigh;
             }
+
+            // Emit a pseudo-bucket for any overflowed samples which could not
+            // be represented, if present.
+            if (overflowed) {
+                const auto barWidth = barChartWidth(overflowed);
+                const auto countWidth = countFieldWidth();
+                const doubleSeconds maxTrackableS = doubleMicroseconds(maxTrackableValue);
+                fmt::print("[{:6.2f} - {:6.2f}]s (overflowed)\t{}| {}\n",
+                           maxTrackableS.count(),
+                           std::numeric_limits<double>::infinity(),
+                           fmt::format("{0:>{1}}", overflowed, countWidth),
+                           std::string(barWidth, '#'));
+            }
         }
 
-        fmt::print(stdout, "Total: {} operations\n", total);
+        fmt::print(stdout, "Total: {} operations\n", getTotal());
     }
 
 private:
@@ -131,6 +146,13 @@ private:
             total = cb::jsonGet<uint64_t>(root, "total");
             data = cb::jsonGet<nlohmann::json>(root, "data");
             bucketsLow = cb::jsonGet<uint64_t>(root, "bucketsLow");
+
+            // "overflowed" and "maxTrackableValue" only added in 7.2.0; ignore
+            // if not present
+            overflowed =
+                    cb::getOptionalJsonObject(root, "overflowed").value_or(0);
+            maxTrackableValue = cb::getOptionalJsonObject(root, "max_trackable")
+                                        .value_or(0);
         }
     }
 
@@ -139,13 +161,8 @@ private:
               long double high,
               int64_t count,
               double percentile) {
-        // Calculations for histogram size rendering
-        double factionOfHashes =
-                maxCount > 0 ? (count / static_cast<double>(maxCount)) : 0.0;
-        int num = static_cast<int>(44.0 * factionOfHashes);
-
-        // Calculations for padding around the count in each histogram bucket
-        auto numberOfSpaces = fmt::formatted_size("{}", maxCount) + 1;
+        int num = barChartWidth(count);
+        int numberOfSpaces = countFieldWidth();
 
         fmt::print(stdout,
                    "[{:6.2f} - {:6.2f}]{} ({:6.4f}%)\t{}| {}\n",
@@ -153,9 +170,22 @@ private:
                    high,
                    timeunit,
                    percentile,
-                   fmt::format("{:>" + std::to_string(numberOfSpaces) + "}",
-                               count),
+                   fmt::format("{0:>{1}}", count, numberOfSpaces),
                    std::string(num, '#'));
+    }
+
+    // Calculation for padding around the count in each histogram bucket
+    int countFieldWidth() const {
+        return fmt::formatted_size("{}", maxCount) + 1;
+    }
+
+    // Calculation for histogram size rendering - how wide should the
+    // ASCII bar be for the count of samples.
+    int barChartWidth(int64_t count) const {
+        double factionOfHashes =
+                maxCount > 0 ? (count / static_cast<double>(maxCount)) : 0.0;
+        int num = static_cast<int>(44.0 * factionOfHashes);
+        return num;
     }
 
     /**
@@ -175,9 +205,22 @@ private:
      */
     uint64_t bucketsLow = 0;
     /**
-     * Total number of counts recorded in the histogram
+     * Total number of counts recorded in the histogram buckets.
      */
     uint64_t total = 0;
+
+    /**
+     * Number of samples which overflowed the histograms' buckets.
+     * (Added in 7.2.0).
+     */
+    uint64_t overflowed = 0;
+
+    /**
+     * Maximum value the histogram can track. Any values which are greater
+     * than this are counted in `overflowed`.
+     * (Added in 7.2.0).
+     */
+    uint64_t maxTrackableValue = 0;
 };
 
 std::string opcode2string(cb::mcbp::ClientOpcode opcode) {
