@@ -4774,6 +4774,10 @@ TEST_P(CollectionsDcpPersistentOnly, getRangeCountingSystemEvents) {
                       [&count](GetValue&& cb) { ++count; });
     EXPECT_EQ(6, count);
     count = 0;
+
+    EXPECT_EQ(1, store->getVBucket(vbid)->getNumItems());
+    resetEngineAndWarmup();
+    EXPECT_EQ(1, store->getVBucket(vbid)->getNumItems());
 }
 
 // Test cases which run for persistent and ephemeral buckets

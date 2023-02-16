@@ -1191,7 +1191,20 @@ void EPVBucket::collectionsRolledBack(KVBucket& bucket) {
     }
 }
 
+static size_t countSystemEvents(Vbid vbid, KVStoreIface& kvstore) {
+    auto start = StoredDocKey{{}, CollectionID::System};
+    auto end = StoredDocKey{"\xff", CollectionID::System};
+    size_t count{0};
+    kvstore.getRange(vbid,
+                     DiskDocKey{start},
+                     DiskDocKey{end},
+                     ValueFilter::KEYS_ONLY,
+                     [&count](GetValue&&) { ++count; });
+    return count;
+}
+
 void EPVBucket::setNumTotalItems(KVStoreIface& kvstore) {
+    const size_t systemEvents = countSystemEvents(getId(), kvstore);
     const size_t itemCount = kvstore.getItemCount(getId());
     const auto* vbState = kvstore.getCachedVBucketState(getId());
     Expects(vbState);
@@ -1199,7 +1212,6 @@ void EPVBucket::setNumTotalItems(KVStoreIface& kvstore) {
     // of items in the vBucket/Bucket that is displayed to the user so
     // subtract the number of prepares from the number of on disk items.
     const auto vbItemCount1 = itemCount - vbState->onDiskPrepares;
-    const auto systemEvents = lockCollections().getSystemEventItemCount();
     const auto vbItemCount2 = vbItemCount1 - systemEvents;
     try {
         setNumTotalItems(vbItemCount2);
