@@ -489,16 +489,24 @@ Collections::Manager& KVBucketTest::getCollectionsManager() {
 }
 
 /**
- * Replace the rw KVStore with one that uses the given ops. This function
- * will test the config to be sure the KVBucket is persistsent/couchstore
+ * Replace the rw KVStore with one that uses the given ops. If a nullptr is
+ * passed, revert the KVStore back to default ops. This function will test
+ * the config to be sure the KVBucket is persistent/couchstore
  */
-void KVBucketTest::replaceCouchKVStore(FileOpsInterface& ops) {
+void KVBucketTest::replaceCouchKVStore(FileOpsInterface* ops) {
     ASSERT_EQ(engine->getConfiguration().getBucketType(), "persistent");
     ASSERT_EQ(engine->getConfiguration().getBackend(), "couchdb");
 
     const auto& config = store->getRWUnderlying(vbid)->getConfig();
-    auto rw = std::make_unique<MockCouchKVStore>(
-            dynamic_cast<const CouchKVStoreConfig&>(config), ops);
+
+    std::unique_ptr<MockCouchKVStore> rw;
+    if (ops) {
+        rw = std::make_unique<MockCouchKVStore>(
+                dynamic_cast<const CouchKVStoreConfig&>(config), *ops);
+    } else {
+        rw = std::make_unique<MockCouchKVStore>(
+                dynamic_cast<const CouchKVStoreConfig&>(config));
+    }
 
     const auto shardId = store->getShardId(vbid);
     store->setRW(shardId, std::move(rw));

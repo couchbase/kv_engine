@@ -32,7 +32,15 @@ using FlushResult = EPBucket::FlushResult;
 using MoreAvailable = EPBucket::MoreAvailable;
 using WakeCkptRemover = EPBucket::WakeCkptRemover;
 
-class STParamCouchstoreBucketTest : public STParamPersistentBucketTest {};
+class STParamCouchstoreBucketTest : public STParamPersistentBucketTest {
+protected:
+    void TearDown() override {
+        // If the couchKVStore has been replaced, any io could fail in the
+        // parent teardown if we don't replace it back
+        replaceCouchKVStore(nullptr);
+        STParamPersistentBucketTest::TearDown();
+    }
+};
 
 TEST_P(STParamCouchstoreBucketTest, MB_44098_compactionFailureLeavesNewFile) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
@@ -301,7 +309,7 @@ TEST_P(STParamCouchstoreBucketTest, HeaderSyncFails) {
 
     // Use mock ops to inject syscall failures
     ::testing::NiceMock<MockOps> ops(create_default_file_ops());
-    replaceCouchKVStore(ops);
+    replaceCouchKVStore(&ops);
     // We do 2 syncs per flush. First is for data sync, second is for header
     // sync. In this test we test we fail the second sync, which means that:
     // - All data (docs+local) will be flushed to the OSBC and sync'ed to disk
@@ -375,7 +383,7 @@ TEST_P(STParamCouchstoreBucketTest, HeaderSyncFails_VBStateOnly) {
 
     // Use mock ops to inject syscall failures.
     ::testing::NiceMock<MockOps> ops(create_default_file_ops());
-    replaceCouchKVStore(ops);
+    replaceCouchKVStore(&ops);
     EXPECT_CALL(ops, sync(testing::_, testing::_))
             .Times(testing::AnyNumber())
             .WillOnce(testing::DoDefault()) // data
@@ -427,7 +435,7 @@ TEST_P(STParamCouchstoreBucketTest,
     // Always fail the pwrite syscall for inducing the creation of an empty
     // couchstore file when the first flush fails.
     ::testing::NiceMock<MockOps> ops(create_default_file_ops());
-    replaceCouchKVStore(ops);
+    replaceCouchKVStore(&ops);
     EXPECT_CALL(ops, pwrite(_, _, _, _, _))
             .Times(2)
             .WillRepeatedly(Return(COUCHSTORE_ERROR_WRITE));
