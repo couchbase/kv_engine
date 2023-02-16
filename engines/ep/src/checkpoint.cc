@@ -747,3 +747,7 @@ void Checkpoint::MemoryCounter::changeParent(
         *parentUsage += local;
     }
 }
+
+void Checkpoint::dump() const {
+    std::cerr << *this << std::endl;
+}
