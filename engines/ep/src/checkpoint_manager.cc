@@ -842,11 +842,20 @@ bool CheckpointManager::queueDirty(
             // We shouldn't see this for non-active vBuckets; given the
             // original (active) vBucket on some other node should not have
             // put duplicate mutations in the same Checkpoint.
-            throw std::logic_error(
-                    "CheckpointManager::queueDirty(" + vb.getId().to_string() +
-                    ") - got Ckpt::queueDirty() status:" +
-                    to_string(result.status) + " when vbstate is non-active:" +
-                    std::to_string(vb.getState()));
+
+            const auto msg = fmt::format(
+                    "CheckpointManager::queueDirty: Got status:{} when {} is "
+                    "non-active:{}, item:[op:{}, seqno:{}], lastBySeqno:{}, "
+                    "openCkpt:[start:{}, end:{}]",
+                    to_string(result.status),
+                    vb.getId().to_string(),
+                    std::to_string(vb.getState()),
+                    ::to_string(qi->getOperation()),
+                    qi->getBySeqno(),
+                    lastBySeqno,
+                    openCkpt->getSnapshotStartSeqno(),
+                    openCkpt->getSnapshotEndSeqno());
+            throw std::logic_error(msg);
         }
 
         // To process this item, create a new (empty) checkpoint which we can
