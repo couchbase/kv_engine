@@ -52,6 +52,14 @@ struct HistogramData {
     uint64_t mean = 0;
     uint64_t sampleCount = 0;
     uint64_t sampleSum = 0;
+
+    /// The maximum value the histogram can track. This might appear redundant,
+    /// given the buckets vector below reports the bounds of each bucket, but
+    /// it is not as some histogram types / iteration modes only report a
+    /// subset of buckets(e.g. ones which have a non-zero sample count). As
+    /// such it's useful to include explicitly here.
+    uint64_t maxTrackableValue = 0;
+
     std::vector<HistogramBucket> buckets;
 };
 

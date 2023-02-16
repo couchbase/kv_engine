@@ -379,6 +379,8 @@ def sec_label(s):
 def size_label(s):
     if s == 0:
         return "%4d%s" % (0, 'B ')
+    if s == float('inf'):
+        return "inf"
     sizes=['B ', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB']
     e = math.floor(math.log(abs(s), 1024))
     suffix = sizes[int(e)]
@@ -426,36 +428,68 @@ def histograms(mc, raw_stats):
             all_ops_histo_data[k]['avg'] = float(v)
             continue
 
+        if "overflowed" in ka:
+            all_ops_histo_data[k]['overflowed'] = int(v)
+            continue
+
+        if "maxTrackable" in ka:
+            all_ops_histo_data[k]['maxTrackable'] = int(v)
+            continue
+
         kstart, kend = [int(x) for x in ka[-1].split(',')]
 
-        # Create a label for the data point
-        label_func = time_label
-        if k.endswith("Size") or k.endswith("Seek"):
-            label_func = size_label
-        elif k.endswith("Count"):
-            label_func = no_label
-        elif k.endswith("Ratio"):
-            label_func = ratio_label
-        elif k in special_labels:
-            label_func = special_labels[k]
+        # Create a label for this key (if not already defined).
+        if 'lb_fun' not in all_ops_histo_data[k]:
+            label_func = time_label
+            if k.endswith("Size") or k.endswith("Seek"):
+                label_func = size_label
+            elif k.endswith("Count"):
+                label_func = no_label
+            elif k.endswith("Ratio"):
+                label_func = ratio_label
+            elif k in special_labels:
+                label_func = special_labels[k]
+            all_ops_histo_data[k]['lb_fun'] = label_func
 
-        label = "%s - %s" % (label_func(kstart), label_func(kend))
+        label = "%s - %s" % (all_ops_histo_data[k]['lb_fun'](kstart),
+                             all_ops_histo_data[k]['lb_fun'](kend))
 
         if not 'data' in all_ops_histo_data[k]:
             all_ops_histo_data[k]['data'] = []
         all_ops_histo_data[k]['data'].append({'start' : int(kstart),
                                      'end'   : int(kend),
                                      'label' : label,
-                                     'lb_fun': label_func,
                                      'value' : int(v)})
 
     for name, current_hist_data in sorted(all_ops_histo_data.items()):
         if 'data' in current_hist_data.keys():
-            data_points = current_hist_data['data']
+            data_points: list = current_hist_data['data']
+            # Add a pseudo-bucket for any samples which exceeded the max
+            # trackable value of the histogram.
+            if ('maxTrackable' in current_hist_data
+                    and 'overflowed' in current_hist_data):
+                start = current_hist_data['maxTrackable']
+                end = float('inf')
+                label = "%s - %s" % (current_hist_data['lb_fun'](start),
+                                     current_hist_data['lb_fun'](end))
+                data_points.append({'start': start,
+                                    'end': end,
+                                    'label': label,
+                                    'value': current_hist_data['overflowed'],
+                                    'overflow': True})
         else:
             continue
         max_label_len = max([len(stat['label']) for stat in data_points])
         widestval = len(str(max([stat['value'] for stat in data_points])))
+
+        # Track two totals - the one we used for percentile calculations, which
+        # only includes samples landing in valid buckets from the histogram;
+        # and one used for total and bar chart rendering which includes all
+        # samples (including overflowed).
+        # This allows the valid buckets to sum to 100% (as they were iterated
+        # by KV-Engine), but still render bars relative to all samples.
+        total_bucketed = sum(
+            [stat['value'] for stat in data_points if not 'overflow' in stat])
         total = sum([stat['value'] for stat in data_points])
         if not total:
             # No non-zero datapoints; skip this histogram.
@@ -471,15 +505,21 @@ def histograms(mc, raw_stats):
             if not dp['value'] and not non_zero_dp_seen:
                 continue
 
-            # Omit any trailing zero count data points.
-            if total_seen == total:
+            # Omit any trailing zero count data points, unless it is the
+            # overflow bucket
+            if total_seen == total_bucketed and not 'overflow' in dp:
                 continue
 
             non_zero_dp_seen = True
             total_seen += dp['value']
-            pcnt = (total_seen * 100.0) / total
-            toprint  = "    %s : (%8.04f%%) %s" % \
-                       (dp['label'].ljust(max_label_len), pcnt,
+            pcnt = (total_seen * 100.0) / total_bucketed
+            if pcnt > 100:
+                # Overflow bucket - exclude percentage
+                pcntStr = "overflow "
+            else:
+                pcntStr = "%8.04f%%" % pcnt
+            toprint  = "    %s : (%s) %s" % \
+                       (dp['label'].ljust(max_label_len), pcntStr,
                         str(dp['value']).rjust(widestval))
             print(toprint, end=' ')
 
@@ -500,10 +540,11 @@ def histograms(mc, raw_stats):
         if not 'avg' in current_hist_data:
             sum_start_buck_vals = sum([((x['end'] - x['start'])/2) * x['value'] \
                                        for x in data_points])
-            current_hist_data['avg'] = sum_start_buck_vals / total
+            current_hist_data['avg'] = sum_start_buck_vals / total_bucketed
 
         print("    %s : (%s)" % ("Avg".ljust(max_label_len),
-                                 dp['lb_fun'](current_hist_data['avg']).rjust(7)))
+                                 current_hist_data['lb_fun'](
+                                     current_hist_data['avg']).rjust(7)))
 
 
 def parse_collection_arg(*args):
