@@ -298,7 +298,7 @@ bool DCPBackfillDisk::HistoryScanCtx::createScanContext(const KVStoreIface& kvs,
                                          snapshotInfo.start,
                                          ctx.docFilter,
                                          ctx.valFilter,
-                                         SnapshotSource::Head,
+                                         SnapshotSource::HeadAllVersions,
                                          std::move(ctx.handle));
     if (!scanCtx) {
         // initBySeqnoScanContext logs for failure

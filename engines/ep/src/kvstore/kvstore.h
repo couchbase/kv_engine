@@ -393,6 +393,8 @@ public:
                 ValueFilter valFilter,
                 std::unique_ptr<StatusCallback<GetValue>> cb,
                 std::unique_ptr<StatusCallback<CacheLookup>> cl,
+                const std::vector<Collections::KVStore::OpenCollection>*
+                        openCollections,
                 const std::vector<Collections::KVStore::DroppedCollection>&
                         droppedCollections,
                 uint64_t maxSeqno,
@@ -456,6 +458,8 @@ public:
             ValueFilter _valFilter,
             uint64_t _documentCount,
             const vbucket_state& vbucketState,
+            const std::vector<Collections::KVStore::OpenCollection>*
+                    openCollections,
             const std::vector<Collections::KVStore::DroppedCollection>&
                     droppedCollections,
             std::optional<uint64_t> timestamp = {},

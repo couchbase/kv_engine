@@ -2258,6 +2258,7 @@ std::unique_ptr<BySeqnoScanContext> CouchKVStore::initBySeqnoScanContext(
                                                      valOptions,
                                                      count,
                                                      readVbStateResult.state,
+                                                     nullptr,
                                                      droppedCollections,
                                                      std::move(timestamp));
     sctx->logger = &logger;

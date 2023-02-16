@@ -2322,6 +2322,7 @@ public:
                              _valFilter,
                              _documentCount,
                              vbucketState,
+                             nullptr, // no open collections
                              droppedCollections) {
     }
 

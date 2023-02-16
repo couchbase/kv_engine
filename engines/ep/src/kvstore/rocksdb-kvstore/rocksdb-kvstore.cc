@@ -1498,6 +1498,7 @@ std::unique_ptr<BySeqnoScanContext> RocksDBKVStore::initBySeqnoScanContext(
             valOptions,
             /* documentCount */ diskState.state.highSeqno - startSeqno + 1,
             diskState.state,
+            nullptr,
             std::vector<Collections::KVStore::DroppedCollection>{
                     /*no collections in rocksdb*/});
 }
