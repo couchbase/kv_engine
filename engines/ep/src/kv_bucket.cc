@@ -322,11 +322,6 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     stats.schedulingHisto.resize(size);
     stats.taskRuntimeHisto.resize(size);
 
-    for (size_t i = 0; i < GlobalTask::allTaskIds.size(); i++) {
-        stats.schedulingHisto[i].reset();
-        stats.taskRuntimeHisto[i].reset();
-    }
-
     ExecutorPool::get()->registerTaskable(ObjectRegistry::getCurrentEngine()->getTaskable());
 
     // Reset memory overhead when bucket is created.
