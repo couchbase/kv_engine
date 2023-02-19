@@ -705,20 +705,15 @@ void Connection::executeCommandPipeline() {
         get_thread_stats(this)->conn_yields++;
     }
 
-    // We have to make sure that we drain the send queue back to a "normal"
-    // size if it grows too big. At the same time we don't want to signal
-    // the thread to be run again if we've got a pending notification for
-    // the thread (an active command running which is waiting for the engine)
-    // If the last command in the pipeline may be reordered we can add more
-    if ((isDCP() || (getSendQueueSize() < maxSendQueueSize)) &&
-        (!active || (cookies.back()->mayReorder() &&
-                     cookies.size() < maxActiveCommands))) {
-        enableReadEvent();
-        if ((!active || numEvents == 0) && isPacketAvailable()) {
+    if (isPacketAvailable()) {
+        disableReadEvent();
+        if (!active || // No active commands which would trigger
+            (cookies.back()->mayReorder() && // but we could OoO more commands
+             cookies.size() < maxActiveCommands)) {
             triggerCallback();
         }
     } else {
-        disableReadEvent();
+        enableReadEvent();
     }
 }
 
