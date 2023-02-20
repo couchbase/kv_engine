@@ -151,6 +151,21 @@ void CheckpointManager::addNewCheckpoint(
         std::optional<uint64_t> highCompletedSeqno,
         CheckpointType checkpointType,
         CheckpointHistorical historical) {
+    if (isDiskCheckpointType(checkpointType) && !highCompletedSeqno) {
+        const auto msg = fmt::format(
+                "CheckpointManager::addNewCheckpoint: {}, snapStart:{}, "
+                "snapEnd:{}, visibleSnapEnd:{}, HCS:{}, type:{}, {} - "
+                "missing HCS",
+                vb.getId(),
+                snapStartSeqno,
+                snapEndSeqno,
+                visibleSnapEnd,
+                to_string_or_none(highCompletedSeqno),
+                ::to_string(checkpointType),
+                ::to_string(historical));
+        throw std::logic_error(msg);
+    }
+
     // First, we must close the open checkpoint.
     auto* const oldOpenCkptPtr = checkpointList.back().get();
     auto& oldOpenCkpt = *oldOpenCkptPtr;

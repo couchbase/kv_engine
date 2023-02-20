@@ -26,6 +26,7 @@
 
 #include <gsl/gsl-lite.hpp>
 #include <nlohmann/json.hpp>
+#include <platform/optional.h>
 #include <statistics/cbstat_collector.h>
 
 #include <memory>
@@ -1152,6 +1153,21 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
             // SyncWrites to have completed yet). If SyncReplication is
             // supported then use the value from the marker.
             hcs = 0;
+        }
+
+        if (marker->getFlags() & MARKER_FLAG_DISK && !hcs) {
+            const auto msg = fmt::format(
+                    "PassiveStream::processMarker: stream:{} {}, flags:{}, "
+                    "flagsDecoded:{}, snapStart:{}, snapEnd:{}, HCS:{} - "
+                    "missing HCS",
+                    name_,
+                    vb_,
+                    marker->getFlags(),
+                    dcpMarkerFlagsToString(marker->getFlags()),
+                    marker->getStartSeqno(),
+                    marker->getEndSeqno(),
+                    to_string_or_none(hcs));
+            throw std::logic_error(msg);
         }
 
         if (marker->getFlags() & MARKER_FLAG_DISK) {
