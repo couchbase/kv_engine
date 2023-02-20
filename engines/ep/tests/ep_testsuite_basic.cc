@@ -593,8 +593,7 @@ static enum test_result test_getl(EngineIface* h) {
                          cookie,
                          StoreSemantics::Set,
                          key,
-                         binaryData1,
-                         sizeof(binaryData1) - 1,
+                         {binaryData1, sizeof(binaryData1) - 1},
                          82758,
                          0,
                          Vbid(0))
@@ -649,8 +648,7 @@ static enum test_result test_getl(EngineIface* h) {
                        cookie,
                        StoreSemantics::CAS,
                        ekey,
-                       binaryData1,
-                       sizeof(binaryData1) - 1,
+                       {binaryData1, sizeof(binaryData1) - 1},
                        82758,
                        cas,
                        Vbid(0));
@@ -766,8 +764,7 @@ static enum test_result test_set_get_hit_bin(EngineIface* h) {
                          nullptr,
                          StoreSemantics::Set,
                          "key",
-                         binaryData,
-                         sizeof(binaryData),
+                         {binaryData, sizeof(binaryData)},
                          82758,
                          0,
                          Vbid(0))
@@ -818,7 +815,6 @@ static enum test_result test_set_change_flags(EngineIface* h) {
                          StoreSemantics::Set,
                          "key",
                          "newvalue",
-                         strlen("newvalue"),
                          flags,
                          0,
                          Vbid(0))

@@ -434,8 +434,7 @@ cb::engine_errc delete_with_value(EngineIface* h,
                             cookie,
                             StoreSemantics::Set,
                             key,
-                            value.data(),
-                            value.size(),
+                            value,
                             9258,
                             cas,
                             Vbid(0),
@@ -1036,8 +1035,7 @@ cb::engine_errc store(
                             cookie,
                             op,
                             key,
-                            value.data(),
-                            value.size(),
+                            value,
                             9258,
                             casIn,
                             vb,
@@ -1091,8 +1089,7 @@ cb::EngineErrorItemPair storeCasVb11(
         CookieIface* cookie,
         StoreSemantics op,
         std::string_view key,
-        const char* value,
-        size_t vlen,
+        std::string_view value,
         uint32_t flags,
         uint64_t casIn,
         Vbid vb,
@@ -1102,7 +1099,7 @@ cb::EngineErrorItemPair storeCasVb11(
         const std::optional<cb::durability::Requirements>& durReqs) {
     uint64_t cas = 0;
 
-    auto rv = allocate(h, cookie, key, vlen, flags, exp, datatype, vb);
+    auto rv = allocate(h, cookie, key, value.size(), flags, exp, datatype, vb);
     if (rv.first != cb::engine_errc::success) {
         return rv;
     }
@@ -1111,8 +1108,10 @@ cb::EngineErrorItemPair storeCasVb11(
         abort();
     }
 
-    cb_assert(info.value[0].iov_len == vlen);
-    std::copy(value, value + vlen, reinterpret_cast<char*>(info.value[0].iov_base));
+    cb_assert(info.value[0].iov_len == value.size());
+    std::copy(value.begin(),
+              value.end(),
+              reinterpret_cast<char*>(info.value[0].iov_base));
     rv.second->setCas(casIn);
 
     bool create_cookie = false;
