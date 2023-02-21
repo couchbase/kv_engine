@@ -36,13 +36,18 @@ TEST_F(TimingsTest, Overflow) {
     auto maxTracked = std::chrono::microseconds{histo->getMaxTrackableValue()};
     timings.collect(cb::mcbp::ClientOpcode::Get, maxTracked * 2);
 
-    // Test - out of range value _should_ be included in the JSON output as
-    // an 'overflowed' field.
+    // Test - out of range values _should_ be included in the JSON output as
+    // 'overflowed' and 'overflowed_sum' fields.
     auto json = histo->to_json();
     auto overflowed = json.find("overflowed");
     ASSERT_NE(json.end(), overflowed);
     ASSERT_TRUE(overflowed->is_number());
     EXPECT_EQ(1, overflowed->get<int64_t>());
+
+    auto overflowedSum = json.find("overflowed_sum");
+    ASSERT_NE(json.end(), overflowedSum);
+    ASSERT_TRUE(overflowedSum->is_number());
+    EXPECT_EQ(maxTracked.count() * 2, overflowedSum->get<int64_t>());
 
     // Also expect 'a max_trackable' to determine what constitutes 'overflowed'
     // values.
