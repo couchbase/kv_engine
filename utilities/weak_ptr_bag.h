@@ -32,7 +32,7 @@ public:
      */
     void push(std::shared_ptr<T> ptr) {
         items.withLock([ptr = std::move(ptr)](auto& locked) {
-            compact(locked);
+            compactInner(locked);
             locked.push_back(ptr);
         });
     }
@@ -44,7 +44,7 @@ public:
     std::vector<std::shared_ptr<T>> getNonExpired() const {
         // Compact the list of tasks and return the once which are alive.
         return items.withLock([](auto& locked) {
-            compact(locked);
+            compactInner(locked);
 
             std::vector<std::shared_ptr<T>> alive;
             alive.reserve(locked.size());
@@ -71,7 +71,7 @@ public:
     size_t compact() {
         return items.withLock([](auto& locked) {
             auto initialSize = locked.size();
-            compact(locked);
+            compactInner(locked);
             // Manual compact() -- there might be a reason why it was called
             // manually. Ask the implementation to consider reducing the
             // capacity of the vector.
@@ -81,7 +81,7 @@ public:
     }
 
 private:
-    static void compact(std::vector<std::weak_ptr<T>>& ptrs) {
+    static void compactInner(std::vector<std::weak_ptr<T>>& ptrs) {
         ptrs.erase(std::partition(ptrs.begin(),
                                   ptrs.end(),
                                   [](auto& ptr) { return !ptr.expired(); }),
