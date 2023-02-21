@@ -115,8 +115,6 @@ CouchstoreFileAccessGuard::~CouchstoreFileAccessGuard() {
 #endif
 }
 
-template<typename T> class HistogramStats;
-
 // Due to the limitations of the add_stats callback (essentially we cannot pass
 // a context into it) we instead have a single, global `vals` map. The
 // vals_mutex is to ensure serialised modifications to this data structure.
@@ -135,10 +133,6 @@ struct {
     std::mutex mutex;
     std::string requested_stat_name;
     std::string actual_stat_value;
-    /* HistogramStats<T>* is supported C++14 onwards.
-     * Until then use a separate ptr for each type.
-     */
-    HistogramStats<uint64_t>* histogram_stat_int_value;
 } get_stat_context;
 
 bool dump_stats = false;
@@ -151,69 +145,6 @@ std::atomic<uint8_t> last_datatype(0x00);
 ItemMetaData last_meta;
 std::atomic<uint64_t> last_uuid(0);
 std::atomic<uint64_t> last_seqno(0);
-
-/* HistogramBinStats is used to hold a histogram bin object a histogram stat.
-   This is a class used to hold already computed stats. Hence we do not expect
-   any change once a bin object is created */
-template<typename T>
-class HistogramBinStats {
-public:
-    HistogramBinStats(const T& s, const T& e, uint64_t count)
-        : start_(s), end_(e), count_(count) { }
-
-    T start() const {
-        return start_;
-    }
-
-    T end() const {
-        return end_;
-    }
-
-    uint64_t count() const {
-        return count_;
-    }
-
-private:
-    T start_;
-    T end_;
-    uint64_t count_;
-};
-
-
-/* HistogramStats is used to hold necessary info from a histogram stat.
-   Since this class used to hold already computed stats, only write apis to add
-   new bins is implemented */
-template<typename T>
-class HistogramStats {
-public:
-    HistogramStats() : total_count(0) {}
-
-    /* Add a new bin */
-    void add_bin(const T& start, const T& end, uint64_t count) {
-        bins.push_back(HistogramBinStats<T>(start, end, count));
-        total_count += count;
-    }
-
-    /* Num of bins in the histogram */
-    size_t num_bins() const {
-        return bins.size();
-    }
-
-    uint64_t total() const {
-        return total_count;
-    }
-
-    /* Add a bin iterator when needed */
-private:
-    /* List of all the bins in the histogram stats */
-    std::list<HistogramBinStats<T>> bins;
-    /* Total number of samples across all histogram bins */
-    uint64_t total_count;
-};
-
-static void get_histo_stat(EngineIface* h,
-                           const char* statname,
-                           const char* statkey);
 
 void encodeExt(char* buffer, uint32_t val, size_t offset = 0);
 void encodeWithMetaExt(char *buffer, ItemMetaData *meta);
@@ -316,43 +247,6 @@ static void add_individual_stat(std::string_view key,
                 key.size()) == 0) {
         get_stat_context.actual_stat_value =
                 std::string(value.data(), value.size());
-    }
-}
-
-static void add_individual_histo_stat(std::string_view key,
-                                      std::string_view value,
-                                      CookieIface&) {
-    /* Convert key to string */
-    std::string key_str(key.data(), key.size());
-    /* Exclude mean value keys e.g. backfill_tasks_mean */
-    if (key_str.find("_mean") != std::string::npos) {
-        return;
-    }
-
-    size_t pos1 = key_str.find(get_stat_context.requested_stat_name);
-    if (pos1 != std::string::npos) {
-        get_stat_context.actual_stat_value.append(value.data(), value.size());
-        /* Parse start and end from the key.
-           Key is in the format task_name_START,END (backfill_tasks_20,100)
-         */
-        pos1 += get_stat_context.requested_stat_name.length();
-        /* Find ',' to move to end of bin_start */
-        size_t pos2 = key_str.find(',', pos1);
-        if ((std::string::npos == pos2) || (pos1 >= pos2)) {
-            throw std::invalid_argument("Malformed histogram stat: " + key_str);
-        }
-        auto start = std::stoull(std::string(key_str, pos1, pos2));
-
-        /* Move next to ',' for starting character of bin_end */
-        pos1 = pos2 + 1;
-        /* key_str ends with bin_end */
-        pos2 = key_str.length();
-        if (pos1 >= pos2) {
-            throw std::invalid_argument("Malformed histogram stat: " + key_str);
-        }
-        auto end = std::stoull(std::string(key_str, pos1, pos2));
-        get_stat_context.histogram_stat_int_value->add_bin(
-                start, end, std::stoull({value.data(), value.size()}));
     }
 }
 
@@ -1451,52 +1345,6 @@ int get_int_stat_or_default(EngineIface* h,
         return get_int_stat(h, statname, statkey);
     } catch (std::out_of_range&) {
         return default_value;
-    }
-}
-
-uint64_t get_histo_stat(EngineIface* h,
-                        const char* statname,
-                        const char* statkey,
-                        const Histo_stat_info histo_info) {
-    std::lock_guard<std::mutex> lh(get_stat_context.mutex);
-
-    get_stat_context.histogram_stat_int_value = new HistogramStats<uint64_t>();
-    get_histo_stat(h, statname, statkey);
-
-    /* Get the necessary info from the histogram */
-    uint64_t ret_val = 0;
-    switch (histo_info) {
-        case Histo_stat_info::TOTAL_COUNT:
-            ret_val = get_stat_context.histogram_stat_int_value->total();
-            break;
-        case Histo_stat_info::NUM_BINS:
-            ret_val =
-                    static_cast<uint64_t>(get_stat_context.
-                                          histogram_stat_int_value->num_bins());
-            break;
-    }
-
-    delete get_stat_context.histogram_stat_int_value;
-    return ret_val;
-}
-
-static void get_histo_stat(EngineIface* h,
-                           const char* statname,
-                           const char* statkey) {
-    get_stat_context.requested_stat_name = statname;
-    /* Histo stats for tasks are append as task_name_START,END.
-       Hence append _ */
-    get_stat_context.requested_stat_name.append("_");
-
-    auto* cookie = testHarness->create_cookie(h);
-    auto err = h->get_stats(*cookie,
-                            {statkey, statkey == nullptr ? 0 : strlen(statkey)},
-                            {},
-                            add_individual_histo_stat);
-    testHarness->destroy_cookie(cookie);
-
-    if (err != cb::engine_errc::success) {
-            throw cb::engine_error(err, "get_stats failed");
     }
 }
 

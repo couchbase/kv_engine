@@ -64,15 +64,6 @@ extern std::atomic<uint64_t> last_uuid;
 extern std::atomic<uint64_t> last_seqno;
 extern ItemMetaData last_meta;
 
-/* This is an enum class to indicate what stats are required from the
-   HistogramStats. */
-enum class Histo_stat_info {
-    /* Total number of samples across all the bins in the histogram stat */
-    TOTAL_COUNT,
-    /* Number of bins in the histogram stat */
-    NUM_BINS
-};
-
 /**
  * Helper class used when waiting on statistics to reach a certain value -
  * aggregates how long we have been waiting and aborts if the maximum wait time
@@ -379,14 +370,6 @@ cb::engine_errc get_stats(gsl::not_null<EngineIface*> h,
                           std::string_view key,
                           std::string_view value,
                           const AddStatFn& callback);
-
-/* This is used to get stat info specified by 'histo_info' from histogram of
- * "statname" which is got by running stats on "statkey"
- */
-uint64_t get_histo_stat(EngineIface* h,
-                        const char* statname,
-                        const char* statkey,
-                        const Histo_stat_info histo_info);
 
 using statistic_map = std::map<std::string, std::string>;
 
