@@ -729,15 +729,15 @@ int main(int argc, char **argv) {
 
                     // Print the last N log entries if the test fails
                     if (!verbose_logging && (ecode == FAIL || ecode == DIED)) {
-                        fprintf(stderr,
-                                "\nPrinting the last %ld log entries\n",
-                                ringBufferEntries);
-                        fprintf(stderr, "========================\n");
+                        fmt::print(stderr,
+                                   "\nPrinting the last {} log entries\n",
+                                   ringBufferEntries);
+                        fmt::print(stderr, "========================\n");
                         for (auto entry : ringBufferSink->last_formatted(
                                      ringBufferEntries)) {
-                            fprintf(stderr, "%s", entry.c_str());
+                            fmt::print(stderr, "{}", entry);
                         }
-                        fprintf(stderr, "========================\n");
+                        fmt::print(stderr, "========================\n");
                     }
                     error = report_test(testcases[i].name.c_str(),
                                         stop - start,
