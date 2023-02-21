@@ -311,7 +311,7 @@ cb::EngineErrorItemPair storeCasVb11(
 cb::engine_errc replace(EngineIface* h,
                         CookieIface* cookie,
                         std::string_view key,
-                        const char* value,
+                        std::string_view value,
                         uint32_t flags,
                         Vbid vb);
 

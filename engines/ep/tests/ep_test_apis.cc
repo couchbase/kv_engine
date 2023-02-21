@@ -1134,50 +1134,39 @@ cb::EngineErrorItemPair storeCasVb11(
 cb::engine_errc replace(EngineIface* h,
                         CookieIface* cookie,
                         std::string_view key,
-                        const char* value,
+                        std::string_view value,
                         uint32_t flags,
                         Vbid vb) {
     Expects(cookie);
 
-    const auto allocRes = allocate(h,
-                                   cookie,
-                                   key,
-                                   strlen(value),
-                                   flags,
-                                   0 /*expiry*/,
-                                   0 /*datatype*/,
-                                   vb);
-    if (allocRes.first != cb::engine_errc::success) {
-        return cb::engine_errc(allocRes.first);
+    auto [status, item] =
+            allocate(h, cookie, key, value.size(), flags, 0, 0, vb);
+    if (status != cb::engine_errc::success) {
+        return status;
     }
 
-    const auto& item = allocRes.second;
-    item_info info;
-    if (!h->get_item_info(*item.get(), info)) {
-        abort();
-    }
-    allocRes.second->setCas(0);
+    item->setCas(0);
+    std::copy(value.begin(), value.end(), item->getValueBuffer().begin());
 
-    // A predicate that allows the replace.
+    // A predicate that allows the replacement.
     // This simulates the behaviour of replace when the doc being updated does
     // not contain any xattr, and the vbucket that owns the doc has surely never
     // seen a doc with xattr. Which means that we do not need any pre-fetch for
-    // preserving xattrs, the replace can just proceed.
+    // preserving xattrs, the replacement can just proceed.
     const cb::StoreIfPredicate predicate = [](const std::optional<item_info>&,
                                               cb::vbucket_info) {
         return cb::StoreIfStatus::Continue;
     };
 
-    auto [status, cas] = h->store_if(*cookie,
-                                     *item.get(),
-                                     0 /*cas*/,
-                                     StoreSemantics::Replace,
-                                     predicate,
-                                     {} /*durReqs*/,
-                                     DocumentState::Alive,
-                                     false);
-
-    return status;
+    return h->store_if(*cookie,
+                       *item,
+                       cb::mcbp::cas::Wildcard,
+                       StoreSemantics::Replace,
+                       predicate,
+                       {},
+                       DocumentState::Alive,
+                       false)
+            .first;
 }
 
 cb::engine_errc touch(EngineIface* h,
