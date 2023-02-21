@@ -297,10 +297,6 @@ cb::engine_errc Connection::dropPrivilege(cb::rbac::Privilege privilege) {
     return cb::engine_errc::success;
 }
 
-in_port_t Connection::getParentPort() const {
-    return listening_port->port;
-}
-
 cb::rbac::PrivilegeContext Connection::getPrivilegeContext() {
     if (privilegeContext.isStale()) {
         try {

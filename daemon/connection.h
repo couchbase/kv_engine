@@ -180,8 +180,6 @@ public:
         return thread;
     }
 
-    in_port_t getParentPort() const;
-
     /**
      * Get the command context to use for checking access.
      *
