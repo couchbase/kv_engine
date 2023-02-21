@@ -1529,8 +1529,7 @@ void validate_store_resp(cb::engine_errc ret, int& num_items) {
         break;
     default:
         check(false,
-              ("write_items_upto_mem_perc: Unexpected response from "
-               "store(): " +
+              ("validate_store_resp: Unexpected response from store(): " +
                cb::to_string(ret))
                       .c_str());
         break;
@@ -1566,15 +1565,8 @@ void write_items(EngineIface* h,
     }
 }
 
-/* Helper function to write unique items starting from keyXX until memory usage
-   hits "mem_thresh_perc" (XX is start_seqno) */
-int write_items_upto_mem_perc(EngineIface* h,
-                              int mem_thresh_perc,
-                              int start_seqno,
-                              std::string_view key_prefix,
-                              const char* value) {
-    auto maxSize =
-            static_cast<float>(get_int_stat(h, "ep_max_size", "memory"));
+int write_items_upto_mem_perc(EngineIface* h, int mem_thresh_perc) {
+    auto maxSize = static_cast<float>(get_int_stat(h, "ep_max_size", "memory"));
     float mem_thresh = static_cast<float>(mem_thresh_perc) / (100.0);
     int num_items = 0;
     while (true) {
@@ -1590,12 +1582,11 @@ int write_items_upto_mem_perc(EngineIface* h,
                     h, "ep_checkpoint_memory_pending_destruction", 0);
             continue;
         }
-        cb::engine_errc ret =
-                store(h,
-                      nullptr,
-                      StoreSemantics::Set,
-                      fmt::format("{}{}", key_prefix, num_items + start_seqno),
-                      std::string(1024 * 100, 'x'));
+        const auto ret = store(h,
+                               nullptr,
+                               StoreSemantics::Set,
+                               fmt::format("key{}", num_items),
+                               std::string(1024 * 100, 'x'));
         if (ret == cb::engine_errc::temporary_failure ||
             ret == cb::engine_errc::no_memory) {
             wait_for_flusher_to_settle(h);

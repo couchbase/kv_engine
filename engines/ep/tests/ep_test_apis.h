@@ -588,13 +588,9 @@ void write_items(EngineIface* h,
                  Vbid vb = Vbid(0),
                  DocumentState docState = DocumentState::Alive);
 
-/* Helper function to write unique items starting from keyXX until memory usage
-   hits "mem_thresh_perc" (XX is start_seqno) */
-int write_items_upto_mem_perc(EngineIface* h,
-                              int mem_thresh_perc,
-                              int start_seqno = 0,
-                              std::string_view key_prefix = "key",
-                              const char* value = "data");
+/// Helper function to write unique items starting from key0 until memory usage
+/// hits "mem_thresh_perc"
+int write_items_upto_mem_perc(EngineIface* h, int mem_thresh_perc);
 
 template <typename T>
 inline void wait_for_stat_change(
