@@ -2538,7 +2538,7 @@ cb::engine_errc EPBucket::prepareForPause(
             // of mutex finishes with it. (We don't want to use a blocking wait
             // we want to be able to check for cancellation promptly).
             std::this_thread::sleep_for(std::chrono::milliseconds{1});
-            lock.try_lock();
+            (void)lock.try_lock();
             if (cancellationToken.isCancellationRequested()) {
                 // Return from this method; all vb_mutexes locked so far
                 // will be unlocked via unique_locks going out of scope.
