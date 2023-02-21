@@ -635,7 +635,8 @@ TEST_P(RangeScanTest, greater_than) {
     }
     expectedKeys.emplace(rangeStart);
 
-    testRangeScan(expectedKeys, scanCollection, {key}, {"\xFF"});
+    testRangeScan(
+            expectedKeys, scanCollection, std::string_view{key}, {"\xFF"});
 }
 
 // Run a > "user" scan using the KeyType
@@ -688,7 +689,8 @@ void RangeScanTest::testLessThan(std::string key) {
     expectedKeys.emplace(rangeEnd);
 
     // note: start is ensuring the key is byte 0 with a length of 1
-    testRangeScan(expectedKeys, scanCollection, {"\0", 1}, {key});
+    std::string_view start{"\0", 1};
+    testRangeScan(expectedKeys, scanCollection, start, std::string_view{key});
 }
 
 TEST_P(RangeScanTest, less_than) {
