@@ -19,6 +19,7 @@
 #include <fmt/format.h>
 #include <folly/portability/SysStat.h>
 #include <mcbp/protocol/framebuilder.h>
+#include <memcached/engine_error.h>
 #include <memcached/util.h>
 #include <nlohmann/json.hpp>
 #include <platform/cbassert.h>
@@ -1340,18 +1341,6 @@ void sendDcpAck(EngineIface* h,
             "Expected success");
 }
 
-class engine_error : public std::exception {
-public:
-    explicit engine_error(cb::engine_errc code_) : code(code_) {
-    }
-
-    const char* what() const noexcept override {
-        return "engine_error";
-    }
-
-    cb::engine_errc code;
-};
-
 /* The following set of functions get a given stat as the specified type
  * (int, float, unsigned long, string, bool, etc).
  * If the engine->get_stats() call fails, throws a engine_error exception.
@@ -1401,7 +1390,7 @@ std::string get_stat(EngineIface* h,
     testHarness->destroy_cookie(cookie);
 
     if (err != cb::engine_errc::success) {
-        throw engine_error(err);
+        throw cb::engine_error(err, "get_stats failed");
     }
 
     if (get_stat_context.actual_stat_value.empty()) {
@@ -1518,7 +1507,7 @@ static void get_histo_stat(EngineIface* h,
     testHarness->destroy_cookie(cookie);
 
     if (err != cb::engine_errc::success) {
-        throw engine_error(err);
+            throw cb::engine_error(err, "get_stats failed");
     }
 }
 
@@ -1535,7 +1524,7 @@ statistic_map get_all_stats(EngineIface* h, const char* statset) {
     testHarness->destroy_cookie(cookie);
 
     if (err != cb::engine_errc::success) {
-        throw engine_error(err);
+        throw cb::engine_error(err, "get_stats failed");
     }
 
     std::lock_guard<std::mutex> lh(vals_mutex);
@@ -1621,7 +1610,7 @@ bool wait_for_warmup_complete(EngineIface* h) {
             if (get_str_stat(h, "ep_warmup_thread", "warmup") == "complete") {
                 return true;
             }
-        } catch (engine_error&) {
+        } catch (const cb::engine_error&) {
             // If the stat call failed then the warmup stats group no longer
             // exists and hence warmup is complete.
             return true;
