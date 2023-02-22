@@ -374,14 +374,17 @@ void Cookie::maybeLogSlowCommand(
         std::chrono::nanoseconds timings(elapsed);
         auto& c = getConnection();
 
-        TRACE_COMPLETE2("memcached/slow",
-                        "Slow cmd",
-                        start,
-                        start + elapsed,
-                        "opcode",
-                        getHeader().getOpcode(),
-                        "connection_id",
-                        c.getId());
+        // Trace as an Async event as we record at the thread level, and there
+        // could be many other events which overlap this one.
+        TRACE_ASYNC_COMPLETE2("memcached/slow",
+                              "Slow cmd",
+                              this,
+                              start,
+                              start + elapsed,
+                              "opcode",
+                              getHeader().getOpcode(),
+                              "connection_id",
+                              c.getId());
 
         nlohmann::json details = {{"cid",
                                    fmt::format("{}/{:x}",
