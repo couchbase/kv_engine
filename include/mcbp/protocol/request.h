@@ -33,7 +33,6 @@ enum class FrameInfoId {
     Barrier = 0,
     DurabilityRequirement = 1,
     DcpStreamId = 2,
-    OpenTracingContext = 3,
     Impersonate = 4,
     PreserveTtl = 5,
     ImpersonateExtraPrivilege = 6,

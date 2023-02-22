@@ -60,8 +60,6 @@ add_library(memcached_daemon STATIC
             network_interface_manager.h
             nobucket_taskable.cc
             nobucket_taskable.h
-            opentelemetry.cc
-            opentelemetry.h
             protocol/mcbp/adjust_timeofday_executor.cc
             protocol/mcbp/appendprepend_context.cc
             protocol/mcbp/appendprepend_context.h

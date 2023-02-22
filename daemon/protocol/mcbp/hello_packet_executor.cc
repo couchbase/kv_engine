@@ -18,7 +18,6 @@
 #include <nlohmann/json.hpp>
 
 #include <daemon/buckets.h>
-#include <daemon/opentelemetry.h>
 #include <mcbp/protocol/status.h>
 #include <set>
 
@@ -67,7 +66,6 @@ void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> 
         case cb::mcbp::Feature::XERROR:
         case cb::mcbp::Feature::SELECT_BUCKET:
         case cb::mcbp::Feature::Collections:
-        case cb::mcbp::Feature::OpenTracing:
         case cb::mcbp::Feature::PreserveTtl:
         case cb::mcbp::Feature::Duplex:
         case cb::mcbp::Feature::ClustermapChangeNotification:
@@ -112,7 +110,6 @@ void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> 
         case cb::mcbp::Feature::Duplex:
         case cb::mcbp::Feature::UnorderedExecution:
         case cb::mcbp::Feature::Collections:
-        case cb::mcbp::Feature::OpenTracing:
         case cb::mcbp::Feature::PreserveTtl:
         case cb::mcbp::Feature::PiTR:
         case cb::mcbp::Feature::SubdocCreateAsDeleted:
@@ -300,11 +297,6 @@ void process_hello_packet_executor(Cookie& cookie) {
         case cb::mcbp::Feature::SyncReplication:
             // The SyncReplication is only informative
             added = true;
-            break;
-        case cb::mcbp::Feature::OpenTracing:
-            if (OpenTelemetry::isEnabled()) {
-                added = true;
-            }
             break;
         case cb::mcbp::Feature::Collections: {
             auto& bucket = connection.getBucket();

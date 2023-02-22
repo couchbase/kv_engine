@@ -26,7 +26,6 @@
 #include "network_interface.h"
 #include "network_interface_manager.h"
 #include "nobucket_taskable.h"
-#include "opentelemetry.h"
 #include "protocol/mcbp/engine_wrapper.h"
 #include "settings.h"
 #include "stats.h"
@@ -1064,11 +1063,6 @@ int memcached_main(int argc, char** argv) {
 
     LOG_INFO_RAW("Shutting down event base");
     main_base.reset();
-
-    if (OpenTelemetry::isEnabled()) {
-        LOG_INFO_RAW("Shutting down OpenTelemetry");
-        OpenTelemetry::shutdown();
-    }
 
     LOG_INFO_RAW("Shutting down logger extension");
     cb::logger::shutdown();

@@ -136,23 +136,6 @@ TEST_F(FrameExtrasValidatorTests, DcpStreamIdInvalidSize) {
               validate_error_context(ClientOpcode::Set, blob, Status::Einval));
 }
 
-TEST_F(FrameExtrasValidatorTests, OpenTracingContext) {
-    const std::string context{"context"};
-
-    auto fe = encodeFrameInfo(
-            FrameInfoId::OpenTracingContext,
-            {reinterpret_cast<const uint8_t*>(&context), context.size()});
-    builder.setFramingExtras({fe.data(), fe.size()});
-    EXPECT_EQ(Status::Success, validate(ClientOpcode::Set, blob));
-}
-
-TEST_F(FrameExtrasValidatorTests, OpenTracingContextInvalidSize) {
-    auto fe = encodeFrameInfo(FrameInfoId::OpenTracingContext, {});
-    builder.setFramingExtras({fe.data(), fe.size()});
-    EXPECT_EQ("OpenTracingContext cannot be empty",
-              validate_error_context(ClientOpcode::Set, blob, Status::Einval));
-}
-
 TEST_F(FrameExtrasValidatorTests, PreserveTtl) {
     auto fe = encodeFrameInfo(FrameInfoId::PreserveTtl, {});
     builder.setFramingExtras({fe.data(), fe.size()});

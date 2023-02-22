@@ -32,7 +32,6 @@ const std::map<cb::mcbp::Feature, std::string> featureBlueprint = {
          {cb::mcbp::Feature::Tracing, "Tracing"},
          {cb::mcbp::Feature::AltRequestSupport, "AltRequestSupport"},
          {cb::mcbp::Feature::SyncReplication, "SyncReplication"},
-         {cb::mcbp::Feature::OpenTracing, "OpenTelemetry"},
          {cb::mcbp::Feature::PreserveTtl, "PreserveTtl"},
          {cb::mcbp::Feature::VAttr, "VAttr"},
          {cb::mcbp::Feature::PiTR, "PiTR"},

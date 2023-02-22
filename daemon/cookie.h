@@ -395,8 +395,6 @@ public:
         return --refcount;
     }
 
-    void setOpenTracingContext(cb::const_byte_buffer context);
-
     /**
      * @return true is setAuthorized has been called
      */
@@ -603,28 +601,7 @@ protected:
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) const;
 
-    /**
-     * Is OpenTelemetry enabled for this cookie or not. By querying the
-     * cookie we don't have to read the atomic on/off switch unless
-     * people try to set the OpenTelemetry context in the command.
-     */
-    bool isOpenTracingEnabled() const {
-        return !openTracingContext.empty();
-    }
-
-    /**
-     * Extract the trace context.
-     * This method moves the tracer, OpenTelemetry context into
-     * a newly created TraceContext object which may be passed to the
-     * OpenTelemetry module and handled asynchronously
-     */
-    CookieTraceContext extractTraceContext();
-
     void collectTimings(const std::chrono::steady_clock::time_point& end);
-
-    /// The tracing context provided by the client to use as the
-    /// parent span
-    std::string openTracingContext;
 
     /**
      * The connection object this cookie is bound to

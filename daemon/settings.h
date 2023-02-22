@@ -1142,7 +1142,6 @@ public:
         bool connection_limit_mode = false;
         bool max_client_connection_details = false;
         bool max_concurrent_commands_per_connection = false;
-        bool opentracing_config = false;
         bool num_reader_threads = false;
         bool num_writer_threads = false;
         bool num_auxio_threads = false;

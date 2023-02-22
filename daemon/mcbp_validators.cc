@@ -305,19 +305,6 @@ Status McbpValidator::verify_header(Cookie& cookie,
                     return false;
                 }
                 return true;
-            case cb::mcbp::request::FrameInfoId::OpenTracingContext:
-                if (data.empty()) {
-                    status = Status::Einval;
-                    cookie.setErrorContext("OpenTracingContext cannot be empty");
-                    return false;
-                } else {
-                    // Ideally we should only validate the packet here,
-                    // but given that we've parsed the packet and found all
-                    // the data I need I can might as well store it to avoid
-                    // having to parse it again just to pick out the value
-                    cookie.setOpenTracingContext(data);
-                }
-                return true;
             case cb::mcbp::request::FrameInfoId::Impersonate:
                 if (data.empty()) {
                     cookie.setErrorContext("Impersonated user must be set");

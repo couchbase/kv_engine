@@ -156,10 +156,10 @@ the stream.
 The 2nd and 3rd byte contain a network byte order (uint16) storing the stream
 ID value which was specified in the DCP stream-request that created the stream.
 
-##### ID:3 - OpenTelemetry context
+##### ID:3 - Available (was OpenTracing which was only a prototype)
 
-Request the server to submit trace information by using the supplied context
-information as the parent span. The context must be present (length > 0)
+ID 3 was used for the OpenTracing prototype which never got released
+as a full feature
 
 ##### ID:4 - Impersonate user
 
@@ -1808,34 +1808,34 @@ a two byte value in network byte order.
 
 The following features is defined:
 
-| Value  | Feature |
-|--------|---------|
-| 0x0001 | Datatype |
-| 0x0002 | TLS |
-| 0x0003 | TCP Nodelay |
-| 0x0004 | Mutation seqno |
-| 0x0005 | TCP Delay |
-| 0x0006 | XATTR |
-| 0x0007 | XERROR |
-| 0x0008 | Select bucket |
-| 0x000a | Snappy |
-| 0x000b | JSON |
-| 0x000c | Duplex |
+| Value  | Feature                        |
+|--------|--------------------------------|
+| 0x0001 | Datatype                       |
+| 0x0002 | TLS                            |
+| 0x0003 | TCP Nodelay                    |
+| 0x0004 | Mutation seqno                 |
+| 0x0005 | TCP Delay                      |
+| 0x0006 | XATTR                          |
+| 0x0007 | XERROR                         |
+| 0x0008 | Select bucket                  |
+| 0x000a | Snappy                         |
+| 0x000b | JSON                           |
+| 0x000c | Duplex                         |
 | 0x000d | Clustermap change notification |
-| 0x000e | Unordered Execution |
-| 0x000f | Tracing |
-| 0x0010 | AltRequest support |
-| 0x0011 | SyncReplication support |
-| 0x0012 | Collections |
-| 0x0013 | OpenTelemetry |
-| 0x0014 | PreserveTtl |
-| 0x0015 | VAttr |
-| 0x0016 | PiTR |
-| 0x0017 | SubdocCreateAsDeleted support |
-| 0x0018 | SubdocDocumentMacroSupport |
-| 0x0019 | SubdocReplaceBodyWithXattr |
-| 0x001a | ReportUnitUsage |
-| 0x001b | NonBlockingThrottlingMode |
+| 0x000e | Unordered Execution            |
+| 0x000f | Tracing                        |
+| 0x0010 | AltRequest support             |
+| 0x0011 | SyncReplication support        |
+| 0x0012 | Collections                    |
+| 0x0013 | Available                      |
+| 0x0014 | PreserveTtl                    |
+| 0x0015 | VAttr                          |
+| 0x0016 | PiTR                           |
+| 0x0017 | SubdocCreateAsDeleted support  |
+| 0x0018 | SubdocDocumentMacroSupport     |
+| 0x0019 | SubdocReplaceBodyWithXattr     |
+| 0x001a | ReportUnitUsage                |
+| 0x001b | NonBlockingThrottlingMode      |
 
 * `Datatype` - The client understands the 'non-null' values in the
   [datatype field](#data-types). The server expects the client to fill
@@ -1897,9 +1897,6 @@ The following features is defined:
                     anything on the server). It may be used from the client to
                     know if it may use synchronous replication tags in the
                     mutation requests.
-* `OpenTelemetry` This is purely informational (it does not enable / disable
-                anything on the server). It may be used from the client to
-                figure out if the server supports OpenTelemetry or not.)
 * `PreserveTtl` This is purely informational (it does not enable / disable
                 anything on the server). It may be used from the client to
                 know if it may use PreserveTtl in the operations who carries

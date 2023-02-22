@@ -51,8 +51,6 @@ std::string to_string(cb::mcbp::Feature feature) {
         return "SyncReplication";
     case cb::mcbp::Feature::Collections:
         return "Collections";
-    case cb::mcbp::Feature::OpenTracing:
-        return "OpenTelemetry";
     case cb::mcbp::Feature::PreserveTtl:
         return "PreserveTtl";
     case cb::mcbp::Feature::VAttr:

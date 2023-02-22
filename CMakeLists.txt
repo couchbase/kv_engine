@@ -219,8 +219,6 @@ if (CB_ENABLE_HEADER_INCLUDE_CHECK)
             )
 
     add_header_object_library(NAME memcached_headers_obj HEADERS ${memcached_headers})
-    target_include_directories(memcached_headers_obj SYSTEM PRIVATE
-            ${OPENTRACING_INCLUDE_DIR})
 endif (CB_ENABLE_HEADER_INCLUDE_CHECK)
 
 # Add to top level generated_source_files target dependency

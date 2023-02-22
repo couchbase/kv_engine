@@ -17,7 +17,6 @@ FrameInfo::~FrameInfo() = default;
 BarrierFrameInfo::~BarrierFrameInfo() = default;
 DurabilityFrameInfo::~DurabilityFrameInfo() = default;
 DcpStreamIdFrameInfo::~DcpStreamIdFrameInfo() = default;
-OpenTracingContextFrameInfo::~OpenTracingContextFrameInfo() = default;
 ImpersonateUserFrameInfo::~ImpersonateUserFrameInfo() = default;
 ImpersonateUserExtraPrivilegeFrameInfo::
         ~ImpersonateUserExtraPrivilegeFrameInfo() = default;
@@ -99,12 +98,6 @@ std::vector<uint8_t> DcpStreamIdFrameInfo::encode() const {
     return FrameInfo::encode(
             FrameInfoId::DcpStreamId,
             {reinterpret_cast<const uint8_t*>(&value), sizeof(value)});
-}
-
-std::vector<uint8_t> OpenTracingContextFrameInfo::encode() const {
-    return FrameInfo::encode(
-            FrameInfoId::OpenTracingContext,
-            {reinterpret_cast<const uint8_t*>(ctx.data()), ctx.size()});
 }
 
 std::vector<uint8_t> ImpersonateUserFrameInfo::encode() const {

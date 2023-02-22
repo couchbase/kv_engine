@@ -21,7 +21,6 @@
 #include "mcbp_executors.h"
 #include "mcbp_validators.h"
 #include "memcached.h"
-#include "opentelemetry.h"
 #include "settings.h"
 #include "tracing.h"
 
@@ -758,7 +757,6 @@ void Cookie::reset() {
     Expects(!ewouldblock &&
             "Cookie::reset() when ewouldblock is true could result in an "
             "outstanding notifyIoComplete occuring on wrong cookie");
-    openTracingContext.clear();
     authorized = false;
     preserveTtl = false;
     reorder = connection.allowUnorderedExecution();
@@ -785,31 +783,6 @@ void Cookie::setThrottled(bool val) {
             tracer.record(cb::tracing::Code::Throttled, throttle_start, now);
         }
     }
-}
-
-void Cookie::setOpenTracingContext(cb::const_byte_buffer context) {
-    try {
-        openTracingContext.assign(reinterpret_cast<const char*>(context.data()),
-                                  context.size());
-    } catch (const std::bad_alloc&) {
-        // Drop tracing if we run out of memory
-    }
-}
-
-CookieTraceContext Cookie::extractTraceContext() {
-    if (openTracingContext.empty()) {
-        throw std::logic_error(
-                "Cookie::extractTraceContext should only be called if we have "
-                "a context");
-    }
-
-    auto& header = getHeader();
-    return CookieTraceContext{cb::mcbp::Magic(header.getMagic()),
-                              header.getOpcode(),
-                              header.getOpaque(),
-                              header.getKey(),
-                              std::move(openTracingContext),
-                              tracer.extractDurations()};
 }
 
 void Cookie::collectTimings(
@@ -842,10 +815,6 @@ void Cookie::collectTimings(
 
     // Log operations taking longer than the "slow" threshold for the opcode.
     maybeLogSlowCommand(elapsed);
-
-    if (isOpenTracingEnabled()) {
-        OpenTelemetry::pushTraceLog(extractTraceContext());
-    }
 }
 
 std::string_view Cookie::getInflatedInputPayload() const {

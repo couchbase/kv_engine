@@ -63,18 +63,6 @@ protected:
     const uint16_t id;
 };
 
-class OpenTracingContextFrameInfo : public FrameInfo {
-public:
-    explicit OpenTracingContextFrameInfo(std::string ctx)
-        : ctx(std::move(ctx)) {
-    }
-    ~OpenTracingContextFrameInfo() override;
-    std::vector<uint8_t> encode() const override;
-
-protected:
-    const std::string ctx;
-};
-
 class ImpersonateUserFrameInfo : public FrameInfo {
 public:
     explicit ImpersonateUserFrameInfo(std::string user)

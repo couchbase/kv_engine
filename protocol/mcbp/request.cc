@@ -412,9 +412,6 @@ nlohmann::json Request::to_json(bool validated) const {
                     frameid["dcp stream id"] = ntohs(
                             *reinterpret_cast<const uint16_t*>(buffer.data()));
                     break;
-                case request::FrameInfoId::OpenTracingContext:
-                    frameid["OpenTelemetry context"] = printableString(buffer);
-                    break;
                 case request::FrameInfoId::Impersonate:
                     if (buffer[0] == '^') {
                         frameid["euid"]["user"] =
@@ -487,8 +484,6 @@ std::string to_string(cb::mcbp::request::FrameInfoId id) {
         return "DurabilityRequirement";
     case FrameInfoId::DcpStreamId:
         return "DcpStreamId";
-    case FrameInfoId::OpenTracingContext:
-        return "OpenTracingContext";
     case FrameInfoId::Impersonate:
         return "Impersonate";
     case FrameInfoId::PreserveTtl:
