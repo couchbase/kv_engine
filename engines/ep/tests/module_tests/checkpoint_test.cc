@@ -4025,3 +4025,88 @@ TEST_F(CDCCheckpointTest, CollectionNotDeduped_Interleaved) {
     EXPECT_EQ(2, manager.getNumOpenChkItems()); // 2x mut
     EXPECT_EQ(7, manager.getHighSeqno());
 }
+
+TEST_F(CDCCheckpointTest, DuplicateItemWhenPreviousExpelled) {
+    auto vb = store->getVBuckets().getBucket(vbid);
+    auto& manager = *vb->checkpointManager;
+
+    // State:
+    //
+    // [cs)
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(1, manager.getNumItems()); // cs
+    ASSERT_EQ(0, manager.getNumOpenChkItems()); // no mutation
+    ASSERT_EQ(2, manager.getHighSeqno()); // 2 create-coll processed at SetUp
+
+    // The persistence cursor is at the begin of the single open checkpoint.
+    ASSERT_EQ(1, manager.getNumCursors());
+    auto pos = *CheckpointCursorIntrospector::getCurrentPos(
+            *manager.getPersistenceCursor());
+    ASSERT_EQ(queue_op::empty, pos->getOperation());
+
+    const auto keyA = makeStoredDocKey("keyA", CollectionEntry::historical);
+    const auto value = "value";
+    store_item(vbid, keyA, value);
+    // State:
+    //
+    // [cs m(A):3)
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(2, manager.getNumItems());
+    EXPECT_EQ(1, manager.getNumOpenChkItems()); // mut
+    EXPECT_EQ(3, manager.getHighSeqno());
+
+    const auto keyB = makeStoredDocKey("keyB", CollectionEntry::historical);
+    store_item(vbid, keyB, value);
+    // State:
+    //
+    // [cs m(A):3 m(B):4) )
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(3, manager.getNumItems());
+    EXPECT_EQ(2, manager.getNumOpenChkItems()); // mut, mut
+    EXPECT_EQ(4, manager.getHighSeqno());
+
+    flushVBucket(vbid);
+    pos = *CheckpointCursorIntrospector::getCurrentPos(
+            *manager.getPersistenceCursor());
+    ASSERT_EQ(queue_op::mutation, pos->getOperation());
+    ASSERT_EQ(4, pos->getBySeqno());
+    // State:
+    //
+    // [cs m(A):3 m(B):4) )
+    //            ^
+
+    const auto keyC = makeStoredDocKey("keyC", CollectionEntry::historical);
+    store_item(vbid, keyC, value);
+    // State:
+    //
+    // [cs m(A):3 m(B):4) m(C):5) )
+    //            ^
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(4, manager.getNumItems());
+    EXPECT_EQ(3, manager.getNumOpenChkItems()); // mut, mut, mut
+    EXPECT_EQ(5, manager.getHighSeqno());
+
+    const auto expelRes = manager.expelUnreferencedCheckpointItems();
+    ASSERT_EQ(1, expelRes.count);
+    // State:
+    //
+    // [cs x m(B):4) m(C):5) )
+    //       ^
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(4, manager.getNumItems()); // not updated by expel
+    EXPECT_EQ(3, manager.getNumOpenChkItems()); // not updated by expel
+    EXPECT_EQ(5, manager.getHighSeqno());
+
+    // Core test: New mutation for keyA MUST be queued into a new checkpoint
+    const auto ckptId = manager.getOpenCheckpointId();
+    store_item(vbid, keyA, value);
+    // State:
+    //
+    // [cs x m(B):4) m(C):5) ce] [cs m(A):6) )
+    //       ^
+    EXPECT_EQ(2, manager.getNumCheckpoints());
+    EXPECT_EQ(7, manager.getNumItems());
+    EXPECT_EQ(1, manager.getNumOpenChkItems()); // m(A):6)
+    EXPECT_EQ(6, manager.getHighSeqno());
+    EXPECT_GT(manager.getOpenCheckpointId(), ckptId);
+}
