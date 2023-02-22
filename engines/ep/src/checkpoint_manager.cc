@@ -857,13 +857,14 @@ bool CheckpointManager::queueDirty(
             // put duplicate mutations in the same Checkpoint.
             const auto msg = fmt::format(
                     "CheckpointManager::queueDirty: Got status:{} when {} is "
-                    "non-active:{}, item:[op:{}, seqno:{}], lastBySeqno:{}, "
-                    "openCkpt:[start:{}, end:{}]",
+                    "non-active:{}, item:[op:{}, seqno:{}, key:<ud>{}</ud>], "
+                    "lastBySeqno:{}, openCkpt:[start:{}, end:{}]",
                     to_string(result.status),
-                    vb.getId().to_string(),
+                    vb.getId(),
                     std::to_string(vb.getState()),
                     ::to_string(qi->getOperation()),
                     qi->getBySeqno(),
+                    qi->getKey(),
                     lastBySeqno,
                     openCkpt->getSnapshotStartSeqno(),
                     openCkpt->getSnapshotEndSeqno());
