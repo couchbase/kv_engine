@@ -496,9 +496,10 @@ static Status verify_common_dcp_stream_restrictions(Cookie& cookie,
             cookie.setErrorContext(
                     "DCP_ADD_STREAM_FLAG_NO_VALUE{8} flag is no longer used");
         } else {
-            LOG_INFO("Client trying to add stream with unknown flags ({:x}) {}",
-                     flags,
-                     get_peer_description(cookie));
+            LOG_INFO(
+                    "Client trying to add stream with unknown flags ({:#x}) {}",
+                    flags,
+                    get_peer_description(cookie));
             cookie.setErrorContext("Request contains invalid flags");
         }
         return Status::Einval;
