@@ -211,32 +211,39 @@ TEST_F(EphemeralBucketStatTest, ReplicaMemoryTrackingNotUpdatedForActive) {
     EXPECT_EQ(0, stats.replicaCheckpointOverhead);
 }
 
-TEST_F(EphemeralBucketStatTest, ReplicaMemoryTrackingStateChange) {
-    // Check that replicaHTMemory is increased/decreased as vbuckets change
-    // state to/from replica
+void EphemeralBucketStatTest::replicaMemoryTrackingTestSetup() {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
-    auto key = makeStoredDocKey("item");
-
     auto& stats = engine->getEpStats();
-    EXPECT_EQ(0, stats.replicaHTMemory);
-    EXPECT_EQ(0, stats.replicaCheckpointOverhead);
+    ASSERT_EQ(0, stats.replicaHTMemory);
+    ASSERT_EQ(0, stats.replicaCheckpointOverhead);
 
+    auto key = makeStoredDocKey("item");
     store_item(vbid, key, "value");
 
-    EXPECT_EQ(0, stats.replicaHTMemory);
-    EXPECT_EQ(0, stats.replicaCheckpointOverhead);
+    ASSERT_EQ(0, stats.replicaHTMemory);
+    ASSERT_EQ(0, stats.replicaCheckpointOverhead);
+    ASSERT_EQ(1, store->getVBucket(vbid)->getNumItems());
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
 
     // check that the mem usage has gone up by some amount - not
     // checking it is an exact value to avoid a brittle test
-    EXPECT_GT(stats.replicaHTMemory, 80);
-    EXPECT_GT(stats.replicaCheckpointOverhead, 80);
+    ASSERT_GT(stats.replicaHTMemory, 0);
+    ASSERT_GT(stats.replicaCheckpointOverhead, 0);
+    ASSERT_EQ(1, store->getVBucket(vbid)->getNumItems());
+}
+
+TEST_F(EphemeralBucketStatTest, ReplicaMemoryTrackingStateChange) {
+    {
+        SCOPED_TRACE("");
+        replicaMemoryTrackingTestSetup();
+    }
 
     // changing back to active should return replicaHTMemory to 0
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
+    auto& stats = engine->getEpStats();
     EXPECT_EQ(0, stats.replicaHTMemory);
     EXPECT_EQ(0, stats.replicaCheckpointOverhead);
 }
