@@ -1601,19 +1601,28 @@ void SingleThreadedCheckpointTest::testMinimumCursorSeqno(
         EXPECT_EQ(1, checkpoint.getMinimumCursorSeqno());
         EXPECT_EQ(2, checkpoint.getHighSeqno());
 
+        // Note on the next checks: By passing seqno:1 in the request, the user
+        // tells CM that it has got m:1 already.
         const auto res = manager.registerCursorBySeqno(
                 "cursor", 1, CheckpointCursor::Droppable::Yes);
+        // So, backfill not needed.
         EXPECT_FALSE(res.tryBackfill);
-
-        // @todo MB-39344: This check fails because the cursor is wrongly
-        // placed at cs:1. That is an issue as that means that when sending
-        // the snapshot DCP will miss to set the CHK_FLAG in the marker.
-        // Fixed in a dedicated patch.
-        //        const auto cursor = res.cursor.lock();
-        //        EXPECT_EQ(queue_op::empty,
-        //        (*cursor->getPos())->getOperation()); EXPECT_EQ(1,
-        //        (*cursor->getPos())->getBySeqno()); EXPECT_EQ(0,
-        //        cursor->getDistance());
+        // Also, cursor positioned at checkpoint_start, so the next snapshot
+        // generated for cursor won't have any CHK flag set. That is correct, as
+        // if a DCP Consumer has got m:1 that implies that the same client had
+        // also previously received a proper SnapshotMarker(CHK).
+        // Actually placing the cursor at queue_op::empty would be wrong, as
+        // that would generate a another (unnecessary) SnapshotMarker(CHK). The
+        // effect at Consumer would be creating an additional/unnecessary
+        // checkpoint in CM.
+        // Note that I refer to DCP Consumer when the topic is the CHK flag as
+        // that is an internal KV replication flag. External DCP clients aren't
+        // expected to use that.
+        const auto cursor = res.cursor.lock();
+        EXPECT_EQ(queue_op::checkpoint_start,
+                  (*cursor->getPos())->getOperation());
+        EXPECT_EQ(1, (*cursor->getPos())->getBySeqno());
+        EXPECT_EQ(1, cursor->getDistance());
 
         break;
     }
