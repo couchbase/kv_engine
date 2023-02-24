@@ -248,6 +248,29 @@ TEST_F(EphemeralBucketStatTest, ReplicaMemoryTrackingStateChange) {
     EXPECT_EQ(0, stats.replicaCheckpointOverhead);
 }
 
+TEST_F(EphemeralBucketStatTest, ReplicaMemoryTrackingRollback) {
+    {
+        SCOPED_TRACE("");
+        replicaMemoryTrackingTestSetup();
+    }
+
+    store->rollback(vbid, 0 /* rollbackSeqno */);
+
+    auto& nonIO = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    runNextTask(nonIO, "Removing (dead) vb:0 from memory");
+
+    // Rollback reset the vBucket and HashTable
+    auto vb = store->getVBucket(vbid);
+    ASSERT_EQ(0, vb->getNumItems());
+    ASSERT_EQ(0, vb->ht.getCacheSize());
+
+    // Now the replica memory stats should reflect the current state
+    auto& stats = engine->getEpStats();
+    EXPECT_EQ(0, stats.replicaHTMemory);
+    EXPECT_EQ(vb->checkpointManager->getMemOverheadAllocatorBytes(),
+              stats.replicaCheckpointOverhead);
+}
+
 TEST_F(EphemeralBucketStatTest, ReplicaCheckpointMemoryTracking) {
     // test that replicaCheckpointOverhead is correctly updated
     auto replicaVB = Vbid(0);
