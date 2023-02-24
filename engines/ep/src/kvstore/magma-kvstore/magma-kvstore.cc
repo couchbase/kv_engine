@@ -3418,6 +3418,8 @@ GetStatsMap MagmaKVStore::getStats(
     fill("memory_quota", magmaStats->MemoryQuota);
     fill("failure_get", st.numGetFailure.load());
     fill("storage_mem_used", magmaStats->TotalMemUsed);
+    fill("magma_HistorySizeBytesEvicted", magmaStats->HistorySizeBytesEvicted);
+    fill("magma_HistoryTimeBytesEvicted", magmaStats->HistoryTimeBytesEvicted);
     fill("magma_MemoryQuotaLowWaterMark", magmaStats->MemoryQuotaLowWaterMark);
     fill("magma_BloomFilterMemoryQuota", magmaStats->BloomFilterMemoryQuota);
     fill("magma_WriteCacheQuota", magmaStats->WriteCacheQuota);

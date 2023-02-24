@@ -304,6 +304,9 @@ STAT(ep_bg_fetch_avg_read_amplification, , ratio, , )
 STAT(ep_magma_sets, , count, , )
 STAT(ep_magma_gets, , count, , )
 STAT(ep_magma_inserts, , count, , )
+// History stats.
+STAT(ep_magma_history_size_evicted, , bytes, , )
+STAT(ep_magma_history_time_evicted, , bytes, , )
 // Compaction.
 STAT(ep_magma_compactions, , count, , )
 STAT(ep_magma_keyindex_compactions, , count, , )
