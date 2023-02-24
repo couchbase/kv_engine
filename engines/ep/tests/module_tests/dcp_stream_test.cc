@@ -5110,7 +5110,7 @@ TEST_P(STPassiveStreamPersistentTest, VBStateNotLostAfterFlushFailure) {
                                      uint64_t maxDelRevSeqno) {
         EXPECT_EQ(lastSnapStart, vbs.lastSnapStart);
         EXPECT_EQ(lastSnapEnd, vbs.lastSnapEnd);
-        EXPECT_EQ(type, getSuperCheckpointType(vbs.checkpointType));
+        EXPECT_EQ(type, vbs.checkpointType);
         EXPECT_EQ(hps, vbs.highPreparedSeqno);
         EXPECT_EQ(hcs, vbs.persistedCompletedSeqno);
         EXPECT_EQ(maxDelRevSeqno, vbs.maxDeletedSeqno);
@@ -5144,7 +5144,7 @@ TEST_P(STPassiveStreamPersistentTest, VBStateNotLostAfterFlushFailure) {
         //   2) expected (HPS = snapEnd) for complete Disk snap flushed
         checkVBState(3 /*lastSnapStart*/,
                      3 /*lastSnapEnd*/,
-                     CheckpointType::Disk,
+                     CheckpointType::InitialDisk,
                      3 /*HPS*/,
                      1 /*HCS*/,
                      2 /*maxDelRevSeqno*/);
@@ -5313,7 +5313,7 @@ void STPassiveStreamPersistentTest::checkVBState(uint64_t lastSnapStart,
     auto& vbs = *kvStore.getCachedVBucketState(vbid);
     EXPECT_EQ(lastSnapStart, vbs.lastSnapStart);
     EXPECT_EQ(lastSnapEnd, vbs.lastSnapEnd);
-    EXPECT_EQ(type, getSuperCheckpointType(vbs.checkpointType));
+    EXPECT_EQ(type, vbs.checkpointType);
     EXPECT_EQ(hps, vbs.highPreparedSeqno);
     EXPECT_EQ(hcs, vbs.persistedCompletedSeqno);
     EXPECT_EQ(maxDelRevSeqno, vbs.maxDeletedSeqno);
@@ -5365,12 +5365,15 @@ TEST_P(STPassiveStreamPersistentTest, DiskSnapWithoutPrepareSetsDiskHPS) {
     // send it from the active. We instead move the HPS to the snapshot end
     // (both on disk and in memory) which is 4 in this case due to changes made
     // as part of MB-34873.
-    checkVBState(4 /*lastSnapStart*/,
-                 4 /*lastSnapEnd*/,
-                 CheckpointType::Disk,
-                 4 /*HPS*/,
-                 2 /*HCS*/,
-                 0 /*maxDelRevSeqno*/);
+    {
+        SCOPED_TRACE("");
+        checkVBState(4 /*lastSnapStart*/,
+                     4 /*lastSnapEnd*/,
+                     CheckpointType::InitialDisk,
+                     4 /*HPS*/,
+                     2 /*HCS*/,
+                     0 /*maxDelRevSeqno*/);
+    }
 
     EXPECT_EQ(4, store->getVBucket(vbid)->getHighPreparedSeqno());
 
@@ -5437,12 +5440,15 @@ TEST_P(STPassiveStreamPersistentTest, DiskSnapWithPrepareSetsHPSToSnapEnd) {
 
     flushVBucketToDiskIfPersistent(vbid, 4);
 
-    checkVBState(6 /*lastSnapStart*/,
-                 6 /*lastSnapEnd*/,
-                 CheckpointType::Disk,
-                 6 /*HPS*/,
-                 2 /*HCS*/,
-                 0 /*maxDelRevSeqno*/);
+    {
+        SCOPED_TRACE("");
+        checkVBState(6 /*lastSnapStart*/,
+                     6 /*lastSnapEnd*/,
+                     CheckpointType::InitialDisk,
+                     6 /*HPS*/,
+                     2 /*HCS*/,
+                     0 /*maxDelRevSeqno*/);
+    }
 }
 
 INSTANTIATE_TEST_SUITE_P(Persistent,

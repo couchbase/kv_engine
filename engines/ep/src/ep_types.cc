@@ -19,19 +19,6 @@ bool isDiskCheckpointType(CheckpointType type) {
     return type == CheckpointType::InitialDisk || type == CheckpointType::Disk;
 }
 
-CheckpointType getSuperCheckpointType(CheckpointType type) {
-    switch (type) {
-    // Supertypes.
-    case CheckpointType::Disk:
-    case CheckpointType::Memory:
-        return type;
-    // Subtypes.
-    case CheckpointType::InitialDisk:
-        return CheckpointType::Disk;
-    }
-    folly::assume_unreachable();
-}
-
 GenerateBySeqno getGenerateBySeqno(const OptionalSeqno& seqno) {
     return seqno ? GenerateBySeqno::No : GenerateBySeqno::Yes;
 }

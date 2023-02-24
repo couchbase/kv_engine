@@ -4645,8 +4645,7 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
                                              CheckpointType expectedCkptType,
                                              uint64_t expectedSnapStart,
                                              uint64_t expectedSnapEnd) -> void {
-        ASSERT_EQ(expectedCkptType,
-                  getSuperCheckpointType(ckptMgr.getOpenCheckpointType()));
+        ASSERT_EQ(expectedCkptType, ckptMgr.getOpenCheckpointType());
         auto currSnap = ckptMgr.getSnapshotInfo();
         ASSERT_EQ(expectedSnapStart, currSnap.range.getStart());
         ASSERT_EQ(expectedSnapEnd, currSnap.range.getEnd());
@@ -4656,7 +4655,7 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
     // test)
     {
         SCOPED_TRACE("");
-        checkOpenCheckpoint(CheckpointType::Disk, 2, 4);
+        checkOpenCheckpoint(CheckpointType::InitialDisk, 2, 4);
     }
 
     // 3) Set up the Producer and ActiveStream
@@ -5140,8 +5139,7 @@ void DurabilityPromotionStreamTest::
                                              CheckpointType expectedCkptType,
                                              uint64_t expectedSnapStart,
                                              uint64_t expectedSnapEnd) -> void {
-        ASSERT_EQ(expectedCkptType,
-                  getSuperCheckpointType(ckptMgr.getOpenCheckpointType()));
+        ASSERT_EQ(expectedCkptType, ckptMgr.getOpenCheckpointType());
         auto currSnap = ckptMgr.getSnapshotInfo();
         ASSERT_EQ(expectedSnapStart, currSnap.range.getStart());
         ASSERT_EQ(expectedSnapEnd, currSnap.range.getEnd());
@@ -5162,7 +5160,7 @@ void DurabilityPromotionStreamTest::
                         DocumentState::Alive);
 
         ASSERT_EQ(baseNumberOfCheckpoints + 1, ckptMgr.getNumCheckpoints());
-        checkOpenCheckpoint(CheckpointType::Disk, 1, 2);
+        checkOpenCheckpoint(CheckpointType::InitialDisk, 1, 2);
     }
 
     // 2) Replica receives PRE:3 and M:4 (logic CMT:4) in a second disk
