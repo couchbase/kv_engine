@@ -11,6 +11,8 @@
 
 #include "magma-memory-tracking-proxy.h"
 
+#include "kvstore/kvstore.h"
+
 #include <fmt/format.h>
 #include <gsl/gsl-lite.hpp>
 #include <platform/cb_arena_malloc.h>
@@ -286,10 +288,18 @@ MagmaMemoryTrackingProxy::GetKVStoreRevision(
     return magma->GetKVStoreRevision(kvID);
 }
 
-std::tuple<magma::Status, magma::KVStoreStats>
-MagmaMemoryTrackingProxy::GetKVStoreStats(const magma::Magma::KVStoreID kvid) {
+std::tuple<magma::Status, DBFileInfo>
+MagmaMemoryTrackingProxy::GetStatsForDbInfo(
+        const magma::Magma::KVStoreID kvid) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
-    return magma->GetKVStoreStats(kvid);
+    DBFileInfo rv;
+    auto [status, kvstats] = magma->GetKVStoreStats(kvid);
+    if (status) {
+        rv.spaceUsed = kvstats.ActiveDiskUsage;
+        rv.fileSize = kvstats.TotalDiskUsage;
+        rv.historyDiskSize = kvstats.HistoryDiskUsage;
+    }
+    return {status, rv};
 }
 
 DomainAwareUniquePtr<magma::UserStats>
