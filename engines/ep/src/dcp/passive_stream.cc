@@ -1155,6 +1155,10 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                                       ? CheckpointType::Disk
                                       : CheckpointType::Memory;
 
+        const auto historical = marker->getFlags() & MARKER_FLAG_HISTORY
+                                        ? CheckpointHistorical::Yes
+                                        : CheckpointHistorical::No;
+
         // Check whether the snapshot can be considered as an initial disk
         // checkpoint for the replica.
         if (checkpointType == CheckpointType::Disk && vb->getHighSeqno() == 0) {
@@ -1204,7 +1208,8 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                                    cur_snapshot_end.load(),
                                    hcs,
                                    checkpointType,
-                                   visibleSeq);
+                                   visibleSeq,
+                                   historical);
         } else {
             // Case: receiving any type of snapshot (Disk/Memory).
 
@@ -1213,7 +1218,8 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                                        cur_snapshot_end.load(),
                                        hcs,
                                        checkpointType,
-                                       visibleSeq);
+                                       visibleSeq,
+                                       historical);
             } else {
                 // MB-42780: In general we cannot merge multiple snapshots into
                 // the same checkpoint. The only exception is for when replica
@@ -1231,7 +1237,8 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
                                            cur_snapshot_end.load(),
                                            hcs,
                                            checkpointType,
-                                           visibleSeq);
+                                           visibleSeq,
+                                           historical);
                 }
             }
         }
