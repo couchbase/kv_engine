@@ -1040,6 +1040,7 @@ TEST_P(StreamTest, RollbackDueToPurge) {
     }
     uint64_t vbUuid = vb0->failovers->getLatestUUID();
     auto result = doStreamRequest(*producer,
+                                  vb0->getId(),
                                   numItems - 2,
                                   numItems,
                                   numItems - 2,
@@ -1054,7 +1055,7 @@ TEST_P(StreamTest, RollbackDueToPurge) {
 
     /* We don't expect a rollback for this */
     result = doStreamRequest(
-            *producer, numItems - 2, numItems, 0, numItems - 2, vbUuid);
+            *producer, vbid, numItems - 2, numItems, 0, numItems - 2, vbUuid);
     EXPECT_EQ(cb::engine_errc::success, result.status);
     EXPECT_EQ(cb::engine_errc::success,
               producer->closeStream(/*opaque*/ 0, vb0->getId()));
@@ -1064,7 +1065,7 @@ TEST_P(StreamTest, RollbackDueToPurge) {
 
     /* Now we expect a rollback to 0 */
     result = doStreamRequest(
-            *producer, numItems - 2, numItems, 0, numItems - 2, vbUuid);
+            *producer, vbid, numItems - 2, numItems, 0, numItems - 2, vbUuid);
     EXPECT_EQ(cb::engine_errc::rollback, result.status);
     EXPECT_EQ(0, result.rollbackSeqno);
     EXPECT_EQ(cb::engine_errc::no_such_key, destroy_dcp_stream());
@@ -1088,7 +1089,7 @@ TEST_P(StreamTest, MB_25820_callback_not_invoked_on_dead_vb_stream_request) {
     uint64_t vbUuid = vb0->failovers->getLatestUUID();
     // Given the vbucket state is dead we should return not my vbucket.
     EXPECT_EQ(cb::engine_errc::not_my_vbucket,
-              doStreamRequest(*producer, 0, 0, 0, 0, vbUuid).status);
+              doStreamRequest(*producer, vbid, 0, 0, 0, 0, vbUuid).status);
     // The callback function past to streamRequest should not be invoked.
     ASSERT_EQ(0, callbackCount);
 }
@@ -1307,6 +1308,92 @@ TEST_P(StreamTest, MB38356_DuplicateStreamRequest) {
     EXPECT_THAT(items,
                 ElementsAre(HasOperation(queue_op::checkpoint_start),
                             HasOperation(queue_op::set_vbucket_state)));
+
+    EXPECT_EQ(cb::engine_errc::success, destroy_dcp_stream());
+}
+
+// Test which demonstrates how a DcpProducer streams from multiple vBuckets.
+// Test creates three vBuckets and adds two mutations to each vb, then creates
+// a DcpProducer which streams all three vBuckets.
+// When stepping the producer this results in all three ActiveStreams
+// fetching items into their readyQs, and then items are returned in
+// round-robin order (vb:0, vb:1, vb:2, vb:0, vb:1, ...)
+//
+// Note: There's an open question if this is the ideal behavior - we end up
+// populating multiple readyQs with items which we don't have any way to
+// recover that memory aside from the consumer reading it. If the consumer is
+// slow to read compared to mutation rate; this can result in a significant
+// amount of memory being consumed by readyQs.
+// See also: MB-46740 (ActiveStream may queue items while above quota)
+TEST_P(StreamTest, MultipleVBucketsRoundRobin) {
+    // Setup DCP streams for vb:0, 1 and 2.
+    engine->getKVBucket()->setVBucketState(Vbid{1}, vbucket_state_active);
+    engine->getKVBucket()->setVBucketState(Vbid{2}, vbucket_state_active);
+    create_dcp_producer();
+
+    std::vector<VBucketPtr> vbs;
+    for (auto vbid : {Vbid{0}, Vbid{1}, Vbid{2}}) {
+        auto vb = engine->getVBucket(vbid);
+        ASSERT_TRUE(vb);
+        ASSERT_EQ(cb::engine_errc::success,
+                  doStreamRequest(*producer, vb->getId()).status)
+                << "stream request for " << to_string(vbid) << " failed";
+        vbs.push_back(vb);
+    }
+
+    // Add two mutations to each VBucket.
+    for (int i = 0; i < 2; ++i) {
+        std::string key("key" + std::to_string(i));
+        for (auto& vb : vbs) {
+            store_item(vb->getId(), key, "value");
+        }
+    }
+
+    EXPECT_EQ(3, producer->getReadyQueue().size());
+
+    GMockDcpMsgProducers mockProducers;
+    {
+        // Setup expected DCP sequence.
+        ::testing::InSequence sequence;
+        using ::testing::_;
+
+        EXPECT_CALL(mockProducers, marker(_, Vbid(0), _, _, _, _, _, _, _));
+        EXPECT_CALL(mockProducers, marker(_, Vbid(1), _, _, _, _, _, _, _));
+        EXPECT_CALL(mockProducers, marker(_, Vbid(2), _, _, _, _, _, _, _));
+
+        EXPECT_CALL(mockProducers, mutation(_, _, Vbid(0), _, _, _, _, _));
+        EXPECT_CALL(mockProducers, mutation(_, _, Vbid(1), _, _, _, _, _));
+        EXPECT_CALL(mockProducers, mutation(_, _, Vbid(2), _, _, _, _, _));
+
+        EXPECT_CALL(mockProducers, mutation(_, _, Vbid(0), _, _, _, _, _));
+        EXPECT_CALL(mockProducers, mutation(_, _, Vbid(1), _, _, _, _, _));
+        EXPECT_CALL(mockProducers, mutation(_, _, Vbid(2), _, _, _, _, _));
+    }
+
+    // Step the DCP producer (running ActiveStreamCheckpointProcessorTask)
+    // until all items have been processed.
+
+    EXPECT_EQ(cb::engine_errc::would_block,
+              producer->step(false, mockProducers));
+    EXPECT_EQ(3, producer->getCheckpointSnapshotTask()->queueSize());
+    producer->getCheckpointSnapshotTask()->run();
+    // After running ASCPT, expect all readyQs are populated with marker and
+    // mutations
+    for (const auto& vb : vbs) {
+        auto stream = producer->findStream(vb->getId());
+        ASSERT_TRUE(stream);
+        EXPECT_EQ(3, stream->getItemsRemaining());
+    }
+
+    // 3x snapshot markers, 6x mutations.
+    for (int items = 0; items < 9; items++) {
+        EXPECT_EQ(cb::engine_errc::success,
+                  producer->step(false, mockProducers));
+    }
+
+    // Should be nothing more.
+    EXPECT_EQ(cb::engine_errc::would_block,
+              producer->step(false, mockProducers));
 
     EXPECT_EQ(cb::engine_errc::success, destroy_dcp_stream());
 }

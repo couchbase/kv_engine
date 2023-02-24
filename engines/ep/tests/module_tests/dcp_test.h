@@ -58,6 +58,7 @@ protected:
      * sensible default values for common invocations.
      */
     static StreamRequestResult doStreamRequest(DcpProducer& producer,
+                                               Vbid vbid = Vbid{0},
                                                uint64_t startSeqno = 0,
                                                uint64_t endSeqno = ~0,
                                                uint64_t snapStart = 0,

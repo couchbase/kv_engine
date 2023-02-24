@@ -164,6 +164,7 @@ cb::engine_errc DCPTest::destroy_dcp_stream() {
 }
 
 DCPTest::StreamRequestResult DCPTest::doStreamRequest(DcpProducer& producer,
+                                                      Vbid vbid,
                                                       uint64_t startSeqno,
                                                       uint64_t endSeqno,
                                                       uint64_t snapStart,
@@ -172,7 +173,7 @@ DCPTest::StreamRequestResult DCPTest::doStreamRequest(DcpProducer& producer,
     DCPTest::StreamRequestResult result;
     result.status = producer.streamRequest(/*flags*/ 0,
                                            /*opaque*/ 0,
-                                           Vbid(0),
+                                           vbid,
                                            startSeqno,
                                            endSeqno,
                                            vbUUID,
