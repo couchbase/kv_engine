@@ -477,6 +477,7 @@ ItemsToFlush VBucket::getItemsToPersist(size_t approxLimit) {
     result.ranges = std::move(rangeInfo.ranges);
     result.maxDeletedRevSeqno = rangeInfo.maxDeletedRevSeqno;
     result.checkpointType = rangeInfo.checkpointType;
+    result.historical = rangeInfo.historical;
     result.flushHandle = std::move(rangeInfo.flushHandle);
     result.moreAvailable = rangeInfo.moreAvailable;
 

@@ -14,6 +14,7 @@
 #include "checkpoint_manager.h"
 #include "checkpoint_utils.h"
 #include "collections/collections_test_helpers.h"
+#include "collections/events_generated.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/backfill_disk.h"
@@ -5588,45 +5589,177 @@ INSTANTIATE_TEST_SUITE_P(Persistent,
                          STParameterizedBucketTest::magmaConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
-TEST_P(CDCPassiveStreamTest, HistorySnapshotReceived) {
-    // Replica receives Snap{1, 3, Disk|History}, with 1->3 mutations of the
-    // same key.
-    // The test verifies that replica is resilient to duplicates in the disk
-    // snapshot and that duplicates are successfully queued into the same
-    // checkpoint.
+void CDCPassiveStreamTest::SetUp() {
+    // Note: Checkpoint removal isn't under test at all here.
+    // Eager checkpoint removal, default prod setting in Neo and post-Neo.
+    // That helps in cleaning up the CheckpointManager during the test and
+    // we won't need to fix the testsuite when merging into the master
+    // branch.
+    if (!config_string.empty()) {
+        config_string += ";";
+    }
+    config_string += "checkpoint_removal_mode=eager";
+
+    STPassiveStreamPersistentTest::SetUp();
+}
+
+void CDCPassiveStreamTest::createHistoricalCollection(uint64_t snapStart,
+                                                      uint64_t snapEnd) {
+    const uint32_t opaque = 1;
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(
+                      opaque,
+                      vbid,
+                      snapStart,
+                      snapEnd,
+                      MARKER_FLAG_DISK | MARKER_FLAG_CHK | MARKER_FLAG_HISTORY,
+                      {0},
+                      {}));
+
+    flatbuffers::FlatBufferBuilder fb;
+    Collections::ManifestUid manifestUid;
+    const auto collection = CollectionEntry::historical;
+    auto fbPayload = Collections::VB::CreateCollection(
+            fb,
+            manifestUid,
+            uint32_t(ScopeEntry::defaultS.getId()),
+            uint32_t(collection.getId()),
+            false,
+            0,
+            fb.CreateString(collection.name.data(), collection.name.size()),
+            true /*history*/);
+    fb.Finish(fbPayload);
+    ASSERT_EQ(cb::engine_errc::success,
+              consumer->systemEvent(
+                      1 /*opaque*/,
+                      vbid,
+                      mcbp::systemevent::id::CreateCollection,
+                      1,
+                      mcbp::systemevent::version::version2,
+                      {reinterpret_cast<const uint8_t*>(collection.name.data()),
+                       collection.name.size()},
+                      {fb.GetBufferPointer(), fb.GetSize()}));
 
     const auto& vb = *store->getVBucket(vbid);
-    ASSERT_EQ(0, vb.getHighSeqno());
-    const auto& manager = *vb.checkpointManager;
+    ASSERT_EQ(0, vb.getNumTotalItems());
+    ASSERT_EQ(1, vb.getHighSeqno());
+    auto& manager = *vb.checkpointManager;
     ASSERT_EQ(1, manager.getNumCheckpoints());
     ASSERT_EQ(2, manager.getNumOpenChkItems());
+    ASSERT_EQ(CheckpointType::InitialDisk, manager.getOpenCheckpointType());
+    ASSERT_EQ(CheckpointHistorical::Yes, manager.getOpenCheckpointHistorical());
+    flush_vbucket_to_disk(vbid, 1);
+}
 
-    const uint32_t opaque = 0;
+/*
+ * HistorySnapshotReceived tests verify (on different scenarios) that:
+ * - replica stream is resilient to duplicates on disk snapshot
+ * - duplicates are queued in checkpoint (ie, not deduplicated)
+ * - duplicates are persisted on disk (again, not deduplicated)
+ * - stats (eg item-count) are updated correctly
+ */
+
+TEST_P(CDCPassiveStreamTest, HistorySnapshotReceived_Disk) {
+    // Replica receives Snap{start, end, Disk|History}, with start->end
+    // mutations for the same key.
+
+    createHistoricalCollection(1, 1);
+
+    // Clear CM
+    const auto& vb = *store->getVBucket(vbid);
+    const auto initialHighSeqno = vb.getHighSeqno();
+    ASSERT_EQ(1, initialHighSeqno);
+    auto& manager = *vb.checkpointManager;
+    manager.createNewCheckpoint();
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
+
+    const uint32_t opaque = 1;
     SnapshotMarker snapshotMarker(
             opaque,
             vbid,
-            1 /*start*/,
-            3 /*end*/,
+            initialHighSeqno + 1 /*start*/,
+            initialHighSeqno + 3 /*end*/,
             MARKER_FLAG_CHK | MARKER_FLAG_DISK | MARKER_FLAG_HISTORY,
             std::optional<uint64_t>(0), /*HCS*/
             {}, /*maxVisibleSeqno*/
             {}, /*timestamp*/
             {} /*streamId*/);
     stream->processMarker(&snapshotMarker);
-    EXPECT_EQ(1, manager.getNumCheckpoints());
-    EXPECT_EQ(1, manager.getNumOpenChkItems());
+    ASSERT_EQ(2, manager.getNumCheckpoints());
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
+    ASSERT_EQ(CheckpointType::Disk, manager.getOpenCheckpointType());
+    ASSERT_EQ(CheckpointHistorical::Yes, manager.getOpenCheckpointHistorical());
 
+    const auto collection = CollectionEntry::historical;
     const std::string key("key");
     const std::string value("value");
-    for (size_t seqno = 1; seqno <= 3; ++seqno) {
-        EXPECT_EQ(cb::engine_errc::success,
-                  stream->messageReceived(makeMutationConsumerMessage(
-                          seqno, vbid, value, opaque, key)));
+    const size_t numItems = 3;
+    for (size_t seqno = initialHighSeqno + 1;
+         seqno <= initialHighSeqno + numItems;
+         ++seqno) {
+        EXPECT_EQ(
+                cb::engine_errc::success,
+                stream->messageReceived(makeMutationConsumerMessage(
+                        opaque, seqno, vbid, value, key, collection.getId())));
     }
 
-    EXPECT_EQ(3, vb.getHighSeqno());
+    EXPECT_EQ(initialHighSeqno + numItems, vb.getHighSeqno());
+    EXPECT_EQ(2, manager.getNumCheckpoints());
+    EXPECT_EQ(1 + numItems, manager.getNumOpenChkItems());
+
+    // All duplicates persisted
+    flush_vbucket_to_disk(vbid, numItems);
+
+    // Item count doesn't account for historical revisions
+    EXPECT_EQ(1, vb.getNumTotalItems());
+}
+
+TEST_P(CDCPassiveStreamTest, HistorySnapshotReceived_InitialDisk) {
+    // Replica receives Snap{start, end, InitialDisk|History}, with start->end
+    // mutations for the same key.
+
+    createHistoricalCollection(1, 10);
+
+    const auto& vb = *store->getVBucket(vbid);
+    const auto initialHighSeqno = vb.getHighSeqno();
+    ASSERT_EQ(1, initialHighSeqno);
+    auto& manager = *vb.checkpointManager;
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(2, manager.getNumOpenChkItems());
+
+    // Historical items received within the same snapshot
+    const auto collection = CollectionEntry::historical;
+    const std::string key("key");
+    const std::string value("value");
+    const size_t numItems = 3;
+    for (size_t seqno = initialHighSeqno + 1;
+         seqno <= initialHighSeqno + numItems;
+         ++seqno) {
+        EXPECT_EQ(cb::engine_errc::success,
+                  stream->messageReceived(
+                          makeMutationConsumerMessage(1 /*opaque*/,
+                                                      seqno,
+                                                      vbid,
+                                                      value,
+                                                      key,
+                                                      collection.getId())));
+    }
+
+    // Important: In this scenario historical mutations are queued into the
+    // Initial disk checkpoint
+    ASSERT_EQ(CheckpointType::InitialDisk, manager.getOpenCheckpointType());
+    ASSERT_EQ(CheckpointHistorical::Yes, manager.getOpenCheckpointHistorical());
+
+    EXPECT_EQ(initialHighSeqno + numItems, vb.getHighSeqno());
     EXPECT_EQ(1, manager.getNumCheckpoints());
-    EXPECT_EQ(4, manager.getNumOpenChkItems());
+    EXPECT_EQ(1 + initialHighSeqno + numItems, manager.getNumOpenChkItems());
+
+    // All duplicates persisted
+    flush_vbucket_to_disk(vbid, numItems);
+
+    // Item count doesn't account for historical revisions
+    EXPECT_EQ(1, vb.getNumTotalItems());
 }
 
 INSTANTIATE_TEST_SUITE_P(Persistent,

@@ -83,8 +83,10 @@ public:
         ItemsForCursor(CheckpointType checkpointType,
                        std::optional<uint64_t> maxDeletedRevSeqno,
                        std::optional<uint64_t> highCompletedSeqno,
-                       uint64_t visibleSeqno)
+                       uint64_t visibleSeqno,
+                       CheckpointHistorical historical)
             : checkpointType(checkpointType),
+              historical(historical),
               maxDeletedRevSeqno(maxDeletedRevSeqno),
               highCompletedSeqno(highCompletedSeqno),
               visibleSeqno(visibleSeqno) {
@@ -98,6 +100,8 @@ public:
          * returns multiple snapshots of different types.
          */
         CheckpointType checkpointType = CheckpointType::Memory;
+
+        CheckpointHistorical historical = CheckpointHistorical::No;
 
         std::optional<uint64_t> maxDeletedRevSeqno = {};
 
@@ -174,6 +178,8 @@ public:
     uint64_t getOpenCheckpointId() const;
 
     CheckpointType getOpenCheckpointType() const;
+
+    CheckpointHistorical getOpenCheckpointHistorical() const;
 
     /**
      * Attempt to expel (i.e. eject from memory) items in the oldest checkpoint
