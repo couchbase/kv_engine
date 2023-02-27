@@ -1996,6 +1996,12 @@ ScanStatus MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
     return ScanStatus::Success;
 }
 
+ScanStatus MagmaKVStore::scanAllVersions(BySeqnoScanContext& ctx) const {
+    // @todo use magma's mode
+    // return scan(ctx, magma::Magma::SeqIterator::Mode::History);
+    return scan(ctx);
+}
+
 ScanStatus MagmaKVStore::scan(ByIdScanContext& ctx) const {
     // Process each range until it's completed
     for (auto& range : ctx.ranges) {
