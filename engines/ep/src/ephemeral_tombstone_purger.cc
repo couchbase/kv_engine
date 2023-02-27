@@ -52,7 +52,7 @@ bool EphemeralVBucket::HTTombstonePurger::visit(
             // over to being owned by the sequence list. Remove by pointer (not
             // by key) so that we do not remove any committed/prepared
             // StoredValues for which there may be two with the same key.
-            auto ownedSV = vbucket->ht.unlocked_release(hbl, osv);
+            auto ownedSV = vbucket->ht.unlocked_release(hbl, *osv);
             {
                 std::lock_guard<std::mutex> listWriteLg(
                         vbucket->seqList->getListWriteLock());

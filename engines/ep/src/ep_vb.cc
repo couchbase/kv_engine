@@ -744,7 +744,7 @@ VBNotifyCtx EPVBucket::commitStoredValue(HashTable::FindUpdateResult& values,
     // Remove a previously committed SV if one exists
     if (values.committed) {
         // Only delete the existing committed item
-        ht.unlocked_del(values.pending.getHBL(), values.committed);
+        ht.unlocked_del(values.pending.getHBL(), *values.committed);
     }
 
     ht.unlocked_setCommitted(values.pending.getHBL(),
@@ -775,7 +775,7 @@ VBNotifyCtx EPVBucket::abortStoredValue(
     }
     auto notify = queueAbort(hbl, v, prepareSeqno, queueItmCtx);
 
-    ht.unlocked_del(hbl, &v);
+    ht.unlocked_del(hbl, v);
 
     return notify;
 }
@@ -1020,10 +1020,10 @@ void EPVBucket::dropKey(const DocKey& key, int64_t bySeqno) {
 
     auto res = ht.findForUpdate(key);
     if (res.committed && res.committed->getBySeqno() == bySeqno) {
-        ht.unlocked_del(res.getHBL(), res.committed);
+        ht.unlocked_del(res.getHBL(), *res.committed);
     }
     if (res.pending && res.pending->getBySeqno() == bySeqno) {
-        ht.unlocked_del(res.getHBL(), res.pending.release());
+        ht.unlocked_del(res.getHBL(), *res.pending.release());
     }
 }
 
@@ -1119,7 +1119,7 @@ void EPVBucket::processImplicitlyCompletedPrepare(
     // pointer in the StoredValueProxy and skip any stats update. This consumes
     // the StoredValue* and invalidates the StoredValueProxy so it should not be
     // used after.
-    ht.unlocked_del(v.getHBL(), v.release());
+    ht.unlocked_del(v.getHBL(), *v.release());
 }
 
 BgFetcher& EPVBucket::getBgFetcher() {

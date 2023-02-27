@@ -122,7 +122,7 @@ bool HashTableTest::del(HashTable& ht, const DocKey& key) {
     if (!htRes.storedValue) {
         return false;
     }
-    ht.unlocked_del(htRes.lock, htRes.storedValue);
+    ht.unlocked_del(htRes.lock, *htRes.storedValue);
     return true;
 }
 
@@ -581,7 +581,7 @@ TEST_P(HashTableStatsTest, TempDeletedRestore) {
         auto item = ht.findForWrite(key);
         ASSERT_NE(nullptr, item.storedValue);
         item.storedValue->markClean();
-        ht.unlocked_del(item.lock, item.storedValue);
+        ht.unlocked_del(item.lock, *item.storedValue);
     }
 
     // Restore as temporary initial item (simulating bg_fetch).
@@ -889,7 +889,7 @@ TEST_F(HashTableTest, ReleaseItem) {
         // Locking scope.
         auto vToRelease1 = ht.findForWrite(releaseKey1, WantsDeleted::Yes);
         auto releasedSv1 =
-                ht.unlocked_release(vToRelease1.lock, vToRelease1.storedValue);
+                ht.unlocked_release(vToRelease1.lock, *vToRelease1.storedValue);
 
         /* Validate the copied contents */
         EXPECT_EQ(*vToRelease1.storedValue, *(releasedSv1).get());
@@ -908,7 +908,7 @@ TEST_F(HashTableTest, ReleaseItem) {
 
     auto vToRelease2 = ht.findForWrite(releaseKey2);
     auto releasedSv2 =
-            ht.unlocked_release(vToRelease2.lock, vToRelease2.storedValue);
+            ht.unlocked_release(vToRelease2.lock, *vToRelease2.storedValue);
 
     /* Validate the copied contents */
     EXPECT_EQ(*vToRelease2.storedValue, *(releasedSv2).get());
