@@ -43,23 +43,8 @@ void RangeScanContinueTask::continueScan(RangeScan& scan) {
                 *bucket.getRWUnderlying(scan.getVBucketId()));
     }
 
-    if (status == cb::engine_errc::success) {
-        auto vb = bucket.getVBucket(scan.getVBucketId());
-        if (vb) {
-            dynamic_cast<EPVBucket&>(*vb).completeRangeScan(scan.getUuid());
-        }
-    } else if (status != cb::engine_errc::range_scan_more) {
-        auto vb = bucket.getVBucket(scan.getVBucketId());
-        if (vb) {
-            // Note this may return a failure, which we are ignoring
-            // 1) Scan was explicitly cancelled, so already removed from the set
-            // of known scans.
-            // 2) vbucket could of been removed and re-added whilst scan was
-            // busy so, vbucket has no knowledge
-            vb->cancelRangeScan(scan.getUuid(),
-                                nullptr /* no cookie */,
-                                false /* no schedule*/);
-        }
+    if (scan.continueIsWaiting()) {
+        bucket.getEPEngine().notifyIOComplete(scan.takeContinueCookie(),
+                                              status);
     }
-    // else scan can be continued
 }

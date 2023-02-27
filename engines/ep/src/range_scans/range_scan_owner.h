@@ -153,12 +153,14 @@ public:
      *
      * @param bucket The bucket of the scan
      * @param cookie client cookie requesting the continue
+     * @param ioComplete true if this is the IO complete iteration
      * @param params bundled continue parameters
      * @return success or other status (see above)
      */
     cb::engine_errc continueScan(
             EPBucket& bucket,
             CookieIface& cookie,
+            bool ioComplete,
             const cb::rangescan::ContinueParameters& params);
 
     /**
@@ -170,12 +172,9 @@ public:
      *
      * @param bucket The bucket of the scan
      * @param id of the scan to cancel
-     * @param addScan should the cancelled scan be added to ::RangeScans
      * @return success or other status (see above)
      */
-    cb::engine_errc cancelScan(EPBucket& bucket,
-                               cb::rangescan::Id id,
-                               bool addScan);
+    cb::engine_errc cancelScan(EPBucket& bucket, cb::rangescan::Id id);
 
     /**
      * Call RangeScan::addStats on all RangeScan objects in the rangeScans map
@@ -255,12 +254,11 @@ protected:
 
     folly::Synchronized<SynchronizedData> syncData;
 
-    std::shared_ptr<RangeScan> processScanRemoval(cb::rangescan::Id id,
-                                                  bool cancelled);
+    std::shared_ptr<RangeScan> processCancelledScan(cb::rangescan::Id id);
 
     std::shared_ptr<RangeScan> processScanRemoval(SynchronizedData& data,
                                                   cb::rangescan::Id id,
-                                                  bool cancelled);
+                                                  cb::engine_errc finalStatus);
 
     ReadyRangeScans* readyScans;
 };

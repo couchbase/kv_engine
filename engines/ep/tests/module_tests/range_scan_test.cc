@@ -27,8 +27,11 @@
 #include <programs/engine_testapp/mock_server.h>
 #include <utilities/test_manifest.h>
 
+#include <chrono>
 #include <unordered_set>
 #include <vector>
+
+using namespace std::chrono_literals;
 
 // A handler implementation that just stores the scan key/items in vectors
 class TestRangeScanHandler : public RangeScanDataHandlerIFace {
@@ -37,38 +40,31 @@ public:
     // containers/status needed for validation
     TestRangeScanHandler(std::vector<std::unique_ptr<Item>>& items,
                          std::vector<StoredDocKey>& keys,
-                         cb::engine_errc& status,
                          std::function<Status(size_t)>& hook)
         : scannedItems(items),
           scannedKeys(keys),
-          status(status),
           testHook(hook) {
     }
 
-    Status handleKey(CookieIface&, DocKey key) override {
+    Status handleKey(DocKey key) override {
         checkKeyIsUnique(key);
         scannedKeys.emplace_back(key);
         return testHook(scannedKeys.size());
     }
 
-    Status handleItem(CookieIface&, std::unique_ptr<Item> item) override {
+    Status handleItem(std::unique_ptr<Item> item) override {
         checkKeyIsUnique(item->getKey());
         scannedItems.emplace_back(std::move(item));
         return testHook(scannedItems.size());
     }
 
-    Status handleStatus(CookieIface& cookie, cb::engine_errc status) override {
-        EXPECT_TRUE(validateContinueStatus(status));
-        this->status = status;
-        return Status::OK;
+    void sendContinueDone(CookieIface& cookie) override {
     }
 
-    Status handleUnknownCollection(CookieIface& cookie,
-                                   uint64_t manifestUid) override {
-        throw std::runtime_error(
-                "TestRangeScanHandler::handleUnknownCollection"
-                " unimplemented");
-        return Status::OK;
+    void sendComplete(CookieIface& cookie) override {
+    }
+
+    void processCancel() override {
     }
 
     void addStats(std::string_view prefix,
@@ -89,7 +85,6 @@ public:
     std::vector<std::unique_ptr<Item>>& scannedItems;
     std::vector<StoredDocKey>& scannedKeys;
     std::unordered_set<StoredDocKey> allKeys;
-    cb::engine_errc& status;
     std::function<Status(size_t)>& testHook;
 };
 
@@ -159,6 +154,15 @@ public:
             cb::engine_errc expectedStatus = cb::engine_errc::success,
             std::unique_ptr<RangeScanDataHandlerIFace> optionalHandler =
                     nullptr);
+
+    /**
+     * Helper function to continue a scan, handles the EWB pattern
+     */
+    void continueRangeScan(cb::rangescan::Id id,
+                           size_t itemLimit,
+                           std::chrono::milliseconds timeLimit,
+                           size_t byteLimit,
+                           cb::engine_errc status);
 
     const std::vector<std::string> getUserStrings() const {
         return {"user-alan", "useralan", "user.claire", "user::zoe", "users"};
@@ -231,15 +235,14 @@ public:
     }
 
     // Run a scan using the relatively low level pieces
-    void testRangeScan(
-            const std::unordered_set<StoredDocKey>& expectedKeys,
-            CollectionID cid,
-            cb::rangescan::KeyView start,
-            cb::rangescan::KeyView end,
-            size_t itemLimit = 0,
-            std::chrono::milliseconds timeLimit = std::chrono::milliseconds(0),
-            size_t byteLimit = 0,
-            size_t extraContinues = 0);
+    void testRangeScan(const std::unordered_set<StoredDocKey>& expectedKeys,
+                       CollectionID cid,
+                       cb::rangescan::KeyView start,
+                       cb::rangescan::KeyView end,
+                       size_t itemLimit = 0,
+                       std::chrono::milliseconds timeLimit = 0ms,
+                       size_t byteLimit = 0,
+                       size_t extraContinues = 0);
 
     void testLessThan(std::string key);
 
@@ -275,14 +278,12 @@ public:
     // callback counter used by DummyRangeScanHandler
     size_t dummyCallbackCounter{0};
 
-    // default to some status RangeScan won't use
-    cb::engine_errc status{cb::engine_errc::sync_write_ambiguous};
     std::function<TestRangeScanHandler::Status(size_t)> testHook = [](size_t) {
         return TestRangeScanHandler::Status::OK;
     };
     std::unique_ptr<TestRangeScanHandler> handler{
             std::make_unique<TestRangeScanHandler>(
-                    scannedItems, scannedKeys, status, testHook)};
+                    scannedItems, scannedKeys, testHook)};
     CollectionsManifest cm;
 };
 
@@ -362,6 +363,32 @@ cb::rangescan::Id RangeScanTest::createScan(
     return scan->getUuid();
 }
 
+void RangeScanTest::continueRangeScan(cb::rangescan::Id id,
+                                      size_t itemLimit,
+                                      std::chrono::milliseconds timeLimit,
+                                      size_t byteLimit,
+                                      cb::engine_errc status) {
+    auto vb = store->getVBucket(vbid);
+    EXPECT_TRUE(vb);
+    cb::rangescan::ContinueParameters params{
+            vbid, id, itemLimit, timeLimit, byteLimit, status};
+    EXPECT_EQ(cb::engine_errc::would_block,
+              vb->continueRangeScan(*cookie, params))
+            << "Failure for scheduling";
+
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                "RangeScanContinueTask");
+
+    auto ioCompleteStatus = mock_waitfor_cookie(cookie);
+    EXPECT_EQ(status, ioCompleteStatus);
+    EXPECT_EQ(status, vb->continueRangeScan(*cookie, params))
+            << "Failure for IO complete";
+
+    // Only a subset of engine_errc are expected
+    EXPECT_TRUE(TestRangeScanHandler::validateContinueStatus(ioCompleteStatus))
+            << ioCompleteStatus;
+}
+
 // This method drives a range scan through create/continue/cancel for the given
 // range. The test drives a range scan serially and the comments indicate where
 // a frontend thread would be executing and where a background I/O task would.
@@ -381,25 +408,19 @@ void RangeScanTest::testRangeScan(
     auto uuid = createScan(cid, start, end);
 
     // 2) Continue a RangeScan
-    // 2.1) Frontend thread would call this method using clients uuid
-    auto continueParams = cb::rangescan::ContinueParameters{
-            vbid, uuid, itemLimit, timeLimit, byteLimit};
-    EXPECT_EQ(cb::engine_errc::would_block,
-              store->continueRangeScan(*cookie, continueParams));
-
-    // 2.2) An I/O task now reads data from disk
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
-                "RangeScanContinueTask");
+    auto ioCompleteStatus = extraContinues
+                                    ? cb::engine_errc::range_scan_more
+                                    : cb::engine_errc::range_scan_complete;
+    continueRangeScan(uuid, itemLimit, timeLimit, byteLimit, ioCompleteStatus);
 
     // Tests will need more continues if a limit is in-play
     for (size_t count = 0; count < extraContinues; count++) {
-        EXPECT_EQ(cb::engine_errc::would_block,
-                  store->continueRangeScan(*cookie, continueParams));
-        runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
-                    "RangeScanContinueTask");
-        if (count < extraContinues - 1) {
-            EXPECT_EQ(cb::engine_errc::range_scan_more, status);
-        }
+        // Last continue should reach complete
+        auto ioCompleteStatus = (count < extraContinues - 1)
+                                        ? cb::engine_errc::range_scan_more
+                                        : cb::engine_errc::range_scan_complete;
+        continueRangeScan(
+                uuid, itemLimit, timeLimit, byteLimit, ioCompleteStatus);
     }
 
     // 2.3) All expected keys must have been read from disk
@@ -408,18 +429,26 @@ void RangeScanTest::testRangeScan(
     } else {
         validateItemScan(expectedKeys);
     }
-    // status was set to "success"
-    EXPECT_EQ(cb::engine_errc::range_scan_complete, status);
 
     // In this case the scan finished and cleaned up
-
     // Check scan is gone, cannot be cancelled again
     EXPECT_EQ(cb::engine_errc::no_such_key,
               store->cancelRangeScan(vbid, uuid, *cookie));
 
     // Or continued, uuid is unknown
-    EXPECT_EQ(cb::engine_errc::no_such_key,
-              store->continueRangeScan(*cookie, continueParams));
+    EXPECT_EQ(
+            cb::engine_errc::no_such_key,
+            store->continueRangeScan(
+                    *cookie,
+                    cb::rangescan::ContinueParameters{
+                            vbid, uuid, 0, 0ms, 0, cb::engine_errc::success}));
+
+    // Once the continue reached complete, the RangeScan object is pushed to
+    // the IO task once more so that it can destruct on an IO task - this is
+    // because the destruct closes the KVStore objects (maybe doing IO). Run
+    // this task now so we don't get blocked in magma shutdown
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                "RangeScanContinueTask");
 }
 
 class RangeScanCreateAndContinueTest : public RangeScanTest {
@@ -493,7 +522,7 @@ TEST_P(RangeScanCreateAndContinueTest, user_prefix_with_item_limit_1) {
                   {"user"},
                   {"user\xFF"},
                   1,
-                  std::chrono::milliseconds(0),
+                  0ms,
                   0,
                   expectedKeys.size());
 }
@@ -505,7 +534,7 @@ TEST_P(RangeScanCreateAndContinueTest, user_prefix_with_item_limit_2) {
                   {"user"},
                   {"user\xFF"},
                   2,
-                  std::chrono::milliseconds(0),
+                  0ms,
                   0,
                   expectedKeys.size() / 2);
 }
@@ -518,7 +547,7 @@ TEST_P(RangeScanCreateAndContinueTest, user_prefix_with_two_limits) {
                   {"user"},
                   {"user\xFF"},
                   2, // 2 items
-                  std::chrono::milliseconds(0),
+                  0ms,
                   1, // 1 byte
                   expectedKeys.size());
 }
@@ -549,7 +578,7 @@ TEST_P(RangeScanCreateAndContinueTest, user_prefix_with_byte_limit) {
                   {"user"},
                   {"user\xFF"},
                   0,
-                  std::chrono::milliseconds(0),
+                  0ms,
                   1, // 1 byte forces 1 key or document per continue
                   expectedKeys.size());
 }
@@ -565,7 +594,7 @@ TEST_P(RangeScanCreateAndContinueTest, user_prefix_evicted) {
                   {"user"},
                   {"user\xFF"},
                   2,
-                  std::chrono::milliseconds(0),
+                  0ms,
                   0,
                   expectedKeys.size() / 2);
 }
@@ -580,7 +609,7 @@ TEST_P(RangeScanCreateAndContinueTest, scan_is_throttled) {
                   {"user"},
                   {"user\xFF"},
                   0,
-                  std::chrono::milliseconds(0),
+                  0ms,
                   0,
                   expectedKeys.size());
 }
@@ -744,7 +773,7 @@ TEST_P(RangeScanCreateAndContinueTest, continue_must_be_serialised) {
     auto vb = store->getVBucket(vbid);
 
     auto continueParams = cb::rangescan::ContinueParameters{
-            vbid, uuid, 0, std::chrono::milliseconds(0), 0};
+            vbid, uuid, 0, 0ms, 0, cb::engine_errc::success};
 
     EXPECT_EQ(cb::engine_errc::would_block,
               vb->continueRangeScan(*cookie, continueParams));
@@ -752,8 +781,10 @@ TEST_P(RangeScanCreateAndContinueTest, continue_must_be_serialised) {
     EXPECT_TRUE(epVb.getRangeScan(uuid)->isContinuing());
 
     // Cannot continue again
+    auto* cookie2 = create_mock_cookie();
     EXPECT_EQ(cb::engine_errc::too_busy,
-              vb->continueRangeScan(*cookie, continueParams));
+              vb->continueRangeScan(*cookie2, continueParams));
+    destroy_mock_cookie(cookie2);
 
     // But can cancel
     EXPECT_EQ(cb::engine_errc::success,
@@ -772,9 +803,6 @@ TEST_P(RangeScanCreateAndContinueTest, create_cancel) {
     // Nothing read
     EXPECT_TRUE(scannedKeys.empty());
     EXPECT_TRUE(scannedItems.empty());
-    // No status pushed through, the handler->status only applies to continue
-    // expect status to still be our initialisation value
-    EXPECT_EQ(cb::engine_errc::sync_write_ambiguous, status);
 }
 
 TEST_P(RangeScanCreateTest, create_no_data) {
@@ -794,7 +822,7 @@ TEST_P(RangeScanCreateAndContinueTest, create_continue_is_cancelled) {
     auto vb = store->getVBucket(vbid);
 
     auto continueParams = cb::rangescan::ContinueParameters{
-            vbid, uuid, 0, std::chrono::milliseconds(0), 0};
+            vbid, uuid, 0, 0ms, 0, cb::engine_errc::success};
     EXPECT_EQ(cb::engine_errc::would_block,
               vb->continueRangeScan(*cookie, continueParams));
 
@@ -807,12 +835,12 @@ TEST_P(RangeScanCreateAndContinueTest, create_continue_is_cancelled) {
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
                 "RangeScanContinueTask");
 
-    // Scan cancels. No keys/items read and the status isn't changed (this
-    // status only reflects a continue and the continue never began).
+    // Scan cancels. No keys/items read and the status isn't seen as cancelled
     EXPECT_TRUE(scannedKeys.empty());
     EXPECT_TRUE(scannedItems.empty());
     // and handler was notified of the cancel status
-    EXPECT_EQ(cb::engine_errc::range_scan_cancelled, status);
+    EXPECT_EQ(cb::engine_errc::range_scan_cancelled,
+              mock_waitfor_cookie(cookie));
 }
 
 // Test that a scan doesn't keep on reading if a cancel occurs during the I/O
@@ -820,11 +848,6 @@ TEST_P(RangeScanCreateAndContinueTest, create_continue_is_cancelled) {
 TEST_P(RangeScanCreateAndContinueTest, create_continue_is_cancelled_2) {
     auto uuid = createScan(scanCollection, {"user"}, {"user\xFF"});
     auto vb = store->getVBucket(vbid);
-
-    auto continueParams = cb::rangescan::ContinueParameters{
-            vbid, uuid, 0, std::chrono::milliseconds(0), 0};
-    EXPECT_EQ(cb::engine_errc::would_block,
-              vb->continueRangeScan(*cookie, continueParams));
 
     // Set a hook which will cancel when the 2nd key is read
     testHook = [&vb, uuid, this](size_t count) {
@@ -839,18 +862,19 @@ TEST_P(RangeScanCreateAndContinueTest, create_continue_is_cancelled_2) {
         return TestRangeScanHandler::Status::OK;
     };
 
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
-                "RangeScanContinueTask");
-
-    EXPECT_EQ(cb::engine_errc::range_scan_cancelled, status);
+    continueRangeScan(uuid, 0, 0ms, 0, cb::engine_errc::range_scan_cancelled);
 
     // Check scan is gone, cannot be cancelled again
     EXPECT_EQ(cb::engine_errc::no_such_key,
               vb->cancelRangeScan(uuid, cookie, true));
 
     // Or continued, uuid is unknown
-    EXPECT_EQ(cb::engine_errc::no_such_key,
-              vb->continueRangeScan(*cookie, continueParams));
+    EXPECT_EQ(
+            cb::engine_errc::no_such_key,
+            vb->continueRangeScan(
+                    *cookie,
+                    cb::rangescan::ContinueParameters{
+                            vbid, uuid, 0, 0ms, 0, cb::engine_errc::success}));
 
     // Scan only read 2 of the possible keys
     if (isKeyOnly()) {
@@ -858,18 +882,6 @@ TEST_P(RangeScanCreateAndContinueTest, create_continue_is_cancelled_2) {
     } else {
         EXPECT_EQ(2, scannedItems.size());
     }
-    // And set our status to cancelled
-    EXPECT_EQ(cb::engine_errc::range_scan_cancelled, status);
-
-    // Set the status back to something we would never expect
-    status = cb::engine_errc::durability_impossible;
-
-    // must run the cancel (so for magma we can shutdown)
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
-                "RangeScanContinueTask");
-
-    // And expect that to remain
-    EXPECT_EQ(cb::engine_errc::durability_impossible, status);
 }
 
 TEST_P(RangeScanCreateTest, snapshot_does_not_contain_seqno_0) {
@@ -990,14 +1002,8 @@ TEST_P(RangeScanCreateAndContinueTest, random_sample_less_keys_than_samples) {
                            {"\xFF"},
                            {/* no snapshot requirements */},
                            cb::rangescan::SamplingConfiguration{sampleSize, 0});
-    auto vb = store->getVBucket(vbid);
-    auto continueParams = cb::rangescan::ContinueParameters{
-            vbid, uuid, 0, std::chrono::milliseconds(0), 0};
-    EXPECT_EQ(cb::engine_errc::would_block,
-              vb->continueRangeScan(*cookie, continueParams));
+    continueRangeScan(uuid, 0, 0ms, 0, cb::engine_errc::range_scan_complete);
 
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
-                "RangeScanContinueTask");
     if (isKeyOnly()) {
         EXPECT_EQ(stats[scanCollection].itemCount, scannedKeys.size());
     } else {
@@ -1018,14 +1024,7 @@ TEST_P(RangeScanCreateAndContinueTest,
                            {"\xFF"},
                            {/* no snapshot requirements */},
                            cb::rangescan::SamplingConfiguration{sampleSize, 0});
-    auto vb = store->getVBucket(vbid);
-    auto continueParams = cb::rangescan::ContinueParameters{
-            vbid, uuid, 0, std::chrono::milliseconds(0), 0};
-    EXPECT_EQ(cb::engine_errc::would_block,
-              vb->continueRangeScan(*cookie, continueParams));
-
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
-                "RangeScanContinueTask");
+    continueRangeScan(uuid, 0, 0ms, 0, cb::engine_errc::range_scan_complete);
 
     // The scans both return all keys
     if (isKeyOnly()) {
@@ -1044,14 +1043,7 @@ TEST_P(RangeScanCreateAndContinueTest, random_sample_keys_equal_samples) {
                            {"\xFF"},
                            {/* no snapshot requirements */},
                            cb::rangescan::SamplingConfiguration{sampleSize, 0});
-    auto vb = store->getVBucket(vbid);
-    auto continueParams = cb::rangescan::ContinueParameters{
-            vbid, uuid, 0, std::chrono::milliseconds(0), 0};
-    EXPECT_EQ(cb::engine_errc::would_block,
-              vb->continueRangeScan(*cookie, continueParams));
-
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
-                "RangeScanContinueTask");
+    continueRangeScan(uuid, 0, 0ms, 0, cb::engine_errc::range_scan_complete);
     if (isKeyOnly()) {
         EXPECT_EQ(stats[scanCollection].itemCount, scannedKeys.size());
     } else {
@@ -1081,13 +1073,9 @@ TEST_P(RangeScanCreateAndContinueTest, random_sample) {
     // sampleSize. This loop also runs the scan one extra time to ensure we
     // enter the continue code with the isTotalLimitReached() condition true
     for (size_t ii = 0; ii <= sampleSize; ii++) {
-        auto continueParams = cb::rangescan::ContinueParameters{
-                vbid, uuid, 1, std::chrono::milliseconds(0), 0};
-        EXPECT_EQ(cb::engine_errc::would_block,
-                  vb->continueRangeScan(*cookie, continueParams));
-
-        runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
-                    "RangeScanContinueTask");
+        auto status = ii == sampleSize ? cb::engine_errc::range_scan_complete
+                                       : cb::engine_errc::range_scan_more;
+        continueRangeScan(uuid, 1, 0ms, 0, status);
     }
 
     // the chosen seed, results in sampleSize keys
@@ -1114,16 +1102,12 @@ TEST_P(RangeScanCreateAndContinueTest, random_sample_with_limit_1) {
     auto vb = store->getVBucket(vbid);
 
     // 1 key returned per continue (limit=1)
-    // + 1 extra continue will bring it to 'self cancel'
-    for (size_t ii = 0; ii < sampleSize; ii++) {
-        auto continueParams = cb::rangescan::ContinueParameters{
-                vbid, uuid, 1, std::chrono::milliseconds(0), 0};
-        EXPECT_EQ(cb::engine_errc::would_block,
-                  vb->continueRangeScan(*cookie, continueParams));
-
-        runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
-                    "RangeScanContinueTask");
+    // + 1 extra continue will bring it to 'self cancel' via complete
+    for (size_t ii = 0; ii < sampleSize - 1; ii++) {
+        continueRangeScan(uuid, 1, 0ms, 0, cb::engine_errc::range_scan_more);
     }
+
+    continueRangeScan(uuid, 1, 0ms, 0, cb::engine_errc::range_scan_complete);
 
     // See comments RangeScanTest::random_sample regarding sampleSize adjustment
     if (isKeyOnly()) {
@@ -1265,7 +1249,7 @@ TEST_P(RangeScanCreateTest, create_on_replica) {
                       .first);
 }
 
-// Test that if the vbucket changes after during the continue phase, the scan
+// Test that if the vbucket changes during the continue phase, the scan
 // stops. In theory we could still keep scanning as we have the correct
 // snapshot open, but some event has occurred that the scan client should be
 // aware of, the scan would also need to ignore any in-memory values, simpler
@@ -1282,7 +1266,7 @@ TEST_P(RangeScanCreateAndContinueTest,
 
     // Continue
     auto continueParams = cb::rangescan::ContinueParameters{
-            vbid, uuid, 0, std::chrono::milliseconds(0), 0};
+            vbid, uuid, 0, 0ms, 0, cb::engine_errc::success};
     EXPECT_EQ(cb::engine_errc::would_block,
               store->continueRangeScan(*cookie, continueParams));
 
@@ -1293,21 +1277,20 @@ TEST_P(RangeScanCreateAndContinueTest,
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
                 "Removing (dead) vb:0 from memory and disk");
 
-    // Force a state change to active, generating a new UUID. As the collection
-    // state is not "epoch", this new vbucket will pick up 3 mutations, so we
-    // use flushVBucket directly and not setVBucketStateAndRunPersistTask as
-    // the latter expects 0 items flushed.
+    // Force a state change to active, generating a new Vbucket UUID.
     setVBucketState(vbid, vbucket_state_active);
+
     // No need to flush in this test as only in memory VB can be inspected for
     // the uuid change
-
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
                 "RangeScanContinueTask");
 
     // The scan task detected that it was cancelled
-    EXPECT_EQ(cb::engine_errc::range_scan_cancelled, status);
-
-    // scan has gone now
+    EXPECT_EQ(cb::engine_errc::range_scan_cancelled,
+              mock_waitfor_cookie(cookie));
+    EXPECT_EQ(cb::engine_errc::range_scan_cancelled,
+              store->continueRangeScan(*cookie, continueParams));
+    // And it's gone
     EXPECT_EQ(cb::engine_errc::no_such_key,
               store->continueRangeScan(*cookie, continueParams));
 }
@@ -1386,7 +1369,7 @@ TEST_P(RangeScanCreateTest, wait_for_persistence_timeout) {
     // set the timeout to 0, so first flush will expire
     cb::rangescan::SnapshotRequirements reqs{vb->failovers->getLatestUUID(),
                                              uint64_t(vb->getHighSeqno() + 2),
-                                             std::chrono::milliseconds(0),
+                                             0ms,
                                              false};
 
     EXPECT_EQ(cb::engine_errc::would_block,
@@ -1417,7 +1400,7 @@ TEST_P(RangeScanCreateAndContinueTest, cancel_when_yielding) {
 
     // Scan with a limit so we enter the yield path
     auto continueParams = cb::rangescan::ContinueParameters{
-            vbid, uuid, 1, std::chrono::milliseconds(0), 0};
+            vbid, uuid, 1, 0ms, 0, cb::engine_errc::success};
     EXPECT_EQ(cb::engine_errc::would_block,
               vb->continueRangeScan(*cookie, continueParams));
 
@@ -1434,18 +1417,13 @@ TEST_P(RangeScanCreateAndContinueTest, cancel_when_yielding) {
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
                 "RangeScanContinueTask");
 
-    EXPECT_EQ(cb::engine_errc::range_scan_cancelled, status);
+    // The cancel is detected yet, so scan yields
+    EXPECT_EQ(cb::engine_errc::range_scan_more, mock_waitfor_cookie(cookie));
 
-    // Set the status back to something we would never expect
-    status = cb::engine_errc::durability_impossible;
-
-    // must run the cancel
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
-                "RangeScanContinueTask");
-
-    // The cancellation run of the task must never invoke a callback. This
-    // expect checks status stayed as this value we never use.
-    EXPECT_EQ(cb::engine_errc::durability_impossible, status);
+    // Now the cancel is picked up by the IO complete run of the request
+    continueParams.currentStatus = cb::engine_errc::range_scan_more;
+    EXPECT_EQ(cb::engine_errc::range_scan_cancelled,
+              vb->continueRangeScan(*cookie, continueParams));
 }
 
 class DummyRangeScanHandler : public RangeScanDataHandlerIFace {
@@ -1454,25 +1432,23 @@ public:
         : callbackCounter(callbackCounter) {
     }
 
-    Status handleKey(CookieIface&, DocKey key) override {
+    Status handleKey(DocKey key) override {
         ++callbackCounter;
         return Status::OK;
     }
 
-    Status handleItem(CookieIface&, std::unique_ptr<Item>) override {
+    Status handleItem(std::unique_ptr<Item>) override {
         ++callbackCounter;
         return Status::OK;
     }
 
-    Status handleStatus(CookieIface&, cb::engine_errc) override {
-        ++callbackCounter;
-        return Status::OK;
+    void sendContinueDone(CookieIface& cookie) override {
     }
 
-    Status handleUnknownCollection(CookieIface& cookie,
-                                   uint64_t manifestUid) override {
-        throw std::runtime_error(
-                "DummyRangeScanHandler::handleUnknownCollection unimplemented");
+    void sendComplete(CookieIface& cookie) override {
+    }
+
+    void processCancel() override {
     }
 
     void addStats(std::string_view prefix,
@@ -1506,7 +1482,7 @@ RangeScanTest::setupConcurrencyMaxxed() {
 
     for (const auto& scan : scans) {
         auto continueParams = cb::rangescan::ContinueParameters{
-                vbid, scan.first, 0, std::chrono::milliseconds(0), 0};
+                vbid, scan.first, 0, 0ms, 0, cb::engine_errc::success};
         EXPECT_EQ(cb::engine_errc::would_block,
                   store->continueRangeScan(*scan.second, continueParams));
     }
@@ -1528,16 +1504,15 @@ TEST_P(RangeScanCreateAndContinueTest, concurrency_maxxed) {
                   store->cancelRangeScan(vbid, scan.first, *cookie));
     }
 
-    auto counter = 0;
     // Still -1 tasks, yet everything can run (tasks will reschedule to ensure
     // all scans get picked up)
     auto& q = task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
     EXPECT_EQ(task_executor->getNumAuxIO() - 1, q->getFutureQueueSize());
     for (const auto& scan : scans) {
         runNextTask(*q, "RangeScanContinueTask");
-        // task ran and issued a callback
-        EXPECT_GT(dummyCallbackCounter, counter);
-        counter = dummyCallbackCounter;
+        // every cookie returns cancelled
+        EXPECT_EQ(cb::engine_errc::range_scan_cancelled,
+                  mock_waitfor_cookie(scan.second));
         destroy_mock_cookie(scan.second);
     }
 }
@@ -1631,7 +1606,7 @@ TEST_P(RangeScanCreateAndContinueTest, dropped_collection_for_continue) {
 
     // Continue spots the collection has gone and fails the request
     auto continueParams = cb::rangescan::ContinueParameters{
-            vbid, uuid1, 0, std::chrono::milliseconds(0), 0};
+            vbid, uuid1, 0, 0ms, 0, cb::engine_errc::success};
     EXPECT_EQ(cb::engine_errc::unknown_collection,
               store->continueRangeScan(*cookie, continueParams));
 
@@ -1665,7 +1640,7 @@ TEST_P(RangeScanCreateAndContinueTest, lose_access_to_scan) {
 
     setNoAccess(scanCollection);
     auto continueParams = cb::rangescan::ContinueParameters{
-            vbid, uuid, 0, std::chrono::milliseconds(0), 0};
+            vbid, uuid, 0, 0ms, 0, cb::engine_errc::success};
     EXPECT_EQ(cb::engine_errc::no_access,
               store->continueRangeScan(*cookie, continueParams));
 
@@ -1707,7 +1682,7 @@ TEST_P(RangeScanCreateAndContinueTest, cancel_scan_due_to_time_limit) {
     EXPECT_FALSE(epVb.cancelRangeScansExceedingDuration(std::chrono::seconds(0))
                          .has_value());
     auto continueParams = cb::rangescan::ContinueParameters{
-            vbid, uuid, 0, std::chrono::milliseconds(0), 0};
+            vbid, uuid, 0, 0ms, 0, cb::engine_errc::success};
     EXPECT_EQ(cb::engine_errc::no_such_key,
               store->continueRangeScan(*cookie, continueParams));
 }
@@ -1750,13 +1725,13 @@ TEST_P(RangeScanCreateAndContinueTest, cancel_scans_due_to_time_limit) {
     ASSERT_TRUE(duration.has_value());
     EXPECT_EQ(std::chrono::seconds(5), duration.value());
     auto continueParams = cb::rangescan::ContinueParameters{
-            vbid, uuid1, 0, std::chrono::milliseconds(0), 0};
+            vbid, uuid1, 0, 0ms, 0, cb::engine_errc::success};
     EXPECT_EQ(cb::engine_errc::no_such_key,
               store->continueRangeScan(*cookie, continueParams));
 
     // Can start uuid2
     auto continueParams2 = cb::rangescan::ContinueParameters{
-            vbid, uuid2, 0, std::chrono::milliseconds(0), 0};
+            vbid, uuid2, 0, 0ms, 0, cb::engine_errc::success};
     EXPECT_EQ(cb::engine_errc::would_block,
               store->continueRangeScan(*cookie, continueParams2));
 
@@ -1871,7 +1846,7 @@ TEST_P(RangeScanTestSimple, MB_53184) {
     // Run a second exclusive end similar to the MB, this test-case was fine
     scannedKeys.clear();
     handler = std::make_unique<TestRangeScanHandler>(
-            scannedItems, scannedKeys, status, testHook);
+            scannedItems, scannedKeys, testHook);
     // Expect: a-11, a-12 and b-11
     testRangeScan(expectedKeys,
                   scanCollection,
@@ -2023,22 +1998,21 @@ public:
         : callback(std::move(cb)) {
     }
 
-    Status handleKey(CookieIface&, DocKey key) override {
+    Status handleKey(DocKey key) override {
         return Status::OK;
     }
 
-    Status handleItem(CookieIface&, std::unique_ptr<Item>) override {
+    Status handleItem(std::unique_ptr<Item>) override {
         return Status::OK;
     }
 
-    Status handleStatus(CookieIface&, cb::engine_errc status) override {
-        callback(status);
-        return Status::OK;
+    void sendContinueDone(CookieIface& cookie) override {
     }
 
-    Status handleUnknownCollection(CookieIface&, uint64_t) override {
-        throw std::runtime_error(
-                "MB_54053Handler::handleUnknownCollection unexpected call");
+    void sendComplete(CookieIface& cookie) override {
+    }
+
+    void processCancel() override {
     }
 
     void addStats(std::string_view prefix,
@@ -2101,43 +2075,6 @@ TEST_P(RangeScanTestSimple, MB_54053) {
     // scan2 now hits an exception because after the setup thread1 continues
     // and wipes out the cookie of scan2
     scan2->continueOnIOThread(*kvs);
-}
-
-TEST_P(RangeScanTestSimple, DisconnectCancels) {
-    auto k1 = makeStoredDocKey("key1", scanCollection);
-    store_item(vbid, k1, "value");
-    flushVBucket(vbid);
-
-    // force disconnect detection path
-    testHook = [](size_t) {
-        return TestRangeScanHandler::Status::Disconnected;
-    };
-    auto uuid = createScan(scanCollection,
-                           {"\0"},
-                           {"\xFF"},
-                           {/* no snapshot requirements */},
-                           {/* no sampling*/},
-                           cb::engine_errc::success);
-
-    auto continueParams = cb::rangescan::ContinueParameters{
-            vbid, uuid, 0, std::chrono::milliseconds(0), 0};
-    EXPECT_EQ(cb::engine_errc::would_block,
-              store->continueRangeScan(*cookie, continueParams));
-
-    EXPECT_NE(cb::engine_errc::range_scan_cancelled, status);
-
-    // run the I/O task
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
-                "RangeScanContinueTask");
-
-    // handleStatus is still reached and sends the scan was cancelled - if
-    // really disconnected this goes no where. (Although final status is now
-    // logged as cancelled)
-    EXPECT_EQ(cb::engine_errc::range_scan_cancelled, status);
-
-    // Confirm the scan has been removed
-    EXPECT_EQ(cb::engine_errc::no_such_key,
-              store->continueRangeScan(*cookie, continueParams));
 }
 
 auto valueScanConfig =

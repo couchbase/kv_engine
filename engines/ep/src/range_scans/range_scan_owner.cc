@@ -168,7 +168,7 @@ VB::RangeScanOwner::~RangeScanOwner() {
     auto locked = syncData.wlock();
     for (const auto& [id, scan] : locked->rangeScans) {
         // mark everything we know as cancelled
-        scan->setStateCancelled();
+        scan->setStateCancelled(cb::engine_errc::range_scan_cancelled);
     }
 }
 
@@ -202,6 +202,7 @@ cb::engine_errc VB::RangeScanOwner::addNewScan(
 cb::engine_errc VB::RangeScanOwner::continueScan(
         EPBucket& bucket,
         CookieIface& cookie,
+        bool ioCompletePhase,
         const cb::rangescan::ContinueParameters& params) {
     Expects(readyScans);
     EP_LOG_DEBUG(
@@ -214,42 +215,93 @@ cb::engine_errc VB::RangeScanOwner::continueScan(
     auto locked = syncData.wlock();
     auto itr = locked->rangeScans.find(params.uuid);
     if (itr == locked->rangeScans.end()) {
-        return cb::engine_errc::no_such_key;
+        // If the scan is gone and this is IO complete, it has been cancelled.
+        return ioCompletePhase ? cb::engine_errc::range_scan_cancelled
+                               : cb::engine_errc::no_such_key;
     }
 
-    // Only an idle scan can be continued
-    if (!itr->second->isIdle()) {
-        return cb::engine_errc::too_busy;
+    // Note that if processScanRemoval is called the iterator will become
+    // invalid. From here on down only touch the scan object directly
+    auto [uuid, scan] = *itr;
+
+    // All state transitions occur on the frontend? No because of cancel....
+    // timeout task or another F/E doing cancel...
+    cb::engine_errc status = params.currentStatus;
+
+    if (scan->isIdle()) {
+        Expects(!ioCompletePhase);
+        // set scan to 'continuing'
+        scan->setStateContinuing(
+                cookie, params.itemLimit, params.timeLimit, params.byteLimit);
+        status = cb::engine_errc::would_block;
+    } else if (scan->isContinuing()) {
+        if (!ioCompletePhase) {
+            // cannot begin a continue on an already continuing scan
+            return cb::engine_errc::too_busy;
+        }
+
+        switch (status) {
+        case cb::engine_errc::success:
+            // success on the I/O complete phase means the I/O task finished
+            // because the send buffer is full. The buffered data can now be
+            // shipped off to the connection and then the I/O task runs again.
+            scan->continueOnFrontendThread(cookie);
+            status = cb::engine_errc::would_block;
+            break;
+        case cb::engine_errc::range_scan_more:
+            // range_scan_more on the I/O complete phase means the I/O task
+            // reached a defined limit and the continue is complete. The buffer
+            // can be shipped off to the connection and the scan set to idle
+            // ready for a future continue/cancel.
+            scan->continueOnFrontendThread(cookie);
+            scan->setStateIdle();
+            break;
+        case cb::engine_errc::range_scan_complete:
+            // range_scan_complete on the I/O complete phase means the I/O task
+            // reached the end of the scan range, the scan is complete. The
+            // buffer can be shipped off to the connection and the scan removed.
+            scan->completeOnFrontendThread(cookie);
+            processScanRemoval(*locked, params.uuid, status);
+            break;
+        default:
+            // Any other status means the scan is cancelled
+            scan->cancelOnFrontendThread();
+            if (status == cb::engine_errc::unknown_collection) {
+                bucket.getEPEngine().setUnknownCollectionErrorContext(
+                        cookie, scan->getManifestUid());
+            }
+            processScanRemoval(*locked, params.uuid, status);
+        }
+    } else {
+        // If scan is in the map it's Idle or Continuing (checked above) else
+        // Cancelled/Complete scans are removed from the map and should not of
+        // been found.
+        throw std::runtime_error(
+                fmt::format("RangeScan not in an expected state {}", *scan));
     }
 
-    // set scan to 'continuing'
-    itr->second->setStateContinuing(
-            cookie, params.itemLimit, params.timeLimit, params.byteLimit);
+    // All statuses except more require the IO task to run, either continuing
+    // the scan or triggering it to destruct (cancel/complete)
+    if (status != cb::engine_errc::range_scan_more) {
+        readyScans->addScan(bucket, scan);
+    }
 
-    // Make the scan available to I/O task(s)
-    // addScan will check if a task needs creating or scheduling to process the
-    // continue
-    readyScans->addScan(bucket, itr->second);
-
-    return cb::engine_errc::success;
+    return status;
 }
 
 cb::engine_errc VB::RangeScanOwner::cancelScan(EPBucket& bucket,
-                                               cb::rangescan::Id id,
-                                               bool addScan) {
+                                               cb::rangescan::Id id) {
     Expects(readyScans);
-    EP_LOG_DEBUG("VB::RangeScanOwner::cancelScan {} addScan:{}", id, addScan);
-    auto scan = processScanRemoval(id, true);
+    EP_LOG_DEBUG("VB::RangeScanOwner::cancelScan {}", id);
+    auto scan = processCancelledScan(id);
     if (!scan) {
         return cb::engine_errc::no_such_key;
     }
 
-    if (addScan) {
-        // Make the scan available to I/O task(s) for final closure of data file
-        // addScan will check if a task needs creating or scheduling to process
-        // the cancel
-        readyScans->addScan(bucket, scan);
-    }
+    // Make the scan available to I/O task(s) for final closure of data file
+    // addScan will check if a task needs creating or scheduling to process
+    // the cancel
+    readyScans->addScan(bucket, scan);
 
     // scan should now destruct here if addScan==false this case is used when
     // the I/O task itself calls cancelRangeScan, not when the worker thread
@@ -280,7 +332,8 @@ VB::RangeScanOwner::cancelAllExceedingDuration(EPBucket& bucket,
          itr != locked->rangeScans.end();) {
         auto remainingTime = itr->second->getRemainingTime(duration);
         if (remainingTime == std::chrono::seconds(0)) {
-            itr->second->setStateCancelled();
+            itr->second->setStateCancelled(
+                    cb::engine_errc::range_scan_cancelled);
             auto scan = itr->second;
             itr = locked->rangeScans.erase(itr);
             readyScans->addScan(bucket, scan);
@@ -303,6 +356,8 @@ VB::RangeScanOwner::cancelAllExceedingDuration(EPBucket& bucket,
 }
 
 void VB::RangeScanOwner::cancelAllScans(EPBucket& bucket) {
+    EP_LOG_DEBUG_RAW("VB::RangeScanOwner::cancelAllScans");
+
     auto locked = syncData.wlock();
     for (auto it = locked->rangeScans.begin();
          it != locked->rangeScans.end();) {
@@ -310,7 +365,8 @@ void VB::RangeScanOwner::cancelAllScans(EPBucket& bucket) {
         // invalidates any reference/iterator to the erased entry. This, we
         // need to precompute 'next'.
         auto next = std::next(it);
-        processScanRemoval(*locked, it->first, true /*cancelled*/);
+        processScanRemoval(
+                *locked, it->first, cb::engine_errc::range_scan_cancelled);
         it = next;
     }
 }
@@ -326,17 +382,22 @@ std::shared_ptr<RangeScan> VB::RangeScanOwner::getScan(
 }
 
 void VB::RangeScanOwner::completeScan(cb::rangescan::Id id) {
-    processScanRemoval(id, false);
+    // @todo: deadcode to be removed - no callers
 }
 
-std::shared_ptr<RangeScan> VB::RangeScanOwner::processScanRemoval(
-        cb::rangescan::Id id, bool cancelled) {
+std::shared_ptr<RangeScan> VB::RangeScanOwner::processCancelledScan(
+        cb::rangescan::Id id) {
     auto locked = syncData.wlock();
-    return processScanRemoval(*locked, id, cancelled);
+    return processScanRemoval(
+            *locked, id, cb::engine_errc::range_scan_cancelled);
 }
 
 std::shared_ptr<RangeScan> VB::RangeScanOwner::processScanRemoval(
-        SynchronizedData& data, cb::rangescan::Id id, bool cancelled) {
+        SynchronizedData& data,
+        cb::rangescan::Id id,
+        cb::engine_errc finalStatus) {
+    Expects(finalStatus != cb::engine_errc::success);
+
     std::shared_ptr<RangeScan> scan;
     auto itr = data.rangeScans.find(id);
     if (itr == data.rangeScans.end()) {
@@ -344,10 +405,10 @@ std::shared_ptr<RangeScan> VB::RangeScanOwner::processScanRemoval(
     }
     // obtain the scan
     scan = itr->second;
-    if (cancelled) {
-        scan->setStateCancelled();
-    } else {
+    if (finalStatus == cb::engine_errc::range_scan_complete) {
         scan->setStateCompleted();
+    } else {
+        scan->setStateCancelled(finalStatus);
     }
 
     // Erase from the map, no further continue/cancel allowed.

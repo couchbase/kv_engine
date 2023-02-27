@@ -1422,7 +1422,7 @@
         "range_scan_read_buffer_send_size": {
             "default": "8192",
             "dynamic": true,
-            "descr": "Each range-scan-continue will accumulate key/values in memory and trigger a send if this amount is exceeded.",
+            "descr": "The size of a buffer used to store data read during the I/O phase of a range-scan-continue. Once the buffer size is >= to this value the data is sent to the connection",
             "type": "size_t",
             "validator": {
                 "range": {

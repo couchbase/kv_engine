@@ -16,9 +16,9 @@
 namespace cb::rangescan {
 
 enum class HandlingStatus {
-    // The background task sends the status to the connection which requested
+    // The engine sends the status to the connection which requested
     // the range-scan-continue
-    TaskSends,
+    EngineSends,
     // The frontend executor sends the status to the connection which requested
     // the range-scan-continue
     ExecutorSends
@@ -35,7 +35,7 @@ static HandlingStatus getContinueHandlingStatus(cb::engine_errc status) {
         // These status codes have successfully terminated the continue and
         // have been sent to the client by RangeScanDataHandler::handleStatus;
         // nothing more to do on front-end here.
-        return HandlingStatus::TaskSends;
+        return HandlingStatus::EngineSends;
     case cb::engine_errc::not_my_vbucket:
     case cb::engine_errc::unknown_collection:
     case cb::engine_errc::range_scan_cancelled:

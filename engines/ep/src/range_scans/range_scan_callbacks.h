@@ -13,6 +13,9 @@
 #include "callbacks.h"
 #include "ep_types.h"
 
+#include <folly/Synchronized.h>
+#include <memcached/engine_error.h>
+
 namespace Collections::VB {
 class CachingReadHandle;
 }
@@ -43,51 +46,47 @@ public:
     enum class Status {
         OK, // Scan can continue
         Throttle, // Scan must yield because the connection is now throttled
-        Disconnected // Connection has disconnected and scan must cancel
+        Yield // Scan must yield
     };
     /**
      * Callback method invoked for each key that is read from the snapshot. This
      * is only invoked for a KeyOnly::Yes scan.
      *
-     * @param cookie The cookie which triggered the range-scan-continue
      * @param key A key read from a Key only scan
      * @return A "Status" which determines the next "step" for the scan
      */
-    virtual Status handleKey(CookieIface& cookie, DocKey key) = 0;
+    virtual Status handleKey(DocKey key) = 0;
 
     /**
      * Callback method invoked for each Item that is read from the snapshot.
      * This is only invoked for a KeyOnly::No scan.
      *
-     * @param cookie The cookie which triggered the range-scan-continue
      * @param item An Item read from a Key/Value scan
      * @return A "Status" which determines the next "step" for the scan
      */
-    virtual Status handleItem(CookieIface& cookie,
-                              std::unique_ptr<Item> item) = 0;
+    virtual Status handleItem(std::unique_ptr<Item> item) = 0;
 
     /**
-     * Callback method for when a scan has finished a "continue" and is used to
-     * set the status of the scan. A "continue" can finish prematurely due to
-     * an error or successfully because it has reached the end of the scan or
-     * a limit.
-     *
-     * @param cookie The cookie which triggered the range-scan-continue
-     * @param status The status of the just completed continue
-     * @return A "Status" which determines the next "step" for the scan
+     * Callback method invoked by the frontend executor use when a continue
+     * request yielded but was not complete. This will result in an mcbp frame
+     * being passed to the cookie/client.
+     * @param cookie function calls sendResponse on this cookie
      */
-    virtual Status handleStatus(CookieIface& cookie,
-                                cb::engine_errc status) = 0;
+    virtual void sendContinueDone(CookieIface& cookie) = 0;
 
     /**
-     * Callback method specific to unknown collection which has extra work todo
-     * for the error response.
-     * @param cookie The cookie which triggered the failure
-     * @param manifestUid the manifest-ID that triggered the unknown collection
-     * @return A "Status" which determines the next "step" for the scan
+     * Callback method invoked by the frontend executor use when a continue
+     * request yielded and is complete. This will result in an mcbp frame
+     * being passed to the cookie/client.
+     * @param cookie calls sendResponse on this cookie
      */
-    virtual Status handleUnknownCollection(CookieIface& cookie,
-                                           uint64_t manifestUid) = 0;
+    virtual void sendComplete(CookieIface& cookie) = 0;
+
+    /**
+     * Callback method invoked by the frontend executor for a cancelled scan.
+     */
+    virtual void processCancel() = 0;
+
     /**
      * Generate stats from the handler
      */
@@ -103,43 +102,47 @@ class RangeScanDataHandler : public RangeScanDataHandlerIFace {
 public:
     RangeScanDataHandler(EventuallyPersistentEngine& engine, bool keyOnly);
 
-    Status handleKey(CookieIface& cookie, DocKey key) override;
+    Status handleKey(DocKey key) override;
 
-    Status handleItem(CookieIface& cookie, std::unique_ptr<Item> item) override;
-
-    Status handleStatus(CookieIface& cookie, cb::engine_errc status) override;
-
-    Status handleUnknownCollection(CookieIface& cookie,
-                                   uint64_t manifestUid) override;
+    Status handleItem(std::unique_ptr<Item> item) override;
 
     void addStats(std::string_view prefix,
                   const StatCollector& collector) override;
 
+    void sendContinueDone(CookieIface& cookie) override;
+
+    void sendComplete(CookieIface& cookie) override;
+
+    void processCancel() override;
+
 private:
-    Status checkAndSend(CookieIface& cookie);
-    Status send(CookieIface& cookie,
-                cb::engine_errc = cb::engine_errc::success);
-
-    /// @return true if the status can be sent directly from this handler
-    bool handleStatusCanRespond(cb::engine_errc status);
-
-    EventuallyPersistentEngine& engine;
     /**
-     * Data read from the scan is stored in this vector ready for sending. When
-     * sendTriggerThreshold is reached the content of this buffer makes up a
-     * single response (value) back to the client
+     * @return the status of the scan based on the amount of buffered data
      */
-    std::vector<uint8_t> responseBuffer;
+    Status getScanStatus(size_t bufferedSize);
+
+    void sendCurrentDataAndStatus(CookieIface& cookie, cb::engine_errc status);
+
+    /**
+     * Data read from the scan is stored in the following vector ready for
+     * sending. When sendTriggerThreshold is reached a continue will yield and
+     * the frontend connection thread can transmit the contents of the
+     * responseBuffer.
+     *
+     * The pendingReadBytes member is needed to support throttling and both
+     * frontend and IO threads will need to access this variable.
+     *
+     * This is Synchronized as the frontend and IO tasks access it, however
+     * there is no expectation that there will be contention for access.
+     */
+    struct ScannedData {
+        std::vector<uint8_t> responseBuffer;
+        size_t pendingReadBytes{0};
+    };
+    folly::Synchronized<ScannedData, std::mutex> scannedData;
 
     /// the trigger for pushing data to send, set from engine configuration
     const size_t sendTriggerThreshold{0};
-
-    /**
-     * As the scan continues, and reads data it accumulates how many bytes
-     * are read in this member for use in checking the bucket throttle and
-     * updating the metering counter.
-     */
-    size_t pendingReadBytes{0};
 
     const bool keyOnly{false};
 };

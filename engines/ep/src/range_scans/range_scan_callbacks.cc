@@ -21,102 +21,75 @@
 #include <mcbp/codec/range_scan_continue_codec.h>
 #include <mcbp/protocol/unsigned_leb128.h>
 #include <memcached/cookie_iface.h>
-#include <memcached/range_scan_status.h>
 #include <statistics/cbstat_collector.h>
 
 RangeScanDataHandler::RangeScanDataHandler(EventuallyPersistentEngine& engine,
                                            bool keyOnly)
-    : engine(engine),
-      sendTriggerThreshold(
+    : sendTriggerThreshold(
               engine.getConfiguration().getRangeScanReadBufferSendSize()),
       keyOnly(keyOnly) {
 }
 
-RangeScanDataHandler::Status RangeScanDataHandler::checkAndSend(
-        CookieIface& cookie) {
-    RangeScanDataHandler::Status status{RangeScanDataHandler::Status::OK};
-    {
-        NonBucketAllocationGuard guard;
-        if (cookie.checkThrottle(pendingReadBytes, 0)) {
-            status = RangeScanDataHandler::Status::Throttle;
-        }
+RangeScanDataHandler::Status RangeScanDataHandler::getScanStatus(
+        size_t bufferedSize) {
+    if (bufferedSize >= sendTriggerThreshold) {
+        return RangeScanDataHandler::Status::Yield;
     }
-
-    if (responseBuffer.size() >= sendTriggerThreshold) {
-        auto sendStatus = send(cookie);
-        // if send is !OK then we no longer care about the throttle status
-        if (sendStatus != RangeScanDataHandler::Status::OK) {
-            status = sendStatus;
-        }
-    }
-
-    return status;
+    return RangeScanDataHandler::Status::OK;
 }
 
-RangeScanDataHandler::Status RangeScanDataHandler::send(
-        CookieIface& cookie, cb::engine_errc status) {
-    bool sendSuccess = false;
+void RangeScanDataHandler::sendCurrentDataAndStatus(CookieIface& cookie,
+                                                    cb::engine_errc status) {
+    cb::mcbp::response::RangeScanContinueResponseExtras extras(keyOnly);
+    auto locked = scannedData.lock();
+    auto& responseBuffer = locked->responseBuffer;
+
+    if (status == cb::engine_errc::range_scan_complete) {
+        cookie.addDocumentReadBytes(locked->pendingReadBytes);
+        locked->pendingReadBytes = 0;
+    }
+
     {
-        cb::mcbp::response::RangeScanContinueResponseExtras extras(keyOnly);
         NonBucketAllocationGuard guard;
-        sendSuccess = cookie.sendResponse(
+        cookie.sendResponse(
                 status,
                 extras.getBuffer(),
                 {reinterpret_cast<const char*>(responseBuffer.data()),
                  responseBuffer.size()});
     }
     responseBuffer.clear();
-    if (!sendSuccess) {
-        return RangeScanDataHandler::Status::Disconnected;
-    }
-    return RangeScanDataHandler::Status::OK;
 }
 
-RangeScanDataHandler::Status RangeScanDataHandler::handleKey(
-        CookieIface& cookie, DocKey key) {
-    pendingReadBytes += key.size();
-    cb::mcbp::response::RangeScanContinueKeyPayload::encode(responseBuffer,
-                                                            key);
-    return checkAndSend(cookie);
+void RangeScanDataHandler::sendContinueDone(CookieIface& cookie) {
+    sendCurrentDataAndStatus(cookie, cb::engine_errc::range_scan_more);
+}
+
+void RangeScanDataHandler::sendComplete(CookieIface& cookie) {
+    sendCurrentDataAndStatus(cookie, cb::engine_errc::range_scan_complete);
+}
+
+void RangeScanDataHandler::processCancel() {
+    // Can drop all data now
+    auto locked = scannedData.lock();
+    locked->responseBuffer.clear();
+    locked->pendingReadBytes = 0;
+}
+
+RangeScanDataHandler::Status RangeScanDataHandler::handleKey(DocKey key) {
+    auto locked = scannedData.lock();
+    locked->pendingReadBytes += key.size();
+    cb::mcbp::response::RangeScanContinueKeyPayload::encode(
+            locked->responseBuffer, key);
+    return getScanStatus(locked->responseBuffer.size());
 }
 
 RangeScanDataHandler::Status RangeScanDataHandler::handleItem(
-        CookieIface& cookie, std::unique_ptr<Item> item) {
-    pendingReadBytes += item->getKey().size() + item->getNBytes();
+        std::unique_ptr<Item> item) {
+    auto locked = scannedData.lock();
+    locked->pendingReadBytes += item->getKey().size() + item->getNBytes();
     cb::mcbp::response::RangeScanContinueValuePayload::encode(
-            responseBuffer, item->toItemInfo(0, false));
-    return checkAndSend(cookie);
-}
-
-RangeScanDataHandler::Status RangeScanDataHandler::handleStatus(
-        CookieIface& cookie, cb::engine_errc status) {
-    // The final status includes (when enabled) the read cost
-    cookie.addDocumentReadBytes(pendingReadBytes);
-    pendingReadBytes = 0;
-
-    RangeScanDataHandler::Status rv{RangeScanDataHandler::Status::OK};
-
-    if (handleStatusCanRespond(status)) {
-        // Send a response that will include any buffered data as the value
-        rv = send(cookie, status);
-    } else {
-        // handleStatus cannot respond to this. These are error conditions
-        // and particularly not-my-vbucket scanned data cannot be included.
-        // Clear the buffer now as this data is no longer required.
-        responseBuffer.clear();
-    }
-
-    NonBucketAllocationGuard guard;
-    // Wake-up front-end to complete the command
-    engine.notifyIOComplete(&cookie, status);
-    return rv;
-}
-
-RangeScanDataHandler::Status RangeScanDataHandler::handleUnknownCollection(
-        CookieIface& cookie, uint64_t manifestUid) {
-    // For unknown collection, the error context must be generated
-    engine.setUnknownCollectionErrorContext(cookie, manifestUid);
-    return handleStatus(cookie, cb::engine_errc::unknown_collection);
+            locked->responseBuffer, item->toItemInfo(0, false));
+    return getScanStatus(locked->responseBuffer.size());
 }
 
 void RangeScanDataHandler::addStats(std::string_view prefix,
@@ -129,16 +102,6 @@ void RangeScanDataHandler::addStats(std::string_view prefix,
     };
 
     addStat("send_threshold", sendTriggerThreshold);
-}
-
-bool RangeScanDataHandler::handleStatusCanRespond(cb::engine_errc status) {
-    switch (cb::rangescan::getContinueHandlingStatus(status)) {
-    case cb::rangescan::HandlingStatus::TaskSends:
-        return true;
-    case cb::rangescan::HandlingStatus::ExecutorSends:
-        return false;
-    }
-    folly::assume_unreachable();
 }
 
 RangeScanCacheCallback::RangeScanCacheCallback(RangeScan& scan,
@@ -196,13 +159,7 @@ void RangeScanCacheCallback::callback(CacheLookup& lookup) {
 
     // Key only scan ends here
     if (scan.isKeyOnly()) {
-        if (!scan.handleKey(lookup.getKey().getDocKey())) {
-            // if disconnected "mid" continue for now let the policy be to
-            // cancel the scan - any further continue risks being inconsistent
-            // as we have no idea as to the point at which the range was lost.
-            setScanErrorStatus(cb::engine_errc::range_scan_cancelled);
-            return;
-        }
+        scan.handleKey(lookup.getKey().getDocKey());
 
         if (scan.areLimitsExceeded()) {
             yield();
@@ -219,10 +176,8 @@ void RangeScanCacheCallback::callback(CacheLookup& lookup) {
         gv.item->getBySeqno() == lookup.getBySeqno()) {
         // RangeScans do not transmit xattrs
         gv.item->removeXattrs();
-        if (!scan.handleItem(std::move(gv.item), RangeScan::Source::Memory)) {
-            setScanErrorStatus(cb::engine_errc::range_scan_cancelled);
-            return;
-        }
+        scan.handleItem(std::move(gv.item), RangeScan::Source::Memory);
+
         if (scan.areLimitsExceeded()) {
             yield();
         } else {
@@ -239,16 +194,13 @@ void RangeScanCacheCallback::callback(CacheLookup& lookup) {
 void RangeScanCacheCallback::setScanErrorStatus(cb::engine_errc status) {
     Expects(status != cb::engine_errc::success);
     StatusCallback<CacheLookup>::setStatus(status);
-    // Calling handleStatus will make the status visible to the client
-    if (!scan.handleStatus(status)) {
-        StatusCallback<CacheLookup>::setStatus(
-                cb::engine_errc::range_scan_cancelled);
-    }
+    scan.cancelOnIOThread(status);
 }
 
 void RangeScanCacheCallback::setUnknownCollection(uint64_t manifestUid) {
     StatusCallback<CacheLookup>::setStatus(cb::engine_errc::unknown_collection);
-    scan.handleUnknownCollection(manifestUid);
+    scan.setUnknownCollectionManifestUid(manifestUid);
+    scan.cancelOnIOThread(cb::engine_errc::unknown_collection);
 }
 
 RangeScanDiskCallback::RangeScanDiskCallback(RangeScan& scan) : scan(scan) {
@@ -262,10 +214,8 @@ void RangeScanDiskCallback::callback(GetValue& val) {
 
     // RangeScans do not transmit xattrs
     val.item->removeXattrs();
-    if (!scan.handleItem(std::move(val.item), RangeScan::Source::Disk)) {
-        setScanErrorStatus(cb::engine_errc::range_scan_cancelled);
-        return;
-    }
+    scan.handleItem(std::move(val.item), RangeScan::Source::Disk);
+
     if (scan.areLimitsExceeded()) {
         yield();
     } else {
@@ -276,9 +226,5 @@ void RangeScanDiskCallback::callback(GetValue& val) {
 void RangeScanDiskCallback::setScanErrorStatus(cb::engine_errc status) {
     Expects(status != cb::engine_errc::success);
     StatusCallback<GetValue>::setStatus(status);
-    // Calling handleStatus will make the status visible to the client
-    if (!scan.handleStatus(status)) {
-        StatusCallback<GetValue>::setStatus(
-                cb::engine_errc::range_scan_cancelled);
-    }
+    scan.cancelOnIOThread(status);
 }

@@ -11,6 +11,7 @@
 #pragma once
 
 #include <memcached/dockey.h>
+#include <memcached/engine_error.h>
 #include <memcached/range_scan_id.h>
 #include <memcached/range_scan_optional_configuration.h>
 #include <memcached/vbucket.h>
@@ -107,12 +108,14 @@ struct ContinueParameters {
                        Id uuid,
                        size_t itemLimit,
                        std::chrono::milliseconds timeLimit,
-                       size_t byteLimit)
+                       size_t byteLimit,
+                       cb::engine_errc currentStatus)
         : vbid(vbid),
           uuid(uuid),
           itemLimit(itemLimit),
           timeLimit(timeLimit),
-          byteLimit(byteLimit) {
+          byteLimit(byteLimit),
+          currentStatus(currentStatus) {
     }
 
     /// The vbucket the scan is associated with
@@ -132,6 +135,10 @@ struct ContinueParameters {
     /// continue is complete. This is not an absolute limit, but a trigger.
     /// A value of 0 disables this trigger.
     size_t byteLimit{0};
+
+    /// The current status of the continue, required for driving the command
+    /// via the async IO complete pattern
+    cb::engine_errc currentStatus{cb::engine_errc::success};
 };
 
 } // namespace cb::rangescan

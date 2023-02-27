@@ -21,30 +21,27 @@
 #include <memcached/range_scan_status.h>
 
 void range_scan_continue_executor(Cookie& cookie) {
-    auto status = cookie.swapAiostat(cb::engine_errc::success);
+    const auto& req = cookie.getRequest();
+    const auto& payload = req.getCommandSpecifics<
+            cb::mcbp::request::RangeScanContinuePayload>();
 
-    if (status == cb::engine_errc::success) {
-        const auto& req = cookie.getRequest();
-        const auto& payload = req.getCommandSpecifics<
-                cb::mcbp::request::RangeScanContinuePayload>();
-
-        status = continueRangeScan(
-                cookie,
-                cb::rangescan::ContinueParameters{
-                        req.getVBucket(),
-                        payload.getId(),
-                        payload.getItemLimit(),
-                        std::chrono::milliseconds(payload.getTimeLimit()),
-                        payload.getByteLimit()});
-    }
+    auto status = continueRangeScan(
+            cookie,
+            cb::rangescan::ContinueParameters{
+                    req.getVBucket(),
+                    payload.getId(),
+                    payload.getItemLimit(),
+                    std::chrono::milliseconds(payload.getTimeLimit()),
+                    payload.getByteLimit(),
+                    cookie.swapAiostat(cb::engine_errc::success)});
 
     switch (cb::rangescan::getContinueHandlingStatus(status)) {
-    case cb::rangescan::HandlingStatus::TaskSends:
-        // The bg task has transmitted this status
+    case cb::rangescan::HandlingStatus::EngineSends:
+        // The engine has transmitted this status (along with any scanned data)
         return;
     case cb::rangescan::HandlingStatus::ExecutorSends:
-        // This executor must send this status
+        // This executor must handle this status
+        handle_executor_status(cookie, status);
         break;
     }
-    handle_executor_status(cookie, status);
 }

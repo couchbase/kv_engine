@@ -106,14 +106,37 @@ public:
                                  const EventuallyPersistentEngine& engine);
 
     /**
+     * Frontend executor invokes this method after an IO complete notification
+     * when the status is success or range_scan_more.
+     *
+     * @param client Cookie related to the continue request
+     */
+    void continueOnFrontendThread(CookieIface& client);
+
+    /**
+     * Frontend executor invokes this method after an IO complete notification
+     * when the status is range_scan_complete.
+     *
+     * @param client Cookie related to the continue request
+     */
+    void completeOnFrontendThread(CookieIface& client);
+
+    /**
+     * Frontend executor invokes this method after an IO complete notification
+     * when there is an error that triggers cancellation.
+     */
+    void cancelOnFrontendThread();
+
+    /**
      * Prepare the scan ready to continue. This function performs "pre-flight"
      * checks and sets the continueRunState. If this function
      * returns range_scan_more - continueOnIOThread can be called
      *
-     * range_scan_more - the scan is ready to progress
-     * range_scan_cancelled - the the scan has been cancelled
+     * range_scan_more - the scan is ready to be continued
+     * range_scan_complete - the scan is complete
+     * range_scan_cancelled - the scan has been cancelled
      *
-     * @return success, range_scan_more or range_scan_cancelled
+     * @return range_scan_complete, range_scan_more or range_scan_cancelled
      */
     cb::engine_errc prepareToContinueOnIOThread();
 
@@ -131,6 +154,23 @@ public:
      * @return success, range_scan_more or range_scan_cancelled
      */
     cb::engine_errc continueOnIOThread(KVStoreIface& kvstore);
+
+    /**
+     * IO thread calls this method when an error occurs and the scan must be
+     * cancelled.
+     * @param status the error status
+     */
+    void cancelOnIOThread(cb::engine_errc status);
+
+    /// @return if there is a continue request waiting for an IO task
+    bool continueIsWaiting() const;
+
+    /**
+     * This function can only be called once per run of the continue IO task.
+     * The internal cookie* is cleared after this call.
+     * @return the cookie that initiated the continue.
+     */
+    CookieIface& takeContinueCookie();
 
     /// @return the universally unique id of this scan (exposed to the client)
     cb::rangescan::Id getUuid() const {
@@ -161,10 +201,20 @@ public:
                             std::chrono::milliseconds timeLimit,
                             size_t byteLimit);
 
-    /// change the state of the scan to Cancelled
-    void setStateCancelled();
+    /**
+     * Change the state of the scan to Idle
+     */
+    void setStateIdle();
 
-    /// change the state of the scan to Completed
+    /**
+     * Change the state of the scan to Cancelled
+     * @param finalStatus the final status of the scan (for logging)
+     */
+    void setStateCancelled(cb::engine_errc finalStatus);
+
+    /**
+     * Change the state of the scan to Completed
+     */
     void setStateCompleted();
 
     /// @return how many seconds the scan has left (based on the timeLimit)
@@ -194,9 +244,8 @@ public:
      * is only invoked for a KeyOnly::Yes scan.
      *
      * @param key A key read from a Key only scan
-     * @return false if the key cannot be sent (disconnected continue)
      */
-    bool handleKey(DocKey key);
+    void handleKey(DocKey key);
 
     enum Source { Memory, Disk };
 
@@ -206,29 +255,18 @@ public:
      *
      * @param item An Item read from a Key/Value scan
      * @param source Item was found in memory or on disk
-     * @return false if the key cannot be sent (disconnected continue)
      */
-    bool handleItem(std::unique_ptr<Item> item, Source source);
-
-    /**
-     * Callback method for when a scan has finished a "continue" and is used to
-     * set the status of the scan. A "continue" can finish prematurely due to
-     * an error or successfully because it has reached the end of the scan or
-     * a limit.
-     *
-     * @param status The status of the just completed continue
-     * @return false if the status cannot be sent (disconnected continue)
-     */
-    bool handleStatus(cb::engine_errc status);
+    void handleItem(std::unique_ptr<Item> item, Source source);
 
     /**
      * Callback method for when a scan encounters an unknown collection during
-     * the continue
+     * the continue. The manifest UID has to be stashed by this object so that
+     * the frontend executor can place it in an unknown_collection mcbp response
      *
      * @param manifestUid The uid of the manifest in which the collection was
      *        not found.
      */
-    void handleUnknownCollection(uint64_t manifestUid);
+    void setUnknownCollectionManifestUid(uint64_t manifestUid);
 
     /**
      * Increment the scan's itemCount/byteCount/totalCount for an something
@@ -251,6 +289,9 @@ public:
 
     /// @return true if the vbucket can be scanned (correct state/uuid)
     bool isVbucketScannable(const VBucket& vb) const;
+
+    /// @return the value which is stored by setUnknownCollectionManifestUid
+    uint64_t getManifestUid() const;
 
     /// Generate stats for this scan
     void addStats(const StatCollector& collector) const;
@@ -312,23 +353,6 @@ protected:
     /// @return true if this scan is a random sample scan
     bool isSampling() const;
 
-    /**
-     * Try to change state to idle and send the status to the cookie/client.
-     * If the scan has been cancelled the state cannot be changed and the given
-     * status is replaced with range_scan_cancelled.
-     * @return success if state was changed and status consumed
-     */
-    cb::engine_errc tryAndSetStateIdle(cb::engine_errc status);
-
-    /**
-     * Change to idle if the current state allows, if the state is cancelled
-     * no state change occurs.
-     *
-     * @return true if state change did not occur, false if not (scan is
-     *         cancelled)
-     */
-    bool setStateIdle(cb::engine_errc status);
-
     // member variables ideally ordered by size large -> small
     cb::rangescan::Id uuid;
     DiskDocKey start;
@@ -378,9 +402,10 @@ protected:
 
     /**
      * Idle: The scan is awaiting a range-scan-continue or a cancel event.
-     * Continuing: The scan is contiuning, this state covers the point from
-     *             processing the range-scan-continue, waiting for a task and
-     *             whilst scanning on the task.
+     * Continuing: The scan is continuing, this state covers the point from
+     *             processing the range-scan-continue request on a frontend
+     *             executor until an IO complete notification informs the
+     *             frontend executor of the next state.
      * Cancelled: A cancellation occurred - this could be a client request or
      *            some other issue (timeout, vbucket state change). When a
      *            scan is in this state, the VB::RangeScanOwner does not have
@@ -396,7 +421,8 @@ protected:
      * Idle -> Continuing
      *   - range-scan-continue
      * Continuing -> Idle
-     *   - RangeScanCreateTask when a scan must Yield
+     *   - RangeScanCreateTask when a scan must Yield as a limit has been
+     *     reached.
      * Continuing -> Completed
      *   - RangeScanCreateTask calling EPVbucket::completeRangeScan() because
      *     scan reached the end.
@@ -443,7 +469,7 @@ protected:
          * run again and will soon delete. This method changes the state to
          * Complete and clears cookie and limits.
          */
-        void setupForComplete();
+        void setupForComplete(cb::engine_errc finalStatus);
 
         /**
          * Cancellation can occur at any point. Whilst the scan is idle, waiting
@@ -451,7 +477,7 @@ protected:
          * Cancelled and leave the cookie/limits unchanged. This allows any
          * waiting/running scan to end correctly passing a status to the cookie.
          */
-        void setupForCancel();
+        void setupForCancel(cb::engine_errc finalStatus);
 
         /// dump this to std::cerr
         void dump() const;
@@ -467,7 +493,8 @@ protected:
     /**
      * The ContinueRunState is the state used by I/O task run() loop for a
      * RangeScan. It contains a copy of the ContinueState that defines how the
-     * continue operates (client and limits)
+     * continue operates, the current state (which could be continue/cancel).
+     * It adds counters for the items and bytes read and the deadline.
      */
     struct ContinueRunState {
         ContinueRunState();
@@ -484,6 +511,12 @@ protected:
         std::chrono::steady_clock::time_point scanContinueDeadline;
         /// Written after each key/doc is read from cookie->checkThrottle
         bool limitByThrottle{false};
+        /// The continue must just yield (must allow frontend to send)
+        bool yield{false};
+        /// If the continue is cancelled the reason is set here.
+        cb::engine_errc cancelledStatus{cb::engine_errc::success};
+        /// This is used when unknown_collection ends the scan
+        uint64_t manifestUid{0};
     } continueRunState;
 
     cb::rangescan::KeyOnly keyOnly{cb::rangescan::KeyOnly::No};

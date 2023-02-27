@@ -171,11 +171,15 @@ public:
     size_t drainItemResponse(
             const BinprotResponse& response,
             const std::unordered_set<std::string> expectedKeySet);
-
-    size_t drainScan(cb::rangescan::Id id,
-                     bool keyScan,
-                     size_t itemLimit,
-                     const std::unordered_set<std::string> expectedKeySet);
+    struct ScanCounters {
+        size_t records{0};
+        size_t frames{0};
+    };
+    ScanCounters drainScan(
+            cb::rangescan::Id id,
+            bool keyScan,
+            size_t itemLimit,
+            const std::unordered_set<std::string> expectedKeySet);
 
     void testErrorsDuringContinue(cb::mcbp::Status error);
 
@@ -372,13 +376,15 @@ size_t RangeScanTest::drainItemResponse(
     return count;
 }
 
-size_t RangeScanTest::drainScan(
+RangeScanTest::ScanCounters RangeScanTest::drainScan(
         cb::rangescan::Id id,
         bool keyScan,
         size_t itemLimit,
         const std::unordered_set<std::string> expectedKeySet) {
     BinprotResponse resp;
     size_t recordsReturned = 0;
+    size_t frames = 0;
+
     do {
         // Keep sending continue until we get the response with complete
         BinprotRangeScanContinue scanContinue(
@@ -401,6 +407,7 @@ size_t RangeScanTest::drainScan(
                 recordsReturned += drainItemResponse(resp, expectedKeySet);
             }
 
+            frames++;
             if (resp.getStatus() != cb::mcbp::Status::Success) {
                 // Stop this loop once !success is seen
                 break;
@@ -418,7 +425,8 @@ size_t RangeScanTest::drainScan(
                     to_string(resp.getStatus()));
         }
     } while (resp.getStatus() != cb::mcbp::Status::RangeScanComplete);
-    return recordsReturned;
+
+    return ScanCounters{recordsReturned, frames};
 }
 
 TEST_P(RangeScanTest, KeyOnly) {
@@ -434,7 +442,7 @@ TEST_P(RangeScanTest, KeyOnly) {
     std::memcpy(id.data, resp.getData().data(), resp.getData().size());
 
     EXPECT_EQ(userKeys.size(),
-              drainScan(id, true, 2, userKeys)); // 2 items per continue
+              drainScan(id, true, 2, userKeys).records); // 2 items per continue
 }
 
 TEST_P(RangeScanTest, ValueScan) {
@@ -446,8 +454,41 @@ TEST_P(RangeScanTest, ValueScan) {
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     cb::rangescan::Id id;
     std::memcpy(id.data, resp.getData().data(), resp.getData().size());
-    EXPECT_EQ(userKeys.size(),
-              drainScan(id, false, 2, userKeys)); // 2 items per continue
+    EXPECT_EQ(
+            userKeys.size(),
+            drainScan(id, false, 2, userKeys).records); // 2 items per continue
+}
+
+// Set the buffer to be 0 and check that each key is sent in a single mcbp
+// response (frames).
+TEST_P(RangeScanTest, ScanWithSmallBuffer) {
+    // Reduce the buffer size so each read triggers a yield
+    adminConnection->executeInBucket(bucketName, [&](auto& connection) {
+        // Encode a set_flush_param (like cbepctl)
+        BinprotGenericCommand cmd1{cb::mcbp::ClientOpcode::SetParam,
+                                   "range_scan_read_buffer_send_size",
+                                   "0"};
+        cmd1.setExtrasValue<uint32_t>(htonl(static_cast<uint32_t>(
+                cb::mcbp::request::SetParamPayload::Type::Flush)));
+        const auto resp = connection.execute(cmd1);
+        ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    });
+
+    config["key_only"] = true;
+
+    BinprotRangeScanCreate create(Vbid(0), config);
+    userConnection->sendCommand(create);
+
+    BinprotResponse resp;
+    userConnection->recvResponse(resp);
+    ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+    cb::rangescan::Id id;
+    std::memcpy(id.data, resp.getData().data(), resp.getData().size());
+
+    // No limits on the continue but we have configured a 0 byte internal
+    // buffer, so every key triggers a mcbp response (frame). There is 1 extra
+    // frame that contains the complete status.
+    EXPECT_EQ(userKeys.size() + 1, drainScan(id, true, 0, userKeys).frames);
 }
 
 TEST_P(RangeScanTest, ExclusiveRangeStart) {
@@ -466,7 +507,9 @@ TEST_P(RangeScanTest, ExclusiveRangeStart) {
     cb::rangescan::Id id;
     std::memcpy(id.data, resp.getData().data(), resp.getData().size());
     EXPECT_EQ(3, sequential.size() - 1);
-    EXPECT_EQ(3, drainScan(id, true, 2, sequential)); // 2 items per continue
+    EXPECT_EQ(
+            3,
+            drainScan(id, true, 2, sequential).records); // 2 items per continue
 }
 
 TEST_P(RangeScanTest, ExclusiveRangeEnd) {
@@ -486,7 +529,9 @@ TEST_P(RangeScanTest, ExclusiveRangeEnd) {
     cb::rangescan::Id id;
     std::memcpy(id.data, resp.getData().data(), resp.getData().size());
     EXPECT_EQ(3, sequential.size() - 1);
-    EXPECT_EQ(3, drainScan(id, true, 2, sequential)); // 2 items per continue
+    EXPECT_EQ(
+            3,
+            drainScan(id, true, 2, sequential).records); // 2 items per continue
 }
 
 TEST_P(RangeScanTest, TestStats) {
@@ -577,11 +622,14 @@ void RangeScanTest::testErrorsDuringContinue(cb::mcbp::Status error) {
     do {
         userConnection->recvResponse(resp);
         if (resp.getStatus() == cb::mcbp::Status::NotMyVbucket) {
+            EXPECT_EQ(resp.getStatus(), error);
             // Expect no keys/values attached to this error. A cluster would
             // attach vbmap
             ASSERT_EQ(0, resp.getData().size());
             scanCanContinue = false;
         } else if (resp.getStatus() == cb::mcbp::Status::UnknownCollection) {
+            EXPECT_EQ(resp.getStatus(), error);
+
             scanCanContinue = false;
             // Expect to find the collection manifest id
             nlohmann::json parsed;
@@ -596,6 +644,8 @@ void RangeScanTest::testErrorsDuringContinue(cb::mcbp::Status error) {
             EXPECT_NE(parsed.end(), itr);
             EXPECT_EQ(manifest->getUidString(), itr->get<std::string>());
         } else if (resp.getStatus() == cb::mcbp::Status::RangeScanCancelled) {
+            EXPECT_EQ(resp.getStatus(), error);
+
             // Expect no keys/values attached to this error.
             ASSERT_EQ(0, resp.getData().size());
             scanCanContinue = false;

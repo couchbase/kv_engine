@@ -1398,6 +1398,18 @@ cb::engine_errc EPVBucket::setupCookieForRangeScan(cb::rangescan::Id id,
 
 cb::engine_errc EPVBucket::continueRangeScan(
         CookieIface& cookie, const cb::rangescan::ContinueParameters& params) {
+    // Take the token (if any), engine specific is now null and this function
+    // owns the token via a unique_ptr.
+    auto continueToken =
+            bucket->getEPEngine().takeEngineSpecific<RangeScanContinueToken>(
+                    cookie);
+
+    if (continueToken.has_value()) {
+        // This is an I/O complete phase of the continue request. Validate that
+        // the stashed UUID matches the input.
+        Expects(continueToken->uuid == params.uuid);
+    }
+
     auto status = setupCookieForRangeScan(params.uuid, cookie);
     if (status == cb::engine_errc::success) {
         status = rangeScans.hasPrivilege(
@@ -1414,22 +1426,35 @@ cb::engine_errc EPVBucket::continueRangeScan(
                     "dropped collection",
                     getId(),
                     params.uuid);
-            // cancel the scan (and request an I/O task to cancel)
-            rangeScans.cancelScan(
-                    dynamic_cast<EPBucket&>(*bucket), params.uuid, true);
+            // cancel the scan which requests an I/O task to close any resources
+            rangeScans.cancelScan(dynamic_cast<EPBucket&>(*bucket),
+                                  params.uuid);
+        } else if (status == cb::engine_errc::no_such_key &&
+                   continueToken.has_value()) {
+            // hasPrivilege could not find the scan, yet this is an I/O complete
+            // phase. This means the scan did exist and was cancelled, so return
+            // range_scan_cancelled as the status
+            status = cb::engine_errc::range_scan_cancelled;
         }
 
         return status;
     }
 
-    status = rangeScans.continueScan(
-            dynamic_cast<EPBucket&>(*bucket), cookie, params);
-    if (status != cb::engine_errc::success) {
-        return status;
+    status = rangeScans.continueScan(dynamic_cast<EPBucket&>(*bucket),
+                                     cookie,
+                                     continueToken.has_value(),
+                                     params);
+
+    if (status == cb::engine_errc::would_block) {
+        // Stash a token and save the current UUID
+        bucket->getEPEngine().storeEngineSpecific(
+                cookie, RangeScanContinueToken{params.uuid});
     }
-    return cb::engine_errc::would_block;
+
+    return status;
 }
 
+// @todo: remove the now unused schedule parameter
 cb::engine_errc EPVBucket::cancelRangeScan(cb::rangescan::Id id,
                                            CookieIface* cookie,
                                            bool schedule) {
@@ -1450,12 +1475,12 @@ cb::engine_errc EPVBucket::cancelRangeScan(cb::rangescan::Id id,
     // Cancel even for a dropped collection. Note cancelScan returns either
     // success or no_such_key. The latter can happen if the scan self cancels
     // by some other means (completes/timesout on another thread).
-    const auto cancelStatus = rangeScans.cancelScan(
-            dynamic_cast<EPBucket&>(*bucket), id, schedule);
+    const auto cancelStatus =
+            rangeScans.cancelScan(dynamic_cast<EPBucket&>(*bucket), id);
     Expects(cancelStatus == cb::engine_errc::success ||
             cancelStatus == cb::engine_errc::no_such_key);
 
-    if (cancelStatus == cb::engine_errc::success && schedule) {
+    if (cancelStatus == cb::engine_errc::success) {
         EP_LOG_INFO("{} RangeScan {} cancelled by request", getId(), id);
     }
 
