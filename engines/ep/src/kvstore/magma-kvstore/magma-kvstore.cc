@@ -179,9 +179,7 @@ static bool isAbort(const Slice& keySlice, const Slice& metaSlice) {
 } // namespace magmakv
 
 MagmaRequest::MagmaRequest(queued_item it)
-    : IORequest(std::move(it)),
-      docMeta(magmakv::makeMetaData(*item).encode()),
-      docBody(item->getValue()) {
+    : IORequest(std::move(it)), docMeta(magmakv::makeMetaData(*item).encode()) {
 }
 
 std::string MagmaRequest::to_string() {
