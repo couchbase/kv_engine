@@ -16,6 +16,7 @@
 #include <optional>
 #include <string>
 
+class CollectionID;
 class MockDcpConsumer;
 class MockDcpMessageProducers;
 class MockPassiveStream;
@@ -54,3 +55,11 @@ std::unique_ptr<MutationConsumerMessage> makeMutationConsumerMessage(
         std::optional<cb::durability::Requirements> reqs = {},
         bool deletion = false,
         uint64_t revSeqno = 1);
+
+std::unique_ptr<MutationConsumerMessage> makeMutationConsumerMessage(
+        uint64_t opaque,
+        uint64_t seqno,
+        Vbid vbid,
+        const std::string& value,
+        const std::string& key,
+        CollectionID cid);
