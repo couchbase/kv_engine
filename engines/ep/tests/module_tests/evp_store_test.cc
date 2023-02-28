@@ -2678,7 +2678,8 @@ TEST_P(EPBucketCDCTest, CollectionNonHistorical) {
     const uint64_t initialHighSeqno = 1;
     ASSERT_EQ(initialHighSeqno, vb->getHighSeqno()); // From SetUp
 
-    const auto key = makeStoredDocKey("key", CollectionEntry::defaultC);
+    const auto collection = CollectionEntry::defaultC;
+    const auto key = makeStoredDocKey("key", collection);
     store_item(vbid, key, "valueA");
     store_item(vbid, key, "valueB");
     EXPECT_EQ(initialHighSeqno + 2, vb->getHighSeqno());
@@ -2689,15 +2690,24 @@ TEST_P(EPBucketCDCTest, CollectionNonHistorical) {
     EXPECT_EQ(2, manager.getNumOpenChkItems());
     EXPECT_EQ(initialHighSeqno + 2, manager.getHighSeqno());
 
+    // Preconditions before flushing
+    // magma
     constexpr auto statName = "magma_NSets";
     size_t nSets = 0;
     const auto& underlying = *store->getRWUnderlying(vbid);
     ASSERT_TRUE(underlying.getStat(statName, nSets));
     ASSERT_EQ(1, nSets);
+    // KV
+    const auto& manifest = vb->getManifest();
+    ASSERT_EQ(0, manifest.lock(collection).getItemCount());
 
+    // Test + postconditions
     flush_vbucket_to_disk(vbid, 1);
+    // magma
     ASSERT_TRUE(underlying.getStat(statName, nSets));
     EXPECT_EQ(2, nSets);
+    // KV
+    EXPECT_EQ(1, manifest.lock(collection).getItemCount());
 }
 
 TEST_P(EPBucketCDCTest, CollectionHistorical) {
@@ -2705,7 +2715,8 @@ TEST_P(EPBucketCDCTest, CollectionHistorical) {
     const uint64_t initialHighSeqno = 1;
     ASSERT_EQ(initialHighSeqno, vb->getHighSeqno()); // From SetUp
 
-    const auto key = makeStoredDocKey("key", CollectionEntry::historical);
+    const auto collection = CollectionEntry::historical;
+    const auto key = makeStoredDocKey("key", collection);
     store_item(vbid, key, "valueA");
     store_item(vbid, key, "valueB");
     EXPECT_EQ(initialHighSeqno + 2, vb->getHighSeqno());
@@ -2716,15 +2727,24 @@ TEST_P(EPBucketCDCTest, CollectionHistorical) {
     EXPECT_EQ(2, manager.getNumOpenChkItems());
     EXPECT_EQ(initialHighSeqno + 2, manager.getHighSeqno());
 
+    // Preconditions before flushing
+    // magma
     constexpr auto statName = "magma_NSets";
     size_t nSets = 0;
     const auto& underlying = *store->getRWUnderlying(vbid);
     ASSERT_TRUE(underlying.getStat(statName, nSets));
     ASSERT_EQ(1, nSets);
+    // KV
+    const auto& manifest = vb->getManifest();
+    ASSERT_EQ(0, manifest.lock(collection).getItemCount());
 
+    // Test + postconditions
     flush_vbucket_to_disk(vbid, 2);
+    // magma
     ASSERT_TRUE(underlying.getStat(statName, nSets));
     EXPECT_EQ(3, nSets);
+    // KV - Note: item count doesn't increase for historical revisions
+    EXPECT_EQ(1, manifest.lock(collection).getItemCount());
 }
 
 TEST_P(EPBucketCDCTest, CollectionInterleaved) {
@@ -2779,20 +2799,32 @@ TEST_P(EPBucketCDCTest, CollectionInterleaved) {
     EXPECT_EQ(initialHighSeqno + 4, (*it)->getBySeqno());
     EXPECT_EQ(keyNonHistorical, (*it)->getDocKey());
 
+    // Preconditions
+    // magma
     constexpr auto statName = "magma_NSets";
     size_t initialNSets = 0;
     const auto& underlying = *store->getRWUnderlying(vbid);
     ASSERT_TRUE(underlying.getStat(statName, initialNSets));
     EXPECT_EQ(1, initialNSets);
+    // KV
+    const auto& manifest = vb->getManifest();
+    ASSERT_EQ(0, manifest.lock(CollectionEntry::historical).getItemCount());
+    ASSERT_EQ(0, manifest.lock(CollectionEntry::defaultC).getItemCount());
 
+    // Test + postconditions
     // Note:
     // . 2 historical mutations -> both persisted
     // . 2 non-historical mutations -> only 1 persisted
     const auto expectedNumPersisted = 3;
     flush_vbucket_to_disk(vbid, expectedNumPersisted);
+    // magma
     size_t nSets = 0;
     ASSERT_TRUE(underlying.getStat(statName, nSets));
     EXPECT_EQ(initialNSets + expectedNumPersisted, nSets);
+    // KV
+    // Note: item count doesn't increase for historical revisions
+    EXPECT_EQ(1, manifest.lock(CollectionEntry::historical).getItemCount());
+    EXPECT_EQ(1, manifest.lock(CollectionEntry::defaultC).getItemCount());
 }
 
 INSTANTIATE_TEST_SUITE_P(EPBucketCDCTest,
