@@ -40,11 +40,11 @@ public:
     }
 
     size_t getBodySize() const {
-        return docBody ? docBody->valueSize() : 0;
+        return getItem().getNBytes();
     }
 
     char* getBodyData() const {
-        return docBody ? const_cast<char*>(docBody->getData()) : nullptr;
+        return const_cast<char*>(getItem().getData());
     }
 
     void markOldItemAlive() {
@@ -79,7 +79,6 @@ public:
 
 private:
     std::string docMeta;
-    value_t docBody;
 
     // Is there an old item which is alive? i.e. this item is replacing
     // a non-deleted item.
