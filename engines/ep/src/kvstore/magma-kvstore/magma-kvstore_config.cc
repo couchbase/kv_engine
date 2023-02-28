@@ -112,6 +112,10 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
             config.getMagmaGroupCommitMaxSyncWaitDurationMs());
     magmaGroupCommitMaxTransactionCount =
             config.getMagmaGroupCommitMaxTransactionCount();
+    magmaSeqTreeDataBlockSize = config.getMagmaSeqTreeDataBlockSize();
+    magmaSeqTreeIndexBlockSize = config.getMagmaSeqTreeIndexBlockSize();
+    magmaKeyTreeDataBlockSize = config.getMagmaKeyTreeDataBlockSize();
+    magmaKeyTreeIndexBlockSize = config.getMagmaKeyTreeIndexBlockSize();
 
     config.addValueChangedListener(
             "magma_enable_block_cache",

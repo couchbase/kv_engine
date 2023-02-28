@@ -486,6 +486,50 @@ TEST_P(STParamMagmaBucketTest, MagmaMemQuotaDynamicUpdate) {
     EXPECT_EQ(0.3f, config.getMagmaMemQuotaRatio());
 }
 
+TEST_P(STParamMagmaBucketTest, MagmaSeqTreeDataBlocksSize) {
+    std::string msg;
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam(
+                      "magma_seq_tree_data_block_size", "7777", msg));
+
+    auto& config = dynamic_cast<const MagmaKVStoreConfig&>(
+            store->getRWUnderlying(vbid)->getConfig());
+    ASSERT_EQ(7777, config.getMagmaSeqTreeDataBlockSize());
+}
+
+TEST_P(STParamMagmaBucketTest, MagmaSeqTreeIndexBlocksSize) {
+    std::string msg;
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam(
+                      "magma_seq_tree_index_block_size", "7777", msg));
+
+    auto& config = dynamic_cast<const MagmaKVStoreConfig&>(
+            store->getRWUnderlying(vbid)->getConfig());
+    ASSERT_EQ(7777, config.getMagmaSeqTreeIndexBlockSize());
+}
+
+TEST_P(STParamMagmaBucketTest, MagmaKeyTreeDataBlocksSize) {
+    std::string msg;
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam(
+                      "magma_key_tree_data_block_size", "7777", msg));
+
+    auto& config = dynamic_cast<const MagmaKVStoreConfig&>(
+            store->getRWUnderlying(vbid)->getConfig());
+    ASSERT_EQ(7777, config.getMagmaKeyTreeDataBlockSize());
+}
+
+TEST_P(STParamMagmaBucketTest, MagmaKeyTreeIndexBlocksSize) {
+    std::string msg;
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setFlushParam(
+                      "magma_key_tree_index_block_size", "7777", msg));
+
+    auto& config = dynamic_cast<const MagmaKVStoreConfig&>(
+            store->getRWUnderlying(vbid)->getConfig());
+    ASSERT_EQ(7777, config.getMagmaKeyTreeIndexBlockSize());
+}
+
 /*
  * Test for MB-47566 to ensure that compaction running at the same time as a
  * vbucket being rolled back doesn't cause us to throw an underflow exception
