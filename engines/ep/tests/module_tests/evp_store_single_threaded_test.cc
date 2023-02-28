@@ -4493,7 +4493,8 @@ void STParameterizedBucketTest::testCheckpointMemThresholdEnforced(
                                      "cursor",
                                      0,
                                      CheckpointCursor::Droppable::Yes)
-                             .cursor.lock();
+                             .takeCursor()
+                             .lock();
         }
         initialNumItems = loadUpToOOM(op);
         ASSERT_GT(initialNumItems, 0);
@@ -4515,7 +4516,8 @@ void STParameterizedBucketTest::testCheckpointMemThresholdEnforced(
         cursor = vb->checkpointManager
                          ->registerCursorBySeqno(
                                  "cursor", 0, CheckpointCursor::Droppable::Yes)
-                         .cursor.lock();
+                         .takeCursor()
+                         .lock();
     }
     const auto numItems = loadUpToOOM(op);
     ASSERT_GT(numItems, 0);
@@ -5301,7 +5303,8 @@ void SingleThreadedKVBucketTest::testExpiryObservesCMQuota(
         cursor = vb->checkpointManager
                          ->registerCursorBySeqno(
                                  "cursor", 0, CheckpointCursor::Droppable::Yes)
-                         .cursor.lock();
+                         .takeCursor()
+                         .lock();
         ASSERT_TRUE(cursor);
     }
     ASSERT_EQ(KVBucket::CheckpointMemoryState::Available,
@@ -5403,7 +5406,8 @@ TEST_P(STParameterizedBucketTest, CheckpointMemThresholdEnforced_Del) {
         cursor = vb->checkpointManager
                          ->registerCursorBySeqno(
                                  "cursor", 0, CheckpointCursor::Droppable::Yes)
-                         .cursor.lock();
+                         .takeCursor()
+                         .lock();
         ASSERT_TRUE(cursor);
     }
     ASSERT_EQ(KVBucket::CheckpointMemoryState::Available,

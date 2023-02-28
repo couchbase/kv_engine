@@ -998,7 +998,8 @@ TEST_P(DCPLoopbackStreamTest, MultiReplicaPartialSnapshot) {
                     ->checkpointManager
                     ->registerCursorBySeqno(
                             "test-cursor", 0, CheckpointCursor::Droppable::Yes)
-                    .cursor.lock();
+                    .takeCursor()
+                    .lock();
     ASSERT_TRUE(dcpCursor);
 
     auto route0_1 = createDcpRoute(Node0, Node1);

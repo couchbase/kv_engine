@@ -169,7 +169,8 @@ TEST_P(CheckpointRemoverEPTest, MemoryRecoveryTrigger) {
     const auto dcpCursor =
             manager.registerCursorBySeqno(
                            "dcp", 0, CheckpointCursor::Droppable::Yes)
-                    .cursor.lock();
+                    .takeCursor()
+                    .lock();
     ASSERT_TRUE(dcpCursor);
 
     // Now store some items so that the mem-usage in checkpoint crosses the
@@ -529,7 +530,7 @@ std::vector<queued_item> CheckpointRemoverEPTest::getItemsWithCursor(
     auto regRes = cm->registerCursorBySeqno(
             "SomeName", startBySeqno, CheckpointCursor::Droppable::Yes);
     EXPECT_EQ(expectBackfill, regRes.tryBackfill);
-    auto cursor = regRes.cursor.lock();
+    auto cursor = regRes.takeCursor().lock();
 
     std::vector<queued_item> items;
     cm->getNextItemsForDcp(*cursor, items);
@@ -615,7 +616,7 @@ TEST_P(CheckpointRemoverEPTest,
 
     auto regRes = cm->registerCursorBySeqno(
             "Cursor3", 0, CheckpointCursor::Droppable::Yes);
-    auto cursor = regRes.cursor.lock();
+    auto cursor = regRes.takeCursor().lock();
 
     /* items in first checkpoint
      *
@@ -688,7 +689,7 @@ TEST_P(CheckpointRemoverEPTest, earliestCheckpointSelectedCorrectly) {
     // Put a cursor in the second checkpoint
     auto regResA = cm->registerCursorBySeqno(
             "CursorA", 0, CheckpointCursor::Droppable::Yes);
-    auto cursorA = regResA.cursor.lock();
+    auto cursorA = regResA.takeCursor().lock();
     for (int i = 0; i < 5; i++) {
         cm->incrCursor(*cursorA);
     }
@@ -696,7 +697,7 @@ TEST_P(CheckpointRemoverEPTest, earliestCheckpointSelectedCorrectly) {
     // Put a cursor on the *last* item of the first checkpoint
     auto regResB = cm->registerCursorBySeqno(
             "CursorB", 0, CheckpointCursor::Droppable::Yes);
-    auto cursorB = regResB.cursor.lock();
+    auto cursorB = regResB.takeCursor().lock();
     for (int i = 0; i < 3; i++) {
         cm->incrCursor(*cursorB);
     }
@@ -908,7 +909,8 @@ TEST_P(CheckpointRemoverTest, CursorMoveWakesDestroyer) {
     // The test covers both persistent/ephemeral
     auto dcpCursor =
             cm.registerCursorBySeqno("dcp", 0, CheckpointCursor::Droppable::Yes)
-                    .cursor.lock();
+                    .takeCursor()
+                    .lock();
     ASSERT_TRUE(dcpCursor);
 
     // Store an item

@@ -266,7 +266,7 @@ void ActiveStream::registerCursor(CheckpointManager& chkptmgr,
             pendingBackfill = true;
         }
         curChkSeqno = result.seqno;
-        cursor = result.cursor;
+        cursor = result.takeCursor();
     } catch (std::exception& error) {
         log(spdlog::level::level_enum::warn,
             "{} Failed to register cursor: {}",
@@ -1832,9 +1832,11 @@ void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
             registerResult.seqno,
             registerResult.tryBackfill);
 
+        scheduleBackfillRegisterCursorHook();
+
         curChkSeqno = registerResult.seqno;
         tryBackfill = registerResult.tryBackfill;
-        cursor = registerResult.cursor;
+        cursor = registerResult.takeCursor();
 
         if (lastReadSeqno.load() > curChkSeqno) {
             // something went wrong registering the cursor - it is too early
@@ -2073,7 +2075,7 @@ void ActiveStream::notifyEmptyBackfill_UNLOCKED(uint64_t lastSeenSeqno) {
                 result.seqno,
                 result.tryBackfill);
             curChkSeqno = result.seqno;
-            cursor = result.cursor;
+            cursor = result.takeCursor();
         } catch (std::exception& error) {
             log(spdlog::level::level_enum::warn,
                 "{} Failed to register "

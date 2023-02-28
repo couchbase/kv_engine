@@ -479,6 +479,8 @@ public:
     // Introduced in MB-45757 for testing a race condition on invalidate-cursor
     TestingHook<> removeCursorPreLockHook;
 
+    TestingHook<> scheduleBackfillRegisterCursorHook;
+
 protected:
     void clear_UNLOCKED();
 

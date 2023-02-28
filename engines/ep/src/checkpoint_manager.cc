@@ -30,6 +30,30 @@
 constexpr const char* CheckpointManager::pCursorName;
 constexpr const char* CheckpointManager::backupPCursorName;
 
+CursorRegResult::CursorRegResult() = default;
+
+CursorRegResult::CursorRegResult(CheckpointManager& manager,
+                                 bool tryBackfill,
+                                 uint64_t seqno,
+                                 Cursor cursor)
+    : tryBackfill{tryBackfill},
+      seqno{seqno},
+      manager{&manager},
+      cursor{std::move(cursor)} {
+}
+
+CursorRegResult::CursorRegResult(CursorRegResult&&) = default;
+CursorRegResult& CursorRegResult::operator=(CursorRegResult&&) = default;
+
+CursorRegResult::~CursorRegResult() {
+    if (manager) {
+        // Non-empty CursorRegResult; clean up cursor if we still own it.
+        if (auto locked = cursor.lock()) {
+            manager->removeCursor(*locked);
+        }
+    }
+}
+
 CheckpointManager::CheckpointManager(EPStats& st,
                                      VBucket& vb,
                                      CheckpointConfig& config,
@@ -73,7 +97,7 @@ CheckpointManager::CheckpointManager(EPStats& st,
                                         pCursorName,
                                         lastBySeqno,
                                         CheckpointCursor::Droppable::No)
-                          .cursor;
+                          .takeCursor();
         persistenceCursor = pCursor.lock().get();
     }
 }
@@ -309,7 +333,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
         auto cursor = std::make_shared<CheckpointCursor>(
                 name, ckptIt, pos, droppable, distance);
         cursors[name] = cursor;
-        return {tryBackfill, seqno, Cursor{cursor}};
+        return {*this, tryBackfill, seqno, Cursor{cursor}};
     };
 
     // If:

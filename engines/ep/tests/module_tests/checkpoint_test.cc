@@ -77,7 +77,8 @@ void CheckpointTest::createManager(int64_t lastSeqno) {
                 manager->registerCursorBySeqno("test_cursor",
                                                0,
                                                CheckpointCursor::Droppable::Yes)
-                        .cursor.lock()
+                        .takeCursor()
+                        .lock()
                         .get();
     }
     ASSERT_TRUE(cursor);
@@ -560,7 +561,7 @@ TEST_P(CheckpointTest, ItemsForCheckpointCursor) {
     // Get items for persistence (EP test only)
     test(cursor);
     // Get items for DCP cursor (EP/Ephe)
-    test(dcpCursor.cursor.lock().get());
+    test(dcpCursor.takeCursor().lock().get());
 }
 
 // Test getItemsForDcp() when it is limited to fewer items than exist
@@ -651,8 +652,11 @@ TEST_P(CheckpointTest, CursorMovement) {
 
     /* Register DCP replication cursor */
     std::string dcp_cursor(DCP_CURSOR_PREFIX + std::to_string(1));
-    auto dcpCursor = manager->registerCursorBySeqno(
-            dcp_cursor.c_str(), 0, CheckpointCursor::Droppable::Yes);
+    auto dcpCursor =
+            manager->registerCursorBySeqno(dcp_cursor.c_str(),
+                                           0,
+                                           CheckpointCursor::Droppable::Yes)
+                    .takeCursor();
 
     /* Get items for persistence cursor */
     std::vector<queued_item> items;
@@ -668,7 +672,7 @@ TEST_P(CheckpointTest, CursorMovement) {
 
     /* Get items for DCP replication cursor */
     items.clear();
-    result = this->manager->getNextItemsForDcp(*dcpCursor.cursor.lock(), items);
+    result = this->manager->getNextItemsForDcp(*dcpCursor.lock(), items);
     EXPECT_EQ(numItems, items.size());
     EXPECT_EQ(1, result.ranges.size());
     EXPECT_EQ(1000, result.ranges.front().getStart());
@@ -698,7 +702,7 @@ TEST_P(CheckpointTest, CursorMovement) {
     EXPECT_EQ(0, manager->getNumItemsForCursor(*cursor))
             << "Expected to have no normal (only meta) items";
     items.clear();
-    this->manager->getNextItemsForDcp(*dcpCursor.cursor.lock(), items);
+    this->manager->getNextItemsForDcp(*dcpCursor.lock(), items);
     /* Expecting only 1 op_ckpt_start item */
     EXPECT_EQ(1, items.size());
     EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
@@ -1318,7 +1322,8 @@ SingleThreadedCheckpointTest::testCursorDistance_Register() {
 
     auto cursor = manager.registerCursorBySeqno(
                                  "cursor", 0, CheckpointCursor::Droppable::Yes)
-                          .cursor.lock();
+                          .takeCursor()
+                          .lock();
     EXPECT_EQ(queue_op::empty, (*cursor->getPos())->getOperation());
     EXPECT_EQ(0, cursor->getDistance());
 
@@ -1332,14 +1337,16 @@ SingleThreadedCheckpointTest::testCursorDistance_Register() {
 
     cursor = manager.registerCursorBySeqno(
                             "cursor", 1, CheckpointCursor::Droppable::Yes)
-                     .cursor.lock();
+                     .takeCursor()
+                     .lock();
     EXPECT_EQ(queue_op::mutation, (*cursor->getPos())->getOperation());
     EXPECT_EQ(1, (*cursor->getPos())->getBySeqno());
     EXPECT_EQ(3, cursor->getDistance());
 
     cursor = manager.registerCursorBySeqno(
                             "cursor", 2, CheckpointCursor::Droppable::Yes)
-                     .cursor.lock();
+                     .takeCursor()
+                     .lock();
     EXPECT_EQ(queue_op::mutation, (*cursor->getPos())->getOperation());
     EXPECT_EQ(2, (*cursor->getPos())->getBySeqno());
     EXPECT_EQ(4, cursor->getDistance());
@@ -1545,7 +1552,8 @@ TEST_F(SingleThreadedCheckpointTest, CheckpointHighSeqno) {
     //                            ^
     auto cursor = manager.registerCursorBySeqno(
                                  "cursor", 1, CheckpointCursor::Droppable::Yes)
-                          .cursor.lock();
+                          .takeCursor()
+                          .lock();
     EXPECT_EQ(queue_op::empty, (*cursor->getPos())->getOperation());
     EXPECT_EQ(2, (*cursor->getPos())->getBySeqno());
     EXPECT_EQ(0, cursor->getDistance());
@@ -1588,10 +1596,10 @@ void SingleThreadedCheckpointTest::testMinimumCursorSeqno(
         EXPECT_EQ(1, checkpoint.getMinimumCursorSeqno());
         EXPECT_EQ(2, checkpoint.getHighSeqno());
 
-        const auto res = manager.registerCursorBySeqno(
+        auto res = manager.registerCursorBySeqno(
                 "cursor", 1, CheckpointCursor::Droppable::Yes);
         EXPECT_FALSE(res.tryBackfill);
-        const auto cursor = res.cursor.lock();
+        const auto cursor = res.takeCursor().lock();
         EXPECT_EQ(queue_op::mutation, (*cursor->getPos())->getOperation());
         EXPECT_EQ(1, (*cursor->getPos())->getBySeqno());
         EXPECT_EQ(2, cursor->getDistance());
@@ -1611,7 +1619,7 @@ void SingleThreadedCheckpointTest::testMinimumCursorSeqno(
 
         // Note on the next checks: By passing seqno:1 in the request, the user
         // tells CM that it has got m:1 already.
-        const auto res = manager.registerCursorBySeqno(
+        auto res = manager.registerCursorBySeqno(
                 "cursor", 1, CheckpointCursor::Droppable::Yes);
         // So, backfill not needed.
         EXPECT_FALSE(res.tryBackfill);
@@ -1626,7 +1634,7 @@ void SingleThreadedCheckpointTest::testMinimumCursorSeqno(
         // Note that I refer to DCP Consumer when the topic is the CHK flag as
         // that is an internal KV replication flag. External DCP clients aren't
         // expected to use that.
-        const auto cursor = res.cursor.lock();
+        const auto cursor = res.takeCursor().lock();
         EXPECT_EQ(queue_op::checkpoint_start,
                   (*cursor->getPos())->getOperation());
         EXPECT_EQ(1, (*cursor->getPos())->getBySeqno());
@@ -1649,10 +1657,10 @@ void SingleThreadedCheckpointTest::testMinimumCursorSeqno(
         // Note: This is a very important point - Cursor registered at the same
         // position as in the Dedup case, but the Expel case requires a backfill
 
-        const auto res = manager.registerCursorBySeqno(
+        auto res = manager.registerCursorBySeqno(
                 "cursor", 1, CheckpointCursor::Droppable::Yes);
         EXPECT_TRUE(res.tryBackfill);
-        const auto cursor = res.cursor.lock();
+        const auto cursor = res.takeCursor().lock();
         EXPECT_EQ(queue_op::empty, (*cursor->getPos())->getOperation());
         EXPECT_EQ(1, (*cursor->getPos())->getBySeqno());
         EXPECT_EQ(0, cursor->getDistance());
@@ -1781,10 +1789,10 @@ void SingleThreadedCheckpointTest::testRegisterCursorInCheckpointEmptyByExpel(
     // Verify that we register the cursor successfully.
     // Before the fix for MB-53055 this step fails in the case where the
     // checkpoint is "empty" but contains some meta-item after checkpoint_start.
-    const auto res = manager.registerCursorBySeqno(
+    auto res = manager.registerCursorBySeqno(
             "cursor", 2, CheckpointCursor::Droppable::Yes);
     EXPECT_TRUE(res.tryBackfill);
-    const auto cursor = res.cursor.lock();
+    const auto cursor = res.takeCursor().lock();
     EXPECT_EQ(queue_op::empty, (*cursor->getPos())->getOperation());
     EXPECT_EQ(1, (*cursor->getPos())->getBySeqno());
     EXPECT_EQ(0, cursor->getDistance());
@@ -1887,11 +1895,11 @@ TEST_F(SingleThreadedCheckpointTest,
     //
     // [disk | e:1 cs:1 x x vbs:3) [memory | e:3 cs:3)
     //                                       ^
-    const auto res = manager.registerCursorBySeqno(
+    auto res = manager.registerCursorBySeqno(
             "cursor", 2, CheckpointCursor::Droppable::Yes);
     // @todo MB-53616: We don't need a backfill here
     EXPECT_TRUE(res.tryBackfill);
-    const auto cursor = res.cursor.lock();
+    const auto cursor = res.takeCursor().lock();
     EXPECT_EQ(4, (*cursor->getCheckpoint())->getId());
     EXPECT_EQ(queue_op::empty, (*cursor->getPos())->getOperation());
     EXPECT_EQ(3, (*cursor->getPos())->getBySeqno());
@@ -1997,13 +2005,18 @@ TEST_F(SingleThreadedCheckpointTest, GetItemsForCursor_BytesLimit) {
 
 // Test that when the same client registers twice, the first cursor 'dies'
 TEST_P(CheckpointTest, reRegister) {
-    auto dcpCursor1 = manager->registerCursorBySeqno(
-            "name", 0, CheckpointCursor::Droppable::Yes);
-    EXPECT_NE(nullptr, dcpCursor1.cursor.lock().get());
-    auto dcpCursor2 = this->manager->registerCursorBySeqno(
-            "name", 0, CheckpointCursor::Droppable::Yes);
-    EXPECT_EQ(nullptr, dcpCursor1.cursor.lock().get());
-    EXPECT_NE(nullptr, dcpCursor2.cursor.lock().get());
+    auto dcpCursor1 =
+            manager->registerCursorBySeqno(
+                           "name", 0, CheckpointCursor::Droppable::Yes)
+                    .takeCursor();
+    EXPECT_NE(nullptr, dcpCursor1.lock().get());
+    auto dcpCursor2 =
+            this->manager
+                    ->registerCursorBySeqno(
+                            "name", 0, CheckpointCursor::Droppable::Yes)
+                    .takeCursor();
+    EXPECT_EQ(nullptr, dcpCursor1.lock().get());
+    EXPECT_NE(nullptr, dcpCursor2.lock().get());
     EXPECT_EQ(2, this->manager->getNumOfCursors());
 }
 
@@ -2015,7 +2028,8 @@ TEST_P(CheckpointTest, TakeAndResetCursors) {
     auto* dcpCursor =
             manager->registerCursorBySeqno(
                            "dcp_cursor", 0, CheckpointCursor::Droppable::Yes)
-                    .cursor.lock()
+                    .takeCursor()
+                    .lock()
                     .get();
     ASSERT_EQ(2, manager->getNumOfCursors());
 
@@ -2439,7 +2453,7 @@ void CheckpointTest::testDontExpelIfCursorAtMetadataItemWithSameSeqno() {
 
     // Move the cursor forward one step so that it now points to the checkpoint
     // start.
-    auto item = manager->nextItem(regResult.cursor.lock().get(),
+    auto item = manager->nextItem(regResult.takeCursor().lock().get(),
                                   isLastMutationItem);
 
     // Add a cursor to point to the 1st mutation we added.  Note that when
@@ -2575,8 +2589,10 @@ TEST_P(CheckpointTest, InitialSnapshotDoesDoubleRefCheckpoint) {
 
     ASSERT_EQ(1, checkpointList.size());
     ASSERT_EQ(1, checkpointList.front()->getNumCursorsInCheckpoint());
-    cm.registerCursorBySeqno(
-            "test_cursor_name", 0, CheckpointCursor::Droppable::Yes);
+    auto cursor =
+            cm.registerCursorBySeqno(
+                      "test_cursor_name", 0, CheckpointCursor::Droppable::Yes)
+                    .takeCursor();
     EXPECT_EQ(2, checkpointList.front()->getNumCursorsInCheckpoint());
 
     // first snapshot received
@@ -2611,7 +2627,7 @@ TEST_P(CheckpointTest, MetaItemsSeqnoWeaklyMonotonicSetVbStateBeforeEnd) {
     // Test: Iterate on all items and check that the seqnos are weakly monotonic
     auto regRes = cm.registerCursorBySeqno(
             "Cursor", 0, CheckpointCursor::Droppable::Yes);
-    auto cursor = regRes.cursor.lock();
+    auto cursor = regRes.takeCursor().lock();
     std::vector<queued_item> items;
     cm.getNextItemsForDcp(*cursor, items);
 
@@ -2646,7 +2662,7 @@ TEST_P(CheckpointTest, MetaItemsSeqnoWeaklyMonotonicSetVbStateAfterStart) {
     // Test: Iterate on all items and check that the seqnos are weakly monotonic
     auto regRes = cm.registerCursorBySeqno(
             "Cursor", 0, CheckpointCursor::Droppable::Yes);
-    auto cursor = regRes.cursor.lock();
+    auto cursor = regRes.takeCursor().lock();
     std::vector<queued_item> items;
     cm.getNextItemsForDcp(*cursor, items);
 
@@ -2690,7 +2706,7 @@ TEST_P(CheckpointTest, CursorPlacedAtCkptStartSeqnoCorrectly) {
     // checkpoint).
     auto regRes = cm.registerCursorBySeqno(
             "Cursor", 2, CheckpointCursor::Droppable::Yes);
-    EXPECT_EQ(2, (*regRes.cursor.lock()->getCheckpoint())->getId());
+    EXPECT_EQ(2, (*regRes.takeCursor().lock()->getCheckpoint())->getId());
 }
 
 TEST_P(CheckpointTest,
@@ -3388,7 +3404,7 @@ TEST_P(ReplicaCheckpointTest, MB_47551) {
         }
 
         // Cursor should be in the closed checkpoint, it has the items we need
-        EXPECT_EQ(2, (*cursor.cursor.lock()->getCheckpoint())->getId());
+        EXPECT_EQ(2, (*cursor.takeCursor().lock()->getCheckpoint())->getId());
     }
 
     // But high-seqno should use the open CP
@@ -3399,7 +3415,7 @@ TEST_P(ReplicaCheckpointTest, MB_47551) {
     // one. Possibly don't need backfill=true, but DCP streams handle this case
     EXPECT_TRUE(cursor2.tryBackfill);
     EXPECT_EQ(1003, cursor2.seqno);
-    EXPECT_EQ(3, (*cursor2.cursor.lock()->getCheckpoint())->getId());
+    EXPECT_EQ(3, (*cursor2.takeCursor().lock()->getCheckpoint())->getId());
 }
 
 CheckpointManager::ExtractItemsResult CheckpointTest::extractItemsToExpel() {
@@ -3674,7 +3690,7 @@ TEST_P(CheckpointTest, MB_53100_RegisterCursor) {
     // 4. Get items for cursor
     std::vector<queued_item> items;
     auto itemsForCursor =
-            manager->getNextItemsForDcp(*result.cursor.lock(), items);
+            manager->getNextItemsForDcp(*result.takeCursor().lock(), items);
     // Ensure that we gets items and the first item is 1002 NOT 1001 as it would
     // have been before MB-53100 was fixed
     ASSERT_FALSE(items.empty());

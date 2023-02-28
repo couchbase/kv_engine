@@ -54,7 +54,7 @@ void MockActiveStream::public_registerCursor(CheckpointManager& manager,
                                              int64_t seqno) {
     auto registerResult = manager.registerCursorBySeqno(
             name, seqno, CheckpointCursor::Droppable::Yes);
-    cursor = registerResult.cursor;
+    cursor = registerResult.takeCursor();
 }
 
 std::unique_ptr<DcpResponse> MockActiveStream::public_popFromReadyQ() {

@@ -1006,7 +1006,7 @@ TEST_P(ActiveDurabilityMonitorTest, SeqnoAckReceivedConcurrentDataRace) {
 
     // Check: Commits in checkpoint should be in same order as prepares.
     std::vector<queued_item> items;
-    ckptMgr->getNextItemsForDcp(*cursor.cursor.lock(), items);
+    ckptMgr->getNextItemsForDcp(*cursor.takeCursor().lock(), items);
     ASSERT_EQ(2, items.size());
     EXPECT_TRUE(items[0]->isCommitted());
     EXPECT_EQ(makeStoredDocKey("key1"), items[0]->getKey());

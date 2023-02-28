@@ -63,6 +63,52 @@ struct CheckpointSnapshotRange {
 };
 
 /**
+ * Registering a cursor returns a CursorRegResult, which contains details of
+ * the cursor registration, including the cursor itself.
+ * Users should move from the `cursor` member to take ownership of it via
+ * takeCursor().
+ *
+ * For exception-safety, the class' dtor will remove `cursor` from the
+ * checkpoint manager if it is still non-null.
+ */
+class CursorRegResult {
+public:
+    CursorRegResult();
+
+    CursorRegResult(CheckpointManager& manager,
+                    bool tryBackfill,
+                    uint64_t seqno,
+                    Cursor cursor);
+
+    // Class is movable, but not copyable as it wants to remove the cursor
+    // just once on destruction.
+    CursorRegResult(CursorRegResult&&);
+    CursorRegResult& operator=(CursorRegResult&&);
+
+    // Dtor will remove the cursor if non-empty.
+    ~CursorRegResult();
+
+    // True if the new cursor won't provide all mutations requested by the user
+    bool tryBackfill{false};
+
+    // The first seqno found in CM that the new cursor will pick at move
+    uint64_t seqno{0};
+
+    // Take ownership of the cursor - caller is responsible for removing it
+    // from CheckpointManager when no longer needed.
+    Cursor takeCursor() {
+        return std::move(cursor);
+    }
+
+private:
+    // Ptr of manager taken to allow cursor removal in dtor.
+    CheckpointManager* manager{nullptr};
+
+    /// The registered cursor.
+    Cursor cursor;
+};
+
+/**
  * Representation of a checkpoint manager that maintains the list of checkpoints
  * for a given vbucket.
  */

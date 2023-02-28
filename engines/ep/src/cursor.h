@@ -85,13 +85,3 @@ private:
     mutable LockType cursorLock;
     std::weak_ptr<CheckpointCursor> cursor;
 };
-
-// registering a cursor returns a CursorRegResult
-struct CursorRegResult {
-    // True if the new cursor won't provide all mutations requested by the user
-    bool tryBackfill;
-    // The first seqno found in CM that the new cursor will pick at move
-    uint64_t seqno;
-    // The registered cursor
-    Cursor cursor;
-};

@@ -992,7 +992,7 @@ TEST_P(VBucketFullEvictionTest, MB_30137) {
     // (1.2) before performing any other operations.
     auto cursorResult = vbucket->checkpointManager->registerCursorBySeqno(
             "persistence", 0, CheckpointCursor::Droppable::No);
-    auto cursorPtr = cursorResult.cursor.lock();
+    auto cursorPtr = cursorResult.takeCursor().lock();
     ASSERT_TRUE(cursorPtr);
     std::vector<queued_item> out;
     vbucket->checkpointManager->getItemsForCursor(

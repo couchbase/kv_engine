@@ -131,7 +131,8 @@ void StreamTest::registerCursorAtCMStart() {
     const auto dcpCursor =
             manager.registerCursorBySeqno(
                            "a cursor", 0, CheckpointCursor::Droppable::Yes)
-                    .cursor.lock();
+                    .takeCursor()
+                    .lock();
     ASSERT_TRUE(dcpCursor);
 }
 
@@ -5001,6 +5002,64 @@ TEST_P(SingleThreadedActiveStreamTest, ReadyQLimit) {
     // All streamed
     stream->nextCheckpointItemTask();
     ASSERT_EQ(0, readyQ.size());
+}
+
+/// Check handling of Checkpoint Cursors if a Cursor is not successfully
+/// assigned to ActiveStream - e.g. due to an exception being thrown.
+/// In the original bug this resulted in the cursor being orphaned - it existed
+/// in CheckpointManager but was not associated with any Stream, and hence
+/// was not advanced (via getItemsForCursor) - but also was not subject to
+/// cursor-dropping so resulted in the CheckpointManager getting stuck at the
+/// checkpoint high watermark.
+TEST_P(SingleThreadedActiveStreamTest,
+       MB55391_DcpStepExceptionShouldRemoveCursor) {
+    // Setup to require backfill, which involves re-registering a cursor in
+    // ActiveStream::scheduleBackfill_UNLOCKED. To do this we reset the
+    // initially created producer and stream, store an item then flush and
+    // create new checkpoint, then re-create the stream.
+
+    stream.reset();
+    producer->closeStream(0, vbid);
+
+    auto& vb = *engine->getVBucket(vbid);
+    const auto initialCursors = vb.checkpointManager->getNumCursors();
+
+    // Ensure mutation is on disk and  no longer present in CheckpointManager so
+    // stream will trigger backfill.
+    store_item(vbid, makeStoredDocKey("key"), "value");
+    vb.checkpointManager->createNewCheckpoint();
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    ASSERT_EQ(1, vb.checkpointManager->getNumCheckpoints());
+
+    // Re-create the stream, but using the preSetActiveHook to set a callback
+    // to run in ActiveStream::scheduleBackfill after the cursor is registered.
+    struct TestException : public std::invalid_argument {
+        using std::invalid_argument::invalid_argument;
+    };
+
+    auto throwExceptionFn = []() {
+        throw TestException("Injecting exception");
+    };
+    try {
+        stream = producer->mockActiveStreamRequest(
+                0, 0, vb, 0, ~0, 0x0, 0, ~0, {}, {}, {}, {}, [&](auto& stream) {
+                    stream.scheduleBackfillRegisterCursorHook =
+                            throwExceptionFn;
+                });
+    } catch (TestException&) {
+        // In full-stack, exception thown from DcpProducer::step() will tear
+        // down the connection, including destroying the DcpProducer. Simulate
+        // that here.
+        stream.reset();
+        producer.reset();
+
+        // Test: We _should_ be back to the original number of cursors.
+        EXPECT_EQ(initialCursors, vb.checkpointManager->getNumCursors());
+        return;
+    }
+
+    FAIL() << "Expected TestException to be thrown during "
+              "mockActiveStreamRequest";
 }
 
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,

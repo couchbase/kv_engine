@@ -4611,7 +4611,8 @@ void DurabilityPromotionStreamTest::registerCursorAtCMStartIfEphemeral() {
         const auto dcpCursor =
                 manager.registerCursorBySeqno(
                                "a cursor", 0, CheckpointCursor::Droppable::Yes)
-                        .cursor.lock();
+                        .takeCursor()
+                        .lock();
         ASSERT_TRUE(dcpCursor);
     }
 }
@@ -4632,7 +4633,8 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
         const auto dcpCursor =
                 ckptMgr.registerCursorBySeqno(
                                "dcp", 0, CheckpointCursor::Droppable::Yes)
-                        .cursor.lock();
+                        .takeCursor()
+                        .lock();
         ASSERT_TRUE(dcpCursor);
     }
 

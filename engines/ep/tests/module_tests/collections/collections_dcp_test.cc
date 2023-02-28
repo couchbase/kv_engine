@@ -57,7 +57,8 @@ void CollectionsDcpTest::internalSetUp() {
                                    "eager checkpoint removal :)",
                                    0,
                                    CheckpointCursor::Droppable::Yes)
-                           .cursor.lock();
+                           .takeCursor()
+                           .lock();
     ASSERT_TRUE(helperCursor);
 }
 

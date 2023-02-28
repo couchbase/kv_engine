@@ -475,7 +475,7 @@ BENCHMARK_DEFINE_F(CheckpointBench, GetLowestCursor)
             "test_cursor", 0, CheckpointCursor::Droppable::Yes);
     loadItemsAndMovePersistenceCursor(numItems, 0);
     std::vector<queued_item> items;
-    auto cursor = resisterResult.cursor.lock();
+    auto cursor = resisterResult.takeCursor().lock();
     ASSERT_TRUE(cursor);
     manager.getNextItemsForDcp(*cursor, items);
 

@@ -169,7 +169,7 @@ public:
             IncludeDeletedUserXattrs includeDeleteUserXattrs =
                     IncludeDeletedUserXattrs::No,
             std::optional<std::string_view> jsonFilter = {},
-            std::function<void()> preSetActiveHook = {});
+            std::function<void(MockActiveStream&)> preSetActiveHook = {});
 
     /**
      * Step the producer and expect the opcode to be returned

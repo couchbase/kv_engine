@@ -238,7 +238,7 @@ TEST_P(CollectionsLegacyDcpTest,
     producer = SingleThreadedKVBucketTest::createDcpProducer(
             cookieP, IncludeDeleteTime::No);
 
-    auto dropDefault = [this]() {
+    auto dropDefault = [this](auto&) {
         CollectionsManifest cm;
         setCollections(cookie, cm.remove(CollectionEntry::defaultC));
         flushVBucketToDiskIfPersistent(vbid, 1);
