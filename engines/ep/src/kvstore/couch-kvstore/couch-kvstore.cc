@@ -2435,6 +2435,11 @@ ScanStatus CouchKVStore::scan(ByIdScanContext& ctx) const {
     return ScanStatus::Failed;
 }
 
+ScanStatus CouchKVStore::scanAllVersions(BySeqnoScanContext& sctx) const {
+    // StorageProperties reported this feature is not available
+    throw std::runtime_error("CouchKVStore::scanAllVersions was invoked");
+}
+
 cb::couchstore::Header CouchKVStore::getDbInfo(Vbid vbid) {
     DbHolder db(*this);
     const auto options = COUCHSTORE_OPEN_FLAG_RDONLY;

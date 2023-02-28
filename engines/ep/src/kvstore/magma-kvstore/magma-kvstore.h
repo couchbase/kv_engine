@@ -241,6 +241,7 @@ public:
             std::unique_ptr<KVFileHandle> handle = nullptr) const override;
 
     ScanStatus scan(BySeqnoScanContext& sctx) const override;
+    ScanStatus scanAllVersions(BySeqnoScanContext& sctx) const override;
     ScanStatus scan(ByIdScanContext& ctx) const override;
 
     std::unique_ptr<KVFileHandle> makeFileHandle(Vbid vbid) const override;

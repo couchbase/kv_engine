@@ -284,6 +284,11 @@ public:
     }
 
     ScanStatus scan(BySeqnoScanContext& sctx) const override;
+
+    ScanStatus scanAllVersions(BySeqnoScanContext& sctx) const override {
+        throw std::runtime_error("RocksDB no support for scanAllVersions");
+    }
+
     ScanStatus scan(ByIdScanContext& sctx) const override {
         throw std::runtime_error("RocksDB no support for byID scan");
     }

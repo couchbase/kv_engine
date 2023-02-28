@@ -2906,6 +2906,10 @@ ScanStatus NexusKVStore::scan(ByIdScanContext& ctx) const {
     return primaryScanResult;
 }
 
+ScanStatus NexusKVStore::scanAllVersions(BySeqnoScanContext& ctx) const {
+    throw std::runtime_error("NexusKVStore::scanAllVersions unimplemented");
+}
+
 std::unique_ptr<KVFileHandle> NexusKVStore::makeFileHandle(Vbid vbid) const {
     return std::make_unique<NexusKVFileHandle>(primary->makeFileHandle(vbid),
                                                secondary->makeFileHandle(vbid));

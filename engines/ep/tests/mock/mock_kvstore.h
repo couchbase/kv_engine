@@ -162,11 +162,19 @@ public:
                  ValueFilter valOptions,
                  std::unique_ptr<KVFileHandle> handle),
                 (const, override));
+
     MOCK_METHOD(ScanStatus,
                 scan,
                 (BySeqnoScanContext & sctx),
                 (const, override));
+
+    MOCK_METHOD(ScanStatus,
+                scanAllVersions,
+                (BySeqnoScanContext & sctx),
+                (const, override));
+
     MOCK_METHOD(ScanStatus, scan, (ByIdScanContext & sctx), (const, override));
+
     MOCK_METHOD(std::unique_ptr<KVFileHandle>,
                 makeFileHandle,
                 (Vbid vbid),

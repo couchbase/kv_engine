@@ -110,8 +110,11 @@ public:
             DocumentFilter options,
             ValueFilter valOptions,
             std::unique_ptr<KVFileHandle> handle = nullptr) const override;
+
     ScanStatus scan(BySeqnoScanContext& sctx) const override;
+    ScanStatus scanAllVersions(BySeqnoScanContext& sctx) const override;
     ScanStatus scan(ByIdScanContext& sctx) const override;
+
     std::unique_ptr<KVFileHandle> makeFileHandle(Vbid vbid) const override;
     std::pair<GetCollectionStatsStatus, Collections::VB::PersistedStats>
     getCollectionStats(const KVFileHandle& kvFileHandle,
