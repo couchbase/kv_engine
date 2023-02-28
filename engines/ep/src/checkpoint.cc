@@ -57,7 +57,8 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
                        std::optional<uint64_t> highCompletedSeqno,
                        uint64_t highPreparedSeqno,
                        Vbid vbid,
-                       CheckpointType checkpointType)
+                       CheckpointType checkpointType,
+                       CheckpointHistorical historical)
     : manager(&manager),
       stats(st),
       checkpointId(id),
@@ -74,7 +75,8 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
       queuedItemsMemUsage(st, &manager.queuedItemsMemUsage),
       queueMemOverhead(st, &manager.memOverheadQueue),
       checkpointType(checkpointType),
-      highCompletedSeqno(std::move(highCompletedSeqno)) {
+      highCompletedSeqno(std::move(highCompletedSeqno)),
+      historical(historical) {
     Expects(snapStart <= snapEnd);
     Expects(visibleSnapEnd <= snapEnd);
 

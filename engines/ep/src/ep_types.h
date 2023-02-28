@@ -113,6 +113,12 @@ enum class CheckpointType : uint8_t {
 // Returns true if given type is either a Disk checkpoint or its subtype.
 bool isDiskCheckpointType(CheckpointType type);
 
+/**
+ * Encodes whether the snapshot stored in a checkpoint is part of a historical
+ * sequence of mutation.
+ */
+enum class CheckpointHistorical : uint8_t { No, Yes };
+
 enum class ConflictResolutionMode {
     /// Resolve conflicts based on document revision id (revid).
     RevisionId,

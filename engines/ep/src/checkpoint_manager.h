@@ -437,11 +437,13 @@ public:
      */
     std::vector<Cursor> getListOfCursorsToDrop();
 
-    void createSnapshot(uint64_t snapStartSeqno,
-                        uint64_t snapEndSeqno,
-                        std::optional<uint64_t> highCompletedSeqno,
-                        CheckpointType checkpointType,
-                        uint64_t maxVisibleSnapEnd);
+    void createSnapshot(
+            uint64_t snapStartSeqno,
+            uint64_t snapEndSeqno,
+            std::optional<uint64_t> highCompletedSeqno,
+            CheckpointType checkpointType,
+            uint64_t maxVisibleSnapEnd,
+            CheckpointHistorical historical = CheckpointHistorical::No);
 
     /**
      * Extend the open checkpoint to contain more mutations. Allowed only for
@@ -720,13 +722,15 @@ protected:
      * @param highCompletedSeqno optional SyncRep HCS to be flushed to disk
      * @param checkpointType is the checkpoint created from a replica receiving
      *                       a disk snapshot?
+     * @param historical Whether this checkpoint stores an historical snapshot
      */
     void addNewCheckpoint(const std::lock_guard<std::mutex>& lh,
                           uint64_t snapStartSeqno,
                           uint64_t snapEndSeqno,
                           uint64_t visibleSnapEnd,
                           std::optional<uint64_t> highCompletedSeqno,
-                          CheckpointType checkpointType);
+                          CheckpointType checkpointType,
+                          CheckpointHistorical historical);
 
     /**
      * Closes the current open checkpoint and adds a new open checkpoint to
@@ -747,13 +751,15 @@ protected:
      * @param highCompletedSeqno the SyncRepl HCS to be flushed to disk
      * @param checkpointType is the checkpoint created from a replica receiving
      *                       a disk snapshot?
+     * @param historical Whether this checkpoint stores an historical snapshot
      */
     void addOpenCheckpoint(uint64_t snapStart,
                            uint64_t snapEnd,
                            uint64_t visibleSnapEnd,
                            std::optional<uint64_t> highCompletedSeqno,
                            uint64_t highPreparedSeqno,
-                           CheckpointType checkpointType);
+                           CheckpointType checkpointType,
+                           CheckpointHistorical historical);
 
     /**
      * Moves the cursor to the empty item into the next checkpoint (if any).
