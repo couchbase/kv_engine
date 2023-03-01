@@ -20,7 +20,7 @@
 DCPBackfillByIdDisk::DCPBackfillByIdDisk(KVBucket& bucket,
                                          std::shared_ptr<ActiveStream> s,
                                          CollectionID cid)
-    : DCPBackfillToStream(s), DCPBackfillDisk(bucket), cid(cid) {
+    : DCPBackfillDiskToStream(s), DCPBackfillDisk(bucket), cid(cid) {
 }
 
 backfill_status_t DCPBackfillByIdDisk::create() {
@@ -95,6 +95,9 @@ backfill_status_t DCPBackfillByIdDisk::create() {
         stream->setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
         return backfill_finished;
     } else {
+        // Will check if a history scan is required.
+        setupForHistoryScan(*stream, *scanCtx, 0);
+
         bool markerSent = stream->markOSODiskSnapshot(scanCtx->maxSeqno);
         if (markerSent) {
             status = backfill_success;
@@ -157,4 +160,8 @@ void DCPBackfillByIdDisk::complete(ActiveStream& stream) {
                "({}) Backfill task cid:{} complete",
                vbid,
                cid.to_string());
+}
+
+backfill_status_t DCPBackfillByIdDisk::scanHistory() {
+    return doHistoryScan(bucket, *scanCtx);
 }

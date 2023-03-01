@@ -26,26 +26,36 @@ backfill_status_t DCPBackfill::run() {
         runtime += (std::chrono::steady_clock::now() - runStart);
     });
 
+    auto& currentState = *lockedState;
     TRACE_EVENT2("dcp/backfill",
                  "DCPBackfill::run",
                  "vbid",
                  getVBucketId().get(),
                  "state",
-                 uint8_t(*lockedState));
+                 uint8_t(currentState));
 
     backfill_status_t status = backfill_finished;
+
     switch (*lockedState) {
     case State::Create:
         status = create();
         Expects(status == backfill_success || status == backfill_snooze ||
                 status == backfill_finished);
         if (status == backfill_success) {
-            transitionState(*lockedState, State::Scan);
-            status = scan();
+            currentState = validateTransition(currentState,
+                                              getNextScanState(currentState));
+            status = scan(currentState);
+        } else if (status == backfill_finished) {
+            // Create->Done
+            currentState = validateTransition(currentState, State::Done);
         }
         break;
     case State::Scan:
         status = scan();
+        Expects(status == backfill_success || status == backfill_finished);
+        break;
+    case State::ScanHistory:
+        status = scanHistory();
         Expects(status == backfill_success || status == backfill_finished);
         break;
     case State::Done:
@@ -56,11 +66,27 @@ backfill_status_t DCPBackfill::run() {
                                            getVBucketId()));
     }
 
-    if (status == backfill_finished) {
-        transitionState(*lockedState, State::Done);
+    if (status == backfill_finished && currentState != State::Done) {
+        currentState = validateTransition(currentState,
+                                          getNextScanState(*lockedState));
+        if (currentState != State::Done) {
+            // This occurs on transition from Scan->ScanHistory. Scan is
+            // finished but we need more callbacks so return success and the
+            // next phase of scanning will be invoked.
+            status = backfill_success;
+        }
     }
 
     return status;
+}
+
+backfill_status_t DCPBackfill::scan(DCPBackfill::State state) {
+    Expects(state == DCPBackfill::State::Scan ||
+            state == DCPBackfill::State::ScanHistory);
+    if (state == DCPBackfill::State::Scan) {
+        return scan();
+    }
+    return scanHistory();
 }
 
 void DCPBackfill::cancel() {
@@ -78,6 +104,8 @@ std::ostream& operator<<(std::ostream& os, DCPBackfill::State state) {
         return os << "State::Create";
     case DCPBackfill::State::Scan:
         return os << "State::Scan";
+    case DCPBackfill::State::ScanHistory:
+        return os << "State::ScanHistory";
     case DCPBackfill::State::Done:
         return os << "State::Done";
     }
@@ -87,7 +115,22 @@ std::ostream& operator<<(std::ostream& os, DCPBackfill::State state) {
     return os;
 }
 
-void DCPBackfill::transitionState(State& currentState, State newState) {
+std::ostream& operator<<(std::ostream& os, backfill_status_t status) {
+    switch (status) {
+    case backfill_success:
+        return os << "backfill_success";
+    case backfill_finished:
+        return os << "backfill_finished";
+    case backfill_snooze:
+        return os << "backfill_snooze";
+    }
+    throw std::logic_error(fmt::format("{}: Invalid status:{}",
+                                       __PRETTY_FUNCTION__,
+                                       std::to_string(int(status))));
+}
+
+DCPBackfill::State DCPBackfill::validateTransition(State currentState,
+                                                   State newState) {
     bool validTransition = false;
     switch (newState) {
     case State::Create:
@@ -98,8 +141,15 @@ void DCPBackfill::transitionState(State& currentState, State newState) {
             validTransition = true;
         }
         break;
-    case State::Done:
+    case State::ScanHistory: {
         if (currentState == State::Create || currentState == State::Scan) {
+            validTransition = true;
+        }
+        break;
+    }
+    case State::Done:
+        if (currentState == State::Create || currentState == State::Scan ||
+            currentState == State::ScanHistory) {
             validTransition = true;
         }
         break;
@@ -114,7 +164,7 @@ void DCPBackfill::transitionState(State& currentState, State newState) {
                             currentState));
     }
 
-    currentState = newState;
+    return newState;
 }
 
 bool KVStoreScanTracker::canCreateBackfill() {

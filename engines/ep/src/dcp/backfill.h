@@ -29,6 +29,8 @@ enum backfill_status_t {
     backfill_snooze
 };
 
+std::ostream& operator<<(std::ostream&, backfill_status_t);
+
 /**
  * Interface for classes which perform DCP Backfills.
  */
@@ -107,21 +109,26 @@ public:
      */
     virtual backfill_status_t scan() = 0;
 
-private:
+    /**
+     * The ScanHistory part of the backfill, i.e. iterate over a seqno range
+     * and return all versions of a key that are stored.
+     * return success (scan is finished and task can be removed)
+     * return again (scan was paused and should be called again soon)
+     * return failed (cannot proceed and task can be removed)
+     */
+    virtual backfill_status_t scanHistory() = 0;
+
+protected:
     /// States of a backfill
-    enum class State { Create = 0, Scan, Done };
+    enum class State { Create = 0, Scan, ScanHistory, Done };
     friend std::ostream& operator<<(std::ostream&, State);
 
     /**
-     * Validate if currentState can be changed to newState and if so write to
-     * currentState
+     * Sub-classes must implement and use this to decide the next state. This
+     * allows the sub-class to decide how to progress from
+     * Create->Scan->ScanHistory
      */
-    static void transitionState(State& currentState, State newState);
-
-    /// will default-initialise to 0, or Create
-    folly::Synchronized<State> state{};
-
-protected:
+    virtual State getNextScanState(DCPBackfill::State current) = 0;
 
     /**
      * Id of the vbucket on which the backfill is running
@@ -132,6 +139,22 @@ protected:
     std::chrono::steady_clock::duration runtime{0};
     /// start time for each invocation of run
     std::chrono::steady_clock::time_point runStart;
+
+private:
+    /**
+     * This helper function pushes execution to the correct scan phase based on
+     * the state.
+     */
+    backfill_status_t scan(DCPBackfill::State state);
+
+    /**
+     * Validate if currentState can be changed to newState and if so return
+     * newState
+     */
+    static State validateTransition(State currentState, State newState);
+
+    /// will default-initialise to 0, or Create
+    folly::Synchronized<State> state{};
 };
 
 /**

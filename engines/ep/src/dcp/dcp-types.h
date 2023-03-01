@@ -160,6 +160,8 @@ enum class SyncReplication : char { No, SyncWrites, SyncReplication };
  */
 enum class OutOfOrderSnapshots : char { Yes, YesWithSeqnoAdvanced, No };
 
+enum class ChangeStreams : bool { Yes, No };
+
 namespace DcpControlKeys {
 /**
  * Control key to enable FlatBuffers system events

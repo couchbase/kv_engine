@@ -1136,6 +1136,26 @@ cb::engine_errc PassiveStream::processDropScope(
     return cb::engine_errc::success;
 }
 
+// Helper function to avoid a Monotonic violation (same end-seqno) for the
+// !HISTORY->HISTORY snapshot
+static bool mustAssignEndSeqno(SnapshotMarker* marker, uint64_t endSeqno) {
+    if (marker->getFlags() & MARKER_FLAG_MEMORY) {
+        // Always assign and catch monotonic violations
+        return true;
+    }
+
+    if (marker->getFlags() & MARKER_FLAG_HISTORY &&
+        marker->getEndSeqno() == endSeqno) {
+        // HISTORY disk snapshot marker can follow !HISTORY disk and they have
+        // the same end-seqno. Skip the assignment and avoid the monotonic
+        // exception
+        return false;
+    }
+
+    // Always assign and catch monotonic violations
+    return true;
+}
+
 void PassiveStream::processMarker(SnapshotMarker* marker) {
     VBucketPtr vb = engine->getVBucket(vb_);
 
@@ -1144,7 +1164,10 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
     if (marker->getStartSeqno() > 0) {
         cur_snapshot_start.store(marker->getStartSeqno());
     }
-    cur_snapshot_end.store(marker->getEndSeqno());
+
+    if (mustAssignEndSeqno(marker, cur_snapshot_end)) {
+        cur_snapshot_end.store(marker->getEndSeqno());
+    }
     const auto prevSnapType = cur_snapshot_type.load();
     cur_snapshot_type.store((marker->getFlags() & MARKER_FLAG_DISK)
                                     ? Snapshot::Disk

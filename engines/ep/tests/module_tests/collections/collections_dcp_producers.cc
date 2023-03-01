@@ -158,7 +158,7 @@ cb::engine_errc CollectionsDcpTestProducers::marker(
     }
 
     MockDcpMessageProducers::marker(opaque,
-                                    replicaVB,
+                                    vbucket,
                                     start_seqno,
                                     end_seqno,
                                     flags,

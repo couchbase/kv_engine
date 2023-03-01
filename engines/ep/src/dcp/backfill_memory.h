@@ -47,6 +47,11 @@ private:
      */
     backfill_status_t scan() override;
 
+    /// scanHistory no supported on memory backfill
+    backfill_status_t scanHistory() override;
+
+    DCPBackfill::State getNextScanState(DCPBackfill::State current) override;
+
     /**
      * Indicates the completion to the stream.
      */

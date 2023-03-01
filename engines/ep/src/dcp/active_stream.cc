@@ -276,11 +276,35 @@ void ActiveStream::registerCursor(CheckpointManager& chkptmgr,
     }
 }
 
+// Helper function for setting the lastSentSnapEndSeqno (which is Monotonic)
+//.The History snapshot can follow a NoHistory snapshot but both are the same
+// underlying disk-snapshot. The endSeqno from each phase is equal. Here we
+// avoid a Monotonic exception for that case without switching to a weak
+// monotonic type or incorrectly using reset
+static bool mustAssignEndSeqno(ActiveStream::SnapshotSource source,
+                               uint64_t newEndSeqno,
+                               uint64_t currentEndSeqno) {
+    switch (source) {
+    case ActiveStream::SnapshotSource::NoHistory:
+    case ActiveStream::SnapshotSource::NoHistoryPrologue:
+        // Always attempt assignment for these sources so we catch every
+        // monotonic violation.
+        return true;
+    case ActiveStream::SnapshotSource::History:
+        // tolerate newEndSeqno == currentEndSeqno, so only assign if they
+        // are different, which catches every other monotonic violation.
+        return newEndSeqno != currentEndSeqno;
+    }
+
+    folly::assume_unreachable();
+}
+
 bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
                                     uint64_t endSeqno,
                                     std::optional<uint64_t> highCompletedSeqno,
                                     uint64_t maxVisibleSeqno,
-                                    std::optional<uint64_t> timestamp) {
+                                    std::optional<uint64_t> timestamp,
+                                    SnapshotSource source) {
     {
         std::unique_lock<std::mutex> lh(streamMutex);
 
@@ -324,7 +348,8 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
            start when we are sending the first snapshot because the first
            snapshot could be resumption of a previous snapshot */
         const bool wasFirst = !firstMarkerSent;
-        startSeqno = adjustStartIfFirstSnapshot(startSeqno);
+        startSeqno = adjustStartIfFirstSnapshot(
+                startSeqno, source != SnapshotSource::NoHistoryPrologue);
 
         VBucketPtr vb = engine->getVBucket(vb_);
         if (!vb) {
@@ -363,24 +388,32 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
         auto mvsToSend = supportSyncReplication()
                                  ? std::make_optional(maxVisibleSeqno)
                                  : std::nullopt;
+
+        auto flags = MARKER_FLAG_DISK | MARKER_FLAG_CHK;
+
+        if (source == SnapshotSource::History) {
+            flags |= (MARKER_FLAG_HISTORY |
+                      MARKER_FLAG_MAY_CONTAIN_DUPLICATE_KEYS);
+        }
+
         log(spdlog::level::level_enum::info,
             "{} ActiveStream::markDiskSnapshot: Sending disk snapshot with "
-            "start {}, end {}, and high completed {}, max visible {}",
+            "start:{}, end:{}, flags:0x{:x}, hcs:{}, mvs:{}",
             logPrefix,
             startSeqno,
             endSeqno,
+            flags,
             to_string_or_none(hcsToSend),
             to_string_or_none(mvsToSend));
-        pushToReadyQ(std::make_unique<SnapshotMarker>(
-                opaque_,
-                vb_,
-                startSeqno,
-                endSeqno,
-                MARKER_FLAG_DISK | MARKER_FLAG_CHK,
-                hcsToSend,
-                mvsToSend,
-                timestamp,
-                sid));
+        pushToReadyQ(std::make_unique<SnapshotMarker>(opaque_,
+                                                      vb_,
+                                                      startSeqno,
+                                                      endSeqno,
+                                                      flags,
+                                                      hcsToSend,
+                                                      mvsToSend,
+                                                      timestamp,
+                                                      sid));
         // Update the last start seqno seen but handle base case as
         // lastSentSnapStartSeqno is initial zero
         if (startSeqno > 0) {
@@ -388,8 +421,11 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
         }
 
         // Only compare last sent start with last sent end if end has already
-        // been set
-        if (!wasFirst && lastSentSnapStartSeqno <= lastSentSnapEndSeqno) {
+        // been set (note ignore 0 == 0). When an OSO snapshot comes before a
+        // history seqno-ordered snapshot, wasFirst is false, yet the snapshot
+        // variables are still zero and we would hit this exception.
+        if (!wasFirst && lastSentSnapStartSeqno <= lastSentSnapEndSeqno &&
+            lastSentSnapStartSeqno && lastSentSnapEndSeqno) {
             auto msg = fmt::format(
                     "ActiveStream::markDiskSnapshot:"
                     "sent snapshot marker to client with snap start <= "
@@ -417,7 +453,10 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
             throw std::logic_error(msg);
         }
 
-        lastSentSnapEndSeqno.store(endSeqno, std::memory_order_relaxed);
+        // CDC: There are cases where there's no need to assign the seqno again
+        if (mustAssignEndSeqno(source, endSeqno, lastSentSnapEndSeqno)) {
+            lastSentSnapEndSeqno.store(endSeqno, std::memory_order_relaxed);
+        }
 
         if (!isDiskOnly()) {
             // Only re-register the cursor if we still need to get memory
@@ -2481,7 +2520,7 @@ void ActiveStream::sendSnapshotAndSeqnoAdvanced(CheckpointType checkpointType,
                                                 uint64_t start,
                                                 uint64_t end) {
     const bool wasFirst = !firstMarkerSent;
-    start = adjustStartIfFirstSnapshot(start);
+    start = adjustStartIfFirstSnapshot(start, true);
 
     const auto isCkptTypeDisk = isDiskCheckpointType(checkpointType);
     uint32_t flags = isCkptTypeDisk ? MARKER_FLAG_DISK : MARKER_FLAG_MEMORY;
@@ -2538,9 +2577,12 @@ void ActiveStream::sendSnapshotAndSeqnoAdvanced(CheckpointType checkpointType,
     queueSeqnoAdvanced();
 }
 
-uint64_t ActiveStream::adjustStartIfFirstSnapshot(uint64_t start) {
+uint64_t ActiveStream::adjustStartIfFirstSnapshot(uint64_t start,
+                                                  bool isCompleteSnapshot) {
     if (!firstMarkerSent) {
-        firstMarkerSent = true;
+        if (isCompleteSnapshot) {
+            firstMarkerSent = true;
+        }
         return std::min(snap_start_seqno_, start);
     }
     return start;

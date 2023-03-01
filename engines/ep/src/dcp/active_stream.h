@@ -198,6 +198,23 @@ public:
         return numBackfillPauses;
     }
 
+    // The source of the snapshot marker
+    //
+    // History - This is a range which has history, all updates to keys will be
+    //           returned.
+    // NoHistory - A range which does not have history, all keys are the most
+    //             recent updates.
+    // NoHistoryPrologue - This is the NoHistory range from a disk snapshot also
+    //                  also contains History. The backfill will cross from
+    //                  the no-history to history ranges.
+    //
+    // NoHistoryPrologue exists to indicate the case when a disk snapshot
+    // has both History and NoHistory ranges - in this case markDiskSnapshot
+    // for example will get invoked twice by the same source backfill. First
+    // NoHistoryPrologue, second History. This allows ActiveStream to
+    // distinguish from NoHistory which will not transition to History.
+    enum SnapshotSource { History, NoHistory, NoHistoryPrologue };
+
     /**
      * Queues a snapshot marker to be sent - only if there are items in
      * the backfill range which will be sent.
@@ -214,6 +231,7 @@ public:
      * @param maxVisibleSeqno seqno of last visible (commit/mutation/system
      * event) item
      * @param timestamp of the disk snapshot (if available)
+     * @param source if the snapshot is a history or non-history snapshot
      * @return If the stream has queued a snapshot marker. If this is false, the
      *         stream determined none of the items in the backfill would be sent
      */
@@ -221,7 +239,8 @@ public:
                           uint64_t endSeqno,
                           std::optional<uint64_t> highCompletedSeqno,
                           uint64_t maxVisibleSeqno,
-                          std::optional<uint64_t> timestamp);
+                          std::optional<uint64_t> timestamp,
+                          SnapshotSource source);
 
     /**
      * Queues a single "Out of Seqno Order" marker with the 'start' flag
@@ -793,9 +812,16 @@ private:
      * the stream.
      * If firstMarkerSent is false this call will set it to true.
      * @param start a seqno we think should be the snapshot start
+     * @param isCompleteSnapshot a boolean which was added by the History/CDC
+     *        work. This bool should be true for when the snapshot is not spread
+     *        over a >1 markers - which is what CDC can do when it has to send
+     *        a disk snapshot as NoHistory{a,b} followed by History{c,d}. If
+     *        this bool is true, the stream can state that the first snapshot
+     *        has been fully processed (the marker of the first snapshot).
      * @return the snapshot start to use
      */
-    uint64_t adjustStartIfFirstSnapshot(uint64_t start);
+    uint64_t adjustStartIfFirstSnapshot(uint64_t start,
+                                        bool isCompleteSnapshot);
 
     /**
      * See processItems() for details.

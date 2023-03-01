@@ -1740,7 +1740,8 @@ public:
                      uint64_t _documentCount,
                      const vbucket_state& vbucketState,
                      const std::vector<Collections::KVStore::DroppedCollection>&
-                             droppedCollections)
+                             droppedCollections,
+                     uint64_t historyStartSeqno)
         : BySeqnoScanContext(std::move(cb),
                              std::move(cl),
                              vb,
@@ -1752,7 +1753,9 @@ public:
                              _valFilter,
                              _documentCount,
                              vbucketState,
-                             droppedCollections) {
+                             droppedCollections,
+                             std::nullopt, // timestamp
+                             historyStartSeqno) {
     }
 };
 
@@ -1809,14 +1812,18 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
                 getDroppedStatus.String());
     }
 
+    // @todo:assign this using magma->GetOldestHistorySeqno(snapshot);
+    auto historyStartSeqno = 0;
     if (logger->should_log(spdlog::level::info)) {
         logger->info(
                 "MagmaKVStore::initBySeqnoScanContext {} seqno:{} endSeqno:{}"
-                " purgeSeqno:{} nDocsToRead:{} docFilter:{} valFilter:{}",
+                " purgeSeqno:{}, historyStartSeqno:{} nDocsToRead:{}"
+                " docFilter:{} valFilter:{}",
                 vbid,
                 startSeqno,
                 highSeqno,
                 purgeSeqno,
+                historyStartSeqno,
                 nDocsToRead,
                 options,
                 valOptions);
@@ -1833,7 +1840,8 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
                                               valOptions,
                                               nDocsToRead,
                                               readState.state,
-                                              dropped);
+                                              dropped,
+                                              historyStartSeqno);
 }
 
 /**
@@ -1852,8 +1860,9 @@ public:
             ValueFilter _valFilter,
             const std::vector<Collections::KVStore::DroppedCollection>&
                     droppedCollections,
-            int64_t maxSeqno,
-            DomainAwareUniquePtr<DomainAwareKeyIterator> itr)
+            uint64_t maxSeqno,
+            DomainAwareUniquePtr<DomainAwareKeyIterator> itr,
+            uint64_t historyStartSeqno)
         : ByIdScanContext(std::move(cb),
                           std::move(cl),
                           vb,
@@ -1862,7 +1871,8 @@ public:
                           _docFilter,
                           _valFilter,
                           droppedCollections,
-                          maxSeqno),
+                          maxSeqno,
+                          historyStartSeqno),
           itr(std::move(itr)) {
     }
 
@@ -1917,19 +1927,25 @@ std::unique_ptr<ByIdScanContext> MagmaKVStore::initByIdScanContext(
         return nullptr;
     }
 
-    auto sctx =
-            std::make_unique<MagmaByIdScanContext>(std::move(cb),
-                                                   std::move(cl),
-                                                   vbid,
-                                                   std::move(handle),
-                                                   ranges,
-                                                   options,
-                                                   valOptions,
-                                                   dropped,
-                                                   readState.state.highSeqno,
-                                                   std::move(itr));
-
-    return sctx;
+    // @todo:assign this using magma->GetOldestHistorySeqno(snapshot);
+    auto historyStartSeqno = 0;
+    logger->info(
+            "MagmaKVStore::initByIdScanContext {} historyStartSeqno:{} "
+            "KeyIterator:{}",
+            vbid,
+            historyStartSeqno,
+            itr->to_string());
+    return std::make_unique<MagmaByIdScanContext>(std::move(cb),
+                                                  std::move(cl),
+                                                  vbid,
+                                                  std::move(handle),
+                                                  ranges,
+                                                  options,
+                                                  valOptions,
+                                                  dropped,
+                                                  readState.state.highSeqno,
+                                                  std::move(itr),
+                                                  historyStartSeqno);
 }
 
 ScanStatus MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
