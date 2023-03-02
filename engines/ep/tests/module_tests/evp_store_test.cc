@@ -2686,7 +2686,7 @@ TEST_P(EPBucketCDCTest, CollectionNonHistorical) {
     const uint64_t initialHighSeqno = 1;
     ASSERT_EQ(initialHighSeqno, vb->getHighSeqno()); // From SetUp
     auto& manager = *vb->checkpointManager;
-    manager.createNewCheckpoint(true);
+    manager.createNewCheckpoint();
     ASSERT_EQ(1, manager.getNumCheckpoints());
     ASSERT_EQ(1, manager.getNumItems()); // [cs
     ASSERT_EQ(0, manager.getNumOpenChkItems()); // no mutation
@@ -2730,7 +2730,7 @@ TEST_P(EPBucketCDCTest, CollectionHistorical) {
     const uint64_t initialHighSeqno = 1;
     ASSERT_EQ(initialHighSeqno, vb->getHighSeqno()); // From SetUp
     auto& manager = *vb->checkpointManager;
-    manager.createNewCheckpoint(true);
+    manager.createNewCheckpoint();
     ASSERT_EQ(1, manager.getNumCheckpoints());
     ASSERT_EQ(1, manager.getNumItems()); // [cs
     ASSERT_EQ(0, manager.getNumOpenChkItems()); // no mutation
@@ -2777,7 +2777,7 @@ TEST_P(EPBucketCDCTest, CollectionHistorical_RetentionDisabled_MemoryDedup) {
     const uint64_t initialHighSeqno = 1;
     ASSERT_EQ(initialHighSeqno, vb->getHighSeqno()); // From SetUp
     auto& manager = *vb->checkpointManager;
-    manager.createNewCheckpoint(true);
+    manager.createNewCheckpoint();
     flushVBucket(vbid);
     ASSERT_EQ(1, manager.getNumCheckpoints());
     ASSERT_EQ(1, manager.getNumItems()); // [cs
@@ -2803,7 +2803,7 @@ TEST_P(EPBucketCDCTest, CollectionHistorical_RetentionDisabled_FlusherDedup) {
     const uint64_t initialHighSeqno = 1;
     ASSERT_EQ(initialHighSeqno, vb->getHighSeqno()); // From SetUp
     auto& manager = *vb->checkpointManager;
-    manager.createNewCheckpoint(true);
+    manager.createNewCheckpoint();
     flushVBucket(vbid);
     ASSERT_EQ(1, manager.getNumCheckpoints());
     ASSERT_EQ(1, manager.getNumItems()); // [cs
@@ -2816,7 +2816,7 @@ TEST_P(EPBucketCDCTest, CollectionHistorical_RetentionDisabled_FlusherDedup) {
     // Note: Need to queue the 2 mutations into different checkpoints for
     // verifying what happens at Flusher-dedup - duplicates would never reach
     // the flusher otherwise
-    manager.createNewCheckpoint(true);
+    manager.createNewCheckpoint();
 
     store_item(vbid, key, "valueB");
     EXPECT_EQ(initialHighSeqno + 2, vb->getHighSeqno());
@@ -2856,7 +2856,7 @@ TEST_P(EPBucketCDCTest, CollectionInterleaved) {
     const uint64_t initialHighSeqno = 1;
     ASSERT_EQ(initialHighSeqno, vb->getHighSeqno()); // From SetUp
     auto& manager = *vb->checkpointManager;
-    manager.createNewCheckpoint(true);
+    manager.createNewCheckpoint();
     ASSERT_EQ(1, manager.getNumCheckpoints());
     ASSERT_EQ(1, manager.getNumItems()); // [cs
     ASSERT_EQ(0, manager.getNumOpenChkItems()); // no mutation
@@ -2940,7 +2940,7 @@ TEST_P(EPBucketCDCTest, SetVBStatePreservesHistory) {
     const uint64_t initialHighSeqno = 1;
     ASSERT_EQ(initialHighSeqno, vb->getHighSeqno()); // From SetUp
     auto& manager = *vb->checkpointManager;
-    manager.createNewCheckpoint(true);
+    manager.createNewCheckpoint();
     ASSERT_EQ(1, manager.getNumCheckpoints());
     ASSERT_EQ(1, manager.getNumItems()); // [cs
     ASSERT_EQ(0, manager.getNumOpenChkItems()); // no mutation

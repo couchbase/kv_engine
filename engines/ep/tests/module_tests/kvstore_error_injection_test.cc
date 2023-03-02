@@ -268,7 +268,7 @@ TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPersistingCollectionChange) {
     EXPECT_EQ(0, m2.collections[0].startSeqno);
 
     // This flush succeeds
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::Yes),
               epBucket.flushVBucket(vbid));
     // Flush stats updated
     EXPECT_EQ(0, vb->dirtyQueueSize);

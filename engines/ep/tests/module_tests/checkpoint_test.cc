@@ -1423,7 +1423,7 @@ TEST_F(SingleThreadedCheckpointTest, CursorDistance_MoveToNewCheckpoint) {
     //                     ^
 
     auto& manager = *store->getVBuckets().getBucket(vbid)->checkpointManager;
-    manager.createNewCheckpoint(true);
+    manager.createNewCheckpoint();
     std::vector<queued_item> out;
     manager.getItemsForCursor(
             cursor.get(), out, std::numeric_limits<size_t>::max());
@@ -3175,7 +3175,7 @@ TEST_P(CheckpointTest, ExpelCursor_NeverDrop) {
     // Note: cursors that are at the end of the checkpoint being closed are
     //  bumped to the new checkpoint. By logic that can never happen for the
     //  expel-cursor as it always points to the empty item.
-    manager->createNewCheckpoint(true);
+    manager->createNewCheckpoint();
     // [e:1001 cs:1001 x m:1002] [e:1003 cs:1003)
     //  ^                         ^
     ASSERT_EQ(2, manager->getNumCheckpoints());
@@ -3519,7 +3519,7 @@ TEST_P(CheckpointMemoryTrackingTest, CheckpointManagerMemUsageAtRemoval) {
     EXPECT_EQ(queued + index + queueOverhead,
               engine->getEpStats().getCheckpointManagerEstimatedMemUsage());
 
-    manager.createNewCheckpoint(true /*force*/);
+    manager.createNewCheckpoint();
     EXPECT_EQ(2, manager.getNumCheckpoints());
     // Move cursor to new checkpoint
     std::vector<queued_item> items;
@@ -3914,7 +3914,7 @@ void CDCCheckpointTest::SetUp() {
     auto vb = store->getVBucket(vbid);
     vb->updateFromManifest(Collections::Manifest{std::string{manifest}});
     flushVBucketToDiskIfPersistent(vbid, 2);
-    vb->checkpointManager->createNewCheckpoint(true);
+    vb->checkpointManager->createNewCheckpoint();
 }
 
 TEST_F(CDCCheckpointTest, CollectionNotDeduped) {
@@ -3944,7 +3944,7 @@ TEST_F(CDCCheckpointTest, CollectionNotDeduped) {
     EXPECT_EQ(4, manager.getHighSeqno());
 
     // No in-memory deduplication for collection(history=true)
-    manager.createNewCheckpoint(true);
+    manager.createNewCheckpoint();
     flushVBucket(vbid);
     EXPECT_EQ(1, manager.getNumCheckpoints());
     const auto keyHistorical =

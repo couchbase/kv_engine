@@ -4872,7 +4872,7 @@ TEST_P(STPassiveStreamPersistentTest, MB_37948) {
     // the flusher wrongly uses the state on disk (state=active) for computing
     // the new snapshot range to be persisted.
     auto& epBucket = dynamic_cast<EPBucket&>(*store);
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 2, WakeCkptRemover::No),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 2, WakeCkptRemover::Yes),
               epBucket.flushVBucket(vbid));
 
     // Before the fix this fails because we have persisted snapEnd=2
@@ -4888,7 +4888,7 @@ TEST_P(STPassiveStreamPersistentTest, MB_37948) {
               stream->messageReceived(makeMutationConsumerMessage(
                       3 /*seqno*/, vbid, value, opaque)));
 
-    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::No),
+    EXPECT_EQ(FlushResult(MoreAvailable::No, 1, WakeCkptRemover::Yes),
               epBucket.flushVBucket(vbid));
 
     checkPersistedSnapshot(3, 3);
@@ -5173,7 +5173,7 @@ void CDCActiveStreamTest::SetUp() {
 void CDCActiveStreamTest::clearCMAndPersistenceAndReplication() {
     auto& vb = *store->getVBucket(vbid);
     auto& manager = *vb.checkpointManager;
-    manager.createNewCheckpoint(true);
+    manager.createNewCheckpoint();
 
     // Move the persistence and stream cursor to the end of the open checkpoint
     const auto& readyQ = stream->public_readyQ();
@@ -5639,7 +5639,7 @@ TEST_P(CDCPassiveStreamTest, HistorySnapshotReceived_Disk) {
     const auto initialHighSeqno = vb.getHighSeqno();
     ASSERT_EQ(1, initialHighSeqno);
     auto& manager = *vb.checkpointManager;
-    manager.createNewCheckpoint(true);
+    manager.createNewCheckpoint();
     ASSERT_EQ(1, manager.getNumCheckpoints());
     ASSERT_EQ(0, manager.getNumOpenChkItems());
 

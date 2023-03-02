@@ -3152,7 +3152,7 @@ void KVBucket::createNewActiveCheckpoints() {
         {
             const auto l = folly::SharedMutex::ReadHolder(vb->getStateLock());
             if (vb->getState() == vbucket_state_active) {
-                vb->checkpointManager->createNewCheckpoint(true);
+                vb->checkpointManager->createNewCheckpoint();
             }
         }
     }
