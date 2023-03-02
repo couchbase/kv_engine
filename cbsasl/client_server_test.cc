@@ -61,6 +61,8 @@ protected:
         } while (server_data.first == cb::sasl::Error::CONTINUE);
 
         ASSERT_EQ(cb::sasl::Error::OK, server_data.first);
+        client_data = client.step(server_data.second);
+        EXPECT_EQ(cb::sasl::Error::OK, client_data.first);
     }
 };
 

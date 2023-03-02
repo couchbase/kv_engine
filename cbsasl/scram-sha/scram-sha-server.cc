@@ -194,6 +194,7 @@ std::pair<Error, std::string_view> ServerBackend::step(std::string_view input) {
                      sh.data(), sh.size(), storedKey.data(), storedKey.size()) ^
              gsl::narrow_cast<int>(user.isDummy())) == 0) {
             success = 1;
+            break;
         }
     }
 
