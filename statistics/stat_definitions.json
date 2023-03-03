@@ -324,6 +324,16 @@
         "description": "Engine's total estimated memory usage This is a faster stat to read, but lags mem_used as it's only updated when a threshold is crossed see mem_used_merge_threshold"
     },
     {
+        "key": "ep_arena_memory_allocated",
+        "unit": "bytes",
+        "description": "The total memory allocated from the engine's arena"
+    },
+    {
+        "key": "ep_arena_memory_resident",
+        "unit": "bytes",
+        "description": "The resident set size of the engine's arena"
+    },
+    {
         "key": "ep_mem_low_wat_percent",
         "unit": "percent",
         "description": "Low water mark (as a percentage)"

@@ -6707,6 +6707,11 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_active_datatype_xattr",
               "ep_active_hlc_drift",
               "ep_active_hlc_drift_count",
+              "ep_arena_memory_allocated",
+#if !defined(ADDRESS_SANITIZER) && !defined(THREAD_SANITIZER) && \
+        defined(HAVE_JEMALLOC)
+              "ep_arena_memory_resident",
+#endif
               "ep_backend",
               "ep_backfill_mem_threshold",
               "ep_bfilter_enabled",

@@ -3013,6 +3013,18 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
                               arena, cb::MemoryDomain::Secondary));
     collector.addStat(Key::mem_used_estimate,
                       stats.getEstimatedTotalMemoryUsed());
+
+    std::unordered_map<std::string, size_t> arenaStats;
+    cb::ArenaMalloc::getStats(arena, arenaStats);
+    auto allocated = arenaStats.find("allocated");
+    if (allocated != arenaStats.end()) {
+            collector.addStat(Key::ep_arena_memory_allocated, allocated->second);
+    }
+    auto resident = arenaStats.find("resident");
+    if (resident != arenaStats.end()) {
+        collector.addStat(Key::ep_arena_memory_resident, resident->second);
+    }
+
     collector.addStat(Key::bytes, memUsed);
     collector.addStat(Key::ep_kv_size, stats.getCurrentSize());
     collector.addStat(Key::ep_blob_num, stats.getNumBlob());

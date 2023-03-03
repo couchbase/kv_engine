@@ -1076,6 +1076,11 @@ This provides various memory-related stats including some stats from jemalloc.
 | ep_storedval_num                    | The number of storedval objects      |
 |                                     | allocated                            |
 | ep_item_num                         | The number of item objects allocated |
+| ep_arena_memory_allocated           | The total memory allocated from the  |
+|                                     | engine's arena (same as              |
+|                                     | ep_arena:allocated below)            |
+| ep_arena_memory_resident            | The resident set size of the engine's|
+|                                     | arena.                               |
 
 The following stats are found by querying jemalloc, definitions of the jemalloc
 stats can be found at:
