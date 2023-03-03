@@ -32,10 +32,11 @@ FollyConnection::FollyConnection(SOCKET sfd,
     cb::io::network::InputStreamListener inputDataListener;
     inputDataListener.frame_available = [this]() {
         if (state == State::running) {
-            TRACE_LOCKGUARD_TIMED(thread.mutex,
-                                  "mutex",
-                                  "Connection::scheduleExecution::threadLock",
-                                  SlowMutexThreshold);
+            TRACE_LOCKGUARD_TIMED(
+                    thread.mutex,
+                    "mutex",
+                    "FollyConnection::scheduleExecution::threadLock",
+                    SlowMutexThreshold);
             try {
                 executeCommandsCallback();
             } catch (const std::exception& e) {
@@ -139,10 +140,11 @@ void FollyConnection::scheduleExecution() {
         thread.eventBase.runInEventBaseThreadAlwaysEnqueue([this]() {
             decrementRefcount();
             executionScheduled = false;
-            TRACE_LOCKGUARD_TIMED(thread.mutex,
-                                  "mutex",
-                                  "Connection::scheduleExecution::threadLock",
-                                  SlowMutexThreshold);
+            TRACE_LOCKGUARD_TIMED(
+                    thread.mutex,
+                    "mutex",
+                    "FollyConnection::scheduleExecution::threadLock",
+                    SlowMutexThreshold);
             if (state == State::immediate_close) {
                 // we might have a stack of events we're waiting for
                 // notifications on..
@@ -174,7 +176,7 @@ void FollyConnection::chainDataToOutputStream(
         std::unique_ptr<SendBuffer> buffer) {
     if (!buffer || buffer->getPayload().empty()) {
         throw std::logic_error(
-                "Connection::chainDataToOutputStream: buffer must be set");
+                "FollyConnection::chainDataToOutputStream: buffer must be set");
     }
 
     asyncSocket->getEventBase()->runImmediatelyOrRunInEventBaseThreadAndWait(

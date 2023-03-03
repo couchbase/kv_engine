@@ -108,7 +108,7 @@ void LibeventConnection::read_callback() {
 
     TRACE_LOCKGUARD_TIMED(thread.mutex,
                           "mutex",
-                          "Connection::read_callback::threadLock",
+                          "LibeventConnection::read_callback::threadLock",
                           SlowMutexThreshold);
 
     if (!executeCommandsCallback()) {
@@ -130,7 +130,7 @@ void LibeventConnection::write_callback() {
 
     TRACE_LOCKGUARD_TIMED(thread.mutex,
                           "mutex",
-                          "Connection::rw_callback::threadLock",
+                          "LibeventConnection::rw_callback::threadLock",
                           SlowMutexThreshold);
 
     if (!executeCommandsCallback()) {
@@ -242,7 +242,7 @@ void LibeventConnection::event_callback(bufferevent* bev,
         auto& thread = instance.getThread();
         TRACE_LOCKGUARD_TIMED(thread.mutex,
                               "mutex",
-                              "Connection::event_callback::threadLock",
+                              "LibeventConnection::event_callback::threadLock",
                               SlowMutexThreshold);
         // MB-44460: If a connection disconnects before all of the data
         //           was moved to the kernels send buffer we would still
@@ -328,7 +328,8 @@ void LibeventConnection::chainDataToOutputStream(
         std::unique_ptr<SendBuffer> buffer) {
     if (!buffer || buffer->getPayload().empty()) {
         throw std::logic_error(
-                "Connection::chainDataToOutputStream: buffer must be set");
+                "LibeventConnection::chainDataToOutputStream: buffer must be "
+                "set");
     }
 
     auto data = buffer->getPayload();
@@ -359,18 +360,18 @@ bool LibeventConnection::isPacketAvailable() const {
             evbuffer_pullup(input, sizeof(cb::mcbp::Header)));
     if (header == nullptr) {
         throw std::runtime_error(
-                "Connection::isPacketAvailable(): Failed to reallocate event "
-                "input buffer: " +
-                std::to_string(sizeof(cb::mcbp::Header)));
+                fmt::format("LibeventConnection::isPacketAvailable(): Failed "
+                            "to reallocate event input buffer: {}",
+                            sizeof(cb::mcbp::Header)));
     }
 
     if (!header->isValid()) {
         audit_invalid_packet(*this, getAvailableBytes());
-        throw std::runtime_error(fmt::format(
-                "Connection::isPacketAvailable(): Invalid packet header "
-                "detected: ({}) totalRecv:{}",
-                *header,
-                totalRecv));
+        throw std::runtime_error(
+                fmt::format("LibeventConnection::isPacketAvailable(): Invalid "
+                            "packet header detected: ({}) totalRecv:{}",
+                            *header,
+                            totalRecv));
     }
 
     const auto framesize = sizeof(*header) + header->getBodylen();
@@ -378,9 +379,9 @@ bool LibeventConnection::isPacketAvailable() const {
         // We've got the entire buffer available.. make sure it is continuous
         if (evbuffer_pullup(input, framesize) == nullptr) {
             throw std::runtime_error(
-                    "Connection::isPacketAvailable(): Failed to reallocate "
-                    "event input buffer: " +
-                    std::to_string(framesize));
+                    fmt::format("LibeventConnection::isPacketAvailable(): "
+                                "Failed to reallocate event input buffer: {}",
+                                framesize));
         }
         return true;
     }
@@ -388,11 +389,11 @@ bool LibeventConnection::isPacketAvailable() const {
     // We don't have the entire frame available.. Are we receiving an
     // incredible big packet so that we want to disconnect the client?
     if (framesize > Settings::instance().getMaxPacketSize()) {
-        throw std::runtime_error(
-                "Connection::isPacketAvailable(): The packet size " +
-                std::to_string(framesize) +
-                " exceeds the max allowed packet size " +
-                std::to_string(Settings::instance().getMaxPacketSize()));
+        throw std::runtime_error(fmt::format(
+                "LibeventConnection::isPacketAvailable(): The packet size {} "
+                "exceeds the max allowed packet size {}",
+                framesize,
+                Settings::instance().getMaxPacketSize()));
     }
 
     return false;
@@ -406,7 +407,7 @@ const cb::mcbp::Header& LibeventConnection::getPacket() const {
     auto nb = evbuffer_get_length(input);
     if (nb < sizeof(cb::mcbp::Header)) {
         throw std::runtime_error(
-                "Connection::getPacket(): packet not available");
+                "LibeventConnection::getPacket(): packet not available");
     }
 
     return *reinterpret_cast<const cb::mcbp::Header*>(
@@ -433,8 +434,8 @@ void LibeventConnection::disableReadEvent() {
     if ((bufferevent_get_enabled(bev.get()) & EV_READ) == EV_READ) {
         if (bufferevent_disable(bev.get(), EV_READ) == -1) {
             throw std::runtime_error(
-                    "Connection::disableReadEvent: Failed to disable read "
-                    "events");
+                    "LibeventConnection::disableReadEvent: Failed to disable "
+                    "read events");
         }
     }
 }
@@ -443,8 +444,8 @@ void LibeventConnection::enableReadEvent() {
     if ((bufferevent_get_enabled(bev.get()) & EV_READ) == 0) {
         if (bufferevent_enable(bev.get(), EV_READ) == -1) {
             throw std::runtime_error(
-                    "Connection::enableReadEvent: Failed to enable read "
-                    "events");
+                    "LibeventConnection::enableReadEvent: Failed to enable "
+                    "read events");
         }
     }
 }
