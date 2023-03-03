@@ -1083,16 +1083,26 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
             // by Disk checkpoint items or vice versa. This is due to
             // ActiveStream needing to send Disk checkpoint items as Disk
             // snapshots to the replica.
-            if (moveCursorToNextCheckpoint(cursor)) {
-                const auto it = cursor.getCheckpoint();
-                Expects(it != checkpointList.end());
+            if (canMoveCursorToNextCheckpoint(cursor)) {
+                // We are now moving the cursor to the next checkpoint.
+                // Given that that operation might make the old cursor's
+                // checkpoint unreferenced, it might be removed as soon as the
+                // cursors jumps (eager checkpoint removal). So, we need to
+                // make our checkpoint-merge checks before performing the move.
 
-                if (it != checkpointList.begin()) {
-                    const auto prev = std::prev(it);
-                    Expects(prev != checkpointList.end());
-                    if (!canBeMerged(lh, **prev, **it)) {
-                        break;
-                    }
+                const auto current = cursor.getCheckpoint();
+                const auto next = std::next(current);
+                Expects(next != checkpointList.end());
+                const auto canMerge = canBeMerged(lh, **current, **next);
+
+                const auto moved = moveCursorToNextCheckpoint(cursor);
+                Expects(moved);
+
+                if (!canMerge) {
+                    // The new checkpoint onto which cursor moved to is
+                    // incompatible with the previous checkpoint, so just break
+                    // the loop and return.
+                    break;
                 }
             }
         }
@@ -1221,16 +1231,25 @@ void CheckpointManager::resetCursors() {
     }
 }
 
-bool CheckpointManager::moveCursorToNextCheckpoint(CheckpointCursor &cursor) {
+bool CheckpointManager::canMoveCursorToNextCheckpoint(
+        const CheckpointCursor& cursor) const {
     if (!cursor.valid()) {
         return false;
     }
 
-    const auto prev = cursor.getCheckpoint();
-    if ((*prev)->getState() == CHECKPOINT_OPEN) {
+    if ((*cursor.getCheckpoint())->getState() == CHECKPOINT_OPEN) {
         return false;
     }
 
+    return true;
+}
+
+bool CheckpointManager::moveCursorToNextCheckpoint(CheckpointCursor& cursor) {
+    if (!canMoveCursorToNextCheckpoint(cursor)) {
+        return false;
+    }
+
+    const auto prev = cursor.getCheckpoint();
     Expects((*prev)->getState() == CHECKPOINT_CLOSED);
     const auto next = std::next(prev);
     // There must be at least an open checkpoint

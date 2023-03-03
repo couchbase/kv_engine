@@ -808,6 +808,15 @@ protected:
                            CheckpointHistorical historical);
 
     /**
+     * Verifies whether the cursor and CM states allow to move the cursor to the
+     * next checkpoint (if any).
+     *
+     * @param cursor
+     * @return true, if the cursor can jump to any subsequent checkpoint
+     */
+    bool canMoveCursorToNextCheckpoint(const CheckpointCursor& cursor) const;
+
+    /**
      * Moves the cursor to the empty item into the next checkpoint (if any).
      *
      * @param cursor
