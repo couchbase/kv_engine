@@ -51,7 +51,8 @@ public:
             OutOfOrderSnapshots outOfOrderSnapshots = OutOfOrderSnapshots::No,
             uint32_t flags = 0,
             bool enableSyncRep = false,
-            uint64_t streamEndSeqno = ~0ull);
+            uint64_t streamEndSeqno = ~0ull,
+            ChangeStreams changeStreams = ChangeStreams::No);
 
     void TearDown() override;
 

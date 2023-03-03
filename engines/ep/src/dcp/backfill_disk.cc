@@ -9,9 +9,9 @@
  *   the file licenses/APL2.txt.
  */
 
-#include "bucket_logger.h"
 #include "dcp/backfill_disk.h"
 #include "active_stream.h"
+#include "bucket_logger.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"

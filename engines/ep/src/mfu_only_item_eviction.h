@@ -14,6 +14,8 @@
 #include "array_histogram.h"
 #include "item_eviction_strategy.h"
 
+#include <optional>
+
 using MFUHistogram =
         ArrayHistogram<uint64_t, std::numeric_limits<uint8_t>::max() + 1>;
 

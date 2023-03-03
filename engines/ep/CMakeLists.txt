@@ -310,6 +310,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/dcp/backfill_by_id_disk.cc
             src/dcp/backfill_by_seqno_disk.cc
             src/dcp/backfill_disk.cc
+            src/dcp/backfill_disk_to_stream.cc
             src/dcp/backfill-manager.cc
             src/dcp/backfill_memory.cc
             src/dcp/backfill_to_stream.cc

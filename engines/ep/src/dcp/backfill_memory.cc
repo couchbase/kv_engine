@@ -125,12 +125,13 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
             endSeqno = rangeItr.back();
 
             // Send SnapMarker
-            bool markerSent =
-                    stream->markDiskSnapshot(startSeqno,
-                                             endSeqno,
-                                             rangeItr.getHighCompletedSeqno(),
-                                             rangeItr.getMaxVisibleSeqno(),
-                                             {});
+            bool markerSent = stream->markDiskSnapshot(
+                    startSeqno,
+                    endSeqno,
+                    rangeItr.getHighCompletedSeqno(),
+                    rangeItr.getMaxVisibleSeqno(),
+                    {},
+                    ActiveStream::SnapshotSource::NoHistory);
 
             if (markerSent) {
                 // @todo: This value may be an overestimate, as it includes
@@ -312,4 +313,27 @@ void DCPBackfillMemoryBuffered::complete(ActiveStream& stream) {
                getVBucketId(),
                startSeqno,
                endSeqno);
+}
+
+backfill_status_t DCPBackfillMemoryBuffered::scanHistory() {
+    // No transition to this method available so error when called.
+    throw std::runtime_error(
+            "DCPBackfillMemoryBuffered::scanHistory unsupported");
+}
+
+DCPBackfill::State DCPBackfillMemoryBuffered::getNextScanState(
+        DCPBackfill::State current) {
+    // Memory scan always goes Create->Scan->Done, never to ScanHistory
+    switch (current) {
+    case DCPBackfill::State::Create:
+        return DCPBackfill::State::Scan;
+    case DCPBackfill::State::Scan:
+        return DCPBackfill::State::Done;
+    case DCPBackfill::State::ScanHistory:
+    case DCPBackfill::State::Done:
+        break;
+    }
+    throw std::invalid_argument(fmt::format(
+            "DCPBackfillMemoryBuffered::getNextScanState invalid input {}",
+            current));
 }

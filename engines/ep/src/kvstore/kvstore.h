@@ -431,7 +431,6 @@ public:
      */
     size_t diskBytesRead{0};
 
-protected:
     std::unique_ptr<StatusCallback<GetValue>> callback;
     std::unique_ptr<StatusCallback<CacheLookup>> lookup;
 };

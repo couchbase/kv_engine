@@ -28,7 +28,7 @@ DCPBackfillBySeqnoDisk::DCPBackfillBySeqnoDisk(KVBucket& bucket,
                                                std::shared_ptr<ActiveStream> s,
                                                uint64_t startSeqno,
                                                uint64_t endSeqno)
-    : DCPBackfillToStream(s),
+    : DCPBackfillDiskToStream(s),
       DCPBackfillDisk(bucket),
       DCPBackfillBySeqno(startSeqno, endSeqno) {
 }
@@ -151,7 +151,10 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
                     collHigh.value_or(-1));
 
         stream->setDead(cb::mcbp::DcpStreamEndStatus::Rollback);
-    } else {
+    } else if (!setupForHistoryScan(*stream, *scanCtx, startSeqno)) {
+        // setupForHistoryScan returns true if the scan is 100% within history
+        // a return of false means we will attempt a scan of the non-history
+        // window. Note: this code must change again to fix MB-55590
         bool markerSent = markDiskSnapshot(*stream, *scanCtx, *kvstore);
 
         if (markerSent) {
@@ -163,6 +166,10 @@ backfill_status_t DCPBackfillBySeqnoDisk::create() {
         } else {
             complete(*stream);
         }
+    } else {
+        // setupForHistoryScan returned true. Return success and keep scanCtx
+        status = backfill_success;
+        this->scanCtx = std::move(scanCtx);
     }
 
     return status;
@@ -191,7 +198,11 @@ backfill_status_t DCPBackfillBySeqnoDisk::scan() {
     auto& bySeqnoCtx = dynamic_cast<BySeqnoScanContext&>(*scanCtx);
     switch (kvstore->scan(bySeqnoCtx)) {
     case ScanStatus::Success:
-        stream->setBackfillScanLastRead(scanCtx->lastReadSeqno);
+        if (!historyScan) {
+            stream->setBackfillScanLastRead(scanCtx->lastReadSeqno);
+            complete(*stream);
+        }
+        return backfill_finished;
     case ScanStatus::Cancelled:
         // Cancelled as vbucket/stream have gone away, normal behaviour
         complete(*stream);
@@ -219,14 +230,8 @@ backfill_status_t DCPBackfillBySeqnoDisk::scan() {
 }
 
 void DCPBackfillBySeqnoDisk::complete(ActiveStream& stream) {
-    const auto diskBytesRead = scanCtx ? scanCtx->diskBytesRead : 0;
-    runtime += (std::chrono::steady_clock::now() - runStart);
-    stream.completeBackfill(runtime, diskBytesRead);
-    stream.log(spdlog::level::level_enum::debug,
-               "({}) Backfill task ({} to {}) complete",
-               vbid,
-               startSeqno,
-               endSeqno);
+    seqnoScanComplete(
+            stream, scanCtx ? scanCtx->diskBytesRead : 0, startSeqno, endSeqno);
 }
 
 std::pair<bool, std::optional<uint64_t>>
@@ -268,11 +273,22 @@ bool DCPBackfillBySeqnoDisk::markDiskSnapshot(ActiveStream& stream,
     if (stream.getFilter().isLegacyFilter()) {
         return markLegacyDiskSnapshot(stream, scanCtx, kvs);
     }
-    return stream.markDiskSnapshot(startSeqno,
-                                   scanCtx.maxSeqno,
-                                   scanCtx.persistedCompletedSeqno,
-                                   scanCtx.maxVisibleSeqno,
-                                   scanCtx.timestamp);
+    // HistoryScan: If a disk snapshot is being "split" into non-history and
+    // history ranges, then the endSeqno of this first range should show the
+    // entire snapshot. E.g.
+    // disk snapshot is [a...d], but split
+    // no-history[a..b]
+    // history[c..d]
+    // Then all of the markers from this backfill stats start:a, end:d and mvs
+    // hcs can only be valid once d is reached.
+    return stream.markDiskSnapshot(
+            startSeqno,
+            historyScan ? historyScan->snapshotMaxSeqno : scanCtx.maxSeqno,
+            scanCtx.persistedCompletedSeqno,
+            scanCtx.maxVisibleSeqno,
+            scanCtx.timestamp,
+            historyScan ? ActiveStream::SnapshotSource::NoHistoryPrologue
+                        : ActiveStream::SnapshotSource::NoHistory);
 }
 
 // This function is used for backfills where the stream is configured as a
@@ -347,7 +363,8 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
                                        scanCtx.maxSeqno,
                                        scanCtx.persistedCompletedSeqno,
                                        scanCtx.maxVisibleSeqno,
-                                       scanCtx.timestamp);
+                                       scanCtx.timestamp,
+                                       ActiveStream::SnapshotSource::NoHistory);
     }
 
     // Need to figure out the maxSeqno/maxVisibleSeqno for calling
@@ -432,7 +449,12 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
         if (gv.item->isCommitted()) {
             // Step 3. If this is a committed item, done.
             return stream.markDiskSnapshot(
-                    startSeqno, stats.highSeqno, {}, stats.highSeqno, {});
+                    startSeqno,
+                    stats.highSeqno,
+                    {},
+                    stats.highSeqno,
+                    {},
+                    ActiveStream::SnapshotSource::NoHistory);
         }
     } else if (gv.getStatus() != cb::engine_errc::no_such_key) {
         stream.log(spdlog::level::level_enum::warn,
@@ -545,11 +567,19 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
             cb.maxVisibleSeqno < backfillRangeEndSeqno) {
             stream.setEndSeqno(cb.maxVisibleSeqno);
         }
-        return stream.markDiskSnapshot(
-                startSeqno, cb.maxVisibleSeqno, {}, cb.maxVisibleSeqno, {});
+        return stream.markDiskSnapshot(startSeqno,
+                                       cb.maxVisibleSeqno,
+                                       {},
+                                       cb.maxVisibleSeqno,
+                                       {},
+                                       ActiveStream::SnapshotSource::NoHistory);
     } else {
         endStreamIfNeeded();
         // Found nothing committed at all
         return false;
     }
+}
+
+backfill_status_t DCPBackfillBySeqnoDisk::scanHistory() {
+    return doHistoryScan(bucket, *scanCtx);
 }
