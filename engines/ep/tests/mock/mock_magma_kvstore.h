@@ -55,7 +55,9 @@ public:
 
     int saveDocs(MagmaKVStoreTransactionContext& txnCtx,
                  VB::Commit& commitData,
-                 kvstats_ctx& kvctx) override;
+                 kvstats_ctx& kvctx,
+                 magma::Magma::HistoryMode historyMode =
+                         magma::Magma::HistoryMode::Disabled) override;
 
     bool snapshotVBucket(Vbid vbid, const vbucket_state& newVBState) override;
 

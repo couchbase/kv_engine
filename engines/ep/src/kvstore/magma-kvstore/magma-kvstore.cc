@@ -778,7 +778,8 @@ bool MagmaKVStore::commit(std::unique_ptr<TransactionContext> txnCtx,
     preFlushHook();
 
     // Flush all documents to disk
-    auto errCode = saveDocs(ctx, commitData, kvctx);
+    auto errCode = saveDocs(
+            ctx, commitData, kvctx, toHistoryMode(commitData.historical));
     if (errCode != static_cast<int>(cb::engine_errc::success)) {
         logger->warn("MagmaKVStore::commit: saveDocs {} errCode:{}",
                      txnCtx->vbid,
@@ -1338,7 +1339,8 @@ GetValue MagmaKVStore::makeGetValue(Vbid vb,
 
 int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
                            VB::Commit& commitData,
-                           kvstats_ctx& kvctx) {
+                           kvstats_ctx& kvctx,
+                           magma::Magma::HistoryMode historyMode) {
     uint64_t ninserts = 0;
     uint64_t ndeletes = 0;
 
@@ -1632,7 +1634,8 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
                                    kvstoreRevList[getCacheSlot(vbid)],
                                    writeDocsCB,
                                    postWriteDocsCB,
-                                   std::move(compressCB));
+                                   std::move(compressCB),
+                                   historyMode);
 
     saveDocsPostWriteDocsHook();
 

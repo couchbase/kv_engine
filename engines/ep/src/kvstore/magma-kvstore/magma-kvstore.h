@@ -605,7 +605,9 @@ protected:
 
     virtual int saveDocs(MagmaKVStoreTransactionContext& txnCtx,
                          VB::Commit& commitData,
-                         kvstats_ctx& kvctx);
+                         kvstats_ctx& kvctx,
+                         magma::Magma::HistoryMode historyMode =
+                                 magma::Magma::HistoryMode::Disabled);
 
     void commitCallback(MagmaKVStoreTransactionContext& txnCtx,
                         int status,
@@ -809,6 +811,17 @@ protected:
                                    cb::compression::Buffer& newValueStorage,
                                    const magma::Magma::WriteOperation& op,
                                    magma::Magma::WriteOperation& result);
+
+    static magma::Magma::HistoryMode toHistoryMode(
+            CheckpointHistorical historical) {
+        switch (historical) {
+        case CheckpointHistorical::No:
+            return magma::Magma::HistoryMode::Disabled;
+        case CheckpointHistorical::Yes:
+            return magma::Magma::HistoryMode::Enabled;
+        }
+        folly::assume_unreachable();
+    }
 
     MagmaKVStoreConfig& configuration;
 

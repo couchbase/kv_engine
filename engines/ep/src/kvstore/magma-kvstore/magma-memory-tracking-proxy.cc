@@ -479,7 +479,8 @@ magma::Status MagmaMemoryTrackingProxy::WriteDocs(
         const magma::Magma::KVStoreRevision kvsRev,
         const magma::Magma::WriteDocsCallback docCallback,
         const magma::Magma::PostWriteDocsCallback postCallback,
-        const magma::Magma::DocTransformCallback docTransformCallback) {
+        const magma::Magma::DocTransformCallback docTransformCallback,
+        const magma::Magma::HistoryMode historyMode) {
     magma::Magma::WriteDocsCallback wrappedDocCallback = nullptr;
     magma::Magma::PostWriteDocsCallback wrappedPostCallback = nullptr;
     magma::Magma::DocTransformCallback wrappedDocTransformCallback = nullptr;
@@ -519,7 +520,8 @@ magma::Status MagmaMemoryTrackingProxy::WriteDocs(
                             kvsRev,
                             wrappedDocCallback,
                             wrappedPostCallback,
-                            wrappedDocTransformCallback);
+                            wrappedDocTransformCallback,
+                            historyMode);
 }
 
 magma::Status MagmaMemoryTrackingProxy::NewCheckpoint(

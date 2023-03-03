@@ -39,7 +39,8 @@ public:
     explicit Commit(Collections::VB::Manifest& manifest,
                     WriteOperation writeOp = WriteOperation::Upsert,
                     vbucket_state vbs = {},
-                    SysErrorCallback sysErrorCallback = {});
+                    SysErrorCallback sysErrorCallback = {},
+                    CheckpointHistorical historical = CheckpointHistorical::No);
 
     /// Object for updating the collection's meta-data during commit
     Collections::VB::Flush collections;
@@ -60,6 +61,12 @@ public:
      * Allows EP to take decisions on how to react to the failure.
      */
     SysErrorCallback sysErrorCallback;
+
+    /**
+     * Tells the storage whether the flush-batch is part of a seamless sequence
+     * of historical data.
+     */
+    CheckpointHistorical historical;
 };
 
 } // end namespace VB
