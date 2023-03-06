@@ -118,7 +118,17 @@ protected:
      */
     virtual void complete(bool cancelled) = 0;
 
-    bool scanHistoryCreate(ActiveStream& stream);
+    /**
+     * This runs the "create" phase of the history scan, which includes creation
+     * of the ScanContext and calling markDiskSnapshot on the ActiveStream
+     *
+     * This function should be called once only and the caller is in charge of
+     * that.
+     *
+     * @param streamPtr The new ScanContext will reference this shared_ptr
+     * @return true if the scan was created and the marker sent successfully.
+     */
+    bool scanHistoryCreate(const std::shared_ptr<ActiveStream>& streamPtr);
 
     /**
      * Run the scan but scan only the "history section"
@@ -145,9 +155,11 @@ protected:
      * Internal part of the setup phase of the history scan, on success this
      * will have initialised HistoryScanCtx::scanCtx
      *
+     * @param streamPtr The ActiveStream for the scan (as a shared_ptr)
      * @return true if the ScanContext was created, false for failure.
      */
-    bool createHistoryScanContext();
+    bool createHistoryScanContext(
+            const std::shared_ptr<ActiveStream>& streamPtr);
 
     std::mutex lock;
     backfill_state_t state = backfill_state_init;
@@ -176,9 +188,13 @@ protected:
          * @param kvs KVStore to call initBySeqnoContext on
          * @param ctx The ScanContext from the initial scan phase, this can be
          *            ByID or BySeq.
+         * @param streamPtr The shared_ptr for the ActiveStream - this allows
+         *        the new ScanContext to create a new callback.
          * @return true if successfully created, false for a failure.
          */
-        bool createScanContext(const KVStoreIface& kvs, ScanContext& ctx);
+        bool createScanContext(const KVStoreIface& kvs,
+                               ScanContext& ctx,
+                               const std::shared_ptr<ActiveStream>& streamPtr);
 
         /// records the start and snapshot range for the history scan
         snapshot_info_t snapshotInfo;

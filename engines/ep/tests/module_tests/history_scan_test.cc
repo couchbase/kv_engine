@@ -87,7 +87,8 @@ void HistoryScanTest::validateSnapshot(
 
     for (const auto& item : items) {
         EXPECT_TRUE(item.getOperation() == queue_op::system_event ||
-                    item.getOperation() == queue_op::mutation);
+                    item.getOperation() == queue_op::mutation ||
+                    item.getOperation() == queue_op::pending_sync_write);
         if (item.getOperation() == queue_op::system_event) {
             stepAndExpect(ClientOpcode::DcpSystemEvent);
             EXPECT_EQ(producers->last_stream_id, sid);
@@ -99,7 +100,8 @@ void HistoryScanTest::validateSnapshot(
         } else {
             if (item.isDeleted()) {
                 stepAndExpect(ClientOpcode::DcpDeletion);
-
+            } else if (item.isPending()) {
+                stepAndExpect(ClientOpcode::DcpPrepare);
             } else {
                 stepAndExpect(ClientOpcode::DcpMutation);
             }
@@ -733,8 +735,26 @@ TEST_P(HistoryScanTest, MB_55837_incorrect_item_count) {
               vb->lockCollections().getItemCount(CollectionEntry::vegetable));
     EXPECT_EQ(2, vb->getNumItems());
 
-    // @todo: backfill the stream with sync-writes enabled. However prepares
-    // are being filtered and that will be fixed in a different commit
+    ensureDcpWillBackfill();
+    createDcpObjects(std::string_view{},
+                     OutOfOrderSnapshots::No,
+                     0,
+                     true, // sync-repl enabled
+                     ~0ull,
+                     ChangeStreams::Yes);
+    runBackfill();
+
+    validateSnapshot(vbid,
+                     0,
+                     items.back().getBySeqno(),
+                     MARKER_FLAG_HISTORY |
+                             MARKER_FLAG_MAY_CONTAIN_DUPLICATE_KEYS |
+                             MARKER_FLAG_CHK | MARKER_FLAG_DISK,
+                     6 /*hcs*/,
+                     items.back().getBySeqno() /*mvs*/,
+                     {},
+                     {},
+                     items);
 }
 
 // Tests which don't need executing in two eviction modes
