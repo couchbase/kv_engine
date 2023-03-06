@@ -4593,6 +4593,55 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionTwoVbuckets) {
     destroy_mock_cookie(cookieP2);
 }
 
+TEST_P(CollectionsDcpPersistentOnly, ModifyFilteredCollection) {
+    using namespace cb::mcbp;
+    using namespace mcbp::systemevent;
+    using namespace CollectionEntry;
+
+    CollectionsManifest cm;
+    // Two collections. One with and one without history
+    cm.add(CollectionEntry::fruit);
+    cm.add(CollectionEntry::vegetable, cb::NoExpiryLimit, true);
+    setCollections(cookie, cm);
+
+    // Setup filtered DCP for CID 10/0xa (vegetable)
+    createDcpObjects({{R"({"collections":["a"]})"}});
+    notifyAndStepToCheckpoint();
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_collection_id, vegetable.getId());
+    EXPECT_EQ(producers->last_can_deduplicate, CanDeduplicate::No);
+
+    // Now modify both, but only expect to see vegetable modification
+    cm.update(fruit, cb::NoExpiryLimit, true /*history*/);
+    cm.update(vegetable, cb::NoExpiryLimit);
+    setCollections(cookie, cm);
+    notifyAndStepToCheckpoint();
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::ModifyCollection);
+    EXPECT_EQ(producers->last_collection_id, vegetable.getId());
+    EXPECT_EQ(producers->last_can_deduplicate, CanDeduplicate::Yes);
+
+    // 4 events to flush
+    flush_vbucket_to_disk(vbid, 4);
+
+    ensureDcpWillBackfill();
+
+    createDcpObjects({{R"({"collections":["a"]})"}});
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                              false /*in-memory = false*/);
+
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_collection_id, vegetable.getId());
+    EXPECT_EQ(producers->last_can_deduplicate, CanDeduplicate::No);
+
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::ModifyCollection);
+    EXPECT_EQ(producers->last_collection_id, vegetable.getId());
+    EXPECT_EQ(producers->last_can_deduplicate, CanDeduplicate::Yes);
+}
+
 TEST_P(CollectionsDcpPersistentOnly, DefaultCollectionLegacySeqnos) {
     using namespace cb::mcbp;
     using namespace mcbp::systemevent;
