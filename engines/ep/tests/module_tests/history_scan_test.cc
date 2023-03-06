@@ -12,6 +12,8 @@
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint_manager.h"
 #include "collections/collections_dcp_test.h"
+#include "collections/vbucket_manifest_handles.h"
+
 #include "dcp/backfill_by_seqno_disk.h"
 #include "failover-table.h"
 #include "kv_bucket.h"
@@ -656,6 +658,83 @@ TEST_P(HistoryScanTest, BackfillWithDroppedCollectionAndPurge) {
                      {},
                      {},
                      items);
+}
+
+// Issue found in MB-55837 and observed as a collection item count difference in
+// MB-55817
+TEST_P(HistoryScanTest, MB_55837_incorrect_item_count) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::vegetable, {}, true));
+
+    std::vector<Item> items;
+    items.emplace_back(makeStoredDocKey("", CollectionEntry::vegetable),
+                       vbid,
+                       queue_op::system_event,
+                       0,
+                       1);
+
+    // Store 2 versions of k0
+    items.emplace_back(store_item(
+            vbid, makeStoredDocKey("k0", CollectionEntry::vegetable), "v0"));
+    items.emplace_back(store_item(
+            vbid, makeStoredDocKey("k0", CollectionEntry::vegetable), "v1"));
+
+    // Next store 2 versions of k1, but using prepare/commit.
+    auto vb = store->getVBucket(vbid);
+    auto key = StoredDocKey{"turnip", CollectionEntry::vegetable};
+    items.emplace_back(store_item(
+            vbid,
+            key,
+            "v0",
+            0,
+            {cb::engine_errc::sync_write_pending},
+            PROTOCOL_BINARY_RAW_BYTES,
+            cb::durability::Requirements(cb::durability::Level::Majority,
+                                         cb::durability::Timeout::Infinity())));
+
+    ASSERT_EQ(cb::engine_errc::success,
+              vb->commit(key, 4, {}, vb->lockCollections(key)));
+
+    // put a "committed" item in at seqno:5
+    items.emplace_back(make_item(vbid, key, "v0"));
+    items.back().setBySeqno(5);
+    items.back().setRevSeqno(1);
+    items.back().setDataType(PROTOCOL_BINARY_RAW_BYTES);
+
+    items.emplace_back(store_item(
+            vbid,
+            key,
+            "v1",
+            0,
+            {cb::engine_errc::sync_write_pending},
+            PROTOCOL_BINARY_RAW_BYTES,
+            cb::durability::Requirements(cb::durability::Level::Majority,
+                                         cb::durability::Timeout::Infinity())));
+
+    ASSERT_EQ(cb::engine_errc::success,
+              vb->commit(key, 6, {}, vb->lockCollections(key)));
+
+    // put a "committed" item in at seqno:7
+    items.emplace_back(make_item(vbid, key, "v1"));
+    items.back().setBySeqno(7);
+    items.back().setRevSeqno(2);
+    items.back().setDataType(PROTOCOL_BINARY_RAW_BYTES);
+
+    // Flush everything in 1 batch and check the item counts
+    flush_vbucket_to_disk(vbid, 7);
+
+    // 2 keys are in the collection (although we have history available for 4
+    // versions)
+    EXPECT_EQ(2,
+              vb->lockCollections().getItemCount(CollectionEntry::vegetable));
+    EXPECT_EQ(2, vb->getNumItems());
+
+    // @todo: backfill the stream with sync-writes enabled. However prepares
+    // are being filtered and that will be fixed in a different commit
 }
 
 // Tests which don't need executing in two eviction modes

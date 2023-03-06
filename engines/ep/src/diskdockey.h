@@ -54,6 +54,10 @@ public:
      */
     explicit DiskDocKey(const char* ptr, size_t len);
 
+    int compare(const DiskDocKey& rhs) const {
+        return keydata.compare(rhs.keydata);
+    }
+
     bool operator==(const DiskDocKey& rhs) const {
         return keydata == rhs.keydata;
     }

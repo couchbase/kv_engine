@@ -322,8 +322,7 @@ void MagmaKVStoreTransactionContext::preparePendingRequests(
     std::sort(pendingReqs.begin(),
               pendingReqs.end(),
               [](const auto& lhs, const auto& rhs) {
-                  const auto comp = lhs->getItem().getKey().compare(
-                          rhs->getItem().getKey());
+                  const auto comp = lhs->getKey().compare(rhs->getKey());
                   // When keys are equal, sort by seqno.
                   if (comp == 0) {
                       return lhs->getItem().getBySeqno() <

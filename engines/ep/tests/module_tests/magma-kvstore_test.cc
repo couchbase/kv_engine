@@ -855,6 +855,54 @@ TEST_F(MagmaKVStoreTest, preparePendingRequestsHistoryEnabled) {
     }
 }
 
+TEST_F(MagmaKVStoreTest, preparePendingRequestsWithPreparesHistoryEnabled) {
+    MagmaKVStoreTransactionContext ctx(*kvstore, vbid, nullptr);
+
+    uint64_t seqno = 11;
+    auto qi = makeCommittedItem(makeStoredDocKey("bbb", CollectionID{99}), "v");
+    qi->setBySeqno(seqno--);
+    ctx.pendingReqs.push_back(std::make_unique<MagmaRequest>(std::move(qi)));
+
+    std::array<std::string, 5> keys = {{"bbb", "c", "bbb", "aaa", "bbb"}};
+    for (const auto& k : keys) {
+        qi = makeCommittedItem(makeStoredDocKey(k), "value");
+        qi->setBySeqno(seqno--);
+        ctx.pendingReqs.push_back(
+                std::make_unique<MagmaRequest>(std::move(qi)));
+
+        qi = makePendingItem(makeStoredDocKey(k), "value");
+        qi->setBySeqno(seqno--);
+        ctx.pendingReqs.push_back(
+                std::make_unique<MagmaRequest>(std::move(qi)));
+    }
+
+    ctx.preparePendingRequests(magma::Magma::HistoryMode::Enabled);
+    std::array<std::pair<uint64_t, DiskDocKey>, 11> expected = {
+            {{4, DiskDocKey{StoredDocKey{"aaa", CollectionID{0}}, false}},
+             {2, DiskDocKey{StoredDocKey{"bbb", CollectionID{0}}, false}},
+             {6, DiskDocKey{StoredDocKey{"bbb", CollectionID{0}}, false}},
+             {10, DiskDocKey{StoredDocKey{"bbb", CollectionID{0}}, false}},
+             {8, DiskDocKey{StoredDocKey{"c", CollectionID{0}}, false}},
+
+             // pending writes are ordered (by-key) above the default collection
+             {3, DiskDocKey{StoredDocKey{"aaa", CollectionID{0}}, true}},
+             {1, DiskDocKey{StoredDocKey{"bbb", CollectionID{0}}, true}},
+             {5, DiskDocKey{StoredDocKey{"bbb", CollectionID{0}}, true}},
+             {9, DiskDocKey{StoredDocKey{"bbb", CollectionID{0}}, true}},
+             {7, DiskDocKey{StoredDocKey{"c", CollectionID{0}}, true}},
+
+             // but would be below collection 99
+             {11, DiskDocKey{StoredDocKey{"bbb", CollectionID{99}}, false}}}};
+
+    ASSERT_EQ(expected.size(), ctx.pendingReqs.size());
+    auto itr = expected.begin();
+    for (const auto& req : ctx.pendingReqs) {
+        EXPECT_EQ(itr->first, req->getItem().getBySeqno()) << req->getItem();
+        EXPECT_EQ(req->getItem().getKey(), itr->second.getDocKey());
+        ++itr;
+    }
+}
+
 // Validate the ordering by seqno
 TEST_F(MagmaKVStoreTest, preparePendingRequestsHistoryDisabled) {
     MagmaKVStoreTransactionContext ctx(*kvstore, vbid, nullptr);
