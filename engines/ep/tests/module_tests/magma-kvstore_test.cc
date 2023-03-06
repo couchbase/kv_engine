@@ -841,3 +841,31 @@ TEST_F(MagmaKVStoreTest, scanAllVersions) {
             static_cast<CustomCallback<GetValue>&>(bySeq->getValueCallback());
     EXPECT_EQ(2, cb.getProcessedCount());
 }
+
+// Validate the ordering by seqno
+TEST_F(MagmaKVStoreTest, preparePendingRequests) {
+    MagmaKVStoreTransactionContext ctx(*kvstore, vbid, nullptr);
+
+    // seqnos 5, 4, 3, 2, 1
+    std::array<std::string, 5> keys = {{"bbb", "c", "bbb", "aaa", "bbb"}};
+    uint64_t seqno = 5;
+    for (const auto& k : keys) {
+        auto qi = makeCommittedItem(makeStoredDocKey(k), "value");
+        qi->setBySeqno(seqno--);
+        ctx.pendingReqs.push_back(
+                std::make_unique<MagmaRequest>(std::move(qi)));
+    }
+
+    ctx.preparePendingRequests();
+
+    std::array<std::pair<uint64_t, std::string>, 5> expected = {
+            {{2, "aaa"}, {1, "bbb"}, {3, "bbb"}, {5, "bbb"}, {4, "c"}}};
+    ASSERT_EQ(expected.size(), ctx.pendingReqs.size());
+    auto itr = expected.begin();
+    for (const auto& req : ctx.pendingReqs) {
+        EXPECT_EQ(itr->first, req->getItem().getBySeqno()) << req->getItem();
+        EXPECT_EQ("cid:0x0:" + itr->second,
+                  req->getItem().getKey().to_string());
+        ++itr;
+    }
+}
