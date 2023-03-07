@@ -23,18 +23,19 @@
 // Used to get a name from a type to use in logging
 template <typename T>
 struct type_name {
-    static char* const value;
+    static const char* const value;
 };
 
 #define TYPENAME(type) \
     template <>        \
-    char* const type_name<type>::value = (char* const) #type;
+    const char* const type_name<type>::value = #type;
 
 TYPENAME(bool)
 TYPENAME(size_t)
 TYPENAME(ssize_t)
 TYPENAME(float)
 TYPENAME(std::string)
+TYPENAME(std::string_view)
 #undef TYPENAME
 
 std::string to_string(const value_variant_t& value) {
@@ -51,30 +52,34 @@ std::string to_string(const value_variant_t& value) {
 }
 
 void ValueChangedListener::booleanValueChanged(const std::string& key, bool) {
-    EP_LOG_DEBUG("Configuration error.. {} does not expect a boolean value",
-                 key);
+    logUnhandledType(key, "bool");
 }
 
 void ValueChangedListener::sizeValueChanged(const std::string& key, size_t) {
-    EP_LOG_DEBUG("Configuration error.. {} does not expect a size value", key);
+    logUnhandledType(key, "size_t");
 }
 
 void ValueChangedListener::ssizeValueChanged(const std::string& key, ssize_t) {
-    EP_LOG_DEBUG("Configuration error.. {} does not expect a size value", key);
+    logUnhandledType(key, "ssize_t");
 }
 
 void ValueChangedListener::floatValueChanged(const std::string& key, float) {
-    EP_LOG_DEBUG(
-            "Configuration error.. {} does not expect a floating point"
-            "value",
-            key);
+    logUnhandledType(key, "float");
 }
 
 void ValueChangedListener::stringValueChanged(const std::string& key,
                                               const char*) {
-    EP_LOG_DEBUG("Configuration error.. {} does not expect a string value",
-                 key);
+    logUnhandledType(key, "string");
 }
+void ValueChangedListener::logUnhandledType(std::string_view key,
+                                            std::string_view type) {
+    EP_LOG_DEBUG(
+            "Configuration error. Listener for config key {} does not expect a "
+            "value of type {}",
+            key,
+            type);
+}
+
 void ValueChangedValidator::validateBool(const std::string& key, bool) {
     std::string error = "Configuration error.. " + key +
                         " does not take a boolean parameter";
@@ -373,6 +378,73 @@ void Configuration::visit(Configuration::Visitor visitor) const {
 }
 
 Configuration::~Configuration() = default;
+
+/**
+ * Listener notifying a provided callable when a config value has changed.
+ */
+template <class Arg>
+class ValueChangedCallback : public ValueChangedListener {
+public:
+    using Callback = std::function<void(Arg)>;
+    ValueChangedCallback(Callback cb) : callback(std::move(cb)) {
+    }
+
+    template <class ArgType>
+    void forwardToCallable(const std::string& key, ArgType value) {
+        if constexpr (std::is_invocable_v<Callback, ArgType>) {
+            callback(value);
+        } else {
+            // Log that this isn't right, the listener doesn't handle the type
+            // of this config param (same as ValueChangedListener default
+            // behaviour)
+            logUnhandledType(key, type_name<ArgType>::value);
+        }
+    }
+    void booleanValueChanged(const std::string& key, bool value) override {
+        forwardToCallable(key, value);
+    }
+    void sizeValueChanged(const std::string& key, size_t value) override {
+        forwardToCallable(key, value);
+    }
+    void ssizeValueChanged(const std::string& key, ssize_t value) override {
+        forwardToCallable(key, value);
+    }
+    void floatValueChanged(const std::string& key, float value) override {
+        forwardToCallable(key, value);
+    }
+    void stringValueChanged(const std::string& key,
+                            const char* value) override {
+        forwardToCallable(key, std::string_view(value));
+    }
+
+private:
+    Callback callback;
+};
+
+template <class Arg>
+void Configuration::addValueChangedFunc(const std::string& key,
+                                        std::function<void(Arg)> callback) {
+    // TODO: given each config param has a single, known type
+    //  it would be nice to check that the callable does handle that
+    //  specific type here. That would add value over the
+    //  ValueChangedListener, which does not enforce that that
+    //  the listener overrides the method for the _correct_ type
+    //  (and many listener impls are reused for several config keys anyway).
+    addValueChangedListener(
+            key,
+            std::make_unique<ValueChangedCallback<Arg>>(std::move(callback)));
+}
+
+template void Configuration::addValueChangedFunc(const std::string&,
+                                                 std::function<void(bool)>);
+template void Configuration::addValueChangedFunc(const std::string&,
+                                                 std::function<void(size_t)>);
+template void Configuration::addValueChangedFunc(const std::string&,
+                                                 std::function<void(ssize_t)>);
+template void Configuration::addValueChangedFunc(const std::string&,
+                                                 std::function<void(float)>);
+template void Configuration::addValueChangedFunc(
+        const std::string&, std::function<void(std::string_view)>);
 
 // Explicit instantiations for addParameter for supported types.
 template void Configuration::addParameter(std::string, bool, bool);

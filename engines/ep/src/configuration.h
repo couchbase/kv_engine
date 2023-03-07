@@ -91,6 +91,8 @@ public:
      */
     virtual void stringValueChanged(const std::string& key, const char*);
 
+    static void logUnhandledType(std::string_view key, std::string_view type);
+
     virtual ~ValueChangedListener() = default;
 };
 
@@ -226,6 +228,21 @@ public:
                                  std::unique_ptr<ValueChangedListener> val);
 
     /**
+     * Add a listener for changes for a key. There is no way to remove a
+     * ValueChangeListener.
+     *
+     * @param key the config key the listener is interested in
+     * @param val the listener which will be called when the config value
+     *            changes
+     * @throw invalid_argument if the specified key isn't a valid config key.
+     */
+    template <class Callable>
+    void addValueChangedCallback(const std::string& key, Callable&& callback) {
+        addValueChangedFunc(key,
+                            std::function(std::forward<Callable>(callback)));
+    }
+
+    /**
      * Set a validator for a specific key. The configuration class
      * will release the memory for the ValueChangedValidator by calling
      * delete in its destructor (so you have to allocate it by using
@@ -322,6 +339,14 @@ protected:
 
 private:
     void initialize();
+
+    /**
+     * Add a listener calling the provided std::function when the value for the
+     * given config key changes.
+     */
+    template <class Arg>
+    void addValueChangedFunc(const std::string& key,
+                             std::function<void(Arg)> callback);
 
     // Access to the configuration variables is protected by the mutex
     mutable std::mutex mutex;

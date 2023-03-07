@@ -352,3 +352,22 @@ TEST(ChangeListenerTest, ChangeListenerSSizeRegression) {
     // change parameters
     configuration.setParameter(key, (ssize_t)2);
 }
+
+TEST(ChangeListenerTest, Callback) {
+    // Check that callbacks added as a lambda are called as expected.
+    ConfigurationShim configuration;
+    std::string key{"test_key"};
+
+    bool testValue = false;
+
+    configuration.addParameter(key, false /* value */, true /* isDynamic */);
+
+    configuration.addValueChangedCallback(
+            key, [&](bool value) { testValue = value; });
+
+    ASSERT_FALSE(testValue);
+    configuration.setParameter(key, true);
+    EXPECT_TRUE(testValue);
+    configuration.setParameter(key, false);
+    EXPECT_FALSE(testValue);
+}
