@@ -113,20 +113,6 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
     // Read the scopes within the Manifest
     auto scopes = getJsonObject(parsed, ScopesKey, ScopesType);
 
-    // Does the top-level disable deduplication?
-    CanDeduplicate allCanDeduplicate = CanDeduplicate::Yes;
-    auto allHistoryConfigured =
-            cb::getOptionalJsonObject(parsed, HistoryKey, HistoryType);
-    if (allHistoryConfigured) {
-        if (allHistoryConfigured.value().get<bool>()) {
-            allCanDeduplicate = CanDeduplicate::No;
-        } else {
-            // Only a value of true is permitted so there cannot be conflicts
-            // as we descend the path of bucket.scope.collection
-            throwInvalid("history=false is not valid for manifest");
-        }
-    }
-
     for (const auto& scope : scopes) {
         throwIfWrongType(
                 std::string(ScopesKey), scope, nlohmann::json::value_t::object);
@@ -158,20 +144,6 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
             if (itr.second.name == nameValue) {
                 throwInvalid("duplicate scope name:" + sidValue.to_string() +
                              ", name:" + nameValue);
-            }
-        }
-
-        CanDeduplicate scopeCanDeduplicate = allCanDeduplicate;
-
-        // Does the scope disable deduplication?
-        auto scopeHistoryConfigured =
-                cb::getOptionalJsonObject(scope, HistoryKey, HistoryType);
-        if (scopeHistoryConfigured) {
-            if (scopeHistoryConfigured.value().get<bool>()) {
-                scopeCanDeduplicate = CanDeduplicate::No;
-            } else {
-                throwInvalid("history=false is not valid for scope:" +
-                             sidValue.to_string());
             }
         }
 
@@ -241,13 +213,17 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
                 maxTtl = std::chrono::seconds(value);
             }
 
-            // Does the collection (re)define a history setting
-            CanDeduplicate collectionCanDeduplicate = scopeCanDeduplicate;
+            // Does the collection define a history setting
+            auto collectionCanDeduplicate = CanDeduplicate::Yes;
             auto historyConfigured = cb::getOptionalJsonObject(
                     collection, HistoryKey, HistoryType);
-
             if (historyConfigured) {
                 if (historyConfigured.value().get<bool>()) {
+                    // Disallow this on default collection.
+                    if (cidValue.isDefaultCollection()) {
+                        throwInvalid(
+                                "default collection cannot enable history");
+                    }
                     collectionCanDeduplicate = CanDeduplicate::No;
                 } else {
                     throwInvalid("history=false is not valid for collection:" +
@@ -279,8 +255,7 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
                              Scope{dataLimit.first,
                                    dataLimit.second,
                                    nameValue,
-                                   std::move(scopeCollections),
-                                   scopeCanDeduplicate});
+                                   std::move(scopeCollections)});
     }
 
     // Now build the collection id to collection-entry map
@@ -439,10 +414,6 @@ nlohmann::json Manifest::to_json(
                 scope[LimitsKey] = jsonDataLimit;
             }
 
-            if (getHistoryFromCanDeduplicate(scopeMeta.canDeduplicate)) {
-                // Only include when the value is true
-                scope[HistoryKey] = true;
-            }
             manifest[ScopesKey].push_back(scope);
         }
     }
@@ -481,8 +452,7 @@ flatbuffers::DetachedBuffer Manifest::toFlatbuffer() const {
                     uint32_t(sid),
                     builder.CreateString(scope.name),
                     collectionVector,
-                    limits,
-                    getHistoryFromCanDeduplicate(scope.canDeduplicate));
+                    limits);
             fbScopes.push_back(newEntry);
         } else {
             auto newEntry = Collections::Persist::CreateScope(
@@ -490,8 +460,7 @@ flatbuffers::DetachedBuffer Manifest::toFlatbuffer() const {
                     uint32_t(sid),
                     builder.CreateString(scope.name),
                     collectionVector,
-                    0, // No limits
-                    getHistoryFromCanDeduplicate(scope.canDeduplicate));
+                    0 /* No limits*/);
             fbScopes.push_back(newEntry);
         }
     }
@@ -553,13 +522,11 @@ Manifest::Manifest(std::string_view flatbufferData, Manifest::FlatBuffers tag)
             pristineValue = scope->limits()->dataSizeClusterValue();
         }
 
-        this->scopes.emplace(
-                scope->scopeId(),
-                Scope{dataSize,
-                      pristineValue,
-                      scope->name()->str(),
-                      std::move(scopeCollections),
-                      getCanDeduplicateFromHistory(scope->history())});
+        this->scopes.emplace(scope->scopeId(),
+                             Scope{dataSize,
+                                   pristineValue,
+                                   scope->name()->str(),
+                                   std::move(scopeCollections)});
     }
 
     // Now build the collection id to collection-entry map
@@ -769,8 +736,7 @@ bool Scope::operator==(const Scope& other) const {
     bool equal = name == other.name &&
                  collections.size() == other.collections.size() &&
                  dataLimit == other.dataLimit &&
-                 dataLimitFromCluster == other.dataLimitFromCluster &&
-                 canDeduplicate == other.canDeduplicate;
+                 dataLimitFromCluster == other.dataLimitFromCluster;
     if (equal) {
         for (const auto& c : collections) {
             equal &= std::find(other.collections.begin(),
@@ -906,7 +872,6 @@ bool Manifest::isEpoch() const {
     return collection->second.canDeduplicate == CanDeduplicate::Yes &&
            !collection->second.maxTtl.has_value() &&
            collection->second.name == DefaultCollectionIdentifier &&
-           scope->second.canDeduplicate == CanDeduplicate::Yes &&
            !scope->second.dataLimit.has_value() &&
            scope->second.name == DefaultScopeIdentifier;
 }
@@ -940,14 +905,12 @@ std::ostream& operator<<(std::ostream& os, const Manifest& manifest) {
 std::string to_string(const Scope& scope) {
     // not descending into the collections vector as caller can choose how to
     // space that out.
-    return fmt::format(
-            "name:{}, limit:{{{},{}}}, limitFromCluster:{}, size:{}, {}",
-            scope.name,
-            scope.dataLimit.has_value(),
-            scope.dataLimit.value_or(0),
-            scope.dataLimitFromCluster,
-            scope.collections.size(),
-            scope.canDeduplicate);
+    return fmt::format("name:{}, limit:{{{},{}}}, limitFromCluster:{}, size:{}",
+                       scope.name,
+                       scope.dataLimit.has_value(),
+                       scope.dataLimit.value_or(0),
+                       scope.dataLimitFromCluster,
+                       scope.collections.size());
 }
 
 std::ostream& operator<<(std::ostream& os, const Scope& scope) {

@@ -1319,10 +1319,12 @@ TEST_P(VBucketManifestTest, add_with_history) {
         GTEST_SKIP();
     }
 
-    // Add a scope with history=true and check the status on active/replica
-    EXPECT_TRUE(manifest.update(
-            cm.add(ScopeEntry::shop1, {/*no data limit*/}, true)
-                    .add(CollectionEntry::fruit, ScopeEntry::shop1)));
+    // Add a collection with history=true and check the status on active/replica
+    EXPECT_TRUE(manifest.update(cm.add(ScopeEntry::shop1, {/*no data limit*/})
+                                        .add(CollectionEntry::fruit,
+                                             cb::NoExpiryLimit,
+                                             true,
+                                             ScopeEntry::shop1)));
 
     // Check default and vegetable collection which have no explicit history
     // so expect CanDeduplicate::Yes
@@ -1348,11 +1350,11 @@ TEST_P(VBucketManifestTest, add_with_history) {
               manifest.getReplicaManifest().public_getCanDeduplicate(
                       CollectionEntry::fruit));
 
-    // Now modify (remove/add shop1 with a different setting)
-    EXPECT_TRUE(manifest.update(
-            cm.remove(ScopeEntry::shop1)
-                    .add(ScopeEntry::shop1)
-                    .add(CollectionEntry::fruit, ScopeEntry::shop1)));
+    // Now modify
+    EXPECT_TRUE(manifest.update(cm.update(CollectionEntry::fruit,
+                                          cb::NoExpiryLimit,
+                                          std::nullopt,
+                                          ScopeEntry::shop1)));
     EXPECT_EQ(CanDeduplicate::Yes,
               manifest.getActiveManifest().public_getCanDeduplicate(
                       CollectionEntry::fruit));

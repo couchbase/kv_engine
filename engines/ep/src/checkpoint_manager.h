@@ -768,6 +768,15 @@ protected:
                            CheckpointHistorical historical);
 
     /**
+     * Verifies whether the cursor and CM states allow to move the cursor to the
+     * next checkpoint (if any).
+     *
+     * @param cursor
+     * @return true, if the cursor can jump to any subsequent checkpoint
+     */
+    bool canMoveCursorToNextCheckpoint(const CheckpointCursor& cursor) const;
+
+    /**
      * Moves the cursor to the empty item into the next checkpoint (if any).
      *
      * @param cursor
@@ -887,6 +896,19 @@ protected:
      */
     size_t getMemOverheadAllocatorBytes(
             const std::lock_guard<std::mutex>& lh) const;
+
+    /**
+     * Tells the caller whether the two checkpoints can be merged when given
+     * to checkpoint consumers.
+     *
+     * @param lh Lock to the CM
+     * @param first Checkpoint to check
+     * @param second Checkpoint to check
+     * @return whether the two checkpoints can be merged
+     */
+    bool canBeMerged(const std::lock_guard<std::mutex>& lh,
+                     const Checkpoint& first,
+                     const Checkpoint& second) const;
 
     CheckpointList checkpointList;
     EPStats                 &stats;

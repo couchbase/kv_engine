@@ -8456,7 +8456,7 @@ BaseTestCase testsuite_testcases[] = {
                  "magma_checkpoint_interval=0;"
                  "magma_min_checkpoint_interval=0;"
                  "magma_sync_every_batch=true",
-                 prepare,
+                 prepare_ep_bucket_skip_broken_under_magma,
                  cleanup),
         TestCase("bg stats",
                  test_bg_stats,

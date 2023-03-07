@@ -1007,6 +1007,8 @@ public:
 
     size_t getHistoryRetentionBytes() const;
 
+    bool isHistoryRetentionEnabled() const;
+
 protected:
     /**
      * Get the checkpoint destroyer task responsible for checkpoints from the

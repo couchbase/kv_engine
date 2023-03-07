@@ -5464,6 +5464,11 @@ INSTANTIATE_TEST_SUITE_P(Persistent,
                          STParameterizedBucketTest::PrintToStringParamName);
 
 void CDCActiveStreamTest::SetUp() {
+    if (!config_string.empty()) {
+        config_string += ";";
+    }
+    // Enable history retention
+    config_string += "history_retention_bytes=10485760";
     STActiveStreamPersistentTest::SetUp();
 
     // @todo CDC: Can remove as soon as magma enables history
@@ -5590,21 +5595,28 @@ INSTANTIATE_TEST_SUITE_P(Persistent,
                          STParameterizedBucketTest::PrintToStringParamName);
 
 void CDCPassiveStreamTest::SetUp() {
+    if (!config_string.empty()) {
+        config_string += ";";
+    }
     // Note: Checkpoint removal isn't under test at all here.
     // Eager checkpoint removal, default prod setting in Neo and post-Neo.
     // That helps in cleaning up the CheckpointManager during the test and
     // we won't need to fix the testsuite when merging into the master
     // branch.
-    if (!config_string.empty()) {
-        config_string += ";";
-    }
     config_string += "checkpoint_removal_mode=eager";
+    // Enable history retention
+    config_string += ";history_retention_bytes=10485760";
 
     STPassiveStreamPersistentTest::SetUp();
 }
 
-void CDCPassiveStreamTest::createHistoricalCollection(uint64_t snapStart,
+void CDCPassiveStreamTest::createHistoricalCollection(CheckpointType snapType,
+                                                      uint64_t snapStart,
                                                       uint64_t snapEnd) {
+    const uint8_t snapSource = snapType == CheckpointType::Memory
+                                       ? MARKER_FLAG_MEMORY
+                                       : MARKER_FLAG_DISK;
+
     const uint32_t opaque = 1;
     ASSERT_EQ(cb::engine_errc::success,
               consumer->snapshotMarker(
@@ -5612,9 +5624,24 @@ void CDCPassiveStreamTest::createHistoricalCollection(uint64_t snapStart,
                       vbid,
                       snapStart,
                       snapEnd,
-                      MARKER_FLAG_DISK | MARKER_FLAG_CHK | MARKER_FLAG_HISTORY,
+                      snapSource | MARKER_FLAG_CHK | MARKER_FLAG_HISTORY,
                       {0},
                       {}));
+
+    const auto& vb = *store->getVBucket(vbid);
+    auto& manager = *vb.checkpointManager;
+    ASSERT_EQ(CheckpointHistorical::Yes, manager.getOpenCheckpointHistorical());
+    switch (snapType) {
+    case CheckpointType::Memory:
+        ASSERT_EQ(snapType, manager.getOpenCheckpointType());
+        break;
+    case CheckpointType::Disk:
+    case CheckpointType::InitialDisk:
+        ASSERT_EQ((vb.getHighSeqno() == 0 ? CheckpointType::InitialDisk
+                                          : CheckpointType::Disk),
+                  manager.getOpenCheckpointType());
+        break;
+    }
 
     flatbuffers::FlatBufferBuilder fb;
     Collections::ManifestUid manifestUid;
@@ -5634,21 +5661,15 @@ void CDCPassiveStreamTest::createHistoricalCollection(uint64_t snapStart,
                       1 /*opaque*/,
                       vbid,
                       mcbp::systemevent::id::CreateCollection,
-                      1,
+                      snapStart,
                       mcbp::systemevent::version::version2,
                       {reinterpret_cast<const uint8_t*>(collection.name.data()),
                        collection.name.size()},
                       {fb.GetBufferPointer(), fb.GetSize()}));
 
-    const auto& vb = *store->getVBucket(vbid);
     ASSERT_EQ(0, vb.getNumTotalItems());
-    ASSERT_EQ(1, vb.getHighSeqno());
-    auto& manager = *vb.checkpointManager;
-    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(snapStart, vb.getHighSeqno());
     ASSERT_EQ(2, manager.getNumOpenChkItems());
-    ASSERT_EQ(CheckpointType::InitialDisk, manager.getOpenCheckpointType());
-    ASSERT_EQ(CheckpointHistorical::Yes, manager.getOpenCheckpointHistorical());
-    flush_vbucket_to_disk(vbid, 1);
 }
 
 /*
@@ -5663,7 +5684,8 @@ TEST_P(CDCPassiveStreamTest, HistorySnapshotReceived_Disk) {
     // Replica receives Snap{start, end, Disk|History}, with start->end
     // mutations for the same key.
 
-    createHistoricalCollection(1, 1);
+    createHistoricalCollection(CheckpointType::Disk, 1, 1);
+    flush_vbucket_to_disk(vbid, 1);
 
     // Clear CM
     const auto& vb = *store->getVBucket(vbid);
@@ -5719,7 +5741,8 @@ TEST_P(CDCPassiveStreamTest, HistorySnapshotReceived_InitialDisk) {
     // Replica receives Snap{start, end, InitialDisk|History}, with start->end
     // mutations for the same key.
 
-    createHistoricalCollection(1, 10);
+    createHistoricalCollection(CheckpointType::Disk, 1, 10);
+    flush_vbucket_to_disk(vbid, 1);
 
     const auto& vb = *store->getVBucket(vbid);
     const auto initialHighSeqno = vb.getHighSeqno();
@@ -5760,6 +5783,73 @@ TEST_P(CDCPassiveStreamTest, HistorySnapshotReceived_InitialDisk) {
 
     // Item count doesn't account for historical revisions
     EXPECT_EQ(1, vb.getNumTotalItems());
+}
+
+TEST_P(CDCPassiveStreamTest, MemorySnapshotTransitionToHistory) {
+    const auto& vb = *store->getVBucket(vbid);
+    ASSERT_EQ(0, vb.getHighSeqno());
+    auto& manager = *vb.checkpointManager;
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(2, manager.getNumOpenChkItems()); // cs + vbs
+    ASSERT_EQ(CheckpointType::Memory, manager.getOpenCheckpointType());
+    // Note: 7.2 vbucket sets itself to History mode when created.
+    ASSERT_EQ(CheckpointHistorical::Yes, manager.getOpenCheckpointHistorical());
+
+    // Replica receives a Snap{Memory}.
+    const uint32_t opaque = 1;
+    SnapshotMarker snapshotMarker(opaque,
+                                  vbid,
+                                  1 /*start*/,
+                                  1 /*end*/,
+                                  MARKER_FLAG_CHK | MARKER_FLAG_MEMORY,
+                                  std::optional<uint64_t>(0), /*HCS*/
+                                  {}, /*maxVisibleSeqno*/
+                                  {}, /*timestamp*/
+                                  {} /*streamId*/);
+    stream->processMarker(&snapshotMarker);
+    ASSERT_EQ(cb::engine_errc::success,
+              stream->messageReceived(makeMutationConsumerMessage(
+                      opaque,
+                      1 /*seqno*/,
+                      vbid,
+                      "some-value",
+                      "some-key",
+                      CollectionEntry::defaultC.getId())));
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(2, manager.getNumOpenChkItems());
+    ASSERT_EQ(CheckpointType::Memory, manager.getOpenCheckpointType());
+    ASSERT_EQ(CheckpointHistorical::No, manager.getOpenCheckpointHistorical());
+    ASSERT_EQ(1, vb.getHighSeqno());
+
+    // Replica receives a Snap{Memory|History}.
+    createHistoricalCollection(CheckpointType::Memory, 2, 10);
+    ASSERT_EQ(2, manager.getNumCheckpoints());
+    ASSERT_EQ(2, manager.getNumOpenChkItems()); // cs + sysevent
+    ASSERT_EQ(CheckpointType::Memory, manager.getOpenCheckpointType());
+    ASSERT_EQ(CheckpointHistorical::Yes, manager.getOpenCheckpointHistorical());
+    ASSERT_EQ(2, vb.getHighSeqno()); // sysevent bumped the seqno
+
+    // Historical items received within the same snapshot
+    const auto collection = CollectionEntry::historical;
+    EXPECT_EQ(cb::engine_errc::success,
+              stream->messageReceived(
+                      makeMutationConsumerMessage(opaque,
+                                                  3 /*seqno*/,
+                                                  vbid,
+                                                  "value",
+                                                  "key",
+                                                  collection.getId())));
+
+    EXPECT_EQ(3, vb.getHighSeqno());
+    EXPECT_EQ(3, manager.getNumOpenChkItems());
+    EXPECT_EQ(2, manager.getNumCheckpoints());
+
+    // Test: The flusher must process one checkpoint at a time, as we can't
+    // merge checkpoints with different history configuration
+    std::vector<queued_item> items;
+    auto res = manager.getItemsForPersistence(
+            items, std::numeric_limits<size_t>::max());
+    EXPECT_EQ(1, res.ranges.size());
 }
 
 INSTANTIATE_TEST_SUITE_P(Persistent,

@@ -156,8 +156,7 @@ public:
 
     /// Add the scope entry - allows duplicates
     CollectionsManifest& add(const ScopeEntry::Entry& entry,
-                             std::optional<size_t> dataLimit = {},
-                             std::optional<bool> history = {});
+                             std::optional<size_t> dataLimit = {});
 
     /// Add the collection entry to the given scope - allows duplicates
     /// caller specifies the collection maxTTL
@@ -219,9 +218,6 @@ public:
     void setUid(uint64_t uid) {
         this->uid = uid;
     }
-
-    /// Add history to the top-level of the manifest
-    void setHistory(bool history);
 
     void updateUid(uint64_t uid);
 

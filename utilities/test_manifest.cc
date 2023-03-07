@@ -34,8 +34,7 @@ CollectionsManifest::CollectionsManifest(const CollectionEntry::Entry& entry)
 }
 
 CollectionsManifest& CollectionsManifest::add(const ScopeEntry::Entry& entry,
-                                              std::optional<size_t> dataLimit,
-                                              std::optional<bool> history) {
+                                              std::optional<size_t> dataLimit) {
     updateUid();
 
     nlohmann::json jsonEntry;
@@ -45,10 +44,6 @@ CollectionsManifest& CollectionsManifest::add(const ScopeEntry::Entry& entry,
     jsonEntry["name"] = entry.name;
     jsonEntry["uid"] = ss.str();
     jsonEntry["collections"] = std::vector<nlohmann::json>();
-
-    if (history) {
-        jsonEntry["history"] = history.value();
-    }
 
     if (dataLimit) {
         nlohmann::json limitObject;
@@ -274,9 +269,4 @@ std::string CollectionsManifest::to_json() const {
 void CollectionsManifest::setUid(const std::string& uid) {
     this->uid = strtoull(uid.c_str(), nullptr, 16);
     updateUid();
-}
-
-void CollectionsManifest::setHistory(bool history) {
-    updateUid();
-    json["history"] = history;
 }

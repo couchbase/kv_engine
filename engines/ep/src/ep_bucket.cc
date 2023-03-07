@@ -351,12 +351,8 @@ void EPBucket::deinitialize() {
     });
 }
 
-/**
- * @returns true if the item `candidate` can be de-duplicated (skipped) because
- * `lastFlushed` already supercedes it.
- */
-static bool canDeDuplicate(Item* lastFlushed, Item& candidate) {
-    if (!candidate.canDeduplicate()) {
+bool EPBucket::canDeduplicate(Item* lastFlushed, Item& candidate) const {
+    if (isHistoryRetentionEnabled() && !candidate.canDeduplicate()) {
         return false;
     }
 
@@ -623,7 +619,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
                 // Process the Item's value into the transition struct
                 proposedVBState.transition.fromItem(*item);
             }
-        } else if (!mustDedupe || !canDeDuplicate(prev, *item)) {
+        } else if (!mustDedupe || !canDeduplicate(prev, *item)) {
             // This is an item we must persist.
             prev = item.get();
             ++flushBatchSize;
