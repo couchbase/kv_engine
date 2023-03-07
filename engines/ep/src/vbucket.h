@@ -1147,13 +1147,21 @@ public:
             DeleteSource deleteSource);
 
     /**
-     * Delete an expired item
+     * Delete an expired item.
+     *
+     * If compaction_expiry_fetch_inline=true, a CompactionBGFetchItem may be
+     * returned. The caller is expected to complete the returned bgfetch to
+     * actually perform the expiry.
      *
      * @param it item to be deleted
      * @param startTime the time to be compared with this item's expiry time
      * @param source Expiry source
+     *
+     * @return Bgfetch item which will attempt to read the to-be-expired item
+     *         from disk. May be null.
      */
-    void processExpiredItem(const Item& it, time_t startTime, ExpireBy source);
+    [[nodiscard]] std::unique_ptr<CompactionBGFetchItem> processExpiredItem(
+            const Item& it, time_t startTime, ExpireBy source);
 
     /**
      * Evict a key from memory.
@@ -2321,18 +2329,28 @@ private:
                          bool isMeta = false) = 0;
 
     /**
+     *Construct a bgfetch for compaction, which on completion will attempt to
+     *expire a key.
+     *
+     * @param hbl Reference to the hash table bucket lock
+     * @param key the key to be bg fetched
+     * @param item Reference to the item that is currnetly being compacted
+     */
+    [[nodiscard]] virtual std::unique_ptr<CompactionBGFetchItem>
+    createBgFetchForCompactionExpiry(const HashTable::HashBucketLock& hbl,
+                                     const DocKey& key,
+                                     const Item& item) = 0;
+
+    /**
      * Enqueue a background fetch (due to compaction) to expire a key.
      *
      * @param hbl Reference to the hash table bucket lock
      * @param key the key to be bg fetched
      * @param item Reference to the item that is currnetly being compacted
-     *
-     * @return cb::engine_errc status
      */
-    [[nodiscard]] virtual cb::engine_errc bgFetchForCompactionExpiry(
-            HashTable::HashBucketLock& hbl,
-            const DocKey& key,
-            const Item& item) = 0;
+    virtual void bgFetchForCompactionExpiry(HashTable::HashBucketLock& hbl,
+                                            const DocKey& key,
+                                            const Item& item) = 0;
 
     /**
      * Get metadata and value for a non-resident key

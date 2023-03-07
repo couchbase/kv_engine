@@ -34,6 +34,19 @@ protected:
 class EPBucketFullEvictionTest : public EPBucketTest {
 public:
     void compactionFindsNonResidentItem();
+
+    static auto fullEvictionAllBackendsAllCompactionFetchConfigValues() {
+        // todo: move to using config::Config when merged to master
+        std::vector<std::string> configs;
+        for (const auto& config :
+             ::testing::internal::ParamGenerator<std::string>(
+                     STParameterizedBucketTest::
+                             fullEvictionAllBackendsConfigValues())) {
+            configs.push_back(config + ":compaction_expiry_fetch_inline=true");
+            configs.push_back(config + ":compaction_expiry_fetch_inline=false");
+        }
+        return ::testing::ValuesIn(configs);
+    }
 };
 
 // Full eviction only tests that run with bloom filters off

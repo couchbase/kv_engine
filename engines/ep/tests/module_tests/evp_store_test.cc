@@ -664,7 +664,7 @@ TEST_P(EPBucketFullEvictionTest, ExpiryFindNonResidentItem) {
     ASSERT_EQ(0, vb->numExpiredItems);
 
     // 4) Callback from the "pager" with the item.
-    vb->processExpiredItem(*q[diskDocKey].value.item, 0, ExpireBy::Pager);
+    store->processExpiredItem(*q[diskDocKey].value.item, 0, ExpireBy::Pager);
     EXPECT_EQ(1, vb->numExpiredItems);
 
     flushVBucketToDiskIfPersistent(vbid, 1);
@@ -700,16 +700,21 @@ void EPBucketFullEvictionTest::compactionFindsNonResidentItem() {
     store->processExpiredItem(
             *q[diskDocKey].value.item, 0, ExpireBy::Compactor);
 
-    // We should not have deleted the item and should not flush anything
-    flushVBucketToDiskIfPersistent(vbid, 0);
+    Configuration& config = engine->getConfiguration();
 
-    EXPECT_EQ(0, vb->numExpiredItems);
+    if (!config.isCompactionExpiryFetchInline()) {
+        // We should not have deleted the item and should not flush anything
+        flushVBucketToDiskIfPersistent(vbid, 0);
 
-    // We should have queued a BGFetch for the item
-    EXPECT_EQ(1, vb->getNumItems());
-    ASSERT_TRUE(vb->hasPendingBGFetchItems());
+        // item should not have been expired yet, a bgfetch is required
+        EXPECT_EQ(0, vb->numExpiredItems);
 
-    runBGFetcherTask();
+        // We should have queued a BGFetch for the item
+        EXPECT_EQ(1, vb->getNumItems());
+        ASSERT_TRUE(vb->hasPendingBGFetchItems());
+
+        runBGFetcherTask();
+    }
 }
 
 TEST_P(EPBucketFullEvictionTest, CompactionFindsNonResidentItem) {
@@ -829,17 +834,25 @@ TEST_P(EPBucketFullEvictionTest, CompactionFindsNonResidentSupersededItem) {
     ASSERT_EQ(0, vb->numExpiredItems);
 
     // 5) Callback from the "compactor" with Av1
-    vb->processExpiredItem(*q[diskDocKey].value.item, 0, ExpireBy::Compactor);
+    store->processExpiredItem(
+            *q[diskDocKey].value.item, 0, ExpireBy::Compactor);
 
-    EXPECT_EQ(0, vb->numExpiredItems);
+    Configuration& config = engine->getConfiguration();
 
-    // We should not have deleted the item and should not flush anything
-    flushVBucketToDiskIfPersistent(vbid, 0);
+    if (!config.isCompactionExpiryFetchInline()) {
+        // compaction has queued a bgfetch, which needs to be completed
+        // as if by the bgfetcher to proceed with the expiry
 
-    // We should have queued a BGFetch for the item
-    ASSERT_TRUE(vb->hasPendingBGFetchItems());
-    runBGFetcherTask();
-    EXPECT_FALSE(vb->hasPendingBGFetchItems());
+        EXPECT_EQ(0, vb->numExpiredItems);
+
+        // We should not have deleted the item and should not flush anything
+        flushVBucketToDiskIfPersistent(vbid, 0);
+
+        // We should have queued a BGFetch for the item
+        ASSERT_TRUE(vb->hasPendingBGFetchItems());
+        runBGFetcherTask();
+        EXPECT_FALSE(vb->hasPendingBGFetchItems());
+    }
 
     // BGFetch runs and does not expire the item as the item has been superseded
     // by a newer version (Av2)
@@ -883,26 +896,41 @@ TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryFindsTempItem) {
     auto vb = store->getVBucket(vbid);
     ASSERT_EQ(0, vb->numExpiredItems);
 
+    setProcessExpiredItemHook([&]() {
+        // 5) _After_ the bgfetch has been created (and possibly queued), but
+        // before it is completed, do a concurrent get that should also
+        // need a BGFetch to ensure that we expire the item correctly
+        auto options = static_cast<get_options_t>(
+                QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
+                HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
+        auto gv = store->get(key, vbid, cookie, options);
+        EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
+    });
+
     // 4) Callback from the "compactor" with Av1
-    vb->processExpiredItem(*q[diskDocKey].value.item, 0, ExpireBy::Compactor);
+    store->processExpiredItem(
+            *q[diskDocKey].value.item, 0, ExpireBy::Compactor);
 
-    EXPECT_EQ(0, vb->numExpiredItems);
+    Configuration& config = engine->getConfiguration();
 
-    // We should not have deleted the item and should not flush anything
-    flushVBucketToDiskIfPersistent(vbid, 0);
+    if (!config.isCompactionExpiryFetchInline()) {
+        // compaction has queued a bgfetch, which needs to be completed
+        // as if by the bgfetcher to proceed with the expiry
 
-    // We should have queued a BGFetch for the item
-    EXPECT_EQ(1, vb->getNumItems());
-    ASSERT_TRUE(vb->hasPendingBGFetchItems());
+        EXPECT_EQ(0, vb->numExpiredItems);
 
-    // 5) Do another get that should BGFetch to ensure that we expire the item
-    // correctly
-    auto options = static_cast<get_options_t>(
-            QUEUE_BG_FETCH | HONOR_STATES | TRACK_REFERENCE | DELETE_TEMP |
-            HIDE_LOCKED_CAS | TRACK_STATISTICS | GET_DELETED_VALUE);
-    auto gv = store->get(key, vbid, cookie, options);
-    EXPECT_EQ(cb::engine_errc::would_block, gv.getStatus());
+        // We should not have deleted the item and should not flush anything
+        flushVBucketToDiskIfPersistent(vbid, 0);
 
+        // We should have queued a BGFetch for the item
+        EXPECT_EQ(1, vb->getNumItems());
+        ASSERT_TRUE(vb->hasPendingBGFetchItems());
+    }
+
+    // bgfetcher needs to run to complete the frontend bgfetch (and also the
+    // compaction driven bgfetch if !isCompactionExpiryFetchInline),
+    // and both operations should be completed (item expired by compaction,
+    // cookie notified io complete for the get)
     runBGFetcherTask();
     EXPECT_FALSE(vb->hasPendingBGFetchItems());
 
@@ -978,7 +1006,8 @@ TEST_P(EPBucketFullEvictionTest, ExpiryFindsPrepareWithSameCas) {
     // 6) Callback from the "compactor" with the item to try and expire it. We
     //    could also pretend to be the pager here.
     ASSERT_EQ(0, vb->numExpiredItems);
-    vb->processExpiredItem(*q[diskDocKey].value.item, 2, ExpireBy::Compactor);
+    store->processExpiredItem(
+            *q[diskDocKey].value.item, 2, ExpireBy::Compactor);
 
     // Item expiry cannot take place if the MaybeVisible prepare exists.
     EXPECT_EQ(0, vb->numExpiredItems);
@@ -1032,32 +1061,47 @@ TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryNewGenerationNoItem) {
     evict_key(vbid, key);
     ASSERT_EQ(0, vb->numExpiredItems);
 
-    // 4) Callback from the "compactor" with Av1
-    vb->processExpiredItem(*q[diskDocKey].value.item, 0, ExpireBy::Compactor);
-
-    ASSERT_EQ(0, vb->numExpiredItems);
-
-    // We should not have deleted the item and should not flush anything
-    flushVBucketToDiskIfPersistent(vbid, 0);
-
-    // We should have queued a BGFetch for the item
-    EXPECT_EQ(1, vb->getNumItems());
-    ASSERT_TRUE(vb->hasPendingBGFetchItems());
-
-    // 5a) Start a fetch and read Av1 from disk, but don't check the HT result
-    // yet
-    auto* bucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
-    auto& bgFetcher = bucket->getBgFetcher(vbid);
-
-    bgFetcher.preCompleteHook = [this]() {
-        // 5b) Create and evict Av2 (2nd generation of this item)
+    setProcessExpiredItemHook([&]() {
+        // _After_ the bgfetch has been created, but before it is completed,
+        // create and evict Av2 (2nd generation of this item)
+        // Once the bgfetch _is_ completed, _this_ version will be in memory
+        // and is _not_ the version that the expiry was created for,
+        // so should not be expired
         auto key = makeStoredDocKey("a");
         store_item(vbid, key, "v2");
         flushVBucketToDiskIfPersistent(vbid, 1);
         evict_key(vbid, key);
-    };
-    runBGFetcherTask();
+    });
 
+    // 4) Callback from the "compactor" with Av1
+    store->processExpiredItem(
+            *q[diskDocKey].value.item, 0, ExpireBy::Compactor);
+
+    Configuration& config = engine->getConfiguration();
+
+    if (!config.isCompactionExpiryFetchInline()) {
+        // compaction has queued a bgfetch, which needs to be completed
+        // as if by the bgfetcher to proceed with the expiry
+        ASSERT_EQ(0, vb->numExpiredItems);
+
+        // We should not have deleted the item and should not flush anything
+        flushVBucketToDiskIfPersistent(vbid, 0);
+
+        // We should have queued a BGFetch for the item
+        if (isRocksDB()) {
+            // rocksdb doesn't handle item counts on update, so the second
+            // version of the doc increases num items
+            EXPECT_EQ(2, vb->getNumItems());
+        } else {
+            EXPECT_EQ(1, vb->getNumItems());
+        }
+        ASSERT_TRUE(vb->hasPendingBGFetchItems());
+
+        runBGFetcherTask();
+        ASSERT_FALSE(vb->hasPendingBGFetchItems());
+    }
+
+    // the newer version of the doc was correctly not expired
     EXPECT_EQ(0, vb->numExpiredItems);
 }
 
@@ -1098,24 +1142,7 @@ TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryNewGenerationTempItem) {
     evict_key(vbid, key);
     ASSERT_EQ(0, vb->numExpiredItems);
 
-    // 4) Callback from the "compactor" with Av1
-    vb->processExpiredItem(*q[diskDocKey].value.item, 0, ExpireBy::Compactor);
-
-    ASSERT_EQ(0, vb->numExpiredItems);
-
-    // We should not have deleted the item and should not flush anything
-    flushVBucketToDiskIfPersistent(vbid, 0);
-
-    // We should have queued a BGFetch for the item
-    ASSERT_EQ(1, vb->getNumItems());
-    ASSERT_TRUE(vb->hasPendingBGFetchItems());
-
-    // 5a) Start a fetch and read Av1 from disk, but don't check the HT result
-    // yet
-    auto* bucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
-    auto& bgFetcher = bucket->getBgFetcher(vbid);
-
-    bgFetcher.preCompleteHook = [this]() {
+    setProcessExpiredItemHook([this]() {
         // 5b) Create and evict Av2 (2nd generation of this item)
         auto key = makeStoredDocKey("a");
         store_item(vbid, key, "v2");
@@ -1135,8 +1162,38 @@ TEST_P(EPBucketFullEvictionTest, CompactionBGExpiryNewGenerationTempItem) {
         auto res = vb->ht.findForUpdate(key);
         ASSERT_TRUE(res.committed);
         ASSERT_TRUE(res.committed->isTempInitialItem());
-    };
-    runBGFetcherTask();
+    });
+
+    // 4) Callback from the "compactor" with Av1
+    store->processExpiredItem(
+            *q[diskDocKey].value.item, 0, ExpireBy::Compactor);
+
+    Configuration& config = engine->getConfiguration();
+
+    if (!config.isCompactionExpiryFetchInline()) {
+        // compaction has queued a bgfetch, which needs to be completed
+        // as if by the bgfetcher to proceed with the expiry
+
+        ASSERT_EQ(0, vb->numExpiredItems);
+
+        // We should not have deleted the item and should not flush anything
+        flushVBucketToDiskIfPersistent(vbid, 0);
+
+        // We should have queued a BGFetch for the item
+        if (isRocksDB()) {
+            // rocksdb doesn't handle item counts on update, so the second
+            // version of the doc increases num items
+            ASSERT_EQ(2, vb->getNumItems());
+        } else {
+            ASSERT_EQ(1, vb->getNumItems());
+        }
+        ASSERT_TRUE(vb->hasPendingBGFetchItems());
+
+        // 5a) Start a fetch and read Av1 from disk, but don't check the HT
+        // result yet
+        runBGFetcherTask();
+        ASSERT_FALSE(vb->hasPendingBGFetchItems());
+    }
 
     auto res = vb->ht.findForUpdate(key);
     ASSERT_TRUE(res.committed);
@@ -2635,7 +2692,8 @@ INSTANTIATE_TEST_SUITE_P(
 INSTANTIATE_TEST_SUITE_P(
         FullEviction,
         EPBucketFullEvictionTest,
-        STParameterizedBucketTest::fullEvictionAllBackendsConfigValues(),
+        EPBucketFullEvictionTest::
+                fullEvictionAllBackendsAllCompactionFetchConfigValues(),
         STParameterizedBucketTest::PrintToStringParamName);
 
 // Test cases which run only for Full eviction with bloom filters disabled

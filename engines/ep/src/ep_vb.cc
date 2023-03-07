@@ -811,28 +811,36 @@ cb::engine_errc EPVBucket::addTempItemAndBGFetch(
     folly::assume_unreachable();
 }
 
-cb::engine_errc EPVBucket::bgFetchForCompactionExpiry(
-        HashTable::HashBucketLock& hbl, const DocKey& key, const Item& item) {
+std::unique_ptr<CompactionBGFetchItem>
+EPVBucket::createBgFetchForCompactionExpiry(
+        const HashTable::HashBucketLock& hbl,
+        const DocKey& key,
+        const Item& item) {
     auto rv = addTempStoredValue(hbl, key);
     switch (rv.status) {
     case TempAddStatus::NoMem:
-        return cb::engine_errc::no_memory;
+        return nullptr;
     case TempAddStatus::BgFetch:
-        // schedule to the current batch of background fetch of the given
-        // vbucket
         auto token = rv.storedValue->getCas();
-        hbl.getHTLock().unlock();
-        auto& bgFetcher = getBgFetcher();
-        auto bgFetchSize = queueBGFetchItem(
-                key,
-                std::make_unique<CompactionBGFetchItem>(item, token),
-                bgFetcher);
-        EP_LOG_DEBUG(
-                "Queue a background fetch for compaction expiry, now at {}",
-                bgFetchSize);
-        return cb::engine_errc::would_block;
+        return std::make_unique<CompactionBGFetchItem>(item, token);
     }
     folly::assume_unreachable();
+}
+
+void EPVBucket::bgFetchForCompactionExpiry(HashTable::HashBucketLock& hbl,
+                                           const DocKey& key,
+                                           const Item& item) {
+    auto bgFetchItem = createBgFetchForCompactionExpiry(hbl, key, item);
+    if (!bgFetchItem) {
+        return;
+    }
+
+    hbl.getHTLock().unlock();
+    // add to the current batch of background fetch of the given vbucket
+    auto& bgFetcher = getBgFetcher();
+    auto bgFetchSize = queueBGFetchItem(key, std::move(bgFetchItem), bgFetcher);
+    EP_LOG_DEBUG("Queue a background fetch for compaction expiry, now at {}",
+                 bgFetchSize);
 }
 
 void EPVBucket::updateBGStats(
