@@ -3135,6 +3135,8 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
     collector.addStat(Key::ep_oom_errors, stats.oom_errors);
     collector.addStat(Key::ep_tmp_oom_errors, stats.tmp_oom_errors);
     collector.addStat(Key::ep_bg_fetched, epstats.bg_fetched);
+    collector.addStat(Key::ep_bg_fetched_compaction,
+                      epstats.bg_fetched_compaction);
     collector.addStat(Key::ep_bg_meta_fetched, epstats.bg_meta_fetched);
     collector.addStat(Key::ep_bg_remaining_items, epstats.numRemainingBgItems);
     collector.addStat(Key::ep_bg_remaining_jobs, epstats.numRemainingBgJobs);

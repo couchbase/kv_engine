@@ -255,6 +255,7 @@ void EPVBucket::completeCompactionExpiryBgFetch(
     // compaction will try to expire the item on disk anyway.
     // In the case of b) we can simply skip trying to expire this item as it
     // has been superseded (by a deletion).
+    stats.bg_fetched_compaction++;
     if (status != cb::engine_errc::success) {
         return;
     }
