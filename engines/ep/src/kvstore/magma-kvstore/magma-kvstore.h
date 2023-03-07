@@ -40,6 +40,7 @@ class Buffer;
 
 class MagmaKVStoreConfig;
 class MagmaMemoryTrackingProxy;
+class MagmaRequest;
 struct kvstats_ctx;
 struct MagmaKVStoreTransactionContext;
 struct MagmaScanResult;
@@ -877,4 +878,25 @@ protected:
 
 private:
     EventuallyPersistentEngine* currEngine;
+};
+
+struct MagmaKVStoreTransactionContext : public TransactionContext {
+    MagmaKVStoreTransactionContext(KVStore& kvstore,
+                                   Vbid vbid,
+                                   std::unique_ptr<PersistenceCallback> cb);
+
+    /**
+     * Prepare the requests before handing them over to Magma. This currently
+     * orders by seqno (ascending) see MB-55199
+     */
+    void preparePendingRequests();
+
+    /**
+     * Container for pending Magma requests.
+     *
+     * Storing the pointer as preparePendingRequests will sort this container.
+     */
+    using PendingRequestQueue = std::deque<std::unique_ptr<MagmaRequest>>;
+
+    PendingRequestQueue pendingReqs;
 };
