@@ -236,6 +236,7 @@ VBucket::VBucket(Vbid i,
       id(i),
       state(newState),
       initialState(initState),
+      bucket(bucket),
       checkpointManager(std::make_unique<CheckpointManager>(st,
                                                             *this,
                                                             chkConfig,
@@ -245,7 +246,6 @@ VBucket::VBucket(Vbid i,
                                                             maxVisibleSeqno,
                                                             maxPrepareSeqno,
                                                             flusherCb)),
-      bucket(bucket),
       syncWriteTimeoutFactory(std::move(syncWriteTimeoutFactory)),
       replicationTopology(nlohmann::json().dump()),
       purge_seqno(purgeSeqno),
@@ -1391,7 +1391,9 @@ VBNotifyCtx VBucket::queueDirty(const HashTable::HashBucketLock& hbl,
         setMightContainXattrs();
     }
 
-    qi->setCanDeduplicate(ctx.deduplicate);
+    if (bucket && bucket->isHistoryRetentionEnabled()) {
+        qi->setCanDeduplicate(ctx.deduplicate);
+    }
 
     // Enqueue the item for persistence and replication
     VBNotifyCtx notifyCtx = queueItem(qi, ctx);
@@ -4336,4 +4338,12 @@ void VBucket::notifyReplication() {
     if (bucket) {
         bucket->notifyReplication(getId(), SyncWriteOperation::No);
     }
+}
+
+bool VBucket::isHistoryRetentionEnabled() const {
+    if (!bucket) {
+        // Test only path
+        return true;
+    }
+    return bucket->isHistoryRetentionEnabled();
 }

@@ -4055,6 +4055,16 @@ TEST_P(CollectionsDcpParameterizedTest, MB_50543) {
     EXPECT_EQ(11, producers->last_byseqno);
 }
 
+// @todo: Consider replacing all the stepAndExpect() and
+//   notifyAndStepToCheckpoint() calls in this test by calls to
+//   Producer::step(). By that, the test would pull data automatically
+//   from the right source (ie, stream readyQ or checkpoints) depending
+//   on how the real production code behaves.
+//
+// @todo: Review the test and use the proper calls against active and
+//   replica vbuckets. Currently here we deal with replica vbuckets by
+//   using an API that is used only by active vbuckets in the production
+//   code.
 TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
     // Make sure there's no streams set, so we can freely create a new sync
     // write stream
@@ -4097,7 +4107,11 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
 
     // 1.6. Ensure we backfill receiving all the documents written before the
     // stream started as a disk snapshot.
-    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker, false);
+    {
+        SCOPED_TRACE("");
+        notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                                  false);
+    }
     ASSERT_TRUE(MARKER_FLAG_CHK & producers->last_flags);
     ASSERT_EQ(0, producers->last_snap_start_seqno);
     ASSERT_EQ(3, producers->last_snap_end_seqno);
@@ -4109,7 +4123,10 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
     }
 
     // 1.7. Then stream the document we wrote to memory after backfill.
-    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    {
+        SCOPED_TRACE("");
+        notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    }
     ASSERT_TRUE(MARKER_FLAG_CHK & producers->last_flags);
     ASSERT_EQ(4, producers->last_snap_start_seqno);
     ASSERT_EQ(4, producers->last_snap_end_seqno);
@@ -4119,7 +4136,10 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
     // 1.8. Add one more item to the default collection, this should be added
     // to the last checkpoint, thus replicated without a MARKER_FLAG_CHK
     store_item(vbid, makeStoredDocKey("setTwo"), "value");
-    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    {
+        SCOPED_TRACE("");
+        notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    }
     ASSERT_FALSE(MARKER_FLAG_CHK & producers->last_flags);
     ASSERT_EQ(5, producers->last_snap_start_seqno);
     ASSERT_EQ(5, producers->last_snap_end_seqno);
@@ -4208,7 +4228,10 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
     // it as at that seqno of that checkpoint all there is, is the first set
     // vbucket state of 2.3.
     ASSERT_TRUE(activeTakeOverStream->isTakeoverSend());
-    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    {
+        SCOPED_TRACE("");
+        notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    }
     activeTakeOverStream->snapshotMarkerAckReceived();
     EXPECT_EQ(takoverStreamStart, producers->last_snap_start_seqno);
     EXPECT_EQ(7, producers->last_snap_end_seqno);
@@ -4279,12 +4302,15 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
 
     // 3.2 Ensure we can get the disk snapshot from the new active, from memory
     // as it's not been flushed to disk
-    SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
-            *replicProducer,
-            *producers2,
-            cb::mcbp::ClientOpcode::DcpSnapshotMarker,
-            true,
-            true);
+    {
+        SCOPED_TRACE("");
+        SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
+                *replicProducer,
+                *producers2,
+                cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                true,
+                true);
+    }
     EXPECT_EQ(0, producers2->last_snap_start_seqno);
     EXPECT_EQ(3, producers2->last_snap_end_seqno);
 
@@ -4301,10 +4327,13 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
     // correctly. At this point with the bug of MB-51105 we would crash as
     // nextSnapStart would go backwards due to the new active's vbucket state
     // being corrupted at 2.6.
-    EXPECT_NO_THROW(SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
-            *replicProducer,
-            *producers2,
-            cb::mcbp::ClientOpcode::DcpSnapshotMarker));
+    {
+        SCOPED_TRACE("");
+        EXPECT_NO_THROW(SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
+                *replicProducer,
+                *producers2,
+                cb::mcbp::ClientOpcode::DcpSnapshotMarker));
+    }
     EXPECT_EQ(4, producers2->last_snap_start_seqno);
     EXPECT_EQ(6, producers2->last_snap_end_seqno);
 
@@ -4313,9 +4342,13 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
                       *producers2, cb::mcbp::ClientOpcode::DcpMutation));
     EXPECT_EQ(6, producers2->last_byseqno);
 
-    EXPECT_EQ(cb::engine_errc::success,
-              replicProducer->stepAndExpect(
-                      *producers2, cb::mcbp::ClientOpcode::DcpSnapshotMarker));
+    {
+        SCOPED_TRACE("");
+        EXPECT_EQ(cb::engine_errc::success,
+                  replicProducer->stepAndExpect(
+                          *producers2,
+                          cb::mcbp::ClientOpcode::DcpSnapshotMarker));
+    }
     EXPECT_EQ(7, producers2->last_snap_start_seqno);
     EXPECT_EQ(7, producers2->last_snap_end_seqno);
 
@@ -4324,9 +4357,13 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
                       *producers2, cb::mcbp::ClientOpcode::DcpMutation));
     EXPECT_EQ(7, producers2->last_byseqno);
 
-    EXPECT_EQ(cb::engine_errc::success,
-              replicProducer->stepAndExpect(
-                      *producers2, cb::mcbp::ClientOpcode::DcpSnapshotMarker));
+    {
+        SCOPED_TRACE("");
+        EXPECT_EQ(cb::engine_errc::success,
+                  replicProducer->stepAndExpect(
+                          *producers2,
+                          cb::mcbp::ClientOpcode::DcpSnapshotMarker));
+    }
     EXPECT_EQ(8, producers2->last_snap_start_seqno);
     EXPECT_EQ(9, producers2->last_snap_end_seqno);
 

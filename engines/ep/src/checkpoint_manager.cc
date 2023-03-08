@@ -63,7 +63,9 @@ CheckpointManager::CheckpointManager(EPStats& st,
                       {},
                       maxPrepareSeqno,
                       CheckpointType::Memory,
-                      CheckpointHistorical::Yes);
+                      vb.isHistoryRetentionEnabled()
+                              ? CheckpointHistorical::Yes
+                              : CheckpointHistorical::No);
 
     if (checkpointConfig.isPersistenceEnabled()) {
         // Register the persistence cursor
@@ -129,7 +131,8 @@ void CheckpointManager::addNewCheckpoint(
                      maxVisibleSeqno,
                      {},
                      CheckpointType::Memory,
-                     CheckpointHistorical::Yes);
+                     vb.isHistoryRetentionEnabled() ? CheckpointHistorical::Yes
+                                                    : CheckpointHistorical::No);
 }
 
 void CheckpointManager::addNewCheckpoint(
@@ -1050,10 +1053,9 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
             // Use CM::moveCursorToNextCheckpoint() instead, which moves the
             // cursor to the empty item in the next checkpoint (if any).
 
-            // MB-36971: We never want to return (1) multiple Disk checkpoints
-            // or (2) checkpoints of different type. So, break if we have just
-            // finished with processing a Disk Checkpoint, regardless of what
-            // comes next.
+            // MB-36971: We never want to return multiple Disk checkpoints, So,
+            // break if we have just finished processing a Disk Checkpoint,
+            // regardless of what comes next.
             if ((*cursor.getCheckpoint())->isDiskCheckpoint()) {
                 // Moving the cursor to the next checkpoint potentially allows
                 // the CheckpointRemover to free the checkpoint that we are
@@ -1067,9 +1069,26 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
             // by Disk checkpoint items or vice versa. This is due to
             // ActiveStream needing to send Disk checkpoint items as Disk
             // snapshots to the replica.
-            if (moveCursorToNextCheckpoint(cursor)) {
-                if ((*cursor.getCheckpoint())->getCheckpointType() !=
-                    result.checkpointType) {
+
+            if (canMoveCursorToNextCheckpoint(cursor)) {
+                // We are now moving the cursor to the next checkpoint.
+                // Given that that operation might make the old cursor's
+                // checkpoint unreferenced, it might be removed as soon as the
+                // cursors jumps (eager checkpoint removal). So, we need to
+                // make our checkpoint-merge checks before performing the move.
+
+                const auto current = cursor.getCheckpoint();
+                const auto next = std::next(current);
+                Expects(next != checkpointList.end());
+                const auto canMerge = canBeMerged(lh, **current, **next);
+
+                const auto moved = moveCursorToNextCheckpoint(cursor);
+                Expects(moved);
+
+                if (!canMerge) {
+                    // The new checkpoint onto which cursor moved to is
+                    // incompatible with the previous checkpoint, so just break
+                    // the loop and return.
                     break;
                 }
             }
@@ -1180,7 +1199,9 @@ void CheckpointManager::clear(const std::lock_guard<std::mutex>& lh,
                       {},
                       0, // HPS=0 because we have correct val on disk and in PDM
                       CheckpointType::Memory,
-                      CheckpointHistorical::Yes);
+                      vb.isHistoryRetentionEnabled()
+                              ? CheckpointHistorical::Yes
+                              : CheckpointHistorical::No);
     resetCursors();
 }
 
@@ -1192,16 +1213,25 @@ void CheckpointManager::resetCursors() {
     }
 }
 
-bool CheckpointManager::moveCursorToNextCheckpoint(CheckpointCursor &cursor) {
+bool CheckpointManager::canMoveCursorToNextCheckpoint(
+        const CheckpointCursor& cursor) const {
     if (!cursor.valid()) {
         return false;
     }
 
-    const auto prev = cursor.getCheckpoint();
-    if ((*prev)->getState() == CHECKPOINT_OPEN) {
+    if ((*cursor.getCheckpoint())->getState() == CHECKPOINT_OPEN) {
         return false;
     }
 
+    return true;
+}
+
+bool CheckpointManager::moveCursorToNextCheckpoint(CheckpointCursor& cursor) {
+    if (!canMoveCursorToNextCheckpoint(cursor)) {
+        return false;
+    }
+
+    const auto prev = cursor.getCheckpoint();
     Expects((*prev)->getState() == CHECKPOINT_CLOSED);
     const auto next = std::next(prev);
     // There must be at least an open checkpoint
@@ -1982,4 +2012,20 @@ size_t CheckpointManager::getMemFreedByCheckpointRemoval() const {
 
 std::string CheckpointManager::Labeller::getLabel(const char* name) const {
     return fmt::format("CheckpointManager({})::{}", vbid.to_string(), name);
+}
+
+bool CheckpointManager::canBeMerged(const std::lock_guard<std::mutex>& lh,
+                                    const Checkpoint& first,
+                                    const Checkpoint& second) const {
+    // MB-36971: We never want to return checkpoints of different type.
+    if (first.getCheckpointType() != second.getCheckpointType()) {
+        return false;
+    }
+    // CDC: The history flag that we pass within the flush-batch to magma is
+    // expected to be a per-snapshot flag. Thus, merging checkpoints with
+    // different History characteristic would be incorrect.
+    if (first.getHistorical() != second.getHistorical()) {
+        return false;
+    }
+    return true;
 }

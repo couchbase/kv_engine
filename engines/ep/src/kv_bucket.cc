@@ -3179,3 +3179,8 @@ void KVBucket::setHistoryRetentionBytes(size_t bytes) {
 size_t KVBucket::getHistoryRetentionBytes() const {
     return historyRetentionBytes;
 }
+
+bool KVBucket::isHistoryRetentionEnabled() const {
+    return historyRetentionBytes > 0 ||
+           historyRetentionSeconds.load().count() > 0;
+}

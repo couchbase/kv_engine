@@ -372,7 +372,8 @@ TEST_P(ReplicaCheckpointTest, getItems_MultipleSnapshots) {
     EXPECT_FALSE(cursorResult.highCompletedSeqno);
 }
 
-// However different types of snapshot don't get combined
+// However different types of snapshot don't get combined.
+// Extended with dedicated checks and comments for the scenario hit in MB-55520.
 TEST_P(ReplicaCheckpointTest, getItems_MemoryDiskSnapshots) {
     // 1st Snapshot covers 1001, 1003, but item 1002 de-duped
     this->manager->createSnapshot(1001, 1003, {}, CheckpointType::Memory, 1003);
@@ -408,7 +409,14 @@ TEST_P(ReplicaCheckpointTest, getItems_MemoryDiskSnapshots) {
     EXPECT_EQ(queue_op::mutation, items.at(2)->getOperation());
     EXPECT_EQ(1003, items.at(2)->getBySeqno());
     EXPECT_EQ(queue_op::checkpoint_end, items.at(3)->getOperation());
+
+    // Verify the other ItemsForCursor quantities
     EXPECT_EQ(1003, cursorResult.visibleSeqno);
+
+    // !! VERY IMPORTANT AS COVERAGE FOR MB-55520 !!
+    // Before the fix here we get CheckpointType::Disk && !HCS, which is the
+    // illegal state that fails ActiveStream in MB-55520.
+    EXPECT_EQ(CheckpointType::Memory, cursorResult.checkpointType);
     EXPECT_FALSE(cursorResult.highCompletedSeqno);
 }
 
@@ -4464,14 +4472,16 @@ void EphemeralCheckpointTest::SetUp() {
 }
 
 void ChangeStreamCheckpointTest::SetUp() {
+    if (!config_string.empty()) {
+        config_string += ";";
+    }
     // Note: Checkpoint removal isn't under test at all here.
     // Eager checkpoint removal, default prod setting in Neo and post-Neo.
     // That helps in cleaning up the CheckpointManager during the test and we
     // won't need to fix the testsuite when merging into the master branch.
-    if (!config_string.empty()) {
-        config_string += ";";
-    }
     config_string += "checkpoint_removal_mode=eager";
+    // Enable history retention
+    config_string += ";history_retention_bytes=10485760";
     SingleThreadedKVBucketTest::SetUp();
 
     CollectionsManifest manifest;
