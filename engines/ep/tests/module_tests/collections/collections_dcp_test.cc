@@ -24,6 +24,8 @@
 #include "tests/mock/mock_dcp_consumer.h"
 #include "tests/mock/mock_dcp_producer.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
+#include "tests/module_tests/dcp_producer_config.h"
+#include "tests/module_tests/dcp_stream_request_config.h"
 
 #include <utilities/test_manifest.h>
 
@@ -81,22 +83,20 @@ void CollectionsDcpTest::createDcpStream(
         cb::engine_errc expectedError,
         uint32_t flags,
         uint64_t streamEndSeqno) {
-    uint64_t rollbackSeqno;
-    ASSERT_EQ(cb::engine_errc(expectedError),
-              producer->streamRequest(
-                      flags,
-                      1, // opaque
-                      id,
-                      0, // start_seqno
-                      streamEndSeqno,
-                      0, // vbucket_uuid,
-                      0, // snap_start_seqno,
-                      0, // snap_end_seqno,
-                      &rollbackSeqno,
-                      [](const std::vector<vbucket_failover_t>&) {
-                          return cb::engine_errc::success;
-                      },
-                      collections));
+    createDcpStream(DcpStreamRequestConfig{id,
+                                           flags,
+                                           1 /*opaque*/,
+                                           0 /*start*/,
+                                           streamEndSeqno,
+                                           0 /*snap_start*/,
+                                           0 /*snap_end*/,
+                                           0 /*vb_uuid*/,
+                                           collections,
+                                           expectedError});
+}
+
+void CollectionsDcpTest::createDcpStream(const DcpStreamRequestConfig& config) {
+    config.createDcpStream(*producer);
 }
 
 void CollectionsDcpTest::createDcpConsumer() {
@@ -122,12 +122,8 @@ void CollectionsDcpTest::createDcpConsumer() {
 }
 
 void CollectionsDcpTest::createDcpObjects(
-        std::optional<std::string_view> collections,
-        OutOfOrderSnapshots outOfOrderSnapshots,
-        uint32_t flags,
-        bool enableSyncRep,
-        uint64_t streamEndSeqno,
-        ChangeStreams changeStreams) {
+        const DcpProducerConfig& producerConfig,
+        const DcpStreamRequestConfig& streamRequestConfig) {
     createDcpConsumer();
 
     auto& mockConnMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
@@ -140,39 +136,45 @@ void CollectionsDcpTest::createDcpObjects(
         producer.reset();
     }
 
-    producer = SingleThreadedKVBucketTest::createDcpProducer(
-            cookieP, IncludeDeleteTime::No);
+    producer = producerConfig.createDcpProducer(*engine, cookieP);
+
     mockConnMap.addConn(cookieP, producer);
 
-    // Give the producers object access to the consumer and vbid of replica
-    producers->consumer = consumer.get();
-    producers->replicaVB = replicaVB;
-
-    if (outOfOrderSnapshots != OutOfOrderSnapshots::No) {
+    if (producerConfig.useOSOSnapshots()) {
         // The CollectionsDcpProducer by default tries to pass messages to the
         // replica which won't work with OSO. No consumer = no replication
         producers->consumer = nullptr;
-        producer->setOutOfOrderSnapshots(outOfOrderSnapshots);
+    } else {
+        // Give the producers object access to the consumer and vbid of replica
+        producers->consumer = consumer.get();
+        producers->replicaVB = replicaVB;
     }
+    createDcpStream(streamRequestConfig);
+}
 
-    if (enableSyncRep) {
-        EXPECT_EQ(cb::engine_errc::success,
-                  producer->control(1, "enable_sync_writes", "true"));
-        EXPECT_EQ(cb::engine_errc::success,
-                  producer->control(1, "consumer_name", "mock_replication"));
-    }
-
-    EXPECT_EQ(cb::engine_errc::success,
-              producer->control(
-                      1, DcpControlKeys::FlatBuffersSystemEvents, "true"));
-
-    if (changeStreams == ChangeStreams::Yes) {
-        EXPECT_EQ(cb::engine_errc::success,
-                  producer->control(1, DcpControlKeys::ChangeStreams, "true"));
-    }
-
-    createDcpStream(
-            collections, vbid, cb::engine_errc::success, flags, streamEndSeqno);
+void CollectionsDcpTest::createDcpObjects(
+        std::optional<std::string_view> collections,
+        OutOfOrderSnapshots outOfOrderSnapshots,
+        uint32_t flags,
+        bool enableSyncRep,
+        uint64_t streamEndSeqno,
+        ChangeStreams changeStreams) {
+    createDcpObjects(DcpProducerConfig{"test_producer",
+                                       outOfOrderSnapshots,
+                                       enableSyncRep,
+                                       changeStreams,
+                                       IncludeXattrs::Yes,
+                                       IncludeDeleteTime::No},
+                     DcpStreamRequestConfig{vbid,
+                                            flags,
+                                            1,
+                                            0,
+                                            streamEndSeqno,
+                                            0,
+                                            0,
+                                            0,
+                                            collections,
+                                            cb::engine_errc::success});
 }
 
 void CollectionsDcpTest::TearDown() {
