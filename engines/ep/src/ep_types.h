@@ -170,6 +170,12 @@ std::string to_string(GenerateCas generateCas);
 std::string to_string(TrackCasDrift trackCasDrift);
 std::string to_string(CheckpointType checkpointType);
 
+static inline bool isCheckpointHistorical(CheckpointHistorical historical) {
+    return historical == CheckpointHistorical::Yes;
+}
+std::string to_string(CheckpointHistorical historical);
+std::ostream& operator<<(std::ostream&, const CheckpointHistorical& policy);
+
 struct snapshot_range_t {
     snapshot_range_t(uint64_t start, uint64_t end) : start(start), end(end) {
         checkInvariant();

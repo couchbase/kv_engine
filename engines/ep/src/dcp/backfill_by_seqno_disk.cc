@@ -283,7 +283,8 @@ bool DCPBackfillBySeqnoDisk::markDiskSnapshot(ActiveStream& stream,
     // hcs can only be valid once d is reached.
     return stream.markDiskSnapshot(
             startSeqno,
-            historyScan ? historyScan->snapshotMaxSeqno : scanCtx.maxSeqno,
+            historyScan ? historyScan->snapshotInfo.range.getEnd()
+                        : scanCtx.maxSeqno,
             scanCtx.persistedCompletedSeqno,
             scanCtx.maxVisibleSeqno,
             scanCtx.timestamp,

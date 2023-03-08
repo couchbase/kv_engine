@@ -77,6 +77,21 @@ std::string to_string(CheckpointType checkpointType) {
     folly::assume_unreachable();
 }
 
+std::string to_string(CheckpointHistorical historical) {
+    switch (historical) {
+    case CheckpointHistorical::Yes:
+        return "CheckpointHistorical::Yes";
+    case CheckpointHistorical::No:
+        return "CheckpointHistorical::No";
+    }
+    folly::assume_unreachable();
+}
+
+std::ostream& operator<<(std::ostream& os,
+                         const CheckpointHistorical& historical) {
+    return os << to_string(historical);
+}
+
 std::ostream& operator<<(std::ostream& os, const EvictionPolicy& policy) {
     return os << to_string(policy);
 }

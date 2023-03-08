@@ -857,6 +857,20 @@ public:
      */
     void checkIfInTransaction(Vbid vbid, std::string_view caller);
 
+    void setHistoryRetentionBytes(size_t size) override {
+        // no-op.
+        // Only supported by backends which report
+        // StorageProperties::HistoryRetentionAvailable::Yes
+        // For all other backends this function is allowed, but does nothing.
+    }
+
+    void setHistoryRetentionSeconds(std::chrono::seconds) override {
+        // no-op.
+        // Only supported by backends which report
+        // StorageProperties::HistoryRetentionAvailable::Yes
+        // For all other backends this function is allowed, but does nothing.
+    }
+
     /**
      * Check if the specified document metadata is /potentially/ affected
      * by a datatype corruption issue (MB-52793) - a deleted document with

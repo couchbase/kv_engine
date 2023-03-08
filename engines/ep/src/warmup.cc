@@ -42,6 +42,8 @@
 #include <string>
 #include <utility>
 
+#include <folly/lang/Assume.h>
+
 struct WarmupCookie {
     WarmupCookie(EPBucket* s, StatusCallback<GetValue>& c)
         : cb(c), epstore(s), loaded(0), skipped(0), error(0) { /* EMPTY */
@@ -897,6 +899,29 @@ const char* WarmupState::getStateDescription(State st) const {
         return "done";
     }
     return "Illegal state";
+}
+
+std::string to_string(WarmupState::State st) {
+    using namespace std::string_literals;
+#define X(name)                    \
+    case WarmupState::State::name: \
+        return #name##s;
+    switch (st) {
+        X(Initialize)
+        X(CreateVBuckets)
+        X(LoadingCollectionCounts)
+        X(EstimateDatabaseItemCount)
+        X(LoadPreparedSyncWrites)
+        X(PopulateVBucketMap)
+        X(KeyDump)
+        X(CheckForAccessLog)
+        X(LoadingAccessLog)
+        X(LoadingKVPairs)
+        X(LoadingData)
+        X(Done)
+    }
+#undef X
+    folly::assume_unreachable();
 }
 
 void WarmupState::transition(State to, bool allowAnyState) {
@@ -2027,6 +2052,19 @@ void Warmup::addStats(const StatCollector& collector) const {
         collector.addStat(Key::ep_warmup_estimated_value_count, "unknown");
     } else {
         collector.addStat(Key::ep_warmup_estimated_value_count, warmupCount);
+    }
+}
+
+void Warmup::addStatusMetrics(const StatCollector& collector) const {
+    auto currentState = state.getState();
+
+    using State = WarmupState::State;
+    for (auto i = int(State::Initialize); i <= int(State::Done); i++) {
+        auto s = State(i);
+        using namespace cb::stats;
+        collector.addStat(Key::ep_warmup_status,
+                          s == currentState,
+                          {{"state", to_string(s)}});
     }
 }
 

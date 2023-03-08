@@ -674,6 +674,12 @@
         "description": "The current state of the warmup thread"
     },
     {
+        "key": "ep_warmup_status",
+        "unit": "none",
+        "description": "The current status of the warmup thread",
+        "cbstat": false
+    },
+    {
         "key": "ep_warmup_key_count",
         "unit": "count",
         "description": "Number of keys warmed up"
@@ -1091,6 +1097,22 @@
     {
         "key": "ep_magma_syncs",
         "unit": "count"
+    },
+    {
+        "key" : "ep_magma_data_blocks_uncompressed_size",
+        "unit": "count"
+    },
+    {
+        "key" : "ep_magma_data_blocks_compressed_size",
+        "unit": "count"
+    },
+    {
+        "key" : "ep_magma_data_blocks_compression_ratio",
+        "unit": "ratio"
+    },
+    {
+        "key" : "ep_magma_data_blocks_space_reduction_estimate_pct",
+        "unit": "percent"
     },
     {
         "key": "ep_rocksdb_kMemTableTotal",

@@ -3080,6 +3080,7 @@ RollbackResult MagmaKVStore::rollback(Vbid vbid,
     case Status::Cancelled:
     case Status::RetryCompaction:
     case Status::NoAccess:
+    case Status::RangeNotFound:
         logger->critical("MagmaKVStore::rollback Rollback {} status:{}",
                          vbid,
                          status.String());
@@ -3600,6 +3601,8 @@ GetStatsMap MagmaKVStore::getStats(
     fill("magma_NTablesCreated", magmaStats->NTablesCreated);
     fill("magma_NTableFiles", magmaStats->NTableFiles);
     fill("magma_NSyncs", magmaStats->NSyncs);
+    fill("magma_DataBlocksSize", magmaStats->DataBlocksSize);
+    fill("magma_DataBlocksCompressSize", magmaStats->DataBlocksCompressSize);
     return stats;
 }
 
@@ -3905,4 +3908,12 @@ std::pair<Status, uint64_t> MagmaKVStore::getOldestRollbackableHighSeqno(
     }
 
     return {status, seqno};
+}
+
+void MagmaKVStore::setHistoryRetentionBytes(size_t size) {
+    // @todo: connect to magma when API available
+}
+
+void MagmaKVStore::setHistoryRetentionSeconds(std::chrono::seconds seconds) {
+    // @todo: connect to magma when API available
 }
