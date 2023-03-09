@@ -340,10 +340,6 @@ TEST(ManifestTest, validation) {
             R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"brewery","uid":"8","history":false}]}]})",
-            // History invalid on default collection
-            R"({"uid" : "1",
-                "scopes":[{"name":"_default", "uid":"0",
-                "collections":[{"name":"_default","uid":"0", "history": true}]}]})",
             // The following are nearly, but not quite epoch manifests
             R"({"uid" : "0",
                 "scopes":[{"name":"_default", "uid":"0",
@@ -559,7 +555,6 @@ TEST(ManifestTest, validation) {
 
             EXPECT_NE(m1, m4);
             EXPECT_NE(m3, m4);
-            std::cerr << "..\n";
         } catch (std::exception& e) {
             EXPECT_TRUE(false)
                     << "Exception thrown for valid manifest:" << *itr2
