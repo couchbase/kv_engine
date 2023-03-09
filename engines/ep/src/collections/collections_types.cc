@@ -205,7 +205,7 @@ std::string to_string(const CollectionMetaData& collection) {
             collection.maxTtl.has_value(),
             collection.maxTtl.value_or(std::chrono::seconds(0)).count(),
             collection.sid.to_string(),
-            collection.canDeduplicate);
+            to_string(collection.canDeduplicate));
 }
 
 std::ostream& operator<<(std::ostream& os, const CollectionMetaData& meta) {

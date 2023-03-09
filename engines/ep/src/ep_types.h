@@ -58,7 +58,7 @@ static inline bool getHistoryFromCanDeduplicate(CanDeduplicate value) {
 }
 
 std::string to_string(CanDeduplicate);
-std::ostream& operator<<(std::ostream&, CanDeduplicate);
+std::ostream& operator<<(std::ostream&, const CanDeduplicate&);
 
 // Is the compaction callback invoked for the latest revision only, or any
 // revision?

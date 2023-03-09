@@ -135,6 +135,6 @@ std::string to_string(CanDeduplicate value) {
     folly::assume_unreachable();
 }
 
-std::ostream& operator<<(std::ostream& os, CanDeduplicate value) {
+std::ostream& operator<<(std::ostream& os, const CanDeduplicate& value) {
     return os << to_string(value);
 }
