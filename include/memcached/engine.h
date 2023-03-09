@@ -791,49 +791,23 @@ struct EngineIface {
      * Create a new range scan on a vbucket
      *
      * @param cookie The cookie identifying the request
-     * @param vbid vbucket to create on
-     * @param start key for the start of the range
-     * @param end key for the end of the range
-     * @param handler object that will receive callbacks when the scan continues
-     * @param cookie connection cookie to notify when done
-     * @param keyOnly key/value configuration of the scan
-     * @param snapshotReqs optional requirements that the snapshot must satisfy
-     * @param samplingConfig the parameters for the optional random sampling
+     * @param params Bundled create parameters
      *
      * @return pair of status/cb::rangescan::Id - ID is valid on success
      */
     virtual std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScan(
-            CookieIface& cookie,
-            Vbid vbid,
-            CollectionID cid,
-            cb::rangescan::KeyView start,
-            cb::rangescan::KeyView end,
-            cb::rangescan::KeyOnly keyOnly,
-            std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
-            std::optional<cb::rangescan::SamplingConfiguration> samplingConfig);
+            CookieIface& cookie, const cb::rangescan::CreateParameters& params);
 
     /**
      * Continue the range scan with the given identifier.
      *
      * @param cookie The cookie identifying the request
-     * @param vbid vbucket to find the scan on
-     * @param uuid The identifier of the scan to continue
-     * @param itemLimit The maximum number of items the continue can return
-     *                  0 means no limit enforced
-     * @param timeLimit The maximum duration the continue can return
-     *                  0 means no limit enforced
-     * @param byteLimit A trip wire value, when the number of bytes included in
-     *                  the scan exceeds this value, the continue is complete.
-     *                  Value of 0 disables this trigger.
+     * @param params Bundled continue parameters
      * @return would_block if the scan was found and successfully scheduled
      */
     virtual cb::engine_errc continueRangeScan(
             CookieIface& cookie,
-            Vbid vbid,
-            cb::rangescan::Id uuid,
-            size_t itemLimit,
-            std::chrono::milliseconds timeLimit,
-            size_t byteLimit);
+            const cb::rangescan::ContinueParameters& params);
 
     /**
      * Cancel the range scan with the given identifier.

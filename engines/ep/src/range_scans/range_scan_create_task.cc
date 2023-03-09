@@ -21,26 +21,20 @@
 
 RangeScanCreateTask::RangeScanCreateTask(
         EPBucket& bucket,
-        Vbid vbid,
-        CollectionID cid,
-        cb::rangescan::KeyView start,
-        cb::rangescan::KeyView end,
-        std::unique_ptr<RangeScanDataHandlerIFace> handler,
         CookieIface& cookie,
-        cb::rangescan::KeyOnly keyOnly,
-        std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
-        std::optional<cb::rangescan::SamplingConfiguration> samplingConfig,
+        std::unique_ptr<RangeScanDataHandlerIFace> handler,
+        const cb::rangescan::CreateParameters& params,
         std::unique_ptr<RangeScanCreateData> scanData)
     : GlobalTask(bucket.getEPEngine(), TaskId::RangeScanCreateTask, 0, false),
       bucket(bucket),
-      vbid(vbid),
-      start(makeStartStoredDocKey(cid, start)),
-      end(makeEndStoredDocKey(cid, end)),
+      vbid(params.vbid),
+      start(makeStartStoredDocKey(params.cid, params.start)),
+      end(makeEndStoredDocKey(params.cid, params.end)),
       handler(std::move(handler)),
       cookie(cookie),
-      keyOnly(keyOnly),
-      snapshotReqs(snapshotReqs),
-      samplingConfig(samplingConfig),
+      keyOnly(params.keyOnly),
+      snapshotReqs(params.snapshotReqs),
+      samplingConfig(params.samplingConfig),
       scanData(std::move(scanData)) {
     // They must be the same collection
     Expects(this->start.getCollectionID() == this->end.getCollectionID());

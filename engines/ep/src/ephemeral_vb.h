@@ -274,19 +274,11 @@ public:
     }
 
     std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScan(
-            CollectionID,
-            cb::rangescan::KeyView,
-            cb::rangescan::KeyView,
-            std::unique_ptr<RangeScanDataHandlerIFace>,
             CookieIface&,
-            cb::rangescan::KeyOnly,
-            std::optional<cb::rangescan::SnapshotRequirements>,
-            std::optional<cb::rangescan::SamplingConfiguration>) override;
-    cb::engine_errc continueRangeScan(cb::rangescan::Id,
-                                      CookieIface&,
-                                      size_t,
-                                      std::chrono::milliseconds,
-                                      size_t) override;
+            std::unique_ptr<RangeScanDataHandlerIFace>,
+            const cb::rangescan::CreateParameters&) override;
+    cb::engine_errc continueRangeScan(
+            CookieIface&, const cb::rangescan::ContinueParameters&) override;
     cb::engine_errc cancelRangeScan(cb::rangescan::Id,
                                     CookieIface*,
                                     bool) override;

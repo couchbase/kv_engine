@@ -201,21 +201,18 @@ cb::engine_errc VB::RangeScanOwner::addNewScan(
 
 cb::engine_errc VB::RangeScanOwner::continueScan(
         EPBucket& bucket,
-        cb::rangescan::Id id,
         CookieIface& cookie,
-        size_t itemLimit,
-        std::chrono::milliseconds timeLimit,
-        size_t byteLimit) {
+        const cb::rangescan::ContinueParameters& params) {
     Expects(readyScans);
     EP_LOG_DEBUG(
             "VB::RangeScanOwner::continueScan {} itemLimit:{} timeLimit:{} "
             "byteLimit:{}",
-            id,
-            itemLimit,
-            timeLimit.count(),
-            byteLimit);
+            params.uuid,
+            params.itemLimit,
+            params.timeLimit.count(),
+            params.byteLimit);
     auto locked = syncData.wlock();
-    auto itr = locked->rangeScans.find(id);
+    auto itr = locked->rangeScans.find(params.uuid);
     if (itr == locked->rangeScans.end()) {
         return cb::engine_errc::no_such_key;
     }
@@ -226,7 +223,8 @@ cb::engine_errc VB::RangeScanOwner::continueScan(
     }
 
     // set scan to 'continuing'
-    itr->second->setStateContinuing(cookie, itemLimit, timeLimit, byteLimit);
+    itr->second->setStateContinuing(
+            cookie, params.itemLimit, params.timeLimit, params.byteLimit);
 
     // Make the scan available to I/O task(s)
     // addScan will check if a task needs creating or scheduling to process the

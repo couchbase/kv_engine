@@ -318,19 +318,19 @@ cb::rangescan::Id RangeScanTest::createScan(
         cb::engine_errc expectedStatus,
         std::unique_ptr<RangeScanDataHandlerIFace> optionalHandler) {
     // Create a new RangeScan object and give it a handler we can inspect.
-    EXPECT_EQ(
-            cb::engine_errc::would_block,
-            store->createRangeScan(vbid,
-                                   cid,
-                                   start,
-                                   end,
-                                   optionalHandler ? std::move(optionalHandler)
-                                                   : std::move(handler),
-                                   *cookie,
-                                   getScanType(),
-                                   snapshotReqs,
-                                   samplingConfig)
-                    .first);
+    EXPECT_EQ(cb::engine_errc::would_block,
+              store->createRangeScan(
+                           *cookie,
+                           optionalHandler ? std::move(optionalHandler)
+                                           : std::move(handler),
+                           cb::rangescan::CreateParameters{vbid,
+                                                           cid,
+                                                           start,
+                                                           end,
+                                                           getScanType(),
+                                                           snapshotReqs,
+                                                           samplingConfig})
+                      .first);
     // Now run via auxio task
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
                 "RangeScanCreateTask");
@@ -342,15 +342,16 @@ cb::rangescan::Id RangeScanTest::createScan(
     }
 
     // Next frontend will add the uuid/scan, client can be informed of the uuid
-    auto status = store->createRangeScan(vbid,
-                                         cid,
-                                         start,
-                                         end,
-                                         nullptr,
-                                         *cookie,
-                                         getScanType(),
-                                         snapshotReqs,
-                                         samplingConfig);
+    auto status = store->createRangeScan(
+            *cookie,
+            nullptr,
+            cb::rangescan::CreateParameters{vbid,
+                                            cid,
+                                            start,
+                                            end,
+                                            getScanType(),
+                                            snapshotReqs,
+                                            samplingConfig});
     EXPECT_EQ(cb::engine_errc::success, status.first);
 
     auto vb = store->getVBucket(vbid);
@@ -381,9 +382,10 @@ void RangeScanTest::testRangeScan(
 
     // 2) Continue a RangeScan
     // 2.1) Frontend thread would call this method using clients uuid
+    auto continueParams = cb::rangescan::ContinueParameters{
+            vbid, uuid, itemLimit, timeLimit, byteLimit};
     EXPECT_EQ(cb::engine_errc::would_block,
-              store->continueRangeScan(
-                      vbid, uuid, *cookie, itemLimit, timeLimit, byteLimit));
+              store->continueRangeScan(*cookie, continueParams));
 
     // 2.2) An I/O task now reads data from disk
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
@@ -391,10 +393,8 @@ void RangeScanTest::testRangeScan(
 
     // Tests will need more continues if a limit is in-play
     for (size_t count = 0; count < extraContinues; count++) {
-        EXPECT_EQ(
-                cb::engine_errc::would_block,
-                store->continueRangeScan(
-                        vbid, uuid, *cookie, itemLimit, timeLimit, byteLimit));
+        EXPECT_EQ(cb::engine_errc::would_block,
+                  store->continueRangeScan(*cookie, continueParams));
         runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
                     "RangeScanContinueTask");
         if (count < extraContinues - 1) {
@@ -419,8 +419,7 @@ void RangeScanTest::testRangeScan(
 
     // Or continued, uuid is unknown
     EXPECT_EQ(cb::engine_errc::no_such_key,
-              store->continueRangeScan(
-                      vbid, uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
+              store->continueRangeScan(*cookie, continueParams));
 }
 
 // Scan for the user prefixed keys
@@ -728,16 +727,17 @@ TEST_P(RangeScanTest, continue_must_be_serialised) {
     auto uuid = createScan(scanCollection, {"a"}, {"b"});
     auto vb = store->getVBucket(vbid);
 
+    auto continueParams = cb::rangescan::ContinueParameters{
+            vbid, uuid, 0, std::chrono::milliseconds(0), 0};
+
     EXPECT_EQ(cb::engine_errc::would_block,
-              vb->continueRangeScan(
-                      uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
+              vb->continueRangeScan(*cookie, continueParams));
     auto& epVb = dynamic_cast<EPVBucket&>(*vb);
     EXPECT_TRUE(epVb.getRangeScan(uuid)->isContinuing());
 
     // Cannot continue again
     EXPECT_EQ(cb::engine_errc::too_busy,
-              vb->continueRangeScan(
-                      uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
+              vb->continueRangeScan(*cookie, continueParams));
 
     // But can cancel
     EXPECT_EQ(cb::engine_errc::success,
@@ -781,9 +781,10 @@ TEST_P(RangeScanTest, create_continue_is_cancelled) {
     auto uuid = createScan(scanCollection, {"user"}, {"user\xFF"});
     auto vb = store->getVBucket(vbid);
 
+    auto continueParams = cb::rangescan::ContinueParameters{
+            vbid, uuid, 0, std::chrono::milliseconds(0), 0};
     EXPECT_EQ(cb::engine_errc::would_block,
-              vb->continueRangeScan(
-                      uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
+              vb->continueRangeScan(*cookie, continueParams));
 
     // Cancel
     EXPECT_EQ(cb::engine_errc::success,
@@ -818,9 +819,10 @@ TEST_P(RangeScanTest, create_continue_is_cancelled_2) {
     auto uuid = createScan(scanCollection, {"user"}, {"user\xFF"});
     auto vb = store->getVBucket(vbid);
 
+    auto continueParams = cb::rangescan::ContinueParameters{
+            vbid, uuid, 0, std::chrono::milliseconds(0), 0};
     EXPECT_EQ(cb::engine_errc::would_block,
-              vb->continueRangeScan(
-                      uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
+              vb->continueRangeScan(*cookie, continueParams));
 
     // Set a hook which will cancel when the 2nd key is read
     testHook = [&vb, uuid, this](size_t count) {
@@ -846,8 +848,7 @@ TEST_P(RangeScanTest, create_continue_is_cancelled_2) {
 
     // Or continued, uuid is unknown
     EXPECT_EQ(cb::engine_errc::no_such_key,
-              vb->continueRangeScan(
-                      uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
+              vb->continueRangeScan(*cookie, continueParams));
 
     // Scan only read 2 of the possible keys
     if (isKeyOnly()) {
@@ -945,15 +946,16 @@ TEST_P(RangeScanTest, future_seqno_fails) {
     // This error is detected on first invocation, no need for ewouldblock
     // this seqno check occurs in EPBucket, so don't test via VBucket
     EXPECT_EQ(cb::engine_errc::temporary_failure,
-              store->createRangeScan(vbid,
-                                     scanCollection,
-                                     {"user"},
-                                     {"user\xFF"},
+              store->createRangeScan(*cookie,
                                      std::move(handler),
-                                     *cookie,
-                                     getScanType(),
-                                     reqs,
-                                     {/* no sampling config*/})
+                                     cb::rangescan::CreateParameters{
+                                             vbid,
+                                             scanCollection,
+                                             {"user"},
+                                             {"user\xFF"},
+                                             getScanType(),
+                                             reqs,
+                                             {/* no sampling config*/}})
                       .first);
 }
 
@@ -964,15 +966,16 @@ TEST_P(RangeScanTest, vb_uuid_check) {
     // This error is detected on first invocation, no need for ewouldblock
     // uuid check occurs in EPBucket, so don't test via VBucket
     EXPECT_EQ(cb::engine_errc::vbuuid_not_equal,
-              store->createRangeScan(vbid,
-                                     scanCollection,
-                                     {"user"},
-                                     {"user\xFF"},
+              store->createRangeScan(*cookie,
                                      std::move(handler),
-                                     *cookie,
-                                     getScanType(),
-                                     reqs,
-                                     {/* no sampling config*/})
+                                     cb::rangescan::CreateParameters{
+                                             vbid,
+                                             scanCollection,
+                                             {"user"},
+                                             {"user\xFF"},
+                                             getScanType(),
+                                             reqs,
+                                             {/* no sampling config*/}})
                       .first);
 }
 
@@ -986,10 +989,10 @@ TEST_P(RangeScanTest, random_sample_less_keys_than_samples) {
                            {/* no snapshot requirements */},
                            cb::rangescan::SamplingConfiguration{sampleSize, 0});
     auto vb = store->getVBucket(vbid);
-
+    auto continueParams = cb::rangescan::ContinueParameters{
+            vbid, uuid, 0, std::chrono::milliseconds(0), 0};
     EXPECT_EQ(cb::engine_errc::would_block,
-              vb->continueRangeScan(
-                      uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
+              vb->continueRangeScan(*cookie, continueParams));
 
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
                 "RangeScanContinueTask");
@@ -1013,10 +1016,10 @@ TEST_P(RangeScanTest, random_sample_return_more_keys_than_samples) {
                            {/* no snapshot requirements */},
                            cb::rangescan::SamplingConfiguration{sampleSize, 0});
     auto vb = store->getVBucket(vbid);
-
+    auto continueParams = cb::rangescan::ContinueParameters{
+            vbid, uuid, 0, std::chrono::milliseconds(0), 0};
     EXPECT_EQ(cb::engine_errc::would_block,
-              vb->continueRangeScan(
-                      uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
+              vb->continueRangeScan(*cookie, continueParams));
 
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
                 "RangeScanContinueTask");
@@ -1039,10 +1042,10 @@ TEST_P(RangeScanTest, random_sample_keys_equal_samples) {
                            {/* no snapshot requirements */},
                            cb::rangescan::SamplingConfiguration{sampleSize, 0});
     auto vb = store->getVBucket(vbid);
-
+    auto continueParams = cb::rangescan::ContinueParameters{
+            vbid, uuid, 0, std::chrono::milliseconds(0), 0};
     EXPECT_EQ(cb::engine_errc::would_block,
-              vb->continueRangeScan(
-                      uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
+              vb->continueRangeScan(*cookie, continueParams));
 
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
                 "RangeScanContinueTask");
@@ -1075,9 +1078,10 @@ TEST_P(RangeScanTest, random_sample) {
     // sampleSize. This loop also runs the scan one extra time to ensure we
     // enter the continue code with the isTotalLimitReached() condition true
     for (size_t ii = 0; ii <= sampleSize; ii++) {
+        auto continueParams = cb::rangescan::ContinueParameters{
+                vbid, uuid, 1, std::chrono::milliseconds(0), 0};
         EXPECT_EQ(cb::engine_errc::would_block,
-                  vb->continueRangeScan(
-                          uuid, *cookie, 1, std::chrono::milliseconds(0), 0));
+                  vb->continueRangeScan(*cookie, continueParams));
 
         runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
                     "RangeScanContinueTask");
@@ -1109,9 +1113,10 @@ TEST_P(RangeScanTest, random_sample_with_limit_1) {
     // 1 key returned per continue (limit=1)
     // + 1 extra continue will bring it to 'self cancel'
     for (size_t ii = 0; ii < sampleSize; ii++) {
+        auto continueParams = cb::rangescan::ContinueParameters{
+                vbid, uuid, 1, std::chrono::milliseconds(0), 0};
         EXPECT_EQ(cb::engine_errc::would_block,
-                  vb->continueRangeScan(
-                          uuid, *cookie, 1, std::chrono::milliseconds(0), 0));
+                  vb->continueRangeScan(*cookie, continueParams));
 
         runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
                     "RangeScanContinueTask");
@@ -1127,44 +1132,47 @@ TEST_P(RangeScanTest, random_sample_with_limit_1) {
 
 TEST_P(RangeScanTest, not_my_vbucket) {
     EXPECT_EQ(cb::engine_errc::not_my_vbucket,
-              store->createRangeScan(Vbid(4),
-                                     scanCollection,
-                                     {"\0", 1},
-                                     {"\xFF"},
-                                     std::move(handler),
-                                     *cookie,
-                                     getScanType(),
-                                     {},
-                                     {})
+              store->createRangeScan(
+                           *cookie,
+                           std::move(handler),
+                           cb::rangescan::CreateParameters{Vbid(4),
+                                                           scanCollection,
+                                                           {"\0", 1},
+                                                           {"\xFF"},
+                                                           getScanType(),
+                                                           {},
+                                                           {}})
                       .first);
 }
 
 TEST_P(RangeScanTest, unknown_collection) {
     EXPECT_EQ(cb::engine_errc::unknown_collection,
-              store->createRangeScan(vbid,
-                                     CollectionEntry::meat.getId(),
-                                     {"\0", 1},
-                                     {"\xFF"},
+              store->createRangeScan(*cookie,
                                      std::move(handler),
-                                     *cookie,
-                                     getScanType(),
-                                     {},
-                                     {})
+                                     cb::rangescan::CreateParameters{
+                                             vbid,
+                                             CollectionEntry::meat.getId(),
+                                             {"\0", 1},
+                                             {"\xFF"},
+                                             getScanType(),
+                                             {},
+                                             {}})
                       .first);
 }
 
 // Test that the collection going away after part 1 of create, cleans up
 TEST_P(RangeScanTest, scan_cancels_after_create) {
     EXPECT_EQ(cb::engine_errc::would_block,
-              store->createRangeScan(vbid,
-                                     scanCollection,
-                                     {"user"},
-                                     {"user\xFF"},
-                                     std::move(handler),
-                                     *cookie,
-                                     getScanType(),
-                                     {},
-                                     {})
+              store->createRangeScan(
+                           *cookie,
+                           std::move(handler),
+                           cb::rangescan::CreateParameters{vbid,
+                                                           scanCollection,
+                                                           {"user"},
+                                                           {"user\xFF"},
+                                                           getScanType(),
+                                                           {},
+                                                           {}})
                       .first);
     // Now run via auxio task
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
@@ -1179,15 +1187,16 @@ TEST_P(RangeScanTest, scan_cancels_after_create) {
 
     // Second part of create runs and fails
     EXPECT_EQ(cb::engine_errc::unknown_collection,
-              store->createRangeScan(vbid,
-                                     scanCollection,
-                                     {"user"},
-                                     {"user\xFF"},
-                                     std::move(handler),
-                                     *cookie,
-                                     getScanType(),
-                                     {},
-                                     {})
+              store->createRangeScan(
+                           *cookie,
+                           nullptr,
+                           cb::rangescan::CreateParameters{vbid,
+                                                           scanCollection,
+                                                           {"user"},
+                                                           {"user\xFF"},
+                                                           getScanType(),
+                                                           {},
+                                                           {}})
                       .first);
     destroy_mock_cookie(cookie2);
 
@@ -1209,15 +1218,16 @@ TEST_P(RangeScanTest, scan_detects_vbucket_change) {
     vb.reset();
 
     EXPECT_EQ(cb::engine_errc::would_block,
-              store->createRangeScan(vbid,
-                                     scanCollection,
-                                     {"user"},
-                                     {"user\xFF"},
-                                     std::move(handler),
-                                     *cookie,
-                                     getScanType(),
-                                     reqs,
-                                     {})
+              store->createRangeScan(
+                           *cookie,
+                           std::move(handler),
+                           cb::rangescan::CreateParameters{vbid,
+                                                           scanCollection,
+                                                           {"user"},
+                                                           {"user\xFF"},
+                                                           getScanType(),
+                                                           reqs,
+                                                           {}})
                       .first);
 
     // destroy and create the vbucket - a new uuid will be created
@@ -1245,15 +1255,16 @@ TEST_P(RangeScanTest, create_on_replica) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
     // create only allowed on active
     EXPECT_EQ(cb::engine_errc::not_my_vbucket,
-              store->createRangeScan(vbid,
-                                     scanCollection,
-                                     {"user"},
-                                     {"user\xFF"},
-                                     std::move(handler),
-                                     *cookie,
-                                     getScanType(),
-                                     {},
-                                     {})
+              store->createRangeScan(
+                           *cookie,
+                           std::move(handler),
+                           cb::rangescan::CreateParameters{vbid,
+                                                           scanCollection,
+                                                           {"user"},
+                                                           {"user\xFF"},
+                                                           getScanType(),
+                                                           {},
+                                                           {}})
                       .first);
 }
 
@@ -1272,9 +1283,10 @@ TEST_P(RangeScanTest, scan_detects_vbucket_change_during_continue) {
                            {/* no sampling*/});
 
     // Continue
+    auto continueParams = cb::rangescan::ContinueParameters{
+            vbid, uuid, 0, std::chrono::milliseconds(0), 0};
     EXPECT_EQ(cb::engine_errc::would_block,
-              store->continueRangeScan(
-                      vbid, uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
+              store->continueRangeScan(*cookie, continueParams));
 
     // destroy and create the vbucket - a new uuid will be created
     EXPECT_TRUE(store->resetVBucket(vbid));
@@ -1299,8 +1311,7 @@ TEST_P(RangeScanTest, scan_detects_vbucket_change_during_continue) {
 
     // scan has gone now
     EXPECT_EQ(cb::engine_errc::no_such_key,
-              store->continueRangeScan(
-                      vbid, uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
+              store->continueRangeScan(*cookie, continueParams));
 }
 
 TEST_P(RangeScanTest, wait_for_persistence_success) {
@@ -1313,15 +1324,16 @@ TEST_P(RangeScanTest, wait_for_persistence_success) {
                                              false};
 
     EXPECT_EQ(cb::engine_errc::would_block,
-              store->createRangeScan(vbid,
-                                     scanCollection,
-                                     {"user"},
-                                     {"user\xFF"},
-                                     nullptr,
-                                     *cookie,
-                                     getScanType(),
-                                     reqs,
-                                     {})
+              store->createRangeScan(
+                           *cookie,
+                           nullptr,
+                           cb::rangescan::CreateParameters{vbid,
+                                                           scanCollection,
+                                                           {"user"},
+                                                           {"user\xFF"},
+                                                           getScanType(),
+                                                           reqs,
+                                                           {}})
                       .first);
 
     // store our item and flush (so the waitForPersistence is notified)
@@ -1356,15 +1368,16 @@ TEST_P(RangeScanTest, wait_for_persistence_fails) {
                                              false};
 
     EXPECT_EQ(cb::engine_errc::temporary_failure,
-              store->createRangeScan(vbid,
-                                     scanCollection,
-                                     {"user"},
-                                     {"user\xFF"},
-                                     std::move(handler),
-                                     *cookie,
-                                     getScanType(),
-                                     reqs,
-                                     {})
+              store->createRangeScan(
+                           *cookie,
+                           std::move(handler),
+                           cb::rangescan::CreateParameters{vbid,
+                                                           scanCollection,
+                                                           {"user"},
+                                                           {"user\xFF"},
+                                                           getScanType(),
+                                                           reqs,
+                                                           {}})
                       .first);
 }
 
@@ -1379,15 +1392,16 @@ TEST_P(RangeScanTest, wait_for_persistence_timeout) {
                                              false};
 
     EXPECT_EQ(cb::engine_errc::would_block,
-              store->createRangeScan(vbid,
-                                     scanCollection,
-                                     {"user"},
-                                     {"user\xFF"},
-                                     std::move(handler),
-                                     *cookie,
-                                     getScanType(),
-                                     reqs,
-                                     {})
+              store->createRangeScan(
+                           *cookie,
+                           std::move(handler),
+                           cb::rangescan::CreateParameters{vbid,
+                                                           scanCollection,
+                                                           {"user"},
+                                                           {"user\xFF"},
+                                                           getScanType(),
+                                                           reqs,
+                                                           {}})
                       .first);
 
     // store an item and flush (so the waitForPersistence is notified and
@@ -1404,9 +1418,10 @@ TEST_P(RangeScanTest, cancel_when_yielding) {
     auto vb = store->getVBucket(vbid);
 
     // Scan with a limit so we enter the yield path
+    auto continueParams = cb::rangescan::ContinueParameters{
+            vbid, uuid, 1, std::chrono::milliseconds(0), 0};
     EXPECT_EQ(cb::engine_errc::would_block,
-              vb->continueRangeScan(
-                      uuid, *cookie, 1, std::chrono::milliseconds(0), 0));
+              vb->continueRangeScan(*cookie, continueParams));
 
     // Set a hook which will cancel when the first key is read and the scan
     // would yield
@@ -1492,13 +1507,10 @@ RangeScanTest::setupConcurrencyMaxxed() {
     }
 
     for (const auto& scan : scans) {
+        auto continueParams = cb::rangescan::ContinueParameters{
+                vbid, scan.first, 0, std::chrono::milliseconds(0), 0};
         EXPECT_EQ(cb::engine_errc::would_block,
-                  store->continueRangeScan(vbid,
-                                           scan.first,
-                                           *scan.second,
-                                           0,
-                                           std::chrono::milliseconds(0),
-                                           0));
+                  store->continueRangeScan(*scan.second, continueParams));
     }
     // Check only AUXIO - 1 tasks were scheduled to handle the scans
     auto& q = task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
@@ -1620,10 +1632,10 @@ TEST_P(RangeScanTest, dropped_collection_for_continue) {
     setCollections(cookie, cm);
 
     // Continue spots the collection has gone and fails the request
-    EXPECT_EQ(
-            cb::engine_errc::unknown_collection,
-            store->continueRangeScan(
-                    vbid, uuid1, *cookie, 0, std::chrono::milliseconds(0), 0));
+    auto continueParams = cb::rangescan::ContinueParameters{
+            vbid, uuid1, 0, std::chrono::milliseconds(0), 0};
+    EXPECT_EQ(cb::engine_errc::unknown_collection,
+              store->continueRangeScan(*cookie, continueParams));
 
     // Scan was removed from the vbucket
     EXPECT_EQ(cb::engine_errc::no_such_key,
@@ -1654,10 +1666,10 @@ TEST_P(RangeScanTest, lose_access_to_scan) {
                            {/* no sampling*/});
 
     setNoAccess(scanCollection);
-
+    auto continueParams = cb::rangescan::ContinueParameters{
+            vbid, uuid, 0, std::chrono::milliseconds(0), 0};
     EXPECT_EQ(cb::engine_errc::no_access,
-              store->continueRangeScan(
-                      vbid, uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
+              store->continueRangeScan(*cookie, continueParams));
 
     EXPECT_EQ(cb::engine_errc::no_access,
               store->cancelRangeScan(vbid, uuid, *cookie));
@@ -1670,8 +1682,7 @@ TEST_P(RangeScanTest, lose_access_to_scan) {
     MockCookie::setCheckPrivilegeFunction({});
     mock_set_privilege_context_revision(2);
     EXPECT_EQ(cb::engine_errc::would_block,
-              store->continueRangeScan(
-                      vbid, uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
+              store->continueRangeScan(*cookie, continueParams));
 
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
                 "RangeScanContinueTask");
@@ -1697,10 +1708,10 @@ TEST_P(RangeScanTest, cancel_scan_due_to_time_limit) {
     auto& epVb = dynamic_cast<EPVBucket&>(*vb);
     EXPECT_FALSE(epVb.cancelRangeScansExceedingDuration(std::chrono::seconds(0))
                          .has_value());
-
+    auto continueParams = cb::rangescan::ContinueParameters{
+            vbid, uuid, 0, std::chrono::milliseconds(0), 0};
     EXPECT_EQ(cb::engine_errc::no_such_key,
-              store->continueRangeScan(
-                      vbid, uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
+              store->continueRangeScan(*cookie, continueParams));
 
     // scan cancels and cleans-up
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
@@ -1744,15 +1755,16 @@ TEST_P(RangeScanTest, cancel_scans_due_to_time_limit) {
             epVb.cancelRangeScansExceedingDuration(std::chrono::seconds(5));
     ASSERT_TRUE(duration.has_value());
     EXPECT_EQ(std::chrono::seconds(5), duration.value());
-    EXPECT_EQ(
-            cb::engine_errc::no_such_key,
-            store->continueRangeScan(
-                    vbid, uuid1, *cookie, 0, std::chrono::milliseconds(0), 0));
+    auto continueParams = cb::rangescan::ContinueParameters{
+            vbid, uuid1, 0, std::chrono::milliseconds(0), 0};
+    EXPECT_EQ(cb::engine_errc::no_such_key,
+              store->continueRangeScan(*cookie, continueParams));
+
     // Can start uuid2
-    EXPECT_EQ(
-            cb::engine_errc::would_block,
-            store->continueRangeScan(
-                    vbid, uuid2, *cookie, 0, std::chrono::milliseconds(0), 0));
+    auto continueParams2 = cb::rangescan::ContinueParameters{
+            vbid, uuid2, 0, std::chrono::milliseconds(0), 0};
+    EXPECT_EQ(cb::engine_errc::would_block,
+              store->continueRangeScan(*cookie, continueParams2));
 
     // Let's cancel whilst uuid2 is queued
     tick = std::chrono::seconds(5);
@@ -2113,9 +2125,10 @@ TEST_P(RangeScanTestSimple, DisconnectCancels) {
                            {/* no sampling*/},
                            cb::engine_errc::success);
 
+    auto continueParams = cb::rangescan::ContinueParameters{
+            vbid, uuid, 0, std::chrono::milliseconds(0), 0};
     EXPECT_EQ(cb::engine_errc::would_block,
-              store->continueRangeScan(
-                      vbid, uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
+              store->continueRangeScan(*cookie, continueParams));
 
     EXPECT_NE(cb::engine_errc::range_scan_cancelled, status);
 
@@ -2130,8 +2143,7 @@ TEST_P(RangeScanTestSimple, DisconnectCancels) {
 
     // Confirm the scan has been removed
     EXPECT_EQ(cb::engine_errc::no_such_key,
-              store->continueRangeScan(
-                      vbid, uuid, *cookie, 0, std::chrono::milliseconds(0), 0));
+              store->continueRangeScan(*cookie, continueParams));
 }
 
 auto valueScanConfig =

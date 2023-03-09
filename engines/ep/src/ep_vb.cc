@@ -1238,14 +1238,9 @@ std::unique_ptr<KVStoreRevision> EPVBucket::takeDeferredDeletionFileRevision() {
 }
 
 std::pair<cb::engine_errc, cb::rangescan::Id> EPVBucket::createRangeScan(
-        CollectionID cid,
-        cb::rangescan::KeyView start,
-        cb::rangescan::KeyView end,
-        std::unique_ptr<RangeScanDataHandlerIFace> handler,
         CookieIface& cookie,
-        cb::rangescan::KeyOnly keyOnly,
-        std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
-        std::optional<cb::rangescan::SamplingConfiguration> samplingConfig) {
+        std::unique_ptr<RangeScanDataHandlerIFace> handler,
+        const cb::rangescan::CreateParameters& params) {
     // Obtain the engine specific, which will be null (new create) or a pointer
     // to RangeScanCreateData (I/O complete path of create)
     std::unique_ptr<RangeScanCreateData> rangeScanCreateData(
@@ -1273,10 +1268,11 @@ std::pair<cb::engine_errc, cb::rangescan::Id> EPVBucket::createRangeScan(
 
     // Check for seqno persistence and the state. If the create is pending
     // and the seqno is not persisted, wait if there's a timeout, else fail
-    if (snapshotReqs && getPersistenceSeqno() < snapshotReqs->seqno &&
+    if (params.snapshotReqs &&
+        getPersistenceSeqno() < params.snapshotReqs->seqno &&
         rangeScanCreateData->state == RangeScanCreateState::Pending) {
-        if (snapshotReqs->timeout) {
-            auto status = createRangeScanWait(*snapshotReqs, cookie);
+        if (params.snapshotReqs->timeout) {
+            auto status = createRangeScanWait(*params.snapshotReqs, cookie);
             Expects(status != HighPriorityVBReqStatus::NotSupported);
             if (status == HighPriorityVBReqStatus::RequestScheduled) {
                 rangeScanCreateData->state =
@@ -1300,22 +1296,17 @@ std::pair<cb::engine_errc, cb::rangescan::Id> EPVBucket::createRangeScan(
     // If no handler has been given, create one.
     if (!handler) {
         handler = std::make_unique<RangeScanDataHandler>(
-                bucket->getEPEngine(), keyOnly == cb::rangescan::KeyOnly::Yes);
+                bucket->getEPEngine(),
+                params.keyOnly == cb::rangescan::KeyOnly::Yes);
     }
 
     // Create a task and give it the RangeScanCreateData, on failure the task
     // will destruct the data
     ExecutorPool::get()->schedule(std::make_shared<RangeScanCreateTask>(
             dynamic_cast<EPBucket&>(*bucket),
-            getId(),
-            cid,
-            start,
-            end,
-            std::move(handler),
             cookie,
-            keyOnly,
-            snapshotReqs,
-            samplingConfig,
+            std::move(handler),
+            params,
             std::move(rangeScanCreateData)));
     return {cb::engine_errc::would_block, {}};
 }
@@ -1406,14 +1397,11 @@ cb::engine_errc EPVBucket::setupCookieForRangeScan(cb::rangescan::Id id,
 }
 
 cb::engine_errc EPVBucket::continueRangeScan(
-        cb::rangescan::Id id,
-        CookieIface& cookie,
-        size_t itemLimit,
-        std::chrono::milliseconds timeLimit,
-        size_t byteLimit) {
-    auto status = setupCookieForRangeScan(id, cookie);
+        CookieIface& cookie, const cb::rangescan::ContinueParameters& params) {
+    auto status = setupCookieForRangeScan(params.uuid, cookie);
     if (status == cb::engine_errc::success) {
-        status = rangeScans.hasPrivilege(id, cookie, bucket->getEPEngine());
+        status = rangeScans.hasPrivilege(
+                params.uuid, cookie, bucket->getEPEngine());
     }
 
     if (status != cb::engine_errc::success) {
@@ -1425,20 +1413,17 @@ cb::engine_errc EPVBucket::continueRangeScan(
                     "EPVBucket::continueRangeScan {} {} cancelling for a "
                     "dropped collection",
                     getId(),
-                    id);
+                    params.uuid);
             // cancel the scan (and request an I/O task to cancel)
-            rangeScans.cancelScan(dynamic_cast<EPBucket&>(*bucket), id, true);
+            rangeScans.cancelScan(
+                    dynamic_cast<EPBucket&>(*bucket), params.uuid, true);
         }
 
         return status;
     }
 
-    status = rangeScans.continueScan(dynamic_cast<EPBucket&>(*bucket),
-                                     id,
-                                     cookie,
-                                     itemLimit,
-                                     timeLimit,
-                                     byteLimit);
+    status = rangeScans.continueScan(
+            dynamic_cast<EPBucket&>(*bucket), cookie, params);
     if (status != cb::engine_errc::success) {
         return status;
     }

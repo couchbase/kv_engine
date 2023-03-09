@@ -10,6 +10,12 @@
 
 #pragma once
 
+#include <memcached/dockey.h>
+#include <memcached/range_scan_id.h>
+#include <memcached/range_scan_optional_configuration.h>
+#include <memcached/vbucket.h>
+
+#include <chrono>
 #include <string>
 
 namespace cb::rangescan {
@@ -53,6 +59,79 @@ public:
 private:
     std::string_view key;
     KeyType type{KeyType::Inclusive};
+};
+
+struct CreateParameters {
+    CreateParameters(Vbid vbid,
+                     CollectionID cid,
+                     KeyView start,
+                     KeyView end,
+                     KeyOnly keyOnly,
+                     std::optional<SnapshotRequirements> snapshotReqs,
+                     std::optional<SamplingConfiguration> samplingConfig)
+        : vbid(vbid),
+          cid(cid),
+          start(start),
+          end(end),
+          keyOnly(keyOnly),
+          snapshotReqs(snapshotReqs),
+          samplingConfig(samplingConfig) {
+    }
+
+    /// The vbucket the scan is associated with
+    Vbid vbid{0};
+
+    /// The collection to scan
+    CollectionID cid;
+
+    /// scan start
+    KeyView start;
+
+    /// scan end
+    KeyView end;
+
+    /// key or value configuration
+    KeyOnly keyOnly{KeyOnly::Yes};
+
+    /// optional snapshot requirements
+    std::optional<SnapshotRequirements> snapshotReqs;
+
+    /// optional sampling configuration
+    std::optional<SamplingConfiguration> samplingConfig;
+};
+
+/// All of the parameters required to continue a RangeScan included any I/O
+/// complete phase of a request.
+struct ContinueParameters {
+    ContinueParameters(Vbid vbid,
+                       Id uuid,
+                       size_t itemLimit,
+                       std::chrono::milliseconds timeLimit,
+                       size_t byteLimit)
+        : vbid(vbid),
+          uuid(uuid),
+          itemLimit(itemLimit),
+          timeLimit(timeLimit),
+          byteLimit(byteLimit) {
+    }
+
+    /// The vbucket the scan is associated with
+    Vbid vbid{0};
+
+    /// The identifier of the scan to continue
+    Id uuid;
+
+    /// The maximum number of items the continue can return, 0 means no limit
+    /// enforced
+    size_t itemLimit{0};
+
+    /// The maximum duration the continue can return, 0 means no limit enforced
+    std::chrono::milliseconds timeLimit;
+
+    /// When the number of bytes included in the scan exceeds this value, the
+    /// continue is complete. This is not an absolute limit, but a trigger.
+    /// A value of 0 disables this trigger.
+    size_t byteLimit{0};
 };
 
 } // namespace cb::rangescan

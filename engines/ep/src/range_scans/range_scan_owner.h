@@ -152,22 +152,14 @@ public:
      * Scan already continued -> cb::engine_errc::too_busy
      *
      * @param bucket The bucket of the scan
-     * @param id of the scan to continue
      * @param cookie client cookie requesting the continue
-     * @param itemLimit limit for the items that can be read in this continue
-     * @param timeLimit an optional limit for how long the scan can run for, 0
-     *        for no limit.
-     * @param byteLimit A trip wire value, when the number of bytes included in
-     *        the scan exceeds this value, the continue is complete.
-     *        Value of 0 disables this trigger.
+     * @param params bundled continue parameters
      * @return success or other status (see above)
      */
-    cb::engine_errc continueScan(EPBucket& bucket,
-                                 cb::rangescan::Id id,
-                                 CookieIface& cookie,
-                                 size_t itemLimit,
-                                 std::chrono::milliseconds timeLimit,
-                                 size_t byteLimit);
+    cb::engine_errc continueScan(
+            EPBucket& bucket,
+            CookieIface& cookie,
+            const cb::rangescan::ContinueParameters& params);
 
     /**
      * Handler for a range-scan-cancel operation or a force cancel due to some

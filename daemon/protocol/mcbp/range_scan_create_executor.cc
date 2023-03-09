@@ -183,13 +183,14 @@ static std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScan(
         samplingConfig = getSamplingConfig(samplingConfigJSON.value());
     }
     return createRangeScan(cookie,
-                           req.getVBucket(),
-                           getCollectionID(parsed),
-                           cb::rangescan::KeyView{start, startType},
-                           cb::rangescan::KeyView{end, endType},
-                           getKeyOnly(parsed),
-                           snapshotReqs,
-                           samplingConfig);
+                           cb::rangescan::CreateParameters{
+                                   req.getVBucket(),
+                                   getCollectionID(parsed),
+                                   cb::rangescan::KeyView{start, startType},
+                                   cb::rangescan::KeyView{end, endType},
+                                   getKeyOnly(parsed),
+                                   snapshotReqs,
+                                   samplingConfig});
 }
 
 void range_scan_create_executor(Cookie& cookie) {

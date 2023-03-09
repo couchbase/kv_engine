@@ -1109,22 +1109,14 @@ void EphemeralVBucket::doCollectionsStats(
 }
 
 std::pair<cb::engine_errc, cb::rangescan::Id> EphemeralVBucket::createRangeScan(
-        CollectionID,
-        cb::rangescan::KeyView,
-        cb::rangescan::KeyView,
-        std::unique_ptr<RangeScanDataHandlerIFace>,
         CookieIface&,
-        cb::rangescan::KeyOnly,
-        std::optional<cb::rangescan::SnapshotRequirements>,
-        std::optional<cb::rangescan::SamplingConfiguration>) {
+        std::unique_ptr<RangeScanDataHandlerIFace>,
+        const cb::rangescan::CreateParameters&) {
     return {cb::engine_errc::not_supported, {}};
 }
 
-cb::engine_errc EphemeralVBucket::continueRangeScan(cb::rangescan::Id,
-                                                    CookieIface&,
-                                                    size_t,
-                                                    std::chrono::milliseconds,
-                                                    size_t) {
+cb::engine_errc EphemeralVBucket::continueRangeScan(
+        CookieIface&, const cb::rangescan::ContinueParameters&) {
     return cb::engine_errc::not_supported;
 }
 

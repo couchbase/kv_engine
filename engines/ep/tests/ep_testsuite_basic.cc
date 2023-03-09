@@ -2224,13 +2224,14 @@ static enum test_result test_range_scan_no_cancel(EngineIface* h) {
     // Create a scan and do nothing - it should not block shutdown
     checkeq(cb::engine_errc::success,
             h->createRangeScan(*cookie,
-                               Vbid(0),
-                               CollectionID::Default,
-                               {"a"},
-                               {"z"},
-                               cb::rangescan::KeyOnly::Yes,
-                               {},
-                               {})
+                               cb::rangescan::CreateParameters{
+                                       Vbid(0),
+                                       CollectionID::Default,
+                                       {"a"},
+                                       {"z"},
+                                       cb::rangescan::KeyOnly::Yes,
+                                       {},
+                                       {}})
                     .first,
             "createRangeScan failed");
 

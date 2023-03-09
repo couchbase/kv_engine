@@ -30,11 +30,12 @@ void range_scan_continue_executor(Cookie& cookie) {
 
         status = continueRangeScan(
                 cookie,
-                req.getVBucket(),
-                payload.getId(),
-                payload.getItemLimit(),
-                std::chrono::milliseconds(payload.getTimeLimit()),
-                payload.getByteLimit());
+                cb::rangescan::ContinueParameters{
+                        req.getVBucket(),
+                        payload.getId(),
+                        payload.getItemLimit(),
+                        std::chrono::milliseconds(payload.getTimeLimit()),
+                        payload.getByteLimit()});
     }
 
     switch (cb::rangescan::getContinueHandlingStatus(status)) {

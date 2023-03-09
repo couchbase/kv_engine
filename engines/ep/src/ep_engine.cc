@@ -6840,35 +6840,17 @@ cb::engine_errc EventuallyPersistentEngine::deleteVBucket(CookieIface& cookie,
 
 std::pair<cb::engine_errc, cb::rangescan::Id>
 EventuallyPersistentEngine::createRangeScan(
-        CookieIface& cookie,
-        Vbid vbid,
-        CollectionID cid,
-        cb::rangescan::KeyView start,
-        cb::rangescan::KeyView end,
-        cb::rangescan::KeyOnly keyOnly,
-        std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
-        std::optional<cb::rangescan::SamplingConfiguration> samplingConfig) {
+        CookieIface& cookie, const cb::rangescan::CreateParameters& params) {
     return acquireEngine(this)->getKVBucket()->createRangeScan(
-            vbid,
-            cid,
-            start,
-            end,
-            nullptr, // No RangeScanDataHandler to 'inject'
             cookie,
-            keyOnly,
-            snapshotReqs,
-            samplingConfig);
+            nullptr, // No RangeScanDataHandler to 'inject'
+            params);
 }
 
 cb::engine_errc EventuallyPersistentEngine::continueRangeScan(
-        CookieIface& cookie,
-        Vbid vbid,
-        cb::rangescan::Id uuid,
-        size_t itemLimit,
-        std::chrono::milliseconds timeLimit,
-        size_t byteLimit) {
-    return acquireEngine(this)->getKVBucket()->continueRangeScan(
-            vbid, uuid, cookie, itemLimit, timeLimit, byteLimit);
+        CookieIface& cookie, const cb::rangescan::ContinueParameters& params) {
+    return acquireEngine(this)->getKVBucket()->continueRangeScan(cookie,
+                                                                 params);
 }
 
 cb::engine_errc EventuallyPersistentEngine::cancelRangeScan(

@@ -31,24 +31,12 @@ cb::EngineErrorGetCollectionMetaResult EngineIface::get_collection_meta(
 }
 
 std::pair<cb::engine_errc, cb::rangescan::Id> EngineIface::createRangeScan(
-        CookieIface& cookie,
-        Vbid vbid,
-        CollectionID cid,
-        cb::rangescan::KeyView start,
-        cb::rangescan::KeyView end,
-        cb::rangescan::KeyOnly keyOnly,
-        std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
-        std::optional<cb::rangescan::SamplingConfiguration> samplingConfig) {
+        CookieIface& cookie, const cb::rangescan::CreateParameters& params) {
     return {cb::engine_errc::not_supported, {}};
 }
 
 cb::engine_errc EngineIface::continueRangeScan(
-        CookieIface& cookie,
-        Vbid vbid,
-        cb::rangescan::Id uuid,
-        size_t itemLimit,
-        std::chrono::milliseconds timeLimit,
-        size_t byteLimit) {
+        CookieIface& cookie, const cb::rangescan::ContinueParameters& params) {
     return cb::engine_errc::not_supported;
 }
 

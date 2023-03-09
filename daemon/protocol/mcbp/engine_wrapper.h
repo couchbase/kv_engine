@@ -509,21 +509,10 @@ cb::engine_errc dcpAbort(Cookie& cookie,
                          uint64_t abort_seqno);
 
 std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScan(
-        Cookie& cookie,
-        Vbid vbid,
-        CollectionID cid,
-        cb::rangescan::KeyView start,
-        cb::rangescan::KeyView end,
-        cb::rangescan::KeyOnly keyOnly,
-        std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
-        std::optional<cb::rangescan::SamplingConfiguration> samplingConfig);
+        Cookie& cookie, const cb::rangescan::CreateParameters& params);
 
-cb::engine_errc continueRangeScan(Cookie& cookie,
-                                  Vbid vbid,
-                                  cb::rangescan::Id uuid,
-                                  size_t itemLimit,
-                                  std::chrono::milliseconds timeLimit,
-                                  size_t byteLimit);
+cb::engine_errc continueRangeScan(
+        Cookie& cookie, const cb::rangescan::ContinueParameters& params);
 
 cb::engine_errc cancelRangeScan(Cookie& cookie,
                                 Vbid vbid,

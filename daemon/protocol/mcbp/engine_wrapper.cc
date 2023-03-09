@@ -1026,23 +1026,9 @@ cb::engine_errc dcpAbort(Cookie& cookie,
 }
 
 std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScan(
-        Cookie& cookie,
-        Vbid vbid,
-        CollectionID cid,
-        cb::rangescan::KeyView start,
-        cb::rangescan::KeyView end,
-        cb::rangescan::KeyOnly keyOnly,
-        std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
-        std::optional<cb::rangescan::SamplingConfiguration> samplingConfig) {
+        Cookie& cookie, const cb::rangescan::CreateParameters& params) {
     auto& c = cookie.getConnection();
-    auto ret = c.getBucketEngine().createRangeScan(cookie,
-                                                   vbid,
-                                                   cid,
-                                                   start,
-                                                   end,
-                                                   keyOnly,
-                                                   snapshotReqs,
-                                                   samplingConfig);
+    auto ret = c.getBucketEngine().createRangeScan(cookie, params);
 
     if (ret.first == cb::engine_errc::disconnect) {
         LOG_WARNING("{}: {} createRangeScan return cb::engine_errc::disconnect",
@@ -1053,15 +1039,10 @@ std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScan(
     return ret;
 }
 
-cb::engine_errc continueRangeScan(Cookie& cookie,
-                                  Vbid vbid,
-                                  cb::rangescan::Id uuid,
-                                  size_t itemLimit,
-                                  std::chrono::milliseconds timeLimit,
-                                  size_t byteLimit) {
+cb::engine_errc continueRangeScan(
+        Cookie& cookie, const cb::rangescan::ContinueParameters& params) {
     auto& c = cookie.getConnection();
-    auto ret = c.getBucketEngine().continueRangeScan(
-            cookie, vbid, uuid, itemLimit, timeLimit, byteLimit);
+    auto ret = c.getBucketEngine().continueRangeScan(cookie, params);
 
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING(

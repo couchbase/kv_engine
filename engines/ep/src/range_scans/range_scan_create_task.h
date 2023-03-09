@@ -29,18 +29,11 @@ class RangeScanDataHandlerIFace;
  */
 class RangeScanCreateTask : public GlobalTask {
 public:
-    RangeScanCreateTask(
-            EPBucket& bucket,
-            Vbid vbid,
-            CollectionID cid,
-            cb::rangescan::KeyView start,
-            cb::rangescan::KeyView end,
-            std::unique_ptr<RangeScanDataHandlerIFace> handler,
-            CookieIface& cookie,
-            cb::rangescan::KeyOnly keyOnly,
-            std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
-            std::optional<cb::rangescan::SamplingConfiguration> samplingConfig,
-            std::unique_ptr<RangeScanCreateData> scanData);
+    RangeScanCreateTask(EPBucket& bucket,
+                        CookieIface& cookie,
+                        std::unique_ptr<RangeScanDataHandlerIFace> handler,
+                        const cb::rangescan::CreateParameters& params,
+                        std::unique_ptr<RangeScanCreateData> scanData);
 
     bool run() override;
 

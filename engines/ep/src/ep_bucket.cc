@@ -2415,16 +2415,10 @@ std::shared_ptr<RangeScan> EPBucket::takeNextRangeScan(size_t taskId) {
 }
 
 std::pair<cb::engine_errc, cb::rangescan::Id> EPBucket::createRangeScan(
-        Vbid vbid,
-        CollectionID cid,
-        cb::rangescan::KeyView start,
-        cb::rangescan::KeyView end,
-        std::unique_ptr<RangeScanDataHandlerIFace> handler,
         CookieIface& cookie,
-        cb::rangescan::KeyOnly keyOnly,
-        std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
-        std::optional<cb::rangescan::SamplingConfiguration> samplingConfig) {
-    auto vb = getVBucket(vbid);
+        std::unique_ptr<RangeScanDataHandlerIFace> handler,
+        const cb::rangescan::CreateParameters& params) {
+    auto vb = getVBucket(params.vbid);
     if (!vb) {
         ++stats.numNotMyVBuckets;
         return {cb::engine_errc::not_my_vbucket, {}};
@@ -2437,18 +2431,18 @@ std::pair<cb::engine_errc, cb::rangescan::Id> EPBucket::createRangeScan(
     }
 
     // read lock on collections - the collection must exist to continue.
-    auto handle = vb->getManifest().lock(cid);
+    auto handle = vb->getManifest().lock(params.cid);
     cb::engine_errc status = cb::engine_errc::success;
     if (!handle.valid()) {
         engine.setUnknownCollectionErrorContext(cookie,
                                                 handle.getManifestUid());
 
         status = cb::engine_errc::unknown_collection;
-    } else if (snapshotReqs) {
-        if (vb->failovers->getLatestUUID() != snapshotReqs->vbUuid) {
+    } else if (params.snapshotReqs) {
+        if (vb->failovers->getLatestUUID() != params.snapshotReqs->vbUuid) {
             status = cb::engine_errc::vbuuid_not_equal;
-        } else if (vb->getPersistenceSeqno() < snapshotReqs->seqno &&
-                   !snapshotReqs->timeout) {
+        } else if (vb->getPersistenceSeqno() < params.snapshotReqs->seqno &&
+                   !params.snapshotReqs->timeout) {
             status = cb::engine_errc::temporary_failure;
         }
     }
@@ -2467,36 +2461,25 @@ std::pair<cb::engine_errc, cb::rangescan::Id> EPBucket::createRangeScan(
                     "{} createRangeScan failed to cancel for {} status:{} "
                     "checkStatus:{}",
                     vb,
-                    cid,
+                    params.cid,
                     status,
                     checkStatus);
         }
         return {status, {}};
     }
 
-    return vb->createRangeScan(cid,
-                               start,
-                               end,
-                               std::move(handler),
-                               cookie,
-                               keyOnly,
-                               snapshotReqs,
-                               samplingConfig);
+    return vb->createRangeScan(cookie, std::move(handler), params);
 }
 
-cb::engine_errc EPBucket::continueRangeScan(Vbid vbid,
-                                            cb::rangescan::Id uuid,
-                                            CookieIface& cookie,
-                                            size_t itemLimit,
-                                            std::chrono::milliseconds timeLimit,
-                                            size_t byteLimit) {
-    auto vb = getVBucket(vbid);
+cb::engine_errc EPBucket::continueRangeScan(
+        CookieIface& cookie, const cb::rangescan::ContinueParameters& params) {
+    auto vb = getVBucket(params.vbid);
     if (!vb) {
         ++stats.numNotMyVBuckets;
         return cb::engine_errc::not_my_vbucket;
     }
 
-    return vb->continueRangeScan(uuid, cookie, itemLimit, timeLimit, byteLimit);
+    return vb->continueRangeScan(cookie, params);
 }
 
 cb::engine_errc EPBucket::cancelRangeScan(Vbid vbid,
