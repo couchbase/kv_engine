@@ -230,8 +230,6 @@ void RangeScanCacheCallback::callback(CacheLookup& lookup) {
             // status is not visible to the client
             setStatus(cb::engine_errc::key_already_exists);
         }
-    } else if (gv.getStatus() == cb::engine_errc::unknown_collection) {
-        setScanErrorStatus(cb::engine_errc::unknown_collection);
     } else {
         // Didn't find a matching value in-memory, continue to disk read
         setStatus(cb::engine_errc::success);
