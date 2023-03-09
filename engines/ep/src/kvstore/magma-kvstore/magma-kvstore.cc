@@ -2332,7 +2332,7 @@ KVStoreIface::ReadVBStateStatus MagmaKVStore::loadVBStateCache(
     // is returned from readVBStateFromDisk) then just use a defaulted
     // vbucket_state (which defaults to the dead state).
     if (readState.status != ReadVBStateStatus::Success) {
-        logger->error(
+        logger->warn(
                 "MagmaKVStore::loadVBStateCache {} failed. Rev:{} "
                 "Status:{}",
                 vbid,
