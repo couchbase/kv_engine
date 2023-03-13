@@ -166,6 +166,10 @@ TEST_P(TuneMcbpSla, SlowCommandLogging) {
                 ASSERT_NE(std::string::npos, idx);
                 auto json = nlohmann::json::parse(entry.substr(idx));
                 if (json["command"].get<std::string>() == "COMPACT_DB") {
+                    auto cid = json["cid"].get<std::string>();
+                    auto index = cid.find("/");
+                    ASSERT_NE(std::string::npos, index);
+                    EXPECT_EQ("deadbeef", cid.substr(index + 1));
                     EXPECT_EQ("Success", json["response"].get<std::string>());
                     auto workerTid = json.find("worker_tid");
                     ASSERT_NE(workerTid, json.end());

@@ -388,7 +388,7 @@ void Cookie::maybeLogSlowCommand(
         nlohmann::json details = {{"cid",
                                    fmt::format("{}/{:x}",
                                                c.getConnectionId().data(),
-                                               ntohl(getHeader().getOpaque()))},
+                                               getHeader().getOpaque())},
                                   {"duration", cb::time2text(timings)},
                                   {"trace", tracer.to_string()},
                                   {"command", to_string(opcode)},
