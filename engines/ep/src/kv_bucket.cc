@@ -2610,6 +2610,14 @@ void KVBucket::runDefragmenterTask() {
     defragmenterTask->execute("");
 }
 
+std::chrono::milliseconds KVBucket::getDefragmenterTaskSleepTime() const {
+    if (!defragmenterTask) {
+        return {};
+    }
+
+    return std::static_pointer_cast<DefragmenterTask>(defragmenterTask)->getCurrentSleepTime();
+}
+
 void KVBucket::runItemFreqDecayerTask() {
     itemFreqDecayerTask->execute("");
 }
