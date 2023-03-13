@@ -431,7 +431,7 @@
             "type": "float"
         },
         "defragmenter_auto_pid_p" : {
-            "default": "0.3",
+            "default": "52",
             "descr": "The p term for the PID controller",
             "dynamic": true,
             "type": "float"
