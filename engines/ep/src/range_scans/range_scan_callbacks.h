@@ -24,6 +24,7 @@ class CookieIface;
 class EventuallyPersistentEngine;
 class EPBucket;
 class RangeScan;
+class RangeScanContinueResult;
 class StatCollector;
 class VBucket;
 
@@ -67,25 +68,47 @@ public:
     virtual Status handleItem(std::unique_ptr<Item> item) = 0;
 
     /**
-     * Callback method invoked by the frontend executor use when a continue
-     * request yielded but was not complete. This will result in an mcbp frame
-     * being passed to the cookie/client.
-     * @param cookie function calls sendResponse on this cookie
+     * Frontend executor thread will invoke this method after an IO complete
+     * wakeup. This is for when the I/O task yielded due to the internal buffer
+     * being full. The continue request is not finalised.
+     * @return RangeScanContinueResult which will own the buffer of data that
+     *         must be shipped to the client.
      */
-    virtual void sendContinueDone(CookieIface& cookie) = 0;
+    virtual std::unique_ptr<RangeScanContinueResult>
+    continuePartialOnFrontendThread() = 0;
 
     /**
-     * Callback method invoked by the frontend executor use when a continue
-     * request yielded and is complete. This will result in an mcbp frame
-     * being passed to the cookie/client.
-     * @param cookie calls sendResponse on this cookie
+     * Frontend executor thread will invoke this method after an IO complete
+     * wakeup. This is for when the I/O task yielded due to a limit being
+     * reached. The continue request is now finalised.
+     * @return RangeScanContinueResult which will own the buffer of data that
+     *         must be shipped to the client.
      */
-    virtual void sendComplete(CookieIface& cookie) = 0;
+    virtual std::unique_ptr<RangeScanContinueResult>
+    continueMoreOnFrontendThread() = 0;
 
     /**
-     * Callback method invoked by the frontend executor for a cancelled scan.
+     * Frontend executor thread will invoke this method after an IO complete
+     * wakeup. This is for when the I/O task yielded because the scan has hit
+     * the end of the range. The continue request is now finalised.
+     * @return RangeScanContinueResult which will own the buffer of data that
+     *         must be shipped to the client.
      */
-    virtual void processCancel() = 0;
+    virtual std::unique_ptr<RangeScanContinueResult>
+    completeOnFrontendThread() = 0;
+
+    /**
+     * Frontend executor thread will invoke this method after an IO complete
+     * wakeup. This if for when the I/O task yielded because an error was
+     * encountered and the scan is now cancelled. The continue request is now
+     * finalised.
+     *
+     * @return RangeScanContinueResult which will own the buffer of data. The
+     *         caller can then move the result to a place where the buffer can
+     *         be freed (e.g. outside of any locks).
+     */
+    virtual std::unique_ptr<RangeScanContinueResult>
+    cancelOnFrontendThread() = 0;
 
     /**
      * Generate stats from the handler
@@ -109,19 +132,22 @@ public:
     void addStats(std::string_view prefix,
                   const StatCollector& collector) override;
 
-    void sendContinueDone(CookieIface& cookie) override;
+    std::unique_ptr<RangeScanContinueResult> continuePartialOnFrontendThread()
+            override;
 
-    void sendComplete(CookieIface& cookie) override;
+    std::unique_ptr<RangeScanContinueResult> continueMoreOnFrontendThread()
+            override;
 
-    void processCancel() override;
+    std::unique_ptr<RangeScanContinueResult> completeOnFrontendThread()
+            override;
+
+    std::unique_ptr<RangeScanContinueResult> cancelOnFrontendThread() override;
 
 private:
     /**
      * @return the status of the scan based on the amount of buffered data
      */
     Status getScanStatus(size_t bufferedSize);
-
-    void sendCurrentDataAndStatus(CookieIface& cookie, cb::engine_errc status);
 
     /**
      * Data read from the scan is stored in the following vector ready for
@@ -135,11 +161,11 @@ private:
      * This is Synchronized as the frontend and IO tasks access it, however
      * there is no expectation that there will be contention for access.
      */
-    struct ScannedData {
+    struct RangeScanContinueBuffer {
         std::vector<uint8_t> responseBuffer;
         size_t pendingReadBytes{0};
     };
-    folly::Synchronized<ScannedData, std::mutex> scannedData;
+    folly::Synchronized<RangeScanContinueBuffer, std::mutex> scannedData;
 
     /// the trigger for pushing data to send, set from engine configuration
     const size_t sendTriggerThreshold{0};

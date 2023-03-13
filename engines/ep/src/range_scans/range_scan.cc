@@ -337,18 +337,6 @@ cb::engine_errc RangeScan::hasPrivilege(
                                  start.getDocKey().getCollectionID());
 }
 
-void RangeScan::continueOnFrontendThread(CookieIface& client) {
-    handler->sendContinueDone(client);
-}
-
-void RangeScan::completeOnFrontendThread(CookieIface& client) {
-    handler->sendComplete(client);
-}
-
-void RangeScan::cancelOnFrontendThread() {
-    handler->processCancel();
-}
-
 cb::engine_errc RangeScan::prepareToContinueOnIOThread() {
     // continue works on a copy of the state.
     continueRunState = continueState.withWLock([](auto& cs) {
@@ -367,6 +355,24 @@ cb::engine_errc RangeScan::prepareToContinueOnIOThread() {
 
     Expects(continueRunState.cState.state == State::Continuing);
     return cb::engine_errc::range_scan_more;
+}
+
+std::unique_ptr<RangeScanContinueResult>
+RangeScan::continuePartialOnFrontendThread() {
+    return handler->continuePartialOnFrontendThread();
+}
+
+std::unique_ptr<RangeScanContinueResult>
+RangeScan::continueMoreOnFrontendThread() {
+    return handler->continueMoreOnFrontendThread();
+}
+
+std::unique_ptr<RangeScanContinueResult> RangeScan::completeOnFrontendThread() {
+    return handler->completeOnFrontendThread();
+}
+
+std::unique_ptr<RangeScanContinueResult> RangeScan::cancelOnFrontendThread() {
+    return handler->cancelOnFrontendThread();
 }
 
 cb::engine_errc RangeScan::continueOnIOThread(KVStoreIface& kvstore) {

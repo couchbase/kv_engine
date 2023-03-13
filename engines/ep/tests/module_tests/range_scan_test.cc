@@ -58,13 +58,27 @@ public:
         return testHook(scannedItems.size());
     }
 
-    void sendContinueDone(CookieIface& cookie) override {
+    std::unique_ptr<RangeScanContinueResult> continuePartialOnFrontendThread()
+            override {
+        // no-op
+        return {};
     }
 
-    void sendComplete(CookieIface& cookie) override {
+    std::unique_ptr<RangeScanContinueResult> continueMoreOnFrontendThread()
+            override {
+        // no-op
+        return {};
     }
 
-    void processCancel() override {
+    std::unique_ptr<RangeScanContinueResult> completeOnFrontendThread()
+            override {
+        // no-op
+        return {};
+    }
+
+    std::unique_ptr<RangeScanContinueResult> cancelOnFrontendThread() override {
+        // no-op
+        return {};
     }
 
     void addStats(std::string_view prefix,
@@ -1434,13 +1448,27 @@ public:
         return Status::OK;
     }
 
-    void sendContinueDone(CookieIface& cookie) override {
+    std::unique_ptr<RangeScanContinueResult> continuePartialOnFrontendThread()
+            override {
+        // no-op
+        return {};
     }
 
-    void sendComplete(CookieIface& cookie) override {
+    std::unique_ptr<RangeScanContinueResult> continueMoreOnFrontendThread()
+            override {
+        // no-op
+        return {};
     }
 
-    void processCancel() override {
+    std::unique_ptr<RangeScanContinueResult> completeOnFrontendThread()
+            override {
+        // no-op
+        return {};
+    }
+
+    std::unique_ptr<RangeScanContinueResult> cancelOnFrontendThread() override {
+        // no-op
+        return {};
     }
 
     void addStats(std::string_view prefix,
@@ -1998,13 +2026,27 @@ public:
         return Status::OK;
     }
 
-    void sendContinueDone(CookieIface& cookie) override {
+    std::unique_ptr<RangeScanContinueResult> continuePartialOnFrontendThread()
+            override {
+        // no-op
+        return {};
     }
 
-    void sendComplete(CookieIface& cookie) override {
+    std::unique_ptr<RangeScanContinueResult> continueMoreOnFrontendThread()
+            override {
+        // no-op
+        return {};
     }
 
-    void processCancel() override {
+    std::unique_ptr<RangeScanContinueResult> completeOnFrontendThread()
+            override {
+        // no-op
+        return {};
+    }
+
+    std::unique_ptr<RangeScanContinueResult> cancelOnFrontendThread() override {
+        // no-op
+        return {};
     }
 
     void addStats(std::string_view prefix,

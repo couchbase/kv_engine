@@ -10,7 +10,12 @@
 
 #pragma once
 
+#include <memcached/engine_error.h>
 #include <memcached/range_scan_id.h>
+
+#include <vector>
+
+class CookieIface;
 
 // RangeScanCreateState describes which stage of creation a RangeScan is in
 // Creation always starts in Pending and then:
@@ -32,4 +37,115 @@ struct RangeScanCreateToken {
 // Data stored in engine-specific during a RangeScan continue request
 struct RangeScanContinueToken {
     cb::rangescan::Id uuid;
+};
+
+/**
+ * Base class for the frontend executor RangeScan result. This class owns
+ * the std::vector which stores mcbp formatted data from the scan. This class
+ * also knows if the scan is key or value.
+ *
+ */
+class RangeScanContinueResult {
+public:
+    virtual ~RangeScanContinueResult() = default;
+    virtual void complete(CookieIface& cookie) = 0;
+
+protected:
+    RangeScanContinueResult(std::vector<uint8_t> buffer, bool keyOnly);
+
+    void send(CookieIface& cookie, cb::engine_errc status);
+
+    const std::vector<uint8_t> responseBuffer;
+    const bool keyOnly{false};
+};
+
+/**
+ * RangeScanContinueResultPartial is an object created when a RangeScan has
+ * yielded because the send buffer is at or exceeding the configured size. In
+ * this case the RangeScan will run again without any input from the client.
+ */
+class RangeScanContinueResultPartial : public RangeScanContinueResult {
+public:
+    RangeScanContinueResultPartial(std::vector<uint8_t> buffer, bool keyOnly);
+
+    /**
+     * Sends the buffered data using Cookie::sendResponse with a status code of
+     * success.
+     */
+    void complete(CookieIface& cookie) override;
+};
+
+// Intermediate class which extends the baseclass with the read bytes
+class RangeScanContinueResultWithReadBytes : public RangeScanContinueResult {
+protected:
+    RangeScanContinueResultWithReadBytes(std::vector<uint8_t> buffer,
+                                         size_t readBytes,
+                                         bool keyOnly);
+
+    /**
+     * Passes the value of readBytes to Cookie::addDocumentReadBytes
+     */
+    void complete(CookieIface& cookie) override;
+
+    /// the number of bytes read so for the scan
+    const size_t readBytes{0};
+};
+
+/**
+ * Result class for when the range-scan is incomplete and has stopped for a
+ * user defined limit. The scan will return the buffer and a status code of
+ * range_scan_more
+ */
+class RangeScanContinueResultMore
+    : public RangeScanContinueResultWithReadBytes {
+public:
+    RangeScanContinueResultMore(std::vector<uint8_t> buffer,
+                                size_t readBytes,
+                                bool keyOnly);
+
+    /**
+     * Sends the buffered data using Cookie::sendResponse with a status code of
+     * range_scan_more.
+     */
+    void complete(CookieIface& cookie) override;
+};
+
+/**
+ * Result class for when the range-scan is complete. The scan will return the
+ * buffer and a status code of range_scan_complete
+ */
+class RangeScanContinueResultComplete
+    : public RangeScanContinueResultWithReadBytes {
+public:
+    RangeScanContinueResultComplete(std::vector<uint8_t> buffer,
+                                    size_t readBytes,
+                                    bool keyOnly);
+    /**
+     * Sends the buffered data using Cookie::sendResponse with a status code of
+     * range_scan_complete.
+     */
+    void complete(CookieIface& cookie) override;
+};
+
+/**
+ * Result class for when the range-scan is cancelled. The buffer of data is
+ * can be moved out of the RangeScan object and into this result for destruction
+ * out-side of any locks. The readBytes value will be propagated to the cookie
+ * when complete is invoked.
+ */
+class RangeScanContinueResultCancelled
+    : public RangeScanContinueResultWithReadBytes {
+public:
+    RangeScanContinueResultCancelled(std::vector<uint8_t> buffer,
+                                     size_t readBytes,
+                                     bool keyOnly);
+
+    /**
+     * Does not send the buffered data, but only ensures the current readBytes
+     * value is propagated to the cookie as it may get "attached" to the final
+     * mcbp frame
+     */
+    void complete(CookieIface& cookie) override {
+        RangeScanContinueResultWithReadBytes::complete(cookie);
+    }
 };

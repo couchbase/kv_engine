@@ -1439,18 +1439,23 @@ cb::engine_errc EPVBucket::continueRangeScan(
         return status;
     }
 
-    status = rangeScans.continueScan(dynamic_cast<EPBucket&>(*bucket),
-                                     cookie,
-                                     continueToken.has_value(),
-                                     params);
+    auto continueState =
+            rangeScans.continueScan(dynamic_cast<EPBucket&>(*bucket),
+                                    cookie,
+                                    continueToken.has_value(),
+                                    params);
 
-    if (status == cb::engine_errc::would_block) {
+    if (continueState.first == cb::engine_errc::would_block) {
         // Stash a token and save the current UUID
         bucket->getEPEngine().storeEngineSpecific(
                 cookie, RangeScanContinueToken{params.uuid});
     }
 
-    return status;
+    if (continueState.second) {
+        continueState.second->complete(cookie);
+    }
+
+    return continueState.first;
 }
 
 cb::engine_errc EPVBucket::cancelRangeScan(cb::rangescan::Id id,

@@ -16,6 +16,7 @@
 #include "item.h"
 #include "objectregistry.h"
 #include "range_scans/range_scan.h"
+#include "range_scans/range_scan_types.h"
 #include "vbucket.h"
 
 #include <mcbp/codec/range_scan_continue_codec.h>
@@ -38,41 +39,46 @@ RangeScanDataHandler::Status RangeScanDataHandler::getScanStatus(
     return RangeScanDataHandler::Status::OK;
 }
 
-void RangeScanDataHandler::sendCurrentDataAndStatus(CookieIface& cookie,
-                                                    cb::engine_errc status) {
-    cb::mcbp::response::RangeScanContinueResponseExtras extras(keyOnly);
-    auto locked = scannedData.lock();
-    auto& responseBuffer = locked->responseBuffer;
-
-    if (status == cb::engine_errc::range_scan_complete) {
-        cookie.addDocumentReadBytes(locked->pendingReadBytes);
-        locked->pendingReadBytes = 0;
-    }
-
-    {
-        NonBucketAllocationGuard guard;
-        cookie.sendResponse(
-                status,
-                extras.getBuffer(),
-                {reinterpret_cast<const char*>(responseBuffer.data()),
-                 responseBuffer.size()});
-    }
-    responseBuffer.clear();
+std::unique_ptr<RangeScanContinueResult>
+RangeScanDataHandler::continuePartialOnFrontendThread() {
+    // lock and move the current buffered data.
+    return scannedData.withLock([this](auto& ls) {
+        return std::make_unique<RangeScanContinueResultPartial>(
+                std::move(ls.responseBuffer), keyOnly);
+    });
 }
 
-void RangeScanDataHandler::sendContinueDone(CookieIface& cookie) {
-    sendCurrentDataAndStatus(cookie, cb::engine_errc::range_scan_more);
+std::unique_ptr<RangeScanContinueResult>
+RangeScanDataHandler::continueMoreOnFrontendThread() {
+    // lock and move the current buffered data and readBytes
+    return scannedData.withLock([this](auto& ls) {
+        auto readBytes = ls.pendingReadBytes;
+        ls.pendingReadBytes = 0;
+        return std::make_unique<RangeScanContinueResultMore>(
+                std::move(ls.responseBuffer), readBytes, keyOnly);
+    });
 }
 
-void RangeScanDataHandler::sendComplete(CookieIface& cookie) {
-    sendCurrentDataAndStatus(cookie, cb::engine_errc::range_scan_complete);
+std::unique_ptr<RangeScanContinueResult>
+RangeScanDataHandler::completeOnFrontendThread() {
+    // lock and move the current buffered data and readBytes
+    return scannedData.withLock([this](auto& ls) {
+        auto readBytes = ls.pendingReadBytes;
+        ls.pendingReadBytes = 0;
+        return std::make_unique<RangeScanContinueResultComplete>(
+                std::move(ls.responseBuffer), readBytes, keyOnly);
+    });
 }
 
-void RangeScanDataHandler::processCancel() {
-    // Can drop all data now
-    auto locked = scannedData.lock();
-    locked->responseBuffer.clear();
-    locked->pendingReadBytes = 0;
+std::unique_ptr<RangeScanContinueResult>
+RangeScanDataHandler::cancelOnFrontendThread() {
+    // lock and move the current buffered data and readBytes
+    return scannedData.withLock([this](auto& ls) {
+        auto readBytes = ls.pendingReadBytes;
+        ls.pendingReadBytes = 0;
+        return std::make_unique<RangeScanContinueResultCancelled>(
+                std::move(ls.responseBuffer), readBytes, keyOnly);
+    });
 }
 
 RangeScanDataHandler::Status RangeScanDataHandler::handleKey(DocKey key) {

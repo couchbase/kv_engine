@@ -148,20 +148,21 @@ public:
      * Handler for a range-scan-continue operation. Method will locate the
      * scan and make it available for running.
      *
-     * Failure to locate the scan -> cb::engine_errc::no_such_key
-     * Scan already continued -> cb::engine_errc::too_busy
-     *
      * @param bucket The bucket of the scan
      * @param cookie client cookie requesting the continue
      * @param ioComplete true if this is the IO complete iteration
      * @param params bundled continue parameters
-     * @return success or other status (see above)
+     * @return pair of status and a RangeScanContinueResult (pointer). The
+     *         status is used to determine the state of the command (which may
+     *         be an I/O complete phase). The caller also must inspect the
+     *         RangeScanContinueResult*, if it points to an object the caller
+     *         must call RangeScanContinueResult::complete
      */
-    cb::engine_errc continueScan(
-            EPBucket& bucket,
-            CookieIface& cookie,
-            bool ioComplete,
-            const cb::rangescan::ContinueParameters& params);
+    std::pair<cb::engine_errc, std::unique_ptr<RangeScanContinueResult>>
+    continueScan(EPBucket& bucket,
+                 CookieIface& cookie,
+                 bool ioComplete,
+                 const cb::rangescan::ContinueParameters& params);
 
     /**
      * Handler for a range-scan-cancel operation or a force cancel due to some

@@ -199,7 +199,8 @@ cb::engine_errc VB::RangeScanOwner::addNewScan(
     return cb::engine_errc::key_already_exists;
 }
 
-cb::engine_errc VB::RangeScanOwner::continueScan(
+std::pair<cb::engine_errc, std::unique_ptr<RangeScanContinueResult>>
+VB::RangeScanOwner::continueScan(
         EPBucket& bucket,
         CookieIface& cookie,
         bool ioCompletePhase,
@@ -212,12 +213,15 @@ cb::engine_errc VB::RangeScanOwner::continueScan(
             params.itemLimit,
             params.timeLimit.count(),
             params.byteLimit);
+    std::unique_ptr<RangeScanContinueResult> result;
     auto locked = syncData.wlock();
     auto itr = locked->rangeScans.find(params.uuid);
     if (itr == locked->rangeScans.end()) {
         // If the scan is gone and this is IO complete, it has been cancelled.
-        return ioCompletePhase ? cb::engine_errc::range_scan_cancelled
-                               : cb::engine_errc::no_such_key;
+        // there is no data to return
+        return {ioCompletePhase ? cb::engine_errc::range_scan_cancelled
+                                : cb::engine_errc::no_such_key,
+                nullptr};
     }
 
     // Note that if processScanRemoval is called the iterator will become
@@ -237,7 +241,7 @@ cb::engine_errc VB::RangeScanOwner::continueScan(
     } else if (scan->isContinuing()) {
         if (!ioCompletePhase) {
             // cannot begin a continue on an already continuing scan
-            return cb::engine_errc::too_busy;
+            return {cb::engine_errc::too_busy, nullptr};
         }
 
         switch (status) {
@@ -245,7 +249,7 @@ cb::engine_errc VB::RangeScanOwner::continueScan(
             // success on the I/O complete phase means the I/O task finished
             // because the send buffer is full. The buffered data can now be
             // shipped off to the connection and then the I/O task runs again.
-            scan->continueOnFrontendThread(cookie);
+            result = scan->continuePartialOnFrontendThread();
             status = cb::engine_errc::would_block;
             break;
         case cb::engine_errc::range_scan_more:
@@ -253,19 +257,19 @@ cb::engine_errc VB::RangeScanOwner::continueScan(
             // reached a defined limit and the continue is complete. The buffer
             // can be shipped off to the connection and the scan set to idle
             // ready for a future continue/cancel.
-            scan->continueOnFrontendThread(cookie);
+            result = scan->continueMoreOnFrontendThread();
             scan->setStateIdle();
             break;
         case cb::engine_errc::range_scan_complete:
             // range_scan_complete on the I/O complete phase means the I/O task
             // reached the end of the scan range, the scan is complete. The
             // buffer can be shipped off to the connection and the scan removed.
-            scan->completeOnFrontendThread(cookie);
+            result = scan->completeOnFrontendThread();
             processScanRemoval(*locked, params.uuid, status);
             break;
         default:
             // Any other status means the scan is cancelled
-            scan->cancelOnFrontendThread();
+            result = scan->cancelOnFrontendThread();
             if (status == cb::engine_errc::unknown_collection) {
                 bucket.getEPEngine().setUnknownCollectionErrorContext(
                         cookie, scan->getManifestUid());
@@ -286,7 +290,7 @@ cb::engine_errc VB::RangeScanOwner::continueScan(
         readyScans->addScan(bucket, scan);
     }
 
-    return status;
+    return {status, std::move(result)};
 }
 
 cb::engine_errc VB::RangeScanOwner::cancelScan(EPBucket& bucket,
