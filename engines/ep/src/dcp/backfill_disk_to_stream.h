@@ -12,6 +12,7 @@
 #pragma once
 
 #include "dcp/backfill_to_stream.h"
+#include "ep_types.h"
 
 #include <memory>
 
@@ -91,39 +92,37 @@ protected:
      */
     bool createHistoryScanContext(KVBucket& bucket, ScanContext& scanCtx);
 
-    // Class will be constructed when a history scan is required. This tracks
-    // various seqnos which come from the non-history scan and the actual
-    // ScanContext used for scanning the history range.
     struct HistoryScanCtx {
-        HistoryScanCtx(uint64_t startSeqno,
-                       uint64_t snapshotMaxSeqno,
-                       uint64_t historyStartSeqno);
+        /**
+         * Constructor records information for use in the history scan phase
+         * The snapshot_info_t records the start seqno of the history scan and
+         * the snapshot range of the disk snapshot being used by DCP backfill.
+         */
+        HistoryScanCtx(uint64_t historyStartSeqno,
+                       snapshot_info_t snapshotInfo);
         ~HistoryScanCtx();
 
         /**
-         * Create the ScanContext which will be used by the history phase of
-         * a backfill.
-         * @param startSeqno the start seqno for the history scan
+         * Create a ScanContext (assigned to this->scanCtx) for scanning the
+         * history-window
+         *
          * @param kvs KVStore to call initBySeqnoContext on
-         * @param ctx The ScanContext from the initial scan phase, this might be
+         * @param ctx The ScanContext from the initial scan phase, this can be
          *            ByID or BySeq.
          * @return true if successfully created, false for a failure.
          */
-        bool createScanContext(uint64_t startSeqno,
-                               const KVStoreIface& kvs,
-                               ScanContext& ctx);
+        bool createScanContext(const KVStoreIface& kvs, ScanContext& ctx);
 
         /**
          * @return true if startSeqno >= historyStartSeqno
          */
         bool startSeqnoIsInsideHistoryWindow() const;
 
-        // Record the actual start seqno of the scan
-        uint64_t startSeqno{0};
-        // Record the snapshotMaxSeqno (which the history scan will reach)
-        uint64_t snapshotMaxSeqno{0};
         // Record the historyStartSeqno
         uint64_t historyStartSeqno{0};
+
+        /// records the start and snapshot range for the history scan
+        snapshot_info_t snapshotInfo;
 
         // A ScanContext which "drives" the history scan
         std::unique_ptr<ScanContext> scanCtx;

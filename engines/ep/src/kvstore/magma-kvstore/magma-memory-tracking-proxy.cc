@@ -31,6 +31,14 @@ DomainAwareSeqIterator::~DomainAwareSeqIterator() {
     itr.reset();
 }
 
+magma::Status DomainAwareSeqIterator::Initialize(
+        const magma::Magma::SeqNo startSeqno,
+        const magma::Magma::SeqNo endSeqno,
+        magma::Magma::SeqIterator::Mode mode) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return itr->Initialize(startSeqno, endSeqno, mode);
+}
+
 magma::Status DomainAwareSeqIterator::GetStatus() {
     cb::UseArenaMallocSecondaryDomain domainGuard;
     return itr->GetStatus();
@@ -462,6 +470,17 @@ void MagmaMemoryTrackingProxy::SetNumThreads(
     magma->SetNumThreads(threadType, nThreads);
 }
 
+void MagmaMemoryTrackingProxy::SetHistoryRetentionSize(size_t historyBytes) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    magma->SetHistoryRetentionSize(historyBytes);
+}
+
+void MagmaMemoryTrackingProxy::SetHistoryRetentionTime(
+        uint64_t historySeconds) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    magma->SetHistoryRetentionTime(historySeconds);
+}
+
 magma::Status MagmaMemoryTrackingProxy::Sync(bool flushAll) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
     return magma->Sync(flushAll);
@@ -540,4 +559,16 @@ magma::Status MagmaMemoryTrackingProxy::ResumeBGCompaction(
         const magma::Magma::KVStoreID kvID) {
     cb::UseArenaMallocSecondaryDomain domainGuard;
     return magma->ResumeBGCompaction(kvID);
+}
+
+magma::Magma::SeqNo MagmaMemoryTrackingProxy::GetOldestHistorySeqno(
+        magma::Magma::KVStoreID kvid) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return magma->GetOldestHistorySeqno(kvid);
+}
+
+magma::Magma::SeqNo MagmaMemoryTrackingProxy::GetOldestHistorySeqno(
+        magma::Magma::Snapshot& snapshot) {
+    cb::UseArenaMallocSecondaryDomain domainGuard;
+    return magma->GetOldestHistorySeqno(snapshot);
 }

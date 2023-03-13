@@ -417,6 +417,11 @@ cb::engine_errc EventuallyPersistentEngine::doMetricGroupLow(
         status != cb::engine_errc::success) {
         return status;
     }
+
+    if (const auto* warmup = getKVBucket()->getWarmup()) {
+        warmup->addStatusMetrics(collector);
+    }
+
     // do dcp aggregated stats, using ":" as the separator to split
     // connection names to find the connection type.
     return doConnAggStats(collector, ":");
@@ -2753,7 +2758,7 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
         const StatCollector& collector) {
     using namespace cb::stats;
     auto divide = [](double a, double b) { return b ? a / b : 0; };
-    constexpr std::array<std::string_view, 40> statNames = {
+    constexpr std::array<std::string_view, 42> statNames = {
             {"magma_NCompacts",
              "magma_NFlushes",
              "magma_NTTLCompacts",
@@ -2793,7 +2798,9 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
              "magma_NTablesDeleted",
              "magma_NTablesCreated",
              "magma_NTableFiles",
-             "magma_NSyncs"}};
+             "magma_NSyncs",
+             "magma_DataBlocksSize",
+             "magma_DataBlocksCompressSize"}};
 
     auto kvStoreStats = kvBucket->getKVStoreStats(statNames);
 
@@ -2936,6 +2943,28 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
 
     // NSyncs.
     addStat(Key::ep_magma_syncs, "magma_NSyncs");
+
+    // Block Compression Ratio
+    size_t dataBlocksUncompressedSize = 0;
+    size_t dataBlocksCompressedSize = 0;
+    if (statExists("magma_DataBlocksSize", dataBlocksUncompressedSize) &&
+        statExists("magma_DataBlocksCompressSize", dataBlocksCompressedSize)) {
+        collector.addStat(Key::ep_magma_data_blocks_uncompressed_size,
+                          dataBlocksUncompressedSize);
+        collector.addStat(Key::ep_magma_data_blocks_compressed_size,
+                          dataBlocksCompressedSize);
+        double compressionRatio =
+                divide(dataBlocksUncompressedSize, dataBlocksCompressedSize);
+        collector.addStat(Key::ep_magma_data_blocks_compression_ratio,
+                          compressionRatio);
+        double spaceReductionEstimatePct =
+                divide((dataBlocksUncompressedSize - dataBlocksCompressedSize),
+                       dataBlocksUncompressedSize) *
+                100;
+        collector.addStat(
+                Key::ep_magma_data_blocks_space_reduction_estimate_pct,
+                spaceReductionEstimatePct);
+    }
 }
 
 cb::engine_errc EventuallyPersistentEngine::doEngineStats(

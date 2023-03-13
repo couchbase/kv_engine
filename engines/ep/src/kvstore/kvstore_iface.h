@@ -809,6 +809,16 @@ public:
      * @param vbid ID of the vbucket being created
      */
     virtual void prepareToCreateImpl(Vbid vbid) = 0;
+
+    /**
+     * Method to configure the amount of history a vbucket should retain.
+     */
+    virtual void setHistoryRetentionBytes(size_t size) = 0;
+
+    /**
+     * Method to configure the history a vbucket should retain, by age.
+     */
+    virtual void setHistoryRetentionSeconds(std::chrono::seconds secs) = 0;
 };
 
 std::string to_string(KVStoreIface::ReadVBStateStatus status);
