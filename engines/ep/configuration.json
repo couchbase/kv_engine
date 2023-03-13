@@ -371,13 +371,13 @@
             "type": "float"
         },
         "defragmenter_age_threshold": {
-            "default": "10",
+            "default": "1",
             "descr": "How old (measured in number of DefragmenterVisitor passes) must a document be to be considered for defragmentation.",
             "type": "size_t",
             "dynamic" : true
         },
         "defragmenter_stored_value_age_threshold": {
-            "default": "10",
+            "default": "1",
             "descr": "How old (measured in number of DefragmenterVisitor passes) must a StoredValue be to be considered for defragmentation.",
             "type": "size_t",
             "dynamic" : true
