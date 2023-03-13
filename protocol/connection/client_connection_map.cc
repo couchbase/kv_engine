@@ -10,6 +10,7 @@
  */
 #include "client_connection_map.h"
 
+#include <fmt/format.h>
 #include <nlohmann/json.hpp>
 #include <utilities/json_utilities.h>
 
@@ -64,9 +65,12 @@ void ConnectionMap::addPorts(const nlohmann::json& ports) {
     sa_family_t family;
     for (const auto& obj : *array) {
         auto host = cb::jsonGet<std::string>(obj, "host");
-        auto port = static_cast<in_port_t>(cb::jsonGet<size_t>(obj, "port"));
-        if (port == in_port_t(-1)) {
-            throw std::runtime_error("port cannot be -1: " + obj.dump());
+        auto port = cb::jsonGet<size_t>(obj, "port");
+        if (port < 1 || port > std::numeric_limits<in_port_t>::max()) {
+            throw std::runtime_error(
+                    fmt::format("Port number must be in the range [1,{}]: {}",
+                                std::numeric_limits<in_port_t>::max(),
+                                obj.dump()));
         }
 
         auto fam = cb::jsonGet<std::string>(obj, "family");
@@ -77,8 +81,8 @@ void ConnectionMap::addPorts(const nlohmann::json& ports) {
         }
 
         bool tls = cb::jsonGet<bool>(obj, "tls");
-        connections.push_back(
-                std::make_unique<MemcachedConnection>("", port, family, tls));
+        connections.push_back(std::make_unique<MemcachedConnection>(
+                "", gsl::narrow_cast<in_port_t>(port), family, tls));
         if (obj.find("tag") != obj.cend()) {
             connections.back()->setTag(obj["tag"]);
         }
