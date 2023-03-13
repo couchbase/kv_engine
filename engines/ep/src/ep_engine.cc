@@ -3274,6 +3274,8 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsHighCardinality(
     collector.addStat(Key::ep_defragmenter_num_moved, epstats.defragNumMoved);
     collector.addStat(Key::ep_defragmenter_sv_num_moved,
                       epstats.defragStoredValueNumMoved);
+    collector.addStat(Key::ep_defragmenter_sleep_time,
+                      std::chrono::duration<double>(kvBucket->getDefragmenterTaskSleepTime()).count());
 
     collector.addStat(Key::ep_item_compressor_num_visited,
                       epstats.compressorNumVisited);

@@ -106,6 +106,9 @@ public:
 
     std::chrono::microseconds maxExpectedDuration() const override;
 
+    /// The duration of time the task was snoozed for during the last run.
+    std::chrono::milliseconds getCurrentSleepTime() const;
+
     /// Maximum allocation size the defragmenter should consider
     static size_t getMaxValueSize();
 
@@ -220,4 +223,7 @@ protected:
 
     /// A function so we can reset the PID on config changes
     std::function<bool(PIDControllerImpl&)> pidReset;
+
+    /// The duration of time the task was snoozed for during the last run.
+    std::chrono::milliseconds currentSleepTime{0};
 };

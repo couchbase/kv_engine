@@ -572,6 +572,12 @@ public:
 
     void runDefragmenterTask() override;
 
+    /**
+     * Gets the duration of time the defragmenter task was snoozed for during
+     * the last run.
+     */
+    std::chrono::milliseconds getDefragmenterTaskSleepTime() const;
+
     void runItemFreqDecayerTask() override;
 
     bool runAccessScannerTask() override;

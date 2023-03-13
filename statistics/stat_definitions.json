@@ -834,6 +834,11 @@
         "description": "Number of StoredValues moved by the defragmentater task."
     },
     {
+        "key": "ep_defragmenter_sleep_time",
+        "unit": "seconds",
+        "description": "The amount of time the defragmenter task will sleep before it is scheduled to run again."
+    },
+    {
         "key": "ep_item_compressor_num_visited",
         "unit": "count",
         "description": "Number of items visited (considered for compression) by the item compressor task."
