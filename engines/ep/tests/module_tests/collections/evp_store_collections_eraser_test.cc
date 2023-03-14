@@ -842,9 +842,20 @@ void CollectionsEraserTest::testCollectionPurgedItemsCorrectAfterDrop(
         auto* bucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
         using namespace testing;
 
-        // Magma will make two calls here. One for the first value that
-        // logically does not exist anymore, and one for the updated value.
+        // Magma will make two extra calls here when the test is not against
+        // the default collection.
+        // The original create collection event and one for the first value that
+        // logically does not exist any-more
         if (isMagma()) {
+            if (collection.getId() != CollectionID::Default) {
+                EXPECT_CALL(*bucket,
+                            dropKey(Ref(*bucket->getVBucket(vbid)),
+                                    _,
+                                    seqnoOffset,
+                                    false /*isAbort*/,
+                                    0 /*PCS*/))
+                        .RetiresOnSaturation();
+            }
             EXPECT_CALL(*bucket,
                         dropKey(Ref(*bucket->getVBucket(vbid)),
                                 DiskDocKey(key),
@@ -854,6 +865,7 @@ void CollectionsEraserTest::testCollectionPurgedItemsCorrectAfterDrop(
                     .RetiresOnSaturation();
         }
 
+        // magma/couchstore will callback for the updated key
         EXPECT_CALL(*bucket,
                     dropKey(Ref(*bucket->getVBucket(vbid)),
                             DiskDocKey(key),
@@ -922,9 +934,11 @@ void CollectionsEraserTest::testScopePurgedItemsCorrectAfterDrop(
         CollectionEntry::Entry collection,
         int64_t seqnoOffset) {
     auto key = StoredDocKey{"milk", collection};
+    // insert at seqnoOffset+1
     store_item(vbid, key, "nice");
     flushVBucketToDiskIfPersistent(vbid, 1);
 
+    // update at seqnoOffset+2
     store_item(vbid, key, "nice2");
     flushVBucketToDiskIfPersistent(vbid, 1);
 
@@ -938,9 +952,17 @@ void CollectionsEraserTest::testScopePurgedItemsCorrectAfterDrop(
         auto* bucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
         using namespace testing;
 
-        // Magma will make two calls here. One for the first value that
-        // logically does not exist anymore, and one for the updated value.
+        // Magma will make two extra calls here.
+        // The original create collection event and one for the first value that
+        // logically does not exist any-more
         if (isMagma()) {
+            EXPECT_CALL(*bucket,
+                        dropKey(Ref(*bucket->getVBucket(vbid)),
+                                _,
+                                seqnoOffset,
+                                false /*isAbort*/,
+                                0 /*PCS*/))
+                    .RetiresOnSaturation();
             EXPECT_CALL(*bucket,
                         dropKey(Ref(*bucket->getVBucket(vbid)),
                                 DiskDocKey(key),
@@ -950,6 +972,7 @@ void CollectionsEraserTest::testScopePurgedItemsCorrectAfterDrop(
                     .RetiresOnSaturation();
         }
 
+        // magma/couchstore will callback for the updated key
         EXPECT_CALL(*bucket,
                     dropKey(Ref(*bucket->getVBucket(vbid)),
                             DiskDocKey(key),
