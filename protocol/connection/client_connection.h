@@ -21,6 +21,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdlib>
+#include <filesystem>
 #include <functional>
 #include <optional>
 #include <stdexcept>
@@ -341,17 +342,17 @@ public:
      *
      * @throws std::system_error if the file doesn't exist
      */
-    void setSslCertFile(const std::string& file);
+    void setSslCertFile(std::filesystem::path file);
 
     /**
      * Set the SSL private key file to use
      *
      * @throws std::system_error if the file doesn't exist
      */
-    void setSslKeyFile(const std::string& file);
+    void setSslKeyFile(std::filesystem::path file);
 
     /// Set the CA file to use (containing all of the trusted CA's)
-    void setCaFile(const std::string& file);
+    void setCaFile(std::filesystem::path file);
 
     /// Set the TLS version to use
     void setTlsProtocol(std::string protocol);
@@ -1062,9 +1063,9 @@ protected:
     std::string tls13_ciphers{
             "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_"
             "GCM_SHA256"};
-    std::string ssl_cert_file;
-    std::string ssl_key_file;
-    std::string ca_file;
+    std::optional<std::filesystem::path> ssl_cert_file;
+    std::optional<std::filesystem::path> ssl_key_file;
+    std::optional<std::filesystem::path> ca_file;
     std::unique_ptr<AsyncReadCallback> asyncReadCallback;
     AsyncSocketUniquePtr asyncSocket;
     std::shared_ptr<folly::EventBase> eventBase;

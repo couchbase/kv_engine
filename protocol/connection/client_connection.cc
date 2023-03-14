@@ -648,11 +648,13 @@ void MemcachedConnection::connect() {
                                      tls12_ciphers);
         }
 
-        if (!ssl_cert_file.empty() && !ssl_key_file.empty()) {
-            if (!SSL_CTX_use_certificate_chain_file(context,
-                                                    ssl_cert_file.c_str()) ||
+        if (ssl_cert_file && ssl_key_file) {
+            if (!SSL_CTX_use_certificate_chain_file(
+                        context, ssl_cert_file->generic_string().c_str()) ||
                 !SSL_CTX_use_PrivateKey_file(
-                        context, ssl_key_file.c_str(), SSL_FILETYPE_PEM) ||
+                        context,
+                        ssl_key_file->generic_string().c_str(),
+                        SSL_FILETYPE_PEM) ||
                 !SSL_CTX_check_private_key(context)) {
                 std::vector<char> ssl_err(1024);
                 ERR_error_string_n(
@@ -665,8 +667,9 @@ void MemcachedConnection::connect() {
             }
         }
 
-        if (!ca_file.empty() &&
-            !SSL_CTX_load_verify_locations(context, ca_file.c_str(), nullptr)) {
+        if (ca_file &&
+            !SSL_CTX_load_verify_locations(
+                    context, ca_file->generic_string().c_str(), nullptr)) {
             std::vector<char> ssl_err(1024);
             ERR_error_string_n(ERR_get_error(), ssl_err.data(), ssl_err.size());
             SSL_CTX_free(context);
@@ -841,46 +844,43 @@ nlohmann::json MemcachedConnection::stats(const std::string& subcommand,
     return ret;
 }
 
-void MemcachedConnection::setSslCertFile(const std::string& file) {
+void MemcachedConnection::setSslCertFile(std::filesystem::path file) {
     if (file.empty()) {
-        ssl_cert_file.clear();
         return;
     }
-    auto path = cb::io::sanitizePath(file);
-    if (!cb::io::isFile(path)) {
+    if (!exists(file) || !is_regular_file(file)) {
         throw std::system_error(
                 std::make_error_code(std::errc::no_such_file_or_directory),
-                "Can't use [" + path + "]");
+                fmt::format("Can't use [{}] as cert file",
+                            file.generic_string()));
     }
-    ssl_cert_file = std::move(path);
+    ssl_cert_file = std::move(file);
 }
 
-void MemcachedConnection::setSslKeyFile(const std::string& file) {
+void MemcachedConnection::setSslKeyFile(std::filesystem::path file) {
     if (file.empty()) {
-        ssl_key_file.clear();
         return;
     }
-    auto path = cb::io::sanitizePath(file);
-    if (!cb::io::isFile(path)) {
+    if (!exists(file) || !is_regular_file(file)) {
         throw std::system_error(
                 std::make_error_code(std::errc::no_such_file_or_directory),
-                "Can't use [" + path + "]");
+                fmt::format("Can't use [{}] as key file",
+                            file.generic_string()));
     }
-    ssl_key_file = std::move(path);
+    ssl_key_file = std::move(file);
 }
 
-void MemcachedConnection::setCaFile(const std::string& file) {
+void MemcachedConnection::setCaFile(std::filesystem::path file) {
     if (file.empty()) {
-        ca_file.clear();
         return;
     }
-    auto path = cb::io::sanitizePath(file);
-    if (!cb::io::isFile(path)) {
+    if (!exists(file) || !is_regular_file(file)) {
         throw std::system_error(
                 std::make_error_code(std::errc::no_such_file_or_directory),
-                "Can't use [" + path + "]");
+                fmt::format("Can't use [{}] as CA file",
+                            file.generic_string()));
     }
-    ca_file = std::move(path);
+    ca_file = std::move(file);
 }
 
 void MemcachedConnection::setTlsProtocol(std::string protocol) {
@@ -905,8 +905,9 @@ std::unique_ptr<MemcachedConnection> MemcachedConnection::clone(
         bool connect) const {
     auto ret = std::make_unique<MemcachedConnection>(host, port, family, ssl);
     ret->auto_retry_tmpfail = auto_retry_tmpfail;
-    ret->setSslCertFile(ssl_cert_file);
-    ret->setSslKeyFile(ssl_key_file);
+    ret->ssl_cert_file = ssl_cert_file;
+    ret->ssl_key_file = ssl_key_file;
+    ret->ca_file = ca_file;
     ret->packet_dump_callback = packet_dump_callback;
     if (connect) {
         ret->connect();
