@@ -439,34 +439,58 @@ using owning_type_t = typename owning_type<T>::type;
 template <class Arg>
 void Configuration::addValueChangedFunc(const std::string& key,
                                         std::function<void(Arg)> callback) {
+    owning_type_t<Arg> currentValue;
+    {
+        std::lock_guard<std::mutex> lh(mutex);
+        auto itr = attributes.find(key);
+        if (itr == attributes.end()) {
+            throw std::invalid_argument(
+                    "Configuration::addValueChangedFunc: No such config key '" +
+                    key + "'");
+        }
+        // Config params will _always_ have a value of the intended type set,
+        // either the default or some updated value.
+        // By trying to get the value as type Arg, we can verify that the given
+        // callback actually handles the correct type
+        // e.g., user is not providing a callback handling string types for a
+        // param with type size_t
+        const auto& valueVariant = itr->second->value;
+        auto* valuePtr = std::get_if<owning_type_t<Arg>>(&valueVariant);
+
+        if (!valuePtr) {
+            auto actualConfigType = std::visit(
+                    [](auto v) { return type_name<decltype(v)>::value; },
+                    valueVariant);
+            throw std::invalid_argument(fmt::format(
+                    "Configuration::addValueChangedFunc: Callback provided "
+                    "which accepts {} instead of expected type {} for key '{}'",
+                    type_name<Arg>::value,
+                    actualConfigType,
+                    key));
+        }
+
+        // copy out the current value
+        currentValue = *valuePtr;
+        // lock dropped here
+    }
+
+    // For most uses, a user will first wish to read the current config value,
+    // do "something" with it, then register a listener to do that "thing" on
+    // future changes. Given this is a standard pattern, just immediately invoke
+    // the callback now. This means a caller can't forget to read the current
+    // value, and adding lots of listeners is less verbose.
+
+    // The listener must be called outside of the lock, as it may acquire the
+    // config lock itself. This means acquiring and dropping the lock.
+    // This could lead to a missed update to the config value, but listeners
+    // are generally registered quite early in a bucket's life, before it
+    // would be possible to change the config.
+    // In any case, this has been acceptable for all existing usages, so
+    // keep that pattern here.
+    callback(currentValue);
+
+    // re-acquire the lock and insert the callback
     std::lock_guard<std::mutex> lh(mutex);
-    auto itr = attributes.find(key);
-    if (itr == attributes.end()) {
-        throw std::invalid_argument(
-                "Configuration::addValueChangedFunc: No such config key '" +
-                key + "'");
-    }
-    // Config params will _always_ have a value of the intended type set,
-    // either the default or some updated value.
-    // By trying to get the value as type Arg, we can verify that the given
-    // callback actually handles the correct type
-    // e.g., user is not providing a callback handling string types for a
-    // param with type size_t
-    const auto& valueVariant = itr->second->value;
-    bool handlesType = bool(std::get_if<owning_type_t<Arg>>(&valueVariant));
-
-    if (!handlesType) {
-        auto actualConfigType =
-                std::visit([](auto v) { return type_name<decltype(v)>::value; },
-                           valueVariant);
-        throw std::invalid_argument(fmt::format(
-                "Configuration::addValueChangedFunc: Callback provided which "
-                "accepts {} instead of expected type {} for key '{}'",
-                type_name<Arg>::value,
-                actualConfigType,
-                key));
-    }
-
     attributes[key]->changeListener.emplace_back(
             std::make_unique<ValueChangedCallback<Arg>>(std::move(callback)));
 }

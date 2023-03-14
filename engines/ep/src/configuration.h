@@ -219,6 +219,14 @@ public:
      * ownership of the listener. There is no way to remove a
      * ValueChangeListener.
      *
+     * Unlike addAndNotifyValueChangedCallback, the listener is _not_
+     * immediately notified of the current value of the config, for backwards
+     * compatibility.
+     *
+     * TODO: inspect all uses to verify it is safe/correct to make this method
+     * immediately invoke the listener like addAndNotifyValueChangedCallback
+     * does.
+     *
      * @param key the key to add the listener for
      * @param val the listener that will receive all of the callbacks
      *            when the value change.
@@ -231,13 +239,24 @@ public:
      * Add a listener for changes for a key. There is no way to remove a
      * ValueChangeListener.
      *
+     * If the parameter type is not handled by the provided callback,
+     * std::invalid_argument will be thrown
+     *
+     * If the parameter exists and has the expected type, the listener will
+     * immediately be notified of the current value.
+     *
+     *
      * @param key the config key the listener is interested in
      * @param val the listener which will be called when the config value
      *            changes
-     * @throw invalid_argument if the specified key isn't a valid config key.
+     * @throw invalid_argument if the specified key isn't a valid config key,
+     *                         or if the callback does not handle the correct
+     *                         type (e.g., config is size_t, callback takes
+     *                         std::string_view).
      */
     template <class Callable>
-    void addValueChangedCallback(const std::string& key, Callable&& callback) {
+    void addAndNotifyValueChangedCallback(const std::string& key,
+                                          Callable&& callback) {
         addValueChangedFunc(key,
                             std::function(std::forward<Callable>(callback)));
     }

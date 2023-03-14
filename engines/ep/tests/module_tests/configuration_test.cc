@@ -362,7 +362,7 @@ TEST(ChangeListenerTest, Callback) {
 
     configuration.addParameter(key, false /* value */, true /* isDynamic */);
 
-    configuration.addValueChangedCallback(
+    configuration.addAndNotifyValueChangedCallback(
             key, [&](bool value) { testValue = value; });
 
     ASSERT_FALSE(testValue);
@@ -382,10 +382,46 @@ TEST(ChangeListenerTest, CallbackIncorrectType) {
     // create a config param with value of type size_t
     configuration.addParameter(key, size_t() /* value */, true /* isDynamic */);
 
-    EXPECT_THROW(configuration.addValueChangedCallback(
+    EXPECT_THROW(configuration.addAndNotifyValueChangedCallback(
                          key, [](std::string_view value) {}),
                  std::logic_error);
 
-    EXPECT_NO_THROW(
-            configuration.addValueChangedCallback(key, [](size_t value) {}));
+    EXPECT_NO_THROW(configuration.addAndNotifyValueChangedCallback(
+            key, [](size_t value) {}));
+}
+
+TEST(ChangeListenerTest, CallbackProvidedCurrentValue) {
+    // Check that callbacks added as a lambda are immediately invoked
+    // with the existing value of the config param
+    ConfigurationShim configuration;
+    std::string key{"test_key"};
+
+    // create a config param with value of type size_t
+    configuration.addParameter(
+            key, size_t(1234) /* value */, true /* isDynamic */);
+
+    using namespace testing;
+    StrictMock<MockFunction<void(size_t)>> mockCB;
+
+    EXPECT_CALL(mockCB, Call(1234)).Times(1);
+    configuration.addAndNotifyValueChangedCallback(key, mockCB.AsStdFunction());
+}
+
+TEST(ChangeListenerTest, CallbackProvidedCurrentValueNonDefault) {
+    // As with CallbackProvidedDefaultValue, but verify that it is definitely
+    // called with the _current_ value, not the _default_ value
+    ConfigurationShim configuration;
+    std::string key{"test_key"};
+
+    // create a config param with value of type size_t
+    configuration.addParameter(
+            key, size_t(1234) /* value */, true /* isDynamic */);
+
+    configuration.setParameter(key, size_t(4321));
+
+    using namespace testing;
+    StrictMock<MockFunction<void(size_t)>> mockCB;
+
+    EXPECT_CALL(mockCB, Call(4321)).Times(1);
+    configuration.addAndNotifyValueChangedCallback(key, mockCB.AsStdFunction());
 }
