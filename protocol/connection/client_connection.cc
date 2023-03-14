@@ -358,6 +358,26 @@ MemcachedConnection::MemcachedConnection(std::string host,
     }
 
     agentInfo["a"] = "MemcachedConnection";
+
+    if (packet_dump) {
+        packet_dump_callback =
+                [](MemcachedConnection& instance, bool sending, auto packet) {
+                    if (sending) {
+                        std::cout << "Sending over socket "
+                                  << instance.getUnderlyingAsyncSocket()
+                                             .getNetworkSocket()
+                                             .toFd()
+                                  << std::endl;
+                    } else {
+                        std::cout << "Received on socket "
+                                  << instance.getUnderlyingAsyncSocket()
+                                             .getNetworkSocket()
+                                             .toFd()
+                                  << std::endl;
+                    }
+                    std::cerr << packet;
+                };
+    };
 }
 
 MemcachedConnection::~MemcachedConnection() {
@@ -744,7 +764,7 @@ public:
 };
 
 void MemcachedConnection::sendBuffer(const std::vector<iovec>& list) {
-    if (packet_dump) {
+    if (packet_dump_callback) {
         for (const auto& entry : list) {
             sendBuffer({reinterpret_cast<const uint8_t*>(entry.iov_base),
                         entry.iov_len});
@@ -763,9 +783,11 @@ void MemcachedConnection::sendBuffer(const std::vector<iovec>& list) {
 }
 
 void MemcachedConnection::sendBuffer(cb::const_byte_buffer buf) {
-    if (packet_dump) {
+    if (packet_dump_callback) {
         try {
-            cb::mcbp::dumpStream(buf, std::cerr);
+            std::stringstream ss;
+            cb::mcbp::dumpStream(buf, ss);
+            packet_dump_callback(*this, true, ss.str());
         } catch (const std::exception&) {
             // ignore..
         }
@@ -885,6 +907,7 @@ std::unique_ptr<MemcachedConnection> MemcachedConnection::clone(
     ret->auto_retry_tmpfail = auto_retry_tmpfail;
     ret->setSslCertFile(ssl_cert_file);
     ret->setSslKeyFile(ssl_key_file);
+    ret->packet_dump_callback = packet_dump_callback;
     if (connect) {
         ret->connect();
         ret->applyFeatures(effective_features);
@@ -979,8 +1002,10 @@ void MemcachedConnection::recvFrame(Frame& frame,
     std::copy(blob.begin(), blob.end(), std::back_inserter(frame.payload));
     asyncReadCallback->drain(blob.size());
 
-    if (packet_dump) {
-        cb::mcbp::dump(frame.payload.data(), std::cerr);
+    if (packet_dump_callback) {
+        std::stringstream ss;
+        cb::mcbp::dump(frame.payload.data(), ss);
+        packet_dump_callback(*this, false, ss.str());
     }
 }
 

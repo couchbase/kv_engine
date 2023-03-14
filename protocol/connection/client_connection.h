@@ -1012,6 +1012,21 @@ public:
     BinprotGetAllVbucketSequenceNumbersResponse getAllVBucketSequenceNumbers(
             uint32_t state, CollectionID collection);
 
+    /**
+     * Set a callback function which gets called every time we send or
+     * receive a stream of packets.
+     *
+     * @param callback the callback function with 3 parameters
+     *   1 MemcachedConnection - the instance sending/receiving packets
+     *   2 bool - true for sending, false receiving
+     *   3 string_view - The formatted packet
+     */
+    void setPacketDumpCallback(
+            std::function<void(MemcachedConnection&, bool, std::string_view)>
+                    callback) {
+        packet_dump_callback = std::move(callback);
+    }
+
 protected:
     void sendBuffer(const std::vector<iovec>& buf);
     void sendBuffer(cb::const_byte_buffer buf);
@@ -1081,4 +1096,6 @@ protected:
     void applyFeatures(const Featureset& features);
 
     Featureset effective_features;
+    std::function<void(MemcachedConnection&, bool, std::string_view)>
+            packet_dump_callback;
 };
