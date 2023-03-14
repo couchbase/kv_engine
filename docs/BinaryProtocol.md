@@ -441,7 +441,7 @@ information about a given command.
 | 0x1f | [HELO](#0x1f-helo) |
 | 0x20 | [SASL list mechs](sasl.md#0x20-list-mech)               |
 | 0x21 | [SASL Auth](sasl.md#0x21-sasl-auth)                     |
-| 0x22 | [SASL Step](sasl.md0x22-sasl-step)                      |
+| 0x22 | [SASL Step](sasl.md#0x22-sasl-step)                      |
 | 0x23 | Ioctl get |
 | 0x24 | Ioctl set |
 | 0x25 | Config validate |
@@ -492,7 +492,7 @@ information about a given command.
 | 0x5d | [Dcp buffer acknowledgement](dcp/documentation/commands/buffer-ack.md) |
 | 0x5e | [Dcp control](dcp/documentation/commands/control.md) |
 | 0x5f | [Dcp system event](dcp/documentation/commands/system_event.md) |
-| 0x60 | DcpPrepare |
+| 0x60 | [Dcp Prepare](dcp/documentation/commands/prepare.md) |
 | 0x61 | DcpSeqnoAcknowledged |
 | 0x62 | DcpCommit |
 | 0x63 | DcpAbort |
@@ -502,14 +502,14 @@ information about a given command.
 | 0x81 | Start persistence |
 | 0x82 | Set param |
 | 0x83 | Get replica |
-| 0x85 | Create bucket |
-| 0x86 | Delete bucket |
+| 0x85 | [Create bucket](#0x85-create-bucket) |
+| 0x86 | [Delete bucket](#0x86-delete-bucket) |
 | 0x87 | [List buckets](#0x87-list-buckets) |
 | 0x89 | [Select bucket](#0x89-select-bucket) |
 | 0x8a | [PauseBucket](#0x8a-pause-bucket) |
 | 0x8b | [ResumeBucket](#0x8b-resume-bucket) |
 | 0x91 | Observe seqno |
-| 0x92 | [Observe](#92-observe) |
+| 0x92 | [Observe](#0x92-observe) |
 | 0x93 | Evict key |
 | 0x94 | Get locked |
 | 0x95 | Unlock key |
@@ -536,7 +536,7 @@ information about a given command.
 | 0xb2 | Return meta |
 | 0xb3 | Compact db |
 | 0xb4 | Set cluster config |
-| 0xb5 | Get cluster config |
+| 0xb5 | [Get cluster config](#0xb5-get-cluster-config) |
 | 0xb6 | [Get random key](#0xb6-get-random-key)|
 | 0xb7 | Seqno persistence |
 | 0xb8 | [Get keys](../engines/ep/docs/protocol/get_keys.md) |
@@ -564,19 +564,19 @@ information about a given command.
 | 0xda | [Create RangeScan](range_scans/range_scan_create.md) |
 | 0xdb | [Continue RangeScan](range_scans/range_scan_continue.md) |
 | 0xdc | [Cancel RangeScan](range_scans/range_scan_cancel.md) |
-| 0xf0 | Scrub                                                                                                                 |
-| 0xf1 | Isasl refresh                                                                                                         |
-| 0xf2 | Ssl certs refresh                                                                                                     |
-| 0xf3 | Get cmd timer                                                                                                         |
-| 0xf4 | [Set ctrl token](#0xf4-set-ctrl-token)                                                                                |
-| 0xf5 | [Get ctrl token](#0xf5-get-ctrl-token)                                                                                |
-| 0xf6 | [Update External User Permissions](ExternalAuthProvider.md#updateexternaluserpermission)                              |
-| 0xf7 | RBAC refresh                                                                                                          |
-| 0xf8 | AUTH provider                                                                                                         |
-| 0xfb | Drop Privilege (for testing)                                                                                          |
-| 0xfc | Adjust time of day (for testing)                                                                                      |
-| 0xfd | EwouldblockCtl (for testing)                                                                                          |
-| 0xfe | [Get error map](#0xf5-get-error-map)                                                                                  |
+| 0xf0 | Scrub (deprecated memcached bucket only) |
+| 0xf1 | [ISASL refresh](#f1-isasl-refresh) |
+| 0xf2 | Ssl certs refresh (Not supported) |
+| 0xf3 | Get cmd timer |   
+| 0xf4 | [Set ctrl token](#0xf4-set-ctrl-token) |
+| 0xf5 | [Get ctrl token](#0xf5-get-ctrl-token) |
+| 0xf6 | [Update External User Permissions](ExternalAuthProvider.md#updateexternaluserpermission) |
+| 0xf7 | [RBAC refresh](#0xf7-rbac-refresh) |
+| 0xf8 | [AUTH provider](#0xf8-auth-provider) |
+| 0xfb | Drop Privilege (for testing) |
+| 0xfc | Adjust time of day (for testing) |
+| 0xfd | EwouldblockCtl (for testing) |
+| 0xfe | [Get error map](#0xf5-get-error-map) |
 
 As a convention all of the commands ending with "Q" for Quiet. A quiet version
 of a command will omit responses that are considered uninteresting. Whether a
@@ -2210,6 +2210,65 @@ following 7-byte ascii string (the request length set to 7).
         +---------------+
         Total 7 bytes
 
+### 0x85 Create Bucket
+
+The `create bucket` command is used to create a new bucket in the system.
+The connection must hold the "Node Supervisor" privilege to run this command.
+
+Request:
+
+* MUST NOT have extra
+* MUST have key
+* MUST have value
+
+The key contains the name of the bucket to create, and the value contains
+the properties for the bucket to create in the format:
+
+    "module\0configuration"
+
+(Note that `\0configuration` may be omitted if no configuration is needed).
+
+Module may be one of the following:
+   * nobucket.so
+   * default_engine.so
+   * ep.so
+   * ewouldblock_engine.so
+
+The status of the operation will be returned in the status code of the
+response message.
+
+### 0x86 Delete Bucket
+
+The `delete bucket` command is used to delete a given bucket. The connection
+must hold the "Node Supervisor privilege"
+
+Request:
+
+* MUST NOT have extra
+* MUST have key
+* MAY have value
+
+The key holds the name of the bucket to delete, and the value _MAY_ contain
+a JSON payload with the following fields:
+
+    force - Boolean value indicating if we should bypass graceful shutdown
+    type  - String value indicating the bucket type to delete (fail if the
+            bucket exists but is of a different type).
+
+`type` may be one of:
+    * Memcached
+    * Couchbase
+    * ClusterConfigOnly
+    * EWouldBlock
+    * No Bucket
+
+`Delete bucket` will wait for all ongoing commands to complete and all
+associated clients to disconnect from the bucket before the bucket will
+be shut down.
+
+The status of the operation will be returned in the status code of the
+response message.
+
 ### 0x87 List Buckets
 
 The `list buckets` command is used to list all of the buckets available
@@ -2320,7 +2379,8 @@ Response:
 ### 0x89 Select Bucket
 
 The `select bucket` command is used to bind the connection to a given bucket
-on the server.
+on the server. The special name "@no bucket@" may be used to disassociate
+the connection from all buckets.
 
 Request:
 
@@ -2608,43 +2668,25 @@ If the VBucket the failover log is requested for does not exist.
 
 If the failover log could not be sent to due a failure to allocate memory.
 
-### 0xf4 Set Ctrl Token
+### 0xb5 Get Cluster Config
 
-The `set ctrl token` will be used by ns_server and ns_server alone
-to set the session cas token in memcached which will be used to
-recognize the particular instance on ns_server.
-The previous token will be passed in the cas section of the request
-header for the CAS operation, and the new token will be part of extras.
+The `get cluster config` is used to get the cached cluster configuration from
+memcached instead of getting it directly from ns_server via the REST interface.
 
 Request:
 
-* MUST have extra
+* MUST NOT have extras
 * MUST NOT have key
 * MUST NOT have value
+* CAS MUST be set to 0
 
-The response to this request will include the cas as it were set,
-and a SUCCESS as status, or a KEY_EEXISTS with the existing token in
-memcached if the CAS operation were to fail.
-
-### 0xf5 Get Ctrl Token
-
-The `get ctrl token` command will be used by ns_server to fetch the current
-session cas token held in memcached.
-
-Request:
-
-* MUST NOT have extra
-* MUST NOT have key
-* MUST NOT have value
+The command returns the cluster configuration for the _selected_ bucket,
+and if no bucket is selected the global cluster configuration is returned if
+the client holds the "System Settings" privilege.
 
 Response:
 
-* MUST NOT have extra
-* MUST NOT have key
-* MUST NOT have value
-
-The response to this request will include the token currently held in
-memcached in the cas field of the header.
+If successful the command responds with the cluster configuration.
 
 ### 0xb6 Get Random Key
 
@@ -2695,6 +2737,122 @@ PROTOCOL_BINARY_RESPONSE_EACCESS (0x24)
 
 The caller lacks the correct privilege to read documents
 
+### 0xf1 ISASL refresh
+
+The `ISASL refresh` command is used to instruct memcached to read the
+password database from file. The connection must hold the "Node Supervisor"
+privilege.
+
+Request:
+* MUST NOT have extra
+* MUST NOT have key
+* MUST have value
+* CAS must be 0
+
+Response:
+* Status code indicate the result of the operation
+
+### 0xf4 Set Ctrl Token
+
+The `set ctrl token` will be used by ns_server and ns_server alone
+to set the session cas token in memcached which will be used to
+recognize the particular instance on ns_server.
+The previous token will be passed in the cas section of the request
+header for the CAS operation, and the new token will be part of extras.
+
+Request:
+
+* MUST have extra
+* MUST NOT have key
+* MUST NOT have value
+
+The response to this request will include the cas as it were set,
+and a SUCCESS as status, or a KEY_EEXISTS with the existing token in
+memcached if the CAS operation were to fail.
+
+### 0xf5 Get Ctrl Token
+
+The `get ctrl token` command will be used by ns_server to fetch the current
+session cas token held in memcached.
+
+Request:
+
+* MUST NOT have extra
+* MUST NOT have key
+* MUST NOT have value
+
+Response:
+
+* MUST NOT have extra
+* MUST NOT have key
+* MUST NOT have value
+
+The response to this request will include the token currently held in
+memcached in the cas field of the header.
+
+### 0xf7 RBAC Refresh
+
+The `RBAC Refresh` command is used to instruct memcached to read the
+RBAC database from file. The connection must hold the "Node Supervisor"
+privilege.
+
+Request:
+* MUST NOT have extra
+* MUST NOT have key
+* MUST have value
+* CAS must be 0
+
+Response:
+* Status code indicate the result of the operation
+
+### 0xf8 Auth provider
+
+The `AUTH provider` command is used to register this connection as an
+auth provider to the system. The connection must hold the "Node supervisor"
+privilege and the connection MUST enable Duplex mode prior to trying
+to register as an Auth Provider.
+
+Request:
+   * MUST NOT have extra
+   * MUST NOT have key
+   * MUST have value
+   * CAS must be 0
+
+Response:
+   * Status code indicate the result of the operation
+
+See [External Auth Provider](ExternalAuthProvider.md) for more
+information about auth provider
+
+### 0xfe Get error map
+
+The `get error map` is used from clients to retrieve the server defined logic
+on how to deal with "unknown" errors. If a client connects to a newer server
+version than it was tested with, that server may return error codes the client
+don't know about. The returned error map contains information on how the
+client should behave when it receives one of those error messages.
+
+Request:
+
+* MUST NOT have extra
+* MUST NOT have key
+* MUST have value
+
+Response:
+
+* MUST NOT have extra
+* MUST NOT have key
+* MUST have value
+
+The value in the request contains the version of the error map the client
+requests (16 bits encoded in network byte order). This version number should
+indicate the highest version number of the error map the client is able
+to understand. The server will return a JSON-formatted error map
+which is formatted to either the version requested by the client, or
+a lower version (thus, clients must be ready to parse lower version
+formats).
+
+See [ErrorMap.mp](ErrorMap.md) for more information.
 
 ## Server Commands
 
@@ -2738,32 +2896,3 @@ See [External Auth Provider](ExternalAuthProvider.md#authentication-request).
 
 See [External Auth Provider](ExternalAuthProvider.md#activeexternalusers-request).
 
-### 0xfe Get error map
-
-The `get error map` is used from clients to retrieve the server defined logic
-on how to deal with "unknown" errors. If a client connects to a newer server
-version than it was tested with, that server may return error codes the client
-don't know about. The returned error map contains information on how the
-client should behave when it receives one of those error messages.
-
-Request:
-
-* MUST NOT have extra
-* MUST NOT have key
-* MUST have value
-
-Response:
-
-* MUST NOT have extra
-* MUST NOT have key
-* MUST have value
-
-The value in the request contains the version of the error map the client
-requests (16 bits encoded in network byte order). This version number should
-indicate the highest version number of the error map the client is able
-to understand. The server will return a JSON-formatted error map
-which is formatted to either the version requested by the client, or
-a lower version (thus, clients must be ready to parse lower version
-formats).
-
-See [ErrorMap.mp](ErrorMap.md) for more information.
