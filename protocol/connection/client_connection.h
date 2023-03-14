@@ -248,6 +248,17 @@ struct TimeoutException : public std::runtime_error {
  */
 enum class ExecutionMode { Ordered, Unordered };
 
+/// The supported TLS versions to use
+enum class TlsVersion {
+    /// Let the system pick one from 1.2 or 1.3
+    Any,
+    /// Force use of 1.2
+    V1_2,
+    /// Force use of 1.3
+    V1_3
+};
+::std::ostream& operator<<(::std::ostream& os, const TlsVersion& version);
+
 /**
  * The MemcachedConnection class is an abstract class representing a
  * connection to memcached. The concrete implementations of the class
@@ -355,7 +366,7 @@ public:
     void setCaFile(std::filesystem::path file);
 
     /// Set the TLS version to use
-    void setTlsProtocol(std::string protocol);
+    void setTlsProtocol(TlsVersion version);
     /// Set the ciphers to use for TLS < 1.3
     void setTls12Ciphers(std::string ciphers);
     /// Set the ciphers to use for TLS >= 1.3
@@ -1058,7 +1069,7 @@ protected:
     sa_family_t family;
     bool auto_retry_tmpfail = false;
     bool ssl;
-    std::string tls_protocol;
+    TlsVersion tls_protocol = TlsVersion::Any;
     std::string tls12_ciphers{"HIGH"};
     std::string tls13_ciphers{
             "TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_"

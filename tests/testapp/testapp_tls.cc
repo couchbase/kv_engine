@@ -60,7 +60,7 @@ protected:
         reloadConfig();
     }
 
-    void shouldPass(const std::string& version) {
+    void shouldPass(TlsVersion version) {
         try {
             connection->setTlsProtocol(version);
             connection->reconnect();
@@ -72,7 +72,7 @@ protected:
         }
     }
 
-    void shouldFail(const std::string& version) {
+    void shouldFail(TlsVersion version) {
         try {
             connection->setTlsProtocol(version);
             connection->reconnect();
@@ -90,46 +90,20 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          ::testing::Values(TransportProtocols::McbpSsl),
                          ::testing::PrintToStringParamName());
 
-TEST_P(TlsTests, Minimum_Tls1) {
-    if (OPENSSL_VERSION_MAJOR > 1) {
-        GTEST_SKIP();
-    }
-    setTlsMinimumSpec("TLS 1");
-
-    shouldPass("tlsv1");
-    shouldPass("tlsv1_1");
-    shouldPass("tlsv1_2");
-    shouldPass("tlsv1_3");
-}
-
-TEST_P(TlsTests, Minimum_Tls1_1) {
-    if (OPENSSL_VERSION_MAJOR > 1) {
-        GTEST_SKIP();
-    }
-    setTlsMinimumSpec("TLS 1.1");
-
-    shouldFail("tlsv1");
-    shouldPass("tlsv1_1");
-    shouldPass("tlsv1_2");
-    shouldPass("tlsv1_3");
-}
-
 TEST_P(TlsTests, Minimum_Tls1_2) {
     setTlsMinimumSpec("TLS 1.2");
 
-    shouldFail("tlsv1");
-    shouldFail("tlsv1_1");
-    shouldPass("tlsv1_2");
-    shouldPass("tlsv1_3");
+    shouldPass(TlsVersion::Any);
+    shouldPass(TlsVersion::V1_2);
+    shouldPass(TlsVersion::V1_3);
 }
 
 TEST_P(TlsTests, Minimum_Tls1_3) {
     setTlsMinimumSpec("TLS 1.3");
 
-    shouldFail("tlsv1");
-    shouldFail("tlsv1_1");
-    shouldFail("tlsv1_2");
-    shouldPass("tlsv1_3");
+    shouldPass(TlsVersion::Any);
+    shouldFail(TlsVersion::V1_2);
+    shouldPass(TlsVersion::V1_3);
 }
 
 TEST_P(TlsTests, TLS12_Ciphers) {
@@ -137,36 +111,27 @@ TEST_P(TlsTests, TLS12_Ciphers) {
     tls["cipher list"]["TLS 1.2"] = "HIGH:!TLSv1";
     reloadConfig();
 
-    // We should be able to pick one of the other ciphers
-    if (OPENSSL_VERSION_MAJOR == 1) {
-        shouldPass("tlsv1");
-        shouldPass("tlsv1_1");
-    }
-    shouldPass("tlsv1_2");
+    shouldPass(TlsVersion::V1_2);
 
     // But all should fail if we set that we only want TLSv1 ciphers
     connection->setTls12Ciphers("TLSv1");
-    shouldFail("tlsv1");
-    shouldFail("tlsv1_1");
-    shouldFail("tlsv1_2");
+    shouldFail(TlsVersion::V1_2);
 
     // TLS 1.1. did not introduce any new ciphers
     tls["cipher list"]["TLS 1.2"] = "HIGH:!TLSv1:!TLSv1.2";
     reloadConfig();
     connection->setTls12Ciphers("TLSv1.2");
-    shouldFail("tlsv1");
-    shouldFail("tlsv1_1");
-    shouldFail("tlsv1_2");
+    shouldFail(TlsVersion::V1_2);
 }
 
 TEST_P(TlsTests, TLS13_Ciphers) {
     tls["cipher list"]["TLS 1.3"] = "TLS_AES_256_GCM_SHA384";
     reloadConfig();
 
-    shouldPass("tlsv1_3");
+    shouldPass(TlsVersion::V1_3);
 
     connection->setTls13Ciphers("TLS_AES_128_GCM_SHA256");
-    shouldFail("tlsv1_3");
+    shouldFail(TlsVersion::V1_3);
 }
 
 // In the weird case you've configured the system to not accept any ciphers
@@ -175,22 +140,22 @@ TEST_P(TlsTests, No_Ciphers) {
     tls["cipher list"]["TLS 1.2"] = "";
     tls["cipher list"]["TLS 1.3"] = "";
     reloadConfig();
-    shouldFail("tlsv1");
-    shouldFail("tlsv1_1");
-    shouldFail("tlsv1_2");
-    shouldFail("tlsv1_3");
+
+    shouldFail(TlsVersion::Any);
+    shouldFail(TlsVersion::V1_2);
+    shouldFail(TlsVersion::V1_3);
 }
 
 TEST_P(TlsTests, ECDHE_RSA_AES256_GCM_SHA384) {
     tls["cipher list"]["TLS 1.2"] = "ECDHE-RSA-AES256-GCM-SHA384";
     tls["cipher list"]["TLS 1.3"] = "";
     reloadConfig();
-    shouldPass("tlsv1_2");
+    shouldPass(TlsVersion::V1_2);
 }
 
 TEST_P(TlsTests, DHE_RSA_AES256_SHA256) {
     tls["cipher list"]["TLS 1.2"] = "DHE-RSA-AES256-SHA256";
     tls["cipher list"]["TLS 1.3"] = "";
     reloadConfig();
-    shouldPass("tlsv1_2");
+    shouldPass(TlsVersion::V1_2);
 }

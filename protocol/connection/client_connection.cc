@@ -309,6 +309,18 @@ void MemcachedConnection::enterMessagePumpMode(
     return os << std::dec << "]";
 }
 
+::std::ostream& operator<<(::std::ostream& os, const TlsVersion& version) {
+    switch (version) {
+    case TlsVersion::Any:
+        return os << "Any";
+    case TlsVersion::V1_2:
+        return os << "TLS 1.2";
+    case TlsVersion::V1_3:
+        return os << "TLS 1.3";
+    }
+    throw std::invalid_argument("Unknown TLS version");
+}
+
 void Document::compress() {
     if (cb::mcbp::datatype::is_snappy(
                 protocol_binary_datatype_t(info.datatype))) {
@@ -570,23 +582,18 @@ intptr_t MemcachedConnection::getServerConnectionId() {
     return st.front()["socket"].get<size_t>();
 }
 
-long tls_protocol_to_options(const std::string& protocol) {
-    /* MB-12359 - Disable SSLv2 & SSLv3 due to POODLE */
-    long disallow = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3;
-
-    std::string minimum(protocol);
-    std::transform(minimum.begin(), minimum.end(), minimum.begin(), tolower);
-
-    if (minimum.empty() || minimum == "tlsv1") {
-        disallow |= SSL_OP_NO_TLSv1_3 | SSL_OP_NO_TLSv1_2 | SSL_OP_NO_TLSv1_1;
-    } else if (minimum == "tlsv1.1" || minimum == "tlsv1_1") {
-        disallow |= SSL_OP_NO_TLSv1_3 | SSL_OP_NO_TLSv1_2 | SSL_OP_NO_TLSv1;
-    } else if (minimum == "tlsv1.2" || minimum == "tlsv1_2") {
-        disallow |= SSL_OP_NO_TLSv1_3 | SSL_OP_NO_TLSv1_1 | SSL_OP_NO_TLSv1;
-    } else if (minimum == "tlsv1.3" || minimum == "tlsv1_3") {
-        disallow |= SSL_OP_NO_TLSv1_2 | SSL_OP_NO_TLSv1_1 | SSL_OP_NO_TLSv1;
-    } else {
-        throw std::invalid_argument("Unknown protocol: " + minimum);
+long tls_protocol_to_options(TlsVersion protocol) {
+    long disallow = SSL_OP_NO_SSL_MASK | SSL_OP_NO_RENEGOTIATION;
+    switch (protocol) {
+    case TlsVersion::Any:
+        disallow &= ~(SSL_OP_NO_TLSv1_2 | SSL_OP_NO_TLSv1_3);
+        break;
+    case TlsVersion::V1_2:
+        disallow &= ~SSL_OP_NO_TLSv1_2;
+        break;
+    case TlsVersion::V1_3:
+        disallow &= ~SSL_OP_NO_TLSv1_3;
+        break;
     }
 
     return disallow;
@@ -632,9 +639,7 @@ void MemcachedConnection::connect() {
         // Ensure read/write operations only return after the
         // handshake and successful completion.
         SSL_CTX_set_mode(context, SSL_MODE_AUTO_RETRY);
-        if (!tls_protocol.empty()) {
-            SSL_CTX_set_options(context, tls_protocol_to_options(tls_protocol));
-        }
+        SSL_CTX_set_options(context, tls_protocol_to_options(tls_protocol));
 
         if (SSL_CTX_set_ciphersuites(context, tls13_ciphers.c_str()) == 0 &&
             !tls13_ciphers.empty()) {
@@ -883,8 +888,8 @@ void MemcachedConnection::setCaFile(std::filesystem::path file) {
     ca_file = std::move(file);
 }
 
-void MemcachedConnection::setTlsProtocol(std::string protocol) {
-    tls_protocol = std::move(protocol);
+void MemcachedConnection::setTlsProtocol(TlsVersion protocol) {
+    tls_protocol = protocol;
 }
 
 void MemcachedConnection::setTls12Ciphers(std::string ciphers) {
@@ -908,6 +913,9 @@ std::unique_ptr<MemcachedConnection> MemcachedConnection::clone(
     ret->ssl_cert_file = ssl_cert_file;
     ret->ssl_key_file = ssl_key_file;
     ret->ca_file = ca_file;
+    ret->tls_protocol = tls_protocol;
+    ret->tls12_ciphers = tls12_ciphers;
+    ret->tls13_ciphers = tls13_ciphers;
     ret->packet_dump_callback = packet_dump_callback;
     if (connect) {
         ret->connect();
