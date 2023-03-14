@@ -371,3 +371,21 @@ TEST(ChangeListenerTest, Callback) {
     configuration.setParameter(key, false);
     EXPECT_FALSE(testValue);
 }
+
+TEST(ChangeListenerTest, CallbackIncorrectType) {
+    // Check that callbacks added as a lambda are required to accept the
+    // correct type - e.g., adding a callback accepting a string value
+    // for a config param of type size_t should not be permitted
+    ConfigurationShim configuration;
+    std::string key{"test_key"};
+
+    // create a config param with value of type size_t
+    configuration.addParameter(key, size_t() /* value */, true /* isDynamic */);
+
+    EXPECT_THROW(configuration.addValueChangedCallback(
+                         key, [](std::string_view value) {}),
+                 std::logic_error);
+
+    EXPECT_NO_THROW(
+            configuration.addValueChangedCallback(key, [](size_t value) {}));
+}

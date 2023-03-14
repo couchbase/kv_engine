@@ -421,17 +421,53 @@ private:
     Callback callback;
 };
 
+// map to owning type - config values are owning e.g., std::string
+// but callbacks can instead take non-owning types e.g., std::string_view
+template <class T>
+struct owning_type {
+    using type = T;
+};
+
+template <>
+struct owning_type<std::string_view> {
+    using type = std::string;
+};
+
+template <class T>
+using owning_type_t = typename owning_type<T>::type;
+
 template <class Arg>
 void Configuration::addValueChangedFunc(const std::string& key,
                                         std::function<void(Arg)> callback) {
-    // TODO: given each config param has a single, known type
-    //  it would be nice to check that the callable does handle that
-    //  specific type here. That would add value over the
-    //  ValueChangedListener, which does not enforce that that
-    //  the listener overrides the method for the _correct_ type
-    //  (and many listener impls are reused for several config keys anyway).
-    addValueChangedListener(
-            key,
+    std::lock_guard<std::mutex> lh(mutex);
+    auto itr = attributes.find(key);
+    if (itr == attributes.end()) {
+        throw std::invalid_argument(
+                "Configuration::addValueChangedFunc: No such config key '" +
+                key + "'");
+    }
+    // Config params will _always_ have a value of the intended type set,
+    // either the default or some updated value.
+    // By trying to get the value as type Arg, we can verify that the given
+    // callback actually handles the correct type
+    // e.g., user is not providing a callback handling string types for a
+    // param with type size_t
+    const auto& valueVariant = itr->second->value;
+    bool handlesType = bool(std::get_if<owning_type_t<Arg>>(&valueVariant));
+
+    if (!handlesType) {
+        auto actualConfigType =
+                std::visit([](auto v) { return type_name<decltype(v)>::value; },
+                           valueVariant);
+        throw std::invalid_argument(fmt::format(
+                "Configuration::addValueChangedFunc: Callback provided which "
+                "accepts {} instead of expected type {} for key '{}'",
+                type_name<Arg>::value,
+                actualConfigType,
+                key));
+    }
+
+    attributes[key]->changeListener.emplace_back(
             std::make_unique<ValueChangedCallback<Arg>>(std::move(callback)));
 }
 
