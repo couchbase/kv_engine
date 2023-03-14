@@ -171,3 +171,7 @@ MockBucketLogger& MockDcpProducer::public_getLogger() const {
 void MockDcpProducer::setOutOfOrderSnapshots(OutOfOrderSnapshots oso) {
     outOfOrderSnapshots = oso;
 }
+
+void MockDcpProducer::public_enableSyncReplication() {
+    supportsSyncReplication = SyncReplication::SyncReplication;
+}

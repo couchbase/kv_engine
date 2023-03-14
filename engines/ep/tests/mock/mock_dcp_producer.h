@@ -246,4 +246,6 @@ public:
     MockBucketLogger& public_getLogger() const;
 
     void setOutOfOrderSnapshots(OutOfOrderSnapshots oso);
+
+    void public_enableSyncReplication();
 };

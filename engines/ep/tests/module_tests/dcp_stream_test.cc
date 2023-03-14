@@ -5150,6 +5150,7 @@ void CDCActiveStreamTest::SetUp() {
     ASSERT_EQ(cb::engine_errc::success,
               producer->control(0, DcpControlKeys::ChangeStreams, "true"));
     ASSERT_TRUE(producer->areChangeStreamsEnabled());
+    producer->public_enableSyncReplication();
     startCheckpointTask();
 
     recreateStream(*vb,
@@ -5534,6 +5535,115 @@ TEST_P(CDCActiveStreamTest, SnapshotAndSeqnoAdvanceCorrectHistoryFlag) {
     EXPECT_EQ(vb.getHighSeqno(), resp->getBySeqno());
 
     EXPECT_EQ(0, readyQ.size());
+}
+
+TEST_P(CDCActiveStreamTest, DeduplicationDisabledForAbort) {
+    ASSERT_TRUE(store->isHistoryRetentionEnabled());
+    ASSERT_TRUE(stream->public_supportSyncReplication());
+
+    setVBucketState(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    auto& vb = *store->getVBucket(vbid);
+    const auto initHighSeqno = vb.getHighSeqno();
+    ASSERT_GT(initHighSeqno, 0); // From SetUp
+
+    clearCMAndPersistenceAndReplication();
+    // Note: stream filters on historical collection, so only the CreateColl
+    // sysevent has been processed so far. See SetUp for details.
+    ASSERT_EQ(1, stream->getLastSentSeqno());
+
+    // Sequence of pre, abr, pre, cmt for the same key
+    const auto key = makeStoredDocKey("key", CollectionEntry::historical);
+
+    // PRE
+    using namespace cb::durability;
+    const auto reqs = Requirements{Level::Majority, Timeout()};
+    const auto pre1 = store_item(vbid,
+                                 key,
+                                 "value_p1",
+                                 0,
+                                 {cb::engine_errc::sync_write_pending},
+                                 PROTOCOL_BINARY_RAW_BYTES,
+                                 reqs);
+    EXPECT_EQ(initHighSeqno + 1, vb.getHighSeqno());
+
+    // ABORT
+    ASSERT_EQ(cb::engine_errc::success,
+              vb.abort(pre1.getKey(),
+                       pre1.getBySeqno(),
+                       {},
+                       vb.lockCollections(pre1.getKey())));
+    EXPECT_EQ(initHighSeqno + 2, vb.getHighSeqno());
+
+    // PRE
+    const auto pre2 = store_item(vbid,
+                                 key,
+                                 "value_p2",
+                                 0,
+                                 {cb::engine_errc::sync_write_pending},
+                                 PROTOCOL_BINARY_RAW_BYTES,
+                                 reqs);
+    EXPECT_EQ(initHighSeqno + 3, vb.getHighSeqno());
+
+    // COMMIT
+    ASSERT_EQ(cb::engine_errc::success,
+              vb.commit(pre2.getKey(),
+                        pre2.getBySeqno(),
+                        {},
+                        vb.lockCollections(pre2.getKey())));
+    EXPECT_EQ(initHighSeqno + 4, vb.getHighSeqno());
+
+    // Note: First step where checks begin to fail before the fix for MB-55919.
+    // Before the fix, only 3 items are persisted as the Abort is wrongly
+    // deduplicated.
+    flush_vbucket_to_disk(vbid, 4);
+
+    // Force stream to backfilling from disk
+    stream->handleSlowStream();
+    GMockDcpMsgProducers producers;
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
+    EXPECT_TRUE(stream->isBackfilling());
+
+    // Must see 1 historical snapshot with [pre, abr, pre, cmt]
+    // Before the fix for MB-55919 we get only [pre, pre, cmt].
+    const auto& readyQ = stream->public_readyQ();
+    EXPECT_EQ(0, readyQ.size());
+    runBackfill();
+    EXPECT_EQ(5, readyQ.size());
+
+    auto resp = stream->public_nextQueuedItem(*producer);
+    EXPECT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto* marker = dynamic_cast<SnapshotMarker*>(resp.get());
+    const uint32_t expectedMarkerFlags = MARKER_FLAG_DISK | MARKER_FLAG_CHK |
+                                         MARKER_FLAG_HISTORY |
+                                         MARKER_FLAG_MAY_CONTAIN_DUPLICATE_KEYS;
+    EXPECT_EQ(expectedMarkerFlags, marker->getFlags());
+    EXPECT_EQ(initHighSeqno + 1, marker->getStartSeqno());
+    EXPECT_EQ(initHighSeqno + 4, marker->getEndSeqno());
+
+    resp = stream->public_nextQueuedItem(*producer);
+    EXPECT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
+    EXPECT_EQ(initHighSeqno + 1, resp->getBySeqno());
+
+    resp = stream->public_nextQueuedItem(*producer);
+    EXPECT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Abort, resp->getEvent());
+    EXPECT_EQ(initHighSeqno + 2, resp->getBySeqno());
+
+    resp = stream->public_nextQueuedItem(*producer);
+    EXPECT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
+    EXPECT_EQ(initHighSeqno + 3, resp->getBySeqno());
+
+    resp = stream->public_nextQueuedItem(*producer);
+    EXPECT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    EXPECT_EQ(initHighSeqno + 4, resp->getBySeqno());
 }
 
 INSTANTIATE_TEST_SUITE_P(Persistent,
