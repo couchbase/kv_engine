@@ -554,6 +554,54 @@ TEST_F(DefragmenterTaskTest, autoCalculateSleep) {
     EXPECT_TRUE(state.runDefragger);
 }
 
+// Test the default configuration for the defragmenter to make sure it is sane
+class DefaultDefragmenterTaskTest : public SingleThreadedKVBucketTest {};
+
+// Returns fragmentation stats for a given fragmentation percentage
+static cb::FragmentationStats fakeFragmentationStats(double perc) {
+    EXPECT_LT(0, perc);
+    EXPECT_GT(1, perc);
+    const size_t allocated = 1000;
+    const size_t resident = allocated / (1 - perc);
+    return cb::FragmentationStats{allocated, resident};
+}
+
+TEST_F(DefaultDefragmenterTaskTest, autoCalculateSleep_PID_thresholds) {
+    const auto& conf = engine->getConfiguration();
+    const auto minSleep =
+            std::chrono::duration<double>(conf.getDefragmenterAutoMinSleep());
+    const auto maxSleep =
+            std::chrono::duration<double>(conf.getDefragmenterAutoMaxSleep());
+    const auto lowerThreshold = conf.getDefragmenterAutoLowerThreshold();
+    const auto upperThreshold = conf.getDefragmenterAutoUpperThreshold();
+    const auto Kp = conf.getDefragmenterAutoPidP();
+    // Check that the default configuration is sane
+    ASSERT_NEAR(
+            Kp,
+            (maxSleep - minSleep).count() / (upperThreshold - lowerThreshold),
+            0.5);
+
+    // set hwm to some low number, so scoredFragmentation = real fragmentation
+    engine->getEpStats().setHighWaterMark(1);
+    auto task = std::make_unique<MockDefragmenterTask>(*engine,
+                                                       engine->getEpStats());
+    // Set the step to equal the PID duration - this means each step changes
+    // the output.
+    MockDefragmenterTask::MockDefragmenterTaskClock::step =
+            std::chrono::milliseconds(conf.getDefragmenterAutoPidDt());
+
+    // upper threshold fragmentation should give us minSleep
+    EXPECT_EQ(minSleep.count(),
+              task->public_calculateSleepPID(
+                          fakeFragmentationStats(upperThreshold))
+                      .sleepTime.count());
+    // lower threshold fragmentation should give us maxSleep
+    EXPECT_EQ(maxSleep.count(),
+              task->public_calculateSleepPID(
+                          fakeFragmentationStats(lowerThreshold))
+                      .sleepTime.count());
+}
+
 INSTANTIATE_TEST_SUITE_P(
         FullAndValueEviction,
         DefragmenterTest,
