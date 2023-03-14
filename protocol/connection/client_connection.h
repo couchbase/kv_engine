@@ -132,9 +132,7 @@ struct ObserveInfo {
     uint64_t failoverSeqno;
 };
 
-enum class MutationType {
-    Add, Set, Replace, Append, Prepend
-};
+enum class MutationType { Add, Set, Replace, Append, Prepend };
 
 std::string to_string(MutationType type);
 
@@ -645,9 +643,8 @@ public:
     /**
      * Execute a command on the server and return the raw response packet.
      */
-    BinprotResponse execute(
-            const BinprotCommand& command,
-            std::chrono::milliseconds readTimeout = {});
+    BinprotResponse execute(const BinprotCommand& command,
+                            std::chrono::milliseconds readTimeout = {});
 
     /**
      * Get a textual representation of this connection

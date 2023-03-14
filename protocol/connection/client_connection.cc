@@ -101,8 +101,7 @@ static void handleFollyAsyncSocketException(
  */
 class AsyncReadCallback : public folly::AsyncReader::ReadCallback {
 public:
-    AsyncReadCallback(folly::EventBase& base)
-        : base(base) {
+    AsyncReadCallback(folly::EventBase& base) : base(base) {
     }
 
     ~AsyncReadCallback() override = default;
@@ -204,7 +203,8 @@ public:
                 if (!header->isValid()) {
                     if (throwOnError) {
                         throw std::runtime_error(
-                                "isPacketAvailable(): Invalid packet header detected");
+                                "isPacketAvailable(): Invalid packet header "
+                                "detected");
                     } else {
                         current_frame_bytes_left = 0;
                         return true;
@@ -404,7 +404,8 @@ SOCKET try_connect_socket(struct addrinfo* next,
                         reinterpret_cast<const void*>(&flag),
                         sizeof(flag));
 
-    if (cb::net::connect(sfd, next->ai_addr, next->ai_addrlen) == SOCKET_ERROR) {
+    if (cb::net::connect(sfd, next->ai_addr, next->ai_addrlen) ==
+        SOCKET_ERROR) {
         auto error = cb::net::get_socket_error();
         cb::net::closesocket(sfd);
 #ifdef WIN32
@@ -437,7 +438,7 @@ static SOCKET new_socket(const std::string& host,
     if (hostname.empty() || hostname == "localhost") {
         if (family == AF_INET) {
             hostname.assign("127.0.0.1");
-        } else if (family == AF_INET6){
+        } else if (family == AF_INET6) {
             hostname.assign("::1");
         } else if (family == AF_UNSPEC) {
             hostname.assign("localhost");
@@ -628,8 +629,8 @@ void MemcachedConnection::connect() {
         }
 
         if (!ssl_cert_file.empty() && !ssl_key_file.empty()) {
-            if (!SSL_CTX_use_certificate_chain_file(
-                        context, ssl_cert_file.c_str()) ||
+            if (!SSL_CTX_use_certificate_chain_file(context,
+                                                    ssl_cert_file.c_str()) ||
                 !SSL_CTX_use_PrivateKey_file(
                         context, ssl_key_file.c_str(), SSL_FILETYPE_PEM) ||
                 !SSL_CTX_check_private_key(context)) {
@@ -647,14 +648,11 @@ void MemcachedConnection::connect() {
         if (!ca_file.empty() &&
             !SSL_CTX_load_verify_locations(context, ca_file.c_str(), nullptr)) {
             std::vector<char> ssl_err(1024);
-            ERR_error_string_n(
-                    ERR_get_error(), ssl_err.data(), ssl_err.size());
+            ERR_error_string_n(ERR_get_error(), ssl_err.data(), ssl_err.size());
             SSL_CTX_free(context);
-            throw std::runtime_error(
-                    std::string("Failed to use CA file: ") +
-                    ssl_err.data());
+            throw std::runtime_error(std::string("Failed to use CA file: ") +
+                                     ssl_err.data());
         }
-
 
         auto ctx = std::make_shared<folly::SSLContext>(context);
         SSL_CTX_free(context);
@@ -821,15 +819,16 @@ nlohmann::json MemcachedConnection::stats(const std::string& subcommand,
     return ret;
 }
 
-void MemcachedConnection::setSslCertFile(const std::string& file)  {
+void MemcachedConnection::setSslCertFile(const std::string& file) {
     if (file.empty()) {
         ssl_cert_file.clear();
         return;
     }
     auto path = cb::io::sanitizePath(file);
     if (!cb::io::isFile(path)) {
-        throw std::system_error(std::make_error_code(std::errc::no_such_file_or_directory),
-                                "Can't use [" + path + "]");
+        throw std::system_error(
+                std::make_error_code(std::errc::no_such_file_or_directory),
+                "Can't use [" + path + "]");
     }
     ssl_cert_file = std::move(path);
 }
@@ -841,8 +840,9 @@ void MemcachedConnection::setSslKeyFile(const std::string& file) {
     }
     auto path = cb::io::sanitizePath(file);
     if (!cb::io::isFile(path)) {
-        throw std::system_error(std::make_error_code(std::errc::no_such_file_or_directory),
-                                "Can't use [" + path + "]");
+        throw std::system_error(
+                std::make_error_code(std::errc::no_such_file_or_directory),
+                "Can't use [" + path + "]");
     }
     ssl_key_file = std::move(path);
 }
@@ -854,8 +854,9 @@ void MemcachedConnection::setCaFile(const std::string& file) {
     }
     auto path = cb::io::sanitizePath(file);
     if (!cb::io::isFile(path)) {
-        throw std::system_error(std::make_error_code(std::errc::no_such_file_or_directory),
-                                "Can't use [" + path + "]");
+        throw std::system_error(
+                std::make_error_code(std::errc::no_such_file_or_directory),
+                "Can't use [" + path + "]");
     }
     ca_file = std::move(path);
 }
@@ -945,14 +946,20 @@ void MemcachedConnection::recvFrame(Frame& frame,
         if (tmo.fired) {
             if (opcode == cb::mcbp::ClientOpcode::Invalid) {
                 throw TimeoutException(
-                        "MemcachedConnection::recvFrame(): Timed out after waiting "
-                                + std::to_string(timeoutvalue.count()) + "ms for a response",
-                                opcode, readTimeout);
+                        "MemcachedConnection::recvFrame(): Timed out after "
+                        "waiting " +
+                                std::to_string(timeoutvalue.count()) +
+                                "ms for a response",
+                        opcode,
+                        readTimeout);
             } else {
                 throw TimeoutException(
-                        "MemcachedConnection::recvFrame(): Timed out after waiting "
-                                + std::to_string(timeoutvalue.count()) + "ms for a response for "
-                                + ::to_string(opcode), opcode, readTimeout);
+                        "MemcachedConnection::recvFrame(): Timed out after "
+                        "waiting " +
+                                std::to_string(timeoutvalue.count()) +
+                                "ms for a response for " + ::to_string(opcode),
+                        opcode,
+                        readTimeout);
             }
         }
     }
@@ -1663,8 +1670,8 @@ ObserveInfo MemcachedConnection::observeSeqno(
     const auto response = BinprotObserveSeqnoResponse(execute(observe));
     if (!response.isSuccess()) {
         throw ConnectionError(std::string("Failed to observeSeqno for ") +
-                                      vbid.to_string() + " uuid:" +
-                                      std::to_string(uuid),
+                                      vbid.to_string() +
+                                      " uuid:" + std::to_string(uuid),
                               response.getStatus());
     }
     return response.info;

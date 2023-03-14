@@ -98,6 +98,7 @@ public:
      * element.
      */
     virtual Encoded encode() const;
+
 protected:
     // Private constructor to avoid using the class directly
     BinprotCommand() = default;
@@ -770,6 +771,7 @@ public:
     void setVersion(uint16_t version_);
 
     void encode(std::vector<uint8_t>& buf) const override;
+
 private:
     uint16_t version = 0;
 };
@@ -956,8 +958,7 @@ public:
         : BinprotGenericCommand(cb::mcbp::ClientOpcode::GetFailoverLog){};
 };
 
-class BinprotSetParamCommand
-    : public BinprotGenericCommand {
+class BinprotSetParamCommand : public BinprotGenericCommand {
 public:
     BinprotSetParamCommand(cb::mcbp::request::SetParamPayload::Type type_,
                            const std::string& key_,
@@ -970,8 +971,7 @@ protected:
     const std::string value;
 };
 
-class BinprotSetWithMetaCommand
-    : public BinprotGenericCommand {
+class BinprotSetWithMetaCommand : public BinprotGenericCommand {
 public:
     BinprotSetWithMetaCommand(const Document& doc,
                               Vbid vbucket,

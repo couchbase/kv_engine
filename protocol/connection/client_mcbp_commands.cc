@@ -515,7 +515,8 @@ bool BinprotSubdocResponse::operator==(
 
 void BinprotSaslAuthCommand::encode(std::vector<uint8_t>& buf) const {
     if (key.empty()) {
-        throw std::logic_error("BinprotSaslAuthCommand: Missing mechanism (setMechanism)");
+        throw std::logic_error(
+                "BinprotSaslAuthCommand: Missing mechanism (setMechanism)");
     }
 
     writeHeader(buf, challenge.size(), 0);
@@ -531,10 +532,13 @@ void BinprotSaslAuthCommand::setChallenge(std::string_view data) {
 
 void BinprotSaslStepCommand::encode(std::vector<uint8_t>& buf) const {
     if (key.empty()) {
-        throw std::logic_error("BinprotSaslStepCommand::encode: Missing mechanism (setMechanism");
+        throw std::logic_error(
+                "BinprotSaslStepCommand::encode: Missing mechanism "
+                "(setMechanism");
     }
     if (challenge.empty()) {
-        throw std::logic_error("BinprotSaslStepCommand::encode: Missing challenge response");
+        throw std::logic_error(
+                "BinprotSaslStepCommand::encode: Missing challenge response");
     }
 
     writeHeader(buf, challenge.size(), 0);
@@ -550,7 +554,9 @@ void BinprotSaslStepCommand::setChallenge(std::string_view data) {
 
 void BinprotCreateBucketCommand::encode(std::vector<uint8_t>& buf) const {
     if (module_config.empty()) {
-        throw std::logic_error("BinprotCreateBucketCommand::encode: Missing bucket module and config");
+        throw std::logic_error(
+                "BinprotCreateBucketCommand::encode: Missing bucket module and "
+                "config");
     }
     writeHeader(buf, module_config.size(), 0);
     buf.insert(buf.end(), key.begin(), key.end());
@@ -670,7 +676,7 @@ uint32_t BinprotGetResponse::getDocumentFlags() const {
 }
 
 BinprotMutationCommand& BinprotMutationCommand::setMutationType(
-    MutationType type) {
+        MutationType type) {
     switch (type) {
     case MutationType::Add:
         setOp(cb::mcbp::ClientOpcode::Add);
@@ -690,17 +696,23 @@ BinprotMutationCommand& BinprotMutationCommand::setMutationType(
     }
 
     throw std::invalid_argument(
-        "BinprotMutationCommand::setMutationType: Mutation type not supported: " +
-        std::to_string(int(type)));
+            "BinprotMutationCommand::setMutationType: Mutation type not "
+            "supported: " +
+            std::to_string(int(type)));
 }
 
 std::string to_string(MutationType type) {
     switch (type) {
-    case MutationType::Add: return "ADD";
-    case MutationType::Set: return "SET";
-    case MutationType::Replace: return "REPLACE";
-    case MutationType::Append: return "APPEND";
-    case MutationType::Prepend: return "PREPEND";
+    case MutationType::Add:
+        return "ADD";
+    case MutationType::Set:
+        return "SET";
+    case MutationType::Replace:
+        return "REPLACE";
+    case MutationType::Append:
+        return "APPEND";
+    case MutationType::Prepend:
+        return "PREPEND";
     }
 
     return "to_string(MutationType type) Unknown type: " +
@@ -723,17 +735,22 @@ BinprotMutationCommand& BinprotMutationCommand::setDocumentInfo(
 
 void BinprotMutationCommand::encodeHeader(std::vector<uint8_t>& buf) const {
     if (key.empty()) {
-        throw std::invalid_argument("BinprotMutationCommand::encode: Key is missing!");
+        throw std::invalid_argument(
+                "BinprotMutationCommand::encode: Key is missing!");
     }
     if (!value.empty() && !value_refs.empty()) {
-        throw std::invalid_argument("BinprotMutationCommand::encode: Both value and value_refs have items!");
+        throw std::invalid_argument(
+                "BinprotMutationCommand::encode: Both value and value_refs "
+                "have items!");
     }
 
     uint8_t extlen = 8;
     if (getOp() == cb::mcbp::ClientOpcode::Append ||
         getOp() == cb::mcbp::ClientOpcode::Prepend) {
         if (expiry.getValue() != 0) {
-            throw std::invalid_argument("BinprotMutationCommand::encode: Expiry invalid with append/prepend");
+            throw std::invalid_argument(
+                    "BinprotMutationCommand::encode: Expiry invalid with "
+                    "append/prepend");
         }
         extlen = 0;
     }
@@ -909,7 +926,8 @@ void BinprotIncrDecrCommand::encode(std::vector<uint8_t>& buf) const {
     if (getOp() != cb::mcbp::ClientOpcode::Decrement &&
         getOp() != cb::mcbp::ClientOpcode::Increment) {
         throw std::invalid_argument(
-                "BinprotIncrDecrCommand::encode: Invalid opcode. Need INCREMENT or DECREMENT");
+                "BinprotIncrDecrCommand::encode: Invalid opcode. Need "
+                "INCREMENT or DECREMENT");
     }
 
     auto extras = payload.getBuffer();
@@ -954,7 +972,8 @@ void BinprotGetErrorMapCommand::setVersion(uint16_t version_) {
     version = version_;
 }
 
-void BinprotSubdocMultiMutationCommand::encode(std::vector<uint8_t>& buf) const {
+void BinprotSubdocMultiMutationCommand::encode(
+        std::vector<uint8_t>& buf) const {
     // Calculate the size of the payload
     size_t total = 0;
     for (const auto& spec : specs) {
@@ -977,8 +996,7 @@ void BinprotSubdocMultiMutationCommand::encode(std::vector<uint8_t>& buf) const 
         buf.insert(buf.end(), p, p + 4);
     }
     if (!isNone(docFlags)) {
-        const auto* doc_flag_ptr =
-                reinterpret_cast<const uint8_t*>(&docFlags);
+        const auto* doc_flag_ptr = reinterpret_cast<const uint8_t*>(&docFlags);
         buf.insert(buf.end(), doc_flag_ptr, doc_flag_ptr + sizeof(uint8_t));
     }
 
@@ -1064,7 +1082,7 @@ BinprotSubdocMultiMutationCommand::at(size_t index) {
     return specs.at(index);
 }
 BinprotSubdocMultiMutationCommand::MutationSpecifier&
-        BinprotSubdocMultiMutationCommand::operator[](size_t index) {
+BinprotSubdocMultiMutationCommand::operator[](size_t index) {
     return specs[index];
 }
 bool BinprotSubdocMultiMutationCommand::empty() const {
@@ -1105,7 +1123,8 @@ void BinprotSubdocMultiMutationResponse::assign(std::vector<uint8_t>&& buf) {
         uint8_t index = *bufcur;
         bufcur += 1;
 
-        auto cur_status = cb::mcbp::Status(ntohs(*reinterpret_cast<const uint16_t*>(bufcur)));
+        auto cur_status = cb::mcbp::Status(
+                ntohs(*reinterpret_cast<const uint16_t*>(bufcur)));
         bufcur += 2;
 
         if (cur_status == cb::mcbp::Status::Success) {
@@ -1160,8 +1179,7 @@ void BinprotSubdocMultiLookupCommand::encode(std::vector<uint8_t>& buf) const {
         buf.insert(buf.end(), p, p + 4);
     }
     if (!isNone(docFlags)) {
-        const auto* doc_flag_ptr =
-                reinterpret_cast<const uint8_t*>(&docFlags);
+        const auto* doc_flag_ptr = reinterpret_cast<const uint8_t*>(&docFlags);
         buf.insert(buf.end(), doc_flag_ptr, doc_flag_ptr + sizeof(uint8_t));
     }
 
@@ -1239,7 +1257,7 @@ BinprotSubdocMultiLookupCommand::at(size_t index) {
     return specs.at(index);
 }
 BinprotSubdocMultiLookupCommand::LookupSpecifier&
-        BinprotSubdocMultiLookupCommand::operator[](size_t index) {
+BinprotSubdocMultiLookupCommand::operator[](size_t index) {
     return specs[index];
 }
 bool BinprotSubdocMultiLookupCommand::empty() const {
@@ -1323,8 +1341,10 @@ void BinprotGetCmdTimerResponse::assign(std::vector<uint8_t>&& buf) {
     if (isSuccess()) {
         try {
             timings = nlohmann::json::parse(getDataString());
-        } catch(nlohmann::json::exception& e) {
-            std::string msg("BinprotGetCmdTimerResponse::assign: Invalid payload returned");
+        } catch (nlohmann::json::exception& e) {
+            std::string msg(
+                    "BinprotGetCmdTimerResponse::assign: Invalid payload "
+                    "returned");
             msg += (std::string(" Reason: ") + e.what());
             throw std::runtime_error(msg);
         }
