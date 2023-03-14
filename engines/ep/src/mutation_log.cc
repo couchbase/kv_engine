@@ -285,16 +285,37 @@ MutationLog::MutationLog(std::string path,
 MutationLog::~MutationLog() {
     EP_LOG_INFO("{}", *this);
     auto doLog = entries > 0;
-    if (doLog) {
-        EP_LOG_INFO_RAW("MutationLog::~MutationLog flush");
-    }
-    flush();
-    if (doLog) {
-        EP_LOG_INFO_RAW("MutationLog::~MutationLog close");
-    }
-    close();
-    if (doLog) {
-        EP_LOG_INFO_RAW("MutationLog::~MutationLog done");
+    try {
+        if (doLog) {
+            EP_LOG_INFO_RAW("MutationLog::~MutationLog flush");
+        }
+        flush();
+        if (doLog) {
+            EP_LOG_INFO_RAW("MutationLog::~MutationLog close");
+        }
+        close();
+        if (doLog) {
+            EP_LOG_INFO_RAW("MutationLog::~MutationLog done");
+        }
+    } catch (std::exception& e) {
+        EP_LOG_ERR(
+                "MutationLog::~MutationLog: Exception thrown during "
+                "destruction: '{}' - forcefully closing file",
+                e.what());
+        // We need to close() the underlying FD to ensure we don't leak FDs;
+        // on Windows this is particulary problematic as one cannot delete
+        // the file if there's still a handle open.
+        try {
+            doClose(file);
+        } catch (std::exception& e) {
+            // If doClose fails then there's not much more we can do other
+            // than report the error and leave the file in whatever state it
+            // is in...
+            EP_LOG_ERR(
+                    "MutationLog::~MutationLog: Exception thrown during "
+                    "forceful close of file: '{}' - leaving file as-is.",
+                    e.what());
+        }
     }
 }
 
