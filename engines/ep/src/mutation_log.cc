@@ -46,8 +46,10 @@ ssize_t pread(file_handle_t fd, void *buf, size_t nbyte, uint64_t offset)
     return bytesread;
 }
 
-ssize_t pwrite(file_handle_t fd, const void *buf, size_t nbyte,
-               uint64_t offset)
+ssize_t mlog::DefaultFileIface::pwrite(file_handle_t fd,
+                                       const void *buf,
+                                       size_t nbyte,
+                                       uint64_t offset)
 {
     DWORD byteswritten;
     OVERLAPPED winoffs;
@@ -147,6 +149,13 @@ int64_t getFileSize(file_handle_t fd) {
 }
 
 #else
+
+ssize_t mlog::DefaultFileIface::pwrite(file_handle_t fd,
+                                 const void* buf,
+                                 size_t nbyte,
+                                 uint64_t offset) {
+    return ::pwrite(fd, buf, nbyte, offset);
+}
 
 static inline ssize_t doWrite(file_handle_t fd, const uint8_t *buf,
                               size_t nbytes) {
@@ -249,8 +258,11 @@ static bool writeFully(file_handle_t fd, const uint8_t *buf, size_t nbytes) {
     return true;
 }
 
-MutationLog::MutationLog(std::string path, const size_t bs)
-    : logPath(std::move(path)),
+MutationLog::MutationLog(std::string path,
+                         const size_t bs,
+                         std::unique_ptr<mlog::FileIface> fileIface)
+    : fileIface(std::move(fileIface)),
+      logPath(std::move(path)),
       blockSize(bs),
       blockPos(HEADER_RESERVED),
       file(INVALID_FILE_VALUE),
@@ -437,7 +449,7 @@ void MutationLog::updateInitialBlock() {
     std::vector<uint8_t> buf(MIN_LOG_HEADER_SIZE);
     memcpy(buf.data(), &headerBlock, sizeof(headerBlock));
 
-    ssize_t byteswritten = pwrite(file, buf.data(), buf.size(), 0);
+    ssize_t byteswritten = fileIface->pwrite(file, buf.data(), buf.size(), 0);
     if (byteswritten != ssize_t(buf.size())) {
         throw WriteException("Failed to update header block");
     }
