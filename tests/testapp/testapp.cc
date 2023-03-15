@@ -311,16 +311,26 @@ void TestappTest::reconfigure_client_cert_auth(const std::string& state,
 }
 
 void TestappTest::setClientCertData(MemcachedConnection& connection,
-                                    std::string_view user) {
+                                    std::string_view user,
+                                    std::optional<std::filesystem::path> cert,
+                                    std::optional<std::filesystem::path> key,
+                                    std::optional<std::filesystem::path> ca) {
     auto directory = std::filesystem::path(OBJECT_ROOT) / "tests" / "cert";
-    auto cert = directory / "clients" /
-                std::filesystem::path{std::string(user) + ".cert"};
-    auto key = directory / "clients" /
-               std::filesystem::path{std::string(user) + ".key"};
-    auto ca = directory / "root" / "ca_root.cert";
-    connection.setSslCertFile(cert.generic_string());
-    connection.setSslKeyFile(key.generic_string());
-    connection.setCaFile(ca.generic_string());
+    if (!cert) {
+        cert = directory / "clients" /
+               std::filesystem::path{std::string(user) + ".cert"};
+    }
+
+    if (!key) {
+        key = directory / "clients" /
+              std::filesystem::path{std::string(user) + ".key"};
+    }
+
+    if (!ca) {
+        ca = directory / "root" / "ca_root.cert";
+    }
+
+    connection.setTlsConfigFiles(*cert, *key, ca);
 }
 
 bool TestappTest::isJSON(std::string_view value) {

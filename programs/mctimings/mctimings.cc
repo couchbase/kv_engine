@@ -17,10 +17,10 @@
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <platform/string_hex.h>
+#include <programs/parse_tls_option.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <utilities/json_utilities.h>
-#include <utilities/string_utilities.h>
 #include <utilities/terminate_handler.h>
 #include <array>
 #include <cinttypes>
@@ -382,9 +382,15 @@ void usage() {
   -P or --password password      The password to use for authentication
                                  (use '-' to read from standard input, or
                                  set the environment variable CB_PASSWORD)
-  --tls[=cert,key]               Use TLS and optionally try to authenticate
-                                 by using the provided certificate and
-                                 private key.
+  --tls[=cert,key[,castore]]     Use TLS
+                                 If 'cert' and 'key' is provided (they are
+                                 optional) they contains the certificate and
+                                 private key to use to connect to the server
+                                 (and if the server is configured to do so
+                                 it may authenticate to the server by using
+                                 the information in the certificate).
+                                 A non-default CA store may optionally be
+                                 provided.
   -s or --ssl                    Deprecated. Use --tls
   -4 or --ipv4                   Connect over IPv4
   -6 or --ipv6                   Connect over IPv6
@@ -414,8 +420,9 @@ int main(int argc, char** argv) {
     std::string host{"localhost"};
     std::string user{};
     std::string password{};
-    std::string ssl_cert;
-    std::string ssl_key;
+    std::optional<std::filesystem::path> ssl_cert;
+    std::optional<std::filesystem::path> ssl_key;
+    std::optional<std::filesystem::path> ca_store;
     std::vector<std::string> buckets{{"/all/"}};
     std::string file;
     sa_family_t family = AF_UNSPEC;
@@ -483,26 +490,8 @@ int main(int argc, char** argv) {
         case 't':
             secure = true;
             if (optarg) {
-                auto parts = split_string(optarg, ",");
-                if (parts.size() != 2) {
-                    std::cerr << "Incorrect format for --tls=certificate,key"
-                              << std::endl;
-                    exit(EXIT_FAILURE);
-                }
-                ssl_cert = std::move(parts.front());
-                ssl_key = std::move(parts.back());
-
-                if (!cb::io::isFile(ssl_cert)) {
-                    std::cerr << "Certificate file " << ssl_cert
-                              << " does not exists\n";
-                    exit(EXIT_FAILURE);
-                }
-
-                if (!cb::io::isFile(ssl_key)) {
-                    std::cerr << "Private key file " << ssl_key
-                              << " does not exists\n";
-                    exit(EXIT_FAILURE);
-                }
+                std::tie(ssl_cert, ssl_key, ca_store) =
+                        parse_tls_option_or_exit(optarg);
             }
             break;
         case 'v':
@@ -568,8 +557,9 @@ int main(int argc, char** argv) {
             family = fam;
         }
         MemcachedConnection connection(host, in_port, family, secure);
-        connection.setSslCertFile(ssl_cert);
-        connection.setSslKeyFile(ssl_key);
+        if (ssl_cert && ssl_key) {
+            connection.setTlsConfigFiles(*ssl_cert, *ssl_key, ca_store);
+        }
         connection.connect();
 
         // MEMCACHED_VERSION contains the git sha

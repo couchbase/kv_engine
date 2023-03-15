@@ -333,8 +333,7 @@ TEST_F(SslCertTest, MB50564_intermediate_cert_not_in_trusted_store_using_chain) 
     ASSERT_TRUE(connection) << "Failed to locate a SSL port";
     const auto certfile = std::filesystem::path(OBJECT_ROOT) / "tests" /
                           "cert" / "clients" / "jane_chain.pem";
-    setClientCertData(*connection, "jane");
-    connection->setSslCertFile(certfile.generic_string());
+    setClientCertData(*connection, "jane", certfile);
     connection->connect();
     connection->setXerrorSupport(true);
 }
@@ -350,8 +349,7 @@ TEST_F(SslCertTest, MB50564_intermediate_cert_in_trusted_store) {
     // trusted ca store
     const auto cafile = std::filesystem::path(OBJECT_ROOT) / "tests" / "cert" /
                         "intermediate" / "client_intermediate_ca.pem";
-    setClientCertData(*connection, "jane");
-    connection->setCaFile(cafile.generic_string());
+    setClientCertData(*connection, "jane", {}, {}, cafile);
     connection->connect();
     connection->setXerrorSupport(true);
 }

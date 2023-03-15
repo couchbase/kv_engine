@@ -17,10 +17,10 @@
 #include <platform/socket.h>
 #include <programs/getpass.h>
 #include <programs/hostname_utils.h>
+#include <programs/parse_tls_option.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <utilities/json_utilities.h>
-#include <utilities/string_utilities.h>
 #include <utilities/terminal_color.h>
 #include <utilities/terminate_handler.h>
 #include <csignal>
@@ -48,9 +48,10 @@ public:
 /// on all connections we're trying to create
 bool tls = false;
 /// The TLS certificate file if provided
-std::string tls_certificate_file;
+std::optional<std::filesystem::path> tls_certificate_file;
 /// The TLS private key file if provided
-std::string tls_private_key_file;
+std::optional<std::filesystem::path> tls_private_key_file;
+std::optional<std::filesystem::path> tls_ca_store_file;
 
 /// We're going to use the same buffersize on all connections
 size_t buffersize = 13421772;
@@ -71,9 +72,15 @@ Options:
   -u or --user username          The name of the user to authenticate as
   -P or --password password      The password to use for authentication
                                  (use '-' to read from standard input)
-  --tls[=cert,key]               Use TLS and optionally try to authenticate
-                                 by using the provided certificate and
-                                 private key.
+  --tls[=cert,key[,castore]]     Use TLS
+                                 If 'cert' and 'key' is provided (they are
+                                 optional) they contains the certificate and
+                                 private key to use to connect to the server
+                                 (and if the server is configured to do so
+                                 it may authenticate to the server by using
+                                 the information in the certificate).
+                                 A non-default CA store may optionally be
+                                 provided.
   --num-connections=num          The number of connections to use to each host
   -B or --buffer-size size       Specify the DCP buffer size to use
                                  [Default = 13421772]. Set to 0 to disable
@@ -471,8 +478,11 @@ void setupVBMap(const std::string& host,
                 bool enableCollections,
                 std::shared_ptr<folly::EventBase> base) {
     MemcachedConnection connection(host, in_port, family, tls, base);
-    connection.setSslCertFile(tls_certificate_file);
-    connection.setSslKeyFile(tls_private_key_file);
+    if (tls_certificate_file && tls_private_key_file) {
+        connection.setTlsConfigFiles(*tls_certificate_file,
+                                     *tls_private_key_file,
+                                     tls_ca_store_file);
+    }
     connection.connect();
 
     if (!user.empty()) {
@@ -634,29 +644,9 @@ int main(int argc, char** argv) {
         case 't':
             tls = true;
             if (optarg) {
-                auto parts = split_string(optarg, ",");
-                if (parts.size() != 2) {
-                    std::cerr << TerminalColor::Red
-                              << "Incorrect format for --tls=certificate,key"
-                              << TerminalColor::Reset << std::endl;
-                    exit(EXIT_FAILURE);
-                }
-                tls_certificate_file = std::move(parts.front());
-                tls_private_key_file = std::move(parts.back());
-
-                if (!cb::io::isFile(tls_certificate_file)) {
-                    std::cerr << TerminalColor::Red << "Certificate file "
-                              << tls_certificate_file << " does not exists"
-                              << TerminalColor::Reset << std::endl;
-                    exit(EXIT_FAILURE);
-                }
-
-                if (!cb::io::isFile(tls_private_key_file)) {
-                    std::cerr << TerminalColor::Red << "Private key file "
-                              << tls_private_key_file << " does not exists"
-                              << TerminalColor::Reset << std::endl;
-                    exit(EXIT_FAILURE);
-                }
+                std::tie(tls_certificate_file,
+                         tls_private_key_file,
+                         tls_ca_store_file) = parse_tls_option_or_exit(optarg);
             }
             break;
         case 'n':

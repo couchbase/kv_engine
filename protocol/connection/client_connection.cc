@@ -361,14 +361,6 @@ MemcachedConnection::MemcachedConnection(std::string host,
         timeout = std::chrono::seconds{10};
     }
 
-    if (ssl) {
-        char* env = getenv("COUCHBASE_SSL_CLIENT_CERT_PATH");
-        if (env != nullptr) {
-            setSslCertFile(std::string{env} + "/client.cert");
-            setSslKeyFile(std::string{env} + "/client.key");
-        }
-    }
-
     agentInfo["a"] = "MemcachedConnection";
 
     if (packet_dump) {
@@ -849,43 +841,29 @@ nlohmann::json MemcachedConnection::stats(const std::string& subcommand,
     return ret;
 }
 
-void MemcachedConnection::setSslCertFile(std::filesystem::path file) {
-    if (file.empty()) {
-        return;
-    }
-    if (!exists(file) || !is_regular_file(file)) {
-        throw std::system_error(
-                std::make_error_code(std::errc::no_such_file_or_directory),
-                fmt::format("Can't use [{}] as cert file",
-                            file.generic_string()));
-    }
-    ssl_cert_file = std::move(file);
-}
+void MemcachedConnection::setTlsConfigFiles(
+        std::filesystem::path cert,
+        std::filesystem::path key,
+        std::optional<std::filesystem::path> castore) {
+    auto validate = [](auto file, auto description) {
+        if (!exists(file)) {
+            throw std::system_error(
+                    std::make_error_code(std::errc::no_such_file_or_directory),
+                    fmt::format("Can't use [{}] as {} file",
+                                file.generic_string(),
+                                description));
+        }
+    };
 
-void MemcachedConnection::setSslKeyFile(std::filesystem::path file) {
-    if (file.empty()) {
-        return;
+    validate(cert, "certificate");
+    validate(key, "key");
+    if (castore) {
+        validate(*castore, "CA store");
     }
-    if (!exists(file) || !is_regular_file(file)) {
-        throw std::system_error(
-                std::make_error_code(std::errc::no_such_file_or_directory),
-                fmt::format("Can't use [{}] as key file",
-                            file.generic_string()));
-    }
-    ssl_key_file = std::move(file);
-}
 
-void MemcachedConnection::setCaFile(std::filesystem::path file) {
-    if (file.empty()) {
-        return;
-    }
-    if (!exists(file) || !is_regular_file(file)) {
-        throw std::system_error(
-                std::make_error_code(std::errc::no_such_file_or_directory),
-                fmt::format("Can't use [{}] as CA file",
-                            file.generic_string()));
-    }
-    ca_file = std::move(file);
+    ssl_cert_file = std::move(cert);
+    ssl_key_file = std::move(key);
+    ca_file = std::move(castore);
 }
 
 void MemcachedConnection::setTlsProtocol(TlsVersion protocol) {

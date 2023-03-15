@@ -132,7 +132,10 @@ public:
      * Make sure that the provided connection use our client certificates
      */
     void setClientCertData(MemcachedConnection& connection,
-                           std::string_view user);
+                           std::string_view user,
+                           std::optional<std::filesystem::path> cert = {},
+                           std::optional<std::filesystem::path> key = {},
+                           std::optional<std::filesystem::path> ca = {});
 
     /**
      * Attempts to store a document with the given key, value, flags and expiry

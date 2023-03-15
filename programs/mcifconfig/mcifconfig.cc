@@ -13,10 +13,10 @@
 #include <platform/dirutils.h>
 #include <programs/getpass.h>
 #include <programs/hostname_utils.h>
+#include <programs/parse_tls_option.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <protocol/connection/frameinfo.h>
-#include <utilities/string_utilities.h>
 #include <utilities/terminal_color.h>
 #include <utilities/terminate_handler.h>
 #include <filesystem>
@@ -27,25 +27,31 @@ static void usage() {
 
 Options:
 
-  --host hostname[:port]   The host (with an optional port) to connect to
-  --port port              The port number to connect to
-  --user username          The name of the user to authenticate as
-  --password password      The password to use for authentication
-                           (use '-' to read from standard input, or
-                           set the environment variable CB_PASSWORD)
-  --tls[=cert,key]         Use TLS and optionally try to authenticate
-                           by using the provided certificate and
-                           private key.
-  --ipv4                   Connect over IPv4
-  --ipv6                   Connect over IPv6
-  --help                   This help text
+  --host hostname[:port]     The host (with an optional port) to connect to
+  --port port                The port number to connect to
+  --user username            The name of the user to authenticate as
+  --password password        The password to use for authentication
+                             (use '-' to read from standard input, or
+                             set the environment variable CB_PASSWORD)
+  --tls[=cert,key[,castore]] Use TLS
+                             If 'cert' and 'key' is provided (they are
+                             optional) they contains the certificate and
+                             private key to use to connect to the server
+                             (and if the server is configured to do so
+                             it may authenticate to the server by using
+                             the information in the certificate).
+                             A non-default CA store may optionally be
+                             provided.
+  --ipv4                     Connect over IPv4
+  --ipv6                     Connect over IPv6
+  --help                     This help text
 
 Commands:
 
-   list                    List the defined interfaces
-   define <filename/JSON>  Define a new interface
-   delete <UUID>           Delete the interface with the provided UUID
-   tls [filename/JSON]     Get (no argument) or set TLS properties
+   list                      List the defined interfaces
+   define <filename/JSON>    Define a new interface
+   delete <UUID>             Delete the interface with the provided UUID
+   tls [filename/JSON]       Get (no argument) or set TLS properties
 
 )";
 
@@ -87,8 +93,9 @@ int main(int argc, char** argv) {
     std::string host{"localhost"};
     std::string user{};
     std::string password{};
-    std::string ssl_cert;
-    std::string ssl_key;
+    std::optional<std::filesystem::path> ssl_cert;
+    std::optional<std::filesystem::path> ssl_key;
+    std::optional<std::filesystem::path> ca_store;
     sa_family_t family = AF_UNSPEC;
     bool secure = false;
 
@@ -131,29 +138,8 @@ int main(int argc, char** argv) {
         case 't':
             secure = true;
             if (optarg) {
-                auto parts = split_string(optarg, ",");
-                if (parts.size() != 2) {
-                    std::cerr << TerminalColor::Red
-                              << "Incorrect format for --tls=certificate,key"
-                              << TerminalColor::Reset << std::endl;
-                    exit(EXIT_FAILURE);
-                }
-                ssl_cert = std::move(parts.front());
-                ssl_key = std::move(parts.back());
-
-                if (!cb::io::isFile(ssl_cert)) {
-                    std::cerr << TerminalColor::Red << "Certificate file "
-                              << ssl_cert << " does not exists"
-                              << TerminalColor::Reset << std::endl;
-                    exit(EXIT_FAILURE);
-                }
-
-                if (!cb::io::isFile(ssl_key)) {
-                    std::cerr << TerminalColor::Red << "Private key file "
-                              << ssl_key << " does not exists"
-                              << TerminalColor::Reset << std::endl;
-                    exit(EXIT_FAILURE);
-                }
+                std::tie(ssl_cert, ssl_key, ca_store) =
+                        parse_tls_option_or_exit(optarg);
             }
             break;
         default:
@@ -232,8 +218,9 @@ int main(int argc, char** argv) {
         }
 
         MemcachedConnection connection(host, in_port, family, secure);
-        connection.setSslCertFile(ssl_cert);
-        connection.setSslKeyFile(ssl_key);
+        if (ssl_cert && ssl_key) {
+            connection.setTlsConfigFiles(*ssl_cert, *ssl_key, ca_store);
+        }
         connection.connect();
 
         if (!user.empty()) {

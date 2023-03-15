@@ -349,21 +349,14 @@ public:
     }
 
     /**
-     * Set the SSL Certificate file to use
+     * Set the SSL Certificate, private key and optionally cactore files to use
      *
-     * @throws std::system_error if the file doesn't exist
+     * @throws std::system_error if the any of the provided files
+     *         doesn't exist
      */
-    void setSslCertFile(std::filesystem::path file);
-
-    /**
-     * Set the SSL private key file to use
-     *
-     * @throws std::system_error if the file doesn't exist
-     */
-    void setSslKeyFile(std::filesystem::path file);
-
-    /// Set the CA file to use (containing all of the trusted CA's)
-    void setCaFile(std::filesystem::path file);
+    void setTlsConfigFiles(std::filesystem::path cert,
+                           std::filesystem::path key,
+                           std::optional<std::filesystem::path> castore = {});
 
     /// Set the TLS version to use
     void setTlsProtocol(TlsVersion version);
