@@ -1355,46 +1355,7 @@ TEST_P(CollectionsDcpParameterizedTest, vb_promotion_update_manifest_dead) {
     testVBPromotionUpdateManifest();
 }
 
-class CollectionsFilteredDcpErrorTest : public SingleThreadedKVBucketTest {
-public:
-    CollectionsFilteredDcpErrorTest()
-        : cookieP(create_mock_cookie(engine.get())) {
-    }
-    void SetUp() override {
-        config_string +=
-                "collections_enabled=true;dcp_noop_mandatory_for_v5_"
-                "features=false";
-        SingleThreadedKVBucketTest::SetUp();
-        // Start vbucket as active to allow us to store items directly to it.
-        store->setVBucketState(vbid, vbucket_state_active);
-    }
-
-    void TearDown() override {
-        destroy_mock_cookie(cookieP);
-        producer.reset();
-        SingleThreadedKVBucketTest::TearDown();
-    }
-
-protected:
-    std::shared_ptr<MockDcpProducer> producer;
-    CookieIface* cookieP;
-};
-
-class CollectionsFilteredDcpTest : public CollectionsDcpTest {
-public:
-    CollectionsFilteredDcpTest() : CollectionsDcpTest() {
-    }
-
-    void SetUp() override {
-        config_string += "collections_enabled=true";
-        SingleThreadedKVBucketTest::SetUp();
-        producers = std::make_unique<CollectionsDcpTestProducers>();
-        // Start vbucket as active to allow us to store items directly to it.
-        store->setVBucketState(vbid, vbucket_state_active);
-    }
-};
-
-TEST_F(CollectionsFilteredDcpTest, filtering) {
+TEST_P(CollectionsDcpParameterizedTest, filtering) {
     VBucketPtr vb = store->getVBucket(vbid);
 
     // Perform a create of meat/dairy via the bucket level and a delete of
@@ -1445,12 +1406,12 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
     // And no more
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(*producers));
 
-    flush_vbucket_to_disk(vbid, 8);
+    flushVBucketToDiskIfPersistent(vbid, 8);
 
     vb.reset();
 
-    // Now stream back from disk and check filtering
-    resetEngineAndWarmup();
+    // Now stream back from disk/seqlist and check filtering
+    ensureDcpWillBackfill();
 
     createDcpObjects({{R"({"collections":["c"]})"}});
 
@@ -1469,7 +1430,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering) {
     }
 }
 
-TEST_F(CollectionsFilteredDcpTest, filtering_scope) {
+TEST_P(CollectionsDcpParameterizedTest, filtering_scope) {
     VBucketPtr vb = store->getVBucket(vbid);
 
     // Perform a create of meat/dairy via the bucket level
@@ -1537,12 +1498,12 @@ TEST_F(CollectionsFilteredDcpTest, filtering_scope) {
     // And no more
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(*producers));
 
-    flush_vbucket_to_disk(vbid, 8);
+    flushVBucketToDiskIfPersistent(vbid, 8);
 
     vb.reset();
 
     // Now stream back from disk and check filtering
-    resetEngineAndWarmup();
+    ensureDcpWillBackfill();
 
     createDcpObjects({{R"({"scope":"8"})"}});
 
@@ -1559,7 +1520,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering_scope) {
                         /*compareManifests*/ false);
 }
 
-TEST_F(CollectionsFilteredDcpTest, filtering_grow_scope_from_empty) {
+TEST_P(CollectionsDcpParameterizedTest, filtering_grow_scope_from_empty) {
     VBucketPtr vb = store->getVBucket(vbid);
 
     // Create the scope but don't add any collections to it
@@ -1616,12 +1577,12 @@ TEST_F(CollectionsFilteredDcpTest, filtering_grow_scope_from_empty) {
     }
 
     // We flush a collection create + 4 mutations
-    flush_vbucket_to_disk(vbid, 4);
+    flushVBucketToDiskIfPersistent(vbid, 4);
 
     vb.reset();
 
     // Now stream back from disk and check filtering
-    resetEngineAndWarmup();
+    ensureDcpWillBackfill();
 
     createDcpObjects({{R"({"scope":"8"})"}});
 
@@ -1633,7 +1594,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering_grow_scope_from_empty) {
             {CollectionEntry::dairy}, {}, 2, false, {ScopeEntry::shop1});
 }
 
-TEST_F(CollectionsFilteredDcpTest, filtering_grow_scope) {
+TEST_P(CollectionsDcpParameterizedTest, filtering_grow_scope) {
     VBucketPtr vb = store->getVBucket(vbid);
 
     // Perform a create of meat/dairy(shop1) via the bucket level
@@ -1699,12 +1660,12 @@ TEST_F(CollectionsFilteredDcpTest, filtering_grow_scope) {
     // And no more
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(*producers));
 
-    flush_vbucket_to_disk(vbid, 9);
+    flushVBucketToDiskIfPersistent(vbid, 9);
 
     vb.reset();
 
     // Now stream back from disk and check filtering
-    resetEngineAndWarmup();
+    ensureDcpWillBackfill();
 
     createDcpObjects({{R"({"scope":"8"})"}});
 
@@ -1721,7 +1682,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering_grow_scope) {
                         /*compareManifests*/ false);
 }
 
-TEST_F(CollectionsFilteredDcpTest, filtering_shrink_scope) {
+TEST_P(CollectionsDcpParameterizedTest, filtering_shrink_scope) {
     VBucketPtr vb = store->getVBucket(vbid);
 
     // Perform a create of meat/dairy(shop1)/vegetable(shop1) via the bucket
@@ -1813,12 +1774,12 @@ TEST_F(CollectionsFilteredDcpTest, filtering_shrink_scope) {
     // No new items (dairy is now filtered)
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(*producers));
 
-    flush_vbucket_to_disk(vbid, 14);
+    flushVBucketToDiskIfPersistent(vbid, 14);
 
     vb.reset();
 
     // Now stream back from disk and check filtering
-    resetEngineAndWarmup();
+    ensureDcpWillBackfill();
 
     createDcpObjects({{R"({"scope":"8"})"}});
 
@@ -1839,7 +1800,7 @@ TEST_F(CollectionsFilteredDcpTest, filtering_shrink_scope) {
 // Created for MB-32360
 // Note this test does not resume a DCP stream, but a new stream from 0 hits
 // the same issue, the filter doesn't know the collection was part of the scope
-TEST_F(CollectionsFilteredDcpTest, collection_tombstone_on_scope_filter) {
+TEST_P(CollectionsDcpParameterizedTest, collection_tombstone_on_scope_filter) {
     VBucketPtr vb = store->getVBucket(vbid);
 
     // Perform a create of meat/dairy(shop1)/vegetable(shop1) via the bucket
@@ -1859,7 +1820,7 @@ TEST_F(CollectionsFilteredDcpTest, collection_tombstone_on_scope_filter) {
                    cm.remove(CollectionEntry::dairy, ScopeEntry::shop1));
 
     // Flush it all out
-    flush_vbucket_to_disk(vbid, 6);
+    flushVBucketToDiskIfPersistent(vbid, 6);
 
     // Force collection purge. This is the crucial trigger behind MB-32360
     // Compaction runs and drops all items of dairy, when compaction gets to the
@@ -1872,7 +1833,7 @@ TEST_F(CollectionsFilteredDcpTest, collection_tombstone_on_scope_filter) {
 
     // Force warmup, it's not required for the MB, but makes the test simpler
     // to progress the DCP tasks
-    resetEngineAndWarmup();
+    ensureDcpWillBackfill();
 
     // Now stream back from disk and check filtering
     createDcpObjects({{R"({"scope":"8"})"}});
@@ -1893,7 +1854,7 @@ TEST_F(CollectionsFilteredDcpTest, collection_tombstone_on_scope_filter) {
 
 // Test that we can stream-resume an interrupted snapshot where the rest of the
 // snapshot is filtered away.
-TEST_F(CollectionsFilteredDcpTest, MB_47009) {
+TEST_P(CollectionsDcpParameterizedTest, MB_47009) {
     VBucketPtr vb = store->getVBucket(vbid);
 
     // Create two collections
@@ -1901,14 +1862,14 @@ TEST_F(CollectionsFilteredDcpTest, MB_47009) {
     setCollections(
             cookie,
             cm.add(CollectionEntry::vegetable).add(CollectionEntry::fruit));
-    flush_vbucket_to_disk(vbid, 2);
+    flushVBucketToDiskIfPersistent(vbid, 2);
 
     // Write some items, sequenced though so that vegetable is fruit
     store_item(vbid, StoredDocKey{"k1", CollectionEntry::vegetable}, "value");
     store_item(vbid, StoredDocKey{"k2", CollectionEntry::vegetable}, "value");
     store_item(vbid, StoredDocKey{"k1", CollectionEntry::fruit}, "value");
     store_item(vbid, StoredDocKey{"k2", CollectionEntry::fruit}, "value");
-    flush_vbucket_to_disk(vbid, 4);
+    flushVBucketToDiskIfPersistent(vbid, 4);
 
     // Now DCP stream the vegetable collection only, but request as if we were
     // interrupted from the initial backfill, but have all of the collection.
@@ -1922,6 +1883,7 @@ TEST_F(CollectionsFilteredDcpTest, MB_47009) {
 
     producer = SingleThreadedKVBucketTest::createDcpProducer(
             cookieP, IncludeDeleteTime::No);
+    producers->consumer = nullptr;
 
     // Out stream request starts @4 but sets the snapshot as {0:6}
     uint64_t rollbackSeqno;
@@ -1955,7 +1917,7 @@ TEST_F(CollectionsFilteredDcpTest, MB_47009) {
     store_item(vbid, StoredDocKey{"k3", CollectionEntry::vegetable}, "value");
     store_item(vbid, StoredDocKey{"k4", CollectionEntry::vegetable}, "value");
     store_item(vbid, StoredDocKey{"k3", CollectionEntry::fruit}, "value");
-    flush_vbucket_to_disk(vbid, 3);
+    flushVBucketToDiskIfPersistent(vbid, 3);
     notifyAndStepToCheckpoint();
     EXPECT_EQ(7, producers->last_snap_start_seqno);
     EXPECT_EQ(8, producers->last_snap_end_seqno);
@@ -1972,7 +1934,7 @@ TEST_F(CollectionsFilteredDcpTest, MB_47009) {
 
 // Test that a filtered stream-request is denied if the producer has sync-writes
 // enabled
-TEST_F(CollectionsFilteredDcpTest, MB_47009_deny_sync_writes) {
+TEST_P(CollectionsDcpParameterizedTest, MB_47009_deny_sync_writes) {
     VBucketPtr vb = store->getVBucket(vbid);
 
     // Create two collections
@@ -1980,7 +1942,7 @@ TEST_F(CollectionsFilteredDcpTest, MB_47009_deny_sync_writes) {
     setCollections(
             cookie,
             cm.add(CollectionEntry::vegetable).add(CollectionEntry::fruit));
-    flush_vbucket_to_disk(vbid, 2);
+    flushVBucketToDiskIfPersistent(vbid, 2);
 
     producer = SingleThreadedKVBucketTest::createDcpProducer(
             cookieP, IncludeDeleteTime::No);
@@ -3615,7 +3577,7 @@ TEST_P(CollectionsDcpParameterizedTest, replica_active_state_diverge) {
 // backfill was scheduled, that returns nothing and forces a new seqno-advance.
 // With the fix in place, the second backfill doesn't occur and no duplicate
 // message is seen.
-TEST_F(CollectionsFilteredDcpTest, MB_47753) {
+TEST_P(CollectionsDcpParameterizedTest, MB_47753) {
     // Only valid for persistent
     if (!isPersistent()) {
         return;
