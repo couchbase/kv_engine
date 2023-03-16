@@ -116,16 +116,26 @@ public:
                                     uint64_t seqno);
 
     /**
+     * This function (created for OSO tests) creates two collections (fruit
+     * and vegetable) and calls writeTwoCollections
+     *
+     * @param endOnVegetable true and the last item written will be for the
+     *        vegetable collection
+     * @return current manifest and vbucket (::vbid) high-seqno
+     */
+    std::pair<CollectionsManifest, uint64_t> setupTwoCollections(
+            bool endOnVegetable = false);
+
+    /**
      * This function (created for OSO tests) writes to two collections (fruit
      * and vegetable). The keys are "a", "b", "c" and "d" to demonstrate the
      * lexicographical ordering of an OSO snapshot.
      *
      * @param endOnVegetable true and the last item written will be for the
-     *         vegetable collection
-     * @return manifest and high-seqno
+     *        vegetable collection
+     * @return vbucket (::vbid) high-seqno
      */
-    std::pair<CollectionsManifest, uint64_t> setupTwoCollections(
-            bool endOnVegetable = false);
+    uint64_t writeTwoCollectios(bool endOnTarget);
 
     static cb::engine_errc dcpAddFailoverLog(
             const std::vector<vbucket_failover_t>&);

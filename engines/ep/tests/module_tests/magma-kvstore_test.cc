@@ -629,17 +629,6 @@ public:
 TEST_F(MagmaKVStoreTest, readOnlyMode) {
     initialize_kv_store(kvstore.get(), vbid);
 
-    auto doWrite = [this](uint64_t seqno, bool expected) {
-        auto ctx =
-                kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
-        auto qi = makeCommittedItem(makeStoredDocKey("key"), "value");
-        qi->setBySeqno(seqno);
-        flush.proposedVBState.lastSnapStart = seqno;
-        flush.proposedVBState.lastSnapEnd = seqno;
-        kvstore->set(*ctx, qi);
-        EXPECT_EQ(expected, kvstore->commit(std::move(ctx), flush));
-    };
-
     // Add an item to test that we can read it
     doWrite(1, true /*success*/);
 
@@ -816,11 +805,17 @@ TEST_F(MagmaKVStoreTest, diskSizeUpdateTracking) {
     }
 }
 
-// @todo: This is a basic test that will be expanded to cover scanning history
-// at the moment this test is equivalent to "scan"
-TEST_F(MagmaKVStoreTest, scanAllVersions) {
+// Test scanAllVersions returns the expected number of keys and the expected
+// history start seqno.
+TEST_F(MagmaKVStoreTest, scanAllVersions1) {
     initialize_kv_store(kvstore.get(), vbid);
+    kvstore->setHistoryRetentionBytes(1024 * 1024);
+
+    // History is enabled
+    flush.historical = CheckpointHistorical::Yes;
+
     std::vector<queued_item> expectedItems;
+
     expectedItems.push_back(doWrite(1, true, "k1"));
     expectedItems.push_back(doWrite(2, true, "k2"));
     auto validate = [&expectedItems](GetValue gv) {
@@ -837,8 +832,7 @@ TEST_F(MagmaKVStoreTest, scanAllVersions) {
             ValueFilter::VALUES_COMPRESSED,
             SnapshotSource::Head);
     ASSERT_TRUE(bySeq);
-    // @todo: This must be the expected seqno where history begins
-    EXPECT_EQ(0, bySeq->historyStartSeqno);
+    EXPECT_EQ(1, bySeq->historyStartSeqno);
     EXPECT_EQ(ScanStatus::Success, kvstore->scanAllVersions(*bySeq));
 
     auto& cb =
@@ -872,4 +866,86 @@ TEST_F(MagmaKVStoreTest, preparePendingRequests) {
                   req->getItem().getKey().to_string());
         ++itr;
     }
+}
+
+// Test scanAllVersions returns the expected number of keys and the expected
+// history start seqno. This test uses the same key for all mutations.
+TEST_F(MagmaKVStoreTest, scanAllVersions2) {
+    initialize_kv_store(kvstore.get(), vbid);
+    kvstore->setHistoryRetentionBytes(1024 * 1024);
+    flush.historical = CheckpointHistorical::Yes;
+
+    std::vector<queued_item> expectedItems;
+    // doWrite writes the same key
+    expectedItems.push_back(doWrite(1, true));
+    expectedItems.push_back(doWrite(2, true));
+    auto validate = [&expectedItems](GetValue gv) {
+        ASSERT_TRUE(gv.item);
+        ASSERT_GE(expectedItems.size(), size_t(gv.item->getBySeqno()));
+        EXPECT_EQ(*expectedItems[gv.item->getBySeqno() - 1], *gv.item);
+    };
+    auto bySeq = kvstore->initBySeqnoScanContext(
+            std::make_unique<CustomCallback<GetValue>>(validate),
+            std::make_unique<CustomCallback<CacheLookup>>(),
+            vbid,
+            1,
+            DocumentFilter::ALL_ITEMS,
+            ValueFilter::VALUES_COMPRESSED,
+            SnapshotSource::Head);
+    ASSERT_TRUE(bySeq);
+    EXPECT_EQ(1, bySeq->historyStartSeqno);
+    EXPECT_EQ(ScanStatus::Success, kvstore->scanAllVersions(*bySeq));
+
+    auto& cb =
+            static_cast<CustomCallback<GetValue>&>(bySeq->getValueCallback());
+    EXPECT_EQ(2, cb.getProcessedCount());
+}
+
+// ScanContext now exposes historyStartSeqno which is tracked by magma provided
+// it is retaining history.
+TEST_F(MagmaKVStoreTest, historyStartSeqno) {
+    initialize_kv_store(kvstore.get(), vbid);
+    kvstore->setHistoryRetentionBytes(100 * 1024 * 1024);
+
+    auto validate = [this](uint64_t expectedHistoryStartSeqno) {
+        auto bySeq = kvstore->initBySeqnoScanContext(
+                std::make_unique<GetCallback>(true /*expectcompressed*/),
+                std::make_unique<KVStoreTestCacheCallback>(1, 5, Vbid(0)),
+                vbid,
+                1,
+                DocumentFilter::ALL_ITEMS,
+                ValueFilter::VALUES_COMPRESSED,
+                SnapshotSource::Head);
+        auto byId = kvstore->initByIdScanContext(
+                std::make_unique<GetCallback>(true /*expectcompressed*/),
+                std::make_unique<KVStoreTestCacheCallback>(1, 5, Vbid(0)),
+                vbid,
+                {},
+                DocumentFilter::ALL_ITEMS,
+                ValueFilter::VALUES_COMPRESSED);
+        ASSERT_TRUE(bySeq);
+        ASSERT_TRUE(byId);
+
+        EXPECT_EQ(expectedHistoryStartSeqno, bySeq->historyStartSeqno);
+        EXPECT_EQ(bySeq->historyStartSeqno, byId->historyStartSeqno);
+    };
+
+    flush.historical = CheckpointHistorical::No;
+    SCOPED_TRACE("History OFF");
+    validate(0); // no flush yet - and no history
+    doWrite(2, true); // write seqno 2
+    validate(0);
+
+    // Now enable history
+    flush.historical = CheckpointHistorical::Yes;
+    SCOPED_TRACE("History ON flushed seqno 3");
+    doWrite(3, true); // write seqno 3
+    validate(3);
+    SCOPED_TRACE("History ON flushed seqno 4");
+    doWrite(4, true); // write seqno 4
+    validate(3); // history still starts at 3
+
+    flush.historical = CheckpointHistorical::No;
+    doWrite(5, true); // write seqno 5
+    validate(0); // back to no history
 }
