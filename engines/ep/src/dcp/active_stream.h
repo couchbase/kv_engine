@@ -382,6 +382,12 @@ public:
          * as this results in the most fastidious error checking on the replica
          */
         CheckpointType checkpointType = CheckpointType::Memory;
+
+        /**
+         * Whether this items are part of a seamless historical sequence of data
+         */
+        CheckpointHistorical historical = CheckpointHistorical::No;
+
         std::vector<queued_item> items;
 
         /**
@@ -683,18 +689,15 @@ private:
     /**
      * Pushes the items of a snapshot to the readyQ.
      *
-     * @param checkpointType The type of checkpoint (Disk/Memory)
+     * @param meta Metadata on the items being passed
      * @param items The items to be streamed
-     * @param diskCheckpointState (optional) state sent for disk checkpoints
      * @param maxVisibleSeqno the maximum visible seq (not prepare/abort)
      * @param highNonVisibleSeqno the snapEnd seqno that includes any non
      * visible mutations i.e. prepares and aborts. This is only used when
      * collections is enabled and sync writes are not supported on the stream.
      */
-    void snapshot(CheckpointType checkpointType,
+    void snapshot(const OutstandingItemsResult& meta,
                   std::deque<std::unique_ptr<DcpResponse>>& items,
-                  std::optional<OutstandingItemsResult::DiskCheckpointState>
-                          diskCheckpointState,
                   uint64_t maxVisibleSeqno,
                   std::optional<uint64_t> highNonVisibleSeqno);
 
