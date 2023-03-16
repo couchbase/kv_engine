@@ -227,6 +227,20 @@ class STActiveStreamPersistentTest : public SingleThreadedActiveStreamTest {};
 class CDCActiveStreamTest : public STActiveStreamPersistentTest {
 protected:
     void SetUp() override;
+
+    /**
+     * Create a new open checkpoint, move the cursors (persistence and DCP) onto
+     * it and removes all the closed checkpoint.
+     * Also persistence and replication are cleared, ie all items persisted and
+     * stream drained.
+     * Useful helper for when we need to verify something from a clean state in
+     * the middle of a test.
+     */
+    void clearCMAndPersistenceAndReplication();
+
+    enum class HistoryRetentionMetric : uint8_t { BYTES, SECONDS };
+
+    void testResilientToRetentionConfigChanges(HistoryRetentionMetric metric);
 };
 
 /**

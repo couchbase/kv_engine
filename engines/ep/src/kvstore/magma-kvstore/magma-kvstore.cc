@@ -16,6 +16,7 @@
 #include "dockey_validator.h"
 #include "ep_engine.h"
 #include "ep_time.h"
+#include "hlc.h"
 #include "item.h"
 #include "kv_magma_common/magma-kvstore_metadata.h"
 #include "kvstore/kvstore_transaction_context.h"
@@ -174,6 +175,16 @@ static bool isPrepared(const Slice& keySlice, const Slice& metaSlice) {
 static bool isAbort(const Slice& keySlice, const Slice& metaSlice) {
     return DiskDocKey(keySlice.Data(), keySlice.Len()).isPrepared() &&
            getDocMeta(metaSlice).isDeleted();
+}
+
+static uint64_t getCas(const Slice& metaSlice) {
+    return getDocMeta(metaSlice).getCas();
+}
+
+static uint64_t getHistoryTimeNow() {
+    // @todo: require interface changes so that we can locate the vbucket and
+    // then peek at the correct HLC
+    return uint64_t(HLC::getMaskedTime());
 }
 
 } // namespace magmakv
@@ -591,6 +602,8 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     };
     configuration.magmaCfg.GetValueSize = magmakv::getValueSize;
     configuration.magmaCfg.IsTombstone = magmakv::isDeleted;
+    configuration.magmaCfg.GetHistoryTimestamp = magmakv::getCas;
+    configuration.magmaCfg.GetHistoryTimeNow = magmakv::getHistoryTimeNow;
     configuration.magmaCfg.EnableDirectIO =
             configuration.getMagmaEnableDirectIo();
     configuration.magmaCfg.EnableBlockCache =
@@ -3918,4 +3931,8 @@ void MagmaKVStore::setHistoryRetentionBytes(size_t size) {
 
 void MagmaKVStore::setHistoryRetentionSeconds(std::chrono::seconds seconds) {
     magma->SetHistoryRetentionTime(seconds.count());
+}
+
+std::optional<uint64_t> MagmaKVStore::getHistoryStartSeqno(Vbid vbid) {
+    return magma->GetOldestHistorySeqno(vbid.get());
 }

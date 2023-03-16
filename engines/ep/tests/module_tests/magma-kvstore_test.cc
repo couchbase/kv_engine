@@ -908,6 +908,8 @@ TEST_F(MagmaKVStoreTest, historyStartSeqno) {
     kvstore->setHistoryRetentionBytes(100 * 1024 * 1024);
 
     auto validate = [this](uint64_t expectedHistoryStartSeqno) {
+        EXPECT_EQ(expectedHistoryStartSeqno,
+                  kvstore->getHistoryStartSeqno(vbid).value_or(~0ull));
         auto bySeq = kvstore->initBySeqnoScanContext(
                 std::make_unique<GetCallback>(true /*expectcompressed*/),
                 std::make_unique<KVStoreTestCacheCallback>(1, 5, Vbid(0)),

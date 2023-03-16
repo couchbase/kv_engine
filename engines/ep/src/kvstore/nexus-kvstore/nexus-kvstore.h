@@ -159,6 +159,9 @@ public:
     void setHistoryRetentionSeconds(std::chrono::seconds secs) override {
         // not supported on Nexus
     }
+    std::optional<uint64_t> getHistoryStartSeqno(Vbid vbid) override {
+        return std::nullopt;
+    }
 
     /**
      * Unit test only hook called before we compact the first KVStore. Public as

@@ -91,7 +91,7 @@ public:
         // b) dropping 16-bits (done by nowHLC)
         // c) comparing it with the last known time (max_cas)
         // d) returning either now or max_cas + 1
-        uint64_t timeNow = getMasked48(getTime());
+        uint64_t timeNow = getMaskedTime();
 
         if (atomic_setIfBigger(maxHLC, timeNow)) {
             // Real clock mode
@@ -114,7 +114,7 @@ public:
     }
 
     void setMaxHLCAndTrackDrift(uint64_t hlc) {
-        auto timeNow = getMasked48(getTime());
+        auto timeNow = getMaskedTime();
 
         // Track the +/- difference between our time and their time
         int64_t difference = getMasked48(hlc) - timeNow;
@@ -192,6 +192,10 @@ public:
 
     void setEpochSeqno(int64_t seqno) {
         epochSeqno = seqno;
+    }
+
+    static int64_t getMaskedTime() {
+        return getMasked48(getTime());
     }
 
 protected:

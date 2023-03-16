@@ -2760,6 +2760,7 @@ TEST_P(EPBucketCDCTest, CollectionHistorical_RetentionDisabled_MemoryDedup) {
     ASSERT_EQ(initialHighSeqno, vb->getHighSeqno()); // From SetUp
     auto& manager = *vb->checkpointManager;
     manager.createNewCheckpoint();
+    flushVBucket(vbid);
     ASSERT_EQ(1, manager.getNumCheckpoints());
     ASSERT_EQ(1, manager.getNumItems()); // [cs
     ASSERT_EQ(1, manager.getNumOpenChkItems());
@@ -2783,6 +2784,7 @@ TEST_P(EPBucketCDCTest, CollectionHistorical_RetentionDisabled_FlusherDedup) {
     auto vb = store->getVBucket(vbid);
     const uint64_t initialHighSeqno = 1;
     ASSERT_EQ(initialHighSeqno, vb->getHighSeqno()); // From SetUp
+    flushVBucket(vbid);
     auto& manager = *vb->checkpointManager;
     manager.createNewCheckpoint();
     ASSERT_EQ(1, manager.getNumCheckpoints());
