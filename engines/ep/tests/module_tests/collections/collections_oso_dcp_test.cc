@@ -46,11 +46,15 @@ public:
 
 std::pair<CollectionsManifest, uint64_t>
 CollectionsDcpTest::setupTwoCollections(bool endOnTarget) {
-    VBucketPtr vb = store->getVBucket(vbid);
     CollectionsManifest cm(CollectionEntry::fruit);
     setCollections(cookie, cm.add(CollectionEntry::vegetable));
+    flush_vbucket_to_disk(vbid, 2);
+    return {cm, writeTwoCollectios(endOnTarget)};
+}
 
-    // Interleave the writes to two collections and then OSO backfill one
+uint64_t CollectionsDcpTest::writeTwoCollectios(bool endOnTarget) {
+    // Interleave the writes to two collections, this is linked to expectations
+    // in CollectionsOSODcpTest test harness
     store_item(vbid, makeStoredDocKey("b", CollectionEntry::fruit), "q");
     store_item(vbid, makeStoredDocKey("b", CollectionEntry::vegetable), "q");
     store_item(vbid, makeStoredDocKey("d", CollectionEntry::fruit), "a");
@@ -67,8 +71,8 @@ CollectionsDcpTest::setupTwoCollections(bool endOnTarget) {
                 vbid, makeStoredDocKey("c", CollectionEntry::vegetable), "q");
         store_item(vbid, makeStoredDocKey("c", CollectionEntry::fruit), "y");
     }
-    flush_vbucket_to_disk(vbid, 10); // 8 keys + 2 events
-    return {cm, vb->getHighSeqno()};
+    flush_vbucket_to_disk(vbid, 8);
+    return store->getVBucket(vbid)->getHighSeqno();
 }
 
 // Run through how we expect OSO to work, this is a minimal test which will
@@ -773,7 +777,6 @@ TEST_P(CollectionsOSODcpTest, cursor_dropped) {
 // snapshots
 class CollectionsOSOEphemeralTest : public CollectionsDcpParameterizedTest {
 public:
-    std::pair<CollectionsManifest, uint64_t> setupTwoCollections();
 };
 
 // Run through how we expect OSO to work, this is a minimal test which will

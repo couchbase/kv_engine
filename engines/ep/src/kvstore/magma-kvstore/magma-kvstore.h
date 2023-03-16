@@ -763,6 +763,16 @@ protected:
             Vbid vbid) const;
 
     /**
+     * Scan the seqno index - where mode selects a history scan that includes
+     * all retained versions, or a normal scan which returns the most recent
+     * updates.
+     * @param ctx object which holds the required scan configuration
+     * @param mode selects history or non history
+     */
+    ScanStatus scan(BySeqnoScanContext& ctx,
+                    magma::Magma::SeqIterator::Mode mode) const;
+
+    /**
      * Scan a single ById range (key iterator)
      */
     ScanStatus scan(ByIdScanContext& ctx, const ByIdRange& range) const;

@@ -897,7 +897,7 @@ StorageProperties MagmaKVStore::getStorageProperties() const {
                          StorageProperties::AutomaticDeduplication::No,
                          StorageProperties::PrepareCounting::No,
                          StorageProperties::CompactionStaleItemCallbacks::Yes,
-                         StorageProperties::HistoryRetentionAvailable::No);
+                         StorageProperties::HistoryRetentionAvailable::Yes);
     return rv;
 }
 
@@ -1826,8 +1826,7 @@ std::unique_ptr<BySeqnoScanContext> MagmaKVStore::initBySeqnoScanContext(
                 getDroppedStatus.String());
     }
 
-    // @todo:assign this using magma->GetOldestHistorySeqno(snapshot);
-    auto historyStartSeqno = 0;
+    auto historyStartSeqno = magma->GetOldestHistorySeqno(snapshot);
     if (logger->should_log(spdlog::level::info)) {
         logger->info(
                 "MagmaKVStore::initBySeqnoScanContext {} seqno:{} endSeqno:{}"
@@ -1941,8 +1940,7 @@ std::unique_ptr<ByIdScanContext> MagmaKVStore::initByIdScanContext(
         return nullptr;
     }
 
-    // @todo:assign this using magma->GetOldestHistorySeqno(snapshot);
-    auto historyStartSeqno = 0;
+    auto historyStartSeqno = magma->GetOldestHistorySeqno(snapshot);
     logger->info(
             "MagmaKVStore::initByIdScanContext {} historyStartSeqno:{} "
             "KeyIterator:{}",
@@ -1963,6 +1961,15 @@ std::unique_ptr<ByIdScanContext> MagmaKVStore::initByIdScanContext(
 }
 
 ScanStatus MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
+    return scan(ctx, magma::Magma::SeqIterator::Mode::Snapshot);
+}
+
+ScanStatus MagmaKVStore::scanAllVersions(BySeqnoScanContext& ctx) const {
+    return scan(ctx, magma::Magma::SeqIterator::Mode::History);
+}
+
+ScanStatus MagmaKVStore::scan(BySeqnoScanContext& ctx,
+                              magma::Magma::SeqIterator::Mode mode) const {
     if (ctx.lastReadSeqno == ctx.maxSeqno) {
         logger->TRACE("MagmaKVStore::scan {} lastReadSeqno:{} == maxSeqno:{}",
                       ctx.vbid,
@@ -1985,7 +1992,8 @@ ScanStatus MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
         return ScanStatus(MagmaScanResult::Status::Failed);
     }
 
-    for (itr->Seek(startSeqno, ctx.maxSeqno); itr->Valid(); itr->Next()) {
+    for (itr->Initialize(startSeqno, ctx.maxSeqno, mode); itr->Valid();
+         itr->Next()) {
         Slice keySlice, metaSlice, valSlice;
         uint64_t seqno;
         itr->GetRecord(keySlice, metaSlice, valSlice, seqno);
@@ -2022,12 +2030,6 @@ ScanStatus MagmaKVStore::scan(BySeqnoScanContext& ctx) const {
         return ScanStatus::Failed;
     }
     return ScanStatus::Success;
-}
-
-ScanStatus MagmaKVStore::scanAllVersions(BySeqnoScanContext& ctx) const {
-    // @todo use magma's mode
-    // return scan(ctx, magma::Magma::SeqIterator::Mode::History);
-    return scan(ctx);
 }
 
 ScanStatus MagmaKVStore::scan(ByIdScanContext& ctx) const {
@@ -3911,9 +3913,9 @@ std::pair<Status, uint64_t> MagmaKVStore::getOldestRollbackableHighSeqno(
 }
 
 void MagmaKVStore::setHistoryRetentionBytes(size_t size) {
-    // @todo: connect to magma when API available
+    magma->SetHistoryRetentionSize(size);
 }
 
 void MagmaKVStore::setHistoryRetentionSeconds(std::chrono::seconds seconds) {
-    // @todo: connect to magma when API available
+    magma->SetHistoryRetentionTime(seconds.count());
 }

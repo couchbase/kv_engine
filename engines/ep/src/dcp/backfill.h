@@ -118,9 +118,14 @@ public:
      */
     virtual backfill_status_t scanHistory() = 0;
 
-protected:
     /// States of a backfill
     enum class State { Create = 0, Scan, ScanHistory, Done };
+
+    State getState() const {
+        return *state.rlock();
+    };
+
+protected:
     friend std::ostream& operator<<(std::ostream&, State);
 
     /**
