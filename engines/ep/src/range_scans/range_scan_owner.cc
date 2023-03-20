@@ -58,7 +58,7 @@ void ReadyRangeScans::addScan(EPBucket& bucket,
     scan->setQueued(true);
 
     auto lockedTasks = continueTasks.wlock();
-    // If more scans that tasks, see if we can create a new task
+    // If more scans than tasks, see if we can create a new task
     if (lockedQueue->size() > lockedTasks->size() &&
         lockedTasks->size() < concurrentTaskLimit) {
         // new task

@@ -20,7 +20,7 @@ class EPBucket;
 class EventDrivenTimeoutTask;
 class KVStoreIface;
 class KVStoreRevision;
-struct RangeScanCreateData;
+struct RangeScanCreateToken;
 struct vbucket_state;
 
 /**
@@ -290,7 +290,7 @@ public:
      * This will perform the final steps of creation (completing the command)
      */
     std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScanComplete(
-            std::unique_ptr<RangeScanCreateData> rangeScanCreateData,
+            std::unique_ptr<RangeScanCreateToken> rangeScanCreateData,
             CookieIface& cookie);
 
     /**

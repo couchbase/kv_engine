@@ -337,7 +337,7 @@ cb::engine_errc RangeScan::hasPrivilege(
                                  start.getDocKey().getCollectionID());
 }
 
-cb::engine_errc RangeScan::setupToScan() {
+cb::engine_errc RangeScan::prepareToContinueOnIOThread() {
     // continue works on a copy of the state.
     continueRunState = continueState.withWLock([](auto& cs) {
         auto state = cs;
@@ -358,9 +358,9 @@ cb::engine_errc RangeScan::setupToScan() {
     return cb::engine_errc::range_scan_more;
 }
 
-cb::engine_errc RangeScan::progressScan(KVStoreIface& kvstore) {
+cb::engine_errc RangeScan::continueOnIOThread(KVStoreIface& kvstore) {
     EP_LOG_DEBUG(
-            "RangeScan {} continue progressScan for {}", uuid, getVBucketId());
+            "RangeScan {} continueOnIOThread for {}", uuid, getVBucketId());
     auto status = kvstore.scan(*scanCtx);
 
     switch (status) {
@@ -401,7 +401,7 @@ cb::engine_errc RangeScan::progressScan(KVStoreIface& kvstore) {
         return cb::engine_errc::range_scan_cancelled;
     }
     throw std::runtime_error(
-            "RangeScan::continueScan all case statements should return a "
+            "RangeScan::continueOnIOThread all case statements should return a "
             "status");
 }
 

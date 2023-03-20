@@ -24,7 +24,7 @@ RangeScanCreateTask::RangeScanCreateTask(
         CookieIface& cookie,
         std::unique_ptr<RangeScanDataHandlerIFace> handler,
         const cb::rangescan::CreateParameters& params,
-        std::unique_ptr<RangeScanCreateData> scanData)
+        std::unique_ptr<RangeScanCreateToken> scanData)
     : GlobalTask(bucket.getEPEngine(), TaskId::RangeScanCreateTask, 0, false),
       bucket(bucket),
       vbid(params.vbid),

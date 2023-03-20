@@ -106,22 +106,22 @@ public:
                                  const EventuallyPersistentEngine& engine);
 
     /**
-     * Setup the scan ready to progress - this function performs some
-     * "pre-flight" checks and sets continueRunState. After this call returns
-     * range_scan_more - progressScan can be called
+     * Prepare the scan ready to continue. This function performs "pre-flight"
+     * checks and sets the continueRunState. If this function
+     * returns range_scan_more - continueOnIOThread can be called
      *
-     * success - the scan is now finished
      * range_scan_more - the scan is ready to progress
      * range_scan_cancelled - the the scan has been cancelled
      *
      * @return success, range_scan_more or range_scan_cancelled
      */
-    cb::engine_errc setupToScan();
+    cb::engine_errc prepareToContinueOnIOThread();
 
     /**
-     * Progress this scan forwards until a condition is reached that requires
-     * the scan to stop. The scan may hit a limit or a condition which means
-     * the scan is now cancelled (by request or some environmental state change)
+     * Continue the scan on an IO task forwards until a condition is reached
+     * that requires the scan to stop. The scan may hit a limit or a condition
+     * which means the scan is now cancelled (by request or some environmental
+     * state change)
      *
      * success - scan reached the end key
      * range_scan_more - scan reached a limit and is paused
@@ -130,7 +130,7 @@ public:
      * @param kvstore A KVStoreIface on which to call scan
      * @return success, range_scan_more or range_scan_cancelled
      */
-    cb::engine_errc progressScan(KVStoreIface& kvstore);
+    cb::engine_errc continueOnIOThread(KVStoreIface& kvstore);
 
     /// @return the universally unique id of this scan (exposed to the client)
     cb::rangescan::Id getUuid() const {

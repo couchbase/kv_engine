@@ -2080,7 +2080,7 @@ TEST_P(RangeScanTestSimple, MB_54053) {
         if (status == cb::engine_errc::range_scan_more) {
             scan2->setStateContinuing(
                     *cookie, 1, std::chrono::milliseconds{0}, 0);
-            scan2->setupToScan();
+            scan2->prepareToContinueOnIOThread();
         }
     };
 
@@ -2100,13 +2100,13 @@ TEST_P(RangeScanTestSimple, MB_54053) {
     scan2 = scan1;
 
     scan1->setStateContinuing(*cookie, 1, std::chrono::milliseconds{0}, 0);
-    scan1->setupToScan();
-    scan1->progressScan(*kvs);
+    scan1->prepareToContinueOnIOThread();
+    scan1->continueOnIOThread(*kvs);
     // scan2 (thread2) moves from idle to continue inside the callback, i.e. it
     // interleaves with scan1 executing RangeScan::handleStatus
     // scan2 now hits an exception because after the setup thread1 continues
     // and wipes out the cookie of scan2
-    scan2->progressScan(*kvs);
+    scan2->continueOnIOThread(*kvs);
 }
 
 TEST_P(RangeScanTestSimple, DisconnectCancels) {

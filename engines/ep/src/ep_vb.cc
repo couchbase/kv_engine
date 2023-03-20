@@ -1242,43 +1242,43 @@ std::pair<cb::engine_errc, cb::rangescan::Id> EPVBucket::createRangeScan(
         std::unique_ptr<RangeScanDataHandlerIFace> handler,
         const cb::rangescan::CreateParameters& params) {
     // Obtain the engine specific, which will be null (new create) or a pointer
-    // to RangeScanCreateData (I/O complete path of create)
-    std::unique_ptr<RangeScanCreateData> rangeScanCreateData(
+    // to RangeScanCreateToken (I/O complete path of create)
+    std::unique_ptr<RangeScanCreateToken> rangeScanCreateToken(
             bucket->getEPEngine()
-                    .getEngineSpecific<RangeScanCreateData*>(cookie)
+                    .getEngineSpecific<RangeScanCreateToken*>(cookie)
                     .value_or(nullptr));
 
-    if (rangeScanCreateData) {
+    if (rangeScanCreateToken) {
         // When the data exists, two paths are possible.
         // 1) I/O complete from RangeScanCreateTask
         // 2) I/O complete from SeqnoPersistenceRequest
         // The state variable determines what todo next.
-        if (rangeScanCreateData->state == RangeScanCreateState::Creating) {
+        if (rangeScanCreateToken->state == RangeScanCreateState::Creating) {
             // create state - command is now completed
-            return createRangeScanComplete(std::move(rangeScanCreateData),
+            return createRangeScanComplete(std::move(rangeScanCreateToken),
                                            cookie);
         }
     } else {
-        // Create our RangeScanCreateData, the state will now be Pending
-        rangeScanCreateData = std::make_unique<RangeScanCreateData>();
+        // Create our RangeScanCreateToken, the state will now be Pending
+        rangeScanCreateToken = std::make_unique<RangeScanCreateToken>();
         // Place pointer in the cookie so we can get this object back on success
         bucket->getEPEngine().storeEngineSpecific(cookie,
-                                                  rangeScanCreateData.get());
+                                                  rangeScanCreateToken.get());
     }
 
     // Check for seqno persistence and the state. If the create is pending
     // and the seqno is not persisted, wait if there's a timeout, else fail
     if (params.snapshotReqs &&
         getPersistenceSeqno() < params.snapshotReqs->seqno &&
-        rangeScanCreateData->state == RangeScanCreateState::Pending) {
+        rangeScanCreateToken->state == RangeScanCreateState::Pending) {
         if (params.snapshotReqs->timeout) {
             auto status = createRangeScanWait(*params.snapshotReqs, cookie);
             Expects(status != HighPriorityVBReqStatus::NotSupported);
             if (status == HighPriorityVBReqStatus::RequestScheduled) {
-                rangeScanCreateData->state =
+                rangeScanCreateToken->state =
                         RangeScanCreateState::WaitForPersistence;
                 // release the data, it's now 'owned' by the cookie
-                rangeScanCreateData.release();
+                rangeScanCreateToken.release();
                 // waiting for persistence...
                 return {cb::engine_errc::would_block, {}};
             } // else the seqno is now persisted, we can continue to create
@@ -1291,7 +1291,7 @@ std::pair<cb::engine_errc, cb::rangescan::Id> EPVBucket::createRangeScan(
     }
 
     // Set status to creation
-    rangeScanCreateData->state = RangeScanCreateState::Creating;
+    rangeScanCreateToken->state = RangeScanCreateState::Creating;
 
     // If no handler has been given, create one.
     if (!handler) {
@@ -1300,20 +1300,20 @@ std::pair<cb::engine_errc, cb::rangescan::Id> EPVBucket::createRangeScan(
                 params.keyOnly == cb::rangescan::KeyOnly::Yes);
     }
 
-    // Create a task and give it the RangeScanCreateData, on failure the task
+    // Create a task and give it the RangeScanCreateToken, on failure the task
     // will destruct the data
     ExecutorPool::get()->schedule(std::make_shared<RangeScanCreateTask>(
             dynamic_cast<EPBucket&>(*bucket),
             cookie,
             std::move(handler),
             params,
-            std::move(rangeScanCreateData)));
+            std::move(rangeScanCreateToken)));
     return {cb::engine_errc::would_block, {}};
 }
 
 std::pair<cb::engine_errc, cb::rangescan::Id>
 EPVBucket::createRangeScanComplete(
-        std::unique_ptr<RangeScanCreateData> rangeScanCreateData,
+        std::unique_ptr<RangeScanCreateToken> rangeScanCreateData,
         CookieIface& cookie) {
     Expects(rangeScanCreateData);
     bucket->getEPEngine().clearEngineSpecific(cookie);
@@ -1334,8 +1334,8 @@ HighPriorityVBReqStatus EPVBucket::createRangeScanWait(
         // override with a function that cleans up
         void expired() const override {
             // Capture the unique_ptr and allow it to go out of scope
-            std::unique_ptr<RangeScanCreateData> rangeScanCreateData(
-                    engine.takeEngineSpecific<RangeScanCreateData*>(*cookie)
+            std::unique_ptr<RangeScanCreateToken> rangeScanCreateToken(
+                    engine.takeEngineSpecific<RangeScanCreateToken*>(*cookie)
                             .value_or(nullptr));
         }
 
@@ -1352,17 +1352,17 @@ HighPriorityVBReqStatus EPVBucket::createRangeScanWait(
 
 cb::engine_errc EPVBucket::checkAndCancelRangeScanCreate(CookieIface& cookie) {
     // Obtain the data (so it now frees if not null)
-    std::unique_ptr<RangeScanCreateData> rangeScanCreateData(
+    std::unique_ptr<RangeScanCreateToken> rangeScanCreateToken(
             bucket->getEPEngine()
-                    .takeEngineSpecific<RangeScanCreateData*>(cookie)
+                    .takeEngineSpecific<RangeScanCreateToken*>(cookie)
                     .value_or(nullptr));
     // Nothing to cancel
-    if (!rangeScanCreateData) {
+    if (!rangeScanCreateToken) {
         return cb::engine_errc::success;
     }
 
-    if (rangeScanCreateData->state == RangeScanCreateState::Creating) {
-        return cancelRangeScan(rangeScanCreateData->uuid, nullptr, true);
+    if (rangeScanCreateToken->state == RangeScanCreateState::Creating) {
+        return cancelRangeScan(rangeScanCreateToken->uuid, nullptr, true);
     }
     return cb::engine_errc::success;
 }

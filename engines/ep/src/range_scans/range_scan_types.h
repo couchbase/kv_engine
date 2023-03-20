@@ -24,7 +24,7 @@ enum class RangeScanCreateState : char {
 };
 
 // Data stored in engine-specific during a RangeScan create request
-struct RangeScanCreateData {
+struct RangeScanCreateToken {
     cb::rangescan::Id uuid;
     RangeScanCreateState state{RangeScanCreateState::Pending};
 };
