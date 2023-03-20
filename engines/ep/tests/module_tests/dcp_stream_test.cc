@@ -6212,7 +6212,8 @@ TEST_P(CDCPassiveStreamTest, MemorySnapshotTransitionToHistory) {
     const auto outboundDcpCursor =
             manager.registerCursorBySeqno(
                            "dcp-cursor", 0, CheckpointCursor::Droppable::Yes)
-                    .cursor.lock();
+                    .takeCursor()
+                    .lock();
     // Registered into the first/closed checkpoint
     EXPECT_EQ(CHECKPOINT_CLOSED,
               (*outboundDcpCursor->getCheckpoint())->getState());
