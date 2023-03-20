@@ -7730,6 +7730,9 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                            "vb_0:db_file_size",
                            "vb_0:db_prepare_size"});
 
+        if (isMagmaBucket(h)) {
+            vb_details.insert(vb_details.end(), {"vb_0:history_start_seqno"});
+        }
         // Config variables only valid for persistent
         auto& config_stats = statsKeys.at("config");
         config_stats.insert(config_stats.end(), persistentConfig);
@@ -7745,6 +7748,107 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                           "ep_magma_seq_tree_index_block_size",
                           "ep_magma_key_tree_data_block_size",
                           "ep_magma_key_tree_index_block_size"});
+        }
+
+        // Add expected bespoke magma stats into the "all" group
+        auto& eng_stats = statsKeys.at("");
+        eng_stats.insert(eng_stats.end(),
+                         {"ep_magma_active_disk_usage",
+                          "ep_magma_block_cache_hit_ratio",
+                          "ep_magma_block_cache_hits",
+                          "ep_magma_block_cache_mem_used",
+                          "ep_magma_block_cache_misses",
+                          "ep_magma_bloom_filter_mem_used",
+                          "ep_magma_buffer_mem_used",
+                          "ep_magma_bytes_incoming",
+                          "ep_magma_bytes_outgoing",
+                          "ep_magma_bytes_per_read",
+                          "ep_magma_checkpoint_disk_usage",
+                          "ep_magma_compactions",
+                          "ep_magma_data_blocks_compressed_size",
+                          "ep_magma_data_blocks_compression_ratio",
+                          "ep_magma_data_blocks_space_reduction_estimate_pct",
+                          "ep_magma_data_blocks_uncompressed_size",
+                          "ep_magma_filecount_compactions",
+                          "ep_magma_flushes",
+                          "ep_magma_fragmentation",
+                          "ep_magma_gets",
+                          "ep_magma_histogram_mem_used",
+                          "ep_magma_history_logical_data_size",
+                          "ep_magma_history_logical_disk_size",
+                          "ep_magma_history_size_evicted",
+                          "ep_magma_history_time_evicted",
+                          "ep_magma_index_resident_ratio",
+                          "ep_magma_inserts",
+                          "ep_magma_keyindex_compactions",
+                          "ep_magma_keyindex_filecount_compactions",
+                          "ep_magma_keyindex_writer_compactions",
+                          "ep_magma_logical_data_size",
+                          "ep_magma_logical_disk_size",
+                          "ep_magma_lsmtree_object_mem_used",
+                          "ep_magma_read_ahead_buffer_mem_used",
+                          "ep_magma_read_bytes",
+                          "ep_magma_read_bytes_compact",
+                          "ep_magma_read_bytes_get",
+                          "ep_magma_readamp",
+                          "ep_magma_readamp_get",
+                          "ep_magma_readio",
+                          "ep_magma_readioamp",
+                          "ep_magma_seqindex_compactions",
+                          "ep_magma_seqindex_filecount_compactions",
+                          "ep_magma_seqindex_writer_compactions",
+                          "ep_magma_sets",
+                          "ep_magma_syncs",
+                          "ep_magma_table_meta_mem_used",
+                          "ep_magma_table_object_mem_used",
+                          "ep_magma_tables",
+                          "ep_magma_tables_created",
+                          "ep_magma_tables_deleted",
+                          "ep_magma_total_disk_usage",
+                          "ep_magma_total_mem_used",
+                          "ep_magma_ttl_compactions",
+                          "ep_magma_wal_disk_usage",
+                          "ep_magma_wal_mem_used",
+                          "ep_magma_write_bytes",
+                          "ep_magma_write_bytes_compact",
+                          "ep_magma_write_cache_mem_used",
+                          "ep_magma_writeamp",
+                          "ep_magma_writer_compactions"});
+
+        // remove from all stats those which magma doesn't generate
+        for (const auto& statName : {"ep_io_bg_fetch_read_count",
+                                     "ep_io_compaction_read_bytes",
+                                     "ep_io_compaction_write_bytes",
+                                     "ep_io_document_write_bytes",
+                                     "ep_io_flusher_write_amplification",
+                                     "ep_io_total_read_bytes",
+                                     "ep_io_total_write_amplification",
+                                     "ep_io_total_write_bytes",
+                                     "ep_bg_fetch_avg_read_amplification"}) {
+            eng_stats.erase(
+                    std::remove(eng_stats.begin(), eng_stats.end(), statName),
+                    eng_stats.end());
+        }
+
+        // Fixup the kvstore stats for magma, adding and some removed
+        auto& kvstoreStats = statsKeys.at("kvstore");
+        kvstoreStats.insert(
+                kvstoreStats.end(),
+                {"rw_0:magma", "rw_1:magma", "rw_2:magma", "rw_3:magma"});
+
+        // remove rw_0... rw_1 etc...
+        for (const auto& statName : {"io_compaction_read_bytes",
+                                     "io_compaction_write_bytes",
+                                     "io_flusher_write_amplification",
+                                     "io_total_read_bytes",
+                                     "io_total_write_amplification",
+                                     "io_total_write_bytes"}) {
+            for (const auto& shardId : {"rw_0:", "rw_1:", "rw_2:", "rw_3:"}) {
+                kvstoreStats.erase(std::remove(kvstoreStats.begin(),
+                                               kvstoreStats.end(),
+                                               std::string{shardId} + statName),
+                                   kvstoreStats.end());
+            }
         }
     }
 
@@ -9673,7 +9777,7 @@ BaseTestCase testsuite_testcases[] = {
                  "max_num_shards=4",
                  // TODO RDB: Needs to fix some missing/unexpected stats
                  // Magma has no support for upgrades at this time
-                 prepare_skip_broken_under_rocks_and_magma,
+                 prepare_ep_bucket_skip_broken_under_rocks,
                  cleanup),
 
         TestCase("test_MB-19687_variable",

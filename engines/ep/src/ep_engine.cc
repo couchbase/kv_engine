@@ -2874,7 +2874,7 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
     auto divide = [](double a, double b) { return b ? a / b : 0; };
     constexpr std::array<std::string_view, 53> statNames = {
             {"magma_HistorySizeBytesEvicted",
-             "magma_HistoryTimeBytesEvicted"
+             "magma_HistoryTimeBytesEvicted",
              "magma_NCompacts",
              "magma_KeyIndex_NCompacts",
              "magma_SeqIndex_NCompacts",
