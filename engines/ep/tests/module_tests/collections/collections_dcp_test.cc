@@ -99,7 +99,8 @@ void CollectionsDcpTest::createDcpStream(const DcpStreamRequestConfig& config) {
     config.createDcpStream(*producer);
 }
 
-void CollectionsDcpTest::createDcpConsumer() {
+void CollectionsDcpTest::createDcpConsumer(
+        const DcpProducerConfig& producerConfig) {
     // Nuke the old consumer (if it exists) to ensure that we remove any
     // streams from the vbToConns map or we will end up firing assertions
     auto& mockConnMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
@@ -111,7 +112,10 @@ void CollectionsDcpTest::createDcpConsumer() {
 
     consumer = std::make_shared<MockDcpConsumer>(
             *engine, cookieC, "test_consumer");
-    consumer->enableFlatBuffersSystemEvents();
+
+    if (producerConfig.useFlatBufferEvents()) {
+        consumer->enableFlatBuffersSystemEvents();
+    }
     mockConnMap.addConn(cookieC, consumer);
 
     store->setVBucketState(replicaVB, vbucket_state_replica);
@@ -124,7 +128,7 @@ void CollectionsDcpTest::createDcpConsumer() {
 void CollectionsDcpTest::createDcpObjects(
         const DcpProducerConfig& producerConfig,
         const DcpStreamRequestConfig& streamRequestConfig) {
-    createDcpConsumer();
+    createDcpConsumer(producerConfig);
 
     auto& mockConnMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
 
@@ -149,6 +153,10 @@ void CollectionsDcpTest::createDcpObjects(
         producers->consumer = consumer.get();
         producers->replicaVB = replicaVB;
     }
+
+    producers->producerFlatBuffersSystemEventsEnabled =
+            producerConfig.useFlatBufferEvents();
+
     createDcpStream(streamRequestConfig);
 }
 
@@ -159,22 +167,25 @@ void CollectionsDcpTest::createDcpObjects(
         bool enableSyncRep,
         uint64_t streamEndSeqno,
         ChangeStreams changeStreams) {
-    createDcpObjects(DcpProducerConfig{"test_producer",
-                                       outOfOrderSnapshots,
-                                       enableSyncRep,
-                                       changeStreams,
-                                       IncludeXattrs::Yes,
-                                       IncludeDeleteTime::No},
-                     DcpStreamRequestConfig{vbid,
-                                            flags,
-                                            1,
-                                            0,
-                                            streamEndSeqno,
-                                            0,
-                                            0,
-                                            0,
-                                            collections,
-                                            cb::engine_errc::success});
+    createDcpObjects(
+            DcpProducerConfig{"test_producer",
+                              outOfOrderSnapshots,
+                              enableSyncRep ? SyncReplication::SyncReplication
+                                            : SyncReplication::No,
+                              changeStreams,
+                              IncludeXattrs::Yes,
+                              IncludeDeleteTime::No,
+                              FlatBuffersEvents::Yes},
+            DcpStreamRequestConfig{vbid,
+                                   flags,
+                                   1,
+                                   0,
+                                   streamEndSeqno,
+                                   0,
+                                   0,
+                                   0,
+                                   collections,
+                                   cb::engine_errc::success});
 }
 
 void CollectionsDcpTest::TearDown() {

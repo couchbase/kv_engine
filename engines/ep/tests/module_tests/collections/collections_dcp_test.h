@@ -48,7 +48,7 @@ public:
 
     void createDcpStream(const DcpStreamRequestConfig& config);
 
-    void createDcpConsumer();
+    void createDcpConsumer(const DcpProducerConfig& producerConfig);
 
     void createDcpObjects(
             std::optional<std::string_view> collections,

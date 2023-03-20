@@ -1245,6 +1245,70 @@
             "descr": "WAL ensures Magma's atomicity, durability. Disabling it is useful in performance analysis.",
             "type": "bool"
         },
+        "magma_seq_tree_data_block_size": {
+            "default": "4096",
+            "dynamic": true,
+            "descr": "Magma uses SSTables for storage. SSTables are made up of different types of blocks. Data blocks contain the bulk of the data and contain the key, metadata and value for each of the items in the block. Larger block sizes can decrease storage space by better block compression but they require more memory, cpu and io bandwidth to read and write them.",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "min": 4096,
+                    "max": 131072
+                }
+            },
+            "requires": {
+                "bucket_type": "persistent",
+                "backend": "magma"
+            }
+        },
+        "magma_seq_tree_index_block_size": {
+            "default": "4096",
+            "dynamic": true,
+            "descr": "Magma uses SSTables for storage. SSTables are made up of different types of blocks. Index blocks contain keys that help traverse the SSTable to locate the data item. Larger block sizes can decrease storage space by better block compression but they require more memory, cpu and io bandwidth to read and write them.",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "min": 4096,
+                    "max": 131072
+                }
+            },
+            "requires": {
+                "bucket_type": "persistent",
+                "backend": "magma"
+            }
+        },
+        "magma_key_tree_data_block_size": {
+            "default": "4096",
+            "dynamic": true,
+            "descr": "Magma uses SSTables for storage. SSTables are made up of different types of blocks. Data blocks contain the bulk of the data and contain the key and metadata for each of the items in the block. Larger block sizes can decrease storage space by better block compression but they require more memory, cpu and io bandwidth to read and write them.",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "min": 4096,
+                    "max": 131072
+                }
+            },
+            "requires": {
+                "bucket_type": "persistent",
+                "backend": "magma"
+            }
+        },
+        "magma_key_tree_index_block_size": {
+            "default": "4096",
+            "dynamic": true,
+            "descr": "Magma uses SSTables for storage. SSTables are made up of different types of blocks. Index blocks contain keys that help traverse the SSTable to locate the data item. Larger block sizes can decrease storage space by better block compression but they require more memory, cpu and io bandwidth to read and write them.",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "min": 4096,
+                    "max": 131072
+                }
+            },
+            "requires": {
+                "bucket_type": "persistent",
+                "backend": "magma"
+            }
+        },
         "magma_enable_upsert": {
             "default": "false",
             "dynamic": false,

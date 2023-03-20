@@ -42,6 +42,7 @@
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/collections/collections_dcp_test.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
+#include "tests/module_tests/dcp_producer_config.h"
 #include "tests/module_tests/dcp_utils.h"
 #include "tests/module_tests/evp_store_test.h"
 #include "tests/module_tests/test_helpers.h"
@@ -2320,7 +2321,7 @@ TEST_P(CollectionsDcpParameterizedTest, empty_filter_stream_closes) {
     setCollections(cookie, cm.add(CollectionEntry::meat));
 
     producer = createDcpProducer(cookieP, IncludeDeleteTime::No);
-    createDcpConsumer();
+    createDcpConsumer(DcpProducerConfig{});
 
     // Perform a delete of meat
     setCollections(cookie, cm.remove(CollectionEntry::meat));

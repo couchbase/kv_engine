@@ -210,12 +210,7 @@ TEST_P(HistoryScanTest, stream_start_within_history_window_unique_keys) {
     // DCP stream with no filter - all collections visible.
     auto vb = store->getVBucket(vbid);
 
-    createDcpObjects(DcpProducerConfig{"test_producer",
-                                       OutOfOrderSnapshots::No,
-                                       true,
-                                       ChangeStreams::Yes,
-                                       IncludeXattrs::Yes,
-                                       IncludeDeleteTime::Yes},
+    createDcpObjects(DcpProducerConfig{},
                      // Request says start=1, recall that stream-request uses
                      // the "last received seqno" as input. So here start=1 will
                      // result in the backfill sending inclusive of 2.
@@ -309,12 +304,7 @@ TEST_P(HistoryScanTest, stream_start_within_history_window_duplicate_keys) {
     // DCP stream with no filter - all collections visible.
     auto vb = store->getVBucket(vbid);
 
-    createDcpObjects(DcpProducerConfig{"test_producer",
-                                       OutOfOrderSnapshots::No,
-                                       true,
-                                       ChangeStreams::Yes,
-                                       IncludeXattrs::Yes,
-                                       IncludeDeleteTime::Yes},
+    createDcpObjects(DcpProducerConfig{},
                      DcpStreamRequestConfig{vbid,
                                             0, // flags
                                             1, // opaque
