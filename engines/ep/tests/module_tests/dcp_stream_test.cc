@@ -5620,7 +5620,8 @@ void CDCActiveStreamTest::SetUp() {
     // branch.
     config_string += "checkpoint_removal_mode=eager";
     // Enable history retention
-    config_string += ";history_retention_bytes=10485760";
+    config_string +=
+            ";history_retention_bytes=10485760;history_retention_seconds=3600";
     STActiveStreamPersistentTest::SetUp();
 
     // @todo CDC: Can remove as soon as magma enables history
@@ -5661,6 +5662,27 @@ void CDCActiveStreamTest::SetUp() {
     }
 
     ASSERT_EQ(4, vb->getHighSeqno());
+}
+
+void CDCActiveStreamTest::clearCMAndPersistenceAndReplication() {
+    auto& vb = *store->getVBucket(vbid);
+    auto& manager = *vb.checkpointManager;
+    manager.createNewCheckpoint();
+
+    // Move the persistence and stream cursor to the end of the open checkpoint
+    const auto& readyQ = stream->public_readyQ();
+    const auto cursor = stream->getCursor().lock();
+    while (manager.getNumCheckpoints() > 1) {
+        stream->nextCheckpointItemTask();
+        while (readyQ.size() > 0) {
+            stream->public_nextQueuedItem(*producer);
+        }
+        flushVBucket(vbid);
+    }
+
+    // Eager checkpoint removal ensures 1 empty checkpoint at this point
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(1, manager.getNumOpenChkItems()); // cs
 }
 
 TEST_P(CDCActiveStreamTest, CollectionNotDeduped_InMemory) {
@@ -5744,30 +5766,17 @@ TEST_P(CDCActiveStreamTest, CollectionNotDeduped_InMemory) {
 TEST_P(CDCActiveStreamTest, MarkerHistoryFlagClearIfCheckpointNotHistorical) {
     auto& config = engine->getConfiguration();
     config.setHistoryRetentionBytes(0);
+    config.setHistoryRetentionSeconds(0);
     ASSERT_FALSE(store->isHistoryRetentionEnabled());
 
     auto& vb = *store->getVBucket(vbid);
     const auto initHighSeqno = vb.getHighSeqno();
     ASSERT_GT(initHighSeqno, 0); // From SetUp
 
-    // Move the stream cursor at the end of checkpoint
-    auto& manager = *vb.checkpointManager;
-    ASSERT_EQ(1, manager.getNumCheckpoints());
-    const auto& readyQ = stream->public_readyQ();
-    ASSERT_EQ(0, readyQ.size());
-    stream->nextCheckpointItemTask();
-    ASSERT_EQ(2, readyQ.size()); // Marker + Sysevent
-    while (readyQ.size() > 0) {
-        stream->public_nextQueuedItem(*producer);
-    }
-    ASSERT_EQ(0, readyQ.size());
-    // Move the persistence cursor at the end of checkpoint
-    flushVBucket(vbid);
+    // Move the stream cursor to the end of checkpoint
+    clearCMAndPersistenceAndReplication();
 
-    // @todo MB-55336: Manual checkpoint creation won't be necessary here when
-    //  MB-55336 fixed.
-    manager.createNewCheckpoint();
-    // Eager removal of old checkpoint
+    auto& manager = *vb.checkpointManager;
     ASSERT_EQ(1, manager.getNumCheckpoints());
     ASSERT_EQ(1, manager.getNumOpenChkItems()); // cs
     // Main precondition
@@ -5779,6 +5788,7 @@ TEST_P(CDCActiveStreamTest, MarkerHistoryFlagClearIfCheckpointNotHistorical) {
     ASSERT_EQ(initHighSeqno + 1, vb.getHighSeqno());
 
     // Check the outbound stream
+    const auto& readyQ = stream->public_readyQ();
     ASSERT_EQ(0, readyQ.size());
 
     stream->nextCheckpointItemTask();
@@ -5803,6 +5813,128 @@ TEST_P(CDCActiveStreamTest, MarkerHistoryFlagClearIfCheckpointNotHistorical) {
     EXPECT_EQ(key, mut->getItem()->getKey());
 
     EXPECT_EQ(0, readyQ.size());
+}
+
+void CDCActiveStreamTest::testResilientToRetentionConfigChanges(
+        HistoryRetentionMetric metric) {
+    // SetUp enables history (both bytes/seconds > 0) and creates an historical
+    // collection.
+    // Here we need to test bytes/seconds selectively for ensuring the correct
+    // behaviour of each.
+    auto& config = engine->getConfiguration();
+    switch (metric) {
+    case HistoryRetentionMetric::BYTES: {
+        ASSERT_GT(store->getHistoryRetentionBytes(), 0);
+        config.setHistoryRetentionSeconds(0);
+        break;
+    }
+    case HistoryRetentionMetric::SECONDS: {
+        ASSERT_GT(store->getHistoryRetentionSeconds().count(), 0);
+        config.setHistoryRetentionBytes(0);
+        break;
+    }
+    }
+    ASSERT_TRUE(store->isHistoryRetentionEnabled());
+
+    clearCMAndPersistenceAndReplication();
+
+    // Now we write a doc into the historical collection
+    auto& vb = *store->getVBucket(vbid);
+    const auto initHighSeqno = vb.getHighSeqno();
+    ASSERT_GT(initHighSeqno, 0); // From SetUp
+    const auto key = makeStoredDocKey("key", CollectionEntry::historical);
+    const auto value = "value";
+    store_item(vbid, key, value);
+    ASSERT_EQ(initHighSeqno + 1, vb.getHighSeqno());
+    // 1 historical checkpoint contains the mutation
+    const auto& manager = *vb.checkpointManager;
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(2, manager.getNumOpenChkItems()); // cs, m
+    ASSERT_EQ(CheckpointHistorical::Yes, manager.getOpenCheckpointHistorical());
+    // Save the current checkpoint id for later in the test
+    const auto prevCkptId = manager.getOpenCheckpointId();
+    // The the stream makes a History snapshot from that checkpoint
+    const auto& readyQ = stream->public_readyQ();
+    ASSERT_EQ(0, readyQ.size());
+    stream->nextCheckpointItemTask();
+    ASSERT_EQ(2, readyQ.size()); // Marker + Mutation
+    // Marker
+    auto resp = stream->public_nextQueuedItem(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto* marker = dynamic_cast<SnapshotMarker*>(resp.get());
+    // Core test: MARKER_FLAG_HISTORY is set in the marker
+    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK | MARKER_FLAG_HISTORY,
+              marker->getFlags());
+    EXPECT_EQ(initHighSeqno + 1, marker->getStartSeqno());
+    EXPECT_EQ(initHighSeqno + 1, marker->getEndSeqno());
+    // Mutation
+    resp = stream->public_nextQueuedItem(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    EXPECT_EQ(initHighSeqno + 1, resp->getBySeqno());
+    auto* mut = dynamic_cast<const MutationResponse*>(resp.get());
+    EXPECT_EQ(key, mut->getItem()->getKey());
+    // readyQ drained
+    ASSERT_EQ(0, readyQ.size());
+
+    // Move persistence to the end of checkpoint
+    flushVBucket(vbid);
+
+    // Now the user disables history retention
+    switch (metric) {
+    case HistoryRetentionMetric::BYTES: {
+        config.setHistoryRetentionBytes(0);
+        break;
+    }
+    case HistoryRetentionMetric::SECONDS: {
+        config.setHistoryRetentionSeconds(0);
+        break;
+    }
+    }
+    ASSERT_FALSE(store->isHistoryRetentionEnabled());
+
+    // Core test: The existing historical checkpoint is closed and a new open
+    // non-historical checkpoint must be created
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_GT(manager.getOpenCheckpointId(), prevCkptId);
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
+    ASSERT_EQ(CheckpointHistorical::No, manager.getOpenCheckpointHistorical());
+
+    // Now store another mutation into the historical collection
+    store_item(vbid, key, value);
+
+    // This time DCP produces a non-historical snapshot from the non-historical
+    // checkpoint
+    ASSERT_EQ(0, readyQ.size());
+    stream->nextCheckpointItemTask();
+    ASSERT_EQ(2, readyQ.size()); // Marker + Mutation
+    // Marker
+    resp = stream->public_nextQueuedItem(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    marker = dynamic_cast<SnapshotMarker*>(resp.get());
+    // Core test: MARKER_FLAG_HISTORY isn't set in the marker
+    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK, marker->getFlags());
+    EXPECT_EQ(initHighSeqno + 2, marker->getStartSeqno());
+    EXPECT_EQ(initHighSeqno + 2, marker->getEndSeqno());
+    // Mutation
+    resp = stream->public_nextQueuedItem(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    EXPECT_EQ(initHighSeqno + 2, resp->getBySeqno());
+    mut = dynamic_cast<const MutationResponse*>(resp.get());
+    EXPECT_EQ(key, mut->getItem()->getKey());
+    // readyQ drained
+    ASSERT_EQ(0, readyQ.size());
+}
+
+TEST_P(CDCActiveStreamTest, ResilientToRetentionConfigChanges_Bytes) {
+    testResilientToRetentionConfigChanges(HistoryRetentionMetric::BYTES);
+}
+
+TEST_P(CDCActiveStreamTest, ResilientToRetentionConfigChanges_Seconds) {
+    testResilientToRetentionConfigChanges(HistoryRetentionMetric::SECONDS);
 }
 
 INSTANTIATE_TEST_SUITE_P(Persistent,
@@ -6066,6 +6198,42 @@ TEST_P(CDCPassiveStreamTest, MemorySnapshotTransitionToHistory) {
     auto res = manager.getItemsForPersistence(
             items, std::numeric_limits<size_t>::max());
     EXPECT_EQ(1, res.ranges.size());
+
+    // Coverage for MB-55337 from now on.
+
+    // Note: The previous step simulates the flusher in the middle of execution,
+    // the backup cursor is still registered into the first (closed) checkpoint.
+    EXPECT_EQ(CHECKPOINT_CLOSED,
+              (*manager.getBackupPersistenceCursor()->getCheckpoint())
+                      ->getState());
+    EXPECT_EQ(2, manager.getNumCheckpoints());
+
+    // Simulate a new DCP Producer connection
+    const auto outboundDcpCursor =
+            manager.registerCursorBySeqno(
+                           "dcp-cursor", 0, CheckpointCursor::Droppable::Yes)
+                    .cursor.lock();
+    // Registered into the first/closed checkpoint
+    EXPECT_EQ(CHECKPOINT_CLOSED,
+              (*outboundDcpCursor->getCheckpoint())->getState());
+
+    // Flusher completes and removes the backup cursor from the first
+    res.flushHandle.reset();
+
+    // State here is
+    // [ .. ] [ .. )
+    // ^      ^
+    // dcp    persistence
+
+    // Now move the dcp cursor.
+    // Before the fix for MB-55337:
+    //  1. The DCP cursor is moved to the open checkpoint
+    //  2. The closed checkpoint becomes unreferenced and it's removed (detached
+    //     to the CheckpointDestroyer.
+    //  3. Our code tries to access the removed checkpoint by
+    //     std::prev(CM::checkpointList::begin()), which is undefined behaviour.
+    items.clear();
+    manager.getItemsForCursor(*outboundDcpCursor, items, 1000, 1000);
 }
 
 INSTANTIATE_TEST_SUITE_P(Persistent,

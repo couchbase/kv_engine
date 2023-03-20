@@ -1090,6 +1090,12 @@ protected:
     virtual bool isValidBucketDurabilityLevel(
             cb::durability::Level level) const = 0;
 
+    /**
+     * Closes the current open checkpoint and creates a new open one for the
+     * active vbuckets in the VBMap.
+     */
+    void createNewActiveCheckpoints();
+
     friend class Warmup;
     friend class WarmupLoadingKVPairs;
     friend class WarmupLoadingData;
