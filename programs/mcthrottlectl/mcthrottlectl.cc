@@ -16,7 +16,7 @@
 using cb::terminal::TerminalColor;
 
 static void usage(McProgramGetopt& getopt, int exitcode) {
-    std::cerr << R"(Usage mcthrottlectl [options] <bucketname>
+    std::cerr << R"(Usage mcthrottlectl [options] [bucketname1 bucketname2]
 
 Options:
 
@@ -25,27 +25,50 @@ Options:
     std::exit(exitcode);
 }
 
+std::size_t get_limit(std::string_view value, std::string_view key) {
+    try {
+        std::size_t idx = 0;
+        auto ret = std::stoul(std::string{value}, &idx);
+        if (idx != value.length()) {
+            throw std::runtime_error("additional characters");
+        }
+        return ret;
+    } catch (const std::exception& exception) {
+        std::cerr << TerminalColor::Red << "Failed to parse the provided "
+                  << key << " limit: " << exception.what() << std::endl
+                  << TerminalColor::Reset;
+        std::exit(EXIT_FAILURE);
+    }
+}
+
 int main(int argc, char** argv) {
-    size_t limit = 0;
+    std::optional<size_t> reserved;
+    std::optional<size_t> hard_limit;
+    std::optional<size_t> node_capacity;
 
     McProgramGetopt getopt;
     using cb::getopt::Argument;
-    getopt.addOption({[&limit](auto value) {
-                          try {
-                              limit = std::stoul(std::string{value});
-                          } catch (const std::exception& exception) {
-                              std::cerr
-                                      << TerminalColor::Red
-                                      << "Failed to parse the provided limit: "
-                                      << exception.what() << std::endl
-                                      << TerminalColor::Reset;
-                              std::exit(EXIT_FAILURE);
-                          }
+    getopt.addOption({[&reserved](auto value) {
+                          reserved = get_limit(value, "reserved");
                       },
-                      "throttle-limit",
+                      "reserved",
                       Argument::Required,
                       "limit",
-                      "The number of units per sec"});
+                      "The reserved number of units per sec"});
+    getopt.addOption({[&hard_limit](auto value) {
+                          hard_limit = get_limit(value, "hard");
+                      },
+                      "hard-limit",
+                      Argument::Required,
+                      "limit",
+                      "The hard limit of units per sec"});
+    getopt.addOption({[&node_capacity](auto value) {
+                          node_capacity = get_limit(value, "capacity");
+                      },
+                      "node-capacity",
+                      Argument::Required,
+                      "limit",
+                      "The node capacity in units per sec"});
 
     getopt.addOption({[&getopt](auto) { usage(getopt, EXIT_SUCCESS); },
                       "help",
@@ -54,27 +77,53 @@ int main(int argc, char** argv) {
     auto arguments = getopt.parse(
             argc, argv, [&getopt]() { usage(getopt, EXIT_FAILURE); });
 
-    if (arguments.size() != 1) {
-        usage(getopt, EXIT_FAILURE);
-    }
-
     try {
         getopt.assemble();
         auto connection = getopt.getConnection();
         connection->setAgentName("mcthrottlectl " MEMCACHED_VERSION);
-        connection->setFeatures({cb::mcbp::Feature::XERROR});
+        connection->setFeatures(
+                {cb::mcbp::Feature::XERROR, cb::mcbp::Feature::JSON});
 
-        auto rsp = connection->execute(SetBucketUnitThrottleLimitCommand(
-                std::string{arguments.front()}, limit));
-        if (rsp.isSuccess()) {
-            std::cout << TerminalColor::Green << rsp.getDataString()
-                      << TerminalColor::Reset << std::endl;
-        } else {
-            std::cerr << TerminalColor::Red
-                      << "Failed: " << to_string(rsp.getStatus())
-                      << rsp.getDataString() << TerminalColor::Reset
-                      << std::endl;
-            std::exit(EXIT_FAILURE);
+        auto executeCommand = [&connection](const BinprotGenericCommand& cmd) {
+            auto rsp = connection->execute(cmd);
+            if (rsp.isSuccess()) {
+                if (!rsp.getData().empty()) {
+                    std::cout << TerminalColor::Green << rsp.getDataString()
+                              << TerminalColor::Reset << std::endl;
+                }
+            } else {
+                std::cerr << TerminalColor::Red
+                          << "Failed: " << to_string(rsp.getStatus())
+                          << rsp.getDataString() << TerminalColor::Reset
+                          << std::endl;
+                std::exit(EXIT_FAILURE);
+            }
+        };
+
+        if (node_capacity.has_value()) {
+            std::cout << TerminalColor::Green << "Setting node capacity to "
+                      << *node_capacity << TerminalColor::Reset << std::endl;
+            executeCommand(SetNodeThrottlePropertiesCommand(
+                    nlohmann::json{{"capacity", *node_capacity}}));
+        }
+
+        if (reserved.has_value() || hard_limit.has_value()) {
+            nlohmann::json doc;
+
+            if (reserved.has_value()) {
+                doc["reserved"] = *reserved;
+            }
+            if (hard_limit.has_value()) {
+                doc["hard_limit"] = *hard_limit;
+            }
+
+            for (const auto& bucket : arguments) {
+                std::cout << TerminalColor::Green << "Setting " << doc.dump()
+                          << "for bucket " << bucket << TerminalColor::Reset
+                          << std::endl;
+                executeCommand(SetBucketThrottlePropertiesCommand(
+                        std::string{bucket}, doc));
+            }
         }
     } catch (const ConnectionError& ex) {
         std::cerr << TerminalColor::Red << ex.what() << TerminalColor::Reset

@@ -124,7 +124,7 @@ TEST(ThrottleTest, DeleteBucketWhileThrottling) {
 
     auto bucket = cluster->createBucket("testBucket",
                                         {{"replicas", 2}, {"max_vbuckets", 8}});
-    bucket->setThrottleLimit(1);
+    bucket->setThrottleLimits(1, 1);
 
     auto conn = cluster->getConnection(0);
     conn->authenticate("testBucket", "testBucket");

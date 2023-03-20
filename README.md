@@ -47,6 +47,7 @@ built via the Couchbase
 * [Memcached configuration file](docs/memcached.json.adoc)
 * [Network interfaces](docs/NetworkInterface.md)
 * [HiFi MFU Eviction Policy](docs/HiFi_MFU_eviction_policy.md)
+* [Throttling](docs/Throttling.md)
 
 ### Protocols
 

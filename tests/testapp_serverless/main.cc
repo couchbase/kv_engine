@@ -111,7 +111,8 @@ void startCluster(int verbosity, std::string_view backend) {
             // Running under sanitizers slow down the system a lot so
             // lets use a lower limit to ensure that operations actually
             // gets throttled.
-            bucket->setThrottleLimit(folly::kIsSanitize ? 256 : 1024);
+            bucket->setThrottleLimits(folly::kIsSanitize ? 256 : 1024,
+                                      folly::kIsSanitize ? 256 : 1024);
 
             // @todo add collections and scopes
         }
@@ -122,7 +123,8 @@ void startCluster(int verbosity, std::string_view backend) {
         }
 
         // Make sure we don't throttle the metering tests
-        bucket->setThrottleLimit(0);
+        bucket->setThrottleLimits(std::numeric_limits<size_t>::max(),
+                                  std::numeric_limits<size_t>::max());
         cluster->getAuthProviderService().upsertUser(
                 {"metering", "metering", nlohmann::json::parse(R"({
 "buckets": {
@@ -148,8 +150,8 @@ void startCluster(int verbosity, std::string_view backend) {
             throw std::runtime_error(R"(Failed to create bucket: "dcp")");
         }
 
-        // Make sure we don't throttle the metering tests
-        bucket->setThrottleLimit(folly::kIsSanitize ? 256 : 1024);
+        bucket->setThrottleLimits(folly::kIsSanitize ? 256 : 1024,
+                                  folly::kIsSanitize ? 256 : 1024);
 
         std::string rbac = R"({
 "buckets": {

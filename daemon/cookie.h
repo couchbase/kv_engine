@@ -24,7 +24,7 @@
 // Forward decls
 class Connection;
 class CommandContext;
-struct CookieTraceContext;
+enum class ResourceAllocationDomain : uint8_t;
 class GetAuthorizationTask;
 namespace cb::mcbp {
 class Header;
@@ -576,6 +576,36 @@ public:
                       std::string_view extras,
                       std::string_view value) override;
 
+    /// Set the allocation domain throttling units used by this command
+    void setResourceAllocationDomain(ResourceAllocationDomain domain) {
+        resource_allocation_domain = domain;
+    }
+
+    /// Get the allocation domain throttling units used by this command
+    ResourceAllocationDomain getResourceAllocationDomain() const {
+        return resource_allocation_domain;
+    }
+
+    /// Get the throttling factor used for read units
+    float getReadThottlingFactor() const {
+        return read_thottling_factor;
+    }
+
+    /// Set the throttling factor used for read units
+    void setReadThottlingFactor(float value) {
+        read_thottling_factor = value;
+    }
+
+    /// Get the throttling factor used for write units
+    float getWriteThottlingFactor() const {
+        return write_thottling_factor;
+    }
+
+    /// Set the throttling factor used for write units
+    void setWriteThottlingFactor(float value) {
+        write_thottling_factor = value;
+    }
+
 protected:
     /**
      * Log the current connection if its execution time exceeds the
@@ -653,6 +683,18 @@ protected:
     /// The high resolution timer value for when we started throttling
     std::chrono::steady_clock::time_point throttle_start;
     std::chrono::duration<int32_t, std::micro> total_throttle_time;
+
+    /// The location where we checked for available resources so that we
+    /// update the correct throttling gauge
+    ResourceAllocationDomain resource_allocation_domain;
+
+    /// The per command read throttling factor (we might want to differentiate
+    /// commands which have to do disk IO vs in-memory commands)
+    float read_thottling_factor;
+
+    /// The per command write throttling factor (we might want to differentiate
+    /// commands which have to do disk IO vs in-memory commands)
+    float write_thottling_factor;
 
     /**
      * The status for the async io operation

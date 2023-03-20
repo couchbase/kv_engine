@@ -37,7 +37,7 @@ TEST(MiscTest, TestBucketDetailedStats) {
                 bucket = nlohmann::json::parse(v);
             },
             "bucket_details bucket-0");
-    EXPECT_EQ(13, bucket.size());
+    EXPECT_EQ(14, bucket.size());
     EXPECT_NE(bucket.end(), bucket.find("state"));
     EXPECT_NE(bucket.end(), bucket.find("clients"));
     EXPECT_NE(bucket.end(), bucket.find("name"));
@@ -45,7 +45,8 @@ TEST(MiscTest, TestBucketDetailedStats) {
     EXPECT_NE(bucket.end(), bucket.find("ru"));
     EXPECT_NE(bucket.end(), bucket.find("wu"));
     EXPECT_NE(bucket.end(), bucket.find("num_throttled"));
-    EXPECT_NE(bucket.end(), bucket.find("throttle_limit"));
+    EXPECT_NE(bucket.end(), bucket.find("throttle_reserved"));
+    EXPECT_NE(bucket.end(), bucket.find("throttle_hard_limit"));
     EXPECT_NE(bucket.end(), bucket.find("throttle_wait_time"));
     EXPECT_NE(bucket.end(), bucket.find("num_commands"));
     EXPECT_NE(bucket.end(), bucket.find("num_commands_with_metered_units"));
@@ -64,15 +65,33 @@ TEST(MiscTest, TestDefaultThrottleLimit) {
         throw std::runtime_error(
                 "Failed to create bucket: TestDefaultThrottleLimit");
     }
-    std::size_t limit;
+    std::size_t reserved;
+    std::size_t hard_limit;
     admin->stats(
-            [&limit](const auto& k, const auto& v) {
+            [&reserved, &hard_limit](const auto& k, const auto& v) {
                 nlohmann::json json = nlohmann::json::parse(v);
-                limit = json["throttle_limit"].get<size_t>();
+                auto getLimit = [&json](auto key) -> std::size_t {
+                    const nlohmann::json& entry = json.at(key);
+                    if (entry.is_number()) {
+                        return entry.get<size_t>();
+                    } else if (entry.is_string() &&
+                               entry.get<std::string>() == "unlimited") {
+                        return std::numeric_limits<std::size_t>::max();
+                    } else {
+                        throw std::runtime_error(
+                                fmt::format(R"(json["{}"] unknown type: {})",
+                                            key,
+                                            json.dump()));
+                    }
+                };
+
+                reserved = getLimit("throttle_reserved");
+                hard_limit = getLimit("throttle_hard_limit");
             },
             "bucket_details TestDefaultThrottleLimit");
     cluster->deleteBucket("TestDefaultThrottleLimit");
-    EXPECT_EQ(cb::serverless::DefaultThrottleLimit, limit);
+    EXPECT_EQ(cb::serverless::DefaultThrottleReservedUnits, reserved);
+    EXPECT_EQ(cb::serverless::DefaultThrottleHardLimit, hard_limit);
 }
 
 /// Verify that the user can't create too many bucket connections (and

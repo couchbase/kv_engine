@@ -61,8 +61,9 @@ bool is_valid_opcode(ClientOpcode opcode) {
     case ClientOpcode::AuditPut:
     case ClientOpcode::AuditConfigReload:
     case ClientOpcode::Shutdown:
-    case ClientOpcode::SetBucketUnitThrottleLimits:
+    case ClientOpcode::SetBucketThrottleProperties:
     case ClientOpcode::SetBucketDataLimitExceeded:
+    case ClientOpcode::SetNodeThrottleProperties:
     case ClientOpcode::Rget_Unsupported:
     case ClientOpcode::Rset_Unsupported:
     case ClientOpcode::Rsetq_Unsupported:
@@ -252,8 +253,9 @@ bool is_supported_opcode(ClientOpcode opcode) {
     case ClientOpcode::AuditPut:
     case ClientOpcode::AuditConfigReload:
     case ClientOpcode::Shutdown:
-    case ClientOpcode::SetBucketUnitThrottleLimits:
+    case ClientOpcode::SetBucketThrottleProperties:
     case ClientOpcode::SetBucketDataLimitExceeded:
+    case ClientOpcode::SetNodeThrottleProperties:
     case ClientOpcode::SetVbucket:
     case ClientOpcode::GetVbucket:
     case ClientOpcode::DelVbucket:
@@ -447,8 +449,9 @@ bool is_durability_supported(ClientOpcode opcode) {
     case ClientOpcode::AuditPut:
     case ClientOpcode::AuditConfigReload:
     case ClientOpcode::Shutdown:
-    case ClientOpcode::SetBucketUnitThrottleLimits:
+    case ClientOpcode::SetBucketThrottleProperties:
     case ClientOpcode::SetBucketDataLimitExceeded:
+    case ClientOpcode::SetNodeThrottleProperties:
     case ClientOpcode::Rget_Unsupported:
     case ClientOpcode::Rset_Unsupported:
     case ClientOpcode::Rsetq_Unsupported:
@@ -609,8 +612,9 @@ bool is_reorder_supported(ClientOpcode opcode) {
     case ClientOpcode::SubdocMultiMutation:
     case ClientOpcode::SubdocGetCount:
     case ClientOpcode::SubdocReplaceBodyWithXattr:
-    case ClientOpcode::SetBucketUnitThrottleLimits:
+    case ClientOpcode::SetBucketThrottleProperties:
     case ClientOpcode::SetBucketDataLimitExceeded:
+    case ClientOpcode::SetNodeThrottleProperties:
     case ClientOpcode::RangeScanCreate:
         return true;
 
@@ -838,8 +842,9 @@ bool is_collection_command(ClientOpcode opcode) {
     case ClientOpcode::AuditPut:
     case ClientOpcode::AuditConfigReload:
     case ClientOpcode::Shutdown:
-    case ClientOpcode::SetBucketUnitThrottleLimits:
+    case ClientOpcode::SetBucketThrottleProperties:
     case ClientOpcode::SetBucketDataLimitExceeded:
+    case ClientOpcode::SetNodeThrottleProperties:
     case ClientOpcode::Rget_Unsupported:
     case ClientOpcode::Rset_Unsupported:
     case ClientOpcode::Rsetq_Unsupported:
@@ -1005,8 +1010,9 @@ bool is_deprecated(ClientOpcode opcode) {
     case ClientOpcode::AuditPut:
     case ClientOpcode::AuditConfigReload:
     case ClientOpcode::Shutdown:
-    case ClientOpcode::SetBucketUnitThrottleLimits:
+    case ClientOpcode::SetBucketThrottleProperties:
     case ClientOpcode::SetBucketDataLimitExceeded:
+    case ClientOpcode::SetNodeThrottleProperties:
     case ClientOpcode::Rget_Unsupported:
     case ClientOpcode::Rset_Unsupported:
     case ClientOpcode::Rsetq_Unsupported:
@@ -1193,8 +1199,9 @@ bool is_preserve_ttl_supported(ClientOpcode opcode) {
     case ClientOpcode::AuditPut:
     case ClientOpcode::AuditConfigReload:
     case ClientOpcode::Shutdown:
-    case ClientOpcode::SetBucketUnitThrottleLimits:
+    case ClientOpcode::SetBucketThrottleProperties:
     case ClientOpcode::SetBucketDataLimitExceeded:
+    case ClientOpcode::SetNodeThrottleProperties:
     case ClientOpcode::Rget_Unsupported:
     case ClientOpcode::Rset_Unsupported:
     case ClientOpcode::Rsetq_Unsupported:
@@ -1414,8 +1421,9 @@ bool is_subject_for_throttling(ClientOpcode opcode) {
     case ClientOpcode::AuditPut:
     case ClientOpcode::AuditConfigReload:
     case ClientOpcode::Shutdown:
-    case ClientOpcode::SetBucketUnitThrottleLimits:
+    case ClientOpcode::SetBucketThrottleProperties:
     case ClientOpcode::SetBucketDataLimitExceeded:
+    case ClientOpcode::SetNodeThrottleProperties:
     case ClientOpcode::SetVbucket:
     case ClientOpcode::GetVbucket:
     case ClientOpcode::DelVbucket:
@@ -1570,8 +1578,9 @@ bool is_client_writing_data(ClientOpcode opcode) {
     case ClientOpcode::AuditPut:
     case ClientOpcode::AuditConfigReload:
     case ClientOpcode::Shutdown:
-    case ClientOpcode::SetBucketUnitThrottleLimits:
+    case ClientOpcode::SetBucketThrottleProperties:
     case ClientOpcode::SetBucketDataLimitExceeded:
+    case ClientOpcode::SetNodeThrottleProperties:
     case ClientOpcode::Rget_Unsupported:
     case ClientOpcode::Rset_Unsupported:
     case ClientOpcode::Rsetq_Unsupported:
@@ -1797,10 +1806,12 @@ std::string to_string(cb::mcbp::ClientOpcode opcode) {
         return "AUDIT_CONFIG_RELOAD";
     case ClientOpcode::Shutdown:
         return "SHUTDOWN";
-    case ClientOpcode::SetBucketUnitThrottleLimits:
-        return "SET_BUCKET_UNIT_THROTTLE_LIMITS";
+    case ClientOpcode::SetBucketThrottleProperties:
+        return "SET_BUCKET_THROTTLE_PROPERTIES";
     case ClientOpcode::SetBucketDataLimitExceeded:
         return "SET_BUCKET_DATA_LIMIT_EXCEEDED";
+    case ClientOpcode::SetNodeThrottleProperties:
+        return "SET_NODE_THROTTLE_PROPERTIES";
     case ClientOpcode::Rget_Unsupported:
         return "RGET";
     case ClientOpcode::Rset_Unsupported:

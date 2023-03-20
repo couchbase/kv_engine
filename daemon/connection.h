@@ -12,6 +12,7 @@
 
 #include "cluster_config.h"
 #include "datatype_filter.h"
+#include "resource_allocation_domain.h"
 #include "sendbuffer.h"
 #include "ssl_utils.h"
 #include "stats.h"
@@ -1162,6 +1163,10 @@ protected:
 
     /// The size of the current Dcp flow control buffer (0 = unlimited)
     std::size_t dcpFlowControlBufferSize = 0;
+
+    /// The memory domain allocations for DCP step was made from
+    ResourceAllocationDomain dcpResourceAllocationDomain =
+            ResourceAllocationDomain::Bucket;
 
     /**
      * Given that we "ack" the writing once we drain the write buffer in

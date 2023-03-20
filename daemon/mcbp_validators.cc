@@ -31,6 +31,7 @@
 #include <serverless/config.h>
 #include <utilities/engine_errc_2_mcbp.h>
 #include <utilities/json_utilities.h>
+#include <utilities/throttle_utilities.h>
 #include <string_view>
 
 using cb::mcbp::Status;
@@ -1638,17 +1639,78 @@ static Status shutdown_validator(Cookie& cookie) {
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
-static Status set_bucket_compute_unit_throttle_limits_validator(
-        Cookie& cookie) {
-    using cb::mcbp::request::SetBucketUnitThrottleLimitPayload;
-    return McbpValidator::verify_header(
-            cookie,
-            sizeof(SetBucketUnitThrottleLimitPayload),
-            ExpectedKeyLen::NonZero,
-            ExpectedValueLen::Zero,
-            ExpectedCas::NotSet,
-            GeneratesDocKey::No,
-            PROTOCOL_BINARY_RAW_BYTES);
+static Status set_bucket_throttle_properties_validator(Cookie& cookie) {
+    auto status = McbpValidator::verify_header(cookie,
+                                               0,
+                                               ExpectedKeyLen::NonZero,
+                                               ExpectedValueLen::NonZero,
+                                               ExpectedCas::NotSet,
+                                               GeneratesDocKey::No,
+                                               PROTOCOL_BINARY_DATATYPE_JSON);
+
+    if (status != Status::Success) {
+        return status;
+    }
+
+    auto payload = cookie.getHeader().getValueString();
+    if (payload.size() > 1024) {
+        // we don't want to go off json parsing incredible json payloads.
+        // the document should be < 100 bytes...
+        cookie.setErrorContext("Unexpected payload");
+        return Status::Einval;
+    }
+
+    try {
+        const cb::throttle::SetThrottleLimitPayload limits =
+                nlohmann::json::parse(cookie.getHeader().getValueString());
+        if (limits.reserved > limits.hard_limit) {
+            cookie.setErrorContext("reserved can't exceed hard limit");
+            return Status::Einval;
+        }
+    } catch (const std::exception& exception) {
+        cookie.setErrorContext(fmt::format(
+                "Invalid payload for SetBucketThrottleProperties: {}",
+                exception.what()));
+        return Status::Einval;
+    }
+
+    return Status::Success;
+}
+
+static Status set_node_throttle_properties_validator(Cookie& cookie) {
+    auto status = McbpValidator::verify_header(cookie,
+                                               0,
+                                               ExpectedKeyLen::Zero,
+                                               ExpectedValueLen::NonZero,
+                                               ExpectedCas::NotSet,
+                                               GeneratesDocKey::No,
+                                               PROTOCOL_BINARY_DATATYPE_JSON);
+    if (status != Status::Success) {
+        return status;
+    }
+
+    auto payload = cookie.getHeader().getValueString();
+    if (payload.size() > 1024) {
+        // we don't want to go off json parsing incredible json payloads.
+        // the document should be < 100 bytes...
+        cookie.setErrorContext("Unexpected payload");
+        return Status::Einval;
+    }
+
+    try {
+        auto json = nlohmann::json::parse(payload);
+        if (!json.contains("capacity") || !json["capacity"].is_number() ||
+            json.value("capacity", -1L) < 1) {
+            cookie.setErrorContext(
+                    R"("capacity" must specified and greater than 0)");
+            return Status::Einval;
+        }
+    } catch (const std::exception& exception) {
+        cookie.setErrorContext(fmt::format("Failed to parse attached JSON: {}",
+                                           exception.what()));
+        return Status::Einval;
+    }
+    return Status::Success;
 }
 
 static Status set_bucket_data_limit_exceeded_validator(
@@ -2420,10 +2482,12 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::ConfigReload, config_reload_validator);
     setup(cb::mcbp::ClientOpcode::ConfigValidate, config_validate_validator);
     setup(cb::mcbp::ClientOpcode::Shutdown, shutdown_validator);
-    setup(cb::mcbp::ClientOpcode::SetBucketUnitThrottleLimits,
-          set_bucket_compute_unit_throttle_limits_validator);
+    setup(cb::mcbp::ClientOpcode::SetBucketThrottleProperties,
+          set_bucket_throttle_properties_validator);
     setup(cb::mcbp::ClientOpcode::SetBucketDataLimitExceeded,
           set_bucket_data_limit_exceeded_validator);
+    setup(cb::mcbp::ClientOpcode::SetNodeThrottleProperties,
+          set_node_throttle_properties_validator);
     setup(cb::mcbp::ClientOpcode::ObserveSeqno, observe_seqno_validator);
     setup(cb::mcbp::ClientOpcode::GetAdjustedTime_Unsupported,
           not_supported_validator);

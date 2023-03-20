@@ -23,15 +23,15 @@
 using namespace std::string_view_literals;
 
 TEST(BucketTest, Reset) {
-    // Attempt to spot when new members are added to Bucket and the reset()
-    // method and/or this test have not been updated.
-    // Bucket size varies depending on arch / platform ABI alignment rules,
+    // Attempt to spot when new members are added to the Bucket and the reset()
+    // method and/or this test has not been updated.
+    // The Bucket size varies depending on arch / platform ABI alignment rules,
     // check the main ones we run against.
     static constexpr size_t expectedBucketSize =
 #if defined(__linux) && defined(__x86_64__)
-            5800;
+            5808;
 #elif defined(__APPLE__)
-            5896;
+            5904;
 #else
             0;
 #endif
@@ -45,7 +45,8 @@ TEST(BucketTest, Reset) {
     public:
         void testReset() {
             throttle_gauge.increment(5);
-            throttle_limit = 1;
+            throttle_reserved = 1;
+            throttle_hard_limit = 1;
             num_throttled = 1;
             throttle_wait_time = 1;
             num_commands = 1;
@@ -56,7 +57,10 @@ TEST(BucketTest, Reset) {
             pause_cancellation_source = folly::CancellationSource{};
 
             reset();
-            EXPECT_EQ(std::numeric_limits<std::size_t>::max(), throttle_limit);
+            EXPECT_EQ(std::numeric_limits<std::size_t>::max(),
+                      throttle_reserved);
+            EXPECT_EQ(std::numeric_limits<std::size_t>::max(),
+                      throttle_hard_limit);
             EXPECT_EQ(0, num_throttled);
             EXPECT_EQ(0, throttle_wait_time);
             EXPECT_EQ(0, num_commands);

@@ -790,10 +790,12 @@ void Connection::tryToProgressDcpStream() {
         numEvents = max_reqs_per_event;
     }
     while (more && numEvents > 0) {
+        const auto [throttle, allocDomain] =
+                getBucket().shouldThrottleDcp(*this);
+        dcpResourceAllocationDomain = allocDomain;
+
         const auto ret = getBucket().getDcpIface()->step(
-                *cookies.front().get(),
-                getBucket().shouldThrottleDcp(*this),
-                *this);
+                *cookies.front().get(), throttle, *this);
         switch (remapErrorCode(ret)) {
         case cb::engine_errc::success:
             more = (getSendQueueSize() < dcpMaxQSize);
@@ -1765,7 +1767,8 @@ cb::engine_errc Connection::mutation(uint32_t opaque,
         const auto ret =
                 add_packet_to_send_pipe(builder.getFrame()->getFrame());
         if (ret == cb::engine_errc::success) {
-            getBucket().recordDcpMeteringReadBytes(*this, doc_read_bytes);
+            getBucket().recordDcpMeteringReadBytes(
+                    *this, doc_read_bytes, dcpResourceAllocationDomain);
         }
         return ret;
     }
@@ -1816,7 +1819,8 @@ cb::engine_errc Connection::mutation(uint32_t opaque,
         return cb::engine_errc::disconnect;
     }
 
-    getBucket().recordDcpMeteringReadBytes(*this, doc_read_bytes);
+    getBucket().recordDcpMeteringReadBytes(
+            *this, doc_read_bytes, dcpResourceAllocationDomain);
     return cb::engine_errc::success;
 }
 
@@ -1878,7 +1882,8 @@ cb::engine_errc Connection::deletion(uint32_t opaque,
         const auto ret =
                 add_packet_to_send_pipe(builder.getFrame()->getFrame());
         if (ret == cb::engine_errc::success) {
-            getBucket().recordDcpMeteringReadBytes(*this, doc_read_bytes);
+            getBucket().recordDcpMeteringReadBytes(
+                    *this, doc_read_bytes, dcpResourceAllocationDomain);
         }
         return ret;
     }
@@ -1919,7 +1924,8 @@ cb::engine_errc Connection::deletion(uint32_t opaque,
 
     const auto ret = deletionInner(*it, packetBuffer, key);
     if (ret == cb::engine_errc::success) {
-        getBucket().recordDcpMeteringReadBytes(*this, doc_read_bytes);
+        getBucket().recordDcpMeteringReadBytes(
+                *this, doc_read_bytes, dcpResourceAllocationDomain);
     }
     return ret;
 }
@@ -1965,7 +1971,8 @@ cb::engine_errc Connection::deletion_v2(uint32_t opaque,
         const auto ret =
                 add_packet_to_send_pipe(builder.getFrame()->getFrame());
         if (ret == cb::engine_errc::success) {
-            getBucket().recordDcpMeteringReadBytes(*this, doc_read_bytes);
+            getBucket().recordDcpMeteringReadBytes(
+                    *this, doc_read_bytes, dcpResourceAllocationDomain);
         }
         return ret;
     }
@@ -2006,7 +2013,8 @@ cb::engine_errc Connection::deletion_v2(uint32_t opaque,
 
     const auto ret = deletionInner(*it, {blob.data(), size}, key);
     if (ret == cb::engine_errc::success) {
-        getBucket().recordDcpMeteringReadBytes(*this, doc_read_bytes);
+        getBucket().recordDcpMeteringReadBytes(
+                *this, doc_read_bytes, dcpResourceAllocationDomain);
     }
     return ret;
 }
@@ -2052,7 +2060,8 @@ cb::engine_errc Connection::expiration(uint32_t opaque,
         const auto ret =
                 add_packet_to_send_pipe(builder.getFrame()->getFrame());
         if (ret == cb::engine_errc::success) {
-            getBucket().recordDcpMeteringReadBytes(*this, doc_read_bytes);
+            getBucket().recordDcpMeteringReadBytes(
+                    *this, doc_read_bytes, dcpResourceAllocationDomain);
         }
         return ret;
     }
@@ -2093,7 +2102,8 @@ cb::engine_errc Connection::expiration(uint32_t opaque,
 
     const auto ret = deletionInner(*it, {blob.data(), size}, key);
     if (ret == cb::engine_errc::success) {
-        getBucket().recordDcpMeteringReadBytes(*this, doc_read_bytes);
+        getBucket().recordDcpMeteringReadBytes(
+                *this, doc_read_bytes, dcpResourceAllocationDomain);
     }
     return ret;
 }

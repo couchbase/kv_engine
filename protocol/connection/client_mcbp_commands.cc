@@ -2198,19 +2198,33 @@ BinprotGetAllVbucketSequenceNumbersResponse::getVbucketSeqnos() const {
     return vbMap;
 }
 
-SetBucketUnitThrottleLimitCommand::SetBucketUnitThrottleLimitCommand(
-        std::string key_, std::size_t limit)
-    : BinprotGenericCommand(cb::mcbp::ClientOpcode::SetBucketUnitThrottleLimits,
+SetBucketThrottlePropertiesCommand::SetBucketThrottlePropertiesCommand(
+        std::string key_, nlohmann::json json)
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::SetBucketThrottleProperties,
                             std::move(key_)) {
-    extras.setLimit(limit);
+    document = std::move(json);
+    setDatatype(cb::mcbp::Datatype::JSON);
 }
 
-void SetBucketUnitThrottleLimitCommand::encode(
+void SetBucketThrottlePropertiesCommand::encode(
         std::vector<uint8_t>& buf) const {
-    writeHeader(buf, 0, sizeof(extras));
-    auto extraBuf = extras.getBuffer();
-    buf.insert(buf.end(), extraBuf.begin(), extraBuf.end());
+    auto payload = document.dump();
+    writeHeader(buf, payload.size(), 0);
     buf.insert(buf.end(), key.begin(), key.end());
+    buf.insert(buf.end(), payload.begin(), payload.end());
+}
+
+SetNodeThrottlePropertiesCommand::SetNodeThrottlePropertiesCommand(
+        nlohmann::json json)
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::SetNodeThrottleProperties) {
+    document = std::move(json);
+    setDatatype(cb::mcbp::Datatype::JSON);
+}
+
+void SetNodeThrottlePropertiesCommand::encode(std::vector<uint8_t>& buf) const {
+    auto payload = document.dump();
+    writeHeader(buf, payload.size(), 0);
+    buf.insert(buf.end(), payload.begin(), payload.end());
 }
 
 SetBucketDataLimitExceededCommand::SetBucketDataLimitExceededCommand(

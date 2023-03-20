@@ -86,8 +86,14 @@ public:
         return manifest;
     }
 
-    /// Set the number of units (RU+WU) to use before starting to throttle
-    void setThrottleLimit(size_t limit);
+    /**
+     * Set the number of units (RU+WU) to use before starting to throttle
+     *
+     * @param reserved this is the reserved minimum limit that the bucket
+     *                   gets
+     * @param hard_limit this is the maximum limit that the bucket may use
+     */
+    void setThrottleLimits(std::size_t reserved, std::size_t hard_limit);
 
     /**
      * Get a connection to the node which is responsible for the specified

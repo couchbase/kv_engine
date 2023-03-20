@@ -262,10 +262,16 @@ TEST_F(TestappTest, MB_46853_TotalBodyLengthValidation) {
 }
 
 TEST_F(TestappTest, ServerlessConfigCantBeSetInDefaultDeployment) {
-    auto rsp = adminConnection->execute(
-            SetBucketUnitThrottleLimitCommand(bucketName, 1024));
-    EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus());
+    auto rsp = adminConnection->execute(SetNodeThrottlePropertiesCommand(
+            nlohmann::json{{"capacity", 1024}}));
+    EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus())
+            << rsp.getDataJson().dump();
+    rsp = adminConnection->execute(SetBucketThrottlePropertiesCommand(
+            bucketName, {{"reserved", 1024}}));
+    EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus())
+            << rsp.getDataJson().dump();
     rsp = adminConnection->execute(
             SetBucketDataLimitExceededCommand{bucketName, true});
-    EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus());
+    EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus())
+            << rsp.getDataJson().dump();
 }

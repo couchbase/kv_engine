@@ -262,24 +262,6 @@ protected:
 };
 static_assert(sizeof(SetCtrlTokenPayload) == 8, "Unexpected size");
 
-class SetBucketUnitThrottleLimitPayload {
-public:
-    uint64_t getLimit() const {
-        return ntohll(limit);
-    }
-    void setLimit(uint64_t val) {
-        limit = htonll(val);
-    }
-    cb::const_byte_buffer getBuffer() const {
-        return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
-    }
-
-protected:
-    uint64_t limit = 0;
-};
-static_assert(sizeof(SetBucketUnitThrottleLimitPayload) == 8,
-              "Unexpected struct size");
-
 class SetBucketDataLimitExceededPayload {
 public:
     bool isEnabled() const {

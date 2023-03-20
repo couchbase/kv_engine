@@ -16,6 +16,7 @@
 #include <platform/uuid.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
+#include <utilities/throttle_utilities.h>
 #include <utility>
 
 namespace cb::test {
@@ -176,15 +177,16 @@ void Bucket::setCollectionManifest(nlohmann::json next) {
     collectionManifest = std::move(next);
 }
 
-void Bucket::setThrottleLimit(size_t limit) {
-    cluster.iterateNodes([this, limit](const auto& node) {
+void Bucket::setThrottleLimits(std::size_t reserved, std::size_t hard_limit) {
+    nlohmann::json doc =
+            cb::throttle::SetThrottleLimitPayload(reserved, hard_limit);
+    cluster.iterateNodes([this, &doc](const auto& node) {
         auto conn = node.getConnection();
         conn->authenticate("@admin", "password");
-        auto rsp =
-                conn->execute(SetBucketUnitThrottleLimitCommand(name, limit));
+        auto rsp = conn->execute(SetBucketThrottlePropertiesCommand(name, doc));
         if (!rsp.isSuccess()) {
             throw ConnectionError(
-                    "Bucket::setThrottleLimit: Failed to set throttle limit "
+                    "Bucket::setThrottleLimits: Failed to set throttle limits "
                     "on " + node.directory.filename().generic_string(),
                     rsp);
         }

@@ -21,6 +21,7 @@
 #include "mcbp_executors.h"
 #include "mcbp_validators.h"
 #include "memcached.h"
+#include "resource_allocation_domain.h"
 #include "settings.h"
 #include "tracing.h"
 
@@ -583,8 +584,9 @@ cb::mcbp::Status Cookie::validate() {
     case cb::mcbp::ClientOpcode::AuditPut:
     case cb::mcbp::ClientOpcode::AuditConfigReload:
     case cb::mcbp::ClientOpcode::Shutdown:
-    case cb::mcbp::ClientOpcode::SetBucketUnitThrottleLimits:
+    case cb::mcbp::ClientOpcode::SetBucketThrottleProperties:
     case cb::mcbp::ClientOpcode::SetBucketDataLimitExceeded:
+    case cb::mcbp::ClientOpcode::SetNodeThrottleProperties:
     case cb::mcbp::ClientOpcode::Rget_Unsupported:
     case cb::mcbp::ClientOpcode::Rset_Unsupported:
     case cb::mcbp::ClientOpcode::Rsetq_Unsupported:
@@ -768,6 +770,9 @@ void Cookie::reset() {
     frame_copy.reset();
     responseStatus = cb::mcbp::Status::COUNT;
     euidExtraPrivileges.reset();
+    read_thottling_factor = 1.0;
+    write_thottling_factor = 1.0;
+    resource_allocation_domain = ResourceAllocationDomain::None;
 }
 
 void Cookie::setThrottled(bool val) {

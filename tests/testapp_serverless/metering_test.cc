@@ -786,8 +786,9 @@ TEST_P(MeteringTest, OpsMetered) {
         case ClientOpcode::AuditPut:
         case ClientOpcode::AuditConfigReload:
         case ClientOpcode::Shutdown:
-        case ClientOpcode::SetBucketUnitThrottleLimits:
+        case ClientOpcode::SetBucketThrottleProperties:
         case ClientOpcode::SetBucketDataLimitExceeded:
+        case ClientOpcode::SetNodeThrottleProperties:
         case ClientOpcode::SetVbucket:
         case ClientOpcode::GetVbucket:
         case ClientOpcode::DelVbucket:

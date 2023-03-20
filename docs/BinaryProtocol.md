@@ -449,8 +449,9 @@ information about a given command.
 | 0x27 | Audit put |
 | 0x28 | Audit config reload |
 | 0x29 | Shutdown |
-| 0x2a | [SetBucketUnitThrottleLimits](#0x2a-set-bucket-unit-throttle-limits) |
+| 0x2a | [SetBucketThrottleProperties](#0x2a-set-bucket-throttle-properties) |
 | 0x2b | [SetBucketDataLimitExceeded](#0x2b-set-bucket-data-limit-exceeded) |
+| 0x2c | [SetNodeThrottleProperties](#0x2c-set-node-throttle-properties) |
 | 0x30 | RGet (not supported) |
 | 0x31 | RSet (not supported) |
 | 0x32 | RSetQ (not supported) |
@@ -2030,39 +2031,25 @@ The following example shows that the server agreed to enable 0x0003 and
                   (24-25): TCP NODELAY
                   (26-27): Mutation seqno
 
-### 0x2a Set Bucket Unit Throttle Limits
+### 0x2a Set Bucket Throttle Properties
 
-The `Set Bucket Unit Throttle Limits` command is used to set
-the number of units per second the server should allow in a bucket
-before throttling requests to the bucket.
+The `Set Bucket Throttle Properties` command is used to set bucket-specific 
+throttle properties.
 
 The command should be used from the throttle manager to push new throttle
-limits to the various nodes in the cluster. The entire mechanism is not
-fully defined (which means that the command may disappear before release).
-The motivation for keeping the bucket name in the key is that the throttle
-manager will operate on all buckets on the server, and this removes the
-need for selecting each bucket before performing the operation.
+limits to the various nodes in the cluster. 
 
 Request:
 
-* MUST have extra
+* MUST NOT extra
 * MUST have key (the name of the bucket)
-* MUST NOT have value
+* MUST have value
 * MUST NOT set CAS
-* Datatype MUST be set to RAW
+* Datatype MUST be set to JSON
 * Require the BucketThrottleManagement privilege
 
-The extra section is encoded in the following way:
-
-      Byte/     0       |       1       |       2       |       3       |
-         /              |               |               |               |
-        |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
-        +---------------+---------------+---------------+---------------+
-       0|                                                               |
-        +        Number of units in network byte order                  +
-       4|                                                               |
-        +---------------+---------------+---------------+---------------+
-        Total 8 bytes
+The value contains a JSON document documented in
+[Bucket Properties](Throttling.md#bucket-properties))
 
 The successful return message carries no extra userdata.
 
@@ -2095,6 +2082,28 @@ The extra section is encoded in the following way:
 
 A value of 0 will clear the setting, and all other values enables the
 data limit exceeded mode.
+
+The successful return message carries no extra userdata.
+
+### 0x2c Set Node Throttle Properties
+
+The `Set Node Throttle Properties` command is used to set node-specific
+throttle properties.
+
+The command should be used from the throttle manager to push new throttle
+limits to the various nodes in the cluster.
+
+Request:
+
+* MUST NOT extra
+* MUST NOT have key
+* MUST have value
+* MUST NOT set CAS
+* Datatype MUST be set to JSON
+* Require the BucketThrottleManagement privilege
+
+The value contains a JSON document documented in 
+[Node Properties](Throttling.md#node-properties))
 
 The successful return message carries no extra userdata.
 

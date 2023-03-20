@@ -40,6 +40,8 @@ add_library(mcd_util STATIC
             terminate_handler.cc
             terminate_handler.h
             thread_pool_config.cc
+            throttle_utilities.cc
+            throttle_utilities.h
             types.cc
             util.cc
             vbucket.cc )
@@ -72,6 +74,7 @@ cb_add_test_executable(utilities_testapp
         breakpad_settings_test.cc
         config_parser_test.cc
         stat_group_test.cc
+        throttle_utilities_test.cc
         util_test.cc)
 kv_enable_pch(utilities_testapp)
 target_link_libraries(utilities_testapp PRIVATE

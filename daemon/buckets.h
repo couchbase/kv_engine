@@ -36,6 +36,7 @@ class Connection;
 struct FrontEndThread;
 class Cookie;
 class BucketManager;
+enum class ResourceAllocationDomain : uint8_t;
 
 constexpr static const size_t MaxBucketNameLength = 100;
 
@@ -231,9 +232,17 @@ public:
     /// The number of commands we rected to execute
     void rejectCommand(const Cookie& cookie);
 
-    /// Update the bucket metering data that we've read (used when pushing
-    /// DCP messages)
-    void recordDcpMeteringReadBytes(const Connection& conn, std::size_t nread);
+    /**
+     * Update the bucket metering data that we've read (used when pushing DCP
+     * messages)
+     *
+     * @param conn The connection sending the data
+     * @param nread The number of bytes data read
+     * @param domain Where the allocation for sending data came from
+     */
+    void recordDcpMeteringReadBytes(const Connection& conn,
+                                    std::size_t nread,
+                                    ResourceAllocationDomain domain);
 
     /// A document expired in the bucket
     void documentExpired(size_t nbytes);
@@ -250,7 +259,7 @@ public:
      *        check, it is not yet added to all metering/throttling variables.
      * @return True if the cookie should be throttled
      */
-    bool shouldThrottle(const Cookie& cookie,
+    bool shouldThrottle(Cookie& cookie,
                         bool addConnectionToThrottleList,
                         size_t pendingBytes);
 
@@ -258,9 +267,11 @@ public:
      * Check to see if this DCP connection should be throttled or not
      *
      * @param connection The connection to check
-     * @return true if the DCP should be throttled, false otherwise
+     * @return true if the DCP should be throttled, false otherwise.
+     *         if false; the domain is set to where it allocated from.
      */
-    bool shouldThrottleDcp(const Connection& connection);
+    std::pair<bool, ResourceAllocationDomain> shouldThrottleDcp(
+            const Connection& connection);
 
     /// move the clock forwards in this bucket
     void tick();
@@ -272,11 +283,21 @@ public:
     void deleteThrottledCommands();
 
     /**
-     * Set the throttle limit for the bucket
+     * Set the throttle limits for the bucket. See Throttling.md for a
+     * description on how the various limits work.
      *
-     * @param limit Number of units (RU+WU) to use before throttle commands
+     * @param reserved The reserved number of units (RU+WU) the bucket gets
+     * @param hard_limit The maximum number of units to use before throttling
+     *                   commands
      */
-    void setThrottleLimit(std::size_t limit);
+    void setThrottleLimits(std::size_t reserved, size_t hard_limit);
+
+    /**
+     * Get the throttle limits specified for this bucket
+     */
+    std::pair<std::size_t, std::size_t> getThrottleLimits() const {
+        return {throttle_reserved.load(), throttle_hard_limit.load()};
+    }
 
     bool isCollectionCapable() {
         return type != BucketType::NoBucket &&
@@ -285,6 +306,30 @@ public:
 
 protected:
     unique_engine_ptr engine;
+
+    /**
+     * Update the appropriate throttle gauge with the provided number of
+     * units
+     *
+     * @param conn The connection consumed the units (for logging purposes)
+     * @param units The number of units
+     * @param domain The domain the units was allocated from
+     */
+    void consumedUnits(const Connection& conn,
+                       std::size_t units,
+                       ResourceAllocationDomain domain);
+
+    /**
+     * May the connection perform an operation consuming the provided number
+     * of units, or should it be throttled
+     *
+     * @return {true, None} if the connection should be throttled
+     *         {false, domain} if the connection may perform the operation
+     *                         and the domain contains where it allocated
+     *                         the resource from
+     */
+    std::pair<bool, ResourceAllocationDomain> shouldThrottle(
+            const Connection& connection, std::size_t units);
 
     /**
      * The dcp interface for the connected bucket. May be null if the
@@ -301,8 +346,12 @@ protected:
     /// The gauge to use for throttling of commands.
     SloppyGauge throttle_gauge;
 
-    /// The number of units (RU+WU) consumed before we should start throttle
-    std::atomic<std::size_t> throttle_limit{0};
+    /// The reserved number of units/s (RU+WU) consumed before we're subject
+    /// to throttling
+    std::atomic<std::size_t> throttle_reserved{0};
+
+    /// The maxium number of units consumed before we should start throttle
+    std::atomic<std::size_t> throttle_hard_limit{0};
 
     /// The number of times we've throttled due to reaching the throttle limit
     std::atomic<std::size_t> num_throttled{0};
@@ -465,6 +514,26 @@ public:
      */
     cb::engine_errc resume(Cookie& cookie, std::string_view name);
 
+    /**
+     * Check to see if the provided number of units is available in the
+     * global free pool
+     *
+     * @param units the number of units needed
+     * @return true if the requested number of units is available,
+     *         false otherwise
+     */
+    bool isUnassignedResourcesAvailable(std::size_t units) {
+        return unassigned_resources_gauge.isBelow(unassigned_resources_limit,
+                                                  units);
+    }
+
+    /**
+     * Mark the provided number of units as used
+     */
+    void consumedResources(std::size_t units) {
+        unassigned_resources_gauge.increment(units);
+    }
+
 protected:
     /**
      * Create a bucket
@@ -594,4 +663,11 @@ protected:
     cb::engine_errc resume(std::string_view cid, std::string_view name);
 
     BucketManager();
+
+    /// The "unassigned resources" gauge to use for throttling of commands.
+    SloppyGauge unassigned_resources_gauge;
+
+    /// The maximum number of unassigned resources to use (updated every tick
+    /// from the node capacity - all buckets reserved). See Throttling.md
+    std::atomic<std::size_t> unassigned_resources_limit{0};
 };

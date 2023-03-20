@@ -72,10 +72,12 @@ enum class ClientOpcode : uint8_t {
     /* Shutdown the server */
     Shutdown = 0x29,
 
-    SetBucketUnitThrottleLimits = 0x2a,
+    SetBucketThrottleProperties = 0x2a,
 
     /// Toggle bucket limit exceeded
     SetBucketDataLimitExceeded = 0x2b,
+
+    SetNodeThrottleProperties = 0x2c,
 
     /* These commands are used for range operations and exist within
      * this header for use in other projects.  Range operations are

@@ -1219,14 +1219,22 @@ public:
     std::unordered_map<Vbid, uint64_t> getVbucketSeqnos() const;
 };
 
-class SetBucketUnitThrottleLimitCommand : public BinprotGenericCommand {
+class SetBucketThrottlePropertiesCommand : public BinprotGenericCommand {
 public:
-    SetBucketUnitThrottleLimitCommand(std::string key_, std::size_t limit = 0);
-
+    SetBucketThrottlePropertiesCommand(std::string key_, nlohmann::json json);
     void encode(std::vector<uint8_t>& buf) const override;
 
 protected:
-    cb::mcbp::request::SetBucketUnitThrottleLimitPayload extras;
+    nlohmann::json document;
+};
+
+class SetNodeThrottlePropertiesCommand : public BinprotGenericCommand {
+public:
+    SetNodeThrottlePropertiesCommand(nlohmann::json json);
+    void encode(std::vector<uint8_t>& buf) const override;
+
+protected:
+    nlohmann::json document;
 };
 
 class SetBucketDataLimitExceededCommand : public BinprotGenericCommand {

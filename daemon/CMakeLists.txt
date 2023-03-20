@@ -153,6 +153,8 @@ add_library(memcached_daemon STATIC
             protocol/mcbp/unlock_context.cc
             protocol/mcbp/unlock_context.h
             protocol/mcbp/utilities.h
+            resource_allocation_domain.cc
+            resource_allocation_domain.h
             sendbuffer.cc
             sendbuffer.h
             server_api.cc

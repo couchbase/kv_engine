@@ -14,6 +14,7 @@
 #include "front_end_thread.h"
 #include "log_macros.h"
 #include "memcached.h"
+#include "resource_allocation_domain.h"
 #include "stats.h"
 #include <daemon/settings.h>
 #include <logger/logger.h>
@@ -26,6 +27,7 @@
 #include <serverless/config.h>
 #include <statistics/labelled_collector.h>
 #include <utilities/engine_errc_2_mcbp.h>
+#include <utilities/throttle_utilities.h>
 
 Bucket::Bucket() = default;
 
@@ -42,12 +44,17 @@ void Bucket::reset() {
     write_units_used = 0;
     throttle_gauge.reset();
     if (cb::serverless::isEnabled()) {
-        throttle_limit.store(
-                cb::serverless::Config::instance().defaultThrottleLimit.load(
-                        std::memory_order_acquire),
-                std::memory_order_release);
+        throttle_reserved.store(cb::serverless::Config::instance()
+                                        .defaultThrottleReservedUnits.load(
+                                                std::memory_order_acquire),
+                                std::memory_order_release);
+        throttle_hard_limit.store(cb::serverless::Config::instance()
+                                          .defaultThrottleHardLimit.load(
+                                                  std::memory_order_acquire),
+                                  std::memory_order_release);
     } else {
-        throttle_limit = std::numeric_limits<std::size_t>::max();
+        throttle_reserved = std::numeric_limits<std::size_t>::max();
+        throttle_hard_limit = std::numeric_limits<std::size_t>::max();
     }
     num_throttled = 0;
     throttle_wait_time = 0;
@@ -91,7 +98,10 @@ nlohmann::json Bucket::to_json() const {
                 json["ru"] = read_units_used.load();
                 json["wu"] = write_units_used.load();
                 json["num_throttled"] = num_throttled.load();
-                json["throttle_limit"] = throttle_limit.load();
+                json["throttle_reserved"] =
+                        cb::throttle::limit_to_json(throttle_reserved.load());
+                json["throttle_hard_limit"] =
+                        cb::throttle::limit_to_json(throttle_hard_limit.load());
                 json["throttle_wait_time"] = throttle_wait_time.load();
                 json["num_commands_with_metered_units"] =
                         num_commands_with_metered_units.load();
@@ -147,11 +157,9 @@ void Bucket::addMeteringMetrics(const BucketStatCollector& collector) const {
                     .count());
 }
 
-void Bucket::setThrottleLimit(std::size_t limit) {
-    if (limit == throttle_limit) {
-        return;
-    }
-    throttle_limit.store(limit);
+void Bucket::setThrottleLimits(std::size_t reserved, std::size_t hard) {
+    throttle_reserved.store(reserved);
+    throttle_hard_limit.store(hard);
 }
 
 DcpIface* Bucket::getDcpIface() const {
@@ -176,8 +184,28 @@ void Bucket::setEngine(unique_engine_ptr engine_) {
     bucketDcp = dynamic_cast<DcpIface*>(engine.get());
 }
 
+void Bucket::consumedUnits(const Connection& conn,
+                           std::size_t units,
+                           ResourceAllocationDomain domain) {
+    switch (domain) {
+    case ResourceAllocationDomain::Bucket:
+        throttle_gauge.increment(units);
+        return;
+    case ResourceAllocationDomain::Global:
+        BucketManager::instance().consumedResources(units);
+        return;
+    case ResourceAllocationDomain::None:
+        // The calling connection was allowed to bypass throttling
+        // and using the "none" pool. Ignore it.
+        return;
+    }
+    throw std::invalid_argument(
+            "Bucket::consumedUnits() Unexpected ResourceAllocationDomain");
+}
+
 void Bucket::recordDcpMeteringReadBytes(const Connection& conn,
-                                        std::size_t nread) {
+                                        std::size_t nread,
+                                        ResourceAllocationDomain domain) {
     // The node supervisor runs for free
     if (conn.isNodeSupervisor()) {
         return;
@@ -185,8 +213,7 @@ void Bucket::recordDcpMeteringReadBytes(const Connection& conn,
 
     auto& inst = cb::serverless::Config::instance();
     const auto ru = inst.to_ru(nread);
-    throttle_gauge.increment(ru);
-
+    consumedUnits(conn, ru, domain);
     if (conn.isSubjectToMetering()) {
         read_units_used += ru;
         ++num_metered_dcp_messages;
@@ -231,7 +258,14 @@ void Bucket::commandExecuted(const Cookie& cookie) {
         if (cookie.isDurable()) {
             wu *= 2;
         }
-        throttle_gauge.increment(ru + wu);
+
+        const auto throttleUnits =
+                std::size_t(ru * cookie.getReadThottlingFactor()) +
+                (wu * cookie.getWriteThottlingFactor());
+
+        consumedUnits(cookie.getConnection(),
+                      throttleUnits,
+                      cookie.getResourceAllocationDomain());
         throttle_wait_time += cookie.getTotalThrottleTime();
         const auto [nr, nw] = cookie.getDocumentMeteringRWUnits();
         read_units_used += nr;
@@ -247,7 +281,11 @@ void Bucket::rejectCommand(const Cookie&) {
 }
 
 void Bucket::tick() {
-    throttle_gauge.tick(throttle_limit);
+    if (throttle_hard_limit == std::numeric_limits<std::size_t>::max()) {
+        throttle_gauge.reset();
+    } else {
+        throttle_gauge.tick(throttle_hard_limit);
+    }
     // iterate over connections
     FrontEndThread::forEach([this](auto& thr) {
         std::deque<Connection*> connections;
@@ -275,37 +313,58 @@ void Bucket::deleteThrottledCommands() {
     });
 }
 
-bool Bucket::shouldThrottleDcp(const Connection& connection) {
-    if (throttle_limit == std::numeric_limits<std::size_t>::max() ||
+std::pair<bool, ResourceAllocationDomain> Bucket::shouldThrottle(
+        const Connection& connection, std::size_t units) {
+    if (throttle_reserved == std::numeric_limits<std::size_t>::max() ||
         connection.isUnthrottled()) {
-        return false;
+        return {false, ResourceAllocationDomain::None};
     }
 
-    if (!throttle_gauge.isBelow(throttle_limit)) {
-        num_throttled++;
-        return true;
+    // Check our reserved units
+    if (throttle_gauge.isBelow(throttle_reserved, units)) {
+        return {false, ResourceAllocationDomain::Bucket};
     }
-    return false;
+
+    // Check the hard limit (if set)
+    if (throttle_hard_limit != std::numeric_limits<std::size_t>::max()) {
+        if (throttle_gauge.isBelow(throttle_hard_limit, units)) {
+            return {false, ResourceAllocationDomain::Bucket};
+        }
+        return {true, ResourceAllocationDomain::None};
+    }
+
+    if (BucketManager::instance().isUnassignedResourcesAvailable(units)) {
+        return {false, ResourceAllocationDomain::Global};
+    }
+
+    return {true, ResourceAllocationDomain::None};
 }
 
-bool Bucket::shouldThrottle(const Cookie& cookie,
+std::pair<bool, ResourceAllocationDomain> Bucket::shouldThrottleDcp(
+        const Connection& connection) {
+    auto ret = shouldThrottle(connection, 1);
+    if (ret.first) {
+        num_throttled++;
+        Expects(ret.second == ResourceAllocationDomain::None);
+    }
+    return ret;
+}
+
+bool Bucket::shouldThrottle(Cookie& cookie,
                             bool addConnectionToThrottleList,
                             size_t pendingBytes) {
-    if (throttle_limit == std::numeric_limits<std::size_t>::max() ||
-        cookie.getConnection().isUnthrottled()) {
-        // No limit specified, so we don't need to do any further inspection
-        return false;
-    }
-
     const auto& header = cookie.getHeader();
     if (header.isResponse() ||
-        cb::mcbp::is_server_magic(cb::mcbp::Magic(header.getMagic()))) {
+        cb::mcbp::is_server_magic(cb::mcbp::Magic(header.getMagic())) ||
+        !is_subject_for_throttling(header.getRequest().getClientOpcode())) {
         // Never throttle response messages or server ops
         return false;
     }
 
-    if (is_subject_for_throttling(header.getRequest().getClientOpcode()) &&
-        !throttle_gauge.isBelow(throttle_limit, pendingBytes)) {
+    auto [throttle, domain] =
+            shouldThrottle(cookie.getConnection(), pendingBytes);
+    if (throttle) {
+        Expects(domain == ResourceAllocationDomain::None);
         if (cookie.getConnection().isNonBlockingThrottlingMode()) {
             num_rejected++;
         } else {
@@ -317,7 +376,7 @@ bool Bucket::shouldThrottle(const Cookie& cookie,
         }
         return true;
     }
-
+    cookie.setResourceAllocationDomain(domain);
     return false;
 }
 
@@ -810,12 +869,27 @@ void BucketManager::waitForEveryoneToDisconnect(
 }
 
 void BucketManager::tick() {
-    forEach([](auto& b) {
+    auto limit = cb::serverless::Config::instance().nodeCapacity.load();
+
+    forEach([&limit](auto& b) {
         if (b.type != BucketType::NoBucket) {
+            auto [reserved, hard] = b.getThrottleLimits();
+            if (reserved != std::numeric_limits<std::size_t>::max()) {
+                if (reserved < limit) {
+                    limit -= reserved;
+                } else {
+                    limit = 0;
+                }
+            }
             b.tick();
         }
         return true;
     });
+
+    unassigned_resources_limit = limit;
+    // Reset the unassigned gauge instead of tick as we don't want
+    // to continue to pay on the overuse for the next sec ;)
+    unassigned_resources_gauge.reset();
 
     FrontEndThread::forEach([](auto& thr) {
         // Iterate over all of the DCP connections bound to this thread
