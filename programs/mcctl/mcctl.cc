@@ -8,23 +8,17 @@
  *   the file licenses/APL2.txt.
  */
 
-/* mcctl - Utility program to perform IOCTL-style operations on a memcached
- *         process.
- */
-#include <folly/portability/Unistd.h>
-#include <getopt.h>
+// mcctl - Utility program to perform IOCTL-style operations on a memcached
+//         process.
+
 #include <memcached/io_control.h>
 #include <memcached/protocol_binary.h>
-#include <platform/dirutils.h>
 #include <programs/getpass.h>
-#include <programs/hostname_utils.h>
-#include <programs/parse_tls_option.h>
+#include <programs/mc_program_getopt.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <utilities/terminal_color.h>
 #include <utilities/terminal_size.h>
-#include <utilities/terminate_handler.h>
-#include <cstdio>
 #include <cstdlib>
 #include <iostream>
 
@@ -181,36 +175,12 @@ void printPropertyHelp() {
               << "  W - available with 'set property'" << std::endl;
 }
 
-static void usage() {
+static void usage(McProgramGetopt& getopt, int exitcode) {
     std::cerr << R"(Usage mcctl [options] <get|set|reload> property [value]
 
 Options:
 
-  -h or --host hostname[:port]   The host (with an optional port) to connect to
-  -p or --port port              The port number to connect to
-  -b or --bucket bucketname      The name of the bucket to operate on
-  -u or --user username          The name of the user to authenticate as
-  -P or --password password      The password to use for authentication
-                                 (use '-' to read from standard input, or
-                                 set the environment variable CB_PASSWORD)
-  --tls[=cert,key[,castore]]     Use TLS
-                                 If 'cert' and 'key' is provided (they are
-                                 optional) they contains the certificate and
-                                 private key to use to connect to the server
-                                 (and if the server is configured to do so
-                                 it may authenticate to the server by using
-                                 the information in the certificate).
-                                 A non-default CA store may optionally be
-                                 provided.
-  -s or --ssl                    Deprecated. Use --tls
-  -C or --ssl-cert filename      Deprecated. Use --tls=[cert,key]
-  -4 or --ipv4                   Connect over IPv4
-  -6 or --ipv6                   Connect over IPv6
-)"
-#ifndef WIN32
-              << "  --no-color                     Disable colors\n"
-#endif
-              << R"("  --help                         This help text
+)" << getopt << R"("
 
 Commands:
 
@@ -221,168 +191,64 @@ Commands:
 )";
 
     printPropertyHelp();
-    exit(EXIT_FAILURE);
+    exit(exitcode);
 }
 
 int main(int argc, char** argv) {
-    // Make sure that we dump callstacks on the console
-    install_backtrace_terminate_handler();
-#ifndef WIN32
-    setTerminalColorSupport(isatty(STDERR_FILENO) && isatty(STDOUT_FILENO));
-#endif
+    using cb::getopt::Argument;
+    McProgramGetopt getopt;
+    std::string bucket;
+    getopt.addOption({[&bucket](auto value) { bucket = std::string{value}; },
+                      'b',
+                      "bucket",
+                      Argument::Required,
+                      "bucketname",
+                      "The name of the bucket to operate on"});
 
-    int cmd;
-    std::string port;
-    std::string host{"localhost"};
-    std::string user{};
-    std::string password{};
-    std::string bucket{};
-    std::optional<std::filesystem::path> ssl_cert;
-    std::optional<std::filesystem::path> ssl_key;
-    std::optional<std::filesystem::path> ca_store;
-    sa_family_t family = AF_UNSPEC;
-    bool secure = false;
+    getopt.addOption({[&getopt](auto) { usage(getopt, EXIT_SUCCESS); },
+                      "help",
+                      "This help text"});
 
-    cb::net::initialize();
+    const auto arguments = getopt.parse(
+            argc, argv, [&getopt]() { usage(getopt, EXIT_FAILURE); });
 
-    // we could have used an array, but then we need to keep track of the
-    // size. easier to just use a vector
-    const std::vector<option> options{
-            {"ipv4", no_argument, nullptr, '4'},
-            {"ipv6", no_argument, nullptr, '6'},
-            {"host", required_argument, nullptr, 'h'},
-            {"port", required_argument, nullptr, 'p'},
-            {"bucket", required_argument, nullptr, 'b'},
-            {"password", required_argument, nullptr, 'P'},
-            {"user", required_argument, nullptr, 'u'},
-            {"tls=", optional_argument, nullptr, 't'},
-            {"ssl", no_argument, nullptr, 's'},
-            {"ssl-cert", required_argument, nullptr, 'C'},
-            {"ssl-key", required_argument, nullptr, 'K'},
-#ifndef WIN32
-            {"no-color", no_argument, nullptr, 'n'},
-#endif
-            {"help", no_argument, nullptr, 0},
-            {nullptr, 0, nullptr, 0}};
-
-    while ((cmd = getopt_long(argc,
-                              argv,
-                              "46h:p:u:b:P:sC:K:t",
-                              options.data(),
-                              nullptr)) != EOF) {
-        switch (cmd) {
-        case '6' :
-            family = AF_INET6;
-            break;
-        case '4' :
-            family = AF_INET;
-            break;
-        case 'h' :
-            host.assign(optarg);
-            break;
-        case 'p':
-            port.assign(optarg);
-            break;
-        case 'b' :
-            bucket.assign(optarg);
-            break;
-        case 'u' :
-            user.assign(optarg);
-            break;
-        case 'P':
-            password.assign(optarg);
-            break;
-        case 's':
-            secure = true;
-            break;
-        case 'C':
-            ssl_cert = std::filesystem::path{optarg};
-            break;
-        case 'K':
-            ssl_key = std::filesystem::path{optarg};
-            break;
-        case 't':
-            secure = true;
-            if (optarg) {
-                std::tie(ssl_cert, ssl_key, ca_store) =
-                        parse_tls_option_or_exit(optarg);
-            }
-            break;
-        case 'n':
-            setTerminalColorSupport(false);
-            break;
-        default:
-            usage();
-        }
+    if (arguments.size() < 2) {
+        usage(getopt, EXIT_FAILURE);
     }
 
-    if (password == "-") {
-        password.assign(getpass());
-    } else if (password.empty()) {
-        const char* env_password = std::getenv("CB_PASSWORD");
-        if (env_password) {
-            password = env_password;
-        }
-    }
-
-    if (optind + 1 >= argc) {
-         usage();
-    }
-
-    std::string command{argv[optind]};
+    std::string command{arguments.front()};
     if (command != "get" && command != "set" && command != "reload") {
-        std::cerr << TerminalColor::Red << "Unknown subcommand \""
-                  << argv[optind] << "\"" << TerminalColor::Reset << std::endl;
-        usage();
+        std::cerr << TerminalColor::Red << "Unknown subcommand \"" << command
+                  << "\"" << TerminalColor::Reset << std::endl;
+        usage(getopt, EXIT_FAILURE);
     }
 
     try {
-        if (port.empty()) {
-            port = secure ? "11207" : "11210";
-        }
-        in_port_t in_port;
-        sa_family_t fam;
-        std::tie(host, in_port, fam) = cb::inet::parse_hostname(host, port);
-
-        if (family == AF_UNSPEC) { // The user may have used -4 or -6
-            family = fam;
-        }
-
-        MemcachedConnection connection(host, in_port, family, secure);
-        if (ssl_cert && ssl_key) {
-            connection.setTlsConfigFiles(*ssl_cert, *ssl_key, ca_store);
-        }
-        connection.connect();
-
+        getopt.assemble();
+        auto connection = getopt.getConnection();
         // MEMCACHED_VERSION contains the git sha
-        connection.setAgentName("mcctl " MEMCACHED_VERSION);
-        connection.setFeatures(
+        connection->setAgentName("mcctl " MEMCACHED_VERSION);
+        connection->setFeatures(
                 {cb::mcbp::Feature::XERROR, cb::mcbp::Feature::JSON});
 
-        if (!user.empty()) {
-            connection.authenticate(user, password,
-                                    connection.getSaslMechanisms());
-        }
-
         if (!bucket.empty()) {
-            connection.selectBucket(bucket);
+            connection->selectBucket(bucket);
         }
 
-
-        /* Need at least two more arguments: get/set and a property name. */
-        std::string property = {argv[optind + 1]};
+        // Need at least two more arguments: get/set and a property name.
+        std::string property{arguments[1]};
 
         if (command == "get") {
             if (property == "verbosity") {
-                return get_verbosity(connection);
+                return get_verbosity(*connection);
             } else {
-                std::cout << connection.ioctl_get(property) << std::endl;
+                std::cout << connection->ioctl_get(property) << std::endl;
                 return EXIT_SUCCESS;
             }
         } else if (command == "set") {
             std::string value;
-            if (optind + 2 < argc) {
-                value = argv[optind + 2];
+            if (arguments.size() > 2) {
+                value = std::string{arguments[2]};
             }
 
             if (property == "verbosity") {
@@ -390,17 +256,17 @@ int main(int argc, char** argv) {
                     std::cerr
                         << "Error: 'set verbosity' requires a value argument."
                         << std::endl;
-                    usage();
+                    usage(getopt, EXIT_FAILURE);
                 } else {
-                    return set_verbosity(connection, value);
+                    return set_verbosity(*connection, value);
                 }
             } else {
-                connection.ioctl_set(property, value);
+                connection->ioctl_set(property, value);
                 return EXIT_SUCCESS;
             }
         } else if (command == "reload") {
             if (property == "config") {
-                auto response = connection.execute(BinprotGenericCommand{
+                auto response = connection->execute(BinprotGenericCommand{
                         cb::mcbp::ClientOpcode::ConfigReload});
                 if (!response.isSuccess()) {
                     std::cerr << TerminalColor::Red
@@ -414,7 +280,7 @@ int main(int argc, char** argv) {
                 }
             } else if (property == "sasl") {
                 auto response =
-                        connection.execute(BinprotIsaslRefreshCommand{});
+                        connection->execute(BinprotIsaslRefreshCommand{});
                 if (!response.isSuccess()) {
                     std::cerr << TerminalColor::Red
                               << "Failed: " << to_string(response.getStatus());

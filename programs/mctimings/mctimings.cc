@@ -7,21 +7,16 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-#include "programs/getpass.h"
-#include "programs/hostname_utils.h"
 
-#include <boost/algorithm/string/predicate.hpp>
 #include <fmt/core.h>
-#include <getopt.h>
 #include <memcached/protocol_binary.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <platform/string_hex.h>
-#include <programs/parse_tls_option.h>
+#include <programs/mc_program_getopt.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <utilities/json_utilities.h>
-#include <utilities/terminate_handler.h>
 #include <array>
 #include <cinttypes>
 #include <cstdlib>
@@ -367,164 +362,85 @@ void dumpHistogramFromFile(const std::string& file) {
     }
 }
 
-void usage() {
-    fmt::print(stderr,
-               "Usage mctimings [options] [opcode / statname]\n{}\n",
-               R"(Options:
+static void usage(McProgramGetopt& getopt, int exitcode) {
+    std::cerr << R"(Usage mctimings [options] [opcode / statname]
 
-  -h or --host hostname[:port]   The host (with an optional port) to connect to
-  -p or --port port              The port number to connect to
-  -b or --bucket bucketname      The name of the bucket to operate on
-                                 (specify "@no bucket@" to get aggregated stats
-                                 from all buckets. The user must have the
-                                 Stats privilege to do so)
-  -u or --user username          The name of the user to authenticate as
-  -P or --password password      The password to use for authentication
-                                 (use '-' to read from standard input, or
-                                 set the environment variable CB_PASSWORD)
-  --tls[=cert,key[,castore]]     Use TLS
-                                 If 'cert' and 'key' is provided (they are
-                                 optional) they contains the certificate and
-                                 private key to use to connect to the server
-                                 (and if the server is configured to do so
-                                 it may authenticate to the server by using
-                                 the information in the certificate).
-                                 A non-default CA store may optionally be
-                                 provided.
-  -s or --ssl                    Deprecated. Use --tls
-  -4 or --ipv4                   Connect over IPv4
-  -6 or --ipv6                   Connect over IPv6
-  -v or --verbose                Use verbose output
-  -S                             Read password from standard input
-  -j or --json[=pretty]          Print JSON instead of histograms
-  -f or --file path.json         Dump Histogram data from a json file produced
-                                 from mctimings using the --json arg
-  -a or --all-buckets            Get list of buckets from the node and display
-                                 stats per bucket basis rather than aggregated
-                                 e.g. --bucket /all/. Also -a and -b may not be
-                                 used at the same time.
-  --help                         This help text
+Options:
 
-)");
-    fmt::print(stderr,
-               "Example:\n     mctimings --user operator --bucket /all/ "
-               "--password - --verbose GET SET\n");
+)" << getopt << R"(
+
+Example:
+    mctimings --user operator --bucket /all/ --password - --verbose GET SET
+
+)" << std::endl;
+    std::exit(exitcode);
 }
 
 int main(int argc, char** argv) {
-    // Make sure that we dump callstacks on the console
-    install_backtrace_terminate_handler();
-
-    int cmd;
-    std::string port;
-    std::string host{"localhost"};
-    std::string user{};
-    std::string password{};
-    std::optional<std::filesystem::path> ssl_cert;
-    std::optional<std::filesystem::path> ssl_key;
-    std::optional<std::filesystem::path> ca_store;
     std::vector<std::string> buckets{{"/all/"}};
     std::string file;
-    sa_family_t family = AF_UNSPEC;
     bool verbose = false;
-    bool secure = false;
     bool json = false;
-    std::vector<std::string> extraArgs;
 
-    cb::net::initialize();
+    McProgramGetopt getopt;
+    using cb::getopt::Argument;
+    getopt.addOption({[&verbose](auto) { verbose = true; },
+                      'v',
+                      "verbose",
+                      "Use verbose output"});
 
-    const std::vector<option> options{
-            {{"ipv4", no_argument, nullptr, '4'},
-             {"ipv6", no_argument, nullptr, '6'},
-             {"host", required_argument, nullptr, 'h'},
-             {"port", required_argument, nullptr, 'p'},
-             {"bucket", required_argument, nullptr, 'b'},
-             {"password", required_argument, nullptr, 'P'},
-             {"user", required_argument, nullptr, 'u'},
-             {"ssl", no_argument, nullptr, 's'},
-             {"tls=", optional_argument, nullptr, 't'},
-             {"verbose", no_argument, nullptr, 'v'},
-             {"json", optional_argument, nullptr, 'j'},
-             {"file", required_argument, nullptr, 'f'},
-             {"all-buckets", no_argument, nullptr, 'a'},
-             {"help", no_argument, nullptr, 0},
-             {nullptr, 0, nullptr, 0}}};
+    getopt.addOption({[&json, &verbose](auto value) {
+                          json = true;
+                          if (value == "pretty") {
+                              verbose = true;
+                          }
+                      },
+                      'j',
+                      "json",
+                      Argument::Optional,
+                      "pretty",
+                      "Print JSON instead of histograms"});
 
-    while ((cmd = getopt_long(argc,
-                              argv,
-                              "46h:p:u:b:P:st:Svjf:at",
-                              options.data(),
-                              nullptr)) != EOF) {
-        switch (cmd) {
-        case '6':
-            family = AF_INET6;
-            break;
-        case '4':
-            family = AF_INET;
-            break;
-        case 'h':
-            host.assign(optarg);
-            break;
-        case 'p':
-            port.assign(optarg);
-            break;
-        case 'S':
-            password.assign("-");
-            break;
-        case 'b':
-            if (buckets.empty()) {
-                usage();
-                return EXIT_FAILURE;
-            }
-            buckets.front().assign(optarg);
-            break;
-        case 'u':
-            user.assign(optarg);
-            break;
-        case 'P':
-            password.assign(optarg);
-            break;
-        case 's':
-            secure = true;
-            break;
-        case 't':
-            secure = true;
-            if (optarg) {
-                std::tie(ssl_cert, ssl_key, ca_store) =
-                        parse_tls_option_or_exit(optarg);
-            }
-            break;
-        case 'v':
-            verbose = true;
-            break;
-        case 'j':
-            json = true;
-            if (optarg && boost::iequals(optarg, "pretty")) {
-                verbose = true;
-            }
-            break;
-        case 'f':
-            file.assign(optarg);
-            break;
-        case 'a':
-            if (!buckets.empty() && buckets.front() != "/all/") {
-                usage();
-                return EXIT_FAILURE;
-            }
-            buckets.clear();
-            break;
-        default:
-            usage();
-            return cmd == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
-        }
-    }
+    getopt.addOption({[&buckets, &getopt](auto value) {
+                          if (buckets.empty()) {
+                              usage(getopt, EXIT_FAILURE);
+                          }
+                          buckets.front().assign(std::string{value});
+                      },
+                      'b',
+                      "buckets",
+                      Argument::Required,
+                      "bucketname",
+                      "The name of the bucket to operate on (specify \"@no "
+                      "bucket@\" to get aggregated stats from all buckets. The "
+                      "user must have the Stats privilege to do so)"});
 
-    if (optind != argc) {
-        for (; optind < argc; ++optind) {
-            extraArgs.emplace_back(argv[optind]);
-        }
-    }
+    getopt.addOption({[&file](auto value) { file = std::string{value}; },
+                      'f',
+                      "file",
+                      Argument::Required,
+                      "path.json",
+                      "Dump Histogram data from a json file produced from "
+                      "mctimings using the --json arg"});
 
+    getopt.addOption(
+            {[&buckets, &getopt](auto value) {
+                 if (!buckets.empty() && buckets.front() != "/all/") {
+                     usage(getopt, EXIT_FAILURE);
+                 }
+             },
+             'a',
+             "all-buckets",
+             "Get list of buckets from the node and display stats per bucket "
+             "basis rather than aggregated e.g. --bucket /all/. Also -a and -b "
+             "may not be used at the same time."});
+
+    getopt.addOption({[&getopt](auto) { usage(getopt, EXIT_SUCCESS); },
+                      "help",
+                      "This help text"});
+
+    auto extraArgs = getopt.parse(
+            argc, argv, [&getopt]() { usage(getopt, EXIT_FAILURE); });
     if (!file.empty()) {
         try {
             fmt::print(stdout, histogramInfo);
@@ -536,47 +452,19 @@ int main(int argc, char** argv) {
         return EXIT_SUCCESS;
     }
 
-    if (password == "-") {
-        password.assign(getpass());
-    } else if (password.empty()) {
-        const char* env_password = std::getenv("CB_PASSWORD");
-        if (env_password) {
-            password = env_password;
-        }
-    }
-
     try {
-        if (port.empty()) {
-            port = secure ? "11207" : "11210";
-        }
-        in_port_t in_port;
-        sa_family_t fam;
-        std::tie(host, in_port, fam) = cb::inet::parse_hostname(host, port);
-
-        if (family == AF_UNSPEC) { // The user may have used -4 or -6
-            family = fam;
-        }
-        MemcachedConnection connection(host, in_port, family, secure);
-        if (ssl_cert && ssl_key) {
-            connection.setTlsConfigFiles(*ssl_cert, *ssl_key, ca_store);
-        }
-        connection.connect();
-
+        getopt.assemble();
+        auto connection = getopt.getConnection();
         // MEMCACHED_VERSION contains the git sha
-        connection.setAgentName("mctimings " MEMCACHED_VERSION);
-        connection.setFeatures({cb::mcbp::Feature::XERROR});
-
-        if (!user.empty()) {
-            connection.authenticate(user, password,
-                                    connection.getSaslMechanisms());
-        }
+        connection->setAgentName("mctimings " MEMCACHED_VERSION);
+        connection->setFeatures({cb::mcbp::Feature::XERROR});
 
         if (verbose && !json) {
             fmt::print(stdout, histogramInfo);
         }
 
         if (buckets.empty()) {
-            buckets = connection.listBuckets();
+            buckets = connection->listBuckets();
         }
 
         std::optional<nlohmann::json> jsonOutput;
@@ -585,7 +473,7 @@ int main(int argc, char** argv) {
         }
         for (const auto& bucket : buckets) {
             if (bucket != "/all/") {
-                connection.selectBucket(bucket);
+                connection->selectBucket(bucket);
             }
 
             if (!json) {
@@ -598,7 +486,7 @@ int main(int argc, char** argv) {
             }
             if (extraArgs.empty()) {
                 for (int i = 0; i < 256; ++i) {
-                    request_cmd_timings(connection,
+                    request_cmd_timings(*connection,
                                         bucket,
                                         cb::mcbp::ClientOpcode(i),
                                         verbose,
@@ -608,7 +496,7 @@ int main(int argc, char** argv) {
             } else {
                 for (const auto& arg : extraArgs) {
                     try {
-                        request_cmd_timings(connection,
+                        request_cmd_timings(*connection,
                                             bucket,
                                             to_opcode(arg),
                                             verbose,
@@ -616,8 +504,10 @@ int main(int argc, char** argv) {
                                             jsonDataFromBucket);
                     } catch (const std::invalid_argument&) {
                         // Not a command timing, try as statistic timing.
-                        request_stat_timings(
-                                connection, arg, verbose, jsonDataFromBucket);
+                        request_stat_timings(*connection,
+                                             std::string{arg},
+                                             verbose,
+                                             jsonDataFromBucket);
                     }
                 }
             }

@@ -9,17 +9,13 @@
  */
 
 #include <folly/portability/Unistd.h>
-#include <getopt.h>
 #include <memcached/stat_group.h>
 #include <programs/getpass.h>
-#include <programs/hostname_utils.h>
-#include <programs/parse_tls_option.h>
+#include <programs/mc_program_getopt.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/frameinfo.h>
 #include <utilities/terminal_color.h>
 #include <utilities/terminal_size.h>
-#include <utilities/terminate_handler.h>
-#include <filesystem>
 #include <iostream>
 #include <limits>
 
@@ -62,48 +58,14 @@ static void request_stat(MemcachedConnection& connection,
     }
 }
 
-static void usage() {
-    std::cerr
-            << R"(Usage: mcstat [options] statkey ...
+static void usage(McProgramGetopt& instance, int exitcode) {
+    std::cerr << R"(Usage: mcstat [options] statkey ...
 
 Options:
 
-  -h or --host hostname[:port]   The host (with an optional port) to connect to
-                                 (for IPv6 use: [address]:port if you'd like to
-                                 specify port)
-  -p or --port port              The port number to connect to
-  -b or --bucket bucketname      The name of the bucket to operate on
-  -u or --user username          The name of the user to authenticate as
-  -P or --password password      The password to use for authentication
-                                 (use '-' to read from standard input, or
-                                 set the environment variable CB_PASSWORD)
-  --tls[=cert,key[,castore]]     Use TLS
-                                 If 'cert' and 'key' is provided (they are
-                                 optional) they contains the certificate and
-                                 private key to use to connect to the server
-                                 (and if the server is configured to do so
-                                 it may authenticate to the server by using
-                                 the information in the certificate).
-                                 A non-default CA store may optionally be
-                                 provided.
-  -s or --ssl                    Deprecated. Use --tls
-  -C or --ssl-cert filename      Deprecated. Use --tls=[cert,key]
-  -C or --ssl-cert filename      Deprecated. Use --tls=[cert,key]
-  -4 or --ipv4                   Connect over IPv4
-  -6 or --ipv6                   Connect over IPv6
-  -j or --json                   Print result as JSON (unformatted)
-  -J or --json=pretty            Print result in JSON (formatted)
-  -I or --impersonate username   Try to impersonate the specified user
-  -a or --all-buckets            Iterate buckets that list bucket returns
-)"
-#ifndef WIN32
-            << "  --no-color                     Disable colors\n"
-#endif
-            << R"(  --help[=statkey]               This help text (or description of statkeys)
-  statkey ...  Statistic(s) to request
-
-)";
-    exit(EXIT_FAILURE);
+)" << instance << std::endl
+              << std::endl;
+    std::exit(exitcode);
 }
 
 void printStatkeyHelp(std::string_view key) {
@@ -230,137 +192,72 @@ void printStatkeyHelp() {
     std::cerr << "B - bucket specific stat group" << std::endl
               << "P - privileged stat" << std::endl;
 
-    exit(EXIT_FAILURE);
+    exit(EXIT_SUCCESS);
 }
 
 int main(int argc, char** argv) {
-    // Make sure that we dump callstacks on the console
-    install_backtrace_terminate_handler();
-#ifndef WIN32
-    setTerminalColorSupport(isatty(STDERR_FILENO) && isatty(STDOUT_FILENO));
-#endif
-
-    int cmd;
-    std::string port;
-    std::string host{"localhost"};
-    std::string user{};
-    std::string password{};
-    std::optional<std::filesystem::path> ssl_cert;
-    std::optional<std::filesystem::path> ssl_key;
-    std::optional<std::filesystem::path> ca_store;
     std::string impersonate;
-    sa_family_t family = AF_UNSPEC;
-    bool secure = false;
     bool json = false;
     bool format = false;
     bool allBuckets = false;
     std::vector<std::string> buckets;
 
-    cb::net::initialize();
+    McProgramGetopt getopt;
+    using cb::getopt::Argument;
+    getopt.addOption({[&json, &format](auto value) {
+                          json = true;
+                          if (value == "pretty") {
+                              format = true;
+                          }
+                      },
+                      'j',
+                      "json",
+                      Argument::Optional,
+                      "pretty",
+                      "Print result in JSON"});
 
-    const std::vector<option> options = {
-            {"ipv4", no_argument, nullptr, '4'},
-            {"ipv6", no_argument, nullptr, '6'},
-            {"host", required_argument, nullptr, 'h'},
-            {"port", required_argument, nullptr, 'p'},
-            {"bucket", required_argument, nullptr, 'b'},
-            {"password", required_argument, nullptr, 'P'},
-            {"user", required_argument, nullptr, 'u'},
-            {"tls=", optional_argument, nullptr, 't'},
-            {"ssl", no_argument, nullptr, 's'},
-            {"ssl-cert", required_argument, nullptr, 'C'},
-            {"ssl-key", required_argument, nullptr, 'K'},
-            {"impersonate", required_argument, nullptr, 'I'},
-            {"json", optional_argument, nullptr, 'j'},
-            {"all-buckets", no_argument, nullptr, 'a'},
-#ifndef WIN32
-            {"no-color", no_argument, nullptr, 'n'},
-#endif
-            {"help", optional_argument, nullptr, 1},
-            {nullptr, 0, nullptr, 0}};
+    getopt.addOption({[&buckets](auto value) {
+                          buckets.emplace_back(std::string{value});
+                      },
+                      'b',
+                      "bucket",
+                      Argument::Required,
+                      "bucketname",
+                      "The name of the bucket to operate on"});
 
-    while ((cmd = getopt_long(argc,
-                              argv,
-                              "46h:p:u:b:P:SsjJC:K:I:at",
-                              options.data(),
-                              nullptr)) != EOF) {
-        switch (cmd) {
-        case '6' :
-            family = AF_INET6;
-            break;
-        case '4' :
-            family = AF_INET;
-            break;
-        case 'h' :
-            host.assign(optarg);
-            break;
-        case 'p':
-            port.assign(optarg);
-            break;
-        case 'b' :
-            buckets.emplace_back(optarg);
-            break;
-        case 'u' :
-            user.assign(optarg);
-            break;
-        case 'P':
-            password.assign(optarg);
-            break;
-        case 'S':
-            // Deprecated and not shown in the help text
-            std::cerr << TerminalColor::Yellow
-                      << R"(mcstat: -S is deprecated. Use "-P -" instead)"
-                      << TerminalColor::Reset << std::endl;
-            password.assign(getpass());
-            break;
-        case 's':
-            secure = true;
-            break;
-        case 'J':
-            format = true;
-            // FALLTHROUGH
-        case 'j':
-            json = true;
-            if (optarg && std::string{optarg} == "pretty") {
-                format = true;
-            }
-            break;
-        case 'C':
-            ssl_cert = std::filesystem::path{optarg};
-            break;
-        case 'K':
-            ssl_key = std::filesystem::path{optarg};
-            break;
-        case 'I':
-            impersonate.assign(optarg);
-            break;
-        case 'n':
-            setTerminalColorSupport(false);
-            break;
-        case 'a':
-            allBuckets = true;
-            break;
-        case 't':
-            secure = true;
-            if (optarg) {
-                std::tie(ssl_cert, ssl_key, ca_store) =
-                        parse_tls_option_or_exit(optarg);
-            }
-            break;
-        case 1:
-            if (optarg) {
-                if (std::string_view{optarg} == "statkey") {
-                    printStatkeyHelp();
-                } else {
-                    printStatkeyHelp(optarg);
-                }
-            }
-            // fallthrough
-        default:
-            usage();
-            return EXIT_FAILURE;
-        }
-    }
+    getopt.addOption(
+            {[&impersonate](auto value) { impersonate = std::string{value}; },
+             'I',
+             "impersonate",
+             Argument::Required,
+             "username",
+             "Try to impersonate the specified user"});
+
+    getopt.addOption(
+            {[&allBuckets](auto) { allBuckets = true; },
+             'a',
+             "all-buckets",
+             "Get list of buckets from the node and display stats per bucket "
+             "basis."});
+
+    getopt.addOption({[&getopt](auto value) {
+                          if (value.empty()) {
+                              usage(getopt, EXIT_SUCCESS);
+                          }
+                          if (value == "statkey") {
+                              printStatkeyHelp();
+                              std::exit(EXIT_SUCCESS);
+                          }
+                          printStatkeyHelp(value);
+                          std::exit(EXIT_SUCCESS);
+                      },
+                      "help",
+                      Argument::Optional,
+                      "statkey",
+                      "This help text (or description of statkeys)"});
+
+    auto arguments = getopt.parse(
+            argc, argv, [&getopt]() { usage(getopt, EXIT_FAILURE); });
 
     if (allBuckets && !buckets.empty()) {
         std::cerr << TerminalColor::Red
@@ -369,43 +266,15 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    if (password == "-") {
-        password.assign(getpass());
-    } else if (password.empty()) {
-        const char* env_password = std::getenv("CB_PASSWORD");
-        if (env_password) {
-            password = env_password;
-        }
-    }
-
     try {
-        if (port.empty()) {
-            port = secure ? "11207" : "11210";
-        }
-        in_port_t in_port;
-        sa_family_t fam;
-        std::tie(host, in_port, fam) = cb::inet::parse_hostname(host, port);
-
-        if (family == AF_UNSPEC) { // The user may have used -4 or -6
-            family = fam;
-        }
-        MemcachedConnection connection(host, in_port, family, secure);
-        if (ssl_cert && ssl_key) {
-            connection.setTlsConfigFiles(*ssl_cert, *ssl_key, ca_store);
-        }
-        connection.connect();
-
-        if (!user.empty()) {
-            connection.authenticate(user, password,
-                                    connection.getSaslMechanisms());
-        }
-
+        getopt.assemble();
+        auto connection = getopt.getConnection();
         // MEMCACHED_VERSION contains the git sha
-        connection.setAgentName("mcstat " MEMCACHED_VERSION);
-        connection.setFeatures({cb::mcbp::Feature::XERROR});
+        connection->setAgentName("mcstat " MEMCACHED_VERSION);
+        connection->setFeatures({cb::mcbp::Feature::XERROR});
 
         if (allBuckets) {
-            buckets = connection.listBuckets();
+            buckets = connection->listBuckets();
         }
 
         // buckets can be empty, so do..while at least one stat call
@@ -420,16 +289,19 @@ int main(int argc, char** argv) {
                               << *bucketItr << TerminalColor::Reset << std::endl
                               << std::endl;
                 }
-                connection.selectBucket(*bucketItr);
+                connection->selectBucket(*bucketItr);
                 bucketItr++;
             }
 
-            if (optind == argc) {
-                request_stat(connection, "", json, format, impersonate);
+            if (arguments.empty()) {
+                request_stat(*connection, "", json, format, impersonate);
             } else {
-                for (int ii = optind; ii < argc; ++ii) {
-                    request_stat(
-                            connection, argv[ii], json, format, impersonate);
+                for (const auto& arg : arguments) {
+                    request_stat(*connection,
+                                 std::string{arg},
+                                 json,
+                                 format,
+                                 impersonate);
                 }
             }
         } while (bucketItr != buckets.end());

@@ -3,3 +3,6 @@ kv_enable_pch(mcthrottlectl)
 target_link_libraries(mcthrottlectl PRIVATE mc_client_connection mcd_util platform)
 add_sanitizers(mcthrottlectl)
 install(TARGETS mcthrottlectl RUNTIME DESTINATION bin)
+add_test(NAME mcthrottlectl_usage_test
+        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+        COMMAND mcthrottlectl --help)

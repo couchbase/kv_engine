@@ -22,6 +22,7 @@
 #include <platform/socket.h>
 #include <programs/getpass.h>
 #include <programs/hostname_utils.h>
+#include <programs/mc_program_getopt.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <utilities/terminate_handler.h>
@@ -106,16 +107,8 @@ void event_callback(bufferevent* bev, short event, void*) {
 }
 
 std::unique_ptr<MemcachedConnection> createConnection(
-        const std::string& host,
-        in_port_t in_port,
-        sa_family_t family,
-        const std::string& user,
-        const std::string& password,
-        const std::string& bucket) {
-    auto ret =
-            std::make_unique<MemcachedConnection>(host, in_port, family, false);
-    ret->connect();
-    ret->authenticate(user, password, "PLAIN");
+        McProgramGetopt& instance, const std::string& bucket) {
+    auto ret = instance.getConnection();
     ret->selectBucket(bucket);
     std::vector<cb::mcbp::Feature> features = {
             {cb::mcbp::Feature::MUTATION_SEQNO,
@@ -197,105 +190,60 @@ static unsigned long strtoul(const char* arg) {
     }
 }
 
-int main(int argc, char** argv) {
-    // Make sure that we dump callstacks on the console
-    install_backtrace_terminate_handler();
-    cb::net::initialize();
-
-    int cmd;
-    std::string port{"11210"};
-    std::string host{"localhost"};
-    std::string user{};
-    std::string password{};
-    std::string bucket{};
-    sa_family_t family = AF_UNSPEC;
-    std::string name = "dcplatency";
-    std::size_t size = 8192;
-
-    std::vector<option> long_options = {
-            {"ipv4", no_argument, nullptr, '4'},
-            {"ipv6", no_argument, nullptr, '6'},
-            {"host", required_argument, nullptr, 'h'},
-            {"port", required_argument, nullptr, 'p'},
-            {"bucket", required_argument, nullptr, 'b'},
-            {"password", required_argument, nullptr, 'P'},
-            {"user", required_argument, nullptr, 'u'},
-            {"help", no_argument, nullptr, 0},
-            {"name", required_argument, nullptr, 'N'},
-            {"verbose", no_argument, nullptr, 'v'},
-            {"size", required_argument, nullptr, 's'},
-            {"iterations", required_argument, nullptr, 'i'},
-            {nullptr, 0, nullptr, 0}};
-
-    while ((cmd = getopt_long(argc, argv, "", long_options.data(), nullptr)) !=
-           EOF) {
-        switch (cmd) {
-        case '6':
-            family = AF_INET6;
-            break;
-        case '4':
-            family = AF_INET;
-            break;
-        case 'h':
-            host.assign(optarg);
-            break;
-        case 'p':
-            port.assign(optarg);
-            break;
-        case 'b':
-            bucket.assign(optarg);
-            break;
-        case 'u':
-            user.assign(optarg);
-            break;
-        case 'P':
-            password.assign(optarg);
-            break;
-        case 'v':
-            verbose = true;
-            break;
-        case 'N':
-            name = optarg;
-            break;
-        case 's':
-            size = strtoul(optarg);
-            break;
-        case 'i':
-            iterations = strtoul(optarg);
-            break;
-        default:
-            std::cerr << R"(Usage: dcplatency [options]
+static void usage(McProgramGetopt& instance, int exitcode) {
+    std::cerr << R"(Usage: dcplatency [options]
 
 Options:
 
-  --host hostname[:port]   The host (with an optional port) to connect to
-                           (for IPv6 use: [address]:port if you'd like to
-                           specify port)
-  --port port              The port number to connect to
-  --bucket bucketname      The name of the bucket to operate on
-  --user username          The name of the user to authenticate as
-  --password password      The password to use for authentication
-                           (use '-' to read from standard input)
-  --name                   The dcp name to use
-  --size size              The document size (in bytes)
-  --verbose                Add more output
-  --ipv4                   Connect over IPv4
-  --ipv6                   Connect over IPv6
-  --help                   This help text
+)" << instance << std::endl
+              << std::endl;
+    std::exit(exitcode);
+}
 
-)";
-            return EXIT_FAILURE;
-        }
-    }
+int main(int argc, char** argv) {
+    McProgramGetopt getopt;
+    std::string bucket{};
+    std::string name = "dcplatency";
+    std::size_t size = 8192;
+    using cb::getopt::Argument;
+    getopt.addOption({[&bucket](auto value) { bucket = std::string{value}; },
+                      'b',
+                      "bucket",
+                      Argument::Required,
+                      "bucketname",
+                      "The name of the bucket to operate on"});
 
-    if (password == "-") {
-        password.assign(getpass());
-    } else if (password.empty()) {
-        const char* env_password = std::getenv("CB_PASSWORD");
-        if (env_password) {
-            password = env_password;
-        }
-    }
+    getopt.addOption({[&name](auto value) { name = std::string{value}; },
+                      "name",
+                      Argument::Required,
+                      "dcpname",
+                      "The dcp name to use"});
+
+    getopt.addOption({[&size](auto value) {
+                          size = strtoul(std::string{value.data()}.c_str());
+                      },
+                      "size",
+                      Argument::Required,
+                      "#bytes",
+                      "The document size"});
+
+    getopt.addOption({[](auto value) {
+                          iterations =
+                                  strtoul(std::string{value.data()}.c_str());
+                      },
+                      "iterations",
+                      Argument::Required,
+                      "number",
+                      "The number of times we should send the document"});
+
+    getopt.addOption(
+            {[](auto) { verbose = true; }, "verbose", "Add more output"});
+
+    getopt.addOption({[&getopt](auto value) { usage(getopt, EXIT_SUCCESS); },
+                      "help",
+                      "This help text"});
+
+    getopt.parse(argc, argv, [&getopt]() { usage(getopt, EXIT_FAILURE); });
 
     if (bucket.empty()) {
         std::cerr << "Please specify bucket with -b" << std::endl;
@@ -305,21 +253,12 @@ Options:
     cb::libevent::unique_event_base_ptr base(event_base_new());
     std::vector<cb::libevent::unique_bufferevent_ptr> events;
     try {
-        in_port_t in_port;
-        sa_family_t fam;
-        std::tie(host, in_port, fam) = cb::inet::parse_hostname(host, port);
-
-        if (family == AF_UNSPEC) { // The user may have used -4 or -6
-            family = fam;
-        }
-
-        auto loadClient =
-                createConnection(host, in_port, family, user, password, bucket);
+        getopt.assemble();
+        auto loadClient = createConnection(getopt, bucket);
         loadClient->execute(
                 BinprotGenericCommand{cb::mcbp::ClientOpcode::Delete, "key"});
 
-        auto dcpConnection =
-                createConnection(host, in_port, family, user, password, bucket);
+        auto dcpConnection = createConnection(getopt, bucket);
         setupDcpConnection(*dcpConnection);
 
         // Setup the Client
