@@ -281,8 +281,7 @@ public:
             CookieIface& cookie,
             const cb::rangescan::ContinueParameters& params) override;
     cb::engine_errc cancelRangeScan(cb::rangescan::Id id,
-                                    CookieIface* cookie,
-                                    bool schedule) override;
+                                    CookieIface* cookie) override;
     cb::engine_errc doRangeScanStats(const StatCollector& collector) override;
 
     /**
@@ -325,15 +324,6 @@ public:
      * @return success if the scan was successfully added
      */
     cb::engine_errc addNewRangeScan(std::shared_ptr<RangeScan> scan);
-
-    /**
-     * Locate the scan with the given id and remove it from the set of known
-     * scans, marking as complete. Note the scan may genuinely not exist due
-     * to a cancellation getting ahead of this call, or even a vbucket state
-     * change (this is no longer the vbucket which created the scan).
-     * @param id uuid of the scan to mark as complete
-     */
-    void completeRangeScan(cb::rangescan::Id id);
 
     /**
      * Locate all scans and cancel any with a lifetime > duration

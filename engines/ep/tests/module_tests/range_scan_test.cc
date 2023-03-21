@@ -787,16 +787,14 @@ TEST_P(RangeScanCreateAndContinueTest, continue_must_be_serialised) {
     destroy_mock_cookie(cookie2);
 
     // But can cancel
-    EXPECT_EQ(cb::engine_errc::success,
-              vb->cancelRangeScan(uuid, cookie, true));
+    EXPECT_EQ(cb::engine_errc::success, vb->cancelRangeScan(uuid, cookie));
 }
 
 // Create and then straight to cancel
 TEST_P(RangeScanCreateAndContinueTest, create_cancel) {
     auto uuid = createScan(scanCollection, {"user"}, {"user\xFF"});
     auto vb = store->getVBucket(vbid);
-    EXPECT_EQ(cb::engine_errc::success,
-              vb->cancelRangeScan(uuid, cookie, true));
+    EXPECT_EQ(cb::engine_errc::success, vb->cancelRangeScan(uuid, cookie));
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
                 "RangeScanContinueTask");
 
@@ -827,8 +825,7 @@ TEST_P(RangeScanCreateAndContinueTest, create_continue_is_cancelled) {
               vb->continueRangeScan(*cookie, continueParams));
 
     // Cancel
-    EXPECT_EQ(cb::engine_errc::success,
-              vb->cancelRangeScan(uuid, cookie, true));
+    EXPECT_EQ(cb::engine_errc::success, vb->cancelRangeScan(uuid, cookie));
 
     // Task will run and cancel the scan, it will reschedule until nothing is
     // found in the ReadyScans queue (so 1 reschedule for this test).
@@ -857,7 +854,7 @@ TEST_P(RangeScanCreateAndContinueTest, create_continue_is_cancelled_2) {
             // a double lock of the collection manifest which is locked by the
             // scan loop
             EXPECT_EQ(cb::engine_errc::success,
-                      vb->cancelRangeScan(uuid, nullptr, true));
+                      vb->cancelRangeScan(uuid, nullptr));
         }
         return TestRangeScanHandler::Status::OK;
     };
@@ -865,8 +862,7 @@ TEST_P(RangeScanCreateAndContinueTest, create_continue_is_cancelled_2) {
     continueRangeScan(uuid, 0, 0ms, 0, cb::engine_errc::range_scan_cancelled);
 
     // Check scan is gone, cannot be cancelled again
-    EXPECT_EQ(cb::engine_errc::no_such_key,
-              vb->cancelRangeScan(uuid, cookie, true));
+    EXPECT_EQ(cb::engine_errc::no_such_key, vb->cancelRangeScan(uuid, cookie));
 
     // Or continued, uuid is unknown
     EXPECT_EQ(
@@ -930,8 +926,7 @@ TEST_P(RangeScanCreateAndContinueTest, snapshot_upto_seqno) {
                            reqs,
                            {/* no sampling config*/},
                            cb::engine_errc::success);
-    EXPECT_EQ(cb::engine_errc::success,
-              vb->cancelRangeScan(uuid, cookie, true));
+    EXPECT_EQ(cb::engine_errc::success, vb->cancelRangeScan(uuid, cookie));
 }
 
 TEST_P(RangeScanCreateAndContinueTest, snapshot_contains_seqno) {
@@ -946,8 +941,7 @@ TEST_P(RangeScanCreateAndContinueTest, snapshot_contains_seqno) {
                            reqs,
                            {/* no sampling config*/},
                            cb::engine_errc::success);
-    EXPECT_EQ(cb::engine_errc::success,
-              vb->cancelRangeScan(uuid, cookie, true));
+    EXPECT_EQ(cb::engine_errc::success, vb->cancelRangeScan(uuid, cookie));
 }
 
 // There is no wait option, so a future seqno is a failure
@@ -1333,9 +1327,8 @@ TEST_P(RangeScanCreateAndContinueTest, wait_for_persistence_success) {
                            {/* no sampling config*/},
                            cb::engine_errc::success);
 
-    // Close the scan, schedule the IO task to process the closure
-    EXPECT_EQ(cb::engine_errc::success,
-              vb->cancelRangeScan(uuid, cookie, true));
+    // Close the scan
+    EXPECT_EQ(cb::engine_errc::success, vb->cancelRangeScan(uuid, cookie));
 }
 
 TEST_P(RangeScanCreateTest, wait_for_persistence_fails) {
@@ -1408,8 +1401,7 @@ TEST_P(RangeScanCreateAndContinueTest, cancel_when_yielding) {
     // would yield
     testHook = [&vb, uuid, this](size_t count) {
         // Cancel after the first key has been read
-        EXPECT_EQ(cb::engine_errc::success,
-                  vb->cancelRangeScan(uuid, nullptr, true));
+        EXPECT_EQ(cb::engine_errc::success, vb->cancelRangeScan(uuid, nullptr));
         return TestRangeScanHandler::Status::OK;
     };
 

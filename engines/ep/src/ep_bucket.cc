@@ -2490,8 +2490,7 @@ cb::engine_errc EPBucket::cancelRangeScan(Vbid vbid,
         ++stats.numNotMyVBuckets;
         return cb::engine_errc::not_my_vbucket;
     }
-    return vb->cancelRangeScan(
-            uuid, &cookie, true /* schedule for background cancel */);
+    return vb->cancelRangeScan(uuid, &cookie);
 }
 
 cb::engine_errc EPBucket::prepareForPause(

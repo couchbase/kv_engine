@@ -213,16 +213,6 @@ public:
     std::shared_ptr<RangeScan> getScan(cb::rangescan::Id id) const;
 
     /**
-     * Handler for completed scans. A completed scan will be removed from the
-     * set of known scans and allowed to destruct. The destruction is intended
-     * to happen in the caller. It is possible that this call does nothing if
-     * a cancellation occurs ahead of this call.
-     *
-     * @param id scan to complete
-     */
-    void completeScan(cb::rangescan::Id id);
-
-    /**
      * Check if the caller can progress the scan with the given id by doing
      * a privilege check.
      *

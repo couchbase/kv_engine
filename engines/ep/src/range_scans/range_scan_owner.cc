@@ -381,10 +381,6 @@ std::shared_ptr<RangeScan> VB::RangeScanOwner::getScan(
     return itr->second;
 }
 
-void VB::RangeScanOwner::completeScan(cb::rangescan::Id id) {
-    // @todo: deadcode to be removed - no callers
-}
-
 std::shared_ptr<RangeScan> VB::RangeScanOwner::processCancelledScan(
         cb::rangescan::Id id) {
     auto locked = syncData.wlock();

@@ -279,9 +279,7 @@ public:
             const cb::rangescan::CreateParameters&) override;
     cb::engine_errc continueRangeScan(
             CookieIface&, const cb::rangescan::ContinueParameters&) override;
-    cb::engine_errc cancelRangeScan(cb::rangescan::Id,
-                                    CookieIface*,
-                                    bool) override;
+    cb::engine_errc cancelRangeScan(cb::rangescan::Id, CookieIface*) override;
     cb::engine_errc doRangeScanStats(const StatCollector&) override;
 
 protected:
