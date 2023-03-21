@@ -7268,7 +7268,11 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
             auto& stats = statsKeys.at(statGroup);
             stats.insert(stats.end(),
                          {"ep_history_retention_seconds",
-                          "ep_history_retention_bytes"});
+                          "ep_history_retention_bytes",
+                          "ep_magma_seq_tree_data_block_size",
+                          "ep_magma_seq_tree_index_block_size",
+                          "ep_magma_key_tree_data_block_size",
+                          "ep_magma_key_tree_index_block_size"});
         }
     }
 

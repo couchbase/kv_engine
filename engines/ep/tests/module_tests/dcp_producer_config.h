@@ -28,12 +28,16 @@ class MockDcpProducer;
  */
 class DcpProducerConfig {
 public:
+    // Default constructor yields the most "modern" replication configuration
+    DcpProducerConfig() = default;
+
     DcpProducerConfig(std::string_view name,
                       OutOfOrderSnapshots outOfOrderSnapshots,
-                      bool enableSyncRep,
+                      SyncReplication syncReplication,
                       ChangeStreams changeStreams,
                       IncludeXattrs includeXattrs,
-                      IncludeDeleteTime includeDeleteTime);
+                      IncludeDeleteTime includeDeleteTime,
+                      FlatBuffersEvents flatBuffersEvents);
 
     /**
      * @return MockDcpProducer which has been configured using the given
@@ -43,11 +47,11 @@ public:
             EventuallyPersistentEngine& engine, CookieIface* cookieP) const;
 
     bool useOSOSnapshots() const;
+    bool useFlatBufferEvents() const;
 
 private:
     const std::string& getName() const;
     bool useSyncReplication() const;
-    bool useFlatBufferEvents() const;
     bool useChangeStreams() const;
     bool useXattrs() const;
     bool useDeleteTimes() const;
@@ -55,10 +59,12 @@ private:
     // runs DcpControl setup
     void configure(MockDcpProducer& producer) const;
 
-    std::string name;
-    OutOfOrderSnapshots outOfOrderSnapshots;
-    bool enableSyncRep{false};
-    ChangeStreams changeStreams;
-    IncludeXattrs includeXattrs;
-    IncludeDeleteTime includeDeleteTime;
+    // Default initialisation yields the most "modern" replication configuration
+    std::string name{"test_producer"};
+    OutOfOrderSnapshots outOfOrderSnapshots{OutOfOrderSnapshots::No};
+    SyncReplication syncReplication{SyncReplication::SyncReplication};
+    ChangeStreams changeStreams{ChangeStreams::Yes};
+    IncludeXattrs includeXattrs{IncludeXattrs::Yes};
+    IncludeDeleteTime includeDeleteTime{IncludeDeleteTime::Yes};
+    FlatBuffersEvents flatBuffersEvents{FlatBuffersEvents::Yes};
 };
