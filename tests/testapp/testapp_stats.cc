@@ -611,6 +611,15 @@ TEST_P(StatsTest, TestTracingStats) {
     EXPECT_NE(stats.end(), enabled);
 }
 
+#if defined(HAVE_JEMALLOC)
+TEST_P(StatsTest, TestAllocatorStats) {
+    auto stats =
+            adminConnection->stats("allocator")["allocator"].get<std::string>();
+    EXPECT_EQ(0, stats.find("___ Begin jemalloc statistics ___"));
+    EXPECT_NE(std::string::npos, stats.find("--- End jemalloc statistics ---"));
+}
+#endif
+
 /**
  * Check the format of the "frequency-counters" histograms.
  * We should have one histogram with 256 buckets for each vb state.

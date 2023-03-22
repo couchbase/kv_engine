@@ -529,41 +529,8 @@ static cb::engine_errc stat_bucket_collections_stats(const std::string&,
 
 static cb::engine_errc stat_allocator_executor(const std::string&,
                                                Cookie& cookie) {
-    std::vector<char> lineBuffer;
-    lineBuffer.reserve(256);
-    struct CallbackData {
-        std::vector<char>& lineBuffer;
-        Cookie& cookie;
-    } callbackData{lineBuffer, cookie};
-
-    // je_malloc will return each line of output in multiple callbacks, we will
-    // join those together and send individual lines to the client (without the
-    // newline), if mcstat is the caller each returned 'line' is printed with
-    // a newline and we get nicely formatted statistics.
-    static auto callback = [](void* opaque, const char* msg) {
-        auto* cbdata = reinterpret_cast<CallbackData*>(opaque);
-        std::string_view message(msg);
-        auto& buf = cbdata->lineBuffer;
-        bool newlineFound = false;
-
-        // Use copy_if so we can scan for newlines whilst copying to our buffer
-        std::copy_if(message.begin(),
-                     message.end(),
-                     std::back_inserter(buf),
-                     [&newlineFound](char c) {
-                         if (c == '\n') {
-                             newlineFound = true;
-                             return false;
-                         }
-                         return true;
-                     });
-
-        if (newlineFound) {
-            append_stats("allocator", {buf.data(), buf.size()}, cbdata->cookie);
-            buf.clear();
-        }
-    };
-    cb::ArenaMalloc::getDetailedStats(callback, &callbackData);
+    auto details = cb::ArenaMalloc::getDetailedStats();
+    append_stats("allocator", details, cookie);
     return cb::engine_errc::success;
 }
 
