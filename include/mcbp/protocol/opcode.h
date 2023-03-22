@@ -485,4 +485,4 @@ std::string to_string(cb::mcbp::ServerOpcode opcode);
  *
  * @throws std::invalid_argument for unknown opcodes
  */
-cb::mcbp::ClientOpcode to_opcode(const std::string& string);
+cb::mcbp::ClientOpcode to_opcode(std::string_view string);

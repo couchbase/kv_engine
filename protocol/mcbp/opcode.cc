@@ -8,6 +8,7 @@
  *   the file licenses/APL2.txt.
  */
 
+#include <fmt/format.h>
 #include <mcbp/protocol/opcode.h>
 #include <platform/string_hex.h>
 #include <algorithm>
@@ -2080,7 +2081,7 @@ std::string to_string(cb::mcbp::ServerOpcode opcode) {
             std::to_string(int(opcode)));
 }
 
-cb::mcbp::ClientOpcode to_opcode(const std::string& string) {
+cb::mcbp::ClientOpcode to_opcode(std::string_view string) {
     std::string input;
     std::transform(
             string.begin(), string.end(), std::back_inserter(input), ::toupper);
@@ -2097,6 +2098,6 @@ cb::mcbp::ClientOpcode to_opcode(const std::string& string) {
         }
     }
 
-    throw std::invalid_argument("to_opcode(): unknown opcode: \"" + string +
-                                "\"");
+    throw std::invalid_argument(
+            fmt::format(R"(to_opcode(): unknown opcode: "{}")", string));
 }
