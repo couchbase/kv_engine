@@ -26,9 +26,9 @@
 #include <platform/cbassert.h>
 #include <platform/dirutils.h>
 #include <platform/socket.h>
+#include <platform/terminal_color.h>
 #include <spdlog/sinks/ringbuffer_sink.h>
 #include <utilities/string_utilities.h>
-#include <utilities/terminal_color.h>
 #include <chrono>
 #include <cinttypes>
 #include <cstdlib>
@@ -37,6 +37,8 @@
 #include <regex>
 #include <string>
 #include <vector>
+
+using namespace cb::terminal;
 
 static bool verbose_logging = false;
 

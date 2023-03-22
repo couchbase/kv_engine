@@ -17,10 +17,6 @@ add_library(mcd_util STATIC
             breakpad.cc
             breakpad_settings.cc
             breakpad_settings.h
-            terminal_color.cc
-            terminal_color.h
-            terminal_size.cc
-            terminal_size.h
             config_parser.cc
             connection_iface.cc
             cookie_iface.cc

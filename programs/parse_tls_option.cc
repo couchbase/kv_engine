@@ -10,9 +10,11 @@
 
 #include "parse_tls_option.h"
 #include <platform/split_string.h>
-#include <utilities/terminal_color.h>
+#include <platform/terminal_color.h>
 #include <cstdlib>
 #include <iostream>
+
+using cb::terminal::TerminalColor;
 
 TlsSpec parse_tls_option_or_exit(std::string_view argument) {
     if (argument.empty()) {

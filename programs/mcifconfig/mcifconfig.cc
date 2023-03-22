@@ -9,13 +9,15 @@
  */
 
 #include <platform/dirutils.h>
+#include <platform/terminal_color.h>
 #include <programs/mc_program_getopt.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <protocol/connection/frameinfo.h>
-#include <utilities/terminal_color.h>
 #include <filesystem>
 #include <iostream>
+
+using cb::terminal::TerminalColor;
 
 static void usage(McProgramGetopt& getopt, int exitcode) {
     std::cerr << R"(Usage mcifconfig [options] <tls|list|define|delete>

@@ -13,14 +13,16 @@
 
 #include <memcached/io_control.h>
 #include <memcached/protocol_binary.h>
+#include <platform/terminal_color.h>
+#include <platform/terminal_size.h>
 #include <programs/getpass.h>
 #include <programs/mc_program_getopt.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
-#include <utilities/terminal_color.h>
-#include <utilities/terminal_size.h>
 #include <cstdlib>
 #include <iostream>
+
+using namespace cb::terminal;
 
 /**
  * Get the verbosity level on the server.

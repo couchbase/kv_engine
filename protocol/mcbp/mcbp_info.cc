@@ -13,9 +13,11 @@
 #include <mcbp/protocol/opcode.h>
 #include <mcbp/protocol/status.h>
 #include <platform/string_hex.h>
-#include <utilities/terminal_color.h>
+#include <platform/terminal_color.h>
 #include <iostream>
 #include <vector>
+
+using cb::terminal::TerminalColor;
 
 static void usage() {
     std::cerr << R"(Usage: mcbp_info [options]
@@ -188,7 +190,7 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    setTerminalColorSupport(color);
+    cb::terminal::setTerminalColorSupport(color);
 
     for (const auto& c : commands) {
         switch (c) {

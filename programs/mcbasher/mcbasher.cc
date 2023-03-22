@@ -32,12 +32,14 @@
 #include <folly/portability/Unistd.h>
 #include <getopt.h>
 #include <mcbp/protocol/header.h>
+#include <platform/terminal_color.h>
 #include <programs/getpass.h>
 #include <protocol/connection/client_mcbp_commands.h>
-#include <utilities/terminal_color.h>
 #include <iostream>
 #include <random>
 #include <thread>
+
+using namespace cb::terminal;
 
 folly::SocketAddress address;
 std::string user;

@@ -16,13 +16,15 @@
 #include <platform/cb_malloc.h>
 #include <platform/interrupt.h>
 #include <platform/strerror.h>
+#include <platform/terminal_color.h>
 #include <programs/mc_program_getopt.h>
 #include <protocol/connection/client_connection.h>
-#include <utilities/terminal_color.h>
 #include <chrono>
 #include <cstdio>
 #include <iostream>
 #include <thread>
+
+using namespace cb::terminal;
 
 static bool caughtSigInt = false;
 

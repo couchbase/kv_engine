@@ -15,6 +15,7 @@
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
 #include <platform/socket.h>
+#include <platform/terminal_color.h>
 #include <programs/getpass.h>
 #include <programs/hostname_utils.h>
 #include <programs/parse_tls_option.h>
@@ -22,13 +23,14 @@
 #include <protocol/connection/client_mcbp_commands.h>
 #include <utilities/json_utilities.h>
 #include <utilities/string_utilities.h>
-#include <utilities/terminal_color.h>
 #include <utilities/terminate_handler.h>
 #include <charconv>
 #include <csignal>
 #include <cstdlib>
 #include <iostream>
 #include <vector>
+
+using namespace cb::terminal;
 
 /// Callback class to send to folly to error out if an error occurs while
 /// trying to send data on the wire.

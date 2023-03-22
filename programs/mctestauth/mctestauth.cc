@@ -10,12 +10,14 @@
 
 #include <folly/portability/Unistd.h>
 #include <getopt.h>
+#include <platform/terminal_color.h>
 #include <programs/getpass.h>
 #include <programs/hostname_utils.h>
 #include <protocol/connection/client_connection.h>
 #include <utilities/string_utilities.h>
-#include <utilities/terminal_color.h>
 #include <iostream>
+
+using namespace cb::terminal;
 
 static void usage() {
     std::cerr << R"(Usage: mctestauth [options]

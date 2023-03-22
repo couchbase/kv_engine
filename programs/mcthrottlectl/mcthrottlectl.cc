@@ -7,11 +7,13 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
+#include <platform/terminal_color.h>
 #include <programs/mc_program_getopt.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
-#include <utilities/terminal_color.h>
 #include <iostream>
+
+using cb::terminal::TerminalColor;
 
 static void usage(McProgramGetopt& getopt, int exitcode) {
     std::cerr << R"(Usage mcthrottlectl [options] <bucketname>

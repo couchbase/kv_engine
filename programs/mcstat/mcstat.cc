@@ -10,14 +10,16 @@
 
 #include <folly/portability/Unistd.h>
 #include <memcached/stat_group.h>
+#include <platform/terminal_color.h>
+#include <platform/terminal_size.h>
 #include <programs/getpass.h>
 #include <programs/mc_program_getopt.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/frameinfo.h>
-#include <utilities/terminal_color.h>
-#include <utilities/terminal_size.h>
 #include <iostream>
 #include <limits>
+
+using namespace cb::terminal;
 
 /**
  * Request a stat from the server
