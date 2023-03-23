@@ -28,7 +28,6 @@
 #include "kvstore/kvstore.h"
 #include "replicationthrottle.h"
 #include "test_helpers.h"
-#include "test_manifest.h"
 #include "tests/test_fileops.h"
 #include "thread_gate.h"
 #include "vbucket.h"
@@ -5627,7 +5626,6 @@ void CDCActiveStreamTest::SetUp() {
     // @todo CDC: Can remove as soon as magma enables history
     replaceMagmaKVStore();
 
-    CollectionsManifest manifest;
     manifest.add(CollectionEntry::historical,
                  cb::NoExpiryLimit,
                  true /*history*/,
@@ -5935,6 +5933,102 @@ TEST_P(CDCActiveStreamTest, ResilientToRetentionConfigChanges_Bytes) {
 
 TEST_P(CDCActiveStreamTest, ResilientToRetentionConfigChanges_Seconds) {
     testResilientToRetentionConfigChanges(HistoryRetentionMetric::SECONDS);
+}
+
+TEST_P(CDCActiveStreamTest, SnapshotAndSeqnoAdvanceCorrectHistoryFlag) {
+    ASSERT_TRUE(store->isHistoryRetentionEnabled());
+
+    // The SetUp step creates the historical collection and stores a bunch of
+    // items into the default collection. In this particular test we just need
+    // to start from a clean CM and stream.
+    manifest.remove(CollectionEntry::historical);
+    auto& vb = *store->getVBucket(vbid);
+    vb.updateFromManifest(folly::SharedMutex::ReadHolder(vb.getStateLock()),
+                          Collections::Manifest{std::string{manifest}});
+    clearCMAndPersistenceAndReplication();
+
+    producer->closeStream(0, vbid, stream->getStreamId());
+
+    // Open a stream directly in a in-memory state
+    const auto highSeqno = vb.getHighSeqno();
+    stream = producer->mockActiveStreamRequest(
+            0 /*flags*/,
+            0 /*opaque*/,
+            vb,
+            highSeqno /*start_seqno*/,
+            ~0 /*end_seqno*/,
+            0x0 /*vb_uuid*/,
+            highSeqno /*snap_start_seqno*/,
+            ~0 /*snap_end_seqno*/,
+            producer->public_getIncludeValue(),
+            producer->public_getIncludeXattrs(),
+            producer->public_getIncludeDeletedUserXattrs(),
+            std::string_view{} /*jsonFilter*/);
+    ASSERT_TRUE(stream->isInMemory());
+
+    // FlatBuffers disabled makes the test flow in the path that is under
+    // verification in this test. Ie, at some point a SysEvent(modify) is
+    // generated, but the stream receives a SeqnoAdvance in place of the
+    // SysEvent.
+    ASSERT_TRUE(stream->areChangeStreamsEnabled());
+    ASSERT_FALSE(stream->isFlatBuffersSystemEventEnabled());
+
+    // Add a collection
+    manifest.add(CollectionEntry::historical,
+                 cb::NoExpiryLimit,
+                 true /*history*/,
+                 ScopeEntry::defaultS);
+    vb.updateFromManifest(folly::SharedMutex::ReadHolder(vb.getStateLock()),
+                          Collections::Manifest{std::string{manifest}});
+
+    const auto& readyQ = stream->public_readyQ();
+    ASSERT_EQ(0, readyQ.size());
+    stream->nextCheckpointItemTask();
+    ASSERT_EQ(2, readyQ.size()); // SnapshotMarker + SysEvent
+
+    auto resp = stream->public_nextQueuedItem(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto* marker = dynamic_cast<SnapshotMarker*>(resp.get());
+    // MARKER_FLAG_HISTORY is set in the marker
+    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_CHK | MARKER_FLAG_HISTORY,
+              marker->getFlags());
+    resp = stream->public_nextQueuedItem(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SystemEvent, resp->getEvent());
+    EXPECT_EQ(vb.getHighSeqno(), resp->getBySeqno());
+
+    EXPECT_EQ(0, readyQ.size());
+
+    // Modify the collection
+    manifest.update(CollectionEntry::historical,
+                    cb::NoExpiryLimit,
+                    {} /*history*/,
+                    ScopeEntry::defaultS);
+    vb.updateFromManifest(folly::SharedMutex::ReadHolder(vb.getStateLock()),
+                          Collections::Manifest{std::string{manifest}});
+
+    stream->nextCheckpointItemTask();
+    ASSERT_EQ(2, readyQ.size()); // SnapshotMarker + SeqnoAdvance
+
+    resp = stream->public_nextQueuedItem(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    marker = dynamic_cast<SnapshotMarker*>(resp.get());
+    // Core of the test: MARKER_FLAG_HISTORY is set in the marker
+    // @todo MB-55465: Note that flags here are unexpectedly missing the
+    //  MARKER_FLAG_CHK, as this marker is generated from a different checkpoint
+    //  than the previous one. Out of scope in this test, deferring to its
+    //  dedicated ticket.
+    EXPECT_EQ(MARKER_FLAG_MEMORY | MARKER_FLAG_HISTORY, marker->getFlags());
+    // SeqnoAdvance in place of SysEvent(modify), as flatbuffers sys-events are
+    // disabled
+    resp = stream->public_nextQueuedItem(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SeqnoAdvanced, resp->getEvent());
+    EXPECT_EQ(vb.getHighSeqno(), resp->getBySeqno());
+
+    EXPECT_EQ(0, readyQ.size());
 }
 
 INSTANTIATE_TEST_SUITE_P(Persistent,

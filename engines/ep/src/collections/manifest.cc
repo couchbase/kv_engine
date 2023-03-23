@@ -215,15 +215,10 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
 
             // Does the collection define a history setting
             auto collectionCanDeduplicate = CanDeduplicate::Yes;
-            auto historyConfigured = cb::getOptionalJsonObject(
+            const auto historyConfigured = cb::getOptionalJsonObject(
                     collection, HistoryKey, HistoryType);
-            if (historyConfigured) {
-                if (historyConfigured.value().get<bool>()) {
-                    collectionCanDeduplicate = CanDeduplicate::No;
-                } else {
-                    throwInvalid("history=false is not valid for collection:" +
-                                 cidValue.to_string());
-                }
+            if (historyConfigured && historyConfigured.value().get<bool>()) {
+                collectionCanDeduplicate = CanDeduplicate::No;
             }
 
             Metered meteredState{Metered::Yes};

@@ -1610,8 +1610,8 @@ ScanStatus RocksDBKVStore::scan(BySeqnoScanContext& ctx) const {
         if (!key.getDocKey().isInSystemCollection()) {
             if (ctx.docFilter !=
                 DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS) {
-                if (ctx.collectionsContext.isLogicallyDeleted(key.getDocKey(),
-                                                              byseqno)) {
+                if (ctx.collectionsContext.isLogicallyDeleted(
+                            key.getDocKey(), itm->isDeleted(), byseqno)) {
                     ctx.lastReadSeqno = byseqno;
                     continue;
                 }
