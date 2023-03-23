@@ -8,6 +8,7 @@
  *   the file licenses/APL2.txt.
  */
 #include "buckets.h"
+#include "bucket_destroyer.h"
 #include "connection.h"
 #include "cookie.h"
 #include "enginemap.h"
@@ -280,27 +281,27 @@ cb::engine_errc BucketManager::create(Cookie& cookie,
     }
     return result;
 }
+
 cb::engine_errc BucketManager::destroy(Cookie* cookie,
                                        const std::string name,
                                        bool force) {
-    cb::engine_errc ret = cb::engine_errc::no_such_key;
-    std::unique_lock<std::mutex> all_bucket_lock(buckets_lock);
-
-    Connection* connection = nullptr;
-    if (cookie != nullptr) {
-        connection = &cookie->getConnection();
+    auto [res, destroyer] = startDestroy(cookie, name, force);
+    Expects(destroyer || res != cb::engine_errc::would_block);
+    while (res == cb::engine_errc::would_block) {
+        using namespace std::chrono_literals;
+        std::this_thread::sleep_for(10ms);
+        res = destroyer->drive();
     }
 
-    /*
-     * The destroy function will have access to a connection if the
-     * McbpDestroyBucketTask originated from delete_bucket_executor().
-     * However if we are in the process of shuting down and the
-     * McbpDestroyBucketTask originated from main() then connection
-     * will be set to nullptr.
-     */
-    const std::string connection_id{
-            (connection == nullptr) ? "<none>"
-                                    : std::to_string(connection->getId())};
+    return res;
+}
+
+std::pair<cb::engine_errc, std::optional<BucketDestroyer>>
+BucketManager::startDestroy(Cookie* cookie,
+                            const std::string name,
+                            bool force) {
+    cb::engine_errc ret = cb::engine_errc::no_such_key;
+    std::unique_lock<std::mutex> all_bucket_lock(buckets_lock);
 
     size_t idx = 0;
     for (size_t ii = 0; ii < all_buckets.size(); ++ii) {
@@ -318,130 +319,27 @@ cb::engine_errc BucketManager::destroy(Cookie* cookie,
             break;
         }
     }
-    all_bucket_lock.unlock();
-
     if (ret != cb::engine_errc::success) {
-        LOG_INFO("{}: Delete bucket [{}]: {}",
-                 connection_id,
-                 name,
-                 to_string(ret));
-        return ret;
+        return {ret, {}};
     }
-
-    LOG_INFO("{}: Delete bucket [{}]. Notifying engine", connection_id, name);
-
-    all_buckets[idx].getEngine().initiate_shutdown();
-    all_buckets[idx].getEngine().cancel_all_operations_in_ewb_state();
-
-    LOG_INFO("{}: Delete bucket [{}]. Engine ready for shutdown",
-             connection_id,
-             name);
 
     /* If this thread is connected to the requested bucket... release it */
-    if (connection != nullptr && idx == size_t(connection->getBucketIndex())) {
-        disassociate_bucket(*connection, cookie);
-    }
-
-    // Wait until all users disconnected...
-    auto& bucket = all_buckets[idx];
-    {
-        std::unique_lock<std::mutex> guard(bucket.mutex);
-        if (bucket.clients > 0) {
-            LOG_INFO(
-                    "{}: Delete bucket [{}]. Wait for {} clients to disconnect",
-                    connection_id,
-                    name,
-                    bucket.clients);
-
-            // Signal clients bound to the bucket before waiting
-            guard.unlock();
-            iterate_all_connections([&bucket](Connection& connection) {
-                if (&connection.getBucket() == &bucket) {
-                    connection.signalIfIdle();
-                }
-            });
-            guard.lock();
-        }
-
-        using std::chrono::minutes;
-        using std::chrono::seconds;
-        using std::chrono::steady_clock;
-
-        // We need to disconnect all of the clients before we can delete the
-        // bucket. We log pending connections that are blocking bucket deletion.
-        auto nextLog = steady_clock::now() + minutes(2);
-        while (bucket.clients > 0) {
-            bucket.cond.wait_for(guard, seconds(1), [&bucket] {
-                return bucket.clients == 0;
-            });
-
-            if (bucket.clients == 0) {
-                break;
-            }
-
-            if (steady_clock::now() < nextLog) {
-                guard.unlock();
-                iterate_all_connections([&bucket](Connection& connection) {
-                    if (&connection.getBucket() == &bucket) {
-                        connection.signalIfIdle();
-                    }
-                });
-                bucket.getEngine().cancel_all_operations_in_ewb_state();
-                guard.lock();
-                continue;
-            }
-
-            nextLog = steady_clock::now() + minutes(1);
-
-            // drop the lock and notify the worker threads
-            guard.unlock();
-
-            nlohmann::json currConns;
-            iterate_all_connections([&bucket, &currConns](Connection& conn) {
-                if (&conn.getBucket() == &bucket) {
-                    conn.signalIfIdle();
-                    currConns[std::to_string(conn.getId())] = conn.toJSON();
-                }
-            });
-
-            LOG_INFO(
-                    R"({}: Delete bucket [{}]. Still waiting: {} clients connected: {})",
-                    connection_id,
-                    name,
-                    bucket.clients,
-                    currConns.dump());
-
-            guard.lock();
+    std::string connectionId = "<none>";
+    if (cookie != nullptr) {
+        auto& connection = cookie->getConnection();
+        connectionId = connection.getId();
+        if (idx == size_t(connection.getBucketIndex())) {
+            disassociate_bucket(connection, cookie);
         }
     }
-
-    auto num = bucket.items_in_transit.load();
-    int counter = 0;
-    while (num != 0) {
-        if (++counter % 100 == 0) {
-            LOG_INFO(
-                    R"({}: Delete bucket [{}]. Still waiting: {} items still stuck in transfer.)",
-                    connection_id,
-                    name,
-                    num);
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds{10});
-        num = bucket.items_in_transit.load();
-    }
-
-    LOG_INFO("{}: Delete bucket [{}]. Shut down the bucket",
-             connection_id,
-             name);
-    bucket.destroyEngine(force);
-
-    LOG_INFO("{}: Delete bucket [{}]. Clean up allocated resources ",
-             connection_id,
-             name);
-    bucket.reset();
-
-    LOG_INFO("{}: Delete bucket [{}] complete", connection_id, name);
-    return cb::engine_errc::success;
+    // The destroyer _could_ be stepped here until it first returns
+    // would_block, but startDestroy is called on a frontend thread and the
+    // destroyer may use e.g., iterate_all_connections which should not be
+    // called from a frontend thread context
+    return {cb::engine_errc::would_block,
+            BucketDestroyer(all_buckets[idx], connectionId, force)};
 }
+
 void BucketManager::forEach(std::function<bool(Bucket&)> fn) {
     std::lock_guard<std::mutex> all_bucket_lock(buckets_lock);
     for (Bucket& bucket : all_buckets) {
