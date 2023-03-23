@@ -2473,6 +2473,10 @@ bool ActiveStream::isTakeoverStream() const {
     return flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER;
 }
 
+bool ActiveStream::isIgnoringPurgedTombstones() const {
+    return flags_ & DCP_ADD_STREAM_FLAG_IGNORE_PURGED_TOMBSTONES;
+}
+
 bool ActiveStream::isSeqnoAdvancedEnabled() const {
     // SeqnoAdvance can only be sent if collections enabled as that's what added
     // the message.

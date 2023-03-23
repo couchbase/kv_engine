@@ -38,6 +38,13 @@ Once the producer adjusts the SnapStartSeqno and SnapEndSeqno, the rollback logi
 	SnapStartSeqno < PurgeSeqno and StartSeqno != 0
 The consumer needs to **full rollback to 0** (if the requested start seqno is not already 0). This is necessary because for a consistent view the consumer should not miss out on any deleted (and subsequently purged items) on the producer.
 
+_Note [CB 7.2]:_ DCP consumers can choose to opt-out of this rollback case by setting the
+`Ignore Purged Tombstones` flag as part of their StreamRequest flags - see
+[add-stream](../commands/add-stream.md).
+However, this can result in the consumer having an inconsistent view of the
+vBucket - they can miss Deletion messages for documents and hence end up with
+stale documents (which have been deleted on the server) forever.
+
 #### 3. Diverging History
 	Consumer VBucket UUID not found in producer's failover table
 Producer and consumer have no common histories. Hence **full rollback to 0**.

@@ -427,15 +427,22 @@ cb::engine_errc DcpProducer::streamRequest(
         }
     }
 
-    auto needsRollback =
-            vb->failovers->needsRollback(start_seqno,
-                                         vb->getHighSeqno(),
-                                         vbucket_uuid,
-                                         snap_start_seqno,
-                                         snap_end_seqno,
-                                         vb->getPurgeSeqno(),
-                                         flags & DCP_ADD_STREAM_STRICT_VBUUID,
-                                         getHighSeqnoOfCollections(filter, *vb));
+    auto purgeSeqno = vb->getPurgeSeqno();
+    if (flags & DCP_ADD_STREAM_FLAG_IGNORE_PURGED_TOMBSTONES) {
+        // If the client does not care about purged tombstones, we issue
+        // the request as-if the purgeSeqno is zero.
+        purgeSeqno = 0;
+    }
+
+    const auto needsRollback = vb->failovers->needsRollback(
+            start_seqno,
+            vb->getHighSeqno(),
+            vbucket_uuid,
+            snap_start_seqno,
+            snap_end_seqno,
+            purgeSeqno,
+            flags & DCP_ADD_STREAM_STRICT_VBUUID,
+            getHighSeqnoOfCollections(filter, *vb));
 
     if (needsRollback) {
         *rollback_seqno = needsRollback->rollbackSeqno;
