@@ -110,10 +110,11 @@ int main(int argc, char** argv) {
     config.parseConfiguration("dbname="s + filename);
     CouchKVStoreConfig kvStoreConfig(config, "couchdb", 1, 0);
     auto kvstore = KVStoreFactory::create(kvStoreConfig);
-    vbucket_state state;
-    state.transition.state = vbucket_state_active;
+    Collections::VB::Manifest m{std::make_shared<Collections::Manager>()};
+    VB::Commit meta(m);
+    meta.proposedVBState.transition.state = vbucket_state_active;
     Vbid vbid{0};
-    kvstore->snapshotVBucket(vbid, state);
+    kvstore->snapshotVBucket(vbid, meta);
 
     std::vector<StoredDocKey> keys;
     // Populate vBucket with N documents

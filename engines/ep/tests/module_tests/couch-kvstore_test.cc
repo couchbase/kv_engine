@@ -166,10 +166,11 @@ TEST_F(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
     ASSERT_NE(nullptr, kvstore);
 
     // Activate vBucket.
-    vbucket_state state;
-    state.transition.state = vbucket_state_active;
-    state.maxCas = -1;
-    EXPECT_TRUE(kvstore->snapshotVBucket(Vbid(0), state));
+    Collections::VB::Manifest m{std::make_shared<Collections::Manager>()};
+    VB::Commit meta(m);
+    meta.proposedVBState.transition.state = vbucket_state_active;
+    meta.proposedVBState.maxCas = -1;
+    EXPECT_TRUE(kvstore->snapshotVBucket(Vbid(0), meta));
     EXPECT_EQ(~0ull, kvstore->listPersistedVbuckets()[0]->maxCas);
 
     // Close the file, then re-open.
@@ -647,11 +648,12 @@ TEST_F(CouchKVStoreErrorInjectionTest, initializeWithHeaderButNoVBState) {
 
     // Set something in the vbucket_state to differentiate it from the
     // default constructed one. It doesn't matter what we set.
-    vbucket_state state;
-    state.maxVisibleSeqno = 10;
+    Collections::VB::Manifest m{std::make_shared<Collections::Manager>()};
+    VB::Commit meta(m);
+    meta.proposedVBState.maxVisibleSeqno = 10;
 
     // Must fail
-    EXPECT_FALSE(kvstore->snapshotVBucket(vbid, state));
+    EXPECT_FALSE(kvstore->snapshotVBucket(vbid, meta));
 
     // vbucket_state is still default as readVBState returns a default value
     // instead of a non-success status or exception...
@@ -1384,11 +1386,12 @@ public:
         // simulate a setVBState - increment the rev and then persist the
         // state
         kvstore->prepareToCreateImpl(vbid);
-        vbucket_state state;
-        state.transition.state = vbucket_state_active;
+        Collections::VB::Manifest m{std::make_shared<Collections::Manager>()};
+        VB::Commit meta(m);
+        meta.proposedVBState.transition.state = vbucket_state_active;
         // simulate a setVBState - increment the dbFile revision
         kvstore->prepareToCreateImpl(vbid);
-        kvstore->snapshotVBucket(vbid, state);
+        kvstore->snapshotVBucket(vbid, meta);
 
         // Flush defaults the vBucket state to deleted and any test reading
         // the state from disk needs it to be active so set to active here
