@@ -158,10 +158,7 @@ public:
 
     std::vector<vbucket_state*> listPersistedVbuckets() override;
 
-    /**
-     * Take a snapshot of the vbucket states in the main DB.
-     */
-    bool snapshotVBucket(Vbid vbucketId, const vbucket_state& vbstate) override;
+    bool snapshotVBucket(Vbid vbucketId, const VB::Commit& meta) override;
 
     // Compaction in magma is asynchronous. Its triggered by 3 conditions:
     //  - Level compaction
@@ -478,10 +475,10 @@ public:
      * create a WriteDocs batch to write it.
      *
      * @param vbid vbucket id
-     * @param vbstate vbucket state
+     * @param meta Information to be passed to the storage
      * @return status
      */
-    magma::Status writeVBStateToDisk(Vbid vbid, const vbucket_state& vbstate);
+    magma::Status writeVBStateToDisk(Vbid vbid, const VB::Commit& meta);
 
     /**
      * Read the encoded vstate + docCount from the local db.

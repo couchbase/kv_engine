@@ -241,14 +241,7 @@ public:
      */
     std::vector<vbucket_state*> listPersistedVbuckets() override;
 
-    /**
-     * Persist a snapshot of the vbucket states in the underlying storage system.
-     *
-     * @param vbucketId - vbucket id
-     * @param vbstate   - vbucket state
-     * @return true if the snapshot is done successfully
-     */
-    bool snapshotVBucket(Vbid vbucketId, const vbucket_state& vbstate) override;
+    bool snapshotVBucket(Vbid vbucketId, const VB::Commit& meta) override;
 
     CompactDBStatus compactDB(std::unique_lock<std::mutex>& vbLock,
                               std::shared_ptr<CompactionContext> ctx) override;

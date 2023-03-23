@@ -55,8 +55,8 @@ MockKVStore::MockKVStore(std::unique_ptr<KVStoreIface> real)
             return this->realKVS->getConfig();
         });
         ON_CALL(*this, snapshotVBucket(_, _))
-                .WillByDefault([this](Vbid vbid, const vbucket_state& vbstate) {
-                    return this->realKVS->snapshotVBucket(vbid, vbstate);
+                .WillByDefault([this](Vbid vbid, const VB::Commit& meta) {
+                    return this->realKVS->snapshotVBucket(vbid, meta);
                 });
         ON_CALL(*this, begin(_, _))
                 .WillByDefault(

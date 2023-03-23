@@ -16,6 +16,7 @@
 #include "../mock/mock_kvstore.h"
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint_manager.h"
+#include "collections/manager.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "configuration.h"
 #include "dcp/response.h"
@@ -1212,9 +1213,11 @@ TEST_P(DurabilityWarmupTest, ReplicationTopologyMissing) {
 
     // Remove the replicationTopology and re-persist.
     auto* kvstore = engine->getKVBucket()->getRWUnderlying(vbid);
-    auto vbstate = *kvstore->getCachedVBucketState(vbid);
-    vbstate.transition.replicationTopology.clear();
-    kvstore->snapshotVBucket(vbid, vbstate);
+    Collections::VB::Manifest m{std::make_shared<Collections::Manager>()};
+    VB::Commit meta(m);
+    meta.proposedVBState = *kvstore->getCachedVBucketState(vbid);
+    meta.proposedVBState.transition.replicationTopology.clear();
+    kvstore->snapshotVBucket(vbid, meta);
 
     resetEngineAndWarmup();
     EXPECT_EQ(0, store->getEPEngine().getEpStats().warmedUpPrepares);

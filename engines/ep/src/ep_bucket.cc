@@ -792,7 +792,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
 
     // Are we flushing only a new vbstate?
     if (mustPersistVBState && (flushBatchSize == 0)) {
-        if (!rwUnderlying->snapshotVBucket(vbid, commitData.proposedVBState)) {
+        if (!rwUnderlying->snapshotVBucket(vbid, commitData)) {
             flushFailureEpilogue(*vb, toFlush);
 
             return {MoreAvailable::Yes, 0};

@@ -1258,24 +1258,24 @@ void MagmaKVStore::resumeImplicitCompaction(Vbid vbid) {
 
 // Note: It is assumed this can only be called from bg flusher thread or
 // there will be issues with writes coming from multiple threads.
-bool MagmaKVStore::snapshotVBucket(Vbid vbid, const vbucket_state& newVBState) {
+bool MagmaKVStore::snapshotVBucket(Vbid vbid, const VB::Commit& meta) {
     if (logger->should_log(spdlog::level::TRACE)) {
         logger->TRACE("MagmaKVStore::snapshotVBucket {} newVBState:{}",
                       vbid,
-                      encodeVBState(newVBState));
+                      encodeVBState(meta.proposedVBState));
     }
 
-    if (!needsToBePersisted(vbid, newVBState)) {
+    if (!needsToBePersisted(vbid, meta.proposedVBState)) {
         return true;
     }
 
     auto start = std::chrono::steady_clock::now();
 
-    if (!writeVBStateToDisk(vbid, newVBState)) {
+    if (!writeVBStateToDisk(vbid, meta)) {
         return false;
     }
 
-    updateCachedVBState(vbid, newVBState);
+    updateCachedVBState(vbid, meta.proposedVBState);
 
     st.snapshotHisto.add(std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now() - start));
@@ -3729,17 +3729,22 @@ DBFileInfo MagmaKVStore::getAggrDbFileInfo() {
     return {dataSizes.DiskSize, dataSizes.LogicalSize, 0};
 }
 
-Status MagmaKVStore::writeVBStateToDisk(Vbid vbid,
-                                        const vbucket_state& vbstate) {
+Status MagmaKVStore::writeVBStateToDisk(Vbid vbid, const VB::Commit& meta) {
     LocalDbReqs localDbReqs;
-    addVBStateUpdateToLocalDbReqs(
-            localDbReqs, vbstate, kvstoreRevList[getCacheSlot(vbid)]);
+    addVBStateUpdateToLocalDbReqs(localDbReqs,
+                                  meta.proposedVBState,
+                                  kvstoreRevList[getCacheSlot(vbid)]);
 
     WriteOps writeOps;
     addLocalDbReqs(localDbReqs, writeOps);
 
-    auto status = magma->WriteDocs(
-            vbid.get(), writeOps, kvstoreRevList[getCacheSlot(vbid)]);
+    auto status = magma->WriteDocs(vbid.get(),
+                                   writeOps,
+                                   kvstoreRevList[getCacheSlot(vbid)],
+                                   nullptr,
+                                   nullptr,
+                                   nullptr,
+                                   toHistoryMode(meta.historical));
     if (!status) {
         ++st.numVbSetFailure;
         logger->critical(
