@@ -22,6 +22,9 @@
 #include "tests/mock/mock_stream.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include <kv_bucket.h>
+#include <test_manifest.h>
+#include <tests/module_tests/collections/collections_test_helpers.h>
+#include <vbucket.h>
 
 using namespace ::testing;
 
@@ -95,4 +98,81 @@ TEST_F(DCPBackfillDiskTest, ScanDiskError) {
 
     // Replace the MockKVStore with the real one so we can tidy up correctly
     MockKVStore::restoreOriginalRWKVStore(*store);
+}
+
+/**
+ * MB-56084: A legacy stream with an in-memory phase can fail to backfill from
+ * zero if the purgeSeqno > _default.highSeqno.
+ */
+TEST_F(DCPBackfillDiskTest,
+       CanBackfillLegacyWhenPurgeSeqnoAboveDefaultHighSeqno) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto vbucket = store->getVBucket(vbid);
+
+    // seqno 1
+    store_item(vbid, makeStoredDocKey("key"), "value");
+
+    // seqno 2
+    store_item(vbid, makeStoredDocKey("key2"), "value");
+
+    // seqno 3: delete
+    delete_item(vbid, makeStoredDocKey("key2"));
+
+    // seqno 4: collection SystemEvent (any mutation not in _default).
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    vbucket->updateFromManifest(makeManifest((cm)));
+
+    flushAndRemoveCheckpoints(vbid);
+    // purge tombstones up to seqno 3 (the delete)
+    runCompaction(vbid, 3, true);
+
+    auto [status, state] =
+            vbucket->getShard()->getRWUnderlying()->getPersistedVBucketState(
+                    vbid);
+    ASSERT_EQ(3, state.purgeSeqno);
+    ASSERT_EQ(4, state.highSeqno);
+
+    // Create producer now we have items only on disk.
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test-producer", 0 /*flags*/, true /*startTask*/);
+    producer->createCheckpointProcessorTask();
+
+    auto stream =
+            std::make_shared<MockActiveStream>(engine.get(),
+                                               producer,
+                                               0,
+                                               0,
+                                               *vbucket,
+                                               0,
+                                               ~0,
+                                               0,
+                                               0,
+                                               0,
+                                               IncludeValue::Yes,
+                                               IncludeXattrs::Yes,
+                                               IncludeDeletedUserXattrs::No,
+                                               std::nullopt);
+    stream->setActive();
+
+    // Allow backfills to run in the background
+    ExecutorPool::get()->setNumAuxIO(1);
+
+    stream->transitionStateToBackfilling();
+
+    // Wait for this backfill to complete
+    while (stream->public_isBackfillTaskRunning()) {
+        std::this_thread::yield();
+    }
+
+    stream->consumeAllBackfillItems(*producer);
+    // Run that second backfill
+    auto resp = stream->next(*producer);
+
+    // Wait for the second backfill to complete
+    while (stream->public_isBackfillTaskRunning() && !stream->isDead()) {
+        std::this_thread::yield();
+    }
+
+    EXPECT_FALSE(stream->isDead());
 }
