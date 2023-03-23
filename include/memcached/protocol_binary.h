@@ -749,8 +749,21 @@ protected:
  * Only supported for stream_request (produce from latest)
  */
 #define DCP_ADD_STREAM_FLAG_FROM_LATEST 64
+
+/**
+ * Request that the server skips rolling back if the client is behind the purge
+ * seqno, but the request is otherwise valid and satifiable (i.e. no other
+ * rollback checks such as UUID mismatch fail).
+ * The client could end up missing purged tombstones (and hence could end up
+ * never being told about a document deletion).
+ * The intent of this flag is to allow clients who ignore deletes to avoid
+ * rollbacks to zero which are sorely due to them being behind the purge seqno.
+ */
+#define DCP_ADD_STREAM_FLAG_IGNORE_PURGED_TOMBSTONES 128
+
     uint32_t flags = 0;
 };
+
 static_assert(sizeof(DcpAddStreamPayload) == 4, "Unexpected struct size");
 
 class DcpStreamReqPayload {

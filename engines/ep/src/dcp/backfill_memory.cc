@@ -102,10 +102,18 @@ backfill_status_t DCPBackfillMemoryBuffered::create() {
         return backfill_snooze;
     }
 
+    // We permit rollback to be skipped if the Stream explicitly asked
+    // to ignore purged tombstones.
+    bool allowNonRollBackStream = false;
+    if (stream->isIgnoringPurgedTombstones()) {
+        allowNonRollBackStream = true;
+    }
+
     /* Check startSeqno against the purge-seqno of the vb.
      * If the startSeqno != 1 (a 0 to n request) then startSeqno must be
      * greater than purgeSeqno. */
-    if (startSeqno != 1 && (startSeqno <= evb->getPurgeSeqno())) {
+    if ((startSeqno != 1 && (startSeqno <= evb->getPurgeSeqno())) &&
+        !allowNonRollBackStream) {
         EP_LOG_WARN(
                 "DCPBackfillMemoryBuffered::create(): "
                 "({}) running backfill failed because the startSeqno:{} is < "

@@ -335,6 +335,12 @@ protected:
     }
 
     /**
+     * Purge all tombstones before the specified seqno, advancing the
+     * purgeSeqno to that seqno.
+     */
+    void purgeTombstonesBefore(uint64_t purgeSeqno);
+
+    /**
      * Run the HTCleaner for Ephemeral bucket.
      *
      * @throws std::bad_cast If the underlying bucket is not Ephemeral.
@@ -742,7 +748,18 @@ protected:
      *
      * @param op The operation under test
      */
+
     void testCheckpointMemThresholdEnforced(VbucketOp op);
+    /**
+     * Test for MB-29512: Check the behaviour of a stream which initially
+     * is ahead of purgeSeqno when StreamRequest processed, but by the time
+     * the backfill actually occurs compaction has run and advanced the purge
+     * seqno so the start seqno is behind it.
+     * @param ignorePurgedTombstones If true then use flag
+     *        DCP_ADD_STREAM_FLAG_IGNORE_PURGED_TOMBSTONES for streamRequest,
+     *        in this case the backfill should succeed.
+     */
+    void testPurgeSeqnoAdvancesAfterStreamRequest(bool ignorePurgedTombstones);
 };
 
 class STParamPersistentBucketTest : public STParameterizedBucketTest {

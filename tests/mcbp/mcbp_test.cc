@@ -2407,8 +2407,8 @@ TEST_P(CommandSpecificErrorContextTest, DcpAddStream) {
     EXPECT_EQ("DCP_ADD_STREAM_FLAG_NO_VALUE{8} flag is no longer used",
               validate_error_context(cb::mcbp::ClientOpcode::DcpAddStream));
 
-    // 128 is not a defined flag
-    extras.setFlags(128);
+    // 256 is not a defined flag
+    extras.setFlags(256);
     builder.setExtras(extras.getBuffer());
     EXPECT_EQ("Request contains invalid flags",
               validate_error_context(cb::mcbp::ClientOpcode::DcpAddStream));
