@@ -189,7 +189,8 @@ add_library(memcached_daemon STATIC
             tls_configuration.cc
             tls_configuration.h
             tracing.cc
-            tracing.h)
+            tracing.h
+            yielding_task.cc)
 
 if (NUMA_FOUND)
     target_include_directories(memcached_daemon
@@ -275,14 +276,16 @@ cb_add_test_executable(memcached_unit_tests
                        settings_test.cc
                        ssl_utils_test.cc
                        timings_test.cc
-                       tls_configuration_test.cc)
+                       tls_configuration_test.cc
+                       tasks_test.cc)
 add_dependencies(memcached_unit_tests Generate_kv_engine_X509_Test_Certificates)
 cb_enable_unity_build(memcached_unit_tests)
 add_sanitizers(memcached_unit_tests)
 target_link_libraries(memcached_unit_tests PRIVATE
                       memcached_daemon
                       platform_cb_malloc_arena
-                      GTest::gtest)
+                      GTest::gtest
+                      GTest::gmock)
 add_test(NAME memcached_unit_tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_unit_tests)
