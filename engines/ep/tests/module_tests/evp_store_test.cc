@@ -2637,40 +2637,32 @@ INSTANTIATE_TEST_SUITE_P(EPBucketTestCouchstore,
 
 #ifdef EP_USE_MAGMA
 
-/**
- * Test fixture for CDC tests - Magma only
- */
-class EPBucketCDCTest : public EPBucketTest {
-protected:
-    void SetUp() override {
-        if (!config_string.empty()) {
-            config_string += ";";
-        }
-        // Note: Checkpoint removal isn't under test at all here.
-        // Eager checkpoint removal, default prod setting in Neo and post-Neo.
-        // That helps in cleaning up the CheckpointManager during the test and
-        // we won't need to fix the testsuite when merging into the master
-        // branch.
-        config_string += "checkpoint_removal_mode=eager";
-        // Enable history retention
-        config_string += ";history_retention_bytes=10485760";
-
-        EPBucketTest::SetUp();
-
-        auto vb = store->getVBucket(vbid);
-        ASSERT_TRUE(vb);
-
-        CollectionsManifest manifest;
-        manifest.add(CollectionEntry::historical,
-                     cb::NoExpiryLimit,
-                     true /*history*/,
-                     ScopeEntry::defaultS);
-        vb->updateFromManifest(
-                folly::SharedMutex::ReadHolder(vb->getStateLock()),
-                Collections::Manifest{std::string{manifest}});
-        flushVBucketToDiskIfPersistent(vbid, 1);
+void EPBucketCDCTest::SetUp() {
+    if (!config_string.empty()) {
+        config_string += ";";
     }
-};
+    // Note: Checkpoint removal isn't under test at all here.
+    // Eager checkpoint removal, default prod setting in Neo and post-Neo.
+    // That helps in cleaning up the CheckpointManager during the test and
+    // we won't need to fix the testsuite when merging into the master
+    // branch.
+    config_string += "checkpoint_removal_mode=eager";
+    // Enable history retention
+    config_string += ";history_retention_bytes=10485760";
+
+    EPBucketTest::SetUp();
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+
+    manifest.add(CollectionEntry::historical,
+                 cb::NoExpiryLimit,
+                 true /*history*/,
+                 ScopeEntry::defaultS);
+    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                           Collections::Manifest{std::string{manifest}});
+    flush_vbucket_to_disk(vbid, 1);
+}
 
 TEST_P(EPBucketCDCTest, CollectionNonHistorical) {
     auto vb = store->getVBucket(vbid);
@@ -2917,7 +2909,7 @@ TEST_P(EPBucketCDCTest, CollectionInterleaved) {
     EXPECT_EQ(1, manifest.lock(CollectionEntry::defaultC).getItemCount());
 }
 
-TEST_P(EPBucketCDCTest, SetVBState) {
+TEST_P(EPBucketCDCTest, SetVBStatePreservesHistory) {
     auto vb = store->getVBucket(vbid);
     const uint64_t initialHighSeqno = 1;
     ASSERT_EQ(initialHighSeqno, vb->getHighSeqno()); // From SetUp
@@ -2957,6 +2949,58 @@ TEST_P(EPBucketCDCTest, SetVBState) {
     // Before the fix for MB-55467, this step wrongly resets the history at
     // storage level.
     flushVBucket(vbid);
+    // History still there, nothing discarded. Before the fix
+    // history_start_seqno=0 at this point.
+    EXPECT_EQ(1, underlying.getHistoryStartSeqno(vbid));
+}
+
+TEST_P(EPBucketCDCTest, CompactionPreservesHistory) {
+    auto vb = store->getVBucket(vbid);
+    const uint64_t initialHighSeqno = vb->getHighSeqno();
+    ASSERT_GT(initialHighSeqno, 0); // From SetUp
+
+    // Write a mutation into the historical collection to disk
+    store_item(vbid,
+               makeStoredDocKey("key", CollectionEntry::historical),
+               "value");
+    EXPECT_EQ(initialHighSeqno + 1, vb->getHighSeqno());
+    flush_vbucket_to_disk(vbid, 1);
+
+    // History enabled since bucket creation
+    auto& underlying =
+            dynamic_cast<MagmaKVStore&>(*store->getRWUnderlying(vbid));
+    ASSERT_EQ(1, underlying.getHistoryStartSeqno(vbid));
+
+    // Note: We need the next drop-collection step as that's what makes us flow
+    // into the right compaction path that is under test here.
+
+    // Create some other collection ..
+    manifest.add(CollectionEntry::fruit,
+                 cb::NoExpiryLimit,
+                 false /*history*/,
+                 ScopeEntry::defaultS);
+    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                           Collections::Manifest{std::string{manifest}});
+    EXPECT_EQ(initialHighSeqno + 2, vb->getHighSeqno());
+    // .. write some data into it
+    store_item(vbid, makeStoredDocKey("key", CollectionEntry::fruit), "value");
+    EXPECT_EQ(initialHighSeqno + 3, vb->getHighSeqno());
+    // .. and flush to disk
+    flush_vbucket_to_disk(vbid, 2);
+    // Now drop the newly created collection..
+    manifest.remove(CollectionEntry::fruit);
+    vb->updateFromManifest(folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                           Collections::Manifest{std::string{manifest}});
+    EXPECT_EQ(initialHighSeqno + 4, vb->getHighSeqno());
+    // .. and persist the drop to disk
+    flush_vbucket_to_disk(vbid, 1);
+
+    // Now trigger compaction.
+    // Before the fix for MB-55467, this step wrongly resets the history at
+    // storage level.
+    CompactionConfig config;
+    std::vector<CookieIface*> cookies;
+    dynamic_cast<EPBucket&>(*store).doCompact(vbid, config, cookies);
     // History still there, nothing discarded. Before the fix
     // history_start_seqno=0 at this point.
     EXPECT_EQ(1, underlying.getHistoryStartSeqno(vbid));

@@ -398,11 +398,12 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
 
         log(spdlog::level::level_enum::info,
             "{} ActiveStream::markDiskSnapshot: Sending disk snapshot with "
-            "start:{}, end:{}, flags:0x{:x}, hcs:{}, mvs:{}",
+            "start:{}, end:{}, flags:0x{:x}, flagsDecoded:{}, hcs:{}, mvs:{}",
             logPrefix,
             startSeqno,
             endSeqno,
             flags,
+            dcpMarkerFlagsToString(flags),
             to_string_or_none(hcsToSend),
             to_string_or_none(mvsToSend));
         pushToReadyQ(std::make_unique<SnapshotMarker>(opaque_,
