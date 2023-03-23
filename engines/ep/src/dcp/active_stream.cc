@@ -1958,6 +1958,19 @@ void ActiveStream::completeBackfillInner(
             if (isSeqnoAdvancedNeededBackFill()) {
                 queueSeqnoAdvanced();
             }
+            // Client does not support collections, so we cannot send a
+            // seqno-advanced message to tell them that the last streamed seqno
+            // is below the snap_end. However, we should still move the
+            // lastReadSeqno as we do when we send a SeqnoAdvanced, as
+            // otherwise, if there is a backfill pending, we'd start that
+            // backfill from the last seqno we sent, no the last seqno we read.
+            // In this case, if the purgeSeqno has advanced past the
+            // lastReadSeqno, we'd fail with reason=Rollback, and could get in a
+            // perpetual cycle of backfill from zero, reschedule, fail
+            // (MB-56084).
+            if (!isCollectionEnabledStream() && maxScanSeqno > lastReadSeqno) {
+                lastReadSeqno.store(maxScanSeqno);
+            }
             // reset last seqno seen by backfill
             maxScanSeqno = 0;
         }
