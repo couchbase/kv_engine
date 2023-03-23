@@ -422,12 +422,28 @@ void RangeScanTest::testRangeScan(
               store->continueRangeScan(*cookie, continueParams));
 }
 
+class RangeScanCreateAndContinueTest : public RangeScanTest {
+public:
+    void TearDown() override {
+        runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                    "RangeScanContinueTask");
+        RangeScanTest::TearDown();
+    }
+};
+
+class RangeScanCreateTest : public RangeScanTest {
+public:
+    void TearDown() override {
+        RangeScanTest::TearDown();
+    }
+};
+
 // Scan for the user prefixed keys
-TEST_P(RangeScanTest, user_prefix) {
+TEST_P(RangeScanCreateAndContinueTest, user_prefix) {
     testRangeScan(getUserKeys(), scanCollection, {"user"}, {"user\xFF"});
 }
 
-TEST_P(RangeScanTest, exclusive_start) {
+TEST_P(RangeScanCreateAndContinueTest, exclusive_start) {
     auto expectedKeys = getUserKeys();
     expectedKeys.erase(makeStoredDocKey("user-alan", scanCollection));
     testRangeScan(expectedKeys,
@@ -436,7 +452,7 @@ TEST_P(RangeScanTest, exclusive_start) {
                   {"user\xFF"});
 }
 
-TEST_P(RangeScanTest, exclusive_end) {
+TEST_P(RangeScanCreateAndContinueTest, exclusive_end) {
     auto expectedKeys = getUserKeys();
     expectedKeys.erase(makeStoredDocKey("users", scanCollection));
     testRangeScan(expectedKeys,
@@ -445,7 +461,7 @@ TEST_P(RangeScanTest, exclusive_end) {
                   {"users", cb::rangescan::KeyType::Exclusive});
 }
 
-TEST_P(RangeScanTest, exclusive_end_2) {
+TEST_P(RangeScanCreateAndContinueTest, exclusive_end_2) {
     // Check this zero suffixed key isn't included if it's set as the end
     // of an exclusive range
     store_item(vbid, makeStoredDocKey("users\0", scanCollection), "value");
@@ -459,7 +475,7 @@ TEST_P(RangeScanTest, exclusive_end_2) {
                   {"users\0", cb::rangescan::KeyType::Exclusive});
 }
 
-TEST_P(RangeScanTest, exclusive_range) {
+TEST_P(RangeScanCreateAndContinueTest, exclusive_range) {
     auto expectedKeys = getUserKeys();
     expectedKeys.erase(makeStoredDocKey("users", scanCollection));
     expectedKeys.erase(makeStoredDocKey("user-alan", scanCollection));
@@ -470,7 +486,7 @@ TEST_P(RangeScanTest, exclusive_range) {
                   {"users", cb::rangescan::KeyType::Exclusive});
 }
 
-TEST_P(RangeScanTest, user_prefix_with_item_limit_1) {
+TEST_P(RangeScanCreateAndContinueTest, user_prefix_with_item_limit_1) {
     auto expectedKeys = getUserKeys();
     testRangeScan(expectedKeys,
                   scanCollection,
@@ -482,7 +498,7 @@ TEST_P(RangeScanTest, user_prefix_with_item_limit_1) {
                   expectedKeys.size());
 }
 
-TEST_P(RangeScanTest, user_prefix_with_item_limit_2) {
+TEST_P(RangeScanCreateAndContinueTest, user_prefix_with_item_limit_2) {
     auto expectedKeys = getUserKeys();
     testRangeScan(expectedKeys,
                   scanCollection,
@@ -495,7 +511,7 @@ TEST_P(RangeScanTest, user_prefix_with_item_limit_2) {
 }
 
 // Test has a smaller byte-limit which must take affect before the item count
-TEST_P(RangeScanTest, user_prefix_with_two_limits) {
+TEST_P(RangeScanCreateAndContinueTest, user_prefix_with_two_limits) {
     auto expectedKeys = getUserKeys();
     testRangeScan(expectedKeys,
                   scanCollection,
@@ -507,7 +523,7 @@ TEST_P(RangeScanTest, user_prefix_with_two_limits) {
                   expectedKeys.size());
 }
 
-TEST_P(RangeScanTest, user_prefix_with_time_limit) {
+TEST_P(RangeScanCreateAndContinueTest, user_prefix_with_time_limit) {
     // Replace time with a function that ticks per call, forcing the scan to
     // yield for every item
     RangeScan::setClockFunction([]() {
@@ -526,7 +542,7 @@ TEST_P(RangeScanTest, user_prefix_with_time_limit) {
                   expectedKeys.size());
 }
 
-TEST_P(RangeScanTest, user_prefix_with_byte_limit) {
+TEST_P(RangeScanCreateAndContinueTest, user_prefix_with_byte_limit) {
     auto expectedKeys = getUserKeys();
     testRangeScan(expectedKeys,
                   scanCollection,
@@ -539,7 +555,7 @@ TEST_P(RangeScanTest, user_prefix_with_byte_limit) {
 }
 
 // Test ensures callbacks cover disk read case
-TEST_P(RangeScanTest, user_prefix_evicted) {
+TEST_P(RangeScanCreateAndContinueTest, user_prefix_evicted) {
     for (const auto& key : generateTestKeys()) {
         evict_key(vbid, key);
     }
@@ -554,7 +570,7 @@ TEST_P(RangeScanTest, user_prefix_evicted) {
                   expectedKeys.size() / 2);
 }
 
-TEST_P(RangeScanTest, scan_is_throttled) {
+TEST_P(RangeScanCreateAndContinueTest, scan_is_throttled) {
     testHook = [](size_t) { return TestRangeScanHandler::Status::Throttle; };
     // Scan with no continue limits, but the scan will yield for every key
     // as the testHook returns true meaning "throttle"
@@ -570,7 +586,7 @@ TEST_P(RangeScanTest, scan_is_throttled) {
 }
 
 // Run a >= user scan by setting the keys to user and the end (255)
-TEST_P(RangeScanTest, greater_than_or_equal) {
+TEST_P(RangeScanCreateAndContinueTest, greater_than_or_equal) {
     auto expectedKeys = getUserKeys();
     auto rangeStart = makeStoredDocKey("user", scanCollection);
     for (const auto& key : generateTestKeys()) {
@@ -586,7 +602,7 @@ TEST_P(RangeScanTest, greater_than_or_equal) {
 }
 
 // Run a <= user scan y setting the keys to 0 and user\xFF
-TEST_P(RangeScanTest, less_than_or_equal) {
+TEST_P(RangeScanCreateAndContinueTest, less_than_or_equal) {
     auto expectedKeys = getUserKeys();
     auto rangeEnd = makeStoredDocKey("user\xFF", scanCollection);
     for (const auto& key : generateTestKeys()) {
@@ -603,7 +619,7 @@ TEST_P(RangeScanTest, less_than_or_equal) {
 }
 
 // Perform > uuu, this simulates a request for an exclusive start range-scan
-TEST_P(RangeScanTest, greater_than) {
+TEST_P(RangeScanCreateAndContinueTest, greater_than) {
     // Here the client could of specified "aaa" and flag to set exclusive-start
     // so we set the start to "skip" aaa and start from the next key
 
@@ -639,7 +655,7 @@ TEST_P(RangeScanTest, greater_than) {
 }
 
 // Run a > "user" scan using the KeyType
-TEST_P(RangeScanTest, greater_than_using_KeyType) {
+TEST_P(RangeScanCreateAndContinueTest, greater_than_using_KeyType) {
     auto expectedKeys = getUserKeys();
     auto rangeStart = makeStoredDocKey("user", scanCollection);
     expectedKeys.erase(rangeStart);
@@ -692,18 +708,18 @@ void RangeScanTest::testLessThan(std::string key) {
     testRangeScan(expectedKeys, scanCollection, start, std::string_view{key});
 }
 
-TEST_P(RangeScanTest, less_than) {
+TEST_P(RangeScanCreateAndContinueTest, less_than) {
     testLessThan("uuu");
 }
 
-TEST_P(RangeScanTest, less_than_with_zero_suffix) {
+TEST_P(RangeScanCreateAndContinueTest, less_than_with_zero_suffix) {
     std::string key = "uuu";
     key += char(0);
     testLessThan(key);
 }
 
 // Run a < "users" scan using the KeyType
-TEST_P(RangeScanTest, less_than_using_KeyType) {
+TEST_P(RangeScanCreateAndContinueTest, less_than_using_KeyType) {
     auto expectedKeys = getUserKeys();
     auto rangeEnd = makeStoredDocKey("users", scanCollection);
     expectedKeys.erase(rangeEnd);
@@ -723,7 +739,7 @@ TEST_P(RangeScanTest, less_than_using_KeyType) {
 }
 
 // Test that we reject continue whilst a scan is already being continued
-TEST_P(RangeScanTest, continue_must_be_serialised) {
+TEST_P(RangeScanCreateAndContinueTest, continue_must_be_serialised) {
     auto uuid = createScan(scanCollection, {"a"}, {"b"});
     auto vb = store->getVBucket(vbid);
 
@@ -742,14 +758,10 @@ TEST_P(RangeScanTest, continue_must_be_serialised) {
     // But can cancel
     EXPECT_EQ(cb::engine_errc::success,
               vb->cancelRangeScan(uuid, cookie, true));
-
-    // must run the cancel (so for magma we can shutdown)
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
-                "RangeScanContinueTask");
 }
 
 // Create and then straight to cancel
-TEST_P(RangeScanTest, create_cancel) {
+TEST_P(RangeScanCreateAndContinueTest, create_cancel) {
     auto uuid = createScan(scanCollection, {"user"}, {"user\xFF"});
     auto vb = store->getVBucket(vbid);
     EXPECT_EQ(cb::engine_errc::success,
@@ -765,7 +777,7 @@ TEST_P(RangeScanTest, create_cancel) {
     EXPECT_EQ(cb::engine_errc::sync_write_ambiguous, status);
 }
 
-TEST_P(RangeScanTest, create_no_data) {
+TEST_P(RangeScanCreateTest, create_no_data) {
     // create will fail if no data is in range
     createScan(scanCollection,
                {"0"},
@@ -777,7 +789,7 @@ TEST_P(RangeScanTest, create_no_data) {
 
 // Check that if a scan has been continue (but is waiting to run), it can be
 // cancelled. When the task runs the scan cancels.
-TEST_P(RangeScanTest, create_continue_is_cancelled) {
+TEST_P(RangeScanCreateAndContinueTest, create_continue_is_cancelled) {
     auto uuid = createScan(scanCollection, {"user"}, {"user\xFF"});
     auto vb = store->getVBucket(vbid);
 
@@ -801,21 +813,11 @@ TEST_P(RangeScanTest, create_continue_is_cancelled) {
     EXPECT_TRUE(scannedItems.empty());
     // and handler was notified of the cancel status
     EXPECT_EQ(cb::engine_errc::range_scan_cancelled, status);
-
-    // set to some status we don't use
-    status = cb::engine_errc::sync_write_pending;
-
-    // Task does nothing
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
-                "RangeScanContinueTask");
-
-    // no change
-    EXPECT_EQ(cb::engine_errc::sync_write_pending, status);
 }
 
 // Test that a scan doesn't keep on reading if a cancel occurs during the I/O
 // task run
-TEST_P(RangeScanTest, create_continue_is_cancelled_2) {
+TEST_P(RangeScanCreateAndContinueTest, create_continue_is_cancelled_2) {
     auto uuid = createScan(scanCollection, {"user"}, {"user\xFF"});
     auto vb = store->getVBucket(vbid);
 
@@ -870,7 +872,7 @@ TEST_P(RangeScanTest, create_continue_is_cancelled_2) {
     EXPECT_EQ(cb::engine_errc::durability_impossible, status);
 }
 
-TEST_P(RangeScanTest, snapshot_does_not_contain_seqno_0) {
+TEST_P(RangeScanCreateTest, snapshot_does_not_contain_seqno_0) {
     auto vb = store->getVBucket(vbid);
     // require persisted upto 0 and something found at 0
     cb::rangescan::SnapshotRequirements reqs{
@@ -886,7 +888,7 @@ TEST_P(RangeScanTest, snapshot_does_not_contain_seqno_0) {
                cb::engine_errc::not_stored);
 }
 
-TEST_P(RangeScanTest, snapshot_does_not_contain_seqno) {
+TEST_P(RangeScanCreateTest, snapshot_does_not_contain_seqno) {
     auto vb = store->getVBucket(vbid);
     // Store, capture high-seqno and update so it's gone from the snapshot
     store_item(vbid, StoredDocKey("update_me", scanCollection), "1");
@@ -904,7 +906,7 @@ TEST_P(RangeScanTest, snapshot_does_not_contain_seqno) {
                cb::engine_errc::not_stored);
 }
 
-TEST_P(RangeScanTest, snapshot_upto_seqno) {
+TEST_P(RangeScanCreateAndContinueTest, snapshot_upto_seqno) {
     auto vb = store->getVBucket(vbid);
     cb::rangescan::SnapshotRequirements reqs{vb->failovers->getLatestUUID(),
                                              uint64_t(vb->getHighSeqno()),
@@ -917,10 +919,10 @@ TEST_P(RangeScanTest, snapshot_upto_seqno) {
                            {/* no sampling config*/},
                            cb::engine_errc::success);
     EXPECT_EQ(cb::engine_errc::success,
-              vb->cancelRangeScan(uuid, cookie, false));
+              vb->cancelRangeScan(uuid, cookie, true));
 }
 
-TEST_P(RangeScanTest, snapshot_contains_seqno) {
+TEST_P(RangeScanCreateAndContinueTest, snapshot_contains_seqno) {
     auto vb = store->getVBucket(vbid);
     cb::rangescan::SnapshotRequirements reqs{vb->failovers->getLatestUUID(),
                                              uint64_t(vb->getHighSeqno()),
@@ -933,11 +935,11 @@ TEST_P(RangeScanTest, snapshot_contains_seqno) {
                            {/* no sampling config*/},
                            cb::engine_errc::success);
     EXPECT_EQ(cb::engine_errc::success,
-              vb->cancelRangeScan(uuid, cookie, false));
+              vb->cancelRangeScan(uuid, cookie, true));
 }
 
 // There is no wait option, so a future seqno is a failure
-TEST_P(RangeScanTest, future_seqno_fails) {
+TEST_P(RangeScanCreateTest, future_seqno_fails) {
     auto vb = store->getVBucket(vbid);
     cb::rangescan::SnapshotRequirements reqs{vb->failovers->getLatestUUID(),
                                              uint64_t(vb->getHighSeqno() + 1),
@@ -959,7 +961,7 @@ TEST_P(RangeScanTest, future_seqno_fails) {
                       .first);
 }
 
-TEST_P(RangeScanTest, vb_uuid_check) {
+TEST_P(RangeScanCreateTest, vb_uuid_check) {
     auto vb = store->getVBucket(vbid);
     cb::rangescan::SnapshotRequirements reqs{
             1, uint64_t(vb->getHighSeqno()), std::nullopt, false};
@@ -979,7 +981,7 @@ TEST_P(RangeScanTest, vb_uuid_check) {
                       .first);
 }
 
-TEST_P(RangeScanTest, random_sample_less_keys_than_samples) {
+TEST_P(RangeScanCreateAndContinueTest, random_sample_less_keys_than_samples) {
     auto stats = getCollectionStats(vbid, {scanCollection});
     // Request more samples than keys. Everything gets returned
     auto sampleSize = stats[scanCollection].itemCount + 1;
@@ -1005,7 +1007,8 @@ TEST_P(RangeScanTest, random_sample_less_keys_than_samples) {
 
 // MB-54543: Test covers updated sampling behaviour where we can return more
 // samples than requested
-TEST_P(RangeScanTest, random_sample_return_more_keys_than_samples) {
+TEST_P(RangeScanCreateAndContinueTest,
+       random_sample_return_more_keys_than_samples) {
     auto stats = getCollectionStats(vbid, {scanCollection});
     // Request nearly the whole collection
     auto sampleSize = stats[scanCollection].itemCount - 1;
@@ -1032,7 +1035,7 @@ TEST_P(RangeScanTest, random_sample_return_more_keys_than_samples) {
     }
 }
 
-TEST_P(RangeScanTest, random_sample_keys_equal_samples) {
+TEST_P(RangeScanCreateAndContinueTest, random_sample_keys_equal_samples) {
     auto stats = getCollectionStats(vbid, {scanCollection});
     // Request samples == keys. Everything gets returned
     auto sampleSize = stats[scanCollection].itemCount;
@@ -1056,7 +1059,7 @@ TEST_P(RangeScanTest, random_sample_keys_equal_samples) {
     }
 }
 
-TEST_P(RangeScanTest, random_sample) {
+TEST_P(RangeScanCreateAndContinueTest, random_sample) {
     auto stats = getCollectionStats(vbid, {scanCollection});
     // We'll sample up to 1/2 of the keys from the collection, we may not get
     // exactly 50% of the keys returned though.
@@ -1095,7 +1098,7 @@ TEST_P(RangeScanTest, random_sample) {
     }
 }
 
-TEST_P(RangeScanTest, random_sample_with_limit_1) {
+TEST_P(RangeScanCreateAndContinueTest, random_sample_with_limit_1) {
     auto stats = getCollectionStats(vbid, {scanCollection});
     // We'll sample 1/2 of the keys from the collection
     auto sampleSize = stats[scanCollection].itemCount / 2;
@@ -1130,7 +1133,7 @@ TEST_P(RangeScanTest, random_sample_with_limit_1) {
     }
 }
 
-TEST_P(RangeScanTest, not_my_vbucket) {
+TEST_P(RangeScanCreateTest, not_my_vbucket) {
     EXPECT_EQ(cb::engine_errc::not_my_vbucket,
               store->createRangeScan(
                            *cookie,
@@ -1145,7 +1148,7 @@ TEST_P(RangeScanTest, not_my_vbucket) {
                       .first);
 }
 
-TEST_P(RangeScanTest, unknown_collection) {
+TEST_P(RangeScanCreateTest, unknown_collection) {
     EXPECT_EQ(cb::engine_errc::unknown_collection,
               store->createRangeScan(*cookie,
                                      std::move(handler),
@@ -1161,7 +1164,7 @@ TEST_P(RangeScanTest, unknown_collection) {
 }
 
 // Test that the collection going away after part 1 of create, cleans up
-TEST_P(RangeScanTest, scan_cancels_after_create) {
+TEST_P(RangeScanCreateAndContinueTest, scan_cancels_after_create) {
     EXPECT_EQ(cb::engine_errc::would_block,
               store->createRangeScan(
                            *cookie,
@@ -1199,17 +1202,11 @@ TEST_P(RangeScanTest, scan_cancels_after_create) {
                                                            {}})
                       .first);
     destroy_mock_cookie(cookie2);
-
-    // Task was scheduled to cancel (close the snapshot)
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
-                "RangeScanContinueTask");
-
-    // Can't get hold of the scan object as we never got the uuid
 }
 
 // Test that if the vbucket changes after create, but before we run the create
 // task, it is detected when snapshot_requirements are in use
-TEST_P(RangeScanTest, scan_detects_vbucket_change) {
+TEST_P(RangeScanCreateTest, scan_detects_vbucket_change) {
     auto vb = store->getVBucket(vbid);
     cb::rangescan::SnapshotRequirements reqs{vb->failovers->getLatestUUID(),
                                              uint64_t(vb->getHighSeqno()),
@@ -1251,7 +1248,7 @@ TEST_P(RangeScanTest, scan_detects_vbucket_change) {
     EXPECT_EQ(cb::engine_errc::vbuuid_not_equal, mock_waitfor_cookie(cookie));
 }
 
-TEST_P(RangeScanTest, create_on_replica) {
+TEST_P(RangeScanCreateTest, create_on_replica) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
     // create only allowed on active
     EXPECT_EQ(cb::engine_errc::not_my_vbucket,
@@ -1274,7 +1271,8 @@ TEST_P(RangeScanTest, create_on_replica) {
 // aware of, the scan would also need to ignore any in-memory values, simpler
 // to just end the scan and report the vbucket change to the client.
 // Note for this test, no snapshot requirements are needed.
-TEST_P(RangeScanTest, scan_detects_vbucket_change_during_continue) {
+TEST_P(RangeScanCreateAndContinueTest,
+       scan_detects_vbucket_change_during_continue) {
     // Create the scan
     auto uuid = createScan(scanCollection,
                            {"user"},
@@ -1314,7 +1312,7 @@ TEST_P(RangeScanTest, scan_detects_vbucket_change_during_continue) {
               store->continueRangeScan(*cookie, continueParams));
 }
 
-TEST_P(RangeScanTest, wait_for_persistence_success) {
+TEST_P(RangeScanCreateAndContinueTest, wait_for_persistence_success) {
     auto vb = store->getVBucket(vbid);
 
     // Create a scan that requires +1 from high-seqno. We are willing to wait
@@ -1352,12 +1350,12 @@ TEST_P(RangeScanTest, wait_for_persistence_success) {
                            {/* no sampling config*/},
                            cb::engine_errc::success);
 
-    // Close the scan
+    // Close the scan, schedule the IO task to process the closure
     EXPECT_EQ(cb::engine_errc::success,
-              vb->cancelRangeScan(uuid, cookie, false));
+              vb->cancelRangeScan(uuid, cookie, true));
 }
 
-TEST_P(RangeScanTest, wait_for_persistence_fails) {
+TEST_P(RangeScanCreateTest, wait_for_persistence_fails) {
     auto vb = store->getVBucket(vbid);
 
     // Create a scan that requires +1 from high-seqno. No timeout so fails on
@@ -1381,7 +1379,7 @@ TEST_P(RangeScanTest, wait_for_persistence_fails) {
                       .first);
 }
 
-TEST_P(RangeScanTest, wait_for_persistence_timeout) {
+TEST_P(RangeScanCreateTest, wait_for_persistence_timeout) {
     auto vb = store->getVBucket(vbid);
 
     // Create a scan that requires +1 from high-seqno. We are willing to wait
@@ -1413,7 +1411,7 @@ TEST_P(RangeScanTest, wait_for_persistence_timeout) {
 
 // Prior to this test, a cancel as the scan attempts to yield could hit an
 // exception in the state change code, this test covers that path
-TEST_P(RangeScanTest, cancel_when_yielding) {
+TEST_P(RangeScanCreateAndContinueTest, cancel_when_yielding) {
     auto uuid = createScan(scanCollection, {"user"}, {"user\xFF"});
     auto vb = store->getVBucket(vbid);
 
@@ -1521,7 +1519,7 @@ RangeScanTest::setupConcurrencyMaxxed() {
 
 // Create lots and lots of scans, continue them all and check only max tasks
 // are scheduled
-TEST_P(RangeScanTest, concurrency_maxxed) {
+TEST_P(RangeScanCreateAndContinueTest, concurrency_maxxed) {
     auto scans = setupConcurrencyMaxxed();
 
     // Now clean-up
@@ -1544,7 +1542,7 @@ TEST_P(RangeScanTest, concurrency_maxxed) {
     }
 }
 
-TEST_P(RangeScanTest, concurrency_maxxed_cancel_only) {
+TEST_P(RangeScanCreateAndContinueTest, concurrency_maxxed_cancel_only) {
     auto vb = store->getVBucket(vbid);
 
     std::vector<cb::rangescan::Id> scans;
@@ -1577,7 +1575,7 @@ TEST_P(RangeScanTest, concurrency_maxxed_cancel_only) {
 // Create enough scans to max out the default concurrency and then reduce the
 // concurrent limit. We should observe that tasks don't pickup scans, but
 // instead exit until only the correct number of tasks remain.
-TEST_P(RangeScanTest, concurrency_maxxed_and_reduce) {
+TEST_P(RangeScanCreateAndContinueTest, concurrency_maxxed_and_reduce) {
     ASSERT_NE(1, task_executor->getNumAuxIO());
 
     auto scans = setupConcurrencyMaxxed();
@@ -1614,7 +1612,7 @@ TEST_P(RangeScanTest, concurrency_maxxed_and_reduce) {
 
 // Dropped collection detection is noted by privilege check when we process a
 // range scan continue (different to detection whilst a scan is continuing)
-TEST_P(RangeScanTest, dropped_collection_for_continue) {
+TEST_P(RangeScanCreateAndContinueTest, dropped_collection_for_continue) {
     // Create the scan
     auto uuid1 = createScan(scanCollection,
                             {"user"},
@@ -1657,7 +1655,7 @@ TEST_P(RangeScanTest, dropped_collection_for_continue) {
 }
 
 // Lose access to a collection after create
-TEST_P(RangeScanTest, lose_access_to_scan) {
+TEST_P(RangeScanCreateAndContinueTest, lose_access_to_scan) {
     // Create the scan
     auto uuid = createScan(scanCollection,
                            {"user"},
@@ -1694,7 +1692,7 @@ TEST_P(RangeScanTest, lose_access_to_scan) {
     }
 }
 
-TEST_P(RangeScanTest, cancel_scan_due_to_time_limit) {
+TEST_P(RangeScanCreateAndContinueTest, cancel_scan_due_to_time_limit) {
     // Create the scan
     auto uuid = createScan(scanCollection,
                            {"user"},
@@ -1712,13 +1710,9 @@ TEST_P(RangeScanTest, cancel_scan_due_to_time_limit) {
             vbid, uuid, 0, std::chrono::milliseconds(0), 0};
     EXPECT_EQ(cb::engine_errc::no_such_key,
               store->continueRangeScan(*cookie, continueParams));
-
-    // scan cancels and cleans-up
-    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
-                "RangeScanContinueTask");
 }
 
-TEST_P(RangeScanTest, cancel_scans_due_to_time_limit) {
+TEST_P(RangeScanCreateAndContinueTest, cancel_scans_due_to_time_limit) {
     std::chrono::seconds tick(5);
     RangeScan::setClockFunction([&tick]() {
         static auto now = std::chrono::time_point<std::chrono::steady_clock>();
@@ -2168,13 +2162,20 @@ auto keyScanConfig =
                            ::testing::Values("full_eviction"),
                            ::testing::Values("key_scan"));
 
+// Test that only attempt to create a scan have no need to run in key and value
+// variations. Use key only
+INSTANTIATE_TEST_SUITE_P(RangeScanCreateKeyScan,
+                         RangeScanCreateTest,
+                         keyScanConfig,
+                         RangeScanTest::PrintToStringParamName);
+
 INSTANTIATE_TEST_SUITE_P(RangeScanValueScan,
-                         RangeScanTest,
+                         RangeScanCreateAndContinueTest,
                          valueScanConfig,
                          RangeScanTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_SUITE_P(RangeScanKeyScan,
-                         RangeScanTest,
+                         RangeScanCreateAndContinueTest,
                          keyScanConfig,
                          RangeScanTest::PrintToStringParamName);
 
