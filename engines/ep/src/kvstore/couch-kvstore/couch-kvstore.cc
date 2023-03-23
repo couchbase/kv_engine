@@ -923,7 +923,8 @@ static int time_purge_hook(Db& d,
         }
     };
 
-    if (ctx.eraserContext->isLogicallyDeleted(docKey, int64_t(info->db_seq))) {
+    if (ctx.eraserContext->isLogicallyDeleted(
+                docKey, info->deleted, int64_t(info->db_seq))) {
         // Inform vb that the key@seqno is dropped
         try {
             ctx.droppedKeyCb(diskKey,
@@ -2833,7 +2834,8 @@ static int bySeqnoScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
     // Determine if the key is logically deleted
     auto docKey = diskKey.getDocKey();
     if (sctx->docFilter != DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS) {
-        if (sctx->collectionsContext.isLogicallyDeleted(docKey, byseqno)) {
+        if (sctx->collectionsContext.isLogicallyDeleted(
+                    docKey, docinfo->deleted, byseqno)) {
             sctx->lastReadSeqno = byseqno;
             return COUCHSTORE_SUCCESS;
         }

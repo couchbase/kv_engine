@@ -1389,9 +1389,8 @@ void ActiveStream::processItemsInner(
         // We must still send a snapshot marker so that the client is
         // moved to their end seqno - so a snapshot + seqno advance is
         // needed.
-        sendSnapshotAndSeqnoAdvanced(outstandingItemsResult.checkpointType,
-                                     snap_start_seqno_,
-                                     snap_end_seqno_);
+        sendSnapshotAndSeqnoAdvanced(
+                outstandingItemsResult, snap_start_seqno_, snap_end_seqno_);
         firstMarkerSent = true;
     } else if (isSeqnoGapAtEndOfSnapshot(curChkSeqno)) {
         auto vb = engine->getVBucket(getVBucket());
@@ -1420,7 +1419,7 @@ void ActiveStream::processItemsInner(
                curChkSeqno >= highNonVisibleSeqno.value()) {
         // MB-48368: Nothing directly available for the stream, but a
         // non-visible item was available - bring the client up-to-date
-        sendSnapshotAndSeqnoAdvanced(outstandingItemsResult.checkpointType,
+        sendSnapshotAndSeqnoAdvanced(outstandingItemsResult,
                                      highNonVisibleSeqno.value(),
                                      highNonVisibleSeqno.value());
     }
@@ -2516,14 +2515,19 @@ bool ActiveStream::isSeqnoGapAtEndOfSnapshot(uint64_t streamSeqno) const {
            lastSentSnapEndSeqno.load() == streamSeqno;
 }
 
-void ActiveStream::sendSnapshotAndSeqnoAdvanced(CheckpointType checkpointType,
-                                                uint64_t start,
-                                                uint64_t end) {
+void ActiveStream::sendSnapshotAndSeqnoAdvanced(
+        const OutstandingItemsResult& meta, uint64_t start, uint64_t end) {
     const bool wasFirst = !firstMarkerSent;
+
     start = adjustStartIfFirstSnapshot(start, true);
 
-    const auto isCkptTypeDisk = isDiskCheckpointType(checkpointType);
+    const auto isCkptTypeDisk = isDiskCheckpointType(meta.checkpointType);
     uint32_t flags = isCkptTypeDisk ? MARKER_FLAG_DISK : MARKER_FLAG_MEMORY;
+
+    if (changeStreamsEnabled &&
+        (meta.historical == CheckpointHistorical::Yes)) {
+        flags |= MARKER_FLAG_HISTORY;
+    }
 
     pushToReadyQ(std::make_unique<SnapshotMarker>(opaque_,
                                                   vb_,
@@ -2611,4 +2615,8 @@ std::string ActiveStream::Labeller::getLabel(const char* name) const {
 
 bool ActiveStream::areChangeStreamsEnabled() const {
     return changeStreamsEnabled;
+}
+
+bool ActiveStream::isFlatBuffersSystemEventEnabled() const {
+    return flatBuffersSystemEventsEnabled;
 }

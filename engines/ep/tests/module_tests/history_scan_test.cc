@@ -517,6 +517,54 @@ TEST_P(HistoryScanTest, OSOThenHistory) {
     }
 }
 
+// A dropped collection can still exist inside the history window, test it is
+// not observable by DCP change stream when backfilling
+TEST_P(HistoryScanTest, BackfillWithDroppedCollection) {
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::vegetable, {}, true));
+    std::vector<Item> items;
+
+    store_item(vbid, makeStoredDocKey("a", CollectionEntry::vegetable), "v0");
+    flush_vbucket_to_disk(vbid, 1 + 1);
+    store_item(vbid, makeStoredDocKey("a", CollectionEntry::vegetable), "v1");
+    flush_vbucket_to_disk(vbid, 1);
+
+    // Now store 1 item to default (which will be in the snapshot)
+    items.emplace_back(store_item(
+            vbid, makeStoredDocKey("default", CollectionID::Default), "val-a"));
+    // Add a system_event in the next seqno position
+    items.emplace_back(makeStoredDocKey("", CollectionEntry::vegetable),
+                       vbid,
+                       queue_op::system_event,
+                       0,
+                       items.back().getBySeqno() + 1);
+    // now drop the vegetable collection
+    setCollections(cookie, cm.remove(CollectionEntry::vegetable));
+    flush_vbucket_to_disk(vbid, 2);
+
+    ensureDcpWillBackfill();
+
+    createDcpObjects(std::string_view{},
+                     OutOfOrderSnapshots::Yes,
+                     0,
+                     true, // sync-repl enabled
+                     ~0ull,
+                     ChangeStreams::Yes);
+
+    runBackfill();
+    validateSnapshot(vbid,
+                     0,
+                     items.back().getBySeqno(),
+                     MARKER_FLAG_HISTORY |
+                             MARKER_FLAG_MAY_CONTAIN_DUPLICATE_KEYS |
+                             MARKER_FLAG_CHK | MARKER_FLAG_DISK,
+                     0 /*hcs*/,
+                     items.back().getBySeqno() /*mvs*/,
+                     {},
+                     {},
+                     items);
+}
+
 // Tests which don't need executing in two eviction modes
 class HistoryScanTestSingleEvictionMode : public HistoryScanTest {};
 

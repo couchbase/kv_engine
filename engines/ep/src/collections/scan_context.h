@@ -45,8 +45,27 @@ public:
         return !operator==(other);
     }
 
-    /// @return true if the key@seqno belongs to a dropped collection
-    bool isLogicallyDeleted(const DocKey& key, uint64_t seqno) const;
+    /**
+     * Filtering function for use by KVStore scans when a scan is required to
+     * filter out the items of a dropped collection. This function can be called
+     * with mutations or system events and will be able to handle both. System
+     * events require the key "decoding" to extract the event type and an ID.
+     * For collection events Create/Modify they will be considered logically
+     * deleted if they are in dropped collection. With the addition of history
+     * retention a KVStore may now scan and see create(c1), drop(c1) - the
+     * create must be filtered, the drop remains visible. Prior to history
+     * retention create(c1) or drop(c1) would be seen, but not both. The
+     * isDeleted flag is the only way to distinguish these events (they have
+     * the same key).
+     *
+     * @param key The key of the document
+     * @param isDeleted if the key represents a deleted document
+     * @param seqno the seqno of the key
+     * @return true if the key@seqno belongs to a dropped collection
+     */
+    bool isLogicallyDeleted(const DocKey& key,
+                            bool isDeleted,
+                            uint64_t seqno) const;
 
     /// @return if true dropped set is empty
     bool empty() const {

@@ -487,6 +487,8 @@ public:
 
     TestingHook<> scheduleBackfillRegisterCursorHook;
 
+    bool isFlatBuffersSystemEventEnabled() const;
+
 protected:
     void clear_UNLOCKED();
 
@@ -803,11 +805,11 @@ private:
 
     /**
      * Enqueue a single snapshot + seqno advance
-     * @param checkpointType type of checkpoint which triggered this snapshot
+     * @param meta Metadata on the snapshot being sent
      * @param start value of snapshot start
      * @param end value of snapshot end
      */
-    void sendSnapshotAndSeqnoAdvanced(CheckpointType checkpointType,
+    void sendSnapshotAndSeqnoAdvanced(const OutstandingItemsResult& meta,
                                       uint64_t start,
                                       uint64_t end);
 
