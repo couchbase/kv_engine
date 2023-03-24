@@ -372,6 +372,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/kv_bucket.cc
             src/kvshard.cc
         src/limited_concurrency_task.cc
+            src/locked_vbucket_ptr.cc
             src/mutation_log.cc
             src/mutation_log_entry.cc
             src/paging_visitor.cc

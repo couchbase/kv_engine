@@ -83,7 +83,7 @@ public:
      * @return an instance of FlushResult
      */
     FlushResult flushVBucket(Vbid vbid);
-    FlushResult flushVBucket_UNLOCKED(LockedVBucketPtr vb);
+    FlushResult flushVBucket_UNLOCKED(LockedVBucketPtr vbPtr);
 
     /**
      * Set the number of flusher items which can be included in a
