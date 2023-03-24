@@ -2500,15 +2500,14 @@ private:
                                              const ItemMetaData& itemMeta);
 
     /**
-     * Estimate the new total memory usage with the allocation of an in-memory
+     * Estimate the required memory for the allocation of an in-memory
      * instance for item
      *
-     * @param st Reference to epstats
      * @param item Item that is being added
      *
-     * @return new total size for this Bucket once Item is allocated
+     * @return the number of bytes required for the allocation
      */
-    virtual size_t estimateNewMemoryUsage(EPStats& st, const Item& item) = 0;
+    virtual size_t estimateRequiredMemory(const Item& item) = 0;
 
     /*
      * Call the predicate with item_info from v (none if v is nullptr)

@@ -368,7 +368,7 @@ private:
                                     QueueBgFetch queueBgFetch,
                                     const StoredValue& v) override;
 
-    size_t estimateNewMemoryUsage(EPStats& st, const Item& item) override;
+    size_t estimateRequiredMemory(const Item& item) override;
 
     bool isValidDurabilityLevel(cb::durability::Level level) override;
 

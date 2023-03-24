@@ -903,9 +903,8 @@ GetValue EphemeralVBucket::getInternalNonResident(
     return GetValue();
 }
 
-size_t EphemeralVBucket::estimateNewMemoryUsage(EPStats& st, const Item& item) {
-    return st.getEstimatedTotalMemoryUsed() +
-           OrderedStoredValue::getRequiredStorage(item.getKey());
+size_t EphemeralVBucket::estimateRequiredMemory(const Item& item) {
+    return OrderedStoredValue::getRequiredStorage(item.getKey());
 }
 
 void EphemeralVBucket::setupDeferredDeletion(CookieIface* cookie) {

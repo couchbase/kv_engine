@@ -990,9 +990,8 @@ void EPVBucket::loadOutstandingPrepares(
     }
 }
 
-size_t EPVBucket::estimateNewMemoryUsage(EPStats& st, const Item& item) {
-    return st.getEstimatedTotalMemoryUsed() +
-           StoredValue::getRequiredStorage(item.getKey());
+size_t EPVBucket::estimateRequiredMemory(const Item& item) {
+    return StoredValue::getRequiredStorage(item.getKey());
 }
 
 size_t EPVBucket::getNumPersistedDeletes() const {
