@@ -2166,11 +2166,10 @@ protected:
      * Check if there is memory available to allocate the in-memory
      * instance (StoredValue or OrderedStoredValue) for an item.
      *
-     * @param st Reference to epstats
      * @param item Item that is being added
      * @return True if there is memory for the item; else False
      */
-    bool hasMemoryForStoredValue(EPStats& st, const Item& item);
+    bool hasMemoryForStoredValue(const Item& item);
 
     void _addStats(VBucketStatsDetailLevel detail,
                    const AddStatFn& add_stat,

@@ -2159,16 +2159,13 @@ bool KVBucket::maybeWaitForVBucketWarmup(CookieIface* cookie) {
 }
 
 bool KVBucket::isMemUsageAboveBackfillThreshold() {
-    auto memoryUsed =
-            static_cast<double>(stats.getEstimatedTotalMemoryUsed());
-    auto maxSize = static_cast<double>(stats.getMaxDataSize());
-    return memoryUsed > (maxSize * backfillMemoryThreshold);
+    return !engine.getMemoryTracker().isBelowBackfillThreshold();
 }
 
 // Trigger memory reduction (ItemPager) if we've exceeded the pageable high
 // watermark.
 void KVBucket::checkAndMaybeFreeMemory() {
-    if (getPageableMemCurrent() > getPageableMemHighWatermark()) {
+    if (engine.getMemoryTracker().needsToFreeMemory()) {
         attemptToFreeMemory();
     }
 }

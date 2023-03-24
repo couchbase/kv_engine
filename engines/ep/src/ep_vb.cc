@@ -919,7 +919,7 @@ MutationStatus EPVBucket::insertFromWarmup(Item& itm,
                                            bool eject,
                                            bool keyMetaDataOnly,
                                            bool checkMemUsed) {
-    if (checkMemUsed && !hasMemoryForStoredValue(stats, itm)) {
+    if (checkMemUsed && !hasMemoryForStoredValue(itm)) {
         return MutationStatus::NoMem;
     }
 

@@ -1590,7 +1590,7 @@ void VBucket::incExpirationStat(const ExpireBy source) {
 }
 
 MutationStatus VBucket::setFromInternal(const Item& itm) {
-    if (!hasMemoryForStoredValue(stats, itm)) {
+    if (!hasMemoryForStoredValue(itm)) {
         return MutationStatus::NoMem;
     }
     ht.rollbackItem(itm);
@@ -3261,11 +3261,18 @@ void VBucket::dump(std::ostream& ostream) const {
             << "]" << std::endl;
 }
 
-bool VBucket::hasMemoryForStoredValue(EPStats& st, const Item& item) {
-    const auto newSize =
-            st.getEstimatedTotalMemoryUsed() + estimateRequiredMemory(item);
-    const float ratio = bucket ? bucket->getMutationMemRatio() : 1.0;
-    return newSize <= (st.getMaxDataSize() * ratio);
+bool VBucket::hasMemoryForStoredValue(const Item& item) {
+    if (!bucket) {
+        // Code-path used during testing of the VBucket class, when bucket is
+        // nullptr.
+        return stats.getEstimatedTotalMemoryUsed() +
+                       estimateRequiredMemory(item) <
+               stats.getMaxDataSize();
+    }
+
+    size_t requiredMemory = estimateRequiredMemory(item);
+    return bucket->getEPEngine().getMemoryTracker().isBelowMutationMemoryQuota(
+            requiredMemory);
 }
 
 void VBucket::_addStats(VBucketStatsDetailLevel detail,
@@ -3470,7 +3477,7 @@ std::pair<MutationStatus, std::optional<VBNotifyCtx>> VBucket::processSetInner(
         return {MutationStatus::NoMem, {}};
     }
 
-    if (!hasMemoryForStoredValue(stats, itm)) {
+    if (!hasMemoryForStoredValue(itm)) {
         return {MutationStatus::NoMem, {}};
     }
 
@@ -3646,7 +3653,7 @@ std::pair<AddStatus, std::optional<VBNotifyCtx>> VBucket::processAdd(
         return {AddStatus::NoMem, {}};
     }
 
-    if (!hasMemoryForStoredValue(stats, itm)) {
+    if (!hasMemoryForStoredValue(itm)) {
         return {AddStatus::NoMem, {}};
     }
 
@@ -3987,7 +3994,7 @@ VBucket::AddTempSVResult VBucket::addTempStoredValue(
              0,
              StoredValue::state_temp_init);
 
-    if (!hasMemoryForStoredValue(stats, itm)) {
+    if (!hasMemoryForStoredValue(itm)) {
         return {TempAddStatus::NoMem, nullptr};
     }
 

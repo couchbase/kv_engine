@@ -447,6 +447,10 @@ public:
         return lastTransTimePerItem.load();
     }
 
+    double getBackfillMemoryThreshold() const override {
+        return backfillMemoryThreshold;
+    }
+
     void setBackfillMemoryThreshold(double threshold) override;
 
     void setExpiryPagerSleeptime(size_t val) override;

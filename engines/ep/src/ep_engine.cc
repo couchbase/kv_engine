@@ -2009,6 +2009,8 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
         getQuotaSharingManager().getGroup().add(*this);
     }
 
+    memoryTracker = std::make_unique<StrictQuotaMemoryTracker>(*this);
+
     maxItemSize = configuration.getMaxItemSize();
     configuration.addValueChangedListener(
             "max_item_size",
@@ -2605,7 +2607,7 @@ cb::engine_errc EventuallyPersistentEngine::memoryCondition() {
     getKVBucket()->attemptToFreeMemory();
     getKVBucket()->wakeUpCheckpointMemRecoveryTask();
 
-    if (stats.getEstimatedTotalMemoryUsed() < stats.getMaxDataSize()) {
+    if (memoryTracker->isBelowMemoryQuota()) {
         // Still below bucket_quota - treat as temporary failure.
         ++stats.tmp_oom_errors;
         return cb::engine_errc::temporary_failure;
@@ -2618,8 +2620,7 @@ cb::engine_errc EventuallyPersistentEngine::memoryCondition() {
 
 bool EventuallyPersistentEngine::hasMemoryForItemAllocation(
         uint32_t totalItemSize) {
-    return (stats.getEstimatedTotalMemoryUsed() + totalItemSize) <=
-           stats.getMaxDataSize();
+    return memoryTracker->isBelowMemoryQuota(totalItemSize);
 }
 
 bool EventuallyPersistentEngine::enableTraffic(bool enable) {

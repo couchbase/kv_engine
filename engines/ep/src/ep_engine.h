@@ -15,6 +15,7 @@
 #include "ep_engine_public.h"
 #include "ep_engine_storage.h"
 #include "ep_types.h"
+#include "memory_tracker.h"
 #include "permitted_vb_states.h"
 #include "stats.h"
 #include "vbucket_fwd.h"
@@ -679,6 +680,10 @@ public:
 
     EPStats& getEpStats() {
         return stats;
+    }
+
+    MemoryTracker& getMemoryTracker() {
+        return *memoryTracker;
     }
 
     const EPStats& getEpStats() const {
@@ -1453,6 +1458,12 @@ protected:
      * after) them.
      */
     Configuration configuration;
+    /**
+     * Interface used for OOM conditions and triggering memory reclamation. For
+     * quota-sharing engines, the memory usage of the entire quota-sharing
+     * group will be considered.
+     */
+    std::unique_ptr<MemoryTracker> memoryTracker;
     std::unique_ptr<KVBucket> kvBucket;
     std::unique_ptr<WorkLoadPolicy> workload;
     bucket_priority_t workloadPriority;

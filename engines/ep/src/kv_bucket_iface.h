@@ -650,6 +650,7 @@ public:
 
     virtual size_t getTransactionTimePerItem() = 0;
 
+    virtual double getBackfillMemoryThreshold() const = 0;
     virtual void setBackfillMemoryThreshold(double threshold) = 0;
 
     virtual void setExpiryPagerSleeptime(size_t val) = 0;

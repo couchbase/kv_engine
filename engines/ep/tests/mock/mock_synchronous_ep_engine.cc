@@ -32,6 +32,7 @@
 
 #include <ep_engine_group.h>
 #include <memcached/server_core_iface.h>
+#include <memory_tracker.h>
 #include <quota_sharing_item_pager.h>
 
 SynchronousEPEngine::SynchronousEPEngine(const cb::ArenaMallocClient& client,
@@ -154,6 +155,8 @@ SynchronousEPEngineUniquePtr SynchronousEPEngine::build(
     // EPEngine::initialise() are also initialised.
     engine->isCrossBucketHtQuotaSharing =
             engine->getConfiguration().isCrossBucketHtQuotaSharing();
+
+    engine->memoryTracker = std::make_unique<StrictQuotaMemoryTracker>(*engine);
 
     engine->setKVBucket(
             engine->public_makeMockBucket(engine->getConfiguration()));

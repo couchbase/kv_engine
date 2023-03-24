@@ -379,6 +379,7 @@ ADD_LIBRARY(ep_objs OBJECT
             src/kvshard.cc
             src/learning_age_and_mfu_based_eviction.cc
         src/limited_concurrency_task.cc
+            src/memory_tracker.cc
             src/mutation_log.cc
             src/mutation_log_entry.cc
             src/paging_visitor.cc
