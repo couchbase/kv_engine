@@ -626,7 +626,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vbPtr) {
                 proposedVBState.mightContainXattrs = true;
             }
 
-            flushOneDelOrSet(*ctx, item, vbPtr.getVB());
+            flushOneDelOrSet(*ctx, item, vb);
 
             maxSeqno = std::max(maxSeqno, (uint64_t)item->getBySeqno());
 
@@ -1204,12 +1204,7 @@ cb::engine_errc EPBucket::cancelCompaction(Vbid vbid) {
 
 void EPBucket::flushOneDelOrSet(TransactionContext& txnCtx,
                                 const queued_item& qi,
-                                VBucketPtr& vb) {
-    if (!vb) {
-        --stats.diskQueueSize;
-        return;
-    }
-
+                                EPVBucket& vb) {
     int64_t bySeqno = qi->getBySeqno();
     const bool deleted = qi->isDeleted() && !qi->isPending();
 
@@ -1217,6 +1212,12 @@ void EPBucket::flushOneDelOrSet(TransactionContext& txnCtx,
             std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::steady_clock::now() - qi->getQueuedTime());
     stats.dirtyAgeHisto.add(dirtyAge);
+
+    // Keep count of the number of items flushed that come from a history=true
+    // collection - i.e. CanDeuplicate::No
+    if (!qi->canDeduplicate()) {
+        vb.incrementHistoricalItemsFlushed();
+    }
 
     auto* rwUnderlying = getRWUnderlying(qi->getVBucketId());
     if (!deleted) {

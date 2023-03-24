@@ -269,6 +269,14 @@ public:
 
     void notifyFlusher() override;
 
+    void incrementHistoricalItemsFlushed() {
+        historicalItemsFlushed++;
+    }
+
+    auto getHistoricalItemsFlushed() const {
+        return historicalItemsFlushed.load();
+    }
+
 protected:
     /**
      * queue a background fetch of the specified item.
@@ -397,6 +405,9 @@ private:
      * file revision we will unlink from disk.
      */
     std::unique_ptr<KVStoreRevision> deferredDeletionFileRevision;
+
+    /// counter of items tagged with CanDeduplicate::No flushed
+    cb::RelaxedAtomic<size_t> historicalItemsFlushed;
 
     friend class EPVBucketTest;
 };

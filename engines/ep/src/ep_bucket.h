@@ -328,11 +328,11 @@ protected:
      *
      * @param txnCtx context for the transaction (flush batch)
      * @param qi item to add
-     * @param vb vBucket
+     * @param vb EP vBucket being flushed
      */
     void flushOneDelOrSet(TransactionContext& txnCtx,
                           const queued_item& qi,
-                          VBucketPtr& vb);
+                          EPVBucket& vb);
 
     /**
      * Compaction of a database file
