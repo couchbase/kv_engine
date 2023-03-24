@@ -873,7 +873,8 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
         } else if (key == "history_retention_bytes") {
             configuration.setHistoryRetentionBytes(std::stoull(val));
         } else {
-            msg = "Unknown config param";
+            EP_LOG_WARN("Rejecting setFlushParam request key:{}", key);
+            msg = "Unknown config param " + key;
             rv = cb::engine_errc::invalid_arguments;
         }
         // Handles exceptions thrown by the cb_stob function
