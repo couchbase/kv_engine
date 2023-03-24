@@ -10,9 +10,11 @@
  */
 #include "create_remove_bucket_command_context.h"
 
+#include <daemon/bucket_destroyer.h>
 #include <daemon/connection.h>
 #include <daemon/enginemap.h>
 #include <daemon/one_shot_task.h>
+#include <daemon/yielding_task.h>
 #include <executor/executorpool.h>
 #include <logger/logger.h>
 #include <memcached/config_parser.h>
@@ -92,15 +94,27 @@ cb::engine_errc CreateRemoveBucketCommandContext::remove() {
         return cb::engine_errc::invalid_arguments;
     }
 
+    auto [status, optDestroyer] =
+            BucketManager::instance().startDestroy(&cookie, name, force);
+
+    if (status != cb::engine_errc::would_block) {
+        return status;
+    }
+    Expects(optDestroyer);
+
     std::string taskname{"Delete bucket [" + name + "]"};
-    ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
+    using namespace std::chrono_literals;
+    ExecutorPool::get()->schedule(std::make_shared<YieldingTask>(
             TaskId::Core_DeleteBucketTask,
             taskname,
-            [client = &cookie, nm = std::move(name), f = force]() {
+            [destroyer = std::move(*optDestroyer),
+             client = &cookie,
+             nm = std::move(name)]() mutable
+            -> std::optional<std::chrono::duration<double>> {
                 auto& connection = client->getConnection();
                 cb::engine_errc status;
                 try {
-                    status = BucketManager::instance().destroy(client, nm, f);
+                    status = destroyer.drive();
                 } catch (const std::runtime_error& error) {
                     LOG_WARNING(
                             "{}: An error occurred while deleting bucket [{}]: "
@@ -110,9 +124,15 @@ cb::engine_errc CreateRemoveBucketCommandContext::remove() {
                             error.what());
                     status = cb::engine_errc::failed;
                 }
+                if (status == cb::engine_errc::would_block) {
+                    // destroyer hasn't completed yet (waiting for connections
+                    // or operations), try again in 10ms
+                    return {10ms};
+                }
                 ::notifyIoComplete(*client, status);
+                return {};
             },
-            std::chrono::seconds(30)));
+            100ms));
 
     state = State::Done;
     return cb::engine_errc::would_block;

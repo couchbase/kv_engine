@@ -239,23 +239,6 @@ public:
                            BucketType type);
 
     /**
-     * Destroy a bucket (will block until connections are closed and operations
-     * in flight are complete).
-     *
-     * Wraps startDestroy in a while loop; use startDestroy directly if the
-     * caller needs to do anything else while bucket deletion is in progress
-     * (e.g., needs to snooze a task rather than blocking a thread).
-     *
-     *
-     * @param cookie The cookie requested bucket deletion
-     * @param name The name of the bucket to delete
-     * @param force If set to true the underlying engine should not try to
-     *              persist pending items etc
-     * @return Status for the operation
-     */
-    cb::engine_errc destroy(Cookie* cookie, const std::string name, bool force);
-
-    /**
      * Start bucket destruction.
      *
      * If the destruction needs to wait for some condition (e.g., waiting
@@ -292,4 +275,21 @@ public:
 
 protected:
     BucketManager();
+
+    /**
+     * Destroy a bucket (will block until connections are closed and operations
+     * in flight are complete).
+     *
+     * Wraps startDestroy in a while loop; use startDestroy directly if the
+     * caller needs to do anything else while bucket deletion is in progress
+     * (e.g., needs to snooze a task rather than blocking a thread).
+     *
+     *
+     * @param cookie The cookie requested bucket deletion
+     * @param name The name of the bucket to delete
+     * @param force If set to true the underlying engine should not try to
+     *              persist pending items etc
+     * @return Status for the operation
+     */
+    cb::engine_errc destroy(Cookie* cookie, const std::string name, bool force);
 };
