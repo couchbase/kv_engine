@@ -2948,8 +2948,16 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
 
         addLocalDbReqs(localDbReqs, writeOps);
 
-        status = magma->WriteDocs(
-                vbid.get(), writeOps, kvstoreRevList[getCacheSlot(vbid)]);
+        const auto historyMode = ctx->getVBucket()->isHistoryRetentionEnabled()
+                                         ? Magma::HistoryMode::Enabled
+                                         : Magma::HistoryMode::Disabled;
+        status = magma->WriteDocs(vbid.get(),
+                                  writeOps,
+                                  kvstoreRevList[getCacheSlot(vbid)],
+                                  nullptr,
+                                  nullptr,
+                                  nullptr,
+                                  historyMode);
         if (!status) {
             logger->critical(
                     "MagmaKVStore::compactDBInternal {} WriteDocs failed. "

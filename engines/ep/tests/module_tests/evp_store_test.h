@@ -19,6 +19,7 @@
 
 #include "evp_store_single_threaded_test.h"
 #include "kv_bucket_test.h"
+#include "test_manifest.h"
 
 /**
  * Persistent bucket only tests
@@ -55,3 +56,17 @@ public:
 protected:
     void SetUp() override;
 };
+
+#ifdef EP_USE_MAGMA
+
+/**
+ * Test fixture for CDC tests - Magma only
+ */
+class EPBucketCDCTest : public EPBucketTest {
+protected:
+    void SetUp() override;
+
+    CollectionsManifest manifest;
+};
+
+#endif // EP_USE_MAGMA
