@@ -84,6 +84,11 @@ RangeScanDataHandler::cancelOnFrontendThread() {
 RangeScanDataHandler::Status RangeScanDataHandler::handleKey(DocKey key) {
     auto locked = scannedData.lock();
     locked->pendingReadBytes += key.size();
+
+    // ensure the buffer is sized for the configured buffer size, this scan will
+    // read keys upto this size and we can avoid alloc/memcpy as we push back
+    locked->responseBuffer.reserve(sendTriggerThreshold);
+
     cb::mcbp::response::RangeScanContinueKeyPayload::encode(
             locked->responseBuffer, key);
     return getScanStatus(locked->responseBuffer.size());
@@ -93,6 +98,11 @@ RangeScanDataHandler::Status RangeScanDataHandler::handleItem(
         std::unique_ptr<Item> item) {
     auto locked = scannedData.lock();
     locked->pendingReadBytes += item->getKey().size() + item->getNBytes();
+
+    // ensure the buffer is sized for the configured buffer size, this scan will
+    // read keys upto this size and we can avoid alloc/memcpy as we push back
+    locked->responseBuffer.reserve(sendTriggerThreshold);
+
     cb::mcbp::response::RangeScanContinueValuePayload::encode(
             locked->responseBuffer, item->toItemInfo(0, false));
     return getScanStatus(locked->responseBuffer.size());
