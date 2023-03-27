@@ -2362,7 +2362,9 @@ void CheckpointTest::testExpelCheckpointItems() {
      * 1002 - 2nd item (key1) <<<<<<< persistenceCursor
      * 1003 - 3rd item (key2)
      */
-    EXPECT_EQ(1 + itemCount, manager->getNumOpenChkItems());
+    const size_t expectedNumItemsPre = 1 + itemCount;
+    EXPECT_EQ(expectedNumItemsPre, manager->getNumOpenChkItems());
+    EXPECT_EQ(expectedNumItemsPre, manager->getNumItems());
 
     const auto expelResult = manager->expelUnreferencedCheckpointItems();
     EXPECT_EQ(2, expelResult.count);
@@ -2386,8 +2388,9 @@ void CheckpointTest::testExpelCheckpointItems() {
     }
 
     // 1 mutation removed from checkpoint
-    EXPECT_EQ(1 + (itemCount - expelResult.count),
-              manager->getNumOpenChkItems());
+    const size_t expectedNumItemsPost = 1 + (itemCount - expelResult.count);
+    EXPECT_EQ(expectedNumItemsPost, manager->getNumOpenChkItems());
+    EXPECT_EQ(expectedNumItemsPost, manager->getNumItems());
 
     // Try to register a DCP replication cursor from 1001 - an expelled item.
     std::string dcp_cursor1(DCP_CURSOR_PREFIX + std::to_string(1));
@@ -4771,8 +4774,7 @@ TEST_F(CDCCheckpointTest, DuplicateItemWhenPreviousExpelled) {
     // [cs x x m(C):5) )
     //       ^
     EXPECT_EQ(1, manager.getNumCheckpoints());
-    // Note: CM::numItems doesn't update at Expel in <=7.2.x (fixed in MB-56094)
-    EXPECT_EQ(4, manager.getNumItems()); // not updated by expel
+    EXPECT_EQ(2, manager.getNumItems()); // not updated by expel
     EXPECT_EQ(2, manager.getNumOpenChkItems()); // updated by expel
     EXPECT_EQ(5, manager.getHighSeqno());
 
@@ -4784,8 +4786,7 @@ TEST_F(CDCCheckpointTest, DuplicateItemWhenPreviousExpelled) {
     // [cs x x m(C):5) ce] [cs m(A):6) )
     //       ^
     EXPECT_EQ(2, manager.getNumCheckpoints());
-    // Note: CM::numItems doesn't update at Expel in <=7.2.x (fixed in MB-56094)
-    EXPECT_EQ(7, manager.getNumItems());
+    EXPECT_EQ(5, manager.getNumItems());
     EXPECT_EQ(2, manager.getNumOpenChkItems());
     EXPECT_EQ(6, manager.getHighSeqno());
     EXPECT_GT(manager.getOpenCheckpointId(), ckptId);

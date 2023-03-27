@@ -707,6 +707,7 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
     }
 
     stats.itemsExpelledFromCheckpoints.fetch_add(numItemsExpelled);
+    numItems.fetch_sub(numItemsExpelled);
 
     // queueLock already released here, O(N) deallocation is lock-free
     const auto queuedItemsMemReleased = extractRes.deleteItems();
