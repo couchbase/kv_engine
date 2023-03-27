@@ -2216,7 +2216,9 @@ void CheckpointTest::testExpelCheckpointItems() {
      * 1002 - 2nd item (key1) <<<<<<< persistenceCursor
      * 1003 - 3rd item (key2)
      */
-    EXPECT_EQ(1 + itemCount, manager->getNumOpenChkItems());
+    const size_t expectedNumItemsPre = 1 + itemCount;
+    EXPECT_EQ(expectedNumItemsPre, manager->getNumOpenChkItems());
+    EXPECT_EQ(expectedNumItemsPre, manager->getNumItems());
 
     const auto expelResult = manager->expelUnreferencedCheckpointItems();
     EXPECT_EQ(2, expelResult.count);
@@ -2240,8 +2242,9 @@ void CheckpointTest::testExpelCheckpointItems() {
     }
 
     // 1 mutation removed from checkpoint
-    EXPECT_EQ(1 + (itemCount - expelResult.count),
-              manager->getNumOpenChkItems());
+    const size_t expectedNumItemsPost = 1 + (itemCount - expelResult.count);
+    EXPECT_EQ(expectedNumItemsPost, manager->getNumOpenChkItems());
+    EXPECT_EQ(expectedNumItemsPost, manager->getNumItems());
 
     // Try to register a DCP replication cursor from 1001 - an expelled item.
     std::string dcp_cursor1(DCP_CURSOR_PREFIX + std::to_string(1));
