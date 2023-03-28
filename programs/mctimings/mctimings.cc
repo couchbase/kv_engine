@@ -408,7 +408,7 @@ int main(int argc, char** argv) {
                           buckets.front().assign(std::string{value});
                       },
                       'b',
-                      "buckets",
+                      "bucket",
                       Argument::Required,
                       "bucketname",
                       "The name of the bucket to operate on (specify \"@no "
