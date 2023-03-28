@@ -2497,6 +2497,11 @@ void CheckpointTest::testExpelCheckpointItemsMemoryRecovered() {
     const int itemCount{3};
     size_t sizeOfItem{0};
 
+    ASSERT_EQ(1, manager->getNumCheckpoints());
+    ASSERT_EQ(1, manager->getNumOpenChkItems());
+    const auto initialCMUsage = manager->getMemUsage();
+    const auto initialCMQueuedItemsUsage = manager->getQueuedItemsMemUsage();
+
     for (auto ii = 0; ii < itemCount; ++ii) {
         std::string value("value");
         queued_item item(new Item(makeStoredDocKey("key" + std::to_string(ii)),
@@ -2542,7 +2547,7 @@ void CheckpointTest::testExpelCheckpointItemsMemoryRecovered() {
     // Get the memory usage before expelling
     const auto memUsageBeforeExpel = manager->getMemUsage();
 
-    const auto expelResult = manager->expelUnreferencedCheckpointItems();
+    auto expelResult = manager->expelUnreferencedCheckpointItems();
     EXPECT_EQ(2, expelResult.count);
     EXPECT_EQ(2, global_stats.itemsExpelledFromCheckpoints);
 
@@ -2569,6 +2574,45 @@ void CheckpointTest::testExpelCheckpointItemsMemoryRecovered() {
     EXPECT_EQ(expectedMemoryRecovered, expelResult.memory);
     EXPECT_EQ(expectedMemoryRecovered,
               memUsageBeforeExpel - manager->getMemUsage());
+
+    // Now verify the behaviour when Expel releases all the items in checkpoint
+    manager->nextItem(cursor, isLastMutationItem);
+    ASSERT_TRUE(isLastMutationItem);
+    /*
+     * Checkpoint now looks as follows:
+     * 1000 - dummy Item
+     * 1001 - checkpoint start
+     * 1003 - 3rd item (key 2) <<<<<<< Cursor
+     */
+    const auto id = manager->getOpenCheckpointId();
+    ASSERT_EQ(1, manager->getNumCheckpoints());
+    ASSERT_EQ(2, manager->getNumOpenChkItems());
+
+    expelResult = manager->expelUnreferencedCheckpointItems();
+    /*
+     * Checkpoint now looks as follows:
+     * 1000 - dummy Item
+     * 1001 - checkpoint start <<<<<<< Cursor
+     */
+    ASSERT_EQ(1, manager->getNumCheckpoints());
+    ASSERT_EQ(1, manager->getNumOpenChkItems());
+    EXPECT_EQ(1, expelResult.count);
+    EXPECT_EQ(3, global_stats.itemsExpelledFromCheckpoints);
+
+    // We expelled all the items, so we expect queue-usage back to initial val
+    EXPECT_EQ(initialCMQueuedItemsUsage, manager->getQueuedItemsMemUsage());
+    // Plus, CM total still accounts for the keys in the index - keys inserted
+    // in the index when items queued, but not removed by Expel
+    EXPECT_EQ(initialCMUsage + manager->getMemOverheadIndex(),
+              manager->getMemUsage());
+
+    // Verify that releasing the full checkpoint reverts CM's usage back to the
+    // initial usage - Checkpoint removal release the keyIndex too
+    manager->createNewCheckpoint();
+    ASSERT_EQ(1, manager->getNumCheckpoints());
+    ASSERT_EQ(1, manager->getNumOpenChkItems());
+    ASSERT_GT(manager->getOpenCheckpointId(), id);
+    EXPECT_EQ(initialCMUsage, manager->getMemUsage());
 }
 
 TEST_P(CheckpointTest, ExpelCheckpointItemsMemoryRecoveredMemory) {
