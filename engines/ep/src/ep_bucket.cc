@@ -628,8 +628,6 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
 
             // Track the lowest seqno, so we can set the HLC epoch
             minSeqno = std::min(minSeqno, (uint64_t)item->getBySeqno());
-            proposedVBState.maxCas =
-                    std::max(proposedVBState.maxCas, item->getCas());
 
             ++stats.flusher_todo;
 
@@ -705,6 +703,10 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
         // Register the item for deferred (flush success only) stats update.
         aggStats.accountItem(*item);
     }
+
+    // The new maxCas was computed when visiting the checkpoint(s) that made up
+    // the flush batch.
+    proposedVBState.maxCas = toFlush.maxCas;
 
     // Just return if nothing to flush
     if (!mustPersistVBState && flushBatchSize == 0) {

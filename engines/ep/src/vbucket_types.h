@@ -74,6 +74,9 @@ struct ItemsToFlush {
     std::optional<uint64_t> maxDeletedRevSeqno = {};
     CheckpointType checkpointType = CheckpointType::Memory;
 
+    // The maxCas of the flush batch, which takes into account a possible reset
+    uint64_t maxCas{0};
+
     // See CM::ItemsForCursor for details.
     UniqueFlushHandle flushHandle;
 };

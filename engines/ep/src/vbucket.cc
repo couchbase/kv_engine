@@ -444,6 +444,7 @@ ItemsToFlush VBucket::getItemsToPersist(size_t approxLimit) {
     result.checkpointType = rangeInfo.checkpointType;
     result.flushHandle = std::move(rangeInfo.flushHandle);
     result.moreAvailable = rangeInfo.moreAvailable;
+    result.maxCas = rangeInfo.maxCas;
 
     stats.persistenceCursorGetItemsHisto.add(
             std::chrono::duration_cast<std::chrono::microseconds>(
@@ -4224,4 +4225,9 @@ void VBucket::failAllSeqnoPersistenceReqs(EventuallyPersistentEngine& engine) {
     for (auto& notify : toNotify) {
         engine.notifyIOComplete(notify.first, notify.second);
     }
+}
+
+void VBucket::forceMaxCas(uint64_t cas) {
+    hlc.forceMaxHLC(cas);
+    checkpointManager->queueSetVBState();
 }
