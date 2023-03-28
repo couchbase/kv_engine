@@ -1046,6 +1046,15 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
         items.push_back(qi);
         itemCount++;
 
+        if (qi->isSetVBState()) {
+            // A set-vbucket-state overrides the maxCas - this ensures that in
+            // the seqno order any prior "poisoned" Items are ignored if the
+            // HLC was reset by a forceMaxCas
+            result.maxCas = qi->getCas();
+        } else {
+            result.maxCas = std::max(result.maxCas, qi->getCas());
+        }
+
         if (qi->getOperation() == queue_op::checkpoint_end) {
             enteredNewCp = true; // the next incrCuror will move to a new CP
 

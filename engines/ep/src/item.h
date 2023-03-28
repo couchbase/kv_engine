@@ -612,6 +612,10 @@ public:
         deduplicate = value == CanDeduplicate::Yes;
     }
 
+    bool isSetVBState() const {
+        return op == queue_op::set_vbucket_state;
+    }
+
 private:
     /**
      * Set the item's data. This is only used by constructors, so we

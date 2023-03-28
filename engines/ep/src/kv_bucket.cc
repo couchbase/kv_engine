@@ -2648,6 +2648,10 @@ size_t KVBucket::getReplicaResidentRatio() const {
 cb::engine_errc KVBucket::forceMaxCas(Vbid vbucket, uint64_t cas) {
     VBucketPtr vb = vbMap.getBucket(vbucket);
     if (vb) {
+        EP_LOG_WARN("KVBucket::forceMaxCas {} current:{}, new:{}",
+                    vbucket,
+                    vb->getMaxCas(),
+                    cas);
         vb->forceMaxCas(cas);
         return cb::engine_errc::success;
     }
