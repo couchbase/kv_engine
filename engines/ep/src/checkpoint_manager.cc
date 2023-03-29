@@ -1553,6 +1553,24 @@ void CheckpointManager::addStats(const AddStatFn& add_stat,
                 buf.data(), buf.size(), "vb_%d:mem_usage", vbucketId.get());
         add_casted_stat(buf.data(), getMemUsage(lh), add_stat, cookie);
 
+        checked_snprintf(buf.data(),
+                         buf.size(),
+                         "vb_%d:mem_usage_key_index_overhead",
+                         vbucketId.get());
+        add_casted_stat(buf.data(), memOverheadIndex, add_stat, cookie);
+
+        checked_snprintf(buf.data(),
+                         buf.size(),
+                         "vb_%d:mem_usage_queue_overhead",
+                         vbucketId.get());
+        add_casted_stat(buf.data(), memOverheadQueue, add_stat, cookie);
+
+        checked_snprintf(buf.data(),
+                         buf.size(),
+                         "vb_%d:mem_usage_queued_items",
+                         vbucketId.get());
+        add_casted_stat(buf.data(), queuedItemsMemUsage, add_stat, cookie);
+
         for (const auto& cursor : cursors) {
             checked_snprintf(buf.data(),
                              buf.size(),
