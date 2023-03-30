@@ -34,7 +34,7 @@
 #include <phosphor/trace_log.h>
 #include <platform/cb_arena_malloc.h>
 #include <platform/checked_snprintf.h>
-#include <sigar.h>
+#include <sigar/sigar.h>
 #include <statistics/cbstat_collector.h>
 #include <statistics/labelled_collector.h>
 #include <utilities/engine_errc_2_mcbp.h>
@@ -576,10 +576,11 @@ static cb::engine_errc stat_threads_executor(const std::string& arg,
 
         try {
             const auto pid = getpid();
-            sigar::iterate_threads([&json, &pid](auto tid,
-                                                 auto name,
-                                                 auto user,
-                                                 auto system) {
+            auto instance = sigar::SigarIface::New();
+            instance->iterate_threads([&json, &pid](auto tid,
+                                                    auto name,
+                                                    auto user,
+                                                    auto system) {
                 nlohmann::json entry = {{"user", user}, {"system", system}};
                 if (pid == tid) {
                     entry["main"] = true;

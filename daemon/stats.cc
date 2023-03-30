@@ -22,7 +22,7 @@
 #include <platform/cb_arena_malloc.h>
 #include <platform/timeutils.h>
 #include <serverless/config.h>
-#include <sigar.h>
+#include <sigar/sigar.h>
 #include <statistics/collector.h>
 #include <statistics/labelled_collector.h>
 #include <statistics/prometheus.h>
@@ -248,10 +248,11 @@ cb::engine_errc server_prometheus_stats(
             }
         } else {
             try {
-                sigar::iterate_threads([&kvCollector](auto tid,
-                                                      auto name,
-                                                      auto user,
-                                                      auto system) {
+                auto instance = sigar::SigarIface::New();
+                instance->iterate_threads([&kvCollector](auto tid,
+                                                         auto name,
+                                                         auto user,
+                                                         auto system) {
                     auto thread_pool = get_thread_pool_name(name);
                     kvCollector.addStat(cb::stats::Key::thread_cpu_usage,
                                         user,
