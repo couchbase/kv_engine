@@ -113,19 +113,36 @@ protected:
 
         std::vector<std::pair<Vbid, std::string>> docKeys;
 
-        int key = 0;
-        while (getMemStats(bucket).current <= targetMemUsed) {
+        auto storeNextItem = [&, key = 0]() mutable {
             auto vb = key % maxVBuckets;
             auto docKey = "key_" + std::to_string(key);
             conns[bucket]->store(docKey, Vbid(vb), itemValue);
             docKeys.emplace_back(Vbid(vb), std::move(docKey));
             key++;
+        };
+
+        int storedItems = 0;
+        while (getMemStats(bucket).current <= targetMemUsed) {
+            storeNextItem();
+            storedItems++;
+        }
+
+        // Wait for memory consumers to settle
+        waitForFlusherAndCheckpointDestruction(bucket);
+
+        // And then do the last few stores necessary to reach the target
+        // mem_used again, after we've destroyed checkpoints, but this time,
+        // wait for flusher after each store.
+        while (getMemStats(bucket).current <= targetMemUsed) {
+            storeNextItem();
+            storedItems++;
+            waitForFlusherAndCheckpointDestruction(bucket);
         }
 
         auto minExpectedItems = (targetMemUsed - initialMemUsed) / itemSize / 2;
-        EXPECT_GT(key, minExpectedItems)
+        EXPECT_GT(storedItems, minExpectedItems)
                 << "Wrote too few items. Expected to write at least "
-                << minExpectedItems << " items but wrote only " << key
+                << minExpectedItems << " items but wrote only " << storedItems
                 << " before memory usage increased by " << minTotalSize / 1._MiB
                 << " MiB";
 
@@ -160,6 +177,17 @@ protected:
         return c();
     }
 
+    void waitForFlusherAndCheckpointDestruction(int bucket) {
+        const auto isReady = [](const auto& stats) {
+            return stats["ep_queue_size"] == 0 &&
+                   stats["ep_flusher_todo"] == 0 &&
+                   stats["ep_checkpoint_memory_pending_destruction"] == 0;
+        };
+        while (!isReady(conns[bucket]->stats(""))) {
+            std::this_thread::yield();
+        }
+    }
+
     /**
      * We only check whether we've reached the low watermark on every vBucket
      * visit. This means that we can potentially be 1 byte over than, but
@@ -189,7 +217,11 @@ protected:
             {"max_vbuckets", maxVBuckets},
             {"cross_bucket_ht_quota_sharing", true},
             // Setting the increment factor to 0 means we always increment
-            {"freq_counter_increment_factor", 0}};
+            {"freq_counter_increment_factor", 0},
+            // Keep checkpoint memory usage minimal
+            {"checkpoint_memory_recovery_upper_mark", 0},
+            {"checkpoint_memory_recovery_lower_mark", 0},
+            {"checkpoint_max_size", 1}};
 
     std::vector<std::shared_ptr<cb::test::Bucket>> buckets;
     // Connections to each bucket's vb:0.
@@ -228,9 +260,9 @@ public:
 TEST_P(OneBucketQSPagingTest, SingleBucketEvictionWorks) {
     const intptr_t testItemMemUsage = 15_MiB;
 
+    generateItems(0, testItemMemUsage);
     setMemWatermarks(0, 20_MiB, 25_MiB);
 
-    generateItems(0, testItemMemUsage);
     ASSERT_TRUE(getMemStats(0).isBelowLowWatermark());
     ASSERT_GT(getMemStats(0).current, 5_MiB);
 
@@ -261,9 +293,9 @@ INSTANTIATE_TEST_SUITE_P(QuotaSharingOnOff,
 TEST_F(TwoBucketQSPagingTest, ItemsAreEvictedFromSingleBucket) {
     const intptr_t testItemMemUsage = 15_MiB;
 
+    generateItems(0, testItemMemUsage);
     setMemWatermarks(0, 20_MiB, 25_MiB);
 
-    generateItems(0, testItemMemUsage);
     ASSERT_TRUE(getMemStats(0).isBelowLowWatermark());
     ASSERT_GT(getMemStats(0).current, 5_MiB);
 
@@ -287,13 +319,13 @@ TEST_F(TwoBucketQSPagingTest, ItemsAreEvictedFromSingleBucket) {
  * evict anything from that bucket.
  */
 TEST_F(TwoBucketQSPagingTest, BucketsCanStealQuota) {
-    setMemWatermarks(0, 20_MiB, 25_MiB);
-    setMemWatermarks(1, 20_MiB, 25_MiB);
-
     // Have bucket 0 go over its individual quota, but sum(mem_used) <
     // sum(high_wat) so we shouldn't end up evicting anything in this case.
     generateItems(0, 30_MiB);
     generateItems(1, 10_MiB);
+
+    setMemWatermarks(0, 20_MiB, 25_MiB);
+    setMemWatermarks(1, 20_MiB, 25_MiB);
 
     ASSERT_TRUE(getMemStats(0).isAboveHighWatermark());
     ASSERT_TRUE(getMemStats(1).isBelowLowWatermark());
@@ -303,9 +335,9 @@ TEST_F(TwoBucketQSPagingTest, BucketsCanStealQuota) {
 
     // Make sure nothing is evicted even after waiting for the same amount
     // of time it takes us to evict items in other tests.
-    auto expectedMemUsage = getMemStats(0).current;
     std::this_thread::sleep_for(evictionTimeout);
-    EXPECT_NEAR(expectedMemUsage, getMemStats(0).current, 1_MiB);
+    EXPECT_EQ(0, getNumPagerRuns(0));
+    EXPECT_EQ(0, getNumPagerRuns(1));
 }
 
 /**
@@ -316,11 +348,11 @@ TEST_F(TwoBucketQSPagingTest, BucketsCanStealQuota) {
 TEST_F(TwoBucketQSPagingTest, ItemsAreFairlyEvictedFromTwoBuckets) {
     const intptr_t testItemMemUsage = 15_MiB;
 
-    setMemWatermarks(0, 20_MiB, 25_MiB);
-    setMemWatermarks(1, 20_MiB, 25_MiB);
-
     generateItems(0, testItemMemUsage);
     generateItems(1, testItemMemUsage);
+
+    setMemWatermarks(0, 20_MiB, 25_MiB);
+    setMemWatermarks(1, 20_MiB, 25_MiB);
 
     ASSERT_TRUE(getMemStats(0).isBelowLowWatermark());
     ASSERT_TRUE(getMemStats(1).isBelowLowWatermark());
@@ -363,11 +395,11 @@ TEST_F(TwoBucketQSPagingTest, ItemsAreFairlyEvictedFromTwoBuckets) {
 TEST_F(TwoBucketQSPagingTest, ItemsAreEvictedFromLessHotBucketsFirst) {
     const intptr_t testItemMemUsage = 20_MiB;
 
-    setMemWatermarks(0, 20_MiB, 30_MiB);
-    setMemWatermarks(1, 20_MiB, 30_MiB);
-
     auto hotBucketItems = generateItems(0, testItemMemUsage);
     auto coldBucketItems = generateItems(1, testItemMemUsage);
+
+    setMemWatermarks(0, 20_MiB, 30_MiB);
+    setMemWatermarks(1, 20_MiB, 30_MiB);
 
     // Make the items in bucket 0 hotter.
     for (const auto& [vbid, key] : hotBucketItems) {
@@ -381,6 +413,8 @@ TEST_F(TwoBucketQSPagingTest, ItemsAreEvictedFromLessHotBucketsFirst) {
 
     auto hotBucketMemUsed = getMemStats(0).current;
     auto coldBucketMemUsed = getMemStats(1).current;
+    ASSERT_EQ(0, getNumPagerRuns(0));
+    ASSERT_EQ(0, getNumPagerRuns(1));
     ASSERT_GT(hotBucketMemUsed, 19_MiB);
     ASSERT_GT(coldBucketMemUsed, 19_MiB);
 
@@ -431,7 +465,6 @@ TEST_F(TwoBucketQSPagingTest, BucketsCanBeDestroyedWhileEvictionIsRunning) {
         }
 
         cluster->deleteBucket("tempbucket");
-        buckets.pop_back();
         // Stop eviction by increasing shared quota high_wat, allowing
         // generateItems below to complete.
         setMemWatermarks(0, 100_MiB, 100_MiB);
