@@ -44,7 +44,7 @@ static void request_stat(MemcachedConnection& connection,
         };
         if (json) {
             auto stats = connection.stats(key, getFrameInfos);
-            std::cout << stats.dump(format ? 1 : -1, '\t') << std::endl;
+            std::cout << stats.dump(format ? 2 : -1) << std::endl;
         } else {
             connection.stats(
                     [](const std::string& key,
