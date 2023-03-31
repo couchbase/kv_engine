@@ -72,10 +72,13 @@ public:
     /**
      * @param lastFlushed The last mutation persisted for some key
      * @param candidate The mutation to be persisted for the same key
+     * @param historical The history state from the flush batch
      * @returns true if the item `candidate` can be de-duplicated (skipped)
      *  because `lastFlushed` already supercedes it.
      */
-    bool canDeduplicate(Item* lastFlushed, Item& candidate) const;
+    bool canDeduplicate(Item* lastFlushed,
+                        Item& candidate,
+                        CheckpointHistorical historical) const;
 
     /**
      * Flushes all items waiting for persistence in a given vbucket

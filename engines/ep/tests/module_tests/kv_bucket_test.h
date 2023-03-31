@@ -101,6 +101,23 @@ public:
             protocol_binary_datatype_t datatype =
                     PROTOCOL_BINARY_DATATYPE_JSON);
 
+    /**
+     * Store a pending item with default level of majority
+     */
+    Item store_pending_item(
+            Vbid vbid,
+            const DocKey& key,
+            const std::string& value,
+            uint32_t exptime = 0,
+            const std::vector<cb::engine_errc>& expected =
+                    {cb::engine_errc::sync_write_pending},
+            protocol_binary_datatype_t datatype = PROTOCOL_BINARY_RAW_BYTES,
+            std::optional<cb::durability::Requirements> reqs =
+                    cb::durability::Requirements(
+                            cb::durability::Level::Majority,
+                            cb::durability::Timeout::Infinity()),
+            bool deleted = false);
+
     /* Flush the given vbucket to disk, so any outstanding dirty items are
      * written (and are clean).
      */

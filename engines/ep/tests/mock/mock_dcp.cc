@@ -467,7 +467,15 @@ cb::engine_errc MockDcpMessageProducers::abort(uint32_t opaque,
     last_vbucket = vbucket;
     last_prepared_seqno = prepared_seqno;
     last_abort_seqno = abort_seqno;
-    last_key.assign(key.to_string());
+
+    // Save the logical-key, which for a DocKey requires a new DocKey creating.
+    // This matches the mutation/prepare/delete path
+    // tests that want to compare collecton+key should be testing last_key and
+    // last_collection_id
+    auto k2 = key.makeDocKeyWithoutCollectionID();
+    last_key = std::string{reinterpret_cast<const char*>(k2.data()), k2.size()};
+    last_byseqno = abort_seqno;
+    last_collection_id = key.getCollectionID();
     last_packet_size = sizeof(protocol_binary_request_header) +
                        sizeof(cb::mcbp::request::DcpAbortPayload);
     if (!isCollectionsSupported) {

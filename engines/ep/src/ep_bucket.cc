@@ -340,7 +340,9 @@ void EPBucket::deinitialize() {
     });
 }
 
-bool EPBucket::canDeduplicate(Item* lastFlushed, Item& candidate) const {
+bool EPBucket::canDeduplicate(Item* lastFlushed,
+                              Item& candidate,
+                              CheckpointHistorical historical) const {
     if (isHistoryRetentionEnabled() && !candidate.canDeduplicate()) {
         return false;
     }
@@ -355,6 +357,13 @@ bool EPBucket::canDeduplicate(Item* lastFlushed, Item& candidate) const {
     }
     if (lastFlushed->isCommitted() != candidate.isCommitted()) {
         // Committed / pending namespace differs - cannot de-dupe.
+        return false;
+    }
+    if (historical == CheckpointHistorical::Yes && lastFlushed->isPending() &&
+        candidate.isAbort()) {
+        // prepare/abort must not deduplicate when the checkpoint represents
+        // a complete history - even for collections with deduplication enabled.
+        // MB-56256
         return false;
     }
 
@@ -617,7 +626,8 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vbPtr) {
                 // Process the Item's value into the transition struct
                 proposedVBState.transition.fromItem(*item);
             }
-        } else if (!mustDedupe || !canDeduplicate(prev, *item)) {
+        } else if (!mustDedupe ||
+                   !canDeduplicate(prev, *item, commitData.historical)) {
             // This is an item we must persist.
             prev = item.get();
             ++flushBatchSize;
