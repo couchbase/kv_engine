@@ -24,6 +24,7 @@
 #include "vbucket_types.h"
 #include "vbucketmap.h"
 #include <executor/task_type.h>
+#include <utilities/testing_hook.h>
 
 #include <cstdlib>
 #include <deque>
@@ -1190,6 +1191,12 @@ protected:
      * A task that will notify (success or timeout) of SeqnoPersistenceRequests.
      */
     std::shared_ptr<SeqnoPersistenceNotifyTask> seqnoPersistenceNotifyTask;
+
+    /**
+     * Hook called after creating (and possibly queueing) a compaction
+     * bgfetch context. For tests.
+     */
+    TestingHook<> processExpiredItemHook;
 
     friend class KVBucketTest;
 

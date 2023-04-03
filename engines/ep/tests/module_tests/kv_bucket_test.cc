@@ -624,6 +624,10 @@ CheckpointDestroyerTask& KVBucketTest::getCkptDestroyerTask(Vbid vbid) const {
     return store->getCkptDestroyerTask(vbid);
 }
 
+void KVBucketTest::setProcessExpiredItemHook(std::function<void()> cb) {
+    store->processExpiredItemHook = std::move(cb);
+}
+
 class KVBucketParamTest : public STParameterizedBucketTest {
     void SetUp() override {
         STParameterizedBucketTest::SetUp();
