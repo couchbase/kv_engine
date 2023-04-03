@@ -95,11 +95,6 @@ nlohmann::json Connection::to_json() const {
 
     ret["connection"] = cb::to_hex(uint64_t(this));
 
-    if (socketDescriptor == INVALID_SOCKET) {
-        ret["socket"] = "disconnected";
-        return ret;
-    }
-
     ret["socket"] = socketDescriptor;
     ret["yields"] = yields.load();
     ret["protocol"] = "memcached";
