@@ -842,8 +842,6 @@ void HistoryScanTest::preparePrepare(queue_op operation) {
     // and pending again
     items.emplace_back(store_pending_item(vbid, key, "v1"));
 
-    flush_vbucket_to_disk(vbid, 2);
-
     ASSERT_EQ(cb::engine_errc::success,
               vb->commit(key,
                          items.back().getBySeqno(),
@@ -857,7 +855,7 @@ void HistoryScanTest::preparePrepare(queue_op operation) {
     items.back().setDataType(PROTOCOL_BINARY_RAW_BYTES);
 
     // Flush everything in 1 batch and check the item counts
-    flush_vbucket_to_disk(vbid, 1);
+    flush_vbucket_to_disk(vbid, 3);
 
     // Only 1 item
     EXPECT_EQ(1,

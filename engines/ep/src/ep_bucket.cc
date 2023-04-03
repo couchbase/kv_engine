@@ -359,11 +359,12 @@ bool EPBucket::canDeduplicate(Item* lastFlushed,
         // Committed / pending namespace differs - cannot de-dupe.
         return false;
     }
-    if (historical == CheckpointHistorical::Yes && lastFlushed->isPending() &&
-        candidate.isAbort()) {
-        // prepare/abort must not deduplicate when the checkpoint represents
-        // a complete history - even for collections with deduplication enabled.
-        // MB-56256
+
+    // MB-56256: retain all "resolutions" to a prepare so there is no
+    // prepare(k)->prepare(k) sequence in the history window. Between each
+    // prepare there must always be a resolution, e.g. abort(k) or commit(k).
+    if (historical == CheckpointHistorical::Yes &&
+        (candidate.isAbort() || candidate.isCommitSyncWrite())) {
         return false;
     }
 
