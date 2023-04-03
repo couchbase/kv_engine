@@ -133,18 +133,12 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     /* Shutdown the server */
     setup(cb::mcbp::ClientOpcode::Shutdown, require<Privilege::NodeSupervisor>);
 
-    if (getenv("MEMCACHED_DEBUG_THROTTLE_LIMITS")) {
-        setup(cb::mcbp::ClientOpcode::SetBucketThrottleProperties, empty);
-        setup(cb::mcbp::ClientOpcode::SetBucketDataLimitExceeded, empty);
-        setup(cb::mcbp::ClientOpcode::SetNodeThrottleProperties, empty);
-    } else {
-        setup(cb::mcbp::ClientOpcode::SetBucketThrottleProperties,
-              require<Privilege::BucketThrottleManagement>);
-        setup(cb::mcbp::ClientOpcode::SetBucketDataLimitExceeded,
-              require<Privilege::BucketThrottleManagement>);
-        setup(cb::mcbp::ClientOpcode::SetNodeThrottleProperties,
-              require<Privilege::BucketThrottleManagement>);
-    }
+    setup(cb::mcbp::ClientOpcode::SetBucketThrottleProperties,
+          require<Privilege::BucketThrottleManagement>);
+    setup(cb::mcbp::ClientOpcode::SetBucketDataLimitExceeded,
+          require<Privilege::BucketThrottleManagement>);
+    setup(cb::mcbp::ClientOpcode::SetNodeThrottleProperties,
+          require<Privilege::BucketThrottleManagement>);
 
     /* VBucket commands */
     setup(cb::mcbp::ClientOpcode::SetVbucket,
