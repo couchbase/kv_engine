@@ -62,9 +62,7 @@ std::vector<uint8_t> FrameInfo::encode(cb::mcbp::request::FrameInfoId id,
 }
 
 std::vector<uint8_t> BarrierFrameInfo::encode() const {
-    std::vector<uint8_t> ret;
-    ret.push_back(uint8_t(FrameInfoId::Barrier) << 0x04U);
-    return ret;
+    return FrameInfo::encode(FrameInfoId::Barrier, {});
 }
 
 std::vector<uint8_t> DurabilityFrameInfo::encode() const {
@@ -107,9 +105,7 @@ std::vector<uint8_t> ImpersonateUserFrameInfo::encode() const {
 }
 
 std::vector<uint8_t> PreserveTtlFrameInfo::encode() const {
-    std::vector<uint8_t> ret;
-    ret.push_back(uint8_t(FrameInfoId::PreserveTtl) << 0x04U);
-    return ret;
+    return FrameInfo::encode(FrameInfoId::PreserveTtl, {});
 }
 
 std::vector<uint8_t> ImpersonateUserExtraPrivilegeFrameInfo::encode() const {
