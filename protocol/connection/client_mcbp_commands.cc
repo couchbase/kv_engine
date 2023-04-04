@@ -9,8 +9,8 @@
  *   the file licenses/APL2.txt.
  */
 #include "client_mcbp_commands.h"
-#include "frameinfo.h"
 #include <gsl/gsl-lite.hpp>
+#include <mcbp/codec/frameinfo.h>
 #include <mcbp/mcbp.h>
 #include <memcached/tracer.h>
 #include <array>
@@ -134,7 +134,7 @@ void BinprotCommand::setDatatype(cb::mcbp::Datatype datatype_) {
     setDatatype(uint8_t(datatype_));
 }
 
-void BinprotCommand::addFrameInfo(const FrameInfo& fi) {
+void BinprotCommand::addFrameInfo(const cb::mcbp::request::FrameInfo& fi) {
     auto encoded = fi.encode();
     addFrameInfo({encoded.data(), encoded.size()});
 }
@@ -1073,7 +1073,8 @@ BinprotSubdocMultiMutationCommand& BinprotSubdocMultiMutationCommand::setExpiry(
 BinprotSubdocMultiMutationCommand&
 BinprotSubdocMultiMutationCommand::setDurabilityReqs(
         const cb::durability::Requirements& durReqs) {
-    addFrameInfo(DurabilityFrameInfo(durReqs.getLevel(), durReqs.getTimeout()));
+    addFrameInfo(cb::mcbp::request::DurabilityFrameInfo(durReqs.getLevel(),
+                                                        durReqs.getTimeout()));
     return *this;
 }
 

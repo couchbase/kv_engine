@@ -8,11 +8,11 @@
  *   the file licenses/APL2.txt.
  */
 
-#include "frameinfo.h"
-
 #include <gsl/gsl-lite.hpp>
+#include <mcbp/codec/frameinfo.h>
 #include <mcbp/protocol/request.h>
 
+namespace cb::mcbp::request {
 FrameInfo::~FrameInfo() = default;
 BarrierFrameInfo::~BarrierFrameInfo() = default;
 DurabilityFrameInfo::~DurabilityFrameInfo() = default;
@@ -118,3 +118,4 @@ std::vector<uint8_t> ImpersonateUserExtraPrivilegeFrameInfo::encode() const {
             {reinterpret_cast<const uint8_t*>(privilege.data()),
              privilege.size()});
 }
+} // namespace cb::mcbp::request

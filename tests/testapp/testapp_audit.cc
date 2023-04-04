@@ -16,9 +16,9 @@
 
 #include "testapp_client_test.h"
 #include <auditd/couchbase_audit_events.h>
+#include <mcbp/codec/frameinfo.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
-#include <protocol/connection/frameinfo.h>
 #include <cctype>
 #include <fstream>
 #include <sstream>
@@ -662,8 +662,10 @@ TEST_P(AuditTest, MB3750_AuditImpersonatedUser) {
                 Vbid{0},
                 []() -> FrameInfoVector {
                     FrameInfoVector ret;
-                    ret.emplace_back(std::make_unique<ImpersonateUserFrameInfo>(
-                            "smith"));
+                    ret.emplace_back(
+                            std::make_unique<cb::mcbp::request::
+                                                     ImpersonateUserFrameInfo>(
+                                    "smith"));
                     return ret;
                 });
         FAIL() << "Document should not be here";

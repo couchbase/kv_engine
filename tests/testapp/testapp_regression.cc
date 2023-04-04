@@ -12,7 +12,7 @@
 #include "testapp_client_test.h"
 
 #include <evutil.h>
-#include <protocol/connection/frameinfo.h>
+#include <mcbp/codec/frameinfo.h>
 #include <protocol/mcbp/ewb_encode.h>
 #include <algorithm>
 #include <filesystem>
@@ -290,7 +290,8 @@ TEST_P(RegressionTest, MB35528) {
 
 /// MB-37506 - Incorrect validation of frame attributes
 TEST_P(RegressionTest, MB37506) {
-    class InvalidDurabilityFrameInfo : public DurabilityFrameInfo {
+    class InvalidDurabilityFrameInfo
+        : public cb::mcbp::request::DurabilityFrameInfo {
     public:
         InvalidDurabilityFrameInfo()
             : DurabilityFrameInfo(cb::durability::Level::Majority,
@@ -312,7 +313,9 @@ TEST_P(RegressionTest, MB37506) {
     try {
         conn.get("MB37506", Vbid{0}, []() -> FrameInfoVector {
             FrameInfoVector ret;
-            ret.emplace_back(std::make_unique<DcpStreamIdFrameInfo>(12));
+            ret.emplace_back(
+                    std::make_unique<cb::mcbp::request::DcpStreamIdFrameInfo>(
+                            12));
             ret.emplace_back(std::make_unique<InvalidDurabilityFrameInfo>());
             return ret;
         });

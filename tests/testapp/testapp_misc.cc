@@ -11,8 +11,8 @@
 #include "testapp.h"
 #include "testapp_client_test.h"
 
+#include <mcbp/codec/frameinfo.h>
 #include <nlohmann/json.hpp>
-#include <protocol/connection/frameinfo.h>
 
 // Test fixture for new MCBP miscellaneous commands
 class MiscTest : public TestappClientTest {
@@ -213,8 +213,8 @@ public:
     MalformedHelloCommand() : BinprotHelloCommand("client") {
         // To repro the issue, It does not matter _what_ frame infos are
         // present, as long as there are two and they are valid.
-        addFrameInfo(BarrierFrameInfo());
-        addFrameInfo(BarrierFrameInfo());
+        addFrameInfo(cb::mcbp::request::BarrierFrameInfo());
+        addFrameInfo(cb::mcbp::request::BarrierFrameInfo());
 
         // _NO_ Features are advertised; the value should be empty.
     }

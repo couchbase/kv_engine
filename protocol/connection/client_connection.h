@@ -30,9 +30,12 @@
 #include <utility>
 #include <vector>
 
+namespace cb::mcbp::request {
 class FrameInfo;
+}
 
-using FrameInfoVector = std::vector<std::unique_ptr<FrameInfo>>;
+using FrameInfoVector =
+        std::vector<std::unique_ptr<cb::mcbp::request::FrameInfo>>;
 using GetFrameInfoFunction = std::function<FrameInfoVector()>;
 
 class AsyncReadCallback;

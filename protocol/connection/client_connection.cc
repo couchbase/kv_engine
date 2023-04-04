@@ -9,7 +9,6 @@
  */
 #include "client_connection.h"
 #include "client_mcbp_commands.h"
-#include "frameinfo.h"
 
 #include <cbsasl/client.h>
 #include <fmt/format.h>
@@ -17,6 +16,7 @@
 #include <folly/io/IOBuf.h>
 #include <folly/io/async/AsyncSSLSocket.h>
 #include <mcbp/codec/dcp_snapshot_marker.h>
+#include <mcbp/codec/frameinfo.h>
 #include <mcbp/mcbp.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <memcached/protocol_binary.h>
@@ -1210,7 +1210,7 @@ std::vector<std::string> MemcachedConnection::listBuckets(
 Document MemcachedConnection::get(
         const std::string& id,
         Vbid vbucket,
-        std::function<std::vector<std::unique_ptr<FrameInfo>>()> getFrameInfo) {
+        std::function<FrameInfoVector()> getFrameInfo) {
     BinprotGetCommand command{id, vbucket};
     applyFrameInfos(command, getFrameInfo);
 

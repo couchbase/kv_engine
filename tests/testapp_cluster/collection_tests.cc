@@ -15,10 +15,8 @@
 #include <cluster_framework/cluster.h>
 #include <cluster_framework/node.h>
 #include <include/mcbp/protocol/unsigned_leb128.h>
-#include <platform/dirutils.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
-#include <protocol/connection/frameinfo.h>
 #include <filesystem>
 #include <thread>
 

@@ -18,7 +18,9 @@
 #include <optional>
 #include <unordered_set>
 
+namespace cb::mcbp::request {
 class FrameInfo;
+}
 
 /**
  * This is the base class used for binary protocol commands. You probably
@@ -52,7 +54,7 @@ public:
     void setDatatype(cb::mcbp::Datatype datatype_);
 
     /// Add a frame info object to the stream
-    void addFrameInfo(const FrameInfo& fi);
+    void addFrameInfo(const cb::mcbp::request::FrameInfo& fi);
 
     /// Add something you want to put into the frame info section of the
     /// packet (in the case you want to create illegal frame encodings

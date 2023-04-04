@@ -10,7 +10,7 @@
  */
 
 #include "testapp_client_test.h"
-#include <protocol/connection/frameinfo.h>
+#include <mcbp/codec/frameinfo.h>
 #include <xattr/blob.h>
 
 void TestappClientTest::SetUpTestCase() {
@@ -124,8 +124,8 @@ BinprotSubdocResponse TestappXattrClientTest::subdoc(
     cmd.addDocFlags(docFlag);
 
     if (durReqs) {
-        cmd.addFrameInfo(DurabilityFrameInfo(durReqs->getLevel(),
-                                             durReqs->getTimeout()));
+        cmd.addFrameInfo(cb::mcbp::request::DurabilityFrameInfo(
+                durReqs->getLevel(), durReqs->getTimeout()));
     }
 
     userConnection->sendCommand(cmd);

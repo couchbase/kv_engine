@@ -12,11 +12,13 @@
 
 #include <cluster_framework/bucket.h>
 #include <cluster_framework/cluster.h>
+#include <mcbp/codec/frameinfo.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
-#include <protocol/connection/frameinfo.h>
 #include <condition_variable>
 #include <string>
+
+using cb::mcbp::request::DurabilityFrameInfo;
 
 /**
  * Get a frame info vector with a durability entry with Majority

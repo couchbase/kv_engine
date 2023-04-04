@@ -20,7 +20,6 @@
 #include <protocol/connection/async_client_connection.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
-#include <protocol/connection/frameinfo.h>
 #include <serverless/config.h>
 #include <deque>
 

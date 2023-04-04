@@ -12,9 +12,9 @@
 #include <cluster_framework/auth_provider_service.h>
 #include <cluster_framework/bucket.h>
 #include <cluster_framework/cluster.h>
+#include <mcbp/codec/frameinfo.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
-#include <protocol/connection/frameinfo.h>
 
 class PiTR_Test : public cb::test::ClusterTest {
 protected:
@@ -39,7 +39,8 @@ TEST_F(PiTR_Test, DISABLED_MB51007) {
             0,
             []() {
                 FrameInfoVector ret;
-                ret.emplace_back(std::make_unique<DurabilityFrameInfo>(
+                ret.emplace_back(std::make_unique<
+                                 cb::mcbp::request::DurabilityFrameInfo>(
                         cb::durability::Level::MajorityAndPersistOnMaster));
                 return ret;
             });
@@ -82,7 +83,8 @@ TEST_F(PiTR_Test, DISABLED_MB51007) {
                 0,
                 []() {
                     FrameInfoVector ret;
-                    ret.emplace_back(std::make_unique<DurabilityFrameInfo>(
+                    ret.emplace_back(std::make_unique<
+                                     cb::mcbp::request::DurabilityFrameInfo>(
                             cb::durability::Level::MajorityAndPersistOnMaster));
                     return ret;
                 });

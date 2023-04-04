@@ -12,8 +12,8 @@
 #include "testapp.h"
 #include "testapp_client_test.h"
 
+#include <mcbp/codec/frameinfo.h>
 #include <mcbp/protocol/framebuilder.h>
-#include <protocol/connection/frameinfo.h>
 #include <memory>
 
 class TestappAuthProvider : public AuthProvider {
@@ -350,6 +350,7 @@ TEST_P(ExternalAuthTest, GetActiveUsers) {
 }
 
 TEST_P(ExternalAuthTest, TestImpersonateExternalUser) {
+    using cb::mcbp::request::ImpersonateUserFrameInfo;
     adminConnection->executeInBucket(bucketName, [this](auto& c) {
         BinprotGenericCommand cmd(cb::mcbp::ClientOpcode::Noop);
         cmd.addFrameInfo(ImpersonateUserFrameInfo{"^satchel"});
@@ -372,7 +373,8 @@ TEST_P(ExternalAuthTest, TestImpersonateExternalUser) {
         rsp = c.execute(stat);
         EXPECT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus());
         stat.addFrameInfo(
-                ImpersonateUserExtraPrivilegeFrameInfo{"SimpleStats"});
+                cb::mcbp::request::ImpersonateUserExtraPrivilegeFrameInfo{
+                        "SimpleStats"});
         rsp = c.execute(stat);
         EXPECT_TRUE(rsp.isSuccess())
                 << to_string(rsp.getStatus()) << " " << rsp.getDataString();

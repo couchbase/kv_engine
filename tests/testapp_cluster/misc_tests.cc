@@ -14,10 +14,10 @@
 #include <cluster_framework/bucket.h>
 #include <cluster_framework/cluster.h>
 #include <cluster_framework/dcp_replicator.h>
+#include <mcbp/codec/frameinfo.h>
 #include <memcached/stat_group.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
-#include <protocol/connection/frameinfo.h>
 #include <string>
 
 class BasicClusterTest : public cb::test::ClusterTest {
@@ -35,8 +35,9 @@ protected:
 
         conn->mutate(doc, Vbid{0}, MutationType::Set, []() -> FrameInfoVector {
             FrameInfoVector ret;
-            ret.emplace_back(std::make_unique<DurabilityFrameInfo>(
-                    cb::durability::Level::Majority));
+            ret.emplace_back(
+                    std::make_unique<cb::mcbp::request::DurabilityFrameInfo>(
+                            cb::durability::Level::Majority));
             return ret;
         });
 

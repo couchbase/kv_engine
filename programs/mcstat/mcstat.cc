@@ -9,13 +9,13 @@
  */
 
 #include <folly/portability/Unistd.h>
+#include <mcbp/codec/frameinfo.h>
 #include <memcached/stat_group.h>
 #include <platform/terminal_color.h>
 #include <platform/terminal_size.h>
 #include <programs/getpass.h>
 #include <programs/mc_program_getopt.h>
 #include <protocol/connection/client_connection.h>
-#include <protocol/connection/frameinfo.h>
 #include <iostream>
 #include <limits>
 
@@ -38,8 +38,9 @@ static void request_stat(MemcachedConnection& connection,
                 return {};
             }
             FrameInfoVector ret;
-            ret.emplace_back(
-                    std::make_unique<ImpersonateUserFrameInfo>(impersonate));
+            ret.emplace_back(std::make_unique<
+                             cb::mcbp::request::ImpersonateUserFrameInfo>(
+                    impersonate));
             return ret;
         };
         if (json) {

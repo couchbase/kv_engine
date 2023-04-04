@@ -14,6 +14,8 @@
 #include <cstdint>
 #include <vector>
 
+namespace cb::mcbp::request {
+
 /**
  * Base class for all FrameInfo objects
  */
@@ -92,3 +94,5 @@ public:
 protected:
     const std::string privilege;
 };
+
+} // namespace cb::mcbp::request

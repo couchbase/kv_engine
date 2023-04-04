@@ -12,7 +12,7 @@
 #include "testapp_client_test.h"
 
 #include <include/memcached/protocol_binary.h>
-#include <protocol/connection/frameinfo.h>
+#include <mcbp/codec/frameinfo.h>
 #include <algorithm>
 
 /// Tests to verify that we're able to preserve the TTL for mutation
@@ -89,7 +89,9 @@ time_t TtlTest::store(const std::string& key,
             document, Vbid{0}, type, [preserveTtl]() -> FrameInfoVector {
                 FrameInfoVector ret;
                 if (preserveTtl) {
-                    ret.emplace_back(std::make_unique<PreserveTtlFrameInfo>());
+                    ret.emplace_back(
+                            std::make_unique<
+                                    cb::mcbp::request::PreserveTtlFrameInfo>());
                 }
                 return ret;
             });
@@ -105,7 +107,7 @@ time_t TtlTest::subdoc_modify(const std::string& key,
                              R"("subdoc_modify")");
     cmd.setExpiry(exptime);
     if (preserveTtl) {
-        cmd.addFrameInfo(PreserveTtlFrameInfo{});
+        cmd.addFrameInfo(cb::mcbp::request::PreserveTtlFrameInfo{});
     }
 
     auto rsp = userConnection->execute(cmd);

@@ -12,9 +12,9 @@
 
 #include <cluster_framework/bucket.h>
 #include <cluster_framework/cluster.h>
+#include <mcbp/codec/frameinfo.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
-#include <protocol/connection/frameinfo.h>
 #include <thread>
 
 class OutOfOrderClusterTest : public cb::test::ClusterTest {
@@ -69,6 +69,7 @@ protected:
                            << to_string(response.getStatus());
                 },
                 [&reorder, &counter]() -> FrameInfoVector {
+                    using cb::mcbp::request::BarrierFrameInfo;
                     FrameInfoVector ret;
                     switch (reorder) {
                     case Reorder::None:

@@ -1,4 +1,5 @@
 add_library(mcbp STATIC
+            ${Memcached_SOURCE_DIR}/include/mcbp/codec/frameinfo.h
             ${Memcached_SOURCE_DIR}/include/mcbp/mcbp.h
             ${Memcached_SOURCE_DIR}/include/mcbp/protocol/datatype.h
             ${Memcached_SOURCE_DIR}/include/mcbp/protocol/feature.h
@@ -14,6 +15,7 @@ add_library(mcbp STATIC
             dump.cc
             ewb_encode.cc
             feature.cc
+            frameinfo.cc
             gdb_dump_parser.cc
             lldb_dump_parser.cc
             magic.cc

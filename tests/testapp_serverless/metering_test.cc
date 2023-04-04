@@ -14,12 +14,12 @@
 #include <cluster_framework/cluster.h>
 #include <folly/lang/Assume.h>
 #include <folly/portability/GTest.h>
+#include <mcbp/codec/frameinfo.h>
 #include <memcached/storeddockey.h>
 #include <platform/base64.h>
 #include <platform/timeutils.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
-#include <protocol/connection/frameinfo.h>
 #include <serverless/config.h>
 #include <spdlog/fmt/fmt.h>
 #include <xattr/blob.h>
@@ -29,6 +29,7 @@
 
 using ClientOpcode = cb::mcbp::ClientOpcode;
 using Status = cb::mcbp::Status;
+using cb::mcbp::request::DurabilityFrameInfo;
 
 namespace cb::test {
 
@@ -3359,7 +3360,7 @@ TEST_P(MeteringTest, ImposedUsersMayMeter) {
                  "bucket_details metering");
     EXPECT_EQ(before["ru"].get<int>(), after["ru"].get<int>());
 
-    ImpersonateUserFrameInfo fi("^metering");
+    cb::mcbp::request::ImpersonateUserFrameInfo fi("^metering");
     cmd.addFrameInfo(fi);
     rsp = admin->execute(cmd);
     ASSERT_TRUE(rsp.isSuccess());

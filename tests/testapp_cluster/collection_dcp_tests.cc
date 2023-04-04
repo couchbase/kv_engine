@@ -15,7 +15,6 @@
 #include <cluster_framework/cluster.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
-#include <protocol/connection/frameinfo.h>
 #include <thread>
 
 class CollectionsDcpTests : public cb::test::ClusterTest {
