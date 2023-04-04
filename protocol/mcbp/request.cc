@@ -8,11 +8,11 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-
 #include <mcbp/protocol/request.h>
 #include <memcached/durability_spec.h>
 #include <memcached/protocol_binary.h>
 #include <nlohmann/json.hpp>
+#include <utilities/logtags.h>
 #include <cctype>
 
 namespace cb::mcbp {
@@ -415,15 +415,15 @@ nlohmann::json Request::to_json(bool validated) const {
                     break;
                 case request::FrameInfoId::Impersonate:
                     if (buffer[0] == '^') {
-                        frameid["euid"]["user"] =
-                                std::string{reinterpret_cast<const char*>(
-                                                    buffer.data() + 1),
-                                            buffer.size() - 1};
+                        frameid["euid"]["user"] = cb::tagUserData(std::string{
+                                reinterpret_cast<const char*>(buffer.data() +
+                                                              1),
+                                buffer.size() - 1});
                         frameid["euid"]["domain"] = "external";
                     } else {
-                        frameid["euid"]["user"] = std::string{
+                        frameid["euid"]["user"] = cb::tagUserData(std::string{
                                 reinterpret_cast<const char*>(buffer.data()),
-                                buffer.size()};
+                                buffer.size()});
                         frameid["euid"]["domain"] = "local";
                     }
                     break;

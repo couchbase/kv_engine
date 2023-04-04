@@ -10,9 +10,10 @@
  */
 
 #include <folly/portability/GTest.h>
-
+#include <mcbp/codec/frameinfo.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <memcached/durability_spec.h>
+#include <nlohmann/json.hpp>
 
 using namespace cb::mcbp;
 using namespace cb::durability;
@@ -305,4 +306,31 @@ TEST(Request_GetDurationSpec, InvalidTimeoutFFFF) {
     builder.setFramingExtras({fe.data(), fe.size()});
     EXPECT_THROW(builder.getFrame()->getDurabilityRequirements(),
                  std::invalid_argument);
+}
+
+TEST(Request_TaggedUserData, MB56291) {
+    using cb::mcbp::request::ImpersonateUserFrameInfo;
+
+    std::vector<uint8_t> packet(1024);
+    RequestBuilder builder({packet.data(), packet.size()});
+    builder.setMagic(Magic::AltClientRequest);
+    builder.setOpcode(cb::mcbp::ClientOpcode::Get);
+    builder.setKey("MyKey");
+
+    // Verify local user
+    auto frameinfo = ImpersonateUserFrameInfo("MyLocalUser").encode();
+    builder.setFramingExtras({frameinfo.data(), frameinfo.size()});
+    auto json = builder.getFrame()->to_json(true);
+    EXPECT_EQ("<ud>MyKey</ud>", json["key"].get<std::string>());
+    EXPECT_EQ("<ud>MyLocalUser</ud>",
+              json["frameid"]["euid"]["user"].get<std::string>());
+    EXPECT_EQ("local", json["frameid"]["euid"]["domain"].get<std::string>());
+
+    // Verify that external user
+    frameinfo = ImpersonateUserFrameInfo("^MyLocalUser").encode();
+    builder.setFramingExtras({frameinfo.data(), frameinfo.size()});
+    json = builder.getFrame()->to_json(true);
+    EXPECT_EQ("<ud>MyLocalUser</ud>",
+              json["frameid"]["euid"]["user"].get<std::string>());
+    EXPECT_EQ("external", json["frameid"]["euid"]["domain"].get<std::string>());
 }
