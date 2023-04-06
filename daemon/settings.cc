@@ -141,6 +141,14 @@ void Settings::reconfigure(const nlohmann::json& json) {
                         "be a valid non-zero percentage");
             }
             setQuotaSharingPagerConcurrencyPercentage(val);
+        } else if (key == "quota_sharing_pager_sleep_time_ms") {
+            auto val = value.get<int>();
+            if (val <= 0) {
+                throw std::invalid_argument(
+                        "\"quota_sharing_pager_sleep_time_ms\" must "
+                        "be a valid duration in milliseconds");
+            }
+            setQuotaSharingPagerSleepTime(std::chrono::milliseconds(val));
         } else if (key == "threads"sv) {
             setNumWorkerThreads(value.get<size_t>());
         } else if (key == "interfaces") {
@@ -876,6 +884,17 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                 other.getQuotaSharingPagerConcurrencyPercentage());
         setQuotaSharingPagerConcurrencyPercentage(
                 other.getQuotaSharingPagerConcurrencyPercentage());
+    }
+
+    if (other.has.quota_sharing_pager_sleep_time_ms &&
+        other.getQuotaSharingPagerSleepTime() !=
+                getQuotaSharingPagerSleepTime()) {
+        LOG_INFO(
+                "Change pager sleep time for quota sharing from: "
+                "{} ms to {} ms",
+                getQuotaSharingPagerSleepTime().count(),
+                other.getQuotaSharingPagerSleepTime().count());
+        setQuotaSharingPagerSleepTime(other.getQuotaSharingPagerSleepTime());
     }
 
     if (other.has.prometheus_config) {

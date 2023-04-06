@@ -147,6 +147,11 @@ struct MockServerCoreApi : public ServerCoreIface {
     size_t getQuotaSharingPagerConcurrency() override {
         return 2;
     }
+
+    std::chrono::milliseconds getQuotaSharingPagerSleepTime() override {
+        using namespace std::chrono_literals;
+        return 5000ms;
+    }
 };
 
 void cb::server::document_expired(const EngineIface&, size_t) {

@@ -184,9 +184,11 @@ QuotaSharingManager& SynchronousEPEngine::getQuotaSharingManager() {
                         engine.getTaskable(),
                         [n = engine.getConfiguration()
                                      .getConcurrentPagers()]() { return n; },
-                        std::chrono::milliseconds(
-                                engine.getConfiguration()
-                                        .getPagerSleepTimeMs()));
+                        [n = std::chrono::milliseconds(
+                                 engine.getConfiguration()
+                                         .getPagerSleepTimeMs())]() {
+                            return n;
+                        });
                 ExecutorPool::get()->cancel(pager->getId());
             }
             return pager;

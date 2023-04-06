@@ -6959,11 +6959,14 @@ void EventuallyPersistentEngine::setDcpConsumerBufferRatio(float ratio) {
 
 QuotaSharingManager& EventuallyPersistentEngine::getQuotaSharingManager() {
     struct QuotaSharingManagerImpl : public QuotaSharingManager {
-        QuotaSharingManagerImpl(ServerBucketIface& bucketApi,
-                                std::function<size_t()> getNumConcurrentPagers)
+        QuotaSharingManagerImpl(
+                ServerBucketIface& bucketApi,
+                std::function<size_t()> getNumConcurrentPagers,
+                std::function<std::chrono::milliseconds()> getPagerSleepTime)
             : bucketApi(bucketApi),
               group(bucketApi),
-              getNumConcurrentPagers(std::move(getNumConcurrentPagers)) {
+              getNumConcurrentPagers(std::move(getNumConcurrentPagers)),
+              getPagerSleepTime(std::move(getPagerSleepTime)) {
         }
 
         EPEngineGroup& getGroup() override {
@@ -6972,13 +6975,12 @@ QuotaSharingManager& EventuallyPersistentEngine::getQuotaSharingManager() {
 
         ExTask getItemPager() override {
             static ExTask task = [this]() {
-                auto sleepTime = std::chrono::milliseconds(5000);
                 return std::make_shared<QuotaSharingItemPager>(
                         bucketApi,
                         group,
                         ExecutorPool::get()->getDefaultTaskable(),
                         getNumConcurrentPagers,
-                        sleepTime);
+                        getPagerSleepTime);
             }();
             return task;
         }
@@ -6986,11 +6988,16 @@ QuotaSharingManager& EventuallyPersistentEngine::getQuotaSharingManager() {
         ServerBucketIface& bucketApi;
         EPEngineGroup group;
         const std::function<size_t()> getNumConcurrentPagers;
+        const std::function<std::chrono::milliseconds()> getPagerSleepTime;
     };
 
     static QuotaSharingManagerImpl manager(
-            *serverApi->bucket, [coreApi = serverApi->core]() {
+            *serverApi->bucket,
+            [coreApi = serverApi->core]() {
                 return coreApi->getQuotaSharingPagerConcurrency();
+            },
+            [coreApi = serverApi->core]() {
+                return coreApi->getQuotaSharingPagerSleepTime();
             });
     return manager;
 }

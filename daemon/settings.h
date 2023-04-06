@@ -898,6 +898,16 @@ public:
         notify_changed("quota_sharing_pager_concurrency_percentage");
     }
 
+    std::chrono::milliseconds getQuotaSharingPagerSleepTime() const {
+        return std::chrono::milliseconds(quota_sharing_pager_sleep_time_ms);
+    }
+
+    void setQuotaSharingPagerSleepTime(std::chrono::milliseconds val) {
+        quota_sharing_pager_sleep_time_ms = val.count();
+        has.quota_sharing_pager_sleep_time_ms = true;
+        notify_changed("quota_sharing_pager_sleep_time_ms");
+    }
+
 protected:
     /// The file containing audit configuration
     std::string audit_file;
@@ -1088,6 +1098,10 @@ protected:
     /// expressed as a fraction of the number of NonIO threads.
     std::atomic_int quota_sharing_pager_concurrency_percentage{50};
 
+    /// How long in milliseconds the ItemPager will sleep for when not being
+    /// requested to run.
+    std::atomic_int quota_sharing_pager_sleep_time_ms{5000};
+
     void notify_changed(const std::string& key);
 
 public:
@@ -1154,5 +1168,6 @@ public:
         bool allow_localhost_interface = false;
         bool event_framework = false;
         bool quota_sharing_pager_concurrency_percentage = false;
+        bool quota_sharing_pager_sleep_time_ms = false;
     } has;
 };

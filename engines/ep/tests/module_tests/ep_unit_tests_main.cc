@@ -65,6 +65,11 @@ public:
     size_t getQuotaSharingPagerConcurrency() override {
         return 2;
     }
+
+    std::chrono::milliseconds getQuotaSharingPagerSleepTime() override {
+        using namespace std::chrono_literals;
+        return 5000ms;
+    }
 };
 
 int main(int argc, char **argv) {

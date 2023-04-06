@@ -64,11 +64,16 @@ QuotaSharingItemPager::QuotaSharingItemPager(
         EPEngineGroup& group,
         Taskable& t,
         std::function<size_t()> getNumConcurrentPagers,
-        std::chrono::milliseconds sleepTime)
-    : ItemPager(t, getNumConcurrentPagers(), sleepTime),
+        std::function<std::chrono::milliseconds()> getSleepTime)
+    : ItemPager(t, getNumConcurrentPagers(), getSleepTime()),
       bucketApi(bucketApi),
       group(group),
-      getNumConcurrentPagers(std::move(getNumConcurrentPagers)) {
+      getNumConcurrentPagers(std::move(getNumConcurrentPagers)),
+      getSleepTimeCb(std::move(getSleepTime)) {
+}
+
+std::chrono::microseconds QuotaSharingItemPager::getSleepTime() const {
+    return getSleepTimeCb();
 }
 
 std::string QuotaSharingItemPager::getDescription() const {

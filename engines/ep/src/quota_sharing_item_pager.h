@@ -36,13 +36,17 @@ public:
      * @param t The taskable which this task is associated with.
      * @param getNumConcurrentPagers Used to determine the number of concurrent
      * pagers to create.
-     * @param sleepTime The initial sleep time of the task.
+     * @param getSleepTime Used to determine how long the task will sleep for
+     * when not requested to run.
      */
-    QuotaSharingItemPager(ServerBucketIface& bucketApi,
-                          EPEngineGroup& group,
-                          Taskable& t,
-                          std::function<size_t()> getNumConcurrentPagers,
-                          std::chrono::milliseconds sleepTime);
+    QuotaSharingItemPager(
+            ServerBucketIface& bucketApi,
+            EPEngineGroup& group,
+            Taskable& t,
+            std::function<size_t()> getNumConcurrentPagers,
+            std::function<std::chrono::milliseconds()> getSleepTime);
+
+    std::chrono::microseconds getSleepTime() const override;
 
     std::string getDescription() const override;
 
@@ -79,4 +83,10 @@ private:
      * Used to determine the number of concurrent pagers to create.
      */
     std::function<size_t()> getNumConcurrentPagers;
+
+    /**
+     * Used to determine how long the task will sleep for when not requested to
+     * run.
+     */
+    std::function<std::chrono::milliseconds()> getSleepTimeCb;
 };

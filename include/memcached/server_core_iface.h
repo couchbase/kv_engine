@@ -67,4 +67,10 @@ struct ServerCoreIface {
 
     /// The number of concurrent paging visitors to use for quota sharing.
     virtual size_t getQuotaSharingPagerConcurrency() = 0;
+
+    /**
+     * How long in milliseconds the ItemPager will sleep for when not being
+     * requested to run.
+     */
+    virtual std::chrono::milliseconds getQuotaSharingPagerSleepTime() = 0;
 };

@@ -61,6 +61,10 @@ struct ServerCoreApi : public ServerCoreIface {
                         instance.getNumNonIoThreads() / 100;
         return std::clamp(userValue, 1, instance.getNumNonIoThreads());
     }
+
+    std::chrono::milliseconds getQuotaSharingPagerSleepTime() override {
+        return Settings::instance().getQuotaSharingPagerSleepTime();
+    }
 };
 
 void cb::server::document_expired(const EngineIface& engine, size_t nbytes) {
