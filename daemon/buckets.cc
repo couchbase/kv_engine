@@ -1000,9 +1000,9 @@ cb::engine_errc BucketManager::pause(std::string_view cid, std::string_view name
 
         // locate the bucket
         size_t idx = 0;
-        for (auto& bucket : all_buckets) {
-            std::lock_guard<std::mutex> bucketguard(bucket.mutex);
-            if (bucket.name == name) {
+        for (auto& b : all_buckets) {
+            std::lock_guard<std::mutex> bucketguard(b.mutex);
+            if (b.name == name) {
                 break;
             }
             ++idx;
