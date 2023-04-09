@@ -2333,7 +2333,7 @@ void SingleThreadedPassiveStreamTest::mb_33773(
                                      {},
                                      0,
                                      0,
-                                     0,
+                                     1,
                                      vbid,
                                      0,
                                      seqno,
@@ -2392,6 +2392,11 @@ void SingleThreadedPassiveStreamTest::mb_33773(
         stream->setProcessBufferedMessages_postFront_Hook(hook);
         break;
     }
+    case mb_33773Mode::streamEndMessage: {
+        consumer->streamEnd(
+                1, vbid, cb::mcbp::DcpStreamEndStatus::StateChanged);
+        expectedFlowControlBytes += StreamEndResponse::baseMsgBytes;
+    }
     }
 
     // Run the NonIO task. Without any fix (and in the interleaved test) the
@@ -2403,6 +2408,7 @@ void SingleThreadedPassiveStreamTest::mb_33773(
     switch (mode) {
     case mb_33773Mode::closeStreamOnTask:
     case mb_33773Mode::closeStreamBeforeTask:
+    case mb_33773Mode::streamEndMessage:
         // Expect that after running the task, which closed the stream via the
         // hook flow control freed increased to reflect the buffered items which
         // were discarded,
@@ -2509,6 +2515,11 @@ TEST_P(SingleThreadedPassiveStreamTest, MB_33773_oom) {
 // a reponse back into the deque
 TEST_P(SingleThreadedPassiveStreamTest, MB_33773_oom_close) {
     mb_33773(mb_33773Mode::noMemoryAndClosed);
+}
+
+// Push a streamEnd whilst messages are buffered
+TEST_P(SingleThreadedPassiveStreamTest, MB_33773_stream_end) {
+    mb_33773(mb_33773Mode::streamEndMessage);
 }
 
 void SingleThreadedPassiveStreamTest::
