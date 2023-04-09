@@ -184,9 +184,7 @@ void Bucket::setEngine(unique_engine_ptr engine_) {
     bucketDcp = dynamic_cast<DcpIface*>(engine.get());
 }
 
-void Bucket::consumedUnits(const Connection& conn,
-                           std::size_t units,
-                           ResourceAllocationDomain domain) {
+void Bucket::consumedUnits(std::size_t units, ResourceAllocationDomain domain) {
     switch (domain) {
     case ResourceAllocationDomain::Bucket:
         throttle_gauge.increment(units);
@@ -213,7 +211,7 @@ void Bucket::recordDcpMeteringReadBytes(const Connection& conn,
 
     auto& inst = cb::serverless::Config::instance();
     const auto ru = inst.to_ru(nread);
-    consumedUnits(conn, ru, domain);
+    consumedUnits(ru, domain);
     if (conn.isSubjectToMetering()) {
         read_units_used += ru;
         ++num_metered_dcp_messages;
@@ -263,9 +261,7 @@ void Bucket::commandExecuted(const Cookie& cookie) {
                 std::size_t(ru * cookie.getReadThottlingFactor()) +
                 (wu * cookie.getWriteThottlingFactor());
 
-        consumedUnits(cookie.getConnection(),
-                      throttleUnits,
-                      cookie.getResourceAllocationDomain());
+        consumedUnits(throttleUnits, cookie.getResourceAllocationDomain());
         throttle_wait_time += cookie.getTotalThrottleTime();
         const auto [nr, nw] = cookie.getDocumentMeteringRWUnits();
         read_units_used += nr;

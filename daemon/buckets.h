@@ -311,13 +311,10 @@ protected:
      * Update the appropriate throttle gauge with the provided number of
      * units
      *
-     * @param conn The connection consumed the units (for logging purposes)
      * @param units The number of units
      * @param domain The domain the units was allocated from
      */
-    void consumedUnits(const Connection& conn,
-                       std::size_t units,
-                       ResourceAllocationDomain domain);
+    void consumedUnits(std::size_t units, ResourceAllocationDomain domain);
 
     /**
      * May the connection perform an operation consuming the provided number
