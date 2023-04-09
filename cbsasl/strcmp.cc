@@ -16,7 +16,6 @@ int cbsasl_secure_compare(const char* a,
                           const char* b,
                           size_t blen) {
     size_t xx;
-    size_t yi = 0;
     size_t bi = 0;
     int acc = (int)alen ^ (int)blen;
 
@@ -24,8 +23,6 @@ int cbsasl_secure_compare(const char* a,
         acc |= a[xx] ^ b[bi];
         if (bi < blen) {
             ++bi;
-        } else {
-            ++yi;
         }
     }
 
