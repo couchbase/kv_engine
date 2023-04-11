@@ -85,6 +85,18 @@
  *    Prometheus exposition was introduced. All metrics from before this version
  *    are considered "added in 7.0.0".
  *
+ * *  "stability"
+ *    One of:
+ *        "committed", "volatile", "internal"
+ *    Optional, defaults to "comitted" if absent.
+ *    Used for documentation purposes.
+ *    "committed" metrics are expected to be stable over time, and be
+ *    deprecated before removal.
+ *    "volatile" metrics will be documented, but with an advisory that
+ *    they may change.
+ *    "internal" metrics will not be publicly documented.
+ *
+ *
  * //// cb::stats::Key
  *
  * generated_stats.h declares an enum containing every "key" from the json.
@@ -1390,77 +1402,90 @@
         "key": "ep_rocksdb_kMemTableTotal",
         "unit": "bytes",
         "description": "Total size of all Memtables",
-        "added": "7.0.0"
+        "added": "7.0.0",
+        "stability": "internal"
     },
     {
         "key": "ep_rocksdb_kMemTableUnFlushed",
         "unit": "bytes",
         "description": "Total size of immutable Memtables",
-        "added": "7.0.0"
+        "added": "7.0.0",
+        "stability": "internal"
     },
     {
         "key": "ep_rocksdb_kTableReadersTotal",
         "unit": "bytes",
         "description": "Memory used by Index/Filter blocks",
-        "added": "7.0.0"
+        "added": "7.0.0",
+        "stability": "internal"
     },
     {
         "key": "ep_rocksdb_kCacheTotal",
         "unit": "bytes",
         "description": "Size of the Block Cache",
-        "added": "7.0.0"
+        "added": "7.0.0",
+        "stability": "internal"
     },
     {
         "key": "ep_rocksdb_default_kSizeAllMemTables",
         "unit": "bytes",
         "description": "Total MT size for default CFs",
-        "added": "7.0.0"
+        "added": "7.0.0",
+        "stability": "internal"
     },
     {
         "key": "ep_rocksdb_seqno_kSizeAllMemTables",
         "unit": "bytes",
         "description": "Total MT size for seqno CFs",
-        "added": "7.0.0"
+        "added": "7.0.0",
+        "stability": "internal"
     },
     {
         "key": "ep_rocksdb_block_cache_data_hit_ratio",
         "unit": "ratio",
         "description": "Cache hit ratio for Data blocks",
-        "added": "7.0.0"
+        "added": "7.0.0",
+        "stability": "internal"
     },
     {
         "key": "ep_rocksdb_block_cache_index_hit_ratio",
         "unit": "ratio",
         "description": "Cache hit ratio for Index blocks",
-        "added": "7.0.0"
+        "added": "7.0.0",
+        "stability": "internal"
     },
     {
         "key": "ep_rocksdb_block_cache_filter_hit_ratio",
         "unit": "ratio",
         "description": "Cache hit ratio for Filter blocks",
-        "added": "7.0.0"
+        "added": "7.0.0",
+        "stability": "internal"
     },
     {
         "key": "ep_rocksdb_default_kTotalSstFilesSize",
         "unit": "bytes",
         "description": "Total SST size for default CFs",
-        "added": "7.0.0"
+        "added": "7.0.0",
+        "stability": "internal"
     },
     {
         "key": "ep_rocksdb_seqno_kTotalSstFilesSize",
         "unit": "bytes",
         "description": "Total SST size for seqno CFs",
-        "added": "7.0.0"
+        "added": "7.0.0",
+        "stability": "internal"
     },
     {
         "key": "ep_rocksdb_scan_totalSeqnoHits",
         "unit": "count",
-        "added": "7.0.0"
+        "added": "7.0.0",
+        "stability": "internal"
     },
     {
         "key": "ep_rocksdb_scan_oldSeqnoHits",
         "unit": "count",
-        "added": "7.0.0"
+        "added": "7.0.0",
+        "stability": "internal"
     },
 /* EPBucket::getFileStats */
     {
@@ -3032,7 +3057,8 @@
         "key": "collection_metered",
         "unit": "none",
         "cbstat": "metered",
-        "added": "elixir"
+        "added": "elixir",
+        "stability": "internal"
     },
     {
         "key": "scope_name",
@@ -3113,84 +3139,96 @@
         "unit": "seconds",
         "type": "gauge",
         "description": "The time KV last restarted (and counters reset)",
-        "added": "elixir"
+        "added": "elixir",
+        "stability": "internal"
     },
     {
         "key": "meter_ru_total",
         "unit": "none",
         "type": "counter",
         "description": "Total Read Units used by a bucket since reset",
-        "added": "elixir"
+        "added": "elixir",
+        "stability": "internal"
     },
     {
         "key": "meter_wu_total",
         "unit": "none",
         "type": "counter",
         "description": "Total Write Units used by a bucket since reset",
-        "added": "elixir"
+        "added": "elixir",
+        "stability": "internal"
     },
     {
         "key": "meter_cu_total",
         "unit": "none",
         "type": "counter",
         "description": "Total Compute Units used by a bucket since reset",
-        "added": "elixir"
+        "added": "elixir",
+        "stability": "internal"
     },
     {
         "key": "op_count_total",
         "unit": "none",
         "type": "counter",
         "description": "Total operations successfully executed for a bucket since reset",
-        "added": "elixir"
+        "added": "elixir",
+        "stability": "internal"
     },
     {
         "key": "credit_ru_total",
         "unit": "none",
         "type": "counter",
         "description": "Total Read Units refunded for a bucket (RU was charged, but operation failed) since reset",
-        "added": "elixir"
+        "added": "elixir",
+        "stability": "internal"
     },
     {
         "key": "credit_wu_total",
         "unit": "none",
         "type": "counter",
         "description": "Total Write Units refunded for a bucket (WU was charged, but operation failed) since reset",
-        "added": "elixir"
+        "added": "elixir",
+        "stability": "internal"
     },
     {
         "key": "credit_cu_total",
         "unit": "none",
         "type": "counter",
         "description": "Total Compute Units refunded for a bucket (CU was charged, but operation failed) since reset",
-        "added": "elixir"
+        "added": "elixir",
+        "stability": "internal"
     },
     {
         "key": "reject_count_total",
         "unit": "none",
         "type": "counter",
         "description": "Total number of operations rejected for a bucket since reset (e.g., invalid operations)",
-        "added": "elixir"
+        "added": "elixir",
+        "stability": "internal"
     },
     {
         "key": "throttle_seconds_total",
         "unit": "none",
         "type": "counter",
         "description": "Total time spent throttling requests for a bucket since reset",
-        "added": "elixir"
+        "added": "elixir",
+        "stability": "internal"
     },
     {
         "key": "throttle_count_total",
         "unit": "none",
         "type": "counter",
         "description": "Total number of times requests have been throttled for a bucket since reset",
-        "added": "elixir"
+        "added": "elixir",
+        "stability": "internal"
     },
     {
         "key": "storage",
         "unit": "bytes",
         "type": "gauge",
         "description": "Total bytes on disk used by a bucket",
-        "added": "elixir"
+        "added": "elixir",
+        "stability": "internal"
     },
 
     {
