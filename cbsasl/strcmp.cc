@@ -11,19 +11,16 @@
 
 #include "util.h"
 
-int cbsasl_secure_compare(const char* a,
-                          size_t alen,
-                          const char* b,
-                          size_t blen) {
-    size_t xx;
-    size_t bi = 0;
-    int acc = (int)alen ^ (int)blen;
+#include <stdexcept>
 
-    for (xx = 0; xx < alen; ++xx) {
-        acc |= a[xx] ^ b[bi];
-        if (bi < blen) {
-            ++bi;
-        }
+int cbsasl_secure_compare(std::string_view a, std::string_view b) {
+    if (a.size() != b.size()) {
+        throw std::runtime_error(
+                "cbsasl_secure_compare: a and b have different length");
+    }
+    int acc = 0;
+    for (std::size_t xx = 0; xx < a.size(); ++xx) {
+        acc |= a[xx] ^ b[xx];
     }
 
     return acc;

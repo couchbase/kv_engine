@@ -188,10 +188,7 @@ std::pair<Error, std::string_view> ServerBackend::step(std::string_view input) {
         }
 
         const auto sh = cb::crypto::digest(algorithm, ck);
-        auto storedKey = key.stored_key;
-
-        if ((cbsasl_secure_compare(
-                     sh.data(), sh.size(), storedKey.data(), storedKey.size()) ^
+        if ((cbsasl_secure_compare(sh, key.stored_key) ^
              gsl::narrow_cast<int>(user.isDummy())) == 0) {
             success = 1;
             break;

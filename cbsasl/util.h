@@ -9,10 +9,7 @@
  */
 #pragma once
 
-#include <cstddef>
+#include <string_view>
 
 /* Compare a and b without revealing their content by short-circuiting */
-int cbsasl_secure_compare(const char* a,
-                          size_t alen,
-                          const char* b,
-                          size_t blen);
+int cbsasl_secure_compare(std::string_view a, std::string_view b);

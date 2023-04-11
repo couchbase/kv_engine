@@ -12,14 +12,13 @@
 
 #include <folly/portability/GTest.h>
 
-static void expect_equal(const char* input) {
-    EXPECT_EQ(0,
-              cbsasl_secure_compare(input, strlen(input), input, strlen(input)))
+static void expect_equal(std::string_view input) {
+    EXPECT_EQ(0, cbsasl_secure_compare(input, input))
             << "Input data: [" << input << "]";
 }
 
-static void expect_different(const char* a, const char* b) {
-    EXPECT_NE(0, cbsasl_secure_compare(a, strlen(a), b, strlen(b)))
+static void expect_different(std::string_view a, std::string_view b) {
+    EXPECT_NE(0, cbsasl_secure_compare(a, b))
             << "Ex[ected [" << a << "] to differ from [" << b << "]";
 }
 
@@ -27,17 +26,13 @@ TEST(cbsasl, cbsasl_secure_compare) {
     // Check that it enforce the length without running outside the pointer
     // if we don't honor the length field we'll crash by following the
     // nullptr ;)
-    EXPECT_EQ(0, cbsasl_secure_compare(nullptr, 0, nullptr, 0));
+    EXPECT_EQ(0, cbsasl_secure_compare({}, {}));
 
     // Check that it compares right with equal length and same input
     expect_equal("");
     expect_equal("abcdef");
     expect_equal("@#$%^&*(&^%$#");
     expect_equal("jdfdsajk;14AFADSF517*(%(nasdfvlajk;ja''1345!%#!%$&%$&@$%@");
-
-    // check that it compares right with different lengths
-    expect_different("", "a");
-    expect_different("abc", "");
 
     // check that the case matter
     expect_different("abcd", "ABCD");

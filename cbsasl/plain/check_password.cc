@@ -11,6 +11,7 @@
 #include "check_password.h"
 #include "../cbcrypto.h"
 
+#include <cbsasl/util.h>
 #include <platform/base64.h>
 
 using cb::crypto::Algorithm;
@@ -46,15 +47,8 @@ Error check_password(Context* context,
         }
 
         // Compare the generated with the stored
-        bool same = !user.isDummy();
-        for (std::size_t ii = 0; ii < pw.size(); ++ii) {
-            if (generated[ii] != pw[ii]) {
-                // we don't want an early exit...
-                same = false;
-            }
-        }
-
-        if (same) {
+        if ((cbsasl_secure_compare(generated, pw) ^
+             gsl::narrow_cast<int>(user.isDummy())) == 0) {
             success = true;
         }
     }
