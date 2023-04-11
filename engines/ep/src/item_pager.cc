@@ -46,7 +46,12 @@
 ItemPager::ItemPager(Taskable& t,
                      size_t numConcurrentPagers,
                      std::chrono::milliseconds sleepTime)
-    : NotifiableTask(t, TaskId::ItemPager, 10, false),
+    : NotifiableTask(t,
+                     TaskId::ItemPager,
+                     std::chrono::duration_cast<std::chrono::duration<double>>(
+                             sleepTime)
+                             .count(),
+                     false),
       numConcurrentPagers(numConcurrentPagers),
       pagerSemaphore(std::make_shared<cb::Semaphore>(numConcurrentPagers)),
       doEvict(false),
