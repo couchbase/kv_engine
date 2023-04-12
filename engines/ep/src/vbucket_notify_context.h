@@ -18,7 +18,7 @@
    in the vbucket */
 struct VBNotifyCtx {
     bool isSyncWrite() const {
-        return syncWrite == SyncWriteOperation::Yes;
+        return syncWrite != SyncWriteOperation::None;
     }
 
     int64_t bySeqno = 0;
@@ -26,9 +26,13 @@ struct VBNotifyCtx {
     bool notifyFlusher = false;
 
     /**
-     * It's only necessary to send prepares to SyncWrite enabled Producers. We
-     * don't want to notify any non-SyncWrite enabled Producer of a prepare as
-     * this will mean:
+     * Not all DcpProducers will send every operation. For example any producer
+     * that does not enable SyncReplication cannot send a prepare or abort.
+     * This member records if the operation is a prepare or abort so that a we
+     * can avoid pointlessly waking producers which will never send either a
+     * prepare/abort or since 7.0 a seqno-advance in place of the prepare/abort.
+     *
+     * By avoiding a wakeup we can reduce/avoid the following:
      *
      * 1) This (front end worker) thread spends more time notifying Producers
      *
@@ -49,7 +53,7 @@ struct VBNotifyCtx {
      * We'll use this to determine if we can skip notifying a Producer of the
      * given seqno.
      */
-    SyncWriteOperation syncWrite = SyncWriteOperation::No;
+    SyncWriteOperation syncWrite = SyncWriteOperation::None;
 
     // The number that should be added to the item count due to the performed
     // operation (+1 for new, -1 for delete, 0 for update of existing doc)

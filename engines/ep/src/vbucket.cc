@@ -1305,9 +1305,14 @@ VBNotifyCtx VBucket::queueItem(queued_item& item, const VBQueueItemCtx& ctx) {
             item, ctx.genBySeqno, ctx.genCas, ctx.preLinkDocumentContext);
     notifyCtx.notifyReplication = true;
     notifyCtx.bySeqno = item->getBySeqno();
-    notifyCtx.syncWrite = item->isPending() || item->isAbort()
-                                  ? SyncWriteOperation::Yes
-                                  : SyncWriteOperation::No;
+
+    if (item->isPending()) {
+        notifyCtx.syncWrite = SyncWriteOperation::Prepare;
+    } else if (item->isAbort()) {
+        notifyCtx.syncWrite = SyncWriteOperation::Abort;
+    } else {
+        notifyCtx.syncWrite = SyncWriteOperation::None;
+    }
 
     // Process Durability items (notify the DurabilityMonitor of
     // Prepare/Commit/Abort)

@@ -568,6 +568,13 @@ protected:
         return UnaryFunctionRval{};
     }
 
+    /**
+     * @return true if the connection supports DcpSeqnoAdvanced
+     */
+    bool isSeqnoAdvancedEnabled() const {
+        return collectionsEnabled;
+    }
+
     // stash response for retry if E2BIG was hit
     std::unique_ptr<DcpResponse> rejectResp;
 
@@ -659,6 +666,12 @@ protected:
      * datatype, else false.
      */
     const bool connectionSupportsSnappy{false};
+
+    /**
+     * Set to true if the underlying memcached connection supports collections
+     * which includes seqno-advanced messages.
+     */
+    const bool collectionsEnabled{false};
 
     /**
      * Does the producer allow the client to create more than one active stream
