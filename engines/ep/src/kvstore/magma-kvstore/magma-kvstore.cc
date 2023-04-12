@@ -3616,11 +3616,12 @@ DBFileInfo MagmaKVStore::getDbFileInfo(Vbid vbid) {
     }
     logger->debug(
             "MagmaKVStore::getDbFileInfo {} spaceUsed:{} fileSize:{} "
-            "historyDiskSize:{} status:{}",
+            "historyDiskSize:{} historyStartTimestamp:{} status:{}",
             vbid,
             vbinfo.spaceUsed,
             vbinfo.fileSize,
             vbinfo.historyDiskSize,
+            vbinfo.historyStartTimestamp.count(),
             status.String());
     return vbinfo;
 }
@@ -3645,10 +3646,12 @@ DBFileInfo MagmaKVStore::getAggrDbFileInfo() {
     auto nonHistoryDataSize = static_cast<size_t>(nonHistoryDiskSize *
                                                   (1 - stats->Fragmentation));
 
-    DBFileInfo vbinfo{stats->ActiveDiskUsage,
-                      nonHistoryDataSize,
-                      0 /*prepareBytes*/,
-                      stats->HistoryDiskUsage};
+    DBFileInfo vbinfo{
+            stats->ActiveDiskUsage,
+            nonHistoryDataSize,
+            0 /*prepareBytes*/,
+            stats->HistoryDiskUsage,
+            std::chrono::seconds(stats->SeqStats.HistoryStartTimestamp)};
     return vbinfo;
 }
 

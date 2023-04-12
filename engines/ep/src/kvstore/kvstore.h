@@ -352,6 +352,10 @@ struct DBFileInfo {
     /// Total size of history as reported by magma.
     uint64_t historyDiskSize = 0;
 
+    /// Timestamp in seconds since epoch of the oldest key in history reported
+    /// by magma. This timestamp is the CAS of the key converted to seconds.
+    std::chrono::seconds historyStartTimestamp = std::chrono::seconds(0);
+
     /**
      * @returns An estimate of the number of bytes which are "live" data and
      * hence are not subject to being discarded during compactionn. This

@@ -393,6 +393,7 @@ STAT(ep_db_data_size, , bytes, , )
 STAT(ep_db_file_size, , bytes, , )
 STAT(ep_db_prepare_size, , bytes, , )
 STAT(ep_db_history_file_size, , bytes, , )
+STAT(ep_db_history_start_timestamp, , seconds, , )
 
 // Timing stats
 PSTAT(cmd_duration, microseconds, )

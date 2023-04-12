@@ -1544,7 +1544,7 @@ bool EPBucket::updateCompactionTasks(Vbid vbid) {
 cb::engine_errc EPBucket::getFileStats(const BucketStatCollector& collector) {
     const auto numShards = vbMap.getNumShards();
     DBFileInfo totalInfo;
-
+    totalInfo.historyStartTimestamp = std::chrono::seconds::max();
     for (uint16_t shardId = 0; shardId < numShards; shardId++) {
         const auto dbInfo =
                 getRWUnderlyingByShard(shardId)->getAggrDbFileInfo();
@@ -1552,6 +1552,12 @@ cb::engine_errc EPBucket::getFileStats(const BucketStatCollector& collector) {
         totalInfo.fileSize += dbInfo.fileSize;
         totalInfo.prepareBytes += dbInfo.prepareBytes;
         totalInfo.historyDiskSize += dbInfo.historyDiskSize;
+
+        if (dbInfo.historyStartTimestamp > std::chrono::seconds(0)) {
+            totalInfo.historyStartTimestamp =
+                    std::min(totalInfo.historyStartTimestamp,
+                             dbInfo.historyStartTimestamp);
+        }
     }
 
     using namespace cb::stats;
@@ -1559,6 +1565,8 @@ cb::engine_errc EPBucket::getFileStats(const BucketStatCollector& collector) {
     collector.addStat(Key::ep_db_file_size, totalInfo.fileSize);
     collector.addStat(Key::ep_db_history_file_size, totalInfo.historyDiskSize);
     collector.addStat(Key::ep_db_prepare_size, totalInfo.prepareBytes);
+    collector.addStat(Key::ep_db_history_start_timestamp,
+                      totalInfo.historyStartTimestamp.count());
 
     return cb::engine_errc::success;
 }
@@ -1599,6 +1607,14 @@ cb::engine_errc EPBucket::getPerVBucketDiskStats(const CookieIface* cookie,
                                  vbid.get());
                 add_casted_stat(
                         buf.data(), dbInfo.historyDiskSize, add_stat, cookie);
+                checked_snprintf(buf.data(),
+                                 buf.size(),
+                                 "vb_%d:history_start_timestamp",
+                                 vbid.get());
+                add_casted_stat(buf.data(),
+                                dbInfo.historyStartTimestamp.count(),
+                                add_stat,
+                                cookie);
             } catch (std::exception& error) {
                 EP_LOG_WARN(
                         "DiskStatVisitor::visitBucket: Failed to build stat: "
