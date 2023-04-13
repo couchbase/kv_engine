@@ -520,14 +520,14 @@ information about a given command.
 | 0x9f | Reset replication chain (obsolete) |
 | 0xa0 | Get meta |
 | 0xa1 | Getq meta |
-| 0xa2 | Set with meta |
-| 0xa3 | Setq with meta |
-| 0xa4 | Add with meta |
-| 0xa5 | Addq with meta |
+| 0xa2 | [Set with meta](../engines/ep/docs/protocol/set_with_meta.md) |
+| 0xa3 | [Setq with meta](../engines/ep/docs/protocol/set_with_meta.md) |
+| 0xa4 | [Add with meta](../engines/ep/docs/protocol/set_with_meta.md)|
+| 0xa5 | [Addq with meta](../engines/ep/docs/protocol/set_with_meta.md) |
 | 0xa6 | Snapshot vb states (obsolete) |
 | 0xa7 | Vbucket batch count (obsolete) |
-| 0xa8 | Del with meta |
-| 0xa9 | Delq with meta |
+| 0xa8 | [Del with meta](../engines/ep/docs/protocol/del_with_meta.md) |
+| 0xa9 | [Delq with meta](../engines/ep/docs/protocol/del_with_meta.md) |
 | 0xaa | Create checkpoint |
 | 0xac | Notify vbucket update (obsolete) |
 | 0xad | Enable traffic |
