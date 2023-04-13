@@ -244,8 +244,10 @@ private:
      *
      * This should be non-decrementing, apart from a rollback where it will be
      * reset.
+     *
+     * Atomic as read for stats without taking the listWriteLock.
      */
-    Monotonic<seqno_t> highestPurgedDeletedSeqno;
+    AtomicMonotonic<seqno_t> highestPurgedDeletedSeqno;
 
     /**
      * Seqno of the last visible item. Accounts only committed sync-writes (ie,
@@ -265,16 +267,20 @@ private:
      * Indicates the number of elements in the list that are stale (old,
      * duplicate values). Stale items are owned by the list and hence must
      * periodically clean them up.
+     *
+     * Atomic as read for stats without taking the listWriteLock.
      */
-    cb::NonNegativeCounter<uint64_t> numStaleItems;
+    cb::AtomicNonNegativeCounter<uint64_t> numStaleItems;
 
     /**
      * Indicates the number of logically deleted items in the list.
      * Since we are append-only, distributed cache supporting incremental
      * replication, we need to keep deleted items for while and periodically
-     * purge them
+     * purge them.
+     *
+     * Atomic as read for stats without taking the listWriteLock.
      */
-    cb::NonNegativeCounter<uint64_t> numDeletedItems;
+    cb::AtomicNonNegativeCounter<uint64_t> numDeletedItems;
 
     /* Used only to log debug messages */
     const Vbid vbid;
