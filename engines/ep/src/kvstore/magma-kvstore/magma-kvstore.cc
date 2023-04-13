@@ -1381,9 +1381,11 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
                                const Magma::WriteOperation& op,
                                const bool docExists,
                                const magma::Slice oldMeta) {
-        auto req = reinterpret_cast<MagmaRequest*>(op.UserData);
+        auto req = reinterpret_cast<MagmaRequest *>(op.UserData);
         auto diskDocKey = makeDiskDocKey(op.Key);
         auto docKey = diskDocKey.getDocKey();
+        size_t docSize = req->getRawKeyLen() + op.Meta.Len() +
+                         configuration.magmaCfg.GetValueSize(op.Meta);
 
         const bool isTombstone =
                 docExists && configuration.magmaCfg.IsTombstone(oldMeta);
@@ -1424,7 +1426,7 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
                         magmakv::getDocMeta(req->getDocMeta()).getBySeqno(),
                         isCommitted,
                         isDeleted,
-                        req->getDocSize(),
+                        docSize,
                         configuration.magmaCfg.GetSeqNum(oldMeta),
                         oldIsDeleted,
                         oldDocSize,
@@ -1440,7 +1442,7 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
                                         .getBySeqno(),
                                 isCommitted,
                                 isDeleted,
-                                req->getDocSize(),
+                                docSize,
                                 CompactionCallbacks::AnyRevision);
             }
             if (res.newDocReflectedInDiskSize) {
@@ -1644,6 +1646,7 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
     // This storage will be reused for each document that requires compression.
     std::string newMeta;
     cb::compression::Buffer newValueBuffer;
+    Magma::WriteOperation prevResult;
 
     // callback which _may_ apply compression to each written document
     std::function<bool(const Magma::WriteOperation& op,
@@ -1654,11 +1657,25 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
         // compression buffers aren't copyable (and std::function requires
         // the lambda be copy constructable), otherwise a capture
         // initialiser could be used.
-        compressCB = [&commitData, &newMeta, &newValueBuffer](
-                             const Magma::WriteOperation& op,
-                             Magma::WriteOperation& result) {
-            return MagmaKVStore::maybeCompressValue(
+        compressCB = [&prevResult, &commitData, &newMeta, &newValueBuffer](
+                const Magma::WriteOperation &op,
+                Magma::WriteOperation &result) {
+            // If the same operation as last time is being transformed, return
+            // the previous result as-is.
+            auto oldSeqno = prevResult.Meta.Len()
+                            ? magmakv::getSeqNum(prevResult.Meta)
+                            : 0;
+            if (oldSeqno == magmakv::getSeqNum(op.Meta)) {
+                result = prevResult;
+                return !magmakv::isCompressed(op.Meta) &&
+                       magmakv::isCompressed(result.Meta);
+            }
+
+            bool isCompressed = MagmaKVStore::maybeCompressValue(
                     commitData, newMeta, newValueBuffer, op, result);
+
+            prevResult = result;
+            return isCompressed;
         };
     }
 
@@ -1741,20 +1758,6 @@ bool MagmaKVStore::maybeCompressValue(VB::Commit& commitData,
     result.Meta = newMetaStorage;
     result.Value = std::string_view(newValueStorage);
 
-    // fixup collection stats to reflect the compressed size
-    auto diskDocKey = makeDiskDocKey(op.Key);
-    auto docKey = diskDocKey.getDocKey();
-
-    auto req = reinterpret_cast<MagmaRequest*>(op.UserData);
-
-    if (req->isNewDocReflectedInDiskSize()) {
-        commitData.collections.updateStatsPostCompression(
-                docKey,
-                meta.getBySeqno(),
-                op.Value.Len() /* original size */,
-                result.Value.Len() /* compressed size */,
-                CompactionCallbacks::AnyRevision);
-    }
     return true;
 }
 
