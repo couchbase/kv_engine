@@ -370,6 +370,32 @@ private:
     HistoryRetentionAvailable historyRetentionAvailable;
 };
 
+// The type of the snapshot
+//
+// History - A single snapshot that represents history, all updates to keys
+//           will be returned.
+// NoHistory - A single snapshot which does not have history, all keys are
+//             the most recent updates.
+//
+// Note a CDC backfill can be the combination of NoHistory then History and
+// the following two values indicate this distinction.
+//
+// NoHistoryPrecedingHistory - A snapshot that represents no-history and will
+//                     precede a snapshot which does include history.
+// HistoryFollowingNoHistory - A history snapshot which follows the non-history.
+//
+// NoHistoryPrecedingHistory/HistoryFollowingNoHistory exists to indicate the
+// case when a disk snapshot has both History and NoHistory ranges - in this
+// case markDiskSnapshot for example will get invoked twice by the same source
+// backfill, and markDiskSnapshot needs to ensure cursors don't get
+// re-registered for example.
+enum SnapshotType {
+    History,
+    NoHistory,
+    NoHistoryPrecedingHistory,
+    HistoryFollowingNoHistory
+};
+
 namespace cb {
 
 /**

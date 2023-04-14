@@ -281,7 +281,7 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
                                     std::optional<uint64_t> highCompletedSeqno,
                                     uint64_t maxVisibleSeqno,
                                     std::optional<uint64_t> timestamp,
-                                    SnapshotSource source) {
+                                    SnapshotType snapshotType) {
     {
         std::unique_lock<std::mutex> lh(streamMutex);
 
@@ -325,7 +325,8 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
            start when we are sending the first snapshot because the first
            snapshot could be resumption of a previous snapshot */
         startSeqno = adjustStartIfFirstSnapshot(
-                startSeqno, source != SnapshotSource::NoHistoryPrologue);
+                startSeqno,
+                snapshotType != SnapshotType::NoHistoryPrecedingHistory);
 
         VBucketPtr vb = engine->getVBucket(vb_);
         if (!vb) {
@@ -367,12 +368,13 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
 
         auto flags = MARKER_FLAG_DISK | MARKER_FLAG_CHK;
 
-        if (source == SnapshotSource::History) {
+        if (snapshotType == SnapshotType::History ||
+            snapshotType == SnapshotType::HistoryFollowingNoHistory) {
             flags |= (MARKER_FLAG_HISTORY |
                       MARKER_FLAG_MAY_CONTAIN_DUPLICATE_KEYS);
         }
 
-        if (source == SnapshotSource::NoHistoryPrologue) {
+        if (snapshotType == SnapshotType::NoHistoryPrecedingHistory) {
             // When the source is the prologue to history, don't send the marker
             // but stash it until the backfill definitely returns data.
             // backfillRecevied can send it if it exists.
@@ -411,9 +413,11 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
             lastSentSnapEndSeqno.store(endSeqno, std::memory_order_relaxed);
         }
 
-        if (!isDiskOnly()) {
+        if (!isDiskOnly() &&
+            snapshotType != SnapshotType::HistoryFollowingNoHistory) {
             // Only re-register the cursor if we still need to get memory
-            // snapshots
+            // snapshots and this is not the second markDiskSnapshot of a
+            // combined CDC snapshot
             registerCursor(*vb->checkpointManager, chkCursorSeqno);
         }
     }

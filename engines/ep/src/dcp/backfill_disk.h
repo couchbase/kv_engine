@@ -11,8 +11,8 @@
 
 #pragma once
 #include "callbacks.h"
-#include "ep_types.h"
 #include "dcp/backfill.h"
+#include "ep_types.h"
 
 #include <chrono>
 #include <mutex>
@@ -177,7 +177,7 @@ protected:
          * The snapshot_info_t records the start seqno of the history scan and
          * the snapshot range of the disk snapshot being used by DCP backfill.
          */
-        HistoryScanCtx(snapshot_info_t snapshotInfo);
+        HistoryScanCtx(snapshot_info_t snapshotInfo, SnapshotType snapshotType);
 
         ~HistoryScanCtx();
 
@@ -196,11 +196,19 @@ protected:
                                ScanContext& ctx,
                                const std::shared_ptr<ActiveStream>& streamPtr);
 
+        /**
+         * @return the type for the current history scan
+         */
+        SnapshotType getSnapshotType() const;
+
         /// records the start and snapshot range for the history scan
         snapshot_info_t snapshotInfo;
 
         // A ScanContext which "drives" the history scan
         std::unique_ptr<ScanContext> scanCtx;
+
+        // type of the history scan (see the enum definition)
+        const SnapshotType snapshotType;
     };
 
     // If a history scan is required this optional will be initialised.
