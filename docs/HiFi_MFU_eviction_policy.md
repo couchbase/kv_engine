@@ -28,7 +28,7 @@ written.
 
 The `ItemPager` will evict items if their frequency counter is below a certain
 threshold. This threshold is determined by maintaining
-a [histogram](#frequency-counter-histogram) of seen counter values. The
+a [histogram](#frequency-counter-histogram) of frequency counter values. The
 threshold is then set such that items with a frequency counter in the lowest N%
 of items will be evicted - the least frequently accessed items.
 
@@ -74,67 +74,48 @@ before the 8-bit counter will become saturated. This means the counter behaves
 similar to a unsigned 16-bit counter, which has a maximum value of 65,536,
 however only requires 8-bits of storage.
 
-### Default Value
+## Eviction Strategies
+
+We support two eviction strategies for the HiFi policy -- learning_age_and_mfu
+and upfront_mfu_only.
+
+### Learning Age and MFU-based eviction strategy
+
+#### Default MFU Value
 
 An item is initially created with a *initialFreqCount* which is set to a default
-of 4. This ensures that the item is not an immediate candidate for eviction.
+of 4. This ensures that the item is not an immediate candidate for eviction, and
+leaves space for items that are even colder.
 
-### Frequency Counter Histogram
+#### Learning-based eviction
 
-When the item pager task is run, it triggers the paging visitor task which
-iterates through all the vbucket selecting items for eviction. For each vbucket
-we start with an initially empty frequency count histogram, and as we visit
-items their frequency count gets added to the histogram.
+The learning_age_and_mfu strategy approximates the distribution of items which
+are eligible for eviction by sampling the StoredValues in the HashTable. The
+thresholds for eviction are recalculated at computed intervals, but no sooner
+than every 100 items.
 
-The histogram attempts to approximate the distribution of frequency counter
+For each vbucket we start with an initially empty frequency count histogram, and
+as we visit items their frequency count gets added to the histogram.
+
+The MFU histogram attempts to approximate the distribution of frequency counter
 values for eligible stored values; if an item is _ineligibie_ for eviction, for
 example if it is *dirty* (not yet persisted to disk) or already non-resident, it
 is not included in the histogram.
 
-The paging visitor is provided a **percent** of items to evict from a given
-vbucket. The **percent** is used to select a given frequency count threshold
-from the frequency count histogram. When each item is visited in the
-PagingVisitor it own frequency count is compared against the frequency count
-threshold. If it less than or equal to the threshold then the item is considered
-eligible for eviction.
+The age histogram is computed in the same way as the MFU histogram and holds the
+age (time since last mutation) of seen values.
 
-The calculated percentage differs based on whether the vbucket is active or
-replica.
+Finally, when deciding whether to evict an item, thresholds for both age and
+frequency count are derived using the configured %iles. Items are evicted
+only if the age and MFU are both below the threholds (with the age threshold
+ignored for items with MFU == 0).
 
-### Active verses Replica Eviction
+#### Aging
 
-Eviction prioritises keeping active data resident.
-
-The `ItemPager` attempts to reduce memory usage to the low watermark. The
-approximate amount of memory which could be recovered from a vbucket if every
-value were to be evicted can be determined ahead of time. If it is estimated
-that the low watermark could be reached by evicting only replica data, no active
-data will be evicted in the current `ItemPager`
-pass.
-
-This attempts to maximise the amount of resident active data, minimising how
-often client operations need to read data from disk.
-
-### Decaying Task
-
-Couchbase is expected to run for months, even years, without being restarted
-therefore it is possible that after an extended perod of time the frequency
-counts would become saturated for a large number of items. To avoid this a
-decayer task runs when the frequency counter of an item becomes saturated.
-
-Frequency counters are decayed in 2 ways:
-
-* If we iterate over an item during the ItemPager run and we do not evict, we
-  reduce its frequency count by 1. This ensures that if there is no changes to
-  the hash table the item will evently be evicted.
-* If the frequency count of an item in the bucket get saturated we run the
-  decayerTask. This task iterates over all items and reduces the frequency
-  counts by 50%.
-
-## Aging
-
-The aging component is used to ensure that items that are recently added to the
-hash table are not immediately evicted.
+The aging component was introduced in MB-29013 and is used by the
+learning_age_and_mfu strategy to ensure that items that are recently changed
+and resident are not immediately evicted (the age is based on the CAS value of
+the item, which corresponds to the last mutation of the item).
 
 Age is measured by taking the item's current cas from the maxCas (which is the
 maximum cas value of the associated vbucket). The time in nanoseconds is stored
@@ -142,7 +123,7 @@ in the top 48 bits of the cas therefore we shift the age by 16-bits. This allows
 us to have an age histogram with a reduced maximum value and therefore reduces
 the memory requirements.
 
-### Age Histogram
+##### Age Histogram
 
 The age histogram is populated by adding the current age of each item that we
 visit during PagingVisitor::visit.
@@ -152,7 +133,7 @@ freqCounterAgeThreshold, which is a value between 0 and 255 (defaulted to 1).
 
 The agePercentage is used to select a given age from the age histogram. The
 threshold returned from the histogram is used to define the minimum age that an
-item can be condidered for eviction. For example if histogram when selected at
+item can be considered for eviction. For example if histogram when selected at
 30% returns the value 10, then only those items that have an age >= to 10 will
 be eligible of eviction. Those below the threshold are considered too young for
 eviction.
@@ -163,7 +144,7 @@ defaulted to 1). This means that items that have a frequency counter below 1 (
 i.e. 0)
 do not take age into account when being considered for eviction.
 
-## Updating The Frequency Counter Threshold and Age Threshold
+#### Updating The Frequency Counter Threshold and Age Threshold
 
 As the frequency histogram and age histogram take time to be constructed, there
 is a learning phase. During this learning phase both the frequency counter and
@@ -178,7 +159,7 @@ to `vbucket->getNumItems() * 0.001`. So if the vbucket contains 10K items then
 every time the frequency histogram contains 10 more items the thresholds will be
 updated.
 
-## Detailed Algorithm
+#### Detailed Algorithm
 
 When the `ItemPager` task runs, the current memory usage is compared the _high_
 water mark. If it is greater, eviction will continue until memory usage falls
@@ -226,6 +207,146 @@ frequency count threshold and age threshold.
 Once all values for a given vbucket have been visited, memory usage is
 re-checked. If it is now below the low watermark, the visitor stops.
 
+### Upfront MFU-only eviction strategy
+
+#### Default MFU Value
+
+The upfront_mfu_only eviction strategy does not use a separate age component.
+This is because the age component is implied by the MFU in this mode, as new
+items stored in the HashTable have an initial MFU value computed at a fixed %ile
+of the current MFU histogram.
+
+#### MFU-based eviction
+
+The upfront_mfu_only eviction strategy uses the MFU histograms of all items in
+the HashTable which are eligible for eviction (e.g. dirty and pending items are
+not eligible).
+
+It derives an eviction threshold by taking the MFU value at the %ile determined
+by the ratio of (mem_used - low_wat) / low_wat, and evicts eligible items below
+that frequency counter threshold.
+
+#### Initial MFU value
+
+We want to give new items some minimum TTL, during which they can become
+hot on their own, before we consider them for eviction. This is why this
+eviction strategy uses the MFU histograms to calculate an appropriate MFU
+value at which to insert new items into the HashTable.
+
+We only consider active and pending vBuckets when deriving an initial MFU value.
+This is because we prioritise eviction from replica vBuckets, and focus on
+keeping items in active vBuckets resident. The replica MFU histograms are not
+relevant to that and introduce skew in the derived initial MFU.
+
+The initial MFU value is taken to be the 25%ile + 1.
+
+The 25%ile is chosen semi-arbitrarily (see addendum).
+It can be interpreted as the % of resident items which will be evicted in order
+to reduce memory usage from high_wat to low_wat, assuming 50% of memory is
+evictable (the rest could be CheckpointManager and SVs for value-only eviction).
+
+By choosing the 25%ile, we're at the highest MFU which will be evicted from
+during the next pager run, which will reduce mem_used from high_wat to low_wat,
+when 50% of the mem_used is evictable by the ItemPager.
+
+We +1 to the initial MFU determined by taking a %ile from the MFU histogram, to
+make the item _ineligible_ during that following pager run. We don't just pick
+a higher %ile because in case of many cold items, the 25, 50 or even 70%ile
+might be the same, and that would mean new items are immediately eligible for
+eviction, regardless of the %ile chosen.
+
+The mutation age as determined by the CAS and used by the learning_age_and_mfu
+strategy is not used by the upfront_mfu_only strategy. The
+upfront_mfu_only eviction strategy protects items which were BGFetched recently,
+but does not protect items which were recently touched (any more than the item's
+MFU value allows (MFU is incremented on access)).
+
+This should result in fewer BGFetches for read-only workloads.
+
+#### Addendum
+The fixed %ile can never be perfect, because full-eviction vs. value-eviction,
+EP vs Ephemeral all have different constraints on what can be evicted. In
+addition to that, we could have up to 30% of memory used by the
+CheckpointManager. So in order to reduce mem_used from high_wat to low_wat, we
+might need to evict between 12% and 100% of resident items.
+
+Given this histogram from a YCSB Workload D run, it is clear that for this
+specific test, any %ile between 5 and 30 will result in us picking the same
+frequency counter value.
+
+```
+vb_active_evictable_mfu (21740650 total)
+1 - 2     : (  0.0626%)   13620
+2 - 3     : (  4.1615%)  891120 █▊
+3 - 4     : ( 31.6348%) 5972880 ███████████▊
+4 - 5     : ( 55.9652%) 5289568 ██████████▍
+5 - 6     : ( 70.2924%) 3114843 ██████▏
+```
+
+More extreme example is YCSB workload A, where any %ile below 96% will results
+in us picking bin 0.
+
+```
+vb_active_evictable_mfu (8921606 total)
+0 - 1     : ( 96.6435%) 8622150 █████████████████████████████████████████▌
+1 - 2     : ( 98.9734%)  207865 █
+2 - 3     : ( 99.6535%)   60682 ▎
+```
+
+### Paging Visitor
+
+When the item pager task is run, it triggers the paging visitor task which
+iterates through all the vbucket selecting items for eviction.
+
+The paging visitor is provided an eviction strategy which determines which items
+should be evicted from the vbucket.
+
+### Active verses Replica Eviction
+
+Eviction prioritises keeping active data resident.
+
+The `ItemPager` attempts to reduce memory usage to the low watermark. The
+approximate amount of memory which could be recovered from a vbucket if every
+value were to be evicted can be determined ahead of time. If it is estimated
+that the low watermark could be reached by evicting only replica data, no active
+data will be evicted in the current `ItemPager`
+pass.
+
+This attempts to maximise the amount of resident active data, minimising how
+often client operations need to read data from disk.
+
+### Eviction from replicas vBuckets and ephemeral vBuckets
+
+The calculated eviction thresholds differ based on whether the vbucket is active
+or replica, and whether the vBucket is an ephemeral bucket, and also on the
+ephemeral full policy. All of these determine what items can be evicted and
+when.
+
+### Decaying Task
+
+Couchbase is expected to run for months, even years, without being restarted
+therefore it is possible that after an extended perod of time the frequency
+counts would become saturated for a large number of items. To avoid this a
+decayer task runs when the frequency counter of an item becomes saturated.
+
+Frequency counters are decayed in 2 ways:
+
+* If we iterate over an item during the ItemPager run and we do not evict, we
+  reduce its frequency count by 1. This ensures that if there is no changes to
+  the hash table the item will evently be evicted.
+* If the frequency count of an item in the bucket get saturated we run the
+  decayerTask. This task iterates over all items and reduces the frequency
+  counts by 50%.
+
+### MB-29333
+
+If eviction fails, we reduce the frequency counter by 1, to ensure that it will
+be evicted in a following pass. This was originally introduced in MB-29333 to
+handle the edge case where the learning_age_and_mfu eviction was still in the
+learning phase and the MFU threshold was 0, but there are not enough items for
+a learning pass to complete. Once the frequency counter reaches 0, the item is
+evicted. Currently, we maintain this behaviour regardless of eviction strategy.
+
 ## Propagation of Hotness Information
 
 If the consumer supports the hifi mfu eviction algorithm then the producer will
@@ -241,11 +362,7 @@ items on the replica may not have an up-to-date frequency count.
 
 * **ht\_eviction\_policy** - provides the ability to swtich between the original
   2-bit\_lru policy and the hifi_mfu policy.
-* **item\_eviction\_age\_percentage** - defines the percentage that is used to
-  select the appropriate age value from the age histogram, (defaulted to 30%).
-* **item\_eviction\_freq\_counter\_age\_threshold** - defines the frequency
-  counter value at which the age is ignored, (
-  defaulted to 1).
+* **item\_eviction\_strategy** - defines the eviction strategy to use
 * **item\_freq\_decayer\_chunk\_duration** - defines time (in ms)
   itemFreqDecayer task will run for before being paused, defaulted to 20ms.
 * **item\_freq\_decayer\_percent** - defines the percent that the frequency
@@ -253,6 +370,22 @@ items on the replica may not have an up-to-date frequency count.
   defaulted to 50%).
 * **concurrent\_pagers** - number of paging visitors created by the `ItemPager`.
   Controls how many vbuckets can be visited at the same time. (defaulted to 2).
+
+### upfront_mfu_only configuration parameters
+
+* **item\_eviction\_initial\_mfu\_percentile** - defines the MFU %ile to use for
+  the initial MFU of items stored under the upfront_mfu_only strategy
+* **item\_eviction\_initial\_mfu\_update\_interval** - defines how frequently
+  the initial MFU of items stored under the upfront_mfu_only strategy is
+  recalculated
+
+### learning_age_and_mfu configuration parameters
+
+* **item\_eviction\_age\_percentage** - defines the percentage that is used to
+  select the appropriate age value from the age histogram, (defaulted to 30%).
+* **item\_eviction\_freq\_counter\_age\_threshold** - defines the frequency
+  counter value at which the age is ignored, (
+  defaulted to 1).
 
 ## Stats
 
