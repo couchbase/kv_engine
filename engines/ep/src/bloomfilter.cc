@@ -91,7 +91,7 @@ bfilter_status_t BloomFilter::getStatus() {
     return status;
 }
 
-std::string BloomFilter::getStatusString() {
+std::string BloomFilter::getStatusString() const {
     switch (status) {
         case BFILTER_DISABLED:
             return "DISABLED";
@@ -135,7 +135,7 @@ bool BloomFilter::maybeKeyExists(const DocKey& key) {
     return true;
 }
 
-size_t BloomFilter::getNumOfKeysInFilter() {
+size_t BloomFilter::getNumOfKeysInFilter() const {
     if (status == BFILTER_COMPACTING || status == BFILTER_ENABLED) {
         return keyCounter;
     } else {
@@ -143,7 +143,7 @@ size_t BloomFilter::getNumOfKeysInFilter() {
     }
 }
 
-size_t BloomFilter::getFilterSize() {
+size_t BloomFilter::getFilterSize() const {
     if (status == BFILTER_COMPACTING || status == BFILTER_ENABLED) {
         return filterSize;
     } else {

@@ -6289,10 +6289,6 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
             {"vbucket", {"vb_0"}},
             {"vbucket-details 0",
              {"vb_0",
-              "vb_0:bloom_filter",
-              "vb_0:bloom_filter_key_count",
-              "vb_0:bloom_filter_memory",
-              "vb_0:bloom_filter_size",
               "vb_0:drift_ahead_threshold",
               "vb_0:drift_ahead_threshold_exceeded",
               "vb_0:drift_behind_threshold",
@@ -7280,6 +7276,15 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                           "ep_magma_key_tree_data_block_size",
                           "ep_magma_key_tree_index_block_size"});
         }
+    } else if (isPersistentBucket(h)) {
+        // bloom filter stats only appear when enabled (currently all persistent
+        // except magma)
+        auto& vb_details = statsKeys.at("vbucket-details 0");
+        vb_details.insert(vb_details.end(),
+                          {"vb_0:bloom_filter",
+                           "vb_0:bloom_filter_key_count",
+                           "vb_0:bloom_filter_memory",
+                           "vb_0:bloom_filter_size"});
     }
 
     if (isEphemeralBucket(h)) {

@@ -36,15 +36,15 @@ public:
 
     void setStatus(bfilter_status_t to);
     bfilter_status_t getStatus();
-    std::string getStatusString();
+    std::string getStatusString() const;
 
     void addKey(const DocKey& key);
     bool maybeKeyExists(const DocKey& key);
 
-    size_t getNumOfKeysInFilter();
+    size_t getNumOfKeysInFilter() const;
 
     /// @returns the filter size (in bits).
-    size_t getFilterSize();
+    size_t getFilterSize() const;
     size_t getNoOfHashes() const;
 
     /// @returns the filter memory footprint in bytes.

@@ -2181,6 +2181,13 @@ protected:
                  const AddStatFn& add_stat,
                  CookieIface& c);
 
+    // helper function to add stats for the current bloom filter
+    void addBloomFilterStats(const AddStatFn& add_stat, CookieIface& c);
+
+    void addBloomFilterStats_UNLOCKED(const AddStatFn& add_stat,
+                                      CookieIface& c,
+                                      const BloomFilter& filter);
+
     /* This member holds the eviction policy used */
     const EvictionPolicy eviction;
 
