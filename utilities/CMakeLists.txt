@@ -77,6 +77,7 @@ cb_add_test_executable(utilities_testapp
         throttle_utilities_test.cc
         util_test.cc)
 kv_enable_pch(utilities_testapp)
+cb_enable_unity_build(utilities_testapp)
 target_link_libraries(utilities_testapp PRIVATE
                       mcd_util
                       platform

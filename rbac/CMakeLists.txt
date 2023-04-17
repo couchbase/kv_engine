@@ -5,6 +5,7 @@ add_library(memcached_rbac STATIC
             ${PROJECT_SOURCE_DIR}/include/memcached/rbac.h
             )
 kv_enable_pch(memcached_rbac)
+cb_enable_unity_build(memcached_rbac)
 
 target_link_libraries(memcached_rbac
     PUBLIC platform
@@ -13,6 +14,7 @@ target_link_libraries(memcached_rbac
 cb_add_test_executable(memcached_rbac_test
                privilege_test.cc
                privilege_database_test.cc)
+cb_enable_unity_build(memcached_rbac_test)
 kv_enable_pch(memcached_rbac_test)
 target_link_libraries(memcached_rbac_test
     PRIVATE Folly::headers memcached_rbac GTest::gtest GTest::gtest_main)

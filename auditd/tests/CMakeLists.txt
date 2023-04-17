@@ -5,6 +5,7 @@ cb_add_test_executable(memcached_audit_test
                auditconfig_test.cc
                ${Memcached_SOURCE_DIR}/auditd/src/eventdescriptor.h
                ${Memcached_SOURCE_DIR}/include/memcached/isotime.h)
+cb_enable_unity_build(memcached_audit_test)
 kv_enable_pch(memcached_audit_test)
 target_link_libraries(memcached_audit_test PRIVATE
                       auditd

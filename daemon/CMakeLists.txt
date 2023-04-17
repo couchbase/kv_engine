@@ -196,7 +196,6 @@ add_library(memcached_daemon STATIC
             tls_configuration.h
             tracing.cc
             tracing.h
-            $<TARGET_OBJECTS:folly_io_callbacks>
         )
 
 if (NUMA_FOUND)
@@ -227,6 +226,7 @@ target_link_libraries(memcached_daemon
                       default_engine
                       ep
                       ewouldblock_engine
+                      folly_io_callbacks
                       mcd_executor
                       mcd_tracing
                       mcbp

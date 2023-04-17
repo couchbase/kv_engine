@@ -7,6 +7,7 @@ add_library(memcached_logger STATIC
             custom_rotating_file_sink.h
             logger_test_fixture.h)
 kv_enable_pch(memcached_logger)
+cb_enable_unity_build(memcached_logger)
 
 target_link_libraries(memcached_logger PUBLIC platform spdlog::spdlog)
 add_sanitizers(memcached_logger)
@@ -15,6 +16,7 @@ cb_add_test_executable(memcached_logger_test
                logger_config_test.cc
                logger_test.cc
                logger_test_fixture.cc)
+cb_enable_unity_build(memcached_logger_test)
 kv_enable_pch(memcached_logger_test)
 target_link_libraries(memcached_logger_test PRIVATE GTest::gtest GTest::gtest_main mcd_util memcached_logger platform)
 target_include_directories(memcached_logger_test INTERFACE PRIVATE ${Platform_SOURCE_DIR}/external)

@@ -2,13 +2,13 @@ include(CouchbaseGoogleTest)
 
 add_library(testapp_auth_provider OBJECT auth_provider.h auth_provider.cc)
 kv_enable_pch(testapp_auth_provider)
-cb_add_test_executable(testapp_auth_provider_test auth_provider_test.cc
-               $<TARGET_OBJECTS:testapp_auth_provider>)
+cb_add_test_executable(testapp_auth_provider_test auth_provider_test.cc)
 kv_enable_pch(testapp_auth_provider_test)
 kv_enable_pch(testapp_auth_provider_test)
 target_link_libraries(testapp_auth_provider PUBLIC platform)
 target_link_libraries(testapp_auth_provider_test
         PRIVATE
+                testapp_auth_provider
                 cbsasl
                 GTest::gtest
                 GTest::gtest_main
@@ -19,7 +19,6 @@ add_test(NAME testapp_auth_provider_test
          COMMAND testapp_auth_provider_test)
 
 set(memcached_testapp_SOURCES
-    $<TARGET_OBJECTS:testapp_auth_provider>
     subdoc_encoder.cc
     subdoc_encoder.h
     testapp.cc
@@ -84,6 +83,7 @@ cb_add_test_executable(memcached_testapp ${memcached_testapp_SOURCES})
 target_include_directories(memcached_testapp PRIVATE ${Memcached_BINARY_DIR} ${Platform_SOURCE_DIR}/external)
 
 target_link_libraries(memcached_testapp PRIVATE
+    testapp_auth_provider
     memcached_daemon
     memcached_logger
     mcd_util

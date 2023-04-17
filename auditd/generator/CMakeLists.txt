@@ -10,15 +10,16 @@ add_library(audit_generator_utilities OBJECT
 target_link_libraries(audit_generator_utilities
                       PRIVATE nlohmann_json::nlohmann_json fmt::fmt)
 kv_enable_pch(audit_generator_utilities)
+cb_enable_unity_build(audit_generator_utilities)
 
 add_executable(auditevent_generator
                auditevent_generator.cc
-               auditevent_generator.h
-               $<TARGET_OBJECTS:audit_generator_utilities>)
+               auditevent_generator.h)
 kv_enable_pch(auditevent_generator)
 add_sanitizers(auditevent_generator)
 
-target_link_libraries(auditevent_generator PRIVATE platform)
+target_link_libraries(auditevent_generator PRIVATE
+                      audit_generator_utilities platform)
 
 # When we're running the commit validation for memcached we don't
 # download all of the external modules so we'll just use a
@@ -72,12 +73,13 @@ install(FILES
 
 cb_add_test_executable(audit_generator_unit_test
                generator_event_test.cc
-               generator_module_test.cc
-               $<TARGET_OBJECTS:audit_generator_utilities>)
+               generator_module_test.cc)
+cb_enable_unity_build(audit_generator_unit_test)
 kv_enable_pch(audit_generator_unit_test)
 add_sanitizers(audit_generator_unit_test)
 target_link_libraries(audit_generator_unit_test
         PRIVATE
+                audit_generator_utilities
                 GTest::gtest
                 GTest::gtest_main
                 mcd_util
