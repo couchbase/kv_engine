@@ -15,7 +15,6 @@
 #include <memcached/durability_spec.h>
 #include <memcached/engine.h>
 
-#include <cstdlib>
 #include <stdexcept>
 #include <string>
 
