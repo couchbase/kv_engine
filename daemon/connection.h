@@ -817,8 +817,7 @@ public:
     }
 
     bool isSubjectToMetering() const {
-        return subject_to_metering.load(
-                std::memory_order::memory_order_acquire);
+        return subject_to_metering.load(std::memory_order_acquire);
     }
 
     /// Is this connection not to be throttled?
@@ -827,25 +826,22 @@ public:
     }
 
     bool isSubjectToThrottling() const {
-        return subject_to_throttling.load(
-                std::memory_order::memory_order_acquire);
+        return subject_to_throttling.load(std::memory_order_acquire);
     }
 
     bool isNodeSupervisor() const {
-        return node_supervisor.load(std::memory_order::memory_order_acquire);
+        return node_supervisor.load(std::memory_order_acquire);
     }
 
     /// Clear the DCP throttle for this connection to allow it to progress
     void resumeThrottledDcpStream();
 
     bool isNonBlockingThrottlingMode() const {
-        return non_blocking_throttling_mode.load(
-                std::memory_order::memory_order_acquire);
+        return non_blocking_throttling_mode.load(std::memory_order_acquire);
     }
 
     void setNonBlockingThrottlingMode(bool enable) {
-        non_blocking_throttling_mode.store(enable,
-                std::memory_order::memory_order_release);
+        non_blocking_throttling_mode.store(enable, std::memory_order_release);
     }
 
     /**

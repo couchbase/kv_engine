@@ -270,15 +270,15 @@ void Connection::updatePrivilegeContext() {
     subject_to_metering.store(
             privilegeContext.check(cb::rbac::Privilege::Unmetered, {}, {})
                     .failed(),
-            std::memory_order::memory_order_release);
+            std::memory_order_release);
     subject_to_throttling.store(
             privilegeContext.check(cb::rbac::Privilege::Unthrottled, {}, {})
                     .failed(),
-            std::memory_order::memory_order_release);
+            std::memory_order_release);
     node_supervisor.store(
             privilegeContext.check(cb::rbac::Privilege::NodeSupervisor, {}, {})
                     .success(),
-            std::memory_order::memory_order_release);
+            std::memory_order_release);
 }
 
 cb::engine_errc Connection::dropPrivilege(cb::rbac::Privilege privilege) {
