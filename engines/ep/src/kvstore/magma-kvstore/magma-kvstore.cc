@@ -598,7 +598,6 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     configuration.magmaCfg.KVStorePurgerInterval =
             configuration.getMagmaExpiryPurgerInterval();
     configuration.magmaCfg.GetSeqNum = magmakv::getSeqNum;
-    configuration.magmaCfg.IsValueCompressed = magmakv::isCompressed;
     configuration.magmaCfg.GetExpiryTime = [this](const magma::Slice& slice) {
         return getExpiryOrPurgeTime(slice);
     };
