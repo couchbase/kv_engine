@@ -935,6 +935,8 @@ cb::engine_errc EventuallyPersistentEngine::setDcpParam(const std::string& key,
             getConfiguration().setDcpIdleTimeout(v);
         } else if (key == "dcp_noop_tx_interval") {
             getConfiguration().setDcpNoopTxInterval(std::stoull(val));
+        } else if (key == "dcp_oso_backfill") {
+            getConfiguration().setDcpOsoBackfill(val);
         } else if (key == "dcp_producer_snapshot_marker_yield_limit") {
             getConfiguration().setDcpProducerSnapshotMarkerYieldLimit(
                     std::stoull(val));

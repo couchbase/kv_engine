@@ -14,6 +14,7 @@
 #include "kv_bucket.h"
 #include "tests/mock/mock_dcp_consumer.h"
 #include "tests/mock/mock_dcp_producer.h"
+#include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/collections/collections_dcp_test.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
 #include "tests/module_tests/test_helpers.h"
@@ -672,6 +673,40 @@ TEST_P(CollectionsOSODcpTest, MB_43700) {
         flush_vbucket_to_disk(vbid, 1);
         MB_43700(cid);
     }
+}
+
+// Similar to basic, except we disable OSO at the bucket level and check
+// this correctly falls back to seqno
+TEST_P(CollectionsOSODcpTest, fallbackToSeqnoIfOsoDisabled) {
+    // Write to default collection and deliberately not in lexicographical order
+    store_item(vbid, makeStoredDocKey("b"), "q");
+    store_item(vbid, makeStoredDocKey("d"), "a");
+    store_item(vbid, makeStoredDocKey("a"), "w");
+    store_item(vbid, makeStoredDocKey("c"), "y");
+    flush_vbucket_to_disk(vbid, 4);
+
+    // Reset so we have to stream from backfill
+    resetEngineAndWarmup();
+
+    // Disable OSO at the bucket level.
+    engine->getConfiguration().setDcpOsoBackfill("disabled");
+
+    // Filter on default collection (this will request from seqno:0)
+    createDcpObjects(
+            {{R"({"collections":["0"]})"}}, OutOfOrderSnapshots::Yes, 0);
+
+    // We have a single filter, expect the backfill to be OSO
+    runBackfill();
+
+    // OSO snapshots are never really used in KV to KV replication, but this
+    // test is using KV to KV test code, hence we need to set a snapshot so
+    // that any transferred items don't trigger a snapshot exception.
+    consumer->snapshotMarker(1, replicaVB, 0, 4, 0, 0, 4);
+
+    // Manually step the producer check we get a non-OSO snapshot.
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers->last_op);
 }
 
 // OSO doesn't support ephemeral - this one test checks it falls back to normal

@@ -1825,7 +1825,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
 
 bool ActiveStream::tryAndScheduleOSOBackfill(DcpProducer& producer,
                                              VBucket& vb) {
-    // OSO only allowed:
+    // OSO only _allowed_ (but may not be chosen):
     // if the filter is set to a single collection.
     // if this is the initial backfill request
     // if the client has enabled OSO
@@ -1833,6 +1833,12 @@ bool ActiveStream::tryAndScheduleOSOBackfill(DcpProducer& producer,
         lastReadSeqno.load() == 0 &&
         ((curChkSeqno.load() > lastReadSeqno.load() + 1) || (isDiskOnly()))) {
         CollectionID cid = filter.front();
+
+        // however OSO is only _used_:
+        // if dcp_oso_backfill conifig param is set to enabled.
+        if (engine->getConfiguration().getDcpOsoBackfill() != "enabled") {
+            return false;
+        }
 
         // OSO possible - engage.
         producer.scheduleBackfillManager(vb, shared_from_this(), cid);

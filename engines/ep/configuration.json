@@ -1192,6 +1192,18 @@
                 }
             }
         },
+        "dcp_oso_backfill": {
+            "default": "enabled",
+            "descr": "Whether DCP out-of-sequence-order backfill is enabled, for backfills which it is applicable. Enabled: always use OSO if possible. Disabled: never use OSO, fallback to seqno order",
+            "dynamic": true,
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                    "enabled",
+                    "disabled"
+                ]
+            }
+        },
         "dcp_scan_byte_limit": {
             "default": "4194304",
             "descr": "Max bytes that can be read in a single backfill scan before yielding",
