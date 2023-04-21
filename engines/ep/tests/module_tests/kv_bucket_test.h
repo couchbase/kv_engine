@@ -118,6 +118,16 @@ public:
                             cb::durability::Timeout::Infinity()),
             bool deleted = false);
 
+    /**
+     * Store the specified number of items into the given collection.
+     * @param collection Collection to store to.
+     * @param items Number of items to store.
+     * @param expected The expected status code when storing.
+     */
+    void storeItems(CollectionID collection,
+                    int items,
+                    cb::engine_errc expected = cb::engine_errc::success);
+
     /* Flush the given vbucket to disk, so any outstanding dirty items are
      * written (and are clean).
      */

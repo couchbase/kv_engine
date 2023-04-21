@@ -247,6 +247,15 @@ Item KVBucketTest::store_deleted_item(
     return ::testing::AssertionSuccess();
 }
 
+void KVBucketTest::storeItems(CollectionID collection,
+                              int items,
+                              cb::engine_errc expected) {
+    for (int ii = 0; ii < items; ii++) {
+        std::string key = "key" + std::to_string(ii);
+        store_item(vbid, StoredDocKey{key, collection}, "value", 0, {expected});
+    }
+}
+
 void KVBucketTest::flush_vbucket_to_disk(Vbid vbid, size_t expected) {
     size_t actualFlushed = flushVBucket(vbid);
 
