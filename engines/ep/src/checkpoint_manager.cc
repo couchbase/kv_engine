@@ -322,18 +322,11 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
                 std::to_string(openCkpt.getHighSeqno()) + ")");
     }
 
-    // If cursor exists with the same name as the one being created, then
-    // remove it.
-    for (const auto& cursor : cursors) {
-        if (cursor.first == name) {
-            removeCursor(lh, cursor.second.get());
-            break;
-        }
-    }
-
     CursorRegResult result;
     result.seqno = std::numeric_limits<uint64_t>::max();
     result.tryBackfill = false;
+
+    std::shared_ptr<CheckpointCursor> newCursor;
 
     auto ckptIt = checkpointList.begin();
     for (; ckptIt != checkpointList.end(); ++ckptIt) {
@@ -343,11 +336,10 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
         if (startBySeqno < st) {
             // Requested sequence number is before the start of this
             // checkpoint, position cursor at the checkpoint begin.
-            auto cursor = std::make_shared<CheckpointCursor>(
+            newCursor = std::make_shared<CheckpointCursor>(
                     name, ckptIt, (*ckptIt)->begin(), droppable, 0);
-            cursors[name] = cursor;
             result.seqno = st;
-            result.cursor.setCursor(cursor);
+            result.cursor.setCursor(newCursor);
             result.tryBackfill = true;
             break;
         } else if (startBySeqno <= en) {
@@ -382,13 +374,14 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
                 --pos;
             }
 
-            auto cursor = std::make_shared<CheckpointCursor>(
+            newCursor = std::make_shared<CheckpointCursor>(
                     name, ckptIt, pos, droppable, distance);
-            cursors[name] = cursor;
-            result.cursor.setCursor(cursor);
+            result.cursor.setCursor(newCursor);
             break;
         }
     }
+
+    Expects(newCursor);
 
     if (result.seqno == std::numeric_limits<uint64_t>::max()) {
         /*
@@ -400,6 +393,22 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
                 "CheckpointManager::registerCursorBySeqno the sequences number "
                 "is higher than anything currently assigned");
     }
+
+    // If a cursor with the same name exists remove it before adding the new one
+    auto itr = cursors.find(name);
+    if (itr != cursors.end()) {
+        // Place a temporary entry in the map for the new cursor. This ensures
+        // that the checkpoint of the cursor cannot become eligible for eager
+        // removal (triggering a use-after-free situation)
+        const auto tempName = "temp" + name;
+        cursors[tempName] = newCursor;
+        removeCursor(lh, itr->second.get());
+        cursors.erase(tempName);
+    }
+
+    // Finally save the newCursor
+    cursors[name] = newCursor;
+
     return result;
 }
 

@@ -108,6 +108,20 @@ bool CheckpointTest::queueNewItem(const std::string& key) {
                                /*preLinkDocCtx*/ nullptr);
 }
 
+bool CheckpointTest::queueNewCDCItem(const std::string& key) {
+    queued_item qi{new Item(makeStoredDocKey(key),
+                            this->vbucket->getId(),
+                            queue_op::mutation,
+                            /*revSeq*/ 0,
+                            /*bySeq*/ 0)};
+    qi->setQueuedTime(std::chrono::steady_clock::now());
+    qi->setCanDeduplicate(CanDeduplicate::No);
+    return manager->queueDirty(qi,
+                               GenerateBySeqno::Yes,
+                               GenerateCas::Yes,
+                               /*preLinkDocCtx*/ nullptr);
+}
+
 bool CheckpointTest::queueReplicatedItem(const std::string& key,
                                          int64_t seqno) {
     queued_item qi{new Item(makeStoredDocKey(key),
@@ -3098,6 +3112,38 @@ TEST_P(CheckpointTest, MB_47551) {
     EXPECT_TRUE(cursor2.tryBackfill);
     EXPECT_EQ(1003, cursor2.seqno);
     EXPECT_EQ(2, (*cursor2.cursor.lock()->getCheckpoint())->getId());
+}
+
+// This test exists to cover a the case where cursor re-registration moves the
+// cursor for a new checkpoint and importantly when eager removal is in play
+// before ~Checkpoint had an Expects(getNumCursorsInCheckpoint() == 0); this
+// test would lead to a use-after-free issue which no other unit test hit.
+TEST_P(EagerCheckpointDisposalTest, reRegisterCheckpointCursor) {
+    // Add 3 item using CDC functionality - they will create new checkpoints
+    ASSERT_TRUE(this->queueNewCDCItem("k1")); // seqno:1001
+    ASSERT_TRUE(this->queueNewCDCItem("k1")); // seqno:1002
+    ASSERT_TRUE(this->queueNewCDCItem("k1")); // seqno:1003
+
+    // But high-seqno should use the open CP
+    auto cursor = manager->registerCursorBySeqno(
+            "cursor", 1001, CheckpointCursor::Droppable::Yes);
+    if (persistent()) {
+        // Important to ensure the persistence cursor is moved to the end to
+        // ensure other checkpoints could be eligible for eager removal
+        std::vector<queued_item> items;
+        manager->getItemsForCursor(manager->getPersistenceCursor(),
+                                   items,
+                                   std::numeric_limits<size_t>::max());
+    }
+
+    // Note: A version of the code for MB-56565 triggers a new Expects when
+    // registering the cursor at the "higher" seqno (+ eager removal)
+    cursor = manager->registerCursorBySeqno(
+            "cursor", 1002, CheckpointCursor::Droppable::Yes);
+
+    EXPECT_FALSE(cursor.tryBackfill);
+    EXPECT_EQ(1003, cursor.seqno);
+    EXPECT_EQ(2, (*cursor.cursor.lock()->getCheckpoint())->getId());
 }
 
 CheckpointManager::ExtractItemsResult CheckpointTest::extractItemsToExpel() {

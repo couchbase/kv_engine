@@ -112,6 +112,7 @@ Checkpoint::~Checkpoint() {
         // goes away.
         detachFromManager();
     }
+    Expects(getNumCursorsInCheckpoint() == 0);
 }
 
 QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
