@@ -144,6 +144,17 @@ void CollectionsDcpTest::createDcpObjects(
     createDcpStream(streamRequestConfig);
 }
 
+std::string CollectionsDcpTest::makeStreamRequestValue(
+        std::initializer_list<CollectionID> collections) {
+    auto array = nlohmann::json::array();
+    for (const auto cid : collections) {
+        // Gotcha - collection ID must be encoded as a string in hex but
+        // *without* a '0x' prefix.
+        array.push_back(fmt::format("{:x}", uint32_t(cid)));
+    }
+    return nlohmann::json{ {"collections", array}}.dump();
+}
+
 void CollectionsDcpTest::createDcpObjects(
         std::optional<std::string_view> collections,
         OutOfOrderSnapshots outOfOrderSnapshots,

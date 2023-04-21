@@ -19,6 +19,7 @@
 #include <spdlog/common.h>
 #include <optional>
 
+class Configuration;
 class CheckpointManager;
 class VBucket;
 enum class ValueFilter;
@@ -458,6 +459,16 @@ public:
     bool areChangeStreamsEnabled() const;
 
     bool isFlatBuffersSystemEventEnabled() const;
+
+    /**
+     * Determine if OSO backfill is preferred for the specified collection.
+     * Returns true if OSO is predicted to be faster than seqno, otherwise
+     * returns false if seqno backfill is predicted to be faster.
+     */
+    static bool isOSOPreferredForCollectionBackfill(const Configuration& config,
+                                                    uint64_t collectionItems,
+                                                    uint64_t collectionDiskSize,
+                                                    uint64_t totalItems);
 
 protected:
     void clear_UNLOCKED();
