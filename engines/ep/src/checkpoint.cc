@@ -654,6 +654,13 @@ void Checkpoint::addStats(const AddStatFn& add_stat, CookieIface& cookie) {
                      getId());
     add_casted_stat(
             buf.data(), isCheckpointHistorical(historical), add_stat, cookie);
+
+    checked_snprintf(buf.data(),
+                     buf.size(),
+                     "vb_%d:id_%" PRIu64 ":num_items",
+                     vbucketId.get(),
+                     getId());
+    add_casted_stat(buf.data(), getNumItems(), add_stat, cookie);
 }
 
 void Checkpoint::detachFromManager() {
