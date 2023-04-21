@@ -8811,7 +8811,9 @@ BaseTestCase testsuite_testcases[] = {
                  testDcpOsoBackfill,
                  test_setup,
                  teardown,
-                 nullptr,
+                 // Disable OSO <-> seqno auto mode and set to enabled; so
+                 // we perform OSO regardless of the colleciton size.
+                 "dcp_oso_backfill=enabled",
                  // No OSO for RocksDB
                  prepare_skip_broken_under_rocks,
                  cleanup),

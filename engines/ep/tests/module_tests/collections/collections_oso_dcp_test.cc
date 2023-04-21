@@ -29,6 +29,10 @@ public:
 
     void SetUp() override {
         config_string += "collections_enabled=true";
+        // Disable OSO backfill auto-selection to simplify most of the
+        // functional tests - set to always.
+        config_string += ";dcp_oso_backfill=enabled";
+
         SingleThreadedKVBucketTest::SetUp();
         producers = std::make_unique<CollectionsDcpTestProducers>();
         // Start vbucket as active to allow us to store items directly to it.

@@ -1193,7 +1193,7 @@
             }
         },
         "dcp_oso_backfill": {
-            "default": "enabled",
+            "default": "auto",
             "descr": "Whether DCP out-of-sequence-order backfill is enabled, for backfills which it is applicable. Enabled: always use OSO if possible. Disabled: never use OSO, fallback to seqno order. Auto: use OSO only if it is expected to be faster than seqno.",
             "dynamic": true,
             "type": "std::string",
