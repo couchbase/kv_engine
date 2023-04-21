@@ -39,7 +39,11 @@ public:
     }
 
     static void SetUpTestCase() {
-        cluster = Cluster::create(1);
+        cluster = Cluster::create(1, {}, [](auto&&, auto& config) {
+            // Don't run the item pager at a set interval, as this interferes
+            // with some of the tests which depend on ep_num_pager_runs.
+            config["quota_sharing_pager_sleep_time_ms"] = 300'000;
+        });
     }
 
     static void TearDownTestCase() {
@@ -216,6 +220,9 @@ protected:
             {"replicas", 0},
             {"max_vbuckets", maxVBuckets},
             {"cross_bucket_ht_quota_sharing", true},
+            // Don't run the item pager at a set rate, as that affects the
+            // tests which depend on the ep_num_pager_runs stat.
+            {"pager_sleep_time_ms", 300'000},
             // Setting the increment factor to 0 means we always increment
             {"freq_counter_increment_factor", 0},
             // Keep checkpoint memory usage minimal
