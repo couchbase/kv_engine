@@ -993,6 +993,8 @@ each stat name.
 |                                     | name 'cursor_name' is pointing now        |
 | cursor_name:cursor_seqno            | The seqno at which the cursor             |
 |                                     | 'cursor_name' is pointing now             |
+| cursor_name:cursor_op               | The type of operation of the item pointed |
+|                                     | by cursor                                 |
 | cursor_name:num_visits              | Number of times a batch of items have been|
 |                                     | drained from a checkpoint of 'cursor_name'|
 | cursor_name:num_items_for_cursor    | Number of items remaining for the cursor  |

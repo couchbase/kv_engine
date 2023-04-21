@@ -1572,13 +1572,26 @@ void CheckpointManager::addStats(const AddStatFn& add_stat,
         add_casted_stat(buf.data(), queuedItemsMemUsage, add_stat, cookie);
 
         for (const auto& cursor : cursors) {
+            const auto& name = cursor.second->getName();
+
             checked_snprintf(buf.data(),
                              buf.size(),
                              "vb_%d:%s:cursor_checkpoint_id",
                              vbucketId.get(),
-                             cursor.second->getName().c_str());
+                             name.c_str());
             add_casted_stat(buf.data(),
                             (*(cursor.second->getCheckpoint()))->getId(),
+                            add_stat,
+                            cookie);
+
+            const auto pos = cursor.second->getPos();
+            checked_snprintf(buf.data(),
+                             buf.size(),
+                             "vb_%d:%s:cursor_op",
+                             vbucketId.get(),
+                             name.c_str());
+            add_casted_stat(buf.data(),
+                            to_string((*pos)->getOperation()),
                             add_stat,
                             cookie);
 
@@ -1586,17 +1599,14 @@ void CheckpointManager::addStats(const AddStatFn& add_stat,
                              buf.size(),
                              "vb_%d:%s:cursor_seqno",
                              vbucketId.get(),
-                             cursor.second->getName().c_str());
-            add_casted_stat(buf.data(),
-                            (*(cursor.second->getPos()))->getBySeqno(),
-                            add_stat,
-                            cookie);
+                             name.c_str());
+            add_casted_stat(buf.data(), (*pos)->getBySeqno(), add_stat, cookie);
 
             checked_snprintf(buf.data(),
                              buf.size(),
                              "vb_%d:%s:num_visits",
                              vbucketId.get(),
-                             cursor.second->getName().c_str());
+                             name.c_str());
             add_casted_stat(
                     buf.data(), cursor.second->getNumVisit(), add_stat, cookie);
 
@@ -1604,7 +1614,7 @@ void CheckpointManager::addStats(const AddStatFn& add_stat,
                              buf.size(),
                              "vb_%d:%s:num_items_for_cursor",
                              vbucketId.get(),
-                             cursor.second->getName().c_str());
+                             name.c_str());
             add_casted_stat(buf.data(),
                             getNumItemsForCursor(lh, *cursor.second),
                             add_stat,
