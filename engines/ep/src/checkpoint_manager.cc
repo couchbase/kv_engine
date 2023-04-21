@@ -1587,6 +1587,14 @@ void CheckpointManager::addStats(const AddStatFn& add_stat,
             const auto pos = cursor.second->getPos();
             checked_snprintf(buf.data(),
                              buf.size(),
+                             "vb_%d:%s:cursor_distance",
+                             vbucketId.get(),
+                             name.c_str());
+            add_casted_stat(
+                    buf.data(), cursor.second->getDistance(), add_stat, cookie);
+
+            checked_snprintf(buf.data(),
+                             buf.size(),
                              "vb_%d:%s:cursor_op",
                              vbucketId.get(),
                              name.c_str());

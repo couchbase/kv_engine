@@ -7246,6 +7246,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
         // Add stats which are only available for persistent buckets:
         std::initializer_list<std::string_view> persistence_stats = {
                 "vb_0:persistence:cursor_checkpoint_id",
+                "vb_0:persistence:cursor_distance",
                 "vb_0:persistence:cursor_op",
                 "vb_0:persistence:cursor_seqno",
                 "vb_0:persistence:num_visits",

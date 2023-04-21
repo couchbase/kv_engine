@@ -991,6 +991,8 @@ each stat name.
 
 | cursor_name:cursor_checkpoint_id    | Checkpoint ID at which the cursor is      |
 |                                     | name 'cursor_name' is pointing now        |
+| cursor_name:cursor_distance         | The distance of cursor from checkpoint    |
+|                                     | begin                                     |
 | cursor_name:cursor_seqno            | The seqno at which the cursor             |
 |                                     | 'cursor_name' is pointing now             |
 | cursor_name:cursor_op               | The type of operation of the item pointed |
