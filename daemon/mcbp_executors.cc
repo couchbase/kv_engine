@@ -520,9 +520,20 @@ static void set_node_throttle_properties_executor(Cookie& cookie) {
         return;
     }
 
-    auto json = nlohmann::json::parse(cookie.getHeader().getValueString());
+    const cb::throttle::SetNodeThrottleLimitPayload limits =
+            nlohmann::json::parse(cookie.getHeader().getValueString());
     auto& instance = cb::serverless::Config::instance();
-    instance.nodeCapacity = json.value("capacity", 0ULL);
+    if (limits.capacity) {
+        instance.nodeCapacity = limits.capacity.value();
+    }
+    if (limits.default_throttle_reserved_units) {
+        instance.defaultThrottleReservedUnits =
+                limits.default_throttle_reserved_units.value();
+    }
+    if (limits.default_throttle_hard_limit) {
+        instance.defaultThrottleHardLimit =
+                limits.default_throttle_hard_limit.value();
+    }
     cookie.sendResponse(cb::mcbp::Status::Success);
 }
 

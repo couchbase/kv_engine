@@ -12,6 +12,7 @@
 
 #include <nlohmann/json_fwd.hpp>
 #include <limits>
+#include <optional>
 
 namespace cb::throttle {
 
@@ -40,5 +41,18 @@ void to_json(nlohmann::json& json, const SetThrottleLimitPayload& object);
 
 /// Initialize the SetThrottleLimitPayload object from JSON
 void from_json(const nlohmann::json& json, SetThrottleLimitPayload& object);
+
+/// The payload in the SetNodeThrottleLimit command
+struct SetNodeThrottleLimitPayload {
+    std::optional<std::size_t> capacity;
+    std::optional<std::size_t> default_throttle_reserved_units;
+    std::optional<std::size_t> default_throttle_hard_limit;
+};
+
+/// Convert the SetNodeThrottleLimitPayload to a JSON document
+void to_json(nlohmann::json& json, const SetNodeThrottleLimitPayload& object);
+
+/// Initialize the SetNodeThrottleLimitPayload object from JSON
+void from_json(const nlohmann::json& json, SetNodeThrottleLimitPayload& object);
 
 } // namespace cb::throttle

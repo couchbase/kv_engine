@@ -41,8 +41,8 @@ std::size_t get_limit(const nlohmann::json& json,
             return std::numeric_limits<std::size_t>::max();
         }
         throw std::runtime_error(
-                fmt::format("from_json(SetThrottleLimitPayload): {} must be "
-                            "set to \"{}\" if passed as a string",
+                fmt::format("from_json(Set[Node]ThrottleLimitPayload): {} must "
+                            "be set to \"{}\" if passed as a string",
                             key,
                             unlimited));
     }
@@ -59,4 +59,51 @@ void from_json(const nlohmann::json& json, SetThrottleLimitPayload& object) {
     object.reserved = get_limit(json, "reserved");
     object.hard_limit = get_limit(json, "hard_limit");
 }
+
+void to_json(nlohmann::json& json, const SetNodeThrottleLimitPayload& object) {
+    if (object.capacity) {
+        json["capacity"] = limit_to_json(object.capacity.value());
+    }
+    if (object.default_throttle_reserved_units) {
+        json["default_throttle_reserved_units"] =
+                limit_to_json(object.default_throttle_reserved_units.value());
+    }
+    if (object.default_throttle_hard_limit) {
+        json["default_throttle_hard_limit"] =
+                limit_to_json(object.default_throttle_hard_limit.value());
+    }
+}
+
+void from_json(const nlohmann::json& json,
+               SetNodeThrottleLimitPayload& object) {
+    if (json.contains("capacity")) {
+        object.capacity = get_limit(json, "capacity");
+    }
+
+    if (json.contains("default_throttle_reserved_units")) {
+        object.default_throttle_reserved_units =
+                get_limit(json, "default_throttle_reserved_units");
+    }
+    if (json.contains("default_throttle_hard_limit")) {
+        object.default_throttle_hard_limit =
+                get_limit(json, "default_throttle_hard_limit");
+    }
+
+    if (object.default_throttle_hard_limit ||
+        object.default_throttle_reserved_units) {
+        if (!(object.default_throttle_hard_limit &&
+              object.default_throttle_reserved_units)) {
+            // both must be present
+            throw std::invalid_argument(
+                    "both hard and reserved must be provided");
+        }
+
+        // hard must be >= reserved
+        if (object.default_throttle_hard_limit <
+            object.default_throttle_reserved_units) {
+            throw std::invalid_argument("hard must be >= reserved");
+        }
+    }
+}
+
 } // namespace cb::throttle

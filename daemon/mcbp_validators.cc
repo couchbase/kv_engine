@@ -1698,16 +1698,13 @@ static Status set_node_throttle_properties_validator(Cookie& cookie) {
     }
 
     try {
-        auto json = nlohmann::json::parse(payload);
-        if (!json.contains("capacity") || !json["capacity"].is_number() ||
-            json.value("capacity", -1L) < 1) {
-            cookie.setErrorContext(
-                    R"("capacity" must specified and greater than 0)");
-            return Status::Einval;
-        }
+        const cb::throttle::SetNodeThrottleLimitPayload limits =
+                nlohmann::json::parse(cookie.getHeader().getValueString());
+        (void)limits;
     } catch (const std::exception& exception) {
-        cookie.setErrorContext(fmt::format("Failed to parse attached JSON: {}",
-                                           exception.what()));
+        cookie.setErrorContext(
+                fmt::format("Invalid payload for SetNodeThrottleProperties: {}",
+                            exception.what()));
         return Status::Einval;
     }
     return Status::Success;

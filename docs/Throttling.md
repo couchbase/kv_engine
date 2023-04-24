@@ -56,9 +56,19 @@ following syntax:
 
     {
       "capacity" : 25000, 
+      "default_throttle_hard_limit" : 5000,
+      "default_throttle_reserved_units" : 2500
     }
 
-"capacity" is the number of units per second
+"capacity" is the number of units per second.
+
+"default_throttle_hard_limit" is the hard limit of number of units per second.
+
+"default_throttle_reserved_units" is the number of units per second reserved
+for the bucket.
+
+Note that default_throttle_hard_limit and default_throttle_reserved_units will
+only affect buckets created after their value is set.
 
 The "default" settings would be stored in
 `/etc/couchbase/kv/serverless/config.json`
