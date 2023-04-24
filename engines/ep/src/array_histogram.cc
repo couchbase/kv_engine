@@ -111,7 +111,7 @@ size_t ArrayHistogram<CountType, ArraySize, StoredType>::getValueAtPercentile(
     // With the bias:
     //                      (50.0       / 100.0) * 3 + 0.5
     //  would give 2.0 samples, and would find the 50th percentile to be 20.
-    auto threshold = CountType(((percentile / 100.0f) * totalCount) + 0.5f);
+    auto threshold = CountType(((percentile / 100.0) * totalCount) + 0.5);
 
     if (!threshold) {
         // the histogram is not empty, but the requested percentile
@@ -139,7 +139,7 @@ size_t ArrayHistogram<CountType, ArraySize, StoredType>::getValueAtPercentile(
 template <class CountType, size_t ArraySize, class StoredType>
 CountType ArrayHistogram<CountType, ArraySize, StoredType>::getNumberOfSamples()
         const {
-    return std::accumulate(valueArray.begin(), valueArray.end(), 0);
+    return std::accumulate(valueArray.begin(), valueArray.end(), CountType(0));
 }
 
 template <class CountType, size_t ArraySize, class StoredType>

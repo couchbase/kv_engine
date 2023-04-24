@@ -132,6 +132,18 @@ TEST(ArrayHistogramTest, Percentile) {
         SCOPED_TRACE("50%ile and 100%ile bumped to 120");
         expect(100, 120, 120);
     }
+
+    // Test with a large number of samples. Previously, we used floats for the
+    // threshold calculation, and because of the 24-bit mantissa in floats,
+    // these values would be off. We also used to use 32-bit ints for the total
+    // number of samples. Compare implementations above those limits.
+    hdr.add(110, std::numeric_limits<int32_t>::max());
+    hist.add(110, std::numeric_limits<int32_t>::max());
+
+    {
+        SCOPED_TRACE("50%ile bumped to 110");
+        expect(100, 110, 120);
+    }
 }
 
 TEST(ArrayHistogramTest, ThreadSafety) {
