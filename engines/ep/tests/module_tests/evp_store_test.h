@@ -34,8 +34,7 @@ protected:
 // Full eviction only tests
 class EPBucketFullEvictionTest : public EPBucketTest {
 public:
-    void compactionFindsNonResidentItem(bool dropCollection,
-                                        bool switchToReplica);
+    void compactionFindsNonResidentItem();
 };
 
 // Full eviction only tests that run with bloom filters off

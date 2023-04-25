@@ -24,6 +24,7 @@
 #include "vbucket_types.h"
 #include "vbucketmap.h"
 #include <executor/task_type.h>
+#include <utilities/testing_hook.h>
 
 #include <cstdlib>
 #include <deque>
@@ -1231,6 +1232,12 @@ protected:
 
     /// Max bytes of history an individual vbucket should aim to retain on disk.
     std::atomic<size_t> historyRetentionBytes;
+
+    /**
+     * Hook called after creating (and possibly queueing) a compaction
+     * bgfetch context. For tests.
+     */
+    TestingHook<> processExpiredItemHook;
 
     friend class KVBucketTest;
 
