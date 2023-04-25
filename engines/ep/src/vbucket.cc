@@ -43,6 +43,7 @@
 #include <platform/optional.h>
 #include <statistics/cbstat_collector.h>
 #include <utilities/logtags.h>
+#include <vbucket_bgfetch_item.h>
 #include <xattr/blob.h>
 #include <functional>
 #include <list>
@@ -2496,9 +2497,8 @@ cb::engine_errc VBucket::deleteWithMeta(
     return cb::engine_errc::success;
 }
 
-void VBucket::processExpiredItem(const Item& it,
-                                 time_t startTime,
-                                 ExpireBy source) {
+std::unique_ptr<CompactionBGFetchItem> VBucket::processExpiredItem(
+        const Item& it, time_t startTime, ExpireBy source) {
     // Pending items should not be subject to expiry
     if (it.isPending()) {
         std::stringstream ss;
@@ -2515,7 +2515,7 @@ void VBucket::processExpiredItem(const Item& it,
     auto cHandle = manifest->lock(key);
     if (!cHandle.valid()) {
         // The collection has now been dropped, no action required
-        return;
+        return nullptr;
     }
 
     // The item is correctly trimmed (by the caller). Fetch the one in the
@@ -2527,7 +2527,7 @@ void VBucket::processExpiredItem(const Item& it,
 
     if (v) {
         if (v->getCas() != it.getCas()) {
-            return;
+            return nullptr;
         }
 
         if (v->isPending()) {
@@ -2537,7 +2537,7 @@ void VBucket::processExpiredItem(const Item& it,
             // some reason. The prepare should be in a maybe visible state but
             // it probably isn't a good idea to assert that here. In this case
             // we must do nothing as we MUST commit any maybe visible prepares.
-            return;
+            return nullptr;
         }
 
         if (v->isTempNonExistentItem() || v->isTempDeletedItem()) {
@@ -2574,21 +2574,28 @@ void VBucket::processExpiredItem(const Item& it,
             // There's no point in checking the bloom filter here. We're getting
             // called back from compaction so we know that the Item currently
             // exists on disk in some form.
-            auto ret = bgFetchForCompactionExpiry(hbl, key, it);
 
-            // Failure to create a temp item (and bg fetch) is unexpected, but
-            // fine as the next compaction should expire this.
-            (void)ret;
+            if (bucket->isCompactionExpiryFetchInline()) {
+                // fetches should be completed in this thread, "inline"
+                // during compaction, rather than being queued separately
+                // as bgfetches.
+                // This avoids compaction expiry fetches monopolising
+                // bgfetcher time and adding excessive frontend latency.
+                // Allow the caller to complete the fetch.
+                return createBgFetchForCompactionExpiry(hbl, key, it);
+            }
+
+            bgFetchForCompactionExpiry(hbl, key, it);
 
             // Early return, don't want to bump any expiration stats here as we
             // need to bg fetch our item in first.
-            return;
+            return nullptr;
         }
 
         if (maybeKeyExistsInFilter(key)) {
             auto addTemp = addTempStoredValue(hbl, key);
             if (addTemp.status == TempAddStatus::NoMem) {
-                return;
+                return nullptr;
             }
             v = addTemp.storedValue;
             v->setTempDeleted();
@@ -2612,6 +2619,7 @@ void VBucket::processExpiredItem(const Item& it,
             doCollectionsStats(cHandle, notifyCtx);
         }
     }
+    return nullptr;
 }
 
 cb::engine_errc VBucket::add(
