@@ -59,6 +59,8 @@ bool DefragmenterTask::run() {
                 engine->getConfiguration().getDefragmenterInterval()};
     }
     snooze(sleepTime.count());
+    currentSleepTime =
+            std::chrono::duration_cast<std::chrono::milliseconds>(sleepTime);
     if (engine->getEpStats().isShutdown) {
         return false;
     }
@@ -187,6 +189,10 @@ std::chrono::microseconds DefragmenterTask::maxExpectedDuration() const {
     // apply some headroom to that figure so we don't get inundated with
     // spurious "slow tasks" which only just exceed the limit.
     return getChunkDuration() * 10;
+}
+
+std::chrono::milliseconds DefragmenterTask::getCurrentSleepTime() const {
+    return currentSleepTime;
 }
 
 DefragmenterTask::SleepTimeAndRunState

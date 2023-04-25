@@ -7266,6 +7266,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_defragmenter_mode",
               "ep_defragmenter_stored_value_age_threshold",
               "ep_defragmenter_sv_num_moved",
+              "ep_defragmenter_sleep_time",
               "ep_degraded_mode",
               "ep_diskqueue_drain",
               "ep_diskqueue_fill",
