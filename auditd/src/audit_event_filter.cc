@@ -312,7 +312,7 @@ public:
                        std::optional<std::string_view> bucket,
                        std::optional<ScopeID> scope,
                        std::optional<CollectionID> collection) const override {
-        return false;
+        return true;
     }
 
 protected:

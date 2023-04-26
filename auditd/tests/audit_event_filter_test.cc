@@ -130,3 +130,9 @@ TEST(AuditEventFilterTest, isFilteredOut) {
                                        {},
                                        {}));
 }
+
+TEST(AuditEventFilterTest, isFilteredOut_DisabledFilter) {
+    auto filter = AuditEventFilter::create(AuditImpl::generation.load(), {});
+    EXPECT_TRUE(filter->isFilteredOut(
+            MEMCACHED_AUDIT_DOCUMENT_READ, {}, {}, {}, {}, {}));
+}
