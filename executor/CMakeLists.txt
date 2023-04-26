@@ -12,6 +12,8 @@ add_library(mcd_executor STATIC
             futurequeue.h
             globaltask.cc
             globaltask.h
+            limited_concurrency_task.cc
+            limited_concurrency_task.h
             mock_executor_pool.cc
             mock_executor_pool.h
             notifiable_task.cc

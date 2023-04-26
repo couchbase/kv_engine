@@ -11,9 +11,8 @@
 
 #include "task_concurrency_test.h"
 
-#include "limited_concurrency_task.h"
-
 #include "../mock/mock_synchronous_ep_engine.h"
+#include <executor/limited_concurrency_task.h>
 #include <platform/awaitable_semaphore.h>
 #include <platform/semaphore_guard.h>
 

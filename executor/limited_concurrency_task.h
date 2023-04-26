@@ -47,6 +47,25 @@ public:
      * Construct a task which will be concurrency limited by the provided
      * semaphore.
      *
+     * @param t The taskable owning the task
+     * @param id task id
+     * @param semaphore semphore from which a token must be acquired before the
+     *                  task can run
+     * @param completeBeforeShutdown should the task be required to complete
+     *                               before shutdown
+     */
+    LimitedConcurrencyTask(Taskable& t,
+                           TaskId id,
+                           cb::AwaitableSemaphore& semaphore,
+                           bool completeBeforeShutdown)
+        : NotifiableTask(t, id, 0, completeBeforeShutdown),
+          semaphore(semaphore) {
+    }
+
+    /**
+     * Construct a task which will be concurrency limited by the provided
+     * semaphore.
+     *
      * @param e engine pointer
      * @param id task id
      * @param semaphore semphore from which a token must be acquired before the
