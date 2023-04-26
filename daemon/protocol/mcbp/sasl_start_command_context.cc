@@ -11,10 +11,11 @@
 #include "sasl_start_command_context.h"
 
 #include <cbsasl/mechanism.h>
+#include <daemon/concurrency_semaphores.h>
 #include <daemon/connection.h>
 #include <daemon/external_auth_manager_thread.h>
 #include <daemon/memcached.h>
-#include <daemon/one_shot_task.h>
+#include <daemon/one_shot_limited_concurrency_task.h>
 #include <daemon/settings.h>
 #include <daemon/start_sasl_auth_task.h>
 #include <executor/executorpool.h>
@@ -41,11 +42,14 @@ cb::engine_errc SaslStartCommandContext::initial() {
 
     state = State::HandleSaslAuthTaskResult;
 
-    ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
-            TaskId::Core_SaslStartTask, "SASL Start", [this]() {
+    ExecutorPool::get()->schedule(std::make_shared<
+                                  OneShotLimitedConcurrencyTask>(
+            TaskId::Core_SaslStartTask,
+            "SASL Start",
+            [this]() {
                 doSaslStart();
 
-                // If the user doesn't exist locally we may try the external
+                // If the user doesn't exist locally, we may try the external
                 // AUTH service
                 if (error == cb::sasl::Error::NO_USER &&
                     Settings::instance().isExternalAuthServiceEnabled()) {
@@ -61,7 +65,8 @@ cb::engine_errc SaslStartCommandContext::initial() {
                 // We need to notify with success here to avoid having the
                 // framework report the error
                 cookie.notifyIoComplete(cb::engine_errc::success);
-            }));
+            },
+            ConcurrencySemaphores::instance().authentication));
 
     return cb::engine_errc::would_block;
 }

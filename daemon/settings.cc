@@ -97,6 +97,16 @@ static int parseThreadConfigSpec(const std::string& variable,
     }
 }
 
+void Settings::setMaxConcurrentAuthentications(size_t val) {
+    if (val < 1) {
+        throw std::invalid_argument(
+                "max_concurrent_authentications must be at least 1");
+    }
+    max_concurrent_authentications.store(val, std::memory_order_release);
+    has.max_concurrent_authentications = true;
+    notify_changed("max_concurrent_authentications");
+}
+
 void Settings::reconfigure(const nlohmann::json& json) {
     // Nuke the default interface added to the system in settings_init and
     // use the ones in the configuration file (this is a bit messy).
@@ -361,6 +371,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
             }
         } else if (key == "max_client_connection_details"sv) {
             setMaxClientConnectionDetails(value.get<size_t>());
+        } else if (key == "max_concurrent_authentications"sv) {
+            setMaxConcurrentAuthentications(value.get<size_t>());
         } else {
             LOG_WARNING(R"(Unknown key "{}" in config ignored.)", key);
         }
@@ -674,6 +686,17 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                      max_client_connection_details,
                      other.max_client_connection_details);
             setMaxClientConnectionDetails(other.max_client_connection_details);
+        }
+    }
+
+    if (other.has.max_concurrent_authentications) {
+        if (other.max_concurrent_authentications !=
+            max_concurrent_authentications) {
+            LOG_INFO("Change max concurrent authentications from {} to {}",
+                     max_concurrent_authentications,
+                     other.max_concurrent_authentications);
+            setMaxConcurrentAuthentications(
+                    other.max_concurrent_authentications);
         }
     }
 

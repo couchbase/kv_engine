@@ -10,13 +10,14 @@
 #include "settings_reload_command_context.h"
 
 #include <daemon/cmdline.h>
+#include <daemon/concurrency_semaphores.h>
 #include <daemon/config_parse.h>
 #include <daemon/connection.h>
 #include <daemon/mcaudit.h>
 #include <daemon/memcached.h>
 #include <daemon/network_interface_description.h>
 #include <daemon/network_interface_manager.h>
-#include <daemon/one_shot_task.h>
+#include <daemon/one_shot_limited_concurrency_task.h>
 #include <daemon/settings.h>
 #include <executor/executorpool.h>
 #include <logger/logger.h>
@@ -280,9 +281,11 @@ cb::engine_errc SettingsReloadCommandContext::doSettingsReload() {
 }
 
 cb::engine_errc SettingsReloadCommandContext::reload() {
-    ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
-            TaskId::Core_SettingsReloadTask, "Reload memcached.json", [this]() {
-                cookie.notifyIoComplete(doSettingsReload());
-            }));
+    ExecutorPool::get()->schedule(
+            std::make_shared<OneShotLimitedConcurrencyTask>(
+                    TaskId::Core_SettingsReloadTask,
+                    "Reload memcached.json",
+                    [this]() { cookie.notifyIoComplete(doSettingsReload()); },
+                    ConcurrencySemaphores::instance().settings));
     return cb::engine_errc::would_block;
 }

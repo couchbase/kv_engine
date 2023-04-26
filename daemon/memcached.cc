@@ -11,6 +11,7 @@
 #include "memcached.h"
 #include "buckets.h"
 #include "cmdline.h"
+#include "concurrency_semaphores.h"
 #include "cookie.h"
 #include "enginemap.h"
 #include "environment.h"
@@ -455,6 +456,12 @@ static void settings_init() {
                     }
                     return true;
                 });
+            });
+
+    settings.addChangeListener(
+            "max_concurrent_authentications", [](const auto&, auto& s) {
+                ConcurrencySemaphores::instance().authentication.setCapacity(
+                        s.getMaxConcurrentAuthentications());
             });
 }
 

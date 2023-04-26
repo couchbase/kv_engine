@@ -10,10 +10,11 @@
 
 #include "executors.h"
 #include <daemon/buckets.h>
+#include <daemon/concurrency_semaphores.h>
 #include <daemon/cookie.h>
 #include <daemon/mcaudit.h>
 #include <daemon/memcached.h>
-#include <daemon/one_shot_task.h>
+#include <daemon/one_shot_limited_concurrency_task.h>
 #include <daemon/session_cas.h>
 #include <executor/executorpool.h>
 #include <logger/logger.h>
@@ -205,7 +206,8 @@ void set_cluster_config_executor(Cookie& cookie) {
         cookie.setCas(cas);
         cookie.sendResponse(cb::mcbp::Status::Success);
 
-        ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
+        ExecutorPool::get()->schedule(std::make_shared<
+                                      OneShotLimitedConcurrencyTask>(
                 TaskId::Core_PushClustermapTask,
                 "Push clustermap",
                 [bucketname]() {
@@ -245,7 +247,8 @@ void set_cluster_config_executor(Cookie& cookie) {
                             return;
                         }
                     }
-                }));
+                },
+                ConcurrencySemaphores::instance().cccp_notification));
 
         return;
     }

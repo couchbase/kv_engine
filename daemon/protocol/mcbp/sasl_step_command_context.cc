@@ -10,10 +10,11 @@
 
 #include "sasl_step_command_context.h"
 
+#include <daemon/concurrency_semaphores.h>
 #include <daemon/connection.h>
 #include <daemon/memcached.h>
 #include <daemon/nobucket_taskable.h>
-#include <daemon/one_shot_task.h>
+#include <daemon/one_shot_limited_concurrency_task.h>
 #include <executor/executorpool.h>
 #include <logger/logger.h>
 #include <platform/scope_timer.h>
@@ -34,13 +35,17 @@ cb::engine_errc SaslStepCommandContext::initial() {
     }
 
     state = State::HandleSaslAuthTaskResult;
-    ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
-            TaskId::Core_SaslStepTask, "SASL Step", [this]() {
-                doSaslStep();
-                // We need to notify with success here to avoid having the
-                // framework report the error
-                cookie.notifyIoComplete(cb::engine_errc::success);
-            }));
+    ExecutorPool::get()->schedule(
+            std::make_shared<OneShotLimitedConcurrencyTask>(
+                    TaskId::Core_SaslStepTask,
+                    "SASL Step",
+                    [this]() {
+                        doSaslStep();
+                        // We need to notify with success here to avoid having
+                        // the framework report the error
+                        cookie.notifyIoComplete(cb::engine_errc::success);
+                    },
+                    ConcurrencySemaphores::instance().authentication));
     return cb::engine_errc::would_block;
 }
 

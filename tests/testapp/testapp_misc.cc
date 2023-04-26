@@ -11,6 +11,7 @@
 #include "testapp.h"
 #include "testapp_client_test.h"
 
+#include <fmt/format.h>
 #include <mcbp/codec/frameinfo.h>
 #include <nlohmann/json.hpp>
 
@@ -274,4 +275,38 @@ TEST_F(TestappTest, ServerlessConfigCantBeSetInDefaultDeployment) {
             SetBucketDataLimitExceededCommand{bucketName, true});
     EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus())
             << rsp.getDataJson().dump();
+}
+
+TEST_F(TestappTest, TuneMaxConcurrentAuth) {
+    auto waitfor = [](int prev, int next) {
+        auto message = fmt::format(
+                "Change max concurrent authentications from {} to {}",
+                prev,
+                next);
+        bool found = false;
+        const auto timeout =
+                std::chrono::steady_clock::now() + std::chrono::seconds{10};
+        while (!found && std::chrono::steady_clock::now() < timeout) {
+            mcd_env->iterateLogLines([&found, message](const auto line) {
+                const auto pos = line.find(message);
+                if (pos == std::string_view::npos) {
+                    return true;
+                }
+                found = true;
+                return false;
+            });
+            if (!found) {
+                std::this_thread::sleep_for(std::chrono::milliseconds{250});
+            }
+        }
+        EXPECT_TRUE(found) << "Expected to find " << message;
+    };
+
+    memcached_cfg["max_concurrent_authentications"] = 2;
+    reconfigure();
+    waitfor(6, 2);
+
+    memcached_cfg["max_concurrent_authentications"] = 8;
+    reconfigure();
+    waitfor(2, 8);
 }

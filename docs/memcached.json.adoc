@@ -320,6 +320,12 @@ extracting the username from the certificate.
 The delimiter attribute can be a string of characters and the parsing
 of the username ends when one of the characters in the string is found.
 
+=== max_concurrent_authentications
+
+The *max_concurrent_authentications* attribute is a number used to
+set the maximum number of concurrent authentication tasks to run
+in parallel. By default it is set to 6.
+
 === dedupe_nmvb_maps
 
 The *dedupe_nmvb_maps* attribute is a boolean value to enable deduplication

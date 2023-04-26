@@ -9,10 +9,11 @@
  */
 #include "ifconfig_context.h"
 
+#include <daemon/concurrency_semaphores.h>
 #include <daemon/connection.h>
 #include <daemon/memcached.h>
 #include <daemon/network_interface_manager.h>
-#include <daemon/one_shot_task.h>
+#include <daemon/one_shot_limited_concurrency_task.h>
 #include <executor/executorpool.h>
 
 cb::engine_errc IfconfigCommandContext::scheduleTask() {
@@ -21,61 +22,80 @@ cb::engine_errc IfconfigCommandContext::scheduleTask() {
                                keybuf.size()};
     auto val = cookie.getRequest().getValue();
     std::string value(reinterpret_cast<const char*>(val.data()), val.size());
+    auto& semaphore = ConcurrencySemaphores::instance().ifconfig;
 
     if (key == "define") {
-        ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
-                TaskId::Core_Ifconfig,
-                "Ifconfig define",
-                [this, spec = std::move(value)]() {
-                    auto json = nlohmann::json::parse(spec);
-                    auto [s, p] =
-                            networkInterfaceManager->doDefineInterface(json);
-                    status = s;
-                    payload = std::move(p);
-                    cookie.notifyIoComplete(cb::engine_errc::success);
-                }));
+        ExecutorPool::get()->schedule(
+                std::make_shared<OneShotLimitedConcurrencyTask>(
+                        TaskId::Core_Ifconfig,
+                        "Ifconfig define",
+                        [this, spec = std::move(value)]() {
+                            auto json = nlohmann::json::parse(spec);
+                            auto [s, p] =
+                                    networkInterfaceManager->doDefineInterface(
+                                            json);
+                            status = s;
+                            payload = std::move(p);
+                            cookie.notifyIoComplete(cb::engine_errc::success);
+                        },
+                        semaphore));
     } else if (key == "delete") {
-        ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
-                TaskId::Core_Ifconfig,
-                "Ifconfig delete",
-                [this, uuid = std::move(value)]() {
-                    auto [s, p] =
-                            networkInterfaceManager->doDeleteInterface(uuid);
-                    status = s;
-                    payload = std::move(p);
-                    cookie.notifyIoComplete(cb::engine_errc::success);
-                }));
+        ExecutorPool::get()->schedule(
+                std::make_shared<OneShotLimitedConcurrencyTask>(
+                        TaskId::Core_Ifconfig,
+                        "Ifconfig delete",
+                        [this, uuid = std::move(value)]() {
+                            auto [s, p] =
+                                    networkInterfaceManager->doDeleteInterface(
+                                            uuid);
+                            status = s;
+                            payload = std::move(p);
+                            cookie.notifyIoComplete(cb::engine_errc::success);
+                        },
+                        semaphore));
     } else if (key == "list") {
-        ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
-                TaskId::Core_Ifconfig, "Ifconfig list", [this]() {
-                    auto [s, p] = networkInterfaceManager->doListInterface();
-                    status = s;
-                    payload = std::move(p);
-                    cookie.notifyIoComplete(cb::engine_errc::success);
-                }));
+        ExecutorPool::get()->schedule(
+                std::make_shared<OneShotLimitedConcurrencyTask>(
+                        TaskId::Core_Ifconfig,
+                        "Ifconfig list",
+                        [this]() {
+                            auto [s, p] =
+                                    networkInterfaceManager->doListInterface();
+                            status = s;
+                            payload = std::move(p);
+                            cookie.notifyIoComplete(cb::engine_errc::success);
+                        },
+                        semaphore));
     } else if (key == "tls") {
         if (value.empty()) {
-            ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
-                    TaskId::Core_Ifconfig,
-                    "Ifconfig get TLS configuration",
-                    [this]() {
-                        auto [s, p] = networkInterfaceManager->doGetTlsConfig();
-                        status = s;
-                        payload = std::move(p);
-                        cookie.notifyIoComplete(cb::engine_errc::success);
-                    }));
+            ExecutorPool::get()->schedule(
+                    std::make_shared<OneShotLimitedConcurrencyTask>(
+                            TaskId::Core_Ifconfig,
+                            "Ifconfig get TLS configuration",
+                            [this]() {
+                                auto [s, p] = networkInterfaceManager
+                                                      ->doGetTlsConfig();
+                                status = s;
+                                payload = std::move(p);
+                                cookie.notifyIoComplete(
+                                        cb::engine_errc::success);
+                            },
+                            semaphore));
         } else {
-            ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
-                    TaskId::Core_Ifconfig,
-                    "Ifconfig set TLS configuration",
-                    [this, spec = std::move(value)]() {
-                        auto json = nlohmann::json::parse(spec);
-                        auto [s, p] =
-                                networkInterfaceManager->doTlsReconfigure(json);
-                        status = s;
-                        payload = std::move(p);
-                        cookie.notifyIoComplete(cb::engine_errc::success);
-                    }));
+            ExecutorPool::get()->schedule(
+                    std::make_shared<OneShotLimitedConcurrencyTask>(
+                            TaskId::Core_Ifconfig,
+                            "Ifconfig set TLS configuration",
+                            [this, spec = std::move(value)]() {
+                                auto json = nlohmann::json::parse(spec);
+                                auto [s, p] = networkInterfaceManager
+                                                      ->doTlsReconfigure(json);
+                                status = s;
+                                payload = std::move(p);
+                                cookie.notifyIoComplete(
+                                        cb::engine_errc::success);
+                            },
+                            semaphore));
         }
     } else {
         throw std::runtime_error(

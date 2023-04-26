@@ -9,9 +9,10 @@
  */
 #include "bucket_management_command_context.h"
 
+#include <daemon/concurrency_semaphores.h>
 #include <daemon/connection.h>
 #include <daemon/enginemap.h>
-#include <daemon/one_shot_task.h>
+#include <daemon/one_shot_limited_concurrency_task.h>
 #include <daemon/session_cas.h>
 #include <daemon/settings.h>
 #include <executor/executorpool.h>
@@ -58,7 +59,8 @@ cb::engine_errc BucketManagementCommandContext::create() {
     }
 
     std::string taskname{"Create bucket [" + name + "]"};
-    ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
+    ExecutorPool::get()->schedule(std::make_shared<
+                                  OneShotLimitedConcurrencyTask>(
             TaskId::Core_CreateBucketTask,
             taskname,
             [client = &cookie,
@@ -81,6 +83,7 @@ cb::engine_errc BucketManagementCommandContext::create() {
                 }
                 client->notifyIoComplete(status);
             },
+            ConcurrencySemaphores::instance().bucket_management,
             std::chrono::seconds(10)));
 
     state = State::Done;
@@ -143,7 +146,8 @@ cb::engine_errc BucketManagementCommandContext::remove() {
     }
 
     std::string taskname{"Delete bucket [" + name + "]"};
-    ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
+    ExecutorPool::get()->schedule(std::make_shared<
+                                  OneShotLimitedConcurrencyTask>(
             TaskId::Core_DeleteBucketTask,
             taskname,
             [client = &cookie,
@@ -166,6 +170,7 @@ cb::engine_errc BucketManagementCommandContext::remove() {
                 }
                 client->notifyIoComplete(status);
             },
+            ConcurrencySemaphores::instance().bucket_management,
             std::chrono::seconds(30)));
 
     state = State::Done;
@@ -185,25 +190,28 @@ cb::engine_errc BucketManagementCommandContext::pause() {
     // and ns_server requires that the PauseBucket() command returns
     // immediately.
     auto pauseFunc = [client = &cookie, name]() {
-        ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
-                TaskId::Core_PauseBucketTask,
-                "Pause bucket",
-                [client, nm = std::move(name)]() {
-                    cb::engine_errc status;
-                    try {
-                        status = BucketManager::instance().pause(*client, nm);
-                    } catch (const std::runtime_error& error) {
-                        LOG_WARNING(
-                                "{}: An error occurred while pausing "
-                                "bucket [{}]: {}",
-                                client->getConnectionId(),
-                                nm,
-                                error.what());
-                        status = cb::engine_errc::failed;
-                    }
-                    client->notifyIoComplete(status);
-                },
-                std::chrono::seconds(10)));
+        ExecutorPool::get()->schedule(
+                std::make_shared<OneShotLimitedConcurrencyTask>(
+                        TaskId::Core_PauseBucketTask,
+                        "Pause bucket",
+                        [client, nm = std::move(name)]() {
+                            cb::engine_errc status;
+                            try {
+                                status = BucketManager::instance().pause(
+                                        *client, nm);
+                            } catch (const std::runtime_error& error) {
+                                LOG_WARNING(
+                                        "{}: An error occurred while pausing "
+                                        "bucket [{}]: {}",
+                                        client->getConnectionId(),
+                                        nm,
+                                        error.what());
+                                status = cb::engine_errc::failed;
+                            }
+                            client->notifyIoComplete(status);
+                        },
+                        ConcurrencySemaphores::instance().bucket_management,
+                        std::chrono::seconds(10)));
     };
     if (!session_cas.execute(request.getCas(), pauseFunc)) {
         return cb::engine_errc::key_already_exists;

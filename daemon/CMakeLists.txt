@@ -8,6 +8,8 @@ add_library(memcached_daemon STATIC
             cluster_config.h
             cmdline.cc
             cmdline.h
+            concurrency_semaphores.cc
+            concurrency_semaphores.h
             config_parse.cc
             config_parse.h
             connection.cc

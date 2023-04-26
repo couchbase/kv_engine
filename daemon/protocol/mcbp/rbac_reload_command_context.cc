@@ -9,10 +9,11 @@
  */
 #include "rbac_reload_command_context.h"
 
+#include <daemon/concurrency_semaphores.h>
 #include <daemon/connection.h>
 #include <daemon/external_auth_manager_thread.h>
 #include <daemon/memcached.h>
-#include <daemon/one_shot_task.h>
+#include <daemon/one_shot_limited_concurrency_task.h>
 #include <daemon/settings.h>
 #include <executor/executorpool.h>
 #include <logger/logger.h>
@@ -46,14 +47,18 @@ cb::engine_errc RbacReloadCommandContext::doRbacReload() {
 }
 
 cb::engine_errc RbacReloadCommandContext::reload() {
-    ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
-            TaskId::Core_RbacReloadTask, "Refresh RBAC database", [this]() {
-                try {
-                    cookie.notifyIoComplete(doRbacReload());
-                } catch (const std::bad_alloc&) {
-                    cookie.notifyIoComplete(cb::engine_errc::no_memory);
-                }
-            }));
+    ExecutorPool::get()->schedule(
+            std::make_shared<OneShotLimitedConcurrencyTask>(
+                    TaskId::Core_RbacReloadTask,
+                    "Refresh RBAC database",
+                    [this]() {
+                        try {
+                            cookie.notifyIoComplete(doRbacReload());
+                        } catch (const std::bad_alloc&) {
+                            cookie.notifyIoComplete(cb::engine_errc::no_memory);
+                        }
+                    },
+                    ConcurrencySemaphores::instance().rbac_reload));
 
     return cb::engine_errc::would_block;
 }

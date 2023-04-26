@@ -888,6 +888,12 @@ public:
         notify_changed("max_client_connection_details");
     }
 
+    size_t getMaxConcurrentAuthentications() const {
+        return max_concurrent_authentications.load(std::memory_order_acquire);
+    }
+
+    void setMaxConcurrentAuthentications(size_t val);
+
     int getQuotaSharingPagerConcurrencyPercentage() const {
         return quota_sharing_pager_concurrency_percentage;
     }
@@ -988,6 +994,12 @@ protected:
 
     /// The maximum number of client ip addresses we should keep track of
     std::atomic<size_t> max_client_connection_details{0};
+
+    /// The maximum number of concurrent authentication tasks. Currently
+    /// set to 6 (as the default memory cost for Argon2id is set to 8MB
+    /// causing of a fixed max of 48MB, but the user may override the
+    /// memory cost through /settings/security/argon2idMem)
+    std::atomic<size_t> max_concurrent_authentications{6};
 
     /// The maximum number of commands each connection may have before
     /// blocking execution
@@ -1156,6 +1168,7 @@ public:
         bool connection_limit_mode = false;
         bool max_client_connection_details = false;
         bool max_concurrent_commands_per_connection = false;
+        bool max_concurrent_authentications = false;
         bool num_reader_threads = false;
         bool num_writer_threads = false;
         bool num_auxio_threads = false;
