@@ -420,6 +420,12 @@ protected:
      */
     TestingHook<> processBufferedMessages_postFront_Hook;
 
+    /*
+     * MB-56675: This test hook is invoked just before the streamEnd path sets
+     * the stream to the dead state (only on the unbuffered path)
+     */
+    TestingHook<> streamDeadHook;
+
     // Flag indicating if the most recent call to processMessage
     // backed off due to ENOMEM. Only used for limiting logging
     std::atomic<bool> isNoMemory{false};

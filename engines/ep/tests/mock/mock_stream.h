@@ -312,6 +312,14 @@ public:
         processBufferedMessages_postFront_Hook = hook;
     }
 
+    /**
+     * Set a test hook which fires before PassiveStream transitions to dead in
+     * the unbuffered case
+     */
+    void setStreamDeadHook(std::function<void()>& hook) {
+        streamDeadHook = hook;
+    }
+
     std::unique_ptr<DcpResponse> public_popFromReadyQ();
 
     const std::queue<std::unique_ptr<DcpResponse>>& public_readyQ() const {

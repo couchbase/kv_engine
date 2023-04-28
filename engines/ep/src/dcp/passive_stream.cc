@@ -394,6 +394,7 @@ cb::engine_errc PassiveStream::messageReceived(
                         static_cast<SetVBucketState*>(dcpResponse.get()));
                 break;
             case DcpResponse::Event::StreamEnd: {
+                streamDeadHook();
                 std::lock_guard<std::mutex> lh(streamMutex);
                 transitionState(StreamState::Dead);
             } break;
