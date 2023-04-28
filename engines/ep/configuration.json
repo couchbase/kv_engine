@@ -975,7 +975,10 @@
             "type": "std::string"
         },
         "dcp_backfill_byte_limit": {
-            "default": "20972856",
+            "default": {
+                "on-prem": "20 * 1024 * 1024",
+                "serverless": "512 * 1024"
+            },
             "descr": "Max bytes a connection can backfill into memory before backfill is paused",
             "dynamic": false,
             "type": "size_t"
@@ -1034,7 +1037,10 @@
             }
         },
         "dcp_scan_byte_limit": {
-            "default": "4194304",
+            "default": {
+                "on-prem": "4 * 1024 * 1024",
+                "serverless": "128 * 1024"
+            },
             "descr": "Max bytes that can be read in a single backfill scan before yielding",
             "dynamic": false,
             "type": "size_t"
