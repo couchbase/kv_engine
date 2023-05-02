@@ -828,10 +828,12 @@ protected:
     /**
      * Moves the cursor to the empty item into the next checkpoint (if any).
      *
+     * @param lh Lock to CM mutex
      * @param cursor
      * @return true if the cursor has moved, false otherwise
      */
-    bool moveCursorToNextCheckpoint(CheckpointCursor &cursor);
+    bool moveCursorToNextCheckpoint(const std::lock_guard<std::mutex>& lh,
+                                    CheckpointCursor& cursor);
 
     bool isLastMutationItemInCheckpoint(CheckpointCursor &cursor);
 

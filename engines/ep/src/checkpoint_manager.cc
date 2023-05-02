@@ -233,7 +233,7 @@ void CheckpointManager::addNewCheckpoint(
             (*std::next(pos))->getOperation() == queue_op::checkpoint_end) {
             // Note: The call also removes the old checkpoint if cursor-move
             // made it unreferenced
-            moveCursorToNextCheckpoint(cursor);
+            moveCursorToNextCheckpoint(lh, cursor);
         }
     }
 
@@ -1069,7 +1069,7 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
                 // checkpoint if possible; as that means the checkpoint we just
                 // completed has one less cursor in it (and could potentially be
                 // freed).
-                moveCursorToNextCheckpoint(cursor);
+                moveCursorToNextCheckpoint(lh, cursor);
                 break;
             }
 
@@ -1085,7 +1085,7 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
                 // Moving the cursor to the next checkpoint potentially allows
                 // the CheckpointRemover to free the checkpoint that we are
                 // leaving.
-                moveCursorToNextCheckpoint(cursor);
+                moveCursorToNextCheckpoint(lh, cursor);
                 break;
             }
 
@@ -1107,7 +1107,7 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
                 Expects(next != checkpointList.end());
                 const auto canMerge = canBeMerged(lh, **current, **next);
 
-                const auto moved = moveCursorToNextCheckpoint(cursor);
+                const auto moved = moveCursorToNextCheckpoint(lh, cursor);
                 Expects(moved);
 
                 if (!canMerge) {
@@ -1163,7 +1163,7 @@ bool CheckpointManager::incrCursor(const std::lock_guard<std::mutex>& lh,
         return true;
     }
 
-    if (!moveCursorToNextCheckpoint(cursor)) {
+    if (!moveCursorToNextCheckpoint(lh, cursor)) {
         // There is no further checkpoint to move the cursor to, reset it to the
         // original position
         cursor.decrPos();
@@ -1252,7 +1252,8 @@ bool CheckpointManager::canMoveCursorToNextCheckpoint(
     return true;
 }
 
-bool CheckpointManager::moveCursorToNextCheckpoint(CheckpointCursor& cursor) {
+bool CheckpointManager::moveCursorToNextCheckpoint(
+        const std::lock_guard<std::mutex>& lh, CheckpointCursor& cursor) {
     if (!canMoveCursorToNextCheckpoint(cursor)) {
         return false;
     }
