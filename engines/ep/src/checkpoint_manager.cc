@@ -240,7 +240,7 @@ void CheckpointManager::addNewCheckpoint(
     // If the old open checkpoint had no cursors, it is now both closed and
     // unreferenced so it can be removed immediately.
     // Note: We need this call to handle the case where there's no cursor in CM
-    maybeScheduleDestruction(*oldOpenCkptPtr);
+    maybeScheduleDestruction(lh, *oldOpenCkptPtr);
 }
 
 void CheckpointManager::addOpenCheckpoint(
@@ -586,7 +586,8 @@ bool CheckpointManager::isEligibleForRemoval(
            checkpoint.getState() == checkpoint_state::CHECKPOINT_CLOSED;
 }
 
-void CheckpointManager::maybeScheduleDestruction(Checkpoint& c) {
+void CheckpointManager::maybeScheduleDestruction(
+        const std::lock_guard<std::mutex>& lh, Checkpoint& c) {
     if (!isEligibleForRemoval(c)) {
         return;
     }
@@ -1273,7 +1274,7 @@ bool CheckpointManager::moveCursorToNextCheckpoint(
     // by advancing the cursor, the previous checkpoint became unreferenced,
     // and may be removable now.
     // only act if the unreffed checkpoint is the oldest closed checkpoint.
-    maybeScheduleDestruction(**prev);
+    maybeScheduleDestruction(lh, **prev);
 
     return true;
 }

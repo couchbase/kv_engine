@@ -640,8 +640,12 @@ protected:
      * Checks if the provided checkpoint is eligible for removal (see
      * isEligibleForRemoval(...)) and if so, removes it and schedules it for
      * destruction on a background task.
+     *
+     * @param lh Lock to CM::queueLock
+     * @param checkpoint
      */
-    void maybeScheduleDestruction(Checkpoint& checkpoint);
+    void maybeScheduleDestruction(const std::lock_guard<std::mutex>& lh,
+                                  Checkpoint& checkpoint);
 
     /**
      * Schedules the provided checkpoints for destruction on a background task.
