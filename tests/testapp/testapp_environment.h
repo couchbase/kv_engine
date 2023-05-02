@@ -209,8 +209,6 @@ public:
 
     virtual std::string getLogFilePattern() const = 0;
 
-    virtual cb::sasl::pwdb::MutablePasswordDatabase& getPasswordDatabase() = 0;
-
     /// Do we have support for IPv4 addresses on the machine
     virtual bool haveIPv4() const = 0;
 
@@ -219,14 +217,6 @@ public:
 
     /// Get the password for the requested user
     virtual std::string getPassword(std::string_view user) const = 0;
-
-    /// Write the current password database to disk and tell memcached to
-    /// reload the file
-    ///
-    /// @param connection a connection to the server (must have admin
-    ///                   privileges)
-    /// @throws std::exception for errors (file io, server failure etc)
-    virtual void refreshPasswordDatabase(MemcachedConnection& connection) = 0;
 };
 
 extern std::unique_ptr<McdEnvironment> mcd_env;

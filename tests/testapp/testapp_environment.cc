@@ -587,28 +587,12 @@ public:
         return (log_dir / "memcached").generic_string();
     }
 
-    cb::sasl::pwdb::MutablePasswordDatabase& getPasswordDatabase() override {
-        return passwordDatabase;
-    }
-
     bool haveIPv4() const override {
         return !ipaddresses.first.empty();
     }
 
     bool haveIPv6() const override {
         return !ipaddresses.second.empty();
-    }
-
-    void refreshPasswordDatabase(MemcachedConnection& connection) override {
-        std::ofstream cbsasldb(isasl_file_name.generic_string());
-        cbsasldb << passwordDatabase.to_json() << std::endl;
-        cbsasldb.close();
-        auto rsp = connection.execute(
-                BinprotGenericCommand{cb::mcbp::ClientOpcode::IsaslRefresh});
-        if (!rsp.isSuccess()) {
-            throw ConnectionError(
-                    "refreshPasswordDatabase: Failed to reload database", rsp);
-        }
     }
 
     void iterateLogLines(const std::function<bool(std::string_view line)>&
