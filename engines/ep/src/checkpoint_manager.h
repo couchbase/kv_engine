@@ -657,9 +657,12 @@ protected:
      *  When the cursor jumps into a new checkpoint it is placed at empty item.
      *  That ensures that the checkpoint_start item isn't missed.
      *
+     * @param lh Lock to CM::queueLock
+     * @param cursor The cursor to advance
      * @return true if advanced, false otherwise
      */
-    bool incrCursor(CheckpointCursor& cursor);
+    bool incrCursor(const std::lock_guard<std::mutex>& lh,
+                    CheckpointCursor& cursor);
 
     /**
      * @param lh Lock to CM::queueLock

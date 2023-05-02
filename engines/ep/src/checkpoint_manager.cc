@@ -1031,7 +1031,7 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
     bool enteredNewCp = true;
 
     while ((!hardLimit || withinLimits(itemsCount, bytesCount)) &&
-           (result.moreAvailable = incrCursor(cursor))) {
+           (result.moreAvailable = incrCursor(lh, cursor))) {
         if (enteredNewCp) {
             const auto& checkpoint = **cursor.getCheckpoint();
             result.checkpointType = checkpoint.getCheckpointType();
@@ -1150,7 +1150,8 @@ CheckpointManager::ItemsForCursor CheckpointManager::getItemsForCursor(
     return result;
 }
 
-bool CheckpointManager::incrCursor(CheckpointCursor &cursor) {
+bool CheckpointManager::incrCursor(const std::lock_guard<std::mutex>& lh,
+                                   CheckpointCursor& cursor) {
     if (!cursor.valid()) {
         return false;
     }
@@ -1169,7 +1170,7 @@ bool CheckpointManager::incrCursor(CheckpointCursor &cursor) {
         return false;
     }
 
-    return incrCursor(cursor);
+    return incrCursor(lh, cursor);
 }
 
 void CheckpointManager::notifyFlusher() {

@@ -62,7 +62,7 @@ public:
             return qi;
         }
 
-        if (incrCursor(*cursor)) {
+        if (CheckpointManager::incrCursor(lh, *cursor)) {
             isLastMutationItem = isLastMutationItemInCheckpoint(*cursor);
             return *(cursor->currentPos);
         } else {
@@ -94,7 +94,8 @@ public:
     }
 
     bool incrCursor(CheckpointCursor& cursor) {
-        return CheckpointManager::incrCursor(cursor);
+        std::lock_guard<std::mutex> lh(queueLock);
+        return CheckpointManager::incrCursor(lh, cursor);
     }
 
     CheckpointType getOpenCheckpointType() const {
