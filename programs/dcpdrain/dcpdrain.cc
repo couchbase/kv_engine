@@ -32,6 +32,8 @@
 
 using namespace cb::terminal;
 
+enum class EnableOSO { False, True, TrueWithSeqnoAdvanced };
+
 /// Callback class to send to folly to error out if an error occurs while
 /// trying to send data on the wire.
 class TerminateOnErrorWriteCallback : public folly::AsyncWriter::WriteCallback {
@@ -96,7 +98,14 @@ Options:
   -v or --verbose                Add more output
   -4 or --ipv4                   Connect over IPv4
   -6 or --ipv6                   Connect over IPv6
-  --enable-oso                   Enable 'Out-of-Sequence Order' backfills
+  --enable-oso[=with-seqno-advanced]
+                                 Enable 'Out-of-Sequence Order' backfills.
+                                 If the optional value 'with-seqno-advanced' is
+                                 specified, also enable support for sending a
+                                 SeqnoAdvanced message when an out of order
+                                 snapshot is used and the transmitted item with
+                                 the greatest seqno is not the greatest seqno
+                                 of the disk snapshot.
   --disable-collections          Disable Hello::Collections negotiation (for use
                                  with pre-7.0 versions).
   --stream-request-value         Path to a file containing stream-request value.
@@ -591,7 +600,7 @@ int main(int argc, char** argv) {
     bool csv = false;
     std::vector<std::pair<std::string, std::string>> controls;
     std::string name = "dcpdrain";
-    bool enableOso{false};
+    EnableOSO enableOso{EnableOSO::False};
     bool enableCollections{true};
     std::string streamRequestFileName;
     std::string streamIdFileName;
@@ -608,6 +617,7 @@ int main(int argc, char** argv) {
         Value = 1,
         StreamId,
         EnableOso,
+        EnableOsoWithSeqnoAdvanced,
         DisableCollections,
         StreamRequestFlags,
         EnableFlatbufferSysEvents,
@@ -631,7 +641,7 @@ int main(int argc, char** argv) {
             {"name", required_argument, nullptr, 'N'},
             {"num-connections", required_argument, nullptr, 'n'},
             {"verbose", no_argument, nullptr, 'v'},
-            {"enable-oso", no_argument, nullptr, Options::EnableOso},
+            {"enable-oso", optional_argument, nullptr, Options::EnableOso},
             {"disable-collections",
              no_argument,
              nullptr,
@@ -710,7 +720,21 @@ int main(int argc, char** argv) {
             name = optarg;
             break;
         case Options::EnableOso:
-            enableOso = true;
+            if (optarg) {
+                if (std::string_view{optarg} == "with-seqno-advanced") {
+                    enableOso = EnableOSO::TrueWithSeqnoAdvanced;
+                } else {
+                    std::cerr
+                            << "Error: invalid option '" << optarg
+                            << "' specified for --enable-oso. Supported values "
+                               "are 'with-seqno-advanced'\n";
+                    return EXIT_FAILURE;
+                }
+            } else {
+                enableOso = EnableOSO::True;
+            }
+            break;
+        case Options::EnableOsoWithSeqnoAdvanced:
             break;
         case Options::DisableCollections:
             enableCollections = false;
@@ -896,9 +920,18 @@ int main(int argc, char** argv) {
                             std::make_pair("enable_stream_id", "true"));
                 }
 
-                if (enableOso) {
+                switch (enableOso) {
+                case EnableOSO::False:
+                    break;
+                case EnableOSO::True:
                     ctrls.emplace_back(std::make_pair(
                             "enable_out_of_order_snapshots", "true"));
+                    break;
+                case EnableOSO::TrueWithSeqnoAdvanced:
+                    ctrls.emplace_back(
+                            std::make_pair("enable_out_of_order_snapshots",
+                                           "true_with_seqno_advanced"));
+                    break;
                 }
 
                 if (enableFlatbufferSysEvents) {
