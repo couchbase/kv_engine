@@ -102,6 +102,9 @@ public:
     /// @returns the number of Tasks ready to run.
     virtual size_t getNumReadyTasks() = 0;
 
+    /// @returns the name of the executor pool backed
+    virtual std::string_view getName() const = 0;
+
     /***************** Task Ownership ***************************************/
 
     /**

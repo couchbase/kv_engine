@@ -177,6 +177,10 @@ public:
 
     size_t getNumNonIO() override;
 
+    std::string_view getName() const override {
+        return "CB3";
+    }
+
     void setNumReaders(ThreadPoolConfig::ThreadCount v) override {
         adjustWorkers(READER_TASK_IDX, calcNumReaders(v));
     }

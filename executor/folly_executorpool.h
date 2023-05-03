@@ -168,6 +168,9 @@ public:
     void setNumNonIO(uint16_t v) override;
     size_t getNumSleepers() override;
     size_t getNumReadyTasks() override;
+    std::string_view getName() const override {
+        return "Folly";
+    }
 
     void registerTaskable(Taskable& taskable) override;
     void unregisterTaskable(Taskable& taskable, bool force) override;

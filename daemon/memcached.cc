@@ -648,14 +648,6 @@ static void initialize_sasl() {
 static void startExecutorPool() {
     auto& settings = Settings::instance();
 
-    LOG_INFO(
-            "Start executor pool with backend:Folly readers:{} writers:{} "
-            "auxIO:{} nonIO:{}",
-            settings.getNumReaderThreads(),
-            settings.getNumWriterThreads(),
-            settings.getNumAuxIoThreads(),
-            settings.getNumNonIoThreads());
-
     ExecutorPool::create(
             ExecutorPool::Backend::Folly,
             0,
@@ -665,6 +657,16 @@ static void startExecutorPool() {
             settings.getNumNonIoThreads());
     ExecutorPool::get()->registerTaskable(NoBucketTaskable::instance());
     ExecutorPool::get()->setDefaultTaskable(NoBucketTaskable::instance());
+
+    auto* pool = ExecutorPool::get();
+    LOG_INFO(
+            "Started executor pool with backend:{} readers:{} "
+            "writers:{} auxIO:{} nonIO:{}",
+            pool->getName(),
+            pool->getNumReaders(),
+            pool->getNumWriters(),
+            pool->getNumAuxIO(),
+            pool->getNumNonIO());
 
     // MB-47484 Set up the settings callback for the executor pool now that
     // it is up'n'running
