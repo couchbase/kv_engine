@@ -25,20 +25,20 @@
 #include <chrono>
 #include <sstream>
 
-size_t CB3ExecutorPool::getNumNonIO() {
+size_t CB3ExecutorPool::getNumNonIO() const {
     return calcNumNonIO(numWorkers[NONIO_TASK_IDX].load());
 }
 
-size_t CB3ExecutorPool::getNumAuxIO() {
+size_t CB3ExecutorPool::getNumAuxIO() const {
     return calcNumAuxIO(numWorkers[AUXIO_TASK_IDX].load());
 }
 
-size_t CB3ExecutorPool::getNumWriters() {
+size_t CB3ExecutorPool::getNumWriters() const {
     return calcNumWriters(
             ThreadPoolConfig::ThreadCount(numWorkers[WRITER_TASK_IDX].load()));
 }
 
-size_t CB3ExecutorPool::getNumReaders() {
+size_t CB3ExecutorPool::getNumReaders() const {
     return calcNumReaders(
             ThreadPoolConfig::ThreadCount(numWorkers[READER_TASK_IDX].load()));
 }

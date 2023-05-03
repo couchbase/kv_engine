@@ -157,17 +157,17 @@ public:
 
     ~FollyExecutorPool() override;
 
-    size_t getNumWorkersStat() override;
-    size_t getNumReaders() override;
-    size_t getNumWriters() override;
-    size_t getNumAuxIO() override;
-    size_t getNumNonIO() override;
+    size_t getNumWorkersStat() const override;
+    size_t getNumReaders() const override;
+    size_t getNumWriters() const override;
+    size_t getNumAuxIO() const override;
+    size_t getNumNonIO() const override;
     void setNumReaders(ThreadPoolConfig::ThreadCount v) override;
     void setNumWriters(ThreadPoolConfig::ThreadCount v) override;
     void setNumAuxIO(uint16_t v) override;
     void setNumNonIO(uint16_t v) override;
-    size_t getNumSleepers() override;
-    size_t getNumReadyTasks() override;
+    size_t getNumSleepers() const override;
+    size_t getNumReadyTasks() const override;
     std::string_view getName() const override {
         return "Folly";
     }

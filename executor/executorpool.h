@@ -70,19 +70,19 @@ public:
      * Returns the total number of worker threads which currently exist
      * across all thread types.
      */
-    virtual size_t getNumWorkersStat() = 0;
+    virtual size_t getNumWorkersStat() const = 0;
 
     /// @returns the number of Reader IO threads.
-    virtual size_t getNumReaders() = 0;
+    virtual size_t getNumReaders() const = 0;
 
     /// @returns the number of Writer IO threads.
-    virtual size_t getNumWriters() = 0;
+    virtual size_t getNumWriters() const = 0;
 
     /// @returns the number of Auxillary IO threads.
-    virtual size_t getNumAuxIO() = 0;
+    virtual size_t getNumAuxIO() const = 0;
 
     /// @returns the number of Non-IO threads.
-    virtual size_t getNumNonIO() = 0;
+    virtual size_t getNumNonIO() const = 0;
 
     /// Set the number of Reader IO threads to the specified number.
     virtual void setNumReaders(ThreadPoolConfig::ThreadCount v) = 0;
@@ -97,10 +97,10 @@ public:
     virtual void setNumNonIO(uint16_t v) = 0;
 
     /// @returns the number of threads currently sleeping.
-    virtual size_t getNumSleepers() = 0;
+    virtual size_t getNumSleepers() const = 0;
 
     /// @returns the number of Tasks ready to run.
-    virtual size_t getNumReadyTasks() = 0;
+    virtual size_t getNumReadyTasks() const = 0;
 
     /// @returns the name of the executor pool backed
     virtual std::string_view getName() const = 0;

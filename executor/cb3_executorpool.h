@@ -164,18 +164,18 @@ public:
                      CookieIface& cookie,
                      const AddStatFn& add_stat) override;
 
-    size_t getNumWorkersStat() override {
+    size_t getNumWorkersStat() const override {
         std::lock_guard<std::mutex> lh(tMutex);
         return threadQ.size();
     }
 
-    size_t getNumReaders() override;
+    size_t getNumReaders() const override;
 
-    size_t getNumWriters() override;
+    size_t getNumWriters() const override;
 
-    size_t getNumAuxIO() override;
+    size_t getNumAuxIO() const override;
 
-    size_t getNumNonIO() override;
+    size_t getNumNonIO() const override;
 
     std::string_view getName() const override {
         return "CB3";
@@ -197,11 +197,11 @@ public:
         adjustWorkers(NONIO_TASK_IDX, v);
     }
 
-    size_t getNumReadyTasks() override {
+    size_t getNumReadyTasks() const override {
         return totReadyTasks;
     }
 
-    size_t getNumSleepers() override {
+    size_t getNumSleepers() const override {
         return numSleepers;
     }
 

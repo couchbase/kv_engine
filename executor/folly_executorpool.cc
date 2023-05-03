@@ -723,24 +723,24 @@ FollyExecutorPool::~FollyExecutorPool() {
     futurePool.reset();
 }
 
-size_t FollyExecutorPool::getNumWorkersStat() {
+size_t FollyExecutorPool::getNumWorkersStat() const {
     return readerPool->numThreads() + writerPool->numThreads() +
            auxPool->numThreads() + nonIoPool->numThreads();
 }
 
-size_t FollyExecutorPool::getNumReaders() {
+size_t FollyExecutorPool::getNumReaders() const {
     return calcNumReaders(ThreadPoolConfig::ThreadCount(maxReaders));
 }
 
-size_t FollyExecutorPool::getNumWriters() {
+size_t FollyExecutorPool::getNumWriters() const {
     return calcNumWriters(ThreadPoolConfig::ThreadCount(maxWriters));
 }
 
-size_t FollyExecutorPool::getNumAuxIO() {
+size_t FollyExecutorPool::getNumAuxIO() const {
     return auxPool->getPoolStats().threadCount;
 }
 
-size_t FollyExecutorPool::getNumNonIO() {
+size_t FollyExecutorPool::getNumNonIO() const {
     return nonIoPool->getPoolStats().threadCount;
 }
 
@@ -764,14 +764,14 @@ void FollyExecutorPool::setNumNonIO(uint16_t v) {
     nonIoPool->setNumThreads(maxNonIO);
 }
 
-size_t FollyExecutorPool::getNumSleepers() {
+size_t FollyExecutorPool::getNumSleepers() const {
     return readerPool->getPoolStats().idleThreadCount +
            writerPool->getPoolStats().idleThreadCount +
            auxPool->getPoolStats().idleThreadCount +
            nonIoPool->getPoolStats().idleThreadCount;
 }
 
-size_t FollyExecutorPool::getNumReadyTasks() {
+size_t FollyExecutorPool::getNumReadyTasks() const {
     return readerPool->getPendingTaskCount() +
            writerPool->getPendingTaskCount() + auxPool->getPendingTaskCount() +
            nonIoPool->getPendingTaskCount();
