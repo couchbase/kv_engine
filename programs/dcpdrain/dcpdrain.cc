@@ -902,7 +902,7 @@ int main(int argc, char** argv) {
                              {"supports_hifi_MFU", "true"},
                              {"send_stream_end_on_client_close_stream", "true"},
                              {"enable_expiry_opcode", "true"},
-                             {"set_noop_interval", "1"},
+                             {"set_noop_interval", "60"},
                              {"enable_noop", "true"}};
                 }
 
