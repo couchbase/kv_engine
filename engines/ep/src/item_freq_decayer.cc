@@ -95,22 +95,19 @@ void CrossBucketItemFreqDecayer::schedule() {
     auto tasks = ItemFreqDecayerTaskManager::get().getTasksForQuotaSharing();
     EP_LOG_DEBUG("CrossBucketItemFreqDecayer waking up {} decayer tasks",
                  tasks.size());
-    for (const auto& task : tasks) {
-        // The task is only ever scheduled from here. We shouldn't reach here if
-        // any tasks are waiting to run or running because of the notified
-        // guard, which we reset in itemDecayerCompleted.
-#if CB_DEVELOPMENT_ASSERTS
-        // Assert the above is true for debug builds.
-        Expects(task->getWaketime() ==
-                std::chrono::steady_clock::time_point::max());
-#endif // CB_DEVELOPMENT_ASSERTS
-        task->wakeup();
-    }
-
     // Add the tasks to the pending task set
     pendingSubTasks.withLock([&tasks](auto& locked) {
         Expects(locked.empty());
         for (const auto& task : tasks) {
+// The task is only ever scheduled from here. We shouldn't reach here if
+// any tasks are waiting to run or running because of the notified
+// guard, which we reset in itemDecayerCompleted.
+#if CB_DEVELOPMENT_ASSERTS
+            // Assert the above is true for debug builds.
+            Expects(task->getWaketime() ==
+                    std::chrono::steady_clock::time_point::max());
+#endif // CB_DEVELOPMENT_ASSERTS
+            task->wakeup();
             locked.insert(task.get());
         }
     });
