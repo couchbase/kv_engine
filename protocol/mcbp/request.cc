@@ -459,6 +459,38 @@ nlohmann::json Request::to_json(bool validated) const {
     ret["opaque"] = getOpaque();
     ret["cas"] = getCas();
 
+    // Add opcode-specific fields for "interesting" opcodes. Ideally this
+    // would be all opcodes, but adding on an as-needed basis...
+    if (validated && is_client_magic(m)) {
+        using namespace request;
+        nlohmann::json extras;
+        switch (getClientOpcode()) {
+        case ClientOpcode::DcpMutation: {
+            const auto& cmdExtras = getCommandSpecifics<DcpMutationPayload>();
+            extras["by_seqno"] = cmdExtras.getBySeqno();
+            extras["rev_seqno"] = cmdExtras.getRevSeqno();
+            break;
+        }
+        case ClientOpcode::DcpSystemEvent: {
+            const auto& cmdExtras =
+                    getCommandSpecifics<DcpSystemEventPayload>();
+            extras["by_seqno"] = cmdExtras.getBySeqno();
+            extras["event"] = cmdExtras.getEvent();
+            break;
+        }
+        case ClientOpcode::DcpSeqnoAdvanced: {
+            const auto& cmdExtras =
+                    getCommandSpecifics<DcpSeqnoAdvancedPayload>();
+            extras["seqno"] = cmdExtras.getSeqno();
+            break;
+        }
+        default:
+            break;
+        }
+        if (!extras.is_null()) {
+            ret["extras"] = extras;
+        }
+    }
     return ret;
 }
 
