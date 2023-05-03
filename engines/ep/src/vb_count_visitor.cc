@@ -91,6 +91,9 @@ void VBucketCountVisitor::visitBucket(VBucket& vb) {
 
         maxHistoryDiskSize =
                 std::max(maxHistoryDiskSize, vb.getHistoryDiskSize());
+
+        durabilityMonitorMemory += vb.getDurabilityMonitorMemory();
+        durabilityMonitorItems += vb.getDurabilityNumTracked();
     }
 }
 

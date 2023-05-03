@@ -651,6 +651,11 @@ STAT(vb_max_history_disk_size,
      FMT("vb_{state}_max_history_disk_size"),
      bytes,
      vb_max_history_disk_size, )
+STAT(vb_dm_mem_used, FMT("vb_{state}_dm_mem_used"), bytes, vb_dm_mem_used, )
+STAT(vb_dm_num_tracked,
+     FMT("vb_{state}_dm_num_tracked"),
+     count,
+     vb_dm_num_tracked, )
 
 STAT(curr_items, , count, , )
 STAT(curr_temp_items, , count, , )

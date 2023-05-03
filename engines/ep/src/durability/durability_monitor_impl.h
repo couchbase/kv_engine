@@ -167,6 +167,10 @@ public:
      */
     void resetChains();
 
+    size_t getSize() const {
+        return sizeof(ActiveSyncWrite) + item->size();
+    }
+
 private:
     /**
      * Calculate the ackCount for this SyncWrite using the given chain.
@@ -498,6 +502,14 @@ struct ActiveDurabilityMonitor::State {
 
     void updateHighCompletedSeqno();
 
+    /**
+     * Get the memory used by this object. The memory used only includes the
+     * size of all Item objects (Item::getSize) that are referenced as "tracked
+     * writes".
+     * @return memory used in bytes (see above for detail as to what is tracked)
+     */
+    size_t getTotalMemoryUsed() const;
+
     /// Debug - print a textual description of this object to stderr.
     void dump() const;
 
@@ -807,6 +819,14 @@ struct PassiveDurabilityMonitor::State {
      * @return trackedWrites.erase(...) result
      */
     Container::iterator safeEraseSyncWrite(Container::iterator toErase);
+
+    /**
+     * Get the memory used by this object. The memory used only includes the
+     * size of all Item objects (Item::getSize) that are referenced as "tracked
+     * writes".
+     * @return memory used in bytes (see above for detail as to what is tracked)
+     */
+    size_t getTotalMemoryUsed() const;
 
     /// The container of pending Prepares.
     Container trackedWrites;

@@ -23,6 +23,7 @@ DeadDurabilityMonitor::DeadDurabilityMonitor(VBucket& vb,
     : vb(vb),
       highPreparedSeqno(oldDM.getHighPreparedSeqno()),
       highCompletedSeqno(oldDM.getHighCompletedSeqno()),
+      trackedWritesMemoryUsage(oldDM.getTotalMemoryUsed()),
       trackedWrites(oldDM.getTrackedWrites()) {
     // Grab our last consistent point so that we can tell a future PDM what it
     // can ack up to. The last consistent point differs by the previous vBucket
@@ -67,6 +68,11 @@ void DeadDurabilityMonitor::addStats(const AddStatFn& addStat,
 
         add_casted_stat(fmt::format("vb_{}:num_tracked", vbid),
                         trackedWrites.size(),
+                        addStat,
+                        cookie);
+
+        add_casted_stat(fmt::format("vb_{}:tracked_mem_usage", vbid),
+                        trackedWritesMemoryUsage,
                         addStat,
                         cookie);
 

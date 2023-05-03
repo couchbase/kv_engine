@@ -209,6 +209,18 @@ void PassiveDurabilityMonitor::addStats(const AddStatFn& addStat,
                         addStat,
                         cookie);
 
+        const auto s = state.rlock();
+
+        add_casted_stat(fmt::format("vb_{}:num_tracked", vbid),
+                        s->trackedWrites.size(),
+                        addStat,
+                        cookie);
+
+        add_casted_stat(fmt::format("vb_{}:dm_mem_used", vbid),
+                        s->getTotalMemoryUsed(),
+                        addStat,
+                        cookie);
+
     } catch (const std::exception& e) {
         EP_LOG_WARN(
                 "PassiveDurabilityMonitor::addStats: error building stats: {}",
@@ -293,6 +305,9 @@ size_t PassiveDurabilityMonitor::getNumCommitted() const {
 }
 size_t PassiveDurabilityMonitor::getNumAborted() const {
     return state.rlock()->totalAborted;
+}
+size_t PassiveDurabilityMonitor::getTotalMemoryUsed() const {
+    return state.rlock()->getTotalMemoryUsed();
 }
 
 void PassiveDurabilityMonitor::notifySnapshotEndReceived(uint64_t snapEnd) {
@@ -638,6 +653,10 @@ PassiveDurabilityMonitor::State::safeEraseSyncWrite(
     }
 
     return trackedWrites.erase(toErase);
+}
+
+size_t PassiveDurabilityMonitor::State::getTotalMemoryUsed() const {
+    return trackedWrites.getTotalMemoryUsed();
 }
 
 PassiveDurabilityMonitor::Container::iterator

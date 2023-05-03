@@ -39,7 +39,8 @@ class VBucket;
 class PassiveDurabilityMonitor : public DurabilityMonitor {
 public:
     // Container type used for State::trackedWrites
-    using Container = std::list<SyncWrite>;
+    using Element = SyncWrite;
+    using Container = DurabilityMonitorTrackedWrites<Element>;
 
     explicit PassiveDurabilityMonitor(VBucket& vb);
 
@@ -161,6 +162,14 @@ public:
     size_t getNumAccepted() const override;
     size_t getNumCommitted() const override;
     size_t getNumAborted() const override;
+
+    /**
+     * Get the memory used by this object. The memory used only includes the
+     * size of all Item objects (Item::getSize) that are referenced as "tracked
+     * writes".
+     * @return memory used in bytes (see above for detail as to what is tracked)
+     */
+    size_t getTotalMemoryUsed() const override;
 
     /**
      * Notify this PDM that the snapshot-end mutation has been received for the

@@ -446,6 +446,11 @@ void ActiveDurabilityMonitor::addStats(const AddStatFn& addStat,
                         addStat,
                         cookie);
 
+        add_casted_stat(fmt::format("vb_{}:dm_mem_used", vbid),
+                        s->getTotalMemoryUsed(),
+                        addStat,
+                        cookie);
+
         // Do not have a valid HPS unless the first chain has been set.
         int64_t highPreparedSeqno = 0;
         if (s->firstChain) {
@@ -593,7 +598,7 @@ void ActiveDurabilityMonitor::unresolveCompletedSyncWriteQueue() {
                 // transition to replica we will strip all active only state as
                 // required and we need to ensure that our cookie is intact as
                 // it will yet be used to respond ambiguous to the client
-                writesToTrack.push_back(*sw);
+                writesToTrack.emplace_back(*sw);
                 continue;
             }
         }
@@ -629,6 +634,9 @@ size_t ActiveDurabilityMonitor::getNumCommitted() const {
 }
 size_t ActiveDurabilityMonitor::getNumAborted() const {
     return state.rlock()->totalAborted;
+}
+size_t ActiveDurabilityMonitor::getTotalMemoryUsed() const {
+    return state.rlock()->getTotalMemoryUsed();
 }
 
 uint8_t ActiveDurabilityMonitor::getFirstChainSize() const {
@@ -950,6 +958,10 @@ ActiveDurabilityMonitor::State::removeSyncWrite(Container::iterator it,
     }
 
     return std::move(removed.front());
+}
+
+size_t ActiveDurabilityMonitor::State::getTotalMemoryUsed() const {
+    return trackedWrites.getTotalMemoryUsed();
 }
 
 void ActiveDurabilityMonitor::commit(const ActiveSyncWrite& sw) {

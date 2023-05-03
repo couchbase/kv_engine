@@ -1433,6 +1433,10 @@ void KVBucket::appendAggregatedVBucketStats(
         // Add stat for the max history disk size of a vbucket
         stateCol.addStat(Key::vb_max_history_disk_size,
                          visitor.getMaxHistoryDiskSize());
+        stateCol.addStat(Key::vb_dm_mem_used,
+                         visitor.getDurabilityMonitorMemory());
+        stateCol.addStat(Key::vb_dm_num_tracked,
+                         visitor.getDurabilityMonitorItems());
     }
 
     for (const auto& visitor : {active, replica}) {
