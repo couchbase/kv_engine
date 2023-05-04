@@ -72,7 +72,6 @@ CheckpointManager::CheckpointManager(EPStats& st,
       flusherCB(std::move(cb)),
       memFreedByExpel(stats.memFreedByCheckpointItemExpel),
       memFreedByCheckpointRemoval(stats.memFreedByCheckpointRemoval) {
-    std::lock_guard<std::mutex> lh(queueLock);
     Expects(static_cast<uint64_t>(lastSeqno) >= lastSnapStart);
     Expects(static_cast<uint64_t>(lastSeqno) <= lastSnapEnd);
     Expects(static_cast<uint64_t>(maxVisibleSeqno) <= lastSnapEnd);
@@ -93,8 +92,7 @@ CheckpointManager::CheckpointManager(EPStats& st,
 
     if (checkpointConfig.isPersistenceEnabled()) {
         // Register the persistence cursor
-        pCursor = registerCursorBySeqno(lh,
-                                        pCursorName,
+        pCursor = registerCursorBySeqno(pCursorName,
                                         lastBySeqno,
                                         CheckpointCursor::Droppable::No)
                           .takeCursor();
@@ -305,21 +303,26 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
         const std::string& name,
         uint64_t startBySeqno,
         CheckpointCursor::Droppable droppable) {
-    std::lock_guard<std::mutex> lh(queueLock);
-    return registerCursorBySeqno(lh, name, startBySeqno, droppable);
-}
+    // Note: The function is full of early-returns so that's a bit difficult to
+    // handle the following by locked/lock-free scopes.
+    // What we need here is to call scheduleDestruction() lock-free. The guard
+    // is declared/instantiated before we acquire the lock, so that will go out
+    // of scope (and the lambda executed) after the lock_guard is released at
+    // return. A bug on that would be quickly spotted in unit tests, as
+    // scheduleDestruction() acquires the same lock in it, so we would deadlock
+    // pretty quickly.
+    RemoveCursorResult removeCursorRes;
+    const auto lockFreeOnReturn = folly::makeGuard(
+            [&]() { scheduleDestruction(std::move(removeCursorRes.removed)); });
 
-CursorRegResult CheckpointManager::registerCursorBySeqno(
-        const std::lock_guard<std::mutex>& lh,
-        const std::string& name,
-        uint64_t startBySeqno,
-        CheckpointCursor::Droppable droppable) {
+    std::lock_guard<std::mutex> lh(queueLock);
+
     // If cursor exists with the same name as the one being created, then
     // remove it.
     for (const auto& [currCName, cursor] : cursors) {
         if (name == currCName) {
             Expects(cursor);
-            removeCursor(lh, *cursor);
+            removeCursorRes = removeCursor(lh, *cursor);
             break;
         }
     }

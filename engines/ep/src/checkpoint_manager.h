@@ -712,23 +712,8 @@ protected:
      * @param cursor
      * @return RemoveCursorResult, see struct definition
      */
-    RemoveCursorResult removeCursor(const std::lock_guard<std::mutex>& lh,
-                                    CheckpointCursor& cursor);
-
-    /**
-     * Register a cursor within the checkpoint.
-     *
-     * @param lh lock guard holding the queueLock
-     * @param name of the new cursor
-     * @param startBySeqno The seqno where to place the cursor
-     * @param droppable Whether the new cursor can be removed by cursor-dropping
-     * @return CursorRegResult, see struct for details
-     */
-    CursorRegResult registerCursorBySeqno(
-            const std::lock_guard<std::mutex>& lh,
-            const std::string& name,
-            uint64_t startBySeqno,
-            CheckpointCursor::Droppable droppable);
+    [[nodiscard]] RemoveCursorResult removeCursor(
+            const std::lock_guard<std::mutex>& lh, CheckpointCursor& cursor);
 
     /**
      * Called by getItemsForCursor() for registering a copy of the persistence
