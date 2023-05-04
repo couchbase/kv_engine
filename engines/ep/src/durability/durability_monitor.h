@@ -11,6 +11,9 @@
 #pragma once
 
 #include "memcached/engine_common.h"
+
+#include <platform/memory_tracking_allocator.h>
+
 #include <list>
 
 class CookieIface;
@@ -132,19 +135,23 @@ std::string to_string(DurabilityMonitor::ReplicationChainName name);
  * queued_item more than once.
  */
 template <typename Element>
-class DurabilityMonitorTrackedWrites : private std::list<Element> {
+class DurabilityMonitorTrackedWrites
+    : private std::list<Element, MemoryTrackingAllocator<Element>> {
 public:
-    using Base = std::list<Element>;
+    using Base = std::list<Element, MemoryTrackingAllocator<Element>>;
     using Base::back;
     using Base::Base;
     using Base::begin;
     using Base::empty;
     using Base::end;
     using Base::front;
+    using Base::get_allocator;
     using Base::size;
     using typename Base::const_iterator;
     using typename Base::iterator;
 
+    // Require construction with an allocator
+    DurabilityMonitorTrackedWrites() = delete;
     DurabilityMonitorTrackedWrites(const DurabilityMonitorTrackedWrites&) =
             delete;
     DurabilityMonitorTrackedWrites(DurabilityMonitorTrackedWrites&&) = delete;
@@ -174,8 +181,12 @@ public:
         Base::splice(pos, other, it);
     }
 
-    // @return memory usage for all Element::getSize in the list
+    // @return memory usage for all Element::getSize + the allocator's size
     size_t getTotalMemoryUsed() const {
+        return memUsed + get_allocator().getBytesAllocated();
+    }
+
+    size_t getMemorySize() const {
         return memUsed;
     }
 

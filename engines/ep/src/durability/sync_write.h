@@ -68,8 +68,9 @@ public:
         return status == SyncWriteStatus::Completed;
     }
 
+    /// @return the size of the referenced item
     size_t getSize() const {
-        return sizeof(SyncWrite) + item->size();
+        return item->size();
     }
 
 protected:

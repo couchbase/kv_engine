@@ -3849,8 +3849,16 @@ TEST_P(ActiveDurabilityMonitorTest, MB_41235_commit) {
 }
 
 TEST(DurabilityMonitorTrackedWritesTest, emplace_and_erase) {
-    DurabilityMonitorTrackedWrites<DurabilityMonitor::SyncWrite> container;
+    MemoryTrackingAllocator<DurabilityMonitor::SyncWrite> trackingAllocator;
+    DurabilityMonitorTrackedWrites<DurabilityMonitor::SyncWrite> container{
+            trackingAllocator};
+#ifdef WIN32
+    // msvc implementation results in a non zero mem-used
+    EXPECT_EQ(40, container.getTotalMemoryUsed());
+    EXPECT_EQ(40, trackingAllocator.getBytesAllocated());
+#else
     EXPECT_EQ(0, container.getTotalMemoryUsed());
+#endif
 
     queued_item item1{new Item(makeStoredDocKey("key1", CollectionEntry::fruit),
                                0 /*flags*/,
@@ -3864,17 +3872,38 @@ TEST(DurabilityMonitorTrackedWritesTest, emplace_and_erase) {
     container.emplace_back(item1);
     EXPECT_EQ(1, container.size());
     EXPECT_FALSE(container.empty());
-    EXPECT_EQ(sizeof(DurabilityMonitor::SyncWrite) + item1->size(),
-              container.getTotalMemoryUsed());
+
+    // container now includes node allocation etc... from the
+    // MemoryTrackingAllocator, this test now avoids absolute comparisons of
+    // memory usage
+    // Expect the container to store more then 1 SyncWrite+the item size - there
+    // should be 1 list node allocated
+    EXPECT_GT(container.getTotalMemoryUsed(),
+              sizeof(DurabilityMonitor::SyncWrite) + item1->size());
     container.erase(container.begin());
-    EXPECT_EQ(0, container.getTotalMemoryUsed());
     EXPECT_EQ(0, container.size());
     EXPECT_TRUE(container.empty());
+
+#ifdef WIN32
+    // msvc implementation results in a non zero mem-used
+    EXPECT_EQ(40, container.getTotalMemoryUsed());
+    EXPECT_EQ(40, trackingAllocator.getBytesAllocated());
+#else
+    EXPECT_EQ(0, container.getTotalMemoryUsed());
+#endif
 }
 
 TEST(DurabilityMonitorTrackedWritesTest, splice1) {
-    DurabilityMonitorTrackedWrites<DurabilityMonitor::SyncWrite> container;
+    MemoryTrackingAllocator<DurabilityMonitor::SyncWrite> trackingAllocator;
+    DurabilityMonitorTrackedWrites<DurabilityMonitor::SyncWrite> container{
+            trackingAllocator};
+#ifdef WIN32
+    // msvc implementation results in a non zero mem-used
+    EXPECT_EQ(40, container.getTotalMemoryUsed());
+    EXPECT_EQ(40, trackingAllocator.getBytesAllocated());
+#else
     EXPECT_EQ(0, container.getTotalMemoryUsed());
+#endif
 
     for (auto i : {1, 2, 3, 4}) {
         container.emplace_back(
@@ -3882,20 +3911,61 @@ TEST(DurabilityMonitorTrackedWritesTest, splice1) {
                                   std::string(i, 'v')));
     }
 
-    DurabilityMonitorTrackedWrites<DurabilityMonitor::SyncWrite> container2;
+    {
+        // Create a second container in this new scope so we can see it destruct
+        // This is similar to some of the splice behaviour inside the ADM
+        DurabilityMonitorTrackedWrites<DurabilityMonitor::SyncWrite> container2{
+                container.get_allocator()};
 
-    // This splice variant "moves" all from container to container2
-    auto memory = container.getTotalMemoryUsed();
-    container2.splice(container2.end(), container);
-    EXPECT_EQ(memory, container2.getTotalMemoryUsed());
-    EXPECT_EQ(4, container2.size());
+        // This splice variant "moves" all from container to container2
+        auto memory = container.getTotalMemoryUsed();
+        container2.splice(container2.end(), container);
+        EXPECT_EQ(memory, container2.getTotalMemoryUsed());
+        EXPECT_EQ(4, container2.size());
+
+        // container2 has the items, but the underlying node allocations are
+        // still tracked by both containers
+        EXPECT_GT(container2.getTotalMemoryUsed(),
+                  container.getTotalMemoryUsed());
+
+        EXPECT_LT(container.getMemorySize(),
+                  container.get_allocator().getBytesAllocated());
+
+        // container still retains memory, but held in the allocator
+#ifdef WIN32
+        size_t expected = 240;
+#else
+        size_t expected = 160;
+#endif
+        EXPECT_EQ(expected, container.getTotalMemoryUsed());
+        EXPECT_EQ(expected, trackingAllocator.getBytesAllocated());
+    }
+
+#ifdef WIN32
+    // msvc implementation results in a non zero mem-used
+    EXPECT_EQ(40, container.getTotalMemoryUsed());
+    EXPECT_EQ(40, trackingAllocator.getBytesAllocated());
+#else
+    // container2 now gone - the memory usage has gone down to 0
     EXPECT_EQ(0, container.getTotalMemoryUsed());
+    EXPECT_EQ(0, container.get_allocator().getBytesAllocated());
+#endif
+
     EXPECT_EQ(0, container.size());
+    EXPECT_TRUE(container.empty());
 }
 
 TEST(DurabilityMonitorTrackedWritesTest, splice2) {
-    DurabilityMonitorTrackedWrites<DurabilityMonitor::SyncWrite> container;
+    MemoryTrackingAllocator<DurabilityMonitor::SyncWrite> trackingAllocator;
+    DurabilityMonitorTrackedWrites<DurabilityMonitor::SyncWrite> container{
+            trackingAllocator};
+#ifdef WIN32
+    // msvc implementation results in a non zero mem-used
+    EXPECT_EQ(40, container.getTotalMemoryUsed());
+    EXPECT_EQ(40, trackingAllocator.getBytesAllocated());
+#else
     EXPECT_EQ(0, container.getTotalMemoryUsed());
+#endif
 
     for (auto i : {1, 2, 3, 4}) {
         container.emplace_back(
@@ -3906,13 +3976,15 @@ TEST(DurabilityMonitorTrackedWritesTest, splice2) {
     std::advance(itr, 2);
     auto memoryToMove = itr->getSize();
 
-    DurabilityMonitorTrackedWrites<DurabilityMonitor::SyncWrite> container2;
+    DurabilityMonitorTrackedWrites<DurabilityMonitor::SyncWrite> container2{
+            container.get_allocator()};
 
     // This splice variant moves the element referenced by itr from container to
     // container2.
     auto memory = container.getTotalMemoryUsed();
     container2.splice(container2.end(), container, itr);
-    EXPECT_EQ(memoryToMove, container2.getTotalMemoryUsed());
+    // container2 should now have the SyncWrite + Item + a bit more
+    EXPECT_GT(container2.getTotalMemoryUsed(), memoryToMove);
     EXPECT_EQ(1, container2.size());
     EXPECT_EQ(memory - memoryToMove, container.getTotalMemoryUsed());
     EXPECT_EQ(3, container.size());
