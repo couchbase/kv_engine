@@ -5634,12 +5634,16 @@ TEST_P(CDCActiveStreamTest, DeduplicationDisabledForAbort) {
     EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
     EXPECT_TRUE(stream->isBackfilling());
 
-    // Must see 1 historical snapshot with [pre, abr, pre, cmt]
+    // Note this test was added for MB-55919, but has been modified to account
+    // for changes made by /MB-56654, there is still value in this test so it
+    // remains but with modified expectations.
+    //
+    // Must see 1 historical snapshot with [abr, cmt]
     // Before the fix for MB-55919 we get only [pre, pre, cmt].
     const auto& readyQ = stream->public_readyQ();
     EXPECT_EQ(0, readyQ.size());
     runBackfill();
-    EXPECT_EQ(5, readyQ.size());
+    EXPECT_EQ(3, readyQ.size());
 
     auto resp = stream->public_nextQueuedItem(*producer);
     EXPECT_TRUE(resp);
@@ -5653,22 +5657,12 @@ TEST_P(CDCActiveStreamTest, DeduplicationDisabledForAbort) {
     EXPECT_EQ(initHighSeqno + 4, marker->getEndSeqno());
 
     resp = stream->public_nextQueuedItem(*producer);
-    EXPECT_TRUE(resp);
-    EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
-    EXPECT_EQ(initHighSeqno + 1, resp->getBySeqno());
-
-    resp = stream->public_nextQueuedItem(*producer);
-    EXPECT_TRUE(resp);
+    ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::Abort, resp->getEvent());
     EXPECT_EQ(initHighSeqno + 2, resp->getBySeqno());
 
     resp = stream->public_nextQueuedItem(*producer);
-    EXPECT_TRUE(resp);
-    EXPECT_EQ(DcpResponse::Event::Prepare, resp->getEvent());
-    EXPECT_EQ(initHighSeqno + 3, resp->getBySeqno());
-
-    resp = stream->public_nextQueuedItem(*producer);
-    EXPECT_TRUE(resp);
+    ASSERT_TRUE(resp);
     EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
     EXPECT_EQ(initHighSeqno + 4, resp->getBySeqno());
 }

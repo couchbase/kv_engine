@@ -155,11 +155,9 @@ protected:
      * Internal part of the setup phase of the history scan, on success this
      * will have initialised HistoryScanCtx::scanCtx
      *
-     * @param streamPtr The ActiveStream for the scan (as a shared_ptr)
      * @return true if the ScanContext was created, false for failure.
      */
-    bool createHistoryScanContext(
-            const std::shared_ptr<ActiveStream>& streamPtr);
+    bool createHistoryScanContext();
 
     std::mutex lock;
     backfill_state_t state = backfill_state_init;
@@ -188,13 +186,9 @@ protected:
          * @param kvs KVStore to call initBySeqnoContext on
          * @param ctx The ScanContext from the initial scan phase, this can be
          *            ByID or BySeq.
-         * @param streamPtr The shared_ptr for the ActiveStream - this allows
-         *        the new ScanContext to create a new callback.
          * @return true if successfully created, false for a failure.
          */
-        bool createScanContext(const KVStoreIface& kvs,
-                               ScanContext& ctx,
-                               const std::shared_ptr<ActiveStream>& streamPtr);
+        bool createScanContext(const KVStoreIface& kvs, ScanContext& ctx);
 
         /**
          * @return the type for the current history scan

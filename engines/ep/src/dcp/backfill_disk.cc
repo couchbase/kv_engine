@@ -277,8 +277,7 @@ bool DCPBackfillDisk::setupForHistoryScan(ActiveStream& stream,
     return false;
 }
 
-bool DCPBackfillDisk::createHistoryScanContext(
-        const std::shared_ptr<ActiveStream>& streamPtr) {
+bool DCPBackfillDisk::createHistoryScanContext() {
     Expects(historyScan);
     Expects(!historyScan->scanCtx);
 
@@ -287,27 +286,21 @@ bool DCPBackfillDisk::createHistoryScanContext(
     auto* kvstore = bucket.getROUnderlying(getVBucketId());
     Expects(kvstore);
 
-    return historyScanCtx.createScanContext(*kvstore, *scanCtx, streamPtr);
+    return historyScanCtx.createScanContext(*kvstore, *scanCtx);
 }
 
-bool DCPBackfillDisk::HistoryScanCtx::createScanContext(
-        const KVStoreIface& kvs,
-        ScanContext& ctx,
-        const std::shared_ptr<ActiveStream>& streamPtr) {
+bool DCPBackfillDisk::HistoryScanCtx::createScanContext(const KVStoreIface& kvs,
+                                                        ScanContext& ctx) {
     // Create a new BySeqnoScanContext but most importantly move the previous
-    // ScanContext::handle (so the same snapshot is used). We can also move the
-    // original CacheLookup callback but must create a new disk callback. This
-    // because when scanning the history, we want a "vanilla" DiskCallback which
-    // does not skip any items (see skipItem member function).
-    scanCtx = kvs.initBySeqnoScanContext(
-            std::make_unique<DiskCallback>(streamPtr),
-            std::move(ctx.lookup),
-            ctx.vbid,
-            snapshotInfo.start,
-            ctx.docFilter,
-            ctx.valFilter,
-            SnapshotSource::HeadAllVersions,
-            std::move(ctx.handle));
+    // ScanContext::handle (so the same snapshot is used).
+    scanCtx = kvs.initBySeqnoScanContext(std::move(ctx.callback),
+                                         std::move(ctx.lookup),
+                                         ctx.vbid,
+                                         snapshotInfo.start,
+                                         ctx.docFilter,
+                                         ctx.valFilter,
+                                         SnapshotSource::HeadAllVersions,
+                                         std::move(ctx.handle));
     if (!scanCtx) {
         // initBySeqnoScanContext logs for failure
         return false;
@@ -337,7 +330,7 @@ bool DCPBackfillDisk::scanHistoryCreate(
     Expects(!historyScanCtx.scanCtx);
 
     // try to create historyScanCtx.scanCtx
-    if (!createHistoryScanContext(streamPtr)) {
+    if (!createHistoryScanContext()) {
         EP_LOG_WARN(
                 "DCPBackfillDisk::scanHistoryCreate(): ({}) failure "
                 "creating history ScanContext",
