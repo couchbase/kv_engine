@@ -24,6 +24,7 @@
 #include "dcp/producer.h"
 #include "dcp/response.h"
 #include "dcp/stream_container.h"
+#include "durability/durability_monitor_impl.h"
 #include "hash_table_stat_visitor.h"
 #include "item.h"
 #include "kvstore/couch-kvstore/couch-kvstore.h"
@@ -108,6 +109,9 @@ int main(int, char **) {
     display("    PassiveStream", sizeof(PassiveStream));
     display("    StreamContainer<ContainerElement>",
             sizeof(StreamContainer<DcpProducer::ContainerElement>));
+    display("Durability", "", "");
+    display("    SyncWrite", sizeof(DurabilityMonitor::SyncWrite));
+    display("    ActiveSyncWrite", sizeof(DurabilityMonitor::ActiveSyncWrite));
     display("EPStats", sizeof(EPStats), stats.getMemFootPrint());
     display("FileStats", sizeof(FileStats), FileStats().getMemFootPrint());
     display("GlobalTask", sizeof(GlobalTask));

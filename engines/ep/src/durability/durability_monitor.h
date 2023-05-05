@@ -87,9 +87,9 @@ public:
      */
     virtual std::list<SyncWrite> getTrackedWrites() const = 0;
 
-protected:
     class ActiveSyncWrite;
 
+protected:
     template <typename Container>
     struct Position;
 
