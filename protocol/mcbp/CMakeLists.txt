@@ -17,6 +17,7 @@ add_library(mcbp STATIC
             feature.cc
             frameinfo.cc
             gdb_dump_parser.cc
+            json_utilities.cc
             lldb_dump_parser.cc
             magic.cc
             opcode.cc

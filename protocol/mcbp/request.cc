@@ -8,10 +8,12 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
+#include <mcbp/protocol/json_utilities.h>
 #include <mcbp/protocol/request.h>
 #include <memcached/durability_spec.h>
 #include <memcached/protocol_binary.h>
 #include <nlohmann/json.hpp>
+#include <platform/uuid.h>
 #include <utilities/logtags.h>
 #include <cctype>
 
@@ -464,31 +466,360 @@ nlohmann::json Request::to_json(bool validated) const {
     if (validated && is_client_magic(m)) {
         using namespace request;
         nlohmann::json extras;
+        nlohmann::json value;
         switch (getClientOpcode()) {
-        case ClientOpcode::DcpMutation: {
-            const auto& cmdExtras = getCommandSpecifics<DcpMutationPayload>();
-            extras["by_seqno"] = cmdExtras.getBySeqno();
-            extras["rev_seqno"] = cmdExtras.getRevSeqno();
+        case ClientOpcode::Get:
+        case ClientOpcode::Getq:
+        case ClientOpcode::Getk:
+        case ClientOpcode::Getkq:
+        case ClientOpcode::Delete:
+        case ClientOpcode::Deleteq:
+        case ClientOpcode::Noop:
+        case ClientOpcode::Quit:
+        case ClientOpcode::Flush:
+        case ClientOpcode::Version:
+        case ClientOpcode::Append:
+        case ClientOpcode::Prepend:
+        case ClientOpcode::Stat:
+        case ClientOpcode::Quitq:
+        case ClientOpcode::Flushq:
+        case ClientOpcode::Appendq:
+        case ClientOpcode::Prependq:
+        case ClientOpcode::Hello:
+        case ClientOpcode::SaslListMechs:
+        case ClientOpcode::SaslAuth:
+        case ClientOpcode::SaslStep:
+        case ClientOpcode::IoctlGet:
+        case ClientOpcode::IoctlSet:
+        case ClientOpcode::ConfigValidate:
+        case ClientOpcode::ConfigReload:
+        case ClientOpcode::AuditPut:
+        case ClientOpcode::AuditConfigReload:
+        case ClientOpcode::Shutdown:
+        case ClientOpcode::SetBucketThrottleProperties:
+        case ClientOpcode::Rget_Unsupported:
+        case ClientOpcode::Rset_Unsupported:
+        case ClientOpcode::Rsetq_Unsupported:
+        case ClientOpcode::Rappend_Unsupported:
+        case ClientOpcode::Rappendq_Unsupported:
+        case ClientOpcode::Rprepend_Unsupported:
+        case ClientOpcode::Rprependq_Unsupported:
+        case ClientOpcode::Rdelete_Unsupported:
+        case ClientOpcode::Rdeleteq_Unsupported:
+        case ClientOpcode::Rincr_Unsupported:
+        case ClientOpcode::Rincrq_Unsupported:
+        case ClientOpcode::Rdecr_Unsupported:
+        case ClientOpcode::Rdecrq_Unsupported:
+        case ClientOpcode::GetVbucket:
+        case ClientOpcode::DelVbucket:
+        case ClientOpcode::TapConnect_Unsupported:
+        case ClientOpcode::TapMutation_Unsupported:
+        case ClientOpcode::TapDelete_Unsupported:
+        case ClientOpcode::TapFlush_Unsupported:
+        case ClientOpcode::TapOpaque_Unsupported:
+        case ClientOpcode::TapVbucketSet_Unsupported:
+        case ClientOpcode::TapCheckpointStart_Unsupported:
+        case ClientOpcode::TapCheckpointEnd_Unsupported:
+        case ClientOpcode::LastClosedCheckpoint_Unsupported:
+        case ClientOpcode::DeregisterTapClient_Unsupported:
+        case ClientOpcode::ResetReplicationChain_Unsupported:
+        case ClientOpcode::SetNodeThrottleProperties:
+        case ClientOpcode::DcpCloseStream:
+        case ClientOpcode::DcpGetFailoverLog:
+        case ClientOpcode::DcpFlush_Unsupported:
+        case ClientOpcode::DcpNoop:
+        case ClientOpcode::DcpControl:
+        case ClientOpcode::DcpOsoSnapshot:
+        case ClientOpcode::GetReplica:
+        case ClientOpcode::StopPersistence:
+        case ClientOpcode::StartPersistence:
+        case ClientOpcode::CreateBucket:
+        case ClientOpcode::DeleteBucket:
+        case ClientOpcode::ListBuckets:
+        case ClientOpcode::SelectBucket:
+        case ClientOpcode::PauseBucket:
+        case ClientOpcode::ResumeBucket:
+        case ClientOpcode::SnapshotVbStates_Unsupported:
+        case ClientOpcode::VbucketBatchCount_Unsupported:
+        case ClientOpcode::CreateCheckpoint_Unsupported:
+        case ClientOpcode::NotifyVbucketUpdate_Unsupported:
+        case ClientOpcode::EnableTraffic:
+        case ClientOpcode::DisableTraffic:
+        case ClientOpcode::Ifconfig:
+        case ClientOpcode::ChangeVbFilter_Unsupported:
+        case ClientOpcode::CheckpointPersistence_Unsupported:
+        case ClientOpcode::ObserveSeqno:
+        case ClientOpcode::Observe:
+        case ClientOpcode::EvictKey:
+        case ClientOpcode::UnlockKey:
+        case ClientOpcode::GetFailoverLog:
+        case ClientOpcode::GetClusterConfig:
+        case ClientOpcode::CollectionsSetManifest:
+        case ClientOpcode::CollectionsGetManifest:
+        case ClientOpcode::SetDriftCounterState_Unsupported:
+        case ClientOpcode::GetAdjustedTime_Unsupported:
+        case ClientOpcode::CollectionsGetID:
+        case ClientOpcode::CollectionsGetScopeID:
+        case ClientOpcode::Scrub:
+        case ClientOpcode::IsaslRefresh:
+        case ClientOpcode::SslCertsRefresh:
+        case ClientOpcode::GetCtrlToken:
+        case ClientOpcode::UpdateExternalUserPermissions:
+        case ClientOpcode::RbacRefresh:
+        case ClientOpcode::AuthProvider:
+        case ClientOpcode::DropPrivilege:
+        case ClientOpcode::AdjustTimeofday:
+        case ClientOpcode::EwouldblockCtl:
+        case ClientOpcode::Invalid:
+        case ClientOpcode::RangeScanCreate:
+            // The command don't take (or we don't support decoding) extras
             break;
-        }
-        case ClientOpcode::DcpSystemEvent: {
-            const auto& cmdExtras =
-                    getCommandSpecifics<DcpSystemEventPayload>();
-            extras["by_seqno"] = cmdExtras.getBySeqno();
-            extras["event"] = cmdExtras.getEvent();
+
+        case ClientOpcode::Set:
+        case ClientOpcode::Add:
+        case ClientOpcode::Replace:
+        case ClientOpcode::Setq:
+        case ClientOpcode::Addq:
+        case ClientOpcode::Replaceq:
+            extras = getCommandSpecifics<MutationPayload>();
             break;
-        }
-        case ClientOpcode::DcpSeqnoAdvanced: {
-            const auto& cmdExtras =
-                    getCommandSpecifics<DcpSeqnoAdvancedPayload>();
-            extras["seqno"] = cmdExtras.getSeqno();
+        case ClientOpcode::Increment:
+        case ClientOpcode::Decrement:
+        case ClientOpcode::Incrementq:
+        case ClientOpcode::Decrementq:
+            extras = getCommandSpecifics<ArithmeticPayload>();
             break;
-        }
-        default:
+        case ClientOpcode::Verbosity:
+            extras = getCommandSpecifics<VerbosityPayload>();
+            break;
+        case ClientOpcode::Touch:
+        case ClientOpcode::Gat:
+        case ClientOpcode::Gatq:
+            extras = getCommandSpecifics<TouchPayload>();
+            break;
+        case ClientOpcode::SetBucketDataLimitExceeded:
+            extras = getCommandSpecifics<SetBucketDataLimitExceededPayload>();
+            break;
+        case ClientOpcode::SetVbucket:
+            // @todo add implementation
+            break;
+        case ClientOpcode::GetAllVbSeqnos:
+            if (!getExtdata().empty()) {
+                auto extdata = getExtdata();
+                // extlen is optional, and if non-zero it contains the vbucket
+                // state to report and potentially also a collection ID
+                RequestedVBState state;
+
+                // vbucket state will be the first part of extras
+                auto extrasState = extdata.substr(0, sizeof(RequestedVBState));
+                std::copy(extrasState.begin(),
+                          extrasState.end(),
+                          reinterpret_cast<uint8_t*>(&state));
+                switch (static_cast<RequestedVBState>(
+                        ntohl(static_cast<int>(state)))) {
+                case RequestedVBState::Alive:
+                    extras["state"] = "Alive";
+                    break;
+                case RequestedVBState::Active:
+                    extras["state"] = "Active";
+                    break;
+                case RequestedVBState::Replica:
+                    extras["state"] = "Replica";
+                    break;
+                case RequestedVBState::Pending:
+                    extras["state"] = "Pending";
+                    break;
+                case RequestedVBState::Dead:
+                    extras["state"] = "Dead";
+                    break;
+                }
+
+                if (extdata.size() ==
+                    (sizeof(RequestedVBState) + sizeof(CollectionIDType))) {
+                    CollectionIDType cid;
+                    extrasState = extdata.substr(sizeof(RequestedVBState),
+                                                 sizeof(CollectionIDType));
+                    std::copy(extrasState.begin(),
+                              extrasState.end(),
+                              reinterpret_cast<uint8_t*>(&cid));
+                    cid = static_cast<CollectionIDType>(
+                            ntohl(static_cast<int>(state)));
+                    extras["collection"] = CollectionID(cid).to_string();
+                }
+            }
+            break;
+        case ClientOpcode::DcpOpen:
+            extras = getCommandSpecifics<DcpOpenPayload>();
+            break;
+        case ClientOpcode::DcpAddStream:
+            extras = getCommandSpecifics<DcpAddStreamPayload>();
+            break;
+        case ClientOpcode::DcpStreamReq:
+            extras = getCommandSpecifics<DcpStreamReqPayload>();
+            break;
+        case ClientOpcode::DcpStreamEnd:
+            extras = getCommandSpecifics<DcpStreamEndPayload>();
+            break;
+        case ClientOpcode::DcpSnapshotMarker:
+            if (getExtdata().size() == sizeof(DcpSnapshotMarkerV1Payload)) {
+                extras = getCommandSpecifics<DcpSnapshotMarkerV1Payload>();
+            } else if (getExtdata().size() ==
+                       sizeof(DcpSnapshotMarkerV2xPayload)) {
+                const auto& payload =
+                        getCommandSpecifics<DcpSnapshotMarkerV2xPayload>();
+                extras = payload;
+                switch (payload.getVersion()) {
+                case DcpSnapshotMarkerV2xVersion::Zero:
+                    value = *reinterpret_cast<
+                            const DcpSnapshotMarkerV2_0Value*>(
+                            getValue().data());
+                    break;
+                case DcpSnapshotMarkerV2xVersion::One:
+                    value = *reinterpret_cast<
+                            const DcpSnapshotMarkerV2_1Value*>(
+                            getValue().data());
+                    break;
+                }
+            }
+            break;
+        case ClientOpcode::DcpMutation:
+            extras = getCommandSpecifics<DcpMutationPayload>();
+            break;
+        case ClientOpcode::DcpSystemEvent:
+            extras = getCommandSpecifics<DcpSystemEventPayload>();
+            break;
+        case ClientOpcode::DcpSeqnoAdvanced:
+            extras = getCommandSpecifics<DcpSeqnoAdvancedPayload>();
+            break;
+        case ClientOpcode::DcpDeletion:
+            if (getExtlen() == sizeof(DcpDeletionV2Payload)) {
+                extras = getCommandSpecifics<DcpDeletionV2Payload>();
+            } else if (getExtlen() == sizeof(DcpDeletionV1Payload)) {
+                extras = getCommandSpecifics<DcpDeletionV1Payload>();
+            }
+            break;
+        case ClientOpcode::DcpExpiration:
+            extras = getCommandSpecifics<DcpExpirationPayload>();
+            break;
+        case ClientOpcode::DcpSetVbucketState:
+            extras = getCommandSpecifics<DcpSetVBucketState>();
+            break;
+        case ClientOpcode::DcpBufferAcknowledgement:
+            extras = getCommandSpecifics<DcpBufferAckPayload>();
+            break;
+        case ClientOpcode::DcpPrepare:
+            extras = getCommandSpecifics<DcpPreparePayload>();
+            break;
+        case ClientOpcode::DcpSeqnoAcknowledged:
+            extras = getCommandSpecifics<DcpSeqnoAcknowledgedPayload>();
+            break;
+        case ClientOpcode::DcpCommit:
+            extras = getCommandSpecifics<DcpCommitPayload>();
+            break;
+        case ClientOpcode::DcpAbort:
+            extras = getCommandSpecifics<DcpAbortPayload>();
+            break;
+        case ClientOpcode::SetParam:
+            extras = getCommandSpecifics<SetParamPayload>();
+            break;
+        case ClientOpcode::GetLocked:
+            if (getExtlen() == sizeof(GetLockedPayload)) {
+                extras = getCommandSpecifics<GetLockedPayload>();
+            }
+            break;
+        case ClientOpcode::GetMeta:
+        case ClientOpcode::GetqMeta:
+            if (getExtlen() == 1) {
+                const auto& val = getExtdata().front();
+                if (val == 1) {
+                    extras["mode"] = "return conflict resolution mode";
+                } else if (val == 2) {
+                    extras["mode"] = "return datatype";
+                } else {
+                    extras["mode"] = std::to_string(int(val));
+                }
+            }
+            break;
+        case ClientOpcode::SetWithMeta:
+        case ClientOpcode::SetqWithMeta:
+        case ClientOpcode::AddWithMeta:
+        case ClientOpcode::AddqWithMeta:
+        case ClientOpcode::DelWithMeta:
+        case ClientOpcode::DelqWithMeta:
+            // @todo implement me
+            break;
+        case ClientOpcode::ReturnMeta:
+            extras = getCommandSpecifics<ReturnMetaPayload>();
+            break;
+        case ClientOpcode::CompactDb:
+            extras = getCommandSpecifics<CompactDbPayload>();
+            break;
+        case ClientOpcode::SetClusterConfig:
+            extras = getCommandSpecifics<SetClusterConfigPayload>();
+            break;
+        case ClientOpcode::GetRandomKey:
+            if (getExtlen() == sizeof(GetRandomKeyPayload)) {
+                extras = getCommandSpecifics<GetRandomKeyPayload>();
+            }
+            break;
+        case ClientOpcode::SeqnoPersistence:
+            if (getExtlen() == sizeof(uint64_t)) {
+                extras["seqno"] = std::to_string(
+                        ntohll(*reinterpret_cast<const uint64_t*>(
+                                getExtdata().data())));
+            }
+            break;
+        case ClientOpcode::GetKeys:
+            if (getExtlen() == sizeof(uint32_t)) {
+                extras["number"] = ntohl(*reinterpret_cast<const uint32_t*>(
+                        getExtdata().data()));
+            }
+            break;
+        case ClientOpcode::SubdocGet:
+        case ClientOpcode::SubdocExists:
+        case ClientOpcode::SubdocDictAdd:
+        case ClientOpcode::SubdocDictUpsert:
+        case ClientOpcode::SubdocDelete:
+        case ClientOpcode::SubdocReplace:
+        case ClientOpcode::SubdocArrayPushLast:
+        case ClientOpcode::SubdocArrayPushFirst:
+        case ClientOpcode::SubdocArrayInsert:
+        case ClientOpcode::SubdocArrayAddUnique:
+        case ClientOpcode::SubdocCounter:
+        case ClientOpcode::SubdocMultiLookup:
+        case ClientOpcode::SubdocMultiMutation:
+        case ClientOpcode::SubdocGetCount:
+        case ClientOpcode::SubdocReplaceBodyWithXattr:
+            // @todo implement me
+            break;
+
+        case ClientOpcode::RangeScanContinue:
+            extras = getCommandSpecifics<RangeScanContinuePayload>();
+            break;
+        case ClientOpcode::RangeScanCancel:
+            extras["uuid"] =
+                    ::to_string(getCommandSpecifics<cb::rangescan::Id>());
+            break;
+        case ClientOpcode::GetCmdTimer:
+            try {
+                extras["opcode"] =
+                        ::to_string(ClientOpcode(getExtdata().front()));
+            } catch (const std::exception&) {
+                extras["opcode"] = "unknown";
+            }
+            break;
+        case ClientOpcode::SetCtrlToken:
+            extras = getCommandSpecifics<SetCtrlTokenPayload>();
+            break;
+        case ClientOpcode::GetErrorMap:
+            extras = getCommandSpecifics<GetErrmapPayload>();
             break;
         }
         if (!extras.is_null()) {
             ret["extras"] = extras;
+        }
+        if (!value.is_null()) {
+            ret["value"] = std::move(value);
         }
     }
     return ret;
