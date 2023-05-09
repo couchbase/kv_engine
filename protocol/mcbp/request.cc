@@ -447,7 +447,7 @@ nlohmann::json Request::to_json(bool validated) const {
         ret["opcode"] = ::to_string(getServerOpcode());
     }
 
-    if (validated) {
+    if (validated && !getKey().empty()) {
         ret["key"] = printableString(getKey());
     }
 
