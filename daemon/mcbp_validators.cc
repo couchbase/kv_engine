@@ -2318,7 +2318,7 @@ static Status not_supported_validator(Cookie& cookie) {
 static Status create_range_scan_validator(Cookie& cookie) {
     auto& header = cookie.getHeader();
     auto status = McbpValidator::verify_header(cookie,
-                                               header.getExtlen(),
+                                               0,
                                                ExpectedKeyLen::Zero,
                                                ExpectedValueLen::Any,
                                                ExpectedCas::NotSet,
