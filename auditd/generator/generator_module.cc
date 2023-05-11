@@ -17,6 +17,7 @@
 #include <nlohmann/json.hpp>
 #include <utilities/json_utilities.h>
 #include <fstream>
+#include <iostream>
 #include <memory>
 #include <sstream>
 #include <system_error>
@@ -98,6 +99,13 @@ void Module::createHeaderFile(std::ostream& out) {
 void Module::parseEventDescriptorFile() {
     if (!is_enterprise_edition() && enterprise) {
         // enterprise files should only be loaded for enterprise builds
+        return;
+    }
+
+    if (!is_production_build() && !exists(std::filesystem::path{file})) {
+        std::cerr << "Audit: Ignoring missing file: " << file << std::endl;
+        // Ignore the missing file if this isn't a production build
+        // (one may try to build a subset of the modules)
         return;
     }
 

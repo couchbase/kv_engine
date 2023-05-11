@@ -35,6 +35,20 @@ bool is_enterprise_edition() {
     return enterprise_edition;
 }
 
+#ifdef CB_PRODUCTION_BUILD
+static bool production_build = true;
+#else
+static bool production_build = false;
+#endif
+
+bool is_production_build() {
+    return production_build;
+}
+
+void set_production_build(bool enable) {
+    production_build = enable;
+}
+
 /* Events types are defined as a hexidecimal number.
  * The event ids starts at 0x1000.
  * Each module is permitted a maximum of 4095 unique event types.

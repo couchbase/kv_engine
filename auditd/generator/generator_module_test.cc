@@ -74,6 +74,7 @@ TEST_F(ModuleListParseTest, LoadModulesNonexistingFile) {
     try {
         std::list<std::unique_ptr<Module>> modules;
         set_enterprise_edition(true);
+        set_production_build(true);
         parse_module_descriptors(json, modules, SOURCE_ROOT, OBJECT_ROOT);
         FAIL() << "did not detect non-existing file";
     } catch (const std::system_error& e) {

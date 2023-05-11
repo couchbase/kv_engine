@@ -33,6 +33,12 @@ bool is_enterprise_edition();
  */
 void set_enterprise_edition(bool enable);
 
+/// Is this production build or not
+bool is_production_build();
+
+/// For unit tests
+void set_production_build(bool enable);
+
 /**
  * Load the requested file and parse it as JSON
  *

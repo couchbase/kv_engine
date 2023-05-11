@@ -57,6 +57,10 @@ add_definitions(-DOBJECT_ROOT="${Memcached_BINARY_DIR}")
 add_definitions(-D_FILE_OFFSET_BITS=64)
 add_definitions(-DGOOGLE_GLOG_DLL_DECL=)
 
+if (CB_PRODUCTION_BUILD)
+  add_definitions(-DCB_PRODUCTION_BUILD=1)
+endif()
+
 if (WIN32)
     # 'conversion' conversion from 'type1' to 'type2', possible loss of data
     add_definitions(/wd4244)

@@ -29,23 +29,26 @@ list(APPEND AUDIT_MODULE_DEPENDENCIES auditevent_generator
         ${Memcached_SOURCE_DIR}/auditd/etc/auditd_descriptor.json
         ${Memcached_SOURCE_DIR}/etc/memcached_descriptor.json)
 
-if (COUCHBASE_KV_COMMIT_VALIDATION)
-    SET(MODULE_DESCRIPTION ${Memcached_SOURCE_DIR}/auditd/etc/kv_commit_validation_module_descriptors.json)
-else ()
-    SET(MODULE_DESCRIPTION ${Memcached_SOURCE_DIR}/auditd/etc/module_descriptors.json)
-    list(APPEND AUDIT_MODULE_DEPENDENCIES
+foreach(audit_descriptor_file
             ${CMAKE_SOURCE_DIR}/ns_server/etc/audit_descriptor.json
             ${CMAKE_SOURCE_DIR}/goproj/src/github.com/couchbase/goxdcr/etc/audit_descriptor.json
             ${CMAKE_SOURCE_DIR}/cbft/etc/audit_descriptor.json
             ${CMAKE_SOURCE_DIR}/goproj/src/github.com/couchbase/query/etc/audit_descriptor.json
             ${CMAKE_SOURCE_DIR}/couchdb/src/couch_audit/etc/audit_descriptor.json
-            ${CMAKE_SOURCE_DIR}/goproj/src/github.com/couchbase/indexing/secondary/audit/audit_descriptor.json)
-    if (BUILD_ENTERPRISE)
-        list(APPEND AUDIT_MODULE_DEPENDENCIES
-                ${CMAKE_SOURCE_DIR}/goproj/src/github.com/couchbase/eventing/audit/audit_descriptor.json
-                ${CMAKE_SOURCE_DIR}/analytics/cbas/cbas-server/src/main/resources/com/couchbase/analytics/audit/audit_descriptor.json
-                ${CMAKE_SOURCE_DIR}/cbbs/audit/audit_descriptor.json)
-    endif ()
+            ${CMAKE_SOURCE_DIR}/goproj/src/github.com/couchbase/indexing/secondary/audit/audit_descriptor.json
+            ${CMAKE_SOURCE_DIR}/goproj/src/github.com/couchbase/eventing/audit/audit_descriptor.json
+            ${CMAKE_SOURCE_DIR}/analytics/cbas/cbas-server/src/main/resources/com/couchbase/analytics/audit/audit_descriptor.json
+            ${CMAKE_SOURCE_DIR}/cbbs/audit/audit_descriptor.json)
+
+    if (EXISTS ${audit_descriptor_file})
+       list(APPEND AUDIT_MODULE_DEPENDENCIES ${audit_descriptor_file})
+    endif()
+endforeach()
+
+if (COUCHBASE_KV_COMMIT_VALIDATION)
+    SET(MODULE_DESCRIPTION ${Memcached_SOURCE_DIR}/auditd/etc/kv_commit_validation_module_descriptors.json)
+else ()
+    SET(MODULE_DESCRIPTION ${Memcached_SOURCE_DIR}/auditd/etc/module_descriptors.json)
 endif (COUCHBASE_KV_COMMIT_VALIDATION)
 
 add_custom_command(OUTPUT
