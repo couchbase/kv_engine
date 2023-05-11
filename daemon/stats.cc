@@ -182,6 +182,9 @@ static void server_bucket_stats(const BucketStatCollector& collector,
     uint64_t total_resp_errors = std::accumulate(
             std::begin(respCounters) + 1, std::end(respCounters), 0);
     collector.addStat(Key::total_resp_errors, total_resp_errors);
+
+    collector.addStat(Key::clients, bucket.clients);
+    collector.addStat(Key::items_in_transit, bucket.items_in_transit);
 }
 
 /**

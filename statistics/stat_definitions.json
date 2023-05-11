@@ -1836,6 +1836,16 @@
         "unit": "count"
     },
     {
+        "key": "clients",
+        "unit": "count",
+        "description": "The number of references to the bucket"
+    },
+    {
+        "key": "items_in_transit",
+        "unit": "count",
+        "description": "The number of items currently in transit (with a reference into the engine)"
+    },
+    {
         "key": "audit_enabled",
         "unit": "none",
         "cbstat": "enabled",
