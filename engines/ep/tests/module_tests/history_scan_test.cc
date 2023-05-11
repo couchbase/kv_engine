@@ -818,10 +818,12 @@ TEST_P(HistoryScanTest, MB_55837_incorrect_item_count) {
                      items);
 }
 
-// MB-56256. Prepare(k1), flush, Abort(k1), Prepare(k1), flush
-// If k1 was a history=false collection - we would deduplicate the abort and
-// later backfill would see Prepare(k1), Prepare(k1) - violating a replication
-// assert
+// This test was added to cover issues found in MB-56256 where commits were
+// deduplicated leaving pre(k1), pre(k1) as a DCP replicated sequence. MB-56810
+// changes DCP so that only unresolved prepares are replicated, so the
+// pre(k1), pre(k1) sequence is no longer an issue. This test no longer checks
+// for the expectations of MB-56256 but still has some value, covering CDC and
+// some durable write sequences.
 void HistoryScanTest::preparePrepare(queue_op operation) {
     setVBucketStateAndRunPersistTask(
             vbid,
@@ -839,32 +841,16 @@ void HistoryScanTest::preparePrepare(queue_op operation) {
                        0,
                        1);
 
-    // Next store k1, but using prepare/abort/prepare/commit
-    // the flusher runs so that it flushes.
-    // [prepare] [abort, prepare], [commit]
-    //
-    // Which prior to fixing meant we flush
-    // [prepare] [prepare] [commit]
-    //
-    // And later backfill of history sends prepare, prepare triggering an
-    // exception in the replica
+    // Next store k1, but using prepare/{abort|commit}/prepare/commit
     auto vb = store->getVBucket(vbid);
     auto key = StoredDocKey{"turnip", CollectionEntry::vegetable};
     store_pending_item(vbid, key, "v0");
 
     flush_vbucket_to_disk(vbid, 2);
 
-    // put an item in at seqno:3
-    items.emplace_back(make_item(vbid, key, "v0"));
-    items.back().setBySeqno(3);
-    items.back().setDataType(PROTOCOL_BINARY_RAW_BYTES);
-
     if (operation == queue_op::abort_sync_write) {
         ASSERT_EQ(cb::engine_errc::success,
                   vb->abort(key, 2, {}, vb->lockCollections(key)));
-        // tweak the item to be an abort
-        items.back().setAbortSyncWrite();
-        items.back().replaceValue({});
     } else if (operation == queue_op::commit_sync_write) {
         ASSERT_EQ(cb::engine_errc::success,
                   vb->commit(key, 2, {}, vb->lockCollections(key)));
@@ -884,8 +870,12 @@ void HistoryScanTest::preparePrepare(queue_op operation) {
     items.back().setRevSeqno(operation == queue_op::abort_sync_write ? 1 : 2);
     items.back().setDataType(PROTOCOL_BINARY_RAW_BYTES);
 
-    // Flush everything in 1 batch and check the item counts
-    flush_vbucket_to_disk(vbid, 3);
+    // Flush everything in 1 batch and check the item counts. here the flusher
+    // is deduplicating the history=false collection changes and hence 3
+    // operations are flushed as 2.
+    //  commit(k1), pre(k1), commit(k1) -> pre(k1), commit(k1)
+    //  abort(k1), pre(k1), commit(k1) -> pre(k1), commit(k1)
+    flush_vbucket_to_disk(vbid, 2);
 
     // Only 1 item
     EXPECT_EQ(1,
