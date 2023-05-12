@@ -3278,6 +3278,31 @@ TEST_P(SingleThreadedPassiveStreamTest, ConsumerHandlesSeqnoAckResponse) {
     EXPECT_TRUE(consumer->handleResponse(resp));
 }
 
+TEST_P(SingleThreadedPassiveStreamTest, InvalidMarkerVisibleSnapEndThrows) {
+    const uint64_t snapEnd = 10;
+    const uint64_t visibleSnapEnd = snapEnd + 1;
+    SnapshotMarker marker(0 /*opaque*/,
+                          vbid,
+                          1 /*snapStart*/,
+                          snapEnd,
+                          dcp_marker_flag_t::MARKER_FLAG_MEMORY,
+                          0 /*HCS*/,
+                          visibleSnapEnd,
+                          {}, // timestamp
+                          {} /*streamId*/);
+
+    try {
+        stream->processMarker(&marker);
+    } catch (const std::logic_error& e) {
+        const auto substring = "PassiveStream::processMarker: snapEnd:" +
+                               std::to_string(snapEnd) + " < visibleSnapEnd:" +
+                               std::to_string(visibleSnapEnd);
+        EXPECT_THAT(e.what(), testing::HasSubstr(substring));
+        return;
+    }
+    FAIL();
+}
+
 /**
  * @todo: Spotted invalid during the work for MB-51295.
  * The test expects that, before the related fix, it fails as some queued items

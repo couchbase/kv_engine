@@ -1190,16 +1190,16 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
 
         auto& ckptMgr = *vb->checkpointManager;
 
-        std::optional<uint64_t> hcs = marker->getHighCompletedSeqno();
-        if ((marker->getFlags() & MARKER_FLAG_DISK) &&
-            !supportsSyncReplication) {
-            // If this stream doesn't support SyncReplication (i.e. the producer
-            // is a pre-MadHatter version) then we should consider the HCS to be
-            // present but zero for disk snapshot (not possible for any
-            // SyncWrites to have completed yet). If SyncReplication is
-            // supported then use the value from the marker.
-            hcs = 0;
-        }
+        // If this stream doesn't support SyncReplication (i.e. the producer
+        // is a pre-MadHatter version) then we should consider the HCS to be
+        // present but zero for disk snapshot (not possible for any
+        // SyncWrites to have completed yet). If SyncReplication is
+        // supported then use the value from the marker.
+        const std::optional<uint64_t> hcs =
+                (marker->getFlags() & MARKER_FLAG_DISK) &&
+                                !supportsSyncReplication
+                        ? 0
+                        : marker->getHighCompletedSeqno();
 
         if (marker->getFlags() & MARKER_FLAG_DISK) {
             // A replica could receive a duplicate DCP prepare during a disk
@@ -1217,8 +1217,22 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
 
         // We could be connected to a non sync-repl, so if the max-visible is
         // not transmitted (optional is false), set visible to snap-end
-        auto visibleSeq =
+        const auto visibleSeq =
                 marker->getMaxVisibleSeqno().value_or(marker->getEndSeqno());
+
+        if (cur_snapshot_end < visibleSeq) {
+            const auto msg = fmt::format(
+                    "PassiveStream::processMarker: snapEnd:{} < "
+                    "visibleSnapEnd:{}, snapStart:{}, hcs:{}, "
+                    "checkpointType:{}, historical:{}",
+                    cur_snapshot_end,
+                    visibleSeq,
+                    cur_snapshot_start,
+                    hcs ? std::to_string(*hcs) : "nullopt",
+                    ::to_string(checkpointType),
+                    ::to_string(historical));
+            throw std::logic_error(msg);
+        }
 
         if (checkpointType == CheckpointType::InitialDisk) {
             // Case: receiving the first snapshot in a Disk snapshot.
