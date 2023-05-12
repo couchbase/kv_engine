@@ -164,17 +164,17 @@ struct thread_stats {
  */
 struct stats {
     /** The current number of connections to the server */
-    std::atomic<unsigned int> curr_conns;
+    cb::RelaxedAtomic<unsigned int> curr_conns;
 
     size_t getCurrConnections() const {
-        return curr_conns.load(std::memory_order_consume);
+        return curr_conns.load();
     }
 
     /// The number of system connections
-    std::atomic<unsigned int> system_conns;
+    cb::RelaxedAtomic<unsigned int> system_conns;
 
     size_t getSystemConnections() const {
-        return system_conns.load(std::memory_order_consume);
+        return system_conns.load();
     }
 
     size_t getUserConnections() const {

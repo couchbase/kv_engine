@@ -47,10 +47,8 @@ static void server_global_stats(const StatCollector& collector) {
             networkInterfaceManager
                     ? networkInterfaceManager->getNumberOfDaemonConnections()
                     : 0);
-    collector.addStat(Key::curr_connections,
-                      stats.curr_conns.load(std::memory_order_relaxed));
-    collector.addStat(Key::system_connections,
-                      stats.system_conns.load(std::memory_order_relaxed));
+    collector.addStat(Key::curr_connections, stats.curr_conns);
+    collector.addStat(Key::system_connections, stats.system_conns);
     collector.addStat(Key::total_connections, stats.total_conns);
     collector.addStat(Key::connection_structures, stats.conn_structs);
 

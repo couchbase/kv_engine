@@ -339,7 +339,7 @@ NetworkInterfaceManager::createInterface(
                 description.isSystem(),
                 description.isTls());
         listen_conn.emplace_back(ServerSocket::create(sfd, eventBase, inter));
-        stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
+        ++stats.curr_conns;
         ret.push_back(listen_conn.back()->to_json());
     }
 

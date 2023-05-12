@@ -215,7 +215,7 @@ void LibeventServerSocketImpl::acceptNewClient() {
         return;
     }
 
-    stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
+    ++stats.curr_conns;
     if (cb::net::set_socket_noblocking(client) == -1) {
         LOG_WARNING_RAW("Failed to make socket non-blocking. closing it");
         safe_close(client);

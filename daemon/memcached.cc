@@ -228,7 +228,7 @@ static void stats_init() {
     stats.conn_structs.reset();
     stats.total_conns.reset();
     stats.rejected_conns.reset();
-    stats.curr_conns.store(0, std::memory_order_relaxed);
+    stats.curr_conns = 0;
 }
 
 static bool prometheus_auth_callback(const std::string& user,
@@ -524,7 +524,7 @@ void safe_close(SOCKET sfd) {
             std::string error = cb_strerror();
             LOG_WARNING("Failed to close socket {} ({})!!", (int)sfd, error);
         } else {
-            stats.curr_conns.fetch_sub(1, std::memory_order_relaxed);
+            --stats.curr_conns;
         }
     }
 }
