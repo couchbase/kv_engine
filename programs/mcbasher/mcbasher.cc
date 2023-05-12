@@ -19,13 +19,14 @@
 /// result (except for the command used to authenticate the user and select
 /// the bucket to operate on)
 ///
-/// @todo Add support for TLS
+/// @todo Add support for TLS client certs / keys
 /// @todo Add support for multinode clusters
 /// @todo Add support for sending more command types
 /// @todo Improve the workload (add logic to verify results, type of which ops)
 /// @todo Add support for timings (clientside)
 /// @todo Add support for progress monitoring (#reconnects, #ops etc)
 
+#include <folly/io/async/AsyncSSLSocket.h>
 #include <folly/io/async/AsyncSocket.h>
 #include <folly/io/async/AsyncTransport.h>
 #include <folly/io/async/EventBase.h>
@@ -51,6 +52,10 @@ bool ooo = false;
 int keyspace = 100000;
 int pipelineSize = 512;
 
+/// Set to true if TLS mode is requested. We'll use the same TLS configuration
+/// on all connections we're trying to create
+bool tls = false;
+
 static void usage() {
     std::cerr << R"(Usage: mcbasher [options]
 
@@ -65,6 +70,7 @@ Options:
   --password password      The password to use for authentication
                            (use '-' to read from standard input, or
                            set the environment variable CB_PASSWORD)
+  --tls                    Use TLS
   --no-color               Disable colors
   --threads #number        The number of threads to use (default 1)
   --connections #number    The number of connections to operate on (per thread)
@@ -425,7 +431,12 @@ protected:
             if (asyncSocket) {
                 asyncSocket->closeWithReset();
             }
-            asyncSocket = folly::AsyncSocket::newSocket(&eventBase);
+            if (tls) {
+                auto ctx = std::make_shared<folly::SSLContext>();
+                asyncSocket = folly::AsyncSSLSocket::newSocket(ctx, &eventBase);
+            } else {
+                asyncSocket = folly::AsyncSocket::newSocket(&eventBase);
+            }
             asyncSocket->connect(this, address);
             asyncSocket->setReadCB(this);
             backing.clear();
@@ -499,6 +510,7 @@ int main(int argc, char** argv) {
             {"pipeline-size", required_argument, nullptr, 's'},
             {"keyspace", required_argument, nullptr, 'S'},
             {"ooo", no_argument, nullptr, 'o'},
+            {"tls=", optional_argument, nullptr, 't'},
             {"no-color", no_argument, nullptr, 'n'},
             {"help", no_argument, nullptr, 0},
             {nullptr, 0, nullptr, 0}};
@@ -538,6 +550,9 @@ int main(int argc, char** argv) {
             if (optarg) { // clang-analyzer seems to think it could be null
                 num_threads = std::atoi(optarg);
             }
+            break;
+        case 't':
+            tls = true;
             break;
         case 'C':
             if (optarg) { // clang-analyzer seems to think it could be null
