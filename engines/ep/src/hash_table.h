@@ -357,8 +357,6 @@ public:
 
         DatatypeCombo getDatatypeCounts() const;
 
-        size_t getCacheSize() const;
-
         size_t getMetaDataMemory() const;
 
         size_t getMemSize() const;
@@ -606,16 +604,9 @@ public:
     size_t getNumEjects() { return numEjects; }
 
     /**
-     * Get the total cache size of this hash table.
+     * Get the total item memory size in this hash table.
      *
      * Defined as: (StoredValue + keylen + valuelen) for all items in HT.
-     */
-    size_t getCacheSize() const {
-        return valueStats.getCacheSize();
-    }
-
-    /**
-     * Get the total item memory size in this hash table.
      */
     size_t getItemMemory() const {
         return valueStats.getMemSize();

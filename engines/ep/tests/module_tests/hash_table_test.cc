@@ -356,7 +356,6 @@ protected:
     void SetUp() override {
         global_stats.reset();
         ASSERT_EQ(0, ht.getItemMemory());
-        ASSERT_EQ(0, ht.getCacheSize());
         ASSERT_EQ(0, ht.getMetadataMemory());
         ASSERT_EQ(0, ht.getUncompressedItemMemory());
         initialSize = stats.getCurrentSize();
@@ -376,7 +375,6 @@ protected:
     void TearDown() override {
         EXPECT_EQ(0, ht.getItemMemory());
         EXPECT_EQ(0, ht.getUncompressedItemMemory());
-        EXPECT_EQ(0, ht.getCacheSize());
         EXPECT_EQ(0, ht.getMetadataMemory());
         EXPECT_EQ(initialSize, stats.getCurrentSize());
 
@@ -941,7 +939,6 @@ TEST_F(HashTableTest, CopyItem) {
     /* Record some stats before 'replace by copy' */
     auto metaDataMemBeforeCopy = ht.getMetadataMemory();
     auto datatypeCountsBeforeCopy = ht.getDatatypeCounts();
-    auto cacheSizeBeforeCopy = ht.getCacheSize();
     auto memSizeBeforeCopy = ht.getItemMemory();
     auto statsCurrSizeBeforeCopy = global_stats.getCurrentSize();
 
@@ -959,7 +956,6 @@ TEST_F(HashTableTest, CopyItem) {
     /* Stats should be equal to that before 'replaceByCopy' */
     EXPECT_EQ(metaDataMemBeforeCopy, ht.getMetadataMemory());
     EXPECT_EQ(datatypeCountsBeforeCopy, ht.getDatatypeCounts());
-    EXPECT_EQ(cacheSizeBeforeCopy, ht.getCacheSize());
     EXPECT_EQ(memSizeBeforeCopy, ht.getItemMemory());
     EXPECT_EQ(statsCurrSizeBeforeCopy, global_stats.getCurrentSize());
 }
@@ -991,7 +987,6 @@ TEST_F(HashTableTest, CopyDeletedItem) {
     /* Record some stats before 'replace by copy' */
     auto metaDataMemBeforeCopy = ht.getMetadataMemory();
     auto datatypeCountsBeforeCopy = ht.getDatatypeCounts();
-    auto cacheSizeBeforeCopy = ht.getCacheSize();
     auto memSizeBeforeCopy = ht.getItemMemory();
     auto statsCurrSizeBeforeCopy = global_stats.getCurrentSize();
 
@@ -1011,7 +1006,6 @@ TEST_F(HashTableTest, CopyDeletedItem) {
     /* Stats should be equal to that before 'replaceByCopy' */
     EXPECT_EQ(metaDataMemBeforeCopy, ht.getMetadataMemory());
     EXPECT_EQ(datatypeCountsBeforeCopy, ht.getDatatypeCounts());
-    EXPECT_EQ(cacheSizeBeforeCopy, ht.getCacheSize());
     EXPECT_EQ(memSizeBeforeCopy, ht.getItemMemory());
     EXPECT_EQ(statsCurrSizeBeforeCopy, global_stats.getCurrentSize());
 }

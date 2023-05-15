@@ -552,14 +552,11 @@ struct HashTable::Statistics::CacheLocalStatistics {
      */
     AtomicDatatypeCombo datatypeCounts = {};
 
-    //! Cache size (fixed-length fields in StoredValue + keylen +
-    //! valuelen).
-    CopyableAtomic<ssize_t> cacheSize = {};
-
     //! Meta-data size (fixed-length fields in StoredValue + keylen).
     CopyableAtomic<ssize_t> metaDataMemory = {};
 
     //! Memory consumed by items in this hashtable.
+    //! (fixed-length fields in StoredValue + keylen + valuelen).
     CopyableAtomic<ssize_t> memSize = {};
 
     /// Memory consumed if the items were uncompressed.
@@ -629,14 +626,6 @@ HashTable::DatatypeCombo HashTable::Statistics::getDatatypeCounts() const {
     return result;
 }
 
-size_t HashTable::Statistics::getCacheSize() const {
-    size_t result = 0;
-    for (const auto& stripe : llcLocal) {
-        result += stripe.cacheSize;
-    }
-    return result;
-}
-
 size_t HashTable::Statistics::getMetaDataMemory() const {
     size_t result = 0;
     for (const auto& stripe : llcLocal) {
@@ -695,7 +684,6 @@ void HashTable::Statistics::epilogue(const HashTable::HashBucketLock& hbl,
             }
         }
 
-        local.cacheSize.fetch_add(sizeDelta);
         local.memSize.fetch_add(sizeDelta);
         memChangedCallback(sizeDelta);
     }

@@ -40,7 +40,6 @@ void VBucketCountVisitor::visitBucket(VBucket& vb) {
         htMemory += vb.ht.memorySize();
         htItemMemory += vb.ht.getItemMemory();
         htUncompressedItemMemory += vb.ht.getUncompressedItemMemory();
-        htCacheSize += vb.ht.getCacheSize();
         numEjects += vb.ht.getNumEjects();
         numExpiredItems += vb.numExpiredItems;
         metaDataMemory += vb.ht.getMetadataMemory();

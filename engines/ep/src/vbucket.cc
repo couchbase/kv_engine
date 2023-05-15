@@ -3327,7 +3327,7 @@ void VBucket::_addStats(VBucketStatsDetailLevel detail,
                 ht.getUncompressedItemMemory(),
                 add_stat,
                 c);
-        addStat("ht_cache_size", ht.getCacheSize(), add_stat, c);
+        addStat("ht_cache_size", ht.getItemMemory(), add_stat, c);
         addStat("ht_size", ht.getSize(), add_stat, c);
         addStat("num_ejects", ht.getNumEjects(), add_stat, c);
         addStat("ops_create", opsCreate.load(), add_stat, c);

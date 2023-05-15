@@ -1417,8 +1417,8 @@ void KVBucket::appendAggregatedVBucketStats(
                               replica.getCheckpointMemOverheadAllocatorBytes() +
                               pending.getCheckpointMemOverheadAllocatorBytes());
     collector.addStat(Key::ep_total_cache_size,
-                      active.getCacheSize() + replica.getCacheSize() +
-                              pending.getCacheSize());
+                      active.getItemMemory() + replica.getItemMemory() +
+                              pending.getItemMemory());
     collector.addStat(Key::rollback_item_count,
                       active.getRollbackItemCount() +
                               replica.getRollbackItemCount() +

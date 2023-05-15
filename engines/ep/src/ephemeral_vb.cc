@@ -341,11 +341,11 @@ void EphemeralVBucket::updateStatsForStateChange(vbucket_state_t from,
     if (from == vbucket_state_replica && to != vbucket_state_replica) {
         // vbucket is changing state away from replica, it's memory usage
         // should no longer be accounted for as a replica.
-        stats.replicaHTMemory -= ht.getCacheSize();
+        stats.replicaHTMemory -= ht.getItemMemory();
     } else if (from != vbucket_state_replica && to == vbucket_state_replica) {
         // vbucket is changing state to _become_ a replica, it's memory usage
         // _should_ be accounted for as a replica.
-        stats.replicaHTMemory += ht.getCacheSize();
+        stats.replicaHTMemory += ht.getItemMemory();
         // It should not be possible to auto delete items on a replica vbucket,
         // so it doesn't make sense for the autoDeleteCount to be non-zero
         autoDeleteCount.reset();

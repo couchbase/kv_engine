@@ -2211,7 +2211,8 @@
     },
     {
         "key": "ep_ht_item_memory",
-        "unit": "bytes"
+        "unit": "bytes",
+        "description": "The total byte size of all items, no matter the vbucket's state, no matter if an item's value is ejected. Tracks the same value as ep_total_cache_size"
     },
     {
         "key": "ep_meta_data_memory",
@@ -2254,7 +2255,7 @@
     {
         "key": "ep_total_cache_size",
         "unit": "bytes",
-        "description": "The total byte size of all items, no matter the vbucket's state, no matter if an item's value is ejected"
+        "description": "The total byte size of all items, no matter the vbucket's state, no matter if an item's value is ejected. Tracks the same value as ep_ht_item_memory"
     },
     {
         "key": "rollback_item_count",

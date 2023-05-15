@@ -141,9 +141,6 @@ public:
     size_t getUncompressedItemMemory() const {
         return htUncompressedItemMemory;
     }
-    size_t getCacheSize() const {
-        return htCacheSize;
-    }
 
     size_t getOpsCreate() const {
         return opsCreate;
@@ -220,7 +217,6 @@ private:
     size_t htMemory{0};
     size_t htItemMemory{0};
     size_t htUncompressedItemMemory{0};
-    size_t htCacheSize{0};
     size_t numEjects{0};
     size_t numExpiredItems{0};
     size_t metaDataMemory{0};

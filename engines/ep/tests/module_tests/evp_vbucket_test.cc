@@ -70,7 +70,6 @@ TEST_P(EPVBucketTest, GetBGFetchItemsPerformance) {
 TEST_P(EPVBucketTest, SizeStatsSoftDel) {
     this->global_stats.reset();
     ASSERT_EQ(0, this->vbucket->ht.getItemMemory());
-    ASSERT_EQ(0, this->vbucket->ht.getCacheSize());
     size_t initialSize = this->global_stats.getCurrentSize();
 
     const StoredDocKey k = makeStoredDocKey("somekey");
@@ -87,7 +86,6 @@ TEST_P(EPVBucketTest, SizeStatsSoftDel) {
     this->public_deleteStoredValue(k);
 
     EXPECT_EQ(0, this->vbucket->ht.getItemMemory());
-    EXPECT_EQ(0, this->vbucket->ht.getCacheSize());
     EXPECT_EQ(initialSize, this->global_stats.getCurrentSize());
 
     cb_free(someval);
@@ -99,7 +97,6 @@ TEST_P(EPVBucketTest, SizeStatsSoftDel) {
 TEST_P(EPVBucketTest, SizeStatsSoftDelFlush) {
     this->global_stats.reset();
     ASSERT_EQ(0, this->vbucket->ht.getItemMemory());
-    ASSERT_EQ(0, this->vbucket->ht.getCacheSize());
     size_t initialSize = this->global_stats.getCurrentSize();
 
     StoredDocKey k = makeStoredDocKey("somekey");
@@ -116,7 +113,6 @@ TEST_P(EPVBucketTest, SizeStatsSoftDelFlush) {
     this->vbucket->ht.clear();
 
     EXPECT_EQ(0, this->vbucket->ht.getItemMemory());
-    EXPECT_EQ(0, this->vbucket->ht.getCacheSize());
     EXPECT_EQ(initialSize, this->global_stats.getCurrentSize());
 
     cb_free(someval);
