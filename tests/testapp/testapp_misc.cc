@@ -310,3 +310,57 @@ TEST_F(TestappTest, TuneMaxConcurrentAuth) {
     reconfigure();
     waitfor(2, 8);
 }
+
+/// Unauthenticated connections should not be able to spool packets
+/// larger than 1k
+TEST_F(TestappTest, MB56893) {
+    if (memcached_cfg.value("event_framework", "bufferevent") == "folly") {
+        GTEST_SKIP();
+    }
+    auto& conn = getConnection();
+    conn.reconnect();
+
+    Frame frame;
+    frame.payload.resize(1024 * 1024 + sizeof(cb::mcbp::Header));
+    auto* header = reinterpret_cast<cb::mcbp::Request*>(frame.payload.data());
+    header->setMagic(cb::mcbp::Magic::ClientRequest);
+    header->setOpcode(cb::mcbp::ClientOpcode::Noop);
+    header->setBodylen(1024 * 1024);
+
+    try {
+        // We don't really know how libevent will deliver the data
+        // so just let try to send 1M and read something... We should either
+        // fail in sending or receiving data.
+        conn.sendFrame(frame);
+        Frame resp;
+        conn.recvFrame(resp);
+
+        std::string message;
+        try {
+            message = to_string(resp.getResponse()->getStatus());
+        } catch (const std::exception&) {
+        }
+
+        FAIL() << "It should not be possible to send a large frame to the "
+                  "server: "
+               << message;
+    } catch (std::exception&) {
+    }
+
+    // Authenticate and try the same packet
+    conn.reconnect();
+    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
+    try {
+        // We don't really know how libevent will deliver the data
+        // so just let try to send 1M and read something... We should either
+        // fail in sending or receiving data.
+        conn.sendFrame(frame);
+        Frame resp;
+        conn.recvFrame(resp);
+        const auto* packet = resp.getResponse();
+        EXPECT_EQ(cb::mcbp::Status::Einval, packet->getStatus());
+    } catch (std::exception& exception) {
+        FAIL() << "It should be possible to send an invalid packet: "
+               << exception.what();
+    }
+}
