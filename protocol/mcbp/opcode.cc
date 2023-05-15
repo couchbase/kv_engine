@@ -616,6 +616,7 @@ bool is_reorder_supported(ClientOpcode opcode) {
     case ClientOpcode::SetBucketDataLimitExceeded:
     case ClientOpcode::SetNodeThrottleProperties:
     case ClientOpcode::RangeScanCreate:
+    case ClientOpcode::GetClusterConfig:
         return true;
 
     case ClientOpcode::Getq:
@@ -730,7 +731,6 @@ bool is_reorder_supported(ClientOpcode opcode) {
     case ClientOpcode::ReturnMeta:
     case ClientOpcode::CompactDb:
     case ClientOpcode::SetClusterConfig:
-    case ClientOpcode::GetClusterConfig:
     case ClientOpcode::GetRandomKey:
     case ClientOpcode::SeqnoPersistence:
     case ClientOpcode::GetKeys:

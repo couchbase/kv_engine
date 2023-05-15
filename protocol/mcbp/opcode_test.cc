@@ -343,7 +343,8 @@ TEST(ClientOpcode, is_reorder_supported) {
                      ClientOpcode::SetBucketThrottleProperties,
                      ClientOpcode::SetBucketDataLimitExceeded,
                      ClientOpcode::SetNodeThrottleProperties,
-                     ClientOpcode::RangeScanCreate}},
+                     ClientOpcode::RangeScanCreate,
+                     ClientOpcode::GetClusterConfig}},
                    "reorder");
 }
 
