@@ -246,6 +246,33 @@ TEST_F(EphemeralBucketStatTest, ReplicaMemoryTrackingStateChange) {
     EXPECT_EQ(0, stats.replicaCheckpointOverhead);
 }
 
+TEST_F(EphemeralBucketStatTest, AutoDeleteCountResetOnStateChange) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto key = makeStoredDocKey("item");
+    auto vbucket = store->getVBucket(vbid);
+    ASSERT(vbucket);
+    auto& vb = dynamic_cast<EphemeralVBucket&>(*vbucket);
+    store_item(vbid, key, "value");
+    {
+        folly::SharedMutex::ReadHolder rlh(vb.getStateLock());
+        auto readHandle = vb.lockCollections();
+
+        auto result = vb.ht.findForUpdate(key);
+
+        auto *storedVal = result.committed;
+        ASSERT(storedVal);
+        ASSERT_FALSE(storedVal->isDeleted());
+
+        // Page out the item (once).
+        ASSERT_TRUE(
+                vb.pageOut(rlh, readHandle, result.getHBL(), storedVal, false));
+    }
+    ASSERT_EQ(1, vb.getAutoDeleteCount());
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+    EXPECT_EQ(0, vb.getAutoDeleteCount());
+}
+
 TEST_F(EphemeralBucketStatTest, ReplicaCheckpointMemoryTracking) {
     // test that replicaCheckpointOverhead is correctly updated
     auto replicaVB = Vbid(0);

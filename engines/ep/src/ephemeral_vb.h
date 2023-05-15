@@ -281,6 +281,7 @@ public:
             CookieIface&, const cb::rangescan::ContinueParameters&) override;
     cb::engine_errc cancelRangeScan(cb::rangescan::Id, CookieIface*) override;
     cb::engine_errc doRangeScanStats(const StatCollector&) override;
+    size_t getAutoDeleteCount() const;
 
 protected:
     /* Data structure for in-memory sequential storage */
@@ -428,7 +429,10 @@ private:
     mutable std::mutex sequenceLock;
 
     /**
-     * Count of how many items have been deleted via the 'auto_delete' policy
+     * Count of how many items have been deleted via the 'auto_delete' policy.
+     * Only tracked when the vbucket is active. The autoDeleteCount is reset
+     * when a vbucket changes to replica, and auto-deletes are replicated as
+     * normal deletes.
      */
     EPStats::Counter autoDeleteCount;
 
