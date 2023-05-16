@@ -882,8 +882,6 @@ int main(int argc, char** argv) {
               << " records with a total of " << total_bytes << " ("
               << calculateThroughput(total_bytes, duration.count() / 1000)
               << ")" << std::endl;
-    std::cout << "records per/s " << records / (duration.count() / 1000)
-              << std::endl;
 
     connections.clear();
     return EXIT_SUCCESS;
