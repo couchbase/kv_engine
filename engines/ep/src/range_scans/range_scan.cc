@@ -538,7 +538,7 @@ void RangeScan::setStateCompleted() {
             throw std::runtime_error(fmt::format(
                     "RangeScan::setStateCompleted invalid state:{}", cs.state));
         case State::Continuing:
-            cs.setupForComplete(cb::engine_errc::range_scan_complete);
+            cs.setupForComplete();
             break;
         }
     });
@@ -819,10 +819,10 @@ void RangeScan::ContinueState::setupForContinuePartial(CookieIface& c) {
     cookie = &c;
 }
 
-void RangeScan::ContinueState::setupForComplete(cb::engine_errc finalStatus) {
+void RangeScan::ContinueState::setupForComplete() {
     *this = {};
     state = State::Completed;
-    this->finalStatus = finalStatus;
+    this->finalStatus = cb::engine_errc::range_scan_complete;
 }
 
 void RangeScan::ContinueState::setupForCancel(cb::engine_errc finalStatus) {

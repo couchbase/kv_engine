@@ -491,9 +491,10 @@ protected:
          * Complete only occurs once a scan has successfully reached and sent
          * the end key, any cookie/limits are now cleared. The scan will not
          * run again and will soon delete. This method changes the state to
-         * Complete and clears cookie and limits.
+         * Complete and clears cookie and limits and sets finalStatus to be
+         * range_scan_complete
          */
-        void setupForComplete(cb::engine_errc finalStatus);
+        void setupForComplete();
 
         /**
          * Cancellation can occur at any point. Whilst the scan is idle, waiting
