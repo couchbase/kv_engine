@@ -594,6 +594,11 @@ void RangeScanTest::testErrorsDuringContinue(cb::mcbp::Status error) {
         adminConnection->executeInBucket(bucketName, [](auto& connection) {
             connection.setVbucket(Vbid(0), vbucket_state_replica, {});
         });
+    } else if (error == cb::mcbp::Status::NoBucket) {
+        // Drop the B
+        adminConnection->executeInBucket(bucketName, [](auto& connection) {
+            connection.deleteBucket(bucketName);
+        });
     } else if (error == cb::mcbp::Status::UnknownCollection) {
         // Drop the collection
         manifest->remove(CollectionEntry::Entry{"RangeScanTest", collectionId});
@@ -627,6 +632,7 @@ void RangeScanTest::testErrorsDuringContinue(cb::mcbp::Status error) {
     bool scanCanContinue = true;
     do {
         userConnection->recvResponse(resp);
+
         if (resp.getStatus() == cb::mcbp::Status::NotMyVbucket) {
             EXPECT_EQ(resp.getStatus(), error);
             // Expect no keys/values attached to this error. A cluster would
@@ -698,4 +704,18 @@ TEST_P(RangeScanTest, ErrorUnknownCollection) {
 }
 TEST_P(RangeScanTest, ErrorRangeScanCancelled) {
     testErrorsDuringContinue(cb::mcbp::Status::RangeScanCancelled);
+}
+TEST_P(RangeScanTest, ErrorNoBucket) {
+    try {
+        testErrorsDuringContinue(cb::mcbp::Status::NoBucket);
+    } catch (const std::exception& e) {
+        // The delete test can trigger disconnect and a reset error
+        ASSERT_GT(strlen(e.what()), strlen("reset by peer"));
+        EXPECT_TRUE(strstr(e.what(), "reset by peer")) << e.what();
+    }
+    // Re-create the bucket for any subsequent tests
+    mcd_env->getTestBucket().setUpBucket(bucketName, "", *adminConnection);
+    rebuildUserConnection(isTlsEnabled());
+    // Delete this so that collections are re-created
+    manifest.reset();
 }

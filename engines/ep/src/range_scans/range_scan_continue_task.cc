@@ -18,7 +18,7 @@
 #include <phosphor/phosphor.h>
 
 RangeScanContinueTask::RangeScanContinueTask(EPBucket& bucket)
-    : GlobalTask(bucket.getEPEngine(), TaskId::RangeScanContinueTask, 0, false),
+    : GlobalTask(bucket.getEPEngine(), TaskId::RangeScanContinueTask),
       bucket(bucket) {
 }
 

@@ -144,6 +144,7 @@ GetValue RangeScanCacheCallback::get(
 }
 
 void RangeScanCacheCallback::callback(CacheLookup& lookup) {
+    // cancelled can be set by the client, timeout or bucket shutdown
     if (scan.isCancelled()) {
         setScanErrorStatus(cb::engine_errc::range_scan_cancelled);
         return;
