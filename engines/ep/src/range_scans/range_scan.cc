@@ -140,6 +140,19 @@ RangeScan::~RangeScan() {
             duration,
             totalKeys,
             std::string_view{valueScanStats.data(), valueScanStats.size()});
+
+    // All waiting cookies must of been notified before we destruct. This should
+    // be null as the cookie is "taken" out of the object by the I/O task.
+    if (continueRunState.cState.cookie) {
+        EP_LOG_WARN(
+                "{} destruct RangeScan {} and cookie should be null {}",
+                getVBucketId(),
+                uuid,
+                reinterpret_cast<const void*>(continueRunState.cState.cookie));
+    }
+#ifdef CB_DEVELOPMENT_ASSERTS
+    Expects(continueRunState.cState.cookie == nullptr);
+#endif
 }
 
 cb::rangescan::Id RangeScan::createScan(
@@ -354,11 +367,29 @@ cb::engine_errc RangeScan::prepareToContinueOnIOThread() {
     }
 
     Expects(continueRunState.cState.state == State::Continuing);
+    // These must both be back to false for the next I/O run
+    Expects(!continueRunState.yield);
+    Expects(!continueRunState.limitByThrottle);
     return cb::engine_errc::range_scan_more;
 }
 
 std::unique_ptr<RangeScanContinueResult>
-RangeScan::continuePartialOnFrontendThread() {
+RangeScan::continuePartialOnFrontendThread(CookieIface& client) {
+    continueState.withWLock([&client](auto& cs) {
+        switch (cs.state) {
+        case State::Idle:
+        case State::Cancelled:
+        case State::Completed:
+            throw std::runtime_error(
+                    fmt::format("RangeScan::continuePartialOnFrontendThread "
+                                "invalid state:{}",
+                                cs.state));
+        // Only permitted when already Continuing
+        case State::Continuing:
+            cs.setupForContinuePartial(client);
+            break;
+        }
+    });
     return handler->continuePartialOnFrontendThread();
 }
 
@@ -386,8 +417,13 @@ cb::engine_errc RangeScan::continueOnIOThread(KVStoreIface& kvstore) {
         // For RangeScan we have already consumed the last key, so we adjust the
         // startKey so we continue from next.
         scanCtx->ranges[0].startKey.append(0);
-        // return range_scan_more status so scan can continue
-        engineStatus = cb::engine_errc::range_scan_more;
+        // If the yield flag is set, then return success so the worker thread
+        // knows to ship the scanned data and re-run the IO task. Otherwise
+        // return range_scan_more so the work thread knows to ship the data and
+        // end the request.
+        engineStatus = continueRunState.yield
+                               ? cb::engine_errc::success
+                               : cb::engine_errc::range_scan_more;
         break;
     }
     case ScanStatus::Success:
@@ -424,10 +460,8 @@ bool RangeScan::continueIsWaiting() const {
 
 CookieIface& RangeScan::takeContinueCookie() {
     Expects(continueRunState.cState.cookie);
-    auto& rv = *continueRunState.cState.cookie;
     // The cookie must only be used once for IO notify complete
-    continueRunState.cState.cookie = nullptr;
-    return rv;
+    return *std::exchange(continueRunState.cState.cookie, nullptr);
 }
 
 bool RangeScan::isIdle() const {
@@ -452,7 +486,6 @@ void RangeScan::setStateIdle() {
         case State::Cancelled:
         case State::Completed:
         case State::Idle:
-
             throw std::runtime_error(fmt::format(
                     "RangeScan::setStateIdle invalid state:{}", cs.state));
         case State::Continuing:
@@ -781,6 +814,11 @@ void RangeScan::ContinueState::setupForContinue(
     limits.byteLimit = byteLimit;
 }
 
+void RangeScan::ContinueState::setupForContinuePartial(CookieIface& c) {
+    // Just copy the cookie for the next run of the I/O task
+    cookie = &c;
+}
+
 void RangeScan::ContinueState::setupForComplete(cb::engine_errc finalStatus) {
     *this = {};
     state = State::Completed;
@@ -794,12 +832,9 @@ void RangeScan::ContinueState::setupForCancel(cb::engine_errc finalStatus) {
 
 RangeScan::ContinueRunState::ContinueRunState() = default;
 RangeScan::ContinueRunState::ContinueRunState(const ContinueState& cs)
-    : cState(cs),
-      itemCount(0),
-      scanContinueDeadline(now() + cs.limits.timeLimit),
-      limitByThrottle(false),
-      cancelledStatus(cb::engine_errc::success),
-      manifestUid(0) {
+    // copy the ContinueState and update the deadline, all other members are
+    // default initialised as per the class definition
+    : cState(cs), scanContinueDeadline(now() + cs.limits.timeLimit) {
 }
 
 std::ostream& operator<<(std::ostream& os, const RangeScan::State& state) {

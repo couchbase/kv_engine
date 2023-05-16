@@ -2109,6 +2109,9 @@ TEST_P(RangeScanTestSimple, MB_54053) {
     // scan2 now hits an exception because after the setup thread1 continues
     // and wipes out the cookie of scan2
     scan2->continueOnIOThread(*kvs);
+
+    // need to remove the cookie for clean shutdown
+    scan1->takeContinueCookie();
 }
 
 auto valueScanConfig =

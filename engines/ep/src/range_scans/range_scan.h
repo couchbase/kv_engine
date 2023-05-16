@@ -110,11 +110,12 @@ public:
      * Frontend executor invokes this method after an IO complete notification.
      * This method only calls through to the RangeScanDataHandler function of
      * the same name.
+     * @param cookie The cookie which is waiting for the range-scan-continue
      * @return abstract RangeScanContinueResult which knows how to handle the
      *         sending and destruction of the buffered scan data.
      */
-
-    std::unique_ptr<RangeScanContinueResult> continuePartialOnFrontendThread();
+    std::unique_ptr<RangeScanContinueResult> continuePartialOnFrontendThread(
+            CookieIface& cookie);
     /**
      * Frontend executor invokes this method after an IO complete notification.
      * This method only calls through to the RangeScanDataHandler function of
@@ -478,6 +479,13 @@ protected:
                               size_t limit,
                               std::chrono::milliseconds timeLimit,
                               size_t byteLimit);
+
+        /**
+         * A scan remains in the Continue state and reschedules the I/O task.
+         * This function covers that case where no state change occurs, but the
+         * client cookie must be saved for later IO complete.
+         */
+        void setupForContinuePartial(CookieIface& c);
 
         /**
          * Complete only occurs once a scan has successfully reached and sent

@@ -174,6 +174,7 @@ public:
     struct ScanCounters {
         size_t records{0};
         size_t frames{0};
+        size_t continuesIssued{0};
     };
     ScanCounters drainScan(
             cb::rangescan::Id id,
@@ -384,6 +385,7 @@ RangeScanTest::ScanCounters RangeScanTest::drainScan(
     BinprotResponse resp;
     size_t recordsReturned = 0;
     size_t frames = 0;
+    size_t continuesIssued = 0;
 
     do {
         // Keep sending continue until we get the response with complete
@@ -394,6 +396,7 @@ RangeScanTest::ScanCounters RangeScanTest::drainScan(
                 std::chrono::milliseconds(0) /* no time limit*/,
                 0 /*no byte limit*/);
         userConnection->sendCommand(scanContinue);
+        ++continuesIssued;
 
         // Keep receiving responses until the sequence ends (!success)
         while (true) {
@@ -407,7 +410,7 @@ RangeScanTest::ScanCounters RangeScanTest::drainScan(
                 recordsReturned += drainItemResponse(resp, expectedKeySet);
             }
 
-            frames++;
+            ++frames;
             if (resp.getStatus() != cb::mcbp::Status::Success) {
                 // Stop this loop once !success is seen
                 break;
@@ -426,7 +429,7 @@ RangeScanTest::ScanCounters RangeScanTest::drainScan(
         }
     } while (resp.getStatus() != cb::mcbp::Status::RangeScanComplete);
 
-    return ScanCounters{recordsReturned, frames};
+    return ScanCounters{recordsReturned, frames, continuesIssued};
 }
 
 TEST_P(RangeScanTest, KeyOnly) {
@@ -488,7 +491,10 @@ TEST_P(RangeScanTest, ScanWithSmallBuffer) {
     // No limits on the continue but we have configured a 0 byte internal
     // buffer, so every key triggers a mcbp response (frame). There is 1 extra
     // frame that contains the complete status.
-    EXPECT_EQ(userKeys.size() + 1, drainScan(id, true, 0, userKeys).frames);
+    auto result = drainScan(id, true, 0, userKeys);
+    EXPECT_EQ(1, result.continuesIssued);
+    EXPECT_EQ(userKeys.size() + 1, result.frames);
+    EXPECT_EQ(userKeys.size(), result.records);
 }
 
 TEST_P(RangeScanTest, ExclusiveRangeStart) {

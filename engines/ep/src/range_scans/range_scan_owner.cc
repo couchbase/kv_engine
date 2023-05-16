@@ -228,8 +228,6 @@ VB::RangeScanOwner::continueScan(
     // invalid. From here on down only touch the scan object directly
     auto [uuid, scan] = *itr;
 
-    // All state transitions occur on the frontend? No because of cancel....
-    // timeout task or another F/E doing cancel...
     cb::engine_errc status = params.currentStatus;
 
     if (scan->isIdle()) {
@@ -249,7 +247,7 @@ VB::RangeScanOwner::continueScan(
             // success on the I/O complete phase means the I/O task finished
             // because the send buffer is full. The buffered data can now be
             // shipped off to the connection and then the I/O task runs again.
-            result = scan->continuePartialOnFrontendThread();
+            result = scan->continuePartialOnFrontendThread(cookie);
             status = cb::engine_errc::would_block;
             break;
         case cb::engine_errc::range_scan_more:
@@ -280,8 +278,9 @@ VB::RangeScanOwner::continueScan(
         // If scan is in the map it's Idle or Continuing (checked above) else
         // Cancelled/Complete scans are removed from the map and should not of
         // been found.
-        throw std::runtime_error(
-                fmt::format("RangeScan not in an expected state {}", *scan));
+        throw std::runtime_error(fmt::format(
+                "VB::RangeScanOwner::continueScan not in an expected state {}",
+                *scan));
     }
 
     // All statuses except more require the IO task to run, either continuing
