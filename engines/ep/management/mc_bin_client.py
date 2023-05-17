@@ -230,7 +230,7 @@ class MemcachedClient(object):
     def _sendMsg(self, cmd, key, val, opaque, extraHeader=b'', cas=0,
                  dtype=0, vbucketId=0,
                  fmt=REQ_PKT_FMT, magic=REQ_MAGIC_BYTE, collection=None):
-        if collection:
+        if collection is not None:
             key = self._encodeCollectionId(key, collection)
 
         msg=struct.pack(fmt, magic,
