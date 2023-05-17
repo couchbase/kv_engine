@@ -386,7 +386,7 @@ def size_label(s):
     suffix = sizes[int(e)]
     div = 1
     if e > 0 :
-        div = (e*1024)
+        div = 1024 ** e
     return "%.2f%s" % (s/div, suffix)
 
 def ratio_label(s):
