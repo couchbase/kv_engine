@@ -710,8 +710,13 @@ TEST_P(RangeScanTest, ErrorNoBucket) {
         testErrorsDuringContinue(cb::mcbp::Status::NoBucket);
     } catch (const std::exception& e) {
         // The delete test can trigger disconnect and a reset error
-        ASSERT_GT(strlen(e.what()), strlen("reset by peer"));
-        EXPECT_TRUE(strstr(e.what(), "reset by peer")) << e.what();
+#ifdef _WINDOWS_
+        std::string_view expectedResetString = "connection reset";
+#else
+        std::string_view expectedResetString = "reset by peer";
+#endif
+        ASSERT_GT(strlen(e.what()), expectedResetString.size());
+        EXPECT_TRUE(strstr(e.what(), expectedResetString.data())) << e.what();
     }
     // Re-create the bucket for any subsequent tests
     mcd_env->getTestBucket().setUpBucket(bucketName, "", *adminConnection);
