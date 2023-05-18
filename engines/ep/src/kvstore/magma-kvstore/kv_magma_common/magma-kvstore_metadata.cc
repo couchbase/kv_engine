@@ -225,7 +225,9 @@ void to_json(nlohmann::json& json, const MetaData& meta) {
             {"version",
              std::to_string(static_cast<uint8_t>(meta.getVersion()))},
             {"datatype", std::to_string(meta.getDatatype())},
-            {"deleted", std::to_string(meta.isDeleted())}};
+            {"deleted", std::to_string(meta.isDeleted())},
+            {"history_seconds",
+             std::to_string(meta.getHistoryTimeStamp().count())}};
 
     if (meta.getVersion() == MetaData::Version::V1) {
         if (meta.isDeleted()) {

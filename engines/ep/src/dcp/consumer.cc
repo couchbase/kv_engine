@@ -213,6 +213,15 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
 }
 
 DcpConsumer::~DcpConsumer() {
+    // Log runtime / pause information when we destruct.
+    const auto now = ep_current_time();
+    logger->info(
+            "Destroying connection. Created {} s ago. Last message received "
+            "{} s ago. {}",
+            (now - created),
+            (now - lastMessageTime),
+            getPausedDetails());
+
     cancelTask();
 }
 

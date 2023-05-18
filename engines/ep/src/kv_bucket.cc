@@ -3190,15 +3190,12 @@ void KVBucket::setHistoryRetentionBytes(size_t bytes) {
 
     const auto wasEnabled = isHistoryRetentionEnabled();
 
-    // KVStore needs to know bytes per vbucket. However for simpler small-scale
-    // or unit testing just use the bytes directly.
-    auto vbucketBytes =
-            bytes && vbMap.getSize() > bytes ? bytes / vbMap.getSize() : bytes;
-
     for (auto& i : vbMap.shards) {
         KVShard* shard = i.get();
-        shard->getRWUnderlying()->setHistoryRetentionBytes(vbucketBytes);
+        shard->getRWUnderlying()->setHistoryRetentionBytes(bytes,
+                                                           vbMap.getSize());
     }
+
     historyRetentionBytes = bytes;
 
     if (isHistoryRetentionEnabled() != wasEnabled) {

@@ -589,7 +589,7 @@ public:
      * Informs magma of how much history must be retained using
      * Magma::SetHistoryRetentionTime
      */
-    void setHistoryRetentionBytes(size_t size) override;
+    void setHistoryRetentionBytes(size_t size, size_t nVbuckets) override;
     void setHistoryRetentionSeconds(std::chrono::seconds secs) override;
     std::optional<uint64_t> getHistoryStartSeqno(Vbid vbid) override;
 

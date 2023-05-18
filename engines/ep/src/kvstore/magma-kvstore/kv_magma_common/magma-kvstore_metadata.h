@@ -14,6 +14,7 @@
 #include <platform/n_byte_integer.h>
 
 #include <nlohmann/json_fwd.hpp>
+#include <chrono>
 #include <cstring>
 
 namespace magmakv {
@@ -119,6 +120,12 @@ public:
     }
 
     bool isSyncDelete() const;
+
+    // @return the current history timestamp (which is the CAS)
+    std::chrono::seconds getHistoryTimeStamp() const {
+        using namespace std::chrono;
+        return duration_cast<seconds>(nanoseconds(getCas()));
+    }
 
     std::string to_string() const;
 

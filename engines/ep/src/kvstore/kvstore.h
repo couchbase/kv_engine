@@ -343,6 +343,9 @@ struct DBFileInfo {
     /// be considered part of the "Fragmented" count.
     uint64_t prepareBytes = 0;
 
+    /// Total size of history as reported by magma.
+    uint64_t historyDiskSize = 0;
+
     /**
      * @returns An estimate of the number of bytes which are "live" data and
      * hence are not subject to being discarded during compactionn. This
@@ -857,7 +860,7 @@ public:
      */
     void checkIfInTransaction(Vbid vbid, std::string_view caller);
 
-    void setHistoryRetentionBytes(size_t size) override {
+    void setHistoryRetentionBytes(size_t size, size_t nVbuckets) override {
         // no-op.
         // Only supported by backends which report
         // StorageProperties::HistoryRetentionAvailable::Yes

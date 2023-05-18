@@ -845,6 +845,15 @@ private:
     void processItemsInner(const std::lock_guard<std::mutex>& lg,
                            OutstandingItemsResult& outstandingItemsResult);
 
+    /**
+     * Encodes the marker flags based on the stream state and the snapshot meta
+     * information provided.
+     *
+     * @param meta Information on the snapshot being processed
+     * @return
+     */
+    uint32_t getMarkerFlags(const OutstandingItemsResult& meta) const;
+
     //! Number of times a backfill is paused.
     cb::RelaxedAtomic<uint64_t> numBackfillPauses{0};
 

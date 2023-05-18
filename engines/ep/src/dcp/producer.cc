@@ -33,6 +33,7 @@
 #include "snappy-c.h"
 #include "vbucket.h"
 #include <executor/executorpool.h>
+#include <fmt/chrono.h>
 #include <memcached/connection_iface.h>
 #include <memcached/cookie_iface.h>
 #include <nlohmann/json.hpp>
@@ -270,6 +271,23 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
 }
 
 DcpProducer::~DcpProducer() {
+    // Log runtime / pause information when we destruct.
+    const auto now = ep_current_time();
+    auto noopDescr = fmt::format("Noop enabled:{}", noopCtx.enabled);
+    if (noopCtx.enabled) {
+        noopDescr += fmt::format(
+                ", txInterval:{}, pendingRecv:{} sendTime:{} s ago, "
+                "recvTime:{} s ago.",
+                noopCtx.dcpNoopTxInterval,
+                noopCtx.pendingRecv,
+                now - noopCtx.sendTime,
+                now - noopCtx.recvTime);
+    }
+    logger->info("Destroying connection. Created {} s ago. {} {}",
+                 (now - created),
+                 noopDescr,
+                 getPausedDetails());
+
     backfillMgr.reset();
 }
 
