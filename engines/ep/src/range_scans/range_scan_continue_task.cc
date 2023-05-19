@@ -37,7 +37,7 @@ bool RangeScanContinueTask::run() {
 }
 
 void RangeScanContinueTask::continueScan(RangeScan& scan) {
-    auto status = scan.prepareToContinueOnIOThread();
+    auto status = scan.prepareToRunOnContinueTask();
     if (status == cb::engine_errc::range_scan_more) {
         status = scan.continueOnIOThread(
                 *bucket.getRWUnderlying(scan.getVBucketId()));

@@ -145,9 +145,9 @@ public:
     std::unique_ptr<RangeScanContinueResult> cancelOnFrontendThread();
 
     /**
-     * Prepare the scan ready to continue. This function performs "pre-flight"
-     * checks and sets the continueRunState. If this function
-     * returns range_scan_more - continueOnIOThread can be called
+     * Prepare this RangeScan for execution on the RangeScanContinueTask.
+     * This function performs "pre-flight" based on the RangeScan's status and
+     * returns a status code so the task can perform the correct next step.
      *
      * range_scan_more - the scan is ready to be continued
      * range_scan_complete - the scan is complete
@@ -155,7 +155,7 @@ public:
      *
      * @return range_scan_complete, range_scan_more or range_scan_cancelled
      */
-    cb::engine_errc prepareToContinueOnIOThread();
+    cb::engine_errc prepareToRunOnContinueTask();
 
     /**
      * Continue the scan on an IO task forwards until a condition is reached
@@ -298,8 +298,8 @@ public:
     /// Increment the scan's itemCount for an item read by the scan
     void incrementValueFromDisk();
 
-    /// @return true if limits have been reached
-    bool areLimitsExceeded() const;
+    /// @return true if the KVStore::scan should now yield
+    bool shouldScanYield() const;
 
     /// @return true if the current item should be skipped
     bool skipItem();
@@ -517,15 +517,113 @@ protected:
 
     /**
      * The ContinueRunState is the state used by I/O task run() loop for a
-     * RangeScan. It contains a copy of the ContinueState that defines how the
-     * continue operates, the current state (which could be continue/cancel).
-     * It adds counters for the items and bytes read and the deadline.
+     * RangeScan (which is in state continue). It contains a copy of the
+     * ContinueState that defines how the continue operates, e.g. the limits
+     * of the continue and the cookie to notify when done. This class then adds
+     * run state variables (yield flag etc...) and counters for the items/bytes
+     * that have been read.
      */
-    struct ContinueRunState {
+    class ContinueRunState {
+    public:
         ContinueRunState();
+
+        /**
+         * Copy the ContinueState into the ContinueRunState. This resets the
+         * ContinueRunState variables to their default state, e.g. isYield goes
+         * to false.
+         */
         ContinueRunState(const ContinueState& cs);
+
+        /// @return has the yield flag set to true @todo: rename
+        bool isYield() const;
+
+        /// set the yield flag to true
+        void setYield();
+
+        /// set the limitByThrottle flag to true
+        void setThrottled();
+
+        /// Update counters for an "item" of the given size
+        void accountForItem(size_t size);
+
+        /**
+         * For unknown_collection handling, set the manifest UID which declared
+         * the collection was unknown.
+         */
+        void setManifestUid(uint64_t uid);
+
+        /**
+         * For unknown_collection handling, get the manifest UID which declared
+         * the collection was unknown.
+         */
+        uint64_t getManifestUid() const;
+
+        /**
+         * Set the cancellation status, e.g. not_my_vbucket if the scanned
+         * VB is no longer active. A KVStore::scan should then itself stop with
+         * a Cancel status.
+         */
+        void setCancelledStatus(cb::engine_errc status);
+
+        /// @return the cancelled status
+        cb::engine_errc getCancelledStatus() const;
+
+        /// @return true if the client who continued the scan enabled snappy
+        bool isSnappyEnabled() const;
+
+        // @todo: delete - this method is going away in the fix for MB-56855
+        bool hasCookie() const;
+
+        // @todo: delete - this method is going away in the fix for MB-56855
+        CookieIface& takeCookie();
+
+        /// @return true if the state is Continuing
+        bool isContinuing() const;
+
+        /// @return true if the state is Cancelled
+        bool isCancelled() const;
+
+        /// @return true if the state is Completed
+        bool isCompleted() const;
+
+        /**
+         * @return true if KVStore::scan should yield because the scan has
+         *         exceeded a limit
+         */
+        bool shouldScanYield() const;
+
+        void addStats(std::string_view prefix,
+                      const StatCollector& collector) const;
+
+        /// format this into a debug usable string
+        std::string to_string() const;
+
         /// dump this to std::cerr
         void dump() const;
+
+    private:
+        /**
+         * @return true if the number of keys the scan has read exceeds the
+         *         limit specified by the client (see range-scan-continue
+         *         definition)
+         */
+        bool isItemLimitExceeded() const;
+
+        /**
+         * @return true if the scans runtime has exceeds the limit specified by
+         *         the client (see range-scan-continue definition)
+         */
+        bool isTimeLimitExceeded() const;
+
+        /**
+         * @return true if the amount of data the scan has read exceeds the
+         *         limit specified by the client (see range-scan-continue
+         *         definition)
+         */
+        bool isByteLimitExceeded() const;
+
+        // @todo: renaming of yield to be clearer around what it means
+        bool shouldYield() const;
 
         ContinueState cState;
         /// item count for the continuation of this scan

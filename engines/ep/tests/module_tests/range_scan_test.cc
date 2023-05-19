@@ -2082,7 +2082,7 @@ TEST_P(RangeScanTestSimple, MB_54053) {
         if (status == cb::engine_errc::range_scan_more) {
             scan2->setStateContinuing(
                     *cookie, 1, std::chrono::milliseconds{0}, 0);
-            scan2->prepareToContinueOnIOThread();
+            scan2->prepareToRunOnContinueTask();
         }
     };
 
@@ -2102,7 +2102,7 @@ TEST_P(RangeScanTestSimple, MB_54053) {
     scan2 = scan1;
 
     scan1->setStateContinuing(*cookie, 1, std::chrono::milliseconds{0}, 0);
-    scan1->prepareToContinueOnIOThread();
+    scan1->prepareToRunOnContinueTask();
     scan1->continueOnIOThread(*kvs);
     // scan2 (thread2) moves from idle to continue inside the callback, i.e. it
     // interleaves with scan1 executing RangeScan::handleStatus

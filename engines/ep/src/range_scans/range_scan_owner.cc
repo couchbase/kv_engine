@@ -45,7 +45,7 @@ void ReadyRangeScans::setConcurrentTaskLimit(size_t maxContinueTasksValue) {
 
 void ReadyRangeScans::addScan(EPBucket& bucket,
                               std::shared_ptr<RangeScan> scan) {
-    auto lockedQueue = rangeScans.wlock();
+    auto lockedScans = rangeScans.wlock();
 
     // RangeScan should only be queued once. It is ok for the state to change
     // whilst queued. This isn't overly critical, but prevents a
@@ -54,12 +54,12 @@ void ReadyRangeScans::addScan(EPBucket& bucket,
     if (scan->isQueued()) {
         return;
     }
-    lockedQueue->push(scan);
+    lockedScans->push(scan);
     scan->setQueued(true);
 
     auto lockedTasks = continueTasks.wlock();
     // If more scans than tasks, see if we can create a new task
-    if (lockedQueue->size() > lockedTasks->size() &&
+    if (lockedScans->size() > lockedTasks->size() &&
         lockedTasks->size() < concurrentTaskLimit) {
         // new task
         auto [itr, emplaced] =

@@ -178,7 +178,7 @@ void RangeScanCacheCallback::callback(CacheLookup& lookup) {
     if (scan.isKeyOnly()) {
         scan.handleKey(lookup.getKey().getDocKey());
 
-        if (scan.areLimitsExceeded()) {
+        if (scan.shouldScanYield()) {
             yield();
         } else {
             // call setStatus so the scan doesn't try the value lookup. This
@@ -195,7 +195,7 @@ void RangeScanCacheCallback::callback(CacheLookup& lookup) {
         gv.item->removeXattrs();
         scan.handleItem(std::move(gv.item), RangeScan::Source::Memory);
 
-        if (scan.areLimitsExceeded()) {
+        if (scan.shouldScanYield()) {
             yield();
         } else {
             // call setStatus so the scan doesn't try the value lookup. This
@@ -233,7 +233,7 @@ void RangeScanDiskCallback::callback(GetValue& val) {
     val.item->removeXattrs();
     scan.handleItem(std::move(val.item), RangeScan::Source::Disk);
 
-    if (scan.areLimitsExceeded()) {
+    if (scan.shouldScanYield()) {
         yield();
     } else {
         setStatus(cb::engine_errc::success);
