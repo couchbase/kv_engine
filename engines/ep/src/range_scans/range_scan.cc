@@ -412,11 +412,11 @@ cb::engine_errc RangeScan::continueOnIOThread(KVStoreIface& kvstore) {
         // For RangeScan we have already consumed the last key, so we adjust the
         // startKey so we continue from next.
         scanCtx->ranges[0].startKey.append(0);
-        // If the yield flag is set, then return success so the worker thread
-        // knows to ship the scanned data and re-run the IO task. Otherwise
-        // return range_scan_more so the work thread knows to ship the data and
-        // end the request.
-        engineStatus = continueRunState.isYield()
+        // If the scan stopped because and hasExceededBufferLimit is true flag,
+        // then return success so the worker thread knows to ship the scanned
+        // data and re-run the IO task. Otherwise return range_scan_more so the
+        // worker thread knows to ship the data and end the request.
+        engineStatus = continueRunState.hasExceededBufferLimit()
                                ? cb::engine_errc::success
                                : cb::engine_errc::range_scan_more;
         break;
@@ -551,8 +551,8 @@ void RangeScan::handleKey(DocKey key) {
     switch (handler->handleKey(key)) {
     case RangeScanDataHandler::Status::OK:
         break;
-    case RangeScanDataHandler::Status::Yield:
-        continueRunState.setYield();
+    case RangeScanDataHandler::Status::ExceededBufferLimit:
+        continueRunState.setExceededBufferLimit();
         break;
     case RangeScanDataHandler::Status::Throttle:
         continueRunState.setThrottled();
@@ -579,8 +579,8 @@ void RangeScan::handleItem(std::unique_ptr<Item> item, Source source) {
     switch (handler->handleItem(std::move(item))) {
     case RangeScanDataHandler::Status::OK:
         break;
-    case RangeScanDataHandler::Status::Yield:
-        continueRunState.setYield();
+    case RangeScanDataHandler::Status::ExceededBufferLimit:
+        continueRunState.setExceededBufferLimit();
         break;
     case RangeScanDataHandler::Status::Throttle:
         continueRunState.setThrottled();
@@ -808,12 +808,16 @@ RangeScan::ContinueRunState::ContinueRunState(const ContinueState& cs)
     : cState(cs), scanContinueDeadline(now() + cs.limits.timeLimit) {
 }
 
-bool RangeScan::ContinueRunState::isYield() const {
-    return yield;
+bool RangeScan::ContinueRunState::hasExceededBufferLimit() const {
+    return exceededBufferLimit;
 }
 
-void RangeScan::ContinueRunState::setYield() {
-    yield = true;
+void RangeScan::ContinueRunState::setExceededBufferLimit() {
+    exceededBufferLimit = true;
+}
+
+bool RangeScan::ContinueRunState::isThrottled() const {
+    return limitByThrottle;
 }
 
 void RangeScan::ContinueRunState::setThrottled() {
@@ -827,7 +831,7 @@ void RangeScan::ContinueRunState::accountForItem(size_t size) {
 
 bool RangeScan::ContinueRunState::shouldScanYield() const {
     return isItemLimitExceeded() || isTimeLimitExceeded() ||
-           isByteLimitExceeded() || shouldYield();
+           isByteLimitExceeded() || isThrottled() || hasExceededBufferLimit();
 }
 
 bool RangeScan::ContinueRunState::isItemLimitExceeded() const {
@@ -840,10 +844,6 @@ bool RangeScan::ContinueRunState::isTimeLimitExceeded() const {
 
 bool RangeScan::ContinueRunState::isByteLimitExceeded() const {
     return cState.limits.byteLimit && byteCount >= cState.limits.byteLimit;
-}
-
-bool RangeScan::ContinueRunState::shouldYield() const {
-    return limitByThrottle || yield;
 }
 
 void RangeScan::ContinueRunState::setManifestUid(uint64_t uid) {
@@ -901,18 +901,21 @@ void RangeScan::ContinueRunState::addStats(
     addStat("crs_item_limit", cState.limits.itemLimit);
     addStat("crs_time_limit", cState.limits.timeLimit.count());
     addStat("crs_byte_limit", cState.limits.byteLimit);
+    addStat("crs_exceeded_buffer", exceededBufferLimit);
+    addStat("crs_throttled", limitByThrottle);
 }
 
 std::string RangeScan::ContinueRunState::to_string() const {
     return fmt::format(
             "{} itemCount:{}, byteCount:{}, scanContinueDeadline:{}, "
-            "limitByThrottle:{}, yield:{}, cancelStatus:{}, manifestUid:{}",
+            "limitByThrottle:{}, exceededBufferLimit:{}, cancelStatus:{}, "
+            "manifestUid:{}",
             cState,
             itemCount,
             byteCount,
             scanContinueDeadline.time_since_epoch(),
             limitByThrottle,
-            yield,
+            exceededBufferLimit,
             cancelledStatus,
             manifestUid);
 }

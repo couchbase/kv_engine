@@ -534,11 +534,14 @@ protected:
          */
         ContinueRunState(const ContinueState& cs);
 
-        /// @return has the yield flag set to true @todo: rename
-        bool isYield() const;
+        /// @return value of exceededBufferLimit
+        bool hasExceededBufferLimit() const;
 
-        /// set the yield flag to true
-        void setYield();
+        /// set exceeded buffer limit flag to true
+        void setExceededBufferLimit();
+
+        /// @return the value of the throttle flag
+        bool isThrottled() const;
 
         /// set the limitByThrottle flag to true
         void setThrottled();
@@ -622,9 +625,6 @@ protected:
          */
         bool isByteLimitExceeded() const;
 
-        // @todo: renaming of yield to be clearer around what it means
-        bool shouldYield() const;
-
         ContinueState cState;
         /// item count for the continuation of this scan
         size_t itemCount{0};
@@ -635,7 +635,7 @@ protected:
         /// Written after each key/doc is read from cookie->checkThrottle
         bool limitByThrottle{false};
         /// The continue must just yield (must allow frontend to send)
-        bool yield{false};
+        bool exceededBufferLimit{false};
         /// If the continue is cancelled the reason is set here.
         cb::engine_errc cancelledStatus{cb::engine_errc::success};
         /// This is used when unknown_collection ends the scan

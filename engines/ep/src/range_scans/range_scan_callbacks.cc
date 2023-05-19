@@ -34,7 +34,7 @@ RangeScanDataHandler::RangeScanDataHandler(EventuallyPersistentEngine& engine,
 RangeScanDataHandler::Status RangeScanDataHandler::getScanStatus(
         size_t bufferedSize) {
     if (bufferedSize >= sendTriggerThreshold) {
-        return RangeScanDataHandler::Status::Yield;
+        return RangeScanDataHandler::Status::ExceededBufferLimit;
     }
     return RangeScanDataHandler::Status::OK;
 }
