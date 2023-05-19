@@ -144,6 +144,10 @@ public:
 
     std::unique_ptr<RangeScanContinueResult> cancelOnFrontendThread();
 
+    struct ContinueIOThreadResult {
+        cb::engine_errc status{cb::engine_errc::success};
+        CookieIface* cookie{nullptr};
+    };
     /**
      * Prepare this RangeScan for execution on the RangeScanContinueTask.
      * This function performs "pre-flight" based on the RangeScan's status and
@@ -152,10 +156,10 @@ public:
      * range_scan_more - the scan is ready to be continued
      * range_scan_complete - the scan is complete
      * range_scan_cancelled - the scan has been cancelled
-     *
-     * @return range_scan_complete, range_scan_more or range_scan_cancelled
+     * @return ContinueIOThreadResult which stores  the status and a cookie*
+     *         which if !null must be notified
      */
-    cb::engine_errc prepareToRunOnContinueTask();
+    ContinueIOThreadResult prepareToRunOnContinueTask();
 
     /**
      * Continue the scan on an IO task forwards until a condition is reached
@@ -178,16 +182,6 @@ public:
      * @param status the error status
      */
     void cancelOnIOThread(cb::engine_errc status);
-
-    /// @return if there is a continue request waiting for an IO task
-    bool continueIsWaiting() const;
-
-    /**
-     * This function can only be called once per run of the continue IO task.
-     * The internal cookie* is cleared after this call.
-     * @return the cookie that initiated the continue.
-     */
-    CookieIface& takeContinueCookie();
 
     /// @return the universally unique id of this scan (exposed to the client)
     cb::rangescan::Id getUuid() const {
@@ -525,14 +519,13 @@ protected:
      */
     class ContinueRunState {
     public:
-        ContinueRunState();
-
         /**
-         * Copy the ContinueState into the ContinueRunState. This resets the
+         * Setup ContinueRunState from the ContinueState This resets the
          * ContinueRunState variables to their default state, e.g. isYield goes
-         * to false.
+         * to false, copies in the limits, configures the deadline and finally
+         * sets the snappyEnabled flag from the Continue cookie
          */
-        ContinueRunState(const ContinueState& cs);
+        void setup(const ContinueState& cs);
 
         /// @return value of exceededBufferLimit
         bool hasExceededBufferLimit() const;
@@ -574,21 +567,6 @@ protected:
         /// @return true if the client who continued the scan enabled snappy
         bool isSnappyEnabled() const;
 
-        // @todo: delete - this method is going away in the fix for MB-56855
-        bool hasCookie() const;
-
-        // @todo: delete - this method is going away in the fix for MB-56855
-        CookieIface& takeCookie();
-
-        /// @return true if the state is Continuing
-        bool isContinuing() const;
-
-        /// @return true if the state is Cancelled
-        bool isCancelled() const;
-
-        /// @return true if the state is Completed
-        bool isCompleted() const;
-
         /**
          * @return true if KVStore::scan should yield because the scan has
          *         exceeded a limit
@@ -625,7 +603,10 @@ protected:
          */
         bool isByteLimitExceeded() const;
 
-        ContinueState cState;
+        /// The user requested limits of the continue
+        ContinueLimits limits;
+        /// true if continue client has enabled datatype snappy
+        bool snappyEnabled{false};
         /// item count for the continuation of this scan
         size_t itemCount{0};
         /// byte count for the continuation of this scan

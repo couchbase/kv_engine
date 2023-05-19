@@ -131,25 +131,28 @@ RangeScan::~RangeScan() {
                             now() - createTime)
                             .count();
 
+    auto cs = *continueState.rlock();
+
     EP_LOG_INFO(
             "{} RangeScan {} finished in {} status:{}, after {}ms, keys:{}{}",
             getVBucketId(),
             uuid,
-            continueState.rlock()->state,
-            continueState.rlock()->finalStatus,
+            cs.state,
+            cs.finalStatus,
             duration,
             totalKeys,
             std::string_view{valueScanStats.data(), valueScanStats.size()});
 
     // All waiting cookies must of been notified before we destruct. This should
     // be null as the cookie is "taken" out of the object by the I/O task.
-    if (continueRunState.hasCookie()) {
-        EP_LOG_WARN("{} destruct RangeScan {} and cookie should be null",
+    if (cs.cookie) {
+        EP_LOG_WARN("{} destruct RangeScan {} and cookie should be null {}",
                     getVBucketId(),
-                    uuid);
+                    uuid,
+                    reinterpret_cast<const void*>(cs.cookie));
     }
 #ifdef CB_DEVELOPMENT_ASSERTS
-    Expects(!continueRunState.hasCookie());
+    Expects(!cs.cookie);
 #endif
 }
 
@@ -348,24 +351,28 @@ cb::engine_errc RangeScan::hasPrivilege(
                                  start.getDocKey().getCollectionID());
 }
 
-cb::engine_errc RangeScan::prepareToRunOnContinueTask() {
-    // continue works on a copy of the state.
-    continueRunState = continueState.withWLock([](auto& cs) {
+RangeScan::ContinueIOThreadResult RangeScan::prepareToRunOnContinueTask() {
+    // Take a copy of the ContinueState and clear the cookie
+    auto cs = continueState.withWLock([](auto& cs) {
         auto state = cs;
-        cs.cookie = nullptr; // This cookie is now 'used'
+        cs.cookie = nullptr; // This cookie (if any) is now taken by the IO task
         return state;
     });
 
-    // Only attempt scan when !cancelled
-    if (continueRunState.isCancelled()) {
+    switch (cs.state) {
+    case State::Cancelled:
         cancelOnIOThread(cb::engine_errc::range_scan_cancelled);
-        return cb::engine_errc::range_scan_cancelled;
-    } else if (continueRunState.isCompleted()) {
-        return cb::engine_errc::range_scan_complete;
+    case State::Completed:
+        return {cs.finalStatus, cs.cookie};
+    case State::Continuing:
+        // setup the runstate for this continuation of the scan
+        continueRunState.setup(cs);
+        return {cb::engine_errc::range_scan_more, cs.cookie};
+    case State::Idle:
+        Expects(false);
     }
 
-    Expects(continueRunState.isContinuing());
-    return cb::engine_errc::range_scan_more;
+    folly::assume_unreachable();
 }
 
 std::unique_ptr<RangeScanContinueResult>
@@ -443,17 +450,6 @@ cb::engine_errc RangeScan::continueOnIOThread(KVStoreIface& kvstore) {
 void RangeScan::cancelOnIOThread(cb::engine_errc status) {
     // This status will get returned via notifyIOComplete
     continueRunState.setCancelledStatus(status);
-}
-
-bool RangeScan::continueIsWaiting() const {
-    // If the scan has an associated cookie, a continue is parked in EWB.
-    return continueRunState.hasCookie();
-}
-
-CookieIface& RangeScan::takeContinueCookie() {
-    Expects(continueRunState.hasCookie());
-    // The cookie must only be used once for IO notify complete
-    return continueRunState.takeCookie();
 }
 
 bool RangeScan::isIdle() const {
@@ -801,11 +797,16 @@ std::ostream& operator<<(std::ostream& os, const RangeScan::State& state) {
                         int(state)));
 }
 
-RangeScan::ContinueRunState::ContinueRunState() = default;
-RangeScan::ContinueRunState::ContinueRunState(const ContinueState& cs)
-    // copy the ContinueState and update the deadline, all other members are
-    // default initialised as per the class definition
-    : cState(cs), scanContinueDeadline(now() + cs.limits.timeLimit) {
+void RangeScan::ContinueRunState::setup(const ContinueState& cs) {
+    *this = {};
+
+    limits = cs.limits;
+    scanContinueDeadline = now() + limits.timeLimit;
+
+    // Should not be trying to setup the run state without a cookie
+    Expects(cs.cookie);
+    snappyEnabled =
+            cs.cookie->isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_SNAPPY);
 }
 
 bool RangeScan::ContinueRunState::hasExceededBufferLimit() const {
@@ -835,15 +836,15 @@ bool RangeScan::ContinueRunState::shouldScanYield() const {
 }
 
 bool RangeScan::ContinueRunState::isItemLimitExceeded() const {
-    return cState.limits.itemLimit && (itemCount >= cState.limits.itemLimit);
+    return limits.itemLimit && (itemCount >= limits.itemLimit);
 }
 
 bool RangeScan::ContinueRunState::isTimeLimitExceeded() const {
-    return cState.limits.timeLimit.count() && now() >= scanContinueDeadline;
+    return limits.timeLimit.count() && now() >= scanContinueDeadline;
 }
 
 bool RangeScan::ContinueRunState::isByteLimitExceeded() const {
-    return cState.limits.byteLimit && byteCount >= cState.limits.byteLimit;
+    return limits.byteLimit && byteCount >= limits.byteLimit;
 }
 
 void RangeScan::ContinueRunState::setManifestUid(uint64_t uid) {
@@ -863,29 +864,7 @@ cb::engine_errc RangeScan::ContinueRunState::getCancelledStatus() const {
 }
 
 bool RangeScan::ContinueRunState::isSnappyEnabled() const {
-    // A cookie must exist when in continue
-    Expects(cState.cookie);
-    return cState.cookie->isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_SNAPPY);
-}
-
-bool RangeScan::ContinueRunState::hasCookie() const {
-    return cState.cookie;
-}
-
-CookieIface& RangeScan::ContinueRunState::takeCookie() {
-    return *std::exchange(cState.cookie, nullptr);
-}
-
-bool RangeScan::ContinueRunState::isContinuing() const {
-    return cState.state == State::Continuing;
-}
-
-bool RangeScan::ContinueRunState::isCancelled() const {
-    return cState.state == State::Cancelled;
-}
-
-bool RangeScan::ContinueRunState::isCompleted() const {
-    return cState.state == State::Completed;
+    return snappyEnabled;
 }
 
 void RangeScan::ContinueRunState::addStats(
@@ -897,23 +876,23 @@ void RangeScan::ContinueRunState::addStats(
         collector.addStat(std::string_view(key.data(), key.size()), statValue);
     };
     addStat("crs_item_count", itemCount);
-    addStat("crs_cookie", cState.cookie);
-    addStat("crs_item_limit", cState.limits.itemLimit);
-    addStat("crs_time_limit", cState.limits.timeLimit.count());
-    addStat("crs_byte_limit", cState.limits.byteLimit);
+    addStat("crs_snappy", snappyEnabled);
+    addStat("crs_item_limit", limits.itemLimit);
+    addStat("crs_time_limit", limits.timeLimit.count());
+    addStat("crs_byte_limit", limits.byteLimit);
     addStat("crs_exceeded_buffer", exceededBufferLimit);
     addStat("crs_throttled", limitByThrottle);
 }
 
 std::string RangeScan::ContinueRunState::to_string() const {
     return fmt::format(
-            "{} itemCount:{}, byteCount:{}, scanContinueDeadline:{}, "
+            "itemCount:{}, byteCount:{}, scanContinueDeadline:{}, snappy:{}, "
             "limitByThrottle:{}, exceededBufferLimit:{}, cancelStatus:{}, "
             "manifestUid:{}",
-            cState,
             itemCount,
             byteCount,
             scanContinueDeadline.time_since_epoch(),
+            snappyEnabled,
             limitByThrottle,
             exceededBufferLimit,
             cancelledStatus,

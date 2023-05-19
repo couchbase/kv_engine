@@ -2102,16 +2102,22 @@ TEST_P(RangeScanTestSimple, MB_54053) {
     scan2 = scan1;
 
     scan1->setStateContinuing(*cookie, 1, std::chrono::milliseconds{0}, 0);
-    scan1->prepareToRunOnContinueTask();
+    auto result1 = scan1->prepareToRunOnContinueTask();
+    EXPECT_TRUE(result1.cookie);
+    EXPECT_EQ(result1.status, cb::engine_errc::range_scan_more);
     scan1->continueOnIOThread(*kvs);
-    // scan2 (thread2) moves from idle to continue inside the callback, i.e. it
-    // interleaves with scan1 executing RangeScan::handleStatus
-    // scan2 now hits an exception because after the setup thread1 continues
-    // and wipes out the cookie of scan2
-    scan2->continueOnIOThread(*kvs);
 
-    // need to remove the cookie for clean shutdown
-    scan1->takeContinueCookie();
+    // MB-56855: updates this test, no longer can prepare be called twice whilst
+    // the scan is in the continue state, that violates the expectations of how
+    // a single RangeScan is queued by RangeScanOwner (queued once) and how
+    // state changes are made. So cancel the scan and check the prepareToRun
+    // function.
+    scan2->setStateCancelled(cb::engine_errc::not_my_vbucket);
+    auto result2 = scan2->prepareToRunOnContinueTask();
+    EXPECT_EQ(result2.status, cb::engine_errc::not_my_vbucket);
+
+    // The cookie is null as it can only be used once
+    EXPECT_FALSE(result2.cookie);
 }
 
 auto valueScanConfig =

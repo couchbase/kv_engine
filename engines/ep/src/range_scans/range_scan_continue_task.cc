@@ -37,14 +37,13 @@ bool RangeScanContinueTask::run() {
 }
 
 void RangeScanContinueTask::continueScan(RangeScan& scan) {
-    auto status = scan.prepareToRunOnContinueTask();
-    if (status == cb::engine_errc::range_scan_more) {
-        status = scan.continueOnIOThread(
+    auto result = scan.prepareToRunOnContinueTask();
+    if (result.status == cb::engine_errc::range_scan_more) {
+        result.status = scan.continueOnIOThread(
                 *bucket.getRWUnderlying(scan.getVBucketId()));
     }
 
-    if (scan.continueIsWaiting()) {
-        bucket.getEPEngine().notifyIOComplete(scan.takeContinueCookie(),
-                                              status);
+    if (result.cookie) {
+        bucket.getEPEngine().notifyIOComplete(*result.cookie, result.status);
     }
 }

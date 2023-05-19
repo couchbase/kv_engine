@@ -47,7 +47,7 @@ public:
     enum class Status {
         OK, // Scan can continue
         Throttle, // Scan must yield because the connection is now throttled
-        ExceededBufferLimit // Scan has exceeded the buffer limit
+        ExceededBufferLimit // Scan must yield because the send buffer is full
     };
     /**
      * Callback method invoked for each key that is read from the snapshot. This
