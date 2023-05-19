@@ -1596,6 +1596,12 @@ cb::engine_errc EPBucket::getPerVBucketDiskStats(CookieIface& cookie,
                                  vbid.get());
                 add_casted_stat(
                         buf.data(), dbInfo.prepareBytes, add_stat, cookie);
+                checked_snprintf(buf.data(),
+                                 buf.size(),
+                                 "vb_%d:history_disk_size",
+                                 vbid.get());
+                add_casted_stat(
+                        buf.data(), dbInfo.historyDiskSize, add_stat, cookie);
             } catch (std::exception& error) {
                 EP_LOG_WARN(
                         "DiskStatVisitor::visitBucket: Failed to build stat: "

@@ -177,14 +177,15 @@ static bool isAbort(const Slice& keySlice, const Slice& metaSlice) {
            getDocMeta(metaSlice).isDeleted();
 }
 
-static uint64_t getCas(const Slice& metaSlice) {
-    return getDocMeta(metaSlice).getCas();
+static std::chrono::seconds getHistoryTimeStamp(const Slice& metaSlice) {
+    return getDocMeta(metaSlice).getHistoryTimeStamp();
 }
 
-static uint64_t getHistoryTimeNow() {
+static std::chrono::seconds getHistoryTimeNow() {
     // @todo: require interface changes so that we can locate the vbucket and
     // then peek at the correct HLC
-    return uint64_t(HLC::getMaskedTime());
+    using namespace std::chrono;
+    return duration_cast<seconds>(nanoseconds(HLC::getMaskedTime()));
 }
 
 } // namespace magmakv
@@ -603,7 +604,7 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     };
     configuration.magmaCfg.GetValueSize = magmakv::getValueSize;
     configuration.magmaCfg.IsTombstone = magmakv::isDeleted;
-    configuration.magmaCfg.GetHistoryTimestamp = magmakv::getCas;
+    configuration.magmaCfg.GetHistoryTimestamp = magmakv::getHistoryTimeStamp;
     configuration.magmaCfg.GetHistoryTimeNow = magmakv::getHistoryTimeNow;
     configuration.magmaCfg.EnableDirectIO =
             configuration.getMagmaEnableDirectIo();
@@ -704,6 +705,11 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     setMagmaFragmentationPercentage(
             configuration.getMagmaFragmentationPercentage());
     calculateAndSetMagmaThreads();
+
+    // MB-55533: These must be set before calling Open
+    setHistoryRetentionSeconds(configuration.getHistoryRetentionTime());
+    setHistoryRetentionBytes(configuration.getHistoryRetentionSize(),
+                             configuration.getMaxVBuckets());
 
     // Open the magma instance for this shard and populate the vbstate.
     auto status = magma->Open();
@@ -3723,12 +3729,15 @@ DBFileInfo MagmaKVStore::getDbFileInfo(Vbid vbid) {
     if (status) {
         vbinfo.spaceUsed = kvstats.ActiveDiskUsage;
         vbinfo.fileSize = kvstats.TotalDiskUsage;
+        vbinfo.historyDiskSize = kvstats.HistoryDiskUsage;
     }
     logger->debug(
-            "MagmaKVStore::getDbFileInfo {} spaceUsed:{} fileSize:{} status:{}",
+            "MagmaKVStore::getDbFileInfo {} spaceUsed:{} fileSize:{} "
+            "historyDiskSize:{} status:{}",
             vbid,
             vbinfo.spaceUsed,
             vbinfo.fileSize,
+            vbinfo.historyDiskSize,
             status.String());
     return vbinfo;
 }
@@ -3968,12 +3977,15 @@ std::pair<Status, uint64_t> MagmaKVStore::getOldestRollbackableHighSeqno(
     return {status, seqno};
 }
 
-void MagmaKVStore::setHistoryRetentionBytes(size_t size) {
-    magma->SetHistoryRetentionSize(size);
+void MagmaKVStore::setHistoryRetentionBytes(size_t bytes, size_t nVbuckets) {
+    // Need to know bytes per vbucket. However for simpler small-scale or unit
+    // testing just use the bytes directly.
+    auto vbucketBytes = bytes && nVbuckets > bytes ? bytes / nVbuckets : bytes;
+    magma->SetHistoryRetentionSize(vbucketBytes);
 }
 
 void MagmaKVStore::setHistoryRetentionSeconds(std::chrono::seconds seconds) {
-    magma->SetHistoryRetentionTime(seconds.count());
+    magma->SetHistoryRetentionTime(seconds);
 }
 
 std::optional<uint64_t> MagmaKVStore::getHistoryStartSeqno(Vbid vbid) {

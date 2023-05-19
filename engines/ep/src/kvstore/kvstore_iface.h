@@ -812,8 +812,10 @@ public:
 
     /**
      * Method to configure the amount of history a vbucket should retain.
+     * The given size comes from the cluster and is the total bucket size.
+     * The KVStore may need to calculate a per vbucket size using nVbuckets.
      */
-    virtual void setHistoryRetentionBytes(size_t size) = 0;
+    virtual void setHistoryRetentionBytes(size_t size, size_t nVbuckets) = 0;
 
     /**
      * Method to configure the history a vbucket should retain, by age.
