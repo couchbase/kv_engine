@@ -390,7 +390,7 @@ public:
                     } else {
                         auto dcpData =
                                 Collections::VB::Manifest::getCreateEventData(
-                                        {qi->getData(), qi->getNBytes()});
+                                        *qi);
                         folly::SharedMutex::ReadHolder rlh(vbR->getStateLock());
                         replica.wlock(rlh).replicaCreate(
                                 *vbR,
@@ -456,38 +456,38 @@ public:
                                 collection->collectionId(),
                                 qi->getBySeqno());
                     } else {
-                        const auto* collection = Collections::VB::Manifest::
+                        const auto& collection = Collections::VB::Manifest::
                                 getCollectionFlatbuffer(qi->getValueView());
                         cb::ExpiryLimit maxTtl;
-                        if (collection->ttlValid()) {
-                            maxTtl = std::chrono::seconds(collection->maxTtl());
+                        if (collection.ttlValid()) {
+                            maxTtl = std::chrono::seconds(collection.maxTtl());
                         }
                         folly::SharedMutex::ReadHolder rlh(vbR->getStateLock());
                         replica.wlock(rlh).replicaCreate(
                                 *vbR,
-                                Collections::ManifestUid{collection->uid()},
-                                {collection->scopeId(),
-                                 collection->collectionId()},
-                                collection->name()->str(),
+                                Collections::ManifestUid{collection.uid()},
+                                {collection.scopeId(),
+                                 collection.collectionId()},
+                                collection.name()->str(),
                                 maxTtl,
-                                Collections::getMetered(collection->metered()),
+                                Collections::getMetered(collection.metered()),
                                 getCanDeduplicateFromHistory(
-                                        collection->history()),
+                                        collection.history()),
                                 qi->getBySeqno());
                     }
                     break;
                 }
                 case SystemEvent::ModifyCollection: {
                     EXPECT_FALSE(qi->isDeleted());
-                    const auto* collection =
+                    const auto& collection =
                             Collections::VB::Manifest::getCollectionFlatbuffer(
                                     qi->getValueView());
                     folly::SharedMutex::ReadHolder rlh(vbR->getStateLock());
                     replica.wlock(rlh).replicaModifyCollection(
                             *vbR,
-                            Collections::ManifestUid{collection->uid()},
-                            collection->collectionId(),
-                            getCanDeduplicateFromHistory(collection->history()),
+                            Collections::ManifestUid{collection.uid()},
+                            collection.collectionId(),
+                            getCanDeduplicateFromHistory(collection.history()),
                             qi->getBySeqno());
                     break;
                 }

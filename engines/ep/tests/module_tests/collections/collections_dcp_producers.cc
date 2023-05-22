@@ -373,16 +373,16 @@ cb::engine_errc CollectionsDcpTestProducers::systemEventVersion2(
     switch (event) {
     case mcbp::systemevent::id::CreateCollection:
     case mcbp::systemevent::id::ModifyCollection: {
-        const auto* collection =
+        const auto& collection =
                 Collections::VB::Manifest::getCollectionFlatbuffer(eventView);
 
-        last_collection_id = collection->collectionId();
-        last_scope_id = collection->scopeId();
-        last_collection_manifest_uid = collection->uid();
+        last_collection_id = collection.collectionId();
+        last_scope_id = collection.scopeId();
+        last_collection_manifest_uid = collection.uid();
         last_key.assign(reinterpret_cast<const char*>(key.data()), key.size());
         EXPECT_NE(0, key.size());
         last_can_deduplicate =
-                getCanDeduplicateFromHistory(collection->history());
+                getCanDeduplicateFromHistory(collection.history());
         break;
     }
     case mcbp::systemevent::id::DeleteCollection: {

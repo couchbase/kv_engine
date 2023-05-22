@@ -200,8 +200,7 @@ void Flush::setManifestUid(ManifestUid in) {
 }
 
 void Flush::recordCreateCollection(const Item& item) {
-    auto createEvent = Collections::VB::Manifest::getCreateEventData(
-            {item.getData(), item.getNBytes()});
+    auto createEvent = Collections::VB::Manifest::getCreateEventData(item);
     KVStore::OpenCollection collection{uint64_t(item.getBySeqno()),
                                        createEvent.metaData};
     auto [itr, emplaced] = collections.try_emplace(
@@ -221,8 +220,7 @@ void Flush::recordCreateCollection(const Item& item) {
 void Flush::recordModifyCollection(const Item& item) {
     // Modify and Create carry the same data - all of the collection meta, hence
     // call to getCreateEventData
-    auto createEvent = Collections::VB::Manifest::getCreateEventData(
-            {item.getData(), item.getNBytes()});
+    auto createEvent = Collections::VB::Manifest::getCreateEventData(item);
     KVStore::OpenCollection collection{uint64_t(item.getBySeqno()),
                                        createEvent.metaData};
     auto [itr, emplaced] =
@@ -430,7 +428,9 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
                         builder.CreateString(
                                 Collections::DefaultCollectionIdentifier
                                         .data()),
-                        false /* default to no history*/,
+                        getHistorySetting(CollectionID::Default,
+                                          0,
+                                          getCanDeduplicateFromHistory(false)),
                         true /* metered */));
     }
 

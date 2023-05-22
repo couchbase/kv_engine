@@ -156,8 +156,7 @@ std::unique_ptr<SystemEventProducerMessage> SystemEventProducerMessage::make(
         if (!item->isDeleted()) {
             // Note: constructor is private and make_unique is a pain to make
             // friend
-            auto data = Collections::VB::Manifest::getCreateEventData(
-                    {item->getData(), item->getNBytes()});
+            auto data = Collections::VB::Manifest::getCreateEventData(*item);
             if (data.metaData.maxTtl) {
                 return std::make_unique<
                         CollectionCreateWithMaxTtlProducerMessage>(
@@ -213,11 +212,10 @@ SystemEventProducerMessage::makeWithFlatBuffersValue(
     case SystemEvent::ModifyCollection:
         if (!item->isDeleted()) {
             item->decompressValue();
-
             // Need the name for the outbound message
-            const auto* fb = Collections::VB::Manifest::getCollectionFlatbuffer(
-                    item->getValueView());
-            name = fb->name()->string_view();
+            const auto& fb =
+                    Collections::VB::Manifest::getCollectionFlatbuffer(*item);
+            name = fb.name()->string_view();
         } else {
             // Only create can be marked isDeleted
             Expects(event == SystemEvent::Collection);

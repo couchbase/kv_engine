@@ -4748,13 +4748,25 @@ TEST_P(CollectionsParameterizedTest, DefaultCollectionLegacySeqnos) {
 
     flushVBucketToDiskIfPersistent(vbid, 2);
 
-    // Demonstrate that warmup currently loses the new seqno
-    // this also fails because we need to use the new seqno in warmup to figure
-    // the correct value of the mvs
+    // Modify again, so the gap between the modify and maxLegacy widens
+    cm.update(CollectionEntry::defaultC, cb::NoExpiryLimit, true);
+    setCollections(cookie, cm);
+    validate(0, 2, 4);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Warmup will recover the maxLegacyDcpSeqno
     resetEngineAndWarmup();
 
-    // Note MVS of 3 is wrong because of issues now tracked in MB-55451
-    validate(3, 0, 3);
+    // Note MVS of 2 is wrong because of issues now tracked in MB-55451
+    validate(2, 2, 4);
+
+    // Now mutation on-top of the modify
+    store_item(vbid, StoredDocKey{"k2", CollectionID::Default}, "value");
+    validate(5, 5, 5);
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    resetEngineAndWarmup();
+    validate(5, 5, 5);
 }
 
 INSTANTIATE_TEST_SUITE_P(CollectionsExpiryLimitTests,

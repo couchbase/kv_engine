@@ -1030,21 +1030,21 @@ cb::engine_errc PassiveStream::processCreateCollection(
         // Here we will use defaults when the producer is older.
         // The vbucket is now informed of the collection and it will regenerate
         // a new FlatBuffers system event using *this* system's schema+data.
-        const auto* collection =
+        const auto& collection =
                 Collections::VB::Manifest::getCollectionFlatbuffer(
                         event.getEventData());
         cb::ExpiryLimit maxTtl;
-        if (collection->ttlValid()) {
-            maxTtl = std::chrono::seconds(collection->maxTtl());
+        if (collection.ttlValid()) {
+            maxTtl = std::chrono::seconds(collection.maxTtl());
         }
 
         vb.replicaCreateCollection(
-                Collections::ManifestUid{collection->uid()},
-                {collection->scopeId(), collection->collectionId()},
+                Collections::ManifestUid{collection.uid()},
+                {collection.scopeId(), collection.collectionId()},
                 event.getKey(),
                 maxTtl,
-                Collections::getMetered(collection->metered()),
-                getCanDeduplicateFromHistory(collection->history()),
+                Collections::getMetered(collection.metered()),
+                getCanDeduplicateFromHistory(collection.history()),
                 *event.getBySeqno());
     } catch (std::exception& e) {
         log(spdlog::level::level_enum::warn,
@@ -1060,14 +1060,14 @@ cb::engine_errc PassiveStream::processCreateCollection(
 cb::engine_errc PassiveStream::processModifyCollection(
         VBucket& vb, const SystemEventConsumerMessage& event) {
     try {
-        const auto* collection =
+        const auto& collection =
                 Collections::VB::Manifest::getCollectionFlatbuffer(
                         event.getEventData());
 
         vb.replicaModifyCollection(
-                Collections::ManifestUid{collection->uid()},
-                collection->collectionId(),
-                getCanDeduplicateFromHistory(collection->history()),
+                Collections::ManifestUid{collection.uid()},
+                collection.collectionId(),
+                getCanDeduplicateFromHistory(collection.history()),
                 *event.getBySeqno());
     } catch (std::exception& e) {
         log(spdlog::level::level_enum::warn,

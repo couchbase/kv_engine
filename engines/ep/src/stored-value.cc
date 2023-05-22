@@ -478,6 +478,12 @@ static std::string getSystemEventsValueFromStoredValue(const StoredValue& sv) {
                 "SystemEvent");
     }
 
+    // If a system event do not attempt to decode when snappy/xattr
+    if (cb::mcbp::datatype::is_xattr(sv.getDatatype()) ||
+        cb::mcbp::datatype::is_snappy(sv.getDatatype())) {
+        return "xattr/snappy";
+    }
+
     auto systemEventType =
             SystemEventFactory::getSystemEventType(sv.getKey()).first;
     std::string_view itemValue{sv.getValue()->getData(),
