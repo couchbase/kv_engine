@@ -159,11 +159,13 @@ HashTable::~HashTable() {
     clear_UNLOCKED(true);
 }
 
-void HashTable::cleanupIfTemporaryItem(const HashBucketLock& hbl,
+bool HashTable::cleanupIfTemporaryItem(const HashBucketLock& hbl,
                                        StoredValue& v) {
     if (v.isTempDeletedItem() || v.isTempNonExistentItem()) {
         unlocked_del(hbl, &v);
+        return true;
     }
+    return false;
 }
 
 void HashTable::clear(bool deactivate) {
