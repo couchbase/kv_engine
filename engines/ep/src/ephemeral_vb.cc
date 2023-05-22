@@ -1037,7 +1037,9 @@ uint64_t EphemeralVBucket::addSystemEventItem(
 
     // We don't record anything interesting for scopes
     if (cid) {
-        VBucket::doCollectionsStats(wHandle, *cid, notifyCtx);
+        wHandle.setHighSeqno(cid.value(),
+                             v->getBySeqno(),
+                             Collections::VB::HighSeqnoType::SystemEvent);
         if (item->isDeleted()) {
             stats.dropCollectionStats(*cid);
 
@@ -1101,7 +1103,11 @@ void EphemeralVBucket::doCollectionsStats(
         CollectionID collection,
         const VBNotifyCtx& notifyCtx) {
     readHandle.setHighSeqno(
-            collection, notifyCtx.bySeqno, !notifyCtx.isSyncWrite());
+            collection,
+            notifyCtx.bySeqno,
+            notifyCtx.isSyncWrite()
+                    ? Collections::VB::HighSeqnoType::PrepareAbort
+                    : Collections::VB::HighSeqnoType::Committed);
 
     if (notifyCtx.itemCountDifference == 1) {
         readHandle.incrementItemCount(collection);

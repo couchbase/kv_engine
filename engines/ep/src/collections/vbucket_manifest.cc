@@ -1263,7 +1263,7 @@ uint64_t Manifest::getHighSeqno(CollectionID collection) const {
 
 void Manifest::setHighSeqno(CollectionID collection,
                             uint64_t value,
-                            bool visible) const {
+                            HighSeqnoType type) const {
     auto itr = map.find(collection);
     if (itr == map.end()) {
         throwException<std::invalid_argument>(
@@ -1271,11 +1271,8 @@ void Manifest::setHighSeqno(CollectionID collection,
                 "failed find of collection:" + collection.to_string() +
                         " with value:" + std::to_string(value));
     }
-    itr->second.setHighSeqno(value);
 
-    if (collection == CollectionID::Default && visible) {
-        defaultCollectionMaxVisibleSeqno = value;
-    }
+    setHighSeqno(itr, value, type);
 }
 
 void Manifest::setDiskSize(CollectionID collection, size_t size) const {
@@ -1553,6 +1550,15 @@ uint64_t Manifest::getDefaultCollectionMaxVisibleSeqno() const {
     }
 
     return defaultCollectionMaxVisibleSeqno;
+}
+
+uint64_t Manifest::getDefaultCollectionMaxLegacyDCPSeqno() const {
+    if (!doesDefaultCollectionExist()) {
+        throwException<std::logic_error>(__FUNCTION__,
+                                         "did not find default collection");
+    }
+
+    return defaultCollectionMaxLegacyDCPSeqno;
 }
 
 CanDeduplicate Manifest::getCanDeduplicate(CollectionID cid) const {

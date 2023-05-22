@@ -526,6 +526,15 @@ public:
             IncludeXattrs includeXattrs,
             IncludeDeletedUserXattrs includeDeletedUserXattrs);
 
+    /**
+     * If the value has xattrs, skip them and return a view of the non-xattrs
+     *
+     * Expects the item is decompressed (to preserve const)
+     *
+     * @return a view onto the non-xattr value
+     */
+    std::string_view getValueViewWithoutXattrs() const;
+
     /// Returns if this item is a system event
     bool isSystemEvent() const {
         return op == queue_op::system_event;

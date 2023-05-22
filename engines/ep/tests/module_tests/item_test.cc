@@ -68,7 +68,6 @@ public:
 class ItemPruneTest : public ItemTest {
 public:
     void SetUp() override {
-        std::string valueData = R"({"json":"yes"})";
         std::string data = createXattrValue(valueData);
         protocol_binary_datatype_t datatype = (PROTOCOL_BINARY_DATATYPE_JSON |
                                                PROTOCOL_BINARY_DATATYPE_XATTR);
@@ -80,6 +79,8 @@ public:
                                   data.size(),
                                   datatype);
     }
+
+    std::string valueData = R"({"json":"yes"})";
 };
 
 TEST_F(ItemTest, formatSmallUncompressibleBlob_MB_54680) {
@@ -244,7 +245,6 @@ TEST_F(ItemPruneTest, testPruneNothing) {
     EXPECT_FALSE(cb::mcbp::datatype::is_raw(datatype));
 
     // data should include the value and the xattrs
-    std::string valueData = R"({"json":"yes"})";
     auto data = createXattrValue(valueData);
     EXPECT_EQ(data.size(), item->getNBytes());
     EXPECT_EQ(0, memcmp(item->getData(), data.data(), item->getNBytes()));
@@ -261,7 +261,6 @@ TEST_F(ItemPruneTest, testPruneXattrs) {
     EXPECT_FALSE(cb::mcbp::datatype::is_raw(datatype));
 
     // data should include the value but not the xattrs
-    std::string valueData = R"({"json":"yes"})";
     EXPECT_EQ(valueData.size(), item->getNBytes());
     EXPECT_EQ(0, memcmp(item->getData(), valueData.c_str(),
                          item->getNBytes()));
@@ -332,7 +331,6 @@ TEST_F(ItemPruneTest, testPruneValueAndXattrsUnderlyingDatatype) {
 }
 
 TEST_F(ItemPruneTest, testPruneValueWithNoXattrs) {
-    std::string valueData = R"({"json":"yes"})";
     auto datatype = PROTOCOL_BINARY_DATATYPE_JSON;
 
     item = make_STRCPtr<Item>(makeStoredDocKey("key"),
@@ -356,7 +354,6 @@ TEST_F(ItemPruneTest, testPruneValueWithNoXattrs) {
 }
 
 TEST_F(ItemPruneTest, testPruneValueWithNoXattrsUnderlyingDatatype) {
-    std::string valueData = R"({"json":"yes"})";
     auto datatype = PROTOCOL_BINARY_DATATYPE_JSON;
 
     item = make_STRCPtr<Item>(makeStoredDocKey("key"),
@@ -378,4 +375,11 @@ TEST_F(ItemPruneTest, testPruneValueWithNoXattrsUnderlyingDatatype) {
 
     // should not have value
     EXPECT_EQ(0, item->getNBytes());
+}
+
+TEST_F(ItemPruneTest, getValueViewWithoutXattrs) {
+    EXPECT_EQ(valueData, item->getValueViewWithoutXattrs());
+    ASSERT_TRUE(item->compressValue());
+    // cannot get a xattr view on a compressed value
+    EXPECT_THROW(item->getValueViewWithoutXattrs(), std::logic_error);
 }

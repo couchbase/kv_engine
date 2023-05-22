@@ -316,6 +316,11 @@ public:
 };
 std::ostream& operator<<(std::ostream& os, const ScopeSharedMetaData& meta);
 
+/**
+ * Mutation "type" enum used in collection high-seqno updates
+ */
+enum class HighSeqnoType { Committed, PrepareAbort, SystemEvent };
+
 } // namespace VB
 
 } // end namespace Collections

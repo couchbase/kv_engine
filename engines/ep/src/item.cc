@@ -625,6 +625,17 @@ Item::WasValueInflated Item::removeBodyAndOrXattrs(
     return wasInflated;
 }
 
+std::string_view Item::getValueViewWithoutXattrs() const {
+    auto value = getValueView();
+    Expects(!cb::mcbp::datatype::is_snappy(getDataType()));
+    if (!cb::mcbp::datatype::is_xattr(getDataType())) {
+        return value;
+    }
+
+    value.remove_prefix(cb::xattr::get_body_offset(value));
+    return value;
+}
+
 item_info to_item_info(const ItemMetaData& itemMeta,
                        uint8_t datatype,
                        uint32_t deleted) {

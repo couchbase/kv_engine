@@ -1688,10 +1688,10 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
     auto status = magma->WriteDocs(vbid.get(),
                                    writeOps,
                                    kvstoreRevList[getCacheSlot(vbid)],
+                                   historyMode,
                                    writeDocsCB,
                                    postWriteDocsCB,
-                                   std::move(compressCB),
-                                   historyMode);
+                                   std::move(compressCB));
 
     saveDocsPostWriteDocsHook();
 
@@ -2962,9 +2962,6 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
         status = magma->WriteDocs(vbid.get(),
                                   writeOps,
                                   kvstoreRevList[getCacheSlot(vbid)],
-                                  nullptr,
-                                  nullptr,
-                                  nullptr,
                                   historyMode);
         if (!status) {
             logger->critical(
@@ -3760,9 +3757,6 @@ Status MagmaKVStore::writeVBStateToDisk(Vbid vbid, const VB::Commit& meta) {
     auto status = magma->WriteDocs(vbid.get(),
                                    writeOps,
                                    kvstoreRevList[getCacheSlot(vbid)],
-                                   nullptr,
-                                   nullptr,
-                                   nullptr,
                                    toHistoryMode(meta.historical));
     if (!status) {
         ++st.numVbSetFailure;
@@ -3978,10 +3972,8 @@ std::pair<Status, uint64_t> MagmaKVStore::getOldestRollbackableHighSeqno(
 }
 
 void MagmaKVStore::setHistoryRetentionBytes(size_t bytes, size_t nVbuckets) {
-    // Need to know bytes per vbucket. However for simpler small-scale or unit
-    // testing just use the bytes directly.
-    auto vbucketBytes = bytes && nVbuckets > bytes ? bytes / nVbuckets : bytes;
-    magma->SetHistoryRetentionSize(vbucketBytes);
+    Expects(nVbuckets);
+    magma->SetHistoryRetentionSize(bytes / nVbuckets);
 }
 
 void MagmaKVStore::setHistoryRetentionSeconds(std::chrono::seconds seconds) {

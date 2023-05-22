@@ -844,6 +844,8 @@ bool CheckpointManager::queueDirty(
         // Could not queue into the current checkpoint as it already has a
         // duplicate item (and not permitted to de-dupe this item).
         if (vb.getState() != vbucket_state_active) {
+            dump();
+
             // We shouldn't see this for non-active vBuckets; given the
             // original (active) vBucket on some other node should not have
             // put duplicate mutations in the same Checkpoint.
