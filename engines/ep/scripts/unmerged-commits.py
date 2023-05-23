@@ -36,78 +36,45 @@ class bcolors:
 # newest, which is the order patches should be merged.
 #
 # There is a single sequence of branches for branches representing
-# whole release "trains" for a given project - for example kv_engine/vulcan is
-# a train of (5.5.0, 5.5.1, 5.5.2) and should be kept merged into alice
-# (6.0.0, 6.0.1, 6.0.2, ...), as new maintenance releases come along.
+# whole release "trains" for a given project - for example
+# kv_engine/7.1.x is a train of (7.1.0, 7.1.1, 7.1.2, ...) and should
+# be kept merged into neo (7.2.0, ...), as new maintenance releases
+# come along.
 #
-# However, we also have specific branches for a single release
-# (e.g. 6.5.0, 7.0.1) which are of limited lifespan - once 6.5.0 has shipped the
-# branch will not change and future fixes from say alice which need to
-# be included in 6.5.x should be merged into the release train branch
-# (e.g. mad-hatter).
+# However, we sometimes have specific branches for a single release
+# (e.g. 7.1.4) to support maintenance patches (MPs) which occur
+# concurrently alongside the next GA release - 7.1.4-MP1, 7.1.4-MP2,
+# ...
 #
-# As such, there are multiple (currently two) sequence of branches -
-# one for the main release trains and (currently) one for 6.5.0 in
-# particular.
+# As such, there are multiple sequence of branches -
+# one for the main release train and one for each set of branches for MPs.
 sequences = {
     'couchstore': [
-        [('couchbase/spock', 'couchbase/vulcan'),
-         ('couchbase/vulcan', 'couchbase/alice'),
-         ('couchbase/alice', 'couchbase/mad-hatter'),
-         ('couchbase/mad-hatter', 'couchbase/cheshire-cat'),
-         ('couchbase/cheshire-cat', 'couchbase/master')], ],
+         [('couchbase/neo', 'couchbase/master')]
+    ],
 
     'kv_engine': [
         # main kv_engine release train sequence
-        [('couchbase/watson_ep',
-          'couchbase/spock'),
-         ('couchbase/watson_mc',
-          'couchbase/spock'),
-         ('couchbase/spock',
-          'couchbase/vulcan'),
-         ('couchbase/vulcan',
-          'couchbase/alice'),
-         ('couchbase/alice',
-          'couchbase/mad-hatter'),
-         ('couchbase/mad-hatter',
-          'couchbase/cheshire-cat'),
-         ('couchbase/cheshire-cat',
-          'couchbase/neo'),
-         ('couchbase/neo',
+        [('couchbase/neo',
           'couchbase/master')],
-        # kv_engine 6.5.x release train; merging into 6.6.x ('mad-hatter') branch
-        [('couchbase/6.5.0',
-          'couchbase/6.5.1'),
-         ('couchbase/6.5.1',
-          'couchbase/6.5.2'),
-         ('couchbase/6.5.2',
-          'couchbase/mad-hatter')],
-        # kv_engine 6.6.x release train.
-        [('couchbase/6.6.0',
-          'couchbase/6.6.3'),
-         ('couchbase/6.6.3',
-          'couchbase/6.6.5'),
-         ('couchbase/6.6.5',
-          'couchbase/mad-hatter')],
-        # kv_engine 7.0.x release train; merging into cheshire-cat branch.
-        [('couchbase/7.0.0',
-          'couchbase/7.0.1'),
-         ('couchbase/7.0.1',
-          'couchbase/cheshire-cat')],
-        # kv_engine 7.1.x release train; merging into neo branch.
-        [('couchbase/cheshire-cat',
+        # kv_engine 7.1.x release train; one branch for each
+        # maintenance release which required subsequent maintenance
+        # patches, finishing in neo branch.
+        [('couchbase/7.1.3',
           'couchbase/7.1.4'),
          ('couchbase/7.1.4',
+          'couchbase/7.1.x'),
+         ('couchbase/7.1.x',
           'couchbase/neo')]
     ],
 
     'platform': [
-        [('couchbase/spock', 'couchbase/vulcan'),
-         ('couchbase/vulcan', 'couchbase/alice'),
-         ('couchbase/alice', 'couchbase/mad-hatter'),
-         ('couchbase/mad-hatter', 'couchbase/cheshire-cat'),
-         ('couchbase/cheshire-cat', 'couchbase/neo'),
-         ('couchbase/neo', 'couchbase/master')], ]
+        # main platform release train
+        [('couchbase/neo', 'couchbase/master')],
+
+        # platform 7.1.x maintenance train
+        [('couchbase/7.1.4', 'couchbase/neo')],
+    ]
 }
 
 
