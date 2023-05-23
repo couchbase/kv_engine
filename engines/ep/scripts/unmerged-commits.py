@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python3
 
 """
 Copyright 2017-Present Couchbase, Inc.
@@ -12,7 +12,7 @@ licenses/APL2.txt.
 
 # Script to show which commit(s) are not yet merged between our release branches.
 
-from __future__ import print_function
+
 import os
 import subprocess
 import sys
@@ -112,13 +112,15 @@ sequences = {
 
 
 project = os.path.basename(
-    subprocess.check_output(['git', 'rev-parse', '--show-toplevel']).strip())
+    subprocess.check_output(['git', 'rev-parse', '--show-toplevel'],
+                            text=True).strip())
 
 total_unmerged = 0
 for sequence in sequences[project]:
     for (downstream, upstream) in sequence:
         commits = subprocess.check_output(['git', 'cherry', '-v',
-                                           upstream, downstream])
+                                           upstream, downstream],
+                                          text=True)
         count = len(commits.splitlines())
         total_unmerged += count
         if count > 0:
