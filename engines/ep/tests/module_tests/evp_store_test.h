@@ -55,6 +55,14 @@ protected:
     void SetUp() override;
 
     void MB_52067(bool forceCasMismatch);
+
+    enum class CASValue { Zero, Incorrect, Correct };
+
+    /**
+     * MB-56970: test that a delWithMeta will not attempt a bgfetch
+     * for a temp non-existent item.
+     */
+    void MB_56970(CASValue casToUse);
 };
 
 /**
