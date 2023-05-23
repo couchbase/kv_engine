@@ -194,6 +194,11 @@
         "description": "Total number of items de-duplicated when queued to CheckpointManager"
     },
     {
+        "key": "ep_total_deduplicated_flusher",
+        "unit": "count",
+        "description": "Total number of items de-duplicated when flushed to disk"
+    },
+    {
         "key": "ep_expired_access",
         "unit": "count",
         "description": "Number of times an item was expired on application access."
@@ -1017,6 +1022,14 @@
         "unit": "bytes"
     },
     {
+        "key": "ep_magma_history_logical_data_size",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_magma_history_logical_disk_size",
+        "unit": "bytes"
+    },
+    {
         "key": "ep_magma_fragmentation",
         "unit": "ratio"
     },
@@ -1207,6 +1220,10 @@
         "key": "ep_db_prepare_size",
         "unit": "bytes",
         "description": "Total size of SyncWrite prepares in db files"
+    },
+    {
+        "key": "ep_db_history_file_size",
+        "unit": "bytes"
     },
 /* Timing stats */
     {

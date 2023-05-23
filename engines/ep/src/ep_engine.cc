@@ -2771,7 +2771,7 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
         const StatCollector& collector) {
     using namespace cb::stats;
     auto divide = [](double a, double b) { return b ? a / b : 0; };
-    constexpr std::array<std::string_view, 42> statNames = {
+    constexpr std::array<std::string_view, 44> statNames = {
             {"magma_NCompacts",
              "magma_NFlushes",
              "magma_NTTLCompacts",
@@ -2790,6 +2790,8 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
              "magma_NWriteBytesCompact",
              "magma_LogicalDataSize",
              "magma_LogicalDiskSize",
+             "magma_HistoryLogicalDiskSize",
+             "magma_HistoryLogicalDataSize",
              "magma_TotalDiskUsage",
              "magma_WALDiskUsage",
              "magma_BlockCacheMemUsed",
@@ -2892,12 +2894,22 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
     // Fragmentation.
     size_t logicalDataSize = 0;
     size_t logicalDiskSize = 0;
+    size_t historyDiskUsage = 0;
+    size_t historyDataSize = 0;
     if (statExists("magma_LogicalDataSize", logicalDataSize) &&
-        statExists("magma_LogicalDiskSize", logicalDiskSize)) {
+        statExists("magma_LogicalDiskSize", logicalDiskSize) &&
+        statExists("magma_HistoryLogicalDiskSize", historyDiskUsage) &&
+        statExists("magma_HistoryLogicalDataSize", historyDataSize)) {
         collector.addStat(Key::ep_magma_logical_data_size, logicalDataSize);
         collector.addStat(Key::ep_magma_logical_disk_size, logicalDiskSize);
+        collector.addStat(Key::ep_magma_history_logical_data_size,
+                          historyDataSize);
+        collector.addStat(Key::ep_magma_history_logical_disk_size,
+                          historyDiskUsage);
         double fragmentation =
-                divide(logicalDiskSize - logicalDataSize, logicalDiskSize);
+                divide((logicalDiskSize - historyDiskUsage) -
+                               (logicalDataSize - historyDataSize),
+                       logicalDiskSize - historyDiskUsage);
         collector.addStat(Key::ep_magma_fragmentation, fragmentation);
     }
 
@@ -2999,6 +3011,8 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
 
     collector.addStat(Key::ep_total_enqueued, epstats.totalEnqueued);
     collector.addStat(Key::ep_total_deduplicated, epstats.totalDeduplicated);
+    collector.addStat(Key::ep_total_deduplicated_flusher,
+                      epstats.totalDeduplicatedFlusher);
     collector.addStat(Key::ep_expired_access, epstats.expired_access);
     collector.addStat(Key::ep_expired_compactor, epstats.expired_compactor);
     collector.addStat(Key::ep_expired_pager, epstats.expired_pager);

@@ -2695,6 +2695,8 @@ TEST_P(EPBucketCDCTest, CollectionNonHistorical) {
     // KV
     const auto& manifest = vb->getManifest();
     ASSERT_EQ(0, manifest.lock(collection).getItemCount());
+    const auto& stats = engine->getEpStats();
+    ASSERT_EQ(0, stats.totalDeduplicatedFlusher);
 
     // Test + postconditions
     flush_vbucket_to_disk(vbid, 1);
@@ -2703,6 +2705,7 @@ TEST_P(EPBucketCDCTest, CollectionNonHistorical) {
     EXPECT_EQ(2, nSets);
     // KV
     EXPECT_EQ(1, manifest.lock(collection).getItemCount());
+    EXPECT_EQ(0, stats.totalDeduplicatedFlusher);
 }
 
 TEST_P(EPBucketCDCTest, CollectionHistorical) {
@@ -2736,6 +2739,8 @@ TEST_P(EPBucketCDCTest, CollectionHistorical) {
     // KV
     const auto& manifest = vb->getManifest();
     ASSERT_EQ(0, manifest.lock(collection).getItemCount());
+    const auto& stats = engine->getEpStats();
+    ASSERT_EQ(0, stats.totalDeduplicatedFlusher);
 
     // Test + postconditions
     flush_vbucket_to_disk(vbid, 2);
@@ -2744,6 +2749,7 @@ TEST_P(EPBucketCDCTest, CollectionHistorical) {
     EXPECT_EQ(3, nSets);
     // KV - Note: item count doesn't increase for historical revisions
     EXPECT_EQ(1, manifest.lock(collection).getItemCount());
+    EXPECT_EQ(0, stats.totalDeduplicatedFlusher);
 }
 
 TEST_P(EPBucketCDCTest, CollectionHistorical_RetentionDisabled_MemoryDedup) {
@@ -2814,6 +2820,8 @@ TEST_P(EPBucketCDCTest, CollectionHistorical_RetentionDisabled_FlusherDedup) {
     // KV
     const auto& manifest = vb->getManifest();
     ASSERT_EQ(0, manifest.lock(collection).getItemCount());
+    const auto& stats = engine->getEpStats();
+    ASSERT_EQ(0, stats.totalDeduplicatedFlusher);
 
     // Test + postconditions
     flush_vbucket_to_disk(vbid, 1);
@@ -2823,6 +2831,7 @@ TEST_P(EPBucketCDCTest, CollectionHistorical_RetentionDisabled_FlusherDedup) {
     EXPECT_EQ(2, nSets);
     // KV
     EXPECT_EQ(1, manifest.lock(collection).getItemCount());
+    EXPECT_EQ(1, stats.totalDeduplicatedFlusher);
 }
 
 TEST_P(EPBucketCDCTest, CollectionInterleaved) {

@@ -10,6 +10,7 @@
  */
 
 #include "collections/collections_types.h"
+#include "ep_types.h"
 #include "systemevent_factory.h"
 
 #include <fmt/ostream.h>

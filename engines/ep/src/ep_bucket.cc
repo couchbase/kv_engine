@@ -706,6 +706,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
             //     This means we only write the highest (i.e. newest)
             //     item for a given key, and discard any duplicate,
             //     older items.
+            ++stats.totalDeduplicatedFlusher;
         }
 
         // Register the item for deferred (flush success only) stats update.
@@ -1545,7 +1546,12 @@ DBFileInfo EPBucket::getAggregatedFileInfo() {
     DBFileInfo totalInfo;
 
     for (uint16_t shardId = 0; shardId < numShards; shardId++) {
-        totalInfo += getRWUnderlyingByShard(shardId)->getAggrDbFileInfo();
+        const auto dbInfo =
+                getRWUnderlyingByShard(shardId)->getAggrDbFileInfo();
+        totalInfo.spaceUsed += dbInfo.spaceUsed;
+        totalInfo.fileSize += dbInfo.fileSize;
+        totalInfo.prepareBytes += dbInfo.prepareBytes;
+        totalInfo.historyDiskSize += dbInfo.historyDiskSize;
     }
     return totalInfo;
 }
@@ -1561,6 +1567,7 @@ cb::engine_errc EPBucket::getFileStats(const BucketStatCollector& collector) {
     using namespace cb::stats;
     collector.addStat(Key::ep_db_data_size, totalInfo.getEstimatedLiveData());
     collector.addStat(Key::ep_db_file_size, totalInfo.fileSize);
+    collector.addStat(Key::ep_db_history_file_size, totalInfo.historyDiskSize);
     collector.addStat(Key::ep_db_prepare_size, totalInfo.prepareBytes);
 
     return cb::engine_errc::success;
