@@ -12,13 +12,56 @@
 #include <daemon/buckets.h>
 #include <daemon/stats.h>
 #include <fmt/format.h>
+#include <serverless/config.h>
+#include <statistics/cardinality.h>
 #include <statistics/labelled_collector.h>
+#include <statistics/prometheus_collector.h>
 #include <statistics/tests/mock/mock_stat_collector.h>
 
+/**
+ * Helper class for access to protected/private state of
+ * BucketManager.
+ *
+ * Avoids requiring a real Cookie and Connection to use
+ * certain methods (or needing to friend each test fixture class)
+ */
+class BucketManagerIntrospector {
+public:
+    static cb::engine_errc create(uint32_t cid,
+                                  const std::string name,
+                                  const std::string config,
+                                  BucketType type) {
+        return BucketManager::instance().create(cid, name, config, type);
+    }
+
+    static cb::engine_errc destroy(std::string_view cid,
+                                   const std::string name,
+                                   bool force,
+                                   std::optional<BucketType> type = {}) {
+        return BucketManager::instance().destroy(cid, name, force, type);
+    }
+};
+
+void engine_manager_shutdown();
 class BucketMeteringStatsTest : public ::testing::Test {
 protected:
+    static void SetUpTestSuite() {
+        // need to enable serverless for metering
+        cb::serverless::setEnabled(true);
+    }
+    static void TearDownTestSuite() {
+        cb::serverless::setEnabled(false);
+    }
     void SetUp() override {
-        bucket = &BucketManager::instance().at(0);
+        // create a bucket named foobar
+        BucketManagerIntrospector::create(
+                123, "foobar", "", BucketType::Memcached);
+        bucket = &BucketManager::instance().at(1);
+    }
+
+    void TearDown() override {
+        // destroy the bucket which was created for this test
+        BucketManagerIntrospector::destroy("123", "foobar", true);
     }
 
     Bucket* bucket;
@@ -89,4 +132,32 @@ TEST_F(BucketMeteringStatsTest, CollectInitialMeteringStats) {
                                              Pair("for"sv, "kv"))));
 
     bucket->addMeteringMetrics(collector.forBucket(bucketName));
+}
+
+TEST_F(BucketMeteringStatsTest, MeteringMetricsPrefixed) {
+    using namespace ::testing;
+    using namespace std::literals::string_view_literals;
+
+    std::unordered_map<std::string, prometheus::MetricFamily> metricFamilies;
+    PrometheusStatCollector collector(metricFamilies);
+
+    server_prometheus_stats(collector, cb::prometheus::MetricGroup::Low);
+
+    EXPECT_GT(metricFamilies.size(), 0);
+
+    for (const auto& expected : {"op_count_total",
+                                 "meter_ru_total",
+                                 "meter_wu_total",
+                                 "meter_cu_total",
+                                 "credit_ru_total",
+                                 "credit_wu_total",
+                                 "credit_cu_total",
+                                 "reject_count_total",
+                                 "throttle_count_total",
+                                 "throttle_seconds_total"}) {
+        // MB-56934: still expect the unprefixed versions too for now, to
+        // give users time to switch over
+        EXPECT_TRUE(metricFamilies.count(expected));
+        EXPECT_TRUE(metricFamilies.count(std::string("kv_") + expected));
+    }
 }

@@ -8,12 +8,15 @@
  *   the file licenses/APL2.txt.
  */
 
+#include <daemon/enginemap.h>
 #include <folly/portability/GTest.h>
+#include <folly/portability/Stdlib.h>
 #include <getopt.h>
 #include <logger/logger.h>
 #include <iostream>
 
 int main(int argc, char** argv) {
+    setenv("MEMCACHED_UNIT_TESTS", "true", 1);
     ::testing::InitGoogleTest(&argc, argv);
     bool verbose = false;
 
@@ -39,6 +42,11 @@ int main(int argc, char** argv) {
     }
 
     auto ret = RUN_ALL_TESTS();
+    // Ensure engines are scrubbed (memcached) and destroyed.
+    // Avoids static destruction order issues with threads
+    // attempting to deregister with Phosphor if EngineManager
+    // is allowed to be destroyed normally.
+    shutdown_all_engines();
     cb::logger::shutdown();
 
     return ret;

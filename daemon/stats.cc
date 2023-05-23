@@ -244,7 +244,12 @@ cb::engine_errc server_prometheus_stats(
             server_global_stats(kvCollector);
             stats_audit(kvCollector);
             if (cb::serverless::isEnabled()) {
-                // include all metering metrics, without the "kv_" prefix
+                // include all metering metrics, with the "kv_" prefix
+                server_prometheus_metering(kvCollector);
+                // MB-56934: Temporarily add all metering metrics
+                // again, _without_ the "kv_" prefix.
+                // This is to allow a transitional period, until consumers
+                // have moved to the prefixed version.
                 server_prometheus_metering(collector);
             }
         } else {

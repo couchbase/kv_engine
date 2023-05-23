@@ -667,4 +667,6 @@ protected:
     /// The maximum number of unassigned resources to use (updated every tick
     /// from the node capacity - all buckets reserved). See Throttling.md
     std::atomic<std::size_t> unassigned_resources_limit{0};
+
+    friend class BucketManagerIntrospector;
 };

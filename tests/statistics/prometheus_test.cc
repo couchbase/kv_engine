@@ -145,6 +145,10 @@ TEST_F(PrometheusStatTest, MeteringIncludedInHighCardinality) {
     {
         auto metrics = getMetrics();
 
+        EXPECT_THAT(metrics.low, Not(Contains(Key("boot_timestamp_seconds"))));
+        EXPECT_THAT(metrics.low,
+                    Not(Contains(Key("kv_boot_timestamp_seconds"))));
+
         EXPECT_THAT(metrics.high, Not(Contains(Key("boot_timestamp_seconds"))));
         EXPECT_THAT(metrics.high,
                     Not(Contains(Key("kv_boot_timestamp_seconds"))));
@@ -155,8 +159,14 @@ TEST_F(PrometheusStatTest, MeteringIncludedInHighCardinality) {
     {
         auto metrics = getMetrics();
 
+        // MB-56934: still expect the unprefixed versions too for now, to
+        // give users time to switch over to the prefixed version
         EXPECT_THAT(metrics.low, Contains(Key("boot_timestamp_seconds")));
-        EXPECT_THAT(metrics.low,
+        EXPECT_THAT(metrics.low, Contains(Key("kv_boot_timestamp_seconds")));
+
+        // but still not in high cardinality endpoint
+        EXPECT_THAT(metrics.high, Not(Contains(Key("boot_timestamp_seconds"))));
+        EXPECT_THAT(metrics.high,
                     Not(Contains(Key("kv_boot_timestamp_seconds"))));
     }
 }
