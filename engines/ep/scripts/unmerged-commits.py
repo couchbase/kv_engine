@@ -23,10 +23,14 @@ class bcolors:
     if sys.stdout.isatty():
         HEADER = '\033[36m'
         WARNING = '\033[33m'
+        INFO = '\033[0;34m'
+        FAINT = '\033[2m'
         ENDC = '\033[0m'
     else:
         HEADER = ''
         WARNING = ''
+        INFO = ''
+        FAINT = ''
         ENDC = ''
 
 
@@ -88,16 +92,25 @@ for sequence in sequences[project]:
         commits = subprocess.check_output(['git', 'cherry', '-v',
                                            upstream, downstream],
                                           text=True)
-        count = len(commits.splitlines())
+        commits = commits.splitlines()
+        count = len(commits)
         total_unmerged += count
         if count > 0:
-            print((bcolors.HEADER +
-                   "{} commits in '{}' not present in '{}':" +
-                   bcolors.ENDC).format(count, downstream, upstream))
-            print(commits)
+            print(f"{bcolors.HEADER}{count} commits in '{downstream}' not present in '{upstream}':{bcolors.ENDC}")
+            for commit in commits:
+                if commit[0] == '-':
+                    # Equivalent in upstream, de-emphasise
+                    color=bcolors.FAINT
+                else:
+                    color=bcolors.ENDC
+                print(f"  {color}{commit}{bcolors.ENDC}")
+            print()
 
 if total_unmerged:
-    print((bcolors.WARNING + "Total of {} commits outstanding" +
-           bcolors.ENDC).format(total_unmerged))
+    print(f"{bcolors.INFO}Commits listed in oldest to newest order.{bcolors.ENDC}")
+    print(f"{bcolors.FAINT}  '-' for commits that have an equivalent in <upstream>.{bcolors.ENDC}")
+    print("  '+' for commits that do not.")
+    print()
+    print(f"{bcolors.WARNING}Total of {total_unmerged} commits outstanding{bcolors.ENDC}")
 
 sys.exit(total_unmerged)
