@@ -1005,6 +1005,58 @@ bool Connection::executeCommandsCallback() {
     return true;
 }
 
+/// The max send buffer size we want
+#define MAX_SENDBUF_SIZE (256 * 1024 * 1024)
+
+/*
+ * Sets a socket's send buffer size to the maximum allowed by the system.
+ */
+static void maximize_sndbuf(const SOCKET sfd) {
+    static cb::RelaxedAtomic<int> hint{0};
+
+    if (hint != 0) {
+        int value = hint;
+        if (cb::net::setsockopt(
+                    sfd, SOL_SOCKET, SO_SNDBUF, &value, sizeof(value)) == -1) {
+            LOG_WARNING("{} Failed to set socket send buffer to {}: {}",
+                        sfd,
+                        value,
+                        cb_strerror(cb::net::get_socket_error()));
+        }
+
+        return;
+    }
+
+    socklen_t intsize = sizeof(int);
+    int last_good = 0;
+    int old_size;
+
+    /* Start with the default size. */
+    if (cb::net::getsockopt(sfd, SOL_SOCKET, SO_SNDBUF, &old_size, &intsize) !=
+        0) {
+        LOG_WARNING("getsockopt(SO_SNDBUF): {}", strerror(errno));
+        return;
+    }
+
+    /* Binary-search for the real maximum. */
+    int min = old_size;
+    int max = MAX_SENDBUF_SIZE;
+
+    while (min <= max) {
+        int avg = ((unsigned int)(min + max)) / 2;
+        if (cb::net::setsockopt(sfd, SOL_SOCKET, SO_SNDBUF, &avg, intsize) ==
+            0) {
+            last_good = avg;
+            min = avg + 1;
+        } else {
+            max = avg - 1;
+        }
+    }
+
+    LOG_DEBUG("<{} send buffer was {}, now {}", sfd, old_size, last_good);
+    hint = last_good;
+}
+
 void Connection::setAuthenticated(bool authenticated_,
                                   bool internal_,
                                   cb::rbac::UserIdent ui) {
@@ -1012,6 +1064,7 @@ void Connection::setAuthenticated(bool authenticated_,
     internal = internal_;
     user = std::move(ui);
     if (authenticated_) {
+        maximize_sndbuf(socketDescriptor);
         updateDescription();
         droppedPrivileges.reset();
         privilegeContext = cb::rbac::createContext(user, "");

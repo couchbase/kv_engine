@@ -210,41 +210,6 @@ void NetworkInterfaceManager::writeInterfaceFile(bool terminate) {
     }
 }
 
-/// The max send buffer size we want
-#define MAX_SENDBUF_SIZE (256 * 1024 * 1024)
-
-/*
- * Sets a socket's send buffer size to the maximum allowed by the system.
- */
-static void maximize_sndbuf(const SOCKET sfd) {
-    socklen_t intsize = sizeof(int);
-    int last_good = 0;
-    int old_size;
-
-    /* Start with the default size. */
-    if (cb::net::getsockopt(sfd, SOL_SOCKET, SO_SNDBUF, &old_size, &intsize) !=
-        0) {
-        LOG_WARNING("getsockopt(SO_SNDBUF): {}", strerror(errno));
-        return;
-    }
-
-    /* Binary-search for the real maximum. */
-    int min = old_size;
-    int max = MAX_SENDBUF_SIZE;
-
-    while (min <= max) {
-        int avg = ((unsigned int)(min + max)) / 2;
-        if (cb::net::setsockopt(sfd, SOL_SOCKET, SO_SNDBUF, &avg, intsize) ==
-            0) {
-            last_good = avg;
-            min = avg + 1;
-        } else {
-            max = avg - 1;
-        }
-    }
-
-    LOG_DEBUG("<{} send buffer was {}, now {}", sfd, old_size, last_good);
-}
 
 static SOCKET new_server_socket(struct addrinfo* ai) {
     auto sfd = cb::net::socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
@@ -256,8 +221,6 @@ static SOCKET new_server_socket(struct addrinfo* ai) {
         safe_close(sfd);
         return INVALID_SOCKET;
     }
-
-    maximize_sndbuf(sfd);
 
     const struct linger ling = {0, 0};
     const int flags = 1;
