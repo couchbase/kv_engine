@@ -434,6 +434,24 @@ size_t EPVBucket::getNumSystemItems() const {
     return 0;
 }
 
+uint64_t EPVBucket::getHistoryDiskSize() {
+    if (isBucketCreation()) {
+        // If creation is true then no disk file exists
+        return 0;
+    }
+    try {
+        return shard->getRWUnderlying()->getDbFileInfo(getId()).historyDiskSize;
+    } catch (std::runtime_error& error) {
+        EP_LOG_WARN(
+                "EPVBucket::getHistoryDiskSize: Exception caught during "
+                "getDbFileInfo "
+                "for {} - what(): {}",
+                getId(),
+                error.what());
+        return 0;
+    }
+}
+
 cb::engine_errc EPVBucket::statsVKey(const DocKey& key,
                                      CookieIface* cookie,
                                      EventuallyPersistentEngine& engine) {

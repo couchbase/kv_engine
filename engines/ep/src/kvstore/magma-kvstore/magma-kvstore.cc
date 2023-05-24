@@ -3605,10 +3605,20 @@ GetStatsMap MagmaKVStore::getStats(
     fill("magma_BloomFilterMemoryQuota", magmaStats->BloomFilterMemoryQuota);
     fill("magma_WriteCacheQuota", magmaStats->WriteCacheQuota);
     fill("magma_NCompacts", magmaStats->NCompacts);
+    fill("magma_KeyIndex_NCompacts", magmaStats->KeyStats.NCompacts);
+    fill("magma_SeqIndex_NCompacts", magmaStats->SeqStats.NCompacts);
     fill("magma_NFlushes", magmaStats->NFlushes);
     fill("magma_NTTLCompacts", magmaStats->NTTLCompacts);
     fill("magma_NFileCountCompacts", magmaStats->NFileCountCompacts);
+    fill("magma_KeyIndex_NFileCountCompacts",
+         magmaStats->KeyStats.NFileCountCompacts);
+    fill("magma_SeqIndex_NFileCountCompacts",
+         magmaStats->SeqStats.NFileCountCompacts);
     fill("magma_NWriterCompacts", magmaStats->NWriterCompacts);
+    fill("magma_KeyIndex_NWriterCompacts",
+         magmaStats->KeyStats.NWriterCompacts);
+    fill("magma_SeqIndex_NWriterCompacts",
+         magmaStats->SeqStats.NWriterCompacts);
     fill("magma_BytesOutgoing", magmaStats->BytesOutgoing);
     fill("magma_NReadBytes", magmaStats->NReadBytes);
     fill("magma_NReadBytesGet", magmaStats->NReadBytesGet);
@@ -3625,6 +3635,8 @@ GetStatsMap MagmaKVStore::getStats(
     fill("magma_HistoryLogicalDiskSize", magmaStats->HistoryLogicalDiskSize);
     fill("magma_HistoryLogicalDataSize", magmaStats->HistoryLogicalDataSize);
     fill("magma_TotalDiskUsage", magmaStats->TotalDiskUsage);
+    fill("magma_CheckpointOverhead", magmaStats->CheckpointOverhead);
+    fill("magma_ActiveDiskUsage", magmaStats->ActiveDiskUsage);
     fill("magma_WALDiskUsage", magmaStats->WalStats.DiskUsed);
     fill("magma_BlockCacheMemUsed", magmaStats->BlockCacheMemUsed);
     fill("magma_KeyIndexSize", magmaStats->KeyStats.LogicalDataSize);

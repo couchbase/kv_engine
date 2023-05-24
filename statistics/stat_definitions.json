@@ -942,6 +942,14 @@
         "unit": "count"
     },
     {
+        "key": "ep_magma_keyindex_compactions",
+        "unit": "count"
+    },
+    {
+        "key": "ep_magma_seqindex_compactions",
+        "unit": "count"
+    },
+    {
         "key": "ep_magma_flushes",
         "unit": "count"
     },
@@ -954,7 +962,23 @@
         "unit": "count"
     },
     {
+        "key": "ep_magma_keyindex_filecount_compactions",
+        "unit": "count"
+    },
+    {
+        "key": "ep_magma_seqindex_filecount_compactions",
+        "unit": "count"
+    },
+    {
         "key": "ep_magma_writer_compactions",
+        "unit": "count"
+    },
+    {
+        "key": "ep_magma_keyindex_writer_compactions",
+        "unit": "count"
+    },
+    {
+        "key": "ep_magma_seqindex_writer_compactions",
         "unit": "count"
     },
 /* Read amp. */
@@ -1040,6 +1064,14 @@
     },
     {
         "key": "ep_magma_wal_disk_usage",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_magma_checkpoint_disk_usage",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_magma_active_disk_usage",
         "unit": "bytes"
     },
 /* Memory usage. */
@@ -2142,6 +2174,14 @@
         "cbstat": "vb_{state}_rollback_item_count",
         "prometheus": {
             "family": "vb_rollback_item_count"
+        }
+    },
+    {
+        "key": "vb_max_history_disk_size",
+        "unit": "bytes",
+        "cbstat": "vb_{state}_max_history_disk_size",
+        "prometheus": {
+            "family": "vb_max_history_disk_size"
         }
     },
     {
