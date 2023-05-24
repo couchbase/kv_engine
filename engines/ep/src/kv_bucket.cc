@@ -711,16 +711,10 @@ cb::engine_errc KVBucket::set(Item& itm,
     // Obtain read-lock on VB state to ensure VB state changes are interlocked
     // with this set
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-    if (vb->getState() == vbucket_state_dead) {
-        ++stats.numNotMyVBuckets;
-        return cb::engine_errc::not_my_vbucket;
-    } else if (vb->getState() == vbucket_state_replica) {
-        ++stats.numNotMyVBuckets;
-        return cb::engine_errc::not_my_vbucket;
-    } else if (vb->getState() == vbucket_state_pending) {
-        if (vb->addPendingOp(cookie)) {
-            return cb::engine_errc::would_block;
-        }
+    cb::engine_errc rv =
+            requireVBucketState(rlh, *vb, {vbucket_state_active}, *cookie);
+    if (rv != cb::engine_errc::success) {
+        return rv;
     } else if (vb->isTakeoverBackedUp()) {
         EP_LOG_DEBUG(
                 "({}) Returned TMPFAIL to a set op, because "
@@ -766,14 +760,10 @@ cb::engine_errc KVBucket::add(Item& itm, CookieIface* cookie) {
     // Obtain read-lock on VB state to ensure VB state changes are interlocked
     // with this add
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-    if (vb->getState() == vbucket_state_dead ||
-        vb->getState() == vbucket_state_replica) {
-        ++stats.numNotMyVBuckets;
-        return cb::engine_errc::not_my_vbucket;
-    } else if (vb->getState() == vbucket_state_pending) {
-        if (vb->addPendingOp(cookie)) {
-            return cb::engine_errc::would_block;
-        }
+    cb::engine_errc rv =
+            requireVBucketState(rlh, *vb, {vbucket_state_active}, *cookie);
+    if (rv != cb::engine_errc::success) {
+        return rv;
     } else if (vb->isTakeoverBackedUp()) {
         EP_LOG_DEBUG(
                 "({}) Returned TMPFAIL to a add op"
@@ -825,14 +815,10 @@ cb::engine_errc KVBucket::replace(Item& itm,
     // Obtain read-lock on VB state to ensure VB state changes are interlocked
     // with this replace
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-    if (vb->getState() == vbucket_state_dead ||
-        vb->getState() == vbucket_state_replica) {
-        ++stats.numNotMyVBuckets;
-        return cb::engine_errc::not_my_vbucket;
-    } else if (vb->getState() == vbucket_state_pending) {
-        if (vb->addPendingOp(cookie)) {
-            return cb::engine_errc::would_block;
-        }
+    cb::engine_errc rv =
+            requireVBucketState(rlh, *vb, {vbucket_state_active}, *cookie);
+    if (rv != cb::engine_errc::success) {
+        return rv;
     }
 
     cb::engine_errc result;
@@ -1523,6 +1509,26 @@ KVBucketResult<VBucketPtr> KVBucket::lookupVBucket(Vbid vbid) {
     return vb;
 }
 
+cb::engine_errc KVBucket::requireVBucketState(
+        VBucketStateLockRef vbStateLock,
+        VBucket& vb,
+        PermittedVBStates permittedVBStates,
+        CookieIface& cookie) {
+    auto vbState = vb.getState();
+    if (permittedVBStates.test(vbState)) {
+        return cb::engine_errc::success;
+    } else if (permittedVBStates.test(vbucket_state_active) &&
+               vbState == vbucket_state_pending) {
+        // We only enqueue ops for pending vBuckets if the operation is for
+        // actives. For replicas, we do not reach this code and always NVMB.
+        Expects(vb.addPendingOp(&cookie));
+        return cb::engine_errc::would_block;
+    }
+
+    ++stats.numNotMyVBuckets;
+    return cb::engine_errc::not_my_vbucket;
+}
+
 GetValue KVBucket::getInternal(const DocKey& key,
                                Vbid vbucket,
                                CookieIface* cookie,
@@ -1539,31 +1545,13 @@ GetValue KVBucket::getInternal(const DocKey& key,
 
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (honorStates) {
-        vbucket_state_t disallowedState =
-                (getReplicaItem == ForGetReplicaOp::Yes)
-                        ? vbucket_state_active
-                        : vbucket_state_replica;
-        vbucket_state_t vbState = vb->getState();
-        if (vbState == vbucket_state_dead) {
-            ++stats.numNotMyVBuckets;
-            return GetValue(nullptr, cb::engine_errc::not_my_vbucket);
-        } else if (vbState == disallowedState) {
-            ++stats.numNotMyVBuckets;
-            return GetValue(nullptr, cb::engine_errc::not_my_vbucket);
-        } else if (vbState == vbucket_state_pending) {
-            /*
-             * If the vbucket is in a pending state and
-             * we are performing a getReplica then instead of adding the
-             * operation to the pendingOps list return
-             * cb::engine_errc::not_my_vbucket.
-             */
-            if (getReplicaItem == ForGetReplicaOp::Yes) {
-                ++stats.numNotMyVBuckets;
-                return GetValue(nullptr, cb::engine_errc::not_my_vbucket);
-            }
-            if (vb->addPendingOp(cookie)) {
-                return GetValue(nullptr, cb::engine_errc::would_block);
-            }
+        vbucket_state_t permittedState =
+                (getReplicaItem == ForGetReplicaOp::Yes) ? vbucket_state_replica
+                                                         : vbucket_state_active;
+        cb::engine_errc rv =
+                requireVBucketState(rlh, *vb, {permittedState}, *cookie);
+        if (rv != cb::engine_errc::success) {
+            return GetValue(nullptr, rv);
         }
     }
 
@@ -1660,6 +1648,8 @@ cb::engine_errc KVBucket::getMetaData(const DocKey& key,
     auto vb = std::move(*lr);
 
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    // For getMeta, we allow active and pending vBuckets only, and if pending,
+    // we perform the operation without queueing.
     if (vb->getState() == vbucket_state_dead ||
         vb->getState() == vbucket_state_replica) {
         ++stats.numNotMyVBuckets;
@@ -1697,15 +1687,10 @@ cb::engine_errc KVBucket::setWithMeta(Item& itm,
     auto vb = std::move(*lr);
 
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-    if (!permittedVBStates.test(vb->getState())) {
-        if (vb->getState() == vbucket_state_pending) {
-            if (vb->addPendingOp(cookie)) {
-                return cb::engine_errc::would_block;
-            }
-        } else {
-            ++stats.numNotMyVBuckets;
-            return cb::engine_errc::not_my_vbucket;
-        }
+    cb::engine_errc rv =
+            requireVBucketState(rlh, *vb, permittedVBStates, *cookie);
+    if (rv != cb::engine_errc::success) {
+        return rv;
     } else if (vb->isTakeoverBackedUp()) {
         EP_LOG_DEBUG(
                 "({}) Returned TMPFAIL to a setWithMeta op"
@@ -1719,7 +1704,6 @@ cb::engine_errc KVBucket::setWithMeta(Item& itm,
         return cb::engine_errc::key_already_exists;
     }
 
-    cb::engine_errc rv = cb::engine_errc::success;
     {
         // hold collections read lock for duration of set
         auto cHandle = vb->lockCollections(itm.getKey());
@@ -1808,16 +1792,10 @@ GetValue KVBucket::getAndUpdateTtl(const DocKey& key,
     auto vb = std::move(*lr);
 
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-    if (vb->getState() == vbucket_state_dead) {
-        ++stats.numNotMyVBuckets;
-        return GetValue(nullptr, cb::engine_errc::not_my_vbucket);
-    } else if (vb->getState() == vbucket_state_replica) {
-        ++stats.numNotMyVBuckets;
-        return GetValue(nullptr, cb::engine_errc::not_my_vbucket);
-    } else if (vb->getState() == vbucket_state_pending) {
-        if (vb->addPendingOp(cookie)) {
-            return GetValue(nullptr, cb::engine_errc::would_block);
-        }
+    cb::engine_errc rv =
+            requireVBucketState(rlh, *vb, {vbucket_state_active}, *cookie);
+    if (rv != cb::engine_errc::success) {
+        return GetValue(nullptr, rv);
     }
 
     {
@@ -2010,16 +1988,10 @@ cb::engine_errc KVBucket::deleteItem(
     auto vb = std::move(*lr);
 
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-    if (vb->getState() == vbucket_state_dead) {
-        ++stats.numNotMyVBuckets;
-        return cb::engine_errc::not_my_vbucket;
-    } else if (vb->getState() == vbucket_state_replica) {
-        ++stats.numNotMyVBuckets;
-        return cb::engine_errc::not_my_vbucket;
-    } else if (vb->getState() == vbucket_state_pending) {
-        if (vb->addPendingOp(cookie)) {
-            return cb::engine_errc::would_block;
-        }
+    cb::engine_errc rv =
+            requireVBucketState(rlh, *vb, {vbucket_state_active}, *cookie);
+    if (rv != cb::engine_errc::success) {
+        return rv;
     } else if (vb->isTakeoverBackedUp()) {
         EP_LOG_DEBUG(
                 "({}) Returned TMPFAIL to a delete op"
@@ -2080,15 +2052,10 @@ cb::engine_errc KVBucket::deleteWithMeta(const DocKey& key,
     auto vb = std::move(*lr);
 
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-    if (!permittedVBStates.test(vb->getState())) {
-        if (vb->getState() == vbucket_state_pending) {
-            if (vb->addPendingOp(cookie)) {
-                return cb::engine_errc::would_block;
-            }
-        } else {
-            ++stats.numNotMyVBuckets;
-            return cb::engine_errc::not_my_vbucket;
-        }
+    cb::engine_errc rv =
+            requireVBucketState(rlh, *vb, permittedVBStates, *cookie);
+    if (rv != cb::engine_errc::success) {
+        return rv;
     } else if (vb->isTakeoverBackedUp()) {
         EP_LOG_DEBUG(
                 "({}) Returned TMPFAIL to a deleteWithMeta op"

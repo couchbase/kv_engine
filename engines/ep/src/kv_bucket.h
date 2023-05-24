@@ -1069,6 +1069,24 @@ protected:
      */
     KVBucketResult<VBucketPtr> lookupVBucket(Vbid vbid);
 
+    /**
+     * Checks if the vBucket is in one of the permitted states.
+     *
+     * If we require an active state, but the vBucket is pending, it queues
+     * the operation and EWBs.
+     *
+     * @param vbStateLock A lock on the vBucket state.
+     * @param vb The vBucket.
+     * @param permittedVBStates The set of permitted states. Pending cannot be
+     * specified.
+     * @param cookie The operation requiring the vBucket.
+     * @return non-success error code on failure
+     */
+    cb::engine_errc requireVBucketState(VBucketStateLockRef vbStateLock,
+                                        VBucket& vb,
+                                        PermittedVBStates permittedVBStates,
+                                        CookieIface& cookie);
+
     GetValue getInternal(const DocKey& key,
                          Vbid vbucket,
                          CookieIface* cookie,
