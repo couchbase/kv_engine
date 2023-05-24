@@ -1088,6 +1088,17 @@ protected:
                                         PermittedVBStates permittedVBStates,
                                         CookieIface& cookie);
 
+    /**
+     * Called before processing mutations. Checks whether we are ready to
+     * process more mutations.
+     *
+     * @param vb The vBucket to check against.
+     * @param debugOpcode A string identifying the opcode (for logging).
+     * @return success if the operation can proceed
+     */
+    cb::engine_errc maybeAllowMutation(VBucket& vb,
+                                       std::string_view debugOpcode);
+
     GetValue getInternal(const DocKey& key,
                          Vbid vbucket,
                          CookieIface* cookie,

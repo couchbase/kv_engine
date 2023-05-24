@@ -718,12 +718,10 @@ cb::engine_errc KVBucket::set(Item& itm,
             requireVBucketState(rlh, *vb, {vbucket_state_active}, *cookie);
     if (rv != cb::engine_errc::success) {
         return rv;
-    } else if (vb->isTakeoverBackedUp()) {
-        EP_LOG_DEBUG(
-                "({}) Returned TMPFAIL to a set op, because "
-                "takeover is lagging",
-                vb->getId());
-        return cb::engine_errc::temporary_failure;
+    }
+    if (rv = maybeAllowMutation(*vb, __func__);
+        rv != cb::engine_errc::success) {
+        return rv;
     }
 
     cb::engine_errc result;
@@ -767,12 +765,10 @@ cb::engine_errc KVBucket::add(Item& itm, CookieIface* cookie) {
             requireVBucketState(rlh, *vb, {vbucket_state_active}, *cookie);
     if (rv != cb::engine_errc::success) {
         return rv;
-    } else if (vb->isTakeoverBackedUp()) {
-        EP_LOG_DEBUG(
-                "({}) Returned TMPFAIL to a add op"
-                ", becuase takeover is lagging",
-                vb->getId());
-        return cb::engine_errc::temporary_failure;
+    }
+    if (rv = maybeAllowMutation(*vb, __func__);
+        rv != cb::engine_errc::success) {
+        return rv;
     }
 
     if (itm.getCas() != 0) {
@@ -1521,6 +1517,19 @@ cb::engine_errc KVBucket::requireVBucketState(
     return cb::engine_errc::not_my_vbucket;
 }
 
+cb::engine_errc KVBucket::maybeAllowMutation(VBucket& vb,
+                                             std::string_view debugOpcode) {
+    if (vb.isTakeoverBackedUp()) {
+        EP_LOG_DEBUG(
+                "({}) Returned TMPFAIL to a {} op"
+                ", becuase takeover is lagging",
+                vb.getId(),
+                debugOpcode);
+        return cb::engine_errc::temporary_failure;
+    }
+    return cb::engine_errc::success;
+}
+
 GetValue KVBucket::getInternal(const DocKey& key,
                                Vbid vbucket,
                                CookieIface* cookie,
@@ -1683,12 +1692,10 @@ cb::engine_errc KVBucket::setWithMeta(Item& itm,
             requireVBucketState(rlh, *vb, permittedVBStates, *cookie);
     if (rv != cb::engine_errc::success) {
         return rv;
-    } else if (vb->isTakeoverBackedUp()) {
-        EP_LOG_DEBUG(
-                "({}) Returned TMPFAIL to a setWithMeta op"
-                ", becuase takeover is lagging",
-                vb->getId());
-        return cb::engine_errc::temporary_failure;
+    }
+    if (rv = maybeAllowMutation(*vb, __func__);
+        rv != cb::engine_errc::success) {
+        return rv;
     }
 
     //check for the incoming item's CAS validity
@@ -1984,12 +1991,10 @@ cb::engine_errc KVBucket::deleteItem(
             requireVBucketState(rlh, *vb, {vbucket_state_active}, *cookie);
     if (rv != cb::engine_errc::success) {
         return rv;
-    } else if (vb->isTakeoverBackedUp()) {
-        EP_LOG_DEBUG(
-                "({}) Returned TMPFAIL to a delete op"
-                ", becuase takeover is lagging",
-                vb->getId());
-        return cb::engine_errc::temporary_failure;
+    }
+    if (rv = maybeAllowMutation(*vb, __func__);
+        rv != cb::engine_errc::success) {
+        return rv;
     }
 
     // Yield if checkpoint's full - The call also wakes up the mem recovery task
@@ -2048,12 +2053,10 @@ cb::engine_errc KVBucket::deleteWithMeta(const DocKey& key,
             requireVBucketState(rlh, *vb, permittedVBStates, *cookie);
     if (rv != cb::engine_errc::success) {
         return rv;
-    } else if (vb->isTakeoverBackedUp()) {
-        EP_LOG_DEBUG(
-                "({}) Returned TMPFAIL to a deleteWithMeta op"
-                ", becuase takeover is lagging",
-                vb->getId());
-        return cb::engine_errc::temporary_failure;
+    }
+    if (rv = maybeAllowMutation(*vb, __func__);
+        rv != cb::engine_errc::success) {
+        return rv;
     }
 
     //check for the incoming item's CAS validity
