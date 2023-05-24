@@ -12,8 +12,8 @@
 #include <folly/portability/GTest.h>
 #include <openssl/ssl.h>
 
-static const long DefaultMask =
-        SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_RENEGOTIATION;
+static const long DefaultMask = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 |
+                                SSL_OP_NO_RENEGOTIATION | SSL_OP_NO_TICKET;
 
 TEST(ssl_decode_protocol, EmptyString) {
     EXPECT_EQ(DefaultMask, decode_ssl_protocol(""));
