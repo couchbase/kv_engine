@@ -6992,6 +6992,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_tmp_oom_errors",
               "ep_total_cache_size",
               "ep_total_deduplicated",
+              "ep_total_deduplicated_flusher",
               "ep_total_del_items",
               "ep_total_enqueued",
               "ep_total_new_items",
@@ -7202,9 +7203,11 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
         // Add data_size and file_size stats to toplevel group.
         auto& eng_stats = statsKeys.at("");
 
-        eng_stats.insert(
-                eng_stats.end(),
-                {"ep_db_data_size", "ep_db_file_size", "ep_db_prepare_size"});
+        eng_stats.insert(eng_stats.end(),
+                         {"ep_db_data_size",
+                          "ep_db_file_size",
+                          "ep_db_prepare_size",
+                          "ep_db_history_file_size"});
         // Using explicit initializer lists due to http://stackoverflow
         // .com/questions/36557969/invalid-iterator-range-while-inserting
         // -initializer-list-to-an-stdvector
@@ -7240,8 +7243,10 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
         eng_stats.insert(eng_stats.end(), persistentConfig);
 
         // 'diskinfo and 'diskinfo detail' keys should be present now.
-        statsKeys["diskinfo"] = {
-                "ep_db_data_size", "ep_db_file_size", "ep_db_prepare_size"};
+        statsKeys["diskinfo"] = {"ep_db_data_size",
+                                 "ep_db_file_size",
+                                 "ep_db_prepare_size",
+                                 "ep_db_history_file_size"};
         statsKeys["diskinfo detail"] = {"vb_0:data_size",
                                         "vb_0:file_size",
                                         "vb_0:prepare_size",

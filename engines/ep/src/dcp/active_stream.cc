@@ -18,6 +18,7 @@
 #include "ep_time.h"
 #include "kv_bucket.h"
 #include "kvstore/kvstore_iface.h"
+#include "queue_op.h"
 #include "vbucket.h"
 
 #include <fmt/chrono.h>
@@ -26,8 +27,8 @@
 #include <platform/timeutils.h>
 #include <statistics/cbstat_collector.h>
 
-// OutstandingItemsResult ctor and dtor required to be defined out of line to
-// allow us to forward declare CheckpointSnapshotRange
+// OutstandingItemsResult ctor and dtor required to be defined out of
+// line to allow us to forward declare CheckpointSnapshotRange
 ActiveStream::OutstandingItemsResult::OutstandingItemsResult() = default;
 ActiveStream::OutstandingItemsResult::~OutstandingItemsResult() = default;
 
@@ -1810,15 +1811,25 @@ void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
             return;
         }
 
+        // Note: We have just registered a cursor and then unlocked the CM at
+        // return. Might cursor-drop kick in before we even try to access the
+        // cursor for logging here?
+        std::optional<queue_op> op{};
+        {
+            const auto lockedCursor = registerResult.getCursor().lock();
+            if (lockedCursor) {
+                op = (*lockedCursor->getPos())->getOperation();
+            }
+        }
         log(spdlog::level::level_enum::info,
-            "{} ActiveStream::scheduleBackfill_UNLOCKED register cursor "
-            "with name \"{}\" lastReadSeqno:{}, registeredSeqno:{}, "
-            "backfill:{}",
+            "{} ActiveStream::scheduleBackfill_UNLOCKED: register cursor with "
+            "name \"{}\", backfill:{}, seqno:{}, op:{}, lastReadSeqno:{}",
             logPrefix,
             name_,
-            lastReadSeqno.load(),
+            registerResult.tryBackfill,
             registerResult.seqno,
-            registerResult.tryBackfill);
+            op ? ::to_string(*op) : "N/A",
+            lastReadSeqno.load());
 
         scheduleBackfillRegisterCursorHook();
 

@@ -100,6 +100,10 @@ public:
         return std::move(cursor);
     }
 
+    Cursor& getCursor() {
+        return cursor;
+    }
+
 private:
     // Ptr of manager taken to allow cursor removal in dtor.
     CheckpointManager* manager{nullptr};
