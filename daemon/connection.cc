@@ -1005,13 +1005,21 @@ bool Connection::executeCommandsCallback() {
     return true;
 }
 
-/// The max send buffer size we want
-#define MAX_SENDBUF_SIZE (256 * 1024 * 1024)
-
 /*
  * Sets a socket's send buffer size to the maximum allowed by the system.
  */
 static void maximize_sndbuf(const SOCKET sfd) {
+    /// The max send buffer size we want
+#ifdef WIN32
+    // Windows doesn't seem to put a limit and will happily give
+    // you whatever you ask for.
+    constexpr int MaxSendBufferSize = 1024 * 1024;
+#else
+    // Linux may be tuned via /proc/sys/net/core/wmem_max
+    // Mac may be tuned via sysctl
+    constexpr int MaxSendBufferSize = 256 * 1024 * 1024;
+#endif
+
     static cb::RelaxedAtomic<int> hint{0};
 
     if (hint != 0) {
@@ -1040,7 +1048,7 @@ static void maximize_sndbuf(const SOCKET sfd) {
 
     /* Binary-search for the real maximum. */
     int min = old_size;
-    int max = MAX_SENDBUF_SIZE;
+    int max = MaxSendBufferSize;
 
     while (min <= max) {
         int avg = ((unsigned int)(min + max)) / 2;
