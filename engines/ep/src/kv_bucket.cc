@@ -543,11 +543,11 @@ void KVBucket::wakeUpFlusher() {
 cb::engine_errc KVBucket::evictKey(const DocKey& key,
                                    Vbid vbucket,
                                    const char** msg) {
-    auto vb = getVBucket(vbucket);
-    if (!vb) {
-        ++stats.numNotMyVBuckets;
-        return cb::engine_errc::not_my_vbucket;
+    auto lr = lookupVBucket(vbucket);
+    if (!lr) {
+        return lr.error();
     }
+    auto vb = std::move(*lr);
 
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (vb->getState() != vbucket_state_active) {
@@ -702,11 +702,11 @@ cb::engine_errc KVBucket::set(Item& itm,
                               CookieIface* cookie,
                               cb::StoreIfPredicate predicate) {
     Expects(cookie);
-    VBucketPtr vb = getVBucket(itm.getVBucketId());
-    if (!vb) {
-        ++stats.numNotMyVBuckets;
-        return cb::engine_errc::not_my_vbucket;
+    auto lr = lookupVBucket(itm.getVBucketId());
+    if (!lr) {
+        return lr.error();
     }
+    auto vb = std::move(*lr);
 
     // Obtain read-lock on VB state to ensure VB state changes are interlocked
     // with this set
@@ -757,11 +757,11 @@ cb::engine_errc KVBucket::set(Item& itm,
 
 cb::engine_errc KVBucket::add(Item& itm, CookieIface* cookie) {
     Expects(cookie);
-    VBucketPtr vb = getVBucket(itm.getVBucketId());
-    if (!vb) {
-        ++stats.numNotMyVBuckets;
-        return cb::engine_errc::not_my_vbucket;
+    auto lr = lookupVBucket(itm.getVBucketId());
+    if (!lr) {
+        return lr.error();
     }
+    auto vb = std::move(*lr);
 
     // Obtain read-lock on VB state to ensure VB state changes are interlocked
     // with this add
@@ -816,11 +816,11 @@ cb::engine_errc KVBucket::replace(Item& itm,
                                   CookieIface* cookie,
                                   cb::StoreIfPredicate predicate) {
     Expects(cookie);
-    VBucketPtr vb = getVBucket(itm.getVBucketId());
-    if (!vb) {
-        ++stats.numNotMyVBuckets;
-        return cb::engine_errc::not_my_vbucket;
+    auto lr = lookupVBucket(itm.getVBucketId());
+    if (!lr) {
+        return lr.error();
     }
+    auto vb = std::move(*lr);
 
     // Obtain read-lock on VB state to ensure VB state changes are interlocked
     // with this replace
@@ -1514,18 +1514,26 @@ void KVBucket::completeBGFetchMulti(
     }
 }
 
+KVBucketResult<VBucketPtr> KVBucket::lookupVBucket(Vbid vbid) {
+    VBucketPtr vb = getVBucket(vbid);
+    if (!vb) {
+        ++stats.numNotMyVBuckets;
+        return folly::Unexpected(cb::engine_errc::not_my_vbucket);
+    }
+    return vb;
+}
+
 GetValue KVBucket::getInternal(const DocKey& key,
                                Vbid vbucket,
                                CookieIface* cookie,
                                const ForGetReplicaOp getReplicaItem,
                                get_options_t options) {
     Expects(cookie);
-    VBucketPtr vb = getVBucket(vbucket);
-
-    if (!vb) {
-        ++stats.numNotMyVBuckets;
-        return GetValue(nullptr, cb::engine_errc::not_my_vbucket);
+    auto lr = lookupVBucket(vbucket);
+    if (!lr) {
+        return GetValue(nullptr, lr.error());
     }
+    auto vb = std::move(*lr);
 
     const bool honorStates = (options & HONOR_STATES);
 
@@ -1648,12 +1656,11 @@ cb::engine_errc KVBucket::getMetaData(const DocKey& key,
                                       uint32_t& deleted,
                                       uint8_t& datatype) {
     Expects(cookie);
-    VBucketPtr vb = getVBucket(vbucket);
-
-    if (!vb) {
-        ++stats.numNotMyVBuckets;
-        return cb::engine_errc::not_my_vbucket;
+    auto lr = lookupVBucket(vbucket);
+    if (!lr) {
+        return lr.error();
     }
+    auto vb = std::move(*lr);
 
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (vb->getState() == vbucket_state_dead ||
@@ -1686,11 +1693,11 @@ cb::engine_errc KVBucket::setWithMeta(Item& itm,
                                       GenerateCas genCas,
                                       ExtendedMetaData* emd) {
     Expects(cookie);
-    VBucketPtr vb = getVBucket(itm.getVBucketId());
-    if (!vb) {
-        ++stats.numNotMyVBuckets;
-        return cb::engine_errc::not_my_vbucket;
+    auto lr = lookupVBucket(itm.getVBucketId());
+    if (!lr) {
+        return lr.error();
     }
+    auto vb = std::move(*lr);
 
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (!permittedVBStates.test(vb->getState())) {
@@ -1746,11 +1753,11 @@ cb::engine_errc KVBucket::setWithMeta(Item& itm,
 
 cb::engine_errc KVBucket::prepare(Item& itm, CookieIface* cookie) {
     Expects(cookie);
-    VBucketPtr vb = getVBucket(itm.getVBucketId());
-    if (!vb) {
-        ++stats.numNotMyVBuckets;
-        return cb::engine_errc::not_my_vbucket;
+    auto lr = lookupVBucket(itm.getVBucketId());
+    if (!lr) {
+        return lr.error();
     }
+    auto vb = std::move(*lr);
 
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     PermittedVBStates permittedVBStates = {vbucket_state_replica,
@@ -1797,11 +1804,11 @@ GetValue KVBucket::getAndUpdateTtl(const DocKey& key,
                                    CookieIface* cookie,
                                    time_t exptime) {
     Expects(cookie);
-    VBucketPtr vb = getVBucket(vbucket);
-    if (!vb) {
-        ++stats.numNotMyVBuckets;
-        return GetValue(nullptr, cb::engine_errc::not_my_vbucket);
+    auto lr = lookupVBucket(vbucket);
+    if (!lr) {
+        return GetValue(nullptr, lr.error());
     }
+    auto vb = std::move(*lr);
 
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (vb->getState() == vbucket_state_dead) {
@@ -1846,11 +1853,11 @@ GetValue KVBucket::getLocked(const DocKey& key,
                              uint32_t lockTimeout,
                              CookieIface* cookie) {
     Expects(cookie);
-    auto vb = getVBucket(vbucket);
-    if (!vb) {
-        ++stats.numNotMyVBuckets;
-        return GetValue(nullptr, cb::engine_errc::not_my_vbucket);
+    auto lr = lookupVBucket(vbucket);
+    if (!lr) {
+        return GetValue(nullptr, lr.error());
     }
+    auto vb = std::move(*lr);
 
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (vb->getState() != vbucket_state_active) {
@@ -1879,11 +1886,11 @@ cb::engine_errc KVBucket::unlockKey(const DocKey& key,
                                     rel_time_t currentTime,
                                     CookieIface* cookie) {
     Expects(cookie);
-    auto vb = getVBucket(vbucket);
-    if (!vb) {
-        ++stats.numNotMyVBuckets;
-        return cb::engine_errc::not_my_vbucket;
+    auto lr = lookupVBucket(vbucket);
+    if (!lr) {
+        return lr.error();
     }
+    auto vb = std::move(*lr);
 
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (vb->getState() != vbucket_state_active) {
@@ -1939,11 +1946,11 @@ cb::engine_errc KVBucket::getKeyStats(const DocKey& key,
                                       CookieIface& cookie,
                                       struct key_stats& kstats,
                                       WantsDeleted wantsDeleted) {
-    auto vb = getVBucket(vbucket);
-    if (!vb) {
-        ++stats.numNotMyVBuckets;
-        return cb::engine_errc::not_my_vbucket;
+    auto lr = lookupVBucket(vbucket);
+    if (!lr) {
+        return lr.error();
     }
+    auto vb = std::move(*lr);
 
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     auto cHandle = vb->lockCollections(key);
@@ -1999,11 +2006,11 @@ cb::engine_errc KVBucket::deleteItem(
         ItemMetaData* itemMeta,
         mutation_descr_t& mutInfo) {
     Expects(cookie);
-    auto vb = getVBucket(vbucket);
-    if (!vb) {
-        ++stats.numNotMyVBuckets;
-        return cb::engine_errc::not_my_vbucket;
+    auto lr = lookupVBucket(vbucket);
+    if (!lr) {
+        return lr.error();
     }
+    auto vb = std::move(*lr);
 
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (vb->getState() == vbucket_state_dead) {
@@ -2069,12 +2076,11 @@ cb::engine_errc KVBucket::deleteWithMeta(const DocKey& key,
                                          ExtendedMetaData* emd,
                                          DeleteSource deleteSource) {
     Expects(cookie);
-    VBucketPtr vb = getVBucket(vbucket);
-
-    if (!vb) {
-        ++stats.numNotMyVBuckets;
-        return cb::engine_errc::not_my_vbucket;
+    auto lr = lookupVBucket(vbucket);
+    if (!lr) {
+        return lr.error();
     }
+    auto vb = std::move(*lr);
 
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (!permittedVBStates.test(vb->getState())) {

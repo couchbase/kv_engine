@@ -24,6 +24,7 @@
 #include <executor/task_type.h>
 #include <memcached/storeddockey.h>
 
+#include <folly/Expected.h>
 #include <cstdlib>
 
 class CheckpointDestroyerTask;
@@ -42,6 +43,12 @@ class Manager;
 
 const uint16_t EP_PRIMARY_SHARD = 0;
 class KVShard;
+
+/**
+ * Return type for methods returning a value or an engine_errc.
+ */
+template <typename T>
+using KVBucketResult = folly::Expected<T, cb::engine_errc>;
 
 /**
  * KVBucket is the base class for concrete Key/Value bucket implementations
@@ -1052,6 +1059,15 @@ protected:
      */
     using CheckpointDestroyer = std::shared_ptr<CheckpointDestroyerTask>;
     CheckpointDestroyer getCkptDestroyerTask(Vbid vbid) const;
+
+    /**
+     * Gets the vBucket with the given vBucket ID.
+     * Increments the NMVB stat if the vBucket doesn't exist.
+     *
+     * @param vbid
+     * @return the vBucket on success, engine_errc::not_my_vbucket on failure
+     */
+    KVBucketResult<VBucketPtr> lookupVBucket(Vbid vbid);
 
     GetValue getInternal(const DocKey& key,
                          Vbid vbucket,
