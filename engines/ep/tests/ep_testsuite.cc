@@ -562,7 +562,10 @@ static enum test_result test_vb_get_pending(EngineIface* h) {
     checkeq(cb::engine_errc::would_block,
             get(h, cookie, "key", Vbid(1)).first,
             "Expected wouldblock.");
-    checkeq(1, get_int_stat(h, "vb_pending_ops_get"), "Expected 1 get");
+    // Don't increment the get stat for pending. We queue the op so it executes
+    // when the vBucket switches to active.
+    checkeq(0, get_int_stat(h, "vb_pending_ops_get"), "Expected 0 gets");
+    checkeq(1, get_int_stat(h, "ep_pending_ops"), "Expected 1 pending ops");
 
     testHarness->destroy_cookie(cookie);
     return SUCCESS;

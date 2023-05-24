@@ -1746,10 +1746,10 @@ TEST_P(KVBucketParamTest, numberOfVBucketsInState) {
 }
 
 /**
- * Test to verify if the vbucket opsGet stat is incremented when
+ * Test to verify if the vbucket opsGet stat is not incremented when
  * the vbucket is in pending state in the case of a get.
  * Test in the case of a getReplica it does not increase the opsGet
- * stat but instead increases the the not my vbucket stat.
+ * stat but increases the the not my vbucket stat.
  */
 TEST_P(KVBucketParamTest, testGetPendingOpsStat) {
    auto key = makeStoredDocKey("key");
@@ -1764,12 +1764,15 @@ TEST_P(KVBucketParamTest, testGetPendingOpsStat) {
    auto doGet = [&]() { return store->get(key, vbid, cookie, options); };
    GetValue result = doGet();
    ASSERT_EQ(cb::engine_errc::would_block, result.getStatus());
-   EXPECT_EQ(1, store->getVBucket(vbid)->opsGet);
+   EXPECT_EQ(0, store->getVBucket(vbid)->opsGet);
+   EXPECT_EQ(1, engine->getEpStats().pendingOps);
+   EXPECT_EQ(0, engine->getEpStats().numNotMyVBuckets);
 
    auto doGetReplica = [&]() { return store->getReplica(key, vbid, cookie, options); };
    result = doGetReplica();
    ASSERT_EQ(cb::engine_errc::not_my_vbucket, result.getStatus());
-   EXPECT_EQ(1, store->getVBucket(vbid)->opsGet);
+   EXPECT_EQ(0, store->getVBucket(vbid)->opsGet);
+   EXPECT_EQ(1, engine->getEpStats().pendingOps);
    EXPECT_EQ(1, engine->getEpStats().numNotMyVBuckets);
 }
 

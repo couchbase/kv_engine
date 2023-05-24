@@ -1562,9 +1562,6 @@ GetValue KVBucket::getInternal(const DocKey& key,
                 return GetValue(nullptr, cb::engine_errc::not_my_vbucket);
             }
             if (vb->addPendingOp(cookie)) {
-                if (options & TRACK_STATISTICS) {
-                    vb->opsGet++;
-                }
                 return GetValue(nullptr, cb::engine_errc::would_block);
             }
         }
