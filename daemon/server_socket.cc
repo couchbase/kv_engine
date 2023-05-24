@@ -29,34 +29,6 @@
 #include <memory>
 #include <string>
 
-#ifdef __APPLE__
-#define TCP_KEEPIDLE TCP_KEEPALIVE
-#endif
-
-static nlohmann::json getSocketOptions(SOCKET sfd) {
-    nlohmann::json ret;
-    auto add_option = [sfd, &ret](const char* key, int level, int option) {
-        socklen_t size = sizeof(int);
-        int val = 0;
-        if (cb::net::getsockopt(sfd, level, option, &val, &size) == 0) {
-            ret[key] = val;
-        } else {
-            ret[key] = cb_strerror(cb::net::get_socket_error());
-        }
-    };
-
-    add_option("so_sndbuf", SOL_SOCKET, SO_SNDBUF);
-    add_option("so_rcvbuf", SOL_SOCKET, SO_RCVBUF);
-    add_option("tcp_keepidle", IPPROTO_TCP, TCP_KEEPIDLE);
-    add_option("tcp_keepintvl", IPPROTO_TCP, TCP_KEEPINTVL);
-    add_option("tcp_keepcnt", IPPROTO_TCP, TCP_KEEPCNT);
-#ifdef __linux__
-    add_option("tcp_user_timeout", IPPROTO_TCP, TCP_USER_TIMEOUT);
-#endif
-
-    return ret;
-}
-
 std::atomic<uint64_t> ServerSocket::numInstances{0};
 
 class LibeventServerSocketImpl : public ServerSocket {
@@ -172,7 +144,7 @@ LibeventServerSocketImpl::LibeventServerSocketImpl(
         throw std::bad_alloc();
     }
 
-    auto properties = getSocketOptions(sfd);
+    auto properties = cb::net::getSocketOptions(sfd);
     if (!interface->tag.empty()) {
         properties["tag"] = interface->tag;
     }

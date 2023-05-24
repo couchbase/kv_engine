@@ -218,6 +218,8 @@ nlohmann::json Connection::to_json() const {
     ret["sendqueue"]["last"] = sendQueueInfo.last.time_since_epoch().count();
     ret["sendqueue"]["term"] = sendQueueInfo.term;
 
+    ret["socket_options"] = cb::net::getSocketOptions(socketDescriptor);
+
 #ifdef __linux__
     int value;
     if (ioctl(socketDescriptor, SIOCINQ, &value) == 0) {
@@ -225,22 +227,6 @@ nlohmann::json Connection::to_json() const {
     }
     if (ioctl(socketDescriptor, SIOCOUTQ, &value) == 0) {
         ret["SIOCOUTQ"] = value;
-    }
-    socklen_t intsize = sizeof(int);
-    int iobufsize;
-    if (cb::net::getsockopt(socketDescriptor,
-                            SOL_SOCKET,
-                            SO_SNDBUF,
-                            reinterpret_cast<void*>(&iobufsize),
-                            &intsize) == 0) {
-        ret["SNDBUF"] = iobufsize;
-    }
-    if (cb::net::getsockopt(socketDescriptor,
-                            SOL_SOCKET,
-                            SO_RCVBUF,
-                            reinterpret_cast<void*>(&iobufsize),
-                            &intsize) == 0) {
-        ret["RCVBUF"] = iobufsize;
     }
 #endif
 
