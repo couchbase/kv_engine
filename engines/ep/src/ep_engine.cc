@@ -6487,7 +6487,7 @@ cb::engine_errc EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
                         !collectionsEnabled) {
                         highSeqno =
                                 supportsSyncWrites
-                                        ? handle.getHighSeqno(*reqCollection)
+                                        ? handle.getDefaultCollectionMaxLegacyDCPSeqno()
                                         : handle.getDefaultCollectionMaxVisibleSeqno();
                     } else {
                         // supports collections thus supports SeqAdvanced. KV

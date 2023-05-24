@@ -314,7 +314,12 @@ MagmaKVStoreTransactionContext::MagmaKVStoreTransactionContext(
     : TransactionContext(kvstore, vbid, std::move(cb)) {
 }
 
-void MagmaKVStoreTransactionContext::preparePendingRequests() {
+void MagmaKVStoreTransactionContext::preparePendingRequests(
+        magma::Magma::HistoryMode batchHistoryMode) {
+    if (batchHistoryMode == magma::Magma::HistoryMode::Disabled) {
+        return;
+    }
+
     // MB-55199: Magma requires key/seqno order, but ascending seqno.
     // KV-engine flusher writes out the batch in key/seqno, but descending seqno
     // order.
@@ -1592,7 +1597,8 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
     };
 
     auto& ctx = dynamic_cast<MagmaKVStoreTransactionContext&>(txnCtx);
-    ctx.preparePendingRequests();
+
+    ctx.preparePendingRequests(historyMode);
 
     // Vector of updates to be written to the data store.
     WriteOps writeOps;
