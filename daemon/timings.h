@@ -34,7 +34,7 @@ public:
     void reset();
     void collect(cb::mcbp::ClientOpcode opcode, std::chrono::nanoseconds nsec);
     void sample(std::chrono::seconds sample_interval);
-    std::string generate(cb::mcbp::ClientOpcode opcode);
+
     uint64_t get_aggregated_mutation_stats() const;
     uint64_t get_aggregated_retrieval_stats() const;
 

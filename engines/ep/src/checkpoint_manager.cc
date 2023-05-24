@@ -1224,6 +1224,11 @@ CheckpointManager::getBackupPersistenceCursor() {
 }
 
 void CheckpointManager::dump() const {
+    std::lock_guard<std::mutex> lh(queueLock);
+    dump(lh);
+}
+
+void CheckpointManager::dump(const std::lock_guard<std::mutex>& lh) const {
     std::cerr << *this << std::endl;
 }
 

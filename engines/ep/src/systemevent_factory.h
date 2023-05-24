@@ -75,6 +75,7 @@ public:
      * Make a key for a Collection SystemEvent. This is the same key that an
      * Item of makeCollectionEvent would have.
      * @param cid The ID of the collection
+     * @param type The type of collection event to encode create/drop or modify
      * @return StoredDocKey with a collection system event key
      */
     static StoredDocKey makeCollectionEventKey(CollectionID cid,

@@ -52,16 +52,6 @@ void Timings::collect(cb::mcbp::ClientOpcode opcode,
     interval.duration_ns += nsec.count();
 }
 
-std::string Timings::generate(cb::mcbp::ClientOpcode opcode) {
-    auto* histoPtr =
-            timings[std::underlying_type<cb::mcbp::ClientOpcode>::type(opcode)]
-                    .load();
-    if (histoPtr) {
-        return histoPtr->to_string();
-    }
-    return std::string("{}");
-}
-
 static const cb::mcbp::ClientOpcode timings_mutations[] = {
         cb::mcbp::ClientOpcode::Add,
         cb::mcbp::ClientOpcode::Addq,
