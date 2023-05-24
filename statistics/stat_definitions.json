@@ -3055,13 +3055,6 @@
         "cbstat": "ep_dcp_total_uncompressed_data_size",
         "added": "7.0.2"
     },
-    {
-        "key": "dcp_total_queue",
-        "unit": "count",
-        "cbstat": "ep_dcp_total_queue",
-        "prometheus": false,
-        "added": "7.0.2"
-    },
 /* derivable from fill and sent */
     {
         "key": "dcp_queue_fill",
