@@ -681,6 +681,18 @@ public:
         return tcp_user_timeout.load(std::memory_order_acquire);
     }
 
+    /// Set time to use for TCP_USER_TIMEOUT for unauthenticated users
+    void setTcpUnauthenticatedUserTimeout(std::chrono::milliseconds val) {
+        tcp_unauthenticated_user_timeout.store(val, std::memory_order_release);
+        has.tcp_unauthenticated_user_timeout = true;
+        notify_changed("tcp_unauthenticated_user_timeout");
+    }
+
+    /// Get the time configured for TCP_USER_TIMEOUT for unauthenticated users
+    std::chrono::milliseconds getTcpUnauthenticatedUserTimeout() const {
+        return tcp_unauthenticated_user_timeout.load(std::memory_order_acquire);
+    }
+
     /**
      * Collections prototype means certain work-in-progress parts of collections
      * are enabled/disabled and also means DCP auto-enables collections for
@@ -1060,6 +1072,11 @@ protected:
     std::atomic<std::chrono::milliseconds> tcp_user_timeout{
             std::chrono::seconds{0}};
 
+    /// The number of milliseconds for tcp user timeout (0 == disable) for
+    /// unauthenticated connections
+    std::atomic<std::chrono::milliseconds> tcp_unauthenticated_user_timeout{
+            std::chrono::seconds{5}};
+
     /// Should the server always collect trace information for commands
     std::atomic_bool always_collect_trace_info{true};
 
@@ -1161,6 +1178,7 @@ public:
         bool tcp_keepalive_interval = false;
         bool tcp_keepalive_probes = false;
         bool tcp_user_timeout = false;
+        bool tcp_unauthenticated_user_timeout = false;
         bool active_external_users_push_interval = false;
         bool max_connections = false;
         bool system_connections = false;

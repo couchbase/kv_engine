@@ -101,6 +101,15 @@ of seconds data may be stuck in the send buffer before closing the connection.
 This only applies to connections binding to the user interface (and is only
 available on Linux). Setting the value to 0 (default) disable the functionality.
 
+=== tcp_unauthenticated_user_timeout
+
+The *tcp_unauthenticated_user_timeout* attribute is an integral value specifying
+the number of seconds data may be stuck in the send buffer before closing the
+connection. This only applies to connections binding to the user interface
+(and is only available on Linux). Setting the value to 0 (default) disable the
+functionality. Once the client successfully authenticates the value gets
+replaced with tcp_user_timeout.
+
 === prometheus
 
 The *prometheus* is a object with the following properties:

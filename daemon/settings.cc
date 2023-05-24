@@ -242,6 +242,15 @@ void Settings::reconfigure(const nlohmann::json& json) {
                 LOG_WARNING_RAW("TCP_USER_TIMEOUT is only supported on Linux");
             }
 #endif
+        } else if (key == "tcp_unauthenticated_user_timeout"sv) {
+#ifdef __linux__
+            setTcpUnauthenticatedUserTimeout(
+                    std::chrono::seconds(value.get<uint32_t>()));
+#else
+            if (value.get<uint32_t>()) {
+                LOG_WARNING_RAW("TCP_USER_TIMEOUT is only supported on Linux");
+            }
+#endif
         } else if (key == "xattr_enabled"sv) {
             setXattrEnabled(value.get<bool>());
         } else if (key == "client_cert_auth"sv) {
@@ -499,6 +508,23 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                      duration_cast<seconds>(getTcpUserTimeout()).count(),
                      duration_cast<seconds>(other.getTcpUserTimeout()).count());
             setTcpUserTimeout(other.getTcpUserTimeout());
+        }
+    }
+
+    if (other.has.tcp_unauthenticated_user_timeout) {
+        if (other.getTcpUnauthenticatedUserTimeout() !=
+            getTcpUnauthenticatedUserTimeout()) {
+            using namespace std::chrono;
+            LOG_INFO(
+                    "Change TCP_USER_TIMEOUT for unauthenticated users from "
+                    "{}s to {}s",
+                    duration_cast<seconds>(getTcpUnauthenticatedUserTimeout())
+                            .count(),
+                    duration_cast<seconds>(
+                            other.getTcpUnauthenticatedUserTimeout())
+                            .count());
+            setTcpUnauthenticatedUserTimeout(
+                    other.getTcpUnauthenticatedUserTimeout());
         }
     }
 

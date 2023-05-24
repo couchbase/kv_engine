@@ -1059,6 +1059,22 @@ void Connection::setAuthenticated(bool authenticated_,
     user = std::move(ui);
     if (authenticated_) {
         maximize_sndbuf(socketDescriptor);
+
+#ifdef __linux__
+        if (!listening_port->system) {
+            uint32_t timeout = Settings::instance().getTcpUserTimeout().count();
+            if (!cb::net::setSocketOption<uint32_t>(socketDescriptor,
+                                                    IPPROTO_TCP,
+                                                    TCP_USER_TIMEOUT,
+                                                    timeout)) {
+                LOG_WARNING("{} Failed to set TCP_USER_TIMEOUT to {}: {}",
+                            getId(),
+                            timeout,
+                            cb_strerror(cb::net::get_socket_error()));
+            }
+        }
+#endif
+
         updateDescription();
         droppedPrivileges.reset();
         privilegeContext = cb::rbac::createContext(user, "");
