@@ -1051,9 +1051,26 @@ ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
     result.checkpointType = itemsForCursor.checkpointType;
     result.ranges = itemsForCursor.ranges;
     if (isDiskCheckpointType(result.checkpointType)) {
+        // CM can never return multiple disk checkpoints or checkpoints of
+        // different types. So if Disk, then one range.
+        Expects(itemsForCursor.ranges.size() == 1);
+        const auto& range = itemsForCursor.ranges.front();
+        if (!itemsForCursor.highCompletedSeqno) {
+            const auto msg = fmt::format(
+                    "ActiveStream::getOutstandingItems: stream:{} {} processing"
+                    " checkpoint type:{}, {}, snapStart:{}, snapEnd:{} -"
+                    " missing HCS",
+                    name_,
+                    vb_,
+                    ::to_string(itemsForCursor.checkpointType),
+                    ::to_string(itemsForCursor.historical),
+                    range.getStart(),
+                    range.getEnd());
+            throw std::logic_error(msg);
+        }
+
         result.diskCheckpointState =
                 OutstandingItemsResult::DiskCheckpointState();
-        Expects(itemsForCursor.highCompletedSeqno);
         result.diskCheckpointState->highCompletedSeqno =
                 *itemsForCursor.highCompletedSeqno;
     }

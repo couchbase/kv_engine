@@ -855,7 +855,7 @@ TEST_F(MagmaKVStoreHistoryTest, scanAllVersions1) {
 }
 
 // Validate the ordering by seqno
-TEST_F(MagmaKVStoreTest, preparePendingRequests) {
+TEST_F(MagmaKVStoreTest, preparePendingRequestsHistoryEnabled) {
     MagmaKVStoreTransactionContext ctx(*kvstore, vbid, nullptr);
 
     // seqnos 5, 4, 3, 2, 1
@@ -868,10 +868,38 @@ TEST_F(MagmaKVStoreTest, preparePendingRequests) {
                 std::make_unique<MagmaRequest>(std::move(qi)));
     }
 
-    ctx.preparePendingRequests();
+    ctx.preparePendingRequests(magma::Magma::HistoryMode::Enabled);
 
     std::array<std::pair<uint64_t, std::string>, 5> expected = {
             {{2, "aaa"}, {1, "bbb"}, {3, "bbb"}, {5, "bbb"}, {4, "c"}}};
+    ASSERT_EQ(expected.size(), ctx.pendingReqs.size());
+    auto itr = expected.begin();
+    for (const auto& req : ctx.pendingReqs) {
+        EXPECT_EQ(itr->first, req->getItem().getBySeqno()) << req->getItem();
+        EXPECT_EQ("cid:0x0:" + itr->second,
+                  req->getItem().getKey().to_string());
+        ++itr;
+    }
+}
+
+// Validate the ordering by seqno
+TEST_F(MagmaKVStoreTest, preparePendingRequestsHistoryDisabled) {
+    MagmaKVStoreTransactionContext ctx(*kvstore, vbid, nullptr);
+
+    // seqnos 5, 4, 3, 2, 1
+    std::array<std::string, 5> keys = {{"bbb", "c", "bbb", "aaa", "bbb"}};
+    uint64_t seqno = 5;
+    for (const auto& k : keys) {
+        auto qi = makeCommittedItem(makeStoredDocKey(k), "value");
+        qi->setBySeqno(seqno--);
+        ctx.pendingReqs.push_back(
+                std::make_unique<MagmaRequest>(std::move(qi)));
+    }
+
+    ctx.preparePendingRequests(magma::Magma::HistoryMode::Disabled);
+
+    std::array<std::pair<uint64_t, std::string>, 5> expected = {
+            {{5, "bbb"}, {4, "c"}, {3, "bbb"}, {2, "aaa"}, {1, "bbb"}}};
     ASSERT_EQ(expected.size(), ctx.pendingReqs.size());
     auto itr = expected.begin();
     for (const auto& req : ctx.pendingReqs) {

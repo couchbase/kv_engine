@@ -786,3 +786,7 @@ std::string Checkpoint::Labeller::getLabel(const char* name) const {
                        c.getSnapshotStartSeqno(),
                        name);
 }
+
+void Checkpoint::dump() const {
+    std::cerr << *this << std::endl;
+}

@@ -120,9 +120,6 @@ int main(int, char **) {
     display("Hdr1sfInt32Histogram",
             "-",
             Hdr1sfInt32Histogram().getMemFootPrint());
-    display("Hdr2sfMicroSecHistogram",
-            "-",
-            Hdr2sfMicroSecHistogram().getMemFootPrint());
     display("HdrHistogram(1, <int32_t>::max(), 2)",
             "-",
             HdrHistogram(1, std::numeric_limits<int32_t>::max() - 1, 2)
