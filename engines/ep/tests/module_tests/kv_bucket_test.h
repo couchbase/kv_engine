@@ -326,10 +326,11 @@ public:
 
     /**
      * Replace the r/w KVStore with a MockCouchKVStore that uses the given ops.
+     * If a nullptr is passed, revert the KVStore back to default ops.
      * This function will test the config to be sure the KVBucket is
      * persistent/couchstore.
      */
-    void replaceCouchKVStore(FileOpsInterface& ops);
+    void replaceCouchKVStore(FileOpsInterface* ops);
 
     /**
      * Replace the r/w KVStore with a MockMagmaKVStore. This function will test

@@ -66,7 +66,7 @@ class CouchKVStoreErrorInjector : public ErrorInjector {
 public:
     CouchKVStoreErrorInjector(KVBucketTest& test)
         : ops(create_default_file_ops()) {
-        test.replaceCouchKVStore(ops);
+        test.replaceCouchKVStore(&ops);
         kvstore = dynamic_cast<MockCouchKVStore*>(
                 test.store->getRWUnderlying(test.vbid));
     }
