@@ -2184,6 +2184,14 @@ size_t ActiveStream::getItemsRemaining() {
     return ckptItems + readyQ_non_meta_items;
 }
 
+size_t ActiveStream::getBackfillItemsDisk() const {
+    return backfillItems.disk;
+}
+
+size_t ActiveStream::getBackfillItemsMemory() const {
+    return backfillItems.memory;
+}
+
 uint64_t ActiveStream::getLastReadSeqno() const {
     return lastReadSeqno.load();
 }

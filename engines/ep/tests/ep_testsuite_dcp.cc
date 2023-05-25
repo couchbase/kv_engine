@@ -14,6 +14,8 @@
 // name 'check' indirectly.
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
+// Similary for format.h which defines a 'check()' function:
+#include <fmt/format.h>
 
 /*
  * Testsuite for 'dcp' functionality in ep-engine.
@@ -2950,7 +2952,7 @@ static test_result test_dcp_producer_stream_req_nmvb(EngineIface* h) {
 }
 
 static test_result test_dcp_agg_stats(EngineIface* h) {
-    const int num_items = 300, batch_items = 100;
+    const int num_items = 30, batch_items = 10;
     for (int start_seqno = 0; start_seqno < num_items;
          start_seqno += batch_items) {
         wait_for_flusher_to_settle(h);
@@ -2969,9 +2971,9 @@ static test_result test_dcp_agg_stats(EngineIface* h) {
 
         DcpStreamCtx ctx;
         ctx.vb_uuid = get_ull_stat(h, "vb_0:0:id", "failovers");
-        ctx.seqno = {200, 300};
-        ctx.snapshot = {200, 200};
-        ctx.exp_mutations = 100;
+        ctx.seqno = {20, 30};
+        ctx.snapshot = {20, 20};
+        ctx.exp_mutations = 10;
         ctx.exp_markers = 1;
 
         TestDcpConsumer tdc(name, cookie[j], h);
@@ -2980,18 +2982,40 @@ static test_result test_dcp_agg_stats(EngineIface* h) {
         total_bytes += tdc.getTotalBytes();
     }
 
-    checkeq(5,
-            get_int_stat(h, "unittest:producer_count", "dcpagg _"),
-            "producer count mismatch");
-    checkeq((int)total_bytes,
-            get_int_stat(h, "unittest:total_bytes", "dcpagg _"),
-            "aggregate total bytes sent mismatch");
-    checkeq(500,
-            get_int_stat(h, "unittest:items_sent", "dcpagg _"),
-            "aggregate total items sent mismatch");
-    checkeq(0,
-            get_int_stat(h, "unittest:items_remaining", "dcpagg _"),
-            "aggregate total items remaining mismatch");
+    auto stats = get_all_stats(h, "dcpagg _");
+
+    /// Check the given stat exists and has the expected value, for both
+    /// the 'unittest' DCP connections and the '_total' aggregate.
+    auto verifyStat = [&stats](auto key, int expectedValue) {
+        for (auto name : {"unittest:"s + key, "_total:"s + key}) {
+            auto stat = stats.extract(name);
+            check(stat,
+                  fmt::format("Missing stat key '{}' for dcpagg stat group",
+                              name)
+                          .c_str());
+            checkeq(expectedValue,
+                    std::stoi(stat.mapped()),
+                    fmt::format("for key '{}'", name));
+        }
+    };
+
+    verifyStat("backoff", 0);
+    verifyStat("count", 5);
+    verifyStat("items_backfilled_disk", 0);
+    verifyStat("items_backfilled_memory", 0);
+    verifyStat("items_remaining", 0);
+    verifyStat("items_sent", 50);
+    verifyStat("producer_count", 5);
+    verifyStat("ready_queue_bytes", 0);
+    verifyStat("total_bytes", total_bytes);
+    verifyStat("total_uncompressed_data_size", total_bytes);
+
+    // Check for any unexpected stats not covered above.
+    for (auto& stat : stats) {
+        check(false,
+              fmt::format("Unexpected extra dcpagg stat '{}'", stat.first)
+                      .c_str());
+    }
 
     for (auto& c : cookie) {
         testHarness->destroy_cookie(c);

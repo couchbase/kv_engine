@@ -40,6 +40,8 @@ struct ConnCounter {
           totalConns(0),
           totalProducers(0),
           conn_queueFill(0),
+          conn_backfillDisk(0),
+          conn_backfillMemory(0),
           conn_queueDrain(0),
           conn_totalBytes(0),
           conn_totalUncompressedDataSize(0),
@@ -54,6 +56,8 @@ struct ConnCounter {
         totalConns += other.totalConns;
         totalProducers += other.totalProducers;
         conn_queueFill += other.conn_queueFill;
+        conn_backfillDisk += other.conn_backfillDisk;
+        conn_backfillMemory += other.conn_backfillMemory;
         conn_queueDrain += other.conn_queueDrain;
         conn_totalBytes += other.conn_totalBytes;
         conn_totalUncompressedDataSize += other.conn_totalUncompressedDataSize;
@@ -70,6 +74,11 @@ struct ConnCounter {
     size_t      totalProducers;
 
     size_t      conn_queueFill;
+    /// Number of items backfilled from disk
+    size_t conn_backfillDisk;
+    /// Number of items backfilled from memory (either because Ephemeral bucket,
+    /// or EP bucket where item was resident and avoid avoid disk read.
+    size_t conn_backfillMemory;
     size_t      conn_queueDrain;
     size_t      conn_totalBytes;
     size_t      conn_totalUncompressedDataSize;

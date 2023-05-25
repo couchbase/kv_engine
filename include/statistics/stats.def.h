@@ -743,6 +743,18 @@ STAT(connagg_producer_count,
      FMT("{connection_type}:producer_count"),
      count,
      dcp_producer_count, )
+
+STAT(connagg_items_backfilled_disk,
+     FMT("{connection_type}:items_backfilled_disk"),
+     count,
+     dcp_items_backfilled,
+     LABEL(from, disk))
+STAT(connagg_items_backfilled_memory,
+     FMT("{connection_type}:items_backfilled_memory"),
+     count,
+     dcp_items_backfilled,
+     LABEL(from, memory))
+
 STAT(connagg_items_sent,
      FMT("{connection_type}:items_sent"),
      count,
@@ -787,6 +799,10 @@ CBSTAT(dcp_total_queue,
        "ep_dcp_total_queue",
        count) // derivable from fill and sent
 STAT(dcp_queue_fill, "ep_dcp_queue_fill", count, , )
+// These two not in prometheus, exposed via connagg_items_backfilled_...
+CBSTAT(dcp_queue_backfill_disk, "ep_dcp_backfill_disk", count, , )
+CBSTAT(dcp_queue_backfill_memory, "ep_dcp_backfill_memory", count, , )
+
 STAT(dcp_items_sent, "ep_dcp_items_sent", count, , )
 STAT(dcp_items_remaining, "ep_dcp_items_remaining", count, , )
 STAT(dcp_num_running_backfills, "ep_dcp_num_running_backfills", count, , )
