@@ -182,6 +182,8 @@ public:
     IncludeDeletedUserXattrs public_getIncludeDeletedUserXattrs() const {
         return includeDeletedUserXattrs;
     }
+
+    std::unique_ptr<DcpResponse> public_backfillPhase(DcpProducer& producer);
 };
 
 /**
