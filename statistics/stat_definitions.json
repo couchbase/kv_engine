@@ -3140,7 +3140,21 @@
         "unit": "count",
         "cbstat": "{connection_type}:producer_count",
         "prometheus": {
-            "family": "dcp_producer_count"
+            "family": "dcp_count",
+            "labels": {
+                "type": "producer"
+            }
+        }
+    },
+    {
+        "key": "connagg_consumer_count",
+        "unit": "count",
+        "cbstat": "{connection_type}:consumer_count",
+        "prometheus": {
+            "family": "dcp_count",
+            "labels": {
+                "type": "consumer"
+            }
         },
         "added": "7.0.0"
     },
@@ -3189,7 +3203,12 @@
         },
         "added": "7.1.0"
     },
-/* aggregated dcp producer stats */
+/*
+ * Aggregated dcp stats (for all DCP clients).
+ * These are not included in Prometheus as they are redundant - they
+ * are the sum of per- `connection_type` stats (e.g. connagg_producer_count,
+ * connagg_items_sent, ...)
+ */
     {
         "key": "dcp_count",
         "unit": "count",
@@ -3197,64 +3216,56 @@
         "prometheus": false,
         "added": "7.0.2"
     },
-/* redundant in prometheus, is the sum
- * of consumer and producer
- */
     {
         "key": "dcp_consumer_count",
         "unit": "count",
         "cbstat": "ep_dcp_consumer_count",
-        "prometheus": {
-            "family": "dcp_count",
-            "labels": {
-                "type": "consumer"
-            }
-        },
+        "prometheus": false,
         "added": "7.0.2"
     },
     {
         "key": "dcp_producer_count",
         "unit": "count",
         "cbstat": "ep_dcp_producer_count",
-        "prometheus": {
-            "family": "dcp_count",
-            "labels": {
-                "type": "producer"
-            }
-        },
+        "prometheus": false,
         "added": "7.0.2"
     },
     {
         "key": "dcp_total_data_size",
         "unit": "bytes",
         "cbstat": "ep_dcp_total_bytes",
+        "prometheus": false,
         "added": "7.0.2"
     },
     {
         "key": "dcp_total_uncompressed_data_size",
         "unit": "bytes",
         "cbstat": "ep_dcp_total_uncompressed_data_size",
+        "prometheus": false,
         "added": "7.0.2"
     },
-/* derivable from fill and sent */
     {
         "key": "dcp_queue_fill",
         "unit": "count",
         "cbstat": "ep_dcp_queue_fill",
+        "prometheus": false,
         "added": "7.0.2"
     },
     {
         "key": "dcp_items_sent",
         "unit": "count",
         "cbstat": "ep_dcp_items_sent",
+        "prometheus": false,
         "added": "7.0.2"
     },
     {
         "key": "dcp_items_remaining",
         "unit": "count",
         "cbstat": "ep_dcp_items_remaining",
+        "prometheus": false,
         "added": "7.0.2"
     },
+
     {
         "key": "dcp_num_running_backfills",
         "unit": "count",

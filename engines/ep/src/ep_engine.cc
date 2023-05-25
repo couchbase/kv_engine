@@ -4113,6 +4113,13 @@ static void showConnAggStat(const std::string& connType,
         labelled.addStat(Key::connagg_connection_count, counter.totalConns);
         labelled.addStat(Key::connagg_backoff, counter.conn_queueBackoff);
         labelled.addStat(Key::connagg_producer_count, counter.totalProducers);
+        if (connType == "replication") {
+            // Consumers are specific to replication, so only emit this metric
+            // when relevant to avoid adding redundant zero count stats to
+            // other connection types.
+            labelled.addStat(Key::connagg_consumer_count,
+                             counter.totalConns - counter.totalProducers);
+        }
         labelled.addStat(Key::connagg_items_sent, counter.conn_queueDrain);
         labelled.addStat(Key::connagg_items_remaining,
                           counter.conn_queueRemaining);
