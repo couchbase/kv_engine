@@ -166,4 +166,52 @@ TEST(ThrottleTest, DeleteBucketWhileThrottling) {
     cluster->deleteBucket("testBucket");
 }
 
+/// MB-57074 - the default throttle limits was not updated after creating
+///            a new bucket
+TEST(ThrottleTest, MB57074) {
+    auto conn = cluster->getConnection(0);
+    conn->authenticate("@admin", "password");
+
+    nlohmann::json first;
+    {
+        auto bucket = cluster->createBucket(
+                "MB57074", {{"replicas", 2}, {"max_vbuckets", 8}});
+        nlohmann::json stats;
+        conn->stats(
+                [&first](const auto& k, const auto& v) {
+                    first = nlohmann::json::parse(v);
+                },
+                "bucket_details MB57074");
+    }
+    cluster->deleteBucket("MB57074");
+    // Verify the old settings (so that we don't test with the same numbers)
+    EXPECT_EQ(1666, first["throttle_reserved"].get<int>());
+    EXPECT_EQ("unlimited", first["throttle_hard_limit"].get<std::string>());
+
+    // set node properties
+    auto rsp = conn->execute(SetNodeThrottlePropertiesCommand{
+            nlohmann::json{{"default_throttle_reserved_units", 100},
+                           {"default_throttle_hard_limit", 1000}}});
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    nlohmann::json second;
+    {
+        auto bucket = cluster->createBucket(
+                "MB57074", {{"replicas", 2}, {"max_vbuckets", 8}});
+        nlohmann::json stats;
+        conn->stats(
+                [&second](const auto& k, const auto& v) {
+                    second = nlohmann::json::parse(v);
+                },
+                "bucket_details MB57074");
+    }
+
+    EXPECT_EQ(100, second["throttle_reserved"].get<int>());
+    EXPECT_EQ(1000, second["throttle_hard_limit"].get<int>());
+
+    rsp = conn->execute(SetNodeThrottlePropertiesCommand{
+            nlohmann::json{{"default_throttle_reserved_units", 1666},
+                           {"default_throttle_hard_limit", "unlimited"}}});
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+}
+
 } // namespace cb::test

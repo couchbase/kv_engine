@@ -43,19 +43,8 @@ void Bucket::reset() {
     read_units_used = 0;
     write_units_used = 0;
     throttle_gauge.reset();
-    if (cb::serverless::isEnabled()) {
-        throttle_reserved.store(cb::serverless::Config::instance()
-                                        .defaultThrottleReservedUnits.load(
-                                                std::memory_order_acquire),
-                                std::memory_order_release);
-        throttle_hard_limit.store(cb::serverless::Config::instance()
-                                          .defaultThrottleHardLimit.load(
-                                                  std::memory_order_acquire),
-                                  std::memory_order_release);
-    } else {
-        throttle_reserved = std::numeric_limits<std::size_t>::max();
-        throttle_hard_limit = std::numeric_limits<std::size_t>::max();
-    }
+    throttle_reserved = std::numeric_limits<std::size_t>::max();
+    throttle_hard_limit = std::numeric_limits<std::size_t>::max();
     num_throttled = 0;
     throttle_wait_time = 0;
     num_commands = 0;
@@ -641,6 +630,12 @@ cb::engine_errc BucketManager::create(uint32_t cid,
                 "bucket");
     }
     auto& bucket = *free_bucket;
+
+    if (cb::serverless::isEnabled()) {
+        auto& instance = cb::serverless::Config::instance();
+        bucket.setThrottleLimits(instance.defaultThrottleReservedUnits,
+                                 instance.defaultThrottleHardLimit);
+    }
 
     cb::engine_errc result = cb::engine_errc::success;
     try {
