@@ -69,10 +69,18 @@ bool PagingVisitor::visit(const HashTable::HashBucketLock& lh, StoredValue& v) {
         return true;
     }
 
+    // MB-57049: Clean up temp items when visited by the expiry pager.
+    // We hit this code path before the expiration/eviction code paths, so
+    // by returning here, we avoid updating the expiration/ejection counts.
+    // Only the temp item count will be updated as a result of this clean up.
+    if (currentBucket->ht.cleanupIfTemporaryItem(lh, v)) {
+        return true;
+    }
+
     // Delete expired items for an active vbucket.
     bool isExpired = (currentBucket->getState() == vbucket_state_active) &&
                      v.isExpired(startTime) && !v.isDeleted();
-    if (isExpired || v.isTempNonExistentItem() || v.isTempDeletedItem()) {
+    if (isExpired) {
         std::unique_ptr<Item> it = v.toItem(currentBucket->getId());
         expired.push_back(*it.get());
         return true;

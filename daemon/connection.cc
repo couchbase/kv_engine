@@ -1467,6 +1467,12 @@ size_t Connection::getNumberOfCookies() const {
 }
 
 bool Connection::isPacketAvailable() const {
+    /// Don't allow unauthenticated clients send large packets to
+    /// consume memory on the server (for instance send everything except
+    /// the last byte of a request and let the server be stuck waiting
+    /// for the last byte of a 20MB command)
+    static constexpr size_t MaxUnauthenticatedFrameSize = 1024;
+
     auto* event = bev.get();
     auto* input = bufferevent_get_input(event);
     auto size = evbuffer_get_length(input);
@@ -1491,8 +1497,27 @@ bool Connection::isPacketAvailable() const {
     }
 
     const auto framesize = sizeof(*header) + header->getBodylen();
+    if (!isAuthenticated() && framesize > MaxUnauthenticatedFrameSize) {
+        throw std::runtime_error(fmt::format(
+                "Connection::isPacketAvailable(): The packet size {} "
+                "exceeds the max allowed packet size for unauthenticated "
+                "connections {}",
+                framesize,
+                MaxUnauthenticatedFrameSize));
+    }
+
+    // Are we receiving an incredible big packet so that we want to
+    // disconnect the client?
+    if (framesize > Settings::instance().getMaxPacketSize()) {
+        throw std::runtime_error(fmt::format(
+                "Connection::isPacketAvailable(): The packet size {} "
+                "exceeds the max allowed packet size {}",
+                framesize,
+                Settings::instance().getMaxPacketSize()));
+    }
+
     if (size >= framesize) {
-        // We've got the entire buffer available.. make sure it is continuous
+        // We've got the entire buffer available... make sure it is continuous
         if (evbuffer_pullup(input, framesize) == nullptr) {
             throw std::runtime_error(
                     "Connection::isPacketAvailable(): Failed to reallocate "
@@ -1500,16 +1525,6 @@ bool Connection::isPacketAvailable() const {
                     std::to_string(framesize));
         }
         return true;
-    }
-
-    // We don't have the entire frame available.. Are we receiving an
-    // incredible big packet so that we want to disconnect the client?
-    if (framesize > Settings::instance().getMaxPacketSize()) {
-        throw std::runtime_error(
-                "Connection::isPacketAvailable(): The packet size " +
-                std::to_string(framesize) +
-                " exceeds the max allowed packet size " +
-                std::to_string(Settings::instance().getMaxPacketSize()));
     }
 
     return false;

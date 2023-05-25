@@ -1890,12 +1890,13 @@ static enum test_result test_temp_item_deletion(EngineIface* h) {
     // Trigger the expiry pager and verify that two temp items are deleted
     set_param(h, EngineParamCategory::Flush, "num_nonio_threads", "1");
 
-    // When bloom filters are on, it skips 1 of the expired items.
-    int ep_expired_pager = get_bool_stat(h, "ep_bfilter_enabled") ? 1 : 2;
-    wait_for_stat_to_be(h, "ep_expired_pager", ep_expired_pager);
+    wait_for_stat_to_be(h, "ep_num_expiry_pager_runs", 1);
 
     checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");
     checkeq(0, get_int_stat(h, "curr_temp_items"), "Expected zero temp_items");
+    checkeq(0,
+            get_int_stat(h, "ep_expired_pager"),
+            "Expected zero expired items");
 
     testHarness->destroy_cookie(cookie);
 

@@ -503,9 +503,9 @@ public:
      * @param hbl Hash table lock
      * @param v   Stored Value that needs to be cleaned up
      *
+     * @return true of the value was removed from the HT
      */
-    void cleanupIfTemporaryItem(const HashBucketLock& hbl,
-                                StoredValue& v);
+    bool cleanupIfTemporaryItem(const HashBucketLock& hbl, StoredValue& v);
 
     /**
      * Get the number of items whose values are ejected from this hash table.
