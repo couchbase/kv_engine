@@ -389,6 +389,14 @@ that we don't end up consuming GB of memory serving a single client.
 The max queue size is set to 40MB by default (2x the max document
 size)
 
+=== max_so_sndbuf_size
+
+The *max_so_sndbuf_size* attribute is an unsigned number used to
+specify the max size to set SO_SNDBUF to for authenticated clients.
+(NOTE: The settings in the operating system may cause a lower
+value to be used, and the system will try to use the highest
+permitted value)
+
 === num_reader_threads and num_writer_threads
 
 Specifies the number of reader or writer threads, respectively. The value

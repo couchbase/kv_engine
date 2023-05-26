@@ -509,6 +509,18 @@ public:
         notify_changed("max_send_queue_size");
     }
 
+    /// get the max size to try to set SO_SNDBUF to
+    uint32_t getMaxSoSndbufSize() const {
+        return max_so_sndbuf_size.load(std::memory_order_acquire);
+    }
+
+    /// Set the new maximum number size for SO_SNDBUF
+    void setMaxSoSndbufSize(uint32_t max) {
+        max_so_sndbuf_size.store(max, std::memory_order_release);
+        has.max_so_sndbuf_size = true;
+        notify_changed("max_so_sndbuf_size");
+    }
+
     void reconfigureClientCertAuth(
             std::unique_ptr<cb::x509::ClientCertConfig> config) {
         client_cert_mapper.reconfigure(std::move(config));
@@ -956,6 +968,19 @@ protected:
     /// limit is set to 40MB (2x the max document size)
     std::atomic<size_t> max_send_queue_size{40 * 1024 * 1024};
 
+    /// The maximum size we want to try to set SO_SNDBUF to. For windows
+    /// the default is 1MB as there is no operating system tunable which
+    /// limits this value. On MacOS and Linux one would need to make OS
+    /// level tuning to change this; so we'll just keep on using the
+    /// insane large number and use the operating systems max value.
+    std::atomic<uint32_t> max_so_sndbuf_size{
+#ifdef WIN32
+            1024 * 1024
+#else
+            256 * 1024 * 1024
+#endif
+    };
+
     /// ssl client authentication
     cb::x509::ClientCertMapper client_cert_mapper;
 
@@ -1162,6 +1187,7 @@ public:
         bool breakpad = false;
         bool max_packet_size = false;
         bool max_send_queue_size = false;
+        bool max_so_sndbuf_size = false;
         bool client_cert_auth = false;
         bool sasl_mechanisms = false;
         bool ssl_sasl_mechanisms = false;

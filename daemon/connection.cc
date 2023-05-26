@@ -995,17 +995,6 @@ bool Connection::executeCommandsCallback() {
  * Sets a socket's send buffer size to the maximum allowed by the system.
  */
 static void maximize_sndbuf(const SOCKET sfd) {
-    /// The max send buffer size we want
-#ifdef WIN32
-    // Windows doesn't seem to put a limit and will happily give
-    // you whatever you ask for.
-    constexpr int MaxSendBufferSize = 1024 * 1024;
-#else
-    // Linux may be tuned via /proc/sys/net/core/wmem_max
-    // Mac may be tuned via sysctl
-    constexpr int MaxSendBufferSize = 256 * 1024 * 1024;
-#endif
-
     static cb::RelaxedAtomic<int> hint{0};
 
     if (hint != 0) {
@@ -1021,25 +1010,23 @@ static void maximize_sndbuf(const SOCKET sfd) {
         return;
     }
 
-    socklen_t intsize = sizeof(int);
     int last_good = 0;
     int old_size;
 
-    /* Start with the default size. */
-    if (cb::net::getsockopt(sfd, SOL_SOCKET, SO_SNDBUF, &old_size, &intsize) !=
-        0) {
-        LOG_WARNING("getsockopt(SO_SNDBUF): {}", strerror(errno));
+    try {
+        old_size = cb::net::getSocketOption<int>(sfd, SOL_SOCKET, SO_SNDBUF);
+    } catch (const std::exception& e) {
+        LOG_WARNING("{} - Failed to get socket send buffer: {}", sfd, e.what());
         return;
     }
 
     /* Binary-search for the real maximum. */
     int min = old_size;
-    int max = MaxSendBufferSize;
+    int max = Settings::instance().getMaxSoSndbufSize();
 
     while (min <= max) {
         int avg = ((unsigned int)(min + max)) / 2;
-        if (cb::net::setsockopt(sfd, SOL_SOCKET, SO_SNDBUF, &avg, intsize) ==
-            0) {
+        if (cb::net::setSocketOption(sfd, SOL_SOCKET, SO_SNDBUF, avg)) {
             last_good = avg;
             min = avg + 1;
         } else {
