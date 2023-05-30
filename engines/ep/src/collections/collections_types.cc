@@ -146,19 +146,26 @@ bool CollectionSharedMetaData::operator==(
 }
 
 void CollectionSharedMetaData::incrementOpsStore() {
-    numOpsStore++;
+    coreLocal.get()->numOpsStore++;
 }
 
 void CollectionSharedMetaData::incrementOpsDelete() {
-    numOpsDelete++;
+    coreLocal.get()->numOpsDelete++;
 }
 
 void CollectionSharedMetaData::incrementOpsGet() {
-    numOpsGet++;
+    coreLocal.get()->numOpsGet++;
 }
 
 OperationCounts CollectionSharedMetaData::getOperationCounts() const {
-    return {numOpsStore, numOpsDelete, numOpsGet};
+    OperationCounts counts;
+    // sum the core local RelaxedAtomic counters
+    for (const auto& core : coreLocal) {
+        counts.opsStore += core->numOpsStore;
+        counts.opsDelete += core->numOpsDelete;
+        counts.opsGet += core->numOpsGet;
+    }
+    return counts;
 }
 
 std::ostream& operator<<(std::ostream& os,

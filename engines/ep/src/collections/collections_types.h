@@ -14,9 +14,11 @@
 #include "ep_types.h"
 
 #include <folly/Synchronized.h>
+#include <folly/lang/Aligned.h>
 #include <gsl/gsl-lite.hpp>
 #include <memcached/types.h>
 #include <platform/atomic.h>
+#include <platform/corestore.h>
 #include <platform/monotonic.h>
 #include <relaxed_atomic.h>
 
@@ -280,14 +282,21 @@ public:
     void incrementOpsGet();
     OperationCounts getOperationCounts() const;
 
+    struct CoreLocalStats {
+        using Counter = cb::RelaxedAtomic<int64_t>;
+
+        //! The number of basic store (add, set, arithmetic, touch, etc.)
+        //! operations
+        mutable Counter numOpsStore;
+        //! The number of basic delete operations
+        mutable Counter numOpsDelete;
+        //! The number of basic get operations
+        mutable Counter numOpsGet;
+    };
+    CoreStore<folly::cacheline_aligned<CoreLocalStats>> coreLocal;
+
     const std::string name;
     const ScopeID scope;
-    //! The number of basic store (add, set, arithmetic, touch, etc.) operations
-    cb::RelaxedAtomic<uint64_t> numOpsStore;
-    //! The number of basic delete operations
-    cb::RelaxedAtomic<uint64_t> numOpsDelete;
-    //! The number of basic get operations
-    cb::RelaxedAtomic<uint64_t> numOpsGet;
 
     // can be updated (corrected) post creation from any thread
     std::atomic<Metered> metered;
