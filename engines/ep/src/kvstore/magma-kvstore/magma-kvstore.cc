@@ -1930,13 +1930,14 @@ scan_error_t MagmaKVStore::scan(BySeqnoScanContext& ctx,
 
         switch (result.code) {
         case MagmaScanResult::Status::Success:
+            // Update the lastReadSeqno with the last successfully processed
+            // seqno - That will be used for computing the resume point in the
+            // case where the scan is paused/resumed
+            ctx.lastReadSeqno = seqno;
+            continue;
         case MagmaScanResult::Status::Again:
         case MagmaScanResult::Status::Failed:
             return scan_error_t(result.code);
-        case MagmaScanResult::Status::Next:
-            // Update the lastReadSeqno as this is the 'resume' point
-            ctx.lastReadSeqno = seqno;
-            continue;
         }
     }
 
@@ -1999,10 +2000,9 @@ scan_error_t MagmaKVStore::scan(ByIdScanContext& ctx,
         case MagmaScanResult::Status::Again:
             ctx.resumeFromKey = makeDiskDocKey(keySlice);
             [[fallthrough]];
-        case MagmaScanResult::Status::Success:
         case MagmaScanResult::Status::Failed:
             return scan_error_t(result.code);
-        case MagmaScanResult::Status::Next:
+        case MagmaScanResult::Status::Success:
             continue;
         }
     }
@@ -2054,7 +2054,7 @@ MagmaScanResult MagmaKVStore::scanOne(
                     cb::UserData{lookup.getKey().to_string()},
                     seqno);
         }
-        return MagmaScanResult::Next();
+        return MagmaScanResult::Success();
     }
 
     // Determine if the key is logically deleted before trying cache/disk read
@@ -2070,7 +2070,7 @@ MagmaScanResult MagmaKVStore::scanOne(
                         cb::UserData{lookup.getKey().to_string()},
                         seqno);
             }
-            return MagmaScanResult::Next();
+            return MagmaScanResult::Success();
         }
     }
 
@@ -2089,7 +2089,7 @@ MagmaScanResult MagmaKVStore::scanOne(
                         cb::UserData{lookup.getKey().to_string()},
                         seqno);
             }
-            return MagmaScanResult::Next();
+            return MagmaScanResult::Success();
         } else if (ctx.getCacheCallback().getStatus() ==
                    static_cast<int>(cb::engine_errc::no_memory)) {
             if (logger->should_log(spdlog::level::TRACE)) {
@@ -2146,7 +2146,7 @@ MagmaScanResult MagmaKVStore::scanOne(
                     ctx.vbid,
                     cb::UserData{lookup.getKey().to_string()},
                     seqno);
-            return MagmaScanResult::Next();
+            return MagmaScanResult::Success();
         }
     }
 
@@ -2172,7 +2172,7 @@ MagmaScanResult MagmaKVStore::scanOne(
         return MagmaScanResult::Again();
     }
 
-    return MagmaScanResult::Next();
+    return MagmaScanResult::Success();
 }
 
 void MagmaKVStore::mergeMagmaDbStatsIntoVBState(vbucket_state& vbstate,

@@ -18,10 +18,9 @@
  */
 struct MagmaScanResult {
     enum class Status {
-        Success,
-        Again,
-        Failed,
-        Next, // scan loop must iterate to the Next key
+        Success, // Scan loop successfully processed the last item, continue
+        Again, // Scan loop couldn't process the last item, try again
+        Failed // Scan loop failed process the last item, hard failure, stop
     } code;
 
     MagmaScanResult(Status s) : code(s) {
@@ -36,9 +35,6 @@ struct MagmaScanResult {
     static MagmaScanResult Failed() {
         return MagmaScanResult(Status::Failed);
     }
-    static MagmaScanResult Next() {
-        return MagmaScanResult(Status::Next);
-    }
 
     explicit operator scan_error_t() const {
         switch (code) {
@@ -48,7 +44,6 @@ struct MagmaScanResult {
             return scan_error_t::scan_again;
         case Status::Failed:
             return scan_error_t::scan_failed;
-        case Status::Next:
         default:
             throw std::runtime_error(
                     "MagmaScanResult: cannot convert to scan_error_t");
