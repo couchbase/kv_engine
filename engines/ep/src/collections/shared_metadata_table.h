@@ -14,6 +14,7 @@
 #include <platform/atomic.h>
 
 #include <exception>
+#include <ostream>
 #include <unordered_map>
 
 namespace Collections {
@@ -74,6 +75,14 @@ public:
         return smt.count(id);
     }
 
+    /**
+     * Invoke the function against every value mapped against the given id.
+     * @param id The id to lookup
+     * @param callback A function to call for every value
+     */
+    template <class UnaryFunction>
+    void forEach(Key id, UnaryFunction callback) const;
+
 private:
     template <class K, class V>
     friend std::ostream& operator<<(std::ostream& os,
@@ -115,6 +124,15 @@ void SharedMetaDataTable<Key, Value>::dereference(
         } else {
             itr++;
         }
+    }
+}
+
+template <class Key, class Value>
+template <class UnaryFunction>
+void SharedMetaDataTable<Key, Value>::forEach(Key id,
+                                              UnaryFunction callback) const {
+    for (auto [itr, end] = smt.equal_range(id); itr != end; itr++) {
+        callback(itr->second);
     }
 }
 

@@ -636,15 +636,6 @@ public:
         return manifest->getPersistedHighSeqno(itr);
     }
 
-    /// @return the number of stores to the collection
-    size_t getOpsStore() const;
-
-    /// @return the deletes to the collection
-    size_t getOpsDelete() const;
-
-    /// @return the reads from the collection
-    size_t getOpsGet() const;
-
     // @return the manifest UID that last updated this vb::manifest
     ManifestUid getManifestUid() const {
         return manifest->getManifestUid();

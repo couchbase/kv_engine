@@ -18,6 +18,7 @@
 #include <memcached/types.h>
 #include <platform/atomic.h>
 #include <platform/monotonic.h>
+#include <relaxed_atomic.h>
 
 #include <functional>
 #include <unordered_map>
@@ -58,11 +59,16 @@ struct AccumulatedStats {
 
     uint64_t itemCount{0};
     uint64_t diskSize{0};
+};
+using Summary = std::unordered_map<CollectionID, AccumulatedStats>;
+
+// convenience structure for handling the per collection operation structures
+struct OperationCounts {
+    OperationCounts& operator+=(const OperationCounts& other);
     uint64_t opsStore{0};
     uint64_t opsDelete{0};
     uint64_t opsGet{0};
 };
-using Summary = std::unordered_map<CollectionID, AccumulatedStats>;
 
 struct ManifestUidNetworkOrder {
     explicit ManifestUidNetworkOrder(ManifestUid uid) : uid(htonll(uid)) {
@@ -269,8 +275,20 @@ public:
         return !(*this == meta);
     }
 
+    void incrementOpsStore();
+    void incrementOpsDelete();
+    void incrementOpsGet();
+    OperationCounts getOperationCounts() const;
+
     const std::string name;
     const ScopeID scope;
+    //! The number of basic store (add, set, arithmetic, touch, etc.) operations
+    cb::RelaxedAtomic<uint64_t> numOpsStore;
+    //! The number of basic delete operations
+    cb::RelaxedAtomic<uint64_t> numOpsDelete;
+    //! The number of basic get operations
+    cb::RelaxedAtomic<uint64_t> numOpsGet;
+
     // can be updated (corrected) post creation from any thread
     std::atomic<Metered> metered;
 };

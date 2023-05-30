@@ -22,9 +22,7 @@ bool Collections::VB::ManifestEntry::operator==(
     return startSeqno == other.startSeqno && highSeqno == other.highSeqno &&
            itemCount == other.itemCount && diskSize == other.diskSize &&
            persistedHighSeqno == other.persistedHighSeqno &&
-           numOpsGet == other.numOpsGet && numOpsDelete == other.numOpsDelete &&
-           numOpsStore == other.numOpsStore && meta == other.meta &&
-           canDeduplicate == other.canDeduplicate;
+           meta == other.meta && canDeduplicate == other.canDeduplicate;
 }
 
 std::string Collections::VB::ManifestEntry::getExceptionString(
@@ -59,9 +57,7 @@ bool Collections::VB::ManifestEntry::addStats(
     addStat("persisted_high_seqno"sv, getPersistedHighSeqno());
     addStat("items"sv, getItemCount());
     addStat("disk_size"sv, getDiskSize());
-    addStat("ops_get"sv, getOpsGet());
-    addStat("ops_store"sv, getOpsStore());
-    addStat("ops_delete"sv, getOpsDelete());
+
     addStat("history"sv, getCanDeduplicate() == CanDeduplicate::No);
     if (getMaxTtl()) {
         addStat("maxTTL"sv, getMaxTtl().value().count());
@@ -81,9 +77,7 @@ std::ostream& Collections::VB::operator<<(
        << ", persistedHighSeqno:" << manifestEntry.getPersistedHighSeqno()
        << ", itemCount:" << manifestEntry.getItemCount()
        << ", diskSize:" << manifestEntry.getDiskSize() << ", "
-       << manifestEntry.getCanDeduplicate()
-       << ", r/w/d:" << manifestEntry.getOpsGet() << "/"
-       << manifestEntry.getOpsStore() << "/" << manifestEntry.getOpsDelete();
+       << manifestEntry.getCanDeduplicate();
 
     if (auto maxTtl = manifestEntry.getMaxTtl(); maxTtl) {
         os << ", maxTtl:" << maxTtl.value().count();

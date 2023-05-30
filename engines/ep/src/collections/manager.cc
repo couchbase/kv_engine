@@ -397,6 +397,15 @@ void Collections::Manager::dereferenceMeta(
     collectionSMT.wlock()->dereference(cid, std::move(meta));
 }
 
+Collections::OperationCounts Collections::Manager::getOperationCounts(
+        CollectionID cid) const {
+    OperationCounts counts;
+    collectionSMT.rlock()->forEach(cid, [&counts](const auto& entry) {
+        counts += entry->getOperationCounts();
+    });
+    return counts;
+}
+
 SingleThreadedRCPtr<Collections::VB::ScopeSharedMetaData>
 Collections::Manager::createOrReferenceMeta(
         ScopeID sid, const Collections::VB::ScopeSharedMetaDataView& view) {
@@ -570,7 +579,7 @@ Collections::Manager::doAllCollectionsStats(
         const auto scopeItr = current->findScope(entry.second.sid);
         Expects(scopeItr != current->endScopes());
         cachedStats.addStatsForCollection(
-                scopeItr->second.name, entry.second, collector);
+                bucket, scopeItr->second.name, entry.second, collector);
     }
     return {cb::engine_errc::success,
             cb::EngineErrorGetCollectionIDResult::allowSuccess{}};
@@ -651,7 +660,7 @@ cb::EngineErrorGetCollectionIDResult Collections::Manager::doOneCollectionStats(
 
     // Visit the vbuckets and generate the stat payload
     auto cachedStats = getPerCollectionStats({entry}, bucket);
-    cachedStats.addStatsForCollection(scopeName, entry, collector);
+    cachedStats.addStatsForCollection(bucket, scopeName, entry, collector);
     return res;
 }
 
@@ -736,7 +745,8 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doAllScopesStats(
             continue; // skip this scope
         }
 
-        cachedStats.addStatsForScope(itr->first,
+        cachedStats.addStatsForScope(bucket,
+                                     itr->first,
                                      itr->second.name,
                                      itr->second.collections,
                                      collector);
@@ -804,10 +814,10 @@ cb::EngineErrorGetScopeIDResult Collections::Manager::doOneScopeStats(
     }
     auto cachedStats = getPerCollectionStats(scopeCollections, bucket);
     cachedStats.addStatsForScope(
-            res.getScopeId(), scopeName, scopeCollections, collector);
+            bucket, res.getScopeId(), scopeName, scopeCollections, collector);
     // add stats for each collection in the scope
     for (const auto& entry : scopeCollections) {
-        cachedStats.addStatsForCollection(scopeName, entry, collector);
+        cachedStats.addStatsForCollection(bucket, scopeName, entry, collector);
     }
     return res;
 }
@@ -867,13 +877,14 @@ Collections::CachedStats::CachedStats(
 }
 
 void Collections::CachedStats::addStatsForCollection(
+        const KVBucket& bucket,
         std::string_view scopeName,
         const CollectionMetaData& collection,
         const BucketStatCollector& collector) {
     auto collectionC = collector.forScope(scopeName, collection.sid)
                                .forCollection(collection.name, collection.cid);
 
-    addAggregatedCollectionStats({collection.cid}, collectionC);
+    addAggregatedCollectionStats(bucket, {collection.cid}, collectionC);
 
     using namespace cb::stats;
     collectionC.addStat(Key::collection_name, collection.name);
@@ -887,6 +898,7 @@ void Collections::CachedStats::addStatsForCollection(
 }
 
 void Collections::CachedStats::addStatsForScope(
+        const KVBucket& bucket,
         ScopeID sid,
         std::string_view scopeName,
         const std::vector<Collections::CollectionMetaData>& scopeCollections,
@@ -899,7 +911,7 @@ void Collections::CachedStats::addStatsForScope(
     for (const auto& entry : scopeCollections) {
         collections.push_back(entry.cid);
     }
-    addAggregatedCollectionStats(collections, scopeC);
+    addAggregatedCollectionStats(bucket, collections, scopeC);
 
     using namespace cb::stats;
     // add scope name
@@ -909,13 +921,20 @@ void Collections::CachedStats::addStatsForScope(
 }
 
 void Collections::CachedStats::addAggregatedCollectionStats(
-        const std::vector<CollectionID>& cids, const StatCollector& collector) {
+        const KVBucket& bucket,
+        const std::vector<CollectionID>& cids,
+        const StatCollector& collector) {
     size_t memUsed = 0;
     AccumulatedStats stats;
+    OperationCounts operationCounts;
 
     for (const auto& cid : cids) {
         memUsed += colMemUsed[cid];
         stats += accumulatedStats[cid];
+
+        // Now read the already bucket level operation stats
+        operationCounts +=
+                bucket.getCollectionsManager().getOperationCounts(cid);
     }
 
     using namespace cb::stats;
@@ -924,7 +943,7 @@ void Collections::CachedStats::addAggregatedCollectionStats(
     collector.addStat(Key::collection_item_count, stats.itemCount);
     collector.addStat(Key::collection_data_size, stats.diskSize);
 
-    collector.addStat(Key::collection_ops_store, stats.opsStore);
-    collector.addStat(Key::collection_ops_delete, stats.opsDelete);
-    collector.addStat(Key::collection_ops_get, stats.opsGet);
+    collector.addStat(Key::collection_ops_store, operationCounts.opsStore);
+    collector.addStat(Key::collection_ops_delete, operationCounts.opsDelete);
+    collector.addStat(Key::collection_ops_get, operationCounts.opsGet);
 }

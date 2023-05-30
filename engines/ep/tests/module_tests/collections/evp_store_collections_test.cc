@@ -4149,9 +4149,10 @@ TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactReplayDeleteDelete) {
 
     auto d = DiskChecker(vb, CollectionEntry::meat, std::equal_to<>());
     runCompaction(vbid, 0, false);
-    auto handle = vb->getManifest().lock(CollectionEntry::meat);
-    EXPECT_EQ(2, handle.getOpsStore());
-    EXPECT_EQ(2, handle.getOpsDelete());
+    auto counts = store->getCollectionsManager().getOperationCounts(
+            CollectionEntry::meat);
+    EXPECT_EQ(2, counts.opsStore);
+    EXPECT_EQ(2, counts.opsDelete);
 }
 
 TEST_P(CollectionsEphemeralParameterizedTest, TrackSystemEventSize) {

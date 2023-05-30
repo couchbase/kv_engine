@@ -188,29 +188,17 @@ public:
                   const StatCollector& collector) const;
 
     void incrementOpsStore() const {
-        numOpsStore++;
+        meta->incrementOpsStore();
     }
     void incrementOpsDelete() const {
-        numOpsDelete++;
+        meta->incrementOpsDelete();
     }
     void incrementOpsGet() const {
-        numOpsGet++;
+        meta->incrementOpsGet();
     }
-    uint64_t getOpsStore() const {
-        return numOpsStore.load();
-    }
-    uint64_t getOpsDelete() const {
-        return numOpsDelete.load();
-    }
-    uint64_t getOpsGet() const {
-        return numOpsGet.load();
-    }
+
     AccumulatedStats getStatsForSummary() const {
-        return {getItemCount(),
-                getDiskSize(),
-                getOpsStore(),
-                getOpsDelete(),
-                getOpsGet()};
+        return {getItemCount(), getDiskSize()};
     }
 
     /**
@@ -308,13 +296,6 @@ private:
      *           The write lock is really for the Manifest map being changed.
      */
     mutable AtomicMonotonic<uint64_t, IgnorePolicy> persistedHighSeqno;
-
-    //! The number of basic store (add, set, arithmetic, touch, etc.) operations
-    mutable cb::RelaxedAtomic<uint64_t> numOpsStore;
-    //! The number of basic delete operations
-    mutable cb::RelaxedAtomic<uint64_t> numOpsDelete;
-    //! The number of basic get operations
-    mutable cb::RelaxedAtomic<uint64_t> numOpsGet;
 
     /**
      * The 'static' metadata associated with this collection.

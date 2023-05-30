@@ -56,7 +56,8 @@ public:
      * @param collection The entry object
      * @param collector stat collector to which stats will be added
      */
-    void addStatsForCollection(std::string_view scopeName,
+    void addStatsForCollection(const KVBucket& bucket,
+                               std::string_view scopeName,
                                const CollectionMetaData& collection,
                                const BucketStatCollector& collector);
 
@@ -68,7 +69,8 @@ public:
      * @param scopeCollections All collections in the scope
      * @param collector stat collector to which stats will be added
      */
-    void addStatsForScope(ScopeID sid,
+    void addStatsForScope(const KVBucket& bucket,
+                          ScopeID sid,
                           std::string_view scopeName,
                           const std::vector<Collections::CollectionMetaData>&
                                   scopeCollections,
@@ -82,7 +84,8 @@ private:
      * @param collector collector to add stats to. Should be a scope or
      * collection collector.
      */
-    void addAggregatedCollectionStats(const std::vector<CollectionID>& cids,
+    void addAggregatedCollectionStats(const KVBucket& bucket,
+                                      const std::vector<CollectionID>& cids,
                                       const StatCollector& collector);
     std::unordered_map<CollectionID, size_t> colMemUsed;
     std::unordered_map<CollectionID, AccumulatedStats> accumulatedStats;
@@ -289,6 +292,8 @@ public:
      */
     void dereferenceMeta(ScopeID sid,
                          SingleThreadedRCPtr<VB::ScopeSharedMetaData>&& meta);
+
+    OperationCounts getOperationCounts(CollectionID cid) const;
 
     /**
      * Perform the gathering of collection stats for the bucket.

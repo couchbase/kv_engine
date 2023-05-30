@@ -197,6 +197,12 @@ TEST(SharedMetaDataTable, basic) {
     EXPECT_EQ(ref1->name, "brass");
     EXPECT_EQ(ref2, ref3);
 
+    // Sum up all instances "something"
+    int count{0};
+    table.forEach(8,
+                  [&count](const auto& entry) { count += entry->something; });
+    EXPECT_EQ(19, count);
+
     // Release one and tell the table
     table.dereference(8, std::move(ref1));
     EXPECT_EQ(1, table.count(8));

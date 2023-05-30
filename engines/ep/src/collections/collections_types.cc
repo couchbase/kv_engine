@@ -56,20 +56,22 @@ ScopeID getScopeIDFromKey(const DocKey& key) {
 AccumulatedStats& AccumulatedStats::operator+=(const AccumulatedStats& other) {
     itemCount += other.itemCount;
     diskSize += other.diskSize;
-    opsStore += other.opsStore;
-    opsDelete += other.opsDelete;
-    opsGet += other.opsGet;
     return *this;
 }
 
 bool AccumulatedStats::operator==(const AccumulatedStats& other) const {
-    return itemCount == other.itemCount && diskSize == other.diskSize &&
-           opsStore == other.opsStore && opsDelete == other.opsDelete &&
-           opsGet == other.opsGet;
+    return itemCount == other.itemCount && diskSize == other.diskSize;
 }
 
 bool AccumulatedStats::operator!=(const AccumulatedStats& other) const {
     return !(*this == other);
+}
+
+OperationCounts& OperationCounts::operator+=(const OperationCounts& other) {
+    opsStore += other.opsStore;
+    opsDelete += other.opsDelete;
+    opsGet += other.opsGet;
+    return *this;
 }
 
 std::string to_string(Metered metered) {
@@ -134,12 +136,29 @@ CollectionSharedMetaData::CollectionSharedMetaData(
 
 bool CollectionSharedMetaData::operator==(
         const CollectionSharedMetaDataView& view) const {
+    // note: this operator does not compare the operation counters
     return name == view.name && scope == view.scope && metered == view.metered;
 }
 
 bool CollectionSharedMetaData::operator==(
         const CollectionSharedMetaData& meta) const {
     return *this == CollectionSharedMetaDataView(meta);
+}
+
+void CollectionSharedMetaData::incrementOpsStore() {
+    numOpsStore++;
+}
+
+void CollectionSharedMetaData::incrementOpsDelete() {
+    numOpsDelete++;
+}
+
+void CollectionSharedMetaData::incrementOpsGet() {
+    numOpsGet++;
+}
+
+OperationCounts CollectionSharedMetaData::getOperationCounts() const {
+    return {numOpsStore, numOpsDelete, numOpsGet};
 }
 
 std::ostream& operator<<(std::ostream& os,

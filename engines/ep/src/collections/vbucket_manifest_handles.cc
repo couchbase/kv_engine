@@ -43,18 +43,6 @@ size_t StatsReadHandle::getItemCount() const {
     return itr->second.getItemCount();
 }
 
-size_t StatsReadHandle::getOpsStore() const {
-    return itr->second.getOpsStore();
-}
-
-size_t StatsReadHandle::getOpsDelete() const {
-    return itr->second.getOpsDelete();
-}
-
-size_t StatsReadHandle::getOpsGet() const {
-    return itr->second.getOpsGet();
-}
-
 void ReadHandle::dump() const {
     std::cerr << *manifest << std::endl;
 }
