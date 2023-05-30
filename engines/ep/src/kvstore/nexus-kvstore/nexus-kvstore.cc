@@ -2817,13 +2817,13 @@ scan_error_t NexusKVStore::scan(ByIdScanContext& ctx) const {
         handleError(msg, ctx.vbid);
     }
 
-    if (primaryCtx.lastReadKey != secondaryCtx.lastReadKey) {
+    if (primaryCtx.resumeFromKey != secondaryCtx.resumeFromKey) {
         auto msg = fmt::format(
                 "NexusKVStore::scan: {}: lastReadKey not "
                 "equal primary:{} secondary:{}",
                 ctx.vbid,
-                primaryCtx.lastReadKey,
-                secondaryCtx.lastReadKey);
+                primaryCtx.resumeFromKey,
+                secondaryCtx.resumeFromKey);
         handleError(msg, ctx.vbid);
     }
 
@@ -2844,7 +2844,7 @@ scan_error_t NexusKVStore::scan(ByIdScanContext& ctx) const {
 
     // Both ranges and lastReadKey are updated by the underlying scan, must copy
     // over to the nexus context in-case of a scan being resumed.
-    nexusCtx.lastReadKey = primaryCtx.lastReadKey;
+    nexusCtx.resumeFromKey = primaryCtx.resumeFromKey;
     nexusCtx.ranges = primaryCtx.ranges;
 
     return primaryScanResult;

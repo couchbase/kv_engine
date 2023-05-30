@@ -1304,6 +1304,83 @@ TEST_P(KVStoreParamTest, DeletedItemsForNoDeletesScanMovesLastReadSeqno) {
     EXPECT_EQ(1, scanCtx->lastReadSeqno);
 }
 
+TEST_P(KVStoreParamTestSkipRocks, IdScanResumesFromNextItemAfterPause) {
+    auto ctx = kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
+    for (size_t i = 1; i <= 3; ++i) {
+        auto qi = makeCommittedItem(makeStoredDocKey("key" + std::to_string(i)),
+                                    "value");
+        qi->setBySeqno(i);
+        kvstore->set(*ctx, qi);
+    }
+    // Need a valid snap end
+    flush.proposedVBState.lastSnapEnd = 3;
+    kvstore->commit(std::move(ctx), flush);
+    ASSERT_EQ(3, kvstore->getLastPersistedSeqno(vbid));
+
+    // Cache callback - just proceed to disk callback
+    class CacheCallback : public StatusCallback<CacheLookup> {
+        void callback(CacheLookup& lookup) override {
+            setStatus(cb::engine_errc::success);
+        };
+    };
+    // Disk callback - Simulate backfill pause/resume
+    class DiskCallback : public StatusCallback<GetValue> {
+    public:
+        DiskCallback() {
+            setStatus(cb::engine_errc::invalid_arguments);
+        }
+
+        void callback(GetValue& v) override {
+            if (numCalls == 1) {
+                setStatus(cb::engine_errc::no_memory);
+            } else {
+                // call 0 + extra calls
+                lastBackfilledKey = DiskDocKey(v.item->getKey());
+                setStatus(cb::engine_errc::success);
+                ++numBackfilled;
+            }
+            ++numCalls;
+        };
+
+        size_t numCalls = 0;
+        DiskDocKey lastBackfilledKey{nullptr, 0};
+        size_t numBackfilled = 0;
+    };
+
+    const auto key1 = DiskDocKey(makeStoredDocKey("key1"));
+    const auto key2 = DiskDocKey(makeStoredDocKey("key2"));
+    const auto key3 = DiskDocKey(makeStoredDocKey("key3"));
+    auto cb = std::make_unique<DiskCallback>();
+    auto* callback = cb.get();
+    auto scanCtx =
+            kvstore->initByIdScanContext(std::move(cb),
+                                         std::make_unique<CacheCallback>(),
+                                         vbid,
+                                         {{key1, key3}}, // range
+                                         DocumentFilter::ALL_ITEMS,
+                                         ValueFilter::VALUES_COMPRESSED);
+    ASSERT_TRUE(scanCtx);
+    ASSERT_EQ(cb::engine_errc::invalid_arguments,
+              cb::engine_errc(callback->getStatus()));
+    ASSERT_EQ(0, callback->lastBackfilledKey.size());
+    ASSERT_EQ(0, callback->numBackfilled);
+
+    // key1 backfilled -> no mem -> paused -> resume point is key2
+    kvstore->scan(*scanCtx);
+    EXPECT_EQ(cb::engine_errc::no_memory,
+              cb::engine_errc(callback->getStatus()));
+    EXPECT_EQ(key1, callback->lastBackfilledKey);
+    EXPECT_EQ(1, callback->numBackfilled);
+    // Before the fix for MB-57106 the resume point is wrongly set to key1, so
+    // backfill sends key1 again at resume
+    EXPECT_EQ(key2, scanCtx->resumeFromKey);
+    // Resumed to completion
+    kvstore->scan(*scanCtx);
+    EXPECT_EQ(cb::engine_errc::success, cb::engine_errc(callback->getStatus()));
+    EXPECT_EQ(key3, callback->lastBackfilledKey);
+    EXPECT_EQ(3, callback->numBackfilled);
+}
+
 TEST_P(KVStoreParamTestSkipRocks, GetAllKeysSanity) {
     using namespace std::string_view_literals;
     using namespace testing;

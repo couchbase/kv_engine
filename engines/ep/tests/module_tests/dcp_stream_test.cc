@@ -4151,6 +4151,82 @@ protected:
     }
 };
 
+TEST_P(SingleThreadedActiveStreamTest,
+       OSOBackfillResumesFromNextItemAfterPause) {
+    if (ephemeral()) {
+        GTEST_SKIP();
+    }
+
+    auto vb = engine->getVBucket(vbid);
+    auto& ckptMgr = *vb->checkpointManager;
+    // Get rid of set_vb_state and any other queue_op we are not interested in
+    ckptMgr.clear(0 /*seqno*/);
+
+    // Remove the initial stream, we want to force it to backfill.
+    stream.reset();
+
+    producer->setOutOfOrderSnapshots(OutOfOrderSnapshots::Yes);
+    producer->setBackfillBufferSize(1);
+
+    const auto keyA = makeStoredDocKey("keyA");
+    const auto keyB = makeStoredDocKey("keyB");
+    for (const auto& key : {keyA, keyB}) {
+        auto item = make_item(vbid, key, "value");
+        EXPECT_EQ(MutationStatus::WasClean,
+                  public_processSet(
+                          *vb, item, VBQueueItemCtx(CanDeduplicate::Yes)));
+    }
+
+    // Ensure mutation is on disk; no longer present in CheckpointManager.
+    vb->checkpointManager->createNewCheckpoint();
+    flushVBucketToDiskIfPersistent(vbid, 2);
+    removeCheckpoint(*vb, 2);
+
+    recreateStream(*vb);
+    ASSERT_TRUE(stream->isBackfilling());
+
+    // Run the backfill we scheduled when we transitioned to the backfilling
+    // state. Only run the backfill task once because we only care about the
+    // snapshot marker.
+    auto& bfm = producer->getBFM();
+    bfm.backfill();
+
+    // No message processed, BufferLog empty
+    ASSERT_EQ(0, producer->getBytesOutstanding());
+
+    // readyQ must contain a OSOSnapshot message
+    ASSERT_EQ(stream->public_readyQSize(), 1);
+    auto resp = stream->public_backfillPhase(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::OSOSnapshot, resp->getEvent());
+    auto& marker = dynamic_cast<OSOSnapshot&>(*resp);
+    EXPECT_TRUE(marker.isStart());
+
+    // Scan runs, pushes 1 item to the readyQ and yields by max scan buffer full
+    EXPECT_EQ(backfill_success, bfm.backfill());
+    ASSERT_EQ(stream->public_readyQSize(), 1);
+    // Note: This call releases bytes from scan buffer. The next scan() will
+    // push the next item to the readyQ
+    resp = stream->public_backfillPhase(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    auto* mutation = dynamic_cast<MutationResponse*>(resp.get());
+    EXPECT_EQ(keyA, mutation->getItem()->getKey());
+
+    // Resume backfill - That must resume from the next item (keyB)
+    // Before the fix for MB-57106, at this step scan() pushes keyA to readyQ
+    // again.
+    EXPECT_EQ(backfill_success, bfm.backfill());
+    EXPECT_EQ(stream->public_readyQSize(), 1);
+    resp = stream->public_nextQueuedItem(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    mutation = dynamic_cast<MutationResponse*>(resp.get());
+    EXPECT_EQ(keyB, mutation->getItem()->getKey());
+
+    producer->cancelCheckpointCreatorTask();
+}
+
 class SingleThreadedBackfillScanBufferTest : public SingleThreadedBackfillTest {
 public:
     void SetUp() override {
