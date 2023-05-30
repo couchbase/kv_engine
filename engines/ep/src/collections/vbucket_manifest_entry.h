@@ -15,6 +15,7 @@
 #include "ep_types.h"
 #include "memcached/engine_common.h"
 
+#include <platform/n_byte_integer.h>
 #include <platform/non_negative_counter.h>
 #include <relaxed_atomic.h>
 
@@ -39,11 +40,11 @@ public:
                   uint64_t startSeqno,
                   CanDeduplicate canDeduplicate,
                   cb::ExpiryLimit ttl)
-        : startSeqno(startSeqno),
-          itemCount(0),
+        : itemCount(0),
           highSeqno(startSeqno),
           persistedHighSeqno(startSeqno),
           meta(std::move(meta)),
+          startSeqno(startSeqno),
           canDeduplicate(canDeduplicate) {
         setMaxTtl(ttl);
     }
@@ -245,12 +246,6 @@ private:
     }
 
     /**
-     * Start-seqno of the collection is recorded, items of the collection below
-     * the start-seqno are logically deleted
-     */
-    uint64_t startSeqno;
-
-    /**
      * The count of items in this collection
      * mutable - the VB:Manifest read/write lock protects this object and
      *           we can do stats updates as long as the read lock is held.
@@ -304,6 +299,19 @@ private:
      */
     SingleThreadedRCPtr<CollectionSharedMetaData> meta;
 
+    /**
+     * Start-seqno of the collection is recorded, items of the collection below
+     * the start-seqno are logically deleted.
+     *
+     * 48-bit as that is the max seqno that KVStore can assign
+     */
+    cb::uint48_t startSeqno;
+
+    /**
+     * The collections canDeduplicate setting. This must be stored per vbucket
+     * so that collection modification events (per vb) can be generated when
+     * needed.
+     */
     std::atomic<CanDeduplicate> canDeduplicate;
 
     /**
