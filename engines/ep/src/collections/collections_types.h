@@ -245,13 +245,11 @@ class CollectionSharedMetaDataView {
 public:
     CollectionSharedMetaDataView(std::string_view name,
                                  ScopeID scope,
-                                 cb::ExpiryLimit maxTtl,
                                  Metered metered);
     CollectionSharedMetaDataView(const CollectionSharedMetaData&);
     std::string to_string() const;
     std::string_view name;
     const ScopeID scope;
-    const cb::ExpiryLimit maxTtl;
     Metered metered;
 };
 
@@ -260,7 +258,6 @@ class CollectionSharedMetaData : public RCValue {
 public:
     CollectionSharedMetaData(std::string_view name,
                              ScopeID scope,
-                             cb::ExpiryLimit maxTtl,
                              Metered metered);
     CollectionSharedMetaData(const CollectionSharedMetaDataView& view);
     bool operator==(const CollectionSharedMetaDataView& view) const;
@@ -274,7 +271,6 @@ public:
 
     const std::string name;
     const ScopeID scope;
-    const cb::ExpiryLimit maxTtl;
     // can be updated (corrected) post creation from any thread
     std::atomic<Metered> metered;
 };

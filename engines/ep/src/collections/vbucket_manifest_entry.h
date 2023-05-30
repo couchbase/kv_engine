@@ -37,13 +37,15 @@ class ManifestEntry {
 public:
     ManifestEntry(SingleThreadedRCPtr<VB::CollectionSharedMetaData> meta,
                   uint64_t startSeqno,
-                  CanDeduplicate canDeduplicate)
+                  CanDeduplicate canDeduplicate,
+                  cb::ExpiryLimit ttl)
         : startSeqno(startSeqno),
           itemCount(0),
           highSeqno(startSeqno),
           persistedHighSeqno(startSeqno),
           meta(std::move(meta)),
           canDeduplicate(canDeduplicate) {
+        setMaxTtl(ttl);
     }
 
     // Mark copy and move as deleted as it simplifies the lifetime of
@@ -78,7 +80,18 @@ public:
     }
 
     cb::ExpiryLimit getMaxTtl() const {
-        return meta->maxTtl;
+        if (maxTtl == std::numeric_limits<uint32_t>::max()) {
+            return cb::NoExpiryLimit;
+        }
+        return std::chrono::seconds(maxTtl.load());
+    }
+
+    void setMaxTtl(cb::ExpiryLimit ttl) {
+        if (ttl) {
+            maxTtl.store(gsl::narrow<uint32_t>(ttl.value().count()));
+        } else {
+            maxTtl.store(std::numeric_limits<uint32_t>::max());
+        }
     }
 
     std::string_view getName() const {
@@ -311,6 +324,13 @@ private:
     SingleThreadedRCPtr<CollectionSharedMetaData> meta;
 
     std::atomic<CanDeduplicate> canDeduplicate;
+
+    /**
+     * maxTTL of the collection. Stored as uint32 and not cb::ExpiryLimit to
+     * minimise the size increase to this object. The max permissible value is
+     * 2147483647 (max int32) allowing us to use max uint32 to represent no TTL.
+     */
+    std::atomic<uint32_t> maxTtl{std::numeric_limits<uint32_t>::max()};
 };
 
 std::ostream& operator<<(std::ostream& os, const ManifestEntry& manifestEntry);

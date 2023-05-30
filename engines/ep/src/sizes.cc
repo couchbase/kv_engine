@@ -97,6 +97,8 @@ int main(int, char **) {
     display("CheckpointConfig", sizeof(CheckpointConfig));
     display("Collections::VB::ManifestEntry",
             sizeof(Collections::VB::ManifestEntry));
+    display("cb::ExpiryLimit", sizeof(cb::ExpiryLimit));
+
     display("CouchRequest", sizeof(CouchRequest));
     display("DCP", "", "");
     display("    ActiveStream", sizeof(ActiveStream));

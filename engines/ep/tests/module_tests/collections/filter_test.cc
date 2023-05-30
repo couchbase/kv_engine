@@ -75,19 +75,19 @@ public:
                     manager->createOrReferenceMeta(CollectionID::Default,
                                                    {"name1",
                                                     ScopeID::Default,
-                                                    cb::NoExpiryLimit,
                                                     Collections::Metered::Yes}),
                     0,
-                    CanDeduplicate::Yes);
+                    CanDeduplicate::Yes,
+                    cb::NoExpiryLimit);
     std::unique_ptr<Collections::VB::ManifestEntry> entryInShop1Scope =
             std::make_unique<Collections::VB::ManifestEntry>(
                     manager->createOrReferenceMeta(CollectionID::Default,
                                                    {"name2",
                                                     ScopeUid::shop1,
-                                                    cb::NoExpiryLimit,
                                                     Collections::Metered::Yes}),
                     0,
-                    CanDeduplicate::Yes);
+                    CanDeduplicate::Yes,
+                    cb::NoExpiryLimit);
 
     CookieIface* cookie = nullptr;
 };

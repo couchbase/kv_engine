@@ -102,52 +102,39 @@ std::string to_string(ManifestUpdateStatus status) {
 }
 
 CollectionSharedMetaDataView::CollectionSharedMetaDataView(
-        std::string_view name,
-        ScopeID scope,
-        cb::ExpiryLimit maxTtl,
-        Metered metered)
-    : name(name), scope(scope), maxTtl(std::move(maxTtl)), metered(metered) {
+        std::string_view name, ScopeID scope, Metered metered)
+    : name(name), scope(scope), metered(metered) {
 }
 
 CollectionSharedMetaDataView::CollectionSharedMetaDataView(
         const CollectionSharedMetaData& meta)
     : name(meta.name),
       scope(meta.scope),
-      maxTtl(meta.maxTtl),
       metered(meta.metered) {
 }
 
 std::string CollectionSharedMetaDataView::to_string() const {
-    std::string rv = "Collection: name:" + std::string(name) +
-                     ", scope:" + scope.to_string() + ", " +
-                     Collections::to_string(metered);
-
-    if (maxTtl) {
-        rv += ", maxTtl:" + std::to_string(maxTtl.value().count());
-    }
-
-    return rv;
+    return "Collection: name:" + std::string(name) +
+           ", scope:" + scope.to_string() + ", " +
+           Collections::to_string(metered);
 }
 
 CollectionSharedMetaData::CollectionSharedMetaData(std::string_view name,
                                                    ScopeID scope,
-                                                   cb::ExpiryLimit maxTtl,
                                                    Metered metered)
-    : name(name), scope(scope), maxTtl(std::move(maxTtl)), metered(metered) {
+    : name(name), scope(scope), metered(metered) {
 }
 
 CollectionSharedMetaData::CollectionSharedMetaData(
         const CollectionSharedMetaDataView& view)
     : name(view.name),
       scope(view.scope),
-      maxTtl(view.maxTtl),
       metered(view.metered) {
 }
 
 bool CollectionSharedMetaData::operator==(
         const CollectionSharedMetaDataView& view) const {
-    return name == view.name && scope == view.scope && maxTtl == view.maxTtl &&
-           metered == view.metered;
+    return name == view.name && scope == view.scope && metered == view.metered;
 }
 
 bool CollectionSharedMetaData::operator==(
@@ -157,11 +144,8 @@ bool CollectionSharedMetaData::operator==(
 
 std::ostream& operator<<(std::ostream& os,
                          const CollectionSharedMetaData& meta) {
-    os << " name:" << meta.name << ", scope:" << meta.scope;
-    if (meta.maxTtl) {
-        os << ", maxTtl:" << meta.maxTtl.value().count();
-    }
-    return os << ", " << meta.metered;
+    return os << " name:" << meta.name << ", scope:" << meta.scope << ", "
+              << meta.metered;
 }
 
 ScopeSharedMetaDataView::ScopeSharedMetaDataView(

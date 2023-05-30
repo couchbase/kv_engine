@@ -97,13 +97,13 @@ Manifest::Manifest(Manifest& other) : manager(other.manager) {
     for (auto& [cid, entry] : other.map) {
         CollectionSharedMetaDataView meta{entry.getName(),
                                           entry.getScopeID(),
-                                          entry.getMaxTtl(),
                                           entry.isMetered()};
         auto [itr, inserted] =
                 map.try_emplace(cid,
                                 other.manager->createOrReferenceMeta(cid, meta),
                                 entry.getStartSeqno(),
-                                entry.getCanDeduplicate());
+                                entry.getCanDeduplicate(),
+                                entry.getMaxTtl());
         Expects(inserted);
         itr->second.setItemCount(entry.getItemCount());
         itr->second.setDiskSize(entry.getDiskSize());
@@ -564,12 +564,13 @@ ManifestEntry& Manifest::addNewCollectionEntry(ScopeCollectionPair identifiers,
                                                CanDeduplicate canDeduplicate,
                                                int64_t startSeqno) {
     CollectionSharedMetaDataView meta{
-            collectionName, identifiers.first, maxTtl, metered};
+            collectionName, identifiers.first, metered};
     auto [itr, inserted] = map.try_emplace(
             identifiers.second,
             manager->createOrReferenceMeta(identifiers.second, meta),
             startSeqno,
-            canDeduplicate);
+            canDeduplicate,
+            maxTtl);
 
     if (!inserted) {
         throwException<std::logic_error>(
