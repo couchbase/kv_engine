@@ -162,6 +162,16 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
             } else if (indexEntry.getPosition() == toWrite.end()) {
                 // Case: normal mutation expelled
 
+                // CDC: Duplicates for historical collections must be queued
+                // into a new open checkpoint regardless of whether the current
+                // open checkpoint still stores the previous revision for the
+                // key or not. Duplicates for the same key would be streamed to
+                // replica and attempted to be stored into the same physical
+                // checkpoint otherwise, which would fail the replica.
+                if (!qi->canDeduplicate()) {
+                    return {QueueDirtyStatus::FailureDuplicateItem, 0};
+                }
+
                 // Always return PersistAgain because if the old item has been
                 // expelled so all cursors must have passed it.
                 rv.status = QueueDirtyStatus::SuccessPersistAgain;

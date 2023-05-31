@@ -91,6 +91,7 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
     format_to(std::back_inserter(buf), "{}_mean", key);
     addStat(cb::stats::StatDef({buf.data(), buf.size()}), hist.mean, labels);
 
+    uint64_t cumulativeCount = 0;
     for (const auto& bucket : hist.buckets) {
         buf.resize(0);
         format_to(std::back_inserter(buf),
@@ -100,6 +101,25 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
                   bucket.upperBound);
         addStat(cb::stats::StatDef({buf.data(), buf.size()}),
                 bucket.count,
+                labels);
+        cumulativeCount += bucket.count;
+    }
+
+    // If cumulative bucket counts don't add up to the total sample count, then
+    // those are overflow samples which are not tracked by the main histogram.
+    // Report via _overflowed and _max_tracked keys so cbstats et al.
+    // can render.
+    const auto overflowed = hist.sampleCount - cumulativeCount;
+    if (overflowed) {
+        buf.resize(0);
+        format_to(std::back_inserter(buf), "{}_overflowed", key);
+        addStat(cb::stats::StatDef({buf.data(), buf.size()}),
+                overflowed,
+                labels);
+        buf.resize(0);
+        format_to(std::back_inserter(buf), "{}_maxTrackable", key);
+        addStat(cb::stats::StatDef({buf.data(), buf.size()}),
+                hist.maxTrackableValue,
                 labels);
     }
 }
@@ -112,7 +132,8 @@ void CBStatCollector::addStat(const cb::stats::StatDef& k,
     if (v.getValueCount() > 0) {
         HistogramData histData;
         histData.mean = std::round(v.getMean());
-        histData.sampleCount = v.getValueCount();
+        histData.sampleCount = v.getValueCount() + v.getOverflowCount();
+        histData.maxTrackableValue = v.getMaxTrackableValue();
 
         for (const auto& bucket : v) {
             histData.buckets.push_back(

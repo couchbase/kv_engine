@@ -497,6 +497,39 @@ static Status verify_common_dcp_restrictions(Cookie& cookie) {
     return Status::Success;
 }
 
+/**
+ * Verify that the request meets common restrictions between AddStream and
+ * StreamRequest.
+ * @param cookie Request to check
+ * @return Status::Success if checks pass, otherwise sets the cookie's error
+ *         context to a string explaining the failure and returns non-Success.
+ */
+static Status verify_common_dcp_stream_restrictions(Cookie& cookie,
+                                                    uint32_t flags) {
+    const auto mask =
+            DCP_ADD_STREAM_FLAG_TAKEOVER | DCP_ADD_STREAM_FLAG_DISKONLY |
+            DCP_ADD_STREAM_FLAG_TO_LATEST | DCP_ADD_STREAM_ACTIVE_VB_ONLY |
+            DCP_ADD_STREAM_FLAG_FROM_LATEST |
+            DCP_ADD_STREAM_FLAG_IGNORE_PURGED_TOMBSTONES;
+
+    if (flags & ~mask) {
+        if (flags & DCP_ADD_STREAM_FLAG_NO_VALUE) {
+            // MB-22525 The NO_VALUE flag should be passed to DCP_OPEN
+            LOG_INFO("Client trying to add stream with NO VALUE {}",
+                     get_peer_description(cookie));
+            cookie.setErrorContext(
+                    "DCP_ADD_STREAM_FLAG_NO_VALUE{8} flag is no longer used");
+        } else {
+            LOG_INFO("Client trying to add stream with unknown flags ({:x}) {}",
+                     flags,
+                     get_peer_description(cookie));
+            cookie.setErrorContext("Request contains invalid flags");
+        }
+        return Status::Einval;
+    }
+    return Status::Success;
+}
+
 static Status dcp_open_validator(Cookie& cookie) {
     using cb::mcbp::request::DcpOpenPayload;
 
@@ -629,26 +662,9 @@ static Status dcp_add_stream_validator(Cookie& cookie) {
     const auto& payload = req.getCommandSpecifics<DcpAddStreamPayload>();
 
     const uint32_t flags = payload.getFlags();
-    const auto mask =
-            DCP_ADD_STREAM_FLAG_TAKEOVER | DCP_ADD_STREAM_FLAG_DISKONLY |
-            DCP_ADD_STREAM_FLAG_TO_LATEST | DCP_ADD_STREAM_ACTIVE_VB_ONLY |
-            DCP_ADD_STREAM_FLAG_FROM_LATEST |
-            DCP_ADD_STREAM_FLAG_IGNORE_PURGED_TOMBSTONES;
-
-    if (flags & ~mask) {
-        if (flags & DCP_ADD_STREAM_FLAG_NO_VALUE) {
-            // MB-22525 The NO_VALUE flag should be passed to DCP_OPEN
-            LOG_INFO("Client trying to add stream with NO VALUE {}",
-                     get_peer_description(cookie));
-            cookie.setErrorContext(
-                    "DCP_ADD_STREAM_FLAG_NO_VALUE{8} flag is no longer used");
-        } else {
-            LOG_INFO("Client trying to add stream with unknown flags ({:x}) {}",
-                     flags,
-                     get_peer_description(cookie));
-            cookie.setErrorContext("Request contains invalid flags");
-        }
-        return Status::Einval;
+    if (auto status = verify_common_dcp_stream_restrictions(cookie, flags);
+        status != Status::Success) {
+        return status;
     }
     return verify_common_dcp_restrictions(cookie);
 }
@@ -697,6 +713,16 @@ static Status dcp_stream_req_validator(Cookie& cookie) {
     if (status != Status::Success) {
         return status;
     }
+
+    auto& req = cookie.getRequest();
+    const auto& payload =
+            req.getCommandSpecifics<cb::mcbp::request::DcpStreamReqPayload>();
+    const uint32_t flags = payload.getFlags();
+    if (auto status = verify_common_dcp_stream_restrictions(cookie, flags);
+        status != Status::Success) {
+        return status;
+    }
+
     return verify_common_dcp_restrictions(cookie);
 }
 

@@ -329,3 +329,45 @@ TEST_F(PrometheusStatTest, HistogramsHaveCorrectMetricType) {
                           Field(&prometheus::MetricFamily::type,
                                 prometheus::MetricType::Histogram))));
 }
+
+// Check that samples which exceed the highest bucket the timing histogram
+// supports are still included in the Prometheus histogram (via the
+// 'sample_count' field).
+TEST_F(PrometheusStatTest, OverflowSamplesRecorded) {
+    // Check that empty cmd_duration per-op histograms are not exposed if
+    // memcached has not processed any occurrences of that operation
+    // (and thus has no timing data for it)
+    using namespace cb::stats;
+    using namespace ::testing;
+    using namespace std::chrono_literals;
+
+    Timings dummyTimings;
+
+    // Add two samples for operations - one within the range Timings supports,
+    // one which exceeds it.
+    dummyTimings.collect(cb::mcbp::ClientOpcode::Get, 10ms);
+    dummyTimings.collect(cb::mcbp::ClientOpcode::Get, 10h);
+
+    // Collect the timing stats for consumption by Prometheus.
+    StatMap stats;
+    server_bucket_timing_stats(
+            PrometheusStatCollector(stats).forBucket("foobar"), dummyTimings);
+
+    // Only the one instance should be present, for GET.
+    const auto& metricFamily = stats["cmd_duration_seconds"];
+    ASSERT_THAT(metricFamily.metric, SizeIs(1));
+
+    auto getMetric = metricFamily.metric.front();
+    const auto& histogram = getMetric.histogram;
+
+    // Sanity check - last bucket should _not_ include the overflow values,
+    // as that would imply that the "out of range" value used above was too
+    // small - it actually _does_ reside in one of the defined bucket.
+    // (Note Prometheus-cpp adds an extra "le=Inf" bucket, using the total
+    // sample_count when it exposes the MetricFamily over HTTP).
+    ASSERT_EQ(1, histogram.bucket.back().cumulative_count)
+            << "last defined bucket should not include overflow samples";
+
+    EXPECT_EQ(2, histogram.sample_count)
+            << "sample_count should include samples in range and overflows";
+}

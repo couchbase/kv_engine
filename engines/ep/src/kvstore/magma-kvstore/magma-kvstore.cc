@@ -1308,7 +1308,8 @@ std::unique_ptr<Item> MagmaKVStore::makeItem(Vbid vb,
                               key.getDocKey().isInSystemCollection();
 
     value_t body;
-    if (includeValue || forceValueFetch) {
+    // Only create the body for the value filter and when a valueSlice is given
+    if ((includeValue || forceValueFetch) && valueSlice.Data()) {
         body.reset(TaggedPtr<Blob>(
                 Blob::New(valueSlice.Data(), meta.getValueSize()),
                 TaggedPtrBase::NoTagValue));
@@ -1349,7 +1350,11 @@ std::unique_ptr<Item> MagmaKVStore::makeItem(Vbid vb,
         item->setDeleted(static_cast<DeleteSource>(meta.getDeleteSource()));
     }
 
-    checkAndFixKVStoreCreatedItem(*item);
+    if (body) {
+        // function shared with KEY_ONLY creation paths, so only sanitize when
+        // a body was created
+        checkAndFixKVStoreCreatedItem(*item);
+    }
 
     if (magmakv::isPrepared(keySlice, metaSlice)) {
         auto level =
