@@ -161,6 +161,15 @@ public:
         throw std::logic_error("public_getMetered failed to find collection");
     }
 
+    cb::ExpiryLimit public_getMaxTtl(CollectionID id) const {
+        std::shared_lock<mutex_type> readLock(rwlock);
+        if (exists_UNLOCKED(id)) {
+            auto itr = map.find(id);
+            return itr->second.getMaxTtl();
+        }
+        throw std::logic_error("public_getMaxTtl failed to find collection");
+    }
+
     void dump() {
         std::cerr << *this << std::endl;
     }
@@ -482,12 +491,17 @@ public:
                     const auto& collection =
                             Collections::VB::Manifest::getCollectionFlatbuffer(
                                     qi->getValueView());
+                    cb::ExpiryLimit maxTtl;
+                    if (collection.ttlValid()) {
+                        maxTtl = std::chrono::seconds(collection.maxTtl());
+                    }
                     folly::SharedMutex::ReadHolder rlh(vbR->getStateLock());
                     replica.wlock(rlh).replicaModifyCollection(
                             *vbR,
                             Collections::ManifestUid{collection.uid()},
                             collection.collectionId(),
                             getCanDeduplicateFromHistory(collection.history()),
+                            maxTtl,
                             qi->getBySeqno());
                     break;
                 }
@@ -1394,6 +1408,33 @@ TEST_P(VBucketManifestTest, add_with_metered) {
                       CollectionEntry::fruit));
     EXPECT_EQ(Collections::Metered::No,
               manifest.getReplicaManifest().public_getMetered(
+                      CollectionEntry::fruit));
+}
+
+TEST_P(VBucketManifestTest, modify_ttl) {
+    // Test requires FlatBuffers event to pass most up-to-date event data.
+    if (!GetParam()) {
+        GTEST_SKIP();
+    }
+
+    ASSERT_TRUE(manifest.update(cm.add(CollectionEntry::fruit)));
+
+    EXPECT_EQ(cb::NoExpiryLimit,
+              manifest.getActiveManifest().public_getMaxTtl(
+                      CollectionEntry::fruit));
+    EXPECT_EQ(cb::NoExpiryLimit,
+              manifest.getReplicaManifest().public_getMaxTtl(
+                      CollectionEntry::fruit));
+
+    // Now modify, change TTL to 1 second and expect active/replica to update
+    EXPECT_TRUE(manifest.update(
+            cm.update(CollectionEntry::fruit, std::chrono::seconds(1))));
+
+    EXPECT_EQ(cb::ExpiryLimit(std::chrono::seconds(1)),
+              manifest.getActiveManifest().public_getMaxTtl(
+                      CollectionEntry::fruit));
+    EXPECT_EQ(cb::ExpiryLimit(std::chrono::seconds(1)),
+              manifest.getReplicaManifest().public_getMaxTtl(
                       CollectionEntry::fruit));
 }
 

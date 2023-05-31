@@ -390,6 +390,7 @@ public:
     struct CollectionModification {
         CollectionID cid;
         CanDeduplicate canDeduplicate;
+        cb::ExpiryLimit maxTtl;
     };
 
     // local struct for managing scope creation
@@ -569,7 +570,8 @@ protected:
      * @param vb The vbucket to modify the collection in
      * @param newManUid the uid of the manifest which made the change
      * @param cid CollectionID to modify
-     * @param canDeduplicate current deduplicate setting
+     * @param canDeduplicate deduplicate value to set onto the collection
+     * @param maxTtl ttl value to set onto the collection
      * @param optionalSeqno Either a seqno to assign to the modification event
      *        of the collection or none (none means the checkpoint assigns the
      *        seqno).
@@ -580,6 +582,7 @@ protected:
                           ManifestUid newManUid,
                           CollectionID cid,
                           CanDeduplicate canDeduplicate,
+                          cb::ExpiryLimit maxTtl,
                           OptionalSeqno optionalSeqno);
 
     /**

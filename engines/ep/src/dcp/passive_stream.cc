@@ -1065,10 +1065,16 @@ cb::engine_errc PassiveStream::processModifyCollection(
                 Collections::VB::Manifest::getCollectionFlatbuffer(
                         event.getEventData());
 
+        cb::ExpiryLimit maxTtl;
+        if (collection.ttlValid()) {
+            maxTtl = std::chrono::seconds(collection.maxTtl());
+        }
+
         vb.replicaModifyCollection(
                 Collections::ManifestUid{collection.uid()},
                 collection.collectionId(),
                 getCanDeduplicateFromHistory(collection.history()),
+                maxTtl,
                 *event.getBySeqno());
     } catch (std::exception& e) {
         log(spdlog::level::level_enum::warn,

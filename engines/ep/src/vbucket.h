@@ -818,12 +818,14 @@ public:
      *
      * @param uid the uid of the manifest which made the change
      * @param cid target collection
-     * @param canDeduplicate new deduplicate setting for the collection
+     * @param canDeduplicate deduplicate setting for the collection
+     * @param maxTTL expiry setting for the collection
      * @param bySeqno The seqno assigned to the collection create event.
      */
     void replicaModifyCollection(Collections::ManifestUid uid,
                                  CollectionID cid,
                                  CanDeduplicate canDeduplicate,
+                                 cb::ExpiryLimit maxTtl,
                                  int64_t bySeqno);
 
     /**

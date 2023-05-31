@@ -209,6 +209,7 @@ std::optional<Manifest::CollectionModification> Manifest::applyModifications(
                          manifestUid,
                          modification.cid,
                          modification.canDeduplicate,
+                         modification.maxTtl,
                          OptionalSeqno{/*no-seqno*/});
     }
     changes.clear();
@@ -433,6 +434,7 @@ void Manifest::completeUpdate(VBucketStateLockRef vbStateLock,
                          changeset.getUidForChange(manifestUid),
                          finalModification.value().cid,
                          finalModification.value().canDeduplicate,
+                         finalModification.value().maxTtl,
                          OptionalSeqno{/*no-seqno*/});
     }
 
@@ -676,6 +678,7 @@ void Manifest::modifyCollection(VBucketStateLockRef vbStateLock,
                                 ManifestUid newManUid,
                                 CollectionID cid,
                                 CanDeduplicate canDeduplicate,
+                                cb::ExpiryLimit maxTtl,
                                 OptionalSeqno optionalSeqno) {
     auto itr = map.find(cid);
     if (itr == map.end()) {
@@ -686,8 +689,9 @@ void Manifest::modifyCollection(VBucketStateLockRef vbStateLock,
     // record the uid of the manifest which modified the collection
     updateUid(newManUid, optionalSeqno.has_value());
 
-    // Now change the value
+    // Now change the values
     itr->second.setCanDeduplicate(canDeduplicate);
+    itr->second.setMaxTtl(maxTtl);
 
     auto seqno = queueCollectionSystemEvent(vbStateLock,
                                             wHandle,
@@ -701,13 +705,16 @@ void Manifest::modifyCollection(VBucketStateLockRef vbStateLock,
 
     EP_LOG_DEBUG(
             "{} modify collection:id:{} from scope:{}, seq:{}, manifest:{:#x}"
-            ", {}{}",
+            ", {}, {}{}",
             vb.getId(),
             cid,
             itr->second.getScopeID(),
             seqno,
             newManUid,
             canDeduplicate,
+            maxTtl.has_value()
+                    ? "maxttl:" + std::to_string(maxTtl.value().count())
+                    : "no maxttl",
             optionalSeqno.has_value() ? ", replica" : "");
 }
 
@@ -881,9 +888,12 @@ Manifest::ManifestChanges Manifest::processManifest(
         if (itr == manifest.end()) {
             // Not found, so this collection should be dropped.
             rv.collectionsToDrop.push_back(cid);
-        } else if (entry.getCanDeduplicate() != itr->second.canDeduplicate) {
-            // Found the collection and history was modified
-            rv.collectionsToModify.push_back({cid, itr->second.canDeduplicate});
+        } else if (entry.getCanDeduplicate() != itr->second.canDeduplicate ||
+                   entry.getMaxTtl() != itr->second.maxTtl) {
+            // Found the collection and history or TTL was modified, save the
+            // new state
+            rv.collectionsToModify.push_back(
+                    {cid, itr->second.canDeduplicate, itr->second.maxTtl});
         }
     }
 

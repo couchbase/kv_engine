@@ -744,6 +744,7 @@ public:
                                  ManifestUid manifestUid,
                                  CollectionID cid,
                                  CanDeduplicate canDeduplicate,
+                                 cb::ExpiryLimit maxTtl,
                                  int64_t startSeqno) {
         manifest.modifyCollection(vbStateLock,
                                   *this,
@@ -751,6 +752,7 @@ public:
                                   manifestUid,
                                   cid,
                                   canDeduplicate,
+                                  maxTtl,
                                   OptionalSeqno{startSeqno});
     }
 
