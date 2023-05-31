@@ -165,6 +165,21 @@ void CheckpointManager::addNewCheckpoint(
         std::optional<uint64_t> highCompletedSeqno,
         CheckpointType checkpointType,
         CheckpointHistorical historical) {
+    if (isDiskCheckpointType(checkpointType) && !highCompletedSeqno) {
+        const auto msg = fmt::format(
+                "CheckpointManager::addNewCheckpoint: {}, snapStart:{}, "
+                "snapEnd:{}, visibleSnapEnd:{}, HCS:{}, type:{}, {} - "
+                "missing HCS",
+                vb.getId(),
+                snapStartSeqno,
+                snapEndSeqno,
+                visibleSnapEnd,
+                to_string_or_none(highCompletedSeqno),
+                ::to_string(checkpointType),
+                ::to_string(historical));
+        throw std::logic_error(msg);
+    }
+
     // First, we must close the open checkpoint.
     auto* const oldOpenCkptPtr = checkpointList.back().get();
     auto& oldOpenCkpt = *oldOpenCkptPtr;
@@ -844,23 +859,9 @@ bool CheckpointManager::queueDirty(
         // Could not queue into the current checkpoint as it already has a
         // duplicate item (and not permitted to de-dupe this item).
         if (vb.getState() != vbucket_state_active) {
-            // stderr goes to ns_server that drops memcached lines if too many.
-            // Let's dump only the open checkpoint, and the last closed one if
-            // it exists.
-            // Note: If we'll not get the needed info this way either, next move
-            // is to dump to memcached logs. I'm still trying to avoid that for
-            // now as I don't want to risk to lose memcached info by log
-            // wrapping.
-            if (checkpointList.size() > 1) {
-                const auto openIt = std::prev(checkpointList.end());
-                (*std::prev(openIt))->dump();
-            }
-            openCkpt->dump();
-
             // We shouldn't see this for non-active vBuckets; given the
             // original (active) vBucket on some other node should not have
             // put duplicate mutations in the same Checkpoint.
-
             const auto msg = fmt::format(
                     "CheckpointManager::queueDirty: Got status:{} when {} is "
                     "non-active:{}, item:[op:{}, seqno:{}], lastBySeqno:{}, "

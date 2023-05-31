@@ -50,7 +50,7 @@ EPStats::EPStats()
 
 EPStats::~EPStats() = default;
 
-static_assert(sizeof(EPStats) == 1928,
+static_assert(sizeof(EPStats) == 2200,
               "EPStats size is unexpected - have you added/removed stats?");
 
 void EPStats::setMaxDataSize(size_t size) {

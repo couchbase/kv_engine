@@ -219,8 +219,12 @@ TEST_P(DcpGetFailoverLogValidatorTest, InvalidBody) {
 class DcpStreamReqValidatorTest : public ::testing::WithParamInterface<bool>,
                                   public ValidatorTest {
 public:
-    DcpStreamReqValidatorTest() : ValidatorTest(GetParam()) {
+    DcpStreamReqValidatorTest()
+        : ValidatorTest(GetParam()),
+          builder({blob, sizeof(blob)}),
+          header(*reinterpret_cast<cb::mcbp::Request*>(blob)) {
     }
+
     void SetUp() override {
         ValidatorTest::SetUp();
         request.message.header.request.setExtlen(48);
@@ -235,6 +239,9 @@ protected:
         return ValidatorTest::validate(cb::mcbp::ClientOpcode::DcpStreamReq,
                                        static_cast<void*>(&request));
     }
+
+    cb::mcbp::RequestBuilder builder;
+    cb::mcbp::Request& header;
 };
 
 TEST_P(DcpStreamReqValidatorTest, CorrectMessage) {
@@ -255,6 +262,21 @@ TEST_P(DcpStreamReqValidatorTest, InvalidKeylen) {
 
 TEST_P(DcpStreamReqValidatorTest, InvalidDatatype) {
     request.message.header.request.setDatatype(cb::mcbp::Datatype::JSON);
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+}
+
+TEST_P(DcpStreamReqValidatorTest, InvalidFlags) {
+    cb::mcbp::request::DcpStreamReqPayload extras;
+
+    // 0x8 was the now-removed DCP_ADD_STREAM_FLAG_NO_VALUE, and should no
+    // longer be used.
+    extras.setFlags(0x8);
+    builder.setExtras(extras.getBuffer());
+    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+
+    // 0x100 is the first of the invalid flags.
+    extras.setFlags(0x100);
+    builder.setExtras(extras.getBuffer());
     EXPECT_EQ(cb::mcbp::Status::Einval, validate());
 }
 
