@@ -31,6 +31,9 @@ namespace Collections::KVStore {
  * the collection.
  */
 struct OpenCollection {
+    OpenCollection(uint64_t startSeqno, CollectionMetaData metaData)
+        : startSeqno(startSeqno), metaData(std::move(metaData)) {
+    }
     uint64_t startSeqno;
     CollectionMetaData metaData;
     bool operator==(const OpenCollection& other) const;
@@ -159,6 +162,13 @@ Manifest decodeManifest(cb::const_byte_buffer manifest,
                         cb::const_byte_buffer collections,
                         cb::const_byte_buffer scopes,
                         cb::const_byte_buffer dropped);
+
+/**
+ * Decode the local doc buffer into an open collections data structure.
+ * @param data buffer containing open collections (FlatBuffers)
+ */
+std::vector<Collections::KVStore::OpenCollection> decodeOpenCollections(
+        cb::const_byte_buffer data);
 
 /**
  * Decode the local doc buffer into the dropped collections data structure.

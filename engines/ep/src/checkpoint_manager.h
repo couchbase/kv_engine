@@ -551,6 +551,7 @@ public:
     /// @return the backup-pcursor
     std::shared_ptr<CheckpointCursor> getBackupPersistenceCursor();
 
+    /// Dump CM to stderr.
     void dump() const;
 
     /**
@@ -953,6 +954,13 @@ protected:
     bool canBeMerged(const std::lock_guard<std::mutex>& lh,
                      const Checkpoint& first,
                      const Checkpoint& second) const;
+
+    /**
+     * Dump CM to stderr.
+     *
+     * @param lh Lock to the CM
+     */
+    void dump(const std::lock_guard<std::mutex>& lh) const;
 
     CheckpointList checkpointList;
     EPStats                 &stats;
