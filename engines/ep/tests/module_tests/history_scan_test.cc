@@ -548,9 +548,10 @@ TEST_P(HistoryScanTest, BackfillWithDroppedCollection) {
     flush_vbucket_to_disk(vbid, 2);
 
     // At this point this test has flushed a mixture of history=true and false
-    // items - check the flush statistic
+    // items - check the flush statistic (system events will also be marked
+    // with history=true if the collection has such a configuration)
     auto& epVB = dynamic_cast<EPVBucket&>(*store->getVBucket(vbid));
-    EXPECT_EQ(2, epVB.getHistoricalItemsFlushed());
+    EXPECT_EQ(4, epVB.getHistoricalItemsFlushed());
 
     ensureDcpWillBackfill();
 
@@ -674,7 +675,7 @@ TEST_P(HistoryScanTest, BackfillWithDroppedCollectionAndPurge) {
 
     // At this point this test has flushed a mixture of history=true and false
     // items - check the flush statistic
-    EXPECT_EQ(3, epVB.getHistoricalItemsFlushed());
+    EXPECT_EQ(4, epVB.getHistoricalItemsFlushed());
     runCollectionsEraser(vbid);
     ensureDcpWillBackfill();
     createDcpObjects(std::string_view{},

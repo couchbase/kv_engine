@@ -78,6 +78,101 @@ TEST_P(HistoryDcpTest, SeqnoAdvanceSnapshot) {
     EXPECT_EQ(2, producers->last_byseqno);
 }
 
+TEST_P(HistoryDcpTest, ManyModifications) {
+    using namespace cb::mcbp;
+    using namespace mcbp::systemevent;
+    using namespace CollectionEntry;
+
+    createDcpObjects(std::string_view{},
+                     OutOfOrderSnapshots::Yes,
+                     0,
+                     true, // sync-repl enabled
+                     ~0ull,
+                     ChangeStreams::Yes);
+
+    // Create fruit collection with noTTL but history=true
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit, cb::NoExpiryLimit, true);
+    setCollections(cookie, cm);
+
+    notifyAndStepToCheckpoint();
+    EXPECT_TRUE(producers->last_flags & MARKER_FLAG_HISTORY);
+    EXPECT_FALSE(producers->last_flags & MARKER_FLAG_DISK);
+
+    stepAndExpect(ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+
+    // Now modify the collection a few times.
+    cm.update(CollectionEntry::fruit, std::chrono::seconds(1), true);
+    setCollections(cookie, cm);
+    cm.update(CollectionEntry::fruit, std::chrono::seconds(2), true);
+    setCollections(cookie, cm);
+    cm.update(CollectionEntry::fruit, std::chrono::seconds(3), true);
+    setCollections(cookie, cm);
+
+    // Validate the in-memory DCP stream.
+    notifyAndStepToCheckpoint();
+    EXPECT_TRUE(producers->last_flags & MARKER_FLAG_HISTORY);
+
+    stepAndExpect(ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::ModifyCollection);
+    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+    EXPECT_EQ(producers->last_max_ttl.value(), std::chrono::seconds(1));
+
+    stepAndExpect(ClientOpcode::DcpSnapshotMarker);
+    stepAndExpect(ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::ModifyCollection);
+    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+    EXPECT_EQ(producers->last_max_ttl.value(), std::chrono::seconds(2));
+
+    stepAndExpect(ClientOpcode::DcpSnapshotMarker);
+    stepAndExpect(ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::ModifyCollection);
+    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+    EXPECT_EQ(producers->last_max_ttl.value(), std::chrono::seconds(3));
+
+    // Prior to fixing MB-57174 the modify events incorrectly de-duplicated, now
+    // expect 4 to be flushed.
+    flush_vbucket_to_disk(vbid, 4);
+
+    // validate the backfill data.
+    ensureDcpWillBackfill();
+
+    // DCP stream with no filter - all collections visible.
+    createDcpObjects(std::string_view{},
+                     OutOfOrderSnapshots::No,
+                     0,
+                     true, // sync-repl enabled
+                     ~0ull,
+                     ChangeStreams::Yes);
+
+    runBackfill();
+    stepAndExpect(ClientOpcode::DcpSnapshotMarker);
+    EXPECT_TRUE(producers->last_flags &
+                (MARKER_FLAG_HISTORY | MARKER_FLAG_MAY_CONTAIN_DUPLICATE_KEYS |
+                 MARKER_FLAG_DISK));
+
+    stepAndExpect(ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+
+    stepAndExpect(ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::ModifyCollection);
+    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+    EXPECT_EQ(producers->last_max_ttl.value(), std::chrono::seconds(1));
+
+    stepAndExpect(ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::ModifyCollection);
+    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+    EXPECT_EQ(producers->last_max_ttl.value(), std::chrono::seconds(2));
+
+    stepAndExpect(ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::ModifyCollection);
+    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+    EXPECT_EQ(producers->last_max_ttl.value(), std::chrono::seconds(3));
+}
+
 INSTANTIATE_TEST_SUITE_P(HistoryDcpTests,
                          HistoryDcpTest,
                          STParameterizedBucketTest::magmaConfigValues(),

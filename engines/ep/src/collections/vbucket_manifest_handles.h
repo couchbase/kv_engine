@@ -868,6 +868,8 @@ public:
         manifest.updateDataSize(sid, delta);
     }
 
+    CanDeduplicate getCanDeduplicate(CollectionID cid) const;
+
     /**
      * Dump this VB::Manifest to std::cerr
      */

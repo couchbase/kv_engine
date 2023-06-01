@@ -87,6 +87,10 @@ void StatsReadHandle::dump() {
     std::cerr << *manifest << std::endl;
 }
 
+CanDeduplicate WriteHandle::getCanDeduplicate(CollectionID cid) const {
+    return manifest.getCanDeduplicate(cid);
+}
+
 void WriteHandle::dump() {
     std::cerr << manifest << std::endl;
 }

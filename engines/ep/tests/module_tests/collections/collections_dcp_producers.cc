@@ -383,6 +383,10 @@ cb::engine_errc CollectionsDcpTestProducers::systemEventVersion2(
         EXPECT_NE(0, key.size());
         last_can_deduplicate =
                 getCanDeduplicateFromHistory(collection.history());
+
+        if (collection.ttlValid()) {
+            last_max_ttl = std::chrono::seconds(collection.maxTtl());
+        }
         break;
     }
     case mcbp::systemevent::id::DeleteCollection: {

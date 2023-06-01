@@ -199,6 +199,7 @@ public:
     std::optional<uint64_t> last_max_visible_seqno;
     bool isCollectionsSupported = false;
     CanDeduplicate last_can_deduplicate = CanDeduplicate::Yes;
+    cb::ExpiryLimit last_max_ttl;
 
 protected:
     /// Helper method for deletion / deletion_v2 / expiration

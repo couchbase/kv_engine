@@ -1072,6 +1072,12 @@ uint64_t EPVBucket::addSystemEventItem(
 
     qi->setQueuedTime();
 
+    // System events must also respect history, e.g. sequences of maxTTL changes
+    // should be preserved.
+    if (bucket && bucket->isHistoryRetentionEnabled() && cid) {
+        qi->setCanDeduplicate(wHandle.getCanDeduplicate(cid.value()));
+    }
+
     checkpointManager->queueDirty(
             qi,
             getGenerateBySeqno(seqno),
