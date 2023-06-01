@@ -77,16 +77,14 @@ void NetworkInterfaceManager::createBootstrapInterface() {
                     if (status != cb::mcbp::Status::Success && required) {
                         FATAL_ERROR(EXIT_FAILURE,
                                     "Failed to create required listening "
-                                    "socket: \"{}\". Errors: {}"
-                                    "Terminating.",
+                                    "socket: \"{}\". Errors: {}. Terminating.",
                                     spec.dump(),
                                     error);
                     }
                 } catch (const std::exception& e) {
                     FATAL_ERROR(EXIT_FAILURE,
                                 "Failed to create required listening "
-                                "socket: \"{}\". Error: {}"
-                                "Terminating.",
+                                "socket: \"{}\". Error: {}. Terminating.",
                                 spec.dump(),
                                 e.what());
                 }
