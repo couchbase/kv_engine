@@ -274,11 +274,16 @@ TEST(ManifestTest, validation) {
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"_default","uid":"0"},
                                {"name":"brewery","uid":"9","maxTTL":-700}]}]})",
-            // too big for 32-bit
+            // too big for signed 32-bit
             R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"_default","uid":"0"},
                                {"name":"brewery","uid":"9","maxTTL":4294967296}]}]})",
+            // 2147483647 is the max, check +1
+            R"({"uid" : "1",
+                "scopes":[{"name":"_default", "uid":"0",
+                "collections":[{"name":"_default","uid":"0"},
+                               {"name":"brewery","uid":"9","maxTTL":2147483648}]}]})",
             // Test duplicate scope names
             R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
@@ -434,11 +439,13 @@ TEST(ManifestTest, validation) {
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"_default","uid":"0"},
                                {"name":"brewery","uid":"9","maxTTL":1}]}]})",
-            // max u32int
+            // max permitted TTL
             R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",
                 "collections":[{"name":"_default","uid":"0"},
-                               {"name":"brewery","uid":"9","maxTTL":4294967295}]}]})",
+                               {"name":"brewery",
+                                "uid":"9",
+                                "maxTTL":2147483647}]}]})",
 
             R"({"uid" : "1",
                 "scopes":[{"name":"_default", "uid":"0",

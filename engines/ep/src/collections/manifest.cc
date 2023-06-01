@@ -205,9 +205,9 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
 
             cb::ExpiryLimit maxTtl;
             if (cmaxttl) {
-                // Don't exceed 32-bit max
                 auto value = cmaxttl.value().get<uint64_t>();
-                if (value > std::numeric_limits<uint32_t>::max()) {
+                if (value > std::numeric_limits<int32_t>::max()) {
+                    // ttl cannot exceed int32_t max seconds
                     throwInvalid("maxTTL:" + std::to_string(value));
                 }
                 maxTtl = std::chrono::seconds(value);
