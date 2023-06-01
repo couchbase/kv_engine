@@ -242,6 +242,10 @@ std::ostream& operator<<(std::ostream& os, const Item& i) {
     } else {
         os << " deleted:false";
     }
+
+    if (!i.canDeduplicate()) {
+        os << " no-dedup";
+    }
     return os;
 }
 
