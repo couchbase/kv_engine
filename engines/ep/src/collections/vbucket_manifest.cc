@@ -311,6 +311,7 @@ ManifestUpdateStatus Manifest::update(VBucketStateLockRef vbStateLock,
                     changes.collectionsToDrop.size());
             return ManifestUpdateStatus::EqualUidWithDifferences;
         }
+
         // else a scope modification or change of scopeWithDataLimitExists is
         // allowed when the uid is equal
         Expects(!changes.scopesToModify.empty() ||
@@ -1705,6 +1706,15 @@ CanDeduplicate Manifest::getCanDeduplicate(CollectionID cid) const {
                 __FUNCTION__, "failed find of collection:" + cid.to_string());
     }
     return itr->second.getCanDeduplicate();
+}
+
+cb::ExpiryLimit Manifest::getMaxTtl(CollectionID cid) const {
+    auto itr = map.find(cid);
+    if (itr == map.end()) {
+        throwException<std::invalid_argument>(
+                __FUNCTION__, "failed find of collection:" + cid.to_string());
+    }
+    return itr->second.getMaxTtl();
 }
 
 void Manifest::DroppedCollections::insert(CollectionID cid,

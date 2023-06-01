@@ -354,12 +354,10 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
             }
         }
 
-        const auto& meta = span.high.metaData;
-
-        // This will set the value based on any modification which may have
-        // been flushed
-        auto history = getHistorySetting(
-                meta.cid, span.high.startSeqno, meta.canDeduplicate);
+        // If the collection is modified, this will return the correct state of
+        // the collection, or just the input state
+        auto meta = getMaybeModifiedCollectionMetaData(
+                cid, span.high.startSeqno, span.high.metaData);
 
         // generate
         exclusiveInsertCollection(
@@ -374,7 +372,7 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
                                 .count(),
                         builder.CreateString(meta.name.data(),
                                              meta.name.size()),
-                        history,
+                        getHistoryFromCanDeduplicate(meta.canDeduplicate),
                         Collections::getMeteredFromEnum(meta.metered)));
     }
 
@@ -391,6 +389,18 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
 
             // If not found in dropped collections add to output
             if (result == flushAccounting.getDroppedCollections().end()) {
+                auto meta = getMaybeModifiedCollectionMetaData(
+                        entry->collectionId(),
+                        entry->startSeqno(),
+                        {entry->scopeId(),
+                         entry->collectionId(),
+                         {},
+                         entry->ttlValid()
+                                 ? std::chrono::seconds{entry->maxTtl()}
+                                 : cb::NoExpiryLimit,
+                         Collections::getMetered(entry->metered()),
+                         getCanDeduplicateFromHistory(entry->history())});
+
                 exclusiveInsertCollection(
                         entry->collectionId(),
                         Collections::KVStore::CreateCollection(
@@ -398,14 +408,13 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
                                 entry->startSeqno(),
                                 entry->scopeId(),
                                 entry->collectionId(),
-                                entry->ttlValid(),
-                                entry->maxTtl(),
+                                meta.maxTtl.has_value(),
+                                meta.maxTtl
+                                        .value_or(std::chrono::seconds::zero())
+                                        .count(),
                                 builder.CreateString(entry->name()),
-                                // getHistorySetting checks for modifications
-                                getHistorySetting(entry->collectionId(),
-                                                  entry->startSeqno(),
-                                                  getCanDeduplicateFromHistory(
-                                                          entry->history())),
+                                getHistoryFromCanDeduplicate(
+                                        meta.canDeduplicate),
                                 entry->metered()));
 
             } else {
@@ -415,6 +424,12 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
         }
     } else if (flushAccounting.getDroppedCollections().count(
                        CollectionID::Default) == 0) {
+        // Default construct metadata yields the default collection epoch state
+        // if the default collection was modified, this will return the modded
+        // state or just the epoch input state.
+        auto meta = getMaybeModifiedCollectionMetaData(
+                CollectionID::Default, 0, CollectionMetaData{});
+
         // Nothing on disk - and not dropped assume the default collection lives
         exclusiveInsertCollection(
                 CollectionID::Default,
@@ -423,14 +438,13 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
                         0,
                         ScopeID::Default,
                         CollectionID::Default,
-                        false /* ttl invalid*/,
-                        0,
+                        meta.maxTtl.has_value(),
+                        meta.maxTtl.value_or(std::chrono::seconds::zero())
+                                .count(),
                         builder.CreateString(
                                 Collections::DefaultCollectionIdentifier
                                         .data()),
-                        getHistorySetting(CollectionID::Default,
-                                          0,
-                                          getCanDeduplicateFromHistory(false)),
+                        getHistoryFromCanDeduplicate(meta.canDeduplicate),
                         true /* metered */));
     }
 
@@ -719,17 +733,17 @@ VB::Manifest& Flush::getManifest() const {
     return manifest;
 }
 
-bool Flush::getHistorySetting(CollectionID cid,
-                              uint64_t seqno,
-                              CanDeduplicate createSetting) {
+CollectionMetaData Flush::getMaybeModifiedCollectionMetaData(
+        CollectionID cid,
+        uint64_t seqno,
+        const CollectionMetaData& orginalMeta) const {
     auto modification = collectionMods.find(cid);
     if (modification != collectionMods.end() &&
         modification->second.startSeqno > seqno) {
-        return getHistoryFromCanDeduplicate(
-                modification->second.metaData.canDeduplicate);
+        return modification->second.metaData;
     }
     // No modification, or it was before the create - return input value.
-    return getHistoryFromCanDeduplicate(createSetting);
+    return orginalMeta;
 }
 
 } // namespace Collections::VB

@@ -141,11 +141,11 @@ struct CollectionMetaData {
     // compare only the properties which are not permitted to change
     bool compareImmutableProperties(const CollectionMetaData& other) const {
         return sid == other.sid && cid == other.cid && name == other.name &&
-               maxTtl == other.maxTtl && metered == other.metered;
+               metered == other.metered;
     }
 
     bool compareMutableProperties(const CollectionMetaData& other) const {
-        return canDeduplicate == other.canDeduplicate;
+        return canDeduplicate == other.canDeduplicate && maxTtl == other.maxTtl;
     }
 };
 

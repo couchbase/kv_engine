@@ -1208,6 +1208,11 @@ protected:
     CanDeduplicate getCanDeduplicate(CollectionID cid) const;
 
     /**
+     * @return the MaxTTL setting for the collection
+     */
+    cb::ExpiryLimit getMaxTtl(CollectionID cid) const;
+
+    /**
      * Store the value of defaultCollectionMaxLegacyDCPSeqno inside the Item
      * This function utilises xattrs so that only a modify of the default
      * collection carries this extra data. No other event needs this data.

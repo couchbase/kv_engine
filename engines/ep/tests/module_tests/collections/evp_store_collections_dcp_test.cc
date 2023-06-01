@@ -4756,6 +4756,288 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyFilteredCollection) {
     EXPECT_EQ(producers->last_can_deduplicate, CanDeduplicate::Yes);
 }
 
+TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionMaxTTL) {
+    using namespace cb::mcbp;
+    using namespace mcbp::systemevent;
+    using namespace CollectionEntry;
+
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    setCollections(cookie, cm);
+
+    // Wake and step DCP
+    // Expect snap1, create fruit
+    notifyAndStepToCheckpoint();
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+
+    auto vb0 = store->getVBucket(vbid);
+    auto vb1 = store->getVBucket(replicaVB);
+
+    // Modify
+    cm.update(fruit, std::chrono::seconds(1));
+    setCollections(cookie, cm);
+
+    // Wake and step DCP
+    // Expect snap1, modify fruit
+    notifyAndStepToCheckpoint();
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::ModifyCollection);
+    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+    EXPECT_EQ(producers->last_key, "fruit");
+    EXPECT_EQ(producers->last_scope_id, ScopeID::Default);
+
+    {
+        // Check the collection state now the modify has been processed
+        auto vb0Handle = vb0->lockCollections();
+        auto vb1Handle = vb1->lockCollections();
+
+        EXPECT_EQ(cb::ExpiryLimit{std::chrono::seconds{1}},
+                  vb0Handle.getMaxTtl(fruit));
+        EXPECT_EQ(cb::ExpiryLimit{std::chrono::seconds{1}},
+                  vb1Handle.getMaxTtl(fruit));
+
+        // in memory seqno updated
+        EXPECT_EQ(producers->last_byseqno, vb0Handle.getHighSeqno(fruit));
+        EXPECT_EQ(producers->last_byseqno, vb1Handle.getHighSeqno(fruit));
+
+        // Nothing flushed
+        EXPECT_EQ(0, vb0Handle.getPersistedHighSeqno(fruit));
+        EXPECT_EQ(0, vb1Handle.getPersistedHighSeqno(fruit));
+        EXPECT_EQ(0, vb0Handle.getItemCount(fruit));
+        EXPECT_EQ(0, vb1Handle.getItemCount(fruit));
+    }
+
+    // Flush the active vbucket as the next phase of the test is to check
+    // warmup/backfill. No flush of the replica as the test needs the replica to
+    // remain empty ready for backfill phase
+    flush_vbucket_to_disk(vbid, 2);
+
+    {
+        auto vb0Handle = vb0->lockCollections();
+        auto vb1Handle = vb1->lockCollections();
+
+        // Re-check stats after flush
+        EXPECT_EQ(producers->last_byseqno, vb0Handle.getHighSeqno(fruit));
+        EXPECT_EQ(producers->last_byseqno, vb1Handle.getHighSeqno(fruit));
+        EXPECT_EQ(producers->last_byseqno,
+                  vb0Handle.getPersistedHighSeqno(fruit));
+        // replica not flushed.
+        EXPECT_EQ(0, vb1Handle.getPersistedHighSeqno(fruit));
+        // system events don't count
+        EXPECT_EQ(0, vb0Handle.getItemCount(fruit));
+        // replica not flushed.
+        EXPECT_EQ(0, vb1Handle.getItemCount(fruit));
+    }
+
+    vb0.reset();
+    vb1.reset();
+    resetEngineAndWarmup();
+
+    vb0 = store->getVBucket(vbid);
+
+    // Check state after warmup. The collections on active have the same state
+    // as before the shutdown as they get their state back from KVStore metadata
+    // Expect: vb0 has ttl of 1. vb:1 does not yet exist
+    {
+        auto vb0Handle = vb0->lockCollections();
+        EXPECT_EQ(cb::ExpiryLimit{std::chrono::seconds{1}},
+                  vb0Handle.getMaxTtl(fruit));
+    }
+
+    // Test backfill
+    createDcpObjects({{nullptr, 0}});
+
+    notifyAndStepToCheckpoint(ClientOpcode::DcpSnapshotMarker,
+                              false /*in-memory = false*/);
+
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+
+    // replica received create state
+    vb1 = store->getVBucket(replicaVB);
+
+    {
+        auto vb1Handle = vb1->lockCollections();
+        EXPECT_EQ(cb::NoExpiryLimit, vb1Handle.getMaxTtl(fruit));
+    }
+
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::ModifyCollection);
+    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+
+    // replica received modified state
+    {
+        auto vb1Handle = vb1->lockCollections();
+        EXPECT_EQ(cb::ExpiryLimit{std::chrono::seconds{1}},
+                  vb1Handle.getMaxTtl(fruit));
+    }
+
+    // Final stage of the test - drop one of the modified collections and check
+    // backfill does not play back the modify
+    cm.remove(CollectionEntry::fruit);
+    setCollections(cookie, cm);
+    flush_vbucket_to_disk(vbid, 1);
+
+    vb0.reset();
+    vb1.reset();
+    resetEngineAndWarmup();
+
+    createDcpObjects({{nullptr, 0}});
+    notifyAndStepToCheckpoint(ClientOpcode::DcpSnapshotMarker, false);
+
+    // Verify that modify fruit is not transmitted
+
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::DeleteCollection);
+    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+}
+
+// Modify two things in one update and expect one event with both changes
+TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionMaxTTLAndHistory) {
+    using namespace cb::mcbp;
+    using namespace mcbp::systemevent;
+    using namespace CollectionEntry;
+
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::fruit);
+    setCollections(cookie, cm);
+
+    // Wake and step DCP
+    // Expect snap1, create fruit
+    notifyAndStepToCheckpoint();
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+
+    auto vb0 = store->getVBucket(vbid);
+    auto vb1 = store->getVBucket(replicaVB);
+
+    // Modify
+    cm.update(fruit, std::chrono::seconds(1), true);
+    setCollections(cookie, cm);
+
+    // Wake and step DCP
+    // Expect snap1, modify fruit
+    notifyAndStepToCheckpoint();
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::ModifyCollection);
+    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+    EXPECT_EQ(producers->last_key, "fruit");
+    EXPECT_EQ(producers->last_scope_id, ScopeID::Default);
+
+    {
+        // Check the collection state now the modify has been processed
+        auto vb0Handle = vb0->lockCollections();
+        auto vb1Handle = vb1->lockCollections();
+
+        EXPECT_EQ(cb::ExpiryLimit{std::chrono::seconds{1}},
+                  vb0Handle.getMaxTtl(fruit));
+        EXPECT_EQ(cb::ExpiryLimit{std::chrono::seconds{1}},
+                  vb1Handle.getMaxTtl(fruit));
+        EXPECT_EQ(CanDeduplicate::No, vb0Handle.getCanDeduplicate(fruit));
+        EXPECT_EQ(CanDeduplicate::No, vb1Handle.getCanDeduplicate(fruit));
+
+        // in memory seqno updated
+        EXPECT_EQ(producers->last_byseqno, vb0Handle.getHighSeqno(fruit));
+        EXPECT_EQ(producers->last_byseqno, vb1Handle.getHighSeqno(fruit));
+
+        // Nothing flushed
+        EXPECT_EQ(0, vb0Handle.getPersistedHighSeqno(fruit));
+        EXPECT_EQ(0, vb1Handle.getPersistedHighSeqno(fruit));
+        EXPECT_EQ(0, vb0Handle.getItemCount(fruit));
+        EXPECT_EQ(0, vb1Handle.getItemCount(fruit));
+    }
+
+    // Flush the active vbucket as the next phase of the test is to check
+    // warmup/backfill. No flush of the replica as the test needs the replica to
+    // remain empty ready for backfill phase
+    flush_vbucket_to_disk(vbid, 2);
+
+    {
+        auto vb0Handle = vb0->lockCollections();
+        auto vb1Handle = vb1->lockCollections();
+
+        // Re-check stats after flush
+        EXPECT_EQ(producers->last_byseqno, vb0Handle.getHighSeqno(fruit));
+        EXPECT_EQ(producers->last_byseqno, vb1Handle.getHighSeqno(fruit));
+        EXPECT_EQ(producers->last_byseqno,
+                  vb0Handle.getPersistedHighSeqno(fruit));
+        // replica not flushed.
+        EXPECT_EQ(0, vb1Handle.getPersistedHighSeqno(fruit));
+        // system events don't count
+        EXPECT_EQ(0, vb0Handle.getItemCount(fruit));
+        // replica not flushed.
+        EXPECT_EQ(0, vb1Handle.getItemCount(fruit));
+    }
+
+    vb0.reset();
+    vb1.reset();
+    resetEngineAndWarmup();
+
+    vb0 = store->getVBucket(vbid);
+
+    // Check state after warmup. The collections on active have the same state
+    // as before the shutdown as they get their state back from KVStore metadata
+    // Expect: vb0 has ttl of 1. vb:1 does not yet exist
+    {
+        auto vb0Handle = vb0->lockCollections();
+        EXPECT_EQ(cb::ExpiryLimit{std::chrono::seconds{1}},
+                  vb0Handle.getMaxTtl(fruit));
+    }
+
+    // Test backfill
+    createDcpObjects({{nullptr, 0}});
+
+    notifyAndStepToCheckpoint(ClientOpcode::DcpSnapshotMarker,
+                              false /*in-memory = false*/);
+
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+
+    // replica received create state
+    vb1 = store->getVBucket(replicaVB);
+
+    {
+        auto vb1Handle = vb1->lockCollections();
+        EXPECT_EQ(cb::NoExpiryLimit, vb1Handle.getMaxTtl(fruit));
+    }
+
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::ModifyCollection);
+    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+
+    // replica received modified state
+    {
+        auto vb1Handle = vb1->lockCollections();
+        EXPECT_EQ(cb::ExpiryLimit{std::chrono::seconds{1}},
+                  vb1Handle.getMaxTtl(fruit));
+        EXPECT_EQ(CanDeduplicate::No, vb1Handle.getCanDeduplicate(fruit));
+    }
+
+    // Final stage of the test - drop one of the modified collections and check
+    // backfill does not play back the modify
+    cm.remove(CollectionEntry::fruit);
+    setCollections(cookie, cm);
+    flush_vbucket_to_disk(vbid, 1);
+
+    vb0.reset();
+    vb1.reset();
+    resetEngineAndWarmup();
+
+    createDcpObjects({{nullptr, 0}});
+    notifyAndStepToCheckpoint(ClientOpcode::DcpSnapshotMarker, false);
+
+    // Verify that modify fruit is not transmitted
+
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::DeleteCollection);
+    EXPECT_EQ(producers->last_collection_id, fruit.getId());
+}
+
 TEST_P(CollectionsDcpPersistentOnly, DefaultCollectionLegacySeqnos) {
     using namespace cb::mcbp;
     using namespace mcbp::systemevent;

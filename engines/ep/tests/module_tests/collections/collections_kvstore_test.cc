@@ -287,20 +287,19 @@ TEST(CollectionsKVStoreTest, test_KVStore_comparison) {
     EXPECT_NE(m1, m2);
     m1.droppedCollectionsExist = m2.droppedCollectionsExist;
     EXPECT_EQ(m1, m2);
-    m2.collections.push_back(
-            OpenCollection{0, Collections::CollectionMetaData{}});
+    m2.collections.emplace_back(0, Collections::CollectionMetaData{});
     EXPECT_NE(m1, m2);
     m2.collections = m1.collections;
 
     EXPECT_EQ(m1, m2);
-    m2.collections.push_back(OpenCollection{
+    m2.collections.emplace_back(
             0,
             Collections::CollectionMetaData{ScopeID{88},
                                             CollectionID{101},
                                             "c101",
                                             {},
                                             Collections::Metered::Yes,
-                                            CanDeduplicate::Yes}});
+                                            CanDeduplicate::Yes});
     EXPECT_NE(m1, m2);
     m2.collections = m1.collections;
 
@@ -323,11 +322,13 @@ TEST(CollectionsKVStoreTest, test_KVStore_comparison) {
                                               {},
                                               Collections::Metered::No,
                                               CanDeduplicate::Yes};
-    m1.collections.push_back(OpenCollection{0, c1});
+    m1.collections.emplace_back(0, c1);
     c1.metered = Collections::Metered::Yes;
-    m2.collections.push_back(OpenCollection{0, c1});
+    m2.collections.emplace_back(0, c1);
     EXPECT_NE(m1, m2);
 
+    m1 = m2;
+    EXPECT_EQ(m1, m2);
     // Add a collection but check a different history state is noticed
     auto c2 = Collections::CollectionMetaData{ScopeID{88},
                                               CollectionID{103},
@@ -335,9 +336,23 @@ TEST(CollectionsKVStoreTest, test_KVStore_comparison) {
                                               {},
                                               Collections::Metered::No,
                                               CanDeduplicate::Yes};
-    m1.collections.push_back(OpenCollection{0, c2});
+    m1.collections.emplace_back(0, c2);
     c2.canDeduplicate = CanDeduplicate::No;
-    m2.collections.push_back(OpenCollection{0, c2});
+    m2.collections.emplace_back(0, c2);
+    EXPECT_NE(m1, m2);
+
+    m1 = m2;
+    EXPECT_EQ(m1, m2);
+    // Check TTL difference is detected
+    auto c3 = Collections::CollectionMetaData{ScopeID{88},
+                                              CollectionID{103},
+                                              "c3",
+                                              cb::NoExpiryLimit,
+                                              Collections::Metered::No,
+                                              CanDeduplicate::Yes};
+    m1.collections.emplace_back(0, c3);
+    c3.maxTtl = std::chrono::seconds(1);
+    m2.collections.emplace_back(0, c3);
     EXPECT_NE(m1, m2);
 }
 
@@ -462,6 +477,32 @@ TEST_P(CollectionsKVStoreTest, create_and_modify_same_batch) {
 TEST_P(CollectionsKVStoreTest, one_update_with_history) {
     CollectionsManifest cm;
     cm.add(CollectionEntry::vegetable, {}, true);
+    applyAndCheck(cm);
+}
+
+TEST_P(CollectionsKVStoreTest, max_ttl_changes) {
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::vegetable, std::chrono::seconds{1});
+    applyAndCheck(cm);
+    cm.update(CollectionEntry::vegetable, std::chrono::seconds{2});
+    applyAndCheck(cm);
+
+    // Finally flush multiple modifications, final state should match the final
+    // update.
+    cm.update(CollectionEntry::vegetable, std::chrono::seconds{1});
+    // have to bypass some of the helpers to update twice
+    manifest.update(folly::SharedMutex::ReadHolder(vbucket->getStateLock()),
+                    *vbucket,
+                    makeManifest(cm));
+    cm.update(CollectionEntry::vegetable, {});
+    applyAndCheck(cm);
+}
+
+// covers a case in Collections::Flush where no state exists, but we must flush
+// a default collection modify.
+TEST_P(CollectionsKVStoreTest, epoch_default_ttl) {
+    CollectionsManifest cm;
+    cm.update(CollectionEntry::defaultC, std::chrono::seconds{1});
     applyAndCheck(cm);
 }
 

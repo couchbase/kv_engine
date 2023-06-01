@@ -271,6 +271,10 @@ public:
         return manifest->getCanDeduplicate(cid);
     }
 
+    cb::ExpiryLimit getMaxTtl(CollectionID cid) const {
+        return manifest->getMaxTtl(cid);
+    }
+
 protected:
     friend std::ostream& operator<<(std::ostream& os,
                                     const ReadHandle& readHandle);

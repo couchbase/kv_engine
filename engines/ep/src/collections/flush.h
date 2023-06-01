@@ -368,19 +368,22 @@ private:
     void checkAndTriggerPurge(Vbid vbid, EPBucket& bucket) const;
 
     /**
-     * Return the history setting to use for the collection created @ seqno.
-     * The function will return either the createSetting parameter or the value
-     * from any modify event which may be in the flush batch (and is ordered
-     * after the create).
+     * Return the collection metadata relevant to a collection created @ seqno.
+     * The returned value either returns the input metadata or if a modification
+     * event is in the flush batch, it will return the modified metadata. This
+     * data can then be pushed to the collection "vbstate" metadata as the
+     * correct state of the collection.
      *
      * @param cid The collection created (and maybe modified)
      * @param seqno The sequence number of the collection create
-     * @oaram createSetting The CanDeduplicate value from the create event
-     * @return The history bool based on the CanDeduplicate setting
+     * @oaram orginalMeta The original collection metadata, which is returned
+     *        if there is no flushed modification
+     * @return The metadata to use in writing out the collection state
      */
-    bool getHistorySetting(CollectionID cid,
-                           uint64_t seqno,
-                           CanDeduplicate createSetting);
+    CollectionMetaData getMaybeModifiedCollectionMetaData(
+            CollectionID cid,
+            uint64_t seqno,
+            const CollectionMetaData& orginalMeta) const;
 
     /**
      * For each collection created in the batch, we record meta data of the

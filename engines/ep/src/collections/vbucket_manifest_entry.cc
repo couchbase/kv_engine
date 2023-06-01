@@ -85,10 +85,11 @@ std::ostream& Collections::VB::operator<<(
        << ", r/w/d:" << manifestEntry.getOpsGet() << "/"
        << manifestEntry.getOpsStore() << "/" << manifestEntry.getOpsDelete();
 
-    if (manifestEntry.getMaxTtl()) {
-        os << ", maxTtl:" << manifestEntry.getMaxTtl().value().count();
+    if (auto maxTtl = manifestEntry.getMaxTtl(); maxTtl) {
+        os << ", maxTtl:" << maxTtl.value().count();
+    } else {
+        os << ", maxTtl:none";
     }
 
-    os << ", " << manifestEntry.getCanDeduplicate();
     return os;
 }
