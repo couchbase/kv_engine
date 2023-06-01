@@ -68,6 +68,7 @@ LibeventConnection::LibeventConnection(SOCKET sfd,
     }
 
     bufferevent_enable(bev.get(), EV_READ);
+    bufferevent_setwatermark(bev.get(), EV_READ, sizeof(cb::mcbp::Header), 0);
 }
 
 LibeventConnection::~LibeventConnection() = default;
@@ -409,9 +410,13 @@ bool LibeventConnection::isPacketAvailable() const {
                                 "Failed to reallocate event input buffer: {}",
                                 framesize));
         }
+
+        bufferevent_setwatermark(
+                bev.get(), EV_READ, sizeof(cb::mcbp::Header), 0);
         return true;
     }
 
+    bufferevent_setwatermark(bev.get(), EV_READ, framesize, 0);
     return false;
 }
 
