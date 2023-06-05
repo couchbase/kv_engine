@@ -197,6 +197,6 @@ static constexpr Requirements NoRequirements =
 
 std::string to_string(Requirements r);
 std::string to_string(Level l);
-Level to_level(const std::string& s);
+Level to_level(std::string_view s);
 
 } // namespace cb::durability

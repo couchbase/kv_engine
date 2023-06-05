@@ -64,7 +64,7 @@ std::string to_string(Level l) {
     folly::assume_unreachable();
 }
 
-Level to_level(const std::string& s) {
+Level to_level(std::string_view s) {
     if (s == "none") {
         return Level::None;
     } else if (s == "majority") {
@@ -74,7 +74,8 @@ Level to_level(const std::string& s) {
     } else if (s == "persist_to_majority") {
         return Level::PersistToMajority;
     }
-    throw std::invalid_argument("cb::durability::to_level: unknown level " + s);
+    throw std::invalid_argument("cb::durability::to_level: unknown level " +
+                                std::string(s));
 }
 
 Requirements::Requirements(cb::const_byte_buffer buffer) {
