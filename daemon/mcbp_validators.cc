@@ -509,7 +509,7 @@ static Status verify_common_dcp_stream_restrictions(Cookie& cookie,
     const auto mask =
             DCP_ADD_STREAM_FLAG_TAKEOVER | DCP_ADD_STREAM_FLAG_DISKONLY |
             DCP_ADD_STREAM_FLAG_TO_LATEST | DCP_ADD_STREAM_ACTIVE_VB_ONLY |
-            DCP_ADD_STREAM_FLAG_FROM_LATEST |
+            DCP_ADD_STREAM_FLAG_FROM_LATEST | DCP_ADD_STREAM_STRICT_VBUUID |
             DCP_ADD_STREAM_FLAG_IGNORE_PURGED_TOMBSTONES;
 
     if (flags & ~mask) {
@@ -520,9 +520,10 @@ static Status verify_common_dcp_stream_restrictions(Cookie& cookie,
             cookie.setErrorContext(
                     "DCP_ADD_STREAM_FLAG_NO_VALUE{8} flag is no longer used");
         } else {
-            LOG_INFO("Client trying to add stream with unknown flags ({:x}) {}",
-                     flags,
-                     get_peer_description(cookie));
+            LOG_INFO(
+                    "Client trying to add stream with unknown flags ({:#x}) {}",
+                    flags,
+                    get_peer_description(cookie));
             cookie.setErrorContext("Request contains invalid flags");
         }
         return Status::Einval;

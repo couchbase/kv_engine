@@ -268,16 +268,58 @@ TEST_P(DcpStreamReqValidatorTest, InvalidDatatype) {
 TEST_P(DcpStreamReqValidatorTest, InvalidFlags) {
     cb::mcbp::request::DcpStreamReqPayload extras;
 
-    // 0x8 was the now-removed DCP_ADD_STREAM_FLAG_NO_VALUE, and should no
-    // longer be used.
-    extras.setFlags(0x8);
-    builder.setExtras(extras.getBuffer());
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+    struct FlagInfo {
+        uint32_t flag;
+        bool valid;
+    };
+    const std::array<FlagInfo, 32> flagInfo = {{
+            {DCP_ADD_STREAM_FLAG_TAKEOVER, true},
+            {DCP_ADD_STREAM_FLAG_DISKONLY, true},
+            {DCP_ADD_STREAM_FLAG_FROM_LATEST, true},
+            // DCP_ADD_STREAM_FLAG_NO_VALUE is not used anymore, and is hence
+            // considered invalid.
+            {DCP_ADD_STREAM_FLAG_NO_VALUE, false},
+            {DCP_ADD_STREAM_ACTIVE_VB_ONLY, true},
+            {DCP_ADD_STREAM_STRICT_VBUUID, true},
+            {DCP_ADD_STREAM_FLAG_FROM_LATEST, true},
+            {DCP_ADD_STREAM_FLAG_IGNORE_PURGED_TOMBSTONES, true},
+            // 0x100 is the first of the undefined flags.
+            {0x100, false},
+            {0x200, false},
+            {0x400, false},
+            {0x800, false},
+            {0x1000, false},
+            {0x2000, false},
+            {0x4000, false},
+            {0x8000, false},
+            {0x10000, false},
+            {0x20000, false},
+            {0x40000, false},
+            {0x80000, false},
+            {0x100000, false},
+            {0x200000, false},
+            {0x400000, false},
+            {0x800000, false},
+            {0x1000000, false},
+            {0x2000000, false},
+            {0x4000000, false},
+            {0x8000000, false},
+            {0x10000000, false},
+            {0x20000000, false},
+            {0x40000000, false},
+            {0x80000000, false},
+    }};
 
-    // 0x100 is the first of the invalid flags.
-    extras.setFlags(0x100);
-    builder.setExtras(extras.getBuffer());
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+    for (const auto& info : flagInfo) {
+        extras.setFlags(info.flag);
+        builder.setExtras(extras.getBuffer());
+        // "Valid" flags actually return 'NotSupported' as validation runs
+        // against a memcache bucket which doesn't support DCP.
+        using cb::mcbp::Status;
+        EXPECT_EQ(info.valid ? Status::NotSupported : Status::Einval,
+                  validate())
+                << "for flag " << std::to_string(info.flag);
+    }
 }
 
 TEST_P(DcpStreamReqValidatorTest, MessageValue) {
