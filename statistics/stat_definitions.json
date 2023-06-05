@@ -936,6 +936,15 @@
         "key": "ep_magma_inserts",
         "unit": "count"
     },
+/* History stats. */
+    {
+        "key": "ep_magma_history_size_evicted",
+        "unit": "bytes"
+    },
+    {
+        "key": "ep_magma_history_time_evicted",
+        "unit": "bytes"
+    },
 /* Compaction. */
     {
         "key": "ep_magma_compactions",

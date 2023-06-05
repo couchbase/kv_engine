@@ -22,6 +22,8 @@
 #include "tests/module_tests/test_helpers.h"
 #include "tests/module_tests/thread_gate.h"
 #include "vbucket.h"
+
+#include <platform/cb_arena_malloc.h>
 #include <utilities/test_manifest.h>
 
 #include <folly/synchronization/Baton.h>
@@ -1059,6 +1061,38 @@ TEST_P(STParamMagmaBucketTest, ResurrectCollectionDuringCompaction) {
     EXPECT_TRUE(status);
     EXPECT_TRUE(dropped.empty());
 }
+
+#if defined(HAVE_JEMALLOC)
+// Test reproduces issue of MB-55711 where we see the memory domains get out
+// of sync. A free of data on the wrong domain.
+TEST_P(STParamMagmaBucketTest, getDbFileInfo_MemoryDomainLeak) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    store_item(vbid, makeStoredDocKey("keyA"), "value");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    auto primaryDomainSz = cb::ArenaMalloc::getPreciseAllocated(
+            engine->getArenaMallocClient(), cb::MemoryDomain::Primary);
+    auto secondaryDomainSz = cb::ArenaMalloc::getPreciseAllocated(
+            engine->getArenaMallocClient(), cb::MemoryDomain::Secondary);
+    auto memUsed = engine->getEpStats().getPreciseTotalMemoryUsed();
+    EXPECT_NE(0, primaryDomainSz);
+    EXPECT_NE(0, secondaryDomainSz);
+    EXPECT_NE(0, memUsed);
+
+    auto* kvstore = store->getRWUnderlying(vbid);
+    ASSERT_TRUE(kvstore);
+    kvstore->getDbFileInfo(vbid);
+    EXPECT_EQ(
+            primaryDomainSz,
+            cb::ArenaMalloc::getPreciseAllocated(engine->getArenaMallocClient(),
+                                                 cb::MemoryDomain::Primary));
+    EXPECT_EQ(
+            secondaryDomainSz,
+            cb::ArenaMalloc::getPreciseAllocated(engine->getArenaMallocClient(),
+                                                 cb::MemoryDomain::Secondary));
+    EXPECT_EQ(memUsed, engine->getEpStats().getPreciseTotalMemoryUsed());
+}
+#endif
 
 INSTANTIATE_TEST_SUITE_P(STParamMagmaBucketTest,
                          STParamMagmaBucketTest,
