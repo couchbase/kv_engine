@@ -3766,8 +3766,20 @@ DBFileInfo MagmaKVStore::getDbFileInfo(Vbid vbid) {
 
 DBFileInfo MagmaKVStore::getAggrDbFileInfo() {
     const auto stats = magma->GetStats();
-    const auto nonHistoryDataSize =
-            stats->ActiveDataSize - stats->HistoryDataSize;
+    // Compressed size.
+    const size_t nonHistoryDiskSize =
+            stats->ActiveDiskUsage - stats->HistoryDiskUsage;
+    // Magma internally calculates fragmentation ratio based on the
+    // uncompressed disk and data sizes. Due to block compression, it cannot
+    // give an accurate estimate of the compressed data size (unfragmented
+    // disk). This is because only after a compaction can we know which
+    // unfragmented docs will get together to form data blocks.
+    //
+    // To keep couch_docs_fragmentation inline with Magma's internal
+    // fragmentation, we hence have to derive the compressed data size using
+    // the internal ratio and compressed disk size.
+    const auto nonHistoryDataSize = static_cast<size_t>(
+            nonHistoryDiskSize * (1 - stats->Fragmentation));
     // @todo MB-42900: Track on-disk-prepare-bytes
     DBFileInfo vbinfo{stats->ActiveDiskUsage,
                       nonHistoryDataSize,
