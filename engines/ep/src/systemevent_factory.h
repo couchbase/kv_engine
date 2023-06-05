@@ -82,6 +82,14 @@ public:
                                                SystemEvent type);
 
     /**
+     * Make a key for Scope SystemEvent. This is the same key that an Item of
+     * makeScopeEvent would use.
+     * @param sid The ID of the scope
+     * @return StoredDocKey with scope system event key
+     */
+    static StoredDocKey makeScopeEventKey(ScopeID sid);
+
+    /**
      * make a pair of keys (start and end) for use in a OSO range scan. This
      * pair of keys will return the set of keys that are system events for the
      * given collection.

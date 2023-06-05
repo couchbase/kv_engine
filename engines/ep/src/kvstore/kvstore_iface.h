@@ -77,7 +77,11 @@ enum class DocumentFilter {
     ALL_ITEMS_AND_DROPPED_COLLECTIONS
 };
 
-enum class SnapshotSource { Historical, Head };
+enum class SnapshotSource {
+    Historical, // Required for PITR
+    Head, // Latest version of all keys
+    HeadAllVersions // All versions from the head (used in CDC stream)
+};
 
 using MakeCompactionContextCallback =
         std::function<std::shared_ptr<CompactionContext>(

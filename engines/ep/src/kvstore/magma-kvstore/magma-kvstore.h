@@ -309,6 +309,17 @@ public:
             Vbid vbid) const override;
 
     /**
+     * Read local doc to get a vector of open collections from the given
+     * snapshot
+     *
+     * @param vbid vbucket id
+     * @param snapshot The magma snapshot from which we want to read
+     * @return a pair of Status and vector of open collections (can be empty)
+     */
+    std::pair<magma::Status, std::vector<Collections::KVStore::OpenCollection>>
+    getOpenCollections(Vbid vbid, magma::Magma::Snapshot& snapshot) const;
+
+    /**
      * Read local document to get the vector of dropped collections from the
      * latest snapshot
      *

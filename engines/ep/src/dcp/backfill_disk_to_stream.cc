@@ -111,7 +111,7 @@ bool DCPBackfillDiskToStream::HistoryScanCtx::createScanContext(
                                          snapshotInfo.start,
                                          ctx.docFilter,
                                          ctx.valFilter,
-                                         SnapshotSource::Head,
+                                         SnapshotSource::HeadAllVersions,
                                          std::move(ctx.handle));
     if (!scanCtx) {
         // initBySeqnoScanContext logs for failure
