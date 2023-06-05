@@ -961,12 +961,20 @@ protected:
     /// The number of seconds a client may be idle before it is disconnected
     cb::RelaxedAtomic<size_t> connection_idle_time{0};
 
-    /// The maximum amount of data we want to keep in the send buffer for
-    /// for a client until we pause execution of new commands until the
-    /// client drain the buffer. The motivation for the limit is to avoid
-    /// having one client consume gigabytes of memory. By default the
-    /// limit is set to 40MB (2x the max document size)
-    std::atomic<size_t> max_send_queue_size{40 * 1024 * 1024};
+    /// If a client reaches or exceeds this amount of queued data then
+    /// execution of new commands for that client is paused until the data is
+    /// transferred to the kernels send buffer. The motivation for the limit
+    /// is to provide a some boundary on the amount of memory which can be
+    /// assigned to a output buffers. Note that the client automatically
+    /// backs off when it used the entire "timeslice" (number of operations
+    /// to perform per cycle), of if all of the operations "blocks" by
+    /// waiting for the engine to complete the operation.
+    /// By default the limit is set to 1MB (a typical response packet is 24
+    /// bytes, except for a get response which would also include the actual
+    /// body of the document. With a 1MB output queue you can fit 50 ~20k
+    /// documents (50 is the (default) max number of operations a client
+    /// may perform before backing off.
+    std::atomic<size_t> max_send_queue_size{1024 * 1024};
 
     /// The maximum size we want to try to set SO_SNDBUF to. For windows
     /// the default is 1MB as there is no operating system tunable which

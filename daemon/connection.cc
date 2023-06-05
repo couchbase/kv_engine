@@ -760,9 +760,9 @@ void Connection::tryToProgressDcpStream() {
 
     // MB-38007: We see an increase in rebalance time for
     // "in memory" workloads when allowing DCP to fill up to
-    // 40MB (thats the default) batch size into the output buffer.
-    // We've not been able to figure out exactly _why_ this is
-    // happening and have assumptions that it may be caused
+    // 40MB (that used to be the default) batch size into the
+    // output buffer. We've not been able to figure out exactly
+    // _why_ this is happening and have assumptions that it may be caused
     // that it doesn't align too much with the flow control being
     // used. Before moving to bufferevent we would copy the entire
     // message into kernel space before trying to read (and process)
