@@ -783,6 +783,10 @@ bool HashTable::Statistics::shouldTrackMFU(const HashTable::HashBucketLock& lh,
 }
 
 void HashTable::Statistics::reset() {
+    // We are about to reset stats to 0, memory usage should be changing
+    // accordingly, so call the mem changed callback with the new amount.
+    getMemChangedCallback()(-getMemSize());
+
     for (auto& core : llcLocal) {
         core = {};
     }

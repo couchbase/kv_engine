@@ -267,7 +267,7 @@ TEST_F(EphemeralBucketStatTest, AutoDeleteCountResetOnStateChange) {
 
         auto result = vb.ht.findForUpdate(key);
 
-        auto *storedVal = result.committed;
+        auto* storedVal = result.committed;
         ASSERT(storedVal);
         ASSERT_FALSE(storedVal->isDeleted());
 
@@ -278,6 +278,34 @@ TEST_F(EphemeralBucketStatTest, AutoDeleteCountResetOnStateChange) {
     ASSERT_EQ(1, vb.getAutoDeleteCount());
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
     EXPECT_EQ(0, vb.getAutoDeleteCount());
+}
+
+TEST_F(EphemeralBucketStatTest, ReplicaMemoryTrackingRollback) {
+    {
+        SCOPED_TRACE("");
+        replicaMemoryTrackingTestSetup();
+    }
+
+    store->rollback(vbid, 0 /* rollbackSeqno */);
+
+    auto& nonIO = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    runNextTask(nonIO, "Removing (dead) vb:0 from memory");
+
+    // Rollback reset the vBucket and HashTable
+    auto vb = store->getVBucket(vbid);
+    ASSERT_EQ(0, vb->getNumItems());
+    ASSERT_EQ(0, vb->ht.getItemMemory());
+
+    // Now the replica memory stats should reflect the current state
+    auto& stats = engine->getEpStats();
+    EXPECT_EQ(0, stats.replicaHTMemory);
+    // @todo MB-57199: Succeeds in Neo, fails in master, eg 528 vs 1712 on macos
+    // Also note: Allocator tracking legacy and never used in checkpoint for
+    // enforcing the checkpoint quota - Other components shouldn't use that
+    // either, EPStats::replicaCheckpointOverhead should be moved to using the
+    // mainstream checkpoint mem tracking
+    /*EXPECT_EQ(vb->checkpointManager->getMemOverheadAllocatorBytes(),
+              stats.replicaCheckpointOverhead);*/
 }
 
 TEST_F(EphemeralBucketStatTest, ReplicaCheckpointMemoryTracking) {
