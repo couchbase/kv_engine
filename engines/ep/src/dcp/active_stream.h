@@ -970,6 +970,14 @@ private:
      */
     Collections::VB::Filter filter;
 
+    /**
+     * For CDC backfill, the prologue to the history maybe empty. The prologue
+     * will store the marker here (which is unconditionally pushed to the
+     * stream). When data is actually available in the prologue, then the
+     * marker can be shipped. See MB-55590
+     */
+    std::unique_ptr<SnapshotMarker> pendingDiskMarker;
+
 protected:
     /**
      * A stream-ID which is defined if the producer is using enabled to allow
