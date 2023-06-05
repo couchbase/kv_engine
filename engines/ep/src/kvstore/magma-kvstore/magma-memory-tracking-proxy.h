@@ -100,6 +100,8 @@ struct DomainAwareDelete {
 template <class T>
 using DomainAwareUniquePtr = std::unique_ptr<T, DomainAwareDelete<T>>;
 
+struct DBFileInfo;
+
 class MagmaMemoryTrackingProxy {
 public:
     /**
@@ -158,7 +160,13 @@ public:
 
     std::tuple<magma::Status, magma::Magma::KVStoreRevision> GetKVStoreRevision(
             const magma::Magma::KVStoreID kvID);
-    std::tuple<magma::Status, magma::KVStoreStats> GetKVStoreStats(
+
+    /**
+     * The following function is not a direct Magma wrapper. It uses a magma
+     * stats method to populate the POD struct DBFileInfo which is safe to
+     * return from secondary to primary domains.
+     */
+    std::tuple<magma::Status, DBFileInfo> GetStatsForDbInfo(
             const magma::Magma::KVStoreID kvid);
 
     magma::DBSizeInfo GetDBSizeInfo();

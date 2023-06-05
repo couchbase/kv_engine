@@ -3606,6 +3606,8 @@ GetStatsMap MagmaKVStore::getStats(
     fill("memory_quota", magmaStats->MemoryQuota);
     fill("failure_get", st.numGetFailure.load());
     fill("storage_mem_used", magmaStats->TotalMemUsed);
+    fill("magma_HistorySizeBytesEvicted", magmaStats->HistorySizeBytesEvicted);
+    fill("magma_HistoryTimeBytesEvicted", magmaStats->HistoryTimeBytesEvicted);
     fill("magma_MemoryQuotaLowWaterMark", magmaStats->MemoryQuotaLowWaterMark);
     fill("magma_BloomFilterMemoryQuota", magmaStats->BloomFilterMemoryQuota);
     fill("magma_WriteCacheQuota", magmaStats->WriteCacheQuota);
@@ -3746,12 +3748,10 @@ const KVStoreConfig& MagmaKVStore::getConfig() const {
 }
 
 DBFileInfo MagmaKVStore::getDbFileInfo(Vbid vbid) {
-    DBFileInfo vbinfo;
-    auto [status, kvstats] = magma->GetKVStoreStats(vbid.get());
-    if (status) {
-        vbinfo.spaceUsed = kvstats.ActiveDiskUsage;
-        vbinfo.fileSize = kvstats.TotalDiskUsage;
-        vbinfo.historyDiskSize = kvstats.HistoryDiskUsage;
+    auto [status, vbinfo] = magma->GetStatsForDbInfo(vbid.get());
+    if (!status) {
+        logger->warn("MagmaKVStore::getDbFileInfo failed status:{}",
+                     status.String());
     }
     logger->debug(
             "MagmaKVStore::getDbFileInfo {} spaceUsed:{} fileSize:{} "
