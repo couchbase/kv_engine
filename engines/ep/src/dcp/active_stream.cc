@@ -397,67 +397,90 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
                       MARKER_FLAG_MAY_CONTAIN_DUPLICATE_KEYS);
         }
 
-        log(spdlog::level::level_enum::info,
-            "{} ActiveStream::markDiskSnapshot: Sending disk snapshot with "
-            "start:{}, end:{}, flags:0x{:x}, flagsDecoded:{}, hcs:{}, mvs:{}",
-            logPrefix,
-            startSeqno,
-            endSeqno,
-            flags,
-            dcpMarkerFlagsToString(flags),
-            to_string_or_none(hcsToSend),
-            to_string_or_none(mvsToSend));
-        pushToReadyQ(std::make_unique<SnapshotMarker>(opaque_,
-                                                      vb_,
-                                                      startSeqno,
-                                                      endSeqno,
-                                                      flags,
-                                                      hcsToSend,
-                                                      mvsToSend,
-                                                      timestamp,
-                                                      sid));
-        // Update the last start seqno seen but handle base case as
-        // lastSentSnapStartSeqno is initial zero
-        if (startSeqno > 0) {
-            lastSentSnapStartSeqno = startSeqno;
-        }
+        if (source == SnapshotSource::NoHistoryPrologue) {
+            // When the source is the prologue to history, don't send the marker
+            // but stash it until the backfill definitely returns data.
+            // backfillRecevied can send it if it exists.
+            pendingDiskMarker = std::make_unique<SnapshotMarker>(opaque_,
+                                                                 vb_,
+                                                                 startSeqno,
+                                                                 endSeqno,
+                                                                 flags,
+                                                                 hcsToSend,
+                                                                 mvsToSend,
+                                                                 timestamp,
+                                                                 sid);
+        } else {
+            log(spdlog::level::level_enum::info,
+                "{} ActiveStream::markDiskSnapshot: Sending disk snapshot with "
+                "start:{}, end:{}, flags:0x{:x}, flagsDecoded:{}, hcs:{}, "
+                "mvs:{}",
+                logPrefix,
+                startSeqno,
+                endSeqno,
+                flags,
+                dcpMarkerFlagsToString(flags),
+                to_string_or_none(hcsToSend),
+                to_string_or_none(mvsToSend));
+            // Clear the pending marker, it's no longer needed.
+            // Note: Missing to reset the pending marker here would lead to
+            // sending it unnecessarily in the case where the stream has an
+            // empty NonHistory prologue.
+            pendingDiskMarker.reset();
+            pushToReadyQ(std::make_unique<SnapshotMarker>(opaque_,
+                                                          vb_,
+                                                          startSeqno,
+                                                          endSeqno,
+                                                          flags,
+                                                          hcsToSend,
+                                                          mvsToSend,
+                                                          timestamp,
+                                                          sid));
+            // Update the last start seqno seen but handle base case as
+            // lastSentSnapStartSeqno is initial zero
+            if (startSeqno > 0) {
+                lastSentSnapStartSeqno = startSeqno;
+            }
 
-        // Only compare last sent start with last sent end if end has already
-        // been set (note ignore 0 == 0). When an OSO snapshot comes before a
-        // history seqno-ordered snapshot, wasFirst is false, yet the snapshot
-        // variables are still zero and we would hit this exception.
-        if (!wasFirst && lastSentSnapStartSeqno <= lastSentSnapEndSeqno &&
-            lastSentSnapStartSeqno && lastSentSnapEndSeqno) {
-            auto msg = fmt::format(
-                    "ActiveStream::markDiskSnapshot:"
-                    "sent snapshot marker to client with snap start <= "
-                    "previous snap end "
-                    "{} "
-                    "lastSentSnapStart:{} "
-                    "lastSentSnapEnd:{} "
-                    "snapStart:{} "
-                    "snapEnd:{} "
-                    "sid:{} "
-                    "producer name:{} "
-                    "lastReadSeqno:{} "
-                    "curChkSeqno:{} "
-                    "lastReadSeqnoUnSnapshotted:{}",
-                    vb_,
-                    lastSentSnapStartSeqno,
-                    lastSentSnapEndSeqno,
-                    startSeqno,
-                    endSeqno,
-                    sid,
-                    getName(),
-                    lastReadSeqno,
-                    curChkSeqno,
-                    lastReadSeqnoUnSnapshotted);
-            throw std::logic_error(msg);
-        }
+            // Only compare last sent start with last sent end if end has
+            // already been set (note ignore 0 == 0). When an OSO snapshot comes
+            // before a history seqno-ordered snapshot, wasFirst is false, yet
+            // the snapshot variables are still zero and we would hit this
+            // exception.
+            if (!wasFirst && lastSentSnapStartSeqno <= lastSentSnapEndSeqno &&
+                lastSentSnapStartSeqno && lastSentSnapEndSeqno) {
+                auto msg = fmt::format(
+                        "ActiveStream::markDiskSnapshot:"
+                        "sent snapshot marker to client with snap start <= "
+                        "previous snap end "
+                        "{} "
+                        "lastSentSnapStart:{} "
+                        "lastSentSnapEnd:{} "
+                        "snapStart:{} "
+                        "snapEnd:{} "
+                        "sid:{} "
+                        "producer name:{} "
+                        "lastReadSeqno:{} "
+                        "curChkSeqno:{} "
+                        "lastReadSeqnoUnSnapshotted:{}",
+                        vb_,
+                        lastSentSnapStartSeqno,
+                        lastSentSnapEndSeqno,
+                        startSeqno,
+                        endSeqno,
+                        sid,
+                        getName(),
+                        lastReadSeqno,
+                        curChkSeqno,
+                        lastReadSeqnoUnSnapshotted);
+                throw std::logic_error(msg);
+            }
 
-        // CDC: There are cases where there's no need to assign the seqno again
-        if (mustAssignEndSeqno(source, endSeqno, lastSentSnapEndSeqno)) {
-            lastSentSnapEndSeqno.store(endSeqno, std::memory_order_relaxed);
+            // CDC: There are cases where there's no need to assign the seqno
+            // again
+            if (mustAssignEndSeqno(source, endSeqno, lastSentSnapEndSeqno)) {
+                lastSentSnapEndSeqno.store(endSeqno, std::memory_order_relaxed);
+            }
         }
 
         if (!isDiskOnly()) {
@@ -557,6 +580,35 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> item,
         // need to be both updated under streamMutex. That's because the
         // end-stream path uses stream counters for updating prod/bm counters,
         // so they need to be consistent.
+
+        if (pendingDiskMarker) {
+            // There is a marker, move it to the readyQ
+
+            log(spdlog::level::level_enum::info,
+                "{} ActiveStream::backfillReceived: Sending pending disk "
+                "snapshot with "
+                "start:{}, end:{}, flags:0x{:x}, flagsDecoded:{}, hcs:{}, "
+                "mvs:{}",
+                logPrefix,
+                pendingDiskMarker->getStartSeqno(),
+                pendingDiskMarker->getEndSeqno(),
+                pendingDiskMarker->getFlags(),
+                dcpMarkerFlagsToString(pendingDiskMarker->getFlags()),
+                to_string_or_none(pendingDiskMarker->getHighCompletedSeqno()),
+                to_string_or_none(pendingDiskMarker->getMaxVisibleSeqno()));
+
+            // Note: The presence of a pending disk marker means that we were
+            // at SnapshotSource::NoHistoryPrologue before this point and now
+            // we have moved to SnapshotSource::History. See detail in the
+            // SnapshotSource enum.
+            if (mustAssignEndSeqno(ActiveStream::SnapshotSource::History,
+                                   pendingDiskMarker->getEndSeqno(),
+                                   lastSentSnapEndSeqno)) {
+                lastSentSnapEndSeqno.store(pendingDiskMarker->getEndSeqno(),
+                                           std::memory_order_relaxed);
+            }
+            pushToReadyQ(std::move(pendingDiskMarker));
+        }
 
         // Passed all checks, item will be added to ready queue now.
         const auto respSize = resp->getApproximateSize();
