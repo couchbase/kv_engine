@@ -3997,7 +3997,7 @@ bool VBucket::deleteStoredValue(const HashTable::HashBucketLock& hbl,
     /* StoredValue deleted here. If any other in-memory data structures are
        using the StoredValue intrusively then they must have handled the delete
        by this point */
-    ht.unlocked_del(hbl, &v);
+    ht.unlocked_del(hbl, v);
     return true;
 }
 

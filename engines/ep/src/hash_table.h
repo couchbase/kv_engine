@@ -1179,7 +1179,7 @@ public:
      * @param hbl HashBucketLock that must be held
      * @param value The StoredValue to erase
      */
-    void unlocked_del(const HashBucketLock& hbl, StoredValue* value);
+    void unlocked_del(const HashBucketLock& hbl, const StoredValue& value);
 
     /**
      * Visit all items within this hashtable.
@@ -1313,9 +1313,8 @@ public:
      * @return the StoredValue that is released from the HT. It is now owned by
      *         the caller.
      */
-    StoredValue::UniquePtr unlocked_release(
-            const HashBucketLock& hbl,
-            StoredValue* valueToRelease);
+    StoredValue::UniquePtr unlocked_release(const HashBucketLock& hbl,
+                                            const StoredValue& valueToRelease);
 
     /**
      * Insert an item during Warmup into the HashTable.
@@ -1599,39 +1598,41 @@ protected:
                                        const HashBucketLock& hbl);
 
     /** Searches for the first element in the specified hashChain which matches
-     * predicate p, and unlinks it from the chain.
+     * value toRemove, and unlinks it from the chain.
      *
      * @param chain Linked list of StoredValues to scan.
-     * @param p Predicate to test each element against.
-     *          The signature of the predicate function should be equivalent
-     *          to the following:
-     *               bool pred(const StoredValue* a);
+     * @param toRemove StoredValue to remove
      *
-     * @return The removed element, or NULL if no matching element was found.
+     * @return Owning ptr to the removed element
      */
-    template <typename Pred>
-    StoredValue::UniquePtr hashChainRemoveFirst(StoredValue::UniquePtr& chain,
-                                                Pred p) {
-        if (p(chain.get().get())) {
+    StoredValue::UniquePtr hashChainRemove(StoredValue::UniquePtr& chain,
+                                           const StoredValue& toRemove) {
+        // caller required to only attempt to remove a stored value which
+        // _does_ exist in this chain, therefore the chain cannot be empty
+        Expects(chain);
+        if (chain.get().get() == &toRemove) {
             // Head element:
             auto removed = std::move(chain);
             chain = std::move(removed->getNext());
+            Ensures(removed);
             return removed;
         }
 
         // Not head element, start searching.
         for (StoredValue::UniquePtr* curr = &chain; curr->get()->getNext();
              curr = &curr->get()->getNext()) {
-            if (p(curr->get()->getNext().get().get())) {
+            if (curr->get()->getNext().get().get() == &toRemove) {
                 // next element matches predicate - splice it out of the list.
                 auto removed = std::move(curr->get()->getNext());
                 curr->get()->setNext(std::move(removed->getNext()));
+                Ensures(removed);
                 return removed;
             }
         }
 
-        // No match found.
-        return nullptr;
+        throw std::invalid_argument(
+                "HashTable::hashChainRemove called for StoredValue not "
+                "present in chain");
     }
 
     void clear_UNLOCKED(bool deactivate);
