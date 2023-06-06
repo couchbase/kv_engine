@@ -84,6 +84,15 @@ StoredDocKey SystemEventFactory::makeCollectionEventKey(CollectionID cid,
     return StoredDocKey(key, CollectionID::System);
 }
 
+StoredDocKey SystemEventFactory::makeScopeEventKey(ScopeID sid) {
+    // Make a key which is:
+    // [0x01] [0x01] [0xsid] _scope
+    StoredDocKey key1{Collections::ScopeEventDebugTag,
+                      CollectionID(ScopeIDType(sid))};
+    StoredDocKey key2{key1, CollectionID{uint32_t(SystemEvent::Scope)}};
+    return StoredDocKey(key2, CollectionID::System);
+}
+
 std::pair<DiskDocKey, DiskDocKey>
 SystemEventFactory::makeCollectionEventKeyPairForRangeScan(CollectionID cid) {
     auto start = makeCollectionEventKey(cid, SystemEvent::Collection);

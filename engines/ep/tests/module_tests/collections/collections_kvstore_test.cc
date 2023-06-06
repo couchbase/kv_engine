@@ -11,6 +11,7 @@
 
 #include "checkpoint_config.h"
 #include "checkpoint_manager.h"
+#include "collections/collections_types.h"
 #include "configuration.h"
 #include "ep_vb.h"
 #include "failover-table.h"
@@ -838,9 +839,11 @@ TEST_P(CollectionRessurectionKVStoreTest, resurectionScopes) {
 
 class TestScanContext : public Collections::VB::ScanContext {
 public:
-    TestScanContext(const std::vector<Collections::KVStore::DroppedCollection>&
+    TestScanContext(const std::vector<Collections::KVStore::OpenCollection>*
+                            openCollections,
+                    const std::vector<Collections::KVStore::DroppedCollection>&
                             droppedCollections)
-        : ScanContext(droppedCollections) {
+        : ScanContext(openCollections, droppedCollections) {
     }
 
     uint64_t getStartSeqno() const {
@@ -854,17 +857,164 @@ public:
 
 TEST(ScanContextTest, construct) {
     std::vector<Collections::KVStore::DroppedCollection> dc = {
-            {{9, 200, 8}, {1, 105, 9}}};
+            {{9, 200, CollectionID{8}}, {1, 105, CollectionID{9}}}};
 
-    TestScanContext tsc{dc};
+    TestScanContext tsc{{}, dc};
     EXPECT_EQ(1, tsc.getStartSeqno());
     EXPECT_EQ(200, tsc.getEndSeqno());
-
     auto& dropped = tsc.getDroppedCollections();
     EXPECT_FALSE(dropped.empty());
     EXPECT_EQ(2, dropped.size());
     EXPECT_NE(0, dropped.count(8));
     EXPECT_NE(0, dropped.count(9));
+
+    auto c1 = StoredDocKey("key in cid:0x9", CollectionID(9));
+
+    EXPECT_TRUE(tsc.isLogicallyDeleted(c1, false, 2)); // io range and dropped
+    EXPECT_FALSE(tsc.isLogicallyDeleted(c1, false, 300)); // not in range
+
+    auto c2 = StoredDocKey("key in cid:0xa", CollectionID(10));
+    // In range, but not in dropped set
+    EXPECT_FALSE(tsc.isLogicallyDeleted(c2, false, 2));
+}
+
+TEST(ScanContextTest, isLogicallyDeleted) {
+    using namespace Collections::KVStore;
+    std::vector<OpenCollection> open;
+    // Default collection first
+    open.emplace_back(OpenCollection{0, Collections::CollectionMetaData{}});
+    open.emplace_back(OpenCollection{
+            100,
+            Collections::CollectionMetaData{ScopeID::Default,
+                                            CollectionID(8),
+                                            "c1",
+                                            cb::NoExpiryLimit,
+                                            Collections::Metered::No,
+                                            CanDeduplicate::No}});
+
+    // No dropped collections, only open collections
+    TestScanContext tsc{&open, {}};
+    // These are in default state, note that these aren't visible via a real
+    // ScanContext
+    EXPECT_EQ(std::numeric_limits<uint64_t>::max(), tsc.getStartSeqno());
+    EXPECT_EQ(0, tsc.getEndSeqno());
+    EXPECT_TRUE(tsc.getDroppedCollections().empty());
+
+    // Any collection not in the open list is then considered dropped
+    // irrespective of seqno
+    auto c2 = StoredDocKey("key in cid:0x9", CollectionID(9));
+    EXPECT_TRUE(tsc.isLogicallyDeleted(c2, false, 1));
+    EXPECT_TRUE(tsc.isLogicallyDeleted(c2, true, 1));
+    EXPECT_TRUE(tsc.isLogicallyDeleted(c2, false, 1000));
+
+    // For a collection which is in the open map, only lower than start seqno
+    EXPECT_FALSE(tsc.isLogicallyDeleted(
+            StoredDocKey("k", CollectionID::Default), false, 1));
+
+    // For a collection that is in the open list, the start-seqno decides if it
+    // is dropped.
+    auto c1 = StoredDocKey("key in cid:0x8", CollectionID(8));
+    // 99 is before the start seqno of 100
+    EXPECT_TRUE(tsc.isLogicallyDeleted(c1, false, 99));
+    // 1000 is after the start seqno of 100
+    EXPECT_FALSE(tsc.isLogicallyDeleted(c1, false, 1000));
+
+    // Check with some system event keys.
+
+    // Create collection for the open collection (seqno 100)
+    EXPECT_FALSE(tsc.isLogicallyDeleted(
+            SystemEventFactory::makeCollectionEventKey(CollectionID(8),
+                                                       SystemEvent::Collection),
+            false,
+            100));
+    // Create collection, but must be an older generation (if resurrection ever
+    // did happen)
+    EXPECT_TRUE(tsc.isLogicallyDeleted(
+            SystemEventFactory::makeCollectionEventKey(CollectionID(8),
+                                                       SystemEvent::Collection),
+            false,
+            99));
+
+    // Delete=true, this is a drop marker which is always made visible to
+    // backfill
+    EXPECT_FALSE(tsc.isLogicallyDeleted(
+            SystemEventFactory::makeCollectionEventKey(CollectionID(8),
+                                                       SystemEvent::Collection),
+            true,
+            99));
+
+    // Modify depends on seqno
+    EXPECT_TRUE(tsc.isLogicallyDeleted(
+            SystemEventFactory::makeCollectionEventKey(
+                    CollectionID(8), SystemEvent::ModifyCollection),
+            false,
+            99));
+
+    EXPECT_FALSE(tsc.isLogicallyDeleted(
+            SystemEventFactory::makeCollectionEventKey(
+                    CollectionID(8), SystemEvent::ModifyCollection),
+            false,
+            101));
+
+    // Scope event is always false
+    EXPECT_FALSE(tsc.isLogicallyDeleted(
+            SystemEventFactory::makeScopeEventKey(ScopeID(8)), false, 99));
+    EXPECT_FALSE(tsc.isLogicallyDeleted(
+            SystemEventFactory::makeScopeEventKey(ScopeID(8)), false, 99));
+    EXPECT_FALSE(tsc.isLogicallyDeleted(
+            SystemEventFactory::makeScopeEventKey(ScopeID(8)), true, 99));
+}
+
+// Test that when open collections is used, but there are no open collections
+// (empty vector) every collection input to isLogicallyDeleted returns true
+TEST(ScanContextTest, allLogicallyDeleted) {
+    using namespace Collections::KVStore;
+    // The OpenCollection list is empty
+    std::vector<OpenCollection> open;
+    // And no dropped collections
+    TestScanContext tsc{&open, {}};
+
+    // In this configuration every key isLogicallyDeleted=>true
+    auto c2 = StoredDocKey("key in cid:0x9", CollectionID(9));
+    EXPECT_TRUE(tsc.isLogicallyDeleted(c2, false, 1));
+    EXPECT_TRUE(tsc.isLogicallyDeleted(c2, true, 1));
+    EXPECT_TRUE(tsc.isLogicallyDeleted(c2, false, 1000));
+
+    EXPECT_TRUE(tsc.isLogicallyDeleted(
+            StoredDocKey("k", CollectionID::Default), false, 1));
+    auto c1 = StoredDocKey("key in cid:0x8", CollectionID(8));
+    // 99 is before the start seqno of 100
+    EXPECT_TRUE(tsc.isLogicallyDeleted(c1, false, 99));
+    // 1000 is after the start seqno of 100
+    EXPECT_TRUE(tsc.isLogicallyDeleted(c1, false, 1000));
+
+    // Create collection is gone
+    EXPECT_TRUE(tsc.isLogicallyDeleted(
+            SystemEventFactory::makeCollectionEventKey(CollectionID(8),
+                                                       SystemEvent::Collection),
+            false,
+            100));
+
+    EXPECT_TRUE(tsc.isLogicallyDeleted(
+            SystemEventFactory::makeCollectionEventKey(
+                    CollectionID(8), SystemEvent::ModifyCollection),
+            false,
+            101));
+
+    // Drop marker isn't filtered by this function
+    EXPECT_FALSE(tsc.isLogicallyDeleted(
+            SystemEventFactory::makeCollectionEventKey(CollectionID(8),
+                                                       SystemEvent::Collection),
+            true,
+            99));
+
+    // Scope event is always false
+    EXPECT_FALSE(tsc.isLogicallyDeleted(
+            SystemEventFactory::makeScopeEventKey(ScopeID(8)), false, 99));
+    EXPECT_FALSE(tsc.isLogicallyDeleted(
+            SystemEventFactory::makeScopeEventKey(ScopeID(8)), false, 99));
+    EXPECT_FALSE(tsc.isLogicallyDeleted(
+            SystemEventFactory::makeScopeEventKey(ScopeID(8)), true, 99));
 }
 
 INSTANTIATE_TEST_SUITE_P(CollectionsKVStoreTests,
