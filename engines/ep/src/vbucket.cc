@@ -1314,6 +1314,10 @@ void VBucket::addBloomFilterStats_UNLOCKED(const AddStatFn& add_stat,
 }
 
 VBNotifyCtx VBucket::queueItem(queued_item& item, const VBQueueItemCtx& ctx) {
+    if (bucket && bucket->isHistoryRetentionEnabled()) {
+        item->setCanDeduplicate(ctx.deduplicate);
+    }
+
     // Set queue time to now. Why not in the ctor of the Item? We only need to
     // do this in certain places for new items as it's used to determine how
     // long it took an item to get flushed.
@@ -1412,10 +1416,6 @@ VBNotifyCtx VBucket::queueDirty(const HashTable::HashBucketLock& hbl,
     if (!mightContainXattrs() &&
         cb::mcbp::datatype::is_xattr(v.getDatatype())) {
         setMightContainXattrs();
-    }
-
-    if (bucket && bucket->isHistoryRetentionEnabled()) {
-        qi->setCanDeduplicate(ctx.deduplicate);
     }
 
     // Enqueue the item for persistence and replication

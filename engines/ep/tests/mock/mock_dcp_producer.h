@@ -254,4 +254,6 @@ public:
      * Proxy to DcpProducer::getNextItem()
      */
     std::unique_ptr<DcpResponse> public_getNextItem();
+
+    void public_enableSyncReplication();
 };

@@ -947,6 +947,16 @@ TEST_F(CollectionsVBFilterTest, system_events2) {
             {});
     EXPECT_TRUE(checkAndUpdate(vbf, *ev));
 
+    // Modify event is allowed
+    ev = Collections::VB::Manifest::makeCollectionSystemEvent(
+            Collections::ManifestUid(0),
+            CollectionUid::defaultC,
+            CollectionName::defaultC,
+            *entryInDefaultScope,
+            Collections::VB::Manifest::SystemEventType::Modify,
+            {});
+    EXPECT_TRUE(checkAndUpdate(vbf, *ev));
+
     // dairy system event is not allowed by the filter
     ev = Collections::VB::Manifest::makeCollectionSystemEvent(
             Collections::ManifestUid(0),

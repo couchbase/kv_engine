@@ -326,8 +326,7 @@ void MagmaKVStoreTransactionContext::preparePendingRequests(
     std::sort(pendingReqs.begin(),
               pendingReqs.end(),
               [](const auto& lhs, const auto& rhs) {
-                  const auto comp = lhs->getItem().getKey().compare(
-                          rhs->getItem().getKey());
+                  const auto comp = lhs->getKey().compare(rhs->getKey());
                   // When keys are equal, sort by seqno.
                   if (comp == 0) {
                       return lhs->getItem().getBySeqno() <
@@ -2907,9 +2906,9 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
                     std::max(dc.endSeqno, purgedCollectionsEndSeqno);
         }
 
-        // Finally, we also need to compact the prepare namespace as this is
-        // disjoint from the collection namespaces. This is done after the
-        // main collection purge and uses a simpler callback
+        // Also need to compact the prepare namespace as this is disjoint from
+        // the collection namespaces. This is done after the main collection
+        // purge and uses a simpler callback
         cb::mcbp::unsigned_leb128<CollectionIDType> leb128(
                 CollectionID::DurabilityPrepare);
         Slice prepareSlice(reinterpret_cast<const char*>(leb128.data()),
@@ -2931,6 +2930,26 @@ CompactDBStatus MagmaKVStore::compactDBInternal(
             // would result in us not cleaning up prepares for a dropped
             // collection if the compaction of a dropped collection succeeds.
             return CompactDBStatus::Failed;
+        }
+
+        // Finally, visit the system namespace to ensure any events related to
+        // the dropped collections are also purged
+        cb::mcbp::unsigned_leb128<CollectionIDType> sys(CollectionID::System);
+        Slice systemSlice(reinterpret_cast<const char*>(sys.data()),
+                          sys.size());
+        status = magma->CompactKVStore(
+                vbid.get(), systemSlice, systemSlice, compactionCB);
+        if (!status) {
+            if (status.ErrorCode() == Status::Cancelled) {
+                return CompactDBStatus::Aborted;
+            } else {
+                logger->warn(
+                        "MagmaKVStore::compactDBInternal CompactKVStore {} "
+                        "of system namespace failed status:{}",
+                        vbid,
+                        status.String());
+                return CompactDBStatus::Failed;
+            }
         }
     }
 

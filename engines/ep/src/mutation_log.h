@@ -76,6 +76,40 @@ const uint8_t FLUSH_FULL(FLUSH_COMMIT_1 | FLUSH_COMMIT_2);
 
 const uint8_t DEFAULT_SYNC_CONF(FLUSH_COMMIT_2 | SYNC_COMMIT_2);
 
+namespace mlog {
+/**
+ * Interface for file IO operations. Exists to allow testing of MutationLog
+ * behaviour related to file I/O.
+ * TODO: Expand to additional file functions as and when we expand test
+ *       coverage.
+ */
+struct FileIface {
+    virtual ~FileIface() = default;
+
+    /**
+     * Write `nbytes` of data from `buf` to the specified fd at position
+     * `offset`.
+     */
+    virtual ssize_t pwrite(file_handle_t fd,
+                           const void* buf,
+                           size_t nbyte,
+                           uint64_t offset) = 0;
+};
+
+/**
+ * Default implementation of FileInterface - uses the standard C library
+ * IO functions from unistd.h of the same name.
+ *
+ */
+struct DefaultFileIface : public FileIface {
+    ssize_t pwrite(file_handle_t fd,
+                   const void* buf,
+                   size_t nbyte,
+                   uint64_t offset) override;
+};
+
+} // namespace mlog
+
 /**
  * The header block representing the first 4k (or so) of a MutationLog
  * file.
@@ -145,7 +179,9 @@ private:
 class MutationLog {
 public:
     explicit MutationLog(std::string path,
-                         const size_t bs = MIN_LOG_HEADER_SIZE);
+                         const size_t bs = MIN_LOG_HEADER_SIZE,
+                         std::unique_ptr<mlog::FileIface> fileIface =
+                                 std::make_unique<mlog::DefaultFileIface>());
 
     ~MutationLog();
     MutationLog(const MutationLog&) = delete;
@@ -404,6 +440,8 @@ protected:
     file_handle_t fd() const { return file; }
 
     LogHeaderBlock     headerBlock;
+    /// IO interface for accessing mutation log file.
+    std::unique_ptr<mlog::FileIface> fileIface;
     const std::string  logPath;
     size_t             blockSize;
     size_t             blockPos;
