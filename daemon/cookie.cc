@@ -736,7 +736,7 @@ Cookie::~Cookie() {
                 "{} ewouldblock should NOT be set in the destructor as that "
                 "indicates that someone is using the cookie. This cookie: {}, "
                 "Connection: {}",
-                getConnectionId(),
+                connection.getId(),
                 to_json().dump(),
                 connection.to_json().dump());
         cb::logger::flush();
