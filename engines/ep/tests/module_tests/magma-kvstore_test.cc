@@ -21,6 +21,7 @@
 #include "test_helpers.h"
 #include "thread_gate.h"
 #include <executor/workload.h>
+#include <platform/dirutils.h>
 
 using namespace std::string_literals;
 using namespace testing;
@@ -156,6 +157,76 @@ TEST_F(MagmaKVStoreRollbackTest, RollbackNoValidCheckpoint) {
     auto rollbackResult =
             kvstore->rollback(Vbid(0), 5, std::make_unique<CustomRBCallback>());
     ASSERT_FALSE(rollbackResult.success);
+}
+
+class MagmaKVStoreFragmentationTest : public MagmaKVStoreTest {
+protected:
+    void SetUp() override {
+        MagmaKVStoreTest::SetUp();
+
+        // Reset kvstore as we're changing the config.
+        kvstore.reset();
+        if (cb::io::isDirectory(kvstoreConfig->getDBName())) {
+            cb::io::rmrf(kvstoreConfig->getDBName());
+        }
+
+        // Magma only considers last two levels of LSD for fragmentation
+        // computation. Hence only have 2 levels for this test so that data
+        // loaded/overwritten directly lands into them.
+        kvstoreConfig->magmaCfg.LSDNumLevels = 2;
+
+        // Recreate kvstore with custom Magma config.
+        kvstore = std::make_unique<MockMagmaKVStore>(*kvstoreConfig);
+    }
+};
+
+// Assert couch_docs_fragmentation is inline with Magma reported fragmentation.
+TEST_F(MagmaKVStoreFragmentationTest, fragmentationStat) {
+    // So that no compactions kick in and we get a stable fragmentation value
+    // when comparing the stats.
+    kvstore->setMagmaFragmentationPercentage(100);
+
+    // Load data.
+    constexpr auto nItems = 100;
+    size_t seqno = 1;
+    for (auto i = 0; i < nItems; i++) {
+        doWrite(seqno, true, "key" + std::to_string(i));
+        seqno++;
+    }
+    ASSERT_TRUE(kvstore->newCheckpoint(vbid));
+
+    // Overwrite data.
+    constexpr auto nOverwrite = 10;
+    for (auto i = 0; i < nOverwrite; i++) {
+        for (auto j = 0; j < nItems; j++) {
+            doWrite(seqno, true, "key" + std::to_string(j));
+            seqno++;
+        }
+    }
+    ASSERT_TRUE(kvstore->newCheckpoint(vbid));
+
+    auto fileInfo = kvstore->getAggrDbFileInfo();
+    auto couchDocsFrag =
+            static_cast<float>(fileInfo.fileSize - fileInfo.spaceUsed) /
+            fileInfo.fileSize;
+
+    size_t logicalDataSize = 0;
+    size_t logicalDiskSize = 0;
+    kvstore->getStat("magma_LogicalDataSize", logicalDataSize);
+    kvstore->getStat("magma_LogicalDiskSize", logicalDiskSize);
+    auto magmaFrag = static_cast<float>(logicalDiskSize - logicalDataSize) /
+                     logicalDiskSize;
+
+    if (couchDocsFrag > magmaFrag) {
+        std::swap(couchDocsFrag, magmaFrag);
+    }
+
+    // Tolerate a difference of 1%.
+    auto diff = ((magmaFrag - couchDocsFrag) / magmaFrag) * 100;
+    EXPECT_LE(diff, 1);
+
+    // Expect at least 10% fragmentation from overwrites.
+    EXPECT_GT(magmaFrag, 0.1);
 }
 
 TEST_F(MagmaKVStoreTest, prepareToCreate) {
