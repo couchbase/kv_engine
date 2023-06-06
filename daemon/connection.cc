@@ -641,11 +641,10 @@ void Connection::executeCommandPipeline() {
                         // of the command (and the connection)
                         cookie.setEwouldblock(true);
                         cookie.preserveRequest();
-                        if (!cookie.mayReorder()) {
-                            // Don't add commands as we need the last one to
-                            // complete
-                            stop = true;
-                        }
+                        // Given that we're blocked on throttling, we should
+                        // stop accepting new commands and wait for throttling
+                        // to unblock the execution pipeline
+                        stop = true;
                     }
                 } else if ((!active || cookie.mayReorder()) &&
                            cookie.execute(true)) {
