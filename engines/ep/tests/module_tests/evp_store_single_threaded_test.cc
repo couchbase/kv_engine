@@ -4416,6 +4416,7 @@ void STParameterizedBucketTest::testValidateDatatypeForEmptyPayload(
     auto& vb = *store->getVBucket(vbid);
     auto& manager = *vb.checkpointManager;
     manager.createNewCheckpoint();
+    ASSERT_EQ(1, manager.getNumCheckpoints());
     ASSERT_EQ(1, manager.getNumOpenChkItems());
     ASSERT_EQ(0, vb.getHighSeqno());
 

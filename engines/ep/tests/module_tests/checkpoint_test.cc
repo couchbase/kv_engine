@@ -3835,6 +3835,65 @@ TEST_P(CheckpointTest, RegisterDuplicateCursor) {
     EXPECT_GT(global_stats.memFreedByCheckpointRemoval, 0);
 }
 
+/**
+ * MB-55520
+ * This test ensures that in a sequence of [Memory, Disk] checkpoints the CM
+ * never returns checkpoints of different types from CM::getItemsForCursor().
+ *
+ * Similar to CheckpointTest.getItems_MemoryDiskSnapshot. I write a dedicated
+ * test here for MB-55520 as this test highlights the aspects relative to the
+ * particular failure seen in MB-55520.
+ */
+TEST_P(CheckpointTest, NeverMergeCheckpointsOfDifferentType) {
+    {
+        // Move cursor to end of checkpoint and allow checkpoint removal in the
+        // next steps
+        std::vector<queued_item> items;
+        manager->getItemsForCursor(*cursor, items, 123456, 123456);
+    }
+
+    // First Memory snapshot
+    manager->createSnapshot(1001, 1002, {}, CheckpointType::Memory, 1002);
+    EXPECT_TRUE(queueReplicatedItem("key1", 1001));
+    EXPECT_TRUE(queueReplicatedItem("key2", 1002));
+    EXPECT_EQ(1, manager->getNumCheckpoints());
+    EXPECT_EQ(3, manager->getNumOpenChkItems());
+
+    // Second Disk snapshot
+    this->manager->createSnapshot(1003, 1004, 0, CheckpointType::Disk, 1004);
+    EXPECT_TRUE(queueReplicatedItem("key3", 1003));
+    EXPECT_TRUE(queueReplicatedItem("key4", 1004));
+    EXPECT_EQ(2, manager->getNumCheckpoints());
+    EXPECT_EQ(3, manager->getNumOpenChkItems());
+
+    std::vector<queued_item> items;
+    const auto res = manager->getItemsForCursor(*cursor, items, 123456, 123456);
+    EXPECT_TRUE(res.moreAvailable);
+
+    // Expect only the first snapshot.
+    // Before the fix we get the  2 snapshots merged.
+    EXPECT_EQ(1, res.ranges.size());
+    // Only range 1001, 1002
+    EXPECT_EQ(1001, res.ranges[0].getStart());
+    EXPECT_EQ(1002, res.ranges[0].getEnd());
+    EXPECT_EQ(4, items.size());
+    EXPECT_EQ(queue_op::checkpoint_start, items.at(0)->getOperation());
+    EXPECT_EQ(queue_op::mutation, items.at(1)->getOperation());
+    EXPECT_EQ(1001, items.at(1)->getBySeqno());
+    EXPECT_EQ(queue_op::mutation, items.at(2)->getOperation());
+    EXPECT_EQ(1002, items.at(2)->getBySeqno());
+    EXPECT_EQ(queue_op::checkpoint_end, items.at(3)->getOperation());
+
+    // Verify the other ItemsForCursor quantities
+    EXPECT_EQ(1002, res.visibleSeqno);
+
+    // !! VERY IMPORTANT AS COVERAGE FOR MB-55520 !!
+    // Before the fix here we get CheckpointType::Disk && !HCS, which is the
+    // illegal state that fails ActiveStream in MB-55520.
+    EXPECT_EQ(CheckpointType::Memory, res.checkpointType);
+    EXPECT_FALSE(res.highCompletedSeqno);
+}
+
 INSTANTIATE_TEST_SUITE_P(
         AllVBTypesAllEvictionModes,
         CheckpointTest,

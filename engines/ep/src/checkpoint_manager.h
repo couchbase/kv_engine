@@ -434,7 +434,7 @@ public:
     void addStats(const AddStatFn& add_stat, CookieIface& cookie);
 
     /**
-     * Create a new open checkpoint by force.
+     * Create a new open checkpoint.
      *
      * @return the new open checkpoint id
      */
