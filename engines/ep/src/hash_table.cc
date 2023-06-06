@@ -139,7 +139,7 @@ HashTable::~HashTable() {
 void HashTable::cleanupIfTemporaryItem(const HashBucketLock& hbl,
                                        StoredValue& v) {
     if (v.isTempDeletedItem() || v.isTempNonExistentItem()) {
-        unlocked_del(hbl, &v);
+        unlocked_del(hbl, v);
     }
 }
 
@@ -808,7 +808,7 @@ HashTable::unlocked_replaceByCopy(const HashBucketLock& hbl,
     }
 
     /* Release (remove) the StoredValue from the hash table */
-    auto releasedSv = unlocked_release(hbl, &vToCopy);
+    auto releasedSv = unlocked_release(hbl, vToCopy);
 
     /* Copy the StoredValue and link it into the head of the bucket chain. */
     auto newSv = valFact->copyStoredValue(
@@ -1041,13 +1041,13 @@ HashTable::FindResult HashTable::findItem(const Item& item) {
             std::move(result.lock)};
 }
 
-void HashTable::unlocked_del(const HashBucketLock& hbl, StoredValue* value) {
+void HashTable::unlocked_del(const HashBucketLock& hbl,
+                             const StoredValue& value) {
     unlocked_release(hbl, value).reset();
 }
 
 StoredValue::UniquePtr HashTable::unlocked_release(
-        const HashBucketLock& hbl,
-        StoredValue* valueToRelease) {
+        const HashBucketLock& hbl, const StoredValue& valueToRelease) {
     if (!hbl.getHTLock()) {
         throw std::invalid_argument(
                 "HashTable::unlocked_release_base: htLock not held");
@@ -1060,10 +1060,7 @@ StoredValue::UniquePtr HashTable::unlocked_release(
     }
     // Remove the first (should only be one) StoredValue matching the given
     // pointer
-    auto released = hashChainRemoveFirst(
-            values[hbl.getBucketNum()], [valueToRelease](const StoredValue* v) {
-                return v == valueToRelease;
-            });
+    auto released = hashChainRemove(values[hbl.getBucketNum()], valueToRelease);
 
     if (!released) {
         /* We shouldn't reach here, we must delete the StoredValue in the
@@ -1343,9 +1340,8 @@ bool HashTable::unlocked_ejectItem(const HashTable::HashBucketLock& hbl,
     } else {
         // Remove the item from the hash table.
         int bucket_num = getBucketForHash(vptr->getKey().hash());
-        auto removed = hashChainRemoveFirst(
-                values[bucket_num],
-                [vptr](const StoredValue* v) { return v == vptr; });
+        auto removed = hashChainRemove(values[bucket_num], *vptr);
+        Expects(removed);
 
         if (removed->isResident()) {
             ++stats.numValueEjects;

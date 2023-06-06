@@ -147,7 +147,7 @@ protected:
         basicLL->updateHighSeqno(listWriteLg, *sv);
 
         /* Mark stale */
-        auto ownedSV = ht.unlocked_release(res.lock, res.storedValue);
+        auto ownedSV = ht.unlocked_release(res.lock, *res.storedValue);
         basicLL->markItemStale(listWriteLg, std::move(ownedSV), nullptr);
     }
 
@@ -192,7 +192,7 @@ protected:
                   basicLL->updateListElem(lg, listWriteLg, *osv));
 
         /* Release the current sv from the HT */
-        auto ownedSv = ht.unlocked_release(res.lock, res.storedValue);
+        auto ownedSv = ht.unlocked_release(res.lock, *res.storedValue);
 
         /* Add a new storedvalue for the append */
         Item itm(docKey,
@@ -235,7 +235,7 @@ protected:
     StoredValue::UniquePtr releaseFromHashTable(const std::string& key) {
         auto res = ht.findForWrite(makeStoredDocKey(key));
         EXPECT_TRUE(res.storedValue);
-        return ht.unlocked_release(res.lock, res.storedValue);
+        return ht.unlocked_release(res.lock, *res.storedValue);
     }
 
     /**

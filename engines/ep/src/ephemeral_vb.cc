@@ -438,7 +438,7 @@ EphemeralVBucket::updateStoredValue(const HashTable::HashBucketLock& hbl,
                      marking stale because once marked stale list assumes the
                      ownership of the item and may delete it anytime. */
             /* Release current storedValue from hash table */
-            ownedSv = ht.unlocked_release(hbl, &v);
+            ownedSv = ht.unlocked_release(hbl, v);
 
             /* Add a new storedvalue for the item */
             newSv = ht.unlocked_addNewStoredValue(hbl, itm);
@@ -978,7 +978,7 @@ void EphemeralVBucket::dropKey(const DocKey& key, int64_t bySeqno) {
 
 void EphemeralVBucket::dropStoredValue(const HashTable::HashBucketLock& hbl,
                                        StoredValue& sv) {
-    auto ownedSV = ht.unlocked_release(hbl, &sv);
+    auto ownedSV = ht.unlocked_release(hbl, sv);
     {
         std::lock_guard<std::mutex> listWriteLg(seqList->getListWriteLock());
         // Mark the item stale, with no replacement item
