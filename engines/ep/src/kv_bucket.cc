@@ -1717,7 +1717,6 @@ cb::engine_errc KVBucket::setWithMeta(Item& itm,
 
     cb::engine_errc rv = cb::engine_errc::success;
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         // hold collections read lock for duration of set
         auto cHandle = vb->lockCollections(itm.getKey());
         rv = cHandle.handleWriteStatus(
@@ -1818,7 +1817,6 @@ GetValue KVBucket::getAndUpdateTtl(const DocKey& key,
     }
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         // collections read scope
         auto cHandle = vb->lockCollections(key);
         if (!cHandle.valid()) {
@@ -2033,7 +2031,6 @@ cb::engine_errc KVBucket::deleteItem(
 
     cb::engine_errc result;
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         auto cHandle = vb->lockCollections(key);
         if (!cHandle.valid()) {
             engine.setUnknownCollectionErrorContext(*cookie,
@@ -2103,7 +2100,6 @@ cb::engine_errc KVBucket::deleteWithMeta(const DocKey& key,
     }
 
     {
-        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         // hold collections read lock for duration of delete
         auto cHandle = vb->lockCollections(key);
         if (!cHandle.valid()) {
