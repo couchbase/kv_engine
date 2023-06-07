@@ -33,6 +33,7 @@ struct thread_stats;
 class BucketStatCollector;
 struct DcpIface;
 class Connection;
+class BucketDestroyer;
 struct FrontEndThread;
 class Cookie;
 class BucketManager;
@@ -434,7 +435,13 @@ public:
                            BucketType type);
 
     /**
-     * Destroy a bucket
+     * Destroy a bucket (will block until connections are closed and operations
+     * in flight are complete).
+     *
+     * Wraps startDestroy in a while loop; use startDestroy directly if the
+     * caller needs to do anything else while bucket deletion is in progress
+     * (e.g., needs to snooze a task rather than blocking a thread).
+     *
      *
      * @param cookie The cookie requested bucket deletion
      * @param name The name of the bucket to delete
@@ -452,6 +459,28 @@ public:
     cb::engine_errc setClusterConfig(
             const std::string& name,
             std::shared_ptr<ClusterConfiguration::Configuration> configuration);
+
+    /**
+     * Start bucket destruction.
+     *
+     * If the destruction needs to wait for some condition (e.g., waiting
+     * for all remaining connections to disconnect), this may return
+     * would_block and a BucketDestroyer which should be driven to continue
+     * the destruction.
+     *
+     *
+     * @param cookie The cookie requested bucket deletion
+     * @param name The name of the bucket to delete
+     * @param force If set to true the underlying engine should not try to
+     *              persist pending items etc
+     * @return Status of the operation, and optional BucketDestroyer which can
+     *         be used to continue the deletion if status=would_block
+     */
+    std::pair<cb::engine_errc, std::optional<BucketDestroyer>> startDestroy(
+            std::string_view cid,
+            const std::string name,
+            bool force,
+            std::optional<BucketType> type);
 
     /// Destroy all of the buckets
     void destroyAll();
