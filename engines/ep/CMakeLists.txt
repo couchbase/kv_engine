@@ -372,18 +372,19 @@ ADD_LIBRARY(ep_objs OBJECT
             src/item_freq_decayer.cc
             src/item_freq_decayer_visitor.cc
             src/item_pager.cc
-        src/kvstore/nexus-kvstore/nexus-kvstore.cc
-        src/kvstore/nexus-kvstore/nexus-kvstore-config.cc
-        src/kvstore/kvstore.cc
-        src/kvstore/kvstore_config.cc
+            src/kvstore/nexus-kvstore/nexus-kvstore.cc
+            src/kvstore/nexus-kvstore/nexus-kvstore-config.cc
+            src/kvstore/kvstore.cc
+            src/kvstore/kvstore_config.cc
             src/kv_bucket.cc
             src/kvshard.cc
             src/learning_age_and_mfu_based_eviction.cc
             src/memory_tracker.cc
+            src/locked_vbucket_ptr.cc
             src/mutation_log.cc
             src/mutation_log_entry.cc
             src/paging_visitor.cc
-        src/kvstore/persistence_callback.cc
+            src/kvstore/persistence_callback.cc
             src/kvstore/rollback_callback.cc
             src/pid_controller.cc
             src/pre_link_document_context.cc
