@@ -193,8 +193,14 @@ Item KVBucketTest::store_deleted_item(
         const std::vector<cb::engine_errc>& expected,
         protocol_binary_datatype_t datatype,
         std::optional<cb::durability::Requirements> reqs) {
-    return store_item(
-            vbid, key, value, exptime, expected, datatype, reqs, true);
+    return store_item(vbid,
+                      key,
+                      value,
+                      exptime,
+                      expected,
+                      value.size() ? datatype : PROTOCOL_BINARY_RAW_BYTES,
+                      reqs,
+                      true);
 }
 
 ::testing::AssertionResult KVBucketTest::store_items(

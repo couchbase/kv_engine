@@ -390,22 +390,22 @@ EPBucket::FlushResult EPBucket::flushVBucket(Vbid vbid) {
     return flushVBucket_UNLOCKED(std::move(vb));
 }
 
-EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
-    if (!vb || !vb.owns_lock()) {
+EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vbPtr) {
+    if (!vbPtr || !vbPtr.owns_lock()) {
         // should never really hit this code, if we do you're using the method
         // incorrectly
         std::logic_error(fmt::format(
                 "EPBucket::flushVBucket_UNLOCKED(): should always be called "
                 "with a valid LockedVBucketPtr: VbucketPtr:{} owns_lock:{}",
-                bool{vb},
-                vb.owns_lock()));
+                bool{vbPtr},
+                vbPtr.owns_lock()));
     }
 
-    const auto vbid = vb->getId();
+    auto& vb = vbPtr.getEPVbucket();
     const auto flushStart = std::chrono::steady_clock::now();
     // Obtain the set of items to flush, up to the maximum allowed for
     // a single flush.
-    auto toFlush = vb->getItemsToPersist(flusherBatchSplitTrigger);
+    auto toFlush = vb.getItemsToPersist(flusherBatchSplitTrigger);
 
     // Callback must be initialized at persistence
     Expects(toFlush.flushHandle.get());
@@ -419,20 +419,21 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
 
     // The range becomes initialised only when an item is flushed
     std::optional<snapshot_range_t> range;
-    auto* rwUnderlying = getRWUnderlying(vb->getId());
+    auto* rwUnderlying = getRWUnderlying(vb.getId());
 
     auto ctx = rwUnderlying->begin(
-            vbid, std::make_unique<EPPersistenceCallback>(stats, *vb));
+            vb.getId(), std::make_unique<EPPersistenceCallback>(stats, *vbPtr));
     while (!ctx) {
         ++stats.beginFailed;
         EP_LOG_WARN(
                 "EPBucket::flushVBucket_UNLOCKED: () Failed to start a "
                 "transaction. "
                 "Retry in 1 second.",
-                vb->getId());
+                vb.getId());
         std::this_thread::sleep_for(std::chrono::seconds(1));
         ctx = rwUnderlying->begin(
-                vbid, std::make_unique<EPPersistenceCallback>(stats, *vb));
+                vb.getId(),
+                std::make_unique<EPPersistenceCallback>(stats, *vbPtr));
     }
 
     bool mustDedupe =
@@ -447,7 +448,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
     // Read the vbucket_state from disk as many values from the
     // in-memory vbucket_state may be ahead of what we are flushing.
     const auto* persistedVbState =
-            rwUnderlying->getCachedVBucketState(vb->getId());
+            rwUnderlying->getCachedVBucketState(vb.getId());
 
     // The first flush we do populates the cachedVBStates of the KVStore
     // so we may not (if this is the first flush) have a state returned
@@ -459,10 +460,11 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
 
     // Callback executed at KVStore::commit.
     bool logged = false;
-    const auto callback = [this, &logged, vbid](const std::system_error& err) {
+    const auto callback = [this, &logged, &vb](const std::system_error& err) {
         if (!logged) {
-            EP_LOG_WARN(
-                    "EPBucket::flushVBucket_UNLOCKED: {} {}", vbid, err.what());
+            EP_LOG_WARN("EPBucket::flushVBucket_UNLOCKED: {} {}",
+                        vb.getId(),
+                        err.what());
             logged = true;
         }
 
@@ -489,7 +491,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
     }
 
     VB::Commit commitData(
-            vb->getManifest(), writeOp, vbstate, callback, toFlush.historical);
+            vb.getManifest(), writeOp, vbstate, callback, toFlush.historical);
 
     vbucket_state& proposedVBState = commitData.proposedVBState;
 
@@ -628,7 +630,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
                 proposedVBState.mightContainXattrs = true;
             }
 
-            flushOneDelOrSet(*ctx, item, vb.getVB());
+            flushOneDelOrSet(*ctx, item, vbPtr.getVB());
 
             maxSeqno = std::max(maxSeqno, (uint64_t)item->getBySeqno());
 
@@ -741,14 +743,14 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
     // Track the lowest seqno written in spock and record it as
     // the HLC epoch, a seqno which we can be sure the value has a
     // HLC CAS.
-    proposedVBState.hlcCasEpochSeqno = vb->getHLCEpochSeqno();
+    proposedVBState.hlcCasEpochSeqno = vb.getHLCEpochSeqno();
     if (proposedVBState.hlcCasEpochSeqno == HlcCasSeqnoUninitialised &&
         minSeqno != std::numeric_limits<uint64_t>::max()) {
         proposedVBState.hlcCasEpochSeqno = minSeqno;
 
         // @todo MB-37692: Defer this call at flush-success only or reset
         //  the value if flush fails.
-        vb->setHLCEpochSeqno(proposedVBState.hlcCasEpochSeqno);
+        vb.setHLCEpochSeqno(proposedVBState.hlcCasEpochSeqno);
     }
 
     if (hcs) {
@@ -759,7 +761,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
                     "the current value is {} and the PCS must be monotonic. "
                     "The current checkpoint type is {}. Flush's seqno "
                     "range:[{},{}], proposedVBState:'{}'.",
-                    vbid,
+                    vb.getId(),
                     *hcs,
                     proposedVBState.persistedCompletedSeqno,
                     to_string(toFlush.checkpointType),
@@ -778,7 +780,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
                     "the current value is {} and the PPS must be monotonic. "
                     "The current checkpoint type is {}. Flush's seqno "
                     "range:[{},{}], proposedVBState:'{}'.",
-                    vbid,
+                    vb.getId(),
                     *hps,
                     proposedVBState.persistedPreparedSeqno,
                     to_string(toFlush.checkpointType),
@@ -793,14 +795,15 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
 
     // Are we flushing only a new vbstate?
     if (mustPersistVBState && (flushBatchSize == 0)) {
-        if (!rwUnderlying->snapshotVBucket(vbid, commitData)) {
-            flushFailureEpilogue(*vb, toFlush);
+        if (!rwUnderlying->snapshotVBucket(vb.getId(), commitData)) {
+            flushFailureEpilogue(*vbPtr, toFlush);
 
             return {MoreAvailable::Yes, 0};
         }
 
         // The new vbstate was the only thing to flush. All done.
-        flushSuccessEpilogue(*vb,
+        // @todo: ideally pass vb over *vbPtr which is already an EPVbucket&
+        flushSuccessEpilogue(*vbPtr,
                              flushStart,
                              0 /*itemsFlushed*/,
                              aggStats,
@@ -830,7 +833,7 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
 
     // Persist the flush-batch.
     if (!commit(*rwUnderlying, std::move(ctx), commitData)) {
-        flushFailureEpilogue(*vb, toFlush);
+        flushFailureEpilogue(*vbPtr, toFlush);
 
         return {MoreAvailable::Yes, 0};
     }
@@ -838,11 +841,11 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
     // Note: We want to update the snap-range only if we have flushed at least
     // one item. I.e. don't appear to be in a snap when you have no data for it
     Expects(range.has_value());
-    vb->setPersistedSnapshot(*range);
+    vb.setPersistedSnapshot(*range);
 
-    uint64_t highSeqno = rwUnderlying->getLastPersistedSeqno(vbid);
-    if (highSeqno > 0 && highSeqno != vb->getPersistenceSeqno()) {
-        vb->setPersistenceSeqno(highSeqno);
+    uint64_t highSeqno = rwUnderlying->getLastPersistedSeqno(vb.getId());
+    if (highSeqno > 0 && highSeqno != vb.getPersistenceSeqno()) {
+        vb.setPersistenceSeqno(highSeqno);
     }
 
     // Notify the local DM that the Flusher has run. Persistence
@@ -877,16 +880,17 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vb) {
     //     So, given that here we are executing in a slow bg-thread
     //     (write+sync to disk), then we can just afford to calling
     //     back to the DM unconditionally.
-    vb->notifyPersistenceToDurabilityMonitor();
+    vb.notifyPersistenceToDurabilityMonitor();
 
-    flushSuccessEpilogue(*vb,
+    // @todo: ideally pass vb over *vbPtr which is already an EPVbucket&
+    flushSuccessEpilogue(*vbPtr,
                          flushStart,
                          flushBatchSize /*itemsFlushed*/,
                          aggStats,
                          commitData.collections);
 
     // Handle Seqno Persistence requests
-    vb->notifyHighPriorityRequests(engine, vb->getPersistenceSeqno());
+    vb.notifyHighPriorityRequests(engine, vb.getPersistenceSeqno());
 
     return {moreAvailable, flushBatchSize};
 }

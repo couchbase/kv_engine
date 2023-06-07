@@ -3867,8 +3867,7 @@ VBucket::processSoftDeleteInner(const HashTable::HashBucketLock& hbl,
                                 StoredValue::IncludeValue::No,
                                 requirements);
             itm->setDeleted(DeleteSource::Explicit);
-            // Empty, deleted value has datatype:RAW_BYTES
-            itm->setDataType(PROTOCOL_BINARY_RAW_BYTES);
+
             // The StoredValue 'v' we are softDeleting could be an aborted
             // prepare - in which case we need to reset the item created to
             // be a pending (not aborted) SyncWrite.

@@ -251,6 +251,8 @@ cb::engine_errc MockDcpMessageProducers::deletionInner(
 
     last_stream_id = sid;
 
+    last_datatype = itm->getDataType();
+
     return cb::engine_errc::success;
 }
 
