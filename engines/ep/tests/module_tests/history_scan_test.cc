@@ -15,6 +15,7 @@
 #include "collections/vbucket_manifest_handles.h"
 
 #include "dcp/backfill_by_seqno_disk.h"
+#include "ep_vb.h"
 #include "failover-table.h"
 #include "kv_bucket.h"
 #include "tests/mock/mock_dcp.h"
@@ -546,6 +547,11 @@ TEST_P(HistoryScanTest, BackfillWithDroppedCollection) {
     setCollections(cookie, cm.remove(CollectionEntry::vegetable));
     flush_vbucket_to_disk(vbid, 2);
 
+    // At this point this test has flushed a mixture of history=true and false
+    // items - check the flush statistic
+    auto& epVB = dynamic_cast<EPVBucket&>(*store->getVBucket(vbid));
+    EXPECT_EQ(2, epVB.getHistoricalItemsFlushed());
+
     ensureDcpWillBackfill();
 
     createDcpObjects(std::string_view{},
@@ -635,15 +641,26 @@ TEST_P(HistoryScanTest, BackfillWithDroppedCollectionAndPurge) {
     std::vector<Item> items;
     store_item(vbid, makeStoredDocKey("a", CollectionEntry::vegetable), "v0");
     flush_vbucket_to_disk(vbid, 1 + 1);
+
+    // This first "vegetable" item isn't "history" until retention is configured
+    auto& epVB = dynamic_cast<EPVBucket&>(*store->getVBucket(vbid));
+    EXPECT_EQ(0, epVB.getHistoricalItemsFlushed());
+
     // Now history begins here
     store->setHistoryRetentionBytes(1024 * 1024 * 100);
     setHistoryStartSeqno(3);
     store_item(vbid, makeStoredDocKey("b", CollectionEntry::vegetable), "v0");
     flush_vbucket_to_disk(vbid, 1);
+    EXPECT_EQ(1, epVB.getHistoricalItemsFlushed());
+
     store_item(vbid, makeStoredDocKey("b", CollectionEntry::vegetable), "v1");
     flush_vbucket_to_disk(vbid, 1);
+    EXPECT_EQ(2, epVB.getHistoricalItemsFlushed());
+
     store_item(vbid, makeStoredDocKey("b", CollectionEntry::vegetable), "v2");
     flush_vbucket_to_disk(vbid, 1);
+    EXPECT_EQ(3, epVB.getHistoricalItemsFlushed());
+
     // Now store 1 item to default (which will be in the snapshot)
     items.emplace_back(store_item(
             vbid, makeStoredDocKey("default", CollectionID::Default), "val-a"));
@@ -654,6 +671,10 @@ TEST_P(HistoryScanTest, BackfillWithDroppedCollectionAndPurge) {
                        items.back().getBySeqno() + 1);
     setCollections(cookie, cm.remove(CollectionEntry::vegetable));
     flush_vbucket_to_disk(vbid, 2);
+
+    // At this point this test has flushed a mixture of history=true and false
+    // items - check the flush statistic
+    EXPECT_EQ(3, epVB.getHistoricalItemsFlushed());
     runCollectionsEraser(vbid);
     ensureDcpWillBackfill();
     createDcpObjects(std::string_view{},
