@@ -271,14 +271,15 @@ bool Filter::empty() const {
 bool Filter::checkAndUpdateSystemEvent(const Item& item) {
     switch (SystemEvent(item.getFlags())) {
     case SystemEvent::Collection:
+    case SystemEvent::ModifyCollection:
         return processCollectionEvent(item);
     case SystemEvent::Scope:
         return processScopeEvent(item);
-    default:
-        throw std::invalid_argument(
-                "Filter::checkAndUpdateSystemEvent:: event unknown:" +
-                std::to_string(int(item.getFlags())));
     }
+    throw std::invalid_argument(
+            fmt::format("Filter::checkAndUpdateSystemEvent:: Item with unknown "
+                        "event/flag:{}",
+                        item));
 }
 
 bool Filter::processCollectionEvent(const Item& item) {

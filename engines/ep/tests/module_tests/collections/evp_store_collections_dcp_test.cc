@@ -4745,6 +4745,55 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyCollectionTwoVbuckets) {
     destroy_mock_cookie(cookieP2);
 }
 
+TEST_P(CollectionsDcpPersistentOnly, ModifyFilteredCollection) {
+    using namespace cb::mcbp;
+    using namespace mcbp::systemevent;
+    using namespace CollectionEntry;
+
+    CollectionsManifest cm;
+    // Two collections. One with and one without history
+    cm.add(CollectionEntry::fruit);
+    cm.add(CollectionEntry::vegetable, cb::NoExpiryLimit, true);
+    setCollections(cookie, cm);
+
+    // Setup filtered DCP for CID 10/0xa (vegetable)
+    createDcpObjects({{R"({"collections":["a"]})"}});
+    notifyAndStepToCheckpoint();
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_collection_id, vegetable.getId());
+    EXPECT_EQ(producers->last_can_deduplicate, CanDeduplicate::No);
+
+    // Now modify both, but only expect to see vegetable modification
+    cm.update(fruit, cb::NoExpiryLimit, true /*history*/);
+    cm.update(vegetable, cb::NoExpiryLimit);
+    setCollections(cookie, cm);
+    notifyAndStepToCheckpoint();
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::ModifyCollection);
+    EXPECT_EQ(producers->last_collection_id, vegetable.getId());
+    EXPECT_EQ(producers->last_can_deduplicate, CanDeduplicate::Yes);
+
+    // 4 events to flush
+    flush_vbucket_to_disk(vbid, 4);
+
+    ensureDcpWillBackfill();
+
+    createDcpObjects({{R"({"collections":["a"]})"}});
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                              false /*in-memory = false*/);
+
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::CreateCollection);
+    EXPECT_EQ(producers->last_collection_id, vegetable.getId());
+    EXPECT_EQ(producers->last_can_deduplicate, CanDeduplicate::No);
+
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::ModifyCollection);
+    EXPECT_EQ(producers->last_collection_id, vegetable.getId());
+    EXPECT_EQ(producers->last_can_deduplicate, CanDeduplicate::Yes);
+}
+
 TEST_P(CollectionsDcpPersistentOnly, DefaultCollectionLegacySeqnos) {
     using namespace cb::mcbp;
     using namespace mcbp::systemevent;
@@ -4932,6 +4981,61 @@ TEST_P(CollectionsDcpPersistentOnly, getRangeCountingSystemEvents) {
     EXPECT_EQ(1, store->getVBucket(vbid)->getNumItems());
 }
 
+// runs persistent buckets but enables sync_every_batch for magma which helps
+// to make a couchstore vs magma slightly more comparable (certainly with
+// respect to MB-55930)
+class CollectionsDcpPersistentOnlyWithMagmaSyncAlways
+    : public CollectionsDcpPersistentOnly {
+    void SetUp() override {
+        // Cannot use isMagma as that needs the yet to be created engine*
+        if (GetParam().find("backend=magma") != std::string::npos) {
+            config_string += "magma_sync_every_batch=true";
+        }
+        CollectionsDcpPersistentOnly::SetUp();
+    }
+};
+
+// MB-55930 identified that magma didn't compact the system namespace, leaving
+// modify events behind.
+TEST_P(CollectionsDcpPersistentOnlyWithMagmaSyncAlways, ModifyAndDrop) {
+    using namespace cb::mcbp;
+    using namespace mcbp::systemevent;
+    using namespace CollectionEntry;
+
+    // create, modify and drop a collection. But flush each event (which is
+    // required to reproduce MB-55930 when the backend is magma)
+
+    CollectionsManifest cm;
+    cm.add(CollectionEntry::vegetable, cb::NoExpiryLimit, true);
+    setCollections(cookie, cm);
+    flush_vbucket_to_disk(vbid, 1);
+
+    cm.update(CollectionEntry::vegetable, cb::NoExpiryLimit, false);
+    setCollections(cookie, cm);
+    flush_vbucket_to_disk(vbid, 1);
+
+    cm.remove(CollectionEntry::vegetable);
+    setCollections(cookie, cm);
+    flush_vbucket_to_disk(vbid, 1);
+
+    runCollectionsEraser(vbid);
+
+    ensureDcpWillBackfill();
+    createDcpObjects(std::string_view{},
+                     OutOfOrderSnapshots::No,
+                     0,
+                     true, // sync-repl enabled
+                     ~0ull,
+                     ChangeStreams::No);
+    notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                              false /*in-memory = false*/);
+
+    producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
+    EXPECT_EQ(producers->last_system_event, id::DeleteCollection);
+    EXPECT_EQ(producers->last_collection_id, vegetable.getId());
+    EXPECT_EQ(producers->last_can_deduplicate, CanDeduplicate::Yes);
+}
+
 // Test cases which run for persistent and ephemeral buckets
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
                          CollectionsDcpParameterizedTest,
@@ -4952,4 +5056,9 @@ INSTANTIATE_TEST_SUITE_P(
 INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
                          MB48010CollectionsDCPParamTest,
                          STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(CollectionsDcpEphemeralOrPersistent,
+                         CollectionsDcpPersistentOnlyWithMagmaSyncAlways,
+                         STParameterizedBucketTest::persistentConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);

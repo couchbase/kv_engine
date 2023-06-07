@@ -57,9 +57,19 @@ protected:
      */
     void historyScanComplete(ActiveStream& stream);
 
+    /**
+     * This runs the "create" phase of the history scan, which includes creation
+     * of the ScanContext and calling markDiskSnapshot on the ActiveStream
+     *
+     * This function should be called once only and the caller is in charge of
+     * that.
+     *
+     * @param streamPtr The new ScanContext will reference this shared_ptr
+     * @return true if the scan was created and the marker sent successfully.
+     */
     bool scanHistoryCreate(KVBucket& bucket,
                            ScanContext& scanCtx,
-                           ActiveStream& stream);
+                           const std::shared_ptr<ActiveStream>& streamPtr);
 
     /**
      * Run the scan but scan only the "history section"
@@ -88,9 +98,13 @@ protected:
      *
      * @param bucket The bucket for the scan
      * @param scanCtx The ScanContext created in the Create phase
+     * @param streamPtr The ActiveStream for the scan (as a shared_ptr)
      * @return true if the ScanContext was created, false for failure.
      */
-    bool createHistoryScanContext(KVBucket& bucket, ScanContext& scanCtx);
+    bool createHistoryScanContext(
+            KVBucket& bucket,
+            ScanContext& scanCtx,
+            const std::shared_ptr<ActiveStream>& streamPtr);
 
     struct HistoryScanCtx {
         /**
@@ -109,9 +123,13 @@ protected:
          * @param kvs KVStore to call initBySeqnoContext on
          * @param ctx The ScanContext from the initial scan phase, this can be
          *            ByID or BySeq.
+         * @param streamPtr The shared_ptr for the ActiveStream - this allows
+         *        the new ScanContext to create a new callback.
          * @return true if successfully created, false for a failure.
          */
-        bool createScanContext(const KVStoreIface& kvs, ScanContext& ctx);
+        bool createScanContext(const KVStoreIface& kvs,
+                               ScanContext& ctx,
+                               const std::shared_ptr<ActiveStream>& streamPtr);
 
         /**
          * @return true if startSeqno >= historyStartSeqno

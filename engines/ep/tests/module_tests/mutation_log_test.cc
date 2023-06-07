@@ -398,6 +398,38 @@ TEST_F(MutationLogTest, YUNOOPEN) {
     set_file_perms(FilePerms::Read | FilePerms::Write);
 }
 
+class MockFileIface : public mlog::FileIface {
+public:
+    MOCK_METHOD(
+            ssize_t,
+            pwrite,
+            (file_handle_t fd, const void* buf, size_t nbyte, uint64_t offset),
+            (override));
+};
+
+// MB-55939: Test behaviour when the mutation log cannot be written to disk
+// (e.g. disk full).
+TEST_F(MutationLogTest, WriteFail) {
+    // Setup a Mock FileIface which will return one less byte from pwrite()
+    // than requested and set errno to ENOSPC.
+    using namespace ::testing;
+    auto mockFileIface = std::make_unique<MockFileIface>();
+    EXPECT_CALL(*mockFileIface, pwrite(_, _, _, _))
+            .WillOnce([](file_handle_t, const void*, size_t nbytes, uint64_t) {
+                errno = ENOSPC;
+                return nbytes - 1;
+            });
+
+    // Test: Create and open a MutationLog; on destruction we should not see
+    // an exception thrown.
+    EXPECT_NO_THROW({
+        MutationLog ml(tmp_log_filename,
+                       MIN_LOG_HEADER_SIZE,
+                       std::move(mockFileIface));
+        ml.open();
+    });
+}
+
 // Test that the MutationLog::iterator class obeys expected iterator behaviour.
 TEST_F(MutationLogTest, Iterator) {
     // Create a simple mutation log to work on.

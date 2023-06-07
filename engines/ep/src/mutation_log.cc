@@ -46,9 +46,10 @@ ssize_t pread(file_handle_t fd, void *buf, size_t nbyte, uint64_t offset)
     return bytesread;
 }
 
-ssize_t pwrite(file_handle_t fd, const void *buf, size_t nbyte,
-               uint64_t offset)
-{
+ssize_t mlog::DefaultFileIface::pwrite(file_handle_t fd,
+                                       const void* buf,
+                                       size_t nbyte,
+                                       uint64_t offset) {
     DWORD byteswritten;
     OVERLAPPED winoffs;
     memset(&winoffs, 0, sizeof(winoffs));
@@ -147,6 +148,13 @@ int64_t getFileSize(file_handle_t fd) {
 }
 
 #else
+
+ssize_t mlog::DefaultFileIface::pwrite(file_handle_t fd,
+                                       const void* buf,
+                                       size_t nbyte,
+                                       uint64_t offset) {
+    return ::pwrite(fd, buf, nbyte, offset);
+}
 
 static inline ssize_t doWrite(file_handle_t fd, const uint8_t *buf,
                               size_t nbytes) {
@@ -249,8 +257,11 @@ static bool writeFully(file_handle_t fd, const uint8_t *buf, size_t nbytes) {
     return true;
 }
 
-MutationLog::MutationLog(std::string path, const size_t bs)
-    : logPath(std::move(path)),
+MutationLog::MutationLog(std::string path,
+                         const size_t bs,
+                         std::unique_ptr<mlog::FileIface> fileIface)
+    : fileIface(std::move(fileIface)),
+      logPath(std::move(path)),
       blockSize(bs),
       blockPos(HEADER_RESERVED),
       file(INVALID_FILE_VALUE),
@@ -273,16 +284,37 @@ MutationLog::MutationLog(std::string path, const size_t bs)
 MutationLog::~MutationLog() {
     EP_LOG_INFO("{}", *this);
     auto doLog = entries > 0;
-    if (doLog) {
-        EP_LOG_INFO_RAW("MutationLog::~MutationLog flush");
-    }
-    flush();
-    if (doLog) {
-        EP_LOG_INFO_RAW("MutationLog::~MutationLog close");
-    }
-    close();
-    if (doLog) {
-        EP_LOG_INFO_RAW("MutationLog::~MutationLog done");
+    try {
+        if (doLog) {
+            EP_LOG_INFO_RAW("MutationLog::~MutationLog flush");
+        }
+        flush();
+        if (doLog) {
+            EP_LOG_INFO_RAW("MutationLog::~MutationLog close");
+        }
+        close();
+        if (doLog) {
+            EP_LOG_INFO_RAW("MutationLog::~MutationLog done");
+        }
+    } catch (std::exception& e) {
+        EP_LOG_ERR(
+                "MutationLog::~MutationLog: Exception thrown during "
+                "destruction: '{}' - forcefully closing file",
+                e.what());
+        // We need to close() the underlying FD to ensure we don't leak FDs;
+        // on Windows this is particulary problematic as one cannot delete
+        // the file if there's still a handle open.
+        try {
+            doClose(file);
+        } catch (std::exception& e) {
+            // If doClose fails then there's not much more we can do other
+            // than report the error and leave the file in whatever state it
+            // is in...
+            EP_LOG_ERR(
+                    "MutationLog::~MutationLog: Exception thrown during "
+                    "forceful close of file: '{}' - leaving file as-is.",
+                    e.what());
+        }
     }
 }
 
@@ -437,7 +469,7 @@ void MutationLog::updateInitialBlock() {
     std::vector<uint8_t> buf(MIN_LOG_HEADER_SIZE);
     memcpy(buf.data(), &headerBlock, sizeof(headerBlock));
 
-    ssize_t byteswritten = pwrite(file, buf.data(), buf.size(), 0);
+    ssize_t byteswritten = fileIface->pwrite(file, buf.data(), buf.size(), 0);
     if (byteswritten != ssize_t(buf.size())) {
         throw WriteException("Failed to update header block");
     }
