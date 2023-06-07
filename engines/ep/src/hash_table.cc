@@ -61,6 +61,10 @@ std::ostream& operator<<(std::ostream& os, const HashTable::Position& pos) {
 HashTable::StoredValueProxy::StoredValueProxy(HashBucketLock&& hbl,
                                               StoredValue* sv)
     : lock(std::move(hbl)), value(sv) {
+    if (!lock.getHTLock()) {
+        throw std::invalid_argument(
+                "StoredValueProxy::StoredValueProxy: htLock not held");
+    }
 }
 
 StoredValue* HashTable::StoredValueProxy::release() {
@@ -145,6 +149,10 @@ HashTable::~HashTable() {
 
 void HashTable::cleanupIfTemporaryItem(const HashBucketLock& hbl,
                                        StoredValue& v) {
+    if (!hbl.getHTLock()) {
+        throw std::invalid_argument(
+                "HashTable::cleanupIfTemporaryItem: htLock not held");
+    }
     if (v.isTempDeletedItem() || v.isTempNonExistentItem()) {
         unlocked_del(hbl, v);
     }
@@ -842,6 +850,10 @@ HashTable::DeleteResult HashTable::unlocked_softDelete(
         StoredValue& v,
         bool onlyMarkDeleted,
         DeleteSource delSource) {
+    if (!hbl.getHTLock()) {
+        throw std::invalid_argument(
+                "HashTable::unlocked_softDelete: htLock not held");
+    }
     switch (v.getCommitted()) {
     case CommittedState::PrepareAborted:
     case CommittedState::PrepareCommitted:
@@ -875,6 +887,10 @@ HashTable::DeleteResult HashTable::unlocked_softDelete(
 
 HashTable::DeleteResult HashTable::unlocked_abortPrepare(
         const HashTable::HashBucketLock& hbl, StoredValue& v) {
+    if (!hbl.getHTLock()) {
+        throw std::invalid_argument(
+                "HashTable::unlocked_abortPrepare: htLock not held");
+    }
     const auto preProps = valueStats.prologue(hbl, &v);
     // We consider a prepare that is non-resident to be a completed abort.
     v.setCommitted(CommittedState::PrepareAborted);
@@ -889,6 +905,10 @@ StoredValue::UniquePtr HashTable::unlocked_createSyncDeletePrepare(
         const HashTable::HashBucketLock& hbl,
         const StoredValue& v,
         DeleteSource delSource) {
+    if (!hbl.getHTLock()) {
+        throw std::invalid_argument(
+                "HashTable::unlocked_createSyncDeletePrepare: htLock not held");
+    }
     auto pendingDel = valFact->copyStoredValue(v, nullptr /*next chain ptr*/);
     pendingDel->setCommitted(CommittedState::Pending);
     pendingDel->del(delSource);
@@ -901,6 +921,10 @@ StoredValue* HashTable::selectSVForRead(TrackReference trackReference,
                                         HashTable::HashBucketLock& hbl,
                                         StoredValue* committed,
                                         StoredValue* pending) {
+    if (!hbl.getHTLock()) {
+        throw std::invalid_argument(
+                "HashTable::selectSVForRead: htLock not held");
+    }
     /// Reading normally uses the Committed StoredValue - however if a
     /// pendingSV is found we must check if it's marked as MaybeVisible -
     /// which will block reading.
@@ -1332,6 +1356,10 @@ HashTable::Position HashTable::endPosition() const  {
 bool HashTable::unlocked_ejectItem(const HashTable::HashBucketLock& hbl,
                                    StoredValue*& vptr,
                                    EvictionPolicy policy) {
+    if (!hbl.getHTLock()) {
+        throw std::invalid_argument(
+                "HashTable::unlocked_ejectItem: htLock not held");
+    }
     if (vptr == nullptr) {
         throw std::invalid_argument("HashTable::unlocked_ejectItem: "
                 "Unable to delete NULL StoredValue");
@@ -1372,6 +1400,9 @@ bool HashTable::unlocked_ejectItem(const HashTable::HashBucketLock& hbl,
 
 std::unique_ptr<Item> HashTable::getRandomKey(CollectionID cid,
                                               const HashBucketLock& hbl) {
+    if (!hbl.getHTLock()) {
+        throw std::invalid_argument("HashTable::getRandomKey: htLock not held");
+    }
     for (StoredValue* v = values.at(hbl.getBucketNum()).get().get(); v;
          v = v->getNext().get().get()) {
         if (!v->isTempItem() && !v->isDeleted() && v->isResident() &&
@@ -1431,6 +1462,10 @@ void HashTable::unlocked_restoreMeta(const HashBucketLock& hbl,
 void HashTable::unlocked_setCommitted(const HashTable::HashBucketLock& hbl,
                                       StoredValue& value,
                                       CommittedState state) {
+    if (!hbl.getHTLock()) {
+        throw std::invalid_argument(
+                "HashTable::unlocked_setCommitted: htLock not held");
+    }
     const auto preProps = valueStats.prologue(hbl, &value);
     value.setCommitted(state);
     value.markDirty();

@@ -122,6 +122,10 @@ MagmaKVStoreConfig::MagmaKVStoreConfig(Configuration& config,
     magmaDataCompressionAlgo = config.getMagmaDataCompressionAlgo();
     perDocumentCompressionEnabled =
             config.isMagmaPerDocumentCompressionEnabled();
+    magmaSeqTreeDataBlockSize = config.getMagmaSeqTreeDataBlockSize();
+    magmaSeqTreeIndexBlockSize = config.getMagmaSeqTreeIndexBlockSize();
+    magmaKeyTreeDataBlockSize = config.getMagmaKeyTreeDataBlockSize();
+    magmaKeyTreeIndexBlockSize = config.getMagmaKeyTreeIndexBlockSize();
 
     config.addValueChangedListener(
             "magma_enable_block_cache",
