@@ -135,6 +135,12 @@ std::string MetaData::to_string() const {
  *
  * Helper functions to pull metadata stuff out of the metadata slice.
  * The are used down in magma and are passed in as part of the configuration.
+ *
+ * NOTE: Constructing a MetaData object from the metaSlice is low but non-zero
+ *       cost (needs decoding of multiple LEB128 values). As such, avoid
+ *       calling multiple of these functions on the same same slice - prefer
+ *       to call getDocMeta(slice) once to construct a MetaData object once,
+ *       then manipulate that.
  */
 static const MetaData getDocMeta(std::string_view meta) {
     return MetaData(meta);
@@ -152,26 +158,22 @@ static size_t getValueSize(const Slice& metaSlice) {
     return getDocMeta(metaSlice).getValueSize();
 }
 
-static uint32_t getExpiryTime(const Slice& metaSlice) {
-    return getDocMeta(metaSlice).getExptime();
-}
-
 static bool isDeleted(const Slice& metaSlice) {
     return getDocMeta(metaSlice).isDeleted();
 }
 
-static bool isCompressed(const Slice& metaSlice) {
-    return mcbp::datatype::is_snappy(getDocMeta(metaSlice).getDatatype());
+static bool isCompressed(const MetaData& docMeta) {
+    return mcbp::datatype::is_snappy(docMeta.getDatatype());
 }
 
-static bool isPrepared(const Slice& keySlice, const Slice& metaSlice) {
+static bool isPrepared(const Slice& keySlice, const MetaData& docMeta) {
     return DiskDocKey(keySlice.Data(), keySlice.Len()).isPrepared() &&
-           !getDocMeta(metaSlice).isDeleted();
+           !docMeta.isDeleted();
 }
 
-static bool isAbort(const Slice& keySlice, const Slice& metaSlice) {
+static bool isAbort(const Slice& keySlice, const MetaData& docMeta) {
     return DiskDocKey(keySlice.Data(), keySlice.Len()).isPrepared() &&
-           getDocMeta(metaSlice).isDeleted();
+           docMeta.isDeleted();
 }
 
 static std::chrono::seconds getHistoryTimeStamp(const Slice& metaSlice) {
@@ -383,8 +385,9 @@ std::pair<Status, bool> MagmaKVStore::compactionCore(
     // Run on primary domain so that we can create objects to pass to KV
     cb::UseArenaMallocPrimaryDomain domainGuard;
 
-    auto seqno = magmakv::getSeqNum(metaSlice);
-    auto exptime = magmakv::getExpiryTime(metaSlice);
+    const auto docMeta = magmakv::getDocMeta(metaSlice);
+    const uint64_t seqno = docMeta.getBySeqno();
+    const auto exptime = docMeta.getExptime();
 
     auto vbid = cbCtx.vbid;
 
@@ -403,13 +406,13 @@ std::pair<Status, bool> MagmaKVStore::compactionCore(
         if (cbCtx.canPurge(diskKey.getDocKey().getCollectionID()) &&
             cbCtx.ctx->eraserContext->isLogicallyDeleted(
                     diskKey.getDocKey(),
-                    magmakv::isDeleted(metaSlice),
+                    docMeta.isDeleted(),
                     seqno)) {
             try {
                 // Inform vb that the key@seqno is dropped
                 cbCtx.ctx->droppedKeyCb(diskKey,
                                         seqno,
-                                        magmakv::isAbort(keySlice, metaSlice),
+                                        magmakv::isAbort(keySlice, docMeta),
                                         cbCtx.ctx->highCompletedSeqno);
             } catch (const std::exception& e) {
                 logger->warn(
@@ -419,10 +422,10 @@ std::pair<Status, bool> MagmaKVStore::compactionCore(
                 return {{Status::Internal, e.what()}, false};
             }
 
-            if (magmakv::isPrepared(keySlice, metaSlice)) {
+            if (magmakv::isPrepared(keySlice, docMeta)) {
                 cbCtx.ctx->stats.preparesPurged++;
             } else {
-                if (magmakv::isDeleted(metaSlice)) {
+                if (docMeta.isDeleted()) {
                     cbCtx.ctx->stats.collectionsDeletedItemsPurged++;
                 }
             }
@@ -441,7 +444,7 @@ std::pair<Status, bool> MagmaKVStore::compactionCore(
         }
     }
 
-    if (magmakv::isDeleted(metaSlice)) {
+    if (docMeta.isDeleted()) {
         uint64_t maxSeqno;
         auto status = magma->GetMaxSeqno(vbid.get(), maxSeqno);
         if (!status) {
@@ -494,7 +497,7 @@ std::pair<Status, bool> MagmaKVStore::compactionCore(
         // We also don't drop prepares that are rollbackable. If they are
         // deleted, rollback callback will not be called on the prepares during
         // rollback.
-        if (magmakv::isPrepared(keySlice, metaSlice)) {
+        if (magmakv::isPrepared(keySlice, docMeta)) {
             if (seqno <= cbCtx.ctx->highCompletedSeqno &&
                 seqno <= cbCtx.oldestRollbackableHighSeqno) {
                 cbCtx.ctx->stats.preparesPurged++;
@@ -520,8 +523,7 @@ std::pair<Status, bool> MagmaKVStore::compactionCore(
         }
 
         if (exptime && exptime < timeToExpireFrom &&
-            !magmakv::isPrepared(keySlice, metaSlice)) {
-            auto docMeta = magmakv::getDocMeta(metaSlice);
+            !magmakv::isPrepared(keySlice, docMeta)) {
             auto itm =
                     std::make_unique<Item>(makeDiskDocKey(keySlice).getDocKey(),
                                            docMeta.getFlags(),
@@ -533,7 +535,7 @@ std::pair<Status, bool> MagmaKVStore::compactionCore(
                                            docMeta.getBySeqno(),
                                            vbid,
                                            docMeta.getRevSeqno());
-            if (magmakv::isCompressed(metaSlice)) {
+            if (magmakv::isCompressed(docMeta)) {
                 itm->decompressValue();
             }
             itm->setDeleted(DeleteSource::TTL);
@@ -1271,7 +1273,7 @@ std::unique_ptr<Item> MagmaKVStore::makeItem(Vbid vb,
                                              const Slice& valueSlice,
                                              ValueFilter filter) const {
     auto key = makeDiskDocKey(keySlice);
-    auto meta = magmakv::getDocMeta(metaSlice);
+    const auto meta = magmakv::getDocMeta(metaSlice);
 
     const bool forceValueFetch = isDocumentPotentiallyCorruptedByMB52793(
             meta.isDeleted(), meta.getDatatype());
@@ -1302,14 +1304,14 @@ std::unique_ptr<Item> MagmaKVStore::makeItem(Vbid vb,
         item->setDeleted(static_cast<DeleteSource>(meta.getDeleteSource()));
     }
 
-    if (magmakv::isPrepared(keySlice, metaSlice)) {
+    if (magmakv::isPrepared(keySlice, meta)) {
         auto level =
                 static_cast<cb::durability::Level>(meta.getDurabilityLevel());
         item->setPendingSyncWrite({level, cb::durability::Timeout::Infinity()});
         if (meta.isSyncDelete()) {
             item->setDeleted(DeleteSource::Explicit);
         }
-    } else if (magmakv::isAbort(keySlice, metaSlice)) {
+    } else if (magmakv::isAbort(keySlice, meta)) {
         item->setAbortSyncWrite();
         item->setPrepareSeqno(meta.getPrepareSeqno());
     }
@@ -2041,8 +2043,8 @@ MagmaScanResult MagmaKVStore::scanOne(
                            configuration.getMaxVBuckets());
     }
 
-    if (magmakv::isDeleted(metaSlice) &&
-        ctx.docFilter == DocumentFilter::NO_DELETES) {
+    const auto docMeta = magmakv::getDocMeta(metaSlice);
+    if (docMeta.isDeleted() && ctx.docFilter == DocumentFilter::NO_DELETES) {
         ctx.lastReadSeqno = seqno;
         if (logger->should_log(spdlog::level::TRACE)) {
             logger->TRACE(
@@ -2058,9 +2060,7 @@ MagmaScanResult MagmaKVStore::scanOne(
     // Determine if the key is logically deleted before trying cache/disk read
     if (ctx.docFilter != DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS) {
         if (ctx.collectionsContext.isLogicallyDeleted(
-                    lookup.getKey().getDocKey(),
-                    magmakv::isDeleted(metaSlice),
-                    seqno)) {
+                    lookup.getKey().getDocKey(), docMeta.isDeleted(), seqno)) {
             ctx.lastReadSeqno = seqno;
             if (logger->should_log(spdlog::level::TRACE)) {
                 logger->TRACE(
@@ -2127,9 +2127,9 @@ MagmaScanResult MagmaKVStore::scanOne(
                 ctx.vbid,
                 cb::UserData{lookup.getKey().to_string()},
                 seqno,
-                magmakv::isDeleted(metaSlice),
-                magmakv::getExpiryTime(metaSlice),
-                magmakv::isCompressed(metaSlice));
+                docMeta.isDeleted(),
+                docMeta.getExptime(),
+                magmakv::isCompressed(docMeta));
     }
 
     auto itm = makeItem(ctx.vbid, keySlice, metaSlice, value, ctx.valFilter);
@@ -2137,7 +2137,7 @@ MagmaScanResult MagmaKVStore::scanOne(
     // When we are requested to return the values as compressed AND
     // the value isn't compressed, attempt to compress the value.
     if (ctx.valFilter == ValueFilter::VALUES_COMPRESSED &&
-        !magmakv::isCompressed(metaSlice)) {
+        !magmakv::isCompressed(docMeta)) {
         if (!itm->compressValue()) {
             logger->warn(
                     "MagmaKVStore::scanOne failed to compress value - {} "
@@ -2465,6 +2465,8 @@ cb::engine_errc MagmaKVStore::getAllKeys(
 
     auto callback =
             [&](Slice& keySlice, Slice& metaSlice, Slice& valueSlice) -> bool {
+
+        const auto docMeta = magmakv::getDocMeta(metaSlice);
         if (logger->should_log(spdlog::level::TRACE)) {
             logger->TRACE(
                     "MagmaKVStore::getAllKeys callback {} key:{} seqno:{} "
@@ -2472,10 +2474,10 @@ cb::engine_errc MagmaKVStore::getAllKeys(
                     vbid,
                     cb::UserData{makeDiskDocKey(keySlice).to_string()},
                     magmakv::getSeqNum(metaSlice),
-                    magmakv::isDeleted(metaSlice));
+                    docMeta.isDeleted());
         }
 
-        if (magmakv::isDeleted(metaSlice)) {
+        if (docMeta.isDeleted()) {
             // continue scanning
             return false;
         }
@@ -3797,9 +3799,11 @@ void MagmaKVStore::calculateAndSetMagmaThreads() {
 }
 
 uint32_t MagmaKVStore::getExpiryOrPurgeTime(const magma::Slice& slice) {
-    auto exptime = magmakv::getExpiryTime(slice);
+    const auto docMeta = magmakv::getDocMeta(slice);
 
-    if (magmakv::isDeleted(slice)) {
+    auto exptime = docMeta.getExptime();
+
+    if (docMeta.isDeleted()) {
         exptime += configuration.getMetadataPurgeAge();
     }
 
