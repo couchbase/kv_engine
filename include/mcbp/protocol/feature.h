@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -26,74 +25,109 @@ namespace cb::mcbp {
  * datatype bit using set_with_meta.
  */
 enum class Feature : uint16_t {
-    Invalid = 0x01, // Previously DATATYPE, now retired
+    /// Previously DATATYPE, now retired
+    Invalid = 0x01,
+    /// The client wants to TLS and send STARTTLS (Never implemented)
     TLS = 0x2,
+    /// The client requests the server to set TCP NODELAY on the
+    /// socket used by this connection.
     TCPNODELAY = 0x03,
+    /// The client requests the server to add the sequence number
+    ///  for a mutation to the response packet used in mutations.
     MUTATION_SEQNO = 0x04,
+    /// The client requests the server to set TCP DELAY on the socket
+    /// used by this connection.
     TCPDELAY = 0x05,
-    XATTR = 0x06, // enables xattr support and set_with_meta.datatype == xattr
+    /// The client requests the server to add XATTRs to the stream for
+    /// commands where it makes sense (GetWithMeta, SetWithMeta,
+    /// DcpMutation etc)
+    XATTR = 0x06,
+    /// The client requests the server to send extended error codes instead of
+    /// disconnecting the client when new errors occur (note that some errors
+    /// may be remapped to more generic error codes instead of disconnecting)
     XERROR = 0x07,
+    /// This is purely informational (it does not enable/disable anything on the
+    /// server). It may be used from the client to know if it should be able to
+    /// run select bucket or not (select bucket was a privileged command
+    /// pre-spock. In spock all users may run select bucket, but only to a
+    /// bucket they have access to).
     SELECT_BUCKET = 0x08,
-    Invalid2 = 0x09, // Used to be collections
+    /// Used to be the old collection prototype. No longer in use
+    Invalid2 = 0x09,
+    /// The client wants to enable support for Snappy compression. A client with
+    /// support for Snappy compression must update the datatype field in the
+    /// requests with the bit representing SNAPPY when sending snappy compressed
+    /// data to the server. It _must_ be able to receive data from the server
+    /// compressed with SNAPPY identified by the bit being set in the datatype
+    /// field.
     SNAPPY = 0x0a,
+    /// The client wants to enable support for JSON. The client _must_ set this
+    /// bit when storing JSON documents on the server. The server will set the
+    /// appropriate bit in the datatype field when returning such documents to
+    /// the client.
     JSON = 0x0b,
+    /// The client allows for full duplex on the socket. This means that the
+    /// server may send requests back to the client. These messages is
+    /// identified by the magic values of 0x82 (request) and 0x83 (response).
+    /// See the document docs/Duplex.md for more information.
     Duplex = 0x0c,
-    /**
-     * Request the server to push any cluster maps stored by ns_server into
-     * one of the buckets the client have access to.
-     */
+    /// The client wants the server to notify the client with new cluster maps
+    /// whenever ns_server push them to memcached. (note that this notification
+    /// is subject to deduplication of the vbucket map received as part of not
+    /// my vbucket)
     ClustermapChangeNotification = 0x0d,
-    /**
-     * Tell the server that we're ok with the server reordering the execution
-     * of commands (@todo this should "disable" select bucket as that won't
-     * give the user deterministic behavior)
-     */
+    /// The client allows the server to reorder the execution of commands. See
+    /// the document docs/UnorderedExecution.md for more information
     UnorderedExecution = 0x0e,
-    /**
-     * Tell the server to enable tracing of function calls
-     */
+    /// The client wants the server to include tracing information in the
+    /// response packet
     Tracing = 0x0f,
-    /// Does the server support alternative request packets
+    /// This is purely informational (it does not enable/disable anything on the
+    /// server). It may be used from the client to know if it may send the
+    /// alternative request packet (magic 0x08) containing FrameInfo segments.
     AltRequestSupport = 0x10,
-    /// Do the server support Synchronous Replication
+    /// This is purely informational (it does not enable/disable anything on the
+    /// server). It may be used from the client to know if it may use
+    /// synchronous replication tags in the mutation requests.
     SyncReplication = 0x11,
-
+    /// The client wants to enable support for Collections
     Collections = 0x12,
-
-    // Availeble  = 0x13,
-
-    /// Do the server support preserving document expiry time
+    /// Available = 0x13
+    /// This is purely informational (it does not enable / disable anything on
+    /// the server). It may be used from the client to know if it may use
+    /// PreserveTtl in the operations who carries the TTL for a document.
     PreserveTtl = 0x14,
-
-    /// Does the server support the $vbucket in addition to the original
-    /// $document and $XTOC VATTRs?
-    /// Additionally, is non-existence of a VATTR flagged with
-    /// SubdocXattrUnknownVattr instead of disconnecting the client?
+    /// This is purely information (it does not enable / disable anything on the
+    /// server). It may be used from the client to determine if the server
+    /// supports VATTRs in a generic way (can request $<VATTR> and will either
+    /// succeed or fail with SubdocXattrUnknownVattr). Requires XATTR.
     VAttr = 0x15,
-
-    // Does the server support Point in Time Recovery
+    /// This is purely information (it does not enable / disable anything on the
+    /// server). It may be used from the client to determine if the server
+    /// supports Point in Time Recovery.
     PiTR = 0x16,
-
-    /// Does the server support the subdoc mutation flag
-    /// mcbp::subdoc::doc_flag::CreateAsDeleted ?
+    /// This is purely informational (it does not enable / disable anything on
+    /// the server). It may be used from the client to determine if the server
+    /// supports the subdoc `CreateAsDeleted` doc flag.
     SubdocCreateAsDeleted = 0x17,
-
-    /// Does the server support using the virtual $document attributes in macro
-    /// expansion ( "${document.CAS}" etc)
+    /// This is purely information (it does not enable / disable anything on the
+    /// server). It may be used from the client to determine if the server
+    /// supports using the virtual attribute $document in macros. Requires XATTR
     SubdocDocumentMacroSupport = 0x18,
-
-    /// Does the server support SubdocReplaceBodyWithXattr introduced in
-    /// Cheshire-Cat
+    /// This is purely information (it does not enable / disable anything on the
+    /// server). It may be used from the client to determine if the server
+    /// supports the command SubdocReplaceBodyWithXattr.
     SubdocReplaceBodyWithXattr = 0x19,
-
-    /// Include [RW]U units and throttle time as part of the response
-    /// (if non-zero)
+    /// When enabled the server will insert frame info field(s) in the response
+    /// containing the amount of read and write units the command used on the
+    /// server, and the time the command spent throttled on the server. The
+    /// fields will only be inserted if non-zero.
     ReportUnitUsage = 0x1a,
-
-    /// Return ewouldthrottle instead of block on throttling
+    /// cause the server to return ewouldthrottle on a request instead of
+    /// throttle the command.
     NonBlockingThrottlingMode = 0x1b,
-
-    /// Does the server support subdoc lookup operations on replica vbuckets
+    /// Does the server support the ReplicaRead option to subdoc lookup
+    /// operations
     SubdocReplicaRead = 0x1c,
 };
 
