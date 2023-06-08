@@ -59,13 +59,47 @@ void get_cluster_config_executor(Cookie& cookie) {
 
     auto active = bucket.clusterConfiguration.maybeGetConfiguration({});
     if (active) {
+        if (cookie.getRequest().getExtdata().empty()) {
+            cookie.sendResponse(cb::mcbp::Status::Success,
+                                {},
+                                {},
+                                {active->config.data(), active->config.size()},
+                                cb::mcbp::Datatype::JSON,
+                                0);
+            connection.setPushedClustermapRevno(active->version);
+            return;
+        }
+        using cb::mcbp::request::GetClusterConfigPayload;
+        const auto& payload =
+                cookie.getRequest()
+                        .getCommandSpecifics<GetClusterConfigPayload>();
+
+        const ClustermapVersion version{payload.getEpoch(),
+                                        payload.getRevision()};
+        connection.setPushedClustermapRevno(active->version);
+        if (version < active->version) {
+            // The client has an older version, return our version
+            cookie.sendResponse(cb::mcbp::Status::Success,
+                                {},
+                                {},
+                                {active->config.data(), active->config.size()},
+                                cb::mcbp::Datatype::JSON,
+                                0);
+            return;
+        }
+        // The client knows this (or a more recent) version.
+        // Send an empty response
         cookie.sendResponse(cb::mcbp::Status::Success,
                             {},
                             {},
-                            {active->config.data(), active->config.size()},
-                            cb::mcbp::Datatype::JSON,
+                            {},
+                            cb::mcbp::Datatype::Raw,
                             0);
-        connection.setPushedClustermapRevno(active->version);
+        if (version > active->version) {
+            // The client provided a more recent version that we know of,
+            // so we can skip sending older revisions to the client
+            connection.setPushedClustermapRevno(version);
+        }
     } else {
         cookie.sendResponse(cb::mcbp::Status::KeyEnoent);
     }

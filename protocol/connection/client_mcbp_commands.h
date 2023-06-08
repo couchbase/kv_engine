@@ -1069,6 +1069,22 @@ protected:
     int64_t revision;
 };
 
+class BinprotGetClusterConfigCommand : public BinprotGenericCommand {
+public:
+    BinprotGetClusterConfigCommand()
+        : BinprotGenericCommand(cb::mcbp::ClientOpcode::GetClusterConfig) {
+    }
+    BinprotGetClusterConfigCommand(int64_t epoch, int64_t revision)
+        : BinprotGenericCommand(cb::mcbp::ClientOpcode::GetClusterConfig) {
+        version = {epoch, revision};
+    }
+
+    void encode(std::vector<uint8_t>& buf) const override;
+
+protected:
+    std::optional<std::pair<int64_t, int64_t>> version;
+};
+
 class BinprotObserveSeqnoCommand : public BinprotGenericCommand {
 public:
     BinprotObserveSeqnoCommand(Vbid vbid, uint64_t uuid);

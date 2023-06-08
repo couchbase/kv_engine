@@ -243,3 +243,61 @@ TEST_P(ClusterConfigTest, MB35395) {
         EXPECT_EQ("", rsp.getDataString());
     });
 }
+
+TEST_P(ClusterConfigTest, MB57311_RequestWithVersion) {
+    setClusterConfig(token, R"({"rev":1000})", 1000);
+    auto validatePushedRevno = [](int64_t epoch, int64_t revno) {
+        nlohmann::json json;
+        userConnection->stats(
+                [&json](auto k, auto v) { json = nlohmann::json::parse(v); },
+                "connections self");
+        EXPECT_EQ(epoch, json["clustermap"]["epoch"].get<int64_t>());
+        EXPECT_EQ(revno, json["clustermap"]["revno"].get<int64_t>());
+    };
+
+    auto rsp = userConnection->execute(BinprotGetClusterConfigCommand{});
+    EXPECT_TRUE(rsp.isSuccess());
+    EXPECT_EQ(userConnection->hasFeature(cb::mcbp::Feature::JSON)
+                      ? PROTOCOL_BINARY_DATATYPE_JSON
+                      : PROTOCOL_BINARY_RAW_BYTES,
+              rsp.getDatatype());
+    EXPECT_EQ(R"({"rev":1000})", rsp.getDataView());
+    validatePushedRevno(1, 1000);
+
+    // select the bucket and reset the known pushed version
+    userConnection->selectBucket(bucketName);
+    validatePushedRevno(-1, 0);
+
+    // If we provide an older version we should receive the map
+    rsp = userConnection->execute(BinprotGetClusterConfigCommand{1, 999});
+    EXPECT_TRUE(rsp.isSuccess());
+
+    EXPECT_EQ(userConnection->hasFeature(cb::mcbp::Feature::JSON)
+                      ? PROTOCOL_BINARY_DATATYPE_JSON
+                      : PROTOCOL_BINARY_RAW_BYTES,
+              rsp.getDatatype());
+    EXPECT_EQ(R"({"rev":1000})", rsp.getDataView());
+    validatePushedRevno(1, 1000);
+
+    // select the bucket and reset the known pushed version
+    userConnection->selectBucket(bucketName);
+    validatePushedRevno(-1, 0);
+
+    /// If we know the version we should get an empty response
+    rsp = userConnection->execute(BinprotGetClusterConfigCommand{1, 1000});
+    EXPECT_TRUE(rsp.isSuccess());
+    EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, rsp.getDatatype());
+    EXPECT_TRUE(rsp.getDataView().empty()) << rsp.getDataView();
+    validatePushedRevno(1, 1000);
+
+    // select the bucket and reset the known pushed version
+    userConnection->selectBucket(bucketName);
+    validatePushedRevno(-1, 0);
+
+    /// If we know a newer version we should get an empty response
+    rsp = userConnection->execute(BinprotGetClusterConfigCommand{1, 1001});
+    EXPECT_TRUE(rsp.isSuccess());
+    EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, rsp.getDatatype());
+    EXPECT_TRUE(rsp.getDataView().empty()) << rsp.getDataView();
+    validatePushedRevno(1, 1001);
+}

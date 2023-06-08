@@ -1111,13 +1111,38 @@ static Status drop_privilege_validator(Cookie& cookie) {
 }
 
 static Status get_cluster_config_validator(Cookie& cookie) {
-    return McbpValidator::verify_header(cookie,
-                                        0,
-                                        ExpectedKeyLen::Zero,
-                                        ExpectedValueLen::Zero,
-                                        ExpectedCas::NotSet,
-                                        GeneratesDocKey::No,
-                                        PROTOCOL_BINARY_RAW_BYTES);
+    if (cookie.getRequest().getExtdata().empty()) {
+        return McbpValidator::verify_header(cookie,
+                                            0,
+                                            ExpectedKeyLen::Zero,
+                                            ExpectedValueLen::Zero,
+                                            ExpectedCas::NotSet,
+                                            GeneratesDocKey::No,
+                                            PROTOCOL_BINARY_RAW_BYTES);
+    }
+    using cb::mcbp::request::GetClusterConfigPayload;
+    const auto status =
+            McbpValidator::verify_header(cookie,
+                                         sizeof(GetClusterConfigPayload),
+                                         ExpectedKeyLen::Zero,
+                                         ExpectedValueLen::Zero,
+                                         ExpectedCas::NotSet,
+                                         GeneratesDocKey::No,
+                                         PROTOCOL_BINARY_RAW_BYTES);
+    if (status != Status::Success) {
+        return status;
+    }
+
+    try {
+        cookie.getRequest()
+                .getCommandSpecifics<GetClusterConfigPayload>()
+                .validate();
+    } catch (const std::exception&) {
+        cookie.setErrorContext("Revision number must not be less than 1");
+        return Status::Einval;
+    }
+
+    return Status::Success;
 }
 
 static Status set_cluster_config_validator(Cookie& cookie) {
@@ -1136,15 +1161,12 @@ static Status set_cluster_config_validator(Cookie& cookie) {
         return status;
     }
 
-    const auto& payload =
-            cookie.getRequest().getCommandSpecifics<SetClusterConfigPayload>();
-    if (payload.getRevision() < 1) {
+    try {
+        cookie.getRequest()
+                .getCommandSpecifics<SetClusterConfigPayload>()
+                .validate();
+    } catch (const std::exception&) {
         cookie.setErrorContext("Revision number must not be less than 1");
-        return Status::Einval;
-    }
-
-    if (payload.getEpoch() < 1 && payload.getEpoch() != -1) {
-        cookie.setErrorContext("Epoch must not be less than 1 (or -1)");
         return Status::Einval;
     }
     return Status::Success;
@@ -1737,8 +1759,7 @@ static Status set_node_throttle_properties_validator(Cookie& cookie) {
     return Status::Success;
 }
 
-static Status set_bucket_data_limit_exceeded_validator(
-        Cookie& cookie) {
+static Status set_bucket_data_limit_exceeded_validator(Cookie& cookie) {
     using cb::mcbp::request::SetBucketDataLimitExceededPayload;
     return McbpValidator::verify_header(
             cookie,

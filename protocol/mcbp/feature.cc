@@ -69,6 +69,8 @@ std::string to_string(cb::mcbp::Feature feature) {
         return "NonBlockingThrottlingMode";
     case cb::mcbp::Feature::SubdocReplicaRead:
         return "SubdocReplicaRead";
+    case cb::mcbp::Feature::GetClusterConfigWithKnownVersion:
+        return "GetClusterConfigWithKnownVersion";
     }
 
     throw std::invalid_argument(

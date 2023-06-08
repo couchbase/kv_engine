@@ -43,7 +43,9 @@ const std::map<cb::mcbp::Feature, std::string> featureBlueprint = {
          {cb::mcbp::Feature::ReportUnitUsage, "ReportUnitUsage"},
          {cb::mcbp::Feature::NonBlockingThrottlingMode,
           "NonBlockingThrottlingMode"},
-         {cb::mcbp::Feature::SubdocReplicaRead, "SubdocReplicaRead"}}};
+         {cb::mcbp::Feature::SubdocReplicaRead, "SubdocReplicaRead"},
+         {cb::mcbp::Feature::GetClusterConfigWithKnownVersion,
+          "GetClusterConfigWithKnownVersion"}}};
 
 TEST(to_string, LegalValues) {
     for (const auto& entry : featureBlueprint) {

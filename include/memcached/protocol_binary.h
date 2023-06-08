@@ -200,11 +200,24 @@ public:
         return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
     }
 
+    void validate() const {
+        if (getRevision() < 1) {
+            throw std::invalid_argument(
+                    "Revision number must not be less than 1");
+        }
+
+        if (getEpoch() < 1 && getEpoch() != -1) {
+            throw std::invalid_argument(
+                    "Epoch must not be less than 1 (or -1)");
+        }
+    }
+
 protected:
     int64_t epoch{0};
     int64_t revision{0};
 };
 static_assert(sizeof(SetClusterConfigPayload) == 16, "Unexpected struct size");
+using GetClusterConfigPayload = SetClusterConfigPayload;
 
 class VerbosityPayload {
 public:

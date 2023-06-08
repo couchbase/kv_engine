@@ -81,6 +81,7 @@ void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> 
         case cb::mcbp::Feature::ReportUnitUsage:
         case cb::mcbp::Feature::NonBlockingThrottlingMode:
         case cb::mcbp::Feature::SubdocReplicaRead:
+        case cb::mcbp::Feature::GetClusterConfigWithKnownVersion:
 
             // This isn't very optimal, but we've only got a handfull of elements ;)
             if (!containsFeature(requested, feature)) {
@@ -117,6 +118,7 @@ void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> 
         case cb::mcbp::Feature::ReportUnitUsage:
         case cb::mcbp::Feature::NonBlockingThrottlingMode:
         case cb::mcbp::Feature::SubdocReplicaRead:
+        case cb::mcbp::Feature::GetClusterConfigWithKnownVersion:
             // No other dependency
             break;
 
@@ -354,6 +356,7 @@ void process_hello_packet_executor(Cookie& cookie) {
         case cb::mcbp::Feature::SubdocCreateAsDeleted:
         case cb::mcbp::Feature::SubdocReplaceBodyWithXattr:
         case cb::mcbp::Feature::SubdocReplicaRead:
+        case cb::mcbp::Feature::GetClusterConfigWithKnownVersion:
             // Informative features don't need special handling
             added = true;
             break;

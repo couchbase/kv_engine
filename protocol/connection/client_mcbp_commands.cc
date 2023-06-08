@@ -1687,6 +1687,20 @@ BinprotSetControlTokenCommand::BinprotSetControlTokenCommand(uint64_t token_,
     setCas(oldtoken);
 }
 
+void BinprotGetClusterConfigCommand::encode(std::vector<uint8_t>& buf) const {
+    if (version) {
+        using cb::mcbp::request::GetClusterConfigPayload;
+        GetClusterConfigPayload payload;
+        payload.setEpoch(version->first);
+        payload.setRevision(version->second);
+        auto buffer = payload.getBuffer();
+        writeHeader(buf, 0, buffer.size());
+        buf.insert(buf.end(), buffer.begin(), buffer.end());
+    } else {
+        writeHeader(buf, 0, 0);
+    }
+}
+
 void BinprotSetClusterConfigCommand::encode(std::vector<uint8_t>& buf) const {
     writeHeader(buf, config.size(), sizeof(revision) + sizeof(epoch));
     append(buf, uint64_t(epoch));

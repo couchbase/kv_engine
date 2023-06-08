@@ -129,6 +129,11 @@ enum class Feature : uint16_t {
     /// Does the server support the ReplicaRead option to subdoc lookup
     /// operations
     SubdocReplicaRead = 0x1c,
+    /// This is purely information (it does not enable / disable anything on the
+    /// server). It may be used from the client to determine if the server
+    /// supports that the client provides its known version of the cluster
+    /// map as part of GetClusterConfig
+    GetClusterConfigWithKnownVersion = 0x1d,
 };
 
 } // namespace cb::mcbp
