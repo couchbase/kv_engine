@@ -58,6 +58,8 @@ const size_t MaxSavedAgentName = 33;
  */
 const size_t MaxSavedConnectionId = 34;
 
+enum class ClustermapChangeNotification : uint8_t { None, Brief, Full };
+
 /**
  * The structure representing a connection in memcached.
  */
@@ -251,12 +253,12 @@ public:
         duplex_support = enable;
     }
 
-    bool isClustermapChangeNotificationSupported() const {
-        return cccp.load(std::memory_order_acquire);
+    ClustermapChangeNotification getClustermapChangeNotification() const {
+        return cccp;
     }
 
-    void setClustermapChangeNotificationSupported(bool enable) {
-        cccp.store(enable, std::memory_order_release);
+    void setClustermapChangeNotification(ClustermapChangeNotification type) {
+        cccp = type;
     }
 
     bool allowUnorderedExecution() const {
@@ -1115,7 +1117,8 @@ protected:
      */
     bool duplex_support{false};
 
-    std::atomic_bool cccp{false};
+    std::atomic<ClustermapChangeNotification> cccp{
+            ClustermapChangeNotification::None};
     std::atomic_bool dedupe_nmvb_maps{false};
     std::atomic_bool snappy_everywhere{false};
     bool allow_unordered_execution{false};

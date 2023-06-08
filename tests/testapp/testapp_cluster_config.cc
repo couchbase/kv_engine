@@ -27,6 +27,8 @@ protected:
     }
 
     void test_MB_17506(bool dedupe, bool client_setting);
+
+    void test_CccpPushNotification(bool brief);
 };
 
 void ClusterConfigTest::test_MB_17506(bool dedupe, bool client_setting) {
@@ -171,14 +173,20 @@ TEST_P(ClusterConfigTest, Enable_CCCP_Push_Notifications) {
     conn.setClustermapChangeNotification(true);
 }
 
-TEST_P(ClusterConfigTest, CccpPushNotification) {
+void ClusterConfigTest::test_CccpPushNotification(bool brief) {
     auto& second = getConnection();
     second.authenticate("Luke", mcd_env->getPassword("Luke"));
     second.selectBucket(bucketName);
     second.setFeature(cb::mcbp::Feature::UnorderedExecution, true);
     second.setDuplexSupport(true);
-    second.setClustermapChangeNotification(true);
 
+    if (brief) {
+        second.setFeature(cb::mcbp::Feature::ClustermapChangeNotificationBrief,
+                          true);
+    } else {
+        second.setFeature(cb::mcbp::Feature::ClustermapChangeNotification,
+                          true);
+    }
     adminConnection->executeInBucket(bucketName, [](auto& c) {
         ASSERT_TRUE(
                 c.execute(BinprotSetClusterConfigCommand{
@@ -208,11 +216,19 @@ TEST_P(ClusterConfigTest, CccpPushNotification) {
     const std::string bucket{reinterpret_cast<const char*>(key.data()),
                              key.size()};
     EXPECT_EQ(bucketName, bucket);
+    if (brief) {
+        EXPECT_TRUE(request->getValue().empty()) << request->getValueString();
+    } else {
+        EXPECT_EQ(R"({"rev":666})", request->getValueString());
+    }
+}
 
-    auto value = request->getValue();
-    const std::string config{reinterpret_cast<const char*>(value.data()),
-                             value.size()};
-    EXPECT_EQ(R"({"rev":666})", config);
+TEST_P(ClusterConfigTest, CccpPushNotification) {
+    test_CccpPushNotification(false);
+}
+
+TEST_P(ClusterConfigTest, ClustermapChangeNotificationBrief) {
+    test_CccpPushNotification(true);
 }
 
 TEST_P(ClusterConfigTest, SetGlobalClusterConfig) {
@@ -311,4 +327,24 @@ TEST_P(ClusterConfigTest, MB57311_RequestWithVersion) {
     EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, rsp.getDatatype());
     EXPECT_TRUE(rsp.getDataView().empty()) << rsp.getDataView();
     validatePushedRevno(1, 1001);
+}
+
+TEST_P(ClusterConfigTest, ClustermapChangeNotificationBothRequested) {
+    BinprotHelloCommand cmd("client");
+    using cb::mcbp::Feature;
+    cmd.enableFeature(Feature::Duplex);
+    cmd.enableFeature(Feature::ClustermapChangeNotification);
+    cmd.enableFeature(Feature::ClustermapChangeNotificationBrief);
+    auto conn = userConnection->clone(false);
+    conn->connect();
+    auto rsp = BinprotHelloResponse{conn->execute(cmd)};
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    std::vector<Feature> enabled = rsp.getFeatures();
+    ASSERT_EQ(2, enabled.size());
+    if (enabled.front() == Feature::ClustermapChangeNotificationBrief) {
+        std::swap(enabled.front(), enabled.back());
+    }
+    const std::vector<Feature> expected{
+            {Feature::Duplex, Feature::ClustermapChangeNotificationBrief}};
+    EXPECT_EQ(expected, enabled);
 }

@@ -110,9 +110,10 @@ void get_cluster_config_executor(Cookie& cookie) {
 /// @param bucketname The name of the bucket to push
 static void push_cluster_config(Bucket& bucket) {
     iterate_all_connections([&bucket](Connection& connection) -> void {
-        if (!connection.isClustermapChangeNotificationSupported() ||
+        auto mode = connection.getClustermapChangeNotification();
+        if (mode == ClustermapChangeNotification::None ||
             bucket.state != Bucket::State::Ready) {
-            // The client hasn't asked to be notified or the bucket is
+            // The client hasn't asked to be notified, or the bucket is
             // about to be deleted
             return;
         }
@@ -140,15 +141,15 @@ static void push_cluster_config(Bucket& bucket) {
             }
 
             if (bucket.type == BucketType::NoBucket) {
-                LOG_INFO("{}: Sending global Cluster map revision:  {}",
-                         connection.getId(),
-                         active->version);
+                LOG_DEBUG("{}: Sending global Cluster map revision:  {}",
+                          connection.getId(),
+                          active->version);
             } else {
                 connection.setPushedClustermapRevno(active->version);
-                LOG_INFO("{}: Sending Cluster map for bucket:{} revision:{}",
-                         connection.getId(),
-                         bucket.name,
-                         active->version);
+                LOG_DEBUG("{}: Sending Cluster map for bucket:{} revision:{}",
+                          connection.getId(),
+                          bucket.name,
+                          active->version);
             }
 
             std::string name = bucket.name;
@@ -158,20 +159,27 @@ static void push_cluster_config(Bucket& bucket) {
             version.setRevision(active->version.getRevno());
             size_t needed = sizeof(Request) + // packet header
                             sizeof(version) + // rev data in extdata
-                            name.size() + // the name of the bucket
-                            active->config.size(); // The actual payload
+                            name.size(); // the name of the bucket
+            if (mode == ClustermapChangeNotification::Full) {
+                needed += active->config.size(); // The actual payload
+            }
+
             std::string buffer;
             buffer.resize(needed);
             RequestBuilder builder(buffer);
             builder.setMagic(Magic::ServerRequest);
-            builder.setDatatype(cb::mcbp::Datatype::JSON);
             builder.setOpcode(ServerOpcode::ClustermapChangeNotification);
             builder.setExtras(version.getBuffer());
             builder.setKey({reinterpret_cast<const uint8_t*>(name.data()),
                             name.size()});
-            builder.setValue(
-                    {reinterpret_cast<const uint8_t*>(active->config.data()),
-                     active->config.size()});
+            if (mode == ClustermapChangeNotification::Full) {
+                builder.setDatatype(cb::mcbp::Datatype::JSON);
+                builder.setValue({reinterpret_cast<const uint8_t*>(
+                                          active->config.data()),
+                                  active->config.size()});
+            } else {
+                builder.setDatatype(cb::mcbp::Datatype::Raw);
+            }
 
             // Inject our packet into the stream!
             connection.copyToOutputStream(builder.getFrame()->getFrame());

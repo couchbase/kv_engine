@@ -141,8 +141,15 @@ nlohmann::json Connection::to_json() const {
         features.push_back("duplex");
     }
 
-    if (isClustermapChangeNotificationSupported()) {
-        features.push_back("CCN");
+    switch (cccp) {
+    case ClustermapChangeNotification::None:
+        break;
+    case ClustermapChangeNotification::Brief:
+        features.push_back("ClustermapChangeNotificationBrief");
+        break;
+    case ClustermapChangeNotification::Full:
+        features.push_back("ClustermapChangeNotification");
+        break;
     }
 
     if (isNonBlockingThrottlingMode()) {

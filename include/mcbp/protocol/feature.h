@@ -141,6 +141,11 @@ enum class Feature : uint16_t {
     /// payload in "not-my-vbucket" (which allows for deduplication of
     /// cluster map)
     DedupeNotMyVbucketClustermap = 0x1e,
+    /// The client wants the server to notify the client with the version
+    /// number whenever ns_server push them to memcached. (note that this
+    /// notification is subject to deduplication of the vbucket map received as
+    /// part of not my vbucket)
+    ClustermapChangeNotificationBrief = 0x1f,
 };
 
 } // namespace cb::mcbp

@@ -85,6 +85,7 @@ void buildRequestVector(FeatureSet& requested,
         case cb::mcbp::Feature::SubdocReplicaRead:
         case cb::mcbp::Feature::GetClusterConfigWithKnownVersion:
         case cb::mcbp::Feature::DedupeNotMyVbucketClustermap:
+        case cb::mcbp::Feature::ClustermapChangeNotificationBrief:
 
             // This isn't very optimal, but we've only got a handfull of
             // elements ;)
@@ -143,6 +144,7 @@ void buildRequestVector(FeatureSet& requested,
             }
             break;
         case cb::mcbp::Feature::ClustermapChangeNotification:
+        case cb::mcbp::Feature::ClustermapChangeNotificationBrief:
             // Needs duplex
             if (!containsFeature(requested, cb::mcbp::Feature::Duplex)) {
                 throw std::invalid_argument(to_string(feature) +
@@ -158,6 +160,13 @@ void buildRequestVector(FeatureSet& requested,
             }
             break;
         }
+    }
+
+    // Make sure that we only enable the "brief" version if the client
+    // asked for both
+    if (containsFeature(requested,
+                        cb::mcbp::Feature::ClustermapChangeNotificationBrief)) {
+        requested.erase(cb::mcbp::Feature::ClustermapChangeNotification);
     }
 }
 
@@ -212,7 +221,8 @@ void process_hello_packet_executor(Cookie& cookie) {
     connection.setXerrorSupport(false);
     connection.setCollectionsSupported(false);
     connection.setDuplexSupported(false);
-    connection.setClustermapChangeNotificationSupported(false);
+    connection.setClustermapChangeNotification(
+            ClustermapChangeNotification::None);
     connection.setTracingEnabled(false);
     connection.setAllowUnorderedExecution(false);
     connection.setReportUnitUsage(false);
@@ -333,8 +343,14 @@ void process_hello_packet_executor(Cookie& cookie) {
             connection.setDuplexSupported(true);
             added = true;
             break;
+        case cb::mcbp::Feature::ClustermapChangeNotificationBrief:
+            connection.setClustermapChangeNotification(
+                    ClustermapChangeNotification::Brief);
+            added = true;
+            break;
         case cb::mcbp::Feature::ClustermapChangeNotification:
-            connection.setClustermapChangeNotificationSupported(true);
+            connection.setClustermapChangeNotification(
+                    ClustermapChangeNotification::Full);
             added = true;
             break;
         case cb::mcbp::Feature::UnorderedExecution:

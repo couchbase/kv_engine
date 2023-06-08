@@ -48,7 +48,9 @@ const std::map<cb::mcbp::Feature, std::string> featureBlueprint = {
          {cb::mcbp::Feature::GetClusterConfigWithKnownVersion,
           "GetClusterConfigWithKnownVersion"},
          {cb::mcbp::Feature::DedupeNotMyVbucketClustermap,
-          "DedupeNotMyVbucketClustermap"}}};
+          "DedupeNotMyVbucketClustermap"},
+         {cb::mcbp::Feature::ClustermapChangeNotificationBrief,
+          "ClustermapChangeNotificationBrief"}}};
 
 TEST(to_string, LegalValues) {
     for (const auto& entry : featureBlueprint) {

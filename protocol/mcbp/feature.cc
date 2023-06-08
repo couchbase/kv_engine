@@ -75,6 +75,8 @@ std::string to_string(cb::mcbp::Feature feature) {
         return "GetClusterConfigWithKnownVersion";
     case cb::mcbp::Feature::DedupeNotMyVbucketClustermap:
         return "DedupeNotMyVbucketClustermap";
+    case cb::mcbp::Feature::ClustermapChangeNotificationBrief:
+        return "ClustermapChangeNotificationBrief";
     }
 
     throw std::invalid_argument(
