@@ -612,6 +612,10 @@ public:
     // Introduced in MB-45757 for testing a race condition on invalidate-cursor
     TestingHook<> removeCursorPreLockHook;
 
+    // Test hook that executes in the section where ItemExpel has released
+    // (and not yet re-acquired) the CM::lock. Introduced in MB-56644.
+    TestingHook<> expelHook;
+
 protected:
     /**
      * Checks if eager checkpoint removal is enabled, then checks if the

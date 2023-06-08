@@ -1554,6 +1554,57 @@ TEST_F(SingleThreadedCheckpointTest, CursorDistance_ResetCursor) {
     cursor.reset();
 }
 
+TEST_F(SingleThreadedCheckpointTest, ItemExpelResilientToVBucketRollback) {
+    setVBucketState(vbid, vbucket_state_active);
+    auto& vb = *store->getVBucket(vbid);
+    auto& manager = *vb.checkpointManager;
+    ASSERT_EQ(0, vb.getHighSeqno());
+    ASSERT_EQ(0, manager.getNumOpenChkItems());
+
+    // Note: We need at least 2 mutations for triggering ItemExpel, as we can't
+    // expel items pointed from cursors
+    store_item(vbid, makeStoredDocKey("key1"), "value");
+    store_item(vbid, makeStoredDocKey("key2"), "value");
+    ASSERT_EQ(2, vb.getHighSeqno());
+    ASSERT_EQ(2, manager.getNumOpenChkItems());
+
+    // Move the cursor, allow ItemExpel
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // Simulate the rollback behaviour.
+    // ItemExpel plants the expel-cursor in the checkpoint under processing and
+    // releases the CM::lock. At that point VB::rollback can clear the CM
+    // removing all checkpoint. When ItemExpel resumes it needs to be resilient
+    // to that state.
+    // The CM::expelHook executes in the section where ItemExpel has released
+    // (and not yet re-acquired) the CM::lock.
+    manager.expelHook = [&manager]() { manager.clear(); };
+
+    // Before the fix for MB-56644 this step fails by exception triggered,
+    // caused by that rollback has removed the checkpoint touched by ItemExpel
+    manager.expelUnreferencedCheckpointItems();
+
+    // Note: The CM was cleared, so mem-usage must track the correct allocation
+    // for the single/empty checkpoint in CheckpointList
+    auto config = CheckpointConfig(store->getEPEngine().getConfiguration());
+    const auto emptyManager =
+            CheckpointManager(store->getEPEngine().getEpStats(),
+                              vb,
+                              config,
+                              0,
+                              0,
+                              0,
+                              0,
+                              0,
+                              nullptr,
+                              nullptr);
+    EXPECT_EQ(emptyManager.getQueuedItemsMemUsage(),
+              manager.getQueuedItemsMemUsage());
+    EXPECT_EQ(emptyManager.getMemOverheadQueue(),
+              manager.getMemOverheadQueue());
+    EXPECT_EQ(0, manager.getMemOverheadIndex());
+}
+
 // Test that when the same client registers twice, the first cursor 'dies'
 TEST_P(CheckpointTest, reRegister) {
     auto dcpCursor1 = manager->registerCursorBySeqno(
