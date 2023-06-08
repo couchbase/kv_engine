@@ -865,6 +865,18 @@ public:
         dedupe_nmvb_maps = val;
     }
 
+    /// Do the client honor the Snappy flag on all kind of response
+    /// payloads
+    bool supportsSnappyEverywhere() const {
+        return snappy_everywhere;
+    }
+
+    /// Set if the client honors the Snappy flag on all kinds of
+    /// responses
+    void setSupportsSnappyEverywhere(bool val) {
+        snappy_everywhere = val;
+    }
+
 protected:
     /// Protected constructor so that it may only be used from create();
     Connection(SOCKET sfd,
@@ -1105,6 +1117,7 @@ protected:
 
     std::atomic_bool cccp{false};
     std::atomic_bool dedupe_nmvb_maps{false};
+    std::atomic_bool snappy_everywhere{false};
     bool allow_unordered_execution{false};
 
     bool report_unit_usage{false};

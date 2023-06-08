@@ -22,6 +22,7 @@ void DatatypeFilter::enable(cb::mcbp::Feature feature) {
         enabled |= PROTOCOL_BINARY_DATATYPE_JSON;
         break;
     case cb::mcbp::Feature::SNAPPY:
+    case cb::mcbp::Feature::SnappyEverywhere:
         enabled |= PROTOCOL_BINARY_DATATYPE_SNAPPY;
         break;
     case cb::mcbp::Feature::Duplex:

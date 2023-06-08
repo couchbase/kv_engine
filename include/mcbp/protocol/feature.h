@@ -59,7 +59,8 @@ enum class Feature : uint16_t {
     /// requests with the bit representing SNAPPY when sending snappy compressed
     /// data to the server. It _must_ be able to receive data from the server
     /// compressed with SNAPPY identified by the bit being set in the datatype
-    /// field.
+    /// field. Due to incorrect implementations in some clients the server
+    /// will only use Snappy compression for CRUD operations.
     SNAPPY = 0x0a,
     /// The client wants to enable support for JSON. The client _must_ set this
     /// bit when storing JSON documents on the server. The server will set the
@@ -92,7 +93,9 @@ enum class Feature : uint16_t {
     SyncReplication = 0x11,
     /// The client wants to enable support for Collections
     Collections = 0x12,
-    /// Available = 0x13
+    /// Notify the server that it honors the Snappy datatype bit on
+    /// response packets (not only for data retrieval operations)
+    SnappyEverywhere = 0x13,
     /// This is purely informational (it does not enable / disable anything on
     /// the server). It may be used from the client to know if it may use
     /// PreserveTtl in the operations who carries the TTL for a document.

@@ -23,6 +23,7 @@ const std::map<cb::mcbp::Feature, std::string> featureBlueprint = {
          {cb::mcbp::Feature::XERROR, "XERROR"},
          {cb::mcbp::Feature::SELECT_BUCKET, "Select bucket"},
          {cb::mcbp::Feature::Collections, "Collections"},
+         {cb::mcbp::Feature::SnappyEverywhere, "SnappyEverywhere"},
          {cb::mcbp::Feature::SNAPPY, "Snappy"},
          {cb::mcbp::Feature::JSON, "JSON"},
          {cb::mcbp::Feature::Duplex, "Duplex"},

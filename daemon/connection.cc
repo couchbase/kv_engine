@@ -153,6 +153,10 @@ nlohmann::json Connection::to_json() const {
         features.push_back("DedupeNotMyVbucketClustermap");
     }
 
+    if (snappy_everywhere) {
+        features.push_back("SnappyEverywhere");
+    }
+
     ret["features"] = features;
 
     ret["thread"] = getThread().index;

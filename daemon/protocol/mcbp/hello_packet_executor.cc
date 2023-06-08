@@ -46,7 +46,8 @@ bool containsFeature(const FeatureSet& features, cb::mcbp::Feature feature) {
  * @param requested The set to populate with the requested features
  * @param input The input array
  */
-void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> input) {
+void buildRequestVector(FeatureSet& requested,
+                        cb::sized_buffer<const uint16_t> input) {
     for (const auto& value : input) {
         const uint16_t in = ntohs(value);
         const auto feature = cb::mcbp::Feature(in);
@@ -66,6 +67,7 @@ void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> 
         case cb::mcbp::Feature::XERROR:
         case cb::mcbp::Feature::SELECT_BUCKET:
         case cb::mcbp::Feature::Collections:
+        case cb::mcbp::Feature::SnappyEverywhere:
         case cb::mcbp::Feature::PreserveTtl:
         case cb::mcbp::Feature::Duplex:
         case cb::mcbp::Feature::ClustermapChangeNotification:
@@ -84,7 +86,8 @@ void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> 
         case cb::mcbp::Feature::GetClusterConfigWithKnownVersion:
         case cb::mcbp::Feature::DedupeNotMyVbucketClustermap:
 
-            // This isn't very optimal, but we've only got a handfull of elements ;)
+            // This isn't very optimal, but we've only got a handfull of
+            // elements ;)
             if (!containsFeature(requested, feature)) {
                 requested.insert(feature);
             }
@@ -112,6 +115,7 @@ void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> 
         case cb::mcbp::Feature::Duplex:
         case cb::mcbp::Feature::UnorderedExecution:
         case cb::mcbp::Feature::Collections:
+        case cb::mcbp::Feature::SnappyEverywhere:
         case cb::mcbp::Feature::PreserveTtl:
         case cb::mcbp::Feature::PiTR:
         case cb::mcbp::Feature::SubdocCreateAsDeleted:
@@ -127,13 +131,15 @@ void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> 
         case cb::mcbp::Feature::TCPNODELAY:
             // cannot co-exist with TCPDELAY
             if (containsFeature(requested, cb::mcbp::Feature::TCPDELAY)) {
-                throw std::invalid_argument("TCPNODELAY cannot co-exist with TCPDELAY");
+                throw std::invalid_argument(
+                        "TCPNODELAY cannot co-exist with TCPDELAY");
             }
             break;
         case cb::mcbp::Feature::TCPDELAY:
             // cannot co-exist with TCPNODELAY
             if (containsFeature(requested, cb::mcbp::Feature::TCPNODELAY)) {
-                throw std::invalid_argument("TCPDELAY cannot co-exist with TCPNODELAY");
+                throw std::invalid_argument(
+                        "TCPDELAY cannot co-exist with TCPNODELAY");
             }
             break;
         case cb::mcbp::Feature::ClustermapChangeNotification:
@@ -212,6 +218,7 @@ void process_hello_packet_executor(Cookie& cookie) {
     connection.setReportUnitUsage(false);
     connection.setNonBlockingThrottlingMode(false);
     connection.setDedupeNmvbMaps(false);
+    connection.setSupportsSnappyEverywhere(false);
 
     if (!key.empty()) {
         if (key.front() == '{') {
@@ -314,6 +321,13 @@ void process_hello_packet_executor(Cookie& cookie) {
         case cb::mcbp::Feature::DedupeNotMyVbucketClustermap:
             connection.setDedupeNmvbMaps(true);
             added = true;
+            break;
+        case cb::mcbp::Feature::SnappyEverywhere:
+            if (Settings::instance().isDatatypeSnappyEnabled()) {
+                connection.setSupportsSnappyEverywhere(true);
+                connection.enableDatatype(cb::mcbp::Feature::SNAPPY);
+                added = true;
+            }
             break;
         case cb::mcbp::Feature::Duplex:
             connection.setDuplexSupported(true);
