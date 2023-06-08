@@ -26,13 +26,16 @@ protected:
                 token, config, 1, revision, bucketName});
     }
 
-    void test_MB_17506(bool dedupe);
+    void test_MB_17506(bool dedupe, bool client_setting);
 };
 
-void ClusterConfigTest::test_MB_17506(bool dedupe) {
+void ClusterConfigTest::test_MB_17506(bool dedupe, bool client_setting) {
     // First set the correct deduplication mode
     memcached_cfg["dedupe_nmvb_maps"] = dedupe;
     reconfigure();
+
+    userConnection->setFeature(cb::mcbp::Feature::DedupeNotMyVbucketClustermap,
+                               client_setting);
 
     const std::string clustermap{R"({"rev":100})"};
 
@@ -55,7 +58,7 @@ void ClusterConfigTest::test_MB_17506(bool dedupe) {
     ASSERT_FALSE(response.isSuccess());
     ASSERT_EQ(cb::mcbp::Status::NotMyVbucket, response.getStatus());
 
-    if (dedupe) {
+    if (dedupe || client_setting) {
         EXPECT_TRUE(response.getDataString().empty())
                 << "Expected an empty stream, got [" << response.getDataString()
                 << "]";
@@ -128,11 +131,19 @@ TEST_P(ClusterConfigTest, GetClusterConfig_ClusterCompat) {
 }
 
 TEST_P(ClusterConfigTest, test_MB_17506_no_dedupe) {
-    test_MB_17506(false);
+    test_MB_17506(false, false);
 }
 
 TEST_P(ClusterConfigTest, test_MB_17506_dedupe) {
-    test_MB_17506(true);
+    test_MB_17506(true, false);
+}
+
+TEST_P(ClusterConfigTest, test_MB_17506_no_dedupe_enabled_on_client) {
+    test_MB_17506(false, true);
+}
+
+TEST_P(ClusterConfigTest, test_MB_17506_dedupe_enabled_on_client) {
+    test_MB_17506(true, false);
 }
 
 TEST_P(ClusterConfigTest, Enable_CCCP_Push_Notifications) {

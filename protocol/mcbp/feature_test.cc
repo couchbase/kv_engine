@@ -45,7 +45,9 @@ const std::map<cb::mcbp::Feature, std::string> featureBlueprint = {
           "NonBlockingThrottlingMode"},
          {cb::mcbp::Feature::SubdocReplicaRead, "SubdocReplicaRead"},
          {cb::mcbp::Feature::GetClusterConfigWithKnownVersion,
-          "GetClusterConfigWithKnownVersion"}}};
+          "GetClusterConfigWithKnownVersion"},
+         {cb::mcbp::Feature::DedupeNotMyVbucketClustermap,
+          "DedupeNotMyVbucketClustermap"}}};
 
 TEST(to_string, LegalValues) {
     for (const auto& entry : featureBlueprint) {

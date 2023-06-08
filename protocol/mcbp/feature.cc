@@ -71,6 +71,8 @@ std::string to_string(cb::mcbp::Feature feature) {
         return "SubdocReplicaRead";
     case cb::mcbp::Feature::GetClusterConfigWithKnownVersion:
         return "GetClusterConfigWithKnownVersion";
+    case cb::mcbp::Feature::DedupeNotMyVbucketClustermap:
+        return "DedupeNotMyVbucketClustermap";
     }
 
     throw std::invalid_argument(

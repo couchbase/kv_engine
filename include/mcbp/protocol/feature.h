@@ -134,6 +134,10 @@ enum class Feature : uint16_t {
     /// supports that the client provides its known version of the cluster
     /// map as part of GetClusterConfig
     GetClusterConfigWithKnownVersion = 0x1d,
+    /// Notify the server that the client correctly deals with the optional
+    /// payload in "not-my-vbucket" (which allows for deduplication of
+    /// cluster map)
+    DedupeNotMyVbucketClustermap = 0x1e,
 };
 
 } // namespace cb::mcbp

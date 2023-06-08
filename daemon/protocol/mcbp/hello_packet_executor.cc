@@ -82,6 +82,7 @@ void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> 
         case cb::mcbp::Feature::NonBlockingThrottlingMode:
         case cb::mcbp::Feature::SubdocReplicaRead:
         case cb::mcbp::Feature::GetClusterConfigWithKnownVersion:
+        case cb::mcbp::Feature::DedupeNotMyVbucketClustermap:
 
             // This isn't very optimal, but we've only got a handfull of elements ;)
             if (!containsFeature(requested, feature)) {
@@ -119,6 +120,7 @@ void buildRequestVector(FeatureSet& requested, cb::sized_buffer<const uint16_t> 
         case cb::mcbp::Feature::NonBlockingThrottlingMode:
         case cb::mcbp::Feature::SubdocReplicaRead:
         case cb::mcbp::Feature::GetClusterConfigWithKnownVersion:
+        case cb::mcbp::Feature::DedupeNotMyVbucketClustermap:
             // No other dependency
             break;
 
@@ -209,6 +211,7 @@ void process_hello_packet_executor(Cookie& cookie) {
     connection.setAllowUnorderedExecution(false);
     connection.setReportUnitUsage(false);
     connection.setNonBlockingThrottlingMode(false);
+    connection.setDedupeNmvbMaps(false);
 
     if (!key.empty()) {
         if (key.front() == '{') {
@@ -308,6 +311,10 @@ void process_hello_packet_executor(Cookie& cookie) {
                 added = true;
             }
         } break;
+        case cb::mcbp::Feature::DedupeNotMyVbucketClustermap:
+            connection.setDedupeNmvbMaps(true);
+            added = true;
+            break;
         case cb::mcbp::Feature::Duplex:
             connection.setDuplexSupported(true);
             added = true;

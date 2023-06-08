@@ -255,7 +255,9 @@ void Cookie::sendNotMyVBucket() {
     auto pushed = connection.getPushedClustermapRevno();
     auto config =
             connection.getBucket().clusterConfiguration.maybeGetConfiguration(
-                    pushed, Settings::instance().isDedupeNmvbMaps());
+                    pushed,
+                    Settings::instance().isDedupeNmvbMaps() ||
+                            connection.dedupeNmvbMaps());
 
     if (config) {
         connection.sendResponse(*this,

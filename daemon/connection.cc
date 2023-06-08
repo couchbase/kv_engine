@@ -149,6 +149,10 @@ nlohmann::json Connection::to_json() const {
         features.push_back("NonBlockingThrottlingMode");
     }
 
+    if (dedupe_nmvb_maps) {
+        features.push_back("DedupeNotMyVbucketClustermap");
+    }
+
     ret["features"] = features;
 
     ret["thread"] = getThread().index;

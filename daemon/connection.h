@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2015-Present Couchbase, Inc.
  *
@@ -856,6 +855,16 @@ public:
      */
     bool maybeInitiateShutdown();
 
+    /// Do the client deal with cluster map deduplication in NMVB
+    bool dedupeNmvbMaps() const {
+        return dedupe_nmvb_maps;
+    }
+
+    /// Set if the client deals with cluster map deduplication in NMVB
+    void setDedupeNmvbMaps(bool val) {
+        dedupe_nmvb_maps = val;
+    }
+
 protected:
     /// Protected constructor so that it may only be used from create();
     Connection(SOCKET sfd,
@@ -1095,7 +1104,7 @@ protected:
     bool duplex_support{false};
 
     std::atomic_bool cccp{false};
-
+    std::atomic_bool dedupe_nmvb_maps{false};
     bool allow_unordered_execution{false};
 
     bool report_unit_usage{false};
