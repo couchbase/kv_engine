@@ -265,13 +265,27 @@ void Cookie::sendNotMyVBucket() {
                             connection.dedupeNmvbMaps());
 
     if (config) {
-        connection.sendResponse(*this,
-                                cb::mcbp::Status::NotMyVbucket,
-                                {},
-                                {},
-                                {config->config.data(), config->config.size()},
-                                PROTOCOL_BINARY_DATATYPE_JSON,
-                                {});
+        if (connection.supportsSnappyEverywhere()) {
+            connection.sendResponse(*this,
+                                    cb::mcbp::Status::NotMyVbucket,
+                                    {},
+                                    {},
+                                    config->compressed,
+                                    connection.getEnabledDatatypes(
+                                            PROTOCOL_BINARY_DATATYPE_JSON |
+                                            PROTOCOL_BINARY_DATATYPE_SNAPPY),
+                                    {});
+
+        } else {
+            connection.sendResponse(*this,
+                                    cb::mcbp::Status::NotMyVbucket,
+                                    {},
+                                    {},
+                                    config->uncompressed,
+                                    connection.getEnabledDatatypes(
+                                            PROTOCOL_BINARY_DATATYPE_JSON),
+                                    {});
+        }
         connection.setPushedClustermapRevno(config->version);
     } else {
         // We don't have a vbucket map, or we've already sent it to the

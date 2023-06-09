@@ -34,22 +34,20 @@ void ClusterConfiguration::reset() {
 }
 
 void ClusterConfiguration::setConfiguration(
-        std::unique_ptr<Configuration> configuration) {
+        std::shared_ptr<Configuration> configuration) {
     *config.lock() = std::move(configuration);
 }
 
-std::unique_ptr<ClusterConfiguration::Configuration>
+std::shared_ptr<ClusterConfiguration::Configuration>
 ClusterConfiguration::maybeGetConfiguration(const ClustermapVersion& version,
                                             bool dedupe) const {
-    auto locked = config.lock();
-    if (!*locked) {
-        return {};
-    }
+    return config.withLock(
+            [&version, dedupe](std::shared_ptr<Configuration> active)
+                    -> std::shared_ptr<Configuration> {
+                if (active && (version < active->version || !dedupe)) {
+                    return active;
+                }
 
-    auto& active = *locked->get();
-    if (version < active.version || !dedupe) {
-        return std::make_unique<Configuration>(active.version, active.config);
-    }
-
-    return {};
+                return {};
+            });
 }

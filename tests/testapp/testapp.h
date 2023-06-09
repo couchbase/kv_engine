@@ -45,7 +45,7 @@ enum class ClientJSONSupport { Yes, No };
 std::string to_string(ClientJSONSupport json);
 
 /// Should testapp client negotiate Snappy HELLO feature?
-enum class ClientSnappySupport { Yes, No };
+enum class ClientSnappySupport { Everywhere, Yes, No };
 std::string to_string(ClientSnappySupport s);
 
 // Needed by subdocument tests in seperate .cc file.

@@ -451,7 +451,7 @@ public:
     /// Set the cluster configuration for the named bucket
     cb::engine_errc setClusterConfig(
             const std::string& name,
-            std::unique_ptr<ClusterConfiguration::Configuration> configuration);
+            std::shared_ptr<ClusterConfiguration::Configuration> configuration);
 
     /// Destroy all of the buckets
     void destroyAll();

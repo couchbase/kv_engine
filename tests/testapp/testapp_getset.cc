@@ -330,6 +330,7 @@ void GetSetSnappyOnOffTest::doTestCompressedRawData(std::string mode) {
     document.compress();
 
     switch (hasSnappySupport()) {
+    case ClientSnappySupport::Everywhere:
     case ClientSnappySupport::Yes: {
         // Should be accepted.
         int successCount = getResponseCount(cb::mcbp::Status::Success);
@@ -371,6 +372,7 @@ void GetSetSnappyOnOffTest::doTestCompressedJSON(std::string mode) {
     document.compress();
 
     switch (hasSnappySupport()) {
+    case ClientSnappySupport::Everywhere:
     case ClientSnappySupport::Yes: {
         // Should be accepted.
         int successCount = getResponseCount(cb::mcbp::Status::Success);

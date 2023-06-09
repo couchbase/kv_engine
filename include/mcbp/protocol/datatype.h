@@ -21,7 +21,18 @@ namespace cb::mcbp {
  * See section 3.4 Data Types
  */
 
-enum class Datatype : uint8_t { Raw = 0, JSON = 1, Snappy = 2, Xattr = 4 };
+enum class Datatype : uint8_t {
+    /// "unknown" data
+    Raw = 0,
+    /// The data contains JSON
+    JSON = 1,
+    /// The data is compressed with Snappy compression
+    Snappy = 2,
+    /// Convenience for Snappy Compressed JSON data
+    SnappyCompressedJson = JSON | Snappy,
+    /// The data contains (at least one) XAttr section
+    Xattr = 4
+};
 
 static_assert((int(Datatype::Raw) | int(Datatype::JSON) |
                int(Datatype::Snappy) | int(Datatype::Xattr)) <= 0b111,

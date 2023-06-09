@@ -87,6 +87,8 @@ std::string to_string(ClientJSONSupport json) {
 
 std::string to_string(ClientSnappySupport snappy) {
     switch (snappy) {
+    case ClientSnappySupport::Everywhere:
+        return "SnappyEverywhere";
     case ClientSnappySupport::Yes:
         return "SnappyYes";
     case ClientSnappySupport::No:
@@ -1168,10 +1170,16 @@ MemcachedConnection& TestappTest::prepare(MemcachedConnection& connection) {
              cb::mcbp::Feature::XERROR,
              cb::mcbp::Feature::SELECT_BUCKET,
              cb::mcbp::Feature::SubdocReplaceBodyWithXattr}};
-    if (hasSnappySupport() == ClientSnappySupport::Yes) {
+    switch (hasSnappySupport()) {
+    case ClientSnappySupport::Everywhere:
+        features.push_back(cb::mcbp::Feature::SnappyEverywhere);
+        break;
+    case ClientSnappySupport::Yes:
         features.push_back(cb::mcbp::Feature::SNAPPY);
+        break;
+    case ClientSnappySupport::No:
+        break;
     }
-
     if (hasJSONSupport() == ClientJSONSupport::Yes) {
         features.push_back(cb::mcbp::Feature::JSON);
     }

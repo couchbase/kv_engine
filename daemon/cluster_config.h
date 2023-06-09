@@ -64,17 +64,22 @@ protected:
 class ClusterConfiguration {
 public:
     struct Configuration {
-        Configuration(ClustermapVersion version, std::string_view config)
-            : version(version), config(config) {
+        Configuration(ClustermapVersion version,
+                      std::string uncompressed,
+                      std::string compressed)
+            : version(version),
+              uncompressed(std::move(uncompressed)),
+              compressed(std::move(compressed)) {
         }
         const ClustermapVersion version;
-        const std::string config;
+        const std::string uncompressed;
+        const std::string compressed;
     };
 
-    void setConfiguration(std::unique_ptr<Configuration> configuration);
+    void setConfiguration(std::shared_ptr<Configuration> configuration);
 
     /// Get the configuration if it is newer than the provided version
-    std::unique_ptr<Configuration> maybeGetConfiguration(
+    std::shared_ptr<Configuration> maybeGetConfiguration(
             const ClustermapVersion& version, bool dedupe = true) const;
 
     /**
@@ -84,7 +89,7 @@ public:
     void reset();
 
 protected:
-    folly::Synchronized<std::unique_ptr<Configuration>, std::mutex> config;
+    folly::Synchronized<std::shared_ptr<Configuration>, std::mutex> config;
 };
 
 std::string to_string(const ClustermapVersion& version);

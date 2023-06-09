@@ -40,6 +40,8 @@ public:
     /// settings makes sure that only one client can run the settings reload
     /// at the same time
     cb::AwaitableSemaphore settings{1};
+    /// Compress Cluster Config should be serialized.
+    cb::AwaitableSemaphore compress_cluster_config{1};
 
 protected:
     ConcurrencySemaphores();

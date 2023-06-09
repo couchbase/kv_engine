@@ -40,6 +40,7 @@
 #include "protocol/mcbp/sasl_start_command_context.h"
 #include "protocol/mcbp/sasl_step_command_context.h"
 #include "protocol/mcbp/session_validated_command_context.h"
+#include "protocol/mcbp/set_cluster_config_command_context.h"
 #include "protocol/mcbp/settings_reload_command_context.h"
 #include "protocol/mcbp/single_state_steppable_context.h"
 #include "protocol/mcbp/stats_context.h"
@@ -609,6 +610,10 @@ static void compact_db_executor(Cookie& cookie) {
 
 static void rbac_refresh_executor(Cookie& cookie) {
     cookie.obtainContext<RbacReloadCommandContext>(cookie).drive();
+}
+
+static void set_cluster_config_executor(Cookie& cookie) {
+    cookie.obtainContext<SetClusterConfigCommandContext>(cookie).drive();
 }
 
 static void auth_provider_executor(Cookie& cookie) {
