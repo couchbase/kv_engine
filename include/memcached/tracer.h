@@ -107,6 +107,10 @@ public:
  */
 class MEMCACHED_PUBLIC_CLASS Tracer {
 public:
+    /// The maximum number of trace spans added (in addition to the entire
+    /// Request span)
+    static constexpr const std::size_t MaxTraceSpans = 500;
+
     /// Begin a Span starting from the specified time point (defaults to now)
     SpanId begin(Code tracecode, Clock::time_point startTime = Clock::now());
 

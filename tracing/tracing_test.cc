@@ -13,12 +13,19 @@
 #include <chrono>
 #include <thread>
 
+class MockTracer : public cb::tracing::Tracer {
+public:
+    std::size_t size() const {
+        return vecSpans.lock()->size();
+    }
+};
+
 class TracingTest : public ::testing::Test {
 public:
     void SetUp() override {
         tracer.clear();
     }
-    cb::tracing::Tracer tracer;
+    MockTracer tracer;
 };
 
 TEST_F(TracingTest, Basic) {
@@ -36,6 +43,25 @@ TEST_F(TracingTest, Basic) {
 
     // valid micros
     EXPECT_GE(tracer.getTotalMicros().count(), 10000);
+}
+
+TEST_F(TracingTest, MB56972) {
+    auto now = cb::tracing::Clock::now();
+    for (std::size_t ii = 0; ii < cb::tracing::Tracer::MaxTraceSpans + 2;
+         ++ii) {
+        tracer.record(cb::tracing::Code::AssociateBucket,
+                      now + std::chrono::nanoseconds{ii},
+                      now + std::chrono::microseconds{ii + 2});
+    }
+
+    EXPECT_EQ(cb::tracing::Tracer::MaxTraceSpans, tracer.size());
+    // But we should be allowed to add a Request span (which would contain
+    // the complete duration of the object)
+    tracer.record(cb::tracing::Code::Request,
+                  now,
+                  now + std::chrono::microseconds{1000});
+    EXPECT_EQ(cb::tracing::Tracer::MaxTraceSpans + 1, tracer.size());
+    EXPECT_NE(std::string::npos, tracer.to_string().find("overflow="));
 }
 
 TEST_F(TracingTest, ErrorRate) {

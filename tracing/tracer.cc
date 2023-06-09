@@ -41,7 +41,9 @@ bool Tracer::end(SpanId spanId, Clock::time_point endTime) {
 void Tracer::record(Code code, Clock::time_point start, Clock::time_point end) {
     auto duration = std::chrono::duration_cast<Span::Duration>(end - start);
     vecSpans.withLock([code, start, duration](auto& spans) {
-        spans.emplace_back(code, start, duration);
+        if (spans.size() < MaxTraceSpans || code == Code::Request) {
+            spans.emplace_back(code, start, duration);
+        }
     });
 }
 
@@ -92,7 +94,7 @@ void Tracer::clear() {
 }
 
 std::string Tracer::to_string() const {
-    return vecSpans.withLock([](auto& spans) {
+    return vecSpans.withLock([this](auto& spans) {
         std::ostringstream os;
         auto size = spans.size();
         for (const auto& span : spans) {
@@ -108,6 +110,19 @@ std::string Tracer::to_string() const {
                 os << " ";
             }
         }
+
+        if (spans.size() == MaxTraceSpans + 1) {
+            // If we've got "an overflow" it mans that we've (most likely)
+            // dropped some frames (we could in theory hit the exact number
+            // of trace spans; Ignore that and assume that we've dropped
+            // elements). The last entry in the vector is the Request span,
+            // so we should take the start time from the one before that
+            // and use as the start time for our overflow entry.
+            os << " overflow="
+               << spans.at(MaxTraceSpans - 1).start.time_since_epoch().count()
+               << ":--";
+        }
+
         return os.str();
     });
 }
