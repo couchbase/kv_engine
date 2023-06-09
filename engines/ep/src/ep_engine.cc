@@ -5554,8 +5554,7 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
         if (cookie.isTracingEnabled()) {
             NonBucketAllocationGuard guard;
             auto& tracer = cookie.getTracer();
-            auto spanid = tracer.begin(Code::SetWithMeta, startTime);
-            tracer.end(spanid, endTime);
+            tracer.record(Code::SetWithMeta, startTime, endTime);
         }
         auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
                 endTime - startTime);

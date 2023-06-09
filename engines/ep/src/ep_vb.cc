@@ -130,10 +130,12 @@ cb::engine_errc EPVBucket::completeBGFetchForSingleItem(
                 if (traceable && traceable->isTracingEnabled()) {
                     NonBucketAllocationGuard guard;
                     auto& tracer = traceable->getTracer();
-                    tracer.end(fetched_item.traceSpanId, startTime);
-                    auto spanId = tracer.begin(
-                            cb::tracing::Code::BackgroundLoad, startTime);
-                    tracer.end(spanId, fetchEnd);
+                    tracer.record(cb::tracing::Code::BackgroundWait,
+                                  fetched_item.initTime,
+                                  startTime);
+                    tracer.record(cb::tracing::Code::BackgroundLoad,
+                                  startTime,
+                                  fetchEnd);
                 }
             });
 

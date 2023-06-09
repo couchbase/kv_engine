@@ -18,26 +18,6 @@
 
 namespace cb::tracing {
 
-SpanId Tracer::begin(Code tracecode, Clock::time_point startTime) {
-    return vecSpans.withLock([tracecode, startTime](auto& spans) {
-        spans.emplace_back(tracecode, startTime);
-        return spans.size() - 1;
-    });
-}
-
-bool Tracer::end(SpanId spanId, Clock::time_point endTime) {
-    return vecSpans.withLock([spanId, endTime](auto& spans) {
-        if (spanId >= spans.size()) {
-            return false;
-        }
-
-        auto& span = spans.at(spanId);
-        span.duration = std::chrono::duration_cast<Span::Duration>(endTime -
-                                                                   span.start);
-        return true;
-    });
-}
-
 void Tracer::record(Code code, Clock::time_point start, Clock::time_point end) {
     auto duration = std::chrono::duration_cast<Span::Duration>(end - start);
     vecSpans.withLock([code, start, duration](auto& spans) {

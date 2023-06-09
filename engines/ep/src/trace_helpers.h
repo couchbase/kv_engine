@@ -26,10 +26,9 @@
 class ScopedTracer {
 public:
     ScopedTracer(cb::tracing::Traceable& traceable, cb::tracing::Code code)
-        : traceable(traceable) {
+        : traceable(traceable), code(code) {
         if (traceable.isTracingEnabled()) {
-            NonBucketAllocationGuard guard;
-            spanId = traceable.getTracer().begin(code);
+            start = cb::tracing::Clock::now();
         }
     }
 
@@ -39,15 +38,16 @@ public:
 
     ~ScopedTracer() {
         if (traceable.isTracingEnabled()) {
-            traceable.getTracer().end(spanId);
+            NonBucketAllocationGuard guard;
+            traceable.getTracer().record(
+                    code, start, cb::tracing::Clock::now());
         }
     }
 
 protected:
     cb::tracing::Traceable& traceable;
-
-    /// ID of our Span.
-    cb::tracing::SpanId spanId = {};
+    cb::tracing::Clock::time_point start;
+    cb::tracing::Code code;
 };
 
 /**
@@ -73,8 +73,7 @@ public:
         if (traceable && traceable->isTracingEnabled()) {
             NonBucketAllocationGuard guard;
             auto& tracer = traceable->getTracer();
-            const auto spanId = tracer.begin(code, startTime);
-            tracer.end(spanId, stopTime);
+            tracer.record(code, startTime, stopTime);
         }
     }
 

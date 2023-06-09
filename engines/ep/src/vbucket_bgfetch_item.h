@@ -102,7 +102,6 @@ public:
     }
 
     CookieIface* cookie;
-    cb::tracing::SpanId traceSpanId;
     ValueFilter filter;
 };
 

@@ -416,7 +416,6 @@ void Cookie::initialize(const cb::mcbp::Header& header, bool tracing_enabled) {
                       Settings::instance().alwaysCollectTraceInfo());
     setPacket(header);
     start = std::chrono::steady_clock::now();
-    tracer.begin(cb::tracing::Code::Request, start);
 
     if (Settings::instance().getVerbose() > 1) {
         try {
@@ -803,9 +802,7 @@ void Cookie::collectTimings(
 
     const auto opcode = packet->getRequest().getClientOpcode();
     const auto elapsed = endTime - start;
-
-    // End the tracing span (Request) which is the first span in the tracer
-    tracer.end(cb::tracing::SpanId{0}, endTime);
+    tracer.record(cb::tracing::Code::Request, start, endTime);
 
     // aggregated timing for all buckets
     all_buckets[0].timings.collect(opcode, elapsed);

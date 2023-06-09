@@ -23,11 +23,6 @@ FrontEndBGFetchItem::FrontEndBGFetchItem(CookieIface* cookie,
     : BGFetchItem(std::chrono::steady_clock::now(), token),
       cookie(cookie),
       filter(filter) {
-    if (cookie && cookie->isTracingEnabled()) {
-        NonBucketAllocationGuard guard;
-        traceSpanId = cookie->getTracer().begin(
-                cb::tracing::Code::BackgroundWait, initTime);
-    }
 }
 
 void FrontEndBGFetchItem::complete(

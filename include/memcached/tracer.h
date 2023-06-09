@@ -80,7 +80,6 @@ enum class Code : uint8_t {
     Sasl,
 };
 
-using SpanId = std::size_t;
 using Clock = std::chrono::steady_clock;
 
 class Span {
@@ -105,12 +104,6 @@ public:
  */
 class Tracer {
 public:
-    /// Begin a Span starting from the specified time point (defaults to now)
-    SpanId begin(Code tracecode, Clock::time_point startTime = Clock::now());
-
-    /// End a Span, stopping at the specified time point (defaults to now).
-    bool end(SpanId spanId, Clock::time_point endTime = Clock::now());
-
     // Record a complete Span (when both start and end are already known).
     void record(Code code, Clock::time_point start, Clock::time_point end);
 
