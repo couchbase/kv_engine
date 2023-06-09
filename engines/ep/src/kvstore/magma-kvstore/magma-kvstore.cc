@@ -1962,7 +1962,7 @@ scan_error_t MagmaKVStore::scan(ByIdScanContext& ctx) const {
             range.rangeScanSuccess = true;
             continue;
         case scan_again:
-            range.startKey = ctx.lastReadKey;
+            range.startKey = ctx.resumeFromKey;
             return status;
         case scan_failed:
             // deeper calls log details
@@ -1994,12 +1994,13 @@ scan_error_t MagmaKVStore::scan(ByIdScanContext& ctx,
                     return itr->GetValue(value);
                 });
         switch (result.code) {
-        case MagmaScanResult::Status::Success:
         case MagmaScanResult::Status::Again:
+            ctx.resumeFromKey = makeDiskDocKey(keySlice);
+            [[fallthrough]];
+        case MagmaScanResult::Status::Success:
         case MagmaScanResult::Status::Failed:
             return scan_error_t(result.code);
         case MagmaScanResult::Status::Next:
-            ctx.lastReadKey = makeDiskDocKey(keySlice);
             continue;
         }
     }
