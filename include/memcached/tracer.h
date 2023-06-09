@@ -104,6 +104,9 @@ public:
  */
 class Tracer {
 public:
+    /// The maximum number of trace spans added (in addition to the entire
+    /// Request span)
+    static constexpr const std::size_t MaxTraceSpans = 500;
     // Record a complete Span (when both start and end are already known).
     void record(Code code, Clock::time_point start, Clock::time_point end);
 
