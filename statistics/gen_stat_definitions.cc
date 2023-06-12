@@ -14,6 +14,7 @@
 #include <fmt/ostream.h>
 #include <getopt.h>
 #include <nlohmann/json.hpp>
+#include <platform/terminal_color.h>
 #include <prometheus/metric_type.h>
 #include <statistics/units.h>
 #include <fstream>
@@ -117,21 +118,41 @@ struct Spec {
 
     bool cbstatEnabled = true;
     bool prometheusEnabled = true;
+    std::string stability = "committed";
+    std::string added = "";
 
-    void validate() const {
+    [[nodiscard]] bool validate() const {
+        bool success = true;
+        auto fail = [&](auto&&... args) {
+            success = false;
+            fmt::print(stderr,
+                       "{}genstats: {}{}",
+                       cb::terminal::TerminalColor::Red,
+                       fmt::format(std::forward<decltype(args)>(args)...),
+                       cb::terminal::TerminalColor::Reset);
+        };
         if (!cbstatEnabled && !prometheusEnabled) {
-            throw std::runtime_error(fmt::format(
-                    "Stat:{} is not exposed for either of cbstat or prometheus",
-                    enumKey));
+            fail("'{}' is not exposed for either of cbstat or prometheus",
+                 enumKey);
         }
         if (!prometheus.family.empty() &&
             !isValidMetricFamily(prometheus.family)) {
-            throw std::runtime_error(fmt::format(
-                    "Stat:{} has invalid prometheus metric family name. Must "
-                    "match regex:{}",
-                    enumKey,
-                    metricFamilyRegexStr));
+            fail("'{}' has invalid prometheus metric family name. Must "
+                 "match regex:{}",
+                 enumKey,
+                 metricFamilyRegexStr);
         }
+
+        if (!(stability == "committed" || stability == "volatile" ||
+              stability == "internal")) {
+            fail("'{}' invalid value for field: stability: '{}'\n",
+                 enumKey,
+                 stability);
+        }
+        if (added.empty()) {
+            fail("'{}' missing required field: added\n", enumKey);
+        }
+        return success;
     }
 };
 
@@ -215,6 +236,14 @@ void from_json(const nlohmann::json& j, Spec& s) {
                                 type.type_name()));
         }
         type.get_to(s.type);
+    }
+
+    if (auto itr = j.find("stability"); itr != j.end()) {
+        s.stability = itr.value();
+    }
+
+    if (auto itr = j.find("added"); itr != j.end()) {
+        s.added = itr.value();
     }
 }
 
@@ -319,9 +348,7 @@ void addDocumentation(const Spec& spec,
     using namespace nlohmann;
     json statDoc{{"type", type}, {"help", statJson.value("description", "")}};
 
-    if (auto itr = statJson.find("stability"); itr != statJson.end()) {
-        statDoc["stability"] = itr.value();
-    }
+    statDoc["stability"] = spec.stability;
 
     if (auto itr = statJson.find("added"); itr != statJson.end()) {
         statDoc["added"] = itr.value();
@@ -405,17 +432,31 @@ int main(int argc, char** argv) {
     // by docs
     nlohmann::json documentation;
 
+    bool anyFailedRequirements = false;
+
     for (const auto& statJson : stats) {
         // parse fields from json
         Spec spec = statJson;
         // check basic requirements are met
-        spec.validate();
+        if (!spec.validate()) {
+            // Don't stop at the first failure. This means multiple issues
+            // can be found in a single build rather than fail-fix-rebuild
+            // for each instance.
+            anyFailedRequirements = true;
+            continue;
+        }
         // format the enum key for the .h
         fmt::format_to(std::back_inserter(enumKeysBuf), "{},\n", spec.enumKey);
         // format the whole stat def for the .cc
         fmt::format_to(std::back_inserter(statDefsBuf), "{},\n", spec);
 
         addDocumentation(spec, statJson, documentation);
+    }
+
+    if (anyFailedRequirements) {
+        // requirements failures will have been logged to stderr already
+        // just exit and fail this build.
+        return 1;
     }
 
     // generate header, containing enum keys and definition array decl

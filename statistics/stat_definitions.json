@@ -443,13 +443,15 @@
         "key": "ep_blob_num_allocated_total",
         "unit": "count",
         "type": "counter",
-        "description": "The number of blob object allocations"
+        "description": "The number of blob object allocations",
+        "added": "7.6.0"
     },
     {
         "key": "ep_blob_num_freed_total",
         "unit": "count",
         "type": "counter",
-        "description": "The number of blob object deallocations"
+        "description": "The number of blob object deallocations",
+        "added": "7.6.0"
     },
     {
         "key": "ep_blob_overhead",
@@ -480,13 +482,15 @@
         "key": "ep_value_size_allocated_total",
         "unit": "bytes",
         "type": "counter",
-        "description": "The total number of bytes ever allocated for blob objects"
+        "description": "The total number of bytes ever allocated for blob objects",
+        "added": "7.6.0"
     },
     {
         "key": "ep_value_size_freed_total",
         "unit": "bytes",
         "type": "counter",
-        "description": "The total number of bytes ever freed by deallocated blob objects"
+        "description": "The total number of bytes ever freed by deallocated blob objects",
+        "added": "7.6.0"
     },
     {
         "key": "ep_storedval_size",
@@ -504,13 +508,15 @@
         "key": "ep_storedval_size_allocated_total",
         "unit": "bytes",
         "type": "counter",
-        "description": "The total number of bytes ever allocated for storedval objects"
+        "description": "The total number of bytes ever allocated for storedval objects",
+        "added": "7.6.0"
     },
     {
         "key": "ep_storedval_size_freed_total",
         "unit": "bytes",
         "type": "counter",
-        "description": "The total number of bytes ever freed by deallocated storedval objects"
+        "description": "The total number of bytes ever freed by deallocated storedval objects",
+        "added": "7.6.0"
     },
     {
         "key": "ep_storedval_overhead",
@@ -534,13 +540,15 @@
         "key": "ep_storedval_num_allocated_total",
         "unit": "count",
         "type": "counter",
-        "description": "The number of storedval object allocations"
+        "description": "The number of storedval object allocations",
+        "added": "7.6.0"
     },
     {
         "key": "ep_storedval_num_freed_total",
         "unit": "count",
         "type": "counter",
-        "description": "The number of blob object deallocations"
+        "description": "The number of blob object deallocations",
+        "added": "7.6.0"
     },
     {
         "key": "ep_overhead",
@@ -561,13 +569,15 @@
         "key": "ep_item_num_allocated_total",
         "unit": "count",
         "type": "counter",
-        "description": "The number of item object allocations"
+        "description": "The number of item object allocations",
+        "added": "7.6.0"
     },
     {
         "key": "ep_item_num_freed_total",
         "unit": "count",
         "type": "counter",
-        "description": "The number of item object deallocations"
+        "description": "The number of item object deallocations",
+        "added": "7.6.0"
     },
     {
         "key": "ep_oom_errors",
@@ -1083,13 +1093,15 @@
         "key": "ep_num_checkpoints_allocated_total",
         "unit": "count",
         "type": "counter",
-        "description": "The number of checkpoint object allocations"
+        "description": "The number of checkpoint object allocations",
+        "added": "7.6.0"
     },
     {
         "key": "ep_num_checkpoints_freed_total",
         "unit": "count",
         "type": "counter",
-        "description": "The number of checkpoint object deallocations"
+        "description": "The number of checkpoint object deallocations",
+        "added": "7.6.0"
     },
     {
         "key": "ep_num_checkpoints_pending_destruction",
@@ -3169,7 +3181,8 @@
             "labels": {
                 "type": "producer"
             }
-        }
+        },
+        "added": "7.0.0"
     },
     {
         "key": "connagg_consumer_count",
