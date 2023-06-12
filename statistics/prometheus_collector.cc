@@ -26,8 +26,7 @@ void PrometheusStatCollector::addStat(const cb::stats::StatDef& spec,
     if (!spec.isPrometheusStat()) {
         return;
     }
-    if (spec.type != prometheus::MetricType::Histogram &&
-        spec.type != prometheus::MetricType::Untyped) {
+    if (spec.type != prometheus::MetricType::Histogram) {
         throw std::logic_error(fmt::format(
                 "PrometheusStatCollector: metricFamily:{} cannot "
                 "expose a histogram value as metric with non-histogram type",

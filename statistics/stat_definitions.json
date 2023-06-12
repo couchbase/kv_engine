@@ -1755,18 +1755,21 @@
     {
         "key": "cmd_duration",
         "unit": "microseconds",
+        "type": "histogram",
         "cbstat": false,
         "added": "7.0.0"
     },
     {
         "key": "bg_wait",
         "unit": "microseconds",
+        "type": "histogram",
         "description": "bg fetches waiting in the dispatcher queue",
         "added": "7.0.0"
     },
     {
         "key": "bg_load",
         "unit": "microseconds",
+        "type": "histogram",
         "description": "bg fetches waiting for disk",
         "added": "7.0.0"
     },
@@ -1884,6 +1887,7 @@
     {
         "key": "disk_insert",
         "unit": "microseconds",
+        "type": "histogram",
         "prometheus": {
             "family": "disk",
             "labels": {
@@ -1896,6 +1900,7 @@
     {
         "key": "disk_update",
         "unit": "microseconds",
+        "type": "histogram",
         "prometheus": {
             "family": "disk",
             "labels": {
@@ -1908,6 +1913,7 @@
     {
         "key": "disk_del",
         "unit": "microseconds",
+        "type": "histogram",
         "prometheus": {
             "family": "disk",
             "labels": {
@@ -1920,6 +1926,7 @@
     {
         "key": "disk_vb_del",
         "unit": "microseconds",
+        "type": "histogram",
         "prometheus": {
             "family": "disk",
             "labels": {
@@ -1932,6 +1939,7 @@
     {
         "key": "disk_commit",
         "unit": "microseconds",
+        "type": "histogram",
         "prometheus": {
             "family": "disk",
             "labels": {
@@ -1944,6 +1952,7 @@
     {
         "key": "item_alloc_sizes",
         "unit": "bytes",
+        "type": "histogram",
         "description": "Item allocation size counters (in bytes)",
         "added": "7.0.0"
     },
@@ -1951,6 +1960,7 @@
     {
         "key": "bg_batch_size",
         "unit": "count",
+        "type": "histogram",
         "description": "Batch size for background fetches",
         "added": "7.0.0"
     },
@@ -1972,6 +1982,7 @@
     {
         "key": "sync_write_commit_majority",
         "unit": "microseconds",
+        "type": "histogram",
         "prometheus": {
             "family": "sync_write_commit_duration",
             "labels": {
@@ -1984,6 +1995,7 @@
     {
         "key": "sync_write_commit_majority_and_persist_on_master",
         "unit": "microseconds",
+        "type": "histogram",
         "prometheus": {
             "family": "sync_write_commit_duration",
             "labels": {
@@ -1996,6 +2008,7 @@
     {
         "key": "sync_write_commit_persist_to_majority",
         "unit": "microseconds",
+        "type": "histogram",
         "prometheus": {
             "family": "sync_write_commit_duration",
             "labels": {

@@ -307,15 +307,9 @@ TEST_F(PrometheusStatTest, HistogramsHaveCorrectMetricType) {
                               prometheus::MetricType::Histogram),
                       hist);
 
-    // hdrhistogram as if declared in stats_definitions.json without a
-    // specified type
-    collector.addStat(StatDef({},
-                              cb::stats::units::none,
-                              "DeclaredAsDefault",
-                              prometheus::MetricType::Untyped),
-                      hist);
-
-    for (auto type : {prometheus::MetricType::Gauge,
+    for (auto type : {prometheus::MetricType::Untyped,
+                      prometheus::MetricType::Info,
+                      prometheus::MetricType::Gauge,
                       prometheus::MetricType::Counter,
                       prometheus::MetricType::Summary}) {
         EXPECT_THROW(collector.addStat(StatDef({},
@@ -329,10 +323,10 @@ TEST_F(PrometheusStatTest, HistogramsHaveCorrectMetricType) {
                 << int(type);
     }
 
-    // check that each added stat will provide prometheus-ccp with
+    // check that the added stat will provide prometheus-cpp with
     // prometheus::MetricType::Histogram as the type.
     using namespace ::testing;
-    EXPECT_THAT(stats, SizeIs(2));
+    EXPECT_THAT(stats, SizeIs(1));
 
     EXPECT_THAT(stats,
                 Each(Pair(_,
