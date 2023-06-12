@@ -68,6 +68,11 @@ nlohmann::json Cookie::to_json() const {
     ret["aiostat"] = to_string(cb::engine_errc(aiostat));
     ret["throttled"] = throttled.load();
     ret["refcount"] = uint32_t(refcount);
+    ret["started"] = fmt::format(
+            "{} ({} ago)",
+            start.time_since_epoch().count(),
+            cb::time2text(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    std::chrono::steady_clock::now() - start)));
 
     auto es = engine_storage.withLock([](const auto& ptr) -> nlohmann::json {
         if (ptr) {
