@@ -344,6 +344,14 @@ public:
         return rangeScans;
     }
 
+    void incrementHistoricalItemsFlushed() {
+        historicalItemsFlushed++;
+    }
+
+    auto getHistoricalItemsFlushed() const {
+        return historicalItemsFlushed.load();
+    }
+
 protected:
     /**
      * queue a background fetch of the specified item.
@@ -492,6 +500,9 @@ private:
      * All of this VBucket's RangeScan objects are owned by this member
      */
     VB::RangeScanOwner rangeScans;
+
+    /// counter of items tagged with CanDeduplicate::No flushed
+    cb::RelaxedAtomic<size_t> historicalItemsFlushed;
 
     friend class EPVBucketTest;
 };

@@ -7276,7 +7276,8 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
         vb_details.insert(vb_details.end(),
                           {"vb_0:db_data_size",
                            "vb_0:db_file_size",
-                           "vb_0:db_prepare_size"});
+                           "vb_0:db_prepare_size",
+                           "vb_0:history_items_flushed"});
 
         if (isMagmaBucket(h)) {
             vb_details.insert(vb_details.end(), {"vb_0:history_start_seqno"});

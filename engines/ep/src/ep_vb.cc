@@ -573,6 +573,10 @@ void EPVBucket::addStats(VBucketStatsDetailLevel detail,
                     add_stat,
                     c);
         }
+        addStat("history_items_flushed",
+                historicalItemsFlushed.load(),
+                add_stat,
+                c);
     }
 }
 
