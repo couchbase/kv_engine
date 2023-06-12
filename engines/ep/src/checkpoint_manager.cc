@@ -671,11 +671,12 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
 
     {
         // Acquire the queueLock just for the very short time necessary for
-        // updating the checkpoint's queued-items mem-usage and removing the
-        // expel-cursor.
-
+        // updating the checkpoint's queued-items mem-usage.
+        //
         // Note that the presence of the expel-cursor at this step ensures that
-        // the checkpoint is still in the CheckpointList.
+        // the checkpoint is still in the CheckpointList; unless the VBucket has
+        // rolled-back (see the following).
+        // Expel-cursor is released once extractRes is destroyed at caller.
         std::lock_guard<std::mutex> lh(queueLock);
         auto* checkpoint = extractRes.getCheckpoint();
         Expects(checkpoint);
@@ -2052,8 +2053,7 @@ CheckpointManager::ExtractItemsResult CheckpointManager::extractItemsToExpel(
         // with the lowest seqno should be in that checkpoint.
         if (lowestCursor->getCheckpoint()->get() != oldestCheckpoint) {
             std::stringstream ss;
-            ss << "CheckpointManager::expelUnreferencedCheckpointItems: ("
-               << vb.getId()
+            ss << "CheckpointManager::extractItemsToExpel: (" << vb.getId()
                << ") lowest found cursor is not in the oldest "
                   "checkpoint. Oldest checkpoint ID: "
                << oldestCheckpoint->getId()
