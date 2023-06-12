@@ -110,11 +110,15 @@ struct BackfillTrackingIface {
     virtual ~BackfillTrackingIface() = default;
 
     /**
-     * Checks if one more backfill can be added to the active set. If so
-     * then returns true, and notes that one more backfill is active.
-     * If no more backfills can be added to the active set, returns false.
+     * Checks if one more backfill requested by a client can be added to the
+     * active set.
+     * On success the client is responsible for incrementing the count of the
+     * number of backfills which are active.
+     * @param numInProgress count of Backfills already in progress by the
+     *        calling connection.
+     * @returns true if backfill can become active, if not returns false.
      */
-    virtual bool canAddBackfillToActiveQ() = 0;
+    virtual bool canAddBackfillToActiveQ(int numInProgress) = 0;
 
     /**
      * Decrement by one the number of running (active/initializing/snoozing)

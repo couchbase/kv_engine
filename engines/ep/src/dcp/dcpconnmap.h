@@ -114,7 +114,7 @@ public:
 
     void manageConnections() override;
 
-    bool canAddBackfillToActiveQ() override;
+    bool canAddBackfillToActiveQ(int numInProgress) override;
 
     void decrNumRunningBackfills() override;
 
@@ -192,6 +192,9 @@ protected:
      */
     void consumerAllowSanitizeValueInDeletionConfigChanged(bool newValue);
 
+    /// Change the max number of backfills per DCP connection.
+    void backfillsInProgressPerConnectionConfigChanged(size_t newValue);
+
     /**
      * @param engine The engine
      * @param cookie The cookie that identifies the connection
@@ -234,6 +237,10 @@ protected:
     static const uint8_t numBackfillsMemThreshold;
 
     std::atomic<float> minCompressionRatioForProducer;
+
+    /// Maximum number of backfills per connection - taken from
+    /// dcp_backfill_in_progress_per_connection_limit.
+    std::atomic<int> maxNumBackfillsPerConnection;
 
     /* Total memory used by all DCP consumer buffers */
     std::atomic<size_t> aggrDcpConsumerBufferSize;

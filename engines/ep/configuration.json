@@ -1095,6 +1095,13 @@
             "dynamic": false,
             "type": "size_t"
         },
+        "dcp_backfill_in_progress_per_connection_limit": {
+            "default": "1",
+            "descr": "The maximum number of backfills each connection can have in-progress (i.e. KVStore snapshot open and reading data from)",
+            "dynamic": true,
+            "type": "size_t"
+        },
+
         "dcp_flow_control_policy": {
             "default": "aggressive",
             "descr": "Flow control policy used on consumer side buffer",

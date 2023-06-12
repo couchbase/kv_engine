@@ -2056,6 +2056,24 @@ TEST_F(DcpConnMapTest,
     testLockInversionInSetVBucketStateAndNewProducer();
 }
 
+// MB-57304: Test that the number of backfills a single DCP connection can
+// have active at a time is limited to
+TEST_F(DcpConnMapTest, LimitToOneBackfillPerConnection) {
+    using ::testing::InSequence;
+    using ::testing::Return;
+
+    DcpConnMap connMap(*engine);
+
+    // canAddBackfillToActiveQ returns success if client is not already
+    // running any backfills - for multiple "clients"
+    EXPECT_TRUE(connMap.canAddBackfillToActiveQ(0));
+    EXPECT_TRUE(connMap.canAddBackfillToActiveQ(0));
+
+    // Returns false if one is already in progress.
+    EXPECT_FALSE(connMap.canAddBackfillToActiveQ(1));
+    EXPECT_FALSE(connMap.canAddBackfillToActiveQ(1));
+}
+
 class NotifyTest : public DCPTest {
 };
 

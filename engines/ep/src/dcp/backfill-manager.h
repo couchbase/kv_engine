@@ -34,6 +34,7 @@
  * - dcp_scan_byte_limit
  * - dcp_scan_item_limit
  * - dcp_backfill_byte_limit
+ * - dcp_backfill_in_progress_per_connection_limit
  *
  * Implementation
  * --------------
@@ -47,12 +48,23 @@
  * used to (a) limit the number of Backfills in progress at any one time
  * (b) apply suitable scheduling to the active Backfills.
  *
- * The following queues exist:
+ * Backfills are in one of two states:
+ * - pending - Backfills which are waiting to be started. In this state they
+ *             do not consume any disk resources. Newly-scheduled Backfills
+ *             are initially placed here if too many Backfills are already
+ *             in-progress.
+ *
+ * - in-progress - Backfills which have opened a (typically disk) snapshot and
+ *                 are in the middle of reading data. We limit the number of
+ *                 in-progress backfills - both at the bucket level and
+ *                 per-BackfillManager as all in-progress Backfills consume
+ *                 resources (file descriptors, memory for ephemeral) and hence
+ *                 we only allow a finite number.
+ *
+ * For in-progress backfills the following sub-types exist:
  *
  * - initializing - Newly-scheduled Backfills are initially placed here. These
  *                  Backfills will be run first before any others.
- * - pending - Newly-scheduled Backfills are initially placed here if too many
- *             Backfills are already scheduled.
  * - active - Backfills which are actively being run. These backfills are run
  *            in queue order as long as no backfills exist in
  *            initializingBackfills. The order these are executed in depends on
@@ -61,12 +73,16 @@
  *              periodically be re-considered for running (and moving to
  *              activeBackfills)
  *
+ * There are four queues - pendingBackfills, initializingBackfills,
+ * activeBackfills and snoozingBackfills - which hold the backfills of each
+ * (sub)type.
+ *
  * The lifecycle of a Backfill is:
  *
  *          schedule()
  *               |
  *               V
- *     exceeded active limit?
+ *     exceeded in-progress limit?
  *       /                \
  *      Yes                No
  *      |                  |
@@ -97,7 +113,7 @@
  *   [snoozingBackfills]                                         |
  *   [back        front]                                         |
  *                    |                                          |
- *        activeBackfills space available                        |
+ *        snoozed for more than snoozeTime?                      |
  *                    \_________________________________________/
  *
  */
@@ -258,13 +274,16 @@ private:
      * Move Backfills which are pending to the New backfill queue while there
      * is available capacity.
      */
-    void movePendingToInitializing();
+    void movePendingToInitializing(const std::unique_lock<std::mutex>& lh);
 
     /**
      * Move Backfills which are snoozing to the Active queue if they have
      * snoozed for long enough.
      */
     void moveSnoozingToActiveQueue();
+
+    /// @returns the number of backfills in progress
+    int getNumInProgressBackfills(const std::unique_lock<std::mutex>& lh) const;
 
     /// The source queue of a dequeued backfill
     enum class Source {
@@ -308,6 +327,17 @@ private:
     //! When the number of (activeBackfills + snoozingBackfills) crosses a
     //!   threshold we use pendingBackfills
     std::list<UniqueDCPBackfillPtr> pendingBackfills;
+
+    /**
+     * Count of backfills which are in progress (initializing, active, snoozing)
+     * but are not currently tracked in one of the backfill queues - i.e. they
+     * have been dequeued for running, and not yet added back to the appropriate
+     * list.
+     * Used by getNumInProgressBackfills() to enforce the limit on the number
+     * of running backfills.
+     */
+    int numInProgressUntrackedBackfills{0};
+
     // KVBucket this BackfillManager is associated with.
     KVBucket& kvBucket;
     // The object tracking how many backfills are in progress. This tells

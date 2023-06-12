@@ -45,11 +45,12 @@ DcpConnMap::DcpConnMap(EventuallyPersistentEngine &e)
       aggrDcpConsumerBufferSize(0) {
     backfills.running = 0;
     updateMaxRunningBackfills(engine.getEpStats().getMaxDataSize());
-    minCompressionRatioForProducer.store(
-                    engine.getConfiguration().getDcpMinCompressionRatio());
+    auto& config = engine.getConfiguration();
+    minCompressionRatioForProducer.store(config.getDcpMinCompressionRatio());
+    backfillsInProgressPerConnectionConfigChanged(
+            config.getDcpBackfillInProgressPerConnectionLimit());
 
     // Note: these allocations are deleted by ~Configuration
-    auto& config = engine.getConfiguration();
     config.addValueChangedListener(
             "dcp_consumer_process_buffered_messages_yield_limit",
             std::make_unique<DcpConfigChangeListener>(*this));
@@ -61,6 +62,8 @@ DcpConnMap::DcpConnMap(EventuallyPersistentEngine &e)
             std::make_unique<DcpConfigChangeListener>(*this));
     config.addValueChangedListener(
             "allow_sanitize_value_in_deletion",
+            std::make_unique<DcpConfigChangeListener>(*this));
+    config.addValueChangedListener("dcp_backfill_in_progress_per_connection_limit",
             std::make_unique<DcpConfigChangeListener>(*this));
 }
 
@@ -436,8 +439,25 @@ void DcpConnMap::notifyBackfillManagerTasks() {
     }
 }
 
-bool DcpConnMap::canAddBackfillToActiveQ()
-{
+bool DcpConnMap::canAddBackfillToActiveQ(int numInProgress) {
+    // MB-57304: Given there's only one BackfillManager task per DCP
+    // connection, and we use synchronous IO, we limit the number of backfills
+    // in-progress per DCP connection to dcp_backfill_in_progress_per_connection_limit
+    // - default "1".
+    // This significantly reduces the number of concurrently in-progress
+    // backfills, down from (up to) 1024 per connection to 1 per connection,
+    // and hence significantly reduces the likelihood that one set of DCP
+    // connections (asking for many vBuckets at once) could starve another DCP
+    // connection also asking for backfills (e.g. replication).
+    //
+    // If / when we can actually backfill more than one vBucket at the same
+    // time on a single connection then we can increase this limit (e.g. either
+    // multiple BackfillManager tasks each performing sync IO, or async IO
+    // support for BackfillManager).
+    if (numInProgress >= maxNumBackfillsPerConnection) {
+        return false;
+    }
+
     std::lock_guard<std::mutex> lh(backfills.mutex);
     if (backfills.running < backfills.maxRunning) {
         ++backfills.running;
@@ -499,6 +519,8 @@ void DcpConnMap::DcpConfigChangeListener::sizeValueChanged(const std::string &ke
         myConnMap.consumerBatchSizeConfigChanged(value);
     } else if (key == "dcp_idle_timeout") {
         myConnMap.idleTimeoutConfigChanged(value);
+    } else if (key == "dcp_backfill_in_progress_per_connection_limit") {
+        myConnMap.backfillsInProgressPerConnectionConfigChanged(value);
     }
 }
 
@@ -554,6 +576,14 @@ void DcpConnMap::consumerAllowSanitizeValueInDeletionConfigChanged(
             consumer->setAllowSanitizeValueInDeletion(newValue);
         }
     }
+}
+
+void DcpConnMap::backfillsInProgressPerConnectionConfigChanged(
+        size_t newValue) {
+    // We cannot easily adjust the number of existing backfills already
+    // in-progress, so changing this value will only affect future scheduled
+    // backfills.
+    maxNumBackfillsPerConnection = newValue;
 }
 
 std::shared_ptr<ConnHandler> DcpConnMap::findByName(const std::string& name) {

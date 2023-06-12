@@ -1854,6 +1854,11 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSequential) {
     // from disk.
     stream.reset();
 
+    // Increase maximum number of in-progress backfills per connection from
+    // default of 1 to 3, so we actually have all of the backfills in progress
+    // at once.
+    engine->getConfiguration().setDcpBackfillInProgressPerConnectionLimit(3);
+
     // Create on-disk items for three vBuckets. These will be used to backfill
     // from below.
     for (auto vbid : {Vbid{0}, Vbid{1}, Vbid{2}}) {
