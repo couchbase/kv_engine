@@ -2347,19 +2347,7 @@ static Status observe_validator(Cookie& cookie) {
                                         PROTOCOL_BINARY_RAW_BYTES);
 }
 
-static Status not_supported_validator(Cookie& cookie) {
-    auto& header = cookie.getHeader();
-    auto status = McbpValidator::verify_header(cookie,
-                                               header.getExtlen(),
-                                               ExpectedKeyLen::Any,
-                                               ExpectedValueLen::Any,
-                                               ExpectedCas::Any,
-                                               GeneratesDocKey::No,
-                                               PROTOCOL_BINARY_RAW_BYTES);
-    if (status != Status::Success) {
-        return status;
-    }
-
+static Status not_supported_validator(Cookie&) {
     return Status::NotSupported;
 }
 
@@ -2527,12 +2515,23 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::ConfigReload, config_reload_validator);
     setup(cb::mcbp::ClientOpcode::ConfigValidate, config_validate_validator);
     setup(cb::mcbp::ClientOpcode::Shutdown, shutdown_validator);
-    setup(cb::mcbp::ClientOpcode::SetBucketThrottleProperties,
-          set_bucket_throttle_properties_validator);
-    setup(cb::mcbp::ClientOpcode::SetBucketDataLimitExceeded,
-          set_bucket_data_limit_exceeded_validator);
-    setup(cb::mcbp::ClientOpcode::SetNodeThrottleProperties,
-          set_node_throttle_properties_validator);
+
+    if (cb::serverless::isEnabled()) {
+        setup(cb::mcbp::ClientOpcode::SetBucketThrottleProperties,
+              set_bucket_throttle_properties_validator);
+        setup(cb::mcbp::ClientOpcode::SetBucketDataLimitExceeded,
+              set_bucket_data_limit_exceeded_validator);
+        setup(cb::mcbp::ClientOpcode::SetNodeThrottleProperties,
+              set_node_throttle_properties_validator);
+    } else {
+        setup(cb::mcbp::ClientOpcode::SetBucketThrottleProperties,
+              not_supported_validator);
+        setup(cb::mcbp::ClientOpcode::SetBucketDataLimitExceeded,
+              not_supported_validator);
+        setup(cb::mcbp::ClientOpcode::SetNodeThrottleProperties,
+              not_supported_validator);
+    }
+
     setup(cb::mcbp::ClientOpcode::ObserveSeqno, observe_seqno_validator);
     setup(cb::mcbp::ClientOpcode::GetAdjustedTime_Unsupported,
           not_supported_validator);

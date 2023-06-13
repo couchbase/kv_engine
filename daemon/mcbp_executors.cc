@@ -487,11 +487,6 @@ static void shutdown_executor(Cookie& cookie) {
 }
 
 static void set_bucket_throttle_properties_executor(Cookie& cookie) {
-    if (!cb::serverless::isEnabled()) {
-        cookie.sendResponse(cb::mcbp::Status::NotSupported);
-        return;
-    }
-
     std::string name(cookie.getRequestKey().getBuffer());
     cb::throttle::SetThrottleLimitPayload limits =
             nlohmann::json::parse(cookie.getHeader().getValueString());
@@ -515,11 +510,6 @@ static void set_bucket_throttle_properties_executor(Cookie& cookie) {
 }
 
 static void set_node_throttle_properties_executor(Cookie& cookie) {
-    if (!cb::serverless::isEnabled()) {
-        cookie.sendResponse(cb::mcbp::Status::NotSupported);
-        return;
-    }
-
     const cb::throttle::SetNodeThrottleLimitPayload limits =
             nlohmann::json::parse(cookie.getHeader().getValueString());
     auto& instance = cb::serverless::Config::instance();
@@ -538,10 +528,6 @@ static void set_node_throttle_properties_executor(Cookie& cookie) {
 }
 
 static void set_bucket_data_limit_exceeded_executor(Cookie& cookie) {
-    if (!cb::serverless::isEnabled()) {
-        cookie.sendResponse(cb::mcbp::Status::NotSupported);
-        return;
-    }
     std::string name(cookie.getRequestKey().getBuffer());
     using cb::mcbp::request::SetBucketDataLimitExceededPayload;
     auto& req = cookie.getRequest();
