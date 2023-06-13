@@ -222,7 +222,7 @@ static void ssl_certs_refresh_executor(Cookie& cookie) {
 }
 
 static void verbosity_executor(Cookie& cookie) {
-#define MAX_VERBOSITY_LEVEL 2
+    constexpr int MAX_VERBOSITY_LEVEL = 2;
     using cb::mcbp::request::VerbosityPayload;
     auto extras = cookie.getRequest().getExtdata();
     auto* payload = reinterpret_cast<const VerbosityPayload*>(extras.data());
