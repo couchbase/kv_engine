@@ -4156,6 +4156,9 @@ TEST_P(SingleThreadedActiveStreamTest,
     if (ephemeral()) {
         GTEST_SKIP();
     }
+    // Force OSO backfills regardless of collection size, as this test
+    // expects OSO.
+    engine->getConfiguration().setDcpOsoBackfill("enabled");
 
     auto vb = engine->getVBucket(vbid);
     auto& ckptMgr = *vb->checkpointManager;
