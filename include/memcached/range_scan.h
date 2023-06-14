@@ -69,14 +69,16 @@ struct CreateParameters {
                      KeyView end,
                      KeyOnly keyOnly,
                      std::optional<SnapshotRequirements> snapshotReqs,
-                     std::optional<SamplingConfiguration> samplingConfig)
+                     std::optional<SamplingConfiguration> samplingConfig,
+                     std::string_view name = {})
         : vbid(vbid),
           cid(cid),
           start(start),
           end(end),
           keyOnly(keyOnly),
           snapshotReqs(snapshotReqs),
-          samplingConfig(samplingConfig) {
+          samplingConfig(samplingConfig),
+          name(name) {
     }
 
     /// The vbucket the scan is associated with
@@ -99,6 +101,9 @@ struct CreateParameters {
 
     /// optional sampling configuration
     std::optional<SamplingConfiguration> samplingConfig;
+
+    /// a name (can be empty) that the client can provide
+    std::string_view name;
 };
 
 /// All of the parameters required to continue a RangeScan included any I/O
@@ -140,5 +145,7 @@ struct ContinueParameters {
     /// via the async IO complete pattern
     cb::engine_errc currentStatus{cb::engine_errc::success};
 };
+
+const size_t MaximumNameSize = 50;
 
 } // namespace cb::rangescan

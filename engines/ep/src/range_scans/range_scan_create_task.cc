@@ -35,7 +35,8 @@ RangeScanCreateTask::RangeScanCreateTask(
       keyOnly(params.keyOnly),
       snapshotReqs(params.snapshotReqs),
       samplingConfig(params.samplingConfig),
-      scanData(std::move(scanData)) {
+      scanData(std::move(scanData)),
+      name(params.name) {
     // They must be the same collection
     Expects(this->start.getCollectionID() == this->end.getCollectionID());
 }
@@ -81,7 +82,8 @@ std::pair<cb::engine_errc, cb::rangescan::Id> RangeScanCreateTask::create() {
                                             cookie,
                                             keyOnly,
                                             snapshotReqs,
-                                            samplingConfig);
+                                            samplingConfig,
+                                            std::move(name));
     auto& epVb = dynamic_cast<EPVBucket&>(*vb);
     return {epVb.addNewRangeScan(scan), scan->getUuid()};
 }

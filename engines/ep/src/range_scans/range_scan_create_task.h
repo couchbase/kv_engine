@@ -65,4 +65,5 @@ protected:
     std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs;
     std::optional<cb::rangescan::SamplingConfiguration> samplingConfig;
     std::unique_ptr<RangeScanCreateToken> scanData;
+    const std::string name;
 };

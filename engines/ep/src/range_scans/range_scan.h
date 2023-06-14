@@ -68,6 +68,7 @@ public:
      * @param keyOnly configure key or value scan
      * @param snapshotReqs optional requirements for the snapshot
      * @param samplingConfig optional configuration for random sampling mode
+     * @param a name for logging/observability, the view can be empty
      */
     RangeScan(
             EPBucket& bucket,
@@ -78,7 +79,8 @@ public:
             CookieIface& cookie,
             cb::rangescan::KeyOnly keyOnly,
             std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
-            std::optional<cb::rangescan::SamplingConfiguration> samplingConfig);
+            std::optional<cb::rangescan::SamplingConfiguration> samplingConfig,
+            std::string name);
 
     /**
      * Create a RangeScan initialising the uuid to the given value.
@@ -313,6 +315,9 @@ public:
     /// @return the collection being scanned
     CollectionID getCollectionID() const;
 
+    /// @return a string for this scan which can be used for consistent logging
+    std::string getLogId() const;
+
     /**
      * To facilitate testing, the now function, which returns a time point can
      * be replaced
@@ -366,10 +371,10 @@ protected:
 
     // member variables ideally ordered by size large -> small
     cb::rangescan::Id uuid;
-    DiskDocKey start;
-    DiskDocKey end;
+    const DiskDocKey start;
+    const DiskDocKey end;
     // uuid of the vbucket to assist detection of a vbucket state change
-    uint64_t vbUuid{0};
+    const uint64_t vbUuid{0};
     std::unique_ptr<ByIdScanContext> scanCtx;
     std::unique_ptr<RangeScanDataHandlerIFace> handler;
     KVStoreScanTracker& resourceTracker;
@@ -391,7 +396,10 @@ protected:
     std::unique_ptr<std::mt19937> prng;
     std::bernoulli_distribution distribution{0.0};
 
-    Vbid vbid{0};
+    /// A name for the scan - client can provide which can improve debug
+    const std::string name;
+
+    const Vbid vbid{0};
 
     // RangeScan can be continued with client defined limits
     // These are written from the worker (continue) into the locked 'runState'
@@ -623,7 +631,7 @@ protected:
         uint64_t manifestUid{0};
     } continueRunState;
 
-    cb::rangescan::KeyOnly keyOnly{cb::rangescan::KeyOnly::No};
+    const cb::rangescan::KeyOnly keyOnly{cb::rangescan::KeyOnly::No};
     /// is this scan in the run queue? This bool is read/written only by
     /// RangeScans under the queue lock
     bool queued{false};

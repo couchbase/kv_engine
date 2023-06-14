@@ -182,6 +182,18 @@ static std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScan(
     if (samplingConfigJSON) {
         samplingConfig = getSamplingConfig(samplingConfigJSON.value());
     }
+    std::string name;
+    auto optionalName = cb::getOptionalJsonObject(
+            parsed, "name", nlohmann::json::value_t::string);
+    if (optionalName) {
+        name = optionalName->get<std::string>();
+
+        // Keep the name to a reasonable size
+        if (name.size() > cb::rangescan::MaximumNameSize) {
+            cookie.setErrorContext("name exceeds 50 bytes");
+            return {cb::engine_errc::invalid_arguments, {}};
+        }
+    }
     return createRangeScan(cookie,
                            cb::rangescan::CreateParameters{
                                    req.getVBucket(),
@@ -190,7 +202,8 @@ static std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScan(
                                    cb::rangescan::KeyView{end, endType},
                                    getKeyOnly(parsed),
                                    snapshotReqs,
-                                   samplingConfig});
+                                   samplingConfig,
+                                   name});
 }
 
 void range_scan_create_executor(Cookie& cookie) {

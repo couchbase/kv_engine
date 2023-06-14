@@ -57,6 +57,12 @@ The following keys will be checked for at the root of the JSON object
   * value is a JSON object (described below)
   * This key can be omitted
 
+* A client defined name which may assist debug and observability
+  * `"name`
+  * value is a JSON string
+  * This key can be omitted
+  * If this key is included, the name cannot exceed 50 bytes
+
 ### For a range-scan
 
 The range-scan configuration is defined in the `"ranges"` object, the object has

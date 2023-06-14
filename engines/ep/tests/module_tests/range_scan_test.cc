@@ -2096,7 +2096,8 @@ TEST_P(RangeScanTestSimple, MB_54053) {
             *cookie,
             cb::rangescan::KeyOnly::Yes,
             std::optional<cb::rangescan::SnapshotRequirements>{},
-            std::optional<cb::rangescan::SamplingConfiguration>{});
+            std::optional<cb::rangescan::SamplingConfiguration>{},
+            std::string{});
     scanId = scan1->getUuid();
     // Set a second reference on the scan to demonstrate the original bug
     scan2 = scan1;

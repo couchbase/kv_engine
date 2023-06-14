@@ -17,6 +17,7 @@
 #include <xattr/utils.h>
 
 #include <mcbp/codec/range_scan_continue_codec.h>
+#include <memcached/range_scan.h>
 #include <memcached/range_scan_id.h>
 #include <memcached/storeddockey.h>
 #include <platform/base64.h>
@@ -92,10 +93,18 @@ public:
             EXPECT_EQ("60", connection.statsMap("range-scans")["max_duration"]);
         });
 
+        // add a name to all scans, the server limits the name length so we
+        // create a trimmed name here, which is still useful enough to line up
+        // failures in log files.
+        std::string name =
+                ::testing::UnitTest::GetInstance()->current_test_info()->name();
+        name.resize(cb::rangescan::MaximumNameSize);
+
         // Setup to scan for user prefixed docs. Utilise wait_for_seqno so the
         // tests should be stable (have data ready to scan)
         config = {{"range", {{"start", start}, {"end", end}}},
                   {"collection", fmt::format("{0:x}", collectionId)},
+                  {"name", name},
                   {"snapshot_requirements",
                    {{"seqno", mInfo.seqno},
                     {"vb_uuid", std::to_string(mInfo.vbucketuuid)},

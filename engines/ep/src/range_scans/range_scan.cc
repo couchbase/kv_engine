@@ -38,12 +38,14 @@ RangeScan::RangeScan(
         CookieIface& cookie,
         cb::rangescan::KeyOnly keyOnly,
         std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs,
-        std::optional<cb::rangescan::SamplingConfiguration> samplingConfig)
+        std::optional<cb::rangescan::SamplingConfiguration> samplingConfig,
+        std::string name)
     : start(std::move(start)),
       end(std::move(end)),
       vbUuid(vbucket.failovers->getLatestUUID()),
       handler(std::move(handler)),
       resourceTracker(bucket.getKVStoreScanTracker()),
+      name(std::move(name)),
       vbid(vbucket.getId()),
       keyOnly(keyOnly) {
     if (!resourceTracker.canCreateRangeScan()) {
@@ -91,10 +93,9 @@ RangeScan::RangeScan(
         }
     }
 
-    EP_LOG_INFO("{}: {} RangeScan {} created. cid:{}, mode:{}{}{}",
+    EP_LOG_INFO("{}: {} created. cid:{}, mode:{}{}{}",
                 cookie.getConnectionId(),
-                getVBucketId(),
-                uuid,
+                getLogId(),
                 this->start.getDocKey().getCollectionID(),
                 keyOnly == cb::rangescan::KeyOnly::Yes ? "keys" : "values",
                 std::string_view{snapshotLog.data(), snapshotLog.size()},
@@ -110,7 +111,7 @@ RangeScan::RangeScan(cb::rangescan::Id id, KVStoreScanTracker& resourceTracker)
         throw cb::engine_error(cb::engine_errc::temporary_failure,
                                fmt::format("RangeScan::createScan {} denied by "
                                            "BackfillTrackingIface",
-                                           getVBucketId()));
+                                           getLogId()));
     }
     createTime = now();
 }
@@ -133,27 +134,31 @@ RangeScan::~RangeScan() {
 
     auto cs = *continueState.rlock();
 
-    EP_LOG_INFO(
-            "{} RangeScan {} finished in {} status:{}, after {}ms, keys:{}{}",
-            getVBucketId(),
-            uuid,
-            cs.state,
-            cs.finalStatus,
-            duration,
-            totalKeys,
-            std::string_view{valueScanStats.data(), valueScanStats.size()});
+    EP_LOG_INFO("{} finished in {} status:{}, after {}ms, keys:{}{}",
+                getLogId(),
+                cs.state,
+                cs.finalStatus,
+                duration,
+                totalKeys,
+                std::string_view{valueScanStats.data(), valueScanStats.size()});
 
     // All waiting cookies must of been notified before we destruct. This should
     // be null as the cookie is "taken" out of the object by the I/O task.
     if (cs.cookie) {
-        EP_LOG_WARN("{} destruct RangeScan {} and cookie should be null {}",
-                    getVBucketId(),
-                    uuid,
+        EP_LOG_WARN("{} destruct but cookie should be nullptr {}",
+                    getLogId(),
                     reinterpret_cast<const void*>(cs.cookie));
     }
 #ifdef CB_DEVELOPMENT_ASSERTS
     Expects(!cs.cookie);
 #endif
+}
+
+std::string RangeScan::getLogId() const {
+    if (name.empty()) {
+        return fmt::format("RangeScan {} {}", getVBucketId(), uuid);
+    }
+    return fmt::format("RangeScan {} {} {}", getVBucketId(), uuid, name);
 }
 
 cb::rangescan::Id RangeScan::createScan(
@@ -179,9 +184,9 @@ cb::rangescan::Id RangeScan::createScan(
         // KVStore logs more details
         throw cb::engine_error(
                 cb::engine_errc::failed,
-                fmt::format("RangeScan::createScan {} initByIdScanContext "
-                            "returned nullptr",
-                            getVBucketId()));
+                fmt::format(
+                        "{} createScan initByIdScanContext returned nullptr",
+                        getLogId()));
     }
 
     // We'll estimate how much gets read to use in metering
@@ -201,10 +206,10 @@ cb::rangescan::Id RangeScan::createScan(
                          state.state.highSeqno);
         if (ft.getLatestUUID() != snapshotReqs->vbUuid) {
             throw cb::engine_error(cb::engine_errc::vbuuid_not_equal,
-                                   fmt::format("RangeScan::createScan {} "
+                                   fmt::format("{} createScan "
                                                "snapshotReqs vbUuid mismatch "
                                                "res:{} vs vbstate:{}",
-                                               getVBucketId(),
+                                               getLogId(),
                                                snapshotReqs->vbUuid,
                                                ft.getLatestUUID()));
         }
@@ -220,9 +225,9 @@ cb::rangescan::Id RangeScan::createScan(
             if (gv.getStatus() != cb::engine_errc::success) {
                 throw cb::engine_error(
                         cb::engine_errc::not_stored,
-                        fmt::format("RangeScan::createScan {} snapshotReqs not "
-                                    "met seqno:{} not stored",
-                                    getVBucketId(),
+                        fmt::format("{} createScan snapshotReqs not met "
+                                    "seqno:{} not stored",
+                                    getLogId(),
                                     snapshotReqs->seqno));
             }
         }
@@ -242,9 +247,9 @@ cb::rangescan::Id RangeScan::createScan(
                 // same errc as an empty range-scan
                 throw cb::engine_error(
                         cb::engine_errc::no_such_key,
-                        fmt::format("RangeScan::createScan {} cannot sample "
-                                    "empty cid:{}, items:{}, samples:{}",
-                                    getVBucketId(),
+                        fmt::format("{} createScan cannot sample empty cid:{}, "
+                                    "items:{}, samples:{}",
+                                    getLogId(),
                                     start.getDocKey().getCollectionID(),
                                     stats.second.itemCount,
                                     samplingConfig->samples));
@@ -264,16 +269,16 @@ cb::rangescan::Id RangeScan::createScan(
             // same errc as an empty range-scan
             throw cb::engine_error(
                     cb::engine_errc::no_such_key,
-                    fmt::format("RangeScan::createScan {} no "
-                                "collection stats for sampling cid:{}",
-                                getVBucketId(),
+                    fmt::format("{} createScan no collection stats for "
+                                "sampling cid:{}",
+                                getLogId(),
                                 start.getDocKey().getCollectionID()));
         } else {
             throw cb::engine_error(
                     cb::engine_errc::failed,
-                    fmt::format("RangeScan::createScan {} failed reading "
-                                "collection stats for sampling cid:{}",
-                                getVBucketId(),
+                    fmt::format("{} createScan failed reading collection stats "
+                                "for sampling cid:{}",
+                                getLogId(),
                                 start.getDocKey().getCollectionID()));
         }
 
@@ -323,18 +328,16 @@ size_t RangeScan::tryAndScanOneKey(KVStoreIface& kvstore) {
 
     switch (status) {
     case ScanStatus::Success:
-        throw cb::engine_error(cb::engine_errc::no_such_key,
-                               fmt::format("RangeScan::createScan {} no "
-                                           "keys in range",
-                                           getVBucketId()));
+        throw cb::engine_error(
+                cb::engine_errc::no_such_key,
+                fmt::format("{} tryAndScanOneKey no keys in range",
+                            getLogId()));
     case ScanStatus::Cancelled:
     case ScanStatus::Failed:
-        throw cb::engine_error(
-                cb::engine_errc::failed,
-                fmt::format("RangeScan::createScan {} scan failed "
-                            "{}",
-                            status,
-                            getVBucketId()));
+        throw cb::engine_error(cb::engine_errc::failed,
+                               fmt::format("{} tryAndScanOneKey scan failed {}",
+                                           getLogId(),
+                                           status));
     case ScanStatus::Yield: {
         // At least 1 key, return the handle and the scan can run from the user
         // initiated range-scan-continue
@@ -377,14 +380,15 @@ RangeScan::ContinueIOThreadResult RangeScan::prepareToRunOnContinueTask() {
 
 std::unique_ptr<RangeScanContinueResult>
 RangeScan::continuePartialOnFrontendThread(CookieIface& client) {
-    continueState.withWLock([&client](auto& cs) {
+    continueState.withWLock([&client, this](auto& cs) {
         switch (cs.state) {
         case State::Idle:
         case State::Cancelled:
         case State::Completed:
             throw std::runtime_error(
                     fmt::format("RangeScan::continuePartialOnFrontendThread "
-                                "invalid state:{}",
+                                "{} invalid state:{}",
+                                getLogId(),
                                 cs.state));
         // Only permitted when already Continuing
         case State::Continuing:
@@ -409,8 +413,7 @@ std::unique_ptr<RangeScanContinueResult> RangeScan::cancelOnFrontendThread() {
 }
 
 cb::engine_errc RangeScan::continueOnIOThread(KVStoreIface& kvstore) {
-    EP_LOG_DEBUG(
-            "RangeScan {} continueOnIOThread for {}", uuid, getVBucketId());
+    EP_LOG_DEBUG("{} continueOnIOThread", getLogId());
     auto status = kvstore.scan(*scanCtx);
     cb::engine_errc engineStatus = cb::engine_errc::success;
     switch (status) {
@@ -469,13 +472,15 @@ bool RangeScan::isCompleted() const {
 }
 
 void RangeScan::setStateIdle() {
-    continueState.withWLock([](auto& cs) {
+    continueState.withWLock([this](auto& cs) {
         switch (cs.state) {
         case State::Cancelled:
         case State::Completed:
         case State::Idle:
-            throw std::runtime_error(fmt::format(
-                    "RangeScan::setStateIdle invalid state:{}", cs.state));
+            throw std::runtime_error(
+                    fmt::format("RangeScan::setStateIdle {} invalid state:{}",
+                                getLogId(),
+                                cs.state));
         case State::Continuing:
             cs.setupForIdle();
             break;
@@ -487,28 +492,32 @@ void RangeScan::setStateContinuing(CookieIface& client,
                                    size_t limit,
                                    std::chrono::milliseconds timeLimit,
                                    size_t byteLimit) {
-    continueState.withWLock([&client, limit, timeLimit, byteLimit](auto& cs) {
-        switch (cs.state) {
-        case State::Continuing:
-        case State::Cancelled:
-        case State::Completed:
-            throw std::runtime_error(fmt::format(
-                    "RangeScan::setStateContinuing invalid state:{}",
-                    cs.state));
-        case State::Idle:
-            cs.setupForContinue(client, limit, timeLimit, byteLimit);
-            break;
-        }
-    });
+    continueState.withWLock(
+            [&client, limit, timeLimit, byteLimit, this](auto& cs) {
+                switch (cs.state) {
+                case State::Continuing:
+                case State::Cancelled:
+                case State::Completed:
+                    throw std::runtime_error(fmt::format(
+                            "RangeScan::setStateContinuing {} invalid state:{}",
+                            getLogId(),
+                            cs.state));
+                case State::Idle:
+                    cs.setupForContinue(client, limit, timeLimit, byteLimit);
+                    break;
+                }
+            });
 }
 
 void RangeScan::setStateCancelled(cb::engine_errc finalStatus) {
-    continueState.withWLock([finalStatus](auto& cs) {
+    continueState.withWLock([finalStatus, this](auto& cs) {
         switch (cs.state) {
         case State::Cancelled:
         case State::Completed:
             throw std::runtime_error(fmt::format(
-                    "RangeScan::setStateCancelled invalid state:{}", cs.state));
+                    "RangeScan::setStateCancelled {} invalid state:{}",
+                    getLogId(),
+                    cs.state));
         case State::Idle:
         case State::Continuing:
             cs.setupForCancel(finalStatus);
@@ -518,13 +527,15 @@ void RangeScan::setStateCancelled(cb::engine_errc finalStatus) {
 }
 
 void RangeScan::setStateCompleted() {
-    continueState.withWLock([](auto& cs) {
+    continueState.withWLock([this](auto& cs) {
         switch (cs.state) {
         case State::Completed:
         case State::Cancelled:
         case State::Idle:
             throw std::runtime_error(fmt::format(
-                    "RangeScan::setStateCompleted invalid state:{}", cs.state));
+                    "RangeScan::setStateCompleted {} invalid state:{}",
+                    getLogId(),
+                    cs.state));
         case State::Continuing:
             cs.setupForComplete();
             break;
@@ -674,6 +685,10 @@ void RangeScan::addStats(const StatCollector& collector) const {
         addStat("dist_p", distribution.p());
     }
 
+    if (!name.empty()) {
+        addStat("name", name);
+    }
+
     handler->addStats(std::string_view{prefix.data(), prefix.size()},
                       collector);
 }
@@ -686,11 +701,10 @@ std::ostream& operator<<(std::ostream& os, const RangeScan& scan) {
     // copy state then print, avoiding invoking ostream whilst locked
     auto cs = *scan.continueState.rlock();
     fmt::print(os,
-               "RangeScan: uuid:{}, {}, vbuuid:{}, created:{}. range:({},{}), "
+               "{} vbuuid:{}, created:{}. range:({},{}), "
                "mode:{}, queued:{}, totalKeys:{} values m:{}, d:{}, "
-               "crs{{{}}}, cs{{{}}}",
-               scan.uuid,
-               scan.vbid,
+               "crs{{{}}}, cs{{{}}} name",
+               scan.getLogId(),
                scan.vbUuid,
                scan.createTime.time_since_epoch().count(),
                cb::UserDataView(scan.start.to_string()),
