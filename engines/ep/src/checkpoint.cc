@@ -81,9 +81,9 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
     Expects(visibleSnapEnd <= snapEnd);
 
     auto& core = stats.coreLocal.get();
-    core->memOverhead.fetch_add(sizeof(Checkpoint));
+    core->memOverhead += sizeof(Checkpoint);
     core->numCheckpoints++;
-    core->checkpointManagerEstimatedMemUsage.fetch_add(sizeof(Checkpoint));
+    core->checkpointManagerEstimatedMemUsage += sizeof(Checkpoint);
 
     this->highPreparedSeqno.reset(highPreparedSeqno);
 
@@ -99,7 +99,7 @@ Checkpoint::~Checkpoint() {
                  checkpointId,
                  vbucketId);
     auto& core = stats.coreLocal.get();
-    core->memOverhead.fetch_sub(getMemOverhead());
+    core->memOverhead -= getMemOverhead();
     core->numCheckpoints--;
 }
 
@@ -344,7 +344,7 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
     }
 
     if (rv.status == QueueDirtyStatus::SuccessNewItem) {
-        stats.coreLocal.get()->memOverhead.fetch_add(per_item_queue_overhead);
+        stats.coreLocal.get()->memOverhead += per_item_queue_overhead;
     }
 
     /**
@@ -373,7 +373,7 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
 
         if (rv.status == QueueDirtyStatus::SuccessNewItem) {
             const auto indexKeyUsage = qi->getKey().size() + sizeof(IndexEntry);
-            stats.coreLocal.get()->memOverhead.fetch_add(indexKeyUsage);
+            stats.coreLocal.get()->memOverhead += indexKeyUsage;
             // Update the total keyIndex memory usage which is used when the
             // checkpoint is destructed to manually account for the freed mem.
             keyIndexMemUsage += indexKeyUsage;
@@ -566,7 +566,7 @@ CheckpointQueue Checkpoint::expelItems(const ChkptQueueIterator& last,
     // for details.
     const auto overhead = distance * per_item_queue_overhead;
     queueMemOverhead -= overhead;
-    stats.coreLocal.get()->memOverhead.fetch_sub(overhead);
+    stats.coreLocal.get()->memOverhead -= overhead;
 
     return expelledItems;
 }
@@ -681,10 +681,10 @@ void Checkpoint::detachFromManager() {
     // to decrease that we detach a checkpoint from the CM.
     auto& cmMemUsage =
             stats.coreLocal.get()->checkpointManagerEstimatedMemUsage;
-    cmMemUsage.fetch_sub(queuedItemsMemUsage);
-    cmMemUsage.fetch_sub(keyIndexMemUsage);
-    cmMemUsage.fetch_sub(queueMemOverhead);
-    cmMemUsage.fetch_sub(sizeof(Checkpoint));
+
+    auto chkptMemUsage = queuedItemsMemUsage + keyIndexMemUsage +
+                         queueMemOverhead + sizeof(Checkpoint);
+    cmMemUsage -= chkptMemUsage;
 
     // stop tracking MemoryCounters against the CM
     queuedItemsMemUsage.detachFromManager();
@@ -768,7 +768,7 @@ Checkpoint::MemoryCounter& Checkpoint::MemoryCounter::operator+=(size_t size) {
     Expects(managerUsage);
     *managerUsage += size;
 
-    stats.coreLocal.get()->checkpointManagerEstimatedMemUsage.fetch_add(size);
+    stats.coreLocal.get()->checkpointManagerEstimatedMemUsage += size;
     return *this;
 }
 
@@ -778,7 +778,7 @@ Checkpoint::MemoryCounter& Checkpoint::MemoryCounter::operator-=(size_t size) {
     Expects(managerUsage);
     *managerUsage -= size;
 
-    stats.coreLocal.get()->checkpointManagerEstimatedMemUsage.fetch_sub(size);
+    stats.coreLocal.get()->checkpointManagerEstimatedMemUsage -= size;
     return *this;
 }
 

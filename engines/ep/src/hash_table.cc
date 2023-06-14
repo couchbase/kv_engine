@@ -205,7 +205,7 @@ void HashTable::clear_UNLOCKED(bool deactivate) {
     }
 
     const auto metadataMemory = valueStats.getMetaDataMemory();
-    stats.coreLocal.get()->currentSize.fetch_sub(metadataMemory);
+    stats.coreLocal.get()->currentSize -= metadataMemory;
     valueStats.reset();
 }
 
@@ -285,7 +285,7 @@ void HashTable::resize(size_t newSize) {
     // Get a place for the new items.
     table_type newValues(newSize);
 
-    stats.coreLocal.get()->memOverhead.fetch_sub(memorySize());
+    stats.coreLocal.get()->memOverhead -= memorySize();
     ++numResizes;
 
     // Set the new size so all the hashy stuff works.
@@ -309,7 +309,7 @@ void HashTable::resize(size_t newSize) {
     // Finally assign the new table to values.
     values = std::move(newValues);
 
-    stats.coreLocal.get()->memOverhead.fetch_add(memorySize());
+    stats.coreLocal.get()->memOverhead += memorySize();
 }
 
 HashTable::FindInnerResult HashTable::findInner(const DocKey& key) {
@@ -712,8 +712,8 @@ void HashTable::Statistics::epilogue(const HashTable::HashBucketLock& hbl,
     }
     if (pre.metaDataSize != post.metaDataSize) {
         local.metaDataMemory.fetch_add(post.metaDataSize - pre.metaDataSize);
-        epStats.coreLocal.get()->currentSize.fetch_add(post.metaDataSize -
-                                                       pre.metaDataSize);
+        epStats.coreLocal.get()->currentSize +=
+                post.metaDataSize - pre.metaDataSize;
     }
     if (pre.uncompressedSize != post.uncompressedSize) {
         local.uncompressedMemSize.fetch_add(post.uncompressedSize -

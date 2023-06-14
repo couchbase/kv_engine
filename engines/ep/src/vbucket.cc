@@ -281,8 +281,8 @@ VBucket::VBucket(Vbid i,
     }
 
     pendingOpsStart = std::chrono::steady_clock::time_point();
-    stats.coreLocal.get()->memOverhead.fetch_add(
-            sizeof(VBucket) + ht.memorySize() + sizeof(CheckpointManager));
+    stats.coreLocal.get()->memOverhead +=
+            sizeof(VBucket) + ht.memorySize() + sizeof(CheckpointManager);
 
     setupSyncReplication(replTopology);
 
@@ -314,9 +314,8 @@ VBucket::~VBucket() {
     // Clear out the bloomfilter(s)
     clearFilter();
 
-    stats.coreLocal.get()->memOverhead.fetch_sub(
-            sizeof(VBucket) + ht.memorySize() + sizeof(CheckpointManager));
-
+    stats.coreLocal.get()->memOverhead -=
+            sizeof(VBucket) + ht.memorySize() + sizeof(CheckpointManager);
 }
 
 int64_t VBucket::getHighSeqno() const {

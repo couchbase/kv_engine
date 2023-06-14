@@ -36,9 +36,9 @@ void ObjectRegistry::onCreateBlob(const Blob* blob) {
         auto& coreLocalStats = engine->getEpStats().coreLocal.get();
 
         size_t size = cb::ArenaMalloc::malloc_usable_size(blob);
-        coreLocalStats->blobOverhead.fetch_add(size - blob->getSize());
-        coreLocalStats->currentSize.fetch_add(size);
-        coreLocalStats->totalValueSize.fetch_add(size);
+        coreLocalStats->blobOverhead += size - blob->getSize();
+        coreLocalStats->currentSize += size;
+        coreLocalStats->totalValueSize += size;
         coreLocalStats->numBlob++;
     }
 }
@@ -49,9 +49,9 @@ void ObjectRegistry::onDeleteBlob(const Blob* blob) {
         auto& coreLocalStats = engine->getEpStats().coreLocal.get();
 
         size_t size = cb::ArenaMalloc::malloc_usable_size(blob);
-        coreLocalStats->blobOverhead.fetch_sub(size - blob->getSize());
-        coreLocalStats->currentSize.fetch_sub(size);
-        coreLocalStats->totalValueSize.fetch_sub(size);
+        coreLocalStats->blobOverhead -= size - blob->getSize();
+        coreLocalStats->currentSize -= size;
+        coreLocalStats->totalValueSize -= size;
         coreLocalStats->numBlob--;
     }
 }
@@ -63,7 +63,7 @@ void ObjectRegistry::onCreateStoredValue(const StoredValue* sv) {
 
         size_t size = cb::ArenaMalloc::malloc_usable_size(sv);
         coreLocalStats->numStoredVal++;
-        coreLocalStats->totalStoredValSize.fetch_add(size);
+        coreLocalStats->totalStoredValSize += size;
     }
 }
 
@@ -73,7 +73,7 @@ void ObjectRegistry::onDeleteStoredValue(const StoredValue* sv) {
         auto& coreLocalStats = engine->getEpStats().coreLocal.get();
 
         size_t size = cb::ArenaMalloc::malloc_usable_size(sv);
-        coreLocalStats->totalStoredValSize.fetch_sub(size);
+        coreLocalStats->totalStoredValSize -= size;
         coreLocalStats->numStoredVal--;
     }
 }
@@ -82,8 +82,7 @@ void ObjectRegistry::onCreateItem(const Item* pItem) {
     EventuallyPersistentEngine* engine = th;
     if (verifyEngine(engine)) {
         auto& coreLocalStats = engine->getEpStats().coreLocal.get();
-        coreLocalStats->memOverhead.fetch_add(pItem->size() -
-                                              pItem->getValMemSize());
+        coreLocalStats->memOverhead += pItem->size() - pItem->getValMemSize();
         ++coreLocalStats->numItem;
     }
 }
@@ -92,8 +91,7 @@ void ObjectRegistry::onDeleteItem(const Item* pItem) {
     EventuallyPersistentEngine* engine = th;
     if (verifyEngine(engine)) {
         auto& coreLocalStats = engine->getEpStats().coreLocal.get();
-        coreLocalStats->memOverhead.fetch_sub(pItem->size() -
-                                              pItem->getValMemSize());
+        coreLocalStats->memOverhead -= pItem->size() - pItem->getValMemSize();
         --coreLocalStats->numItem;
     }
 }
