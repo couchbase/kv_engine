@@ -1093,8 +1093,6 @@ protected:
         EPStatsIntrospector::public_setMaxDataSize(stats,
                                                    nonDefaultCounterValue);
 
-        stats.tooYoung.store(nonDefaultCounterValue);
-        stats.tooOld.store(nonDefaultCounterValue);
         stats.totalPersistVBState.store(nonDefaultCounterValue);
         stats.commit_time.store(nonDefaultCounterValue);
         stats.cursorsDropped.store(nonDefaultCounterValue);
@@ -1243,8 +1241,6 @@ protected:
         EXPECT_TRUE(stats.dirtyAgeHisto.isEmpty());
         EXPECT_TRUE(stats.diskCommitHisto.isEmpty());
 
-        EXPECT_EQ(initializedValue, stats.tooYoung);
-        EXPECT_EQ(initializedValue, stats.tooOld);
         EXPECT_EQ(initializedValue, stats.totalPersistVBState);
         EXPECT_EQ(initializedValue, stats.commit_time);
         EXPECT_EQ(initializedValue, stats.cursorsDropped);

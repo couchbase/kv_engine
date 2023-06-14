@@ -50,7 +50,7 @@ EPStats::EPStats()
 
 EPStats::~EPStats() = default;
 
-static_assert(sizeof(EPStats) == 2200,
+static_assert(sizeof(EPStats) == 2184,
               "EPStats size is unexpected - have you added/removed stats?");
 
 void EPStats::setMaxDataSize(size_t size) {
@@ -204,8 +204,6 @@ void EPStats::setHighWaterMark(size_t value) {
 }
 
 void EPStats::reset() {
-    tooYoung.reset();
-    tooOld.reset();
     totalPersistVBState.reset();
     commit_time.store(0);
     cursorsDropped.reset();

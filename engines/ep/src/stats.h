@@ -257,10 +257,6 @@ public:
     Counter cumulativeFlushTime;
     //! Total time spent committing.
     Counter cumulativeCommitTime;
-    //! Objects that were rejected from persistence for being too fresh.
-    Counter tooYoung;
-    //! Objects that were forced into persistence for being too old.
-    Counter tooOld;
     //! Number of items persisted.
     Counter totalPersisted;
     //! Number of times VBucket state persisted.
