@@ -1197,7 +1197,11 @@
             "default": "0.5",
             "dynamic": true,
             "descr": "Magma total memory ratio of the Bucket Quota across all shards and Magma limit's it's memory usage to this value.",
-            "type": "float"
+            "type": "float",
+            "requires": {
+                "bucket_type": "persistent",
+                "backend": "magma"
+            }
         },
         "magma_mem_quota_low_watermark_ratio": {
             "default": "0.2",
@@ -1372,6 +1376,10 @@
                     "min": 10,
                     "max": 100
                 }
+            },
+            "requires": {
+                "bucket_type": "persistent",
+                "backend": "magma"
             }
         },
         "magma_max_recovery_bytes": {
