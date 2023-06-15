@@ -328,9 +328,9 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
 
     // Reset memory overhead when bucket is created.
     for (auto& core : stats.coreLocal) {
-        core->memOverhead = 0;
+        core->memOverhead.reset();
     }
-    stats.coreLocal.get()->memOverhead = sizeof(KVBucket);
+    stats.coreLocal.get()->memOverhead += sizeof(KVBucket);
 
     config.addValueChangedListener(
             "mem_used_merge_threshold_percent",

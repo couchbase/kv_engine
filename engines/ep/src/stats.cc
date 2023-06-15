@@ -85,12 +85,12 @@ size_t EPStats::getCurrentSize() const {
     return std::max(int64_t(0), result);
 }
 
-size_t EPStats::getNumBlob() const {
-    int64_t result = 0;
+EPStats::BifurcatedCounter EPStats::getNumBlob() const {
+    BifurcatedCounter result;
     for (const auto& core : coreLocal) {
         result += core->numBlob;
     }
-    return std::max(int64_t(0), result);
+    return result;
 }
 
 size_t EPStats::getBlobOverhead() const {
@@ -101,28 +101,28 @@ size_t EPStats::getBlobOverhead() const {
     return std::max(int64_t(0), result);
 }
 
-size_t EPStats::getTotalValueSize() const {
-    int64_t result = 0;
+EPStats::BifurcatedCounter EPStats::getTotalValueSize() const {
+    BifurcatedCounter result;
     for (const auto& core : coreLocal) {
         result += core->totalValueSize;
     }
-    return std::max(int64_t(0), result);
+    return result;
 }
 
-size_t EPStats::getNumStoredVal() const {
-    int64_t result = 0;
+EPStats::BifurcatedCounter EPStats::getNumStoredVal() const {
+    BifurcatedCounter result;
     for (const auto& core : coreLocal) {
         result += core->numStoredVal;
     }
-    return std::max(int64_t(0), result);
+    return result;
 }
 
-size_t EPStats::getStoredValSize() const {
-    int64_t result = 0;
+EPStats::BifurcatedCounter EPStats::getStoredValSize() const {
+    BifurcatedCounter result;
     for (const auto& core : coreLocal) {
         result += core->totalStoredValSize;
     }
-    return std::max(int64_t(0), result);
+    return result;
 }
 
 size_t EPStats::getMemOverhead() const {
@@ -133,12 +133,12 @@ size_t EPStats::getMemOverhead() const {
     return std::max(int64_t(0), result);
 }
 
-size_t EPStats::getNumItem() const {
-    int64_t result = 0;
+EPStats::BifurcatedCounter EPStats::getNumItem() const {
+    BifurcatedCounter result;
     for (const auto& core : coreLocal) {
         result += core->numItem;
     }
-    return std::max(int64_t(0), result);
+    return result;
 }
 
 size_t EPStats::getCheckpointManagerEstimatedMemUsage() const {
@@ -149,12 +149,12 @@ size_t EPStats::getCheckpointManagerEstimatedMemUsage() const {
     return std::max(int64_t(0), result);
 }
 
-size_t EPStats::getNumCheckpoints() const {
-    int64_t result = 0;
+EPStats::BifurcatedCounter EPStats::getNumCheckpoints() const {
+    BifurcatedCounter result;
     for (const auto& core : coreLocal) {
         result += core->numCheckpoints;
     }
-    return std::max(int64_t(0), result);
+    return result;
 }
 
 size_t EPStats::getCollectionMemUsed(CollectionID cid) const {

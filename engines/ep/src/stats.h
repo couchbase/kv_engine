@@ -14,11 +14,12 @@
 #include <folly/Synchronized.h>
 #include <folly/container/F14Map.h>
 #include <folly/lang/Aligned.h>
+#include <hdrhistogram/hdrhistogram.h>
 #include <memcached/durability_spec.h>
 #include <memcached/types.h>
+#include <platform/bifurcated_counter.h>
 #include <platform/cb_arena_malloc_client.h>
 #include <platform/corestore.h>
-#include <hdrhistogram/hdrhistogram.h>
 #include <platform/non_negative_counter.h>
 #include <platform/platform_time.h>
 #include <relaxed_atomic.h>
@@ -48,18 +49,20 @@ constexpr bool GlobalNewDeleteIsOurs = true;
  */
 class CoreLocalStats {
 public:
-    /**
-     * Map of collection id to the memory usage tracked for that collection.
-     */
-    folly::Synchronized<folly::F14FastMap<CollectionID, size_t>, std::mutex>
-            collectionMemUsed;
-
     // Thread-safe type for counting occurances of discrete,
     // non-negative entities (# events, sizes).  Relaxed memory
     // ordering (no ordering or synchronization).
     // This is a signed variable as depending on how/when the core-local
     // counters merge their info, this could be negative.
     using Counter = cb::RelaxedAtomic<int64_t>;
+    // A counter which maintains the total number of increments and decrements.
+    using BifurcatedCounter = cb::BifurcatedCounter<Counter>;
+
+    /**
+     * Map of collection id to the memory usage tracked for that collection.
+     */
+    folly::Synchronized<folly::F14FastMap<CollectionID, Counter>, std::mutex>
+            collectionMemUsed;
 
     /**
      * Total size of stored objects: Sum of all:
@@ -69,32 +72,32 @@ public:
     Counter currentSize;
 
     //! Total number of blob objects
-    Counter numBlob;
+    BifurcatedCounter numBlob;
 
     //! Total size of blob memory overhead
     Counter blobOverhead;
 
     //! Total memory overhead to store values for resident keys.
-    Counter totalValueSize;
+    BifurcatedCounter totalValueSize;
 
     //! The number of storedVal object
-    Counter numStoredVal;
+    BifurcatedCounter numStoredVal;
 
     //! Total memory for stored values
-    Counter totalStoredValSize;
+    BifurcatedCounter totalStoredValSize;
 
     //! Amount of memory used to track items and what-not.
     Counter memOverhead;
 
     //! Total number of Item objects
-    Counter numItem;
+    BifurcatedCounter numItem;
 
     //! Estimate of the total amount of memory used by checkpoints owned by CMs
     // Note: This does NOT account mem used by checkpoints owned by Destroyers
     Counter checkpointManagerEstimatedMemUsage;
 
     //! Total number of checkpoints across all vbuckets
-    Counter numCheckpoints;
+    BifurcatedCounter numCheckpoints;
 };
 
 /**
@@ -106,6 +109,10 @@ public:
     // non-negative entities (# events, sizes).  Relaxed memory
     // ordering (no ordeing or synchronization).
     using Counter = cb::RelaxedAtomic<size_t>;
+    // A counter which maintains the total number of increments and decrements.
+    // Not expressed in terms of Counter as BifurcatedCounter requires a signed
+    // integer type.
+    using BifurcatedCounter = cb::BifurcatedCounter<cb::RelaxedAtomic<int64_t>>;
 
     EPStats();
 
@@ -158,25 +165,25 @@ public:
     size_t getCurrentSize() const;
 
     /// @returns number of Blob objects which exist.
-    size_t getNumBlob() const;
+    BifurcatedCounter getNumBlob() const;
 
     /// @returns size of blob memory overhead in bytes.
     size_t getBlobOverhead() const;
 
     /// @returns total memory overhead to store values for resident keys.
-    size_t getTotalValueSize() const;
+    BifurcatedCounter getTotalValueSize() const;
 
     /// @returns number of StoredValue objects which exist.
-    size_t getNumStoredVal() const;
+    BifurcatedCounter getNumStoredVal() const;
 
     /// @returns size of all StoredValue objects.
-    size_t getStoredValSize() const;
+    BifurcatedCounter getStoredValSize() const;
 
     /// @returns amount of memory used to track items and what-not.
     size_t getMemOverhead() const;
 
     /// @returns number of Item objects which exist.
-    size_t getNumItem() const;
+    BifurcatedCounter getNumItem() const;
 
     /**
      * @returns the estimate of the total amount of memory used by checkpoints
@@ -186,7 +193,7 @@ public:
     size_t getCheckpointManagerEstimatedMemUsage() const;
 
     /// @returns the total number of checkpoints across all vbuckets
-    size_t getNumCheckpoints() const;
+    BifurcatedCounter getNumCheckpoints() const;
 
     /// @returns total size of stored objects for a single collection.
     size_t getCollectionMemUsed(CollectionID cid) const;
