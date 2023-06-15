@@ -13,6 +13,7 @@
 
 #include "definitions.h"
 
+#include <platform/bifurcated_counter.h>
 #include <platform/histogram.h>
 
 #include <optional>

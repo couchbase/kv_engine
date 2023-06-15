@@ -3119,22 +3119,49 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
 
     collector.addStat(Key::bytes, memUsed);
     collector.addStat(Key::ep_kv_size, stats.getCurrentSize());
-    collector.addStat(Key::ep_blob_num, stats.getNumBlob());
+    {
+        auto blobNum = stats.getNumBlob();
+        collector.addStat(Key::ep_blob_num, blobNum.loadNonNegative());
+        collector.addStat(Key::ep_blob_num_allocated_total, blobNum.getAdded());
+        collector.addStat(Key::ep_blob_num_freed_total, blobNum.getRemoved());
+    }
 #if defined(HAVE_JEMALLOC) || defined(HAVE_TCMALLOC)
     collector.addStat(Key::ep_blob_overhead, stats.getBlobOverhead());
 #else
     collector.addStat(Key::ep_blob_overhead, "unknown");
 #endif
-    collector.addStat(Key::ep_value_size, stats.getTotalValueSize());
-    collector.addStat(Key::ep_storedval_size, stats.getStoredValSize());
+    {
+        auto valueSize = stats.getTotalValueSize();
+        collector.addStat(Key::ep_value_size, valueSize.loadNonNegative());
+        collector.addStat(Key::ep_value_size_allocated_total, valueSize.getAdded());
+        collector.addStat(Key::ep_value_size_freed_total, valueSize.getRemoved());
+    }
+    {
+        auto storedvalSize = stats.getStoredValSize();
+        collector.addStat(Key::ep_storedval_size,
+                          storedvalSize.loadNonNegative());
+        collector.addStat(Key::ep_storedval_size_allocated_total, storedvalSize.getAdded());
+        collector.addStat(Key::ep_storedval_size_freed_total, storedvalSize.getRemoved());
+    }
 #if defined(HAVE_JEMALLOC) || defined(HAVE_TCMALLOC)
     collector.addStat(Key::ep_storedval_overhead, stats.getBlobOverhead());
 #else
     collector.addStat(Key::ep_storedval_overhead, "unknown");
 #endif
-    collector.addStat(Key::ep_storedval_num, stats.getNumStoredVal());
+    {
+        auto storedvalNum = stats.getNumStoredVal();
+        collector.addStat(Key::ep_storedval_num,
+                          storedvalNum.loadNonNegative());
+        collector.addStat(Key::ep_storedval_num_allocated_total, storedvalNum.getAdded());
+        collector.addStat(Key::ep_storedval_num_freed_total, storedvalNum.getRemoved());
+    }
     collector.addStat(Key::ep_overhead, stats.getMemOverhead());
-    collector.addStat(Key::ep_item_num, stats.getNumItem());
+    {
+        auto itemNum = stats.getNumItem();
+        collector.addStat(Key::ep_item_num, itemNum.loadNonNegative());
+        collector.addStat(Key::ep_item_num_allocated_total, itemNum.getAdded());
+        collector.addStat(Key::ep_item_num_freed_total, itemNum.getRemoved());
+    }
 
     collector.addStat(Key::ep_oom_errors, stats.oom_errors);
     collector.addStat(Key::ep_tmp_oom_errors, stats.tmp_oom_errors);
@@ -3350,7 +3377,13 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsHighCardinality(
                       epstats.memFreedByCheckpointRemoval);
     collector.addStat(Key::ep_mem_freed_by_checkpoint_item_expel,
                       epstats.memFreedByCheckpointItemExpel);
-    collector.addStat(Key::ep_num_checkpoints, epstats.getNumCheckpoints());
+    {
+        auto checkpointNum = stats.getNumCheckpoints();
+        collector.addStat(Key::ep_num_checkpoints,
+                          checkpointNum.loadNonNegative());
+        collector.addStat(Key::ep_num_checkpoints_allocated_total, checkpointNum.getAdded());
+        collector.addStat(Key::ep_num_checkpoints_freed_total, checkpointNum.getRemoved());
+    }
     collector.addStat(Key::ep_num_checkpoints_pending_destruction,
                       kvBucket->getNumCheckpointsPendingDestruction());
 

@@ -77,7 +77,7 @@ public:
     //! Total size of blob memory overhead
     Counter blobOverhead;
 
-    //! Total memory overhead to store values for resident keys.
+    //! Total memory used to store values for resident keys.
     BifurcatedCounter totalValueSize;
 
     //! The number of storedVal object

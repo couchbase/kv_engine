@@ -440,6 +440,18 @@
         "added": "7.0.0"
     },
     {
+        "key": "ep_blob_num_allocated_total",
+        "unit": "count",
+        "type": "counter",
+        "description": "The number of blob object allocations"
+    },
+    {
+        "key": "ep_blob_num_freed_total",
+        "unit": "count",
+        "type": "counter",
+        "description": "The number of blob object deallocations"
+    },
+    {
         "key": "ep_blob_overhead",
         "unit": "bytes",
         "prometheus": {
@@ -465,6 +477,18 @@
         "added": "7.0.0"
     },
     {
+        "key": "ep_value_size_allocated_total",
+        "unit": "bytes",
+        "type": "counter",
+        "description": "The total number of bytes ever allocated for blob objects"
+    },
+    {
+        "key": "ep_value_size_freed_total",
+        "unit": "bytes",
+        "type": "counter",
+        "description": "The total number of bytes ever freed by deallocated blob objects"
+    },
+    {
         "key": "ep_storedval_size",
         "unit": "bytes",
         "prometheus": {
@@ -475,6 +499,18 @@
         },
         "description": "Memory used by storedval objects",
         "added": "7.0.0"
+    },
+    {
+        "key": "ep_storedval_size_allocated_total",
+        "unit": "bytes",
+        "type": "counter",
+        "description": "The total number of bytes ever allocated for storedval objects"
+    },
+    {
+        "key": "ep_storedval_size_freed_total",
+        "unit": "bytes",
+        "type": "counter",
+        "description": "The total number of bytes ever freed by deallocated storedval objects"
     },
     {
         "key": "ep_storedval_overhead",
@@ -495,6 +531,18 @@
         "added": "7.0.0"
     },
     {
+        "key": "ep_storedval_num_allocated_total",
+        "unit": "count",
+        "type": "counter",
+        "description": "The number of storedval object allocations"
+    },
+    {
+        "key": "ep_storedval_num_freed_total",
+        "unit": "count",
+        "type": "counter",
+        "description": "The number of blob object deallocations"
+    },
+    {
         "key": "ep_overhead",
         "unit": "bytes",
         "prometheus": {
@@ -508,6 +556,18 @@
         "unit": "count",
         "description": "The number of item objects allocated",
         "added": "7.0.0"
+    },
+    {
+        "key": "ep_item_num_allocated_total",
+        "unit": "count",
+        "type": "counter",
+        "description": "The number of item object allocations"
+    },
+    {
+        "key": "ep_item_num_freed_total",
+        "unit": "count",
+        "type": "counter",
+        "description": "The number of item object deallocations"
     },
     {
         "key": "ep_oom_errors",
@@ -1016,7 +1076,20 @@
     {
         "key": "ep_num_checkpoints",
         "unit": "count",
+        "description": "The number of checkpoint objects allocated",
         "added": "7.1.0"
+    },
+    {
+        "key": "ep_num_checkpoints_allocated_total",
+        "unit": "count",
+        "type": "counter",
+        "description": "The number of checkpoint object allocations"
+    },
+    {
+        "key": "ep_num_checkpoints_freed_total",
+        "unit": "count",
+        "type": "counter",
+        "description": "The number of checkpoint object deallocations"
     },
     {
         "key": "ep_num_checkpoints_pending_destruction",
