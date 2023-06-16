@@ -137,7 +137,8 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
         // Before de-duplication could discard a delete, store the largest
         // "rev-seqno" encountered
         if (qi->isDeleted() &&
-            qi->getRevSeqno() > maxDeletedRevSeqno.value_or(0)) {
+            qi->getRevSeqno() >
+                    maxDeletedRevSeqno.value_or(Monotonic<uint64_t>(0))) {
             maxDeletedRevSeqno = qi->getRevSeqno();
         }
 

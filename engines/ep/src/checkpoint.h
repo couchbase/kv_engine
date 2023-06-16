@@ -755,7 +755,7 @@ private:
     // this value tracks the largest rev seqno of those deleted items,
     // and allows the flusher to get the max value irrespective of
     // de-duplication.
-    std::optional<uint64_t> maxDeletedRevSeqno;
+    std::optional<Monotonic<uint64_t>> maxDeletedRevSeqno;
 
     // Whether the snapshot stored in this checkpoint is part of a historical
     // sequence of mutation.
