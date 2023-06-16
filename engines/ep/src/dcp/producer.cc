@@ -1832,46 +1832,47 @@ std::unique_ptr<DcpResponse> DcpProducer::getNextItem() {
                  !resumableIterator.complete();
                  resumableIterator.next()) {
                 const auto& stream = resumableIterator.get();
-
-                if (stream) {
-                    response = stream->next(*this);
-
-                    if (response) {
-                        // VB gave us something, validate it
-                        switch (response->getEvent()) {
-                        case DcpResponse::Event::SnapshotMarker: {
-                            if (stream->endIfRequiredPrivilegesLost(*this)) {
-                                return stream->makeEndStreamResponse(
-                                        cb::mcbp::DcpStreamEndStatus::
-                                                LostPrivileges);
-                            }
-                        }
-                        case DcpResponse::Event::Mutation:
-                        case DcpResponse::Event::Deletion:
-                        case DcpResponse::Event::Expiration:
-                        case DcpResponse::Event::Prepare:
-                        case DcpResponse::Event::Commit:
-                        case DcpResponse::Event::Abort:
-                        case DcpResponse::Event::StreamEnd:
-                        case DcpResponse::Event::SetVbucket:
-                        case DcpResponse::Event::SystemEvent:
-                        case DcpResponse::Event::OSOSnapshot:
-                        case DcpResponse::Event::SeqnoAdvanced:
-                            break;
-                        default:
-                            throw std::logic_error(
-                                    std::string("DcpProducer::getNextItem: "
-                                                "Producer (") +
-                                    logHeader() +
-                                    ") is attempting to "
-                                    "write an unexpected event:" +
-                                    response->to_string());
-                        }
-
-                        ready.pushUnique(vbucket);
-                        return response;
-                    } // else next stream for vb
+                if (!stream) {
+                    continue;
                 }
+
+                response = stream->next(*this);
+                if (!response) {
+                    continue;
+                }
+
+                // The stream gave us something, validate it
+                switch (response->getEvent()) {
+                case DcpResponse::Event::SnapshotMarker: {
+                    if (stream->endIfRequiredPrivilegesLost(*this)) {
+                        return stream->makeEndStreamResponse(
+                                cb::mcbp::DcpStreamEndStatus::LostPrivileges);
+                    }
+                }
+                case DcpResponse::Event::Mutation:
+                case DcpResponse::Event::Deletion:
+                case DcpResponse::Event::Expiration:
+                case DcpResponse::Event::Prepare:
+                case DcpResponse::Event::Commit:
+                case DcpResponse::Event::Abort:
+                case DcpResponse::Event::StreamEnd:
+                case DcpResponse::Event::SetVbucket:
+                case DcpResponse::Event::SystemEvent:
+                case DcpResponse::Event::OSOSnapshot:
+                case DcpResponse::Event::SeqnoAdvanced:
+                    break;
+                default:
+                    throw std::logic_error(
+                            std::string("DcpProducer::getNextItem: "
+                                        "Producer (") +
+                            logHeader() +
+                            ") is attempting to "
+                            "write an unexpected event:" +
+                            response->to_string());
+                }
+
+                ready.pushUnique(vbucket);
+                return response;
             }
         }
 
