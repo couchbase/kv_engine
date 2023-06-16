@@ -15,6 +15,7 @@
 #include <fmt/ostream.h>
 #include <folly/io/IOBuf.h>
 #include <folly/io/async/AsyncSSLSocket.h>
+#include <json/syntax_validator.h>
 #include <mcbp/codec/dcp_snapshot_marker.h>
 #include <mcbp/codec/frameinfo.h>
 #include <mcbp/mcbp.h>
@@ -39,6 +40,7 @@
 #include <thread>
 
 static const bool packet_dump = getenv("COUCHBASE_PACKET_DUMP") != nullptr;
+static const bool unit_tests = getenv("MEMCACHED_UNIT_TESTS") != nullptr;
 
 /**
  * We can't throw the exception from inside folly's event loop and we're
@@ -348,7 +350,8 @@ MemcachedConnection::MemcachedConnection(std::string host,
       port(port),
       family(family),
       ssl(ssl),
-      eventBase(eb ? std::move(eb) : std::make_shared<folly::EventBase>()) {
+      eventBase(eb ? std::move(eb) : std::make_shared<folly::EventBase>()),
+      validateReceivedFrame(unit_tests) {
     if (getenv("MEMCACHED_UNIT_TESTS") == nullptr) {
         // None of the command line commands we had used to have a timeout
         // specified so lets bump it to 30 minutes to make sure that
@@ -904,6 +907,64 @@ std::unique_ptr<MemcachedConnection> MemcachedConnection::clone(
     return ret;
 }
 
+void MemcachedConnection::doValidateReceivedFrame(
+        const cb::mcbp::Header& packet) {
+    if (!packet.isValid()) {
+        throw std::runtime_error(fmt::format(
+                "MemcachedConnection::doValidateReceivedFrame: Invalid frame "
+                "received: {}",
+                cb::to_hex({reinterpret_cast<const uint8_t*>(&packet),
+                            sizeof(packet)})));
+    }
+
+    std::string backing;
+    std::string_view payload = packet.getValueString();
+
+    if (cb::mcbp::datatype::is_snappy(packet.getDatatype())) {
+        if (!hasFeature(cb::mcbp::Feature::SNAPPY)) {
+            throw std::runtime_error(fmt::format(
+                    "Received package with Snappy datatype, but that's "
+                    "not enabled. packet: {}",
+                    packet.to_json(false)));
+        }
+        using namespace cb::compression;
+        Buffer output;
+        if (!inflate(Algorithm::Snappy, payload, output)) {
+            throw std::runtime_error(fmt::format(
+                    "Received snappy compressed frame we failed to inflate: {}",
+                    packet.to_json(false)));
+        }
+        backing = std::string{output.data(), output.size()};
+        payload = backing;
+    }
+
+    if (cb::mcbp::datatype::is_json(packet.getDatatype())) {
+        if (!hasFeature(cb::mcbp::Feature::JSON)) {
+            throw std::runtime_error(fmt::format(
+                    "Received package with JSON datatype, but that's "
+                    "not enabled. packet: {}",
+                    packet.to_json(false)));
+        }
+
+        if (!jsonValidator) {
+            jsonValidator = cb::json::SyntaxValidator::New();
+        }
+        if (!jsonValidator->validate(payload)) {
+            throw std::runtime_error(fmt::format(
+                    "Received package with JSON datatype, but failed to parse "
+                    "the JSON. packet: {}",
+                    packet.to_json(false)));
+        }
+    }
+
+    if (cb::mcbp::datatype::is_xattr(packet.getDatatype()) &&
+        !hasFeature(cb::mcbp::Feature::XATTR)) {
+        throw std::runtime_error(
+                fmt::format("Received package with XATTR datatype, but that's "
+                            "not enabled. packet: "));
+    }
+}
+
 void MemcachedConnection::recvFrame(Frame& frame,
                                     cb::mcbp::ClientOpcode opcode,
                                     std::chrono::milliseconds readTimeout) {
@@ -983,6 +1044,10 @@ void MemcachedConnection::recvFrame(Frame& frame,
         asyncReadCallback->handlePotentialNetworkException();
         throw std::runtime_error(
                 "MemcachedConnection::recvFrame: Failed to fetch next frame");
+    }
+
+    if (validateReceivedFrame) {
+        doValidateReceivedFrame(*next);
     }
 
     auto blob = next->getFrame();

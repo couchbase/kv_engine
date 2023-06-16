@@ -80,6 +80,7 @@ protected:
         provider = conn.clone();
         // Register as RBAC provider
         provider->authenticate("@admin", "password", "PLAIN");
+        provider->setDatatypeJson(true);
         provider->setDuplexSupport(true);
         const auto response = provider->execute(BinprotAuthProviderCommand{});
         ASSERT_TRUE(response.isSuccess());

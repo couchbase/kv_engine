@@ -86,13 +86,15 @@ TEST_P(DcpTest, UnorderedExecutionNotSupported) {
 
 /// DCP connections should not be able to select bucket
 TEST_P(DcpTest, MB35904_DcpCantSelectBucket) {
-    auto& conn = getAdminConnection();
-    conn.selectBucket(bucketName);
-    auto rsp = conn.execute(BinprotDcpOpenCommand{
+    auto conn = adminConnection->clone();
+    conn->authenticate("@admin", mcd_env->getPassword("@admin"));
+    conn->setDatatypeJson(true);
+    conn->selectBucket(bucketName);
+    auto rsp = conn->execute(BinprotDcpOpenCommand{
             "ewb_internal:1", cb::mcbp::request::DcpOpenPayload::Producer});
     ASSERT_TRUE(rsp.isSuccess());
 
-    rsp = conn.execute(
+    rsp = conn->execute(
             BinprotGenericCommand{cb::mcbp::ClientOpcode::SelectBucket, name});
     ASSERT_FALSE(rsp.isSuccess());
     EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus());
@@ -122,13 +124,15 @@ TEST_P(DcpTest, MB35928_DcpCantReauthenticate) {
 }
 
 TEST_P(DcpTest, CantDcpOpenTwice) {
-    auto& conn = getAdminConnection();
-    conn.selectBucket(bucketName);
-    auto rsp = conn.execute(BinprotDcpOpenCommand{
+    auto conn = adminConnection->clone();
+    conn->authenticate("@admin", mcd_env->getPassword("@admin"));
+    conn->setDatatypeJson(true);
+    conn->selectBucket(bucketName);
+    auto rsp = conn->execute(BinprotDcpOpenCommand{
             "ewb_internal:1", cb::mcbp::request::DcpOpenPayload::Producer});
     ASSERT_TRUE(rsp.isSuccess());
 
-    rsp = conn.execute(BinprotDcpOpenCommand{
+    rsp = conn->execute(BinprotDcpOpenCommand{
             "ewb_internal:1", cb::mcbp::request::DcpOpenPayload::Producer});
     ASSERT_FALSE(rsp.isSuccess());
     auto json = nlohmann::json::parse(rsp.getDataString());

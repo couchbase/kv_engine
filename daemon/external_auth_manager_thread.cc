@@ -137,7 +137,8 @@ void ExternalAuthManagerThread::pushActiveUsers() {
                 buffer.resize(sizeof(cb::mcbp::Request) + p.size());
                 cb::mcbp::RequestBuilder builder(buffer);
                 builder.setMagic(cb::mcbp::Magic::ServerRequest);
-                builder.setDatatype(cb::mcbp::Datatype::JSON);
+                builder.setDatatype(provider->getEnabledDatatypes(
+                        cb::mcbp::Datatype::JSON));
                 builder.setOpcode(cb::mcbp::ServerOpcode::ActiveExternalUsers);
                 builder.setValue(
                         {reinterpret_cast<const uint8_t*>(p.data()), p.size()});
@@ -217,7 +218,8 @@ void ExternalAuthManagerThread::processRequestQueue() {
                         buffer.resize(needed);
                         cb::mcbp::RequestBuilder builder(buffer);
                         builder.setMagic(cb::mcbp::Magic::ServerRequest);
-                        builder.setDatatype(cb::mcbp::Datatype::JSON);
+                        builder.setDatatype(provider->getEnabledDatatypes(
+                                cb::mcbp::Datatype::JSON));
                         builder.setOpcode(cb::mcbp::ServerOpcode::Authenticate);
                         builder.setOpaque(id);
                         builder.setValue(

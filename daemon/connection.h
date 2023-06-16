@@ -465,6 +465,11 @@ public:
         return datatypeFilter.getIntersection(dtype);
     }
 
+    cb::mcbp::Datatype getEnabledDatatypes(cb::mcbp::Datatype dtype) const {
+        return cb::mcbp::Datatype{
+                datatypeFilter.getIntersection(uint8_t(dtype))};
+    }
+
     /**
      * @return true if the all of the dtype datatypes are all enabled
      */

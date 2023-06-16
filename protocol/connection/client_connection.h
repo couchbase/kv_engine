@@ -47,6 +47,10 @@ using AsyncSocketUniquePtr =
         std::unique_ptr<folly::AsyncSocket,
                         folly::DelayedDestruction::Destructor>;
 
+namespace cb::json {
+class SyntaxValidator;
+}
+
 /**
  * The Frame class is used to represent all of the data included in the
  * protocol unit going over the wire.
@@ -1035,6 +1039,14 @@ public:
         packet_dump_callback = std::move(callback);
     }
 
+    /// Enable / disable validation of the received frame. Validation include
+    ///  a) The frame header is valid
+    ///  b) The datatype received is one of the ones we've enabled support for
+    ///  c) The value is what the datatype say it is
+    void setValidateReceivedFrame(bool value) {
+        validateReceivedFrame = value;
+    }
+
 protected:
     void sendBuffer(const std::vector<iovec>& buf);
     void sendBuffer(cb::const_byte_buffer buf);
@@ -1106,4 +1118,8 @@ protected:
     Featureset effective_features;
     std::function<void(MemcachedConnection&, bool, std::string_view)>
             packet_dump_callback;
+
+    bool validateReceivedFrame;
+    void doValidateReceivedFrame(const cb::mcbp::Header& packet);
+    std::unique_ptr<cb::json::SyntaxValidator> jsonValidator;
 };
