@@ -63,7 +63,7 @@ struct ThreadPoolConfig {
     /// pool).
     enum class IOThreadsPerCore : int {
         /// Default value to use if not otherwise specified.
-        Default = 1,
+        Default = 2,
         // Any other positive integer value is an explicit multiplier to use.
     };
 
