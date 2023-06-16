@@ -648,8 +648,9 @@ FollyExecutorPool::FollyExecutorPool(
         ThreadPoolConfig::ThreadCount maxReaders_,
         ThreadPoolConfig::ThreadCount maxWriters_,
         ThreadPoolConfig::AuxIoThreadCount maxAuxIO_,
-        ThreadPoolConfig::NonIoThreadCount maxNonIO_)
-    : ExecutorPool(maxThreads),
+        ThreadPoolConfig::NonIoThreadCount maxNonIO_,
+        ThreadPoolConfig::IOThreadsPerCore ioThreadsPerCore)
+    : ExecutorPool(maxThreads, ioThreadsPerCore),
       state(std::make_unique<State>()),
       maxReaders(calcNumReaders(maxReaders_)),
       maxWriters(calcNumWriters(maxWriters_)),
@@ -657,12 +658,13 @@ FollyExecutorPool::FollyExecutorPool(
       maxNonIO(calcNumNonIO(maxNonIO_)) {
     LOG_TRACE(
             "FollyExecutorPool ctor: Creating with maxThreads:{} maxReaders:{} "
-            "maxWriters:{} maxAuxIO:{} maxNonIO:{}",
+            "maxWriters:{} maxAuxIO:{} maxNonIO:{} ioThreadsPerCore:{}",
             maxThreads,
             maxReaders,
             maxWriters,
             maxAuxIO,
-            maxNonIO);
+            maxNonIO,
+            ioThreadsPerCore);
 
     // Disable dynamic thread creation / destruction to match CB3ExecutorPool
     // behaviour. At least AtomicQueue cannot be used when this is set to true.

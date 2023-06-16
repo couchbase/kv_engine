@@ -719,7 +719,9 @@ static void startExecutorPool() {
             ThreadPoolConfig::ThreadCount(settings.getNumReaderThreads()),
             ThreadPoolConfig::ThreadCount(settings.getNumWriterThreads()),
             ThreadPoolConfig::AuxIoThreadCount(settings.getNumAuxIoThreads()),
-            ThreadPoolConfig::NonIoThreadCount(settings.getNumNonIoThreads()));
+            ThreadPoolConfig::NonIoThreadCount(settings.getNumNonIoThreads()),
+            ThreadPoolConfig::IOThreadsPerCore(
+                    settings.getNumIOThreadsPerCore()));
     ExecutorPool::get()->registerTaskable(NoBucketTaskable::instance());
 
     // MB-47484 Set up the settings callback for the executor pool now that
@@ -763,6 +765,24 @@ static void startExecutorPool() {
                 ExecutorPool::get()->setNumNonIO(val);
                 BucketManager::instance().forEach([val](Bucket& b) -> bool {
                     b.getEngine().set_num_nonio_threads(val);
+                    return true;
+                });
+            });
+    settings.addChangeListener(
+            "num_io_thread_per_core", [](const std::string&, Settings& s) {
+                // Update the ExecutorPool with the new coefficient, then
+                // recalculate the number of AuxIO threads.
+                auto* executorPool = ExecutorPool::get();
+                executorPool->setNumIOThreadPerCore(
+                        ThreadPoolConfig::IOThreadsPerCore{
+                                s.getNumIOThreadsPerCore()});
+                executorPool->setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount{
+                        s.getNumAuxIoThreads()});
+                const auto newAuxIO = ThreadPoolConfig::AuxIoThreadCount(
+                        s.getNumAuxIoThreads());
+                // Notify engines of change in AuxIO thread count.
+                BucketManager::instance().forEach([newAuxIO](Bucket& b) {
+                    b.getEngine().set_num_auxio_threads(newAuxIO);
                     return true;
                 });
             });

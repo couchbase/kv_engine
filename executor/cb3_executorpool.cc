@@ -45,12 +45,14 @@ size_t CB3ExecutorPool::getNumReaders() {
             ThreadPoolConfig::ThreadCount(numWorkers[READER_TASK_IDX].load()));
 }
 
-CB3ExecutorPool::CB3ExecutorPool(size_t maxThreads,
-                                 ThreadPoolConfig::ThreadCount maxReaders,
-                                 ThreadPoolConfig::ThreadCount maxWriters,
-                                 ThreadPoolConfig::AuxIoThreadCount maxAuxIO,
-                                 ThreadPoolConfig::NonIoThreadCount maxNonIO)
-    : ExecutorPool(maxThreads),
+CB3ExecutorPool::CB3ExecutorPool(
+        size_t maxThreads,
+        ThreadPoolConfig::ThreadCount maxReaders,
+        ThreadPoolConfig::ThreadCount maxWriters,
+        ThreadPoolConfig::AuxIoThreadCount maxAuxIO,
+        ThreadPoolConfig::NonIoThreadCount maxNonIO,
+        ThreadPoolConfig::IOThreadsPerCore ioThreadPerCore)
+    : ExecutorPool(maxThreads, ioThreadPerCore),
       totReadyTasks(0),
       isHiPrioQset(false),
       isLowPrioQset(false),

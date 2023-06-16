@@ -7136,6 +7136,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
              {"ep_workload:num_readers",
               "ep_workload:num_writers",
               "ep_workload:num_auxio",
+              "ep_workload:num_io_threads_per_core",
               "ep_workload:num_nonio",
               "ep_workload:num_shards",
               "ep_workload:ready_tasks",

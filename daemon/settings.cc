@@ -570,6 +570,21 @@ static void handle_num_nonio_threads(Settings& s, const nlohmann::json& obj) {
     }
 }
 
+static void handle_num_io_threads_per_core(Settings& s, const nlohmann::json& obj) {
+    if (obj.is_number_unsigned()) {
+        s.setNumIOThreadsPerCore(obj.get<int>());
+    } else if (obj.is_string() && obj.get<std::string>() == "default") {
+        s.setNumIOThreadsPerCore(
+                std::underlying_type_t<ThreadPoolConfig::IOThreadsPerCore>(
+                        ThreadPoolConfig::IOThreadsPerCore::Default));
+    } else {
+        throw std::invalid_argument(
+                fmt::format("Number of IO threads per core must be an "
+                            "unsigned integer or \"default\"!! Value:'{}'",
+                            obj.dump()));
+    }
+}
+
 static void handle_num_storage_threads(Settings& s, const nlohmann::json& obj) {
     if (obj.is_number_unsigned()) {
         s.setNumStorageThreads(obj.get<size_t>());
@@ -729,6 +744,7 @@ void Settings::reconfigure(const nlohmann::json& json) {
             {"num_storage_threads", handle_num_storage_threads},
             {"num_auxio_threads", handle_num_auxio_threads},
             {"num_nonio_threads", handle_num_nonio_threads},
+            {"num_io_threads_per_core", handle_num_io_threads_per_core},
             {"tracing_enabled", handle_tracing_enabled},
             {"enforce_tenant_limits_enabled",
              handle_enforce_tenant_limits_enabled},
@@ -770,6 +786,12 @@ void Settings::setOpcodeAttributesOverride(const std::string& value) {
     opcode_attributes_override.wlock()->assign(value);
     has.opcode_attributes_override = true;
     notify_changed("opcode_attributes_override");
+}
+
+void Settings::setNumIOThreadsPerCore(int val) {
+    num_io_threads_per_core.store(val, std::memory_order_release);
+    has.num_io_threads_per_core = true;
+    notify_changed("num_io_threads_per_core");
 }
 
 void Settings::updateSettings(const Settings& other, bool apply) {
@@ -1246,6 +1268,17 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                  getNumNonIoThreads(),
                  other.getNumNonIoThreads());
         setNumNonIoThreads(other.getNumNonIoThreads());
+    }
+
+    if (other.has.num_io_threads_per_core) {
+        const auto oldTPC = getNumIOThreadsPerCore();
+        const auto newTPC = other.getNumIOThreadsPerCore();
+        if (oldTPC != newTPC) {
+            LOG_INFO("Change number of IO threads per core from: {} to {}",
+                     oldTPC,
+                     newTPC);
+            setNumIOThreadsPerCore(newTPC);
+        }
     }
 
     if (other.has.prometheus_config) {

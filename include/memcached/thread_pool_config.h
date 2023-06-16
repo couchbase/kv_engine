@@ -58,6 +58,15 @@ struct ThreadPoolConfig {
         /// (including zero which means "no threads", useful for testing).
     };
 
+    /// Number of IO threads to create per CPU core, for thread pools which
+    /// have (potentially) multiple threads created per CPU (currently AuxIO
+    /// pool).
+    enum class IOThreadsPerCore : int {
+        /// Default value to use if not otherwise specified.
+        Default = 1,
+        // Any other positive integer value is an explicit multiplier to use.
+    };
+
     friend std::ostream& operator<<(std::ostream& os, const ThreadCount& tc);
 
     ThreadPoolConfig() = default;

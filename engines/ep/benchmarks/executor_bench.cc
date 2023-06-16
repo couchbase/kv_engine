@@ -82,7 +82,8 @@ public:
                     ThreadPoolConfig::ThreadCount(1),
                     ThreadPoolConfig::ThreadCount(1),
                     ThreadPoolConfig::AuxIoThreadCount(1),
-                    ThreadPoolConfig::NonIoThreadCount(nonIOCount));
+                    ThreadPoolConfig::NonIoThreadCount(nonIOCount),
+                    ThreadPoolConfig::IOThreadsPerCore(1));
             pool->registerTaskable(taskable);
             poolPtr.store(pool.get());
             poolSem.post();
