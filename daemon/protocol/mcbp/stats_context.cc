@@ -678,7 +678,7 @@ static std::unordered_map<StatGroupId, struct command_stat_handler>
                  {false, stat_bucket_collections_stats}},
                 {StatGroupId::StatTimings, {true, stat_timings_executor}},
                 {StatGroupId::Threads, {true, stat_threads_executor}},
-                {StatGroupId::TasksAll, {false, stat_tasks_all_executor}}};
+                {StatGroupId::TasksAll, {true, stat_tasks_all_executor}}};
 
 /**
  * For a given key, try and return the handler for it
@@ -773,8 +773,8 @@ cb::engine_errc StatsCommandContext::checkPrivilege() {
             }
         }
     } else {
-        // The stat key don't exist, but only tell the user if the connection
-        // possess the SimpleStats privilege
+        // The stat key doesn't exist, but only tell the user if the connection
+        // holds the SimpleStats privilege
         if (cookie.testPrivilege(cb::rbac::Privilege::SimpleStats, {}, {})
                     .success()) {
             ret = cb::engine_errc::no_such_key;

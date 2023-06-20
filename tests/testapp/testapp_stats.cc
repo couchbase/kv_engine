@@ -10,7 +10,7 @@
 
 #include "testapp_client_test.h"
 #include <fmt/format.h>
-#include <gsl/gsl-lite.hpp>
+#include <memcached/stat_group.h>
 #include <protocol/mcbp/ewb_encode.h>
 
 using namespace std::string_view_literals;
@@ -77,13 +77,6 @@ TEST_P(StatsTest, TestGetMeta) {
 
     get_hits = stats["get_hits"].get<size_t>();
     EXPECT_EQ(0, get_hits);
-}
-
-TEST_P(StatsTest, StatsResetIsPrivileged) {
-    const auto rsp = userConnection->execute(
-            BinprotGenericCommand{cb::mcbp::ClientOpcode::Stat, "reset"});
-    EXPECT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus())
-            << "reset is a privileged operation";
 }
 
 TEST_P(StatsTest, TestReset) {
@@ -297,12 +290,6 @@ TEST_P(StatsTest, MB52728_TestEWBReturnFromStatBGTask) {
     });
 }
 
-TEST_P(StatsTest, TestAuditNoAccess) {
-    const auto rsp = userConnection->execute(
-            BinprotGenericCommand{cb::mcbp::ClientOpcode::Stat, "audit"});
-    EXPECT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus());
-}
-
 TEST_P(StatsTest, TestAudit) {
     auto stats = adminConnection->stats("audit");
     EXPECT_EQ(2, stats.size());
@@ -310,10 +297,17 @@ TEST_P(StatsTest, TestAudit) {
     EXPECT_EQ(0, stats["dropped_events"].get<size_t>());
 }
 
-TEST_P(StatsTest, TestBucketDetailsNoAccess) {
-    const auto rsp = userConnection->execute(BinprotGenericCommand{
-            cb::mcbp::ClientOpcode::Stat, "bucket_details"});
-    EXPECT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus());
+TEST_P(StatsTest, UnprivilegedUserCantGetPrivilegedStats) {
+    // Verify that all of the stat groups listed as privileged fails
+    // with eaccess
+    StatsGroupManager::getInstance().iterate([](const auto& group) {
+        if (group.privileged) {
+            const auto rsp = userConnection->execute(BinprotGenericCommand{
+                    cb::mcbp::ClientOpcode::Stat, std::string{group.key}});
+            EXPECT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus())
+                    << "Failed for key: " << group.key;
+        }
+    });
 }
 
 TEST_P(StatsTest, TestBucketDetails) {
@@ -528,13 +522,6 @@ TEST_P(StatsTest, TestResponseStats) {
     // 1. The previous stats call sending the JSON
     // 2. The previous stats call sending a null packet to mark end of stats
     EXPECT_EQ(successCount + 1, getResponseCount(cb::mcbp::Status::Success));
-}
-
-TEST_P(StatsTest, TracingStatsIsPrivileged) {
-    const auto rsp = userConnection->execute(
-            BinprotGenericCommand{cb::mcbp::ClientOpcode::Stat, "tracing"});
-    EXPECT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus())
-            << "tracing is a privileged operation";
 }
 
 TEST_P(StatsTest, TestTracingStats) {
