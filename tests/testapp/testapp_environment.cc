@@ -466,17 +466,20 @@ public:
         // in the log files so lets dump the last 8k of the log file to give
         // the user more information
         if (exitcode != EXIT_SUCCESS) {
-            // We've set the cycle size to be 200M so we should expect
+            constexpr std::size_t max_log_size = 64 * 1024;
+
+            // We've set the cycle size to be 200M, so we should expect
             // only a single log file (but for simplicity just iterate
-            // over them all and print the last 8k of each file
-            std::cerr << "Last 8k of the log files" << std::endl
+            // over them all and print the last xk of each file
+            std::cerr << "Last " << max_log_size / 1024 << "k of the log files"
+                      << std::endl
                       << "========================" << std::endl;
             for (const auto& p : std::filesystem::directory_iterator(log_dir)) {
                 if (is_regular_file(p)) {
                     auto content = cb::io::loadFile(p.path().generic_string());
-                    if (content.size() > 8192) {
-                        content = content.substr(
-                                content.find('\n', content.size() - 8192));
+                    if (content.size() > max_log_size) {
+                        content = content.substr(content.find(
+                                '\n', content.size() - max_log_size));
                     }
                     std::cerr << p.path().generic_string() << std::endl
                               << content << std::endl

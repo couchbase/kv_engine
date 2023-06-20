@@ -1176,6 +1176,9 @@ MemcachedConnection& TestappTest::prepare(MemcachedConnection& connection) {
         features.push_back(cb::mcbp::Feature::JSON);
     }
 
+    if (!name.empty()) {
+        connection.setAgentName(name);
+    }
     connection.setFeatures(features);
     return connection;
 }
