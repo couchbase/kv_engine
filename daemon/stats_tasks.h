@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -14,7 +13,6 @@
 #include <folly/Synchronized.h>
 #include <memcached/engine_common.h>
 #include <memcached/engine_error.h>
-#include <atomic>
 #include <vector>
 
 class Connection;
@@ -26,24 +24,37 @@ public:
     StatsTask() = delete;
     StatsTask(const StatsTask&) = delete;
 
-    cb::engine_errc getCommandError() const {
-        return command_error;
-    }
+    /// Get the result from the command
+    cb::engine_errc getCommandError() const;
 
-    /// get all of the stats pairs produced by the task
-    std::vector<std::pair<std::string, std::string>> getStats() {
-        std::vector<std::pair<std::string, std::string>> ret;
-        stats.swap(ret);
-        return ret;
-    }
+    /// Iterate over all the collected stats pairs and call the provided
+    /// callback
+    void iterateStats(std::function<void(std::string_view, std::string_view)>
+                              callback) const;
 
 protected:
+    bool run() final;
+
+    using StatVector = std::vector<std::pair<std::string, std::string>>;
+
+    /**
+     * The sub-classes of the task should override this method and
+     * populate the error code and the stats vector with the values
+     *
+     * @param command_error The result of the command
+     * @param stats The statistics generated
+     */
+    virtual void getStats(cb::engine_errc& command_error,
+                          StatVector& stats) = 0;
+
     StatsTask(TaskId id, Cookie& cookie);
     Cookie& cookie;
-    std::atomic<cb::engine_errc> command_error{cb::engine_errc::success};
-    folly::Synchronized<std::vector<std::pair<std::string, std::string>>,
-                        std::mutex>
-            stats;
+
+    struct TaskData {
+        cb::engine_errc command_error{cb::engine_errc::success};
+        StatVector stats;
+    };
+    folly::Synchronized<TaskData, std::mutex> taskData;
 };
 
 /**
@@ -59,7 +70,9 @@ public:
     std::chrono::microseconds maxExpectedDuration() const override;
 
 protected:
-    bool run() override;
+    void getStats(
+            cb::engine_errc& command_error,
+            std::vector<std::pair<std::string, std::string>>& stats) override;
 
     std::string key;
     std::string value;
@@ -72,7 +85,9 @@ public:
     std::chrono::microseconds maxExpectedDuration() const override;
 
 protected:
-    bool run() override;
+    void getStats(
+            cb::engine_errc& command_error,
+            std::vector<std::pair<std::string, std::string>>& stats) override;
     const int64_t fd;
 };
 
@@ -84,5 +99,7 @@ public:
     std::chrono::microseconds maxExpectedDuration() const override;
 
 protected:
-    bool run() override;
+    void getStats(
+            cb::engine_errc& command_error,
+            std::vector<std::pair<std::string, std::string>>& stats) override;
 };

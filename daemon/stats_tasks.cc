@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -22,6 +21,34 @@ StatsTask::StatsTask(TaskId id, Cookie& cookie)
     : GlobalTask(NoBucketTaskable::instance(), id), cookie(cookie) {
 }
 
+cb::engine_errc StatsTask::getCommandError() const {
+    return taskData.lock()->command_error;
+}
+
+void StatsTask::iterateStats(
+        std::function<void(std::string_view, std::string_view)> callback)
+        const {
+    taskData.withLock([&callback](auto& data) {
+        for (const auto& [k, v] : data.stats) {
+            callback(k, v);
+        }
+    });
+}
+
+bool StatsTask::run() {
+    taskData.withLock([this](auto& data) {
+        getStats(data.command_error, data.stats);
+        // If the handler isn't would_block we should signal the cookie
+        // with "success" causing the state machine to read the actual
+        // status from the task. If it is "would block" the underlying
+        // engine will do this notification once its done.
+        if (data.command_error != cb::engine_errc::would_block) {
+            cookie.notifyIoComplete(cb::engine_errc::success);
+        }
+    });
+    return false;
+}
+
 StatsTaskBucketStats::StatsTaskBucketStats(Cookie& cookie,
                                            std::string key,
                                            std::string value)
@@ -30,32 +57,17 @@ StatsTaskBucketStats::StatsTaskBucketStats(Cookie& cookie,
       value(std::move(value)) {
 }
 
-bool StatsTaskBucketStats::run() {
-    std::vector<std::pair<std::string, std::string>> vec;
+void StatsTaskBucketStats::getStats(cb::engine_errc& command_error,
+                                    StatVector& stats) {
     command_error = bucket_get_stats(
             cookie,
             key,
             cb::const_byte_buffer(
                     reinterpret_cast<const uint8_t*>(value.data()),
                     value.size()),
-            [&vec](std::string_view k, std::string_view v, CookieIface&) {
-                vec.emplace_back(k, v);
+            [&stats](std::string_view k, std::string_view v, CookieIface&) {
+                stats.emplace_back(k, v);
             });
-
-    stats.withLock([&vec](auto& st) {
-        st.insert(st.end(),
-                  std::make_move_iterator(vec.begin()),
-                  std::make_move_iterator(vec.end()));
-    });
-
-    // If bucket_get_stats() returned a final "complete" status, notify
-    // back to the front-end so this command can complete. If would_block was
-    // returned then the engine would have scheduled its own background task
-    // which will call notifyIoComplete() itself when it is complete.
-    if (command_error != cb::engine_errc::would_block) {
-        cookie.notifyIoComplete(cb::engine_errc::success);
-    }
-    return false;
 }
 
 std::string StatsTaskBucketStats::getDescription() const {
@@ -70,28 +82,24 @@ StatsTaskConnectionStats::StatsTaskConnectionStats(Cookie& cookie, int64_t fd)
     : StatsTask(TaskId::Core_StatsConnectionTask, cookie), fd(fd) {
 }
 
-bool StatsTaskConnectionStats::run() {
+void StatsTaskConnectionStats::getStats(cb::engine_errc& command_error,
+                                        StatVector& stats) {
     try {
-        std::vector<std::pair<std::string, std::string>> vec;
-        iterate_all_connections([&vec, this](Connection& c) -> void {
+        iterate_all_connections([this, &stats](Connection& c) -> void {
             if (fd == -1 || c.getId() == fd) {
-                vec.emplace_back(std::make_pair<std::string, std::string>(
+                stats.emplace_back(std::make_pair<std::string, std::string>(
                         {}, c.to_json().dump()));
             }
         });
-        stats.swap(vec);
     } catch (const std::exception& exception) {
         LOG_WARNING(
-                "{}: ConnectionStatsTask::execute(): An exception "
+                "{}: StatsTaskConnectionStats::getStats(): An exception "
                 "occurred: {}",
                 cookie.getConnectionId(),
                 exception.what());
         cookie.setErrorContext("An exception occurred");
         command_error = cb::engine_errc::failed;
     }
-
-    cookie.notifyIoComplete(cb::engine_errc::success);
-    return false;
 }
 
 std::string StatsTaskConnectionStats::getDescription() const {
@@ -112,17 +120,14 @@ StatsTaskClientConnectionDetails::StatsTaskClientConnectionDetails(
     : StatsTask(TaskId::Core_StatsConnectionTask, cookie) {
 }
 
-bool StatsTaskClientConnectionDetails::run() {
+void StatsTaskClientConnectionDetails::getStats(cb::engine_errc& command_error,
+                                                StatVector& stats) {
     const auto clientConnectionMap =
             FrontEndThread::getClientConnectionDetails();
     const auto now = std::chrono::steady_clock::now();
-    std::vector<std::pair<std::string, std::string>> vec;
     for (const auto& [ip, entry] : clientConnectionMap) {
-        vec.emplace_back(std::string(ip), entry.to_json(now).dump());
+        stats.emplace_back(std::string(ip), entry.to_json(now).dump());
     }
-    stats.swap(vec);
-    cookie.notifyIoComplete(cb::engine_errc::success);
-    return false;
 }
 
 std::string StatsTaskClientConnectionDetails::getDescription() const {

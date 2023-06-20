@@ -836,11 +836,8 @@ cb::engine_errc StatsCommandContext::getTaskResult() {
         state = State::DoStats;
     } else {
         state = State::CommandComplete;
-        if (command_exit_code == cb::engine_errc::success) {
-            for (const auto& s : stats_task.getStats()) {
-                append_stats(s.first, s.second, cookie);
-            }
-        }
+        stats_task.iterateStats(
+                [this](auto k, auto v) { append_stats(k, v, cookie); });
     }
 
     return cb::engine_errc::success;
