@@ -80,12 +80,10 @@ TEST_P(StatsTest, TestGetMeta) {
 }
 
 TEST_P(StatsTest, StatsResetIsPrivileged) {
-    try {
-        userConnection->stats("reset");
-        FAIL() << "reset is a privileged operation";
-    } catch (ConnectionError& error) {
-        EXPECT_TRUE(error.isAccessDenied());
-    }
+    const auto rsp = userConnection->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::Stat, "reset"});
+    EXPECT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus())
+            << "reset is a privileged operation";
 }
 
 TEST_P(StatsTest, TestReset) {
@@ -322,14 +320,9 @@ TEST_P(StatsTest, MB52728_TestEWBReturnFromStatBGTask) {
 }
 
 TEST_P(StatsTest, TestAuditNoAccess) {
-    MemcachedConnection& conn = getConnection();
-
-    try {
-        conn.stats("audit");
-        FAIL() << "stats audit should throw an exception (non privileged)";
-    } catch (ConnectionError& error) {
-        EXPECT_TRUE(error.isAccessDenied());
-    }
+    const auto rsp = userConnection->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::Stat, "audit"});
+    EXPECT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus());
 }
 
 TEST_P(StatsTest, TestAudit) {
@@ -340,15 +333,9 @@ TEST_P(StatsTest, TestAudit) {
 }
 
 TEST_P(StatsTest, TestBucketDetailsNoAccess) {
-    MemcachedConnection& conn = getConnection();
-
-    try {
-        conn.stats("bucket_details");
-        FAIL() <<
-               "stats bucket_details should throw an exception (non privileged)";
-    } catch (ConnectionError& error) {
-        EXPECT_TRUE(error.isAccessDenied());
-    }
+    const auto rsp = userConnection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::Stat, "bucket_details"});
+    EXPECT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus());
 }
 
 TEST_P(StatsTest, TestBucketDetails) {
@@ -443,12 +430,9 @@ TEST_P(StatsTest, TestSchedulerInfo_Aggregate) {
 }
 
 TEST_P(StatsTest, TestSchedulerInfo_InvalidSubcommand) {
-    try {
-        adminConnection->stats("worker_thread_info foo");
-        FAIL() << "Invalid subcommand";
-    } catch (const ConnectionError& error) {
-        EXPECT_TRUE(error.isInvalidArguments());
-    }
+    const auto rsp = adminConnection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::Stat, "worker_thread_info foo"});
+    EXPECT_EQ(cb::mcbp::Status::Einval, rsp.getStatus());
 }
 
 TEST_P(StatsTest, TestAggregate) {
@@ -546,13 +530,10 @@ TEST_P(StatsTest, TestUnprivilegedConnectionsWithSpecificFd) {
 }
 
 TEST_P(StatsTest, TestConnectionsInvalidNumber) {
-    try {
-        auto stats = adminConnection->stats("connections xxx");
-        FAIL() << "Did not detect incorrect connection number";
-
-    } catch (ConnectionError& error) {
-        EXPECT_TRUE(error.isInvalidArguments());
-    }
+    const auto rsp = userConnection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::Stat, "connections xxx"});
+    EXPECT_EQ(cb::mcbp::Status::Einval, rsp.getStatus())
+            << "Did not detect incorrect connection number";
 }
 
 TEST_P(StatsTest, TestSubdocExecute) {
@@ -572,13 +553,10 @@ TEST_P(StatsTest, TestResponseStats) {
 }
 
 TEST_P(StatsTest, TracingStatsIsPrivileged) {
-    MemcachedConnection& conn = getConnection();
-    try {
-        conn.stats("tracing");
-        FAIL() << "tracing is a privileged operation";
-    } catch (ConnectionError& error) {
-        EXPECT_TRUE(error.isAccessDenied());
-    }
+    const auto rsp = userConnection->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::Stat, "tracing"});
+    EXPECT_EQ(cb::mcbp::Status::Eaccess, rsp.getStatus())
+            << "tracing is a privileged operation";
 }
 
 TEST_P(StatsTest, TestTracingStats) {
