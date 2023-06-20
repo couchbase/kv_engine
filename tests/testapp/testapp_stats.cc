@@ -128,32 +128,26 @@ TEST_P(StatsTest, TestReset) {
  * isn't resident)
  */
 TEST_P(StatsTest, Test_MB_17815) {
-    MemcachedConnection& conn = getConnection();
-    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
-    conn.selectBucket(bucketName);
-
     const auto cmd_set_before = get_cmd_counter("cmd_set");
-
     auto sequence = ewb::encodeSequence({cb::engine_errc::would_block,
                                          cb::engine_errc::success,
                                          ewb::Passthrough,
                                          cb::engine_errc::would_block,
                                          cb::engine_errc::success,
                                          ewb::Passthrough});
-    conn.configureEwouldBlockEngine(EWBEngineMode::Sequence,
-                                    /*unused*/ {},
-                                    /*unused*/ {},
-                                    sequence);
+    userConnection->configureEwouldBlockEngine(EWBEngineMode::Sequence,
+                                               /*unused*/ {},
+                                               /*unused*/ {},
+                                               sequence);
 
     Document doc;
     doc.info.cas = cb::mcbp::cas::Wildcard;
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
-    doc.value = memcached_cfg.dump();
+    doc.value = "value";
 
-    conn.mutate(doc, Vbid(0), MutationType::Add);
-
-    conn.disableEwouldBlockEngine();
+    userConnection->mutate(doc, Vbid(0), MutationType::Add);
+    userConnection->disableEwouldBlockEngine();
 
     EXPECT_EQ(cmd_set_before + 1, get_cmd_counter("cmd_set"));
 }
@@ -167,10 +161,6 @@ TEST_P(StatsTest, Test_MB_17815) {
  * Add.
  */
 TEST_P(StatsTest, Test_MB_17815_Append) {
-    MemcachedConnection& conn = getConnection();
-    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
-    conn.selectBucket(bucketName);
-
     const auto cmd_set_before = get_cmd_counter("cmd_set");
 
     // Allow first SET to succeed and then return EWOULDBLOCK for
@@ -182,7 +172,7 @@ TEST_P(StatsTest, Test_MB_17815_Append) {
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
     doc.value = memcached_cfg.dump();
-    conn.mutate(doc, Vbid(0), MutationType::Set);
+    userConnection->mutate(doc, Vbid(0), MutationType::Set);
 
     // bucket_get -> Passthrough,
     // bucket_allocate -> Passthrough,
@@ -193,15 +183,14 @@ TEST_P(StatsTest, Test_MB_17815_Append) {
                                          cb::engine_errc::would_block,
                                          cb::engine_errc::success,
                                          ewb::Passthrough});
-    conn.configureEwouldBlockEngine(EWBEngineMode::Sequence,
-                                    /*unused*/ {},
-                                    /*unused*/ {},
-                                    sequence);
+    userConnection->configureEwouldBlockEngine(EWBEngineMode::Sequence,
+                                               /*unused*/ {},
+                                               /*unused*/ {},
+                                               sequence);
 
     // Now append to the same doc
-    conn.mutate(doc, Vbid(0), MutationType::Append);
-
-    conn.disableEwouldBlockEngine();
+    userConnection->mutate(doc, Vbid(0), MutationType::Append);
+    userConnection->disableEwouldBlockEngine();
 
     EXPECT_EQ(cmd_set_before + 2, get_cmd_counter("cmd_set"));
 }
@@ -211,10 +200,6 @@ TEST_P(StatsTest, Test_MB_17815_Append) {
  * append operation.
  */
 TEST_P(StatsTest, Test_MB_29259_Append) {
-    MemcachedConnection& conn = getConnection();
-    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
-    conn.selectBucket(bucketName);
-
     const auto cmd_set_before = get_cmd_counter("cmd_set");
 
     Document doc;
@@ -223,9 +208,9 @@ TEST_P(StatsTest, Test_MB_29259_Append) {
     doc.info.id = name;
     doc.value = memcached_cfg.dump();
 
-    // Try to append to non-existing document
+    // Try to append to a non-existing document
     try {
-        conn.mutate(doc, Vbid(0), MutationType::Append);
+        userConnection->mutate(doc, Vbid(0), MutationType::Append);
         FAIL() << "Append on non-existing document should fail";
     } catch (const ConnectionError& error) {
         EXPECT_TRUE(error.isNotStored());
