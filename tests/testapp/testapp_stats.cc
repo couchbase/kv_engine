@@ -87,30 +87,23 @@ TEST_P(StatsTest, StatsResetIsPrivileged) {
 }
 
 TEST_P(StatsTest, TestReset) {
-    auto stats = userConnection->stats("");
-    ASSERT_FALSE(stats.empty());
-
-    auto before = stats["cmd_get"].get<size_t>();
-
+    const auto before = get_cmd_counter("cmd_get");
     for (int ii = 0; ii < 10; ++ii) {
         EXPECT_THROW(userConnection->get("foo", Vbid(0)), ConnectionError);
     }
+    EXPECT_EQ(before + 10, get_cmd_counter("cmd_get"));
 
-    stats = userConnection->stats("");
-    EXPECT_NE(before, stats["cmd_get"].get<size_t>());
-
-    // the cmd_get counter does work.. now check that reset sets it back..
+    // The cmd_get counter work. Verify that reset set it to 0
     adminConnection->executeInBucket(
             bucketName, [](auto& connection) { connection.stats("reset"); });
 
-    stats = userConnection->stats("");
-    EXPECT_EQ(0, stats["cmd_get"].get<size_t>());
+    EXPECT_EQ(0, get_cmd_counter("cmd_get"));
 
     // Just ensure that the "reset timings" is detected
     // @todo add a separate test case for cmd timings stats
     adminConnection->executeInBucket(bucketName, [](auto& connection) {
         connection.stats("reset timings");
-        // Just ensure that the "reset bogus" is detected..
+        // Just ensure that the "reset bogus" is detected...
         try {
             connection.stats("reset bogus");
             FAIL() << "stats reset bogus should throw an exception (non a "
