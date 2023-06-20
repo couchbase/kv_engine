@@ -15,22 +15,7 @@
 
 using namespace std::string_view_literals;
 
-class StatsTest : public TestappClientTest {
-public:
-    void SetUp() override {
-        TestappClientTest::SetUp();
-        // Let all tests start with an empty set of stats (There is
-        // a special test case that tests that reset actually work)
-        resetBucket();
-    }
-
-protected:
-    void resetBucket() {
-        adminConnection->executeInBucket(bucketName, [](auto& connection) {
-            connection.stats("reset");
-        });
-    }
-};
+class StatsTest : public TestappClientTest {};
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          StatsTest,
@@ -117,7 +102,8 @@ TEST_P(StatsTest, TestReset) {
     EXPECT_NE(before, stats["cmd_get"].get<size_t>());
 
     // the cmd_get counter does work.. now check that reset sets it back..
-    resetBucket();
+    adminConnection->executeInBucket(
+            bucketName, [](auto& connection) { connection.stats("reset"); });
 
     stats = userConnection->stats("");
     EXPECT_EQ(0, stats["cmd_get"].get<size_t>());
@@ -147,8 +133,8 @@ TEST_P(StatsTest, Test_MB_17815) {
     MemcachedConnection& conn = getConnection();
     conn.authenticate("Luke", mcd_env->getPassword("Luke"));
     conn.selectBucket(bucketName);
-    auto stats = conn.stats("");
-    EXPECT_EQ(0, stats["cmd_set"].get<size_t>());
+
+    const auto cmd_set_before = get_cmd_counter("cmd_set");
 
     auto sequence = ewb::encodeSequence({cb::engine_errc::would_block,
                                          cb::engine_errc::success,
@@ -171,8 +157,7 @@ TEST_P(StatsTest, Test_MB_17815) {
 
     conn.disableEwouldBlockEngine();
 
-    stats = conn.stats("");
-    EXPECT_EQ(1, stats["cmd_set"].get<size_t>());
+    EXPECT_EQ(cmd_set_before + 1, get_cmd_counter("cmd_set"));
 }
 
 /**
@@ -188,8 +173,7 @@ TEST_P(StatsTest, Test_MB_17815_Append) {
     conn.authenticate("Luke", mcd_env->getPassword("Luke"));
     conn.selectBucket(bucketName);
 
-    auto stats = conn.stats("");
-    EXPECT_EQ(0, stats["cmd_set"].get<size_t>());
+    const auto cmd_set_before = get_cmd_counter("cmd_set");
 
     // Allow first SET to succeed and then return EWOULDBLOCK for
     // the Append (2nd op).
@@ -221,8 +205,7 @@ TEST_P(StatsTest, Test_MB_17815_Append) {
 
     conn.disableEwouldBlockEngine();
 
-    stats = conn.stats("");
-    EXPECT_EQ(2, stats["cmd_set"].get<size_t>());
+    EXPECT_EQ(cmd_set_before + 2, get_cmd_counter("cmd_set"));
 }
 
 /**
@@ -234,8 +217,7 @@ TEST_P(StatsTest, Test_MB_29259_Append) {
     conn.authenticate("Luke", mcd_env->getPassword("Luke"));
     conn.selectBucket(bucketName);
 
-    auto stats = conn.stats("");
-    EXPECT_EQ(0, stats["cmd_set"].get<size_t>());
+    const auto cmd_set_before = get_cmd_counter("cmd_set");
 
     Document doc;
     doc.info.cas = cb::mcbp::cas::Wildcard;
@@ -251,14 +233,11 @@ TEST_P(StatsTest, Test_MB_29259_Append) {
         EXPECT_TRUE(error.isNotStored());
     }
 
-    stats = conn.stats("");
-    EXPECT_EQ(1, stats["cmd_set"].get<size_t>());
+    EXPECT_EQ(cmd_set_before + 1, get_cmd_counter("cmd_set"));
 }
 
 TEST_P(StatsTest, TestAppend) {
-    MemcachedConnection& conn = getConnection();
-    conn.authenticate("Luke", mcd_env->getPassword("Luke"));
-    conn.selectBucket(bucketName);
+    const auto cmd_set_before = get_cmd_counter("cmd_set");
 
     // Set a document
     Document doc;
@@ -266,16 +245,16 @@ TEST_P(StatsTest, TestAppend) {
     doc.info.flags = 0xcaffee;
     doc.info.id = name;
     doc.value = memcached_cfg.dump();
-    conn.mutate(doc, Vbid(0), MutationType::Set);
+    userConnection->mutate(doc, Vbid(0), MutationType::Set);
 
     // Send 10 appends, this should increase the `cmd_set` stat by 10
     for (int i = 0; i < 10; i++) {
-        conn.mutate(doc, Vbid(0), MutationType::Append);
+        userConnection->mutate(doc, Vbid(0), MutationType::Append);
     }
-    auto stats = conn.stats("");
-    // In total we expect 11 sets, since there was the initial set
+
+    // In total, we expect 11 sets, since there was the initial set
     // and then 10 appends
-    EXPECT_EQ(11, stats["cmd_set"].get<size_t>());
+    EXPECT_EQ(cmd_set_before + 11, get_cmd_counter("cmd_set"));
 }
 
 /// Verify that we don't keep invalid pointers around when the packet is
@@ -656,23 +635,16 @@ TEST_P(StatsTest, TestSingleBucketOpStats) {
     doc.info.id = key;
     doc.value = "asdf";
 
+    const auto cmd_lookup_before = get_cmd_counter("cmd_lookup");
+    const auto cmd_mutation_before = get_cmd_counter("cmd_mutation");
+
     // mutate to bump stat
     userConnection->mutate(doc, Vbid(0), MutationType::Set);
     // lookup to bump stat
     userConnection->get(key, Vbid(0));
 
-    auto stats = userConnection->stats("");
-
-    EXPECT_FALSE(stats.empty());
-
-    auto lookup = stats.find("cmd_lookup");
-    auto mutation = stats.find("cmd_mutation");
-
-    ASSERT_NE(stats.end(), lookup);
-    ASSERT_NE(stats.end(), mutation);
-
-    EXPECT_EQ(1, int(*lookup));
-    EXPECT_EQ(1, int(*mutation));
+    EXPECT_EQ(cmd_lookup_before + 1, get_cmd_counter("cmd_lookup"));
+    EXPECT_EQ(cmd_mutation_before + 1, get_cmd_counter("cmd_mutation"));
 }
 
 /// Test that all stats which should be present in the "clocks" group are,

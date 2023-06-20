@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -9,11 +8,9 @@
  *   the file licenses/APL2.txt.
  */
 
-#include "testapp.h"
 #include "testapp_client_test.h"
-
+#include <memcached/protocol_binary.h>
 #include <algorithm>
-#include <include/memcached/protocol_binary.h>
 
 class TouchTest : public TestappClientTest {
 public:
@@ -28,8 +25,6 @@ public:
 protected:
     Document document;
 
-    size_t get_cmd_counter(const std::string& name);
-
     void testHit(bool quiet);
     void testMiss(bool quiet);
 
@@ -40,16 +35,6 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          TouchTest,
                          ::testing::Values(TransportProtocols::McbpSsl),
                          ::testing::PrintToStringParamName());
-
-size_t TouchTest::get_cmd_counter(const std::string& name) {
-    auto stats = userConnection->statsMap("");
-    const auto iter = stats.find(name);
-    if (iter != stats.cend()) {
-        return size_t(std::stoi(iter->second));
-    } else {
-        throw std::logic_error("get_cmd_counter: No entry for: " + name);
-    }
-}
 
 void TouchTest::testHit(bool quiet) {
     const auto info =

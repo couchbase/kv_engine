@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2015-Present Couchbase, Inc.
  *
@@ -10,6 +9,7 @@
  */
 
 #include "testapp_client_test.h"
+#include <fmt/format.h>
 #include <mcbp/codec/frameinfo.h>
 #include <xattr/blob.h>
 
@@ -324,6 +324,21 @@ std::string to_string(const XattrSupport& xattrSupport) {
         return "XattrNo";
     }
     throw std::logic_error("Unknown xattr support");
+}
+
+size_t TestappClientTest::get_cmd_counter(std::string_view name) {
+    std::optional<std::size_t> value;
+    userConnection->stats([&value, name](const auto& key, const auto& val) {
+        if (key == name) {
+            value = std::stoi(val);
+        }
+    });
+
+    if (!value.has_value()) {
+        throw std::runtime_error(fmt::format(
+                "TestappClientTest::get_cmd_counter: No entry for: {}", name));
+    }
+    return value.value();
 }
 
 std::string PrintToStringCombinedName::operator()(

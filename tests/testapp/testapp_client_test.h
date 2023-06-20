@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2015-Present Couchbase, Inc.
  *
@@ -11,9 +10,9 @@
 #pragma once
 
 #include "testapp.h"
-#include <boost/optional/optional_fwd.hpp>
 #include <memcached/durability_spec.h>
 #include <algorithm>
+#include <optional>
 
 /**
  * Test fixture for testapp tests; parameterised on the TransportProtocol (IPv4,
@@ -24,6 +23,15 @@ class TestappClientTest
       public ::testing::WithParamInterface<TransportProtocols> {
 public:
     static void SetUpTestCase();
+
+    /**
+     * Get the value for a given command counter
+     *
+     * @param name The name of the command counter
+     * @return Its value
+     * @throws std::runtime_error if the counter isn't found
+     */
+    size_t get_cmd_counter(std::string_view name);
 
     bool isTlsEnabled() const override;
 };
