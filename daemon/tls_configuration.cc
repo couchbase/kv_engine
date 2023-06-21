@@ -68,31 +68,14 @@ std::string getCipherList(const nlohmann::json& spec,
 
 std::string getTlsMinVersion(const nlohmann::json& spec) {
     auto val = getString(spec, "minimum version");
-    for (const auto& v : std::vector<std::string>{
-                 {"TLS 1"}, {"TLS 1.1"}, {"TLS 1.2"}, {"TLS 1.3"}}) {
+    for (const auto& v : {"TLS 1.2", "TLS 1.3"}) {
         if (val == v) {
             return val;
         }
     }
-    // backwards compat (Should be removed when we nuke the parameters
-    // in memcached.json)
-    if (val == "tlsv1") {
-        return "TLS 1";
-    }
-
-    if (val == "tlsv1.1" || val == "tlsv1_1") {
-        return "TLS 1.1";
-    }
-    if (val == "tlsv1.2" || val == "tlsv1_2") {
-        return "TLS 1.2";
-    }
-
-    if (val == "tlsv1.3" || val == "tlsv1_3") {
-        return "TLS 1.3";
-    }
 
     throw std::invalid_argument(
-            R"("minimum version" must be one of "TLS 1", "TLS 1.1", "TLS 1.2" or "TLS 1.3")");
+            R"("minimum version" must be one of "TLS 1.2" or "TLS 1.3")");
 }
 
 bool getBoolean(const nlohmann::json& spec, const std::string key) {

@@ -73,9 +73,7 @@ TEST_F(TlsConfigurationFormatTest, CaFile) {
 }
 
 TEST_F(TlsConfigurationFormatTest, MinimumTlsVersion) {
-    acceptString("minimum version",
-                 std::vector<std::string>{
-                         {"TLS 1"}, {"TLS 1.1"}, {"TLS 1.2"}, {"TLS 1.3"}});
+    acceptString("minimum version", {"TLS 1.2", "TLS 1.3"});
     legalSpec.erase((legalSpec.find("minimum version")));
     expectFail(legalSpec);
 }

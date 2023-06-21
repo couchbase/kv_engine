@@ -16,11 +16,6 @@
 #include <protocol/mcbp/ewb_encode.h>
 #include <algorithm>
 
-#ifndef OPENSSL_VERSION_MAJOR
-// OPENSSL_VERSION_MAJOR did not exist in OpenSSL 1.1
-#define OPENSSL_VERSION_MAJOR 1
-#endif
-
 class TlsTests : public TestappClientTest {
 protected:
     void SetUp() override {
@@ -29,7 +24,7 @@ protected:
                {"certificate chain",
                 OBJECT_ROOT "/tests/cert/root/ca_root.cert"},
                {"CA file", OBJECT_ROOT "/tests/cert/root/ca_root.cert"},
-               {"minimum version", "TLS 1"},
+               {"minimum version", "TLS 1.2"},
                {"cipher list",
                 {{"TLS 1.2", "HIGH"},
                  {"TLS 1.3",

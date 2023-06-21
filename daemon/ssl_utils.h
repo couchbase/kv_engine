@@ -16,7 +16,7 @@
 struct ssl_ctx_st;
 typedef struct ssl_ctx_st SSL_CTX;
 
-long decode_ssl_protocol(const std::string& protocol);
+long decode_ssl_protocol(std::string_view protocol);
 
 /**
  * Update the SSL_CTX with the provided SSL ciphers

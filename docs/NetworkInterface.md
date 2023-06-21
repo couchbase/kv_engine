@@ -254,11 +254,11 @@ On success the current TLS configuration is returned as JSON.
    authorities.
 * `password` contains the password to decrypt the password. To make it easier to transfer all kinds of characters the string should be base64 encoded.
 * `minimum version` specifies the minimum TLS version to be used, and may be
-   one of the following values: "TLS 1", "TLS 1.1", "TLS 1.2" and "TLS 1.3".
+   one of the following values: "TLS 1.2" and "TLS 1.3".
    see https://en.wikipedia.org/wiki/Comparison_of_TLS_implementations for
    more information.
 * `cipher list` is an object containing two keys:
-  * `TLS 1.2` contains the list of ciphers to use for TLS <= 1.2
+  * `TLS 1.2` contains the list of ciphers to use for TLS 1.2
   * `TLS 1.3` contains the cipher suites to use for TLS 1.3
 * `cipher order` specifies if the server should choose the cipher to use based
    on its preferences (order they are specified).

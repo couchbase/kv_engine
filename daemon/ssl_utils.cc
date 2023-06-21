@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -11,26 +10,21 @@
 
 #include "ssl_utils.h"
 
+#include <fmt/format.h>
 #include <openssl/ssl.h>
-#include <algorithm>
-#include <cctype>
 #include <stdexcept>
 
-long decode_ssl_protocol(const std::string& protocol) {
-    // MB-12359 - Disable SSLv2 & SSLv3 due to POODLE
+long decode_ssl_protocol(std::string_view protocol) {
     // MB-41757 - Disable renegotiation
-    long disallow = SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_RENEGOTIATION;
+    long disallow = SSL_OP_NO_SSL_MASK | SSL_OP_NO_RENEGOTIATION;
 
-    if (protocol.empty() || protocol == "TLS 1") {
-        // nothing
-    } else if (protocol == "TLS 1.1") {
-        disallow |= SSL_OP_NO_TLSv1;
-    } else if (protocol == "TLS 1.2") {
-        disallow |= SSL_OP_NO_TLSv1_1 | SSL_OP_NO_TLSv1;
+    if (protocol.empty() || protocol == "TLS 1.2") {
+        disallow &= ~(SSL_OP_NO_TLSv1_2 | SSL_OP_NO_TLSv1_3);
     } else if (protocol == "TLS 1.3") {
-        disallow |= SSL_OP_NO_TLSv1_2 | SSL_OP_NO_TLSv1_1 | SSL_OP_NO_TLSv1;
+        disallow &= ~SSL_OP_NO_TLSv1_3;
     } else {
-        throw std::invalid_argument("Unknown protocol: " + protocol);
+        throw std::invalid_argument(
+                fmt::format("Unknown protocol: {}", protocol));
     }
 
     return disallow;

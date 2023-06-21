@@ -12,35 +12,40 @@
 #include <folly/portability/GTest.h>
 #include <openssl/ssl.h>
 
-static const long DefaultMask =
-        SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3 | SSL_OP_NO_RENEGOTIATION;
+static const long DefaultMask = (SSL_OP_NO_SSL_MASK | SSL_OP_NO_RENEGOTIATION) &
+                                ~(SSL_OP_NO_TLSv1_2 | SSL_OP_NO_TLSv1_3);
 
 TEST(ssl_decode_protocol, EmptyString) {
     EXPECT_EQ(DefaultMask, decode_ssl_protocol(""));
 }
 
 TEST(ssl_decode_protocol, TLSv1) {
-    EXPECT_EQ(DefaultMask, decode_ssl_protocol("TLS 1"))
-            << "Failed to decode \"TLS 1\"";
+    try {
+        decode_ssl_protocol("TLS 1");
+        FAIL() << "TLS 1 is no longer supported!";
+    } catch (const std::invalid_argument& e) {
+        EXPECT_STREQ("Unknown protocol: TLS 1", e.what());
+    }
 }
 
 TEST(ssl_decode_protocol, TLSv1_1) {
-    const auto TLSv1_mask = DefaultMask | SSL_OP_NO_TLSv1;
-    const auto val = "TLS 1.1";
-    EXPECT_EQ(TLSv1_mask, decode_ssl_protocol(val))
-            << "Failed to decode: " << val;
+    try {
+        decode_ssl_protocol("TLS 1.1");
+        FAIL() << "TLS 1.1 is no longer supported!";
+    } catch (const std::invalid_argument& e) {
+        EXPECT_STREQ("Unknown protocol: TLS 1.1", e.what());
+    }
 }
 
 TEST(ssl_decode_protocol, TLSv1_2) {
-    const auto TLSv2_mask = DefaultMask | SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1;
+    const auto TLSv2_mask = DefaultMask;
     const auto val = "TLS 1.2";
     EXPECT_EQ(TLSv2_mask, decode_ssl_protocol(val))
             << "Failed to decode: " << val;
 }
 
 TEST(ssl_decode_protocol, TLSv1_3) {
-    const auto TLSv3_mask = DefaultMask | SSL_OP_NO_TLSv1 | SSL_OP_NO_TLSv1_1 |
-                            SSL_OP_NO_TLSv1_2;
+    const auto TLSv3_mask = DefaultMask | SSL_OP_NO_TLSv1_2;
     const auto val = "TLS 1.3";
     EXPECT_EQ(TLSv3_mask, decode_ssl_protocol(val))
             << "Failed to decode: " << val;
