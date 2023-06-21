@@ -687,12 +687,12 @@ static std::unordered_map<StatGroupId, struct command_stat_handler>
  * representing whether this is a key we recognise or not
  */
 static std::pair<command_stat_handler, bool> getStatHandler(
-        const StatGroup* group) {
-    if (!group) {
-        return {command_stat_handler{true, stat_bucket_stats}, false};
-    }
-    auto iter = stat_handlers.find(group->id);
+        const StatGroup& group) {
+    auto iter = stat_handlers.find(group.id);
     if (iter == stat_handlers.end()) {
+        // We don't have a special handler for this stat. Use the
+        // default one which would fan out its own task and run it
+        // in the thread pool.
         return {command_stat_handler{true, stat_bucket_stats}, false};
     } else {
         return {iter->second, true};
@@ -761,7 +761,7 @@ cb::engine_errc StatsCommandContext::checkPrivilege() {
     auto ret = cb::engine_errc::success;
 
     if (statgroup) {
-        auto handler = getStatHandler(statgroup).first;
+        auto handler = getStatHandler(*statgroup).first;
         if (handler.checkPrivilege) {
             if (statgroup->privileged) {
                 ret = mcbp::checkPrivilege(cookie, cb::rbac::Privilege::Stats);
@@ -797,7 +797,12 @@ cb::engine_errc StatsCommandContext::checkPrivilege() {
 }
 
 cb::engine_errc StatsCommandContext::doStats() {
-    const auto [callback, known] = getStatHandler(statgroup);
+    if (!statgroup) {
+        throw std::logic_error(
+                "StatsCommandContext::doStats: should never be called without "
+                "a known stat group");
+    }
+    const auto [callback, known] = getStatHandler(*statgroup);
 
     start = std::chrono::steady_clock::now();
     if (known) {
