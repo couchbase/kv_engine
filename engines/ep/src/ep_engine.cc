@@ -3093,8 +3093,6 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
     collector.addStat(Key::ep_persist_vbstate_total,
                       epstats.totalPersistVBState);
 
-    size_t memUsed = stats.getPreciseTotalMemoryUsed();
-    collector.addStat(Key::mem_used, memUsed);
     collector.addStat(Key::mem_used_primary,
                       cb::ArenaMalloc::getEstimatedAllocated(
                               arena, cb::MemoryDomain::Primary));
@@ -3103,6 +3101,13 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
                               arena, cb::MemoryDomain::Secondary));
     collector.addStat(Key::mem_used_estimate,
                       stats.getEstimatedTotalMemoryUsed());
+
+    // Note: Ordering of getPrecise is important - ask for it after requesting
+    // the estimated values because a getPrecise call will update the estimate
+    // to be the precise value. Doing this last means we can observe the
+    // difference between estimate and precise
+    size_t memUsed = stats.getPreciseTotalMemoryUsed();
+    collector.addStat(Key::mem_used, memUsed);
 
     std::unordered_map<std::string, size_t> arenaStats;
     cb::ArenaMalloc::getStats(arena, arenaStats);
