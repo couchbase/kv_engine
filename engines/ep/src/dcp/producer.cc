@@ -1598,12 +1598,13 @@ void DcpProducer::addTakeoverStats(const AddStatFn& add_stat,
     add_casted_stat("backfillRemaining", 0, add_stat, c);
 }
 
-void DcpProducer::aggregateQueueStats(ConnCounter& aggregator) const {
+void DcpProducer::aggregateQueueStats(ConnCounter& aggregator,
+                                      bool accurateItemsRemaining) const {
     ++aggregator.totalProducers;
     aggregator.conn_queueDrain += itemsSent;
     aggregator.conn_totalBytes += totalBytesSent;
     aggregator.conn_totalUncompressedDataSize += totalUncompressedDataSize;
-    auto streamAggStats = getStreamAggStats();
+    auto streamAggStats = getStreamAggStats(accurateItemsRemaining);
 
     aggregator.conn_queueRemaining += streamAggStats.itemsRemaining;
     aggregator.conn_queueMemory += streamAggStats.readyQueueMemory;
@@ -1953,17 +1954,19 @@ size_t DcpProducer::getItemsRemaining() const {
     return remainingSize;
 }
 
-DcpProducer::StreamAggStats DcpProducer::getStreamAggStats() const {
+DcpProducer::StreamAggStats DcpProducer::getStreamAggStats(
+        bool accurateItemsRemaining) const {
     DcpProducer::StreamAggStats stats;
 
     std::for_each(
             streams->begin(),
             streams->end(),
-            [&stats](const StreamsMap::value_type& vt) {
+            [&stats, accurateItemsRemaining](const StreamsMap::value_type& vt) {
                 for (auto itr = vt.second->rlock(); !itr.end(); itr.next()) {
                     auto* as = itr.get().get();
                     if (as) {
-                        stats.itemsRemaining += as->getItemsRemaining();
+                        stats.itemsRemaining +=
+                                as->getItemsRemaining(accurateItemsRemaining);
                         stats.readyQueueMemory += as->getReadyQueueMemory();
                         stats.backfillItemsDisk += as->getBackfillItemsDisk();
                         stats.backfillItemsMemory +=

@@ -2766,6 +2766,43 @@ TEST_P(CheckpointTest, CheckpointItemToString) {
     EXPECT_EQ("cid:0x1:0x1:0x63:_scope", event->getKey().to_string());
 }
 
+TEST_P(CheckpointTest, getNumItemsForCursor_Accurate_vs_Estimate) {
+    // Add two items to the initial (open) checkpoint.
+    for (auto i : {1, 2}) {
+        EXPECT_TRUE(this->queueNewItem("a" + std::to_string(i)));
+    }
+    EXPECT_EQ(1, this->manager->getNumCheckpoints());
+    EXPECT_EQ(2, this->manager->getNumOpenChkItems());
+    EXPECT_EQ(2, manager->getNumItemsForCursor(cursor, true));
+    EXPECT_EQ(2, manager->getNumItemsForCursor(cursor, false));
+
+    std::vector<queued_item> items;
+    const auto res = manager->getItemsForCursor(cursor, items, 1);
+    EXPECT_FALSE(res.moreAvailable);
+    EXPECT_EQ(3, items.size());
+
+    // Now we start to see a differnce, which can increase as the checkpoint
+    // grows.
+    EXPECT_EQ(0, manager->getNumItemsForCursor(cursor, true));
+    EXPECT_EQ(2, manager->getNumItemsForCursor(cursor, false));
+
+    for (auto i : {1, 2}) {
+        EXPECT_TRUE(this->queueNewItem("b" + std::to_string(i)));
+    }
+
+    EXPECT_EQ(2, manager->getNumItemsForCursor(cursor, true));
+    EXPECT_EQ(4, manager->getNumItemsForCursor(cursor, false));
+
+    this->manager->createNewCheckpoint();
+
+    for (auto i : {1, 2}) {
+        EXPECT_TRUE(this->queueNewItem("c" + std::to_string(i)));
+    }
+
+    EXPECT_EQ(4, manager->getNumItemsForCursor(cursor, true));
+    EXPECT_EQ(6, manager->getNumItemsForCursor(cursor, false));
+}
+
 // sub class for eager unreffed checkpoint disposal related tests.
 class EagerCheckpointDisposalTest : public CheckpointTest {
 public:

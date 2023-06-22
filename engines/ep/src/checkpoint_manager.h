@@ -372,11 +372,19 @@ public:
      * As such it is *not* safe to use when a precise count of remaining
      * items is needed.
      *
-     * Returns the count of Items (excluding meta items) that the given cursor
+     * @param cursor The cursor for which the caller want to know the item count
+     * @param accurate if true, then  the function will perform a count from the
+     *        the cursor to the end of the current checkpoint. If false the
+     *        total item count of the current checkpoint is used in the sum.
+     *        Warning that accurate=true is an O(n) cost, where n is the number
+     *        of items, it can be slow and trigger problems in other threads
+     *        that want to access the CheckpointManager (MB-57000)
+     * @return the count of Items (excluding meta items) that the given cursor
      * has yet to process (i.e. between the cursor's current position and the
-     * end of the last checkpoint).
+     * end of the last checkpoint). Note: see param accurate for more detail
      */
-    size_t getNumItemsForCursor(const CheckpointCursor* cursor) const;
+    size_t getNumItemsForCursor(const CheckpointCursor* cursor,
+                                bool accurate = true) const;
 
     /* WARNING! This method can return inaccurate counts - see MB-28431. It
      * at *least* can suffer from overcounting by at least 1 (in scenarios as
@@ -749,7 +757,8 @@ protected:
      * @return number of items to be processed
      */
     size_t getNumItemsForCursor(const std::lock_guard<std::mutex>& lh,
-                                const CheckpointCursor* cursor) const;
+                                const CheckpointCursor* cursor,
+                                bool accurate) const;
 
     /**
      * Clears this CM, effectively removing all checkpoints in the list and

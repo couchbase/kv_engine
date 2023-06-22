@@ -389,7 +389,9 @@ cb::engine_errc EventuallyPersistentEngine::get_prometheus_stats(
                                       const std::shared_ptr<ConnHandler>& tc) {
                 ++aggregator.totalConns;
                 if (auto tp = std::dynamic_pointer_cast<DcpProducer>(tc); tp) {
-                    tp->aggregateQueueStats(aggregator);
+                    // Do not use the potentially slower "accurate" items
+                    // remaining. MB-57400
+                    tp->aggregateQueueStats(aggregator, false);
                 }
             });
             addAggregatedProducerStats(collector, aggregator);
@@ -407,7 +409,7 @@ cb::engine_errc EventuallyPersistentEngine::get_prometheus_stats(
 
             // do dcp aggregated stats, using ":" as the separator to split
             // connection names to find the connection type.
-            if (status = doConnAggStatsInner(collector, ":");
+            if (status = doConnAggStatsInner(collector, ":", false);
                 status != cb::engine_errc::success) {
                 return status;
             }
@@ -4039,7 +4041,7 @@ struct ConnStatBuilder {
             tc->addStats(add_stat, cookie);
             auto tp = std::dynamic_pointer_cast<DcpProducer>(tc);
             if (tp) {
-                tp->aggregateQueueStats(aggregator);
+                tp->aggregateQueueStats(aggregator, true);
             }
         }
     }
@@ -4055,7 +4057,18 @@ struct ConnStatBuilder {
 };
 
 struct ConnAggStatBuilder {
-    ConnAggStatBuilder(std::string_view sep) : sep(sep) {
+    /**
+     * Construct with the separator and a configuration bool.
+     * @param sep The separator used for determining "type" of DCP connection
+     *            by splitting the connection name with sep.
+     * @param alwaysUseAccurateItemsRemaining if true the aggregated stats will
+     *        include an "accurate" items-remaining. If false only connections
+     *        labelled as "replication" will use an accurate value. See MB-57400
+     */
+    ConnAggStatBuilder(std::string_view sep,
+                       bool alwaysUseAccurateItemsRemaining)
+        : sep(sep),
+          alwaysUseAccurateItemsRemaining(alwaysUseAccurateItemsRemaining) {
     }
 
     /**
@@ -4073,14 +4086,15 @@ struct ConnAggStatBuilder {
      * returns nullptr.
      *
      * @param tc connection
-     * @return counter for the given connection, or nullptr
+     * @return pair of counter for the given connection, or nullptr and true
+     *         if the connection is considered a replication stream
      */
-    ConnCounter* getCounterForConnType(std::string_view name) {
+    std::pair<ConnCounter*, bool> getCounterForConnType(std::string_view name) {
         // strip everything upto and including the first colon,
         // e.g., "eq_dcpq:"
         size_t pos1 = name.find(':');
         if (pos1 == std::string_view::npos) {
-            return nullptr;
+            return {nullptr, false};
         }
 
         name.remove_prefix(pos1 + 1);
@@ -4088,7 +4102,7 @@ struct ConnAggStatBuilder {
         // find the given separator
         size_t pos2 = name.find(sep);
         if (pos2 == std::string_view::npos) {
-            return nullptr;
+            return {nullptr, false};
         }
 
         // extract upto given separator e.g.,
@@ -4099,14 +4113,18 @@ struct ConnAggStatBuilder {
         //  prefix is "replication"
         std::string prefix(name.substr(0, pos2));
 
-        return &counters[prefix];
+        // class is created with the itemsRemaining "policy" - which if not true
+        // replication will always use the accurate items remaining - all
+        // other connection types use a faster estimate.
+        return {&counters[prefix],
+                alwaysUseAccurateItemsRemaining || prefix == "replication"};
     }
 
-    void aggregate(ConnHandler& conn, ConnCounter* tc) {
+    void aggregate(ConnHandler& conn, ConnCounter* tc, bool isReplication) {
         ConnCounter counter;
         ++counter.totalConns;
 
-        conn.aggregateQueueStats(counter);
+        conn.aggregateQueueStats(counter, isReplication);
 
         ConnCounter& total = getTotalCounter();
         total += counter;
@@ -4122,8 +4140,8 @@ struct ConnAggStatBuilder {
 
     void operator()(std::shared_ptr<ConnHandler> tc) {
         if (tc) {
-            ConnCounter* aggregator = getCounterForConnType(tc->getName());
-            aggregate(*tc, aggregator);
+            auto aggregator = getCounterForConnType(tc->getName());
+            aggregate(*tc, aggregator.first, aggregator.second);
         }
     }
 
@@ -4133,6 +4151,7 @@ struct ConnAggStatBuilder {
 
     std::map<std::string, ConnCounter> counters;
     std::string_view sep;
+    const bool alwaysUseAccurateItemsRemaining{false};
 };
 
 /// @endcond
@@ -4229,8 +4248,8 @@ cb::engine_errc EventuallyPersistentEngine::doConnAggStats(
                     // write them as responses (which would be racy).
                     // a later call to maybeWriteResponse will do that.
                     CBStatCollector col(deferredAddStat, cookie);
-                    ep->doConnAggStatsInner(col.forBucket(ep->getName()),
-                                            separator);
+                    ep->doConnAggStatsInner(
+                            col.forBucket(ep->getName()), separator, true);
                     return cb::engine_errc::success;
                 });
         ExecutorPool::get()->schedule(task);
@@ -4242,13 +4261,15 @@ cb::engine_errc EventuallyPersistentEngine::doConnAggStats(
 }
 
 cb::engine_errc EventuallyPersistentEngine::doConnAggStatsInner(
-        const BucketStatCollector& collector, std::string_view sep) {
+        const BucketStatCollector& collector,
+        std::string_view sep,
+        bool cmdStat) {
     // The separator is, in all current usage, ":" so the length will
     // normally be 1
     const size_t max_sep_len(8);
     sep = sep.substr(0, max_sep_len);
 
-    ConnAggStatBuilder visitor(sep);
+    ConnAggStatBuilder visitor(sep, cmdStat);
     dcpConnMap_->each(visitor);
 
     for (const auto& [connType, counter] : visitor.getCounters()) {
