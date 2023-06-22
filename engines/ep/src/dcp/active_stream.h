@@ -273,7 +273,7 @@ public:
     /* Returns a count of how many items are outstanding to be sent for this
      * stream's vBucket.
      */
-    size_t getItemsRemaining();
+    size_t getItemsRemaining(bool accurateItemsRemaining = true);
 
     uint64_t getLastReadSeqno() const;
 

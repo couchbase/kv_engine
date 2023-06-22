@@ -1257,18 +1257,21 @@ void CheckpointManager::checkOpenCheckpoint(
     }
 }
 
-size_t CheckpointManager::getNumItemsForCursor(
-        const CheckpointCursor* cursor) const {
+size_t CheckpointManager::getNumItemsForCursor(const CheckpointCursor* cursor,
+                                               bool accurate) const {
     std::lock_guard<std::mutex> lh(queueLock);
-    return getNumItemsForCursor(lh, cursor);
+    return getNumItemsForCursor(lh, cursor, accurate);
 }
 
 size_t CheckpointManager::getNumItemsForCursor(
         const std::lock_guard<std::mutex>& lh,
-        const CheckpointCursor* cursor) const {
+        const CheckpointCursor* cursor,
+        bool accurate) const {
     if (cursor && cursor->valid()) {
-        size_t items = cursor->getRemainingItemsCount();
         CheckpointList::const_iterator chkptIterator(cursor->getCheckpoint());
+        size_t items = accurate ? cursor->getRemainingItemsCount()
+                                : (*chkptIterator)->getNumItems();
+
         if (chkptIterator != checkpointList.end()) {
             ++chkptIterator;
         }
@@ -1595,7 +1598,7 @@ void CheckpointManager::addStats(const AddStatFn& add_stat,
                              "vb_%d:num_items_for_persistence",
                              vbucketId.get());
             add_casted_stat(buf.data(),
-                            getNumItemsForCursor(lh, persistenceCursor),
+                            getNumItemsForCursor(lh, persistenceCursor, true),
                             add_stat,
                             cookie);
         }
@@ -1635,10 +1638,21 @@ void CheckpointManager::addStats(const AddStatFn& add_stat,
                                  "vb_%d:%s:num_items_for_cursor",
                                  vbucketId.get(),
                                  cursor.second->getName().c_str());
-                add_casted_stat(buf.data(),
-                                getNumItemsForCursor(lh, cursor.second.get()),
-                                add_stat,
-                                cookie);
+                add_casted_stat(
+                        buf.data(),
+                        getNumItemsForCursor(lh, cursor.second.get(), true),
+                        add_stat,
+                        cookie);
+                checked_snprintf(buf.data(),
+                                 buf.size(),
+                                 "vb_%d:%s:estimated_num_items_for_cursor",
+                                 vbucketId.get(),
+                                 cursor.second->getName().c_str());
+                add_casted_stat(
+                        buf.data(),
+                        getNumItemsForCursor(lh, cursor.second.get(), false),
+                        add_stat,
+                        cookie);
             }
         }
 
