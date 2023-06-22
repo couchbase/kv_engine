@@ -116,7 +116,6 @@ TEST_P(PersistToTest, PersistedAfterShutdown) {
 
     try {
         rebuildUserConnection(false);
-        userConnection->setMutationSeqnoSupport(true);
         auto doc2 = userConnection->get(doc.info.id, vbid);
         EXPECT_EQ(doc, doc2);
     } catch (const ConnectionError& e) {
@@ -165,8 +164,6 @@ TEST_P(PersistToTest, ConsistentStateAfterShutdown) {
         admin.disablePersistence();
     }
 
-    userConnection->setMutationSeqnoSupport(true);
-
     // Store our series of documents:1, high=1, 2, high=2, 3, ...
     Document high;
     high.info.id = "high";
@@ -210,7 +207,6 @@ TEST_P(PersistToTest, ConsistentStateAfterShutdown) {
     ShutdownTest::SetUp();
 
     rebuildUserConnection(false);
-    userConnection->setMutationSeqnoSupport(true);
 
     // Read "high" to determine how far we got, and then validate that (1)
     // all previous documents exist and (2) no more than 1 extra document exists

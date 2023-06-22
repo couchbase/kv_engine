@@ -862,10 +862,6 @@ public:
         setFeature(cb::mcbp::Feature::JSON, enable);
     }
 
-    void setMutationSeqnoSupport(bool enable) {
-        setFeature(cb::mcbp::Feature::MUTATION_SEQNO, enable);
-    }
-
     void setXattrSupport(bool enable) {
         setFeature(cb::mcbp::Feature::XATTR, enable);
     }
