@@ -415,6 +415,9 @@ protected:
         /// current byte limit for the continuation of this scan
         size_t byteLimit{0};
 
+        /// This stores the deadline time, (re)computed once per continue
+        std::chrono::steady_clock::time_point scanContinueDeadline;
+
         /// dump this to std::cerr
         void dump() const;
     } continueLimits;
@@ -535,6 +538,19 @@ protected:
          */
         void setup(const ContinueState& cs);
 
+        /**
+         * Determine the status code for a yield of the IO task. This function
+         * will then reset this object to the appropriate state based on the
+         * status - i.e. range_scan_more can wipe out everything back to default
+         * ready for the next client requested continue, but success must retain
+         * current progress (item/bytes read etc...)
+         *
+         * @return the status code to use once the IO task has yielded.
+         *         range_scan_more - scan should move to be Idle.
+         *         success - scan should stay as Continuing and re-run.
+         */
+        cb::engine_errc getYieldStatusCodeAndReset();
+
         /// @return value of exceededBufferLimit
         bool hasExceededBufferLimit() const;
 
@@ -619,8 +635,6 @@ protected:
         size_t itemCount{0};
         /// byte count for the continuation of this scan
         size_t byteCount{0};
-        /// deadline for the continue (only enforced if a time limit is set)
-        std::chrono::steady_clock::time_point scanContinueDeadline;
         /// Written after each key/doc is read from cookie->checkThrottle
         bool limitByThrottle{false};
         /// The continue must just yield (must allow frontend to send)

@@ -87,8 +87,16 @@ public:
             cmd1.setExtrasValue<uint32_t>(htonl(static_cast<uint32_t>(
                     cb::mcbp::request::SetParamPayload::Type::Flush)));
 
-            const auto resp = connection.execute(cmd1);
-            ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
+            const auto resp1 = connection.execute(cmd1);
+            ASSERT_EQ(cb::mcbp::Status::Success, resp1.getStatus());
+
+            BinprotGenericCommand cmd2{cb::mcbp::ClientOpcode::SetParam,
+                                       "range_scan_read_buffer_send_size",
+                                       "8192"};
+            cmd2.setExtrasValue<uint32_t>(htonl(static_cast<uint32_t>(
+                    cb::mcbp::request::SetParamPayload::Type::Flush)));
+            const auto resp2 = connection.execute(cmd1);
+            ASSERT_EQ(cb::mcbp::Status::Success, resp2.getStatus());
 
             EXPECT_EQ("60", connection.statsMap("range-scans")["max_duration"]);
         });
@@ -192,6 +200,8 @@ public:
             const std::unordered_set<std::string> expectedKeySet);
 
     void testErrorsDuringContinue(cb::mcbp::Status error);
+
+    void smallBufferTest(size_t itemLimit, size_t expectedContinues);
 
     const uint32_t docFlags = 0xAABBCCDD;
     std::string start;
@@ -473,7 +483,8 @@ TEST_P(RangeScanTest, ValueScan) {
 
 // Set the buffer to be 0 and check that each key is sent in a single mcbp
 // response (frames).
-TEST_P(RangeScanTest, ScanWithSmallBuffer) {
+void RangeScanTest::smallBufferTest(size_t itemLimit,
+                                    size_t expectedContinues) {
     // Reduce the buffer size so each read triggers a yield
     adminConnection->executeInBucket(bucketName, [&](auto& connection) {
         // Encode a set_flush_param (like cbepctl)
@@ -497,13 +508,26 @@ TEST_P(RangeScanTest, ScanWithSmallBuffer) {
     cb::rangescan::Id id;
     std::memcpy(id.data, resp.getData().data(), resp.getData().size());
 
-    // No limits on the continue but we have configured a 0 byte internal
-    // buffer, so every key triggers a mcbp response (frame). There is 1 extra
-    // frame that contains the complete status.
-    auto result = drainScan(id, true, 0, userKeys);
-    EXPECT_EQ(1, result.continuesIssued);
+    // The 0 byte internal buffer means that every key read triggers a mcbp
+    // response (frame) and there is 1 extra frame that contains the final
+    // complete status.
+    auto result = drainScan(id, true, itemLimit, userKeys);
+    EXPECT_EQ(expectedContinues, result.continuesIssued);
     EXPECT_EQ(userKeys.size() + 1, result.frames);
     EXPECT_EQ(userKeys.size(), result.records);
+}
+
+TEST_P(RangeScanTest, ScanWithSmallBufferNoLimit) {
+    smallBufferTest(0 /* no limit*/, 1 /* 1 continue expected */);
+}
+
+TEST_P(RangeScanTest, ScanWithSmallBufferWithLimit) {
+    // For MB-57350 test with an item limit. Prior to fixing, the scan would run
+    // to completion with one continue and ignore the limit.
+    // The test expects (x / 2) + 1 continues - the 1 extra is required because
+    // the scan happens to stop after reading the last key, but won't know that
+    // it's the last key until 1 extra continue pushes the scan over to the end.
+    smallBufferTest(2, (userKeys.size() / 2) + 1);
 }
 
 TEST_P(RangeScanTest, ExclusiveRangeStart) {

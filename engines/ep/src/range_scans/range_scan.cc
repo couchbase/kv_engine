@@ -414,21 +414,16 @@ std::unique_ptr<RangeScanContinueResult> RangeScan::cancelOnFrontendThread() {
 
 cb::engine_errc RangeScan::continueOnIOThread(KVStoreIface& kvstore) {
     EP_LOG_DEBUG("{} continueOnIOThread", getLogId());
-    auto status = kvstore.scan(*scanCtx);
+    auto scanStatus = kvstore.scan(*scanCtx);
     cb::engine_errc engineStatus = cb::engine_errc::success;
-    switch (status) {
+    switch (scanStatus) {
     case ScanStatus::Yield: {
         // Scan reached a limit and has yielded.
         // For RangeScan we have already consumed the last key, so we adjust the
         // startKey so we continue from next.
         scanCtx->ranges[0].startKey.append(0);
-        // If the scan stopped because and hasExceededBufferLimit is true flag,
-        // then return success so the worker thread knows to ship the scanned
-        // data and re-run the IO task. Otherwise return range_scan_more so the
-        // worker thread knows to ship the data and end the request.
-        engineStatus = continueRunState.hasExceededBufferLimit()
-                               ? cb::engine_errc::success
-                               : cb::engine_errc::range_scan_more;
+
+        engineStatus = continueRunState.getYieldStatusCodeAndReset();
         break;
     }
     case ScanStatus::Success:
@@ -447,6 +442,10 @@ cb::engine_errc RangeScan::continueOnIOThread(KVStoreIface& kvstore) {
         break;
     }
 
+    EP_LOG_DEBUG("{} continueOnIOThread complete {} {}",
+                 getLogId(),
+                 engineStatus,
+                 scanStatus);
     return engineStatus;
 }
 
@@ -730,10 +729,11 @@ void RangeScan::ContinueLimits::dump() const {
 std::ostream& operator<<(std::ostream& os,
                          const RangeScan::ContinueLimits& limits) {
     fmt::print(os,
-               "items:{}, time:{}ms, bytes:{}",
+               "items:{}, time:{}ms, bytes:{} deadline:{}",
                limits.itemLimit,
                limits.timeLimit.count(),
-               limits.byteLimit);
+               limits.byteLimit,
+               limits.scanContinueDeadline.time_since_epoch());
     return os;
 }
 
@@ -775,8 +775,13 @@ void RangeScan::ContinueState::setupForContinue(
     state = State::Continuing;
     cookie = &c;
     limits.itemLimit = limit;
-    limits.timeLimit = timeLimit;
     limits.byteLimit = byteLimit;
+    // compute the deadline only once and keep it for all runs of this continue
+    limits.scanContinueDeadline = now() + timeLimit;
+
+    // record that a timeLimit is set, so we know to check the continue lifetime
+    // against the deadline
+    limits.timeLimit = timeLimit;
 }
 
 void RangeScan::ContinueState::setupForContinuePartial(CookieIface& c) {
@@ -812,15 +817,39 @@ std::ostream& operator<<(std::ostream& os, const RangeScan::State& state) {
 }
 
 void RangeScan::ContinueRunState::setup(const ContinueState& cs) {
-    *this = {};
-
-    limits = cs.limits;
-    scanContinueDeadline = now() + limits.timeLimit;
-
     // Should not be trying to setup the run state without a cookie
     Expects(cs.cookie);
+
+    limits = cs.limits;
+    // setup the compression state from the client's datatype support
     snappyEnabled =
             cs.cookie->isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_SNAPPY);
+}
+
+cb::engine_errc RangeScan::ContinueRunState::getYieldStatusCodeAndReset() {
+    if (isItemLimitExceeded() || isTimeLimitExceeded() ||
+        isByteLimitExceeded() || isThrottled()) {
+        // This first case is for yield which must not automatically continue.
+        // Only the client can continue this scan. Signal this case using
+        // range_scan_more. The worker thread will send any remaining scanned
+        // data and set the scan back to Idle.
+        //
+        // In this case we can reset ContinueRunState back to default settings,
+        // ready for the a future continue.
+        *this = {};
+        return cb::engine_errc::range_scan_more;
+    } else if (hasExceededBufferLimit()) {
+        // This second case is for a yield which must "auto" continue. Signal
+        // this case with success. The worker thread will send the scanned data
+        // and reschedule the IO task to run this scan.
+        //
+        // In this case we need retain how many keys/bytes have been read and
+        // the deadline. Only clear the buffer limit flag.
+        exceededBufferLimit = false;
+
+        return cb::engine_errc::success;
+    }
+    folly::assume_unreachable();
 }
 
 bool RangeScan::ContinueRunState::hasExceededBufferLimit() const {
@@ -854,7 +883,7 @@ bool RangeScan::ContinueRunState::isItemLimitExceeded() const {
 }
 
 bool RangeScan::ContinueRunState::isTimeLimitExceeded() const {
-    return limits.timeLimit.count() && now() >= scanContinueDeadline;
+    return limits.timeLimit.count() && now() >= limits.scanContinueDeadline;
 }
 
 bool RangeScan::ContinueRunState::isByteLimitExceeded() const {
@@ -894,18 +923,20 @@ void RangeScan::ContinueRunState::addStats(
     addStat("crs_item_limit", limits.itemLimit);
     addStat("crs_time_limit", limits.timeLimit.count());
     addStat("crs_byte_limit", limits.byteLimit);
+    addStat("crs_deadline",
+            fmt::format("{}", limits.scanContinueDeadline.time_since_epoch()));
     addStat("crs_exceeded_buffer", exceededBufferLimit);
     addStat("crs_throttled", limitByThrottle);
 }
 
 std::string RangeScan::ContinueRunState::to_string() const {
     return fmt::format(
-            "itemCount:{}, byteCount:{}, scanContinueDeadline:{}, snappy:{}, "
-            "limitByThrottle:{}, exceededBufferLimit:{}, cancelStatus:{}, "
-            "manifestUid:{}",
+            "{}, itemCount:{}, byteCount:{}, scanContinueDeadline:{}, "
+            "snappy:{}, limitByThrottle:{}, exceededBufferLimit:{}, "
+            "cancelStatus:{}, manifestUid:{}",
+            limits,
             itemCount,
             byteCount,
-            scanContinueDeadline.time_since_epoch(),
             snappyEnabled,
             limitByThrottle,
             exceededBufferLimit,
