@@ -506,19 +506,22 @@ TEST_P(SubdocTestappTest, SubdocStatsMultiLookup) {
     // path specs it contains.
 
     // Get initial stats
-    auto stats = request_stats();
-    auto count_before = extract_single_stat(stats, "cmd_subdoc_lookup");
-    auto bytes_before_total = extract_single_stat(stats, "bytes_subdoc_lookup_total");
-    auto bytes_before_subset = extract_single_stat(stats, "bytes_subdoc_lookup_extracted");
+    auto stats = userConnection->stats("");
+    auto count_before = stats["cmd_subdoc_lookup"].get<uint64_t>();
+    auto bytes_before_total =
+            stats["bytes_subdoc_lookup_total"].get<uint64_t>();
+    auto bytes_before_subset =
+            stats["bytes_subdoc_lookup_extracted"].get<uint64_t>();
 
     // Perform a multi-lookup containing >1 path.
     test_subdoc_multi_lookup_getmulti();
 
     // Get subsequent stats, check stat increased by one.
-    stats = request_stats();
-    auto count_after = extract_single_stat(stats, "cmd_subdoc_lookup");
-    auto bytes_after_total = extract_single_stat(stats, "bytes_subdoc_lookup_total");
-    auto bytes_after_subset = extract_single_stat(stats, "bytes_subdoc_lookup_extracted");
+    stats = userConnection->stats("");
+    auto count_after = stats["cmd_subdoc_lookup"].get<uint64_t>();
+    auto bytes_after_total = stats["bytes_subdoc_lookup_total"].get<uint64_t>();
+    auto bytes_after_subset =
+            stats["bytes_subdoc_lookup_extracted"].get<uint64_t>();
     EXPECT_EQ(1, count_after - count_before);
     EXPECT_EQ(321, bytes_after_total - bytes_before_total);
     EXPECT_EQ(246, bytes_after_subset - bytes_before_subset);
@@ -530,19 +533,23 @@ TEST_P(SubdocTestappTest, SubdocStatsMultiMutation) {
     // path specs it contains.
 
     // Get initial stats
-    auto stats = request_stats();
-    auto count_before = extract_single_stat(stats, "cmd_subdoc_mutation");
-    auto bytes_before_total = extract_single_stat(stats, "bytes_subdoc_mutation_total");
-    auto bytes_before_subset = extract_single_stat(stats, "bytes_subdoc_mutation_inserted");
+    auto stats = userConnection->stats("");
+    auto count_before = stats["cmd_subdoc_mutation"].get<uint64_t>();
+    auto bytes_before_total =
+            stats["bytes_subdoc_mutation_total"].get<uint64_t>();
+    auto bytes_before_subset =
+            stats["bytes_subdoc_mutation_inserted"].get<uint64_t>();
 
     // Perform a multi-mutation containing >1 path.
     test_subdoc_multi_mutation_dict_add_max();
 
     // Get subsequent stats, check stat increased by one.
-    stats = request_stats();
-    auto count_after = extract_single_stat(stats, "cmd_subdoc_mutation");
-    auto bytes_after_total = extract_single_stat(stats, "bytes_subdoc_mutation_total");
-    auto bytes_after_subset = extract_single_stat(stats, "bytes_subdoc_mutation_inserted");
+    stats = userConnection->stats("");
+    auto count_after = stats["cmd_subdoc_mutation"].get<uint64_t>();
+    auto bytes_after_total =
+            stats["bytes_subdoc_mutation_total"].get<uint64_t>();
+    auto bytes_after_subset =
+            stats["bytes_subdoc_mutation_inserted"].get<uint64_t>();
     EXPECT_EQ(count_before + 1, count_after);
     EXPECT_EQ(301, bytes_after_total - bytes_before_total);
     EXPECT_EQ(150, bytes_after_subset - bytes_before_subset);

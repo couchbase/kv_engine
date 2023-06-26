@@ -1848,10 +1848,11 @@ void SubdocTestappTest::test_subdoc_stats_command(cb::mcbp::ClientOpcode cmd,
     store_document("doc", doc);
 
     // Get initial stats
-    auto stats = request_stats();
-    auto count_before = extract_single_stat(stats, traits.count_name);
-    auto bytes_before_total = extract_single_stat(stats, traits.bytes_total_name);
-    auto bytes_before_subset = extract_single_stat(stats, traits.bytes_extracted_subset);
+    auto stats = userConnection->stats("");
+    auto count_before = stats[traits.count_name].get<uint64_t>();
+    auto bytes_before_total = stats[traits.bytes_total_name].get<uint64_t>();
+    auto bytes_before_subset =
+            stats[traits.bytes_extracted_subset].get<uint64_t>();
 
     // Perform the operation
     EXPECT_SUBDOC_CMD(BinprotSubdocCommand(cmd, "doc", path, value),
@@ -1859,10 +1860,11 @@ void SubdocTestappTest::test_subdoc_stats_command(cb::mcbp::ClientOpcode cmd,
                       fragment);
 
     // Get subsequent stats, check stat increased by one.
-    stats = request_stats();
-    auto count_after = extract_single_stat(stats, traits.count_name);
-    auto bytes_after_total = extract_single_stat(stats, traits.bytes_total_name);
-    auto bytes_after_subset = extract_single_stat(stats, traits.bytes_extracted_subset);
+    stats = userConnection->stats("");
+    auto count_after = stats[traits.count_name].get<uint64_t>();
+    auto bytes_after_total = stats[traits.bytes_total_name].get<uint64_t>();
+    auto bytes_after_subset =
+            stats[traits.bytes_extracted_subset].get<uint64_t>();
 
     EXPECT_EQ(1, count_after - count_before);
     EXPECT_EQ(expected_total_len, bytes_after_total - bytes_before_total);
