@@ -1874,7 +1874,7 @@ bool ActiveStream::tryAndScheduleOSOBackfill(DcpProducer& producer,
                 log(spdlog::level::level_enum::info,
                     "{} Skipping OSO backfill for cid:{} as collection item "
                     "count ({}) is too large a percentage of the vBucket item "
-                    "count ({:.2f}%)",
+                    "count ({}) - ({:.2f}%)",
                     logPrefix,
                     cid,
                     colItemCount,
