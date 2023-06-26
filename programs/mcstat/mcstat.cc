@@ -7,13 +7,10 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-
-#include <folly/portability/Unistd.h>
 #include <mcbp/codec/frameinfo.h>
 #include <memcached/stat_group.h>
 #include <platform/terminal_color.h>
 #include <platform/terminal_size.h>
-#include <programs/getpass.h>
 #include <programs/mc_program_getopt.h>
 #include <protocol/connection/client_connection.h>
 #include <iostream>
