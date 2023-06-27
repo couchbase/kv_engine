@@ -9,12 +9,14 @@
  */
 #include "bucket_management_command_context.h"
 
+#include <daemon/bucket_destroyer.h>
 #include <daemon/concurrency_semaphores.h>
 #include <daemon/connection.h>
 #include <daemon/enginemap.h>
 #include <daemon/one_shot_limited_concurrency_task.h>
 #include <daemon/session_cas.h>
 #include <daemon/settings.h>
+#include <daemon/yielding_task.h>
 #include <executor/executorpool.h>
 #include <logger/logger.h>
 #include <memcached/config_parser.h>
@@ -145,20 +147,27 @@ cb::engine_errc BucketManagementCommandContext::remove() {
         associate_bucket(cookie, "");
     }
 
+    auto [status, optDestroyer] = BucketManager::instance().startDestroy(
+            std::to_string(cookie.getConnectionId()), name, force, bucket_type);
+
+    if (status != cb::engine_errc::would_block) {
+        return status;
+    }
+    Expects(optDestroyer);
+
     std::string taskname{"Delete bucket [" + name + "]"};
-    ExecutorPool::get()->schedule(std::make_shared<
-                                  OneShotLimitedConcurrencyTask>(
+    using namespace std::chrono_literals;
+    ExecutorPool::get()->schedule(std::make_shared<YieldingTask>(
             TaskId::Core_DeleteBucketTask,
             taskname,
-            [client = &cookie,
-             nm = std::move(name),
-             f = force,
-             type = bucket_type]() {
+            [destroyer = std::move(*optDestroyer),
+             client = &cookie,
+             nm = std::move(name)]() mutable
+            -> std::optional<std::chrono::duration<double>> {
                 auto& connection = client->getConnection();
                 cb::engine_errc status;
                 try {
-                    status = BucketManager::instance().destroy(
-                            *client, nm, f, type);
+                    status = destroyer.drive();
                 } catch (const std::runtime_error& error) {
                     LOG_WARNING(
                             "{}: An error occurred while deleting bucket [{}]: "
@@ -168,10 +177,15 @@ cb::engine_errc BucketManagementCommandContext::remove() {
                             error.what());
                     status = cb::engine_errc::failed;
                 }
+                if (status == cb::engine_errc::would_block) {
+                    // destroyer hasn't completed yet (waiting for connections
+                    // or operations), try again in 10ms
+                    return {10ms};
+                }
                 client->notifyIoComplete(status);
+                return {};
             },
-            ConcurrencySemaphores::instance().bucket_management,
-            std::chrono::seconds(30)));
+            100ms));
 
     state = State::Done;
     return cb::engine_errc::would_block;
