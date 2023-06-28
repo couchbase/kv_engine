@@ -38,6 +38,7 @@
 
 #include <fmt/chrono.h>
 #include <folly/io/async/EventBase.h>
+#include <gsl/gsl-lite.hpp>
 #include <logger/logger.h>
 #include <platform/platform_time.h>
 #include <atomic>
@@ -52,60 +53,18 @@ using namespace std::chrono;
 const seconds memcached_clock_tick_seconds(1);
 
 /*
- * This constant defines the frequency of system clock checks.
- * This equates to an extra gettimeofday every 'n' seconds.
- */
-const seconds memcached_check_system_time(60);
-
-/*
  * This constant defines the maximum relative time (30 days in seconds)
  * time values above this are interpretted as absolute.
  * note: c++20 will bring chrono::days
  */
 const seconds memcached_maximum_relative_time(60 * 60 * 24 * 30);
 
-static std::atomic<rel_time_t> memcached_uptime(0);
-static std::atomic<time_t> memcached_epoch(0);
-static volatile uint64_t memcached_monotonic_start = 0;
-static folly::EventBase* main_event_base = nullptr;
-
-static void mc_time_clock_event_handler();
-static void mc_gather_timing_samples();
-
-/*
- * Init internal state and start the timer event callback.
- */
-void mc_time_init(folly::EventBase& eventBase) {
-    main_event_base = &eventBase;
-
-    mc_time_init_epoch();
-
-    /* tick once to begin procedings */
-    mc_time_clock_tick();
-
-    /* Begin the time keeping by registering for a time based callback */
-    mc_time_clock_event_handler();
-}
-
-/*
- * Initisalise our "EPOCH" variables
- * In order to provide a monotonic "uptime" and track system time, we record
- * some points in time.
- */
-void mc_time_init_epoch() {
-    struct timeval t;
-    memcached_uptime = 0;
-    memcached_monotonic_start = cb_get_monotonic_seconds();
-    cb_get_timeofday(&t);
-    memcached_epoch = t.tv_sec;
-}
-
 /*
  * Return a monotonically increasing value.
  * The value returned represents seconds since memcached started.
  */
 rel_time_t mc_time_get_current_time() {
-    return memcached_uptime;
+    return cb::time::UptimeClock::instance().getUptime().count();
 }
 
 /// @return true if a + b would overflow rel_time_t
@@ -121,8 +80,8 @@ static_assert(std::is_unsigned<rel_time_t>::value,
 rel_time_t mc_time_convert_to_real_time(rel_time_t t) {
     rel_time_t rv = 0;
 
-    int64_t epoch{memcached_epoch.load()};
-    int64_t uptime{memcached_uptime.load()};
+    int64_t epoch{cb::time::UptimeClock::instance().getEpochSeconds().count()};
+    int64_t uptime{cb::time::UptimeClock::instance().getUptime().count()};
 
     if (t > memcached_maximum_relative_time.count()) { // t is absolute
 
@@ -174,92 +133,8 @@ time_t mc_time_limit_abstime(time_t t, seconds limit) {
  * Convert the relative time to an absolute time (relative to EPOCH ;) )
  */
 time_t mc_time_convert_to_abs_time(const rel_time_t rel_time) {
-    return memcached_epoch + rel_time;
-}
-
-void mc_schedule_clock_tick_event() {
-    main_event_base->schedule([]() { mc_time_clock_event_handler(); },
-                              memcached_clock_tick_seconds);
-}
-
-/*
- * clock_handler - libevent call back.
- * This method is called (ticks) every 'memcached_clock_tick_seconds' and
- * primarily keeps time flowing.
- */
-static void mc_time_clock_event_handler() {
-    if (is_memcached_shutting_down()) {
-        stop_memcached_main_base();
-        return;
-    }
-
-    mc_schedule_clock_tick_event();
-
-    mc_time_clock_tick();
-}
-
-void mc_run_clock_tick_event() {
-    main_event_base->runInEventBaseThreadAndWait(
-            []() { mc_time_clock_tick(); });
-}
-
-/*
- * Update a number of time keeping variables and account for system
- * clock changes.
- */
-void mc_time_clock_tick() {
-    static uint64_t check_system_time = 0;
-    static bool previous_time_valid = false;
-    static struct timeval previous_time = {0, 0};
-
-    /* calculate our monotonic uptime */
-    memcached_uptime = (rel_time_t)(cb_get_monotonic_seconds() - memcached_monotonic_start + cb_get_uptime_offset());
-
-    /* Collect samples */
-    mc_gather_timing_samples();
-
-    /*
-      every 'memcached_check_system_time' seconds, keep an eye on the
-      system clock.
-    */
-    if (memcached_uptime >= check_system_time) {
-        struct timeval timeofday;
-        cb_get_timeofday(&timeofday);
-        time_t difference = labs(timeofday.tv_sec - previous_time.tv_sec);
-        /* perform a fuzzy check on time, this allows 2 seconds each way. */
-        if (previous_time_valid &&
-            ((difference > memcached_check_system_time.count() + 1) ||
-             (difference < memcached_check_system_time.count() - 1))) {
-            if (cb::logger::get() != nullptr) {
-                /* log all variables used in time calculations */
-                LOG_WARNING(
-                        "system clock changed? Expected delta of {} ±1 since "
-                        "last check, actual difference = {}s, "
-                        "memcached_epoch = {}, "
-                        "memcached_uptime = {}, new memcached_epoch = {}, "
-                        "next check {}",
-                        memcached_check_system_time,
-                        difference,
-                        memcached_epoch.load(),
-                        memcached_uptime.load(),
-                        (timeofday.tv_sec - memcached_uptime),
-                        check_system_time +
-                                memcached_check_system_time.count());
-            }
-            /* adjust memcached_epoch to ensure correct timeofday can
-               be calculated by clients*/
-            memcached_epoch.store(timeofday.tv_sec - memcached_uptime);
-        }
-
-        /* move our checksystem time marker to trigger the next check
-           at the correct interval*/
-        check_system_time += memcached_check_system_time.count();
-
-        previous_time_valid = true;
-        previous_time = timeofday;
-    }
-
-    BucketManager::instance().tick();
+    return cb::time::UptimeClock::instance().getEpochSeconds().count() +
+           rel_time;
 }
 
 static void mc_gather_timing_samples() {
@@ -270,3 +145,159 @@ static void mc_gather_timing_samples() {
         return true;
     });
 }
+
+namespace cb::time {
+
+Regulator::Regulator(folly::EventBase& eventBase) : eventBase(eventBase) {
+}
+
+void Regulator::scheduleOneTick() {
+    eventBase.schedule(
+            [this]() {
+                if (is_memcached_shutting_down()) {
+                    stop_memcached_main_base();
+                    return;
+                }
+
+                tick();
+
+                // And again.
+                scheduleOneTick();
+            },
+            memcached_clock_tick_seconds);
+}
+
+void Regulator::tickUptimeClockOnce() {
+    eventBase.runInEventBaseThreadAndWait(
+            []() { Regulator::instance().tick(); });
+}
+
+void Regulator::tick() {
+    UptimeClock::instance().tick();
+    BucketManager::instance().tick();
+    mc_gather_timing_samples();
+}
+
+static folly::Synchronized<std::unique_ptr<Regulator>, std::mutex>
+        periodicTicker;
+
+void Regulator::createAndRun(folly::EventBase& eventBase) {
+    auto locked = periodicTicker.lock();
+    if (!*locked) {
+        *locked = std::make_unique<Regulator>(eventBase);
+    }
+
+    // scheduleOneTick will schedule a periodic wakeup that will "tick" the
+    // UptimeClock and some other modules that require a periodic call. The
+    // function which is invoked during wakeup will (if not shutting down)
+    // schedule the next tick
+    locked->get()->scheduleOneTick();
+}
+
+Regulator& Regulator::instance() {
+    auto locked = periodicTicker.lock();
+    Expects(*locked);
+    return *(locked->get());
+}
+
+UptimeClock::UptimeClock()
+    : UptimeClock([]() { return steady_clock::now(); },
+                  []() { return system_clock::now(); }) {
+}
+
+UptimeClock::UptimeClock(SteadyClock steadyClock, SystemClock systemClock)
+    : steadyTimeNow(std::move(steadyClock)),
+      systemTimeNow(std::move(systemClock)),
+      start(steadyTimeNow()),
+      lastKnownSystemTime(systemTimeNow()),
+      epoch(lastKnownSystemTime) {
+}
+
+seconds UptimeClock::getUptime() const {
+    return uptime.load();
+}
+
+system_clock::time_point UptimeClock::getEpoch() const {
+    return epoch.load();
+}
+
+std::chrono::seconds UptimeClock::getEpochSeconds() const {
+    return duration_cast<seconds>(getEpoch().time_since_epoch());
+}
+
+void UptimeClock::configureSystemClockCheck(seconds systemClockCheckInterval,
+                                            seconds systemClockTolerance) {
+    this->systemClockToleranceUpper =
+            systemClockCheckInterval + systemClockTolerance;
+    this->systemClockToleranceLower =
+            systemClockCheckInterval - systemClockTolerance;
+
+    this->systemClockCheckInterval = systemClockCheckInterval;
+    nextSystemTimeCheck = getUptime() + systemClockCheckInterval;
+}
+
+/*
+ * Update a number of time keeping variables and account for system
+ * clock changes.
+ */
+void UptimeClock::tick() {
+    /* calculate our monotonic uptime */
+    auto newUptime = duration_cast<seconds>(steadyTimeNow() - start);
+    newUptime += seconds(cb_get_uptime_offset());
+
+    /*
+      every 'systemClockCheckInterval' seconds, keep an eye on the
+      system clock.
+    */
+    if (systemClockCheckInterval && newUptime >= nextSystemTimeCheck) {
+        auto systemTime = systemTimeNow();
+        auto checkDuration = systemTime - lastKnownSystemTime;
+
+        /* move our checksystem time marker to trigger the next check
+           at the correct interval*/
+        nextSystemTimeCheck += systemClockCheckInterval.value();
+
+        /* perform a fuzzy check on time, this allows 2 seconds each way. */
+        if (((checkDuration > systemClockToleranceUpper) ||
+             (checkDuration < systemClockToleranceLower))) {
+            systemClockCheckWarnings++;
+            auto newEpoch = systemTime - newUptime;
+            if (cb::logger::get() != nullptr) {
+                /* log all variables used in time calculations */
+                auto secs = duration_cast<duration<float>>(checkDuration);
+                LOG_WARNING(
+                        "system clock changed? uptime:{} system clock "
+                        "difference of {} is outside of tolerance {}-{} "
+                        "previous:{:%FT%T%z}, now:{:%FT%T%z}, "
+                        "old-epoch:{:%FT%T%z}, new-epoch:{:%FT%T%z}, next "
+                        "check "
+                        "when uptime is {}, warnings:{}",
+                        newUptime,
+                        secs,
+                        systemClockToleranceLower,
+                        systemClockToleranceUpper,
+                        lastKnownSystemTime,
+                        systemTime,
+                        fmt::localtime(time_point<system_clock>(epoch.load())),
+                        fmt::localtime(time_point<system_clock>(newEpoch)),
+                        nextSystemTimeCheck,
+                        systemClockCheckWarnings);
+            }
+            /* adjust memcached_epoch to ensure correct timeofday can
+               be calculated by clients*/
+            epoch.store(newEpoch);
+        }
+
+        lastKnownSystemTime = systemTime;
+    }
+
+    // Now update and make this new uptime visible via the atomic variable
+    this->uptime.store(newUptime);
+}
+
+UptimeClock& UptimeClock::instance() {
+    static UptimeClock uptimeClock;
+    return uptimeClock;
+}
+
+} // namespace cb::time

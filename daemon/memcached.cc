@@ -991,8 +991,11 @@ int memcached_main(int argc, char** argv) {
     startStaleTraceDumpRemover(std::chrono::minutes(1),
                                std::chrono::minutes(5));
 
-    /* Initialise memcached time keeping */
-    mc_time_init(*main_base);
+    /* enable system clock monitoring */
+    cb::time::UptimeClock::instance().configureSystemClockCheck(
+            std::chrono::seconds(60), std::chrono::seconds(1));
+    /* Create memcached time Regulator and begin periodic ticking */
+    cb::time::Regulator::createAndRun(*main_base);
 
     // Optional parent monitor
     {

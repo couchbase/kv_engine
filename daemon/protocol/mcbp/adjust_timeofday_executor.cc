@@ -37,7 +37,7 @@ void adjust_timeofday_executor(Cookie& cookie) {
                  payload.getOffset());
 
         cb_set_timeofday_offset(gsl::narrow_cast<int>(payload.getOffset()));
-        mc_run_clock_tick_event();
+        cb::time::Regulator::instance().tickUptimeClockOnce();
 
         cookie.sendResponse(cb::mcbp::Status::Success);
         return;
@@ -48,7 +48,7 @@ void adjust_timeofday_executor(Cookie& cookie) {
                  payload.getOffset());
 
         cb_set_uptime_offset(payload.getOffset());
-        mc_run_clock_tick_event();
+        cb::time::Regulator::instance().tickUptimeClockOnce();
 
         cookie.sendResponse(cb::mcbp::Status::Success);
         return;
