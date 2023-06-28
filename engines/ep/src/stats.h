@@ -628,6 +628,8 @@ struct key_stats {
     rel_time_t exptime;
     //! The item's current flags.
     uint32_t flags;
+    //! The items datatype
+    protocol_binary_datatype_t datatype;
     //! The vbucket state for this key
     vbucket_state_t vb_state;
     //! True if this item is dirty.

@@ -4185,6 +4185,10 @@ cb::engine_errc EventuallyPersistentEngine::doKeyStats(
         }
         add_casted_stat("key_is_dirty", kstats.dirty, add_stat, cookie);
         add_casted_stat("key_exptime", kstats.exptime, add_stat, cookie);
+        add_casted_stat("key_datatype",
+                        cb::mcbp::datatype::to_string(kstats.datatype),
+                        add_stat,
+                        cookie);
         add_casted_stat("key_flags", kstats.flags, add_stat, cookie);
         add_casted_stat("key_cas", kstats.cas, add_stat, cookie);
         add_casted_stat("key_vb_state", VBucket::toString(kstats.vb_state),

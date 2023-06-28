@@ -136,9 +136,7 @@ cb::engine_errc ArithmeticCommandContext::allocateNewItem() {
     size_t xattrsize = 0;
     size_t priv_bytes = 0;
     if (cb::mcbp::datatype::is_xattr(oldItemInfo.datatype)) {
-        cb::xattr::Blob blob(
-                {ptr, oldsize},
-                cb::mcbp::datatype::is_snappy(oldItemInfo.datatype));
+        cb::xattr::Blob blob({ptr, oldsize}, false);
         priv_bytes = blob.get_system_size();
         xattrsize = blob.size();
     }

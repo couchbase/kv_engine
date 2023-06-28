@@ -34,6 +34,7 @@ set(memcached_testapp_SOURCES
     testapp_cluster_config.cc
     testapp_cmd_timers.cc
     testapp_collections.cc
+    testapp_compression.cc
     testapp_dcp.cc
     testapp_dcp_consumer.cc
     testapp_deprecated_commands.cc

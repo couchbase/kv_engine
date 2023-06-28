@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -9,10 +8,13 @@
  *   the file licenses/APL2.txt.
  */
 #include "testapp_client_test.h"
+#include "testapp_environment.h"
 #include <protocol/mcbp/ewb_encode.h>
 #include <cctype>
 #include <limits>
 #include <thread>
+
+using namespace std::string_literals;
 
 class ArithmeticTest : public TestappXattrClientTest {};
 

@@ -3139,6 +3139,7 @@ cb::engine_errc VBucket::getKeyStats(
                 v->isDeleted() || cHandle.isLogicallyDeleted(v->getBySeqno());
         kstats.dirty = v->isDirty();
         kstats.exptime = v->getExptime();
+        kstats.datatype = v->getDatatype();
         kstats.flags = v->getFlags();
         kstats.cas = v->getCas();
         kstats.vb_state = getState();
