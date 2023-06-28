@@ -46,8 +46,7 @@ Blob::Blob(
 Blob& Blob::assign(std::string_view buffer, bool compressed) {
     if (compressed && !buffer.empty()) {
         // inflate and attach blob to the compression::buffer
-        if (!cb::compression::inflate(
-                    cb::compression::Algorithm::Snappy,
+        if (!cb::compression::inflateSnappy(
                     {static_cast<const char*>(buffer.data()), buffer.size()},
                     decompressed)) {
             // inflate (de-compress) failed.  Try to grab the
@@ -55,7 +54,7 @@ Blob& Blob::assign(std::string_view buffer, bool compressed) {
             // that it failed to return the uncompressedLength.
             size_t uncompressedLength =
                     cb::compression::get_uncompressed_length(
-                            cb::compression::Algorithm::Snappy,
+                            folly::io::CodecType::SNAPPY,
                             {static_cast<const char*>(buffer.data()),
                              buffer.size()});
             throw std::runtime_error(

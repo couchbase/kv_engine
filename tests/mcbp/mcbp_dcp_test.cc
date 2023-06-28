@@ -606,8 +606,7 @@ TEST_P(DcpDeletionValidatorTest, ValidDatatype) {
         }
 
         if (cb::mcbp::datatype::is_snappy(valid)) {
-            cb::compression::deflate(
-                    cb::compression::Algorithm::Snappy, value, deflated);
+            cb::compression::deflateSnappy(value, deflated);
             value = deflated;
         }
 
@@ -632,8 +631,7 @@ TEST_P(DcpDeletionValidatorTest, InvalidDatatype) {
         cb::compression::Buffer deflated;
 
         if (cb::mcbp::datatype::is_snappy(invalid)) {
-            cb::compression::deflate(
-                    cb::compression::Algorithm::Snappy, value, deflated);
+            cb::compression::deflateSnappy(value, deflated);
             value = deflated;
         }
         builder.setValue(value);

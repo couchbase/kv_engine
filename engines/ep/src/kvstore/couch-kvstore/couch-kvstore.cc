@@ -867,7 +867,7 @@ static int notify_expired_item(DocInfo& info,
             cb::mcbp::datatype::is_snappy(metadata.getDataType())) {
             using namespace cb::compression;
 
-            if (!inflate(Algorithm::Snappy, {item.buf, item.size}, inflated)) {
+            if (!inflateSnappy({item.buf, item.size}, inflated)) {
                 EP_LOG_WARN(
                         "notify_expired_item: failed to inflate document with "
                         "seqno {} revno: {}",

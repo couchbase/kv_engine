@@ -1728,9 +1728,8 @@ void KVStoreParamTest::testPerDocumentCompression(bool useJson) {
     // "manually" compress the document in the expected format to verify
     // the read version matches
     cb::compression::Buffer expectedValue;
-    ASSERT_TRUE(cb::compression::deflate(cb::compression::Algorithm::Snappy,
-                                         {value.data(), value.size()},
-                                         expectedValue));
+    ASSERT_TRUE(cb::compression::deflateSnappy({value.data(), value.size()},
+                                               expectedValue));
 
     // check the value is read compressed, and is the expected value
     GetValue gv = kvstore->get(

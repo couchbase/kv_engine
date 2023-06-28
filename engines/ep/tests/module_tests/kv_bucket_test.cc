@@ -1924,9 +1924,7 @@ TEST_P(KVBucketParamTest, MB_34346) {
              R"({"fffff":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})");
     auto xattr = blob.finalize();
     cb::compression::Buffer output;
-    cb::compression::deflate(cb::compression::Algorithm::Snappy,
-                             {xattr.data(), xattr.size()},
-                             output);
+    cb::compression::deflateSnappy({xattr.data(), xattr.size()}, output);
     EXPECT_LT(output.size(), xattr.size())
             << "Expected the compressed buffer to be smaller than the input";
 

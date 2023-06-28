@@ -167,7 +167,7 @@ size_t StoredValue::uncompressedValuelen() const {
     }
     if (cb::mcbp::datatype::is_snappy(datatype)) {
         return cb::compression::get_uncompressed_length(
-                cb::compression::Algorithm::Snappy,
+                folly::io::CodecType::SNAPPY,
                 {value->getData(), value->valueSize()});
     }
     return valuelen();
@@ -363,9 +363,8 @@ bool StoredValue::compressValue() {
         // Attempt compression only if datatype indicates
         // that the value is not compressed already
         cb::compression::Buffer deflated;
-        if (cb::compression::deflate(cb::compression::Algorithm::Snappy,
-                                     {value->getData(), value->valueSize()},
-                                     deflated)) {
+        if (cb::compression::deflateSnappy(
+                    {value->getData(), value->valueSize()}, deflated)) {
             if (deflated.size() > value->valueSize()) {
                 // No point of keeping it compressed if the deflated length
                 // is greater than the original length

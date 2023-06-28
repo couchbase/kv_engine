@@ -278,8 +278,7 @@ TEST_F(DCPTest, MB30189_addStats) {
 
 std::string decompressValue(std::string compressedValue) {
     cb::compression::Buffer buffer;
-    if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
-                                  compressedValue, buffer)) {
+    if (!cb::compression::inflateSnappy(compressedValue, buffer)) {
         return {};
     }
 

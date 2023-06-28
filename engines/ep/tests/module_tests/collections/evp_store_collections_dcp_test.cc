@@ -3482,9 +3482,7 @@ void CollectionsDcpPersistentOnly::resurrectionStatsTest(
             return 0;
         }
         cb::compression::Buffer buffer;
-        using cb::compression::Algorithm;
-        cb::compression::deflate(
-                Algorithm::Snappy, {value.data(), value.size()}, buffer);
+        cb::compression::deflateSnappy({value.data(), value.size()}, buffer);
         return buffer.size();
     };
 

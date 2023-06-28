@@ -154,8 +154,7 @@ size_t get_system_xattr_size(uint8_t datatype, std::string_view doc) {
 size_t get_body_size(uint8_t datatype, std::string_view value) {
     cb::compression::Buffer uncompressed;
     if (cb::mcbp::datatype::is_snappy(datatype)) {
-        if (!cb::compression::inflate(
-                    cb::compression::Algorithm::Snappy, value, uncompressed)) {
+        if (!cb::compression::inflateSnappy(value, uncompressed)) {
             throw std::invalid_argument(
                     "get_body_size: Failed to inflate data");
         }

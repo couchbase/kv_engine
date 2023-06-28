@@ -881,8 +881,7 @@ bool Cookie::inflateSnappy(std::string_view input,
                     getConnection().getBucket().snappyDecompressionTimes),
             std::forward_as_tuple(*this, Code::SnappyDecompress));
 
-    return cb::compression::inflate(
-            cb::compression::Algorithm::Snappy, input, output);
+    return cb::compression::inflateSnappy(input, output);
 }
 
 cb::rbac::PrivilegeAccess Cookie::checkPrivilege(

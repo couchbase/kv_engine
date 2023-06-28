@@ -50,8 +50,7 @@ protected:
             return std::string{data};
         }
         cb::compression::Buffer buffer;
-        if (!cb::compression::inflate(
-                    cb::compression::Algorithm::Snappy, data, buffer)) {
+        if (!cb::compression::inflateSnappy(data, buffer)) {
             std::abort();
         }
         std::string ret{buffer.data(), buffer.size()};

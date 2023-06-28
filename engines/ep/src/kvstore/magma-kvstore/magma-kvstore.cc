@@ -1752,9 +1752,8 @@ bool MagmaKVStore::maybeCompressValue(VB::Commit& commitData,
         // already compressed
         return false;
     }
-    if (!cb::compression::deflate(cb::compression::Algorithm::Snappy,
-                                  {op.Value.Data(), op.Value.Len()},
-                                  newValueStorage)) {
+    if (!cb::compression::deflateSnappy({op.Value.Data(), op.Value.Len()},
+                                        newValueStorage)) {
         // compression failed
         return false;
     }

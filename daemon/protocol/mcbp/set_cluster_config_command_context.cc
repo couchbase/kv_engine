@@ -66,8 +66,7 @@ cb::engine_errc SetClusterConfigCommandContext::step() {
 cb::engine_errc SetClusterConfigCommandContext::doSetClusterConfig() {
     cb::compression::Buffer buffer;
     try {
-        if (!cb::compression::deflate(
-                    cb::compression::Algorithm::Snappy, uncompressed, buffer)) {
+        if (!cb::compression::deflateSnappy(uncompressed, buffer)) {
             LOG_WARNING("{}: Compression of {} config {} failed",
                         cookie.getConnectionId(),
                         bucketname.empty()

@@ -36,9 +36,8 @@ bool ItemCompressorVisitor::visit(const HashTable::HashBucketLock& lh,
     // Check if the item can be compressed
     if (compressMode == BucketCompressionMode::Active && v.isCompressible()) {
         cb::compression::Buffer deflated;
-        if (cb::compression::deflate(cb::compression::Algorithm::Snappy,
-                                     {v.getValue()->getData(), v.valuelen()},
-                                     deflated)) {
+        if (cb::compression::deflateSnappy(
+                    {v.getValue()->getData(), v.valuelen()}, deflated)) {
             auto comp_ratio = static_cast<float>(v.valuelen()) /
                               static_cast<float>(deflated.size());
 

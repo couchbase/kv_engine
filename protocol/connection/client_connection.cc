@@ -332,7 +332,7 @@ void Document::compress() {
     }
 
     cb::compression::Buffer buf;
-    cb::compression::deflate(cb::compression::Algorithm::Snappy, value, buf);
+    cb::compression::deflateSnappy(value, buf);
     value = {buf.data(), buf.size()};
     info.datatype = cb::mcbp::Datatype(uint8_t(info.datatype) |
                                        uint8_t(cb::mcbp::Datatype::Snappy));
@@ -929,7 +929,7 @@ void MemcachedConnection::doValidateReceivedFrame(
         }
         using namespace cb::compression;
         Buffer output;
-        if (!inflate(Algorithm::Snappy, payload, output)) {
+        if (!inflateSnappy(payload, output)) {
             throw std::runtime_error(fmt::format(
                     "Received snappy compressed frame we failed to inflate: {}",
                     packet.to_json(false)));
