@@ -152,7 +152,9 @@ void create_master_file(const std::list<std::unique_ptr<Module>>& modules,
 
     auto arr = nlohmann::json::array();
     for (const auto& mod_ptr : modules) {
-        arr.push_back(mod_ptr->json);
+        if (!mod_ptr->json.is_null()) {
+            arr.push_back(mod_ptr->json);
+        }
     }
     output_json["modules"] = arr;
 
