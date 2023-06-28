@@ -697,7 +697,9 @@ GetValue RocksDBKVStore::getWithHeader(const DiskDocKey& key,
     rocksdb::Status s = rdb->Get(
             rocksdb::ReadOptions(), vbh->defaultCFH.get(), keySlice, &value);
     if (!s.ok()) {
-        st.numGetFailure++;
+        if (!s.IsNotFound()) {
+            st.numGetFailure++;
+        }
         return GetValue{nullptr, cb::engine_errc::no_such_key};
     }
 

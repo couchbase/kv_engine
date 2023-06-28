@@ -365,14 +365,14 @@ TEST_P(KVStoreParamTest, GetModes) {
     EXPECT_FALSE(gv.item->getValue());
 }
 
-// A doc not found should equal a get failure for a get call (used for some
-// stats, fetching docs to expire, and rollback)
+// A doc not found should not equal a get failure for a get call (used for
+// failover by ns_server).
 TEST_P(KVStoreParamTest, GetMissNumGetFailure) {
     GetValue gv = kvstore->get(DiskDocKey{makeStoredDocKey("key")}, Vbid(0));
     EXPECT_EQ(cb::engine_errc::no_such_key, gv.getStatus());
 
     auto stats = kvstore->getKVStoreStat();
-    EXPECT_EQ(1, stats.numGetFailure);
+    EXPECT_EQ(0, stats.numGetFailure);
     EXPECT_EQ(0, kvstore->getKVStoreStat().io_bg_fetch_docs_read);
     EXPECT_EQ(0, kvstore->getKVStoreStat().io_bgfetch_doc_bytes);
 }
