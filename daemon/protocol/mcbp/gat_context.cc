@@ -85,6 +85,7 @@ cb::engine_errc GatCommandContext::inflateItem() {
             return cb::engine_errc::failed;
         }
         payload = buffer;
+        info.datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
     } catch (const std::bad_alloc&) {
         return cb::engine_errc::no_memory;
     }

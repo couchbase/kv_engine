@@ -206,3 +206,55 @@ TEST_P(CompressionTest, AppendPrepend) {
     // Validate that we didn't mess up the xattr's
     validateXAttrs();
 }
+
+TEST_P(CompressionTest, GatReturnsCompressedData) {
+    TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Couchbase);
+    Document doc;
+    doc.info.id = name;
+    doc.value.resize(4096, 'a');
+    doc.compress();
+    // By storing the document compressed, the server shouldn't need to compress
+    // it and just reuse the provided blob
+    userConnection->mutate(doc, Vbid{0}, MutationType::Set);
+    waitForCompression();
+    auto rsp = userConnection->execute(
+            BinprotGetAndTouchCommand{name, Vbid{0}, 0});
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    EXPECT_EQ(cb::mcbp::Datatype::Snappy,
+              cb::mcbp::Datatype(rsp.getDatatype()));
+    EXPECT_EQ(doc.value, rsp.getDataView());
+
+    // MB-57672 Incorrect datatype returned when the document contains
+    //          xattrs
+    std::string value(R"({"foo" : "bar"})");
+    upsert(value);
+    rsp = userConnection->execute(BinprotGetAndTouchCommand{name, Vbid{0}, 0});
+    ASSERT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+    EXPECT_EQ(cb::mcbp::Datatype::JSON, cb::mcbp::Datatype(rsp.getDatatype()));
+    EXPECT_EQ(value, rsp.getDataView());
+}
+
+TEST_P(CompressionTest, GetLockedReturnsCompressedData) {
+    TESTAPP_SKIP_FOR_OTHER_BUCKETS(BucketType::Couchbase);
+    Document doc;
+    doc.info.id = name;
+    doc.value.resize(4096, 'a');
+    doc.compress();
+    // By storing the document compressed, the server shouldn't need to compress
+    // it and just reuse the provided blob
+    userConnection->mutate(doc, Vbid{0}, MutationType::Set);
+    waitForCompression();
+    auto locked = userConnection->get_and_lock(name, Vbid{0}, 60);
+    EXPECT_EQ(cb::mcbp::Datatype::Snappy, locked.info.datatype);
+    EXPECT_EQ(doc.value, locked.value);
+    userConnection->unlock(name, Vbid{0}, locked.info.cas);
+
+    // MB-57672 Incorrect datatype returned when the document contains
+    //          xattrs
+    std::string value(R"({"foo" : "bar"})");
+    upsert(value);
+    locked = userConnection->get_and_lock(name, Vbid{0}, 60);
+    EXPECT_EQ(cb::mcbp::Datatype::JSON, locked.info.datatype);
+    EXPECT_EQ(value, locked.value);
+    userConnection->unlock(name, Vbid{0}, locked.info.cas);
+}
