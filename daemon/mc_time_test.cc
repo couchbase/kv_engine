@@ -140,7 +140,7 @@ public:
         for (int tick = 0; tick < ticks; tick++) {
             steadyTime += steadyTick;
             systemTime += systemTick;
-            uptimeClock.tick();
+            EXPECT_EQ(duration_cast<seconds>(steadyTick), uptimeClock.tick());
         }
         return duration_cast<seconds>(steadyTime);
     }
@@ -237,4 +237,14 @@ TEST_F(McTimeUptimeTest, systemTimeTriggers) {
     EXPECT_EQ(2, uptimeClock.getSystemClockChecks());
 
     EXPECT_EQ(epoch + 2s, uptimeClock.getEpoch());
+}
+
+// Test the return value of tick() that it returns the "real" elapsed time
+// between ticks
+TEST_F(McTimeUptimeTest, tickReturnValue) {
+    EXPECT_EQ(0s, uptimeClock.tick());
+
+    // The tick function will check each tick returns the steadyTick value
+    EXPECT_EQ(4s, tick(2, 2000ms, 2000ms));
+    EXPECT_EQ(20s, tick(2, 8000ms, 8000ms));
 }

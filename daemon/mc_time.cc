@@ -241,7 +241,7 @@ void UptimeClock::configureSystemClockCheck(seconds systemClockCheckInterval,
  * Update a number of time keeping variables and account for system
  * clock changes.
  */
-void UptimeClock::tick() {
+seconds UptimeClock::tick() {
     /* calculate our monotonic uptime */
     auto newUptime = duration_cast<seconds>(steadyTimeNow() - start);
     newUptime += seconds(cb_get_uptime_offset());
@@ -255,7 +255,8 @@ void UptimeClock::tick() {
     }
 
     // Now update and make this new uptime visible via the atomic variable
-    this->uptime.store(newUptime);
+    auto previous = this->uptime.exchange(newUptime);
+    return newUptime - previous;
 }
 
 void UptimeClock::doSystemClockCheck(seconds newUptime) {

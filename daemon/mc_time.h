@@ -154,8 +154,10 @@ public:
      * for abnormal changes in the system clock, e.g. if the system clock was
      * changed. System clock changes also trigger adjustments of the process
      * "epoch" which is required for correct expiry processing.
+     *
+     * @return the elapsed time between a previous tick (or since construction)
      */
-    void tick();
+    std::chrono::seconds tick();
 
     /**
      * Note: This function only returns a changing value if tick() is called
