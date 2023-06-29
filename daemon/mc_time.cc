@@ -160,7 +160,7 @@ void Regulator::scheduleOneTick() {
                     return;
                 }
 
-                tick();
+                tick(interval);
 
                 // And again.
                 scheduleOneTick();
@@ -169,12 +169,14 @@ void Regulator::scheduleOneTick() {
 }
 
 void Regulator::tickUptimeClockOnce() {
+    // tick all clocks on the eventBase thread (wait) - as this call comes from
+    // anywhere at anytime there is no defined period - hence nullopt input
     eventBase.runInEventBaseThreadAndWait(
-            []() { Regulator::instance().tick(); });
+            []() { Regulator::instance().tick(std::nullopt); });
 }
 
-void Regulator::tick() {
-    UptimeClock::instance().tick();
+void Regulator::tick(std::optional<Duration> expectedPeriod) {
+    UptimeClock::instance().tick(expectedPeriod);
     BucketManager::instance().tick();
     mc_gather_timing_samples();
 }
@@ -211,7 +213,8 @@ UptimeClock::UptimeClock(SteadyClock steadyClock, SystemClock systemClock)
       systemTimeNow(std::move(systemClock)),
       start(steadyTimeNow()),
       lastKnownSystemTime(systemTimeNow()),
-      epoch(lastKnownSystemTime) {
+      epoch(lastKnownSystemTime),
+      lastKnownSteadyTime(start) {
 }
 
 seconds UptimeClock::getUptime() const {
@@ -237,21 +240,35 @@ void UptimeClock::configureSystemClockCheck(Duration systemClockCheckInterval,
     nextSystemTimeCheck = uptime.load() + systemClockCheckInterval;
 }
 
+void UptimeClock::configureSteadyClockCheck(Duration steadyClockTolerance) {
+    this->steadyClockTolerance = steadyClockTolerance;
+}
+
 /*
  * Update a number of time keeping variables and account for system
  * clock changes.
  */
-Duration UptimeClock::tick() {
+
+Duration UptimeClock::tick(std::optional<Duration> expectedPeriod) {
     /* calculate our monotonic uptime */
-    auto newUptime = duration_cast<Duration>(steadyTimeNow() - start);
+    auto now = steadyTimeNow();
+    auto newUptime = duration_cast<Duration>(now - start);
     newUptime += seconds(cb_get_uptime_offset());
+
+    // If this tick has an expected period, do a check for delays
+    if (expectedPeriod && steadyClockTolerance) {
+        doSteadyClockCheck(now, expectedPeriod.value(), newUptime);
+    }
 
     /*
       every 'systemClockCheckInterval' keep an eye on the system clock.
     */
-    if (systemClockCheckInterval && newUptime >= nextSystemTimeCheck) {
+    if (expectedPeriod && systemClockCheckInterval &&
+        newUptime >= nextSystemTimeCheck) {
         doSystemClockCheck(newUptime);
     }
+
+    lastKnownSteadyTime = now;
 
     // Now update and make this new uptime visible via the atomic variable
     auto previous = this->uptime.exchange(newUptime);
@@ -298,6 +315,36 @@ void UptimeClock::doSystemClockCheck(Duration newUptime) {
     }
 
     lastKnownSystemTime = systemTime;
+}
+
+void UptimeClock::doSteadyClockCheck(steady_clock::time_point now,
+                                     Duration expectedPeriod,
+                                     Duration newUptime) {
+    ++steadyClockChecks;
+
+    // get the duration since the last tick
+    auto tickDuration = now - lastKnownSteadyTime;
+
+    // ignore if within tolerance
+    if (tickDuration >= expectedPeriod - steadyClockTolerance.value() &&
+        tickDuration <= expectedPeriod + steadyClockTolerance.value()) {
+        return;
+    }
+
+    ++steadyClockCheckWarnings;
+    if (cb::logger::get() == nullptr) {
+        return;
+    }
+
+    LOG_WARNING(
+            "UptimeClock::tick is outside of tolerance ±{}. "
+            "expected:{} but {} have elapsed. uptime:{} "
+            "warnings:{}",
+            steadyClockTolerance.value(),
+            expectedPeriod,
+            std::chrono::duration_cast<Duration>(tickDuration),
+            duration_cast<duration<float>>(newUptime),
+            steadyClockCheckWarnings);
 }
 
 UptimeClock& UptimeClock::instance() {

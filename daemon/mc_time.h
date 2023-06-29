@@ -126,8 +126,12 @@ protected:
      * One tick - scheduleOneTick will call this method. This method calls down
      * into various objects which need to know a tick has occurred, e.g.
      * UptimeClock::instance().tick()
+     *
+     * @param expectedPeriod the steady clock duration that should be between
+     *        each tick call.. Optional as this can be called from code paths in
+     *        an ad-hoc manor.
      */
-    void tick();
+    void tick(std::optional<Duration> expectedPeriod = std::nullopt);
 
     folly::EventBase& eventBase;
 
@@ -157,9 +161,12 @@ public:
      * changed. System clock changes also trigger adjustments of the process
      * "epoch" which is required for correct expiry processing.
      *
+     * @param expectedPeriod the steady clock duration that should be between
+     *        each tick call. This is optional and should only be specified by
+     *        the Regulator.
      * @return the elapsed time between a previous tick (or since construction)
      */
-    Duration tick();
+    Duration tick(std::optional<Duration> expectedPeriod = std::nullopt);
 
     /**
      * Note: This function only returns a changing value if tick() is called
@@ -204,6 +211,26 @@ public:
     void configureSystemClockCheck(Duration systemClockCheckInterval,
                                    Duration systemClockTolerance);
 
+    /**
+     * UptimeClock provides a steady clock check feature, where the steady clock
+     * is monitored and any abnormal changes trigger a log warning and counter
+     * increment. In this case the check works by expecting that the "tick"
+     * method has a regular interval, and thus expecting that the steady clock
+     * is incrementing consistently with the interval. Failure of that
+     * expectation is the trigger for the warning.
+     *
+     * The enablement of steady clock checking is done post construction
+     * (permitting a future change to make this reconfigurable at runtime).
+     *
+     * The monitoring works by the caller setting a tolerance. For each tick
+     * if the steady clock has not progressed by the tick duration +/- the
+     * tolerance -> warning.
+     *
+     * @param steadyClockTolerance defines a tolerance for which a warning will
+     *        not be produced.
+     */
+    void configureSteadyClockCheck(Duration steadyClockTolerance);
+
     /// @return count of how many times the system clock check triggered
     size_t getSystemClockWarnings() const {
         return systemClockCheckWarnings;
@@ -212,6 +239,16 @@ public:
     /// @return count of how many times the system clock has been checked
     size_t getSystemClockChecks() const {
         return systemClockChecks;
+    }
+
+    /// @return count of how many times the steady clock check triggered
+    size_t getSteadyClockWarnings() const {
+        return steadyClockCheckWarnings;
+    }
+
+    /// @return count of how many times the steady clock has been checked
+    size_t getSteadyClockChecks() const {
+        return steadyClockChecks;
     }
 
     /// @return the instance of this to be used in memcached
@@ -224,6 +261,14 @@ protected:
      * @param newUptime the current uptime
      */
     void doSystemClockCheck(Duration newUptime);
+
+    /**
+     * Check that steady time is progressing as expected - or more likely that
+     * the tick is irregular (steady time advance further than the tick period)
+     */
+    void doSteadyClockCheck(std::chrono::steady_clock::time_point now,
+                            Duration expectedPeriod,
+                            Duration newUptime);
 
     /// function which returns a steady "monotonic" time
     SteadyClock steadyTimeNow;
@@ -277,6 +322,20 @@ protected:
      *  The point on the uptime clock for a system clock check
      */
     Duration nextSystemTimeCheck;
+
+    /**
+     * Steady time is expected to progress (weakly monotonic) and never
+     * reverse. However the class has support to detect if the Regulator driving
+     * tick is not regular... MB-57400 and related problems highlighted that the
+     * clock callback could be blocked and delayed which wasn't detected until
+     * the system-clock check flagged /something/ was wrong.
+     */
+    std::chrono::time_point<std::chrono::steady_clock> lastKnownSteadyTime;
+
+    // The optional tolerance defines if the checking is also enabled.
+    std::optional<Duration> steadyClockTolerance;
+    size_t steadyClockCheckWarnings{0};
+    size_t steadyClockChecks{0};
 };
 
 } // namespace cb::time

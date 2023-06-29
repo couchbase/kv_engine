@@ -143,7 +143,8 @@ public:
             steadyTime += steadyTick;
             systemTime += systemTick;
             EXPECT_EQ(duration_cast<cb::time::Duration>(steadyTick),
-                      uptimeClock.tick());
+                      uptimeClock.tick(
+                              duration_cast<cb::time::Duration>(steadyTick)));
         }
         return duration_cast<cb::time::Duration>(steadyTime);
     }
@@ -298,4 +299,51 @@ TEST_F(McTimeUptimeTest, millisecondTicking) {
 
     // uptime:1s, clock jump -8s
     EXPECT_EQ(epoch - 8s - 1s, uptimeClock.getEpochSeconds());
+}
+
+TEST_F(McTimeUptimeTest, tickDelay) {
+    uptimeClock.configureSteadyClockCheck(100ms);
+    // First advance time by 1s and call tick with a duration of 1s. This is
+    // a perfect flow of time and triggers no warning, but 1 check occurs
+    steadyTime += 1s;
+    EXPECT_EQ(1s, uptimeClock.tick(1s));
+    EXPECT_EQ(0, uptimeClock.getSteadyClockWarnings());
+    EXPECT_EQ(1, uptimeClock.getSteadyClockChecks());
+
+    // Now drag, but just within tolerance
+    steadyTime += 900ms;
+    EXPECT_EQ(900ms, uptimeClock.tick(1s));
+    EXPECT_EQ(0, uptimeClock.getSteadyClockWarnings());
+    EXPECT_EQ(2, uptimeClock.getSteadyClockChecks());
+
+    // Now trigger a warning. Advance by 899ms. This is dragging and below
+    // threshold -/+ 100ms. I.e. we tell tick 1000ms should of elapsed, but
+    // 899ms elapsed.
+    steadyTime += 899ms;
+    EXPECT_EQ(899ms, uptimeClock.tick(1s));
+    EXPECT_EQ(1, uptimeClock.getSteadyClockWarnings());
+    EXPECT_EQ(3, uptimeClock.getSteadyClockChecks());
+
+    // Now the other way, advance time further than the tick
+    steadyTime += 1101ms;
+    EXPECT_EQ(1101ms, uptimeClock.tick(1s));
+    EXPECT_EQ(2, uptimeClock.getSteadyClockWarnings());
+    EXPECT_EQ(4, uptimeClock.getSteadyClockChecks());
+
+    // back in threshold
+    steadyTime += 1100ms;
+    EXPECT_EQ(1100ms, uptimeClock.tick(1s));
+    EXPECT_EQ(2, uptimeClock.getSteadyClockWarnings());
+    EXPECT_EQ(5, uptimeClock.getSteadyClockChecks());
+
+    // Finally check continued violations are picked up
+    for (int i = 1; i <= 3; i++) {
+        steadyTime += 1101ms;
+        EXPECT_EQ(1101ms, uptimeClock.tick(1s));
+        EXPECT_EQ(2 + i, uptimeClock.getSteadyClockWarnings());
+        EXPECT_EQ(5 + i, uptimeClock.getSteadyClockChecks());
+    }
+
+    // system checks are disabled.
+    EXPECT_EQ(0, uptimeClock.getSystemClockWarnings());
 }

@@ -995,6 +995,10 @@ int memcached_main(int argc, char** argv) {
     /* enable system clock monitoring */
     cb::time::UptimeClock::instance().configureSystemClockCheck(
             std::chrono::seconds(60), std::chrono::seconds(1));
+    /* enable steady clock monitoring, this will warn if the time thread was
+       delayed (assuming steady clock does what it should!)*/
+    cb::time::UptimeClock::instance().configureSteadyClockCheck(
+            std::chrono::milliseconds(100));
     /* Create memcached time Regulator and begin periodic ticking */
     cb::time::Regulator::createAndRun(*main_base, std::chrono::seconds(1));
 
