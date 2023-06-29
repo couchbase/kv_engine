@@ -36,28 +36,33 @@
 #include "buckets.h"
 #include "memcached.h"
 
+#include <fmt/chrono.h>
 #include <folly/io/async/EventBase.h>
 #include <logger/logger.h>
 #include <platform/platform_time.h>
 #include <atomic>
+#include <chrono>
+
+using namespace std::chrono;
 
 /*
  * This constant defines the seconds between libevent clock callbacks.
  * This roughly equates to how frequency of gethrtime calls made.
  */
-const time_t memcached_clock_tick_seconds = 1;
+const seconds memcached_clock_tick_seconds(1);
 
 /*
  * This constant defines the frequency of system clock checks.
  * This equates to an extra gettimeofday every 'n' seconds.
  */
-const time_t memcached_check_system_time = 60;
+const seconds memcached_check_system_time(60);
 
 /*
  * This constant defines the maximum relative time (30 days in seconds)
  * time values above this are interpretted as absolute.
+ * note: c++20 will bring chrono::days
  */
-const time_t memcached_maximum_relative_time = 60*60*24*30;
+const seconds memcached_maximum_relative_time(60 * 60 * 24 * 30);
 
 static std::atomic<rel_time_t> memcached_uptime(0);
 static std::atomic<time_t> memcached_epoch(0);
@@ -119,7 +124,7 @@ rel_time_t mc_time_convert_to_real_time(rel_time_t t) {
     int64_t epoch{memcached_epoch.load()};
     int64_t uptime{memcached_uptime.load()};
 
-    if (t > memcached_maximum_relative_time) { // t is absolute
+    if (t > memcached_maximum_relative_time.count()) { // t is absolute
 
         // Ensure overflow is predictable (we stay at max rel_time_t)
         if (would_overflow<int64_t, int64_t>(epoch, uptime)) {
@@ -149,11 +154,10 @@ rel_time_t mc_time_convert_to_real_time(rel_time_t t) {
     return rv;
 }
 
-time_t mc_time_limit_abstime(time_t t, std::chrono::seconds limit) {
+time_t mc_time_limit_abstime(time_t t, seconds limit) {
     auto upperbound = mc_time_convert_to_abs_time(mc_time_get_current_time());
 
-    if (would_overflow<time_t, std::chrono::seconds::rep>(upperbound,
-                                                          limit.count())) {
+    if (would_overflow<time_t, seconds::rep>(upperbound, limit.count())) {
         upperbound = std::numeric_limits<time_t>::max();
     } else {
         upperbound = upperbound + limit.count();
@@ -174,9 +178,8 @@ time_t mc_time_convert_to_abs_time(const rel_time_t rel_time) {
 }
 
 void mc_schedule_clock_tick_event() {
-    main_event_base->schedule(
-            []() { mc_time_clock_event_handler(); },
-            std::chrono::seconds(memcached_clock_tick_seconds));
+    main_event_base->schedule([]() { mc_time_clock_event_handler(); },
+                              memcached_clock_tick_seconds);
 }
 
 /*
@@ -224,13 +227,13 @@ void mc_time_clock_tick() {
         cb_get_timeofday(&timeofday);
         time_t difference = labs(timeofday.tv_sec - previous_time.tv_sec);
         /* perform a fuzzy check on time, this allows 2 seconds each way. */
-        if (previous_time_valid
-            && ((difference > memcached_check_system_time + 1)
-            || (difference < memcached_check_system_time - 1))) {
+        if (previous_time_valid &&
+            ((difference > memcached_check_system_time.count() + 1) ||
+             (difference < memcached_check_system_time.count() - 1))) {
             if (cb::logger::get() != nullptr) {
                 /* log all variables used in time calculations */
                 LOG_WARNING(
-                        "system clock changed? Expected delta of {}s ±1 since "
+                        "system clock changed? Expected delta of {} ±1 since "
                         "last check, actual difference = {}s, "
                         "memcached_epoch = {}, "
                         "memcached_uptime = {}, new memcached_epoch = {}, "
@@ -240,7 +243,8 @@ void mc_time_clock_tick() {
                         memcached_epoch.load(),
                         memcached_uptime.load(),
                         (timeofday.tv_sec - memcached_uptime),
-                        check_system_time + memcached_check_system_time);
+                        check_system_time +
+                                memcached_check_system_time.count());
             }
             /* adjust memcached_epoch to ensure correct timeofday can
                be calculated by clients*/
@@ -249,7 +253,7 @@ void mc_time_clock_tick() {
 
         /* move our checksystem time marker to trigger the next check
            at the correct interval*/
-        check_system_time += memcached_check_system_time;
+        check_system_time += memcached_check_system_time.count();
 
         previous_time_valid = true;
         previous_time = timeofday;
@@ -260,7 +264,9 @@ void mc_time_clock_tick() {
 
 static void mc_gather_timing_samples() {
     BucketManager::instance().forEach([](Bucket& bucket) {
-        bucket.timings.sample(std::chrono::seconds(1));
+        // @todo: if the callback was slow this is not correct, should use the
+        // realtime that elapsed.
+        bucket.timings.sample(memcached_clock_tick_seconds);
         return true;
     });
 }
