@@ -8,6 +8,7 @@
  *   the file licenses/APL2.txt.
  */
 #include "buckets.h"
+#include "bucket_destroyer.h"
 #include "connection.h"
 #include "cookie.h"
 #include "enginemap.h"
@@ -690,6 +691,22 @@ cb::engine_errc BucketManager::destroy(std::string_view cid,
                                        const std::string name,
                                        bool force,
                                        std::optional<BucketType> type) {
+    auto [res, destroyer] = startDestroy(cid, name, force, type);
+    Expects(destroyer || res != cb::engine_errc::would_block);
+    while (res == cb::engine_errc::would_block) {
+        using namespace std::chrono_literals;
+        std::this_thread::sleep_for(10ms);
+        res = destroyer->drive();
+    }
+
+    return res;
+}
+
+std::pair<cb::engine_errc, std::optional<BucketDestroyer>>
+BucketManager::startDestroy(std::string_view cid,
+                            const std::string name,
+                            bool force,
+                            std::optional<BucketType> type) {
     cb::engine_errc ret = cb::engine_errc::no_such_key;
     Bucket* bucket_ptr = nullptr;
 
@@ -727,30 +744,14 @@ cb::engine_errc BucketManager::destroy(std::string_view cid,
 
     if (ret != cb::engine_errc::success) {
         LOG_WARNING("{}: Delete bucket [{}]: {}", cid, name, to_string(ret));
-        return ret;
+        return {ret, {}};
     }
-
-    auto& bucket = *bucket_ptr;
-    if (bucket.type != BucketType::ClusterConfigOnly) {
-        LOG_INFO("{}: Delete bucket [{}]. Notifying engine", cid, name);
-        bucket.getEngine().initiate_shutdown();
-        bucket.getEngine().cancel_all_operations_in_ewb_state();
-    }
-
-    LOG_INFO("{}: Delete bucket [{}]. Engine ready for shutdown", cid, name);
-
-    // Wait until all users disconnected...
-    waitForEveryoneToDisconnect(bucket, "Delete", cid);
-
-    LOG_INFO("{}: Delete bucket [{}]. Shut down the bucket", cid, name);
-    bucket.destroyEngine(force);
-
-    LOG_INFO(
-            "{}: Delete bucket [{}]. Clean up allocated resources ", cid, name);
-    bucket.reset();
-
-    LOG_INFO("{}: Delete bucket [{}] complete", cid, name);
-    return cb::engine_errc::success;
+    // The destroyer _could_ be stepped here until it first returns
+    // would_block, but startDestroy is called on a frontend thread and the
+    // destroyer may use e.g., iterate_all_connections which should not be
+    // called from a frontend thread context
+    return {cb::engine_errc::would_block,
+            BucketDestroyer(*bucket_ptr, std::string(cid), force)};
 }
 
 void BucketManager::waitForEveryoneToDisconnect(
