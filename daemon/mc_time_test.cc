@@ -175,6 +175,7 @@ TEST_F(McTimeUptimeTest, systemTimeCheckTriggers) {
     // if the system clock drags, here systemTicks is 0, but monotonicTicks is 2
     tick(2, 1000ms, 0ms);
     EXPECT_EQ(1, uptimeClock.getSystemClockWarnings());
+    EXPECT_EQ(1, uptimeClock.getSystemClockChecks());
 }
 
 TEST_F(McTimeUptimeTest, systemTimeNoTriggerDragging) {
@@ -185,12 +186,14 @@ TEST_F(McTimeUptimeTest, systemTimeNoTriggerDragging) {
     // Tick both equally - no warning. steady=2, system=2
     EXPECT_EQ(2s, tick(2));
     EXPECT_EQ(0, uptimeClock.getSystemClockWarnings());
+    EXPECT_EQ(1, uptimeClock.getSystemClockChecks());
 
     // Now "drag" the system clock. Every 1 second of steady time, 0.5s of
     // system will pass, however this is within tolerance and does not trigger
     // a warning.
     EXPECT_EQ(4s, tick(2, 1000ms, 500ms));
     EXPECT_EQ(0, uptimeClock.getSystemClockWarnings());
+    EXPECT_EQ(2, uptimeClock.getSystemClockChecks());
 }
 
 TEST_F(McTimeUptimeTest, systemTimeNoTriggerRushing) {
@@ -201,12 +204,14 @@ TEST_F(McTimeUptimeTest, systemTimeNoTriggerRushing) {
     // Tick both equally - no warning. steady=2, system=2
     EXPECT_EQ(2s, tick(2));
     EXPECT_EQ(0, uptimeClock.getSystemClockWarnings());
+    EXPECT_EQ(1, uptimeClock.getSystemClockChecks());
 
     // Now "rush" the system clock. Every 1 second of steady time, 1.5s of
     // system will pass, however this is within tolerance and does not trigger
     // a warning.
     EXPECT_EQ(4s, tick(2, 1000ms, 1500ms));
     EXPECT_EQ(0, uptimeClock.getSystemClockWarnings());
+    EXPECT_EQ(2, uptimeClock.getSystemClockChecks());
 }
 
 TEST_F(McTimeUptimeTest, systemTimeTriggers) {
@@ -218,6 +223,8 @@ TEST_F(McTimeUptimeTest, systemTimeTriggers) {
     // the check triggers, it will look like system time went backwards.
     EXPECT_EQ(2s, tick(2, 1000ms, 100ms));
     EXPECT_EQ(1, uptimeClock.getSystemClockWarnings());
+    EXPECT_EQ(1, uptimeClock.getSystemClockChecks());
+
     // epoch has moved backwards to account for the apparent system clock jump
     // back. Expected change accounts for the 200ms advance of system time for
     // the 2000ms advance of steady time
@@ -227,5 +234,7 @@ TEST_F(McTimeUptimeTest, systemTimeTriggers) {
     // Now out of tolerance (system clock is rushing)
     EXPECT_EQ(4s, tick(2, 1000ms, 2000ms));
     EXPECT_EQ(2, uptimeClock.getSystemClockWarnings());
+    EXPECT_EQ(2, uptimeClock.getSystemClockChecks());
+
     EXPECT_EQ(epoch + 2s, uptimeClock.getEpoch());
 }

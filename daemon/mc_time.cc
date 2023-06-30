@@ -251,49 +251,54 @@ void UptimeClock::tick() {
       system clock.
     */
     if (systemClockCheckInterval && newUptime >= nextSystemTimeCheck) {
-        auto systemTime = systemTimeNow();
-        auto checkDuration = systemTime - lastKnownSystemTime;
-
-        /* move our checksystem time marker to trigger the next check
-           at the correct interval*/
-        nextSystemTimeCheck += systemClockCheckInterval.value();
-
-        /* perform a fuzzy check on time, this allows 2 seconds each way. */
-        if (((checkDuration > systemClockToleranceUpper) ||
-             (checkDuration < systemClockToleranceLower))) {
-            systemClockCheckWarnings++;
-            auto newEpoch = systemTime - newUptime;
-            if (cb::logger::get() != nullptr) {
-                /* log all variables used in time calculations */
-                auto secs = duration_cast<duration<float>>(checkDuration);
-                LOG_WARNING(
-                        "system clock changed? uptime:{} system clock "
-                        "difference of {} is outside of tolerance {}-{} "
-                        "previous:{:%FT%T%z}, now:{:%FT%T%z}, "
-                        "old-epoch:{:%FT%T%z}, new-epoch:{:%FT%T%z}, next "
-                        "check "
-                        "when uptime is {}, warnings:{}",
-                        newUptime,
-                        secs,
-                        systemClockToleranceLower,
-                        systemClockToleranceUpper,
-                        lastKnownSystemTime,
-                        systemTime,
-                        fmt::localtime(time_point<system_clock>(epoch.load())),
-                        fmt::localtime(time_point<system_clock>(newEpoch)),
-                        nextSystemTimeCheck,
-                        systemClockCheckWarnings);
-            }
-            /* adjust memcached_epoch to ensure correct timeofday can
-               be calculated by clients*/
-            epoch.store(newEpoch);
-        }
-
-        lastKnownSystemTime = systemTime;
+        doSystemClockCheck(newUptime);
     }
 
     // Now update and make this new uptime visible via the atomic variable
     this->uptime.store(newUptime);
+}
+
+void UptimeClock::doSystemClockCheck(seconds newUptime) {
+    ++systemClockChecks;
+
+    auto systemTime = systemTimeNow();
+    auto checkDuration = systemTime - lastKnownSystemTime;
+
+    /* move our checksystem time marker to trigger the next check
+       at the correct interval*/
+    nextSystemTimeCheck += systemClockCheckInterval.value();
+
+    /* perform a fuzzy check on time, this allows 2 seconds each way. */
+    if (((checkDuration > systemClockToleranceUpper) ||
+         (checkDuration < systemClockToleranceLower))) {
+        ++systemClockCheckWarnings;
+        auto newEpoch = systemTime - newUptime;
+        if (cb::logger::get() != nullptr) {
+            /* log all variables used in time calculations */
+            auto secs = duration_cast<duration<float>>(checkDuration);
+            LOG_WARNING(
+                    "system clock changed? uptime:{} system clock "
+                    "difference of {} is outside of tolerance {}-{} "
+                    "previous:{:%FT%T%z}, now:{:%FT%T%z}, "
+                    "epoch:{:%FT%T%z}, new-epoch:{:%FT%T%z}, next check "
+                    "when uptime is {}, warnings:{}",
+                    newUptime,
+                    secs,
+                    systemClockToleranceLower,
+                    systemClockToleranceUpper,
+                    lastKnownSystemTime,
+                    systemTime,
+                    fmt::localtime(time_point<system_clock>(epoch.load())),
+                    fmt::localtime(time_point<system_clock>(newEpoch)),
+                    nextSystemTimeCheck,
+                    systemClockCheckWarnings);
+        }
+        /* adjust memcached_epoch to ensure correct timeofday can
+           be calculated by clients*/
+        epoch.store(newEpoch);
+    }
+
+    lastKnownSystemTime = systemTime;
 }
 
 UptimeClock& UptimeClock::instance() {

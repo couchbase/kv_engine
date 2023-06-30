@@ -206,10 +206,22 @@ public:
         return systemClockCheckWarnings;
     }
 
+    /// @return count of how many times the system clock has been checked
+    size_t getSystemClockChecks() const {
+        return systemClockChecks;
+    }
+
     /// @return the instance of this to be used in memcached
     static UptimeClock& instance();
 
 protected:
+    /**
+     * Check that the system clock is progressing forwards and take action if
+     * not.
+     * @param newUptime the current uptime
+     */
+    void doSystemClockCheck(std::chrono::seconds newUptime);
+
     /// function which returns a steady "monotonic" time
     SteadyClock steadyTimeNow;
     /// function which returns the system time
@@ -256,6 +268,7 @@ protected:
     std::chrono::seconds systemClockToleranceUpper;
     std::optional<std::chrono::seconds> systemClockCheckInterval;
     size_t systemClockCheckWarnings{0};
+    size_t systemClockChecks{0};
 
     /**
      *  The point on the uptime clock for a system clock check
