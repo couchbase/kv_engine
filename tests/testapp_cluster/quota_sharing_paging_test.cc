@@ -297,7 +297,8 @@ INSTANTIATE_TEST_SUITE_P(QuotaSharingOnOff,
  * has nothing in it. Check that items are evicted from bucket 0 such that
  * we reach the quota sharing low watermark.
  */
-TEST_F(TwoBucketQSPagingTest, ItemsAreEvictedFromSingleBucket) {
+// TODO: Disabled until MB-53042: Use quota-shairng memory tracker
+TEST_F(TwoBucketQSPagingTest, DISABLED_ItemsAreEvictedFromSingleBucket) {
     const intptr_t testItemMemUsage = 15_MiB;
 
     generateItems(0, testItemMemUsage);
@@ -325,7 +326,8 @@ TEST_F(TwoBucketQSPagingTest, ItemsAreEvictedFromSingleBucket) {
  * Have a bucket "steal quota" from the other bucket and ensure that we don't
  * evict anything from that bucket.
  */
-TEST_F(TwoBucketQSPagingTest, BucketsCanStealQuota) {
+// TODO: Disabled until MB-53042: Use quota-shairng memory tracker
+TEST_F(TwoBucketQSPagingTest, DISABLED_BucketsCanStealQuota) {
     // Have bucket 0 go over its individual quota, but sum(mem_used) <
     // sum(high_wat) so we shouldn't end up evicting anything in this case.
     generateItems(0, 30_MiB);
@@ -352,7 +354,8 @@ TEST_F(TwoBucketQSPagingTest, BucketsCanStealQuota) {
  * lower than sum(mem_used). Check that the mem_usage of the two buckets
  * end up similar after eviction runs.
  */
-TEST_F(TwoBucketQSPagingTest, ItemsAreFairlyEvictedFromTwoBuckets) {
+// TODO: Disabled until MB-53042: Use quota-shairng memory tracker
+TEST_F(TwoBucketQSPagingTest, DISABLED_ItemsAreFairlyEvictedFromTwoBuckets) {
     const intptr_t testItemMemUsage = 15_MiB;
 
     generateItems(0, testItemMemUsage);
@@ -399,7 +402,8 @@ TEST_F(TwoBucketQSPagingTest, ItemsAreFairlyEvictedFromTwoBuckets) {
  * Fill 2 buckets with items, make the items in one bucket hotter, cause
  * eviction to run, then assert that we evict from the less hot bucket.
  */
-TEST_F(TwoBucketQSPagingTest, ItemsAreEvictedFromLessHotBucketsFirst) {
+// TODO: Disabled until MB-53042: Use quota-shairng memory tracker
+TEST_F(TwoBucketQSPagingTest, DISABLED_ItemsAreEvictedFromLessHotBucketsFirst) {
     const intptr_t testItemMemUsage = 20_MiB;
 
     auto hotBucketItems = generateItems(0, testItemMemUsage);
@@ -448,7 +452,9 @@ TEST_F(TwoBucketQSPagingTest, ItemsAreEvictedFromLessHotBucketsFirst) {
  * Make sure we don't prevent buckets from being destroyed while eviction is
  * running.
  */
-TEST_F(TwoBucketQSPagingTest, BucketsCanBeDestroyedWhileEvictionIsRunning) {
+// TODO: Disabled until MB-53042: Use quota-shairng memory tracker
+TEST_F(TwoBucketQSPagingTest,
+       DISABLED_BucketsCanBeDestroyedWhileEvictionIsRunning) {
     auto startMemUsage = getMemStats(0).current;
     setMemWatermarks(0, startMemUsage, startMemUsage + 0.5_MiB);
     setMemWatermarks(1, startMemUsage, startMemUsage + 0.5_MiB);
