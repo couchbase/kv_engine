@@ -38,6 +38,13 @@ rel_time_t mc_time_get_current_time();
 time_t mc_time_convert_to_abs_time(rel_time_t rel_time);
 
 /**
+ * As above, but provide the epoch (as seconds)
+ */
+time_t mc_time_convert_to_abs_time(
+        rel_time_t rel_time,
+        std::chrono::system_clock::time_point currentEpoch);
+
+/**
  * Convert a protocol encoded expiry time stamp to a relative time stamp
  * (relative to the epoch time of memcached)
  *
@@ -47,6 +54,14 @@ time_t mc_time_convert_to_abs_time(rel_time_t rel_time);
  * @param t a protocol expiry time-stamp
  */
 rel_time_t mc_time_convert_to_real_time(rel_time_t t);
+
+/**
+ * As above, but provide the epoch (as seconds) and the uptime
+ */
+rel_time_t mc_time_convert_to_real_time(
+        rel_time_t t,
+        std::chrono::system_clock::time_point currentEpoch,
+        std::chrono::seconds currentUptime);
 
 /**
  * Apply a limit to an absolute timestamp (which represents an item's requested
@@ -66,6 +81,13 @@ rel_time_t mc_time_convert_to_real_time(rel_time_t t);
  * @return The expiry time after checking it against now + limit.
  */
 time_t mc_time_limit_abstime(time_t t, std::chrono::seconds limit);
+
+/**
+ * As above, but provide the uptime
+ */
+time_t mc_time_limit_abstime(time_t t,
+                             std::chrono::seconds limit,
+                             std::chrono::seconds uptime);
 
 namespace cb::time {
 

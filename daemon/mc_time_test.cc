@@ -347,3 +347,41 @@ TEST_F(McTimeUptimeTest, tickDelay) {
     // system checks are disabled.
     EXPECT_EQ(0, uptimeClock.getSystemClockWarnings());
 }
+
+TEST_F(McTimeUptimeTest, MB11548) {
+    uptimeClock.configureSystemClockCheck(60s, 1s);
+    EXPECT_EQ(60s, tick(60));
+    ASSERT_EQ(0, uptimeClock.getSystemClockWarnings());
+
+    // partially test MB11548. MB11548 affected expiry when time changed to a
+    // negative, large unsigned value and triggered expiry of everything. This
+    // test doesn't check expiry, but checks how the time functions which are
+    // used in expiry paths behave.
+
+    // First mimic a store which sets expiry as 120s. KV always turns anything
+    // under 30days into an absolute time. If expiry was over 30days, it is
+    // used as is (assumed to be the correct absolute time of expiry).
+    auto expiryInput = 120s;
+
+    auto t1 = mc_time_convert_to_real_time(expiryInput.count(),
+                                           uptimeClock.getEpoch(),
+                                           uptimeClock.getUptime());
+    auto absoluteExpiryTime =
+            mc_time_convert_to_abs_time(t1, uptimeClock.getEpoch());
+
+    // System clock now goes back, but 60 seconds must pass before we adjust
+    systemTime -= 360s;
+    EXPECT_EQ(120s, tick(60));
+    ASSERT_EQ(1, uptimeClock.getSystemClockWarnings());
+
+    // ep-engine checks for expiry using ep_abs_time(ep_current_time())
+    // This is mc_time_convert_to_abs_time(uptimeClock.getUpTime, getEpoch)...
+
+    auto expiryCheck = mc_time_convert_to_abs_time(
+            uptimeClock.getUptime().count(), uptimeClock.getEpoch());
+
+    // Check must fail to expir, only 60s of steady time passed, the document
+    // lives for now.
+
+    EXPECT_FALSE(absoluteExpiryTime < expiryCheck);
+}

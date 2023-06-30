@@ -77,11 +77,14 @@ static bool would_overflow(A a, B b) {
 static_assert(std::is_unsigned<rel_time_t>::value,
               "would_overflow assumes rel_time_t is unsigned");
 
-rel_time_t mc_time_convert_to_real_time(rel_time_t t) {
+rel_time_t mc_time_convert_to_real_time(rel_time_t t,
+                                        system_clock::time_point currentEpoch,
+                                        seconds currentUptime) {
     rel_time_t rv = 0;
 
-    int64_t epoch{cb::time::UptimeClock::instance().getEpochSeconds().count()};
-    int64_t uptime{cb::time::UptimeClock::instance().getUptime().count()};
+    int64_t epoch{
+            duration_cast<seconds>(currentEpoch.time_since_epoch()).count()};
+    int64_t uptime{currentUptime.count()};
 
     if (t > memcached_maximum_relative_time.count()) { // t is absolute
 
@@ -113,8 +116,14 @@ rel_time_t mc_time_convert_to_real_time(rel_time_t t) {
     return rv;
 }
 
-time_t mc_time_limit_abstime(time_t t, seconds limit) {
-    auto upperbound = mc_time_convert_to_abs_time(mc_time_get_current_time());
+rel_time_t mc_time_convert_to_real_time(rel_time_t t) {
+    const auto& instance = cb::time::UptimeClock::instance();
+    return mc_time_convert_to_real_time(
+            t, instance.getEpoch(), instance.getUptime());
+}
+
+time_t mc_time_limit_abstime(time_t t, seconds limit, seconds uptime) {
+    auto upperbound = mc_time_convert_to_abs_time(uptime.count());
 
     if (would_overflow<time_t, seconds::rep>(upperbound, limit.count())) {
         upperbound = std::numeric_limits<time_t>::max();
@@ -129,12 +138,24 @@ time_t mc_time_limit_abstime(time_t t, seconds limit) {
     return t;
 }
 
+time_t mc_time_limit_abstime(time_t t, seconds limit) {
+    return mc_time_limit_abstime(
+            t, limit, cb::time::UptimeClock::instance().getUptime());
+}
+
 /*
  * Convert the relative time to an absolute time (relative to EPOCH ;) )
  */
-time_t mc_time_convert_to_abs_time(const rel_time_t rel_time) {
-    return cb::time::UptimeClock::instance().getEpochSeconds().count() +
-           rel_time;
+
+time_t mc_time_convert_to_abs_time(rel_time_t rel_time,
+                                   system_clock::time_point currentEpoch) {
+    return rel_time +
+           duration_cast<seconds>(currentEpoch.time_since_epoch()).count();
+}
+
+time_t mc_time_convert_to_abs_time(rel_time_t rel_time) {
+    return mc_time_convert_to_abs_time(
+            rel_time, cb::time::UptimeClock::instance().getEpoch());
 }
 
 static void mc_gather_timing_samples() {
