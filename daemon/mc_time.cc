@@ -235,6 +235,7 @@ UptimeClock::UptimeClock(SteadyClock steadyClock, SystemClock systemClock)
       start(steadyTimeNow()),
       lastKnownSystemTime(systemTimeNow()),
       epoch(lastKnownSystemTime),
+      systemCheckLastKnownSteadyTime(start),
       lastKnownSteadyTime(start) {
 }
 
@@ -252,11 +253,7 @@ seconds UptimeClock::getEpochSeconds() const {
 
 void UptimeClock::configureSystemClockCheck(Duration systemClockCheckInterval,
                                             Duration systemClockTolerance) {
-    this->systemClockToleranceUpper =
-            systemClockCheckInterval + systemClockTolerance;
-    this->systemClockToleranceLower =
-            systemClockCheckInterval - systemClockTolerance;
-
+    this->systemClockTolerance = systemClockTolerance;
     this->systemClockCheckInterval = systemClockCheckInterval;
     nextSystemTimeCheck = uptime.load() + systemClockCheckInterval;
 }
@@ -283,10 +280,12 @@ Duration UptimeClock::tick(std::optional<Duration> expectedPeriod) {
 
     /*
       every 'systemClockCheckInterval' keep an eye on the system clock.
+      The expectation is that the two clocks should progress forwards "equally"
+      and when the system clock does not - warn and adjust the epoch (MB-11548).
     */
     if (expectedPeriod && systemClockCheckInterval &&
         newUptime >= nextSystemTimeCheck) {
-        doSystemClockCheck(newUptime);
+        doSystemClockCheck(now, newUptime);
     }
 
     lastKnownSteadyTime = now;
@@ -296,33 +295,40 @@ Duration UptimeClock::tick(std::optional<Duration> expectedPeriod) {
     return newUptime - previous;
 }
 
-void UptimeClock::doSystemClockCheck(Duration newUptime) {
+void UptimeClock::doSystemClockCheck(steady_clock::time_point now,
+                                     Duration newUptime) {
     ++systemClockChecks;
 
     auto systemTime = systemTimeNow();
-    auto checkDuration = systemTime - lastKnownSystemTime;
+    auto systemDuration = systemTime - lastKnownSystemTime;
 
     /* move our checksystem time marker to trigger the next check
        at the correct interval*/
     nextSystemTimeCheck += systemClockCheckInterval.value();
 
-    /* perform a fuzzy check on time. */
-    if (((checkDuration > systemClockToleranceUpper) ||
-         (checkDuration < systemClockToleranceLower))) {
+    // steady time since the last check is required for the check
+    auto tickDuration = now - systemCheckLastKnownSteadyTime;
+
+    // If the system clock has not progressed by the tickDuration
+    // (accounting for the tolerance) consider this a warning and adjust
+    // the epoch.
+    if (systemDuration > (tickDuration + systemClockTolerance) ||
+        systemDuration < (tickDuration - systemClockTolerance)) {
         ++systemClockCheckWarnings;
         auto newEpoch = systemTime - newUptime;
         if (cb::logger::get() != nullptr) {
             /* log all variables used in time calculations */
             LOG_WARNING(
-                    "system clock changed? uptime:{} system clock "
-                    "difference of {} is outside of tolerance {}-{} "
-                    "previous:{:%FT%T%z}, now:{:%FT%T%z}, "
-                    "epoch:{:%FT%T%z}, new-epoch:{:%FT%T%z}, next check "
-                    "when uptime is {}, warnings:{}",
+                    "system clock changed? uptime:{} tickDuration:{} "
+                    "differs from systemDuration:{} when accounting for "
+                    "the tolerance:{}. previous:{:%FT%T%z}, "
+                    "now:{:%FT%T%z}. Adjusting epoch from {:%FT%T%z} to "
+                    "{:%FT%T%z}. Next check when uptime reaches:{}. "
+                    "warnings:{}",
                     newUptime,
-                    duration_cast<Duration>(checkDuration),
-                    systemClockToleranceLower,
-                    systemClockToleranceUpper,
+                    duration_cast<Duration>(tickDuration),
+                    duration_cast<Duration>(systemDuration),
+                    systemClockTolerance,
                     lastKnownSystemTime,
                     systemTime,
                     fmt::localtime(time_point<system_clock>(epoch.load())),
@@ -335,6 +341,7 @@ void UptimeClock::doSystemClockCheck(Duration newUptime) {
         epoch.store(newEpoch);
     }
 
+    systemCheckLastKnownSteadyTime = now;
     lastKnownSystemTime = systemTime;
 }
 

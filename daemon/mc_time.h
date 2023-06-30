@@ -280,9 +280,11 @@ protected:
     /**
      * Check that the system clock is progressing forwards and take action if
      * not.
+     * @param now the current steady time
      * @param newUptime the current uptime
      */
-    void doSystemClockCheck(Duration newUptime);
+    void doSystemClockCheck(std::chrono::steady_clock::time_point now,
+                            Duration newUptime);
 
     /**
      * Check that steady time is progressing as expected - or more likely that
@@ -330,13 +332,12 @@ protected:
      * epoch variable is adjusted.
      *
      * The system clock is checked only after a defined uptime duration
-     * (systemClockCheckInterval) and has a tolerance to the check, allowing
-     * for the system clock to be ahead or behind by the
-     * systemClockToleranceLower/systemClockToleranceUpper range.
+     * (systemClockCheckInterval) and has a tolerance to the check.
      */
-    Duration systemClockToleranceLower;
-    Duration systemClockToleranceUpper;
+    Duration systemClockTolerance;
     std::optional<Duration> systemClockCheckInterval;
+    std::chrono::time_point<std::chrono::steady_clock>
+            systemCheckLastKnownSteadyTime;
     size_t systemClockCheckWarnings{0};
     size_t systemClockChecks{0};
 

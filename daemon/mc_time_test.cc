@@ -385,3 +385,55 @@ TEST_F(McTimeUptimeTest, MB11548) {
 
     EXPECT_FALSE(absoluteExpiryTime < expiryCheck);
 }
+
+// MB-57249 identified that when a system clock warning occurs, a bogus warning
+// can be seen to follow. With the fix no warnings occur because system time is
+// compared to steady time
+TEST_F(McTimeUptimeTest, MB_57249) {
+    uptimeClock.configureSystemClockCheck(60s, 1s);
+    uptimeClock.configureSteadyClockCheck(1s);
+
+    // Code follows the description from the MB.
+    // First trigger a check at 60 seconds where everything is good
+    EXPECT_EQ(60s, tick(60));
+    EXPECT_EQ(0, uptimeClock.getSteadyClockWarnings());
+    EXPECT_EQ(0, uptimeClock.getSystemClockWarnings());
+    EXPECT_EQ(1, uptimeClock.getSystemClockChecks());
+
+    // Second trigger a check, but all clocks are moving correctly. It was the
+    // call of tick that was not on time.
+    // First 59 on time ticks
+    EXPECT_EQ(119s, tick(59));
+    EXPECT_EQ(0, uptimeClock.getSteadyClockWarnings());
+    EXPECT_EQ(0, uptimeClock.getSystemClockWarnings());
+    EXPECT_EQ(1, uptimeClock.getSystemClockChecks());
+
+    // Now "delay" the next tick, which corresponds to a system check. Both
+    // clocks have moved together and really there's no problem.
+    steadyTime += 5s;
+    systemTime += 5s;
+    EXPECT_EQ(5s, uptimeClock.tick(1s));
+
+    // Prior to fixing the MB, a warning was triggered here. Now no warning as
+    // system time is checked against steady time - and they're both equal. A
+    // steady clock warning will occur though because the callback was late.
+    EXPECT_EQ(1, uptimeClock.getSteadyClockWarnings());
+    EXPECT_EQ(0, uptimeClock.getSystemClockWarnings());
+    EXPECT_EQ(2, uptimeClock.getSystemClockChecks());
+
+    // In the MB, a third check gets it wrong. The previous check was late and
+    // this one is on time - all clocks have moved forwards equally by 56
+    // seconds to the 180 seconds of uptime, but a warning occurs. The log
+    // message was also confusingly a number suggesting system clock has gone
+    // backwards. Prior to fixing a second warning would occur next.
+    EXPECT_EQ(184s, tick(60));
+    EXPECT_EQ(1, uptimeClock.getSteadyClockWarnings());
+    EXPECT_EQ(0, uptimeClock.getSystemClockWarnings());
+    EXPECT_EQ(3, uptimeClock.getSystemClockChecks());
+
+    // Check again, all is good.
+    EXPECT_EQ(244s, tick(60));
+    EXPECT_EQ(1, uptimeClock.getSteadyClockWarnings());
+    EXPECT_EQ(0, uptimeClock.getSystemClockWarnings());
+    EXPECT_EQ(4, uptimeClock.getSystemClockChecks());
+}
