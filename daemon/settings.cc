@@ -547,7 +547,8 @@ static void handle_num_auxio_threads(Settings& s, const nlohmann::json& obj) {
     if (obj.is_number_unsigned()) {
         s.setNumAuxIoThreads(obj.get<size_t>());
     } else if (obj.is_string() && obj.get<std::string>() == "default") {
-        s.setNumAuxIoThreads(0);
+        s.setNumAuxIoThreads(
+                static_cast<int>(ThreadPoolConfig::AuxIoThreadCount::Default));
     } else {
         throw std::invalid_argument(
                 fmt::format("Value to set number of AuxIO threads must be an "

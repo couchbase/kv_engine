@@ -30,7 +30,8 @@ size_t CB3ExecutorPool::getNumNonIO() {
 }
 
 size_t CB3ExecutorPool::getNumAuxIO() {
-    return calcNumAuxIO(numWorkers[AUXIO_TASK_IDX].load());
+    return calcNumAuxIO(ThreadPoolConfig::AuxIoThreadCount(
+            numWorkers[AUXIO_TASK_IDX].load()));
 }
 
 size_t CB3ExecutorPool::getNumWriters() {
@@ -46,7 +47,7 @@ size_t CB3ExecutorPool::getNumReaders() {
 CB3ExecutorPool::CB3ExecutorPool(size_t maxThreads,
                                  ThreadPoolConfig::ThreadCount maxReaders,
                                  ThreadPoolConfig::ThreadCount maxWriters,
-                                 size_t maxAuxIO,
+                                 ThreadPoolConfig::AuxIoThreadCount maxAuxIO,
                                  size_t maxNonIO)
     : ExecutorPool(maxThreads),
       totReadyTasks(0),
@@ -63,7 +64,7 @@ CB3ExecutorPool::CB3ExecutorPool(size_t maxThreads,
     }
     numWorkers[WRITER_TASK_IDX] = static_cast<int>(maxWriters);
     numWorkers[READER_TASK_IDX] = static_cast<int>(maxReaders);
-    numWorkers[AUXIO_TASK_IDX] = maxAuxIO;
+    numWorkers[AUXIO_TASK_IDX] = static_cast<int>(maxAuxIO);
     numWorkers[NONIO_TASK_IDX] = maxNonIO;
 }
 

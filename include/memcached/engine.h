@@ -198,7 +198,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
         // ignored
     }
 
-    virtual void set_num_auxio_threads(size_t num) {
+    virtual void set_num_auxio_threads(ThreadPoolConfig::AuxIoThreadCount num) {
         // ignored
     }
 

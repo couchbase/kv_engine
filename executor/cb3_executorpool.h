@@ -88,13 +88,13 @@ public:
      *                   use number of CPU cores.
      * @param maxReaders Number of Reader threads to create.
      * @param maxWriters Number of Writer threads to create.
-     * @param maxAuxIO Number of AuxIO threads to create (0 = auto-configure).
+     * @param maxAuxIO Number of AuxIO threads to create (Default = auto-configure).
      * @param maxNonIO Number of NonIO threads to create (0 = auto-configure).
      */
     CB3ExecutorPool(size_t maxThreads,
                     ThreadPoolConfig::ThreadCount maxReaders,
                     ThreadPoolConfig::ThreadCount maxWriters,
-                    size_t maxAuxIO,
+                    ThreadPoolConfig::AuxIoThreadCount maxAuxIO,
                     size_t maxNonIO);
 
     ~CB3ExecutorPool() override;
@@ -185,8 +185,8 @@ public:
         adjustWorkers(WRITER_TASK_IDX, calcNumWriters(v));
     }
 
-    void setNumAuxIO(uint16_t v) override {
-        adjustWorkers(AUXIO_TASK_IDX, v);
+    void setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount v) override {
+        adjustWorkers(AUXIO_TASK_IDX, calcNumAuxIO(v));
     }
 
     void setNumNonIO(uint16_t v) override {

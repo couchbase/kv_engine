@@ -689,7 +689,8 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
         } else if (key == "num_auxio_threads") {
             size_t value = std::stoull(val);
             configuration.setNumAuxioThreads(value);
-            ExecutorPool::get()->setNumAuxIO(value);
+            ExecutorPool::get()->setNumAuxIO(
+                    ThreadPoolConfig::AuxIoThreadCount(value));
         } else if (key == "num_nonio_threads") {
             size_t value = std::stoull(val);
             configuration.setNumNonioThreads(value);

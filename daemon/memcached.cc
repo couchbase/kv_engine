@@ -718,7 +718,7 @@ static void startExecutorPool() {
             0,
             ThreadPoolConfig::ThreadCount(settings.getNumReaderThreads()),
             ThreadPoolConfig::ThreadCount(settings.getNumWriterThreads()),
-            settings.getNumAuxIoThreads(),
+            ThreadPoolConfig::AuxIoThreadCount(settings.getNumAuxIoThreads()),
             settings.getNumNonIoThreads());
     ExecutorPool::get()->registerTaskable(NoBucketTaskable::instance());
 
@@ -750,7 +750,7 @@ static void startExecutorPool() {
             });
     settings.addChangeListener(
             "num_auxio_threads", [](const std::string&, Settings& s) -> void {
-                auto val = s.getNumAuxIoThreads();
+                auto val = ThreadPoolConfig::AuxIoThreadCount(s.getNumAuxIoThreads());
                 ExecutorPool::get()->setNumAuxIO(val);
                 BucketManager::instance().forEach([val](Bucket& b) -> bool {
                     b.getEngine().set_num_auxio_threads(val);

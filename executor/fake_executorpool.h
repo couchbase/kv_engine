@@ -35,7 +35,7 @@ public:
         : CB3ExecutorPool(/*threads*/ 0,
                           ThreadPoolConfig::ThreadCount::Default,
                           ThreadPoolConfig::ThreadCount::Default,
-                          0,
+                          ThreadPoolConfig::AuxIoThreadCount::Default,
                           0) {
     }
 

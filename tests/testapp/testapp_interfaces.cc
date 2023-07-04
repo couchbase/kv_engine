@@ -597,13 +597,13 @@ TEST_P(InterfacesTest, TestSettingAndGettingThreadCount) {
                         Pair("num_frontend_threads_configured", Gt(0)),
                         Pair("num_frontend_threads_actual", Gt(0)),
                         // background threads by default are configured as
-                        // "default", which is encoded as zero. Created should
-                        // be non-zero howver (based on CPU count).
+                        // "default", which is encoded as zero, or -1 for AuxIO.
+                        // Created should be non-zero however (based on CPU count).
                         Pair("num_reader_threads_configured", 0),
                         Pair("num_reader_threads_actual", Gt(0)),
                         Pair("num_writer_threads_configured", 0),
                         Pair("num_writer_threads_actual", Gt(0)),
-                        Pair("num_auxio_threads_configured", 0),
+                        Pair("num_auxio_threads_configured", -1),
                         Pair("num_auxio_threads_actual", Gt(0)),
                         Pair("num_nonio_threads_configured", 0),
                         Pair("num_nonio_threads_actual", Gt(0))));

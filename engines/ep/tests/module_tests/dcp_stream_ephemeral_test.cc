@@ -94,7 +94,7 @@ TEST_P(EphemeralStreamTest, EphemeralBackfillSnapshotHasNoDuplicates) {
     setup_dcp_stream();
 
     /* We want the backfill task to run in a background thread */
-    ExecutorPool::get()->setNumAuxIO(1);
+    ExecutorPool::get()->setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount{1});
 
     // transitionStateToBackfilling should set isBackfillTaskRunning to true
     // which will not be reset until the task finishes which we will use to

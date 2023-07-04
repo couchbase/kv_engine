@@ -64,7 +64,7 @@ void ExecutorPoolTest<T>::makePool(int maxThreads,
     pool = std::make_unique<T>(maxThreads,
                                ThreadPoolConfig::ThreadCount(numReaders),
                                ThreadPoolConfig::ThreadCount(numWriters),
-                               numAuxIO,
+                               ThreadPoolConfig::AuxIoThreadCount(numAuxIO),
                                numNonIO);
 }
 
@@ -1504,7 +1504,7 @@ TEST_P(ExecutorPoolTestWithParam, max_threads_test_parameterized) {
     TestExecutorPool pool(expected.maxThreads, // MaxThreads
                           expected.in_reader_writer,
                           expected.in_reader_writer,
-                          0, // MaxNumAuxio
+                          ThreadPoolConfig::AuxIoThreadCount::Default,
                           0 // MaxNumNonio
     );
 
