@@ -9,9 +9,9 @@
  */
 
 #include "buckets.h"
-#include "enginemap.h"
 #include "environment.h"
 #include "mc_time.h"
+#include "memcached.h"
 #include "settings.h"
 #include <memcached/document_expired.h>
 #include <memcached/engine.h>
