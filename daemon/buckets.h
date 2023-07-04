@@ -434,26 +434,6 @@ public:
                            const std::string config,
                            BucketType type);
 
-    /**
-     * Destroy a bucket (will block until connections are closed and operations
-     * in flight are complete).
-     *
-     * Wraps startDestroy in a while loop; use startDestroy directly if the
-     * caller needs to do anything else while bucket deletion is in progress
-     * (e.g., needs to snooze a task rather than blocking a thread).
-     *
-     *
-     * @param cookie The cookie requested bucket deletion
-     * @param name The name of the bucket to delete
-     * @param force If set to true the underlying engine should not try to
-     *              persist pending items etc
-     * @param type Only delete the bucket if it is of the given type
-     * @return Status for the operation
-     */
-    cb::engine_errc destroy(Cookie& cookie,
-                            const std::string name,
-                            bool force,
-                            std::optional<BucketType> type);
 
     /// Set the cluster configuration for the named bucket
     cb::engine_errc setClusterConfig(
@@ -469,7 +449,7 @@ public:
      * the destruction.
      *
      *
-     * @param cookie The cookie requested bucket deletion
+     * @param cid The client identifier (for logging)
      * @param name The name of the bucket to delete
      * @param force If set to true the underlying engine should not try to
      *              persist pending items etc
@@ -689,6 +669,27 @@ protected:
     cb::engine_errc resume(std::string_view cid, std::string_view name);
 
     BucketManager();
+
+    /**
+     * Destroy a bucket (will block until connections are closed and operations
+     * in flight are complete).
+     *
+     * Wraps startDestroy in a while loop; use startDestroy directly if the
+     * caller needs to do anything else while bucket deletion is in progress
+     * (e.g., needs to snooze a task rather than blocking a thread).
+     *
+     *
+     * @param cookie The cookie requested bucket deletion
+     * @param name The name of the bucket to delete
+     * @param force If set to true the underlying engine should not try to
+     *              persist pending items etc
+     * @param type Only delete the bucket if it is of the given type
+     * @return Status for the operation
+     */
+    cb::engine_errc destroy(Cookie& cookie,
+                            const std::string name,
+                            bool force,
+                            std::optional<BucketType> type);
 
     /// The "unassigned resources" gauge to use for throttling of commands.
     SloppyGauge unassigned_resources_gauge;
