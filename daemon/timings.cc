@@ -149,7 +149,7 @@ Hdr1sfMicroSecHistogram* Timings::get_timing_histogram(uint8_t opcode) const {
     return timings[opcode].load();
 }
 
-void Timings::sample(std::chrono::seconds sample_interval) {
+void Timings::sample() {
     cb::sampling::Interval interval_lookup, interval_mutation;
 
     for (auto op : timings_mutations) {

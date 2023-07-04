@@ -47,12 +47,6 @@
 using namespace std::chrono;
 
 /*
- * This constant defines the seconds between libevent clock callbacks.
- * This roughly equates to how frequency of gethrtime calls made.
- */
-const seconds memcached_clock_tick_seconds(1);
-
-/*
  * This constant defines the maximum relative time (30 days in seconds)
  * time values above this are interpretted as absolute.
  * note: c++20 will bring chrono::days
@@ -160,9 +154,7 @@ time_t mc_time_convert_to_abs_time(rel_time_t rel_time) {
 
 static void mc_gather_timing_samples() {
     BucketManager::instance().forEach([](Bucket& bucket) {
-        // @todo: if the callback was slow this is not correct, should use the
-        // realtime that elapsed.
-        bucket.timings.sample(memcached_clock_tick_seconds);
+        bucket.timings.sample();
         return true;
     });
 }
