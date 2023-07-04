@@ -81,8 +81,9 @@ public:
      *
      * @param eventBase EventBase::schedule is invoked against this object for
      *        the periodic tick.
+     * @param interval the tick interval in seconds
      */
-    Regulator(folly::EventBase& eventBase);
+    Regulator(folly::EventBase& eventBase, std::chrono::seconds interval);
 
     /**
      * This method exists to allow the unit-test time adjustment command to
@@ -97,7 +98,8 @@ public:
      * function must be called first from the main thread before "instance" can
      * be invoked.
      */
-    static void createAndRun(folly::EventBase& eventBase);
+    static void createAndRun(folly::EventBase& eventBase,
+                             std::chrono::seconds interval);
 
     /**
      * Retrieve the instance of the Regulator - this call expects that the
@@ -126,6 +128,8 @@ protected:
     void tick();
 
     folly::EventBase& eventBase;
+
+    const std::chrono::seconds interval;
 };
 
 using SteadyClock = std::function<std::chrono::steady_clock::time_point()>;

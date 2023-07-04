@@ -148,7 +148,8 @@ static void mc_gather_timing_samples() {
 
 namespace cb::time {
 
-Regulator::Regulator(folly::EventBase& eventBase) : eventBase(eventBase) {
+Regulator::Regulator(folly::EventBase& eventBase, seconds interval)
+    : eventBase(eventBase), interval(interval) {
 }
 
 void Regulator::scheduleOneTick() {
@@ -164,7 +165,7 @@ void Regulator::scheduleOneTick() {
                 // And again.
                 scheduleOneTick();
             },
-            memcached_clock_tick_seconds);
+            interval);
 }
 
 void Regulator::tickUptimeClockOnce() {
@@ -181,10 +182,10 @@ void Regulator::tick() {
 static folly::Synchronized<std::unique_ptr<Regulator>, std::mutex>
         periodicTicker;
 
-void Regulator::createAndRun(folly::EventBase& eventBase) {
+void Regulator::createAndRun(folly::EventBase& eventBase, seconds interval) {
     auto locked = periodicTicker.lock();
     if (!*locked) {
-        *locked = std::make_unique<Regulator>(eventBase);
+        *locked = std::make_unique<Regulator>(eventBase, interval);
     }
 
     // scheduleOneTick will schedule a periodic wakeup that will "tick" the

@@ -995,7 +995,7 @@ int memcached_main(int argc, char** argv) {
     cb::time::UptimeClock::instance().configureSystemClockCheck(
             std::chrono::seconds(60), std::chrono::seconds(1));
     /* Create memcached time Regulator and begin periodic ticking */
-    cb::time::Regulator::createAndRun(*main_base);
+    cb::time::Regulator::createAndRun(*main_base, std::chrono::seconds(1));
 
     // Optional parent monitor
     {
