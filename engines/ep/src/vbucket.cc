@@ -482,6 +482,7 @@ ItemsToFlush VBucket::getItemsToPersist(size_t approxLimit) {
     result.historical = rangeInfo.historical;
     result.flushHandle = std::move(rangeInfo.flushHandle);
     result.moreAvailable = rangeInfo.moreAvailable;
+    result.maxCas = rangeInfo.maxCas;
 
     stats.persistenceCursorGetItemsHisto.add(
             std::chrono::duration_cast<std::chrono::microseconds>(
@@ -4374,4 +4375,9 @@ bool VBucket::isHistoryRetentionEnabled() const {
         return true;
     }
     return bucket->isHistoryRetentionEnabled();
+}
+
+void VBucket::forceMaxCas(uint64_t cas) {
+    hlc.forceMaxHLC(cas);
+    checkpointManager->queueSetVBState();
 }

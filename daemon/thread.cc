@@ -281,6 +281,15 @@ void FrontEndThread::dispatch_new_connections() {
     if (free_pool_size) {
         const auto current = stats.getUserConnections();
         if (current >= (settings.getMaxUserConnections() - free_pool_size)) {
+            LOG_INFO(
+                    "t:{}: Initiate shutdown of {} clients to avoid running "
+                    "out of connections. current: {}, max: {}, free_pool_size: "
+                    "{}",
+                    index,
+                    connections.size(),
+                    current,
+                    settings.getMaxUserConnections(),
+                    free_pool_size);
             // We're above the limit. Initiate shutdown of as many connections
             // as I am going to initialize
             tryInitiateConnectionShutdown(accept_connections.size());

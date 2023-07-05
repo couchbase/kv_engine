@@ -255,6 +255,8 @@ bool KVStore::needsToBePersisted(Vbid vbid, const vbucket_state& newVbstate) {
      * - the persisted completed seqno or
      * - the persisted prepared seqno or
      * - the high prepared seqno
+     * - the max visible seqno
+     * - the max cas
      */
     const auto* cached = getCachedVBucketState(vbid);
 
@@ -268,7 +270,8 @@ bool KVStore::needsToBePersisted(Vbid vbid, const vbucket_state& newVbstate) {
             cached->persistedPreparedSeqno !=
                     newVbstate.persistedPreparedSeqno ||
             cached->highPreparedSeqno != newVbstate.highPreparedSeqno ||
-            cached->maxVisibleSeqno != newVbstate.maxVisibleSeqno);
+            cached->maxVisibleSeqno != newVbstate.maxVisibleSeqno ||
+            cached->maxCas != newVbstate.maxCas);
 }
 
 void KVStore::updateCachedVBState(Vbid vbid, const vbucket_state& newState) {

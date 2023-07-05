@@ -183,6 +183,12 @@ public:
          */
         uint64_t visibleSeqno;
 
+        /**
+         * The maxCas of the flush-batch, which takes into account that during
+         * the seqno ordering a set-vb-state may have reset the maxCas.
+         */
+        uint64_t maxCas{0};
+
         /// Set only for persistence cursor, resets the CM state after flush.
         UniqueFlushHandle flushHandle;
     };
