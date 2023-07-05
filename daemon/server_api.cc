@@ -13,6 +13,7 @@
 #include "mc_time.h"
 #include "memcached.h"
 #include "settings.h"
+#include <executor/executorpool.h>
 #include <memcached/document_expired.h>
 #include <memcached/engine.h>
 #include <memcached/server_bucket_iface.h>
@@ -59,11 +60,12 @@ struct ServerCoreApi : public ServerCoreIface {
 
     size_t getQuotaSharingPagerConcurrency() override {
         auto& instance = Settings::instance();
+        auto numNonIO = ExecutorPool::get()->getNumNonIO();
         // Calculate number of concurrent paging visitors to use as a percentage
         // of the number of NonIO threads.
-        int userValue = instance.getQuotaSharingPagerConcurrencyPercentage() *
-                        instance.getNumNonIoThreads() / 100;
-        return std::clamp(userValue, 1, instance.getNumNonIoThreads());
+        auto userValue = instance.getQuotaSharingPagerConcurrencyPercentage() *
+                         numNonIO / 100;
+        return std::clamp(userValue, size_t(1), numNonIO);
     }
 
     std::chrono::milliseconds getQuotaSharingPagerSleepTime() override {
