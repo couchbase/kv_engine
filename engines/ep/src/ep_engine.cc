@@ -2772,7 +2772,7 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
         const StatCollector& collector) {
     using namespace cb::stats;
     auto divide = [](double a, double b) { return b ? a / b : 0; };
-    constexpr std::array<std::string_view, 54> statNames = {
+    constexpr std::array<std::string_view, 56> statNames = {
             {"magma_HistorySizeBytesEvicted",
              "magma_HistoryTimeBytesEvicted",
              "magma_NCompacts",
@@ -2788,6 +2788,7 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
              "magma_SeqIndex_NWriterCompacts",
              "magma_BytesOutgoing",
              "magma_NReadBytes",
+             "magma_FSReadBytes",
              "magma_NReadBytesGet",
              "magma_CheckpointOverhead",
              "magma_NGets",
@@ -2797,6 +2798,7 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
              "magma_NReadBytesCompact",
              "magma_BytesIncoming",
              "magma_NWriteBytes",
+             "magma_FSWriteBytes",
              "magma_NWriteBytesCompact",
              "magma_ActiveDiskUsage",
              "magma_LogicalDataSize",
@@ -2877,11 +2879,14 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
     // Read amp, ReadIOAmp.
     size_t bytesOutgoing = 0;
     size_t readBytes = 0;
+    size_t fsReadBytes = 0;
     if (statExists("magma_BytesOutgoing", bytesOutgoing) &&
-        statExists("magma_NReadBytes", readBytes)) {
+        statExists("magma_NReadBytes", readBytes) &&
+        statExists("magma_FSReadBytes", fsReadBytes)) {
         collector.addStat(Key::ep_magma_bytes_outgoing, bytesOutgoing);
         collector.addStat(Key::ep_magma_read_bytes, readBytes);
-        auto readAmp = divide(readBytes, bytesOutgoing);
+        collector.addStat(Key::ep_io_total_read_bytes, fsReadBytes);
+        auto readAmp = divide(fsReadBytes, bytesOutgoing);
         collector.addStat(Key::ep_magma_readamp, readAmp);
 
         size_t readBytesGet = 0;
@@ -2908,11 +2913,14 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
     // Write amp.
     size_t bytesIncoming = 0;
     size_t writeBytes = 0;
+    size_t fsWriteBytes = 0;
     if (statExists("magma_BytesIncoming", bytesIncoming) &&
-        statExists("magma_NWriteBytes", writeBytes)) {
+        statExists("magma_NWriteBytes", writeBytes) &&
+        statExists("magma_FSWriteBytes", fsWriteBytes)) {
         collector.addStat(Key::ep_magma_bytes_incoming, bytesIncoming);
         collector.addStat(Key::ep_magma_write_bytes, writeBytes);
-        auto writeAmp = divide(writeBytes, bytesIncoming);
+        collector.addStat(Key::ep_io_total_write_bytes, fsWriteBytes);
+        auto writeAmp = divide(fsWriteBytes, bytesIncoming);
         collector.addStat(Key::ep_magma_writeamp, writeAmp);
     }
     addStat(Key::ep_magma_write_bytes_compact, "magma_NWriteBytesCompact");

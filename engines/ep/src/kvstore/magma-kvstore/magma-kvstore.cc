@@ -3677,6 +3677,7 @@ GetStatsMap MagmaKVStore::getStats(
          magmaStats->SeqStats.NWriterCompacts);
     fill("magma_BytesOutgoing", magmaStats->BytesOutgoing);
     fill("magma_NReadBytes", magmaStats->NReadBytes);
+    fill("magma_FSReadBytes", magmaStats->FSReadBytes);
     fill("magma_NReadBytesGet", magmaStats->NReadBytesGet);
     fill("magma_NGets", magmaStats->NGets);
     fill("magma_NSets", magmaStats->NSets);
@@ -3685,6 +3686,7 @@ GetStatsMap MagmaKVStore::getStats(
     fill("magma_NReadBytesCompact", magmaStats->NReadBytesCompact);
     fill("magma_BytesIncoming", magmaStats->BytesIncoming);
     fill("magma_NWriteBytes", magmaStats->NWriteBytes);
+    fill("magma_FSWriteBytes", magmaStats->FSWriteBytes);
     fill("magma_NWriteBytesCompact", magmaStats->NWriteBytesCompact);
     fill("magma_LogicalDataSize", magmaStats->LogicalDataSize);
     fill("magma_LogicalDiskSize", magmaStats->LogicalDiskSize);

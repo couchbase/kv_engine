@@ -7385,9 +7385,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                                      "ep_io_compaction_write_bytes",
                                      "ep_io_document_write_bytes",
                                      "ep_io_flusher_write_amplification",
-                                     "ep_io_total_read_bytes",
                                      "ep_io_total_write_amplification",
-                                     "ep_io_total_write_bytes",
                                      "ep_bg_fetch_avg_read_amplification"}) {
             eng_stats.erase(
                     std::remove(eng_stats.begin(), eng_stats.end(), statName),

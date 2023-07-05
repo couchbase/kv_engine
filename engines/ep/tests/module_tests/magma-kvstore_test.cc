@@ -240,7 +240,9 @@ TEST_F(MagmaKVStoreTest, prepareToCreate) {
 }
 
 TEST_F(MagmaKVStoreTest, getStats) {
-    constexpr std::array<std::string_view, 45> statNames = {{
+    constexpr std::array<std::string_view, 47> statNames = {{
+            "magma_FSReadBytes",
+            "magma_FSWriteBytes",
             "magma_MemoryQuotaLowWaterMark",
             "magma_BloomFilterMemoryQuota",
             "magma_WriteCacheQuota",
@@ -317,6 +319,7 @@ TEST_F(MagmaKVStoreTest, getStat) {
     // Read amp, ReadIOAmp.
     ASSERT_TRUE(kvstore->getStat("magma_BytesOutgoing", value));
     ASSERT_TRUE(kvstore->getStat("magma_NReadBytes", value));
+    ASSERT_TRUE(kvstore->getStat("magma_FSReadBytes", value));
     ASSERT_TRUE(kvstore->getStat("magma_NReadBytesGet", value));
     ASSERT_TRUE(kvstore->getStat("magma_NGets", value));
     ASSERT_TRUE(kvstore->getStat("magma_NReadIO", value));
@@ -324,6 +327,7 @@ TEST_F(MagmaKVStoreTest, getStat) {
     // Write amp.
     ASSERT_TRUE(kvstore->getStat("magma_BytesIncoming", value));
     ASSERT_TRUE(kvstore->getStat("magma_NWriteBytes", value));
+    ASSERT_TRUE(kvstore->getStat("magma_FSWriteBytes", value));
     ASSERT_TRUE(kvstore->getStat("magma_NWriteBytesCompact", value));
     // Fragmentation.
     ASSERT_TRUE(kvstore->getStat("magma_LogicalDataSize", value));
