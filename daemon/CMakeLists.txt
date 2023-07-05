@@ -1,3 +1,5 @@
+add_subdirectory(protocol)
+
 add_library(memcached_daemon STATIC
             bucket_type.cc
             bucket_destroyer.cc
@@ -64,101 +66,6 @@ add_library(memcached_daemon STATIC
             network_interface_manager.h
             nobucket_taskable.cc
             nobucket_taskable.h
-            protocol/mcbp/adjust_timeofday_executor.cc
-            protocol/mcbp/appendprepend_context.cc
-            protocol/mcbp/appendprepend_context.h
-            protocol/mcbp/arithmetic_context.cc
-            protocol/mcbp/arithmetic_context.h
-            protocol/mcbp/audit_configure_context.cc
-            protocol/mcbp/audit_configure_context.h
-            protocol/mcbp/bucket_management_command_context.cc
-            protocol/mcbp/bucket_management_command_context.h
-            protocol/mcbp/cluster_config_executor.cc
-            protocol/mcbp/collections_get_collection_id_executor.cc
-            protocol/mcbp/collections_get_manifest_executor.cc
-            protocol/mcbp/collections_get_scope_id_executor.cc
-            protocol/mcbp/collections_set_manifest_executor.cc
-            protocol/mcbp/command_context.h
-            protocol/mcbp/dcp_abort_executor.cc
-            protocol/mcbp/dcp_add_failover_log.cc
-            protocol/mcbp/dcp_add_failover_log.h
-            protocol/mcbp/dcp_add_stream_executor.cc
-            protocol/mcbp/dcp_buffer_acknowledgement_executor.cc
-            protocol/mcbp/dcp_close_stream_executor.cc
-            protocol/mcbp/dcp_commit_executor.cc
-            protocol/mcbp/dcp_control_executor.cc
-            protocol/mcbp/dcp_deletion.cc
-            protocol/mcbp/dcp_deletion.h
-            protocol/mcbp/dcp_expiration.cc
-            protocol/mcbp/dcp_expiration.h
-            protocol/mcbp/dcp_get_failover_log_executor.cc
-            protocol/mcbp/dcp_mutation.cc
-            protocol/mcbp/dcp_mutation.h
-            protocol/mcbp/dcp_noop_executor.cc
-            protocol/mcbp/dcp_open_executor.cc
-            protocol/mcbp/dcp_prepare_executor.cc
-            protocol/mcbp/dcp_seqno_acknowledged_executor.cc
-            protocol/mcbp/dcp_set_vbucket_state_executor.cc
-            protocol/mcbp/dcp_snapshot_marker_executor.cc
-            protocol/mcbp/dcp_stream_end_executor.cc
-            protocol/mcbp/dcp_stream_req_executor.cc
-            protocol/mcbp/dcp_system_event_executor.cc
-            protocol/mcbp/dcp_system_event_executor.h
-            protocol/mcbp/drop_privilege_executor.cc
-            protocol/mcbp/engine_wrapper.cc
-            protocol/mcbp/engine_wrapper.h
-            protocol/mcbp/executors.cc
-            protocol/mcbp/executors.h
-            protocol/mcbp/flush_command_context.cc
-            protocol/mcbp/flush_command_context.h
-            protocol/mcbp/gat_context.cc
-            protocol/mcbp/gat_context.h
-            protocol/mcbp/get_cmd_timer_executor.cc
-            protocol/mcbp/get_context.cc
-            protocol/mcbp/get_context.h
-            protocol/mcbp/get_locked_context.cc
-            protocol/mcbp/get_locked_context.h
-            protocol/mcbp/get_meta_context.cc
-            protocol/mcbp/get_meta_context.h
-            protocol/mcbp/hello_packet_executor.cc
-            protocol/mcbp/ifconfig_context.cc
-            protocol/mcbp/ifconfig_context.h
-            protocol/mcbp/list_bucket_executor.cc
-            protocol/mcbp/mutation_context.cc
-            protocol/mcbp/mutation_context.h
-            protocol/mcbp/observe_context.cc
-            protocol/mcbp/observe_context.h
-            protocol/mcbp/range_scan_cancel_executor.cc
-            protocol/mcbp/range_scan_continue_executor.cc
-            protocol/mcbp/range_scan_create_executor.cc
-            protocol/mcbp/rbac_reload_command_context.cc
-            protocol/mcbp/rbac_reload_command_context.h
-            protocol/mcbp/remove_context.cc
-            protocol/mcbp/remove_context.h
-            protocol/mcbp/sasl_auth_command_context.cc
-            protocol/mcbp/sasl_auth_command_context.h
-            protocol/mcbp/sasl_refresh_command_context.cc
-            protocol/mcbp/sasl_refresh_command_context.h
-            protocol/mcbp/sasl_start_command_context.cc
-            protocol/mcbp/sasl_start_command_context.h
-            protocol/mcbp/sasl_step_command_context.cc
-            protocol/mcbp/sasl_step_command_context.h
-            protocol/mcbp/select_bucket_executor.cc
-            protocol/mcbp/session_validated_command_context.cc
-            protocol/mcbp/session_validated_command_context.h
-            protocol/mcbp/set_cluster_config_command_context.cc
-            protocol/mcbp/set_cluster_config_command_context.h
-            protocol/mcbp/settings_reload_command_context.cc
-            protocol/mcbp/settings_reload_command_context.h
-            protocol/mcbp/single_state_steppable_context.cc
-            protocol/mcbp/single_state_steppable_context.h
-            protocol/mcbp/stats_context.cc
-            protocol/mcbp/stats_context.h
-            protocol/mcbp/steppable_command_context.cc
-            protocol/mcbp/steppable_command_context.h
-            protocol/mcbp/unlock_context.cc
-            protocol/mcbp/unlock_context.h
-            protocol/mcbp/utilities.h
             resource_allocation_domain.cc
             resource_allocation_domain.h
             sendbuffer.cc
@@ -227,6 +134,7 @@ target_link_libraries(memcached_daemon
                       subjson
                       hdrhistogram
         PRIVATE
+                      memcached_daemon_mcbp
                       auditd
                       cbsocket
                       crash_engine
@@ -247,7 +155,6 @@ target_link_libraries(memcached_daemon
                       phosphor
                       xattr
                       sigar_cpp
-                      ${SNAPPY_LIBRARIES}
                       ${MALLOC_LIBRARIES}
                       ${LIBEVENT_LIBRARIES}
                       ${COUCHBASE_NETWORK_LIBS}
