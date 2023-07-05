@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -9,58 +8,22 @@
  *   the file licenses/APL2.txt.
  */
 #include "mcbp.h"
-
-#include "buckets.h"
 #include "connection.h"
 #include "cookie.h"
-#include "cookie_trace_context.h"
-#include "front_end_thread.h"
-#include "utilities/logtags.h"
-#include "xattr/utils.h"
-#include <logger/logger.h>
-#include <mcbp/protocol/framebuilder.h>
-#include <platform/compress.h>
 
-static bool mcbp_response_handler(std::string_view key,
+static void mcbp_response_handler(std::string_view key,
                                   std::string_view extras,
                                   std::string_view body,
-                                  protocol_binary_datatype_t datatype,
+                                  ValueIsJson json,
                                   cb::mcbp::Status status,
                                   uint64_t cas,
                                   CookieIface& cookieIface) {
+    auto datatype = json == ValueIsJson::Yes ? PROTOCOL_BINARY_DATATYPE_JSON
+                                             : PROTOCOL_BINARY_RAW_BYTES;
+
     auto& cookie = asCookie(cookieIface);
-
     Connection& c = cookie.getConnection();
-    cb::compression::Buffer buffer;
     auto payload = body;
-
-    if ((!c.isSnappyEnabled() && cb::mcbp::datatype::is_snappy(datatype)) ||
-        (cb::mcbp::datatype::is_snappy(datatype) &&
-         cb::mcbp::datatype::is_xattr(datatype))) {
-        // The client is not snappy-aware, and the content contains
-        // snappy encoded data. Or it's xattr compressed. We need to inflate it!
-        if (!cookie.inflateSnappy(payload, buffer)) {
-            std::string mykey(key.data(), key.size());
-            LOG_WARNING(
-                    "<{} ERROR: Failed to inflate body, "
-                    "Key: {} may have an incorrect datatype, "
-                    "Datatype indicates that document is {}",
-                    c.getId(),
-                    cb::UserDataView(mykey),
-                    cb::mcbp::datatype::to_string(datatype));
-            return false;
-        }
-        payload = buffer;
-        datatype &= ~(PROTOCOL_BINARY_DATATYPE_SNAPPY);
-    }
-
-    if (cb::mcbp::datatype::is_xattr(datatype)) {
-        // We need to strip off the xattrs
-        payload = cb::xattr::get_body(payload);
-        datatype &= ~(PROTOCOL_BINARY_DATATYPE_XATTR);
-    }
-
-    datatype = c.getEnabledDatatypes(datatype);
     const auto error_json = cookie.getErrorJson();
 
     switch (status) {
@@ -71,7 +34,7 @@ static bool mcbp_response_handler(std::string_view key,
         break;
     case cb::mcbp::Status::NotMyVbucket:
         cookie.sendNotMyVBucket();
-        return true;
+        return;
     default:
         //
         payload = error_json;
@@ -82,8 +45,14 @@ static bool mcbp_response_handler(std::string_view key,
     }
 
     cookie.setCas(cas);
-    c.sendResponse(cookie, status, extras, key, payload, datatype, {});
-    return true;
+    c.sendResponse(cookie,
+                   status,
+                   extras,
+                   key,
+                   payload,
+                   c.getEnabledDatatypes(datatype),
+                   {});
+    return;
 }
 
 // Expose a static std::function to wrap mcbp_response_handler, instead of

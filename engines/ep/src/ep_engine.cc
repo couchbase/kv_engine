@@ -157,14 +157,12 @@ static cb::engine_errc sendResponse(const AddResponseFn& response,
                                     std::string_view key,
                                     std::string_view ext,
                                     std::string_view body,
-                                    uint8_t datatype,
+                                    ValueIsJson json,
                                     cb::mcbp::Status status,
                                     uint64_t cas,
                                     CookieIface& cookie) {
-    if (response(key, ext, body, datatype, status, cas, cookie)) {
-        return cb::engine_errc::success;
-    }
-    return cb::engine_errc::failed;
+    response(key, ext, body, json, status, cas, cookie);
+    return cb::engine_errc::success;
 }
 
 template <typename T>
@@ -1166,7 +1164,7 @@ cb::engine_errc EventuallyPersistentEngine::processUnknownCommandInner(
                         {}, // key
                         {}, // extra
                         {}, // body
-                        PROTOCOL_BINARY_RAW_BYTES,
+                        ValueIsJson::No,
                         res,
                         0,
                         cookie);
@@ -1667,15 +1665,14 @@ cb::engine_errc EventuallyPersistentEngine::get_collection_manifest(
     if (rv.first == cb::mcbp::Status::Success) {
         manifest = rv.second.dump();
     }
-    return cb::engine_errc(
-            sendResponse(makeExitBorderGuard(std::cref(response)),
-                         {}, // key
-                         {}, // extra
-                         manifest, // body
-                         PROTOCOL_BINARY_DATATYPE_JSON,
-                         rv.first,
-                         0,
-                         cookie));
+    return sendResponse(makeExitBorderGuard(std::cref(response)),
+                        {}, // key
+                        {}, // extra
+                        manifest, // body
+                        ValueIsJson::Yes,
+                        rv.first,
+                        0,
+                        cookie);
 }
 
 cb::EngineErrorGetCollectionIDResult
@@ -5285,7 +5282,7 @@ cb::engine_errc EventuallyPersistentEngine::observe_seqno(
                         {}, // key
                         {}, // extra
                         result.str(), // body
-                        PROTOCOL_BINARY_RAW_BYTES,
+                        ValueIsJson::No,
                         cb::mcbp::Status::Success,
                         0,
                         cookie);
@@ -6120,14 +6117,19 @@ cb::engine_errc EventuallyPersistentEngine::returnMeta(
     memcpy(meta.data() + 4, &exp, 4);
     memcpy(meta.data() + 8, &seqno, 8);
 
-    return sendResponse(response,
-                        {}, // key
-                        {meta.data(), meta.size()}, // extra
-                        {}, // body
-                        datatype,
-                        cb::mcbp::Status::Success,
-                        cas,
-                        cookie);
+    Expects(!cb::mcbp::datatype::is_snappy(datatype));
+    Expects(!cb::mcbp::datatype::is_xattr(datatype));
+
+    sendResponse(response,
+                 {}, // key
+                 {meta.data(), meta.size()}, // extra
+                 {}, // body
+                 cb::mcbp::datatype::is_json(datatype) ? ValueIsJson::Yes
+                                                       : ValueIsJson::No,
+                 cb::mcbp::Status::Success,
+                 cas,
+                 cookie);
+    return cb::engine_errc::success;
 }
 
 cb::engine_errc EventuallyPersistentEngine::getAllKeys(
@@ -6569,7 +6571,7 @@ cb::engine_errc EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
                         {}, /* key */
                         {}, /* ext field */
                         {payload.data(), payload.size()}, /* value */
-                        PROTOCOL_BINARY_RAW_BYTES,
+                        ValueIsJson::No,
                         cb::mcbp::Status::Success,
                         0,
                         cookie);
@@ -6634,7 +6636,7 @@ cb::engine_errc EventuallyPersistentEngine::sendErrorResponse(
                         {}, // key
                         {}, // extra
                         {}, // body
-                        PROTOCOL_BINARY_RAW_BYTES,
+                        ValueIsJson::No,
                         status,
                         cas,
                         cookie);
@@ -6661,7 +6663,7 @@ cb::engine_errc EventuallyPersistentEngine::sendMutationExtras(
                         {}, // key
                         {meta.data(), meta.size()}, // extra
                         {}, // body
-                        PROTOCOL_BINARY_RAW_BYTES,
+                        ValueIsJson::No,
                         status,
                         cas,
                         cookie);

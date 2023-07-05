@@ -2069,6 +2069,7 @@ BinprotReturnMetaCommand::BinprotReturnMetaCommand(
     extras.setExpiration(d.info.expiration);
     extras.setFlags(d.info.flags);
     setCas(d.info.cas);
+    setDatatype(d.info.datatype);
 }
 
 void BinprotReturnMetaCommand::encode(std::vector<uint8_t>& buf) const {

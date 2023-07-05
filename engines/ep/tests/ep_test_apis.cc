@@ -158,7 +158,7 @@ void decayingSleep(std::chrono::microseconds* sleepTime) {
 bool add_response(std::string_view key,
                   std::string_view extras,
                   std::string_view body,
-                  uint8_t datatype,
+                  ValueIsJson json,
                   cb::mcbp::Status status,
                   uint64_t cas,
                   CookieIface& cookie) {
@@ -170,14 +170,15 @@ bool add_response(std::string_view key,
     last_ext.assign(extras.data(), extras.size());
     last_key.assign(key.data(), key.size());
     last_cas.store(cas);
-    last_datatype.store(datatype);
+    last_datatype.store(json == ValueIsJson::Yes ? PROTOCOL_BINARY_DATATYPE_JSON
+                                                 : PROTOCOL_BINARY_RAW_BYTES);
     return true;
 }
 
-bool add_response_set_del_meta(std::string_view key,
+void add_response_set_del_meta(std::string_view key,
                                std::string_view extras,
                                std::string_view body,
-                               uint8_t datatype,
+                               ValueIsJson json,
                                cb::mcbp::Status status,
                                uint64_t cas,
                                CookieIface& cookie) {
@@ -191,13 +192,13 @@ bool add_response_set_del_meta(std::string_view key,
         last_seqno.store(ntohll(seqno));
     }
 
-    return add_response(key, extras, body, datatype, status, cas, cookie);
+    add_response(key, extras, body, json, status, cas, cookie);
 }
 
-bool add_response_ret_meta(std::string_view key,
+void add_response_ret_meta(std::string_view key,
                            std::string_view extras,
                            std::string_view body,
-                           uint8_t datatype,
+                           ValueIsJson json,
                            cb::mcbp::Status status,
                            uint64_t cas,
                            CookieIface& cookie) {
@@ -217,7 +218,7 @@ bool add_response_ret_meta(std::string_view key,
         last_meta.revSeqno = ntohll(revId);
         last_meta.cas = cas;
     }
-    return add_response(key, extras, body, datatype, status, cas, cookie);
+    add_response(key, extras, body, json, status, cas, cookie);
 }
 
 void add_stats(std::string_view key, std::string_view value, CookieIface&) {

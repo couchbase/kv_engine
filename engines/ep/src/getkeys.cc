@@ -84,37 +84,33 @@ FetchAllKeysTask::FetchAllKeysTask(EventuallyPersistentEngine& e,
 
 bool FetchAllKeysTask::run() {
     TRACE_EVENT0("ep-engine/task", "FetchAllKeysTask");
-    cb::engine_errc err;
+    auto err = cb::engine_errc::success;
     if (engine->getKVBucket()
                 ->getVBuckets()
                 .getBucket(vbid)
                 ->isBucketCreation()) {
         // Returning an empty packet with a SUCCESS response as
         // there aren't any keys during the vbucket file creation.
-        err = response({}, // key
-                       {}, // extra
-                       {}, // body
-                       PROTOCOL_BINARY_RAW_BYTES,
-                       cb::mcbp::Status::Success,
-                       0,
-                       cookie)
-                      ? cb::engine_errc::success
-                      : cb::engine_errc::failed;
+        response({}, // key
+                 {}, // extra
+                 {}, // body
+                 ValueIsJson::No,
+                 cb::mcbp::Status::Success,
+                 0,
+                 cookie);
     } else {
         auto cb = std::make_shared<AllKeysCallback>(collection, count);
         err = engine->getKVBucket()->getROUnderlying(vbid)->getAllKeys(
                 vbid, start_key, count, cb);
         cookie.addDocumentReadBytes(cb->getAllKeysLen());
         if (err == cb::engine_errc::success) {
-            err = response({}, // key
-                           {}, // extra
-                           {cb->getAllKeysPtr(), cb->getAllKeysLen()},
-                           PROTOCOL_BINARY_RAW_BYTES,
-                           cb::mcbp::Status::Success,
-                           0,
-                           cookie)
-                          ? cb::engine_errc::success
-                          : cb::engine_errc::failed;
+            response({}, // key
+                     {}, // extra
+                     {cb->getAllKeysPtr(), cb->getAllKeysLen()},
+                     ValueIsJson::No,
+                     cb::mcbp::Status::Success,
+                     0,
+                     cookie);
         }
     }
     engine->addLookupAllKeys(cookie, err);

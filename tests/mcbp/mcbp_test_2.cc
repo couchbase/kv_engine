@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -11,10 +10,8 @@
 #include "mcbp_test.h"
 
 #include <daemon/cookie.h>
-#include <daemon/settings.h>
-#include <event2/event.h>
-#include <gsl/gsl-lite.hpp>
-#include <include/mcbp/protocol/framebuilder.h>
+#include <mcbp/protocol/datatype.h>
+#include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/header.h>
 #include <memcached/protocol_binary.h>
 #include <memory>
@@ -589,8 +586,15 @@ TEST_P(ReturnMetaValidatorTest, Extras) {
 }
 
 TEST_P(ReturnMetaValidatorTest, InvalidDatatype) {
-    req.setDatatype(cb::mcbp::Datatype::JSON);
-    EXPECT_EQ(cb::mcbp::Status::Einval, validate());
+    using namespace cb::mcbp;
+    for (const auto& datatype : {Datatype::JSON,
+                                 Datatype::Snappy,
+                                 Datatype::Xattr,
+                                 Datatype::SnappyCompressedJson}) {
+        req.setDatatype(datatype);
+        EXPECT_EQ(cb::mcbp::Status::Einval, validate())
+                << ::to_string(datatype);
+    }
 }
 
 TEST_P(ReturnMetaValidatorTest, Cas) {

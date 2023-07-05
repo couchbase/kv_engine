@@ -1302,7 +1302,7 @@ cb::engine_errc EWB_Engine::unknown_command(CookieIface& cookie,
             response({},
                      {},
                      {},
-                     PROTOCOL_BINARY_RAW_BYTES,
+                     ValueIsJson::No,
                      cb::mcbp::Status::Einval,
                      /*cas*/ 0,
                      cookie);
@@ -1323,7 +1323,7 @@ cb::engine_errc EWB_Engine::unknown_command(CookieIface& cookie,
                 response({},
                          {},
                          {},
-                         PROTOCOL_BINARY_RAW_BYTES,
+                         ValueIsJson::No,
                          cb::mcbp::Status::Success,
                          /*cas*/ 0,
                          cookie);
@@ -2032,7 +2032,7 @@ cb::engine_errc EWB_Engine::handleBlockMonitorFile(
     response({},
              {},
              {},
-             PROTOCOL_BINARY_RAW_BYTES,
+             ValueIsJson::No,
              cb::mcbp::Status::Success,
              /*cas*/ 0,
              *cookie);
@@ -2049,7 +2049,7 @@ cb::engine_errc EWB_Engine::handleSuspend(CookieIface* cookie,
         response({},
                  {},
                  {},
-                 PROTOCOL_BINARY_RAW_BYTES,
+                 ValueIsJson::No,
                  cb::mcbp::Status::Success,
                  /*cas*/ 0,
                  *cookie);
@@ -2069,7 +2069,7 @@ cb::engine_errc EWB_Engine::handleResume(CookieIface* cookie,
         response({},
                  {},
                  {},
-                 PROTOCOL_BINARY_RAW_BYTES,
+                 ValueIsJson::No,
                  cb::mcbp::Status::Success,
                  /*cas*/ 0,
                  *cookie);
@@ -2101,13 +2101,8 @@ cb::engine_errc EWB_Engine::setItemCas(CookieIface* cookie,
     }
 
     rv.second->setCas(cas64);
-    response({},
-             {},
-             {},
-             PROTOCOL_BINARY_RAW_BYTES,
-             cb::mcbp::Status::Success,
-             0,
-             *cookie);
+    response(
+            {}, {}, {}, ValueIsJson::No, cb::mcbp::Status::Success, 0, *cookie);
     return cb::engine_errc::success;
 }
 
@@ -2120,7 +2115,7 @@ cb::engine_errc EWB_Engine::checkLogLevels(CookieIface* cookie,
     response({},
              {},
              {},
-             PROTOCOL_BINARY_RAW_BYTES,
+             ValueIsJson::No,
              rsp ? cb::mcbp::Status::Success : cb::mcbp::Status::Einval,
              0,
              *cookie);

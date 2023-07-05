@@ -146,7 +146,8 @@ bool test_setup(EngineIface* h) {
     // variable it is and all the test cases which incorrectly inherits
     // the "wrong" value and fix those we'll just call add_response to
     // reset all of them to "clean" values.
-    add_response({}, {}, {}, 0, cb::mcbp::Status::Success, 0, *cookie);
+    add_response(
+            {}, {}, {}, ValueIsJson::No, cb::mcbp::Status::Success, 0, *cookie);
 
     return true;
 }

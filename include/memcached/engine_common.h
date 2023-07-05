@@ -32,22 +32,26 @@ using AddStatFn = std::function<void(
         std::string_view key, std::string_view value, CookieIface& cookie)>;
 
 /**
- * Callback for adding a response backet
+ * The response handler only accepts JSON or Raw datatype (not xattr or
+ * snappy compressed).
+ */
+enum class ValueIsJson : uint8_t { Yes, No };
+
+/**
+ * Callback for adding a response packet
  * @param key The key to put in the response
  * @param extras The data to put in the extended field in the response
  * @param body The data body
- * @param datatype This is currently not used and should be set to 0
+ * @param json Is the value JSON or not
  * @param status The status code of the return packet (see in protocol_binary
  *               for the legal values)
  * @param cas The cas to put in the return packet
  * @param cookie The cookie provided by the frontend
- * @return true if return message was successfully created, false if an
- *              error occured that prevented the message from being sent
  */
-using AddResponseFn = std::function<bool(std::string_view key,
+using AddResponseFn = std::function<void(std::string_view key,
                                          std::string_view extras,
                                          std::string_view body,
-                                         uint8_t datatype,
+                                         ValueIsJson json,
                                          cb::mcbp::Status status,
                                          uint64_t cas,
                                          CookieIface& cookie)>;

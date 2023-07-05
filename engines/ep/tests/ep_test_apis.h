@@ -35,7 +35,7 @@ void abort_msg(const char* expr, const char* msg, const char* file, int line);
 bool add_response(std::string_view key,
                   std::string_view extras,
                   std::string_view body,
-                  uint8_t datatype,
+                  ValueIsJson json,
                   cb::mcbp::Status status,
                   uint64_t cas,
                   CookieIface& cookie);

@@ -491,7 +491,7 @@ std::vector<char> KVBucketTest::buildWithMetaPacket(
 bool KVBucketTest::addResponse(std::string_view key,
                                std::string_view extras,
                                std::string_view body,
-                               uint8_t datatype,
+                               ValueIsJson json,
                                cb::mcbp::Status status,
                                uint64_t pcas,
                                CookieIface& cookie) {

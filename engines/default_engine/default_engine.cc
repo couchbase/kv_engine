@@ -759,7 +759,7 @@ static cb::engine_errc initalize_configuration(struct default_engine* se,
     return ret;
 }
 
-static bool scrub_cmd(struct default_engine* e,
+static void scrub_cmd(struct default_engine* e,
                       CookieIface* cookie,
                       const AddResponseFn& response) {
     auto res = cb::mcbp::Status::Success;
@@ -767,7 +767,7 @@ static bool scrub_cmd(struct default_engine* e,
         res = cb::mcbp::Status::Ebusy;
     }
 
-    return response({}, {}, {}, PROTOCOL_BINARY_RAW_BYTES, res, 0, *cookie);
+    response({}, {}, {}, ValueIsJson::No, res, 0, *cookie);
 }
 
 cb::engine_errc default_engine::setParameter(CookieIface& cookie,
@@ -816,28 +816,22 @@ cb::engine_errc default_engine::unknown_command(
         CookieIface& cookie,
         const cb::mcbp::Request& request,
         const AddResponseFn& response) {
-    bool sent;
-
     switch (request.getClientOpcode()) {
     case cb::mcbp::ClientOpcode::Scrub:
-        sent = scrub_cmd(this, &cookie, response);
+        scrub_cmd(this, &cookie, response);
         break;
     default:
-        sent = response({},
-                        {},
-                        {},
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        cb::mcbp::Status::UnknownCommand,
-                        0,
-                        cookie);
+        response({},
+                 {},
+                 {},
+                 ValueIsJson::No,
+                 cb::mcbp::Status::UnknownCommand,
+                 0,
+                 cookie);
         break;
     }
 
-    if (sent) {
-        return cb::engine_errc::success;
-    } else {
-        return cb::engine_errc::failed;
-    }
+    return cb::engine_errc::success;
 }
 
 void default_engine::item_set_cas(hash_item* item, uint64_t val) {
@@ -849,14 +843,12 @@ void default_engine::item_set_datatype(hash_item* item,
     item->datatype = val;
 }
 
-hash_key* item_get_key(const hash_item* item)
-{
-    const char *ret = reinterpret_cast<const char*>(item + 1);
+hash_key* item_get_key(const hash_item* item) {
+    const char* ret = reinterpret_cast<const char*>(item + 1);
     return (hash_key*)ret;
 }
 
-char* item_get_data(const hash_item* item)
-{
+char* item_get_data(const hash_item* item) {
     const hash_key* key = item_get_key(item);
     return ((char*)key->header.full_key) + hash_key_get_key_len(key);
 }
@@ -957,14 +949,14 @@ cb::engine_errc default_engine::get_collection_manifest(
             R"({"uid" : "0",
         "scopes" : [{"name":"_default", "uid":"0",
         "collections" : [{"name":"_default","uid":"0"}]}]})";
-    auto ok = response({},
-                       {},
-                       {default_manifest.data(), default_manifest.size()},
-                       PROTOCOL_BINARY_DATATYPE_JSON,
-                       cb::mcbp::Status::Success,
-                       0,
-                       cookie);
-    return ok ? cb::engine_errc::success : cb::engine_errc::failed;
+    response({},
+             {},
+             default_manifest,
+             ValueIsJson::Yes,
+             cb::mcbp::Status::Success,
+             0,
+             cookie);
+    return cb::engine_errc::success;
 }
 
 static std::string_view default_scope_path{"_default."};
