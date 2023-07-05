@@ -90,6 +90,7 @@ target_link_libraries(memcached_testapp PRIVATE
     cbsasl
     platform
     platform_cb_malloc_arena
+    GTest::gmock
     GTest::gtest
     GTest::gtest_main
     ${SNAPPY_LIBRARIES}

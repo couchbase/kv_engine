@@ -549,23 +549,33 @@ static cb::engine_errc stat_timings_executor(const std::string&,
 
 static cb::engine_errc stat_threads_executor(const std::string& key,
                                              Cookie& cookie) {
-    auto& setting = Settings::instance();
+    // Report both the number of threads configured in settings, and the
+    // number actually created. This is useful because the ExecutorPool sizes
+    // can (a) be changed dynamically and (b) support
+    // derived sizes (e.g. "default", "disk_io_optimized" ) based on the CPU
+    // count of the machine, for these we return the _actual_ number of threads
+    // chosen.
+    auto emit = [&cookie](std::string_view type, auto configured, auto actual) {
+        append_stats(fmt::format("num_{}_threads_configured", type),
+                     fmt::format("{}", configured),
+                     static_cast<void*>(&cookie));
+        append_stats(fmt::format("num_{}_threads_actual", type),
+                     fmt::format("{}", actual),
+                     static_cast<void*>(&cookie));
+    };
 
-    append_stats(std::string{"num_frontend_threads"},
-                 std::to_string(setting.getNumWorkerThreads()),
-                 static_cast<void*>(&cookie));
-    append_stats(std::string{"num_reader_threads"},
-                 std::to_string(setting.getNumReaderThreads()),
-                 static_cast<void*>(&cookie));
-    append_stats(std::string{"num_writer_threads"},
-                 std::to_string(setting.getNumWriterThreads()),
-                 static_cast<void*>(&cookie));
-    append_stats(std::string{"num_auxio_threads"},
-                 std::to_string(setting.getNumAuxIoThreads()),
-                 static_cast<void*>(&cookie));
-    append_stats(std::string{"num_nonio_threads"},
-                 std::to_string(setting.getNumNonIoThreads()),
-                 static_cast<void*>(&cookie));
+    auto& setting = Settings::instance();
+    auto& exPool = *ExecutorPool::get();
+
+    // For frontend threads, configured and created emit the same value,
+    // as we don't track them differently.
+    emit("frontend",
+         setting.getNumWorkerThreads(),
+         setting.getNumWorkerThreads());
+    emit("reader", setting.getNumReaderThreads(), exPool.getNumReaders());
+    emit("writer", setting.getNumWriterThreads(), exPool.getNumWriters());
+    emit("auxio", setting.getNumAuxIoThreads(), exPool.getNumAuxIO());
+    emit("nonio", setting.getNumNonIoThreads(), exPool.getNumNonIO());
 
     return cb::engine_errc::success;
 }

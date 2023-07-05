@@ -9,6 +9,7 @@
  */
 #include "testapp.h"
 #include "testapp_client_test.h"
+#include <gmock/gmock-matchers.h>
 #include <platform/base64.h>
 #include <platform/dirutils.h>
 
@@ -576,6 +577,39 @@ TEST_P(InterfacesTest, MB_52058_NoPasswordForEncryptedCert) {
 }
 
 TEST_P(InterfacesTest, TestSettingAndGettingThreadCount) {
+    using namespace ::testing;
+
+    auto getThreadStats = [&]() {
+        std::vector<std::pair<std::string, int>> stats;
+        adminConnection->stats(
+                [&stats](auto key, auto value) {
+                    stats.emplace_back(key, std::stoi(value));
+                },
+                "threads");
+        return stats;
+    };
+
+    // 1. Check the default values of configured and actual threads.
+    EXPECT_THAT(getThreadStats(),
+                UnorderedElementsAre(
+                        // Frontend threads don't support symbolic values,
+                        // so just check they are both non-zero.
+                        Pair("num_frontend_threads_configured", Gt(0)),
+                        Pair("num_frontend_threads_actual", Gt(0)),
+                        // background threads by default are configured as
+                        // "default", which is encoded as zero. Created should
+                        // be non-zero howver (based on CPU count).
+                        Pair("num_reader_threads_configured", 0),
+                        Pair("num_reader_threads_actual", Gt(0)),
+                        Pair("num_writer_threads_configured", 0),
+                        Pair("num_writer_threads_actual", Gt(0)),
+                        Pair("num_auxio_threads_configured", 0),
+                        Pair("num_auxio_threads_actual", Gt(0)),
+                        Pair("num_nonio_threads_configured", 0),
+                        Pair("num_nonio_threads_actual", Gt(0))));
+
+    // 2. Reconfigure with a different number, check the stats update as
+    // expected.
     nlohmann::json cfg;
     const uint32_t newNumThreads = 10;
     cfg["num_reader_threads"] = newNumThreads;
@@ -585,20 +619,21 @@ TEST_P(InterfacesTest, TestSettingAndGettingThreadCount) {
 
     EXPECT_TRUE(reconfigure(cfg).isSuccess());
 
-    std::vector<std::pair<std::string, std::string>> stats;
-    adminConnection->stats(
-            [&stats](const std::string& key, const std::string& value) -> void {
-                stats.emplace_back(key, value);
-            },
-            "threads");
-    bool seenThreadsKey = false;
-    for (const auto& [key, value] : stats) {
-        if (key == "num_frontend_threads") {
-            seenThreadsKey = true;
-            EXPECT_GT(std::stol(value), 0);
-            continue;
-        }
-        EXPECT_EQ(newNumThreads, std::stol(value)) << "Stat key:" << key;
-    }
-    EXPECT_TRUE(seenThreadsKey);
+    EXPECT_THAT(
+            getThreadStats(),
+            UnorderedElementsAre(
+                    // We cannot change frontend threads at runtime, so just
+                    // check those keys are present and have a non-zero value.
+                    Pair("num_frontend_threads_configured", _),
+                    Pair("num_frontend_threads_actual", _),
+                    // background threads can be reconfigured, so should all
+                    // have value of newNumThreads
+                    Pair("num_reader_threads_configured", newNumThreads),
+                    Pair("num_reader_threads_actual", newNumThreads),
+                    Pair("num_writer_threads_configured", newNumThreads),
+                    Pair("num_writer_threads_actual", newNumThreads),
+                    Pair("num_auxio_threads_configured", newNumThreads),
+                    Pair("num_auxio_threads_actual", newNumThreads),
+                    Pair("num_nonio_threads_configured", newNumThreads),
+                    Pair("num_nonio_threads_actual", newNumThreads)));
 }
