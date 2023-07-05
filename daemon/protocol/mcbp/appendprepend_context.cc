@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -10,7 +9,7 @@
  */
 #include "appendprepend_context.h"
 #include "engine_wrapper.h"
-
+#include "item_dissector.h"
 #include <daemon/cookie.h>
 #include <daemon/stats.h>
 #include <memcached/durability_spec.h>
@@ -65,108 +64,77 @@ cb::engine_errc AppendPrependCommandContext::step() {
 }
 
 cb::engine_errc AppendPrependCommandContext::getItem() {
-    auto ret = bucket_get(cookie, cookie.getRequestKey(), vbucket);
-    if (ret.first == cb::engine_errc::success) {
-        olditem = std::move(ret.second);
-        if (!bucket_get_item_info(connection, *olditem, oldItemInfo)) {
-            return cb::engine_errc::failed;
-        }
-
+    auto [status, document] =
+            bucket_get(cookie, cookie.getRequestKey(), vbucket);
+    if (status == cb::engine_errc::success) {
+        old_item_cas = document->getCas();
         if (cas != 0) {
-            if (oldItemInfo.cas == uint64_t(-1)) {
+            if (old_item_cas == uint64_t(-1)) {
                 // The object in the cache is locked... lets try to use
                 // the cas provided by the user to override this
-                oldItemInfo.cas = cas;
-            } else if (cas != oldItemInfo.cas) {
+                old_item_cas = cas;
+            } else if (cas != old_item_cas) {
                 return cb::engine_errc::key_already_exists;
             }
-        } else if (oldItemInfo.cas == uint64_t(-1)) {
+        } else if (old_item_cas == uint64_t(-1)) {
             return cb::engine_errc::locked;
         }
-
-        if (cb::mcbp::datatype::is_snappy(oldItemInfo.datatype)) {
-            try {
-                std::string_view payload(
-                        static_cast<const char*>(oldItemInfo.value[0].iov_base),
-                        oldItemInfo.value[0].iov_len);
-                if (!cookie.inflateSnappy(payload, buffer)) {
-                    return cb::engine_errc::failed;
-                }
-            } catch (const std::bad_alloc&) {
-                return cb::engine_errc::no_memory;
-            }
-        }
+        old_item = std::make_unique<ItemDissector>(
+                cookie, std::move(document), true);
 
         // Move on to the next state
         state = State::AllocateNewItem;
     }
 
-    return cb::engine_errc(ret.first);
+    return status;
 }
 
 cb::engine_errc AppendPrependCommandContext::allocateNewItem() {
-    cb::char_buffer old{static_cast<char*>(oldItemInfo.value[0].iov_base),
-                        oldItemInfo.nbytes};
-
-    if (!buffer.empty()) {
-        old = {buffer.data(), buffer.size()};
-    }
-
     // If we're operating on a document containing xattr's we need to
     // tell the underlying engine about how much of the data which
     // should be accounted for in the privileged segment.
-    size_t priv_size = 0;
-
-    // The offset into the old item where the actual body start.
-    size_t body_offset = 0;
-
-    // If the existing item had XATTRs we need to preserve the xattrs
+    size_t priv_bytes = 0;
+    const auto xattrs = old_item->getExtendedAttributes();
     auto datatype = PROTOCOL_BINARY_RAW_BYTES;
-    if (cb::mcbp::datatype::is_xattr(oldItemInfo.datatype)) {
-        datatype |= PROTOCOL_BINARY_DATATYPE_XATTR;
 
-        // Calculate the size of the system xattr's. We know they arn't
-        // compressed as we are already using the decompression buffer as
-        // input (see head of function).
-        cb::xattr::Blob blob(old, false);
-        body_offset = blob.size();
-        priv_size = blob.get_system_size();
+    if (!xattrs.empty()) {
+        cb::xattr::Blob blob({const_cast<char*>(xattrs.data()), xattrs.size()},
+                             false);
+        priv_bytes = blob.get_system_size();
+        datatype |= PROTOCOL_BINARY_DATATYPE_XATTR;
     }
+    const auto& document = old_item->getItem();
+    auto old_value = old_item->getValue();
 
     // If the client sent a compressed value we should use the one
     // we inflated
     const auto value = cookie.getInflatedInputPayload();
     newitem = bucket_allocate(cookie,
                               cookie.getRequestKey(),
-                              old.size() + value.size(),
-                              priv_size,
-                              oldItemInfo.flags,
-                              (rel_time_t)oldItemInfo.exptime,
+                              xattrs.size() + old_value.size() + value.size(),
+                              priv_bytes,
+                              document.getFlags(),
+                              rel_time_t(document.getExptime()),
                               datatype,
                               vbucket);
     auto body = newitem->getValueBuffer();
-    // copy the data over..
+
+    // copy the data over...
     if (mode == Mode::Append) {
-        memcpy(body.data(), old.data(), old.size());
-        memcpy(body.data() + old.size(), value.data(), value.size());
+        fmt::format_to(body.begin(), "{}{}{}", xattrs, old_value, value);
     } else {
-        // The xattrs should go first (body_offset == 0 if the object
-        // don't have any xattrs)
-        memcpy(body.data(), old.data(), body_offset);
-        memcpy(body.data() + body_offset, value.data(), value.size());
-        memcpy(body.data() + body_offset + value.size(),
-               old.data() + body_offset,
-               old.size() - body_offset);
+        fmt::format_to(body.begin(), "{}{}{}", xattrs, value, old_value);
     }
+
     // If the resulting document's data is valid JSON, set the datatype flag
     // to reflect this.
     cb::const_byte_buffer buf{
-            reinterpret_cast<const uint8_t*>(body.data() + body_offset),
-            old.size() + value.size()};
-    // Update the documents's datatype and CAS values
+            reinterpret_cast<const uint8_t*>(body.data() + xattrs.size()),
+            body.size() - xattrs.size()};
+    // Update the documents datatype and CAS values
     setDatatypeJSONFromValue(buf, datatype);
     newitem->setDataType(datatype);
-    newitem->setCas(oldItemInfo.cas);
+    newitem->setCas(old_item_cas);
     state = State::StoreItem;
     return cb::engine_errc::success;
 }
@@ -213,10 +181,8 @@ cb::engine_errc AppendPrependCommandContext::storeItem() {
 }
 
 cb::engine_errc AppendPrependCommandContext::reset() {
-    olditem.reset();
+    old_item.reset();
     newitem.reset();
-    buffer.reset();
-
     state = State::GetItem;
     return cb::engine_errc::success;
 }

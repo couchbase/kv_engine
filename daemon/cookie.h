@@ -35,6 +35,10 @@ namespace cb::compression {
 class Buffer;
 } // namespace cb::compression
 
+namespace folly {
+class IOBuf;
+}
+
 /**
  * The Cookie class represents the cookie passed from the memcached core
  * down through the engine interface to the engine.
@@ -444,16 +448,8 @@ public:
      */
     bool inflateInputPayload(const cb::mcbp::Header& header);
 
-    /**
-     * Helper function to inflate the specified Snappy-compressed buffer.
-     *
-     * Records the time taken to decompress as SnappyDecompress tracing span
-     * against this cookie.
-     * @param input Snappy-compressed input buffer.
-     * @param output Buffer to write uncompressed data to.
-     * @returns true if successfully inflated, else false.
-     */
-    bool inflateSnappy(std::string_view input, cb::compression::Buffer& output);
+    std::unique_ptr<folly::IOBuf> inflateSnappy(
+            std::string_view input) override;
 
     void setCurrentCollectionInfo(ScopeID sid,
                                   CollectionID cid,
@@ -711,7 +707,7 @@ protected:
      */
     std::unique_ptr<CommandContext> commandContext;
 
-    cb::compression::Buffer inflated_input_payload;
+    std::unique_ptr<folly::IOBuf> inflated_input_payload;
 
     /// The Scope and Collection information for the current command picked
     /// out from the incoming packet as part of packet validation. This stores

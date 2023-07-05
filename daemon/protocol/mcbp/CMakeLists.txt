@@ -100,6 +100,7 @@ target_include_directories(memcached_daemon_mcbp
         SYSTEM PRIVATE ${Memcached_BINARY_DIR})
 target_link_libraries(memcached_daemon_mcbp
         PRIVATE
+        memcached_daemon_protocol_utils
         Folly::folly
         hdrhistogram
         memcached_logger

@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -10,11 +9,12 @@
  */
 #pragma once
 
+#include "steppable_command_context.h"
+#include <daemon/memcached.h>
 #include <memcached/dockey.h>
 #include <memcached/engine.h>
-#include <platform/compress.h>
-#include "../../memcached.h"
-#include "steppable_command_context.h"
+
+class ItemDissector;
 
 /**
  * The AppendPrependCommandContext is a state machine used by the memcached
@@ -67,11 +67,9 @@ private:
     const Vbid vbucket;
     const uint64_t cas;
 
-    cb::unique_item_ptr olditem;
-    item_info oldItemInfo;
+    std::unique_ptr<ItemDissector> old_item;
+    uint64_t old_item_cas;
 
     cb::unique_item_ptr newitem;
-
-    cb::compression::Buffer buffer;
     State state;
 };

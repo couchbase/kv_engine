@@ -19,7 +19,6 @@
 #include "xattr/utils.h"
 
 #include <memcached/engine.h>
-#include <platform/compress.h>
 #include <cstddef>
 #include <iomanip>
 #include <memory>
@@ -382,7 +381,7 @@ private:
     // to avoid an extra memory allocation and copy (in_doc will reference
     // this section initially until someone tries to modify it.. at that
     // time in_doc points to a temporary buffer)
-    cb::compression::Buffer inflated_doc_buffer;
+    std::unique_ptr<folly::IOBuf> inflated_doc;
 
     // The item info representing the input document
     item_info input_item_info = {};

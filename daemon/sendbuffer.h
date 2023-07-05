@@ -14,6 +14,10 @@
 #include <platform/compression/buffer.h>
 class Bucket;
 
+namespace folly {
+class IOBuf;
+}
+
 /**
  * Abstract class for a generic send buffer to be passed to libevent
  * which holds some data allocated elsewhere which needs to be released
@@ -65,24 +69,10 @@ protected:
     Bucket& bucket;
 };
 
-/**
- * Specialized class to send a buffer allocated by the compression
- * framework.
- */
-class CompressionSendBuffer : public SendBuffer {
+class IOBufSendBuffer : public SendBuffer {
 public:
-    CompressionSendBuffer(cb::compression::Buffer& buffer,
-                          std::string_view view)
-        : SendBuffer(view),
-          allocator(buffer.allocator),
-          data(buffer.release()) {
-    }
-
-    ~CompressionSendBuffer() override {
-        allocator.deallocate(data);
-    }
+    IOBufSendBuffer(std::unique_ptr<folly::IOBuf> buf, std::string_view view);
 
 protected:
-    cb::compression::Allocator allocator;
-    char* data;
+    std::unique_ptr<folly::IOBuf> buf;
 };

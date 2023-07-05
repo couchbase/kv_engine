@@ -11,6 +11,7 @@
 #include "sendbuffer.h"
 
 #include "buckets.h"
+#include <folly/io/IOBuf.h>
 
 ItemSendBuffer::ItemSendBuffer(cb::unique_item_ptr itm,
                                std::string_view view,
@@ -22,4 +23,9 @@ ItemSendBuffer::ItemSendBuffer(cb::unique_item_ptr itm,
 ItemSendBuffer::~ItemSendBuffer() {
     item.reset();
     bucket.items_in_transit--;
+}
+
+IOBufSendBuffer::IOBufSendBuffer(std::unique_ptr<folly::IOBuf> buf,
+                                 std::string_view view)
+    : SendBuffer(view), buf(std::move(buf)) {
 }

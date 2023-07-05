@@ -41,6 +41,10 @@ namespace cb::audit::document {
 enum class Operation;
 }
 
+namespace folly {
+class IOBuf;
+}
+
 /**
  * The CookieIface is an abstract class representing a single command
  * when used from the frontend calling down into the underlying engine
@@ -291,6 +295,18 @@ public:
      *                        *NOT* link the item
      */
     virtual cb::engine_errc preLinkDocument(item_info& info) = 0;
+
+    /**
+     * Helper function to inflate the specified Snappy-compressed buffer.
+     * see cb::compression::inflate for a list of exceptions thrown
+     *
+     * Records the time taken to decompress as SnappyDecompress tracing span
+     * against this cookie.
+     * @param input Snappy-compressed input buffer.
+     * @return inflated data
+     */
+    virtual std::unique_ptr<folly::IOBuf> inflateSnappy(
+            std::string_view input) = 0;
 
 protected:
     std::atomic<size_t> document_bytes_read = 0;

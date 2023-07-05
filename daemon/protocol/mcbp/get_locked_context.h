@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -16,7 +15,8 @@
 #include <memcached/dockey.h>
 #include <memcached/engine.h>
 #include <memcached/protocol_binary.h>
-#include <platform/compress.h>
+
+class ItemDissector;
 
 /**
  * The GetLockedCommandContext is a state machine used by the memcached
@@ -27,19 +27,9 @@ public:
     // The internal states. Look at the function headers below to
     // for the functions with the same name to figure out what each
     // state does
-    enum class State : uint8_t {
-        GetAndLockItem,
-        InflateItem,
-        SendResponse,
-        Done
-    };
+    enum class State : uint8_t { GetAndLockItem, SendResponse, Done };
 
-    explicit GetLockedCommandContext(Cookie& cookie)
-        : SteppableCommandContext(cookie),
-          vbucket(cookie.getRequest().getVBucket()),
-          lock_timeout(get_exptime(cookie.getRequest())),
-          state(State::GetAndLockItem) {
-    }
+    explicit GetLockedCommandContext(Cookie& cookie);
 
 protected:
     /**
@@ -72,15 +62,6 @@ protected:
     cb::engine_errc getAndLockItem();
 
     /**
-     * Inflate the document before progressing to State::SendResponse
-     *
-     * @return cb::engine_errc::failed if inflate failed
-     *         cb::engine_errc::no_memory if we're out of memory
-     *         cb::engine_errc::success to go to the next state
-     */
-    cb::engine_errc inflateItem();
-
-    /**
      * Craft up the response message and send it to the client. Given that
      * the command context object lives until we start the next command
      * we don't need to copy the data into temporary buffers, but can point
@@ -101,28 +82,14 @@ private:
      * @param req the input message
      * @return The lock timeout value.
      */
-    static uint32_t get_exptime(const cb::mcbp::Request& request) {
-        auto extras = request.getExtdata();
-        if (extras.empty()) {
-            return 0;
-        }
+    static uint32_t get_exptime(const cb::mcbp::Request& request);
 
-        if (extras.size() != sizeof(uint32_t)) {
-            throw std::invalid_argument(
-                    "GetLockedCommandContext: Invalid extdata size");
-        }
-
-        const auto* exp = reinterpret_cast<const uint32_t*>(extras.data());
-        return ntohl(*exp);
-    }
-
+    /// The VBucket where the document should be located in
     const Vbid vbucket;
+    /// The timeout value for the lock
     const uint32_t lock_timeout;
-
-    cb::unique_item_ptr it;
-    item_info info;
-
-    std::string_view payload;
-    cb::compression::Buffer buffer;
+    /// The actual item (looked up in getItem, and valid in sendResponse)
+    std::unique_ptr<ItemDissector> item_dissector;
+    /// The current state in the state machine
     State state;
 };

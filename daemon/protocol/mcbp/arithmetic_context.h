@@ -10,11 +10,13 @@
  */
 #pragma once
 
+#include "steppable_command_context.h"
+#include <daemon/memcached.h>
 #include <memcached/dockey.h>
 #include <memcached/engine.h>
 #include <platform/compress.h>
-#include "../../memcached.h"
-#include "steppable_command_context.h"
+
+class ItemDissector;
 
 /**
  * The ArithmeticCommandContext is responsible for implementing an
@@ -62,10 +64,6 @@ public:
     };
 
     ArithmeticCommandContext(Cookie& cookie, const cb::mcbp::Request& req);
-
-    ~ArithmeticCommandContext() override {
-        reset();
-    }
 
 protected:
     cb::engine_errc step() override {
@@ -121,10 +119,10 @@ private:
     const uint64_t cas;
     const Vbid vbucket;
     const bool increment;
-    cb::unique_item_ptr olditem;
-    item_info oldItemInfo;
+
+    std::unique_ptr<ItemDissector> old_item;
+
     cb::unique_item_ptr newitem;
-    cb::compression::Buffer buffer;
     uint64_t result = 0;
     State state = State::GetItem;
 };

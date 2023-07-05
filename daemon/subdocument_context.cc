@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -695,29 +694,26 @@ cb::mcbp::Status SubdocCmdContext::get_document_for_searching(
     if (cb::mcbp::datatype::is_snappy(info.datatype)) {
         // Need to expand before attempting to extract from it.
         try {
-            if (!cookie.inflateSnappy(in_doc.view, inflated_doc_buffer)) {
-                std::array<char, KEY_MAX_LENGTH + 32> clean_key;
-                if (buf_to_printable_buffer(
-                            clean_key.data(),
-                            clean_key.size(),
-                            reinterpret_cast<const char*>(info.key.data()),
-                            info.key.size())) {
-                    LOG_WARNING(
-                            "<{} ERROR: Failed to determine inflated body"
-                            " size. Key: '{}' may have an "
-                            "incorrect datatype of COMPRESSED_JSON.",
-                            c.getId(),
-                            cb::UserDataView(clean_key.data()));
-                }
-
-                return cb::mcbp::Status::Einternal;
-            }
+            inflated_doc = cookie.inflateSnappy(in_doc.view);
+        } catch (const std::runtime_error&) {
+            LOG_ERROR(
+                    "<{} Failed to inflate body, Key: {} may have an "
+                    "incorrect datatype. Datatype indicates that document "
+                    "is {}",
+                    cookie.getConnectionId(),
+                    cb::UserDataView(
+                            cookie.getRequestKey().toPrintableString()),
+                    cb::mcbp::datatype::to_string(info.datatype));
+            return cb::mcbp::Status::Einternal;
         } catch (const std::bad_alloc&) {
             return cb::mcbp::Status::Enomem;
         }
 
-        // Update document to point to the uncompressed version in the buffer.
-        in_doc = MemoryBackedBuffer{inflated_doc_buffer};
+        // Update the document to point to the uncompressed version.
+        auto range = inflated_doc->coalesce();
+        std::string_view view{reinterpret_cast<const char*>(range.data()),
+                              range.size()};
+        in_doc = MemoryBackedBuffer{view};
         in_datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
     }
 

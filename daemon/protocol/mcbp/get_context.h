@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -10,12 +9,13 @@
  */
 #pragma once
 
+#include "steppable_command_context.h"
 #include <daemon/cookie.h>
 #include <daemon/stats.h>
 #include <mcbp/protocol/header.h>
 #include <memcached/engine.h>
-#include <platform/compress.h>
-#include "steppable_command_context.h"
+
+class ItemDissector;
 
 /**
  * The GetCommandContext is a state machine used by the memcached
@@ -26,19 +26,9 @@ public:
     // The internal states. Look at the function headers below to
     // for the functions with the same name to figure out what each
     // state does
-    enum class State : uint8_t {
-        GetItem,
-        NoSuchItem,
-        InflateItem,
-        SendResponse,
-        Done
-    };
+    enum class State : uint8_t { GetItem, NoSuchItem, SendResponse, Done };
 
-    explicit GetCommandContext(Cookie& cookie)
-        : SteppableCommandContext(cookie),
-          vbucket(cookie.getRequest().getVBucket()),
-          state(State::GetItem) {
-    }
+    explicit GetCommandContext(Cookie& cookie);
 
 protected:
     /**
@@ -95,15 +85,6 @@ protected:
     cb::engine_errc noSuchItem();
 
     /**
-     * Inflate the document before progressing to State::SendResponse
-     *
-     * @return cb::engine_errc::failed if inflate failed
-     *         cb::engine_errc::no_memory if we're out of memory
-     *         cb::engine_errc::success to go to the next state
-     */
-    cb::engine_errc inflateItem();
-
-    /**
      * Craft up the response message and send it to the client. Given that
      * the command context object lives until we start the next command
      * we don't need to copy the data into temporary buffers, but can point
@@ -115,12 +96,10 @@ protected:
     cb::engine_errc sendResponse();
 
 private:
+    /// The VBucket where the document should be located in
     const Vbid vbucket;
-
-    cb::unique_item_ptr it;
-    item_info info;
-
-    std::string_view payload;
-    cb::compression::Buffer buffer;
+    /// The actual item (looked up in getItem, and valid in sendResponse)
+    std::unique_ptr<ItemDissector> item_dissector;
+    /// The current state in the state machine
     State state;
 };

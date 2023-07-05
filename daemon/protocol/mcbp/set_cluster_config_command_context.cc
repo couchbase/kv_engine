@@ -64,18 +64,17 @@ cb::engine_errc SetClusterConfigCommandContext::step() {
 }
 
 cb::engine_errc SetClusterConfigCommandContext::doSetClusterConfig() {
-    cb::compression::Buffer buffer;
+    std::string compressed;
     try {
-        if (!cb::compression::deflateSnappy(uncompressed, buffer)) {
-            LOG_WARNING("{}: Compression of {} config {} failed",
-                        cookie.getConnectionId(),
-                        bucketname.empty()
-                                ? "global"
-                                : fmt::format("bucket '{}'", bucketname),
-                        version);
-            cookie.setErrorContext("Compression failed");
-            return cb::engine_errc::failed;
-        }
+        const auto iob = cb::compression::deflateSnappy(uncompressed);
+        compressed = std::string{folly::StringPiece(iob->coalesce())};
+    } catch (const std::bad_alloc&) {
+        LOG_WARNING("{}: Compression of {} config {} failed: No memory",
+                    cookie.getConnectionId(),
+                    bucketname.empty() ? "global"
+                                       : fmt::format("bucket '{}'", bucketname),
+                    version);
+        return cb::engine_errc::no_memory;
     } catch (const std::exception& exception) {
         LOG_WARNING("{}: Compression of {} config {} failed: {}",
                     cookie.getConnectionId(),
@@ -88,9 +87,7 @@ cb::engine_errc SetClusterConfigCommandContext::doSetClusterConfig() {
     }
 
     auto configuration = std::make_shared<ClusterConfiguration::Configuration>(
-            version,
-            std::move(uncompressed),
-            std::string{buffer.data(), buffer.size()});
+            version, std::move(uncompressed), std::move(compressed));
 
     // Try to insert the new cluster configuration by using the provided
     // session token.

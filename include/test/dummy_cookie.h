@@ -101,6 +101,11 @@ public:
         return cb::engine_errc::failed;
     }
 
+    std::unique_ptr<folly::IOBuf> inflateSnappy(
+            std::string_view input) override {
+        throw std::runtime_error("DummyIface::inflateSnappy not implemented()");
+    }
+
 protected:
     DummyConnection connection;
 };

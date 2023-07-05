@@ -11,9 +11,9 @@
 #include "arithmetic_context.h"
 
 #include "engine_wrapper.h"
+#include "item_dissector.h"
 #include <daemon/buckets.h>
 #include <daemon/cookie.h>
-#include <mcbp/protocol/header.h>
 #include <memcached/durability_spec.h>
 #include <memcached/util.h>
 #include <xattr/blob.h>
@@ -34,29 +34,12 @@ ArithmeticCommandContext::ArithmeticCommandContext(Cookie& cookie,
 cb::engine_errc ArithmeticCommandContext::getItem() {
     auto ret = bucket_get(cookie, cookie.getRequestKey(), vbucket);
     if (ret.first == cb::engine_errc::success) {
-        olditem = std::move(ret.second);
-
-        if (!bucket_get_item_info(connection, *olditem, oldItemInfo)) {
-            return cb::engine_errc::failed;
-        }
-
-        uint64_t oldcas = oldItemInfo.cas;
-        if (cas != 0 && cas != oldcas) {
+        if (cas != 0 && cas != ret.second->getCas()) {
             return cb::engine_errc::key_already_exists;
         }
 
-        if (cb::mcbp::datatype::is_snappy(oldItemInfo.datatype)) {
-            try {
-                std::string_view payload(
-                        static_cast<const char*>(oldItemInfo.value[0].iov_base),
-                        oldItemInfo.value[0].iov_len);
-                if (!cookie.inflateSnappy(payload, buffer)) {
-                    return cb::engine_errc::failed;
-                }
-            } catch (const std::bad_alloc&) {
-                return cb::engine_errc::no_memory;
-            }
-        }
+        old_item = std::make_unique<ItemDissector>(
+                cookie, std::move(ret.second), true);
 
         // Move on to the next state
         state = State::AllocateNewItem;
@@ -122,29 +105,9 @@ cb::engine_errc ArithmeticCommandContext::storeNewItem() {
 }
 
 cb::engine_errc ArithmeticCommandContext::allocateNewItem() {
-    // Set ptr to point to the beginning of the input buffer.
-    size_t oldsize = oldItemInfo.nbytes;
-    auto* ptr = static_cast<char*>(oldItemInfo.value[0].iov_base);
-    // If the input buffer was compressed we should use the temporary
-    // allocated buffer instead
-    if (!buffer.empty()) {
-        ptr = buffer.data();
-        oldsize = buffer.size();
-    }
-
-    // Preserve the XATTRs of the existing item if it had any
-    size_t xattrsize = 0;
-    size_t priv_bytes = 0;
-    if (cb::mcbp::datatype::is_xattr(oldItemInfo.datatype)) {
-        cb::xattr::Blob blob({ptr, oldsize}, false);
-        priv_bytes = blob.get_system_size();
-        xattrsize = blob.size();
-    }
-    ptr += xattrsize;
-    const std::string payload(ptr, oldsize - xattrsize);
-
+    std::string string_value(old_item->getValue());
     uint64_t oldval;
-    if (!safe_strtoull(payload, oldval)) {
+    if (!safe_strtoull(string_value, oldval)) {
         return cb::engine_errc::delta_badval;
     }
 
@@ -164,33 +127,33 @@ cb::engine_errc ArithmeticCommandContext::allocateNewItem() {
     const std::string value = std::to_string(result);
 
     auto datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-    if (xattrsize > 0) {
+    auto xattrs = old_item->getExtendedAttributes();
+    size_t priv_bytes = 0;
+    if (!xattrs.empty()) {
+        cb::xattr::Blob blob({const_cast<char*>(xattrs.data()), xattrs.size()},
+                             false);
+        priv_bytes = blob.get_system_size();
         datatype |= PROTOCOL_BINARY_DATATYPE_XATTR;
     }
+
+    const auto& document = old_item->getItem();
 
     // In order to be backwards compatible with old Couchbase server we
     // continue to use the old expiry time:
     newitem = bucket_allocate(cookie,
                               cookie.getRequestKey(),
-                              xattrsize + value.size(),
+                              value.size() + xattrs.size(),
                               priv_bytes,
-                              oldItemInfo.flags,
-                              rel_time_t(oldItemInfo.exptime),
+                              document.getFlags(),
+                              rel_time_t(document.getExptime()),
                               datatype,
                               vbucket);
-
     auto body = newitem->getValueBuffer();
 
-    // copy the data over..
-    const auto* src = (const char*)oldItemInfo.value[0].iov_base;
-    if (!buffer.empty()) {
-        src = buffer.data();
-    }
-
-    // copy the xattr over;
-    memcpy(body.data(), src, xattrsize);
-    memcpy(body.data() + xattrsize, value.data(), value.size());
-    newitem->setCas(oldItemInfo.cas);
+    // Copy the data over.
+    std::copy(xattrs.begin(), xattrs.end(), body.begin());
+    std::copy(value.begin(), value.end(), body.data() + xattrs.size());
+    newitem->setCas(document.getCas());
 
     state = State::StoreItem;
     return cb::engine_errc::success;
@@ -237,8 +200,8 @@ cb::engine_errc ArithmeticCommandContext::sendResult() {
     }
 
     mutation_descr_t mutation_descr{};
-    std::string_view extras = {reinterpret_cast<const char*>(&mutation_descr),
-                               sizeof(mutation_descr_t)};
+    std::string_view extdata = {reinterpret_cast<const char*>(&mutation_descr),
+                                sizeof(mutation_descr_t)};
     result = ntohll(result);
     std::string_view value = {reinterpret_cast<const char*>(&result),
                               sizeof(result)};
@@ -254,11 +217,11 @@ cb::engine_errc ArithmeticCommandContext::sendResult() {
         mutation_descr.vbucket_uuid = htonll(newItemInfo.vbucket_uuid);
         mutation_descr.seqno = htonll(newItemInfo.seqno);
     } else {
-        extras = {};
+        extdata = {};
     }
 
     cookie.sendResponse(cb::mcbp::Status::Success,
-                        extras,
+                        extdata,
                         {},
                         value,
                         cb::mcbp::Datatype::Raw,
@@ -268,9 +231,8 @@ cb::engine_errc ArithmeticCommandContext::sendResult() {
 }
 
 cb::engine_errc ArithmeticCommandContext::reset() {
-    olditem.reset();
+    old_item.reset();
     newitem.reset();
-    buffer.reset();
     state = State::GetItem;
     return cb::engine_errc::success;
 }

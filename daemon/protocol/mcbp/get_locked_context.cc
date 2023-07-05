@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -8,45 +7,45 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-
 #include "get_locked_context.h"
 #include "engine_wrapper.h"
-
-#include <daemon/debug_helpers.h>
+#include "item_dissector.h"
 #include <daemon/memcached.h>
 #include <daemon/sendbuffer.h>
 #include <daemon/stats.h>
-#include <gsl/gsl-lite.hpp>
-#include <logger/logger.h>
+#include <folly/io/IOBuf.h>
 #include <xattr/utils.h>
+
+uint32_t GetLockedCommandContext::get_exptime(
+        const cb::mcbp::Request& request) {
+    auto extras = request.getExtdata();
+    if (extras.empty()) {
+        return 0;
+    }
+
+    if (extras.size() != sizeof(uint32_t)) {
+        throw std::invalid_argument(
+                "GetLockedCommandContext: Invalid extdata size");
+    }
+
+    const auto* exp = reinterpret_cast<const uint32_t*>(extras.data());
+    return ntohl(*exp);
+}
+
+GetLockedCommandContext::GetLockedCommandContext(Cookie& cookie)
+    : SteppableCommandContext(cookie),
+      vbucket(cookie.getRequest().getVBucket()),
+      lock_timeout(get_exptime(cookie.getRequest())),
+      state(State::GetAndLockItem) {
+}
 
 cb::engine_errc GetLockedCommandContext::getAndLockItem() {
     auto ret = bucket_get_locked(
             cookie, cookie.getRequestKey(), vbucket, lock_timeout);
     if (ret.first == cb::engine_errc::success) {
-        it = std::move(ret.second);
-        if (!bucket_get_item_info(connection, *it, info)) {
-            LOG_WARNING(
-                    "{}: GetLockedCommandContext::"
-                    "getAndLockItem Failed to get item info",
-                    connection.getId());
-            return cb::engine_errc::failed;
-        }
-
-        payload = {static_cast<const char*>(info.value[0].iov_base),
-                   info.value[0].iov_len};
-
-        bool need_inflate = false;
-        if (cb::mcbp::datatype::is_snappy(info.datatype)) {
-            need_inflate = cb::mcbp::datatype::is_xattr(info.datatype) ||
-                           !connection.isSnappyEnabled();
-        }
-
-        if (need_inflate) {
-            state = State::InflateItem;
-        } else {
-            state = State::SendResponse;
-        }
+        item_dissector = std::make_unique<ItemDissector>(
+                cookie, std::move(ret.second), !connection.isSnappyEnabled());
+        state = State::SendResponse;
     } else if (ret.first == cb::engine_errc::locked) {
         // In order to be backward compatible we should return TMPFAIL
         // instead of the more correct EEXISTS
@@ -56,60 +55,29 @@ cb::engine_errc GetLockedCommandContext::getAndLockItem() {
     return cb::engine_errc(ret.first);
 }
 
-cb::engine_errc GetLockedCommandContext::inflateItem() {
-    try {
-        if (!cookie.inflateSnappy(payload, buffer)) {
-            LOG_WARNING(
-                    "{}: GetLockedCommandContext::inflateItem:"
-                    " Failed to inflate item",
-                    connection.getId());
-            return cb::engine_errc::failed;
-        }
-        payload = buffer;
-        info.datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
-    } catch (const std::bad_alloc&) {
-        return cb::engine_errc::no_memory;
-    }
-
-    state = State::SendResponse;
-    return cb::engine_errc::success;
-}
-
 cb::engine_errc GetLockedCommandContext::sendResponse() {
-    protocol_binary_datatype_t datatype = info.datatype;
-
-    if (cb::mcbp::datatype::is_xattr(datatype)) {
-        payload = cb::xattr::get_body(payload);
-        datatype &= ~PROTOCOL_BINARY_DATATYPE_XATTR;
-    }
-
-    datatype = connection.getEnabledDatatypes(datatype);
+    STATS_INCR(&connection, cmd_lock);
+    const auto datatype =
+            connection.getEnabledDatatypes(item_dissector->getDatatype());
 
     // Set the CAS to add into the header
-    cookie.setCas(info.cas);
+    const auto& document = item_dissector->getItem();
+    cookie.setCas(document.getCas());
 
-    std::unique_ptr<SendBuffer> sendbuffer;
-    if (payload.size() > SendBuffer::MinimumDataSize) {
-        // we may use the item if we've didn't inflate it
-        if (buffer.empty()) {
-            sendbuffer = std::make_unique<ItemSendBuffer>(
-                    std::move(it), payload, connection.getBucket());
-        } else {
-            sendbuffer =
-                    std::make_unique<CompressionSendBuffer>(buffer, payload);
-        }
-    }
+    auto value = item_dissector->getValue();
+    const auto flags = document.getFlags();
 
     connection.sendResponse(
             cookie,
             cb::mcbp::Status::Success,
-            {reinterpret_cast<const char*>(&info.flags), sizeof(info.flags)},
+            {reinterpret_cast<const char*>(&flags), sizeof(flags)},
             {},
-            payload,
+            value,
             datatype,
-            std::move(sendbuffer));
-
-    STATS_INCR(&connection, cmd_lock);
+            value.size() > SendBuffer::MinimumDataSize
+                    ? item_dissector->takeSendBuffer(value,
+                                                     connection.getBucket())
+                    : std::unique_ptr<SendBuffer>{});
 
     state = State::Done;
     return cb::engine_errc::success;
@@ -121,9 +89,6 @@ cb::engine_errc GetLockedCommandContext::step() {
         switch (state) {
         case State::GetAndLockItem:
             ret = getAndLockItem();
-            break;
-        case State::InflateItem:
-            ret = inflateItem();
             break;
         case State::SendResponse:
             ret = sendResponse();

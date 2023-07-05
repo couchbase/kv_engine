@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -25,6 +24,7 @@
 #include "settings.h"
 #include "tracing.h"
 
+#include <folly/io/IOBuf.h>
 #include <logger/logger.h>
 #include <mcbp/mcbp.h>
 #include <mcbp/protocol/framebuilder.h>
@@ -841,12 +841,11 @@ void Cookie::collectTimings(
 }
 
 std::string_view Cookie::getInflatedInputPayload() const {
-    if (!inflated_input_payload.empty()) {
-        return inflated_input_payload;
+    if (inflated_input_payload) {
+        return folly::StringPiece{inflated_input_payload->coalesce()};
     }
 
-    const auto value = getHeader().getValue();
-    return {reinterpret_cast<const char*>(value.data()), value.size()};
+    return getHeader().getValueString();
 }
 
 bool Cookie::inflateInputPayload(const cb::mcbp::Header& header) {
@@ -856,32 +855,27 @@ bool Cookie::inflateInputPayload(const cb::mcbp::Header& header) {
     }
 
     try {
-        auto val = header.getValue();
-        if (!inflateSnappy(
-                    {reinterpret_cast<const char*>(val.data()), val.size()},
-                    inflated_input_payload)) {
-            setErrorContext("Failed to inflate payload");
-            return false;
-        }
+        inflated_input_payload = inflateSnappy(header.getValueString());
+        return true;
+    } catch (const std::range_error&) {
+        setErrorContext("Inflated data is too big");
+    } catch (const std::runtime_error&) {
+        setErrorContext("Failed to inflate payload");
     } catch (const std::bad_alloc&) {
         setErrorContext("Failed to allocate memory");
-        return false;
     }
 
-    return true;
+    return false;
 }
 
-bool Cookie::inflateSnappy(std::string_view input,
-                           cb::compression::Buffer& output) {
-    // Record how long Snappy decompression takes to both Tracer and
-    // bucket-level histogram.
+std::unique_ptr<folly::IOBuf> Cookie::inflateSnappy(std::string_view input) {
     using namespace cb::tracing;
     ScopeTimer2<HdrMicroSecStopwatch, SpanStopwatch> timer(
             std::forward_as_tuple(
                     getConnection().getBucket().snappyDecompressionTimes),
             std::forward_as_tuple(*this, Code::SnappyDecompress));
 
-    return cb::compression::inflateSnappy(input, output);
+    return cb::compression::inflate(folly::io::CodecType::SNAPPY, input);
 }
 
 cb::rbac::PrivilegeAccess Cookie::checkPrivilege(

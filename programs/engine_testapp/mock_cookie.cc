@@ -217,6 +217,11 @@ cb::engine_errc MockCookie::preLinkDocument(item_info& info) {
     return cb::engine_errc::success;
 }
 
+std::unique_ptr<folly::IOBuf> MockCookie::inflateSnappy(
+        std::string_view input) {
+    throw std::runtime_error("MockCookie::inflateSnappy() not implemented");
+}
+
 MockCookie* cookie_to_mock_cookie(CookieIface* cookie) {
     return &asMockCookie(*cookie);
 }
