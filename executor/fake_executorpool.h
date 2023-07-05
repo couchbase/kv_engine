@@ -36,7 +36,7 @@ public:
                           ThreadPoolConfig::ThreadCount::Default,
                           ThreadPoolConfig::ThreadCount::Default,
                           ThreadPoolConfig::AuxIoThreadCount::Default,
-                          0) {
+                          ThreadPoolConfig::NonIoThreadCount::Default) {
     }
 
     bool _startWorkers() override {

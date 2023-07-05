@@ -561,7 +561,7 @@ static void handle_num_nonio_threads(Settings& s, const nlohmann::json& obj) {
     if (obj.is_number_unsigned()) {
         s.setNumNonIoThreads(obj.get<size_t>());
     } else if (obj.is_string() && obj.get<std::string>() == "default") {
-        s.setNumNonIoThreads(0);
+        s.setNumNonIoThreads(static_cast<int>(ThreadPoolConfig::NonIoThreadCount::Default));
     } else {
         throw std::invalid_argument(
                 fmt::format("Value to set number of NonIO threads must be an "

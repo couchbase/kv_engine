@@ -694,7 +694,8 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
         } else if (key == "num_nonio_threads") {
             size_t value = std::stoull(val);
             configuration.setNumNonioThreads(value);
-            ExecutorPool::get()->setNumNonIO(value);
+            ExecutorPool::get()->setNumNonIO(
+                    ThreadPoolConfig::NonIoThreadCount(value));
         } else if (key == "bfilter_enabled") {
             configuration.setBfilterEnabled(cb_stob(val));
         } else if (key == "bfilter_residency_threshold") {

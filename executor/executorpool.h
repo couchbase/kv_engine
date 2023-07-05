@@ -47,7 +47,8 @@ public:
                                ThreadPoolConfig::ThreadCount::Default,
                        ThreadPoolConfig::AuxIoThreadCount maxAuxIO =
                                ThreadPoolConfig::AuxIoThreadCount::Default,
-                       size_t maxNonIO = 0);
+                       ThreadPoolConfig::NonIoThreadCount maxNonIO =
+                               ThreadPoolConfig::NonIoThreadCount::Default);
 
     /// Is the ExecutorPool created or not
     static bool exists();
@@ -94,7 +95,7 @@ public:
     virtual void setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount v) = 0;
 
     /// Set the number of Non-IO threads to the specified number.
-    virtual void setNumNonIO(uint16_t v) = 0;
+    virtual void setNumNonIO(ThreadPoolConfig::NonIoThreadCount v) = 0;
 
     /// @returns the number of threads currently sleeping.
     virtual size_t getNumSleepers() = 0;
@@ -248,7 +249,7 @@ protected:
     /**
      * Calculate the number of Non-IO threads to use for the given thread limit.
      */
-    size_t calcNumNonIO(size_t threadCount) const;
+    size_t calcNumNonIO(ThreadPoolConfig::NonIoThreadCount threadCount) const;
 
     // Return a reference to the singleton ExecutorPool.
     static std::unique_ptr<ExecutorPool>& getInstance();

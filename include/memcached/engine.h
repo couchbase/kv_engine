@@ -202,7 +202,7 @@ struct MEMCACHED_PUBLIC_CLASS EngineIface {
         // ignored
     }
 
-    virtual void set_num_nonio_threads(size_t num) {
+    virtual void set_num_nonio_threads(ThreadPoolConfig::NonIoThreadCount num) {
         // ignored
     }
 

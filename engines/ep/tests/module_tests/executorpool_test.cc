@@ -65,7 +65,7 @@ void ExecutorPoolTest<T>::makePool(int maxThreads,
                                ThreadPoolConfig::ThreadCount(numReaders),
                                ThreadPoolConfig::ThreadCount(numWriters),
                                ThreadPoolConfig::AuxIoThreadCount(numAuxIO),
-                               numNonIO);
+                               ThreadPoolConfig::NonIoThreadCount(numNonIO));
 }
 
 using ExecutorPoolTypes = ::testing::Types<TestExecutorPool, FollyExecutorPool>;
@@ -528,7 +528,7 @@ TYPED_TEST(ExecutorPoolTest, WakeSetsTaskRunning) {
     // us to examine Task state without having to worry about it changing
     // under us.
     this->makePool(1);
-    this->pool->setNumNonIO(0);
+    this->pool->setNumNonIO(ThreadPoolConfig::NonIoThreadCount{0});
 
     NiceMock<MockTaskable> taskable;
     this->pool->registerTaskable(taskable);
@@ -550,7 +550,7 @@ TYPED_TEST(ExecutorPoolTest, WakeSetsTaskRunning) {
     this->pool->wakeAndWait(task->getId());
     EXPECT_EQ(task_state_t::TASK_RUNNING, task->getState());
 
-    this->pool->setNumNonIO(1);
+    this->pool->setNumNonIO(ThreadPoolConfig::NonIoThreadCount{1});
     this->pool->unregisterTaskable(taskable, false);
 }
 
@@ -711,7 +711,7 @@ TYPED_TEST(ExecutorPoolTest, ScheduleCancelx2) {
 
     // registerTaskable also starts workers for the CB3 pool so we must set our
     // workers back to 0 after.
-    this->pool->setNumNonIO(0);
+    this->pool->setNumNonIO(ThreadPoolConfig::NonIoThreadCount{0});
 
     // Setup - simple test task which does nothing.
     // 1 hour - i.e. we don't want it to run when initially scheduled.
@@ -737,7 +737,7 @@ TYPED_TEST(ExecutorPoolTest, ScheduleCancelx2) {
     // 3. (and 6). Release the hounds^Wqueued NonIO tasks by setting the NonIO
     // thread count to one. We will see the user-after-free when step 6 occurs
     // (second attempt to delete the TaskProxy).
-    this->pool->setNumNonIO(1);
+    this->pool->setNumNonIO(ThreadPoolConfig::NonIoThreadCount{1});
 
     // Cleanup; we will have crashed before here with the bug.
     this->pool->unregisterTaskable(taskable, false);
@@ -1244,7 +1244,7 @@ void ExecutorPoolTest<T>::testUnregisterClearsUpTasks(
     this->makePool(1);
 
     // One NonIO so that we can test via our task
-    this->pool->setNumNonIO(1);
+    this->pool->setNumNonIO(ThreadPoolConfig::NonIoThreadCount{1});
 
     NiceMock<MockTaskable> taskable;
     this->pool->registerTaskable(taskable);
@@ -1370,7 +1370,7 @@ void ExecutorPoolTest<
     this->makePool(1);
 
     // One NonIO so that we can test via our tasks
-    this->pool->setNumNonIO(1);
+    this->pool->setNumNonIO(ThreadPoolConfig::NonIoThreadCount{1});
 
     NiceMock<MockTaskable> taskable;
     ON_CALL(taskable, isShutdown()).WillByDefault(Return(true));
@@ -1505,8 +1505,7 @@ TEST_P(ExecutorPoolTestWithParam, max_threads_test_parameterized) {
                           expected.in_reader_writer,
                           expected.in_reader_writer,
                           ThreadPoolConfig::AuxIoThreadCount::Default,
-                          0 // MaxNumNonio
-    );
+                          ThreadPoolConfig::NonIoThreadCount::Default);
 
     pool.registerTaskable(taskable);
 
@@ -1574,7 +1573,7 @@ TYPED_TEST(ExecutorPoolDynamicWorkerTest, new_worker_naming_test) {
 TYPED_TEST(ExecutorPoolDynamicWorkerTest, reschedule_dead_task) {
     // Must have a single NonIO thread to ensure serialization of `task` and
     // `sentinelTask`.
-    this->pool->setNumNonIO(1);
+    this->pool->setNumNonIO(ThreadPoolConfig::NonIoThreadCount{1});
 
     SyncObject cv;
     size_t runCount{0};
@@ -1809,7 +1808,7 @@ TYPED_TEST(ExecutorPoolEpEngineTest, cancel_can_schedule) {
     auto* pool = ExecutorPool::get();
     // Config: Require only 1 NonIO thread as we want ScheduleOnDestructTask and
     // StopTask to be serialised with respect to each other.
-    pool->setNumNonIO(1);
+    pool->setNumNonIO(ThreadPoolConfig::NonIoThreadCount{1});
 
     // Create and register a MockTaskable to use for the StopTask, as we don't
     // want to account it's memory to the bucket under test. See further

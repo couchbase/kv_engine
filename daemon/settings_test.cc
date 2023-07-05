@@ -1393,7 +1393,7 @@ TEST_F(SettingsTest, TestSettingNumThreads) {
     EXPECT_EQ(0, settings.getNumReaderThreads());
     EXPECT_EQ(0, settings.getNumWriterThreads());
     EXPECT_EQ(-1, settings.getNumAuxIoThreads());
-    EXPECT_EQ(0, settings.getNumNonIoThreads());
+    EXPECT_EQ(-1, settings.getNumNonIoThreads());
 
     settings.setNumWorkerThreads(1);
     settings.setNumReaderThreads(1);

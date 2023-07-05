@@ -77,11 +77,12 @@ public:
             // Create the pool with the specified number of IO threads.
             // Note: Don't actually need any Reader/Writer/AuxIO threads here,
             // but ExecutorPool cannot handle having a count of zero :(
-            pool = std::make_unique<T>(nonIOCount,
-                                       ThreadPoolConfig::ThreadCount(1),
-                                       ThreadPoolConfig::ThreadCount(1),
-                                       ThreadPoolConfig::AuxIoThreadCount(1),
-                                       nonIOCount);
+            pool = std::make_unique<T>(
+                    nonIOCount,
+                    ThreadPoolConfig::ThreadCount(1),
+                    ThreadPoolConfig::ThreadCount(1),
+                    ThreadPoolConfig::AuxIoThreadCount(1),
+                    ThreadPoolConfig::NonIoThreadCount(nonIOCount));
             pool->registerTaskable(taskable);
             poolPtr.store(pool.get());
             poolSem.post();

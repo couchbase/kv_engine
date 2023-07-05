@@ -605,7 +605,7 @@ TEST_P(InterfacesTest, TestSettingAndGettingThreadCount) {
                         Pair("num_writer_threads_actual", Gt(0)),
                         Pair("num_auxio_threads_configured", -1),
                         Pair("num_auxio_threads_actual", Gt(0)),
-                        Pair("num_nonio_threads_configured", 0),
+                        Pair("num_nonio_threads_configured", -1),
                         Pair("num_nonio_threads_actual", Gt(0))));
 
     // 2. Reconfigure with a different number, check the stats update as

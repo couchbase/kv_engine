@@ -83,7 +83,7 @@ void DCPTest::SetUp() {
     ExecutorPool::get()->setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount{0});
     // Set NonIO threads to zero, so the connManager
     // task does not run.
-    ExecutorPool::get()->setNumNonIO(0);
+    ExecutorPool::get()->setNumNonIO(ThreadPoolConfig::NonIoThreadCount{0});
     callbackCount = 0;
 }
 
@@ -93,7 +93,7 @@ void DCPTest::TearDown() {
      * AuxIO and NonIO back to 1 to allow dead tasks to be cleaned up
      */
     ExecutorPool::get()->setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount{1});
-    ExecutorPool::get()->setNumNonIO(1);
+    ExecutorPool::get()->setNumNonIO(ThreadPoolConfig::NonIoThreadCount{1});
 
     stream.reset();
     producer.reset();

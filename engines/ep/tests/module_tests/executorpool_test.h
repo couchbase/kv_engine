@@ -29,7 +29,7 @@ public:
                      ThreadPoolConfig::ThreadCount maxReaders,
                      ThreadPoolConfig::ThreadCount maxWriters,
                      ThreadPoolConfig::AuxIoThreadCount maxAuxIO,
-                     size_t maxNonIO)
+                     ThreadPoolConfig::NonIoThreadCount maxNonIO)
         : CB3ExecutorPool(
                   maxThreads, maxReaders, maxWriters, maxAuxIO, maxNonIO) {
     }
