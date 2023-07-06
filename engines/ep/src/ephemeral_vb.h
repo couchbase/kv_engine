@@ -78,7 +78,7 @@ public:
     }
 
     cb::engine_errc statsVKey(const DocKey& key,
-                              CookieIface* cookie,
+                              CookieIface& cookie,
                               EventuallyPersistentEngine& engine) override {
         return cb::engine_errc::not_supported;
     }

@@ -306,7 +306,7 @@ VBucketPtr EphemeralBucket::makeVBucket(
     return VBucketPtr(vb, VBucket::DeferredDeleter(engine));
 }
 
-void EphemeralBucket::completeStatsVKey(CookieIface* cookie,
+void EphemeralBucket::completeStatsVKey(CookieIface& cookie,
                                         const DocKey& key,
                                         Vbid vbid,
                                         uint64_t bySeqNum) {

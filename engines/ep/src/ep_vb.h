@@ -99,7 +99,7 @@ public:
     uint64_t getHistoryDiskSize() override;
 
     cb::engine_errc statsVKey(const DocKey& key,
-                              CookieIface* cookie,
+                              CookieIface& cookie,
                               EventuallyPersistentEngine& engine) override;
 
     void completeStatsVKey(const DocKey& key, const GetValue& gcb) override;

@@ -273,9 +273,9 @@ public:
      */
     virtual cb::engine_errc statsVKey(const DocKey& key,
                                       Vbid vbucket,
-                                      CookieIface* cookie) = 0;
+                                      CookieIface& cookie) = 0;
 
-    virtual void completeStatsVKey(CookieIface* cookie,
+    virtual void completeStatsVKey(CookieIface& cookie,
                                    const DocKey& key,
                                    Vbid vbid,
                                    uint64_t bySeqNum) = 0;

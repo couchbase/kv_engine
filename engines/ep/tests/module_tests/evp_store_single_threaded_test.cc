@@ -6080,8 +6080,8 @@ TEST_P(STParameterizedBucketTest, TestKeyValidationStatsHoldVBStateLock) {
 
     auto key = makeStoredDocKey("k1");
     if (isPersistent()) {
-        store->statsVKey(key, vbid, cookie);
-        store->completeStatsVKey(cookie, key, vbid, 0);
+        store->statsVKey(key, vbid, *cookie);
+        store->completeStatsVKey(*cookie, key, vbid, 0);
     }
 
     auto dummyItem = makeCommittedItem(key, "val");

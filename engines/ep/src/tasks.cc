@@ -191,7 +191,7 @@ bool VKeyStatBGFetchTask::run() {
                  cookie,
                  "vb",
                  vbucket.get());
-    engine->getKVBucket()->completeStatsVKey(cookie, key, vbucket, bySeqNum);
+    engine->getKVBucket()->completeStatsVKey(*cookie, key, vbucket, bySeqNum);
     return false;
 }
 

@@ -4196,7 +4196,7 @@ cb::engine_errc EventuallyPersistentEngine::doKeyStats(
     // fetch task is scheduled by statsVKey(). fetchLookupResult will succeed
     // in returning the item once the fetch task has completed.
     if (validate && !fetchLookupResult(cookie, it)) {
-        rv = kvBucket->statsVKey(key, vbid, &cookie);
+        rv = kvBucket->statsVKey(key, vbid, cookie);
         if (rv == cb::engine_errc::not_my_vbucket ||
             rv == cb::engine_errc::no_such_key) {
             if (isDegradedMode()) {

@@ -1700,7 +1700,7 @@ VBucketPtr EPBucket::makeVBucket(
 
 cb::engine_errc EPBucket::statsVKey(const DocKey& key,
                                     Vbid vbucket,
-                                    CookieIface* cookie) {
+                                    CookieIface& cookie) {
     VBucketPtr vb = getVBucket(vbucket);
     if (!vb) {
         return cb::engine_errc::not_my_vbucket;
@@ -1709,7 +1709,7 @@ cb::engine_errc EPBucket::statsVKey(const DocKey& key,
     return vb->statsVKey(key, cookie, engine);
 }
 
-void EPBucket::completeStatsVKey(CookieIface* cookie,
+void EPBucket::completeStatsVKey(CookieIface& cookie,
                                  const DocKey& key,
                                  Vbid vbid,
                                  uint64_t bySeqNum) {
@@ -1723,9 +1723,9 @@ void EPBucket::completeStatsVKey(CookieIface* cookie,
     }
 
     if (gcb.getStatus() == cb::engine_errc::success) {
-        engine.addLookupResult(*cookie, std::move(gcb.item));
+        engine.addLookupResult(cookie, std::move(gcb.item));
     } else {
-        engine.addLookupResult(*cookie, nullptr);
+        engine.addLookupResult(cookie, nullptr);
     }
 
     --stats.numRemainingBgJobs;

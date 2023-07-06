@@ -1540,7 +1540,7 @@ TEST_P(KVBucketParamTest, statsVKeyTempDeletedTest) {
 
     //Check that the temp item is removed for statsVKey
     EXPECT_EQ(expTempItems, store->getVBucket(vbid)->getNumTempItems());
-    EXPECT_EQ(expRetCode, store->statsVKey(key, vbid, cookie));
+    EXPECT_EQ(expRetCode, store->statsVKey(key, vbid, *cookie));
     EXPECT_EQ(0, store->getVBucket(vbid)->getNumTempItems());
 }
 

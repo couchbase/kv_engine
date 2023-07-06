@@ -299,9 +299,9 @@ TEST_P(CollectionsParameterizedTest, unknown_collection_errors) {
                   store->statsVKey(
                           StoredDocKey{"meat:sausage", CollectionEntry::meat},
                           vbid,
-                          cookie));
+                          *cookie));
         EXPECT_EQ(cb::engine_errc::unknown_collection,
-                  store->statsVKey(item2.getKey(), vbid, cookie));
+                  store->statsVKey(item2.getKey(), vbid, *cookie));
     }
 
     // GetKeyStats

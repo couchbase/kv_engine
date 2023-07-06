@@ -1009,7 +1009,7 @@ public:
      * @return VBReturnCtx indicates notifyCtx and operation result
      */
     virtual cb::engine_errc statsVKey(const DocKey& key,
-                                      CookieIface* cookie,
+                                      CookieIface& cookie,
                                       EventuallyPersistentEngine& engine) = 0;
 
     /**

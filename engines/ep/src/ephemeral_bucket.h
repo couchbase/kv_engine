@@ -97,11 +97,11 @@ public:
 
     cb::engine_errc statsVKey(const DocKey& key,
                               Vbid vbucket,
-                              CookieIface* cookie) override {
+                              CookieIface& cookie) override {
         return cb::engine_errc::not_supported;
     }
 
-    void completeStatsVKey(CookieIface* cookie,
+    void completeStatsVKey(CookieIface& cookie,
                            const DocKey& key,
                            Vbid vbid,
                            uint64_t bySeqNum) override;
