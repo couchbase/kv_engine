@@ -819,6 +819,10 @@ cb::engine_errc KVBucket::replace(Item& itm,
     if (rv != cb::engine_errc::success) {
         return rv;
     }
+    if (rv = maybeAllowMutation(*vb, __func__);
+        rv != cb::engine_errc::success) {
+        return rv;
+    }
 
     cb::engine_errc result;
     { // collections read-lock scope
@@ -1794,6 +1798,12 @@ GetValue KVBucket::getAndUpdateTtl(const DocKey& key,
     cb::engine_errc rv =
             requireVBucketState(rlh, *vb, {vbucket_state_active}, *cookie);
     if (rv != cb::engine_errc::success) {
+        return GetValue(nullptr, rv);
+    }
+    // If the exptime changed, we will end up queueing a mutation, which will
+    // also need to be replicated.
+    if (rv = maybeAllowMutation(*vb, __func__);
+        rv != cb::engine_errc::success) {
         return GetValue(nullptr, rv);
     }
 

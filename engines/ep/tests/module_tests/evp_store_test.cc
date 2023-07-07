@@ -44,6 +44,8 @@
 #include "vbucket.h"
 #include "vbucket_bgfetch_item.h"
 #include "warmup.h"
+
+#include <folly/portability/GMock.h>
 #include <folly/synchronization/Baton.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
@@ -1610,6 +1612,37 @@ TEST_P(EPBucketTest, replaceRequiresEnabledTraffic) {
             engine->storeIfInner(
                           *cookie, item, 0, StoreSemantics::Replace, {}, false)
                     .first);
+}
+
+TEST_P(EPBucketTest, mutationOperationsTmpfaiIfTakeoverBackedUp) {
+    using namespace ::testing;
+
+    auto key = makeStoredDocKey("key");
+    auto item = make_item(vbid, key, "value");
+
+    auto expectMutationsToReturn = [&](auto matcher) {
+        EXPECT_THAT(store->add(item, cookie), matcher);
+        EXPECT_THAT(store->set(item, cookie), matcher);
+        EXPECT_THAT(store->replace(item, cookie), matcher);
+        EXPECT_THAT(store->getAndUpdateTtl(key, vbid, cookie, 0).getStatus(),
+                    matcher);
+        {
+            uint64_t cas = 0;
+            mutation_descr_t mutation_descr;
+            EXPECT_THAT(store->deleteItem(key,
+                                          cas,
+                                          vbid,
+                                          cookie,
+                                          {},
+                                          nullptr,
+                                          mutation_descr),
+                        matcher);
+        }
+    };
+
+    expectMutationsToReturn(Ne(cb::engine_errc::temporary_failure));
+    store->getVBucket(vbid)->setTakeoverBackedUpState(true);
+    expectMutationsToReturn(Eq(cb::engine_errc::temporary_failure));
 }
 
 TEST_P(EPBucketBloomFilterParameterizedTest, store_if_throws) {
