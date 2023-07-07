@@ -994,9 +994,6 @@ GetValue MagmaKVStore::getWithHeader(const DiskDocKey& key,
     }
 
     if (!found) {
-        // Whilst this isn't strictly a failure if we're running full eviction
-        // it could be considered one for value eviction.
-        st.numGetFailure++;
         return GetValue{nullptr, cb::engine_errc::no_such_key};
     }
 
