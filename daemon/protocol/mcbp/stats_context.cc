@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -247,23 +246,6 @@ static cb::engine_errc stat_bucket_details_executor(const std::string& arg,
     }
 
     return cb::engine_errc::no_such_key;
-}
-
-/**
- * Handler for the <code>stats aggregate</code>.. probably not used anymore
- * as it gives just a subset of what you'll get from an empty stat.
- *
- * @param arg - should be empty
- * @param cookie the command context
- */
-static cb::engine_errc stat_aggregate_executor(const std::string& arg,
-                                               Cookie& cookie) {
-    if (arg.empty()) {
-        CBStatCollector collector(appendStatsFn, cookie);
-        return server_stats(collector, cookie.getConnection().getBucket());
-    } else {
-        return cb::engine_errc::invalid_arguments;
-    }
 }
 
 /**
@@ -655,7 +637,6 @@ static std::unordered_map<StatGroupId, struct command_stat_handler>
                 {StatGroupId::Audit, {true, stat_audit_executor}},
                 {StatGroupId::BucketDetails,
                  {true, stat_bucket_details_executor}},
-                {StatGroupId::Aggregate, {true, stat_aggregate_executor}},
                 {StatGroupId::Connections, {true, stat_connections_executor}},
                 {StatGroupId::ClientConnectionDetails,
                  {true, stat_client_connection_details_executor}},

@@ -21,7 +21,6 @@ enum class StatGroupId {
     WorkerThreadInfo,
     Audit,
     BucketDetails,
-    Aggregate,
     Connections,
     ClientConnectionDetails,
     Clocks,

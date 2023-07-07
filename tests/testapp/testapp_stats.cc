@@ -407,13 +407,6 @@ TEST_P(StatsTest, TestSchedulerInfo_InvalidSubcommand) {
     EXPECT_EQ(cb::mcbp::Status::Einval, rsp.getStatus());
 }
 
-TEST_P(StatsTest, TestAggregate) {
-    auto stats = userConnection->stats("aggregate");
-    // Don't expect the entire stats set, but we should at least have
-    // the uptime
-    EXPECT_NE(stats.end(), stats.find("uptime"));
-}
-
 TEST_P(StatsTest, TestPrivilegedConnections) {
     adminConnection->setAgentName("TestPrivilegedConnections 1.0");
     adminConnection->setFeature(cb::mcbp::Feature::XERROR, true);
