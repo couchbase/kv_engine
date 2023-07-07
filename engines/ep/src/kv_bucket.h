@@ -44,6 +44,12 @@ struct CollectionEntry;
 class Manager;
 }
 
+/**
+ * Used to inform whether the operation is a mutation and hence should be
+ * refused if takeover is backed up.
+ */
+enum class IsMutationOp { No, Yes };
+
 const uint16_t EP_PRIMARY_SHARD = 0;
 class KVShard;
 
@@ -1157,6 +1163,27 @@ protected:
      */
     cb::engine_errc maybeAllowMutation(VBucket& vb,
                                        std::string_view debugOpcode);
+
+    /**
+     * Called before processing an operation by the KVBucket.
+     * Locates the vBucket, checks it is in the correct state and makes sure
+     * we are ready to process the operation.
+     *
+     * @param vbid The vBucket
+     * @param cookie The operation requiring the vBucket.
+     * @param permittedVBStates The set of permitted states. Pending cannot be
+     * specified.
+     * @param isMutationOp Is this operation exepcted to queue a mutation,
+     * and hence should be failed if takeover is backed up.
+     * @param debugOpcode The debug name of the opcode (for logging purposes).
+     * @return success if the operation can proceed, and the locked vBucket
+     */
+    KVBucketResult<std::tuple<VBucketPtr, folly::SharedMutex::ReadHolder>>
+    operationPrologue(Vbid vbid,
+                      CookieIface& cookie,
+                      PermittedVBStates permittedVBStates,
+                      IsMutationOp isMutationOp,
+                      std::string_view debugOpcode);
 
     GetValue getInternal(const DocKey& key,
                          Vbid vbucket,

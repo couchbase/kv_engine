@@ -741,24 +741,15 @@ cb::engine_errc KVBucket::set(Item& itm,
                               CookieIface* cookie,
                               cb::StoreIfPredicate predicate) {
     Expects(cookie);
-    auto lr = lookupVBucket(itm.getVBucketId());
+    auto lr = operationPrologue(itm.getVBucketId(),
+                                *cookie,
+                                {vbucket_state_active},
+                                IsMutationOp::Yes,
+                                __func__);
     if (!lr) {
         return lr.error();
     }
-    auto vb = std::move(*lr);
-
-    // Obtain read-lock on VB state to ensure VB state changes are interlocked
-    // with this set
-    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-    cb::engine_errc rv =
-            requireVBucketState(rlh, *vb, {vbucket_state_active}, *cookie);
-    if (rv != cb::engine_errc::success) {
-        return rv;
-    }
-    if (rv = maybeAllowMutation(*vb, __func__);
-        rv != cb::engine_errc::success) {
-        return rv;
-    }
+    auto [vb, rlh] = std::move(*lr);
 
     cb::engine_errc result;
     { // collections read-lock scope
@@ -788,24 +779,15 @@ cb::engine_errc KVBucket::set(Item& itm,
 
 cb::engine_errc KVBucket::add(Item& itm, CookieIface* cookie) {
     Expects(cookie);
-    auto lr = lookupVBucket(itm.getVBucketId());
+    auto lr = operationPrologue(itm.getVBucketId(),
+                                *cookie,
+                                {vbucket_state_active},
+                                IsMutationOp::Yes,
+                                __func__);
     if (!lr) {
         return lr.error();
     }
-    auto vb = std::move(*lr);
-
-    // Obtain read-lock on VB state to ensure VB state changes are interlocked
-    // with this add
-    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-    cb::engine_errc rv =
-            requireVBucketState(rlh, *vb, {vbucket_state_active}, *cookie);
-    if (rv != cb::engine_errc::success) {
-        return rv;
-    }
-    if (rv = maybeAllowMutation(*vb, __func__);
-        rv != cb::engine_errc::success) {
-        return rv;
-    }
+    auto [vb, rlh] = std::move(*lr);
 
     if (itm.getCas() != 0) {
         // Adding with a cas value doesn't make sense..
@@ -841,24 +823,15 @@ cb::engine_errc KVBucket::replace(Item& itm,
                                   CookieIface* cookie,
                                   cb::StoreIfPredicate predicate) {
     Expects(cookie);
-    auto lr = lookupVBucket(itm.getVBucketId());
+    auto lr = operationPrologue(itm.getVBucketId(),
+                                *cookie,
+                                {vbucket_state_active},
+                                IsMutationOp::Yes,
+                                __func__);
     if (!lr) {
         return lr.error();
     }
-    auto vb = std::move(*lr);
-
-    // Obtain read-lock on VB state to ensure VB state changes are interlocked
-    // with this replace
-    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-    cb::engine_errc rv =
-            requireVBucketState(rlh, *vb, {vbucket_state_active}, *cookie);
-    if (rv != cb::engine_errc::success) {
-        return rv;
-    }
-    if (rv = maybeAllowMutation(*vb, __func__);
-        rv != cb::engine_errc::success) {
-        return rv;
-    }
+    auto [vb, rlh] = std::move(*lr);
 
     cb::engine_errc result;
     { // collections read-lock scope
@@ -1607,6 +1580,32 @@ cb::engine_errc KVBucket::maybeAllowMutation(VBucket& vb,
     return cb::engine_errc::success;
 }
 
+KVBucketResult<std::tuple<VBucketPtr, folly::SharedMutex::ReadHolder>>
+KVBucket::operationPrologue(Vbid vbid,
+                            CookieIface& cookie,
+                            PermittedVBStates permittedVBStates,
+                            IsMutationOp isMutationOp,
+                            std::string_view debugOpcode) {
+    auto lr = lookupVBucket(vbid);
+    if (!lr) {
+        return folly::Unexpected(lr.error());
+    }
+    auto vb = std::move(*lr);
+
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    cb::engine_errc rv =
+            requireVBucketState(rlh, *vb, permittedVBStates, cookie);
+    if (rv != cb::engine_errc::success) {
+        return folly::Unexpected(rv);
+    }
+    if (rv = maybeAllowMutation(*vb, debugOpcode);
+        rv != cb::engine_errc::success) {
+        return folly::Unexpected(rv);
+    }
+
+    return std::make_tuple(std::move(vb), std::move(rlh));
+}
+
 GetValue KVBucket::getInternal(const DocKey& key,
                                Vbid vbucket,
                                CookieIface* cookie,
@@ -1760,28 +1759,22 @@ cb::engine_errc KVBucket::setWithMeta(Item& itm,
                                       ExtendedMetaData* emd,
                                       EnforceMemCheck enforceMemCheck) {
     Expects(cookie);
-    auto lr = lookupVBucket(itm.getVBucketId());
+    auto lr = operationPrologue(itm.getVBucketId(),
+                                *cookie,
+                                permittedVBStates,
+                                IsMutationOp::Yes,
+                                __func__);
     if (!lr) {
         return lr.error();
     }
-    auto vb = std::move(*lr);
-
-    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-    cb::engine_errc rv =
-            requireVBucketState(rlh, *vb, permittedVBStates, *cookie);
-    if (rv != cb::engine_errc::success) {
-        return rv;
-    }
-    if (rv = maybeAllowMutation(*vb, __func__);
-        rv != cb::engine_errc::success) {
-        return rv;
-    }
+    auto [vb, rlh] = std::move(*lr);
 
     //check for the incoming item's CAS validity
     if (!Item::isValidCas(itm.getCas())) {
         return cb::engine_errc::key_already_exists;
     }
 
+    auto rv = cb::engine_errc::success;
     {
         // hold collections read lock for duration of set
         auto cHandle = vb->lockCollections(itm.getKey());
@@ -1867,24 +1860,17 @@ GetValue KVBucket::getAndUpdateTtl(const DocKey& key,
                                    CookieIface* cookie,
                                    time_t exptime) {
     Expects(cookie);
-    auto lr = lookupVBucket(vbucket);
+    // If the exptime changed, we will end up queueing a mutation, which will
+    // also need to be replicated.
+    auto lr = operationPrologue(vbucket,
+                                *cookie,
+                                {vbucket_state_active},
+                                IsMutationOp::Yes,
+                                __func__);
     if (!lr) {
         return GetValue(nullptr, lr.error());
     }
-    auto vb = std::move(*lr);
-
-    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-    cb::engine_errc rv =
-            requireVBucketState(rlh, *vb, {vbucket_state_active}, *cookie);
-    if (rv != cb::engine_errc::success) {
-        return GetValue(nullptr, rv);
-    }
-    // If the exptime changed, we will end up queueing a mutation, which will
-    // also need to be replicated.
-    if (rv = maybeAllowMutation(*vb, __func__);
-        rv != cb::engine_errc::success) {
-        return GetValue(nullptr, rv);
-    }
+    auto [vb, rlh] = std::move(*lr);
 
     {
         // collections read scope
@@ -2109,22 +2095,15 @@ cb::engine_errc KVBucket::deleteItem(
         ItemMetaData* itemMeta,
         mutation_descr_t& mutInfo) {
     Expects(cookie);
-    auto lr = lookupVBucket(vbucket);
+    auto lr = operationPrologue(vbucket,
+                                *cookie,
+                                {vbucket_state_active},
+                                IsMutationOp::Yes,
+                                __func__);
     if (!lr) {
         return lr.error();
     }
-    auto vb = std::move(*lr);
-
-    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-    cb::engine_errc rv =
-            requireVBucketState(rlh, *vb, {vbucket_state_active}, *cookie);
-    if (rv != cb::engine_errc::success) {
-        return rv;
-    }
-    if (rv = maybeAllowMutation(*vb, __func__);
-        rv != cb::engine_errc::success) {
-        return rv;
-    }
+    auto [vb, rlh] = std::move(*lr);
 
     // Yield if checkpoint's full - The call also wakes up the mem recovery task
     if (isCheckpointMemoryStateFull(verifyCheckpointMemoryState())) {
@@ -2172,22 +2151,12 @@ cb::engine_errc KVBucket::deleteWithMeta(const DocKey& key,
                                          DeleteSource deleteSource,
                                          EnforceMemCheck enforceMemCheck) {
     Expects(cookie);
-    auto lr = lookupVBucket(vbucket);
+    auto lr = operationPrologue(
+            vbucket, *cookie, permittedVBStates, IsMutationOp::Yes, __func__);
     if (!lr) {
         return lr.error();
     }
-    auto vb = std::move(*lr);
-
-    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-    cb::engine_errc rv =
-            requireVBucketState(rlh, *vb, permittedVBStates, *cookie);
-    if (rv != cb::engine_errc::success) {
-        return rv;
-    }
-    if (rv = maybeAllowMutation(*vb, __func__);
-        rv != cb::engine_errc::success) {
-        return rv;
-    }
+    auto [vb, rlh] = std::move(*lr);
 
     //check for the incoming item's CAS validity
     if (!Item::isValidCas(itemMeta.cas)) {
