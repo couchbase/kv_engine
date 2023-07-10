@@ -223,7 +223,7 @@ public:
                         const DocKey& k,
                         Vbid vbid,
                         uint64_t s,
-                        CookieIface* c,
+                        CookieIface& c,
                         int sleeptime = 0,
                         bool completeBeforeShutdown = false)
         : GlobalTask(e,
@@ -258,7 +258,7 @@ private:
     const StoredDocKey key;
     const Vbid vbucket;
     uint64_t                         bySeqNum;
-    CookieIface* cookie;
+    CookieIface& cookie;
     const std::string description;
 };
 

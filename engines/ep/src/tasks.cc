@@ -188,10 +188,10 @@ bool VKeyStatBGFetchTask::run() {
     TRACE_EVENT2("ep-engine/task",
                  "VKeyStatBGFetchTask",
                  "cookie",
-                 cookie,
+                 &cookie,
                  "vb",
                  vbucket.get());
-    engine->getKVBucket()->completeStatsVKey(*cookie, key, vbucket, bySeqNum);
+    engine->getKVBucket()->completeStatsVKey(cookie, key, vbucket, bySeqNum);
     return false;
 }
 
