@@ -802,6 +802,9 @@ public:
     /*
      * Change the max_cas of the specified vbucket to cas without any
      * care for the data or ongoing operations...
+     *
+     * This will queue the new vbstate and trigger a flush for persistent
+     * buckets
      */
     virtual cb::engine_errc forceMaxCas(Vbid vbucket, uint64_t cas) = 0;
 

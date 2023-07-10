@@ -1809,7 +1809,12 @@ static enum test_result test_set_vbucket_out_of_range(EngineIface* h) {
 
 static enum test_result set_max_cas_mb21190(EngineIface* h) {
     uint64_t max_cas = get_ull_stat(h, "vb_0:max_cas", "vbucket-details 0");
-    std::string max_cas_str = std::to_string(max_cas+1);
+
+    // Prior to MB-56181 this test would increment max_cas by 1 and test that
+    // it reads back max_cas+1. This is no longer possible as now setting
+    // max_cas triggers a read of the HLC - so this test now sets the max_cas
+    // well into the future and asserts the read back value is 1 tick bigger.
+    std::string max_cas_str = std::to_string(max_cas * 2);
     set_param(h,
               EngineParamCategory::Vbucket,
               "max_cas",
@@ -1817,7 +1822,7 @@ static enum test_result set_max_cas_mb21190(EngineIface* h) {
               Vbid(0));
     checkeq(cb::mcbp::Status::Success, last_status.load(),
             "Failed to set_param max_cas");
-    checkeq(max_cas + 1,
+    checkeq((max_cas * 2) + 1,
             get_ull_stat(h, "vb_0:max_cas", "vbucket-details 0"),
             "max_cas didn't change");
     checkeq(cb::engine_errc::not_my_vbucket,
