@@ -3804,11 +3804,12 @@ DBFileInfo MagmaKVStore::getDbFileInfo(Vbid vbid) {
     }
     logger->debug(
             "MagmaKVStore::getDbFileInfo {} spaceUsed:{} fileSize:{} "
-            "historyDiskSize:{} status:{}",
+            "historyDiskSize:{} historyStartTimestamp:{} status:{}",
             vbid,
             vbinfo.spaceUsed,
             vbinfo.fileSize,
             vbinfo.historyDiskSize,
+            vbinfo.historyStartTimestamp.count(),
             status.String());
     return vbinfo;
 }
@@ -3833,7 +3834,8 @@ DBFileInfo MagmaKVStore::getAggrDbFileInfo() {
     DBFileInfo vbinfo{stats->ActiveDiskUsage,
                       nonHistoryDataSize,
                       0 /*prepareBytes*/,
-                      stats->HistoryDiskUsage};
+                      stats->HistoryDiskUsage,
+                      std::chrono::seconds(stats->SeqStats.HistoryStartTimestamp)};
     return vbinfo;
 }
 

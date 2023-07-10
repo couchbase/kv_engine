@@ -63,6 +63,13 @@ public:
 
     uint32_t setDead(cb::mcbp::DcpStreamEndStatus status) override;
 
+    /**
+     * Moves the current buffered flow control bytes out of this object, setting
+     * the streams counter back to 0.
+     * @return how many buffered bytes are outstanding
+     */
+    uint32_t moveFlowControlBytes();
+
     std::string getStreamTypeName() const override;
 
     std::string getStateName() const override;

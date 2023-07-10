@@ -7216,7 +7216,8 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
                          {"ep_db_data_size",
                           "ep_db_file_size",
                           "ep_db_prepare_size",
-                          "ep_db_history_file_size"});
+                          "ep_db_history_file_size",
+                          "ep_db_history_start_timestamp"});
         // Using explicit initializer lists due to http://stackoverflow
         // .com/questions/36557969/invalid-iterator-range-while-inserting
         // -initializer-list-to-an-stdvector
@@ -7255,11 +7256,13 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
         statsKeys["diskinfo"] = {"ep_db_data_size",
                                  "ep_db_file_size",
                                  "ep_db_prepare_size",
-                                 "ep_db_history_file_size"};
+                                 "ep_db_history_file_size",
+                                 "ep_db_history_start_timestamp"};
         statsKeys["diskinfo detail"] = {"vb_0:data_size",
                                         "vb_0:file_size",
                                         "vb_0:prepare_size",
-                                        "vb_0:history_disk_size"};
+                                        "vb_0:history_disk_size",
+                                        "vb_0:history_start_timestamp"};
 
         // Add stats which are only available for persistent buckets:
         std::initializer_list<std::string_view> persistence_stats = {

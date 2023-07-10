@@ -1511,6 +1511,11 @@
         "unit": "bytes",
         "added": "7.2.0"
     },
+    {
+        "key": "ep_db_history_start_timestamp",
+        "unit": "seconds",
+        "added": "7.2.0"
+    },
 /* Timing stats */
     {
         "key": "cmd_duration",

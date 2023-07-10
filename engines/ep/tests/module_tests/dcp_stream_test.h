@@ -147,7 +147,8 @@ protected:
         closeStreamOnTask,
         closeStreamBeforeTask,
         noMemory,
-        noMemoryAndClosed
+        noMemoryAndClosed,
+        streamEndMessage
     };
     void mb_33773(mb_33773Mode mode);
 

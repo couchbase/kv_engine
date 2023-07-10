@@ -156,6 +156,11 @@ uint32_t PassiveStream::setDead(cb::mcbp::DcpStreamEndStatus status) {
     return unackedBytes;
 }
 
+uint32_t PassiveStream::moveFlowControlBytes() {
+    std::unique_lock<std::mutex> lg(buffer.bufMutex);
+    return std::exchange(buffer.bytes, 0);
+}
+
 std::string PassiveStream::getStreamTypeName() const {
     return "Passive";
 }

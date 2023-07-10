@@ -443,7 +443,12 @@ cb::engine_errc DcpConsumer::streamEnd(uint32_t opaque,
     if (res == cb::engine_errc::success) {
         // Stream End message successfully passed to stream. Can now remove
         // the stream from the streams map as it has completed its lifetime.
-        removeStream(vbucket);
+        auto stream = removeStream(vbucket);
+        // Note we are potentially racing with the consumer buffering task
+        // which may call setDead, so we don't call setDead here (that could be
+        // state transition violation/exception), hence we just move out the
+        // flow control bytes (could be 0) and ensure they are accounted for.
+        flowControl.incrFreedBytes(stream->moveFlowControlBytes());
     }
 
     return res;

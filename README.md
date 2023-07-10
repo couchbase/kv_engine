@@ -37,6 +37,7 @@ built via the Couchbase
 
 * [KV-Engine Architecture](docs/Architecture.md)
 * [CBSASL](cbsasl/CBSASL.md)
+* [Connections](docs/Connections.md)
 * [Audit](auditd/README.md)
 * [Event Tracing / Phosphor](docs/Tracing.md)
 * [Document attributes](docs/Document.md)
