@@ -339,6 +339,21 @@ cb::engine_errc CollectionsDcpTestProducers::commit(uint32_t opaque,
     return ret;
 }
 
+cb::engine_errc CollectionsDcpTestProducers::abort(uint32_t opaque,
+                                                   Vbid vbucket,
+                                                   const DocKey& key,
+                                                   uint64_t prepare_seqno,
+                                                   uint64_t abort_seqno) {
+    auto ret = cb::engine_errc::success;
+    if (consumer) {
+        ret = consumer->abort(
+                opaque, replicaVB, key, prepare_seqno, abort_seqno);
+    }
+    MockDcpMessageProducers::abort(
+            opaque, vbucket, key, prepare_seqno, abort_seqno);
+    return ret;
+}
+
 /*
  * DCP callback method to push SystemEvents on to the consumer, this handler
  * operates on a DCP stream where FlatBuffers system events are enabled.
