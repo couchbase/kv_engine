@@ -170,13 +170,13 @@ public:
     }
 
     void checkCheckpointMaxSize(size_t quotaValue) {
-        EXPECT_EQ(
-                percentOf(
-                        quotaValue,
-                        engine->getConfiguration().getCheckpointMemoryRatio()) /
-                        engine->getCheckpointConfig().getMaxCheckpoints() /
-                        store->getVBuckets().getNumAliveVBuckets(),
-                engine->getCheckpointConfig().getCheckpointMaxSize());
+        const auto& ckptConfig = engine->getCheckpointConfig();
+        const size_t expected =
+                quotaValue *
+                engine->getConfiguration().getCheckpointMemoryRatio() /
+                ckptConfig.getMaxCheckpoints() /
+                store->getVBuckets().getNumAliveVBuckets();
+        EXPECT_EQ(expected, ckptConfig.getCheckpointMaxSize());
     }
 
     void checkDcpConsumerBuffer(size_t quotaValue) const {

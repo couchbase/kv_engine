@@ -126,25 +126,37 @@ protected:
      */
     size_t populateUntilTmpFail(Vbid vbid, rel_time_t ttl = 0) {
         size_t count = 0;
-        const std::string value(1024, 'x'); // 1024B value to use for documents.
-        cb::engine_errc result;
+
+        const auto& stats = engine->getEpStats();
+        EXPECT_LT(stats.getEstimatedTotalMemoryUsed(), stats.mem_high_wat);
+        // Load ~ 10 documents
+        const size_t valueSize =
+                (stats.mem_high_wat - stats.getEstimatedTotalMemoryUsed()) / 10;
+        const std::string value(valueSize, 'x');
+
         const auto expiry =
                 (ttl != 0) ? ep_abs_time(ep_reltime(ttl)) : time_t(0);
-        for (result = cb::engine_errc::success;
-             result == cb::engine_errc::success;
-             count++) {
+
+        cb::engine_errc result = cb::engine_errc::success;
+        while (result == cb::engine_errc::success) {
             auto key = makeStoredDocKey("xxx_" + std::to_string(count));
             auto item = make_item(vbid, key, value, expiry);
             // Set freqCount to 0 so will be a candidate for paging out straight
             // away.
             item.setFreqCounterValue(0);
             result = storeItem(item);
+
+            if (result == cb::engine_errc::success) {
+                ++count;
+            }
+
+            // This prevents flaky load post conditions where mem-usage doesn't
+            // stay over the HWM. By expelling every item we ensure that memory
+            // is mostly in the HT when we exit this loop.
+            flushAndExpelFromCheckpoints(vbid);
         }
         EXPECT_EQ(cb::engine_errc::temporary_failure, result);
-        // Fixup count for last loop iteration.
-        --count;
 
-        auto& stats = engine->getEpStats();
         EXPECT_GT(stats.getEstimatedTotalMemoryUsed(),
                   stats.mem_high_wat.load())
                 << "Expected to exceed high watermark after hitting TMPFAIL";
@@ -183,19 +195,35 @@ protected:
     }
 
     int populateUntilAboveHighWaterMark(Vbid vbid, uint8_t freqCount = 0) {
-        bool populate = true;
         int count = 0;
-        auto& stats = engine->getEpStats();
-        while (populate) {
-            auto key = makeStoredDocKey("key_" + std::to_string(count++));
-            auto item = make_item(vbid, key, {"x", 128}, 0 /*ttl*/);
+
+        const auto& stats = engine->getEpStats();
+        EXPECT_LT(stats.getEstimatedTotalMemoryUsed(), stats.mem_high_wat);
+        // Load ~ 20 documents
+        const size_t valueSize =
+                (stats.mem_high_wat - stats.getEstimatedTotalMemoryUsed()) / 20;
+        const std::string value(valueSize, 'x');
+
+        cb::engine_errc result = cb::engine_errc::success;
+        while (result == cb::engine_errc::success) {
+            auto key = makeStoredDocKey("key_" + std::to_string(count));
+            auto item = make_item(vbid, key, value, 0 /*ttl*/);
             // By default, set freqCount to 0 so will be a candidate for paging
             // out straight away. Some callers may need to set a different value
             item.setFreqCounterValue(freqCount);
-            EXPECT_EQ(cb::engine_errc::success, storeItem(item));
-            populate = stats.getEstimatedTotalMemoryUsed() <=
-                       stats.mem_high_wat.load();
+            result = storeItem(item);
+
+            if (result == cb::engine_errc::success) {
+                ++count;
+            }
+
+            // Purpose is to hit the HWM by HT allocation
+            flushAndExpelFromCheckpoints(vbid);
         }
+
+        EXPECT_GT(stats.getEstimatedTotalMemoryUsed(), stats.mem_high_wat)
+                << "Expected to exceed high watermark after hitting TMPFAIL";
+
         return count;
     }
 
@@ -559,7 +587,7 @@ TEST_P(STItemPagerTest, MB_50423_ItemPagerCleansUpDeletedStoredValues) {
 // that items are successfully paged out.
 TEST_P(STItemPagerTest, ServerQuotaReached) {
     size_t count = populateUntilTmpFail(vbid);
-    ASSERT_GE(count, 50) << "Too few documents stored";
+    ASSERT_GE(count, 5) << "Too few documents stored";
 
     runHighMemoryPager();
 
@@ -2115,7 +2143,9 @@ TEST_P(STItemPagerTest, MB43055_MemUsedDropDoesNotBreakEviction) {
     auto itemCount = populateUntilAboveHighWaterMark(vbid);
     EXPECT_LT(0, itemCount);
 
-    flushVBucketToDiskIfPersistent(vbid, itemCount);
+    if (isPersistent()) {
+        flushVBucket(vbid);
+    }
 
     // now delete some items to lower memory usage
     for (int i = 0; i < itemCount; i++) {
