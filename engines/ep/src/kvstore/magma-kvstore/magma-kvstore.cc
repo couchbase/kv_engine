@@ -3661,6 +3661,7 @@ GetStatsMap MagmaKVStore::getStats(
     fill("magma_BloomFilterMemoryQuota", magmaStats->BloomFilterMemoryQuota);
     fill("magma_WriteCacheQuota", magmaStats->WriteCacheQuota);
     fill("magma_NCompacts", magmaStats->NCompacts);
+    fill("magma_NDataLevelCompacts", magmaStats->NDataLevelCompacts);
     fill("magma_KeyIndex_NCompacts", magmaStats->KeyStats.NCompacts);
     fill("magma_SeqIndex_NCompacts", magmaStats->SeqStats.NCompacts);
     fill("magma_NFlushes", magmaStats->NFlushes);
@@ -3685,8 +3686,26 @@ GetStatsMap MagmaKVStore::getStats(
     fill("magma_NReadIO", magmaStats->NReadIOs);
     fill("magma_NReadBytesCompact", magmaStats->NReadBytesCompact);
     fill("magma_BytesIncoming", magmaStats->BytesIncoming);
+    fill("magma_KeyIndex_BytesIncoming", magmaStats->KeyStats.BytesIncoming);
+    fill("magma_SeqIndex_BytesIncoming", magmaStats->SeqStats.BytesIncoming);
+    fill("magma_SeqIndex_Delta_BytesIncoming",
+         magmaStats->SeqStats.DeltaBytesIncoming);
     fill("magma_NWriteBytes", magmaStats->NWriteBytes);
     fill("magma_FSWriteBytes", magmaStats->FSWriteBytes);
+    fill("magma_KeyIndex_NWriteBytes", magmaStats->KeyStats.NWriteBytes);
+    fill("magma_SeqIndex_NWriteBytes", magmaStats->SeqStats.NWriteBytes);
+    fill("magma_KeyIndex_NWriteBytesFileCountCompact",
+         magmaStats->KeyStats.FileCountCompactWriter.NWriteBytes);
+    fill("magma_SeqIndex_NWriteBytesFileCountCompact",
+         magmaStats->SeqStats.FileCountCompactWriter.NWriteBytes);
+
+    size_t deltaNWriteBytes = 0;
+    auto& levelStats = magmaStats->SeqStats.LevelStats;
+    for (size_t i = 0; !levelStats.empty() && i < levelStats.size() - 1; i++) {
+        deltaNWriteBytes += levelStats[i].NWriteBytes;
+    }
+    fill("magma_SeqIndex_Delta_NWriteBytes", deltaNWriteBytes);
+
     fill("magma_NWriteBytesCompact", magmaStats->NWriteBytesCompact);
     fill("magma_LogicalDataSize", magmaStats->LogicalDataSize);
     fill("magma_LogicalDiskSize", magmaStats->LogicalDiskSize);

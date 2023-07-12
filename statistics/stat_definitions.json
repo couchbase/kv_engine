@@ -1180,17 +1180,38 @@
     {
         "key": "ep_magma_compactions",
         "unit": "count",
-        "added": "7.1.0"
+        "added": "7.1.0",
+        "description": "Count of Magma compactions in key, seq and local index."
     },
     {
         "key": "ep_magma_keyindex_compactions",
         "unit": "count",
-        "added": "7.2.0"
+        "added": "7.2.0",
+        "prometheus": {
+            "family": "magma_compactions",
+            "labels": {
+                "for": "keyindex"
+            }
+        },
+        "description": "Count of Magma compactions in key index."
     },
     {
         "key": "ep_magma_seqindex_compactions",
         "unit": "count",
-        "added": "7.2.0"
+        "added": "7.2.0",
+        "prometheus": {
+            "family": "magma_compactions",
+            "labels": {
+                "for": "seqindex"
+            }
+        },
+        "description": "Count of Magma compactions in seq index."
+    },
+    {
+        "key": "ep_magma_seqindex_data_compactions",
+        "unit": "count",
+        "added": "7.6.0",
+        "description": "Count of Magma compactions in seq index that compact the data level. This are already accounted in ep_magma_seqindex_compactions hence not part of the magma_compactions Prometheus stat family."
     },
     {
         "key": "ep_magma_flushes",
@@ -1281,24 +1302,106 @@
     },
 /* Write amp. */
     {
-        "key": "ep_magma_writeamp",
-        "unit": "ratio",
-        "added": "7.1.0"
-    },
-    {
         "key": "ep_magma_bytes_incoming",
         "unit": "bytes",
-        "added": "7.1.0"
+        "added": "7.1.0",
+        "description": "Data written to key, seq, local index as part of the KV frontend writes."
+    },
+    {
+        "key": "ep_magma_keyindex_bytes_incoming",
+        "unit": "bytes",
+        "added": "7.6.0",
+        "prometheus": {
+            "family": "magma_bytes_incoming",
+            "labels": {
+                "for": "keyindex"
+            }
+        },
+        "description": "Data written to key index as part of the KV frontend writes."
+    },
+    {
+        "key": "ep_magma_seqindex_bytes_incoming",
+        "unit": "bytes",
+        "added": "7.6.0",
+        "prometheus": {
+            "family": "magma_bytes_incoming",
+            "labels": {
+                "for": "seqindex"
+            }
+        },
+        "description": "Data written to seq index as part of the KV frontend writes."
+    },
+    {
+        "key": "ep_magma_seqindex_delta_bytes_incoming",
+        "unit": "bytes",
+        "added": "7.6.0",
+        "description": "Data written to seq index delta levels as part of frontend update operations. This is already accounted in ep_magma_seqindex_bytes_incoming hence not part of Prometheus stat family magma_bytes_incoming."
     },
     {
         "key": "ep_magma_write_bytes",
         "unit": "bytes",
-        "added": "7.1.0"
+        "added": "7.1.0",
+        "description": "Bytes written by Magma flushes, compactions and WAL writes."
+    },
+    {
+        "key": "ep_magma_keyindex_write_bytes",
+        "unit": "bytes",
+        "added": "7.6.0",
+        "prometheus": {
+            "family": "magma_write_bytes",
+            "labels": {
+                "for": "keyindex"
+            }
+        },
+        "description": "Bytes written by Magma flushes, compactions of the key index."
+    },
+    {
+        "key": "ep_magma_seqindex_write_bytes",
+        "unit": "bytes",
+        "added": "7.6.0",
+        "prometheus": {
+            "family": "magma_write_bytes",
+            "labels": {
+                "for": "seqindex"
+            }
+        },
+        "description": "Bytes written by Magma flushes, compactions of the seq index."
+    },
+    {
+        "key": "ep_magma_seqindex_delta_write_bytes",
+        "unit": "bytes",
+        "added": "7.6.0",
+        "description": "Bytes written by Magma flushes, compactions of the seq index delta levels. This is already accounted into ep_magma_sequndex_write_bytes hence not part of the Prometheus stat family magma_write_bytes."
     },
     {
         "key": "ep_magma_write_bytes_compact",
         "unit": "bytes",
-        "added": "7.1.0"
+        "added": "7.1.0",
+        "description": "Bytes written by Magma compactions."
+    },
+    {
+        "key": "ep_magma_keyindex_write_bytes_filecount_compact",
+        "unit": "bytes",
+        "added": "7.6.0",
+        "prometheus": {
+            "family": "magma_write_bytes_filecount_compact",
+            "labels": {
+                "for": "keyindex"
+            }
+        },
+        "description": "Bytes written by Magma compactions of the key index due to file count triggers."
+    },
+    {
+        "key": "ep_magma_seqindex_write_bytes_filecount_compact",
+        "unit": "bytes",
+        "added": "7.6.0",
+        "prometheus": {
+            "family": "magma_write_bytes_filecount_compact",
+            "labels": {
+                "for": "seqindex"
+            }
+        },
+        "description": "Bytes written by Magma compactions of the seq index due to file count triggers."
     },
 /* Fragmentation. */
     {
@@ -1422,11 +1525,6 @@
     {
         "key": "ep_magma_block_cache_misses",
         "unit": "count",
-        "added": "7.1.0"
-    },
-    {
-        "key": "ep_magma_block_cache_hit_ratio",
-        "unit": "ratio",
         "added": "7.1.0"
     },
 /* SST file count. */

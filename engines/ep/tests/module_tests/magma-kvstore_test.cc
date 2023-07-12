@@ -240,13 +240,12 @@ TEST_F(MagmaKVStoreTest, prepareToCreate) {
 }
 
 TEST_F(MagmaKVStoreTest, getStats) {
-    constexpr std::array<std::string_view, 47> statNames = {{
-            "magma_FSReadBytes",
-            "magma_FSWriteBytes",
+    constexpr std::array<std::string_view, 54> statNames = {{
             "magma_MemoryQuotaLowWaterMark",
             "magma_BloomFilterMemoryQuota",
             "magma_WriteCacheQuota",
             "magma_NCompacts",
+            "magma_NDataLevelCompacts",
             "magma_NFlushes",
             "magma_NTTLCompacts",
             "magma_NFileCountCompacts",
@@ -260,8 +259,16 @@ TEST_F(MagmaKVStoreTest, getStats) {
             "magma_NReadIO",
             "magma_NReadBytesCompact",
             "magma_BytesIncoming",
+            "magma_KeyIndex_BytesIncoming",
+            "magma_SeqIndex_BytesIncoming",
+            "magma_SeqIndex_Delta_BytesIncoming",
             "magma_NWriteBytes",
+            "magma_KeyIndex_NWriteBytes",
+            "magma_SeqIndex_NWriteBytes",
+            "magma_SeqIndex_Delta_NWriteBytes",
             "magma_NWriteBytesCompact",
+            "magma_KeyIndex_NWriteBytesFileCountCompact",
+            "magma_SeqIndex_NWriteBytesFileCountCompact",
             "magma_LogicalDataSize",
             "magma_LogicalDiskSize",
             "magma_TotalDiskUsage",
@@ -312,6 +319,7 @@ TEST_F(MagmaKVStoreTest, getStat) {
     ASSERT_TRUE(kvstore->getStat("magma_NInserts", value));
     // Compaction counters
     ASSERT_TRUE(kvstore->getStat("magma_NCompacts", value));
+    ASSERT_TRUE(kvstore->getStat("magma_NDataLevelCompacts", value));
     ASSERT_TRUE(kvstore->getStat("magma_NFlushes", value));
     ASSERT_TRUE(kvstore->getStat("magma_NTTLCompacts", value));
     ASSERT_TRUE(kvstore->getStat("magma_NFileCountCompacts", value));
@@ -326,9 +334,20 @@ TEST_F(MagmaKVStoreTest, getStat) {
     ASSERT_TRUE(kvstore->getStat("magma_NReadBytesCompact", value));
     // Write amp.
     ASSERT_TRUE(kvstore->getStat("magma_BytesIncoming", value));
+    ASSERT_TRUE(kvstore->getStat("magma_KeyIndex_BytesIncoming", value));
+    ASSERT_TRUE(kvstore->getStat("magma_SeqIndex_BytesIncoming", value));
+    ASSERT_TRUE(kvstore->getStat("magma_SeqIndex_Delta_BytesIncoming", value));
     ASSERT_TRUE(kvstore->getStat("magma_NWriteBytes", value));
     ASSERT_TRUE(kvstore->getStat("magma_FSWriteBytes", value));
+    ASSERT_TRUE(kvstore->getStat("magma_KeyIndex_NWriteBytes", value));
+    ASSERT_TRUE(kvstore->getStat("magma_SeqIndex_NWriteBytes", value));
+    ASSERT_TRUE(kvstore->getStat("magma_SeqIndex_Delta_NWriteBytes", value));
     ASSERT_TRUE(kvstore->getStat("magma_NWriteBytesCompact", value));
+    ASSERT_TRUE(kvstore->getStat("magma_KeyIndex_NWriteBytesFileCountCompact",
+                                 value));
+    ASSERT_TRUE(kvstore->getStat("magma_SeqIndex_NWriteBytesFileCountCompact",
+                                 value));
+
     // Fragmentation.
     ASSERT_TRUE(kvstore->getStat("magma_LogicalDataSize", value));
     ASSERT_TRUE(kvstore->getStat("magma_LogicalDiskSize", value));

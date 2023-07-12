@@ -2772,10 +2772,11 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
         const StatCollector& collector) {
     using namespace cb::stats;
     auto divide = [](double a, double b) { return b ? a / b : 0; };
-    constexpr std::array<std::string_view, 56> statNames = {
+    constexpr std::array<std::string_view, 65> statNames = {
             {"magma_HistorySizeBytesEvicted",
              "magma_HistoryTimeBytesEvicted",
              "magma_NCompacts",
+             "magma_NDataLevelCompacts",
              "magma_KeyIndex_NCompacts",
              "magma_SeqIndex_NCompacts",
              "magma_NFlushes",
@@ -2796,10 +2797,21 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
              "magma_NInserts",
              "magma_NReadIO",
              "magma_NReadBytesCompact",
+
+             // Write amp analysis.
              "magma_BytesIncoming",
+             "magma_KeyIndex_BytesIncoming",
+             "magma_SeqIndex_BytesIncoming",
+             "magma_SeqIndex_Delta_BytesIncoming",
              "magma_NWriteBytes",
              "magma_FSWriteBytes",
              "magma_NWriteBytesCompact",
+             "magma_KeyIndex_NWriteBytes",
+             "magma_SeqIndex_NWriteBytes",
+             "magma_SeqIndex_Delta_NWriteBytes",
+             "magma_KeyIndex_NWriteBytesFileCountCompact",
+             "magma_SeqIndex_NWriteBytesFileCountCompact",
+
              "magma_ActiveDiskUsage",
              "magma_LogicalDataSize",
              "magma_LogicalDiskSize",
@@ -2850,6 +2862,7 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
         }
     };
 
+    // Ops counters.
     addStat(Key::ep_magma_sets, "magma_NSets");
     addStat(Key::ep_magma_gets, "magma_NGets");
     addStat(Key::ep_magma_inserts, "magma_NInserts");
@@ -2863,6 +2876,8 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
     addStat(Key::ep_magma_compactions, "magma_NCompacts");
     addStat(Key::ep_magma_keyindex_compactions, "magma_KeyIndex_NCompacts");
     addStat(Key::ep_magma_seqindex_compactions, "magma_SeqIndex_NCompacts");
+    addStat(Key::ep_magma_seqindex_data_compactions,
+            "magma_NDataLevelCompacts");
     addStat(Key::ep_magma_flushes, "magma_NFlushes");
     addStat(Key::ep_magma_ttl_compactions, "magma_NTTLCompacts");
     addStat(Key::ep_magma_filecount_compactions, "magma_NFileCountCompacts");
@@ -2908,22 +2923,37 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
             }
         }
     }
+
+    // Compaction bytes read/written.
     addStat(Key::ep_magma_read_bytes_compact, "magma_NReadBytesCompact");
+    addStat(Key::ep_magma_write_bytes_compact, "magma_NWriteBytesCompact");
+    addStat(Key::ep_magma_keyindex_write_bytes_filecount_compact,
+            "magma_KeyIndex_NWriteBytesFileCountCompact");
+    addStat(Key::ep_magma_seqindex_write_bytes_filecount_compact,
+            "magma_SeqIndex_NWriteBytesFileCountCompact");
 
     // Write amp.
-    size_t bytesIncoming = 0;
-    size_t writeBytes = 0;
-    size_t fsWriteBytes = 0;
-    if (statExists("magma_BytesIncoming", bytesIncoming) &&
-        statExists("magma_NWriteBytes", writeBytes) &&
-        statExists("magma_FSWriteBytes", fsWriteBytes)) {
-        collector.addStat(Key::ep_magma_bytes_incoming, bytesIncoming);
-        collector.addStat(Key::ep_magma_write_bytes, writeBytes);
-        collector.addStat(Key::ep_io_total_write_bytes, fsWriteBytes);
-        auto writeAmp = divide(fsWriteBytes, bytesIncoming);
-        collector.addStat(Key::ep_magma_writeamp, writeAmp);
-    }
-    addStat(Key::ep_magma_write_bytes_compact, "magma_NWriteBytesCompact");
+    // To compute overall write amp.
+    addStat(Key::ep_magma_bytes_incoming, "magma_BytesIncoming");
+    addStat(Key::ep_magma_write_bytes, "magma_NWriteBytes");
+    addStat(Key::ep_io_total_write_bytes, "magma_FSWriteBytes");
+
+
+    // To compute key index write amp
+    addStat(Key::ep_magma_keyindex_bytes_incoming,
+            "magma_KeyIndex_BytesIncoming");
+    addStat(Key::ep_magma_keyindex_write_bytes, "magma_KeyIndex_NWriteBytes");
+
+    // To compute seq index write amp.
+    addStat(Key::ep_magma_seqindex_bytes_incoming,
+            "magma_SeqIndex_BytesIncoming");
+    addStat(Key::ep_magma_seqindex_write_bytes, "magma_SeqIndex_NWriteBytes");
+
+    // To compute seq index delta level write amp.
+    addStat(Key::ep_magma_seqindex_delta_bytes_incoming,
+            "magma_SeqIndex_Delta_BytesIncoming");
+    addStat(Key::ep_magma_seqindex_delta_write_bytes,
+            "magma_SeqIndex_Delta_NWriteBytes");
 
     // Fragmentation.
     size_t logicalDataSize = 0;
@@ -2989,16 +3019,8 @@ void EventuallyPersistentEngine::doEngineStatsMagma(
     addStat(Key::ep_magma_tree_snapshot_mem_used, "magma_TreeSnapshotMemUsed");
 
     // Block cache.
-    size_t blockCacheHits = 0;
-    size_t blockCacheMisses = 0;
-    if (statExists("magma_BlockCacheHits", blockCacheHits) &&
-        statExists("magma_BlockCacheMisses", blockCacheMisses)) {
-        collector.addStat(Key::ep_magma_block_cache_hits, blockCacheHits);
-        collector.addStat(Key::ep_magma_block_cache_misses, blockCacheMisses);
-        auto total = blockCacheHits + blockCacheMisses;
-        double hitRatio = divide(blockCacheHits, total);
-        collector.addStat(Key::ep_magma_block_cache_hit_ratio, hitRatio);
-    }
+    addStat(Key::ep_magma_block_cache_hits, "magma_BlockCacheHits");
+    addStat(Key::ep_magma_block_cache_misses, "magma_BlockCacheMisses");
 
     // SST file counts.
     addStat(Key::ep_magma_tables_deleted, "magma_NTablesDeleted");
