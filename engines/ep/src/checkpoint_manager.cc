@@ -1349,8 +1349,17 @@ size_t CheckpointManager::getNumItemsForCursor(
         bool accurate) const {
     if (cursor && cursor->valid()) {
         CheckpointList::const_iterator chkptIterator(cursor->getCheckpoint());
+
+        // Notes:
+        // - Estimate introduced in MB-57400 for avoiding expensive O(N) calls
+        //   to cursor->getRemainingItemsCount()
+        // - MB-57808 improves that Estimate by introducing the invariant that
+        //   the quantity drops to 0 when the cursor reaches the end of the
+        //   checkpoint
         size_t items = accurate ? cursor->getRemainingItemsCount()
-                                : (*chkptIterator)->getNumItems();
+                                : (std::next(cursor->getPos()).isAtEnd()
+                                           ? 0
+                                           : (*chkptIterator)->getNumItems());
 
         if (chkptIterator != checkpointList.end()) {
             ++chkptIterator;
