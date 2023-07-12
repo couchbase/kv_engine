@@ -2763,15 +2763,17 @@ TEST_P(CheckpointTest, getNumItemsForCursor_Accurate_vs_Estimate) {
     EXPECT_FALSE(res.moreAvailable);
     EXPECT_EQ(3, items.size());
 
-    // Now we start to see a differnce, which can increase as the checkpoint
-    // grows.
+    // Note: The new Estimate is still precise in the case where the cursor has
+    // reached the end of the checkpoint.
     EXPECT_EQ(0, manager->getNumItemsForCursor(cursor, true));
-    EXPECT_EQ(2, manager->getNumItemsForCursor(cursor, false));
+    EXPECT_EQ(0, manager->getNumItemsForCursor(cursor, false));
 
     for (auto i : {1, 2}) {
         EXPECT_TRUE(this->queueNewItem("b" + std::to_string(i)));
     }
 
+    // Now we start to see a difference, which can increase as the checkpoint
+    // grows.
     EXPECT_EQ(2, manager->getNumItemsForCursor(cursor, true));
     EXPECT_EQ(4, manager->getNumItemsForCursor(cursor, false));
 
