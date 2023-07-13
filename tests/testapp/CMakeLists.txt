@@ -141,7 +141,7 @@ gtest_discover_tests(memcached_testapp
     ONE_CTEST_PER_SUITE
     DISCOVERY_TIMEOUT 60
     PROPERTIES TIMEOUT 300
-    ENVIRONMENT ${THREAD_SANITIZER_TEST_ENV})
+    ENVIRONMENT ${GTEST_ALL_SANITIZERS_ENV})
 
 gtest_discover_tests(memcached_testapp
     EXTRA_ARGS -E ep ${VERBOSE_EXTRA_ARG}
@@ -150,4 +150,4 @@ gtest_discover_tests(memcached_testapp
     ONE_CTEST_PER_SUITE
     DISCOVERY_TIMEOUT 60
     PROPERTIES TIMEOUT 300
-    ENVIRONMENT ${THREAD_SANITIZER_TEST_ENV})
+               ENVIRONMENT ${GTEST_ALL_SANITIZERS_ENV})
