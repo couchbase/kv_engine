@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <memcached/types.h>
 #include <platform/n_byte_integer.h>
 
 #include <nlohmann/json_fwd.hpp>
@@ -28,7 +29,11 @@ namespace magmakv {
 #pragma pack(1)
 class MetaData {
 public:
-    enum class Version : uint8_t { V0, V1 };
+    enum class Version : uint8_t {
+        V0,
+        V1, // extends V0 and adds durability data
+        V2 // history defined (inside v0 storage) and optionally V1
+    };
 
     MetaData() = default;
 
@@ -58,10 +63,7 @@ public:
         allMeta.v0.exptime = exptime;
     }
 
-    void setDeleted(bool deleted, bool deleteSource) {
-        allMeta.v0.bits.deleted = deleted;
-        allMeta.v0.bits.deleteSource = deleteSource;
-    }
+    void setDeleted(bool deleted, DeleteSource deleteSource);
 
     int64_t getBySeqno() const {
         return allMeta.v0.bySeqno;
@@ -79,9 +81,7 @@ public:
         allMeta.v0.valueSize = valueSize;
     }
 
-    bool isDeleted() const {
-        return allMeta.v0.bits.deleted;
-    }
+    bool isDeleted() const;
 
     uint8_t getDatatype() const {
         return allMeta.v0.datatype;
@@ -115,9 +115,7 @@ public:
         allMeta.v0.revSeqno = revSeqno;
     }
 
-    bool getDeleteSource() const {
-        return allMeta.v0.bits.deleteSource;
-    }
+    DeleteSource getDeleteSource() const;
 
     bool isSyncDelete() const;
 
@@ -125,6 +123,24 @@ public:
     std::chrono::seconds getHistoryTimeStamp() const {
         using namespace std::chrono;
         return duration_cast<seconds>(nanoseconds(getCas()));
+    }
+
+    /**
+     * Set if this update of the Item is (value=true) or is not (value=false)
+     * retained in the KVStore history
+     */
+    void setHistory(bool value);
+
+    /// @return true if this item should be retained in the KVStore history
+    bool isHistoryEnabled() const;
+
+    bool isHistoryDefined() const {
+        return getVersion() == Version::V2;
+    }
+
+    bool isDurabilityDefined() const {
+        return getVersion() == Version::V1 ||
+               (getVersion() == Version::V2 && allMeta.v2.containsV1Meta);
     }
 
     std::string to_string() const;
@@ -167,11 +183,18 @@ protected:
     public:
         MetaDataV0() = default;
 
-        static std::pair<MetaDataV0, std::string_view> decode(
-                std::string_view buf);
+        /**
+         * Decode the given buffer and initialise everything except V0Bits
+         * The decoded bits is returned so the caller can initialise the correct
+         * v0 or v2 bits member.
+         *
+         * @return pair where first is the uint8 bits field and second is the
+         *         remaining buffer.
+         */
+        std::pair<uint8_t, std::string_view> decode(std::string_view buf);
 
-        // See magmakv::MetaData::encode() documentation
-        std::string encode() const;
+        /// encode v0 metadata with the provided bits field
+        std::string encode(uint8_t bits) const;
 
         bool operator==(const MetaDataV0& other) const;
 
@@ -180,12 +203,13 @@ protected:
         uint32_t valueSize = 0;
         uint8_t datatype = 0;
 
-        struct V0Bits {
-            V0Bits() : deleted(0), deleteSource(0) {
-            }
-
-            uint8_t deleted : 1;
-            uint8_t deleteSource : 1;
+        union V0Bits {
+            V0Bits() = default;
+            struct {
+                uint8_t deleted : 1;
+                uint8_t deleteSource : 1; // 0 Explicit, 1 TTL
+            } bits;
+            uint8_t all{0};
         } bits;
 
         // The leb128 encoded fields get added at the end of the encoded meta
@@ -210,8 +234,12 @@ protected:
 
         bool operator==(const MetaDataV1& other) const;
 
-        static std::pair<MetaDataV1, std::string_view> decode(
-                std::string_view buf);
+        /**
+         * Decode the given buffer and initialise all member variables
+         *
+         * @return a buffer with any remaining data
+         */
+        std::string_view decode(std::string_view buf);
 
         // See magmakv::MetaData::encode() documentation
         std::string encode() const;
@@ -240,17 +268,45 @@ protected:
     static_assert(sizeof(MetaDataV1) == 6,
                   "magmakv::MetaDataV1 is not the expected size.");
 
+    class MetaDataV2 {
+    public:
+        MetaDataV2() = default;
+
+        bool operator==(const MetaDataV2& other) const;
+
+        // clone of V0 bits + a history bit
+        union V2Bits {
+            V2Bits() = default;
+            struct {
+                uint8_t deleted : 1;
+                uint8_t deleteSource : 1; // 0 Explicit, 1 TTL
+                uint8_t history : 1;
+            } bits;
+            uint8_t all{0};
+        } bits;
+
+        // true if the V1 (durability) data is available
+        bool containsV1Meta{false};
+
+        // See magmakv::MetaData::encode() documentation
+        std::string encode(MetaDataV1 v1) const;
+    };
+
     VersionStorage version;
     class AllMetaData {
     public:
         MetaDataV0 v0;
         // Contains info for prepare namespace items
         MetaDataV1 v1;
+        // Extends to store an extra bit
+        MetaDataV2 v2;
     } allMeta;
 };
 #pragma pack()
 
-static_assert(sizeof(MetaData) == 41,
+// Note that MetaData (and sizeof) doesn't impact stored data, this is an
+// structure held in memory for encode/decode purposes.
+static_assert(sizeof(MetaData) == 43,
               "magmakv::MetaData is not the expected size.");
 
 void to_json(nlohmann::json& json, const MetaData& meta);

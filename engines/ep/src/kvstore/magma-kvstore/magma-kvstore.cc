@@ -79,7 +79,7 @@ MetaData makeMetaData(const Item& it) {
     metadata.setDataType(it.getDataType());
 
     if (it.isDeleted() && !it.isPending()) {
-        metadata.setDeleted(true, static_cast<bool>(it.deletionSource()));
+        metadata.setDeleted(true, it.deletionSource());
     }
 
     if (it.isPending()) {
@@ -97,25 +97,31 @@ MetaData makeMetaData(const Item& it) {
 
 std::string MetaData::to_string() const {
     fmt::memory_buffer memoryBuffer;
-    fmt::format_to(
-            std::back_inserter(memoryBuffer),
-            "bySeqno:{} cas:{} exptime:{} revSeqno:{} flags:{} valueSize:{} "
-            "deleted:{} deleteSource:{} version:{} datatype:{}",
-            allMeta.v0.bySeqno,
-            allMeta.v0.cas,
-            allMeta.v0.exptime,
-            allMeta.v0.revSeqno,
-            allMeta.v0.flags,
-            allMeta.v0.valueSize,
-            allMeta.v0.bits.deleted != 0,
-            (allMeta.v0.bits.deleted == 0        ? " "
-             : allMeta.v0.bits.deleteSource == 0 ? "Explicit"
-                                                 : "TTL"),
-            static_cast<uint8_t>(getVersion()),
-            allMeta.v0.datatype);
+    fmt::format_to(std::back_inserter(memoryBuffer),
+                   "bySeqno:{} cas:{} exptime:{} revSeqno:{} flags:{} "
+                   "valueSize:{} bits v0:{:x} v2:{:x}, "
+                   "deleted:{} deleteSource:{} version:{} datatype:{}",
+                   allMeta.v0.bySeqno,
+                   allMeta.v0.cas,
+                   allMeta.v0.exptime,
+                   allMeta.v0.revSeqno,
+                   allMeta.v0.flags,
+                   allMeta.v0.valueSize,
+                   allMeta.v0.bits.all,
+                   allMeta.v2.bits.all,
+                   isDeleted(),
+                   !isDeleted() ? " " : ::to_string(getDeleteSource()),
+                   static_cast<uint8_t>(getVersion()),
+                   allMeta.v0.datatype);
 
-    if (getVersion() == Version::V1) {
-        if (allMeta.v0.bits.deleted) {
+    if (isHistoryDefined()) {
+        fmt::format_to(std::back_inserter(memoryBuffer),
+                       " history:{}",
+                       isHistoryEnabled());
+    }
+
+    if (isDurabilityDefined()) {
+        if (isDeleted()) {
             // abort
             fmt::format_to(std::back_inserter(memoryBuffer),
                            " prepareSeqno:{}",

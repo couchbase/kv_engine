@@ -499,7 +499,7 @@ TEST_F(MagmaKVStoreTest, MetadataEncoding) {
     // back after encoding and decoding.
     magmakv::MetaData metadata;
     metadata.setExptime(111111);
-    metadata.setDeleted(true, true);
+    metadata.setDeleted(true, DeleteSource::TTL);
     metadata.setBySeqno(222222);
     metadata.setValueSize(333333);
     metadata.setDataType(2);
@@ -517,6 +517,8 @@ TEST_F(MagmaKVStoreTest, MetadataEncoding) {
     // will be smaller due to the values chosen above)
     auto totalSizeOfV0 = 1 /*sizeof(magmakv::MetaData::MetaDataV0*/ + 34;
     EXPECT_LT(encoded.size(), totalSizeOfV0);
+
+    EXPECT_FALSE(decoded.isHistoryEnabled());
 
     auto v0EncodedSize = encoded.size();
 
@@ -552,6 +554,69 @@ TEST_F(MagmaKVStoreTest, MetadataEncoding) {
     // rom leb128 encoding gets masked by the size decrease in V0...
     v1v0EncodedSizeDiff = encoded.size() - v0EncodedSize;
     EXPECT_LT(v1v0EncodedSizeDiff, sizeOfV1);
+
+    EXPECT_FALSE(decoded.isHistoryEnabled());
+
+    metadata.setDeleted(true, DeleteSource::TTL);
+    EXPECT_EQ(DeleteSource::TTL, metadata.getDeleteSource());
+}
+
+TEST_F(MagmaKVStoreTest, MetadataV2Encoding) {
+    // Set the version as V2 and write some of the V0 data.
+    magmakv::MetaData metadata;
+    metadata.setVersion(magmakv::MetaData::Version::V2);
+    metadata.setExptime(111111);
+    metadata.setDeleted(true, DeleteSource::TTL);
+    metadata.setBySeqno(222222);
+    metadata.setValueSize(333333);
+    metadata.setDataType(2);
+    metadata.setFlags(444444);
+    metadata.setCas(555555);
+    metadata.setRevSeqno(666666);
+
+    // V2 can record the history setting
+    metadata.setHistory(true);
+
+    auto encoded = metadata.encode();
+    auto decoded = magmakv::MetaData(encoded);
+    EXPECT_TRUE(decoded.isHistoryEnabled());
+    EXPECT_FALSE(decoded.isDurabilityDefined());
+    EXPECT_EQ(metadata, decoded);
+
+    // This sizing is borrowed from MetadataEncoding test, at this stage expect
+    // the size of metadata to be as per V0 expectations.
+    // Size should be smaller encoded (as some values get leb128 encoded and
+    // will be smaller due to the values chosen above)
+    auto totalSizeOfV0 = 1 /*sizeof(magmakv::MetaData::MetaDataV0*/ + 34;
+    EXPECT_LT(encoded.size(), totalSizeOfV0);
+    auto v0EncodedSize = encoded.size();
+
+    // Now test we can set some durability info
+    metadata.setDurabilityDetailsForAbort(7777777);
+    encoded = metadata.encode();
+    decoded = magmakv::MetaData(encoded);
+    EXPECT_TRUE(decoded.isHistoryEnabled());
+    EXPECT_TRUE(decoded.isDurabilityDefined());
+    EXPECT_EQ(metadata, decoded);
+
+    // Now expect to of grown to match V1 sizing
+    auto sizeOfV1 = 6 /*sizeof(magmakv::MetaData::MetaDataV1)*/;
+    auto totalSizeOfV1 = totalSizeOfV0 + sizeOfV1;
+    EXPECT_LT(encoded.size(), totalSizeOfV1);
+
+    auto v1v0EncodedSizeDiff = encoded.size() - v0EncodedSize;
+    EXPECT_LT(v1v0EncodedSizeDiff, sizeOfV1);
+
+    metadata.setHistory(true);
+
+    encoded = metadata.encode();
+    decoded = magmakv::MetaData(encoded);
+    EXPECT_TRUE(decoded.isDurabilityDefined());
+    EXPECT_TRUE(decoded.isHistoryEnabled());
+    EXPECT_EQ(metadata, decoded);
+
+    // And finally, no change, setting history and the data is the same
+    EXPECT_LT(encoded.size(), totalSizeOfV1);
 }
 
 TEST_F(MagmaKVStoreTest, ScanReadsVBStateFromSnapshot) {
@@ -669,7 +734,7 @@ TEST_F(MagmaKVStoreTest, MagmaGetExpiryTimeAlive) {
 TEST_F(MagmaKVStoreTest, MagmaGetExpiryTimeTombstone) {
     magmakv::MetaData tombstone;
     tombstone.setExptime(10);
-    tombstone.setDeleted(true, false /*deleteSource*/);
+    tombstone.setDeleted(true, DeleteSource::Explicit);
     auto encoded = tombstone.encode();
     magma::Slice tombstoneSlice = {encoded};
 
