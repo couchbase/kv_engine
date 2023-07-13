@@ -940,6 +940,8 @@ cb::engine_errc EventuallyPersistentEngine::setDcpParam(const std::string& key,
                     std::stoull(val));
         } else if (key == "dcp_takeover_max_time") {
             getConfiguration().setDcpTakeoverMaxTime(std::stoull(val));
+        } else if (key == "dcp_backfill_byte_limit") {
+            getConfiguration().setDcpBackfillByteLimit(std::stoull(val));
         } else {
             msg = "Unknown config param";
             rv = cb::engine_errc::no_such_key;
@@ -1832,6 +1834,8 @@ void EpEngineValueChangeListener::sizeValueChanged(const std::string& key,
         engine.configureRangeScanConcurrency(value);
     } else if (key == "range_scan_max_lifetime") {
         engine.configureRangeScanMaxDuration(std::chrono::seconds(value));
+    } else if (key == "dcp_backfill_byte_limit") {
+        engine.setDcpBackfillByteLimit(value);
     }
 }
 
@@ -2127,6 +2131,10 @@ cb::engine_errc EventuallyPersistentEngine::initialize(
 
     configuration.addValueChangedListener(
             "dcp_consumer_buffer_ratio",
+            std::make_unique<EpEngineValueChangeListener>(*this));
+
+    configuration.addValueChangedListener(
+            "dcp_backfill_byte_limit",
             std::make_unique<EpEngineValueChangeListener>(*this));
 
     return cb::engine_errc::success;
@@ -7128,5 +7136,11 @@ ExTask EventuallyPersistentEngine::createItemPager() {
                 *this, stats, numConcurrentPagers);
         ExecutorPool::get()->cancel(task->getId());
         return task;
+    }
+}
+
+void EventuallyPersistentEngine::setDcpBackfillByteLimit(size_t bytes) {
+    if (dcpConnMap_) {
+        dcpConnMap_->setBackfillByteLimit(bytes);
     }
 }

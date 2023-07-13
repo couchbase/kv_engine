@@ -230,11 +230,25 @@ public:
 
     std::string to_string(ScheduleOrder order);
 
+    void setBackfillByteLimit(size_t bytes);
+
+    size_t getBackfillByteLimit() const;
+
     /// The name of the BackfillManager, used for logging etc
     const std::string name;
 
 protected:
-    //! The buffer is the total bytes used by all backfills for this connection
+    /**
+     * The structure is used for controlling how many bytes backfill can push to
+     * the streams readyQ(s) for a Producer connection.
+     * Bytes are "written" (added) into bytesRead every time a backfill pushes
+     * some data to its stream readyQ.
+     * Bytes are "read" (removed) from bytesRead every time a the frontend
+     * processes the Producer connection, pulls data from a stream readyQ and
+     * sends data over the network.
+     * Backfills managed by this Producer connection are paused if/when
+     * bytesRead hits maxBytes.
+     */
     struct {
         size_t bytesRead;
         size_t maxBytes;
@@ -284,7 +298,7 @@ protected:
      */
     bool emptyQueues(std::unique_lock<std::mutex>& lock) const;
 
-    std::mutex lock;
+    mutable std::mutex lock;
 
     // List of backfills which have just been scheduled (added to Backfill
     // Manager) and not yet been run.

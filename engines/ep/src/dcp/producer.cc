@@ -2180,3 +2180,13 @@ std::optional<uint64_t> DcpProducer::getHighSeqnoOfCollections(
 
     return {maxHighSeqno};
 }
+
+void DcpProducer::setBackfillByteLimit(size_t bytes) {
+    if (backfillMgr) {
+        backfillMgr->setBackfillByteLimit(bytes);
+    }
+}
+
+size_t DcpProducer::getBackfillByteLimit() const {
+    return backfillMgr ? backfillMgr->getBackfillByteLimit() : 0;
+}

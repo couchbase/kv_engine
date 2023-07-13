@@ -2123,6 +2123,28 @@ TEST_P(ConnectionTest, ProducerEnablesDeleteXattr) {
     destroy_mock_cookie(cookie);
 }
 
+TEST_P(ConnectionTest, Config_DcpBackfillByteLimit) {
+    auto* cookie = create_mock_cookie(engine);
+    auto& config = engine->getConfiguration();
+    const auto initialValue = config.getDcpBackfillByteLimit();
+    ASSERT_GT(initialValue, 0);
+
+    const std::string connName = "whatever";
+    auto& connMap = engine->getDcpConnMap();
+    auto* producer = connMap.newProducer(*cookie, connName, 0);
+    ASSERT_TRUE(connMap.findByName("eq_dcpq:" + connName));
+    ASSERT_EQ(initialValue, producer->getBackfillByteLimit());
+
+    const auto newValue = initialValue / 2;
+    ASSERT_GT(newValue, 0);
+    config.setDcpBackfillByteLimit(newValue);
+    EXPECT_EQ(newValue, producer->getBackfillByteLimit());
+
+    connMap.disconnect(cookie);
+    connMap.manageConnections();
+    destroy_mock_cookie(cookie);
+}
+
 class ActiveStreamChkptProcessorTaskTest : public SingleThreadedKVBucketTest {
 public:
     ActiveStreamChkptProcessorTaskTest()

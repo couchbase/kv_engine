@@ -525,3 +525,13 @@ bool DcpConnMap::isConnections() {
     std::lock_guard<std::mutex> lh(connsLock);
     return !connStore->getCookieToConnectionMapHandle()->empty();
 }
+
+void DcpConnMap::setBackfillByteLimit(size_t bytes) {
+    auto handle = connStore->getCookieToConnectionMapHandle();
+    for (const auto& cookieToConn : *handle) {
+        auto* producer = dynamic_cast<DcpProducer*>(cookieToConn.second.get());
+        if (producer) {
+            producer->setBackfillByteLimit(bytes);
+        }
+    }
+}

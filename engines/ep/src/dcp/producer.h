@@ -371,6 +371,10 @@ public:
 
     bool isOutOfOrderSnapshotsEnabledWithSeqnoAdvanced() const;
 
+    void setBackfillByteLimit(size_t bytes);
+
+    size_t getBackfillByteLimit() const;
+
     // MB-37702: Test hook set via mock class.
     TestingHook<> closeAllStreamsHook;
 

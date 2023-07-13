@@ -427,3 +427,13 @@ bool BackfillManager::emptyQueues(std::unique_lock<std::mutex>& lock) const {
     return initializingBackfills.empty() && activeBackfills.empty() &&
            snoozingBackfills.empty() && pendingBackfills.empty();
 }
+
+void BackfillManager::setBackfillByteLimit(size_t bytes) {
+    std::lock_guard<std::mutex> lh(lock);
+    buffer.maxBytes = bytes;
+}
+
+size_t BackfillManager::getBackfillByteLimit() const {
+    std::lock_guard<std::mutex> lh(lock);
+    return buffer.maxBytes;
+}

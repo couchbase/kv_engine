@@ -1003,7 +1003,7 @@
                 "serverless": "512 * 1024"
             },
             "descr": "Max bytes a connection can backfill into memory before backfill is paused",
-            "dynamic": false,
+            "dynamic": true,
             "type": "size_t"
         },
         "dcp_consumer_flow_control_enabled": {

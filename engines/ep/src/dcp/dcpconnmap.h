@@ -144,6 +144,8 @@ public:
     template <typename Fun>
     void each(Fun&& f);
 
+    void setBackfillByteLimit(size_t bytes);
+
 protected:
     // @todo: Review usage and description, it seems that this mutex
     //  synchronizes only deadConnections after we introduced ConnStore

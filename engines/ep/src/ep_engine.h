@@ -959,6 +959,14 @@ public:
      */
     ExTask createItemPager();
 
+    /**
+     * Sets the limit (bytes) of data that a single DCP Producer connection can
+     * push into its streams outbound queues (readyQ).
+     *
+     * @param bytes
+     */
+    void setDcpBackfillByteLimit(size_t bytes);
+
 protected:
     friend class EpEngineValueChangeListener;
 
