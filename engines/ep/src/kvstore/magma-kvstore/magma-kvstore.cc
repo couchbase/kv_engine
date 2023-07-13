@@ -64,12 +64,10 @@ using namespace std::chrono_literals;
 namespace magmakv {
 MetaData makeMetaData(const Item& it) {
     auto metadata = MetaData();
-    if (it.isPending() || it.isAbort()) {
-        metadata.setVersion(MetaData::Version::V1);
-    } else {
-        metadata.setVersion(MetaData::Version::V0);
-    }
 
+    // From Trinity always store V2. This allows the history bit to be defined
+    // and allows optional readback of V1 durability
+    metadata.setVersion(MetaData::Version::V2);
     metadata.setBySeqno(it.getBySeqno());
     metadata.setCas(it.getCas());
     metadata.setRevSeqno(it.getRevSeqno());
@@ -91,6 +89,9 @@ MetaData makeMetaData(const Item& it) {
     if (it.isAbort()) {
         metadata.setDurabilityDetailsForAbort(it.getPrepareSeqno());
     }
+
+    // If Item can be deduplicated, then history=false.
+    metadata.setHistory(!it.canDeduplicate());
 
     return metadata;
 }
@@ -192,6 +193,13 @@ static std::chrono::seconds getHistoryTimeNow() {
     // then peek at the correct HLC
     using namespace std::chrono;
     return duration_cast<seconds>(nanoseconds(HLC::getMaskedTime()));
+}
+
+static magma::Magma::HistoryMode getHistoryModeFromMeta(
+        const Slice& metaSlice) {
+    return getDocMeta(metaSlice).isHistoryEnabled()
+                   ? magma::Magma::HistoryMode::Enabled
+                   : magma::Magma::HistoryMode::Disabled;
 }
 
 } // namespace magmakv
@@ -616,6 +624,9 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     configuration.magmaCfg.IsTombstone = magmakv::isDeleted;
     configuration.magmaCfg.GetHistoryTimestamp = magmakv::getHistoryTimeStamp;
     configuration.magmaCfg.GetHistoryTimeNow = magmakv::getHistoryTimeNow;
+    configuration.magmaCfg.GetHistoryModeFromMeta =
+            magmakv::getHistoryModeFromMeta;
+
     configuration.magmaCfg.EnableDirectIO =
             configuration.getMagmaEnableDirectIo();
     configuration.magmaCfg.EnableBlockCache =
