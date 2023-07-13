@@ -19,15 +19,18 @@
  */
 
 #include <memcached/engine.h>
+#include <charconv>
 #include <string>
 
-bool safe_strtoull(const std::string& s, uint64_t& out);
+bool safe_strtoull(std::string_view s, uint64_t& out);
 
-bool safe_strtoll(const std::string& s, int64_t& out);
+bool safe_strtoll(std::string_view s, int64_t& out);
 
-bool safe_strtoul(const std::string& s, uint32_t& out);
+bool safe_strtoul(std::string_view s, uint32_t& out);
 
-bool safe_strtol(const std::string& s, int32_t& out);
+bool safe_strtol(std::string_view s, int32_t& out);
+
+bool safe_strtous(std::string_view s, uint16_t& out);
 
 bool safe_strtof(const std::string& s, float& out);
 

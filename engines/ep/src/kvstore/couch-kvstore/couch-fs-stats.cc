@@ -11,7 +11,6 @@
 
 #include "couch-fs-stats.h"
 
-#include "common.h"
 #include "kvstore/kvstore.h"
 #include <platform/histogram.h>
 

@@ -9,7 +9,6 @@
  *   the file licenses/APL2.txt.
  */
 
-#include "common.h"
 #include "lock_timer.h"
 #include <folly/portability/GTest.h>
 #include <thread>

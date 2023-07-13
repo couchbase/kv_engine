@@ -117,6 +117,25 @@ TEST(StringTest, safe_strtol) {
     EXPECT_EQ(123, val);
 }
 
+TEST(StringTest, safe_strtous) {
+    uint16_t val;
+    uint16_t exp = -1;
+    EXPECT_TRUE(safe_strtous("123", val));
+    EXPECT_EQ(123u, val);
+    EXPECT_TRUE(safe_strtous("+123", val));
+    EXPECT_EQ(123u, val);
+    EXPECT_FALSE(safe_strtous("", val)); /* empty */
+    EXPECT_FALSE(safe_strtous("123BOGUS", val)); /* non-numeric */
+    EXPECT_FALSE(
+            safe_strtous("92837498237498237498029383", val)); /* out of range */
+
+    /* extremes: */
+    EXPECT_TRUE(safe_strtous("65535", val)); /* 2**16 - 1 */
+    EXPECT_EQ(exp, val);
+    EXPECT_FALSE(safe_strtous("65536", val)); /* 2**16 */
+    EXPECT_FALSE(safe_strtous("-1", val)); /* negative */
+}
+
 TEST(StringTest, safe_strtof) {
     float val;
     EXPECT_TRUE(safe_strtof("123", val));

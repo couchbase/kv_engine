@@ -206,10 +206,6 @@ target_link_libraries(ep-engine_couch-fs-stats_test PRIVATE
         phosphor)
 add_sanitizers(ep-engine_couch-fs-stats_test)
 
-cb_add_test_executable(ep-engine_misc_test module_tests/misc_test.cc)
-kv_enable_pch(ep-engine_misc_test)
-target_link_libraries(ep-engine_misc_test PRIVATE mcbp platform)
-
 cb_add_test_executable(ep-engine_string_utils_test
         module_tests/string_utils_test.cc
         ${EventuallyPersistentEngine_SOURCE_DIR}/src/string_utils.cc)
@@ -238,8 +234,6 @@ IF (COUCHBASE_MAGMA_COMMIT_VALIDATION)
             PROPERTIES TIMEOUT 300
                        ENVIRONMENT ${GTEST_ALL_SANITIZERS_ENV})
 ENDIF()
-
-ADD_TEST(NAME ep-engine_misc_test COMMAND ep-engine_misc_test)
 
 add_ep_testsuite(ep_testsuite ep_testsuite.cc)
 add_ep_testsuite(ep_testsuite_basic ep_testsuite_basic.cc)

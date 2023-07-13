@@ -18,13 +18,13 @@
 #include "collections/vbucket_filter.h"
 #include "collections/vbucket_manifest.h"
 #include "collections/vbucket_manifest_handles.h"
-#include "common.h"
 #include "connhandler_impl.h"
 #include "dcp/active_stream.h"
 #include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/backfill-manager.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/response.h"
+#include "ep_time.h"
 #include "eviction_utils.h"
 #include "failover-table.h"
 #include "kv_bucket.h"
@@ -36,6 +36,7 @@
 #include <fmt/chrono.h>
 #include <memcached/connection_iface.h>
 #include <memcached/cookie_iface.h>
+#include <memcached/util.h>
 #include <nlohmann/json.hpp>
 #include <platform/timeutils.h>
 #include <spdlog/fmt/fmt.h>
@@ -1015,7 +1016,7 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
 
     } else if (strncmp(param, "connection_buffer_size", key.size()) == 0) {
         uint32_t size;
-        if (parseUint32(valueStr.c_str(), &size)) {
+        if (safe_strtoul(valueStr, size)) {
             /* Size 0 implies the client (DCP consumer) does not support
                flow control */
             log.setBufferSize(size);
@@ -1064,7 +1065,7 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
         return cb::engine_errc::success;
     } else if (strncmp(param, "set_noop_interval", key.size()) == 0) {
         uint32_t noopInterval;
-        if (parseUint32(valueStr.c_str(), &noopInterval)) {
+        if (safe_strtoul(valueStr, noopInterval)) {
             /*
              * We need to ensure that we only set the noop interval to a value
              * that is a multiple of the connection manager interval. The reason

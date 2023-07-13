@@ -16,7 +16,6 @@
 #include <utility>
 
 #include "collections/vbucket_manifest.h"
-#include "common.h"
 #include "couch-kvstore/couch-kvstore-config.h"
 #include "couch-kvstore/couch-kvstore.h"
 #include "item.h"

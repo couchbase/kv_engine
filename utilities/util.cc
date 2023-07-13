@@ -18,100 +18,47 @@
 #include <memcached/engine.h>
 #include <memcached/util.h>
 
-/* Avoid warnings on solaris, where isspace() is an index into an array, and gcc uses signed chars */
-#define xisspace(c) isspace((unsigned char)c)
+template <typename T>
+bool parseInt(const std::string_view s, T& out) {
+    const char* first = s.data();
+    const char* end = s.data() + s.size();
 
-bool safe_strtoull(const std::string& s, uint64_t& out) {
-    const auto* str = s.c_str();
-    char *endptr;
-    uint64_t ull;
+    while (isspace(*first) && (first != end)) {
+        ++first;
+    }
 
-    errno = 0;
-    out = 0;
+    /* std::from_chars does not recognise the plus sign. */
+    if (*first == '+') {
+        ++first;
+    }
+    const auto [ptr, ec] = std::from_chars(first, end, out);
 
-    ull = strtoull(str, &endptr, 10);
-    if (errno == ERANGE) {
+    if (ec != std::errc() || (ptr != end && !isspace(*ptr))) {
+        out = 0;
         return false;
     }
 
-    if (xisspace(*endptr) || (*endptr == '\0' && endptr != str)) {
-        if ((int64_t)ull < 0) {
-            /* only check for negative signs in the uncommon case when
-             * the unsigned number is so big that it's negative as a
-             * signed number. */
-            if (strchr(str, '-') != nullptr) {
-                return false;
-            }
-        }
-        out = ull;
-        return true;
-    }
-    return false;
+    return true;
 }
 
-bool safe_strtoll(const std::string& s, int64_t& out) {
-    const auto* str = s.c_str();
-    char *endptr;
-    int64_t ll;
-
-    errno = 0;
-    out = 0;
-    ll = strtoll(str, &endptr, 10);
-
-    if (errno == ERANGE) {
-        return false;
-    }
-    if (xisspace(*endptr) || (*endptr == '\0' && endptr != str)) {
-        out = ll;
-        return true;
-    }
-    return false;
+bool safe_strtoull(std::string_view s, uint64_t& out) {
+    return parseInt<uint64_t>(s, out);
 }
 
-bool safe_strtoul(const std::string& s, uint32_t& out) {
-    const auto* str = s.c_str();
-    char *endptr = nullptr;
-    unsigned long l = 0;
-    out = 0;
-    errno = 0;
-
-    l = strtoul(str, &endptr, 10);
-    if (errno == ERANGE) {
-        return false;
-    }
-
-    if (xisspace(*endptr) || (*endptr == '\0' && endptr != str)) {
-        if ((long) l < 0) {
-            /* only check for negative signs in the uncommon case when
-             * the unsigned number is so big that it's negative as a
-             * signed number. */
-            if (strchr(str, '-') != nullptr) {
-                return false;
-            }
-        }
-        out = l;
-        return true;
-    }
-
-    return false;
+bool safe_strtoll(std::string_view s, int64_t& out) {
+    return parseInt<int64_t>(s, out);
 }
 
-bool safe_strtol(const std::string& s, int32_t& out) {
-    const auto* str = s.c_str();
-    char *endptr;
-    long l;
-    errno = 0;
-    out = 0;
-    l = strtol(str, &endptr, 10);
+bool safe_strtoul(std::string_view s, uint32_t& out) {
+    return parseInt<uint32_t>(s, out);
+}
 
-    if (errno == ERANGE) {
-        return false;
-    }
-    if (xisspace(*endptr) || (*endptr == '\0' && endptr != str)) {
-        out = l;
-        return true;
-    }
-    return false;
+bool safe_strtol(std::string_view s, int32_t& out) {
+    return parseInt<int32_t>(s, out);
+}
+
+bool safe_strtous(std::string_view s, uint16_t& out) {
+    return parseInt<uint16_t>(s, out);
 }
 
 bool safe_strtof(const std::string& s, float& out) {

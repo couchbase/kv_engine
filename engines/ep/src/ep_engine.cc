@@ -18,7 +18,6 @@
 #include "checkpoint_manager.h"
 #include "collections/manager.h"
 #include "collections/vbucket_manifest_handles.h"
-#include "common.h"
 #include "dcp/consumer.h"
 #include "dcp/dcpconnmap_impl.h"
 #include "dcp/flow-control-manager.h"
@@ -3590,7 +3589,7 @@ cb::engine_errc EventuallyPersistentEngine::doVBucketStats(
         Expects(detail == VBucketStatsDetailLevel::Full);
         std::string vbid(&stat_key[16], nkey - 16);
         uint16_t vbucket_id(0);
-        if (!parseUint16(vbid.c_str(), &vbucket_id)) {
+        if (!safe_strtous(vbid, vbucket_id)) {
             return cb::engine_errc::invalid_arguments;
         }
         Vbid vbucketId = Vbid(vbucket_id);
@@ -3609,7 +3608,7 @@ cb::engine_errc EventuallyPersistentEngine::doVBucketStats(
         Expects(detail == VBucketStatsDetailLevel::Durability);
         std::string vbid(&stat_key[25], nkey - 25);
         uint16_t vbucket_id(0);
-        if (!parseUint16(vbid.c_str(), &vbucket_id)) {
+        if (!safe_strtous(vbid, vbucket_id)) {
             return cb::engine_errc::invalid_arguments;
         }
         Vbid vbucketId = Vbid(vbucket_id);
@@ -3890,7 +3889,7 @@ cb::engine_errc EventuallyPersistentEngine::doCheckpointStats(
     } else if (nkey > 11) {
         std::string vbid(&stat_key[11], nkey - 11);
         uint16_t vbucket_id(0);
-        if (!parseUint16(vbid.c_str(), &vbucket_id)) {
+        if (!safe_strtous(vbid, vbucket_id)) {
             return cb::engine_errc::invalid_arguments;
         }
         Vbid vbucketId = Vbid(vbucket_id);
@@ -3921,7 +3920,7 @@ cb::engine_errc EventuallyPersistentEngine::doDurabilityMonitorStats(
         const uint16_t vbidPos = size + 1;
         std::string vbid_(&stat_key[vbidPos], nkey - vbidPos);
         uint16_t vbid(0);
-        if (!parseUint16(vbid_.c_str(), &vbid)) {
+        if (!safe_strtous(vbid_, vbid)) {
             return cb::engine_errc::invalid_arguments;
         }
 
@@ -4590,9 +4589,9 @@ EventuallyPersistentEngine::getValidVBucketFromString(std::string_view vbNum) {
         return {cb::engine_errc::invalid_arguments, {}};
     }
     uint16_t vbucket_id;
-    // parseUint16 expects a null-terminated string
+
     std::string vbNumString(vbNum);
-    if (!parseUint16(vbNumString.data(), &vbucket_id)) {
+    if (!safe_strtous(vbNumString, vbucket_id)) {
         return {cb::engine_errc::invalid_arguments, {}};
     }
     Vbid vbid = Vbid(vbucket_id);
@@ -4834,7 +4833,7 @@ cb::engine_errc EventuallyPersistentEngine::doDcpVbTakeoverStats(
     ss >> vbid;
     ss >> tStream;
     uint16_t vbucket_id(0);
-    parseUint16(vbid.c_str(), &vbucket_id);
+    safe_strtous(vbid, vbucket_id);
     Vbid vbucketId = Vbid(vbucket_id);
     return doDcpVbTakeoverStats(cookie, add_stat, tStream, vbucketId);
 }
@@ -4854,7 +4853,7 @@ cb::engine_errc EventuallyPersistentEngine::doFailoversStats(
         std::stringstream ss(s_key);
         ss >> vbid;
         uint16_t vbucket_id(0);
-        parseUint16(vbid.c_str(), &vbucket_id);
+        safe_strtous(vbid, vbucket_id);
         Vbid vbucketId = Vbid(vbucket_id);
         return doVbIdFailoverLogStats(cookie, add_stat, vbucketId);
     }

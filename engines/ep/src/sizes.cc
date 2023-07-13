@@ -17,7 +17,6 @@
 #include "checkpoint_config.h"
 #include "checkpoint_manager.h"
 #include "collections/vbucket_manifest_entry.h"
-#include "common.h"
 #include "dcp/active_stream.h"
 #include "dcp/consumer.h"
 #include "dcp/passive_stream.h"
