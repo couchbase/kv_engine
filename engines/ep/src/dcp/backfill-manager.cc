@@ -450,6 +450,40 @@ void BackfillManager::wakeUpTask() {
         ExecutorPool::get()->wake(managerTask->getId());
     }
 }
+
+bool BackfillManager::removeBackfill(uint64_t backfillUID) {
+    std::array<std::reference_wrapper<std::list<UniqueDCPBackfillPtr>>, 3>
+            lists{{pendingBackfills, activeBackfills, initializingBackfills}};
+
+    std::lock_guard<std::mutex> lh(lock);
+    for (auto& ref : lists) {
+        auto& list = ref.get();
+        for (auto itr = list.begin(); itr != list.end(); itr++) {
+            if ((*itr)->getUID() == backfillUID) {
+                list.erase(itr);
+
+                // Insertion into the pending list does not increment the
+                // tracker stat, so skip for pending
+                if (&ref.get() != &pendingBackfills) {
+                    backfillTracker.decrNumRunningBackfills();
+                }
+                return true;
+            }
+        }
+    }
+
+    // Finally the snoozing queue
+    for (auto itr = snoozingBackfills.begin(); itr != snoozingBackfills.end();
+         itr++) {
+        if (itr->second->getUID() == backfillUID) {
+            snoozingBackfills.erase(itr);
+            backfillTracker.decrNumRunningBackfills();
+            return true;
+        }
+    }
+    return false;
+}
+
 std::string BackfillManager::to_string(BackfillManager::ScheduleOrder order) {
     switch (order) {
     case BackfillManager::ScheduleOrder::RoundRobin:

@@ -4697,6 +4697,62 @@ TEST_P(SingleThreadedActiveStreamTest, MB_45757) {
     threadCrash.join();
 }
 
+// Each cycle of stream create/stream closed (when the stream needs a backfill)
+// creates a DCPBackfill and leaves it in the backfill manager. MB-57772 showed
+// that there can be conditions (high memory) where the path to deleting the
+// orphaned DCPBackfill (from the closed stream) is blocked. In the case where
+// the backfill queues themselves are the dominant user of memory leaves the
+// system live-locked and way way over quota. The fix is to have closeStream
+// (or ~ActiveStream) directly free the DCPBackfill it created.
+TEST_P(SingleThreadedActiveStreamTest, MB_57772) {
+    store_item(vbid, makeStoredDocKey("key"), "value");
+    flushVBucketToDiskIfPersistent(vbid);
+    auto& vb = *engine->getVBucket(vbid);
+    vb.checkpointManager->clear();
+
+    auto& bfm = producer->getBFM();
+    EXPECT_EQ(0, bfm.getNumBackfills());
+    EXPECT_EQ(0, engine->getDcpConnMap().getNumRunningBackfills());
+    stream.reset();
+    recreateStream(vb);
+    ASSERT_TRUE(stream->isBackfilling());
+
+    EXPECT_EQ(1, bfm.getNumBackfills());
+    // backfill makes it into the initializing list, classed as running
+    EXPECT_EQ(1, engine->getDcpConnMap().getNumRunningBackfills());
+
+    for (int cycles = 0; cycles < 2; ++cycles) {
+        // In MB-57772 it doesn't look like a cycle of streamRequest/closeStream
+        // grew the backfill queues (we don't actually know the true sequence),
+        // but for this test closeStream reproduces an ever growing backfill
+        // queue.
+        stream.reset(); // we want the ActiveStream to destruct
+        producer->closeStream(0, vbid);
+
+        // closeStream has explicitly removed the backfill, no need to wait for
+        // an I/O task to run.
+        EXPECT_EQ(0, bfm.getNumBackfills());
+        EXPECT_EQ(0, engine->getDcpConnMap().getNumRunningBackfills());
+
+        recreateStream(vb);
+        ASSERT_TRUE(stream->isBackfilling());
+
+        // Now expect only 1 backfill in the queue (this would keep increasing
+        // prior to fixing the issue).
+        EXPECT_EQ(1, bfm.getNumBackfills());
+        // backfill makes it into the initializing list, classed as running
+        EXPECT_EQ(1, engine->getDcpConnMap().getNumRunningBackfills());
+    }
+
+    // Force close - now the stream will remove its backfill without the task
+    // needing to run.
+    stream.reset(); // we want the ActiveStream to destruct
+    producer->closeStream(0, vbid);
+
+    EXPECT_EQ(0, engine->getDcpConnMap().getNumRunningBackfills());
+    EXPECT_EQ(0, bfm.getNumBackfills());
+}
+
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
                          SingleThreadedActiveStreamTest,
                          STParameterizedBucketTest::allConfigValues(),

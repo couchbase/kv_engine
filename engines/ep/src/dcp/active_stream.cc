@@ -14,6 +14,7 @@
 #include "checkpoint.h"
 #include "checkpoint_manager.h"
 #include "configuration.h"
+#include "dcp/backfill-manager.h"
 #include "dcp/producer.h"
 #include "dcp/response.h"
 #include "ep_time.h"
@@ -158,6 +159,21 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
 ActiveStream::~ActiveStream() {
     if (state_ != StreamState::Dead) {
         removeCheckpointCursor();
+    }
+
+    std::shared_ptr<DcpProducer> producer;
+    if (backfillUID && (producer = producerPtr.lock())) {
+        if (!producer->removeBackfill(backfillUID)) {
+            // Note: if this object is being destructed from the backfill itself
+            // then we will fail to remove the backfill object (as it is not in
+            // the backfill queues when running). Just log as debug as there
+            // could be many "safe" reasons why the DCPBackfill object is not
+            // removed by this call.
+            log(spdlog::level::debug,
+                "{} ~ActiveStream expected to remove backfillUID:{}",
+                logPrefix,
+                backfillUID);
+        }
     }
 }
 
@@ -1557,6 +1573,11 @@ void ActiveStream::snapshot(const OutstandingItemsResult& meta,
 void ActiveStream::setDeadInner(cb::mcbp::DcpStreamEndStatus status) {
     {
         std::lock_guard<std::mutex> lh(streamMutex);
+        if (status == cb::mcbp::DcpStreamEndStatus::BackfillFail) {
+            // This case is called from the IO task doing the backfill - it has
+            // failed and the DCPBackfill object will be removed by the task
+            backfillUID = 0;
+        }
         endStream(status);
     }
 
@@ -1799,20 +1820,23 @@ void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
 
     if (tryBackfill && tryAndScheduleOSOBackfill(producer, *vbucket)) {
         return;
-    } else if (tryBackfill &&
-               producer.scheduleBackfillManager(*vbucket,
-                                                shared_from_this(),
-                                                backfillStart,
-                                                backfillEnd)) {
+    } else if (tryBackfill && (backfillUID = producer.scheduleBackfillManager(
+                                       *vbucket,
+                                       shared_from_this(),
+                                       backfillStart,
+                                       backfillEnd))) {
+        // Expect a non zero UID. 0 is reserved for "no backfill to remove"
+        Expects(backfillUID);
         // backfill will be needed to catch up to the items in the
         // CheckpointManager
         log(spdlog::level::level_enum::info,
             "{} Scheduling backfill "
-            "from {} to {}, reschedule "
+            "from {} to {}, uid:{}, reschedule "
             "flag : {}",
             logPrefix,
             backfillStart,
             backfillEnd,
+            backfillUID,
             reschedule ? "True" : "False");
 
         isBackfillTaskRunning.store(true);
@@ -1887,7 +1911,12 @@ bool ActiveStream::tryAndScheduleOSOBackfill(DcpProducer& producer,
         }
 
         // OSO possible - engage.
-        producer.scheduleBackfillManager(vb, shared_from_this(), cid);
+        backfillUID =
+                producer.scheduleBackfillManager(vb, shared_from_this(), cid);
+
+        // Expect a non zero UID. 0 is reserved to mean "no backfill to remove"
+        Expects(backfillUID);
+
         // backfill will be needed to catch up to the items in the
         // CheckpointManager
         log(spdlog::level::level_enum::info,
@@ -2000,6 +2029,9 @@ void ActiveStream::completeBackfillInner(
             pushToReadyQ(std::make_unique<OSOSnapshot>(
                     opaque_, vb_, sid, OSOSnapshot::End{}));
         }
+
+        // Set back to 0 so we disable explicit clean-up.
+        backfillUID = 0;
     }
 
     if (completeBackfillHook) {
@@ -2699,4 +2731,16 @@ bool ActiveStream::isOSOPreferredForCollectionBackfill(
                     : config.getDcpOsoBackfillLargeValueRatio();
 
     return collectionRatio < maxCollectionRatioForOso;
+}
+
+void ActiveStream::removeBackfill(BackfillManager& bfm) {
+    uint64_t removeThis{0};
+    {
+        std::lock_guard<std::mutex> lh(streamMutex);
+        removeThis = std::exchange(backfillUID, 0);
+    }
+
+    if (removeThis) {
+        bfm.removeBackfill(removeThis);
+    }
 }

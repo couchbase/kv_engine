@@ -1451,30 +1451,42 @@ void DcpProducer::recordBackfillManagerBytesSent(size_t bytes) {
     }
 }
 
-bool DcpProducer::scheduleBackfillManager(VBucket& vb,
-                                          std::shared_ptr<ActiveStream> s,
-                                          uint64_t start,
-                                          uint64_t end) {
-    if (start <= end) {
-        switch (backfillMgr->schedule(
-                vb.createDCPBackfill(engine_, s, start, end))) {
-        case BackfillManager::ScheduleResult::Active:
-            break;
-        case BackfillManager::ScheduleResult::Pending:
-            EP_LOG_INFO(
-                    "Backfill for {} {} is pending", s->getName(), vb.getId());
-            break;
-        }
-        return true;
+uint64_t DcpProducer::scheduleBackfillManager(VBucket& vb,
+                                              std::shared_ptr<ActiveStream> s,
+                                              uint64_t start,
+                                              uint64_t end) {
+    if (!(start <= end)) {
+        return 0;
     }
-    return false;
+
+    auto backfill = vb.createDCPBackfill(engine_, s, start, end);
+    const auto backfillUID = backfill->getUID();
+    switch (backfillMgr->schedule(std::move(backfill))) {
+    case BackfillManager::ScheduleResult::Active:
+        break;
+    case BackfillManager::ScheduleResult::Pending:
+        EP_LOG_INFO("Backfill for {} {} is pending", s->getName(), vb.getId());
+        break;
+    }
+    return backfillUID;
 }
 
-bool DcpProducer::scheduleBackfillManager(VBucket& vb,
-                                          std::shared_ptr<ActiveStream> s,
-                                          CollectionID cid) {
-    backfillMgr->schedule(vb.createDCPBackfill(engine_, s, cid));
-    return true;
+uint64_t DcpProducer::scheduleBackfillManager(VBucket& vb,
+                                              std::shared_ptr<ActiveStream> s,
+                                              CollectionID cid) {
+    auto backfill = vb.createDCPBackfill(engine_, s, cid);
+    const auto backfillUID = backfill->getUID();
+    backfillMgr->schedule(std::move(backfill));
+    return backfillUID;
+}
+
+bool DcpProducer::removeBackfill(uint64_t backfillUID) {
+    std::lock_guard<std::mutex> lg(closeAllStreamsLock);
+
+    if (backfillMgr) {
+        return backfillMgr->removeBackfill(backfillUID);
+    }
+    return false;
 }
 
 void DcpProducer::addStats(const AddStatFn& add_stat, const CookieIface* c) {
@@ -1727,9 +1739,9 @@ void DcpProducer::closeAllStreams() {
     {
         std::for_each(streams->begin(),
                       streams->end(),
-                      [&vbvector](StreamsMap::value_type& vt) {
+                      [this, &vbvector](StreamsMap::value_type& vt) {
                           vbvector.push_back((Vbid)vt.first);
-                          std::vector<std::shared_ptr<Stream>> streamPtrs;
+                          std::vector<std::shared_ptr<ActiveStream>> streamPtrs;
                           // MB-35073: holding StreamContainer lock while
                           // calling setDead leads to lock inversion - so
                           // collect sharedptrs in one pass then setDead once
@@ -1743,6 +1755,18 @@ void DcpProducer::closeAllStreams() {
                           }
 
                           for (const auto& streamPtr : streamPtrs) {
+                              // Explicitly ask to remove the DCPBackfill object
+                              // here. 1) whilst we know the backfillMgr is
+                              // alive and 2) whilst we know the ActiveStream is
+                              // alive. This ensures that if the ActiveStream
+                              // destructs within this function (it could if
+                              // shared_ptr::ref==0) ~ActiveStream doesn't
+                              // deadlock trying to remove the backfill, as
+                              // DcpProducer::removeBackfill needs the
+                              // closeAllStreamsLock which is already locked.
+                              if (backfillMgr) {
+                                  streamPtr->removeBackfill(*backfillMgr.get());
+                              }
                               streamPtr->setDead(cb::mcbp::DcpStreamEndStatus::
                                                          Disconnected);
                           }

@@ -8,11 +8,14 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-#include "dcp/active_stream.h"
 #include "dcp/backfill.h"
+#include "dcp/active_stream.h"
+#include <platform/monotonic.h>
+
+static AtomicMonotonic<uint64_t> backfillUID{0};
 
 DCPBackfill::DCPBackfill(std::shared_ptr<ActiveStream> s)
-    : streamPtr(s), vbid(s->getVBucket()) {
+    : streamPtr(s), vbid(s->getVBucket()), uid(++backfillUID) {
 }
 
 // Task should be cancelled if the stream cannot be obtained or is now dead
