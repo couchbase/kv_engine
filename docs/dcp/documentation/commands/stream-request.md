@@ -41,7 +41,7 @@ Extra looks like:
 
 * **Flags** - Used to specify extra information added in the extra section for modifying what the stream send. The available flags for this message are the same ones specified for the [Add Stream](add-stream.md) message.
 * **Start By Seqno** - Specified the last by sequence number that has been seen by the consumer.
-* **End By Seqno** - Specifies that the stream should be closed when the sequence number with this ID has been sent.
+* **End By Seqno** - If not 0 the server will end the stream when the complete snapshot containing this sequence number has been sent to the client.
 * **VBucket UUID** - A unique identifier that is generated that is assigned to each VBucket. This number is generated on an unclean shutdown or when a Vbucket becomes active.
 * **Snapshot Start Seqno** - Set to the same value as the start seqno by default, in case it is a retry because the stream request didn't return all expected results use the start sequence of the last partial snapshot that was received.
 * **Snapshot End Seqno** - Set to the same value as the start seqno by default, in case it is a retry because the stream request didn't  return all expected results, use the end sequence of the last partial snapshot that was received.
