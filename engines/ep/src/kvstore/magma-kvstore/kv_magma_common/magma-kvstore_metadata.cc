@@ -240,38 +240,4 @@ void to_json(nlohmann::json& json, const MetaData& meta) {
         }
     }
 }
-
-void from_json(const nlohmann::json& j, MetaData& meta) {
-    meta.setBySeqno(std::stoull(j.at("bySeqno").get<std::string>()));
-    meta.setCas(std::stoull(j.at("cas").get<std::string>()));
-    meta.setRevSeqno(std::stoull(j.at("revSeqno").get<std::string>()));
-    meta.setExptime(std::stoul(j.at("exptime").get<std::string>()));
-    meta.setFlags(std::stoul(j.at("flags").get<std::string>()));
-    meta.setValueSize(std::stoul(j.at("valueSize").get<std::string>()));
-    meta.setVersion(MetaData::Version(static_cast<uint8_t>(
-            std::stoul(j.at("version").get<std::string>()))));
-    meta.setDataType(static_cast<uint8_t>(
-            std::stoul(j.at("datatype").get<std::string>())));
-
-    meta.setDeleted(
-            static_cast<bool>(std::stoul(j.at("deleted").get<std::string>())),
-            static_cast<bool>(
-                    std::stoul(j.at("deleteSource").get<std::string>())));
-
-    if (meta.getVersion() == MetaData::Version::V1) {
-        if (meta.isDeleted()) {
-            // Abort
-            auto prepareSeqno =
-                    std::stoull(j.at("prepareSeqno").get<std::string>());
-            meta.setDurabilityDetailsForAbort(prepareSeqno);
-        } else {
-            // Prepare
-            auto syncDelete = j.at("syncDelete").get<bool>();
-            auto level = static_cast<uint8_t>(
-                    std::stoul(j.at("level").get<std::string>()));
-            meta.setDurabilityDetailsForPrepare(syncDelete, level);
-        }
-    }
-}
-
 } // namespace magmakv

@@ -254,6 +254,5 @@ static_assert(sizeof(MetaData) == 41,
               "magmakv::MetaData is not the expected size.");
 
 void to_json(nlohmann::json& json, const MetaData& meta);
-void from_json(const nlohmann::json& j, MetaData& meta);
 
 } // namespace magmakv
