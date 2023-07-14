@@ -87,11 +87,7 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
 
     this->highPreparedSeqno.reset(highPreparedSeqno);
 
-    // the overheadChangedCallback uses the accurately tracked overhead
-    // from queueAllocator. The above memOverhead stat is "manually"
-    // accounted in queueDirty, and approximates the overhead based on
-    // key sizes and the size of queued_item and index_entry.
-    manager.overheadChangedCallback(getMemOverheadAllocatorBytes());
+    manager.overheadChangedCallback(getMemOverhead());
 }
 
 Checkpoint::~Checkpoint() {
@@ -115,13 +111,12 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
     QueueDirtyResult rv;
     // trigger the overheadChangedCallback if the overhead is different
     // when this helper is destroyed
-    auto overheadCheck =
-            gsl::finally([pre = getMemOverheadAllocatorBytes(), this]() {
-                auto post = getMemOverheadAllocatorBytes();
-                if (pre != post) {
-                    manager->overheadChangedCallback(post - pre);
-                }
-            });
+    auto overheadCheck = gsl::finally([pre = getMemOverhead(), this]() {
+        auto post = getMemOverhead();
+        if (pre != post) {
+            manager->overheadChangedCallback(post - pre);
+        }
+    });
 
     // Check if the item is a meta item
     if (qi->isCheckPointMetaItem()) {

@@ -625,7 +625,7 @@ void CheckpointManager::maybeScheduleDestruction(
     numItems.fetch_sub(removedItems);
     stats.itemsRemovedFromCheckpoints.fetch_add(removedItems);
     memFreedByCheckpointRemoval += checkpoint.getMemUsage();
-    overheadChangedCallback(-checkpoint.getMemOverheadAllocatorBytes());
+    overheadChangedCallback(-checkpoint.getMemOverhead());
 
     // Checkpoints must be removed in order, only the oldest is eligible
     // when removing checkpoints one at a time.
@@ -652,11 +652,11 @@ void CheckpointManager::scheduleDestruction(CheckpointList&& toRemove) {
     // applying the stats update.
     size_t numItemsRemoved = 0;
     size_t memoryReleased = 0;
-    size_t memOverheadAllocator = 0;
+    size_t memOverhead = 0;
     for (const auto& checkpoint : toRemove) {
         numItemsRemoved += checkpoint->getNumItems();
         memoryReleased += checkpoint->getMemUsage();
-        memOverheadAllocator += checkpoint->getMemOverheadAllocatorBytes();
+        memOverhead += checkpoint->getMemOverhead();
 
         checkpoint->detachFromManager();
     }
@@ -674,7 +674,7 @@ void CheckpointManager::scheduleDestruction(CheckpointList&& toRemove) {
         numItems.fetch_sub(numItemsRemoved);
         stats.itemsRemovedFromCheckpoints.fetch_add(numItemsRemoved);
         memFreedByCheckpointRemoval += memoryReleased;
-        overheadChangedCallback(-memOverheadAllocator);
+        overheadChangedCallback(-memOverhead);
     }
 
     // All done, pass checkpoints to the Destroyer
@@ -686,13 +686,12 @@ CheckpointManager::expelUnreferencedCheckpointItems() {
     // trigger the overheadChangedCallback if the overhead is different
     // when this helper is destroyed - which occurs _after_ the destruction
     // of expelledItems (declared below)
-    auto overheadCheck =
-            gsl::finally([pre = getMemOverheadAllocatorBytes(), this]() {
-                auto post = getMemOverheadAllocatorBytes();
-                if (pre != post) {
-                    overheadChangedCallback(post - pre);
-                }
-            });
+    auto overheadCheck = gsl::finally([pre = getMemOverhead(), this]() {
+        auto post = getMemOverhead();
+        if (pre != post) {
+            overheadChangedCallback(post - pre);
+        }
+    });
 
     ExtractItemsResult extractRes;
     {
@@ -1493,15 +1492,6 @@ uint64_t CheckpointManager::createNewCheckpoint() {
     return getOpenCheckpointId(lh);
 }
 
-size_t CheckpointManager::getMemOverheadAllocatorBytes(
-        const std::lock_guard<std::mutex>& lh) const {
-    size_t memUsage = 0;
-    for (const auto& checkpoint : checkpointList) {
-        memUsage += checkpoint->getMemOverheadAllocatorBytes();
-    }
-    return memUsage;
-}
-
 size_t CheckpointManager::getMemUsage() const {
     std::lock_guard<std::mutex> lh(queueLock);
     return getMemUsage(lh);
@@ -1517,6 +1507,15 @@ size_t CheckpointManager::getQueuedItemsMemUsage() const {
 
 // @todo MB-48587: Suboptimal O(N) implementation for all mem-overhead functions
 //  below, optimized in a dedicated patch.
+
+size_t CheckpointManager::getMemOverheadAllocatorBytes(
+        const std::lock_guard<std::mutex>& lh) const {
+    size_t memUsage = 0;
+    for (const auto& checkpoint : checkpointList) {
+        memUsage += checkpoint->getMemOverheadAllocatorBytes();
+    }
+    return memUsage;
+}
 
 size_t CheckpointManager::getMemOverheadAllocatorBytes() const {
     std::lock_guard<std::mutex> lh(queueLock);
@@ -1730,7 +1729,7 @@ void CheckpointManager::setOverheadChangedCallback(
     std::lock_guard<std::mutex> lh(queueLock);
     overheadChangedCallback = std::move(callback);
 
-    overheadChangedCallback(getMemOverheadAllocatorBytes(lh));
+    overheadChangedCallback(getMemOverhead(lh));
 }
 
 std::function<void(int64_t delta)>
