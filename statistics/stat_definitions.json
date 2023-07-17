@@ -2536,24 +2536,6 @@
         "added": "7.1.0"
     },
     {
-        "key": "vb_checkpoint_memory_overhead_allocator",
-        "unit": "bytes",
-        "cbstat": "vb_{state}_checkpoint_memory_overhead_allocator",
-        "added": "7.1.0"
-    },
-    {
-        "key": "vb_checkpoint_memory_overhead_allocator_queue",
-        "unit": "bytes",
-        "cbstat": "vb_{state}_checkpoint_memory_overhead_allocator_queue",
-        "added": "7.1.0"
-    },
-    {
-        "key": "vb_checkpoint_memory_overhead_allocator_index",
-        "unit": "bytes",
-        "cbstat": "vb_{state}_checkpoint_memory_overhead_allocator_index",
-        "added": "7.1.0"
-    },
-    {
         "key": "vb_checkpoint_memory_overhead",
         "unit": "bytes",
         "cbstat": "vb_{state}_checkpoint_memory_overhead",
@@ -2864,12 +2846,6 @@
         "unit": "bytes",
         "description": "Memory of items in all checkpoints",
         "added": "7.0.0"
-    },
-    {
-        "key": "ep_checkpoint_memory_overhead_allocator",
-        "unit": "bytes",
-        "description": "Mem of all checkpoints struct - from allocator",
-        "added": "7.1.0"
     },
     {
         "key": "ep_checkpoint_memory_pending_destruction",

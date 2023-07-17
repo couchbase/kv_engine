@@ -458,24 +458,6 @@ public:
 
     /**
      * Return memory overhead of all the checkpoints managed, computed by
-     * allocators
-     */
-    size_t getMemOverheadAllocatorBytes() const;
-
-    /**
-     * Return the mem overhead of this CM checkpoints' queue struct, computed by
-     * allocator
-     */
-    size_t getMemOverheadAllocatorBytesQueue() const;
-
-    /**
-     * Return the mem overhead of this CM checkpoints' index struct, computed by
-     * allocator
-     */
-    size_t getMemOverheadAllocatorBytesIndex() const;
-
-    /**
-     * Return memory overhead of all the checkpoints managed, computed by
      * internal counters
      */
     size_t getMemOverhead() const;
@@ -938,15 +920,6 @@ protected:
      */
     ExtractItemsResult extractItemsToExpel(
             const std::lock_guard<std::mutex>& lh);
-
-    /**
-     * Return memory overhead of all the checkpoints managed, computed by
-     * allocators
-     *
-     * @param lh Lock to CM::queueLock
-     */
-    size_t getMemOverheadAllocatorBytes(
-            const std::lock_guard<std::mutex>& lh) const;
 
     /**
      * Tells the caller whether the two checkpoints can be merged when given

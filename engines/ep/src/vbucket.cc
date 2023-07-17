@@ -344,18 +344,6 @@ size_t VBucket::getCMQueuedItemsMemUsage() const {
     return checkpointManager->getQueuedItemsMemUsage();
 }
 
-size_t VBucket::getCMMemOverheadAllocatorBytes() const {
-    return checkpointManager->getMemOverheadAllocatorBytes();
-}
-
-size_t VBucket::getCMMemOverheadAllocatorBytesQueue() const {
-    return checkpointManager->getMemOverheadAllocatorBytesQueue();
-}
-
-size_t VBucket::getCMMemOverheadAllocatorBytesIndex() const {
-    return checkpointManager->getMemOverheadAllocatorBytesIndex();
-}
-
 size_t VBucket::getCMMemOverhead() const {
     return checkpointManager->getMemOverhead();
 }

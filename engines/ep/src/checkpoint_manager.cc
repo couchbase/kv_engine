@@ -1505,41 +1505,6 @@ size_t CheckpointManager::getQueuedItemsMemUsage() const {
     return queuedItemsMemUsage;
 }
 
-// @todo MB-48587: Suboptimal O(N) implementation for all mem-overhead functions
-//  below, optimized in a dedicated patch.
-
-size_t CheckpointManager::getMemOverheadAllocatorBytes(
-        const std::lock_guard<std::mutex>& lh) const {
-    size_t memUsage = 0;
-    for (const auto& checkpoint : checkpointList) {
-        memUsage += checkpoint->getMemOverheadAllocatorBytes();
-    }
-    return memUsage;
-}
-
-size_t CheckpointManager::getMemOverheadAllocatorBytes() const {
-    std::lock_guard<std::mutex> lh(queueLock);
-    return getMemOverheadAllocatorBytes(lh);
-}
-
-size_t CheckpointManager::getMemOverheadAllocatorBytesQueue() const {
-    std::lock_guard<std::mutex> lh(queueLock);
-    size_t usage = 0;
-    for (const auto& checkpoint : checkpointList) {
-        usage += checkpoint->getWriteQueueAllocatorBytes();
-    }
-    return usage;
-}
-
-size_t CheckpointManager::getMemOverheadAllocatorBytesIndex() const {
-    std::lock_guard<std::mutex> lh(queueLock);
-    size_t usage = 0;
-    for (const auto& checkpoint : checkpointList) {
-        usage += checkpoint->getKeyIndexAllocatorBytes();
-    }
-    return usage;
-}
-
 size_t CheckpointManager::getMemOverhead() const {
     std::lock_guard<std::mutex> lh(queueLock);
     return getMemOverhead(lh);
@@ -1716,11 +1681,11 @@ void CheckpointManager::updateStatsForStateChange(vbucket_state_t from,
     if (from == vbucket_state_replica && to != vbucket_state_replica) {
         // vbucket is changing state away from replica, it's memory usage
         // should no longer be accounted for as a replica.
-        stats.replicaCheckpointOverhead -= getMemOverheadAllocatorBytes(lh);
+        stats.replicaCheckpointOverhead -= getMemOverhead(lh);
     } else if (from != vbucket_state_replica && to == vbucket_state_replica) {
         // vbucket is changing state to _become_ a replica, it's memory usage
         // _should_ be accounted for as a replica.
-        stats.replicaCheckpointOverhead += getMemOverheadAllocatorBytes(lh);
+        stats.replicaCheckpointOverhead += getMemOverhead(lh);
     }
 }
 

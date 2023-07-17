@@ -94,18 +94,6 @@ public:
         return checkpointMemoryQueue;
     }
 
-    size_t getCheckpointMemOverheadAllocatorBytes() const {
-        return checkpointMemOverheadAllocatorBytes;
-    }
-
-    size_t getCheckpointMemOverheadAllocatorBytesQueue() const {
-        return checkpointMemOverheadAllocatorBytesQueue;
-    }
-
-    size_t getCheckpointMemOverheadAllocatorBytesIndex() const {
-        return checkpointMemOverheadAllocatorBytesIndex;
-    }
-
     size_t getCheckpointMemOverhead() const {
         return checkpointMemOverhead;
     }
@@ -228,10 +216,6 @@ private:
 
     size_t checkpointMemory{0};
     size_t checkpointMemoryQueue{0};
-
-    size_t checkpointMemOverheadAllocatorBytes{0};
-    size_t checkpointMemOverheadAllocatorBytesQueue{0};
-    size_t checkpointMemOverheadAllocatorBytesIndex{0};
 
     size_t checkpointMemOverhead{0};
     size_t checkpointMemOverheadQueue{0};

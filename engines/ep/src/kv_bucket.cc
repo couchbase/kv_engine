@@ -1307,13 +1307,6 @@ void KVBucket::appendAggregatedVBucketStats(
         stateCol.addStat(Key::vb_checkpoint_memory_queue,
                          visitor.getCheckpointMemoryQueue());
 
-        stateCol.addStat(Key::vb_checkpoint_memory_overhead_allocator,
-                         visitor.getCheckpointMemOverheadAllocatorBytes());
-        stateCol.addStat(Key::vb_checkpoint_memory_overhead_allocator_queue,
-                         visitor.getCheckpointMemOverheadAllocatorBytesQueue());
-        stateCol.addStat(Key::vb_checkpoint_memory_overhead_allocator_index,
-                         visitor.getCheckpointMemOverheadAllocatorBytesIndex());
-
         stateCol.addStat(Key::vb_checkpoint_memory_overhead,
                          visitor.getCheckpointMemOverhead());
         stateCol.addStat(Key::vb_checkpoint_memory_overhead_queue,
@@ -1402,10 +1395,6 @@ void KVBucket::appendAggregatedVBucketStats(
                       active.getCheckpointMemory() +
                               replica.getCheckpointMemory() +
                               pending.getCheckpointMemory());
-    collector.addStat(Key::ep_checkpoint_memory_overhead_allocator,
-                      active.getCheckpointMemOverheadAllocatorBytes() +
-                              replica.getCheckpointMemOverheadAllocatorBytes() +
-                              pending.getCheckpointMemOverheadAllocatorBytes());
     collector.addStat(Key::ep_total_cache_size,
                       active.getItemMemory() + replica.getItemMemory() +
                               pending.getItemMemory());
