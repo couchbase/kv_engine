@@ -110,7 +110,8 @@ inline SubdocCmdTraits get_traits<cb::mcbp::ClientOpcode::Get>() {
             SUBDOC_FLAG_NONE,
             SUBDOC_FLAG_NONE,
             cb::mcbp::subdoc::doc_flag::AccessDeleted |
-                    cb::mcbp::subdoc::doc_flag::ReviveDocument,
+                    cb::mcbp::subdoc::doc_flag::ReviveDocument |
+                    cb::mcbp::subdoc::doc_flag::ReplicaRead,
             /*request_has_value*/ false,
             /*allow_empty_path*/ true,
             ResponseValue::FromDocument,
