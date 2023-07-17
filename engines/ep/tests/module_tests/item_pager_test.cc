@@ -124,7 +124,7 @@ protected:
      * @param expiry value for items. 0 == no TTL.
      * @return number of documents written.
      */
-    size_t populateUntilTmpFail(Vbid vbid, rel_time_t ttl = 0) {
+    size_t populateUntilOOM(Vbid vbid, rel_time_t ttl = 0) {
         size_t count = 0;
 
         const auto& stats = engine->getEpStats();
@@ -155,7 +155,10 @@ protected:
             // is mostly in the HT when we exit this loop.
             flushAndExpelFromCheckpoints(vbid);
         }
-        EXPECT_EQ(cb::engine_errc::temporary_failure, result);
+        // result depends on whether we hit the bucket quota or just the HWM
+        EXPECT_THAT(result,
+                    testing::AnyOf(cb::engine_errc::temporary_failure,
+                                   cb::engine_errc::no_memory));
 
         EXPECT_GT(stats.getEstimatedTotalMemoryUsed(),
                   stats.mem_high_wat.load())
@@ -586,7 +589,7 @@ TEST_P(STItemPagerTest, MB_50423_ItemPagerCleansUpDeletedStoredValues) {
 // Test that the ItemPager is scheduled when the Server Quota is reached, and
 // that items are successfully paged out.
 TEST_P(STItemPagerTest, ServerQuotaReached) {
-    size_t count = populateUntilTmpFail(vbid);
+    size_t count = populateUntilOOM(vbid);
     ASSERT_GE(count, 5) << "Too few documents stored";
 
     runHighMemoryPager();
@@ -760,7 +763,7 @@ TEST_P(STItemPagerTest, ReplicaItemsVisitedFirst) {
 
     store->setVBucketState(pendingVB, vbucket_state_pending);
 
-    auto count = populateUntilTmpFail(replicaVB);
+    auto count = populateUntilOOM(replicaVB);
     store->setVBucketState(replicaVB, vbucket_state_replica);
 
     runNextTask(lpNonioQ, itemPagerTaskName());
@@ -812,7 +815,7 @@ TEST_P(STItemPagerTest, ExpiredItemsDeletedFirst) {
 
     // Fill bucket with items with a TTL of 1s until we hit ENOMEM. When
     // we run the pager, we expect these items to be deleted first.
-    auto countB = populateUntilTmpFail(vbid, 1);
+    auto countB = populateUntilOOM(vbid, 1);
 
     ASSERT_GE(countB, 50)
         << "Expected at least 50 documents total before hitting high watermark";
@@ -943,7 +946,7 @@ TEST_P(STItemPagerTest, test_memory_limit) {
  * ItemEviction histogram.
  */
 TEST_P(STItemPagerTest, isEligible) {
-    populateUntilTmpFail(vbid);
+    populateUntilOOM(vbid);
 
     EventuallyPersistentEngine* epe =
             ObjectRegistry::onSwitchThread(nullptr, true);
@@ -1658,7 +1661,7 @@ TEST_P(STEphemeralItemPagerTest, ReplicaNotPaged) {
             << "Expected at least 10 active items before hitting low watermark";
 
     // Populate vbid 1 (replica) until we reach the high watermark.
-    size_t replica_count = populateUntilTmpFail(replica_vb);
+    size_t replica_count = populateUntilOOM(replica_vb);
     ASSERT_GE(replica_count, 10)
         << "Expected at least 10 replica items before hitting high watermark";
 
