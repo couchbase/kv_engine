@@ -308,6 +308,8 @@ MagmaMemoryTrackingProxy::GetStatsForDbInfo(
         rv.spaceUsed = kvstats.ActiveDiskUsage;
         rv.fileSize = kvstats.TotalDiskUsage;
         rv.historyDiskSize = kvstats.HistoryDiskUsage;
+        rv.historyStartTimestamp =
+                std::chrono::seconds(kvstats.HistoryStartTimestamp);
     }
     return {status, rv};
 }
