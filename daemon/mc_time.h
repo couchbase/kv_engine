@@ -69,6 +69,9 @@ time_t mc_time_limit_abstime(time_t t, std::chrono::seconds limit);
 
 namespace cb::time {
 
+// Define the duration type used in the core time-keeping, e.g tick frequency
+using Duration = std::chrono::milliseconds;
+
 /**
  * The Regulator keeps time "flowing" by continually scheduling a time based
  * callback.
@@ -81,9 +84,9 @@ public:
      *
      * @param eventBase EventBase::schedule is invoked against this object for
      *        the periodic tick.
-     * @param interval the tick interval in seconds
+     * @param interval how long between each tick
      */
-    Regulator(folly::EventBase& eventBase, std::chrono::seconds interval);
+    Regulator(folly::EventBase& eventBase, Duration interval);
 
     /**
      * This method exists to allow the unit-test time adjustment command to
@@ -98,8 +101,7 @@ public:
      * function must be called first from the main thread before "instance" can
      * be invoked.
      */
-    static void createAndRun(folly::EventBase& eventBase,
-                             std::chrono::seconds interval);
+    static void createAndRun(folly::EventBase& eventBase, Duration interval);
 
     /**
      * Retrieve the instance of the Regulator - this call expects that the
@@ -129,7 +131,7 @@ protected:
 
     folly::EventBase& eventBase;
 
-    const std::chrono::seconds interval;
+    const Duration interval;
 };
 
 using SteadyClock = std::function<std::chrono::steady_clock::time_point()>;
@@ -157,7 +159,7 @@ public:
      *
      * @return the elapsed time between a previous tick (or since construction)
      */
-    std::chrono::seconds tick();
+    Duration tick();
 
     /**
      * Note: This function only returns a changing value if tick() is called
@@ -193,15 +195,14 @@ public:
      * method will enable system checking at the given interval and with the
      * provided tolerance.
      *
-     * @param systemClockCheckInterval how many seconds between each
-     *        check (seconds of steady time)
+     * @param systemClockCheckInterval every n-units of steady-time between each
+     *        check.
      * @param systemClockTolerance if the system clock has changed by more
      *        than this tolerance (+ or -), generate a warning and make
      *        epoch adjustments
      */
-    void configureSystemClockCheck(
-            std::chrono::seconds systemClockCheckInterval,
-            std::chrono::seconds systemClockTolerance);
+    void configureSystemClockCheck(Duration systemClockCheckInterval,
+                                   Duration systemClockTolerance);
 
     /// @return count of how many times the system clock check triggered
     size_t getSystemClockWarnings() const {
@@ -222,7 +223,7 @@ protected:
      * not.
      * @param newUptime the current uptime
      */
-    void doSystemClockCheck(std::chrono::seconds newUptime);
+    void doSystemClockCheck(Duration newUptime);
 
     /// function which returns a steady "monotonic" time
     SteadyClock steadyTimeNow;
@@ -233,18 +234,18 @@ protected:
     const std::chrono::steady_clock::time_point start;
 
     /**
-     * uptime represents the number of seconds since the Monitor was created
-     * and for non-test deployments should be considered the process upTime.
+     * uptime represents the Duration since the Monitor was created and for
+     * non-test deployments should be considered the process uptime.
      * This requires that the tick() function is called to maintain this value
      *
      * atomic as written from time thread and read by many other threads.
      */
-    std::atomic<std::chrono::seconds> uptime{std::chrono::seconds(0)};
+    std::atomic<Duration> uptime{Duration{0}};
 
     /**
      * A read of the system clock to be used in periodic checks of the system
      * clock. E.g. if uptime clock has progressed by n seconds, system time
-     * ideally should also progress by n.
+     * ideally should also progress by n seconds.
      */
     std::chrono::system_clock::time_point lastKnownSystemTime;
 
@@ -266,16 +267,16 @@ protected:
      * for the system clock to be ahead or behind by the
      * systemClockToleranceLower/systemClockToleranceUpper range.
      */
-    std::chrono::seconds systemClockToleranceLower;
-    std::chrono::seconds systemClockToleranceUpper;
-    std::optional<std::chrono::seconds> systemClockCheckInterval;
+    Duration systemClockToleranceLower;
+    Duration systemClockToleranceUpper;
+    std::optional<Duration> systemClockCheckInterval;
     size_t systemClockCheckWarnings{0};
     size_t systemClockChecks{0};
 
     /**
      *  The point on the uptime clock for a system clock check
      */
-    std::chrono::seconds nextSystemTimeCheck;
+    Duration nextSystemTimeCheck;
 };
 
 } // namespace cb::time

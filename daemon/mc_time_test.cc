@@ -130,19 +130,22 @@ public:
     }
 
     /**
-     * Advance time and tick the clock.
+     * Advance clocks and invoke uptimeClock.tick
+     *
      * The input parameters allow tests to drift the clocks
-     * returns the monotonic time
+     *
+     * @return the test fixture steadyTime
      */
-    seconds tick(int ticks = 1,
-                 milliseconds steadyTick = 1000ms,
-                 milliseconds systemTick = 1000ms) {
+    cb::time::Duration tick(int ticks = 1,
+                            milliseconds steadyTick = 1000ms,
+                            milliseconds systemTick = 1000ms) {
         for (int tick = 0; tick < ticks; tick++) {
             steadyTime += steadyTick;
             systemTime += systemTick;
-            EXPECT_EQ(duration_cast<seconds>(steadyTick), uptimeClock.tick());
+            EXPECT_EQ(duration_cast<cb::time::Duration>(steadyTick),
+                      uptimeClock.tick());
         }
-        return duration_cast<seconds>(steadyTime);
+        return duration_cast<cb::time::Duration>(steadyTime);
     }
 
     milliseconds steadyTime{0};
@@ -247,4 +250,52 @@ TEST_F(McTimeUptimeTest, tickReturnValue) {
     // The tick function will check each tick returns the steadyTick value
     EXPECT_EQ(4s, tick(2, 2000ms, 2000ms));
     EXPECT_EQ(20s, tick(2, 8000ms, 8000ms));
+}
+
+// Check that sub-second configuration works as expected.
+TEST_F(McTimeUptimeTest, millisecondTicking) {
+    uptimeClock.configureSystemClockCheck(10ms, 1ms);
+
+    // The tick function will check each tick returns the steadyTick value
+    EXPECT_EQ(20ms, tick(2, 10ms, 10ms));
+
+    EXPECT_EQ(0, uptimeClock.getSystemClockWarnings());
+    EXPECT_EQ(2, uptimeClock.getSystemClockChecks());
+
+    // within tolerance
+    EXPECT_EQ(40ms, tick(2, 10ms, 11ms));
+    EXPECT_EQ(0, uptimeClock.getSystemClockWarnings());
+    EXPECT_EQ(4, uptimeClock.getSystemClockChecks());
+
+    auto epoch = uptimeClock.getEpochSeconds();
+
+    // behind by 2ms (out of tolerance)
+    EXPECT_EQ(50ms, tick(1, 10ms, 8ms));
+    EXPECT_EQ(1, uptimeClock.getSystemClockWarnings());
+    EXPECT_EQ(5, uptimeClock.getSystemClockChecks());
+
+    EXPECT_EQ(60ms, tick(1, 10ms, 12ms));
+    EXPECT_EQ(2, uptimeClock.getSystemClockWarnings());
+    EXPECT_EQ(6, uptimeClock.getSystemClockChecks());
+
+    // millisecond granularity doesn't yet make a visible change to epoch
+    // seconds
+    EXPECT_EQ(epoch, uptimeClock.getEpochSeconds());
+    // still appears as if 0s elapsed
+    EXPECT_EQ(0s, uptimeClock.getUptime());
+
+    // Now tick onwards over 1s
+    EXPECT_EQ(1060ms, tick(100, 10ms, 10ms));
+    EXPECT_EQ(2, uptimeClock.getSystemClockWarnings());
+    EXPECT_EQ(106, uptimeClock.getSystemClockChecks());
+    EXPECT_EQ(1s, uptimeClock.getUptime());
+
+    // Now a big jump
+    EXPECT_EQ(1070ms, tick(1, 10ms, -8000ms));
+    EXPECT_EQ(3, uptimeClock.getSystemClockWarnings());
+    EXPECT_EQ(107, uptimeClock.getSystemClockChecks());
+    EXPECT_EQ(1s, uptimeClock.getUptime());
+
+    // uptime:1s, clock jump -8s
+    EXPECT_EQ(epoch - 8s - 1s, uptimeClock.getEpochSeconds());
 }

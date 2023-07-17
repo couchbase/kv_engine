@@ -148,7 +148,7 @@ static void mc_gather_timing_samples() {
 
 namespace cb::time {
 
-Regulator::Regulator(folly::EventBase& eventBase, seconds interval)
+Regulator::Regulator(folly::EventBase& eventBase, Duration interval)
     : eventBase(eventBase), interval(interval) {
 }
 
@@ -182,7 +182,7 @@ void Regulator::tick() {
 static folly::Synchronized<std::unique_ptr<Regulator>, std::mutex>
         periodicTicker;
 
-void Regulator::createAndRun(folly::EventBase& eventBase, seconds interval) {
+void Regulator::createAndRun(folly::EventBase& eventBase, Duration interval) {
     auto locked = periodicTicker.lock();
     if (!*locked) {
         *locked = std::make_unique<Regulator>(eventBase, interval);
@@ -215,40 +215,39 @@ UptimeClock::UptimeClock(SteadyClock steadyClock, SystemClock systemClock)
 }
 
 seconds UptimeClock::getUptime() const {
-    return uptime.load();
+    return duration_cast<seconds>(uptime.load());
 }
 
 system_clock::time_point UptimeClock::getEpoch() const {
     return epoch.load();
 }
 
-std::chrono::seconds UptimeClock::getEpochSeconds() const {
+seconds UptimeClock::getEpochSeconds() const {
     return duration_cast<seconds>(getEpoch().time_since_epoch());
 }
 
-void UptimeClock::configureSystemClockCheck(seconds systemClockCheckInterval,
-                                            seconds systemClockTolerance) {
+void UptimeClock::configureSystemClockCheck(Duration systemClockCheckInterval,
+                                            Duration systemClockTolerance) {
     this->systemClockToleranceUpper =
             systemClockCheckInterval + systemClockTolerance;
     this->systemClockToleranceLower =
             systemClockCheckInterval - systemClockTolerance;
 
     this->systemClockCheckInterval = systemClockCheckInterval;
-    nextSystemTimeCheck = getUptime() + systemClockCheckInterval;
+    nextSystemTimeCheck = uptime.load() + systemClockCheckInterval;
 }
 
 /*
  * Update a number of time keeping variables and account for system
  * clock changes.
  */
-seconds UptimeClock::tick() {
+Duration UptimeClock::tick() {
     /* calculate our monotonic uptime */
-    auto newUptime = duration_cast<seconds>(steadyTimeNow() - start);
+    auto newUptime = duration_cast<Duration>(steadyTimeNow() - start);
     newUptime += seconds(cb_get_uptime_offset());
 
     /*
-      every 'systemClockCheckInterval' seconds, keep an eye on the
-      system clock.
+      every 'systemClockCheckInterval' keep an eye on the system clock.
     */
     if (systemClockCheckInterval && newUptime >= nextSystemTimeCheck) {
         doSystemClockCheck(newUptime);
@@ -259,7 +258,7 @@ seconds UptimeClock::tick() {
     return newUptime - previous;
 }
 
-void UptimeClock::doSystemClockCheck(seconds newUptime) {
+void UptimeClock::doSystemClockCheck(Duration newUptime) {
     ++systemClockChecks;
 
     auto systemTime = systemTimeNow();
@@ -269,14 +268,13 @@ void UptimeClock::doSystemClockCheck(seconds newUptime) {
        at the correct interval*/
     nextSystemTimeCheck += systemClockCheckInterval.value();
 
-    /* perform a fuzzy check on time, this allows 2 seconds each way. */
+    /* perform a fuzzy check on time. */
     if (((checkDuration > systemClockToleranceUpper) ||
          (checkDuration < systemClockToleranceLower))) {
         ++systemClockCheckWarnings;
         auto newEpoch = systemTime - newUptime;
         if (cb::logger::get() != nullptr) {
             /* log all variables used in time calculations */
-            auto secs = duration_cast<duration<float>>(checkDuration);
             LOG_WARNING(
                     "system clock changed? uptime:{} system clock "
                     "difference of {} is outside of tolerance {}-{} "
@@ -284,14 +282,14 @@ void UptimeClock::doSystemClockCheck(seconds newUptime) {
                     "epoch:{:%FT%T%z}, new-epoch:{:%FT%T%z}, next check "
                     "when uptime is {}, warnings:{}",
                     newUptime,
-                    secs,
+                    duration_cast<Duration>(checkDuration),
                     systemClockToleranceLower,
                     systemClockToleranceUpper,
                     lastKnownSystemTime,
                     systemTime,
                     fmt::localtime(time_point<system_clock>(epoch.load())),
                     fmt::localtime(time_point<system_clock>(newEpoch)),
-                    nextSystemTimeCheck,
+                    duration_cast<duration<float>>(nextSystemTimeCheck),
                     systemClockCheckWarnings);
         }
         /* adjust memcached_epoch to ensure correct timeofday can
