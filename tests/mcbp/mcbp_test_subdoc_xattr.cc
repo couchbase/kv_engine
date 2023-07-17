@@ -311,16 +311,6 @@ TEST_P(SubdocXattrMultiLookupTest, AllowMultipleLookups) {
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
 }
 
-TEST_P(SubdocXattrMultiLookupTest, AllLookupsMustBeOnTheSamePath) {
-    request.addLookup({cb::mcbp::ClientOpcode::SubdocExists,
-                       SUBDOC_FLAG_XATTR_PATH,
-                       "_sync.cas"});
-    request.addLookup({cb::mcbp::ClientOpcode::SubdocExists,
-                       SUBDOC_FLAG_XATTR_PATH,
-                       "foo.bar"});
-    EXPECT_EQ(cb::mcbp::Status::SubdocXattrInvalidKeyCombo, validate());
-}
-
 /**
  * The SubdocXattrMultiLookupTest tests the XATTR specific constraints
  * over the normal subdoc constraints tested elsewhere
@@ -422,18 +412,6 @@ TEST_P(SubdocXattrMultiMutationTest, AllowMultipleMutations) {
                              R"({"foo" : "bar"})"});
     }
     EXPECT_EQ(cb::mcbp::Status::Success, validate());
-}
-
-TEST_P(SubdocXattrMultiMutationTest, AllMutationsMustBeOnTheSamePath) {
-    request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
-                         SUBDOC_FLAG_XATTR_PATH,
-                         "_sync.cas",
-                         R"({"foo" : "bar"})"});
-    request.addMutation({cb::mcbp::ClientOpcode::SubdocReplace,
-                         SUBDOC_FLAG_XATTR_PATH,
-                         "foo.bar",
-                         R"({"foo" : "bar"})"});
-    EXPECT_EQ(cb::mcbp::Status::SubdocXattrInvalidKeyCombo, validate());
 }
 
 TEST_P(SubdocXattrMultiMutationTest, AllowXattrUpdateAndWholeDocDelete) {

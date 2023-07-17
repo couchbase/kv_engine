@@ -841,7 +841,8 @@ TEST_P(XattrTest, Get_FullXattrSpec) {
 
     auto response = subdoc_get("doc", SUBDOC_FLAG_XATTR_PATH);
     ASSERT_EQ(cb::mcbp::Status::Success, response.getStatus());
-    EXPECT_EQ("{\"author\": \"Bart\",\"rev\":0}", response.getValue());
+    EXPECT_EQ(R"({"author":"Bart","rev":0})"_json,
+              nlohmann::json::parse(response.getValue()));
 }
 
 /**
@@ -2252,4 +2253,123 @@ TEST_P(XattrTest, MB54776) {
         EXPECT_EQ("[]", multiResp.getResults()[0].value);
     }
     userConnection.reset();
+}
+
+/// MB-57864 requested support to operate on multiple xattrs in a single
+/// call.
+TEST_P(XattrTest, MB57864) {
+    // Validate the input document
+    {
+        BinprotSubdocMultiLookupCommand lcmd;
+        lcmd.setKey(name);
+        lcmd.addGet("$XTOC", SUBDOC_FLAG_XATTR_PATH);
+        lcmd.addLookup("", cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE);
+        auto rsp = userConnection->execute(lcmd);
+        const auto response = BinprotSubdocMultiLookupResponse(std::move(rsp));
+        ASSERT_EQ(cb::mcbp::Status::Success, response.getStatus());
+        ASSERT_EQ(2, response.getResults().size());
+        auto& xtoc = response.getResults()[0];
+        EXPECT_EQ(cb::mcbp::Status::Success, xtoc.status);
+        EXPECT_EQ("[]", xtoc.value);
+        auto& doc = response.getResults()[1];
+        EXPECT_EQ(cb::mcbp::Status::Success, doc.status);
+        EXPECT_EQ(
+                R"({"couchbase": {"version": "spock", "next_version": "vulcan"}})",
+                doc.value);
+    }
+
+    // Add a user and a system xattr and a new value for the doc
+    {
+        BinprotSubdocMultiMutationCommand cmd;
+        cmd.setKey(name);
+        cmd.setVBucket(Vbid{0});
+        cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                        SUBDOC_FLAG_XATTR_PATH,
+                        "user",
+                        R"({"MB57864":"user"})");
+        cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                        SUBDOC_FLAG_XATTR_PATH,
+                        "_system",
+                        R"({"MB57864":"_system"})");
+        cmd.addMutation(
+                cb::mcbp::ClientOpcode::Set, SUBDOC_FLAG_NONE, "", value);
+        cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Mkdoc);
+        auto rsp = userConnection->execute(cmd);
+        ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus())
+                << rsp.getDataString();
+    }
+
+    // Validate that the document contains the new xattrs and value
+    {
+        BinprotSubdocMultiLookupCommand lcmd;
+        lcmd.setKey(name);
+        lcmd.addGet("$XTOC", SUBDOC_FLAG_XATTR_PATH);
+        lcmd.addGet("user", SUBDOC_FLAG_XATTR_PATH);
+        lcmd.addGet("_system", SUBDOC_FLAG_XATTR_PATH);
+        lcmd.addLookup("", cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE);
+        auto rsp = userConnection->execute(lcmd);
+        const auto response = BinprotSubdocMultiLookupResponse(std::move(rsp));
+        ASSERT_EQ(cb::mcbp::Status::Success, response.getStatus());
+        ASSERT_EQ(4, response.getResults().size());
+        auto& xtoc = response.getResults()[0];
+        EXPECT_EQ(cb::mcbp::Status::Success, xtoc.status);
+        EXPECT_EQ(R"(["_system","user"])", xtoc.value);
+        auto& user = response.getResults()[1];
+        EXPECT_EQ(cb::mcbp::Status::Success, user.status);
+        EXPECT_EQ(R"({"MB57864":"user"})", user.value);
+        auto& _system = response.getResults()[2];
+        EXPECT_EQ(cb::mcbp::Status::Success, _system.status);
+        EXPECT_EQ(R"({"MB57864":"_system"})", _system.value);
+        auto& doc = response.getResults()[3];
+        EXPECT_EQ(cb::mcbp::Status::Success, doc.status);
+        EXPECT_EQ(value, doc.value);
+    }
+
+    // Add one new xattrs and delete one, but leave the value unchanged
+    {
+        BinprotSubdocMultiMutationCommand cmd;
+        cmd.setKey(name);
+        cmd.setVBucket(Vbid{0});
+        cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                        SUBDOC_FLAG_XATTR_PATH,
+                        "user2",
+                        "true");
+        cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDelete,
+                        SUBDOC_FLAG_XATTR_PATH,
+                        "_system",
+                        {});
+        auto rsp = userConnection->execute(cmd);
+        ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus())
+                << rsp.getDataString();
+    }
+
+    // Validate that the document looks as expected
+    {
+        BinprotSubdocMultiLookupCommand lcmd;
+        lcmd.setKey(name);
+        lcmd.addGet("$XTOC", SUBDOC_FLAG_XATTR_PATH);
+        lcmd.addGet("user", SUBDOC_FLAG_XATTR_PATH);
+        lcmd.addGet("user2", SUBDOC_FLAG_XATTR_PATH);
+        lcmd.addGet("_system", SUBDOC_FLAG_XATTR_PATH);
+        lcmd.addLookup("", cb::mcbp::ClientOpcode::Get, SUBDOC_FLAG_NONE);
+        auto rsp = userConnection->execute(lcmd);
+        const auto response = BinprotSubdocMultiLookupResponse(std::move(rsp));
+        ASSERT_EQ(cb::mcbp::Status::SubdocMultiPathFailure,
+                  response.getStatus());
+        ASSERT_EQ(5, response.getResults().size());
+        auto& xtoc = response.getResults()[0];
+        EXPECT_EQ(cb::mcbp::Status::Success, xtoc.status);
+        EXPECT_EQ(R"(["user","user2"])", xtoc.value);
+        auto& user = response.getResults()[1];
+        EXPECT_EQ(cb::mcbp::Status::Success, user.status);
+        EXPECT_EQ(R"({"MB57864":"user"})", user.value);
+        auto& user2 = response.getResults()[2];
+        EXPECT_EQ(cb::mcbp::Status::Success, user2.status);
+        EXPECT_EQ("true", user2.value);
+        auto& _system = response.getResults()[3];
+        EXPECT_EQ(cb::mcbp::Status::SubdocPathEnoent, _system.status);
+        auto& doc = response.getResults()[4];
+        EXPECT_EQ(cb::mcbp::Status::Success, doc.status);
+        EXPECT_EQ(value, doc.value);
+    }
 }

@@ -129,6 +129,18 @@ TEST(XattrBlob, TestToJson) {
     EXPECT_EQ(nlohmann::json::parse(expected), blob.to_json());
 }
 
+TEST(XattrBlob, TestToString) {
+    cb::xattr::Blob blob;
+    blob.set("_sync",
+             "{\"cas\":\"0xdeadbeefcafefeed\", "
+             "\"user\":\"trond\"}");
+    blob.set("_rbac", R"({"foo":"bar"})");
+    EXPECT_EQ(
+            "{\"_sync\":{\"cas\":\"0xdeadbeefcafefeed\", "
+            "\"user\":\"trond\"},\"_rbac\":{\"foo\":\"bar\"}}",
+            blob.to_string());
+}
+
 /**
  * Verify that get(key) check that it is an exact match for
  * a key, and not just a substring of a key

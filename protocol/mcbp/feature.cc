@@ -77,6 +77,8 @@ std::string to_string(cb::mcbp::Feature feature) {
         return "DedupeNotMyVbucketClustermap";
     case cb::mcbp::Feature::ClustermapChangeNotificationBrief:
         return "ClustermapChangeNotificationBrief";
+    case cb::mcbp::Feature::SubdocAllowsAccessOnMultipleXattrKeys:
+        return "SubdocAllowsAccessOnMultipleXattrKeys";
     }
 
     throw std::invalid_argument(

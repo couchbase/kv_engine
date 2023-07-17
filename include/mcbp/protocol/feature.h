@@ -146,6 +146,11 @@ enum class Feature : uint16_t {
     /// notification is subject to deduplication of the vbucket map received as
     /// part of not my vbucket)
     ClustermapChangeNotificationBrief = 0x1f,
+    /// This is purely information (it does not enable / disable anything on the
+    /// server). It may be used from the client to determine if the server
+    /// allows the client to operate on multiple XATTR keys within the same
+    /// MultiMutation/MultiLookup operation
+    SubdocAllowsAccessOnMultipleXattrKeys = 0x20,
 };
 
 } // namespace cb::mcbp

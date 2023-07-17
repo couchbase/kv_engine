@@ -149,10 +149,13 @@ public:
         return blob.size();
     }
 
-    /**
-     * Get a JSON representation of the xattrs
-     */
+    /// Get a JSON representation of the xattrs
     nlohmann::json to_json() const;
+
+    /// Get a JSON representation of the xattrs. If the use case would be
+    /// something like: to_json().dump() building the JSON object would
+    /// need to parse all values which could be relatively expensive.
+    std::string to_string() const;
 
     class iterator {
     public:

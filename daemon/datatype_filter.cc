@@ -52,6 +52,7 @@ void DatatypeFilter::enable(cb::mcbp::Feature feature) {
     case cb::mcbp::Feature::GetClusterConfigWithKnownVersion:
     case cb::mcbp::Feature::DedupeNotMyVbucketClustermap:
     case cb::mcbp::Feature::ClustermapChangeNotificationBrief:
+    case cb::mcbp::Feature::SubdocAllowsAccessOnMultipleXattrKeys:
         throw std::invalid_argument("Datatype::enable invalid feature:" +
                                     std::to_string(int(feature)));
     }

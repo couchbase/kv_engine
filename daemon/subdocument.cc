@@ -683,55 +683,23 @@ static cb::engine_errc validate_xattr_privilege(SubdocCmdContext& context) {
                         .success()) {
                 context.xtocSemantics = XtocSemantics::All;
             }
+        } else {
+            size_t xattr_keylen;
+            is_valid_xattr_key({op.path.data(), op.path.size()}, xattr_keylen);
+            std::string_view key{op.path.data(), xattr_keylen};
+            if (cb::xattr::is_system_xattr(key) &&
+                context.cookie
+                        .checkPrivilege(
+                                context.traits.is_mutator
+                                        ? cb::rbac::Privilege::SystemXattrWrite
+                                        : cb::rbac::Privilege::SystemXattrRead)
+                        .failed()) {
+                return cb::engine_errc::no_access;
+            }
         }
     }
 
-    auto key = context.get_xattr_key();
-    if (key.empty() || !cb::xattr::is_system_xattr(key)) {
-        return cb::engine_errc::success;
-    }
-
-    cb::rbac::Privilege privilege;
-    // We've got a system xattr
-    if (context.traits.is_mutator) {
-        privilege = cb::rbac::Privilege::SystemXattrWrite;
-    } else {
-        privilege = cb::rbac::Privilege::SystemXattrRead;
-    }
-
-    return context.cookie.checkPrivilege(privilege).success()
-                   ? cb::engine_errc::success
-                   : cb::engine_errc::no_access;
-}
-
-/**
- * Replaces the xattrs on the document with the new ones provided
- * @param new_xattr The new xattrs to use
- * @param context The command context for this operation
- * @param bodyoffset The offset in to the body of the xattr section
- * @param bodysize The size of the body (excludes xattrs)
- */
-static inline void replace_xattrs(std::string_view new_xattr,
-                                  SubdocCmdContext& context,
-                                  const size_t bodyoffset,
-                                  const size_t bodysize) {
-    auto total = new_xattr.size() + bodysize;
-
-    std::string next;
-    next.reserve(total);
-    next.insert(next.end(), new_xattr.begin(), new_xattr.end());
-    next.insert(next.end(),
-                context.in_doc.view.data() + bodyoffset,
-                context.in_doc.view.data() + bodyoffset + bodysize);
-    context.in_doc.reset(std::move(next));
-
-    if (new_xattr.empty()) {
-        context.in_datatype &= ~PROTOCOL_BINARY_DATATYPE_XATTR;
-        context.no_sys_xattrs = true;
-
-    } else {
-        context.in_datatype |= PROTOCOL_BINARY_DATATYPE_XATTR;
-    }
+    return cb::engine_errc::success;
 }
 
 /**
@@ -749,8 +717,6 @@ static bool do_xattr_delete_phase(SubdocCmdContext& context) {
     // We need to remove the user keys from the Xattrs and rebuild the document
 
     const auto bodyoffset = cb::xattr::get_body_offset(context.in_doc.view);
-    const auto bodysize = context.in_doc.view.size() - bodyoffset;
-
     cb::char_buffer blob_buffer{(char*)context.in_doc.view.data(),
                                 (size_t)bodyoffset};
 
@@ -763,8 +729,8 @@ static bool do_xattr_delete_phase(SubdocCmdContext& context) {
     // Remove the user xattrs so we're just left with system xattrs
     copy.prune_user_keys();
 
-    const auto new_xattr = copy.finalize();
-    replace_xattrs(new_xattr, context, bodyoffset, bodysize);
+    context.rewrite_in_document(copy.finalize(),
+                                context.in_doc.view.substr(bodyoffset));
 
     return true;
 }
@@ -814,47 +780,19 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
         throw std::logic_error("do_xattr_phase: unknown SubdocPath");
     }
 
-    auto bodysize = context.in_doc.view.size();
     auto bodyoffset = 0;
 
     if (cb::mcbp::datatype::is_xattr(context.in_datatype)) {
         bodyoffset = cb::xattr::get_body_offset(context.in_doc.view);
-        bodysize -= bodyoffset;
     }
 
     cb::char_buffer blob_buffer{(char*)context.in_doc.view.data(),
                                 (size_t)bodyoffset};
-
-    cb::xattr::Blob xattr_blob(blob_buffer, false);
-    auto key = context.get_xattr_key();
-    auto value_buf = xattr_blob.get(key);
-
-    if (value_buf.size() == 0) {
-        context.xattr_buffer.reset(new char[2]);
-        context.xattr_buffer[0] = '{';
-        context.xattr_buffer[1] = '}';
-        value_buf = {context.xattr_buffer.get(), 2};
-    } else {
-        // To allow the subjson do it's thing with the full xattrs
-        // create a full json doc looking like: {\"xattr_key\":\"value\"};
-        size_t total = 5 + key.size() + value_buf.size();
-        context.xattr_buffer.reset(new char[total]);
-        char* ptr = context.xattr_buffer.get();
-        memcpy(ptr, "{\"", 2);
-        ptr += 2;
-        memcpy(ptr, key.data(), key.size());
-        ptr += key.size();
-        memcpy(ptr, "\":", 2);
-        ptr += 2;
-        memcpy(ptr, value_buf.data(), value_buf.size());
-        ptr += value_buf.size();
-        *ptr = '}';
-        value_buf = { context.xattr_buffer.get(), total};
-    }
+    context.xattr_buffer = cb::xattr::Blob(blob_buffer, false).to_string();
 
     MemoryBackedBuffer body{{context.in_doc.view.data() + bodyoffset,
                              context.in_doc.view.size() - bodyoffset}};
-    MemoryBackedBuffer xattr{{value_buf.data(), value_buf.size()}};
+    MemoryBackedBuffer xattr{context.xattr_buffer};
 
     for (const auto& m : {cb::xattr::macros::CAS,
                           cb::xattr::macros::SEQNO,
@@ -881,39 +819,15 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
     }
 
     // Time to rebuild the full document.
-    // As a temporary solution we did create a full JSON doc for the
-    // xattr key, so we should strip off the key and just store the value.
-
-    // The backing store for the blob is currently witin the actual
-    // document.. create a copy we can use for replace.
-    cb::xattr::Blob copy(xattr_blob);
-
-    if (xattr.view.size() > key.size()) {
-        const char* start = strchr(xattr.view.data(), ':') + 1;
-        const char* end = xattr.view.data() + xattr.view.size() - 1;
-
-        copy.set(key, {start, size_t(end - start)});
-    } else {
-        copy.remove(key);
-    }
-    const auto new_xattr = copy.finalize();
-
-    if (body.isModified()) {
-        auto total = new_xattr.size() + body.view.size();
-        std::string next;
-        next.reserve(total);
-        next.insert(next.end(), new_xattr.begin(), new_xattr.end());
-        next.insert(next.end(), body.view.begin(), body.view.end());
-        context.in_doc.reset(std::move(next));
-        if (new_xattr.empty()) {
-            context.in_datatype &= ~PROTOCOL_BINARY_DATATYPE_XATTR;
-            context.no_sys_xattrs = true;
-        } else {
-            context.in_datatype |= PROTOCOL_BINARY_DATATYPE_XATTR;
+    cb::xattr::Blob copy;
+    if (!xattr.view.empty()) {
+        nlohmann::json json = nlohmann::json::parse(xattr.view);
+        for (auto it = json.begin(); it != json.end(); ++it) {
+            copy.set(it.key(), it.value().dump());
         }
-    } else {
-        replace_xattrs(new_xattr, context, bodyoffset, bodysize);
     }
+
+    context.rewrite_in_document(copy.finalize(), body.view);
     return true;
 }
 
@@ -959,16 +873,8 @@ static bool do_body_phase(SubdocCmdContext& context) {
         return true;
     }
 
-    // Just stitch our new modified value behind the existing xattrs
-    auto total = xattrsize + body.view.size();
-    std::string next;
-    next.reserve(total);
-    next.insert(next.end(),
-                context.in_doc.view.data(),
-                context.in_doc.view.data() + xattrsize);
-    next.insert(next.end(), body.view.begin(), body.view.end());
-    context.in_doc.reset(std::move(next));
-
+    context.rewrite_in_document({context.in_doc.view.data(), xattrsize},
+                                body.view);
     return true;
 }
 

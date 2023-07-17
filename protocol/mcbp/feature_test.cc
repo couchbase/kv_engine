@@ -50,7 +50,9 @@ const std::map<cb::mcbp::Feature, std::string> featureBlueprint = {
          {cb::mcbp::Feature::DedupeNotMyVbucketClustermap,
           "DedupeNotMyVbucketClustermap"},
          {cb::mcbp::Feature::ClustermapChangeNotificationBrief,
-          "ClustermapChangeNotificationBrief"}}};
+          "ClustermapChangeNotificationBrief"},
+         {cb::mcbp::Feature::SubdocAllowsAccessOnMultipleXattrKeys,
+          "SubdocAllowsAccessOnMultipleXattrKeys"}}};
 
 TEST(to_string, LegalValues) {
     for (const auto& entry : featureBlueprint) {

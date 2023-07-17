@@ -321,7 +321,6 @@ size_t Blob::get_user_size() const {
 
 nlohmann::json Blob::to_json() const {
     nlohmann::json ret;
-
     try {
         size_t current = 4;
         while (current < blob.size()) {
@@ -337,6 +336,30 @@ nlohmann::json Blob::to_json() const {
     } catch (const std::out_of_range&) {
     }
 
+    return ret;
+}
+
+std::string Blob::to_string() const {
+    std::string ret;
+    ret.reserve(blob.size());
+    ret.push_back('{');
+    size_t current = 4;
+    while (current < blob.size()) {
+        // Get the length of the next kv-pair
+        const auto size = read_length(current);
+        current += 4;
+
+        auto* ptr = blob.data() + current;
+        fmt::format_to(std::back_inserter(ret),
+                       R"("{}":{},)",
+                       ptr,
+                       ptr + strlen(ptr) + 1);
+        current += size;
+    }
+    if (ret.back() == ',') {
+        ret.pop_back();
+    }
+    ret.push_back('}');
     return ret;
 }
 

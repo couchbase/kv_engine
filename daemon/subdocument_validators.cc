@@ -76,9 +76,6 @@ static cb::mcbp::Status validate_macro(std::string_view value) {
  * @param flags The flag section provided
  * @param path The full path (including the key)
  * @param value The value passed (if it is a macro this must be a legal macro)
- * @param xattr_key The xattr key in use (if xattr_key.size() != 0) otherwise it
- *                  the current key is stored so that we can check that the
- *                  next key refers the same key..
  * @return cb::mcbp::Status::Success if everything is correct
  */
 static inline cb::mcbp::Status validate_xattr_section(
@@ -86,8 +83,7 @@ static inline cb::mcbp::Status validate_xattr_section(
         bool mutator,
         protocol_binary_subdoc_flag flags,
         std::string_view path,
-        std::string_view value,
-        std::string_view& xattr_key) {
+        std::string_view value) {
     if ((flags & SUBDOC_FLAG_XATTR_PATH) == 0) {
         // XATTR flag isn't set... just bail out
         if ((flags & SUBDOC_FLAG_EXPAND_MACROS)) {
@@ -111,22 +107,8 @@ static inline cb::mcbp::Status validate_xattr_section(
         return cb::mcbp::Status::XattrEinval;
     }
 
-    if (path.data()[0] == '$') {
-        // One may use the virtual xattrs in combination with all of the
-        // other attributes - so skip key check.
-
-        // One can't modify a virtual attribute
-        if (mutator) {
-            return cb::mcbp::Status::SubdocXattrCantModifyVattr;
-        }
-    } else {
-        if (xattr_key.size() == 0) {
-            xattr_key = {path.data(), key_length};
-        } else if (xattr_key.size() != key_length ||
-                   std::memcmp(xattr_key.data(), path.data(), key_length) !=
-                           0) {
-            return cb::mcbp::Status::SubdocXattrInvalidKeyCombo;
-        }
+    if (cb::xattr::is_vattr(path) && mutator) {
+        return cb::mcbp::Status::SubdocXattrCantModifyVattr;
     }
 
     return (flags & SUBDOC_FLAG_EXPAND_MACROS) ? validate_macro(value)
@@ -231,14 +213,9 @@ static cb::mcbp::Status subdoc_validator(Cookie& cookie,
     }
     std::string_view macro = {reinterpret_cast<const char*>(value.data()),
                               value.size()};
-    std::string_view xattr_key;
 
-    const auto status = validate_xattr_section(cookie,
-                                               traits.is_mutator,
-                                               subdoc_flags,
-                                               path,
-                                               macro,
-                                               xattr_key);
+    const auto status = validate_xattr_section(
+            cookie, traits.is_mutator, subdoc_flags, path, macro);
     if (status != cb::mcbp::Status::Success) {
         return status;
     }
@@ -345,10 +322,6 @@ cb::mcbp::Status subdoc_replace_body_with_xattr_validator(Cookie& cookie) {
  * @param traits The traits to use to validate the spec
  * @param spec_len [OUT] The number of bytes used by this spec
  * @param xattr [OUT] Did this spec reference an extended attribute
- * @param xattr_key [IN/OUT] The current extended attribute key. If its `len`
- *                  field is `0` we've not seen an extended attribute key yet
- *                  and the encoded key may be anything. If it's already set
- *                  the key `must` be the same.
  * @param doc_flags The doc flags of the multipath command
  * @param is_singleton [OUT] Does this spec require that it is the only spec
  * operating on the body.
@@ -361,7 +334,6 @@ static cb::mcbp::Status is_valid_multipath_spec(
         const SubdocMultiCmdTraits traits,
         size_t& spec_len,
         bool& xattr,
-        std::string_view& xattr_key,
         cb::mcbp::subdoc::doc_flag doc_flags,
         bool& is_singleton) {
     // Decode the operation spec from the body. Slightly different struct
@@ -457,12 +429,8 @@ static cb::mcbp::Status is_valid_multipath_spec(
     std::string_view path{blob.data() + headerlen, pathlen};
     std::string_view macro{blob.data() + headerlen + pathlen, valuelen};
 
-    const auto status = validate_xattr_section(cookie,
-                                               traits.is_mutator,
-                                               flags,
-                                               path,
-                                               macro,
-                                               xattr_key);
+    const auto status = validate_xattr_section(
+            cookie, traits.is_mutator, flags, path, macro);
     if (status != cb::mcbp::Status::Success) {
         return status;
     }
@@ -560,7 +528,7 @@ static cb::mcbp::Status subdoc_multi_validator(
     // 2. Check that the lookup operation specs are valid.
     //    As an "optimization" you can't mix and match the xattr and the
     //    normal paths given that they operate on different segments of
-    //    the packet. Let's force the client to sort all of the xattrs
+    //    the packet. Let's force the client to sort the xattrs
     //    operations _first_.
     const auto value = request.getValue();
     bool xattrs_allowed = true;
@@ -568,8 +536,6 @@ static cb::mcbp::Status subdoc_multi_validator(
 
     size_t body_validated = 0;
     unsigned int path_index;
-
-    std::string_view xattr_key;
 
     bool body_commands_allowed = true;
 
@@ -595,7 +561,6 @@ static cb::mcbp::Status subdoc_multi_validator(
                 traits,
                 spec_len,
                 is_xattr,
-                xattr_key,
                 doc_flags,
                 is_isolationist);
         if (status != cb::mcbp::Status::Success) {

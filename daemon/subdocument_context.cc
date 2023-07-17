@@ -544,6 +544,18 @@ void SubdocCmdContext::generate_macro_padding(std::string_view payload,
     }
 }
 
+void SubdocCmdContext::rewrite_in_document(std::string_view xattr,
+                                           std::string_view value) {
+    if (xattr.empty()) {
+        in_doc.reset(std::string(value));
+        in_datatype &= ~PROTOCOL_BINARY_DATATYPE_XATTR;
+        no_sys_xattrs = true;
+    } else {
+        in_doc.reset(fmt::format("{}{}", xattr, value));
+        in_datatype |= PROTOCOL_BINARY_DATATYPE_XATTR;
+    }
+}
+
 std::string_view SubdocCmdContext::get_document_vattr() {
     if (document_vattr.empty()) {
         // @todo we can optimize this by building the json in a more efficient

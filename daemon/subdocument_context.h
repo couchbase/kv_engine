@@ -139,6 +139,14 @@ public:
     void generate_macro_padding(std::string_view payload,
                                 cb::xattr::macros::macro macro);
 
+    /**
+     * Rewrite in_doc (and update the datatype)
+     *
+     * @param xattr The new xattr section
+     * @param value The new document value
+     */
+    void rewrite_in_document(std::string_view xattr, std::string_view value);
+
     Operations& getOperations(const Phase phase) {
         switch (phase) {
         case Phase::Body:
@@ -188,7 +196,7 @@ public:
 
     // Temporary buffer used to hold the xattrs in use, as a get request
     // may hold pointers into the repacked xattr buckets
-    std::unique_ptr<char[]> xattr_buffer;
+    std::string xattr_buffer;
 
     // CAS value of the input document. Required to ensure we only store a
     // new document which was derived from the same original input document.
