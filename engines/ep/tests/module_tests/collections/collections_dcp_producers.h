@@ -78,6 +78,12 @@ public:
                            uint64_t prepare_seqno,
                            uint64_t commit_seqno) override;
 
+    cb::engine_errc abort(uint32_t opaque,
+                          Vbid vbucket,
+                          const DocKey& key,
+                          uint64_t prepare_seqno,
+                          uint64_t abort_seqno) override;
+
     cb::engine_errc systemEventVersion2(uint32_t opaque,
                                         Vbid vbucket,
                                         mcbp::systemevent::id event,

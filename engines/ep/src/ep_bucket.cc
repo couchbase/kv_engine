@@ -351,7 +351,9 @@ void EPBucket::deinitialize() {
     });
 }
 
-bool EPBucket::canDeduplicate(Item* lastFlushed, Item& candidate) const {
+bool EPBucket::canDeduplicate(Item* lastFlushed,
+                              Item& candidate,
+                              CheckpointHistorical historical) const {
     if (isHistoryRetentionEnabled() && !candidate.canDeduplicate()) {
         return false;
     }
@@ -366,6 +368,14 @@ bool EPBucket::canDeduplicate(Item* lastFlushed, Item& candidate) const {
     }
     if (lastFlushed->isCommitted() != candidate.isCommitted()) {
         // Committed / pending namespace differs - cannot de-dupe.
+        return false;
+    }
+
+    // MB-56256: retain all "resolutions" to a prepare so there is no
+    // prepare(k)->prepare(k) sequence in the history window. Between each
+    // prepare there must always be a resolution, e.g. abort(k) or commit(k).
+    if (historical == CheckpointHistorical::Yes &&
+        (candidate.isAbort() || candidate.isCommitSyncWrite())) {
         return false;
     }
 
@@ -621,7 +631,8 @@ EPBucket::FlushResult EPBucket::flushVBucket_UNLOCKED(LockedVBucketPtr vbPtr) {
                 // Process the Item's value into the transition struct
                 proposedVBState.transition.fromItem(*item);
             }
-        } else if (!mustDedupe || !canDeduplicate(prev, *item)) {
+        } else if (!mustDedupe ||
+                   !canDeduplicate(prev, *item, commitData.historical)) {
             // This is an item we must persist.
             prev = item.get();
             ++flushBatchSize;

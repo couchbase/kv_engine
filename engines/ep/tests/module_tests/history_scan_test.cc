@@ -64,6 +64,8 @@ public:
                           std::optional<uint64_t> timestamp,
                           cb::mcbp::DcpStreamId sid,
                           const std::vector<Item>& items);
+    // testcase for MB-56256
+    void preparePrepare(queue_op operation);
 };
 
 void HistoryScanTest::validateSnapshot(
@@ -89,7 +91,8 @@ void HistoryScanTest::validateSnapshot(
     for (const auto& item : items) {
         EXPECT_TRUE(item.getOperation() == queue_op::system_event ||
                     item.getOperation() == queue_op::mutation ||
-                    item.getOperation() == queue_op::pending_sync_write);
+                    item.getOperation() == queue_op::pending_sync_write ||
+                    item.getOperation() == queue_op::abort_sync_write);
         if (item.getOperation() == queue_op::system_event) {
             stepAndExpect(ClientOpcode::DcpSystemEvent);
             EXPECT_EQ(producers->last_stream_id, sid);
@@ -99,10 +102,12 @@ void HistoryScanTest::validateSnapshot(
                       item.getKey().getCollectionID());
 
         } else {
-            if (item.isDeleted()) {
-                stepAndExpect(ClientOpcode::DcpDeletion);
-            } else if (item.isPending()) {
+            if (item.isPending()) {
                 stepAndExpect(ClientOpcode::DcpPrepare);
+            } else if (item.isAbort()) {
+                stepAndExpect(ClientOpcode::DcpAbort);
+            } else if (item.isDeleted()) {
+                stepAndExpect(ClientOpcode::DcpDeletion);
             } else {
                 stepAndExpect(ClientOpcode::DcpMutation);
             }
@@ -803,6 +808,121 @@ TEST_P(HistoryScanTest, MB_55837_incorrect_item_count) {
                      {},
                      {},
                      items);
+}
+
+// MB-56256. Prepare(k1), flush, Abort(k1), Prepare(k1), flush
+// If k1 was a history=false collection - we would deduplicate the abort and
+// later backfill would see Prepare(k1), Prepare(k1) - violating a replication
+// assert
+void HistoryScanTest::preparePrepare(queue_op operation) {
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    // Test requires a collection without history to reproduce MB-56256
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::vegetable, {}, false));
+
+    std::vector<Item> items;
+    items.emplace_back(makeStoredDocKey("", CollectionEntry::vegetable),
+                       vbid,
+                       queue_op::system_event,
+                       0,
+                       1);
+
+    // Next store k1, but using prepare/abort/prepare/commit
+    // the flusher runs so that it flushes.
+    // [prepare] [abort, prepare], [commit]
+    //
+    // Which prior to fixing meant we flush
+    // [prepare] [prepare] [commit]
+    //
+    // And later backfill of history sends prepare, prepare triggering an
+    // exception in the replica
+    auto vb = store->getVBucket(vbid);
+    auto key = StoredDocKey{"turnip", CollectionEntry::vegetable};
+    items.emplace_back(store_pending_item(vbid, key, "v0"));
+
+    flush_vbucket_to_disk(vbid, 2);
+
+    // put an item in at seqno:3
+    items.emplace_back(make_item(vbid, key, "v0"));
+    items.back().setBySeqno(3);
+    items.back().setRevSeqno(1);
+    items.back().setDataType(PROTOCOL_BINARY_RAW_BYTES);
+
+    if (operation == queue_op::abort_sync_write) {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb->abort(rlh, key, 2, {}, vb->lockCollections(key)));
+        // tweak the item to be an abort
+        items.back().setAbortSyncWrite();
+        items.back().replaceValue({});
+    } else if (operation == queue_op::commit_sync_write) {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb->commit(rlh, key, 2, {}, vb->lockCollections(key)));
+
+    } else {
+        FAIL() << "Wrong operation type";
+    }
+
+    // and pending again
+    items.emplace_back(store_pending_item(vbid, key, "v1"));
+
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        ASSERT_EQ(cb::engine_errc::success,
+                  vb->commit(rlh,
+                             key,
+                             items.back().getBySeqno(),
+                             {},
+                             vb->lockCollections(key)));
+    }
+
+    // put a "committed" item in at seqno:5
+    items.emplace_back(make_item(vbid, key, "v1"));
+    items.back().setBySeqno(5);
+    items.back().setRevSeqno(operation == queue_op::abort_sync_write ? 1 : 2);
+    items.back().setDataType(PROTOCOL_BINARY_RAW_BYTES);
+
+    // Flush everything in 1 batch and check the item counts
+    flush_vbucket_to_disk(vbid, 3);
+
+    // Only 1 item
+    EXPECT_EQ(1,
+              vb->lockCollections().getItemCount(CollectionEntry::vegetable));
+    EXPECT_EQ(1, vb->getNumItems());
+
+    ensureDcpWillBackfill();
+    createDcpObjects(std::string_view{},
+                     OutOfOrderSnapshots::No,
+                     0,
+                     true, // sync-repl enabled
+                     ~0ull,
+                     ChangeStreams::Yes);
+    runBackfill();
+
+    validateSnapshot(vbid,
+                     0,
+                     items.back().getBySeqno(),
+                     MARKER_FLAG_HISTORY |
+                             MARKER_FLAG_MAY_CONTAIN_DUPLICATE_KEYS |
+                             MARKER_FLAG_CHK | MARKER_FLAG_DISK,
+                     4 /*hcs*/,
+                     items.back().getBySeqno() /*mvs*/,
+                     {},
+                     {},
+                     items);
+}
+
+TEST_P(HistoryScanTest, prepareAbortPrepare) {
+    preparePrepare(queue_op::abort_sync_write);
+}
+
+TEST_P(HistoryScanTest, prepareCommitPrepare) {
+    preparePrepare(queue_op::commit_sync_write);
 }
 
 // Tests which don't need executing in two eviction modes
