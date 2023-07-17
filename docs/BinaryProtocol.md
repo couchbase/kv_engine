@@ -2564,18 +2564,40 @@ memcached instead of getting it directly from ns_server via the REST interface.
 
 Request:
 
-* MUST NOT have extras
+* MAY have extras
 * MUST NOT have key
 * MUST NOT have value
 * CAS MUST be set to 0
 
-The command returns the cluster configuration for the _selected_ bucket,
-and if no bucket is selected the global cluster configuration is returned if
+The command returns the cluster configuration for the _selected_ bucket.
+If no bucket is selected, the global cluster configuration is returned if
 the client holds the "System Settings" privilege.
+
+If the command contains extras, the extras section contains a revision number
+the server should use for deduplication:
+
+      Byte/     0       |       1       |       2       |       3       |
+         /              |               |               |               |
+        |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+        +---------------+---------------+---------------+---------------+
+       0|                                                               |
+       4| Epoch in network byte order (signed int 64 bits)              |
+        +---------------+---------------+---------------+---------------+
+       8|                                                               |
+      12| Revision in network byte order (signed int 64 bits)           |
+        +---------------+---------------+---------------+---------------+
+        Total 16 bytes
+
+The command will also update the "known cluster configuration" for the client which is
+used for deduplication in the case of a "not my vbucket" response.
 
 Response:
 
-If successful the command responds with the cluster configuration.
+If the request contained a revision number, the actual clustermap in the
+response will only be present iff the server has a revision which is newer
+than the revision in the request.
+
+If successful, the command responds with the cluster configuration.
 
 ### 0xb6 Get Random Key
 
