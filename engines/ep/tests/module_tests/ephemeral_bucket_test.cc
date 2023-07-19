@@ -316,13 +316,8 @@ TEST_F(EphemeralBucketStatTest, ReplicaMemoryTrackingRollback) {
     // Now the replica memory stats should reflect the current state
     auto& stats = engine->getEpStats();
     EXPECT_EQ(0, stats.replicaHTMemory);
-    // @todo MB-57199: Succeeds in Neo, fails in master, eg 528 vs 1712 on macos
-    // Also note: Allocator tracking legacy and never used in checkpoint for
-    // enforcing the checkpoint quota - Other components shouldn't use that
-    // either, EPStats::replicaCheckpointOverhead should be moved to using the
-    // mainstream checkpoint mem tracking
-    /*EXPECT_EQ(vb->checkpointManager->getMemOverheadAllocatorBytes(),
-              stats.replicaCheckpointOverhead);*/
+    EXPECT_EQ(vb->checkpointManager->getMemOverhead(),
+              stats.replicaCheckpointOverhead);
 }
 
 TEST_F(EphemeralBucketStatTest, ReplicaCheckpointMemoryTracking) {

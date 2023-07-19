@@ -98,10 +98,6 @@ CheckpointManager::CheckpointManager(EPStats& st,
                           .takeCursor();
         persistenceCursor = pCursor.lock().get();
     }
-
-    if (vb.getState() == vbucket_state_replica) {
-        stats.replicaCheckpointOverhead += getMemOverhead();
-    }
 }
 
 CheckpointManager::~CheckpointManager() {
@@ -629,9 +625,6 @@ void CheckpointManager::maybeScheduleDestruction(
     numItems.fetch_sub(removedItems);
     stats.itemsRemovedFromCheckpoints.fetch_add(removedItems);
     memFreedByCheckpointRemoval += checkpoint.getMemUsage();
-    if (vb.getState() == vbucket_state_replica) {
-        stats.replicaCheckpointOverhead -= checkpoint.getMemOverhead();
-    }
 
     // Checkpoints must be removed in order, only the oldest is eligible
     // when removing checkpoints one at a time.
@@ -658,11 +651,9 @@ void CheckpointManager::scheduleDestruction(CheckpointList&& toRemove) {
     // applying the stats update.
     size_t numItemsRemoved = 0;
     size_t memoryReleased = 0;
-    size_t memOverhead = 0;
     for (const auto& checkpoint : toRemove) {
         numItemsRemoved += checkpoint->getNumItems();
         memoryReleased += checkpoint->getMemUsage();
-        memOverhead += checkpoint->getMemOverhead();
 
         checkpoint->detachFromManager();
     }
@@ -680,9 +671,6 @@ void CheckpointManager::scheduleDestruction(CheckpointList&& toRemove) {
         numItems.fetch_sub(numItemsRemoved);
         stats.itemsRemovedFromCheckpoints.fetch_add(numItemsRemoved);
         memFreedByCheckpointRemoval += memoryReleased;
-        if (vb.getState() == vbucket_state_replica) {
-            stats.replicaCheckpointOverhead -= memOverhead;
-        }
     }
 
     // All done, pass checkpoints to the Destroyer

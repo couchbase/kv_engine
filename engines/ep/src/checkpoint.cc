@@ -673,16 +673,15 @@ void Checkpoint::addStats(const AddStatFn& add_stat, CookieIface& cookie) {
 
 void Checkpoint::detachFromManager() {
     Expects(manager);
-    manager = nullptr;
 
     // In EPStats we track the mem used by checkpoints owned by CM, so we need
-    // to decrease that we detach a checkpoint from the CM.
-    auto& cmMemUsage =
-            stats.coreLocal.get()->checkpointManagerEstimatedMemUsage;
+    // to decrease those stats when we detach a checkpoint from the CM.
+    if (manager->getVBState() == vbucket_state_replica) {
+        stats.replicaCheckpointOverhead -= getMemOverhead();
+    }
+    stats.coreLocal.get()->checkpointManagerEstimatedMemUsage -= getMemUsage();
 
-    auto chkptMemUsage = queuedItemsMemUsage + keyIndexMemUsage +
-                         queueMemOverhead + sizeof(Checkpoint);
-    cmMemUsage -= chkptMemUsage;
+    manager = nullptr;
 
     // stop tracking MemoryCounters against the CM
     queuedItemsMemUsage.detachFromManager();
