@@ -1103,8 +1103,15 @@ BinprotResponse TestappTest::reconfigure(const nlohmann::json& config) {
     }
 
     write_config_to_file(config.dump());
-    return adminConnection->execute(BinprotGenericCommand{
+    auto rsp = adminConnection->execute(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::ConfigReload, {}, {}});
+    if (rsp.getOp() != cb::mcbp::ClientOpcode::ConfigReload) {
+        throw std::runtime_error(
+                fmt::format("TestappTest::reconfigure: Expected ConfigReload "
+                            "responce, but received {}",
+                            rsp.getResponse().to_json(true).dump()));
+    }
+    return rsp;
 }
 
 void TestappTest::reconfigure() {
