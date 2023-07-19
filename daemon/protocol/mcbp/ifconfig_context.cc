@@ -29,7 +29,7 @@ cb::engine_errc IfconfigCommandContext::scheduleTask() {
                 [this, spec = std::move(value)]() {
                     auto json = nlohmann::json::parse(spec);
                     auto [s, p] =
-                            networkInterfaceManager->doDefineInterface(json);
+                            networkInterfaceManager->defineInterface(json);
                     status = s;
                     payload = std::move(p);
                     ::notifyIoComplete(cookie, cb::engine_errc::success);
@@ -40,7 +40,7 @@ cb::engine_errc IfconfigCommandContext::scheduleTask() {
                 "Ifconfig delete",
                 [this, uuid = std::move(value)]() {
                     auto [s, p] =
-                            networkInterfaceManager->doDeleteInterface(uuid);
+                            networkInterfaceManager->deleteInterface(uuid);
                     status = s;
                     payload = std::move(p);
                     ::notifyIoComplete(cookie, cb::engine_errc::success);
@@ -48,7 +48,7 @@ cb::engine_errc IfconfigCommandContext::scheduleTask() {
     } else if (key == "list") {
         ExecutorPool::get()->schedule(std::make_shared<OneShotTask>(
                 TaskId::Core_Ifconfig, "Ifconfig list", [this]() {
-                    auto [s, p] = networkInterfaceManager->doListInterface();
+                    auto [s, p] = networkInterfaceManager->listInterface();
                     status = s;
                     payload = std::move(p);
                     ::notifyIoComplete(cookie, cb::engine_errc::success);
@@ -59,7 +59,7 @@ cb::engine_errc IfconfigCommandContext::scheduleTask() {
                     TaskId::Core_Ifconfig,
                     "Ifconfig get TLS configuration",
                     [this]() {
-                        auto [s, p] = networkInterfaceManager->doGetTlsConfig();
+                        auto [s, p] = networkInterfaceManager->getTlsConfig();
                         status = s;
                         payload = std::move(p);
                         ::notifyIoComplete(cookie, cb::engine_errc::success);
@@ -71,7 +71,7 @@ cb::engine_errc IfconfigCommandContext::scheduleTask() {
                     [this, spec = std::move(value)]() {
                         auto json = nlohmann::json::parse(spec);
                         auto [s, p] =
-                                networkInterfaceManager->doTlsReconfigure(json);
+                                networkInterfaceManager->reconfigureTlsConfig(json);
                         status = s;
                         payload = std::move(p);
                         ::notifyIoComplete(cookie, cb::engine_errc::success);

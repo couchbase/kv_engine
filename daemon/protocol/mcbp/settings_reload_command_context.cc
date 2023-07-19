@@ -40,7 +40,7 @@ public:
 
 std::vector<NetworkInterfaceDescription>
 SettingsReloadCommandContext::getInterfaces() {
-    auto [status, list] = networkInterfaceManager->doListInterface();
+    auto [status, list] = networkInterfaceManager->listInterface();
     if (status != cb::mcbp::Status::Success) {
         throw std::runtime_error("Failed to fetch the list of interfaces: " +
                                  to_string(status));
@@ -54,7 +54,7 @@ SettingsReloadCommandContext::getInterfaces() {
 }
 
 void SettingsReloadCommandContext::deleteInterface(const std::string& uuid) {
-    auto [status, error] = networkInterfaceManager->doDeleteInterface(uuid);
+    auto [status, error] = networkInterfaceManager->deleteInterface(uuid);
     if (status != cb::mcbp::Status::Success) {
         throw NetworkInterfaceManagerException(
                 "Failed to delete interface " + uuid + ": " + to_string(status),
@@ -63,7 +63,7 @@ void SettingsReloadCommandContext::deleteInterface(const std::string& uuid) {
 }
 
 void SettingsReloadCommandContext::createInterface(const nlohmann::json& spec) {
-    auto [status, error] = networkInterfaceManager->doDefineInterface(spec);
+    auto [status, error] = networkInterfaceManager->defineInterface(spec);
     if (status != cb::mcbp::Status::Success) {
         auto json = nlohmann::json::parse(error);
         json["spec"] = spec;
