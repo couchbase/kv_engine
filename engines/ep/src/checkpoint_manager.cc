@@ -98,6 +98,10 @@ CheckpointManager::CheckpointManager(EPStats& st,
                           .takeCursor();
         persistenceCursor = pCursor.lock().get();
     }
+
+    if (vb.getState() == vbucket_state_replica) {
+        stats.replicaCheckpointOverhead += getMemOverhead();
+    }
 }
 
 CheckpointManager::~CheckpointManager() {
@@ -625,7 +629,9 @@ void CheckpointManager::maybeScheduleDestruction(
     numItems.fetch_sub(removedItems);
     stats.itemsRemovedFromCheckpoints.fetch_add(removedItems);
     memFreedByCheckpointRemoval += checkpoint.getMemUsage();
-    overheadChangedCallback(-checkpoint.getMemOverhead());
+    if (vb.getState() == vbucket_state_replica) {
+        stats.replicaCheckpointOverhead -= checkpoint.getMemOverhead();
+    }
 
     // Checkpoints must be removed in order, only the oldest is eligible
     // when removing checkpoints one at a time.
@@ -674,7 +680,9 @@ void CheckpointManager::scheduleDestruction(CheckpointList&& toRemove) {
         numItems.fetch_sub(numItemsRemoved);
         stats.itemsRemovedFromCheckpoints.fetch_add(numItemsRemoved);
         memFreedByCheckpointRemoval += memoryReleased;
-        overheadChangedCallback(-memOverhead);
+        if (vb.getState() == vbucket_state_replica) {
+            stats.replicaCheckpointOverhead -= memOverhead;
+        }
     }
 
     // All done, pass checkpoints to the Destroyer
@@ -683,13 +691,13 @@ void CheckpointManager::scheduleDestruction(CheckpointList&& toRemove) {
 
 CheckpointManager::ReleaseResult
 CheckpointManager::expelUnreferencedCheckpointItems() {
-    // trigger the overheadChangedCallback if the overhead is different
+    // Update EPStats::replicaCheckpointOverhead if the overhead is different
     // when this helper is destroyed - which occurs _after_ the destruction
     // of expelledItems (declared below)
     auto overheadCheck = gsl::finally([pre = getMemOverhead(), this]() {
-        auto post = getMemOverhead();
-        if (pre != post) {
-            overheadChangedCallback(post - pre);
+        const auto post = getMemOverhead();
+        if (vb.getState() == vbucket_state_replica && pre != post) {
+            stats.replicaCheckpointOverhead += (post - pre);
         }
     });
 
@@ -1247,6 +1255,10 @@ void CheckpointManager::dump(const std::lock_guard<std::mutex>& lh) const {
     std::cerr << *this << std::endl;
 }
 
+vbucket_state_t CheckpointManager::getVBState() const {
+    return vb.getState();
+}
+
 void CheckpointManager::clear(const std::lock_guard<std::mutex>& lh,
                               uint64_t seqno) {
     // Swap our checkpoint list for a new one so that we can clear everything
@@ -1687,20 +1699,6 @@ void CheckpointManager::updateStatsForStateChange(vbucket_state_t from,
         // _should_ be accounted for as a replica.
         stats.replicaCheckpointOverhead += getMemOverhead(lh);
     }
-}
-
-void CheckpointManager::setOverheadChangedCallback(
-        std::function<void(int64_t delta)> callback) {
-    std::lock_guard<std::mutex> lh(queueLock);
-    overheadChangedCallback = std::move(callback);
-
-    overheadChangedCallback(getMemOverhead(lh));
-}
-
-std::function<void(int64_t delta)>
-CheckpointManager::getOverheadChangedCallback() const {
-    std::lock_guard<std::mutex> lh(queueLock);
-    return overheadChangedCallback;
 }
 
 size_t CheckpointManager::getNumCheckpoints() const {

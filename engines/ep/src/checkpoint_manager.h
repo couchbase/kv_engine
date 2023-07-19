@@ -559,22 +559,6 @@ public:
     void updateStatsForStateChange(vbucket_state_t from, vbucket_state_t to);
 
     /**
-     * Sets the callback to be invoked whenever memory usage changes due to a
-     * new queued item or checkpoint removal (or checkpoint expelling, in
-     * versions this is implemented in). This allows changes in checkpoint
-     * memory usage to be monitored.
-     */
-    void setOverheadChangedCallback(
-            std::function<void(int64_t delta)> callback);
-
-    /**
-     * Gets the callback to be invoked whenever memory usage changes due to a
-     * new queued item or checkpoint removal (or checkpoint expelling, in
-     * versions this is implemented in).
-     */
-    std::function<void(int64_t delta)> getOverheadChangedCallback() const;
-
-    /**
      * @return The number of checkpoints currently managed by this CM.
      */
     size_t getNumCheckpoints() const;
@@ -676,16 +660,6 @@ protected:
      */
     void updateStatsForNewQueuedItem(const std::lock_guard<std::mutex>& lh,
                                      const queued_item& qi);
-
-    /**
-     * function to invoke whenever memory usage changes due to a new
-     * queued item or checkpoint removal (or checkpoint expelling, in versions
-     * this ins implemented in).
-     * Must be declared before checkpointList to ensure it still exists
-     * when any Checkpoints within the list are destroyed during destruction
-     * of this CheckpointManager.
-     */
-    std::function<void(int64_t delta)> overheadChangedCallback{[](int64_t) {}};
 
     /**
      * Return type of removeCursor().
@@ -940,6 +914,8 @@ protected:
      * @param lh Lock to the CM
      */
     void dump(const std::lock_guard<std::mutex>& lh) const;
+
+    vbucket_state_t getVBState() const;
 
     CheckpointList checkpointList;
     EPStats                 &stats;

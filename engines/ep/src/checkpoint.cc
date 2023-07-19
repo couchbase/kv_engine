@@ -87,7 +87,9 @@ Checkpoint::Checkpoint(CheckpointManager& manager,
 
     this->highPreparedSeqno.reset(highPreparedSeqno);
 
-    manager.overheadChangedCallback(getMemOverhead());
+    if (manager.getVBState() == vbucket_state_replica) {
+        stats.replicaCheckpointOverhead += getMemOverhead();
+    }
 }
 
 Checkpoint::~Checkpoint() {
@@ -109,12 +111,12 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
 
     Expects(manager);
     QueueDirtyResult rv;
-    // trigger the overheadChangedCallback if the overhead is different
+    // Update EPStats::replicaCheckpointOverhead if the overhead is different
     // when this helper is destroyed
     auto overheadCheck = gsl::finally([pre = getMemOverhead(), this]() {
         auto post = getMemOverhead();
-        if (pre != post) {
-            manager->overheadChangedCallback(post - pre);
+        if (manager->getVBState() == vbucket_state_replica && pre != post) {
+            stats.replicaCheckpointOverhead += (post - pre);
         }
     });
 
