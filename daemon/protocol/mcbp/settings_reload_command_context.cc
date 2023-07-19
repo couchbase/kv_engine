@@ -78,26 +78,28 @@ void SettingsReloadCommandContext::maybeReconfigurePrometheus(Settings& next) {
         return;
     }
 
-    auto [next_port, next_family] = next.getPrometheusConfig();
-    auto [curr_port, curr_family] = cb::prometheus::getRunningConfig();
-    if (next_port == curr_port && next_family == curr_family) {
-        // Nothing changed
-        return;
-    }
-
+    auto [port, family] = next.getPrometheusConfig();
+    // Check to see if this is the same interface that we've already have
     auto ifc = getInterfaces();
     for (const auto& e : ifc) {
         if (e.getType() == NetworkInterfaceDescription::Type::Prometheus) {
+            if ((port == 0 || port == e.getPort()) && family == e.getFamily()) {
+                // we asked for any port (or the same port) and the address
+                // family is the same. No need to create a new one
+                return;
+            }
+
             deleteInterface(e.getUuid());
+            break;
         }
     }
 
     // Time to define the interface
-    createInterface(nlohmann::json{
-            {"type", "prometheus"},
-            {"family", next_family == AF_INET ? "inet" : "inet6"},
-            {"host", next_family == AF_INET ? "127.0.0.1" : "::1"},
-            {"port", next_port}});
+    createInterface(
+            nlohmann::json{{"type", "prometheus"},
+                           {"family", family == AF_INET ? "inet" : "inet6"},
+                           {"host", family == AF_INET ? "127.0.0.1" : "::1"},
+                           {"port", port}});
 }
 
 void SettingsReloadCommandContext::maybeReconfigureInterfaces(Settings& next) {
