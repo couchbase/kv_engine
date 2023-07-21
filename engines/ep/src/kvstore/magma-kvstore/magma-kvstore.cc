@@ -3697,6 +3697,14 @@ GetStatsMap MagmaKVStore::getStats(
     fill("magma_NReadBytes", magmaStats->NReadBytes);
     fill("magma_FSReadBytes", magmaStats->FSReadBytes);
     fill("magma_NReadBytesGet", magmaStats->NReadBytesGet);
+    fill("magma_KeyIterator_ItemsRead",
+         magmaStats->KeyStats.NumIteratorItemsRead);
+    fill("magma_KeyIterator_ItemsSkipped",
+         magmaStats->KeyStats.NumIteratorItemsSkipped);
+    fill("magma_SeqIterator_ItemsRead",
+         magmaStats->SeqStats.NumIteratorItemsRead);
+    fill("magma_SeqIterator_ItemsSkipped",
+         magmaStats->SeqStats.NumIteratorItemsSkipped);
     fill("magma_NGets", magmaStats->NGets);
     fill("magma_NSets", magmaStats->NSets);
     fill("magma_NInserts", magmaStats->NInserts);

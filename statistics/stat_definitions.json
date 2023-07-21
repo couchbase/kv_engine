@@ -1165,6 +1165,58 @@
         "unit": "count",
         "added": "7.1.0"
     },
+    {
+        "key": "ep_magma_keyitr_items_read",
+        "unit": "count",
+        "added": "7.6.0",
+        "prometheus": {
+            "family": "magma_itr",
+            "labels": {
+                "for": "keyindex",
+                "result": "read"
+            }
+        },
+        "description": "Number of items returned by the ByKeyIterator."
+    },
+    {
+        "key": "ep_magma_seqitr_items_read",
+        "unit": "count",
+        "added": "7.6.0",
+        "prometheus": {
+            "family": "magma_itr",
+            "labels": {
+                "for": "seqindex",
+                "result": "read"
+            }
+        },
+        "description": "Number of items returned by the BySeqIterator."
+    },
+    {
+        "key": "ep_magma_keyitr_items_skipped",
+        "unit": "count",
+        "added": "7.6.0",
+        "prometheus": {
+            "family": "magma_itr",
+            "labels": {
+                "for": "keyindex",
+                "result": "skipped"
+            }
+        },
+        "description": "Number of items internally read but skipped over by the ByKeyIterator. An item is skipped if it is an older document version."
+    },
+    {
+        "key": "ep_magma_seqitr_items_skipped",
+        "unit": "count",
+        "added": "7.6.0",
+        "prometheus": {
+            "family": "magma_itr",
+            "labels": {
+                "for": "seqindex",
+                "result": "skipped"
+            }
+        },
+        "description": "Number of items internally read but skipped over by the ByKeyIterator. An item is skipped if it is an older document version."
+    },
 /* History stats. */
     {
         "key": "ep_magma_history_size_evicted",

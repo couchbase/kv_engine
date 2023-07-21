@@ -240,7 +240,7 @@ TEST_F(MagmaKVStoreTest, prepareToCreate) {
 }
 
 TEST_F(MagmaKVStoreTest, getStats) {
-    constexpr std::array<std::string_view, 54> statNames = {{
+    constexpr std::array<std::string_view, 58> statNames = {{
             "magma_MemoryQuotaLowWaterMark",
             "magma_BloomFilterMemoryQuota",
             "magma_WriteCacheQuota",
@@ -253,6 +253,10 @@ TEST_F(MagmaKVStoreTest, getStats) {
             "magma_BytesOutgoing",
             "magma_NReadBytes",
             "magma_NReadBytesGet",
+            "magma_KeyIterator_ItemsRead",
+            "magma_SeqIterator_ItemsRead",
+            "magma_KeyIterator_ItemsSkipped",
+            "magma_SeqIterator_ItemsSkipped",
             "magma_NGets",
             "magma_NSets",
             "magma_NInserts",
@@ -317,6 +321,10 @@ TEST_F(MagmaKVStoreTest, getStat) {
     ASSERT_TRUE(kvstore->getStat("magma_NSets", value));
     ASSERT_TRUE(kvstore->getStat("magma_NGets", value));
     ASSERT_TRUE(kvstore->getStat("magma_NInserts", value));
+    ASSERT_TRUE(kvstore->getStat("magma_KeyIterator_ItemsRead", value));
+    ASSERT_TRUE(kvstore->getStat("magma_SeqIterator_ItemsRead", value));
+    ASSERT_TRUE(kvstore->getStat("magma_KeyIterator_ItemsSkipped", value));
+    ASSERT_TRUE(kvstore->getStat("magma_SeqIterator_ItemsSkipped", value));
     // Compaction counters
     ASSERT_TRUE(kvstore->getStat("magma_NCompacts", value));
     ASSERT_TRUE(kvstore->getStat("magma_NDataLevelCompacts", value));
