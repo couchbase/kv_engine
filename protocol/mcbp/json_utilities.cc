@@ -42,7 +42,7 @@ void to_json(nlohmann::json& json, const SetCtrlTokenPayload& payload) {
 
 void to_json(nlohmann::json& json,
              const SetBucketDataLimitExceededPayload& payload) {
-    json = {{"enabled", payload.isEnabled()}};
+    json = {{"status", ::to_string(payload.getStatus())}};
 }
 
 void to_json(nlohmann::json& json, const DcpOpenPayload& payload) {

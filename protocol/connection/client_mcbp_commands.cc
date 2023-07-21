@@ -2244,10 +2244,10 @@ void SetNodeThrottlePropertiesCommand::encode(std::vector<uint8_t>& buf) const {
 }
 
 SetBucketDataLimitExceededCommand::SetBucketDataLimitExceededCommand(
-        std::string key_, bool exceeded)
+        std::string key_,cb::mcbp::Status status)
     : BinprotGenericCommand(cb::mcbp::ClientOpcode::SetBucketDataLimitExceeded,
                             std::move(key_)) {
-    extras.setEnabled(exceeded);
+    extras.setStatus(status);
 }
 
 void SetBucketDataLimitExceededCommand::encode(

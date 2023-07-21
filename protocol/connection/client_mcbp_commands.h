@@ -1257,7 +1257,8 @@ protected:
 
 class SetBucketDataLimitExceededCommand : public BinprotGenericCommand {
 public:
-    SetBucketDataLimitExceededCommand(std::string key_, bool exceeded);
+    SetBucketDataLimitExceededCommand(std::string key_,
+                                      cb::mcbp::Status status);
 
     void encode(std::vector<uint8_t>& buf) const override;
 

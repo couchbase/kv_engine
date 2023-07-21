@@ -141,8 +141,9 @@ public:
      */
     std::string name;
 
-    /// Is the bucket quota exceeded or not
-    std::atomic_bool bucket_quota_exceeded;
+    /// If data_ingress_stats != Success, data ingress is disallowed
+    /// and its status is returned for the operation.
+    std::atomic<cb::mcbp::Status> data_ingress_status{cb::mcbp::Status::Success};
 
     /**
      * Statistics vector, one per front-end thread.

@@ -16,12 +16,10 @@
 #include "front_end_thread.h"
 #include "memcached.h"
 #include "network_interface_description.h"
-#include "settings.h"
 #include "subdocument_validators.h"
 #include "tls_configuration.h"
 #include "xattr/utils.h"
 #include <logger/logger.h>
-#include <mcbp/protocol/header.h>
 #include <memcached/collections.h>
 #include <memcached/dcp.h>
 #include <memcached/durability_spec.h>
@@ -436,9 +434,11 @@ Status McbpValidator::verify_header(Cookie& cookie,
                 sid, key.getCollectionID(), manifestUid, metered);
     }
 
-    if (connection.getBucket().bucket_quota_exceeded &&
+    const auto ingress_status =
+            connection.getBucket().data_ingress_status.load();
+    if (ingress_status != cb::mcbp::Status::Success &&
         cb::mcbp::is_client_writing_data(opcode)) {
-        return Status::BucketSizeLimitExceeded;
+        return ingress_status;
     }
 
     return Status::Success;
@@ -1761,7 +1761,7 @@ static Status set_node_throttle_properties_validator(Cookie& cookie) {
 
 static Status set_bucket_data_limit_exceeded_validator(Cookie& cookie) {
     using cb::mcbp::request::SetBucketDataLimitExceededPayload;
-    return McbpValidator::verify_header(
+    auto ret = McbpValidator::verify_header(
             cookie,
             sizeof(SetBucketDataLimitExceededPayload),
             ExpectedKeyLen::NonZero,
@@ -1769,6 +1769,26 @@ static Status set_bucket_data_limit_exceeded_validator(Cookie& cookie) {
             ExpectedCas::NotSet,
             GeneratesDocKey::No,
             PROTOCOL_BINARY_RAW_BYTES);
+    if (ret != Status::Success) {
+        return ret;
+    }
+
+    const auto& payload =
+            cookie.getRequest()
+                    .getCommandSpecifics<SetBucketDataLimitExceededPayload>();
+    switch (payload.getStatus()) {
+    case cb::mcbp::Status::Success:
+    case cb::mcbp::Status::BucketSizeLimitExceeded:
+    case cb::mcbp::Status::BucketResidentRatioTooLow:
+    case cb::mcbp::Status::BucketDataSizeTooBig:
+    case cb::mcbp::Status::BucketDiskSpaceTooLow:
+        break;
+    default:
+        cookie.setErrorContext("Unknown status code provided");
+        return Status::Einval;
+    }
+
+    return Status::Success;
 }
 
 static Status get_meta_validator(Cookie& cookie) {
@@ -2516,17 +2536,16 @@ McbpValidator::McbpValidator() {
     setup(cb::mcbp::ClientOpcode::ConfigValidate, config_validate_validator);
     setup(cb::mcbp::ClientOpcode::Shutdown, shutdown_validator);
 
+    setup(cb::mcbp::ClientOpcode::SetBucketDataLimitExceeded,
+          set_bucket_data_limit_exceeded_validator);
+
     if (cb::serverless::isEnabled()) {
         setup(cb::mcbp::ClientOpcode::SetBucketThrottleProperties,
               set_bucket_throttle_properties_validator);
-        setup(cb::mcbp::ClientOpcode::SetBucketDataLimitExceeded,
-              set_bucket_data_limit_exceeded_validator);
         setup(cb::mcbp::ClientOpcode::SetNodeThrottleProperties,
               set_node_throttle_properties_validator);
     } else {
         setup(cb::mcbp::ClientOpcode::SetBucketThrottleProperties,
-              not_supported_validator);
-        setup(cb::mcbp::ClientOpcode::SetBucketDataLimitExceeded,
               not_supported_validator);
         setup(cb::mcbp::ClientOpcode::SetNodeThrottleProperties,
               not_supported_validator);

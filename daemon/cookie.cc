@@ -452,6 +452,8 @@ void Cookie::initialize(const cb::mcbp::Header& header, bool tracing_enabled) {
 }
 
 cb::mcbp::Status Cookie::validate() {
+    using cb::mcbp::Status;
+
     static McbpValidator packetValidator;
 
     // Note: validate is called after the connection fetched the frame
@@ -535,10 +537,13 @@ cb::mcbp::Status Cookie::validate() {
     }
 
     auto result = packetValidator.validate(opcode, *this);
-    if (result != cb::mcbp::Status::Success) {
-        if (result != cb::mcbp::Status::UnknownCollection &&
-            result != cb::mcbp::Status::NotMyVbucket &&
-            result != cb::mcbp::Status::BucketSizeLimitExceeded) {
+    if (!cb::mcbp::isStatusSuccess(result)) {
+        if (result != Status::UnknownCollection &&
+            result != Status::NotMyVbucket &&
+            result != Status::BucketSizeLimitExceeded &&
+            result != Status::BucketResidentRatioTooLow &&
+            result != Status::BucketDataSizeTooBig &&
+            result != Status::BucketDiskSpaceTooLow) {
             LOG_WARNING(
                     "{}: Packet validation failed for \"{}\" - Status: \"{}\" "
                     "- Packet:[{}] - Returned payload:[{}]",

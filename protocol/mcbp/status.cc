@@ -43,6 +43,9 @@ bool is_known(Status status) {
     case Status::RateLimitedMaxCommands:
     case Status::ScopeSizeLimitExceeded:
     case Status::BucketSizeLimitExceeded:
+    case Status::BucketResidentRatioTooLow:
+    case Status::BucketDataSizeTooBig:
+    case Status::BucketDiskSpaceTooLow:
     case Status::Cancelled:
     case Status::BucketPaused:
     case Status::UnknownFrameInfo:
@@ -135,6 +138,9 @@ bool isStatusSuccess(Status status) {
     case Status::RateLimitedMaxCommands:
     case Status::ScopeSizeLimitExceeded:
     case Status::BucketSizeLimitExceeded:
+    case Status::BucketResidentRatioTooLow:
+    case Status::BucketDataSizeTooBig:
+    case Status::BucketDiskSpaceTooLow:
     case Status::Cancelled:
     case Status::BucketPaused:
     case Status::UnknownFrameInfo:
@@ -270,6 +276,12 @@ std::string to_string(cb::mcbp::Status status, bool shortname) {
             return "ScopeSizeLimitExceeded";
         case Status::BucketSizeLimitExceeded:
             return "BucketSizeLimitExceeded";
+        case Status::BucketResidentRatioTooLow:
+            return "BucketResidentRatioTooLow";
+        case Status::BucketDataSizeTooBig:
+            return "BucketDataSizeTooBig";
+        case Status::BucketDiskSpaceTooLow:
+            return "BucketDiskSpaceTooLow";
         case Status::Cancelled:
             return "Cancelled";
         case Status::BucketPaused:
@@ -425,6 +437,15 @@ std::string to_string(cb::mcbp::Status status, bool shortname) {
             return "Too much data in Scope";
         case Status::BucketSizeLimitExceeded:
             return "Too much data in Bucket";
+        case Status::BucketResidentRatioTooLow:
+            return "Bucket resident ratio too low, write to this bucket is "
+                   "rejected";
+        case Status::BucketDataSizeTooBig:
+            return "Bucket Data Size exceeds maximum allowed size, writes to "
+                   "this bucket is rejected";
+        case Status::BucketDiskSpaceTooLow:
+            return "Disk space where the bucket is deployed is above the "
+                   "configured threshold, writes to this bucket is rejected";
         case Status::Cancelled:
             return "The operation was cancelled";
         case Status::BucketPaused:

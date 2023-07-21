@@ -91,6 +91,13 @@ enum class Status : uint16_t {
     ScopeSizeLimitExceeded = 0x34,
     /// There is too much data in the bucket
     BucketSizeLimitExceeded = 0x35,
+    /// Bucket RR% is too low, write to the bucket is rejected
+    BucketResidentRatioTooLow = 0x36,
+    /// Bucket Data Size too high, writes to this bucket is rejected
+    BucketDataSizeTooBig = 0x37,
+    /// Disk Space where the bucket is deployed too low, writes to
+    /// this bucket is rejected
+    BucketDiskSpaceTooLow = 0x38,
 
     // END Rate limit error codes. Next error should be 0x50
 

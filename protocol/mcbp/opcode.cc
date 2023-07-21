@@ -1519,6 +1519,9 @@ bool is_subject_for_throttling(ClientOpcode opcode) {
 
 bool is_client_writing_data(ClientOpcode opcode) {
     switch (opcode) {
+    case ClientOpcode::Gat:
+    case ClientOpcode::Gatq:
+    case ClientOpcode::Touch:
     case ClientOpcode::Set:
     case ClientOpcode::Add:
     case ClientOpcode::Replace:
@@ -1564,9 +1567,6 @@ bool is_client_writing_data(ClientOpcode opcode) {
     case ClientOpcode::Quitq:
     case ClientOpcode::Flushq:
     case ClientOpcode::Verbosity:
-    case ClientOpcode::Touch:
-    case ClientOpcode::Gat:
-    case ClientOpcode::Gatq:
     case ClientOpcode::Hello:
     case ClientOpcode::SaslListMechs:
     case ClientOpcode::SaslAuth:

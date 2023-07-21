@@ -52,7 +52,7 @@ void Bucket::reset() {
     num_commands_with_metered_units = 0;
     num_metered_dcp_messages = 0;
     num_rejected = 0;
-    bucket_quota_exceeded = false;
+    data_ingress_status = cb::mcbp::Status::Success;
 
     for (auto& c : responseCounters) {
         c.reset();
@@ -84,6 +84,7 @@ nlohmann::json Bucket::to_json() const {
             json["name"] = name;
             json["type"] = to_string(type);
             json["num_commands"] = num_commands.load();
+            json["data_ingress_status"] = to_string(data_ingress_status.load());
             if (serverless) {
                 json["ru"] = read_units_used.load();
                 json["wu"] = write_units_used.load();

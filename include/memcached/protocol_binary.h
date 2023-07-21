@@ -277,20 +277,20 @@ static_assert(sizeof(SetCtrlTokenPayload) == 8, "Unexpected size");
 
 class SetBucketDataLimitExceededPayload {
 public:
-    bool isEnabled() const {
-        return enabled;
+    cb::mcbp::Status getStatus() const {
+        return cb::mcbp::Status(ntohs(status));
     }
-    void setEnabled(bool val) {
-        enabled = val;
+    void setStatus(cb::mcbp::Status val) {
+        status = htons(uint16_t(val));
     }
     cb::const_byte_buffer getBuffer() const {
         return {reinterpret_cast<const uint8_t*>(this), sizeof(*this)};
     }
 
 protected:
-    bool enabled;
+    uint16_t status = 0;
 };
-static_assert(sizeof(SetBucketDataLimitExceededPayload) == 1,
+static_assert(sizeof(SetBucketDataLimitExceededPayload) == sizeof(uint16_t),
               "Unexpected struct size");
 
 #pragma pack()

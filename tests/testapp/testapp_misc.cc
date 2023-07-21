@@ -271,10 +271,6 @@ TEST_F(TestappTest, ServerlessConfigCantBeSetInDefaultDeployment) {
             bucketName, {{"reserved", 1024}}));
     EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus())
             << rsp.getDataJson().dump();
-    rsp = adminConnection->execute(
-            SetBucketDataLimitExceededCommand{bucketName, true});
-    EXPECT_EQ(cb::mcbp::Status::NotSupported, rsp.getStatus())
-            << rsp.getDataJson().dump();
 }
 
 TEST_F(TestappTest, TuneMaxConcurrentAuth) {

@@ -517,7 +517,10 @@ TEST(ClientOpcode, is_client_writing_data) {
     using cb::mcbp::ClientOpcode;
 
     testAllOpcodes(cb::mcbp::is_client_writing_data,
-                   {{ClientOpcode::Set,
+                   {{ClientOpcode::Gat,
+                     ClientOpcode::Gatq,
+                     ClientOpcode::Touch,
+                     ClientOpcode::Set,
                      ClientOpcode::Add,
                      ClientOpcode::Replace,
                      ClientOpcode::Increment,
@@ -546,7 +549,7 @@ TEST(ClientOpcode, is_client_writing_data) {
                      ClientOpcode::SubdocCounter,
                      ClientOpcode::SubdocMultiMutation,
                      ClientOpcode::SubdocReplaceBodyWithXattr}},
-                   "throttling");
+                   "writing data");
 }
 
 TEST(ServerOpcode, to_string) {

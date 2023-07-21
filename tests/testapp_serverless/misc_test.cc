@@ -37,11 +37,12 @@ TEST(MiscTest, TestBucketDetailedStats) {
                 bucket = nlohmann::json::parse(v);
             },
             "bucket_details bucket-0");
-    EXPECT_EQ(14, bucket.size());
+    EXPECT_EQ(15, bucket.size());
     EXPECT_NE(bucket.end(), bucket.find("state"));
     EXPECT_NE(bucket.end(), bucket.find("clients"));
     EXPECT_NE(bucket.end(), bucket.find("name"));
     EXPECT_NE(bucket.end(), bucket.find("type"));
+    EXPECT_EQ("Success", bucket["data_ingress_status"]);
     EXPECT_NE(bucket.end(), bucket.find("ru"));
     EXPECT_NE(bucket.end(), bucket.find("wu"));
     EXPECT_NE(bucket.end(), bucket.find("num_throttled"));
@@ -166,29 +167,92 @@ TEST(MiscTest, StopClientDataIngress) {
     writeDoc(*bucket0);
 
     // Disable client ingress
-    auto rsp =
-            admin->execute(SetBucketDataLimitExceededCommand{"bucket-0", true});
-    EXPECT_TRUE(rsp.isSuccess());
+    for (auto reason : {cb::mcbp::Status::BucketSizeLimitExceeded,
+                        cb::mcbp::Status::BucketResidentRatioTooLow,
+                        cb::mcbp::Status::BucketDataSizeTooBig,
+                        cb::mcbp::Status::BucketDiskSpaceTooLow}) {
+        auto rsp = admin->execute(
+                SetBucketDataLimitExceededCommand{"bucket-0", reason});
+        EXPECT_TRUE(rsp.isSuccess());
 
-    // fail to store a document
-    try {
+        admin->stats(
+                [reason](auto k, auto v) {
+                    auto json = nlohmann::json::parse(v);
+                    EXPECT_EQ(::to_string(reason), json["data_ingress_status"]);
+                },
+                "bucket_details bucket-0");
+
+        // fail to store a document
+        try {
+            writeDoc(*bucket0);
+            FAIL() << "Should not be able to store a document when mode is set "
+                      "to "
+                   << reason;
+        } catch (ConnectionError& error) {
+            EXPECT_EQ(reason, error.getReason());
+        }
+        // Succeeds to store a document in bucket-1
+        auto bucket1 = admin->clone();
+        bucket1->authenticate("bucket-1", "bucket-1");
+        bucket1->selectBucket("bucket-1");
+        writeDoc(*bucket1);
+
+        // enable client ingress
+        rsp = admin->execute(SetBucketDataLimitExceededCommand{
+                "bucket-0", cb::mcbp::Status::Success});
+        EXPECT_TRUE(rsp.isSuccess());
+
+        // succeed to store a document
         writeDoc(*bucket0);
-        FAIL() << "Should not be able to store a document";
-    } catch (ConnectionError& error) {
-        EXPECT_EQ(cb::mcbp::Status::BucketSizeLimitExceeded, error.getReason());
     }
-    // Succeeds to store a document in bucket-1
-    auto bucket1 = admin->clone();
-    bucket1->authenticate("bucket-1", "bucket-1");
-    bucket1->selectBucket("bucket-1");
-    writeDoc(*bucket1);
+}
 
-    // enable client ingress
-    rsp = admin->execute(SetBucketDataLimitExceededCommand{"bucket-0", false});
-    EXPECT_TRUE(rsp.isSuccess());
+TEST(MiscTest, StopClientDataIngressLockedByNsServer) {
+    auto admin = cluster->getConnection(0);
+    admin->authenticate("@admin", "password");
 
-    // succeed to store a document
-    writeDoc(*bucket0);
+    auto regulator = admin->clone();
+    regulator->authenticate("@admin", "password");
+    regulator->dropPrivilege(cb::rbac::Privilege::NodeSupervisor);
+
+    using cb::mcbp::Status;
+
+    // The regulator can only set the state to BucketSizeLimitExceeded
+    auto rsp = regulator->execute(SetBucketDataLimitExceededCommand{
+            "bucket-0", Status::BucketSizeLimitExceeded});
+    ASSERT_EQ(Status::Success, rsp.getStatus());
+    // And may clear it if it is set to BucketSIzdeLimitExceeded
+    rsp = regulator->execute(
+            SetBucketDataLimitExceededCommand{"bucket-0", Status::Success});
+    ASSERT_EQ(Status::Success, rsp.getStatus());
+
+    for (auto reason : {Status::BucketResidentRatioTooLow,
+                        Status::BucketDataSizeTooBig,
+                        Status::BucketDiskSpaceTooLow}) {
+        // Verify that we can't set the states reserved to ns_server
+        rsp = regulator->execute(
+                SetBucketDataLimitExceededCommand{"bucket-0", reason});
+        ASSERT_EQ(Status::Locked, rsp.getStatus());
+
+        // Verify that we can't change the state once ns_server set the state:
+        rsp = admin->execute(
+                SetBucketDataLimitExceededCommand{"bucket-0", reason});
+        ASSERT_EQ(Status::Success, rsp.getStatus());
+
+        rsp = regulator->execute(SetBucketDataLimitExceededCommand{
+                "bucket-0", Status::BucketSizeLimitExceeded});
+        ASSERT_EQ(Status::Locked, rsp.getStatus());
+
+        // Verify that we can't clear the state if ns_server set the state
+        rsp = regulator->execute(
+                SetBucketDataLimitExceededCommand{"bucket-0", Status::Success});
+        ASSERT_EQ(Status::Locked, rsp.getStatus());
+    }
+
+    // Clean up; set the state back to allow data ingress
+    rsp = admin->execute(
+            SetBucketDataLimitExceededCommand{"bucket-0", Status::Success});
+    ASSERT_EQ(Status::Success, rsp.getStatus());
 }
 
 /// Verify that the memcached buckets is not supported in serverless

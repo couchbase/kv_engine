@@ -1938,7 +1938,7 @@ The successful return message carries no extra userdata.
 The `Set Bucket Data Limit Exceeded` command is used to inform memcached
 that the data limit of the bucket is exceeded and that clients are no longer
 allowed to store additional data (The same command is also used to clear
-the setting). Once set the clients may only get and delete data. Note
+the setting). Once set, the clients may only get and delete data. Note
 that this setting does NOT affect DCP traffic.
 
 Request:
@@ -1956,12 +1956,19 @@ The extra section is encoded in the following way:
          /              |               |               |               |
         |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
         +---------------+---------------+---------------+---------------+
-       0|    0  / 1     |                                               |
+       0| Code in network byte order    |               |               |
         +---------------+---------------+---------------+---------------+
-        Total 1 bytes
+        Total 2 bytes
 
-A value of 0 will clear the setting, and all other values enables the
-data limit exceeded mode.
+To clear (and allow data ingress) use "Success" (0)
+
+The following values may be set to disallow data ingress (and the error
+message is used in the reply to the client):
+
+    BucketSizeLimitExceeded (0x35)
+    BucketResidentRatioTooLow (0x36)
+    BucketDataSizeTooBig (0x37)
+    BucketDiskSpaceTooLow (0x38)
 
 The successful return message carries no extra userdata.
 

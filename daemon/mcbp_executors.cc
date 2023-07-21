@@ -533,31 +533,62 @@ static void set_bucket_data_limit_exceeded_executor(Cookie& cookie) {
     using cb::mcbp::request::SetBucketDataLimitExceededPayload;
     auto& req = cookie.getRequest();
     auto extras = req.getExtdata();
-    auto* payload =
-            reinterpret_cast<const SetBucketDataLimitExceededPayload*>(
-                    extras.data());
-    bool found = false;
-    BucketManager::instance().forEach([&cookie, &name, &found, payload](
+    auto* payload = reinterpret_cast<const SetBucketDataLimitExceededPayload*>(
+            extras.data());
+    using cb::mcbp::Status;
+    auto status = Status::KeyEnoent;
+    BucketManager::instance().forEach([&cookie, &name, &status, payload](
                                               auto& bucket) -> bool {
         if (bucket.name == name) {
-            if (bucket.bucket_quota_exceeded != payload->isEnabled()) {
-                LOG_INFO("{} {}able client document ingress for bucket {}",
-                         cookie.getConnectionId(),
-                         payload->isEnabled() ? "En" : "Dis",
-                         name);
-                bucket.bucket_quota_exceeded = payload->isEnabled();
+            std::lock_guard<std::mutex> guard(bucket.mutex);
+            if (bucket.data_ingress_status != payload->getStatus()) {
+                bool access = cookie.getConnection().isNodeSupervisor();
+                if (!access) {
+                    // we may only progress if:
+                    // previous is success and next is BucketSizeLimitExceeded
+                    // previous is BucketSizeLimitExceeded and next is Success
+                    access = (bucket.data_ingress_status == Status::Success &&
+                              payload->getStatus() ==
+                                      Status::BucketSizeLimitExceeded) ||
+                             (bucket.data_ingress_status ==
+                                      Status::BucketSizeLimitExceeded &&
+                              payload->getStatus() == Status::Success);
+                }
+
+                if (!access) {
+                    LOG_WARNING(
+                            "{} The regulator can't set client document "
+                            "ingress for bucket {} from {} to {} as the node "
+                            "supervisor locked the value",
+                            cookie.getConnectionId(),
+                            name,
+                            bucket.data_ingress_status.load(),
+                            payload->getStatus());
+                    status = Status::Locked;
+                    return false;
+                }
+
+                if (payload->getStatus() == Status::Success) {
+                    LOG_INFO("{} Enable client document ingress for bucket {}",
+                             cookie.getConnectionId(),
+                             name);
+                } else {
+                    LOG_INFO(
+                            "{} Disable client document ingress for bucket {} "
+                            "with error code {}",
+                            cookie.getConnectionId(),
+                            name,
+                            to_string(payload->getStatus()));
+                }
+                bucket.data_ingress_status = payload->getStatus();
             }
-            found = true;
+            status = Status::Success;
             return false;
         }
         return true;
     });
 
-    if (found) {
-        cookie.sendResponse(cb::mcbp::Status::Success);
-    } else {
-        cookie.sendResponse(cb::mcbp::Status::KeyEnoent);
-    }
+    cookie.sendResponse(status);
 }
 
 static void update_user_permissions_executor(Cookie& cookie) {
