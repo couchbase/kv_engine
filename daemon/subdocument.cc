@@ -43,6 +43,84 @@ using namespace cb::mcbp::subdoc;
  * Subdocument executors
  *****************************************************************************/
 
+/**
+ * The SubdocCommandContext class is the command context containing all of
+ * the data which is required for the entire duration of the execution of
+ * a subdoc command. It holds the old SubdocCmdContext object which holds
+ * all of the state logic needed for a single execution of the subdoc
+ * operation (it gets reset every time there is a CAS collision causing the
+ * entire operation to be retried). The old SubdocCmdContext should be
+ * renamed, but treat that separately from this patch.
+ *
+ * It'll eventually be refactored into a steppable command context which
+ * utilize the executor pools to perform the actual subdoc transformations
+ */
+class SubdocCommandContext : public CommandContext {
+public:
+    /// We specify a finite number of times to retry; to prevent the event that
+    /// we are fighting with another client for the correct CAS value for an
+    /// arbitrary amount of time (and to defend against possible bugs in our
+    /// code ;)
+    constexpr static int MAXIMUM_ATTEMPTS = 100;
+
+    SubdocCommandContext(Cookie& cookie)
+        : auto_retry_mode(cookie.getRequest().getCas() ==
+                          cb::mcbp::cas::Wildcard) {
+    }
+
+    cb::engine_errc pre_link_document(item_info& info) override {
+        if (context) {
+            return context->pre_link_document(info);
+        }
+        return cb::engine_errc::success;
+    }
+
+    /// If client didn't specify a CAS, we still use CAS internally to check
+    /// that we are updating the same version of the document as was fetched.
+    /// However in this case we auto-retry in the event of a concurrent update
+    /// by some other client.
+    bool is_auto_retry_mode() const {
+        return auto_retry_mode;
+    }
+
+    /// May we retry the operation, or should we give up
+    bool increment_retry_count_and_check_for_retry() {
+        return is_auto_retry_mode() && ++retries < MAXIMUM_ATTEMPTS;
+    }
+
+    /// get (or create) the SubdocCmdContext instance to use
+    SubdocCmdContext* getSubdocCmdContext(Cookie& cookie,
+                                          const SubdocCmdTraits traits,
+                                          doc_flag doc_flags,
+                                          Vbid vbucket) {
+        if (!context) {
+            try {
+                context = std::make_unique<SubdocCmdContext>(
+                        cookie, traits, vbucket, doc_flags);
+            } catch (const std::bad_alloc&) {
+                return nullptr;
+            }
+        }
+        return context.get();
+    }
+
+    /// Reset the SubdocCmdContext used (prepare to restart the entire
+    /// operation)
+    void resetSubdocCmdContext() {
+        context.reset();
+    }
+
+protected:
+    /// The current context object
+    std::unique_ptr<SubdocCmdContext> context;
+
+    /// The current retry count
+    int retries = 0;
+
+    /// If operations should be retried or not
+    const bool auto_retry_mode;
+};
+
 /*
  * Declarations
  */
@@ -60,19 +138,6 @@ static cb::engine_errc subdoc_update(SubdocCmdContext& context,
                                      uint32_t expiration);
 static void subdoc_response(Cookie& cookie, SubdocCmdContext& context);
 
-static SubdocCmdContext* subdoc_create_context(Cookie& cookie,
-                                               const SubdocCmdTraits traits,
-                                               doc_flag doc_flags,
-                                               Vbid vbucket) {
-    try {
-        return std::make_unique<SubdocCmdContext>(
-                       cookie, traits, vbucket, doc_flags)
-                .release();
-    } catch (const std::bad_alloc&) {
-        return nullptr;
-    }
-}
-
 /**
  * Main function which handles execution of all sub-document
  * commands: fetches, operates on, updates and finally responds to the client.
@@ -84,6 +149,8 @@ static SubdocCmdContext* subdoc_create_context(Cookie& cookie,
  * @param traits Traits associated with the specific command.
  */
 static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
+    auto& command_context = cookie.obtainContext<SubdocCommandContext>(cookie);
+
     // 0. Parse the request and log it if debug enabled.
     const auto& request = cookie.getRequest();
     const auto vbucket = request.getVBucket();
@@ -119,34 +186,15 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
     // c->aiostat.
     auto ret = cookie.swapAiostat(cb::engine_errc::success);
 
-    // If client didn't specify a CAS, we still use CAS internally to check
-    // that we are updating the same version of the document as was fetched.
-    // However in this case we auto-retry in the event of a concurrent update
-    // by some other client.
-    const bool auto_retry = (cas == 0);
-
-    // We specify a finite number of times to retry; to prevent the (extremely
-    // unlikely) event that we are fighting with another client for the
-    // correct CAS value for an arbitrary amount of time (and to defend against
-    // possible bugs in our code ;)
-    const int MAXIMUM_ATTEMPTS = 100;
-
-    int attempts = 0;
     do {
-        attempts++;
-
         // 0. If we don't already have a command context, allocate one
         // (we may already have one if this is an auto_retry or a re-execution
         // due to EWOULDBLOCK).
-        auto* context =
-                dynamic_cast<SubdocCmdContext*>(cookie.getCommandContext());
+        auto* context = command_context.getSubdocCmdContext(
+                cookie, traits, doc_flags, vbucket);
         if (context == nullptr) {
-            context = subdoc_create_context(cookie, traits, doc_flags, vbucket);
-            if (context == nullptr) {
-                cookie.sendResponse(cb::mcbp::Status::Enomem);
-                return;
-            }
-            cookie.setCommandContext(context);
+            cookie.sendResponse(cb::mcbp::Status::Enomem);
+            return;
         }
 
         // 1. Attempt to fetch from the engine the document to operate on. Only
@@ -179,12 +227,11 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
         // 3. Update the document in the engine (mutations only).
         ret = subdoc_update(*context, ret, key, expiration);
         if (ret == cb::engine_errc::key_already_exists) {
-            if (auto_retry) {
+            if (command_context.is_auto_retry_mode()) {
                 // Retry the operation. Reset the command context and related
                 // state, so start from the beginning again.
                 ret = cb::engine_errc::success;
-
-                cookie.setCommandContext();
+                command_context.resetSubdocCmdContext();
                 continue;
             } else {
                 // No auto-retry - return status back to client and return.
@@ -218,7 +265,7 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
             STATS_HIT(&cookie.getConnection(), get);
         }
         return;
-    } while (auto_retry && attempts < MAXIMUM_ATTEMPTS);
+    } while (command_context.increment_retry_count_and_check_for_retry());
 
     // Hit maximum attempts - this theoretically could happen but shouldn't
     // in reality.
@@ -229,7 +276,7 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
             "{}: Subdoc: Hit maximum number of auto-retry attempts ({}) when "
             "attempting to perform op {} for client {} - returning TMPFAIL",
             c.getId(),
-            MAXIMUM_ATTEMPTS,
+            SubdocCommandContext::MAXIMUM_ATTEMPTS,
             to_string(mcbp_cmd),
             c.getDescription());
     cookie.sendResponse(cb::mcbp::Status::Etmpfail);

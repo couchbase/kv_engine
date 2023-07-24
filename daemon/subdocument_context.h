@@ -68,7 +68,7 @@ enum class XtocSemantics : uint8_t { User, All };
  *  engine functions return EWOULDBLOCK and hence the executor needs to be
  *  retried.
  */
-class SubdocCmdContext : public CommandContext {
+class SubdocCmdContext {
 public:
     /**
      * All subdoc access happens in two phases... First we'll run through
@@ -81,14 +81,14 @@ public:
     };
 
     class OperationSpec;
-    typedef std::vector<OperationSpec> Operations;
+    using Operations = std::vector<OperationSpec>;
 
     SubdocCmdContext(Cookie& cookie_,
                      const SubdocCmdTraits traits_,
                      Vbid vbucket_,
                      cb::mcbp::subdoc::doc_flag doc_flags);
 
-    cb::engine_errc pre_link_document(item_info& info) override;
+    cb::engine_errc pre_link_document(item_info& info);
 
     /**
      * Get the padded value we want to use for values with macro expansion.
