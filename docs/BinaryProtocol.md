@@ -2773,12 +2773,16 @@ commands.
 ### 0x01 Clustermap Change Notification
 
 The server will push the new cluster map to the clients iff the client
-subscribes to clustermap notifications (see [HELO](#0x1f-helo))
+subscribes to clustermap notifications (see [HELO](#0x1f-helo)). The client
+may either subscribe to full (contains the cluster map) or brief (does
+not contain the actual cluster map) notifications.
 
 The request:
 * Must have extras
-* Must not have key
-* Must have value
+* May have key
+* May have value
+
+The key contains the name of the bucket (empty indicates the global config).
 
 The layout of the extras section depends on the version of the request.
 The version is inferred from the length of the extras.
@@ -2794,7 +2798,7 @@ revision epoch, and the second 8 bytes are the revision number.
 The epoch value may be negative to indicate the epoch is not yet
 initialized. The revision value is never negative.
 
-In all versions, the full clustermap is sent in the value field.
+The value (if present) contains the full cluster map.
 
 The server does not need a reply to the message (it is silently dropped without
 any kind of validation).
