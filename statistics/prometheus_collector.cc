@@ -109,6 +109,11 @@ void PrometheusStatCollector::addStat(const cb::stats::StatDef& spec,
                 fmt::format("PrometheusStatCollector: metricFamily:{} cannot "
                             "expose a scalar value as metric of type histogram",
                             spec.metricFamily));
+    case MetricType::Info:
+        throw std::logic_error(
+                fmt::format("PrometheusStatCollector: metricFamily:{} "
+                            "info metrics are not supported",
+                            spec.metricFamily));
     case MetricType::Summary:
         throw std::logic_error(
                 fmt::format("PrometheusStatCollector: metricFamily:{} "

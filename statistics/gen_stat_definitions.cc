@@ -36,6 +36,7 @@ NLOHMANN_JSON_SERIALIZE_ENUM(MetricType,
                               {MetricType::Counter, "counter"},
                               {MetricType::Gauge, "gauge"},
                               {MetricType::Histogram, "histogram"},
+                              {MetricType::Info, "histogram"},
                               {MetricType::Summary, "summary"}})
 
 std::string to_string(MetricType type) {
@@ -48,6 +49,8 @@ std::string to_string(MetricType type) {
         return "MetricType::Gauge";
     case MetricType::Histogram:
         return "MetricType::Histogram";
+    case MetricType::Info:
+        return "MetricType::Info";
     case MetricType::Summary:
         return "MetricType::Summary";
     }

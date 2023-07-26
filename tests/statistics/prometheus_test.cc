@@ -199,9 +199,9 @@ TEST_F(PrometheusStatTest, metricType) {
     // it's a little brittle to expect an exact string value
     // but it's a simple test and will show up any unexpected changes
     std::string expected = R"(# TYPE kv_audit_enabled untyped
-kv_audit_enabled 0.000000
+kv_audit_enabled 0
 # TYPE kv_audit_dropped_events counter
-kv_audit_dropped_events 0.000000
+kv_audit_dropped_events 0
 )";
 
     EXPECT_EQ(expected, metricStr);
@@ -238,7 +238,7 @@ TEST_F(PrometheusStatTest, counterGaugeValuesExposed) {
                 serialiser.Serialize({stats.at("some_counter")});
 
         std::string expected = R"(# TYPE some_counter counter
-some_counter 12345.000000
+some_counter 12345
 )";
 
         // Prior to MB-53979, this would fail as gauges/counters erroneously set
@@ -251,7 +251,7 @@ some_counter 12345.000000
         std::string metricStr = serialiser.Serialize({stats.at("some_gauge")});
 
         std::string expected = R"(# TYPE some_gauge gauge
-some_gauge 54321.000000
+some_gauge 54321
 )";
 
         EXPECT_EQ(expected, metricStr);
