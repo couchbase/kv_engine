@@ -157,7 +157,6 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
       dcpNoopTxInterval(engine.getConfiguration().getDcpNoopTxInterval()),
       pendingSendStreamEndOnClientStreamClose(true),
       consumerName(std::move(consumerName_)),
-      producerIsVersion5orHigher(false),
       processorTaskRunning(false),
       flowControl(engine, *this),
       processBufferedMessagesYieldThreshold(
@@ -875,6 +874,9 @@ cb::engine_errc DcpConsumer::step(bool throttled,
     // is a pre-5.0.0 node. The consumer will set the producer's noop-interval
     // accordingly in 'handleNoop()', so 'handleGetErrorMap()' *must* execute
     // before 'handleNoop()'.
+    // Note: We only support mixed-mode cluster one major version apart, so
+    // as of 7.x we don't support communicating with v5.x; but we still perform
+    // detection of v5 so we can at least report a clean error to the user.
     if ((ret = handleGetErrorMap(producers)) != cb::engine_errc::failed) {
         return ret;
     }
@@ -1102,7 +1104,23 @@ bool DcpConsumer::handleResponse(const cb::mcbp::Response& response) {
         auto status = response.getStatus();
         // GetErrorMap is supported on versions >= 5.0.0.
         // "Unknown Command" is returned on pre-5.0.0 versions.
-        producerIsVersion5orHigher = status != cb::mcbp::Status::UnknownCommand;
+        // We only support mixed-mode (online upgrade) for the previous major
+        // - which of of writing is 6.x - so 5.x is no longer supported. However,
+        // there isn't a simple way to detect 5.x - only less than 5 - so for
+        // now we are slightly more permissive and still allow 5.x, rejecting
+        // 4.x and lower. 
+        auto producerIsVersion5orHigher =
+                status != cb::mcbp::Status::UnknownCommand;
+        if (!producerIsVersion5orHigher) {
+            logger->error(
+                    "Incompatible Producer node version detected - this "
+                    "version "
+                    "of CB Server requires version 6 or higher - "
+                    "disconnecting. (Producer responded with {} to GetErrorMap "
+                    "request indicating version <5.0.0)",
+                    status);
+            return false;
+        }
         getErrorMapState = GetErrorMapState::Skip;
         return true;
     } else if (opcode == cb::mcbp::ClientOpcode::DcpSeqnoAcknowledged) {
@@ -1514,12 +1532,7 @@ cb::engine_errc DcpConsumer::handleNoop(DcpMessageProducersIface& producers) {
         return ret;
     }
 
-    // MB-29441: Set the noop-interval on the producer:
-    //     - dcpNoopTxInterval, if the producer is a >=5.0.0 node
-    //     - 180 seconds, if the producer is a pre-5.0.0 node
-    //       (this is the expected value on a pre-5.0.0 producer)
-    auto intervalCount =
-            producerIsVersion5orHigher ? dcpNoopTxInterval.count() : 180;
+    auto intervalCount = dcpNoopTxInterval.count();
 
     if (pendingSendNoopInterval) {
         cb::engine_errc ret;

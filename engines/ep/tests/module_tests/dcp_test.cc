@@ -1260,7 +1260,6 @@ TEST_P(ConnectionTest, consumer_get_error_map) {
         consumer.setPendingAddStream(false);
         ASSERT_EQ(1 /*PendingRequest*/,
                   static_cast<uint8_t>(consumer.getGetErrorMapState()));
-        ASSERT_EQ(false, consumer.getProducerIsVersion5orHigher());
 
         // If Flow Control is enabled, then the first call to step() will handle
         // the Flow Control negotiation. We do not want to test that here, so
@@ -1284,11 +1283,9 @@ TEST_P(ConnectionTest, consumer_get_error_map) {
         resp.setOpcode(cb::mcbp::ClientOpcode::GetErrorMap);
         resp.setStatus(prodIsV5orHigher ? cb::mcbp::Status::Success
                                         : cb::mcbp::Status::UnknownCommand);
-        ASSERT_TRUE(consumer.handleResponse(resp));
-        ASSERT_EQ(0 /*Skip*/,
-                  static_cast<uint8_t>(consumer.getGetErrorMapState()));
-        ASSERT_EQ(prodIsV5orHigher ? true : false,
-                  consumer.getProducerIsVersion5orHigher());
+        // pre-5.0.0 producer is no longer supported, handleResponse will return
+        // false in that case.
+        ASSERT_EQ(prodIsV5orHigher, consumer.handleResponse(resp));
 
         destroy_mock_cookie(cookie);
     }

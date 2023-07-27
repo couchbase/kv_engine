@@ -64,10 +64,6 @@ public:
         return getErrorMapState;
     }
 
-    bool getProducerIsVersion5orHigher() {
-        return producerIsVersion5orHigher;
-    }
-
     FlowControl& getFlowControl() {
         return flowControl;
     }

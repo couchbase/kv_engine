@@ -596,15 +596,14 @@ protected:
      *     request to the producer
      * 2) we wait until state!=PendingResponse (i.e., response ready)
      * 3) the GetErrorMap command is available from version >= 5.0.0, so
-     *     - producerIsVersion5orHigher=true, if GetErrorMap succeeds
-     *     - producerIsVersion5orHigher=false, if GetErrorMap fails
+     *     - if GetErrorMap succeeds, we have >= 5.0.0 producer and continue.
+     *     - if GetErrorMap fails, we have <= 5.0.0 producer and disconnect.
      */
     enum class GetErrorMapState : uint8_t {
         Skip = 0, // Covers "do not send request" and "response ready"
         PendingRequest,
         PendingResponse
     } getErrorMapState;
-    bool producerIsVersion5orHigher;
 
     /**
      * Handles the negotiation for IncludeDeletedUserXattrs.
