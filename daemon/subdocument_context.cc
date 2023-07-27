@@ -32,7 +32,7 @@
 
 using namespace std::string_literals;
 
-SubdocCmdContext::OperationSpec::OperationSpec(
+SubdocExecutionContext::OperationSpec::OperationSpec(
         SubdocCmdTraits traits_,
         protocol_binary_subdoc_flag flags_,
         std::string path_,
@@ -48,14 +48,14 @@ SubdocCmdContext::OperationSpec::OperationSpec(
     }
 }
 
-SubdocCmdContext::OperationSpec::OperationSpec(OperationSpec&& other)
+SubdocExecutionContext::OperationSpec::OperationSpec(OperationSpec&& other)
     : traits(other.traits),
       flags(other.flags),
       path(other.path),
       value(other.value) {
 }
 
-uint64_t SubdocCmdContext::getOperationValueBytesTotal() const {
+uint64_t SubdocExecutionContext::getOperationValueBytesTotal() const {
     uint64_t result = 0;
     for (auto& ops : operations) {
         for (auto& op : ops) {
@@ -109,7 +109,7 @@ static void subdoc_print_command(Connection& c,
 /*
  * Definitions
  */
-void SubdocCmdContext::create_single_path_context(
+void SubdocExecutionContext::create_single_path_context(
         cb::mcbp::subdoc::doc_flag doc_flags) {
     const auto& request = cookie.getRequest();
     const auto extras = request.getExtdata();
@@ -124,8 +124,9 @@ void SubdocCmdContext::create_single_path_context(
     auto path = value.substr(0, pathlen);
 
     const bool xattr = (flags & SUBDOC_FLAG_XATTR_PATH);
-    const SubdocCmdContext::Phase phase = xattr ? SubdocCmdContext::Phase::XATTR
-                                                : SubdocCmdContext::Phase::Body;
+    const SubdocExecutionContext::Phase phase =
+            xattr ? SubdocExecutionContext::Phase::XATTR
+                  : SubdocExecutionContext::Phase::Body;
     auto& ops = getOperations(phase);
 
     if (xattr) {
@@ -149,13 +150,13 @@ void SubdocCmdContext::create_single_path_context(
         // Adjust value to move past the path.
         value.remove_prefix(pathlen);
 
-        ops.emplace_back(
-                SubdocCmdContext::OperationSpec{traits,
-                                                flags,
-                                                {path.data(), path.size()},
-                                                {value.data(), value.size()}});
+        ops.emplace_back(SubdocExecutionContext::OperationSpec{
+                traits,
+                flags,
+                {path.data(), path.size()},
+                {value.data(), value.size()}});
     } else {
-        ops.emplace_back(SubdocCmdContext::OperationSpec{
+        ops.emplace_back(SubdocExecutionContext::OperationSpec{
                 traits, flags, {path.data(), path.size()}});
     }
 
@@ -177,7 +178,7 @@ void SubdocCmdContext::create_single_path_context(
     }
 }
 
-void SubdocCmdContext::create_multi_path_context(
+void SubdocExecutionContext::create_multi_path_context(
         cb::mcbp::subdoc::doc_flag doc_flags) {
     // Decode each of lookup specs from the value into our command context.
     const auto& request = cookie.getRequest();
@@ -238,9 +239,9 @@ void SubdocCmdContext::create_multi_path_context(
             }
         }
 
-        const SubdocCmdContext::Phase phase =
-                xattr ? SubdocCmdContext::Phase::XATTR
-                      : SubdocCmdContext::Phase::Body;
+        const SubdocExecutionContext::Phase phase =
+                xattr ? SubdocExecutionContext::Phase::XATTR
+                      : SubdocExecutionContext::Phase::Body;
 
         auto& ops = getOperations(phase);
 
@@ -251,7 +252,7 @@ void SubdocCmdContext::create_multi_path_context(
         if (cmdTraits.mcbpCommand == cb::mcbp::ClientOpcode::Delete) {
             do_delete_doc = true;
         }
-        ops.emplace_back(SubdocCmdContext::OperationSpec{
+        ops.emplace_back(SubdocExecutionContext::OperationSpec{
                 cmdTraits,
                 flags,
                 {path.data(), path.size()},
@@ -271,10 +272,11 @@ void SubdocCmdContext::create_multi_path_context(
     }
 }
 
-SubdocCmdContext::SubdocCmdContext(Cookie& cookie_,
-                                   const SubdocCmdTraits traits_,
-                                   Vbid vbucket_,
-                                   cb::mcbp::subdoc::doc_flag doc_flags)
+SubdocExecutionContext::SubdocExecutionContext(
+        Cookie& cookie_,
+        const SubdocCmdTraits traits_,
+        Vbid vbucket_,
+        cb::mcbp::subdoc::doc_flag doc_flags)
     : cookie(cookie_),
       connection(cookie_.getConnection()),
       traits(traits_),
@@ -302,8 +304,8 @@ SubdocCmdContext::SubdocCmdContext(Cookie& cookie_,
 }
 
 template <typename T>
-std::string SubdocCmdContext::macroToString(cb::xattr::macros::macro macro,
-                                            T macroValue) {
+std::string SubdocExecutionContext::macroToString(
+        cb::xattr::macros::macro macro, T macroValue) {
     if (sizeof(T) != macro.expandedSize) {
         throw std::logic_error("macroToString: Invalid size specified for " +
                                std::string(macro.name));
@@ -314,7 +316,7 @@ std::string SubdocCmdContext::macroToString(cb::xattr::macros::macro macro,
     return ss.str();
 }
 
-cb::engine_errc SubdocCmdContext::pre_link_document(item_info& info) {
+cb::engine_errc SubdocExecutionContext::pre_link_document(item_info& info) {
     if (do_macro_expansion) {
         cb::char_buffer blob_buffer{static_cast<char*>(info.value[0].iov_base),
                                     info.value[0].iov_len};
@@ -356,7 +358,7 @@ cb::engine_errc SubdocCmdContext::pre_link_document(item_info& info) {
     return cb::engine_errc::success;
 }
 
-bool SubdocCmdContext::containsMacro(cb::xattr::macros::macro macro) {
+bool SubdocExecutionContext::containsMacro(cb::xattr::macros::macro macro) {
     return std::any_of(std::begin(paddedMacros),
                        std::end(paddedMacros),
                        [&macro](const MacroPair& m) {
@@ -364,9 +366,9 @@ bool SubdocCmdContext::containsMacro(cb::xattr::macros::macro macro) {
                        });
 }
 
-void SubdocCmdContext::substituteMacro(cb::xattr::macros::macro macroName,
-                                       const std::string& macroValue,
-                                       cb::char_buffer& value) {
+void SubdocExecutionContext::substituteMacro(cb::xattr::macros::macro macroName,
+                                             const std::string& macroValue,
+                                             cb::char_buffer& value) {
     // Do an in-place substitution of the real macro value where we
     // wrote the padded macro string.
     char* root = value.begin();
@@ -389,7 +391,7 @@ void SubdocCmdContext::substituteMacro(cb::xattr::macros::macro macroName,
     }
 }
 
-std::string_view SubdocCmdContext::expand_virtual_macro(
+std::string_view SubdocExecutionContext::expand_virtual_macro(
         std::string_view macro) {
     if (macro.find(R"("${$document)") == 0) {
         return expand_virtual_document_macro(macro);
@@ -398,7 +400,7 @@ std::string_view SubdocCmdContext::expand_virtual_macro(
     return {};
 }
 
-std::string_view SubdocCmdContext::expand_virtual_document_macro(
+std::string_view SubdocExecutionContext::expand_virtual_document_macro(
         std::string_view macro) {
     if (macro == R"("${$document}")") {
         // the entire document is requested!
@@ -484,7 +486,8 @@ std::string_view SubdocCmdContext::expand_virtual_document_macro(
     return {};
 }
 
-std::string_view SubdocCmdContext::get_padded_macro(std::string_view macro) {
+std::string_view SubdocExecutionContext::get_padded_macro(
+        std::string_view macro) {
     auto iter = std::find_if(
             std::begin(paddedMacros),
             std::end(paddedMacros),
@@ -496,8 +499,8 @@ std::string_view SubdocCmdContext::get_padded_macro(std::string_view macro) {
     return iter->second;
 }
 
-void SubdocCmdContext::generate_macro_padding(std::string_view payload,
-                                              cb::xattr::macros::macro macro) {
+void SubdocExecutionContext::generate_macro_padding(
+        std::string_view payload, cb::xattr::macros::macro macro) {
     if (!do_macro_expansion) {
         // macro expansion is not needed
         return;
@@ -544,8 +547,8 @@ void SubdocCmdContext::generate_macro_padding(std::string_view payload,
     }
 }
 
-void SubdocCmdContext::rewrite_in_document(std::string_view xattr,
-                                           std::string_view value) {
+void SubdocExecutionContext::rewrite_in_document(std::string_view xattr,
+                                                 std::string_view value) {
     if (xattr.empty()) {
         in_doc.reset(std::string(value));
         in_datatype &= ~PROTOCOL_BINARY_DATATYPE_XATTR;
@@ -556,7 +559,7 @@ void SubdocCmdContext::rewrite_in_document(std::string_view xattr,
     }
 }
 
-std::string_view SubdocCmdContext::get_document_vattr() {
+std::string_view SubdocExecutionContext::get_document_vattr() {
     if (document_vattr.empty()) {
         // @todo we can optimize this by building the json in a more efficient
         //       way, but for now just do it by using nlohmann json...
@@ -623,7 +626,7 @@ std::string_view SubdocCmdContext::get_document_vattr() {
     return document_vattr;
 }
 
-std::string_view SubdocCmdContext::get_vbucket_vattr() {
+std::string_view SubdocExecutionContext::get_vbucket_vattr() {
     if (vbucket_vattr.empty()) {
         auto hlc = connection.getBucketEngine().getVBucketHlcNow(vbucket);
         using namespace nlohmann;
@@ -639,7 +642,7 @@ std::string_view SubdocCmdContext::get_vbucket_vattr() {
     return vbucket_vattr;
 }
 
-std::string_view SubdocCmdContext::get_xtoc_vattr() {
+std::string_view SubdocExecutionContext::get_xtoc_vattr() {
     if (!cb::mcbp::datatype::is_xattr(in_datatype)) {
         xtoc_vattr = R"({"$XTOC":[]})";
         return xtoc_vattr;
@@ -669,7 +672,7 @@ std::string_view SubdocCmdContext::get_xtoc_vattr() {
     return xtoc_vattr;
 }
 
-cb::mcbp::Status SubdocCmdContext::get_document_for_searching(
+cb::mcbp::Status SubdocExecutionContext::get_document_for_searching(
         uint64_t client_cas) {
     item_info& info = getInputItemInfo();
     auto& c = connection;
@@ -732,7 +735,7 @@ cb::mcbp::Status SubdocCmdContext::get_document_for_searching(
     return cb::mcbp::Status::Success;
 }
 
-uint32_t SubdocCmdContext::computeValueCRC32C() {
+uint32_t SubdocExecutionContext::computeValueCRC32C() {
     std::string_view value;
     if (cb::mcbp::datatype::is_xattr(in_datatype)) {
         // Note: in the XAttr naming, body/value excludes XAttrs

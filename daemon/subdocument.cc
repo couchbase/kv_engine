@@ -34,8 +34,9 @@
 #include <utilities/engine_errc_2_mcbp.h>
 #include <xattr/blob.h>
 
-static const std::array<SubdocCmdContext::Phase, 2> phases{{SubdocCmdContext::Phase::XATTR,
-                                                            SubdocCmdContext::Phase::Body}};
+static const std::array<SubdocExecutionContext::Phase, 2> phases{
+        {SubdocExecutionContext::Phase::XATTR,
+         SubdocExecutionContext::Phase::Body}};
 
 using namespace cb::mcbp::subdoc;
 
@@ -46,10 +47,10 @@ using namespace cb::mcbp::subdoc;
 /**
  * The SubdocCommandContext class is the command context containing all of
  * the data which is required for the entire duration of the execution of
- * a subdoc command. It holds the old SubdocCmdContext object which holds
+ * a subdoc command. It holds the old SubdocExecutionContext object which holds
  * all of the state logic needed for a single execution of the subdoc
  * operation (it gets reset every time there is a CAS collision causing the
- * entire operation to be retried). The old SubdocCmdContext should be
+ * entire operation to be retried). The old SubdocExecutionContext should be
  * renamed, but treat that separately from this patch.
  *
  * It'll eventually be refactored into a steppable command context which
@@ -88,14 +89,14 @@ public:
         return is_auto_retry_mode() && ++retries < MAXIMUM_ATTEMPTS;
     }
 
-    /// get (or create) the SubdocCmdContext instance to use
-    SubdocCmdContext* getSubdocCmdContext(Cookie& cookie,
-                                          const SubdocCmdTraits traits,
-                                          doc_flag doc_flags,
-                                          Vbid vbucket) {
+    /// get (or create) the SubdocExecutionContext instance to use
+    SubdocExecutionContext* getExecutionContext(Cookie& cookie,
+                                                const SubdocCmdTraits traits,
+                                                doc_flag doc_flags,
+                                                Vbid vbucket) {
         if (!context) {
             try {
-                context = std::make_unique<SubdocCmdContext>(
+                context = std::make_unique<SubdocExecutionContext>(
                         cookie, traits, vbucket, doc_flags);
             } catch (const std::bad_alloc&) {
                 return nullptr;
@@ -104,15 +105,15 @@ public:
         return context.get();
     }
 
-    /// Reset the SubdocCmdContext used (prepare to restart the entire
+    /// Reset the SubdocExecutionContext used (prepare to restart the entire
     /// operation)
-    void resetSubdocCmdContext() {
+    void resetExecutionContext() {
         context.reset();
     }
 
 protected:
     /// The current context object
-    std::unique_ptr<SubdocCmdContext> context;
+    std::unique_ptr<SubdocExecutionContext> context;
 
     /// The current retry count
     int retries = 0;
@@ -125,18 +126,18 @@ protected:
  * Declarations
  */
 static bool subdoc_fetch(Cookie& cookie,
-                         SubdocCmdContext& ctx,
+                         SubdocExecutionContext& ctx,
                          cb::engine_errc& ret,
                          cb::const_byte_buffer key,
                          uint64_t cas);
 
-static bool subdoc_operate(SubdocCmdContext& context);
+static bool subdoc_operate(SubdocExecutionContext& context);
 
-static cb::engine_errc subdoc_update(SubdocCmdContext& context,
+static cb::engine_errc subdoc_update(SubdocExecutionContext& context,
                                      cb::engine_errc ret,
                                      cb::const_byte_buffer key,
                                      uint32_t expiration);
-static void subdoc_response(Cookie& cookie, SubdocCmdContext& context);
+static void subdoc_response(Cookie& cookie, SubdocExecutionContext& context);
 
 /**
  * Main function which handles execution of all sub-document
@@ -190,7 +191,7 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
         // 0. If we don't already have a command context, allocate one
         // (we may already have one if this is an auto_retry or a re-execution
         // due to EWOULDBLOCK).
-        auto* context = command_context.getSubdocCmdContext(
+        auto* context = command_context.getExecutionContext(
                 cookie, traits, doc_flags, vbucket);
         if (context == nullptr) {
             cookie.sendResponse(cb::mcbp::Status::Enomem);
@@ -231,7 +232,7 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
                 // Retry the operation. Reset the command context and related
                 // state, so start from the beginning again.
                 ret = cb::engine_errc::success;
-                command_context.resetSubdocCmdContext();
+                command_context.resetExecutionContext();
                 continue;
             } else {
                 // No auto-retry - return status back to client and return.
@@ -286,7 +287,7 @@ static void subdoc_executor(Cookie& cookie, const SubdocCmdTraits traits) {
 // Returns true if the command was successful (and execution should continue),
 // else false.
 static bool subdoc_fetch(Cookie& cookie,
-                         SubdocCmdContext& ctx,
+                         SubdocExecutionContext& ctx,
                          cb::engine_errc& ret,
                          cb::const_byte_buffer key,
                          uint64_t cas) {
@@ -407,8 +408,8 @@ static bool subdoc_fetch(Cookie& cookie,
  * document.
  */
 static cb::mcbp::Status subdoc_operate_one_path(
-        SubdocCmdContext& context,
-        SubdocCmdContext::OperationSpec& spec,
+        SubdocExecutionContext& context,
+        SubdocExecutionContext::OperationSpec& spec,
         std::string_view in_doc) {
     // Prepare the specified sub-document command.
     auto& op = context.connection.getThread().subdoc_op;
@@ -430,7 +431,7 @@ static cb::mcbp::Status subdoc_operate_one_path(
         op.set_value(spec.value.data(), spec.value.size());
     }
 
-    if (context.getCurrentPhase() == SubdocCmdContext::Phase::XATTR &&
+    if (context.getCurrentPhase() == SubdocExecutionContext::Phase::XATTR &&
         cb::xattr::is_vattr(spec.path)) {
         // path potentially contains elements with in the VATTR, e.g.
         // $document.cas. Need to extract the actual VATTR name prefix.
@@ -513,8 +514,8 @@ static cb::mcbp::Status subdoc_operate_one_path(
  * Perform the wholedoc (mcbp) operation defined by spec
  */
 static cb::mcbp::Status subdoc_operate_wholedoc(
-        SubdocCmdContext& context,
-        SubdocCmdContext::OperationSpec& spec,
+        SubdocExecutionContext& context,
+        SubdocExecutionContext::OperationSpec& spec,
         std::string_view& doc) {
     switch (spec.traits.mcbpCommand) {
     case cb::mcbp::ClientOpcode::Get:
@@ -540,8 +541,8 @@ static cb::mcbp::Status subdoc_operate_wholedoc(
 }
 
 static cb::mcbp::Status subdoc_operate_attributes_and_body(
-        SubdocCmdContext& context,
-        SubdocCmdContext::OperationSpec& spec,
+        SubdocExecutionContext& context,
+        SubdocExecutionContext::OperationSpec& spec,
         MemoryBackedBuffer* xattr,
         MemoryBackedBuffer& body) {
     if (spec.traits.mcbpCommand !=
@@ -591,7 +592,7 @@ static cb::mcbp::Status subdoc_operate_attributes_and_body(
  *
  * @throws std::bad_alloc if allocation fails
  */
-static bool operate_single_doc(SubdocCmdContext& context,
+static bool operate_single_doc(SubdocExecutionContext& context,
                                MemoryBackedBuffer* xattr,
                                MemoryBackedBuffer& body,
                                protocol_binary_datatype_t& doc_datatype,
@@ -599,7 +600,7 @@ static bool operate_single_doc(SubdocCmdContext& context,
     modified = false;
     auto& operations = context.getOperations();
 
-    if (context.getCurrentPhase() == SubdocCmdContext::Phase::XATTR) {
+    if (context.getCurrentPhase() == SubdocExecutionContext::Phase::XATTR) {
         Expects(xattr);
     } else {
         // The xattr is only provided in the xattr phase as supplying them
@@ -608,9 +609,10 @@ static bool operate_single_doc(SubdocCmdContext& context,
         Expects(!xattr);
     }
 
-    auto& current = context.getCurrentPhase() == SubdocCmdContext::Phase::XATTR
-                            ? *xattr
-                            : body;
+    auto& current =
+            context.getCurrentPhase() == SubdocExecutionContext::Phase::XATTR
+                    ? *xattr
+                    : body;
 
     // 2. Perform each of the operations on document.
     for (auto& op : operations) {
@@ -714,10 +716,11 @@ static bool operate_single_doc(SubdocCmdContext& context,
     return true;
 }
 
-static cb::engine_errc validate_xattr_privilege(SubdocCmdContext& context) {
+static cb::engine_errc validate_xattr_privilege(
+        SubdocExecutionContext& context) {
     // Look at all the operations we've got in there:
     for (const auto& op :
-         context.getOperations(SubdocCmdContext::Phase::XATTR)) {
+         context.getOperations(SubdocExecutionContext::Phase::XATTR)) {
         if (cb::xattr::is_vattr(op.path)) {
             // The $document vattr doesn't require any xattr permissions,
             // but in order to get the system XATTRs included in XTOC you need
@@ -755,7 +758,7 @@ static cb::engine_errc validate_xattr_privilege(SubdocCmdContext& context) {
  * @return true if success and that we may progress to the
  *              next phase
  */
-static bool do_xattr_delete_phase(SubdocCmdContext& context) {
+static bool do_xattr_delete_phase(SubdocExecutionContext& context) {
     if (!context.do_delete_doc ||
         !cb::mcbp::datatype::is_xattr(context.in_datatype)) {
         return true;
@@ -790,8 +793,8 @@ static bool do_xattr_delete_phase(SubdocCmdContext& context) {
  * @return true if success and that we may progress to the
  *              next phase
  */
-static bool do_xattr_phase(SubdocCmdContext& context) {
-    context.setCurrentPhase(SubdocCmdContext::Phase::XATTR);
+static bool do_xattr_phase(SubdocExecutionContext& context) {
+    context.setCurrentPhase(SubdocExecutionContext::Phase::XATTR);
     if (context.getOperations().empty()) {
         return true;
     }
@@ -884,8 +887,8 @@ static bool do_xattr_phase(SubdocCmdContext& context) {
  * @return true if the command was successful (and execution should continue),
  *         else false.
  */
-static bool do_body_phase(SubdocCmdContext& context) {
-    context.setCurrentPhase(SubdocCmdContext::Phase::Body);
+static bool do_body_phase(SubdocExecutionContext& context) {
+    context.setCurrentPhase(SubdocExecutionContext::Phase::Body);
 
     if (context.getOperations().empty()) {
         return true;
@@ -928,7 +931,7 @@ static bool do_body_phase(SubdocCmdContext& context) {
 // Operate on the document as specified by the command context.
 // Returns true if the command was successful (and execution should continue),
 // else false.
-static bool subdoc_operate(SubdocCmdContext& context) {
+static bool subdoc_operate(SubdocExecutionContext& context) {
     if (context.executed) {
         return true;
     }
@@ -960,14 +963,14 @@ static bool subdoc_operate(SubdocCmdContext& context) {
 // to the document.
 // Returns true if the update was successful (and execution should continue),
 // else false.
-static cb::engine_errc subdoc_update(SubdocCmdContext& context,
+static cb::engine_errc subdoc_update(SubdocExecutionContext& context,
                                      cb::engine_errc ret,
                                      cb::const_byte_buffer key,
                                      uint32_t expiration) {
     auto& connection = context.connection;
     auto& cookie = context.cookie;
 
-    if (context.getCurrentPhase() == SubdocCmdContext::Phase::XATTR) {
+    if (context.getCurrentPhase() == SubdocExecutionContext::Phase::XATTR) {
         LOG_WARNING_RAW(
                 "Internal error: We should not reach subdoc_update in the "
                 "xattr phase");
@@ -1176,7 +1179,7 @@ static cb::engine_errc subdoc_update(SubdocCmdContext& context,
 /* Encodes the context's mutation sequence number and vBucket UUID into the
  * given buffer.
  */
-static void encode_mutation_descr(SubdocCmdContext& context,
+static void encode_mutation_descr(SubdocExecutionContext& context,
                                   mutation_descr_t& descr) {
     descr.seqno = htonll(context.sequence_no);
     descr.vbucket_uuid = htonll(context.vbucket_uuid);
@@ -1190,7 +1193,7 @@ static void encode_mutation_descr(SubdocCmdContext& context,
  */
 static std::string_view encode_multi_mutation_result_spec(
         uint8_t index,
-        const SubdocCmdContext::OperationSpec& op,
+        const SubdocExecutionContext::OperationSpec& op,
         cb::char_buffer buffer) {
     if (buffer.size() <
         (sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint32_t))) {
@@ -1219,7 +1222,8 @@ static std::string_view encode_multi_mutation_result_spec(
 
 /* Construct and send a response to a single-path request back to the client.
  */
-static void subdoc_single_response(Cookie& cookie, SubdocCmdContext& context) {
+static void subdoc_single_response(Cookie& cookie,
+                                   SubdocExecutionContext& context) {
     auto& connection = context.connection;
 
     context.response_val_len = 0;
@@ -1228,9 +1232,10 @@ static void subdoc_single_response(Cookie& cookie, SubdocCmdContext& context) {
         // The value may have been created in the xattr or the body phase
         // so it should only be one, so if it isn't an xattr it should be
         // in the body
-        SubdocCmdContext::Phase phase = SubdocCmdContext::Phase::XATTR;
+        SubdocExecutionContext::Phase phase =
+                SubdocExecutionContext::Phase::XATTR;
         if (context.getOperations(phase).empty()) {
-            phase = SubdocCmdContext::Phase::Body;
+            phase = SubdocExecutionContext::Phase::Body;
         }
         auto mloc = context.getOperations(phase)[0].result.matchloc();
         value = {mloc.at, mloc.length};
@@ -1271,7 +1276,7 @@ static void subdoc_single_response(Cookie& cookie, SubdocCmdContext& context) {
 /* Construct and send a response to a multi-path mutation back to the client.
  */
 static void subdoc_multi_mutation_response(Cookie& cookie,
-                                           SubdocCmdContext& context) {
+                                           SubdocExecutionContext& context) {
     auto& connection = context.connection;
 
     // MULTI_MUTATION: On success, zero to N multi_mutation_result_spec objects
@@ -1359,7 +1364,7 @@ static void subdoc_multi_mutation_response(Cookie& cookie,
 /* Construct and send a response to a multi-path lookup back to the client.
  */
 static void subdoc_multi_lookup_response(Cookie& cookie,
-                                         SubdocCmdContext& context) {
+                                         SubdocExecutionContext& context) {
     auto& connection = context.connection;
 
     // Calculate the value length - sum of all the operation results.
@@ -1444,7 +1449,7 @@ static void subdoc_multi_lookup_response(Cookie& cookie,
 }
 
 // Respond back to the user as appropriate to the specific command.
-static void subdoc_response(Cookie& cookie, SubdocCmdContext& context) {
+static void subdoc_response(Cookie& cookie, SubdocExecutionContext& context) {
     switch (context.traits.path) {
     case SubdocPath::SINGLE:
         subdoc_single_response(cookie, context);

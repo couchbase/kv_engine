@@ -62,13 +62,16 @@ enum class MutationSemantics : uint8_t { Add, Replace, Set };
 // Used to describe which xattr keys the xtoc vattr should return
 enum class XtocSemantics : uint8_t { User, All };
 
-/** Subdoc command context. An instance of this exists for the lifetime of
- *  each subdocument command, and it used to hold information which needs to
- *  persist across calls to subdoc_executor; for example when one or more
- *  engine functions return EWOULDBLOCK and hence the executor needs to be
- *  retried.
+/**
+ * Subdoc execution context.
+ *
+ * An instance of this exists for the lifetime of each execution of command, and
+ * it used to hold information which needs to persist across multiple calls
+ * from the core (if the engine returned "would block"). If there is a CAS
+ * conflict causing the execution to be retried a new instance of this
+ * class would be created
  */
-class SubdocCmdContext {
+class SubdocExecutionContext {
 public:
     /**
      * All subdoc access happens in two phases... First we'll run through
@@ -83,10 +86,10 @@ public:
     class OperationSpec;
     using Operations = std::vector<OperationSpec>;
 
-    SubdocCmdContext(Cookie& cookie_,
-                     const SubdocCmdTraits traits_,
-                     Vbid vbucket_,
-                     cb::mcbp::subdoc::doc_flag doc_flags);
+    SubdocExecutionContext(Cookie& cookie_,
+                           const SubdocCmdTraits traits_,
+                           Vbid vbucket_,
+                           cb::mcbp::subdoc::doc_flag doc_flags);
 
     cb::engine_errc pre_link_document(item_info& info);
 
@@ -154,7 +157,8 @@ public:
         case Phase::XATTR:
             return operations[1];
         }
-        throw std::invalid_argument("SubdocCmdContext::getOperations() invalid phase");
+        throw std::invalid_argument(
+                "SubdocExecutionContext::getOperations() invalid phase");
     }
 
     Operations& getOperations() {
@@ -408,7 +412,7 @@ private:
     std::string macroToString(cb::xattr::macros::macro macro, T macroValue);
 
     /**
-     * Check whether or not the SubdocCmdContext contains a given macro
+     * Check whether or not the SubdocExecutionContext contains a given macro
      * @param macro The macro we are checking for
      * @return True if the macro exists, False otherwise
      */
@@ -441,4 +445,4 @@ private:
     std::string xtoc_vattr;
 
     std::vector<std::string> expandedVirtualMacrosBackingStore;
-}; // class SubdocCmdContext
+}; // class SubdocExecutionContext
