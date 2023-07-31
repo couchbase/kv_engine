@@ -406,7 +406,7 @@ cb::unique_item_ptr bucket_allocate(Cookie& cookie,
                     c.getDescription());
             c.setTerminationReason("Engine forced disconnect");
         }
-        throw err;
+        throw;
     }
 }
 
