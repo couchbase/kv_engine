@@ -849,6 +849,9 @@ void Connection::processNotifiedCookie(Cookie& cookie, cb::engine_errc status) {
         }
     } catch (const std::exception& e) {
         logExecutionException("processNotifiedCookie", e);
+        setTerminationReason("Exception occurred during command execution");
+        shutdown();
+        triggerCallback();
     }
 
     const auto stop = std::chrono::steady_clock::now();
