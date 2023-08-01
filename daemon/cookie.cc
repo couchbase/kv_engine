@@ -912,7 +912,7 @@ cb::rbac::PrivilegeAccess Cookie::checkPrivilege(
         nlohmann::json json;
         json["bucket"] = connection.getBucket().name;
         if (&ctx != &privilegeContext) {
-            auto nm = euid->to_json();
+            auto nm = nlohmann::json(*euid);
             json["euid"] = nm;
             json["euid"]["user"] = cb::tagUserData(nm["user"]);
         }

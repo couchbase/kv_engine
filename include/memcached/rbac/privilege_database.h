@@ -42,10 +42,12 @@ struct UserIdent {
     UserIdent(std::string n, Domain d) : name(std::move(n)), domain(d) {
     }
     explicit UserIdent(const nlohmann::json& json);
-    nlohmann::json to_json() const;
     std::string name;
     Domain domain{cb::rbac::Domain::Local};
 };
+
+/// Get a JSON dump of the UserIdent
+void to_json(nlohmann::json& json, const UserIdent& ui);
 
 inline bool operator==(const UserIdent& lhs, const UserIdent& rhs) {
     return lhs.domain == rhs.domain && lhs.name == rhs.name;
@@ -83,6 +85,9 @@ protected:
     PrivilegeMask privilegeMask;
 };
 
+/// Get a JSON dump of the Collection
+void to_json(nlohmann::json& json, const Collection& collection);
+
 /// The in-memory representation of a scope
 class Scope {
 public:
@@ -90,6 +95,9 @@ public:
     explicit Scope(const nlohmann::json& json);
 
     /// Get a JSON dump of the Scope
+    ///
+    /// Prefer using the nlohmann::json() constructor like
+    /// <code>nlohmann::json json = scope;</code>
     nlohmann::json to_json() const;
 
     /**
@@ -128,6 +136,9 @@ protected:
     std::unordered_map<uint32_t, Collection> collections;
 };
 
+/// Get a JSON dump of the Scope
+void to_json(nlohmann::json& json, const Scope& scope);
+
 class Bucket {
 public:
     Bucket() = default;
@@ -136,6 +147,9 @@ public:
     explicit Bucket(const nlohmann::json& json);
 
     /// Get a JSON dump of the Bucket
+    ///
+    /// Prefer using the nlohmann::json() constructor like
+    /// <code>nlohmann::json json = bucket;</code>
     nlohmann::json to_json() const;
 
     /**
@@ -188,6 +202,9 @@ protected:
     /// All of the scopes the bucket contains
     std::unordered_map<uint32_t, Scope> scopes;
 };
+
+/// Get a JSON dump of the Bucket
+void to_json(nlohmann::json& json, const Bucket& bucket);
 
 /**
  * The UserEntry object is in an in-memory representation of the per-user

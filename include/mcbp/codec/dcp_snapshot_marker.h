@@ -116,4 +116,7 @@ protected:
     std::optional<uint64_t> timestamp;
 };
 
+/// Get a JSON dump of the DcpSnapshotMarker
+void to_json(nlohmann::json& json, const DcpSnapshotMarker& marker);
+
 } // end namespace cb::mcbp

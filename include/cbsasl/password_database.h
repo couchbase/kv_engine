@@ -49,6 +49,9 @@ public:
             const;
 
     /// Create a JSON representation of the password database
+    ///
+    /// Prefer using the nlohmann::json() constructor like
+    /// <code>nlohmann::json json = passwordDatabase;</code>
     nlohmann::json to_json() const;
 
     /**
@@ -62,6 +65,9 @@ protected:
      */
     std::unordered_map<std::string, User> db;
 };
+
+/// Create a JSON representation of the password database
+void to_json(nlohmann::json& json, const PasswordDatabase& pwdb);
 
 /// When writing unit tests one may want to add/remove/modify users
 class MutablePasswordDatabase : public PasswordDatabase {

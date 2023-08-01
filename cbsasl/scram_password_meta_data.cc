@@ -60,15 +60,14 @@ ScramPasswordMetaData::ScramPasswordMetaData(const nlohmann::json& obj) {
     }
 }
 
-nlohmann::json ScramPasswordMetaData::to_json() const {
-    auto ret = nlohmann::json{{"iterations", iteration_count}, {"salt", salt}};
-    ret["hashes"] = nlohmann::json::array();
-    for (const auto& key : keys) {
-        ret["hashes"].push_back(nlohmann::json{
-                {"server_key", cb::base64::encode(key.server_key)},
-                {"stored_key", cb::base64::encode(key.stored_key)}});
+void to_json(nlohmann::json& json, const ScramPasswordMetaData& spmd) {
+    json = nlohmann::json{{"iterations", spmd.iteration_count},
+                          {"salt", spmd.salt}};
+    auto& hashes = json["hashes"] = nlohmann::json::array();
+    for (const auto& key : spmd.keys) {
+        hashes.push_back({{"server_key", cb::base64::encode(key.server_key)},
+                          {"stored_key", cb::base64::encode(key.stored_key)}});
     }
-    return ret;
 }
 
 } // namespace cb::sasl::pwdb

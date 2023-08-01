@@ -520,15 +520,15 @@ nlohmann::json User::to_json() const {
     }
 
     if (scram_sha_512) {
-        ret["scram-sha-512"] = scram_sha_512->to_json();
+        ret["scram-sha-512"] = *scram_sha_512;
     }
 
     if (scram_sha_256) {
-        ret["scram-sha-256"] = scram_sha_256->to_json();
+        ret["scram-sha-256"] = *scram_sha_256;
     }
 
     if (scram_sha_1) {
-        ret["scram-sha-1"] = scram_sha_1->to_json();
+        ret["scram-sha-1"] = *scram_sha_1;
     }
 
     return ret;

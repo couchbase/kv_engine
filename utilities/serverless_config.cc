@@ -36,21 +36,19 @@ Config& Config::instance() {
     return instance;
 }
 
-nlohmann::json Config::to_json() const {
-    nlohmann::json json;
-
-    auto limit = defaultThrottleReservedUnits.load(std::memory_order_acquire);
+void to_json(nlohmann::json& json, const Config& cfg) {
+    auto limit =
+            cfg.defaultThrottleReservedUnits.load(std::memory_order_acquire);
     json["default_throttle_reserved"] = cb::throttle::limit_to_json(limit);
 
-    limit = defaultThrottleHardLimit.load(std::memory_order_acquire);
+    limit = cfg.defaultThrottleHardLimit.load(std::memory_order_acquire);
     json["default_throttle_hard_limit"] = cb::throttle::limit_to_json(limit);
 
     json["max_connections_per_bucket"] =
-            maxConnectionsPerBucket.load(std::memory_order_acquire);
-    json["read_unit_size"] = readUnitSize.load(std::memory_order_acquire);
-    json["write_unit_size"] = writeUnitSize.load(std::memory_order_acquire);
-    json["node_capacity"] = nodeCapacity.load(std::memory_order_acquire);
-    return json;
+            cfg.maxConnectionsPerBucket.load(std::memory_order_acquire);
+    json["read_unit_size"] = cfg.readUnitSize.load(std::memory_order_acquire);
+    json["write_unit_size"] = cfg.writeUnitSize.load(std::memory_order_acquire);
+    json["node_capacity"] = cfg.nodeCapacity.load(std::memory_order_acquire);
 }
 
 void Config::update_from_json(const nlohmann::json& json) {

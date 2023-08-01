@@ -90,10 +90,10 @@ static nlohmann::json create_memcached_audit_object(
     root["timestamp"] = ISOTime::generatetimestamp();
     root["remote"] = c.getPeername();
     root["local"] = c.getSockname();
-    root["real_userid"] = ui.to_json();
+    root["real_userid"] = ui;
 
     if (euid) {
-        root["effective_userid"] = euid->to_json();
+        root["effective_userid"] = *euid;
     }
 
     return root;

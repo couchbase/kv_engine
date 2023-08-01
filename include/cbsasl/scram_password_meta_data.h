@@ -25,9 +25,6 @@ class ScramPasswordMetaData {
 public:
     explicit ScramPasswordMetaData(const nlohmann::json& obj);
 
-    /// Dump the object to JSON (used in unit tests)
-    nlohmann::json to_json() const;
-
     /// salt (kept base64 encoded in memory) as it is only to the
     /// client
     std::string salt;
@@ -46,5 +43,8 @@ public:
     /// number of iterations
     std::size_t iteration_count = 0;
 };
+
+/// Dump the object to JSON (used in unit tests)
+void to_json(nlohmann::json& json, const ScramPasswordMetaData& spmd);
 
 } // namespace cb::sasl::pwdb

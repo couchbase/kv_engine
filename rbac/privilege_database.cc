@@ -31,11 +31,9 @@ std::size_t std::hash<cb::rbac::UserIdent>::operator()(
 
 namespace cb::rbac {
 
-nlohmann::json UserIdent::to_json() const {
-    nlohmann::json ret;
-    ret["user"] = name;
-    ret["domain"] = ::to_string(domain);
-    return ret;
+void to_json(nlohmann::json& json, const UserIdent& ui) {
+    json = nlohmann::json{{"user", ui.name},
+                          {"domain", ::to_string(ui.domain)}};
 }
 
 UserIdent::UserIdent(const nlohmann::json& json) {
@@ -154,6 +152,10 @@ nlohmann::json Collection::to_json() const {
     return nlohmann::json{privilegeMask2Vector(privilegeMask)};
 }
 
+void to_json(nlohmann::json& json, const Collection& collection) {
+    json = collection.to_json();
+}
+
 PrivilegeAccess Collection::check(Privilege privilege) const {
     return privilegeMask.test(uint8_t(privilege)) ? PrivilegeAccessOk
                                                   : PrivilegeAccessFail;
@@ -191,13 +193,16 @@ Scope::Scope(const nlohmann::json& json) {
 }
 
 nlohmann::json Scope::to_json() const {
-    nlohmann::json ret;
-    ret["privileges"] = privilegeMask2Vector(privilegeMask);
+    auto ret =
+            nlohmann::json{{"privileges", privilegeMask2Vector(privilegeMask)}};
     for (auto& e : collections) {
-        ret["collections"][std::to_string(e.first)] = e.second.to_json();
+        ret["collections"][std::to_string(e.first)] = e.second;
     }
-
     return ret;
+}
+
+void to_json(nlohmann::json& json, const Scope& scope) {
+    json = scope.to_json();
 }
 
 PrivilegeAccess Scope::check(Privilege privilege,
@@ -280,13 +285,16 @@ Bucket::Bucket(const nlohmann::json& json) {
 }
 
 nlohmann::json Bucket::to_json() const {
-    nlohmann::json ret;
-    ret["privileges"] = privilegeMask2Vector(privilegeMask);
+    auto ret =
+            nlohmann::json{{"privileges", privilegeMask2Vector(privilegeMask)}};
     for (auto& e : scopes) {
-        ret["scopes"][std::to_string(e.first)] = e.second.to_json();
+        ret["scopes"][std::to_string(e.first)] = e.second;
     }
-
     return ret;
+}
+
+void to_json(nlohmann::json& json, const Bucket& bucket) {
+    json = bucket.to_json();
 }
 
 PrivilegeAccess Bucket::check(Privilege privilege,
@@ -386,9 +394,8 @@ nlohmann::json UserEntry::to_json(Domain domain) const {
     ret["domain"] = ::to_string(domain);
     ret["privileges"] = privilegeMask2Vector(privilegeMask);
     for (const auto& b : buckets) {
-        ret["buckets"][b.first] = b.second->to_json();
+        ret["buckets"][b.first] = *b.second;
     }
-
     return ret;
 }
 

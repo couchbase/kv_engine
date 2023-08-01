@@ -733,7 +733,8 @@ static void initialize_serverless_config() {
                         e.what());
         }
     }
-    LOG_INFO("Serverless static configuration: {}", config.to_json().dump());
+    LOG_INFO("Serverless static configuration: {}",
+             nlohmann::json(config).dump());
 }
 
 int memcached_main(int argc, char** argv) {

@@ -179,12 +179,13 @@ public:
         return false;
     }
 
-    nlohmann::json to_json() const;
-
 protected:
     Level level{Level::Majority};
     Timeout timeout;
 };
+
+/// Get a JSON dump of the Requirements
+void to_json(nlohmann::json& obj, const Requirements& req);
 
 bool operator==(const Requirements& lhs, const Requirements& rhs);
 

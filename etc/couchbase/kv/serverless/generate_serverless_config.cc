@@ -20,7 +20,7 @@ int main() {
     auto& instance = cb::serverless::Config::instance();
     try {
         std::ofstream of("configuration.json");
-        of << std::setw(2) << instance.to_json() << std::endl;
+        of << std::setw(2) << nlohmann::json(instance) << std::endl;
         of.close();
     } catch (const std::exception& e) {
         std::cerr << "Failed to generate configuration.json: " << e.what()

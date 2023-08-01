@@ -77,7 +77,7 @@ void AuditImpl::create_audit_event(uint32_t event_id, nlohmann::json& payload) {
     payload["timestamp"] = ISOTime::generatetimestamp();
     const cb::rbac::UserIdent real_userid("@memcached",
                                           cb::rbac::Domain::Local);
-    payload["real_userid"] = real_userid.to_json();
+    payload["real_userid"] = real_userid;
     const auto& evt = AuditDescriptorManager::lookup(event_id);
     payload["id"] = event_id;
     payload["name"] = evt.getName();

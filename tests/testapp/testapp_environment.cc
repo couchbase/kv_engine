@@ -453,7 +453,7 @@ public:
         }
 
         std::ofstream cbsasldb(isasl_file_name.generic_string());
-        cbsasldb << passwordDatabase.to_json() << std::endl;
+        cbsasldb << nlohmann::json(passwordDatabase) << std::endl;
     }
 
     void terminate(int exitcode) override {

@@ -16,10 +16,9 @@
 namespace cb::mcbp {
 
 nlohmann::json DcpSnapshotMarker::to_json() const {
-    nlohmann::json ret;
-    ret["start"] = startSeqno;
-    ret["end"] = endSeqno;
-    ret["flags"] = cb::to_hex(flags);
+    auto ret = nlohmann::json{{"start", startSeqno},
+                              {"end", endSeqno},
+                              {"flags", cb::to_hex(flags)}};
     if (highCompletedSeqno) {
         ret["high_completed_seqno"] = *highCompletedSeqno;
     }
@@ -30,6 +29,10 @@ nlohmann::json DcpSnapshotMarker::to_json() const {
         ret["timestamp"] = *timestamp;
     }
     return ret;
+}
+
+void to_json(nlohmann::json& json, const DcpSnapshotMarker& marker) {
+    json = marker.to_json();
 }
 
 DcpSnapshotMarker decodeDcpSnapshotMarkerV1Extra(cb::const_byte_buffer extras) {

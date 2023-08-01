@@ -63,17 +63,19 @@ void PasswordDatabase::iterate(
 }
 
 nlohmann::json PasswordDatabase::to_json() const {
-    nlohmann::json json;
-    json["@@version@@"] = 2;
-
+    auto json = nlohmann::json{{"@@version@@", 2}};
     for (const auto& [u, e] : db) {
         json[u] = e.to_json();
     }
     return json;
 }
 
+void to_json(nlohmann::json& json, const PasswordDatabase& pwdb) {
+    json = pwdb.to_json();
+}
+
 std::string PasswordDatabase::to_string() const {
-    return to_json().dump();
+    return nlohmann::json(*this).dump();
 }
 
 void MutablePasswordDatabase::upsert(User user) {

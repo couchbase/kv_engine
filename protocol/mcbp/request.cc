@@ -409,7 +409,7 @@ nlohmann::json Request::to_json(bool validated) const {
                     break;
                 case request::FrameInfoId::DurabilityRequirement:
                     frameid["durability"] =
-                            cb::durability::Requirements(buffer).to_json();
+                            cb::durability::Requirements(buffer);
                     break;
                 case request::FrameInfoId::DcpStreamId:
                     frameid["dcp stream id"] = ntohs(

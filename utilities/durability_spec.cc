@@ -96,9 +96,9 @@ Requirements::Requirements(cb::const_byte_buffer buffer) {
     }
 }
 
-nlohmann::json Requirements::to_json() const {
-    nlohmann::json obj;
-    switch (getLevel()) {
+void to_json(nlohmann::json& obj, const Requirements& req) {
+    obj.clear();
+    switch (req.getLevel()) {
     case durability::Level::None:
         obj["level"] = "None";
         break;
@@ -112,17 +112,14 @@ nlohmann::json Requirements::to_json() const {
         obj["level"] = "PersistToMajority";
         break;
     }
-    auto tmo = getTimeout();
+    auto tmo = req.getTimeout();
     if (tmo.isDefault()) {
         obj["timeout"] = "Default";
-        ;
     } else if (tmo.isInfinite()) {
         obj["timeout"] = "Infinite";
     } else {
         obj["timeout"] = tmo.get();
     }
-
-    return obj;
 }
 
 } // namespace cb::durability

@@ -46,9 +46,6 @@ struct Config {
     /// The node capacity
     std::atomic<size_t> nodeCapacity{NodeCapacity};
 
-    /// Generate a JSON representation of the object
-    nlohmann::json to_json() const;
-
     /// update the members from the values in the provided JSON (ignore unknown
     /// keys)
     void update_from_json(const nlohmann::json& json);
@@ -76,6 +73,9 @@ struct Config {
 private:
     Config() = default;
 };
+
+/// Get a JSON dump of the Config
+void to_json(nlohmann::json& json, const Config& cfg);
 
 /// Return true if the current deployment is serverless
 bool isEnabled();
