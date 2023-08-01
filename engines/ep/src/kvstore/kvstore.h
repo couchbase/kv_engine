@@ -334,6 +334,9 @@ struct DBFileInfo {
     /// Total size of "current" data in the file - sum of all
     /// keys+metdata+values (included deleted docs) plus overheads to manage it
     /// (indexes such as B-Trees, headers etc). This does not include history.
+    //
+    // This along with fileSize can be used to compute fragmentation as
+    // (fileSize-spaceUsed)/fileSize.
     uint64_t spaceUsed = 0;
 
     /// Total size of all SyncWrite prepares, both completed and pending.

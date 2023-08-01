@@ -3864,7 +3864,7 @@ DBFileInfo MagmaKVStore::getAggrDbFileInfo() {
     const auto stats = magma->GetStats();
     // Compressed size.
     const size_t nonHistoryDiskSize =
-            stats->ActiveDiskUsage - stats->HistoryDiskUsage;
+            stats->TotalDiskUsage - stats->HistoryDiskUsage;
     // Magma internally calculates fragmentation ratio based on the
     // uncompressed disk and data sizes. Due to block compression, it cannot
     // give an accurate estimate of the compressed data size (unfragmented
@@ -3873,15 +3873,18 @@ DBFileInfo MagmaKVStore::getAggrDbFileInfo() {
     //
     // To keep couch_docs_fragmentation inline with Magma's internal
     // fragmentation, we hence have to derive the compressed data size using
-    // the internal ratio and compressed disk size.
+    // the internal ratio and compressed disk size. This is why
+    // DBFileInfo.spaceUsed reported by Magma does not make much sense and is
+    // only reported so that fragmentation can be computed.
     const auto nonHistoryDataSize = static_cast<size_t>(
             nonHistoryDiskSize * (1 - stats->Fragmentation));
     // @todo MB-42900: Track on-disk-prepare-bytes
-    DBFileInfo vbinfo{stats->ActiveDiskUsage,
-                      nonHistoryDataSize,
-                      0 /*prepareBytes*/,
-                      stats->HistoryDiskUsage,
-                      std::chrono::seconds(stats->SeqStats.HistoryStartTimestamp)};
+    DBFileInfo vbinfo{
+            stats->TotalDiskUsage,
+            nonHistoryDataSize,
+            0 /*prepareBytes*/,
+            stats->HistoryDiskUsage,
+            std::chrono::seconds(stats->SeqStats.HistoryStartTimestamp)};
     return vbinfo;
 }
 
