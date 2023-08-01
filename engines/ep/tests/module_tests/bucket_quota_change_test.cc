@@ -35,6 +35,12 @@ public:
         // flush lying around. Setting memory optimized writes to true should
         // prevent copies to obey quota limits.
         config_string += ";magma_enable_memory_optimized_writes=true";
+        // Set an arbitrarily long item pager sleep time (100s) - we do want
+        // it to be scheduled (apart from ephemeralFailNewData); but don't want
+        // it to run before quota setting tasks (on CV machines we have seen
+        // Magma take longer than the default 5s interval to initialise,
+        // causing ItemPager to run before we expect it to).
+        config_string += ";pager_sleep_time_ms=100000";
 
         STParameterizedBucketTest::SetUp();
         setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
