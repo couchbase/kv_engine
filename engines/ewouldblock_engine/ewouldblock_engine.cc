@@ -57,6 +57,7 @@
 #include "ewouldblock_engine.h"
 #include "ewouldblock_engine_public.h"
 #include <daemon/enginemap.h>
+#include <fmt/format.h>
 #include <folly/CancellationToken.h>
 #include <gsl/gsl-lite.hpp>
 #include <logger/logger.h>
@@ -802,8 +803,36 @@ private:
                    " count=" + std::to_string(count);
         }
 
-    private:
+    protected:
         uint32_t count;
+    };
+
+    class SlowCasMismatch : public CASMismatch {
+    public:
+        explicit SlowCasMismatch(uint32_t count_)
+            : CASMismatch(count_ & 0xffff),
+              sleep_time((count_ & 0xffff0000) >> 16) {
+            if (sleep_time.count() == 0) {
+                sleep_time = std::chrono::milliseconds{1};
+            }
+        }
+
+        bool should_inject_error(Cmd cmd, cb::engine_errc& err) override {
+            if (CASMismatch::should_inject_error(cmd, err)) {
+                std::this_thread::sleep_for(sleep_time);
+                return true;
+            }
+            return false;
+        }
+
+        std::string to_string() const override {
+            return fmt::format("SlowCasMismatch count={} sleep_time={}ms",
+                               count,
+                               sleep_time.count());
+        }
+
+    protected:
+        std::chrono::milliseconds sleep_time;
     };
 
     // Map of connections (aka cookies) to their current mode.
@@ -1292,6 +1321,10 @@ cb::engine_errc EWB_Engine::unknown_command(CookieIface& cookie,
             throw std::runtime_error(
                     "EWB::unknown_command: you told me to throw an "
                     "exception");
+
+        case EWBEngineMode::SlowCasMismatch:
+            new_mode = std::make_shared<SlowCasMismatch>(value);
+            break;
         }
 
         if (new_mode == nullptr) {

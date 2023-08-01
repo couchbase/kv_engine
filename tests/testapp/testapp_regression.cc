@@ -8,6 +8,7 @@
  *   the file licenses/APL2.txt.
  */
 
+#include "memcached/limits.h"
 #include "testapp.h"
 #include "testapp_client_test.h"
 
@@ -648,4 +649,73 @@ TEST_P(RegressionTest, MB54848) {
         }
     } while (std::chrono::steady_clock::now() < timeout);
     FAIL() << "Timed out waiting for log messages to appear";
+}
+
+TEST_P(RegressionTest, MB55754) {
+    // Store the document
+    BinprotSubdocMultiMutationCommand cmd;
+    cmd.setKey(name);
+    cmd.setVBucket(Vbid{0});
+    cmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                    SUBDOC_FLAG_XATTR_PATH,
+                    "user",
+                    R"({"Name":"John Doe"})");
+    cmd.addMutation(cb::mcbp::ClientOpcode::Set,
+                    SUBDOC_FLAG_NONE,
+                    "",
+                    R"({"foo":"bar"})");
+    cmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Mkdoc);
+    auto rsp = userConnection->execute(cmd);
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+
+    std::size_t num_subdoc_races_before = 0;
+    userConnection->stats([&num_subdoc_races_before](auto k, auto v) {
+        if (k == "subdoc_update_races") {
+            num_subdoc_races_before = std::stoul(v);
+        }
+    });
+
+    // Return key_already_exists "forever" to make sure we give up
+    auto conn = userConnection->clone();
+    conn->authenticate("Luke", mcd_env->getPassword("Luke"));
+    conn->selectBucket(bucketName);
+    conn->setAutoRetryTmpfail(false);
+    nlohmann::json conn_stats_before;
+    conn->stats(
+            [&conn_stats_before](auto k, auto v) {
+                conn_stats_before = nlohmann::json::parse(v);
+            },
+            "connections self");
+
+    conn->configureEwouldBlockEngine(
+            EWBEngineMode::SlowCasMismatch, cb::engine_errc::success, 1000);
+    rsp = conn->execute(cmd);
+    EXPECT_EQ(cb::mcbp::Status::Etmpfail, rsp.getStatus())
+            << rsp.getDataString();
+
+    std::size_t num_subdoc_races_after = 0;
+    userConnection->stats([&num_subdoc_races_after](auto k, auto v) {
+        if (k == "subdoc_update_races") {
+            num_subdoc_races_after = std::stoul(v);
+        }
+    });
+
+    EXPECT_EQ(cb::limits::SubdocMaxAutoRetries,
+              num_subdoc_races_after - num_subdoc_races_before);
+
+    nlohmann::json conn_stats_after;
+    conn->stats(
+            [&conn_stats_after](auto k, auto v) {
+                conn_stats_after = nlohmann::json::parse(v);
+            },
+            "connections self");
+
+    // We should have yield at least a few times. Each cas mismatch should
+    // take ~1ms. Each scheduling timeslot is 25ms (and we allow up to
+    // 100 retries).
+    const auto yields = conn_stats_after["yields"].get<int>() -
+                        conn_stats_before["yields"].get<int>();
+    EXPECT_LE(4, yields) << "After: " << conn_stats_after["yields"].get<int>()
+                         << " Before: "
+                         << conn_stats_before["yields"].get<int>();
 }

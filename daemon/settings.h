@@ -429,6 +429,16 @@ public:
             "setRequestsPerEventNotification: Unknown priority");
     }
 
+    std::chrono::milliseconds getCommandTimeSlice() const {
+        return command_time_slice.load(std::memory_order_acquire);
+    }
+
+    void setCommandTimeSlice(std::chrono::milliseconds val) {
+        command_time_slice.store(val, std::memory_order_release);
+        has.command_time_slice = true;
+        notify_changed("command_time_slice");
+    }
+
     /**
      * Is PROTOCOL_BINARY_DATATYPE_JSON supported or not
      *
@@ -1076,6 +1086,11 @@ protected:
     int reqs_per_event_low_priority = 1;
     int default_reqs_per_event = 20;
 
+    /// The max amount of time spent executing commands per callback per
+    /// connection before backing off
+    std::atomic<std::chrono::milliseconds> command_time_slice{
+            std::chrono::milliseconds{25}};
+
     /// To prevent us from reading (and allocating) an insane amount of
     /// data off the network we'll ignore (and disconnect clients) that
     /// tries to send packets bigger than this max_packet_size. The current
@@ -1185,6 +1200,7 @@ public:
         bool reqs_per_event_med_priority = false;
         bool reqs_per_event_low_priority = false;
         bool default_reqs_per_event = false;
+        bool command_time_slice = false;
         bool deployment_model = false;
         bool enable_deprecated_bucket_autoselect = false;
         bool verbose = false;

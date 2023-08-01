@@ -27,4 +27,10 @@ constexpr std::size_t PrivilegedBytes = 1024 * 1024;
 /// The maximum length of a username
 constexpr std::size_t MaxUsernameLength = 128;
 
+/// We specify a finite number of times to retry; to prevent the event that
+/// we are fighting with another client for the correct CAS value for an
+/// arbitrary amount of time (and to defend against possible bugs in our
+/// code ;)
+constexpr std::size_t SubdocMaxAutoRetries = 100;
+
 } // namespace cb::limits

@@ -11,6 +11,7 @@
 #include "settings.h"
 #include "log_macros.h"
 #include "ssl_utils.h"
+#include <fmt/chrono.h>
 #include <mcbp/mcbp.h>
 #include <memcached/util.h>
 #include <nlohmann/json.hpp>
@@ -187,6 +188,9 @@ void Settings::reconfigure(const nlohmann::json& json) {
         } else if (key == "reqs_per_event_low_priority"sv) {
             setRequestsPerEventNotification(value.get<int>(),
                                             EventPriority::Low);
+        } else if (key == "command_time_slice"sv) {
+            setCommandTimeSlice(
+                    std::chrono::milliseconds(value.get<uint32_t>()));
         } else if (key == "verbosity"sv) {
             setVerbose(value.get<int>());
         } else if (key == "connection_idle_time"sv) {
@@ -619,6 +623,16 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                                             EventPriority::Default);
         }
     }
+
+    if (other.has.command_time_slice) {
+        if (other.getCommandTimeSlice() != getCommandTimeSlice()) {
+            LOG_INFO("Change command time slize from {} to {}",
+                     getCommandTimeSlice(),
+                     other.getCommandTimeSlice());
+            setCommandTimeSlice(other.getCommandTimeSlice());
+        }
+    }
+
     if (other.has.connection_idle_time) {
         if (other.connection_idle_time != connection_idle_time) {
             LOG_INFO("Change connection idle time from {} to {}",

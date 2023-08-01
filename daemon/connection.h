@@ -884,6 +884,12 @@ public:
         snappy_everywhere = val;
     }
 
+    /// Get the time point for when the current timeslice ends (cookies
+    /// should try to yield execution after this point)
+    std::chrono::steady_clock::time_point getCurrentTimesliceEnd() const {
+        return current_timeslice_end;
+    }
+
 protected:
     /// Protected constructor so that it may only be used from create();
     Connection(SOCKET sfd,
@@ -1048,6 +1054,9 @@ protected:
     /// The number of times we've been backing off and yielding
     /// to allow other threads to run
     cb::RelaxedAtomic<uint64_t> yields;
+
+    /// The end time of the current timeslice used for command
+    std::chrono::steady_clock::time_point current_timeslice_end;
 
     /// The total time this connection been on the CPU
     std::chrono::nanoseconds total_cpu_time = std::chrono::nanoseconds::zero();

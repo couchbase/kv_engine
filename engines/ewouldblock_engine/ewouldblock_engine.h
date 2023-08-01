@@ -86,4 +86,9 @@ enum class EWBEngineMode : uint32_t {
 
     // Throw an exception
     ThrowException = 12,
+
+    // Similar to CasMismatch, but inject a sleep before returning
+    // The value is encoded in the following way:
+    // 16 bits with ms to sleep, 16 bits with number of iterations
+    SlowCasMismatch = 13,
 };

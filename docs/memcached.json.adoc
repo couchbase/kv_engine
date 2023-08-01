@@ -217,6 +217,12 @@ default value is 20.
 *reqs_per_event_low_priority* may be updated by instructing memcached
 to reread the configuration file.
 
+=== command_time_slice
+
+The *command_time_slice* attribute is an integral value specifying
+the number of milliseconds a connection may spend executing commands
+before backing off the CPU
+
 === verbosity
 
 The *verbosity* attribute is an integral value specifying the amount

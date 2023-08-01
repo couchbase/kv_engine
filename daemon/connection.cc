@@ -548,7 +548,8 @@ bool Connection::processAllReadyCookies() {
     // Iterate over all of the cookies and try to execute them
     // (and nuke the entries as they complete so that we may start
     // new ones)
-    while (iter != cookies.end()) {
+    while (iter != cookies.end() &&
+           std::chrono::steady_clock::now() < current_timeslice_end) {
         auto& cookie = *iter;
 
         if (cookie->empty()) {
@@ -609,12 +610,15 @@ void Connection::executeCommandPipeline() {
         return;
     }
 
+    std::chrono::steady_clock::time_point now;
     const auto maxSendQueueSize = Settings::instance().getMaxSendQueueSize();
     if (!active || cookies.back()->mayReorder()) {
         // Only look at new commands if we don't have any active commands
         // or the active command allows for reordering.
         bool stop = !isDCP() && (getSendQueueSize() >= maxSendQueueSize);
-        while (!stop && cookies.size() < maxActiveCommands &&
+        while ((now = std::chrono::steady_clock::now()) <
+                       current_timeslice_end &&
+               !stop && cookies.size() < maxActiveCommands &&
                isPacketAvailable() && numEvents > 0 &&
                state == State::running) {
             if (!cookies.back()->empty()) {
@@ -690,9 +694,11 @@ void Connection::executeCommandPipeline() {
 
             nextPacket();
         }
+    } else {
+        now = std::chrono::steady_clock::now();
     }
 
-    if (numEvents == 0) {
+    if (numEvents == 0 || now > current_timeslice_end) {
         yields++;
         // Update the aggregated stat
         get_thread_stats(this)->conn_yields++;
@@ -784,7 +790,8 @@ void Connection::tryToProgressDcpStream() {
         // it could be pending bufferAcks
         numEvents = max_reqs_per_event;
     }
-    while (more && numEvents > 0) {
+    while (more && numEvents > 0 &&
+           std::chrono::steady_clock::now() < current_timeslice_end) {
         const auto [throttle, allocDomain] =
                 getBucket().shouldThrottleDcp(*this);
         dcpResourceAllocationDomain = allocDomain;
@@ -826,6 +833,7 @@ void Connection::processNotifiedCookie(Cookie& cookie, cb::engine_errc status) {
     using std::chrono::nanoseconds;
 
     const auto start = last_used_timestamp = std::chrono::steady_clock::now();
+    current_timeslice_end = start + Settings::instance().getCommandTimeSlice();
     try {
         Expects(cookie.isEwouldblock());
         thread.onConnectionUse(*this);
@@ -846,6 +854,8 @@ void Connection::processNotifiedCookie(Cookie& cookie, cb::engine_errc status) {
                         cookies.end());
             }
             triggerCallback();
+        } else if (std::chrono::steady_clock::now() > current_timeslice_end) {
+            ++yields;
         }
     } catch (const std::exception& e) {
         logExecutionException("processNotifiedCookie", e);
@@ -962,6 +972,8 @@ bool Connection::executeCommandsCallback() {
     using std::chrono::nanoseconds;
 
     const auto start = last_used_timestamp = std::chrono::steady_clock::now();
+    current_timeslice_end = start + Settings::instance().getCommandTimeSlice();
+
     thread.onConnectionUse(*this);
     shutdownIfSendQueueStuck(start);
     if (state == State::running) {

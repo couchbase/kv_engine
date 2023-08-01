@@ -183,15 +183,9 @@ protected:
     /// while running on the thread pool
     void do_initiate_shutdown();
 
-    /// We specify a finite number of times to retry; to prevent the event that
-    /// we are fighting with another client for the correct CAS value for an
-    /// arbitrary amount of time (and to defend against possible bugs in our
-    /// code ;)
-    constexpr static int MAXIMUM_ATTEMPTS = 100;
-
     /// Check to see if we've hit the maximum of allowed retry attempts
     bool may_retry() {
-        return auto_retry_mode && ++retries < MAXIMUM_ATTEMPTS;
+        return auto_retry_mode && ++retries < cb::limits::SubdocMaxAutoRetries;
     }
 
     /**
@@ -224,7 +218,7 @@ protected:
     std::unique_ptr<SubdocExecutionContext> execution_context;
 
     /// The current retry count
-    int retries = 0;
+    size_t retries = 0;
 
     /// If operations should be retried or not
     const bool auto_retry_mode;
@@ -391,7 +385,16 @@ bool SubdocCommandContext::do_update_item(cb::engine_errc aio_status) {
             if (may_retry()) {
                 execution_context.reset();
                 state = State::CreateContext;
-                return true;
+
+                if (std::chrono::steady_clock::now() <
+                    cookie.getConnection().getCurrentTimesliceEnd()) {
+                    return true;
+                }
+
+                // We've used the entire timeslice. Reschedule
+                cookie.setEwouldblock(true);
+                cookie.notifyIoComplete(cb::engine_errc::success);
+                return false;
             }
 
             // Hit maximum attempts - this theoretically could happen but
@@ -401,7 +404,7 @@ bool SubdocCommandContext::do_update_item(cb::engine_errc aio_status) {
                     "({}) when attempting to perform op {} on doc {} - "
                     "returning TMPFAIL",
                     cookie.getConnectionId(),
-                    SubdocCommandContext::MAXIMUM_ATTEMPTS,
+                    cb::limits::SubdocMaxAutoRetries,
                     to_string(cookie.getRequest().getClientOpcode()),
                     cb::UserDataView(
                             cookie.getRequestKey().toPrintableString()));
