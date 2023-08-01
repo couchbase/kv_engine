@@ -2214,6 +2214,11 @@
         "added": "7.0.0"
     },
     {
+        "key": "subdoc_update_races",
+        "unit": "count",
+        "added": "trinity"
+    },
+    {
         "key": "stat_timings_mem_usage",
         "unit": "bytes",
         "added": "7.1.0"

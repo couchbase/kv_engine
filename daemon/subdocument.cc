@@ -384,6 +384,8 @@ bool SubdocCommandContext::do_update_item(cb::engine_errc aio_status) {
 
     if (aio_status == cb::engine_errc::key_already_exists) {
         if (auto_retry_mode) {
+            get_thread_stats(&cookie.getConnection())->subdoc_update_races++;
+
             // Retry the operation. Reset the command context and
             // related state, so start from the beginning again.
             if (may_retry()) {

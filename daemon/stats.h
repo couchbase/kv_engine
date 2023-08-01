@@ -55,6 +55,7 @@ struct thread_stats {
         cmd_subdoc_mutation = 0;
         cmd_lock = 0;
         lock_errors = 0;
+        subdoc_update_races = 0;
 
         bytes_subdoc_lookup_total = 0;
         bytes_subdoc_lookup_extracted = 0;
@@ -98,6 +99,7 @@ struct thread_stats {
 
         iovused_high_watermark.setIfGreater(other.iovused_high_watermark);
         msgused_high_watermark.setIfGreater(other.msgused_high_watermark);
+        subdoc_update_races += other.subdoc_update_races;
 
         return *this;
     }
@@ -157,6 +159,10 @@ struct thread_stats {
     cb::RelaxedAtomic<int> iovused_high_watermark;
     /* High value Connection->msgused has got to */
     cb::RelaxedAtomic<int> msgused_high_watermark;
+
+    /// The number of races updating subdoc documents (document changed
+    /// between fetching and storing the document)
+    cb::RelaxedAtomic<uint64_t> subdoc_update_races;
 };
 
 /**

@@ -184,6 +184,8 @@ static void server_bucket_stats(const BucketStatCollector& collector,
                       thread_stats.iovused_high_watermark);
     collector.addStat(Key::msgused_high_watermark,
                       thread_stats.msgused_high_watermark);
+    collector.addStat(Key::subdoc_update_races,
+                      thread_stats.subdoc_update_races);
 
     collector.addStat(Key::cmd_lock, thread_stats.cmd_lock);
     collector.addStat(Key::lock_errors, thread_stats.lock_errors);
