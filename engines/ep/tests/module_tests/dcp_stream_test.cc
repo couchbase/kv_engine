@@ -1485,16 +1485,8 @@ void SingleThreadedActiveStreamTest::TearDown() {
     STParameterizedBucketTest::TearDown();
 }
 
-void SingleThreadedActiveStreamTest::startCheckpointTask() {
-    if (!producer->getCheckpointSnapshotTask()) {
-        producer->createCheckpointProcessorTask();
-        producer->scheduleCheckpointProcessorTask();
-    }
-}
-
 void SingleThreadedActiveStreamTest::setupProducer(
-        const std::vector<std::pair<std::string, std::string>>& controls,
-        bool startCheckpointProcessorTask) {
+        const std::vector<std::pair<std::string, std::string>>& controls) {
     uint32_t flags = 0;
 
     // We don't set the startTask flag here because we will create the task
@@ -3345,7 +3337,6 @@ TEST_P(SingleThreadedActiveStreamTest,
 
     // Replace initial stream with one registered with DCP producer.
     auto vb = engine->getVBucket(vbid);
-    startCheckpointTask();
     stream = producer->mockActiveStreamRequest(0,
                                                /*opaque*/ 0,
                                                *vb,
@@ -5439,7 +5430,6 @@ void CDCActiveStreamTest::SetUp() {
               producer->control(0, DcpControlKeys::ChangeStreams, "true"));
     ASSERT_TRUE(producer->areChangeStreamsEnabled());
     producer->public_enableSyncReplication();
-    startCheckpointTask();
 
     recreateStream(*vb,
                    true,

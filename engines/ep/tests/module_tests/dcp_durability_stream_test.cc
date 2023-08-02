@@ -38,14 +38,14 @@
 
 void DurabilityActiveStreamTest::SetUp() {
     SingleThreadedActiveStreamTest::SetUp();
-    setUp(false /*startCheckpointProcessorTask*/);
+    setUp();
 }
 
 void DurabilityActiveStreamTest::TearDown() {
     SingleThreadedActiveStreamTest::TearDown();
 }
 
-void DurabilityActiveStreamTest::setUp(bool startCheckpointProcessorTask) {
+void DurabilityActiveStreamTest::setUp() {
     setVBucketStateAndRunPersistTask(
             vbid,
             vbucket_state_active,
@@ -54,8 +54,7 @@ void DurabilityActiveStreamTest::setUp(bool startCheckpointProcessorTask) {
     // Enable SyncReplication and flow-control (Producer BufferLog)
     setupProducer({{"enable_sync_writes", "true"},
                    {"connection_buffer_size", "52428800"},
-                   {"consumer_name", "test_consumer"}},
-                  startCheckpointProcessorTask);
+                   {"consumer_name", "test_consumer"}});
     ASSERT_TRUE(stream->public_supportSyncReplication());
 }
 
@@ -380,7 +379,6 @@ TEST_P(DurabilityActiveStreamTest, SendDcpAbort) {
 }
 
 TEST_P(DurabilityActiveStreamTest, BackfillDurabilityLevel) {
-    startCheckpointTask();
     auto vb = engine->getVBucket(vbid);
     auto& ckptMgr = *vb->checkpointManager;
     // Get rid of set_vb_state and any other queue_op we are not interested in
@@ -4599,7 +4597,7 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
     }
 
     // 3) Set up the Producer and ActiveStream
-    DurabilityActiveStreamTest::setUp(true /*startCheckpointProcessorTask*/);
+    DurabilityActiveStreamTest::setUp();
 
     // The vbstate-change must have:
     // - closed the checkpoint snap{2, 4, Disk}
@@ -4848,7 +4846,7 @@ void DurabilityPromotionStreamTest::
 
     // 3) Simulate vbstate-change Replica->Active (we have also a Producer and
     // ActiveStream from this point onward)
-    DurabilityActiveStreamTest::setUp(true /*startCheckpointProcessorTask*/);
+    DurabilityActiveStreamTest::setUp();
     ASSERT_TRUE(producer);
     auto* activeStream = DurabilityActiveStreamTest::stream.get();
     ASSERT_TRUE(activeStream);
@@ -5092,7 +5090,7 @@ void DurabilityPromotionStreamTest::
 
     // 3) Simulate vbstate-change Replica->Active (we have also a Producer and
     // ActiveStream from this point onward)
-    DurabilityActiveStreamTest::setUp(true /*startCheckpointProcessorTask*/);
+    DurabilityActiveStreamTest::setUp();
     ASSERT_TRUE(producer);
     auto* activeStream = DurabilityActiveStreamTest::stream.get();
     ASSERT_TRUE(activeStream);
@@ -5291,7 +5289,7 @@ TEST_P(DurabilityPromotionStreamTest,
 
     // Simulate vbstate-change Replica->Active (we have also a Producer and
     // ActiveStream from this point onward)
-    DurabilityActiveStreamTest::setUp(true /*startCheckpointProcessorTask*/);
+    DurabilityActiveStreamTest::setUp();
     ASSERT_TRUE(producer);
     auto* activeStream = DurabilityActiveStreamTest::stream.get();
     ASSERT_TRUE(activeStream);
@@ -5418,7 +5416,7 @@ TEST_P(DurabilityPromotionStreamTest,
 
     // Simulate vbstate-change Replica->Active (we have also a Producer and
     // ActiveStream from this point onward)
-    DurabilityActiveStreamTest::setUp(true /*startCheckpointProcessorTask*/);
+    DurabilityActiveStreamTest::setUp();
     ASSERT_TRUE(producer);
     auto* activeStream = DurabilityActiveStreamTest::stream.get();
     ASSERT_TRUE(activeStream);
@@ -5511,7 +5509,7 @@ TEST_P(DurabilityPromotionStreamTest, ReplicaDeadActiveCanCommitPrepare) {
 
     // Simulate vbstate-change Dead->Active (we have also a Producer and
     // ActiveStream from this point onward)
-    DurabilityActiveStreamTest::setUp(true /*startCheckpointProcessorTask*/);
+    DurabilityActiveStreamTest::setUp();
     ASSERT_TRUE(producer);
     auto* activeStream = DurabilityActiveStreamTest::stream.get();
     ASSERT_TRUE(activeStream);

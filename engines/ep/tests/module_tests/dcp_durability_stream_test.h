@@ -25,7 +25,7 @@ protected:
     /**
      * Does the DurabilityActiveStreamTest specific setup
      */
-    void setUp(bool startCheckpointProcessorTask);
+    void setUp();
 
     /*
      * Queues a Prepare and verifies that the corresponding DCP_PREPARE
