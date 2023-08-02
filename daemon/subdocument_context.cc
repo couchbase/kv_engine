@@ -129,12 +129,6 @@ void SubdocExecutionContext::create_single_path_context(
                   : SubdocExecutionContext::Phase::Body;
     auto& ops = getOperations(phase);
 
-    if (xattr) {
-        size_t xattr_keylen;
-        is_valid_xattr_key({path.data(), path.size()}, xattr_keylen);
-        set_xattr_key({path.data(), xattr_keylen});
-    }
-
     if (flags & SUBDOC_FLAG_EXPAND_MACROS) {
         do_macro_expansion = true;
     }
@@ -230,15 +224,6 @@ void SubdocExecutionContext::create_multi_path_context(
         }
 
         const bool xattr = (flags & SUBDOC_FLAG_XATTR_PATH);
-        if (xattr) {
-            size_t xattr_keylen;
-            is_valid_xattr_key({path.data(), path.size()}, xattr_keylen);
-            std::string_view key{path.data(), xattr_keylen};
-            if (!cb::xattr::is_vattr(key)) {
-                set_xattr_key(key);
-            }
-        }
-
         const SubdocExecutionContext::Phase phase =
                 xattr ? SubdocExecutionContext::Phase::XATTR
                       : SubdocExecutionContext::Phase::Body;
@@ -323,35 +308,53 @@ cb::engine_errc SubdocExecutionContext::pre_link_document(item_info& info) {
 
         cb::xattr::Blob xattr_blob(
                 blob_buffer, cb::mcbp::datatype::is_snappy(info.datatype));
-        auto value = xattr_blob.get(xattr_key);
-        if (value.empty()) {
-            // The segment is no longer there (we may have had another
-            // subdoc command which rewrote the segment where we injected
-            // the macro.
-            return cb::engine_errc::success;
+
+        std::unordered_set<std::string> keys;
+
+        for (const auto& op :
+             getOperations(SubdocExecutionContext::Phase::XATTR)) {
+            if ((op.flags & SUBDOC_FLAG_EXPAND_MACROS) ==
+                SUBDOC_FLAG_EXPAND_MACROS) {
+                size_t xattr_keylen;
+                is_valid_xattr_key({op.path.data(), op.path.size()},
+                                   xattr_keylen);
+                std::string_view key{op.path.data(), xattr_keylen};
+                keys.insert(std::string{op.path.data(), xattr_keylen});
+            }
         }
 
-        // Replace the CAS
-        if (containsMacro(cb::xattr::macros::CAS)) {
-            substituteMacro(
-                    cb::xattr::macros::CAS,
-                    macroToString(cb::xattr::macros::CAS, htonll(info.cas)),
-                    value);
-        }
+        for (const auto& key : keys) {
+            auto value = xattr_blob.get(key);
+            if (value.empty()) {
+                // The segment is no longer there (we may have had another
+                // subdoc command which rewrote the segment where we injected
+                // the macro.
+                continue;
+            }
 
-        // Replace the Seqno
-        if (containsMacro(cb::xattr::macros::SEQNO)) {
-            substituteMacro(cb::xattr::macros::SEQNO,
-                            macroToString(cb::xattr::macros::SEQNO, info.seqno),
-                            value);
-        }
+            // Replace the CAS
+            if (containsMacro(cb::xattr::macros::CAS)) {
+                substituteMacro(
+                        cb::xattr::macros::CAS,
+                        macroToString(cb::xattr::macros::CAS, htonll(info.cas)),
+                        value);
+            }
 
-        // Replace the Value CRC32C
-        if (containsMacro(cb::xattr::macros::VALUE_CRC32C)) {
-            substituteMacro(cb::xattr::macros::VALUE_CRC32C,
-                            macroToString(cb::xattr::macros::VALUE_CRC32C,
-                                          computeValueCRC32C()),
-                            value);
+            // Replace the Seqno
+            if (containsMacro(cb::xattr::macros::SEQNO)) {
+                substituteMacro(
+                        cb::xattr::macros::SEQNO,
+                        macroToString(cb::xattr::macros::SEQNO, info.seqno),
+                        value);
+            }
+
+            // Replace the Value CRC32C
+            if (containsMacro(cb::xattr::macros::VALUE_CRC32C)) {
+                substituteMacro(cb::xattr::macros::VALUE_CRC32C,
+                                macroToString(cb::xattr::macros::VALUE_CRC32C,
+                                              computeValueCRC32C()),
+                                value);
+            }
         }
     }
 

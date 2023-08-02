@@ -317,29 +317,6 @@ public:
     };
 
     /**
-     * Get the xattr key being accessed in this context. Only one
-     * xattr key is allowed in each multi op
-     *
-     * @return the key
-     */
-    std::string_view get_xattr_key() {
-        if (xattr_key.empty()) {
-            return {};
-        }
-        return {xattr_key.data(), xattr_key.size()};
-    }
-
-    /**
-     * Set the xattr key being accessed in this context. Only one
-     * xattr key is allowed in each multi op
-     *
-     * @param key the key to be accessed
-     */
-    void set_xattr_key(std::string_view key) {
-        xattr_key = {key.data(), key.size()};
-    }
-
-    /**
      * Get the document containing all of the virtual attributes for
      * the document. The storage is created the first time the method is called,
      * and reused for the rest of the lifetime of the context.
@@ -433,9 +410,6 @@ private:
     void create_single_path_context(cb::mcbp::subdoc::doc_flag doc_flags);
 
     void create_multi_path_context(cb::mcbp::subdoc::doc_flag doc_flags);
-
-    // The xattr key being accessed in this command
-    std::string xattr_key;
 
     using MacroPair = std::pair<std::string_view, std::string>;
     std::vector<MacroPair> paddedMacros;

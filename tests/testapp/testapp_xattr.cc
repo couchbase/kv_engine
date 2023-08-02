@@ -2373,3 +2373,102 @@ TEST_P(XattrTest, MB57864) {
         EXPECT_EQ(value, doc.value);
     }
 }
+
+TEST_P(XattrTest, MB57864_macro_expansion) {
+    enum class Expansion {
+        /// Do macro expansion for user.cas
+        User,
+        /// Do macro expansion for system.cas
+        System,
+        /// Do macro expansion for user.cas and system.cas
+        Both
+    };
+
+    for (const auto mode :
+         {Expansion::User, Expansion::System, Expansion::Both}) {
+        BinprotSubdocMultiMutationCommand mcmd;
+        mcmd.setKey(name);
+        mcmd.setVBucket(Vbid{0});
+        switch (mode) {
+        case Expansion::User:
+            mcmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                             SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS,
+                             "user.cas",
+                             R"("${Mutation.CAS}")");
+
+            mcmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                             SUBDOC_FLAG_XATTR_PATH,
+                             "_system.cas",
+                             R"("${Mutation.CAS}")");
+
+            break;
+        case Expansion::System:
+            mcmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                             SUBDOC_FLAG_XATTR_PATH,
+                             "user.cas",
+                             R"("${Mutation.CAS}")");
+
+            mcmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                             SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS,
+                             "_system.cas",
+                             R"("${Mutation.CAS}")");
+            break;
+        case Expansion::Both:
+            mcmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                             SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS,
+                             "user.cas",
+                             R"("${Mutation.CAS}")");
+
+            mcmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                             SUBDOC_FLAG_XATTR_PATH | SUBDOC_FLAG_EXPAND_MACROS,
+                             "_system.cas",
+                             R"("${Mutation.CAS}")");
+            break;
+        }
+        mcmd.addMutation(cb::mcbp::ClientOpcode::SubdocDictUpsert,
+                         SUBDOC_FLAG_XATTR_PATH,
+                         "never.cas",
+                         R"("${Mutation.CAS}")");
+        mcmd.addMutation(
+                cb::mcbp::ClientOpcode::Set, SUBDOC_FLAG_NONE, "", value);
+        mcmd.addDocFlag(cb::mcbp::subdoc::doc_flag::Mkdoc);
+        auto mrsp = userConnection->execute(mcmd);
+        ASSERT_EQ(cb::mcbp::Status::Success, mrsp.getStatus())
+                << mrsp.getDataString();
+
+        // Validate that the document contains the new xattrs and value
+
+        BinprotSubdocMultiLookupCommand lcmd;
+        lcmd.setKey(name);
+        lcmd.addGet("user.cas", SUBDOC_FLAG_XATTR_PATH);
+        lcmd.addGet("_system.cas", SUBDOC_FLAG_XATTR_PATH);
+        lcmd.addGet("never.cas", SUBDOC_FLAG_XATTR_PATH);
+        auto rsp = userConnection->execute(lcmd);
+        const auto response = BinprotSubdocMultiLookupResponse(std::move(rsp));
+        ASSERT_EQ(cb::mcbp::Status::Success, response.getStatus());
+        ASSERT_EQ(3, response.getResults().size());
+        auto& user = response.getResults()[0];
+        auto& _system = response.getResults()[1];
+        auto& never = response.getResults()[2];
+        EXPECT_EQ(cb::mcbp::Status::Success, user.status);
+        EXPECT_EQ(cb::mcbp::Status::Success, _system.status);
+        EXPECT_EQ(cb::mcbp::Status::Success, never.status);
+        EXPECT_EQ(R"("${Mutation.CAS}")", never.value);
+
+        switch (mode) {
+        case Expansion::User:
+            EXPECT_NE(R"("${Mutation.CAS}")", user.value);
+            EXPECT_EQ(R"("${Mutation.CAS}")", _system.value);
+            break;
+        case Expansion::System:
+            EXPECT_EQ(R"("${Mutation.CAS}")", user.value);
+            EXPECT_NE(R"("${Mutation.CAS}")", _system.value);
+            break;
+        case Expansion::Both:
+            EXPECT_NE(R"("${Mutation.CAS}")", user.value);
+            EXPECT_NE(R"("${Mutation.CAS}")", _system.value);
+            EXPECT_EQ(user.value, _system.value);
+            break;
+        }
+    }
+}
