@@ -128,13 +128,13 @@ size_t ExecutorPool::calcNumReaders(
         // Note: For maximum IO throughput we should create as many Reader
         // threads as concurrent iops the system can support, given we use
         // synchronous (blocking) IO and hence could utilise more threads than
-        // CPU cores. However, knowing the number of concurrent IOPs the system
-        // can support is hard, so we use #CPUs as a proxy for it - machines
-        // with lots of CPU cores are more likely to have more IO than little
-        // machines.
-        // However given we don't have test environments larger than
-        // ~128 cores, limit to 128.
-        auto readers = maxGlobalThreads;
+        // CPU cores. Threads are configured based on CPU count multiplied by
+        // ioThreadsPerCore. However, given we don't have test environments
+        // larger than ~128 cores, limit to 128.
+        auto readers =
+                maxGlobalThreads *
+                std::underlying_type_t<ThreadPoolConfig::IOThreadsPerCore>(
+                        ioThreadsPerCore.load());
         readers = std::clamp(readers, size_t{4}, size_t{128});
         return readers;
     }
