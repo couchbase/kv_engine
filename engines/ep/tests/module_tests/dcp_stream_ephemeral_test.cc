@@ -88,7 +88,7 @@ TEST_P(EphemeralStreamTest, EphemeralBackfillSnapshotHasNoDuplicates) {
         store_item(vbid, "key2", "value1");
     }
 
-    removeCheckpoint(numItems);
+    removeCheckpoint();
 
     /* Set up a DCP stream for the backfill */
     setup_dcp_stream();

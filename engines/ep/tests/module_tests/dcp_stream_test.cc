@@ -1318,7 +1318,7 @@ protected:
         StreamTest::SetUp();
         store_item(vbid, key, "value");
 
-        removeCheckpoint(numItems);
+        removeCheckpoint();
 
         /* Set up a DCP stream for the backfill */
         setup_dcp_stream();
