@@ -17,7 +17,7 @@
 #include "cookie.h"
 #include "subdocument_traits.h"
 #include "xattr/utils.h"
-
+#include <folly/io/IOBuf.h>
 #include <memcached/engine.h>
 #include <cstddef>
 #include <iomanip>
@@ -420,3 +420,71 @@ private:
 
     std::vector<std::string> expandedVirtualMacrosBackingStore;
 }; // class SubdocExecutionContext
+
+/**
+ * Perform the subjson operation specified by {spec} to one path in the
+ * document.
+ */
+cb::mcbp::Status subdoc_operate_one_path(
+        SubdocExecutionContext& context,
+        SubdocExecutionContext::OperationSpec& spec,
+        std::string_view in_doc);
+
+/**
+ * Perform the wholedoc (mcbp) operation defined by spec
+ */
+cb::mcbp::Status subdoc_operate_wholedoc(
+        SubdocExecutionContext& context,
+        SubdocExecutionContext::OperationSpec& spec,
+        std::string_view& doc);
+
+/**
+ * Run through all of the subdoc operations for the current phase on
+ * the documents content (either the xattr section or the document body,
+ * depending on the execution phase)
+ *
+ * @param context The context object for this operation
+ * @param xattr the documents attribute section (MUST be set in the xattr
+ *              phase, and should be set to nullptr in the body phase)
+ * @param body the documents body section
+ * @param doc_datatype The datatype of the document. Updated if a
+ *                     wholedoc op changes the datatype.
+ * @param modified set to true upon return if any modifications happened
+ *                 to the input document.
+ * @return true if we should continue processing this request,
+ *         false if we've sent the error packet and should terminate
+ *               execution for this request
+ *
+ * @throws std::bad_alloc if allocation fails
+ */
+bool operate_single_doc(SubdocExecutionContext& context,
+                        MemoryBackedBuffer* xattr,
+                        MemoryBackedBuffer& body,
+                        protocol_binary_datatype_t& doc_datatype,
+                        bool& modified);
+
+/**
+ * Delete user xattrs from the xattr blob if required.
+ * @param context The command context for this operation
+ * @return true if success and that we may progress to the
+ *              next phase
+ */
+bool do_xattr_delete_phase(SubdocExecutionContext& context);
+
+/**
+ * Parse the XATTR blob and only operate on the single xattr
+ * requested
+ *
+ * @param context The command context for this operation
+ * @return true if success and that we may progress to the
+ *              next phase
+ */
+bool do_xattr_phase(SubdocExecutionContext& context);
+
+/**
+ * Operate on the user body part of the document as specified by the command
+ * context.
+ * @return true if the command was successful (and execution should continue),
+ *         else false.
+ */
+bool do_body_phase(SubdocExecutionContext& context);
