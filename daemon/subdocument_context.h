@@ -87,7 +87,7 @@ public:
     using Operations = std::vector<OperationSpec>;
 
     SubdocExecutionContext(Cookie& cookie_,
-                           const SubdocCmdTraits traits_,
+                           const SubdocCmdTraits& traits_,
                            Vbid vbucket_,
                            cb::mcbp::subdoc::doc_flag doc_flags);
 
@@ -112,16 +112,13 @@ public:
         return currentPhase;
     }
 
-    // Returns the total size of all Operation values (bytes).
-    uint64_t getOperationValueBytesTotal() const;
-
     // Cookie this command is associated with.
     Cookie& cookie;
 
     Connection& connection;
 
     // The traits for this command.
-    SubdocCmdTraits traits;
+    const SubdocCmdTraits& traits;
 
     /// The vBucket for this request.
     const Vbid vbucket;
@@ -159,10 +156,6 @@ public:
     // The state of the document currently held in `in_doc`. This is used
     // to to set the new documents state.
     DocumentState in_document_state = DocumentState::Alive;
-
-    // True if this operation has been successfully executed (via subjson)
-    // and we have valid result.
-    bool executed = false;
 
     // [Mutations only] The type of the root element, if flags & FLAG_MKDOC
     jsonsl_type_t jroot_type = JSONSL_T_ROOT;
@@ -269,27 +262,31 @@ public:
      * @param client_cas The CAS provided by the client (which should be
      *                   used for updates to the document
      *
-     * @return cb::mcbp::Status::Success for success, otherwise an
+     * @return cb::engine_errc::cuccess for success, otherwise an
      *         error code which should be returned to the client immediately
      *         (and stop executing of the command)
      */
-    cb::mcbp::Status get_document_for_searching(uint64_t client_cas);
+    cb::engine_errc get_document_for_searching(uint64_t client_cas);
 
     /**
      * The result of subdoc_fetch.
      */
     cb::unique_item_ptr fetchedItem;
 
-    /**
-     * Try to execute the subdoc spec
-     *
-     * @return true if successfull, false otherwise
-     */
-    bool execute_subdoc_spec() {
-        return do_xattr_phase() && do_xattr_delete_phase() && do_body_phase();
+    /// Execute the subdocument spec
+    void execute_subdoc_spec() {
+        do_xattr_phase();
+        do_xattr_delete_phase();
+        do_body_phase();
     }
 
+    /// Update the statistics caused by this document
+    void update_statistics();
+
 protected:
+    // Returns the total size of all Operation values (bytes).
+    uint64_t getOperationValueBytesTotal() const;
+
     void setCurrentPhase(Phase phase) {
         currentPhase = phase;
     }
@@ -331,6 +328,7 @@ protected:
      * and reused for the rest of the lifetime of the context.
      */
     std::string_view get_xtoc_vattr();
+
 
     /**
      * Generate macro padding we may use to substitute a macro with. E.g. We
@@ -375,20 +373,6 @@ protected:
     void rewrite_in_document(std::string_view xattr, std::string_view value);
 
     /**
-     * Perform the subjson operation specified by {spec} to one path in the
-     * document.
-     */
-    cb::mcbp::Status subdoc_operate_one_path(
-            SubdocExecutionContext::OperationSpec& spec,
-            std::string_view in_doc);
-
-    /**
-     * Perform the wholedoc (mcbp) operation defined by spec
-     */
-    cb::mcbp::Status subdoc_operate_wholedoc(
-            SubdocExecutionContext::OperationSpec& spec, std::string_view& doc);
-
-    /**
      * Run through all of the subdoc operations for the current phase on
      * the documents content (either the xattr section or the document body,
      * depending on the execution phase)
@@ -398,51 +382,43 @@ protected:
      * @param body the documents body section
      * @param doc_datatype The datatype of the document. Updated if a
      *                     wholedoc op changes the datatype.
-     * @param modified set to true upon return if any modifications happened
-     *                 to the input document.
-     * @return true if we should continue processing this request,
-     *         false if we've sent the error packet and should terminate
-     *               execution for this request
+     * @return true if any modifications happened to the input document.
      *
      * @throws std::bad_alloc if allocation fails
      */
     bool operate_single_doc(MemoryBackedBuffer* xattr,
                             MemoryBackedBuffer& body,
-                            protocol_binary_datatype_t& doc_datatype,
-                            bool& modified);
+                            protocol_binary_datatype_t& doc_datatype);
 
-    cb::mcbp::Status subdoc_operate_attributes_and_body(
+    /**
+     * Perform the wholedoc (mcbp) operation defined by spec
+     */
+    cb::mcbp::Status operate_wholedoc(
+            SubdocExecutionContext::OperationSpec& spec, std::string_view& doc);
+
+    /**
+     * Perform the subjson operation specified by {spec} to one path in the
+     * document.
+     */
+    cb::mcbp::Status operate_one_path(
+            SubdocExecutionContext::OperationSpec& spec,
+            std::string_view in_doc);
+
+    cb::mcbp::Status operate_attributes_and_body(
             SubdocExecutionContext::OperationSpec& spec,
             MemoryBackedBuffer* xattr,
             MemoryBackedBuffer& body);
 
     cb::engine_errc validate_xattr_privilege();
 
-    /**
-     * Delete user xattrs from the xattr blob if required.
-     * @param context The command context for this operation
-     * @return true if success and that we may progress to the
-     *              next phase
-     */
-    bool do_xattr_delete_phase();
+    /// Operate on the xattr part of the document
+    void do_xattr_phase();
 
-    /**
-     * Parse the XATTR blob and only operate on the single xattr
-     * requested
-     *
-     * @param context The command context for this operation
-     * @return true if success and that we may progress to the
-     *              next phase
-     */
-    bool do_xattr_phase();
+    /// Delete user xattrs from the xattr blob if required.
+    void do_xattr_delete_phase();
 
-    /**
-     * Operate on the user body part of the document as specified by the command
-     * context.
-     * @return true if the command was successful (and execution should
-     * continue), else false.
-     */
-    bool do_body_phase();
+    /// Operate on the user body part of the document
+    void do_body_phase();
 
     // Temporary buffer to hold the inflated content in case of the
     // document in the engine being compressed. It is only kept here

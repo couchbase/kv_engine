@@ -258,7 +258,7 @@ void SubdocExecutionContext::create_multi_path_context(
 
 SubdocExecutionContext::SubdocExecutionContext(
         Cookie& cookie_,
-        const SubdocCmdTraits traits_,
+        const SubdocCmdTraits& traits_,
         Vbid vbucket_,
         cb::mcbp::subdoc::doc_flag doc_flags)
     : cookie(cookie_),
@@ -674,31 +674,26 @@ std::string_view SubdocExecutionContext::get_xtoc_vattr() {
     return xtoc_vattr;
 }
 
-cb::mcbp::Status SubdocExecutionContext::get_document_for_searching(
+cb::engine_errc SubdocExecutionContext::get_document_for_searching(
         uint64_t client_cas) {
     item_info& info = getInputItemInfo();
     auto& c = connection;
 
     if (!bucket_get_item_info(connection, *fetchedItem, info)) {
         LOG_WARNING("{}: Failed to get item info", c.getId());
-        return cb::mcbp::Status::Einternal;
+        return cb::engine_errc::failed;
     }
     if (info.cas == LOCKED_CAS) {
         // Check that item is not locked:
         if (client_cas == 0 || client_cas == LOCKED_CAS) {
-            if (c.remapErrorCode(cb::engine_errc::locked_tmpfail) ==
-                cb::engine_errc::locked_tmpfail) {
-                return cb::mcbp::Status::Locked;
-            } else {
-                return cb::mcbp::Status::Etmpfail;
-            }
+            return cb::engine_errc::locked_tmpfail;
         }
         // If the user *did* supply the CAS, we will validate it later on
         // when the mutation is actually applied. In any event, we don't
         // run the following branch on locked documents.
     } else if ((client_cas != 0) && client_cas != info.cas) {
         // Check CAS matches (if specified by the user).
-        return cb::mcbp::Status::KeyEexists;
+        return cb::engine_errc::key_already_exists;
     }
 
     in_flags = info.flags;
@@ -721,9 +716,9 @@ cb::mcbp::Status SubdocExecutionContext::get_document_for_searching(
                     cb::UserDataView(
                             cookie.getRequestKey().toPrintableString()),
                     cb::mcbp::datatype::to_string(info.datatype));
-            return cb::mcbp::Status::Einternal;
+            return cb::engine_errc::failed;
         } catch (const std::bad_alloc&) {
-            return cb::mcbp::Status::Enomem;
+            return cb::engine_errc::no_memory;
         }
 
         // Update the document to point to the uncompressed version.
@@ -734,7 +729,7 @@ cb::mcbp::Status SubdocExecutionContext::get_document_for_searching(
         in_datatype &= ~PROTOCOL_BINARY_DATATYPE_SNAPPY;
     }
 
-    return cb::mcbp::Status::Success;
+    return cb::engine_errc::success;
 }
 
 uint32_t SubdocExecutionContext::computeValueCRC32C() {
@@ -748,7 +743,7 @@ uint32_t SubdocExecutionContext::computeValueCRC32C() {
     return crc32c(value);
 }
 
-cb::mcbp::Status SubdocExecutionContext::subdoc_operate_one_path(
+cb::mcbp::Status SubdocExecutionContext::operate_one_path(
         SubdocExecutionContext::OperationSpec& spec, std::string_view view) {
     // Prepare the specified sub-document command.
     auto& op = connection.getThread().subdoc_op;
@@ -849,7 +844,7 @@ cb::mcbp::Status SubdocExecutionContext::subdoc_operate_one_path(
     }
 }
 
-cb::mcbp::Status SubdocExecutionContext::subdoc_operate_wholedoc(
+cb::mcbp::Status SubdocExecutionContext::operate_wholedoc(
         SubdocExecutionContext::OperationSpec& spec, std::string_view& doc) {
     switch (spec.traits.mcbpCommand) {
     case cb::mcbp::ClientOpcode::Get:
@@ -874,7 +869,7 @@ cb::mcbp::Status SubdocExecutionContext::subdoc_operate_wholedoc(
     }
 }
 
-cb::mcbp::Status SubdocExecutionContext::subdoc_operate_attributes_and_body(
+cb::mcbp::Status SubdocExecutionContext::operate_attributes_and_body(
         SubdocExecutionContext::OperationSpec& spec,
         MemoryBackedBuffer* xattr,
         MemoryBackedBuffer& body) {
@@ -885,14 +880,14 @@ cb::mcbp::Status SubdocExecutionContext::subdoc_operate_attributes_and_body(
 
     if (xattr == nullptr) {
         throw std::invalid_argument(
-                "subdoc_operate_attributes_and_body: can't be called with "
+                "operate_attributes_and_body: can't be called with "
                 "xattr being nullptr");
     }
 
     // Currently we only support SubdocReplaceBodyWithXattr through this
     // API, and we can implement that by using a SUBDOC-GET to get the location
     // of the data; and then reset the body with the content of the operation.
-    auto st = subdoc_operate_one_path(spec, xattr->view);
+    auto st = operate_one_path(spec, xattr->view);
     if (st == cb::mcbp::Status::Success) {
         body.reset(spec.result.matchloc().to_string());
         spec.result.clear();
@@ -909,9 +904,8 @@ cb::mcbp::Status SubdocExecutionContext::subdoc_operate_attributes_and_body(
 bool SubdocExecutionContext::operate_single_doc(
         MemoryBackedBuffer* xattr,
         MemoryBackedBuffer& body,
-        protocol_binary_datatype_t& doc_datatype,
-        bool& modified) {
-    modified = false;
+        protocol_binary_datatype_t& doc_datatype) {
+    bool modified = false;
 
     if (getCurrentPhase() == SubdocExecutionContext::Phase::XATTR) {
         Expects(xattr);
@@ -932,7 +926,7 @@ bool SubdocExecutionContext::operate_single_doc(
         case CommandScope::SubJSON:
             if (cb::mcbp::datatype::is_json(doc_datatype)) {
                 // Got JSON, perform the operation.
-                op.status = subdoc_operate_one_path(op, current.view);
+                op.status = operate_one_path(op, current.view);
             } else {
                 // No good; need to have JSON.
                 op.status = cb::mcbp::Status::SubdocDocNotJson;
@@ -940,11 +934,11 @@ bool SubdocExecutionContext::operate_single_doc(
             break;
 
         case CommandScope::WholeDoc:
-            op.status = subdoc_operate_wholedoc(op, current.view);
+            op.status = operate_wholedoc(op, current.view);
             break;
 
         case CommandScope::AttributesAndBody:
-            op.status = subdoc_operate_attributes_and_body(op, xattr, body);
+            op.status = operate_attributes_and_body(op, xattr, body);
             break;
         }
 
@@ -999,31 +993,24 @@ bool SubdocExecutionContext::operate_single_doc(
         } else {
             switch (traits.path) {
             case SubdocPath::SINGLE:
-                // Failure of a (the only) op stops execution and returns an
-                // error to the client.
-                cookie.sendResponse(op.status);
-                return false;
+                // Failure of the (only) op stops execution
+                overall_status = op.status;
+                Expects(getOperations().size() == 1);
+                return modified;
 
             case SubdocPath::MULTI:
                 overall_status = cb::mcbp::Status::SubdocMultiPathFailure;
                 if (traits.is_mutator) {
-                    // For mutations, this stops the operation - however as
-                    // we need to respond with a body indicating the index
-                    // which failed we return true indicating 'success'.
-                    return true;
-                } else {
-                    // For lookup; an operation failing doesn't stop us
-                    // continuing with the rest of the operations
-                    // - continue with the next operation.
-                    continue;
+                    // For mutations, this stops the operation.
+                    return modified;
                 }
-
-                break;
+                // For lookup; an operation failing doesn't stop us
+                // continuing with the rest of the operations
+                // - continue with the next operation.
             }
         }
     }
-
-    return true;
+    return modified;
 }
 
 cb::engine_errc SubdocExecutionContext::validate_xattr_privilege() {
@@ -1058,9 +1045,9 @@ cb::engine_errc SubdocExecutionContext::validate_xattr_privilege() {
     return cb::engine_errc::success;
 }
 
-bool SubdocExecutionContext::do_xattr_delete_phase() {
+void SubdocExecutionContext::do_xattr_delete_phase() {
     if (!do_delete_doc || !cb::mcbp::datatype::is_xattr(in_datatype)) {
-        return true;
+        return;
     }
 
     // We need to remove the user keys from the Xattrs and rebuild the document
@@ -1078,42 +1065,30 @@ bool SubdocExecutionContext::do_xattr_delete_phase() {
     copy.prune_user_keys();
 
     rewrite_in_document(copy.finalize(), in_doc.view.substr(bodyoffset));
-
-    return true;
 }
 
-bool SubdocExecutionContext::do_xattr_phase() {
+void SubdocExecutionContext::do_xattr_phase() {
     setCurrentPhase(SubdocExecutionContext::Phase::XATTR);
     if (getOperations().empty()) {
-        return true;
+        return;
     }
 
     // Does the user have the permission to perform XATTRs
     auto access = validate_xattr_privilege();
     if (access != cb::engine_errc::success) {
-        access = connection.remapErrorCode(access);
-        if (access == cb::engine_errc::disconnect) {
-            connection.shutdown();
-            return false;
+        // Mark all as access denied
+        for (auto& operation : getOperations()) {
+            operation.status = cb::mcbp::Status::Eaccess;
         }
 
         switch (traits.path) {
         case SubdocPath::SINGLE:
-            // Failure of a (the only) op stops execution and returns an
-            // error to the client.
-            cookie.sendResponse(cb::engine_errc(access));
-            return false;
+            overall_status = cb::mcbp::to_status(access);
+            return;
 
         case SubdocPath::MULTI:
             overall_status = cb::mcbp::Status::SubdocMultiPathFailure;
-            {
-                // Mark all of them as failed..
-                for (auto& operation : getOperations()) {
-                    operation.status =
-                            cb::mcbp::to_status(cb::engine_errc(access));
-                }
-            }
-            return true;
+            return;
         }
         throw std::logic_error("do_xattr_phase: unknown SubdocPath");
     }
@@ -1137,22 +1112,16 @@ bool SubdocExecutionContext::do_xattr_phase() {
         generate_macro_padding(xattr.view, m);
     }
 
-    bool modified;
     auto datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-    if (!operate_single_doc(&xattr, body, datatype, modified)) {
-        // Something failed..
-        return false;
-    }
+    const auto modified = operate_single_doc(&xattr, body, datatype);
+
     // Xattr doc should always be json
     Expects(datatype == PROTOCOL_BINARY_DATATYPE_JSON);
 
-    if (overall_status != cb::mcbp::Status::Success) {
-        return true;
-    }
-
-    // We didn't change anything in the document so just drop everything
-    if (!modified) {
-        return true;
+    // We didn't change anything in the document (or failed) so just drop
+    // everything
+    if (!modified || overall_status != cb::mcbp::Status::Success) {
+        return;
     }
 
     // Time to rebuild the full document.
@@ -1165,14 +1134,13 @@ bool SubdocExecutionContext::do_xattr_phase() {
     }
 
     rewrite_in_document(copy.finalize(), body.view);
-    return true;
 }
 
-bool SubdocExecutionContext::do_body_phase() {
+void SubdocExecutionContext::do_body_phase() {
     setCurrentPhase(SubdocExecutionContext::Phase::Body);
 
     if (getOperations().empty()) {
-        return true;
+        return;
     }
 
     size_t xattrsize = 0;
@@ -1184,15 +1152,11 @@ bool SubdocExecutionContext::do_body_phase() {
         body.view.remove_prefix(xattrsize);
     }
 
-    bool modified;
-
-    if (!operate_single_doc(nullptr, body, in_datatype, modified)) {
-        return false;
-    }
+    const auto modified = operate_single_doc(nullptr, body, in_datatype);
 
     // We didn't change anything in the document so just drop everything
-    if (!modified) {
-        return true;
+    if (!modified || overall_status != cb::mcbp::Status::Success) {
+        return;
     }
 
     // There isn't any xattrs associated with the document. We shouldn't
@@ -1200,9 +1164,31 @@ bool SubdocExecutionContext::do_body_phase() {
     // buffer we've already created.
     if (xattrsize == 0) {
         in_doc.swap(body);
-        return true;
+        return;
     }
 
     rewrite_in_document({in_doc.view.data(), xattrsize}, body.view);
-    return true;
+}
+
+void SubdocExecutionContext::update_statistics() {
+    // Update stats. Treat all mutations as 'cmd_set', all accesses
+    // as 'cmd_get', in addition to specific subdoc counters. (This
+    // is mainly so we see subdoc commands in the GUI, which used
+    // cmd_set / cmd_get).
+    auto* ts = get_thread_stats(&cookie.getConnection());
+    if (traits.is_mutator) {
+        ts->cmd_subdoc_mutation++;
+        ts->bytes_subdoc_mutation_total += out_doc_len;
+        ts->bytes_subdoc_mutation_inserted += getOperationValueBytesTotal();
+        SLAB_INCR(&cookie.getConnection(), cmd_set);
+    } else {
+        ts->cmd_subdoc_lookup++;
+        if (cb::mcbp::isStatusSuccess(overall_status)) {
+            ts->bytes_subdoc_lookup_total += in_doc.view.size();
+            ts->bytes_subdoc_lookup_extracted += response_val_len;
+            STATS_HIT(&cookie.getConnection(), get);
+        } else {
+            STATS_MISS(&cookie.getConnection(), get);
+        }
+    }
 }
