@@ -410,8 +410,7 @@ static bool subdoc_operate(SubdocExecutionContext& context) {
     context.overall_status = cb::mcbp::Status::Success;
 
     try {
-        if (do_xattr_phase(context) && do_xattr_delete_phase(context) &&
-            do_body_phase(context)) {
+        if (context.execute_subdoc_spec()) {
             context.executed = true;
             return true;
         }

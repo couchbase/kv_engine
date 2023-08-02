@@ -93,63 +93,6 @@ public:
 
     cb::engine_errc pre_link_document(item_info& info);
 
-    /**
-     * Get the padded value we want to use for values with macro expansion.
-     * Note that the macro name must be evaluated elsewhere as this method
-     * expect the input value to be one of the legal macros.
-     *
-     * @param macro the name of the macro to return the padded value for
-     * @return the buffer we want to pass on to subdoc instead of the macro
-     *         name
-     */
-    std::string_view get_padded_macro(std::string_view macro);
-
-    /// Try to expand the virtual macro and return an empty string
-    /// if we don't know how to do that
-    std::string_view expand_virtual_macro(std::string_view macro);
-
-    /**
-     * Generate macro padding we may use to substitute a macro with. E.g. We
-     * replace "${Mutation.CAS}" or "${Mutation.seqno}" with the generated
-     * padding. It needs to be wide enough so that we can do an in-place
-     * replacement with the actual CAS or seqno in the pre_link_document
-     * callback.
-     *
-     * We can't really use a hardcoded value (as we would limit the user
-     * for what they could inject in their documents, and we don't want to
-     * suddenly replace user data with a cas value ;).
-     *
-     * This method tries to generate a string, and then scans through the
-     * supplied payload to ensure that it isn't present there before
-     * scanning through all of the values in the xattr modidications to
-     * ensure that it isn't part of any of them either.
-     *
-     * You might think: oh, why don't you just store the pointers to where
-     * in the blob we injected the macro? The problem with that is that
-     * there isn't any restrictions on the order you may specify the
-     * mutations in a multiop, so that you could move the stuff around;
-     * replace it; delete it. That means that you would have to go
-     * through and relocate all of these offsets after each mutation.
-     * Not impossible, but I don't think it would simplify the logic
-     * that much ;-)
-     *
-     * @param payload the JSON value for the xattr to perform macro
-     *                substitution in
-     * @param macro the macro for which we want to generate the padding
-     *
-     * @throws std::logic_error if the macro expansion size is invalid
-     */
-    void generate_macro_padding(std::string_view payload,
-                                cb::xattr::macros::macro macro);
-
-    /**
-     * Rewrite in_doc (and update the datatype)
-     *
-     * @param xattr The new xattr section
-     * @param value The new document value
-     */
-    void rewrite_in_document(std::string_view xattr, std::string_view value);
-
     Operations& getOperations(const Phase phase) {
         switch (phase) {
         case Phase::Body:
@@ -167,10 +110,6 @@ public:
 
     Phase getCurrentPhase() {
         return currentPhase;
-    }
-
-    void setCurrentPhase(Phase phase) {
-        currentPhase = phase;
     }
 
     // Returns the total size of all Operation values (bytes).
@@ -316,29 +255,6 @@ public:
         Subdoc::Result result;
     };
 
-    /**
-     * Get the document containing all of the virtual attributes for
-     * the document. The storage is created the first time the method is called,
-     * and reused for the rest of the lifetime of the context.
-     */
-    std::string_view get_document_vattr();
-
-    /**
-     * Get the document containing all of the virtual attributes for
-     * the vbucket requested.
-     * The storage is created the first time the method is called,
-     * and reused for the rest of the lifetime of the context.
-     */
-    std::string_view get_vbucket_vattr();
-
-    /*
-     * Get the xtoc document which contains a list of xattr keys that exist for
-     * the document.
-     * The storage is created the first time the method is called,
-     * and reused for the rest of the lifetime of the context.
-     */
-    std::string_view get_xtoc_vattr();
-
     // This is the item info for the item we've fetched from the
     // database
     item_info& getInputItemInfo() {
@@ -364,7 +280,170 @@ public:
      */
     cb::unique_item_ptr fetchedItem;
 
-private:
+    /**
+     * Try to execute the subdoc spec
+     *
+     * @return true if successfull, false otherwise
+     */
+    bool execute_subdoc_spec() {
+        return do_xattr_phase() && do_xattr_delete_phase() && do_body_phase();
+    }
+
+protected:
+    void setCurrentPhase(Phase phase) {
+        currentPhase = phase;
+    }
+
+    /**
+     * Get the padded value we want to use for values with macro expansion.
+     * Note that the macro name must be evaluated elsewhere as this method
+     * expect the input value to be one of the legal macros.
+     *
+     * @param macro the name of the macro to return the padded value for
+     * @return the buffer we want to pass on to subdoc instead of the macro
+     *         name
+     */
+    std::string_view get_padded_macro(std::string_view macro);
+
+    /// Try to expand the virtual macro and return an empty string
+    /// if we don't know how to do that
+    std::string_view expand_virtual_macro(std::string_view macro);
+
+    /**
+     * Get the document containing all of the virtual attributes for
+     * the document. The storage is created the first time the method is called,
+     * and reused for the rest of the lifetime of the context.
+     */
+    std::string_view get_document_vattr();
+
+    /**
+     * Get the document containing all of the virtual attributes for
+     * the vbucket requested.
+     * The storage is created the first time the method is called,
+     * and reused for the rest of the lifetime of the context.
+     */
+    std::string_view get_vbucket_vattr();
+
+    /*
+     * Get the xtoc document which contains a list of xattr keys that exist for
+     * the document.
+     * The storage is created the first time the method is called,
+     * and reused for the rest of the lifetime of the context.
+     */
+    std::string_view get_xtoc_vattr();
+
+    /**
+     * Generate macro padding we may use to substitute a macro with. E.g. We
+     * replace "${Mutation.CAS}" or "${Mutation.seqno}" with the generated
+     * padding. It needs to be wide enough so that we can do an in-place
+     * replacement with the actual CAS or seqno in the pre_link_document
+     * callback.
+     *
+     * We can't really use a hardcoded value (as we would limit the user
+     * for what they could inject in their documents, and we don't want to
+     * suddenly replace user data with a cas value ;).
+     *
+     * This method tries to generate a string, and then scans through the
+     * supplied payload to ensure that it isn't present there before
+     * scanning through all of the values in the xattr modidications to
+     * ensure that it isn't part of any of them either.
+     *
+     * You might think: oh, why don't you just store the pointers to where
+     * in the blob we injected the macro? The problem with that is that
+     * there isn't any restrictions on the order you may specify the
+     * mutations in a multiop, so that you could move the stuff around;
+     * replace it; delete it. That means that you would have to go
+     * through and relocate all of these offsets after each mutation.
+     * Not impossible, but I don't think it would simplify the logic
+     * that much ;-)
+     *
+     * @param payload the JSON value for the xattr to perform macro
+     *                substitution in
+     * @param macro the macro for which we want to generate the padding
+     *
+     * @throws std::logic_error if the macro expansion size is invalid
+     */
+    void generate_macro_padding(std::string_view payload,
+                                cb::xattr::macros::macro macro);
+
+    /**
+     * Rewrite in_doc (and update the datatype)
+     *
+     * @param xattr The new xattr section
+     * @param value The new document value
+     */
+    void rewrite_in_document(std::string_view xattr, std::string_view value);
+
+    /**
+     * Perform the subjson operation specified by {spec} to one path in the
+     * document.
+     */
+    cb::mcbp::Status subdoc_operate_one_path(
+            SubdocExecutionContext::OperationSpec& spec,
+            std::string_view in_doc);
+
+    /**
+     * Perform the wholedoc (mcbp) operation defined by spec
+     */
+    cb::mcbp::Status subdoc_operate_wholedoc(
+            SubdocExecutionContext::OperationSpec& spec, std::string_view& doc);
+
+    /**
+     * Run through all of the subdoc operations for the current phase on
+     * the documents content (either the xattr section or the document body,
+     * depending on the execution phase)
+     *
+     * @param xattr the documents attribute section (MUST be set in the xattr
+     *              phase, and should be set to nullptr in the body phase)
+     * @param body the documents body section
+     * @param doc_datatype The datatype of the document. Updated if a
+     *                     wholedoc op changes the datatype.
+     * @param modified set to true upon return if any modifications happened
+     *                 to the input document.
+     * @return true if we should continue processing this request,
+     *         false if we've sent the error packet and should terminate
+     *               execution for this request
+     *
+     * @throws std::bad_alloc if allocation fails
+     */
+    bool operate_single_doc(MemoryBackedBuffer* xattr,
+                            MemoryBackedBuffer& body,
+                            protocol_binary_datatype_t& doc_datatype,
+                            bool& modified);
+
+    cb::mcbp::Status subdoc_operate_attributes_and_body(
+            SubdocExecutionContext::OperationSpec& spec,
+            MemoryBackedBuffer* xattr,
+            MemoryBackedBuffer& body);
+
+    cb::engine_errc validate_xattr_privilege();
+
+    /**
+     * Delete user xattrs from the xattr blob if required.
+     * @param context The command context for this operation
+     * @return true if success and that we may progress to the
+     *              next phase
+     */
+    bool do_xattr_delete_phase();
+
+    /**
+     * Parse the XATTR blob and only operate on the single xattr
+     * requested
+     *
+     * @param context The command context for this operation
+     * @return true if success and that we may progress to the
+     *              next phase
+     */
+    bool do_xattr_phase();
+
+    /**
+     * Operate on the user body part of the document as specified by the command
+     * context.
+     * @return true if the command was successful (and execution should
+     * continue), else false.
+     */
+    bool do_body_phase();
+
     // Temporary buffer to hold the inflated content in case of the
     // document in the engine being compressed. It is only kept here
     // to avoid an extra memory allocation and copy (in_doc will reference
@@ -420,71 +499,3 @@ private:
 
     std::vector<std::string> expandedVirtualMacrosBackingStore;
 }; // class SubdocExecutionContext
-
-/**
- * Perform the subjson operation specified by {spec} to one path in the
- * document.
- */
-cb::mcbp::Status subdoc_operate_one_path(
-        SubdocExecutionContext& context,
-        SubdocExecutionContext::OperationSpec& spec,
-        std::string_view in_doc);
-
-/**
- * Perform the wholedoc (mcbp) operation defined by spec
- */
-cb::mcbp::Status subdoc_operate_wholedoc(
-        SubdocExecutionContext& context,
-        SubdocExecutionContext::OperationSpec& spec,
-        std::string_view& doc);
-
-/**
- * Run through all of the subdoc operations for the current phase on
- * the documents content (either the xattr section or the document body,
- * depending on the execution phase)
- *
- * @param context The context object for this operation
- * @param xattr the documents attribute section (MUST be set in the xattr
- *              phase, and should be set to nullptr in the body phase)
- * @param body the documents body section
- * @param doc_datatype The datatype of the document. Updated if a
- *                     wholedoc op changes the datatype.
- * @param modified set to true upon return if any modifications happened
- *                 to the input document.
- * @return true if we should continue processing this request,
- *         false if we've sent the error packet and should terminate
- *               execution for this request
- *
- * @throws std::bad_alloc if allocation fails
- */
-bool operate_single_doc(SubdocExecutionContext& context,
-                        MemoryBackedBuffer* xattr,
-                        MemoryBackedBuffer& body,
-                        protocol_binary_datatype_t& doc_datatype,
-                        bool& modified);
-
-/**
- * Delete user xattrs from the xattr blob if required.
- * @param context The command context for this operation
- * @return true if success and that we may progress to the
- *              next phase
- */
-bool do_xattr_delete_phase(SubdocExecutionContext& context);
-
-/**
- * Parse the XATTR blob and only operate on the single xattr
- * requested
- *
- * @param context The command context for this operation
- * @return true if success and that we may progress to the
- *              next phase
- */
-bool do_xattr_phase(SubdocExecutionContext& context);
-
-/**
- * Operate on the user body part of the document as specified by the command
- * context.
- * @return true if the command was successful (and execution should continue),
- *         else false.
- */
-bool do_body_phase(SubdocExecutionContext& context);

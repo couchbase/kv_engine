@@ -748,21 +748,19 @@ uint32_t SubdocExecutionContext::computeValueCRC32C() {
     return crc32c(value);
 }
 
-cb::mcbp::Status subdoc_operate_one_path(
-        SubdocExecutionContext& context,
-        SubdocExecutionContext::OperationSpec& spec,
-        std::string_view in_doc) {
+cb::mcbp::Status SubdocExecutionContext::subdoc_operate_one_path(
+        SubdocExecutionContext::OperationSpec& spec, std::string_view view) {
     // Prepare the specified sub-document command.
-    auto& op = context.connection.getThread().subdoc_op;
+    auto& op = connection.getThread().subdoc_op;
     op.clear();
     op.set_result_buf(&spec.result);
     op.set_code(spec.traits.subdocCommand);
-    op.set_doc(in_doc.data(), in_doc.size());
+    op.set_doc(view.data(), view.size());
 
     if (spec.flags & SUBDOC_FLAG_EXPAND_MACROS) {
-        auto padded_macro = context.get_padded_macro(spec.value);
+        auto padded_macro = get_padded_macro(spec.value);
         if (padded_macro.empty()) {
-            padded_macro = context.expand_virtual_macro(spec.value);
+            padded_macro = expand_virtual_macro(spec.value);
             if (padded_macro.empty()) {
                 return cb::mcbp::Status::SubdocXattrUnknownVattrMacro;
             }
@@ -772,7 +770,7 @@ cb::mcbp::Status subdoc_operate_one_path(
         op.set_value(spec.value.data(), spec.value.size());
     }
 
-    if (context.getCurrentPhase() == SubdocExecutionContext::Phase::XATTR &&
+    if (getCurrentPhase() == SubdocExecutionContext::Phase::XATTR &&
         cb::xattr::is_vattr(spec.path)) {
         // path potentially contains elements with in the VATTR, e.g.
         // $document.cas. Need to extract the actual VATTR name prefix.
@@ -787,12 +785,12 @@ cb::mcbp::Status subdoc_operate_one_path(
         if (vattr_key == cb::xattr::vattrs::DOCUMENT) {
             // This is a call to the "$document" VATTR, so replace the document
             // with the document virtual one..
-            doc = context.get_document_vattr();
+            doc = get_document_vattr();
         } else if (vattr_key == cb::xattr::vattrs::XTOC) {
-            doc = context.get_xtoc_vattr();
+            doc = get_xtoc_vattr();
         } else if (vattr_key == cb::xattr::vattrs::VBUCKET) {
             // replace the document with the vbucket virtual one..
-            doc = context.get_vbucket_vattr();
+            doc = get_vbucket_vattr();
         } else {
             return cb::mcbp::Status::SubdocXattrUnknownVattr;
         }
@@ -851,10 +849,8 @@ cb::mcbp::Status subdoc_operate_one_path(
     }
 }
 
-cb::mcbp::Status subdoc_operate_wholedoc(
-        SubdocExecutionContext& context,
-        SubdocExecutionContext::OperationSpec& spec,
-        std::string_view& doc) {
+cb::mcbp::Status SubdocExecutionContext::subdoc_operate_wholedoc(
+        SubdocExecutionContext::OperationSpec& spec, std::string_view& doc) {
     switch (spec.traits.mcbpCommand) {
     case cb::mcbp::ClientOpcode::Get:
         if (doc.empty()) {
@@ -869,7 +865,7 @@ cb::mcbp::Status subdoc_operate_wholedoc(
         return cb::mcbp::Status::Success;
 
     case cb::mcbp::ClientOpcode::Delete:
-        context.in_datatype &= ~BODY_ONLY_DATATYPE_MASK;
+        in_datatype &= ~BODY_ONLY_DATATYPE_MASK;
         spec.result.push_newdoc({nullptr, 0});
         return cb::mcbp::Status::Success;
 
@@ -878,8 +874,7 @@ cb::mcbp::Status subdoc_operate_wholedoc(
     }
 }
 
-static cb::mcbp::Status subdoc_operate_attributes_and_body(
-        SubdocExecutionContext& context,
+cb::mcbp::Status SubdocExecutionContext::subdoc_operate_attributes_and_body(
         SubdocExecutionContext::OperationSpec& spec,
         MemoryBackedBuffer* xattr,
         MemoryBackedBuffer& body) {
@@ -897,29 +892,28 @@ static cb::mcbp::Status subdoc_operate_attributes_and_body(
     // Currently we only support SubdocReplaceBodyWithXattr through this
     // API, and we can implement that by using a SUBDOC-GET to get the location
     // of the data; and then reset the body with the content of the operation.
-    auto st = subdoc_operate_one_path(context, spec, xattr->view);
+    auto st = subdoc_operate_one_path(spec, xattr->view);
     if (st == cb::mcbp::Status::Success) {
         body.reset(spec.result.matchloc().to_string());
         spec.result.clear();
         if (body.view.empty()) {
             // document body is now empty; clear the json bit
-            context.in_datatype &= ~PROTOCOL_BINARY_DATATYPE_JSON;
+            in_datatype &= ~PROTOCOL_BINARY_DATATYPE_JSON;
         } else {
-            context.in_datatype |= PROTOCOL_BINARY_DATATYPE_JSON;
+            in_datatype |= PROTOCOL_BINARY_DATATYPE_JSON;
         }
     }
     return st;
 }
 
-bool operate_single_doc(SubdocExecutionContext& context,
-                        MemoryBackedBuffer* xattr,
-                        MemoryBackedBuffer& body,
-                        protocol_binary_datatype_t& doc_datatype,
-                        bool& modified) {
+bool SubdocExecutionContext::operate_single_doc(
+        MemoryBackedBuffer* xattr,
+        MemoryBackedBuffer& body,
+        protocol_binary_datatype_t& doc_datatype,
+        bool& modified) {
     modified = false;
-    auto& operations = context.getOperations();
 
-    if (context.getCurrentPhase() == SubdocExecutionContext::Phase::XATTR) {
+    if (getCurrentPhase() == SubdocExecutionContext::Phase::XATTR) {
         Expects(xattr);
     } else {
         // The xattr is only provided in the xattr phase as supplying them
@@ -928,18 +922,17 @@ bool operate_single_doc(SubdocExecutionContext& context,
         Expects(!xattr);
     }
 
-    auto& current =
-            context.getCurrentPhase() == SubdocExecutionContext::Phase::XATTR
-                    ? *xattr
-                    : body;
+    auto& current = getCurrentPhase() == SubdocExecutionContext::Phase::XATTR
+                            ? *xattr
+                            : body;
 
     // 2. Perform each of the operations on document.
-    for (auto& op : operations) {
+    for (auto& op : getOperations()) {
         switch (op.traits.scope) {
         case CommandScope::SubJSON:
             if (cb::mcbp::datatype::is_json(doc_datatype)) {
                 // Got JSON, perform the operation.
-                op.status = subdoc_operate_one_path(context, op, current.view);
+                op.status = subdoc_operate_one_path(op, current.view);
             } else {
                 // No good; need to have JSON.
                 op.status = cb::mcbp::Status::SubdocDocNotJson;
@@ -947,17 +940,16 @@ bool operate_single_doc(SubdocExecutionContext& context,
             break;
 
         case CommandScope::WholeDoc:
-            op.status = subdoc_operate_wholedoc(context, op, current.view);
+            op.status = subdoc_operate_wholedoc(op, current.view);
             break;
 
         case CommandScope::AttributesAndBody:
-            op.status = subdoc_operate_attributes_and_body(
-                    context, op, xattr, body);
+            op.status = subdoc_operate_attributes_and_body(op, xattr, body);
             break;
         }
 
         if (op.status == cb::mcbp::Status::Success) {
-            if (context.traits.is_mutator) {
+            if (traits.is_mutator) {
                 modified = true;
 
                 if (op.traits.scope != CommandScope::AttributesAndBody) {
@@ -993,8 +985,8 @@ bool operate_single_doc(SubdocExecutionContext& context,
 
                         // don't alter context.in_datatype directly here in case
                         // we are in xattrs phase
-                        if (context.connection.getThread().isValidJson(
-                                    context.cookie, current.view)) {
+                        if (connection.getThread().isValidJson(cookie,
+                                                               current.view)) {
                             doc_datatype |= PROTOCOL_BINARY_DATATYPE_JSON;
                         } else {
                             doc_datatype &= ~PROTOCOL_BINARY_DATATYPE_JSON;
@@ -1005,17 +997,16 @@ bool operate_single_doc(SubdocExecutionContext& context,
                 // nothing to do.
             }
         } else {
-            switch (context.traits.path) {
+            switch (traits.path) {
             case SubdocPath::SINGLE:
                 // Failure of a (the only) op stops execution and returns an
                 // error to the client.
-                context.cookie.sendResponse(op.status);
+                cookie.sendResponse(op.status);
                 return false;
 
             case SubdocPath::MULTI:
-                context.overall_status =
-                        cb::mcbp::Status::SubdocMultiPathFailure;
-                if (context.traits.is_mutator) {
+                overall_status = cb::mcbp::Status::SubdocMultiPathFailure;
+                if (traits.is_mutator) {
                     // For mutations, this stops the operation - however as
                     // we need to respond with a body indicating the index
                     // which failed we return true indicating 'success'.
@@ -1035,11 +1026,9 @@ bool operate_single_doc(SubdocExecutionContext& context,
     return true;
 }
 
-static cb::engine_errc validate_xattr_privilege(
-        SubdocExecutionContext& context) {
+cb::engine_errc SubdocExecutionContext::validate_xattr_privilege() {
     // Look at all the operations we've got in there:
-    for (const auto& op :
-         context.getOperations(SubdocExecutionContext::Phase::XATTR)) {
+    for (const auto& op : getOperations(SubdocExecutionContext::Phase::XATTR)) {
         if (cb::xattr::is_vattr(op.path)) {
             // The $document vattr doesn't require any xattr permissions,
             // but in order to get the system XATTRs included in XTOC you need
@@ -1047,21 +1036,19 @@ static cb::engine_errc validate_xattr_privilege(
             // checkPrivilege as we don't want the system to log that
             // you don't have access (we just return the user attrs)
             if (op.path.rfind(cb::xattr::vattrs::XTOC, 0) == 0 &&
-                context.cookie
-                        .testPrivilege(cb::rbac::Privilege::SystemXattrRead)
+                cookie.testPrivilege(cb::rbac::Privilege::SystemXattrRead)
                         .success()) {
-                context.xtocSemantics = XtocSemantics::All;
+                xtocSemantics = XtocSemantics::All;
             }
         } else {
             size_t xattr_keylen;
             is_valid_xattr_key({op.path.data(), op.path.size()}, xattr_keylen);
             std::string_view key{op.path.data(), xattr_keylen};
             if (cb::xattr::is_system_xattr(key) &&
-                context.cookie
-                        .checkPrivilege(
-                                context.traits.is_mutator
-                                        ? cb::rbac::Privilege::SystemXattrWrite
-                                        : cb::rbac::Privilege::SystemXattrRead)
+                cookie.checkPrivilege(
+                              traits.is_mutator
+                                      ? cb::rbac::Privilege::SystemXattrWrite
+                                      : cb::rbac::Privilege::SystemXattrRead)
                         .failed()) {
                 return cb::engine_errc::no_access;
             }
@@ -1071,17 +1058,15 @@ static cb::engine_errc validate_xattr_privilege(
     return cb::engine_errc::success;
 }
 
-bool do_xattr_delete_phase(SubdocExecutionContext& context) {
-    if (!context.do_delete_doc ||
-        !cb::mcbp::datatype::is_xattr(context.in_datatype)) {
+bool SubdocExecutionContext::do_xattr_delete_phase() {
+    if (!do_delete_doc || !cb::mcbp::datatype::is_xattr(in_datatype)) {
         return true;
     }
 
     // We need to remove the user keys from the Xattrs and rebuild the document
 
-    const auto bodyoffset = cb::xattr::get_body_offset(context.in_doc.view);
-    cb::char_buffer blob_buffer{(char*)context.in_doc.view.data(),
-                                (size_t)bodyoffset};
+    const auto bodyoffset = cb::xattr::get_body_offset(in_doc.view);
+    cb::char_buffer blob_buffer{(char*)in_doc.view.data(), (size_t)bodyoffset};
 
     const cb::xattr::Blob xattr_blob(blob_buffer, false);
 
@@ -1092,40 +1077,38 @@ bool do_xattr_delete_phase(SubdocExecutionContext& context) {
     // Remove the user xattrs so we're just left with system xattrs
     copy.prune_user_keys();
 
-    context.rewrite_in_document(copy.finalize(),
-                                context.in_doc.view.substr(bodyoffset));
+    rewrite_in_document(copy.finalize(), in_doc.view.substr(bodyoffset));
 
     return true;
 }
 
-bool do_xattr_phase(SubdocExecutionContext& context) {
-    context.setCurrentPhase(SubdocExecutionContext::Phase::XATTR);
-    if (context.getOperations().empty()) {
+bool SubdocExecutionContext::do_xattr_phase() {
+    setCurrentPhase(SubdocExecutionContext::Phase::XATTR);
+    if (getOperations().empty()) {
         return true;
     }
 
     // Does the user have the permission to perform XATTRs
-    auto access = validate_xattr_privilege(context);
+    auto access = validate_xattr_privilege();
     if (access != cb::engine_errc::success) {
-        access = context.connection.remapErrorCode(access);
+        access = connection.remapErrorCode(access);
         if (access == cb::engine_errc::disconnect) {
-            context.connection.shutdown();
+            connection.shutdown();
             return false;
         }
 
-        switch (context.traits.path) {
+        switch (traits.path) {
         case SubdocPath::SINGLE:
             // Failure of a (the only) op stops execution and returns an
             // error to the client.
-            context.cookie.sendResponse(cb::engine_errc(access));
+            cookie.sendResponse(cb::engine_errc(access));
             return false;
 
         case SubdocPath::MULTI:
-            context.overall_status = cb::mcbp::Status::SubdocMultiPathFailure;
+            overall_status = cb::mcbp::Status::SubdocMultiPathFailure;
             {
                 // Mark all of them as failed..
-                auto& operations = context.getOperations();
-                for (auto& operation : operations) {
+                for (auto& operation : getOperations()) {
                     operation.status =
                             cb::mcbp::to_status(cb::engine_errc(access));
                 }
@@ -1137,34 +1120,33 @@ bool do_xattr_phase(SubdocExecutionContext& context) {
 
     auto bodyoffset = 0;
 
-    if (cb::mcbp::datatype::is_xattr(context.in_datatype)) {
-        bodyoffset = cb::xattr::get_body_offset(context.in_doc.view);
+    if (cb::mcbp::datatype::is_xattr(in_datatype)) {
+        bodyoffset = cb::xattr::get_body_offset(in_doc.view);
     }
 
-    cb::char_buffer blob_buffer{(char*)context.in_doc.view.data(),
-                                (size_t)bodyoffset};
-    context.xattr_buffer = cb::xattr::Blob(blob_buffer, false).to_string();
+    cb::char_buffer blob_buffer{(char*)in_doc.view.data(), (size_t)bodyoffset};
+    xattr_buffer = cb::xattr::Blob(blob_buffer, false).to_string();
 
-    MemoryBackedBuffer body{{context.in_doc.view.data() + bodyoffset,
-                             context.in_doc.view.size() - bodyoffset}};
-    MemoryBackedBuffer xattr{context.xattr_buffer};
+    MemoryBackedBuffer body{
+            {in_doc.view.data() + bodyoffset, in_doc.view.size() - bodyoffset}};
+    MemoryBackedBuffer xattr{xattr_buffer};
 
     for (const auto& m : {cb::xattr::macros::CAS,
                           cb::xattr::macros::SEQNO,
                           cb::xattr::macros::VALUE_CRC32C}) {
-        context.generate_macro_padding(xattr.view, m);
+        generate_macro_padding(xattr.view, m);
     }
 
     bool modified;
     auto datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-    if (!operate_single_doc(context, &xattr, body, datatype, modified)) {
+    if (!operate_single_doc(&xattr, body, datatype, modified)) {
         // Something failed..
         return false;
     }
     // Xattr doc should always be json
     Expects(datatype == PROTOCOL_BINARY_DATATYPE_JSON);
 
-    if (context.overall_status != cb::mcbp::Status::Success) {
+    if (overall_status != cb::mcbp::Status::Success) {
         return true;
     }
 
@@ -1182,21 +1164,21 @@ bool do_xattr_phase(SubdocExecutionContext& context) {
         }
     }
 
-    context.rewrite_in_document(copy.finalize(), body.view);
+    rewrite_in_document(copy.finalize(), body.view);
     return true;
 }
 
-bool do_body_phase(SubdocExecutionContext& context) {
-    context.setCurrentPhase(SubdocExecutionContext::Phase::Body);
+bool SubdocExecutionContext::do_body_phase() {
+    setCurrentPhase(SubdocExecutionContext::Phase::Body);
 
-    if (context.getOperations().empty()) {
+    if (getOperations().empty()) {
         return true;
     }
 
     size_t xattrsize = 0;
-    MemoryBackedBuffer body{context.in_doc};
+    MemoryBackedBuffer body{in_doc};
 
-    if (cb::mcbp::datatype::is_xattr(context.in_datatype)) {
+    if (cb::mcbp::datatype::is_xattr(in_datatype)) {
         // We shouldn't have any documents like that!
         xattrsize = cb::xattr::get_body_offset(body.view);
         body.view.remove_prefix(xattrsize);
@@ -1204,8 +1186,7 @@ bool do_body_phase(SubdocExecutionContext& context) {
 
     bool modified;
 
-    if (!operate_single_doc(
-                context, nullptr, body, context.in_datatype, modified)) {
+    if (!operate_single_doc(nullptr, body, in_datatype, modified)) {
         return false;
     }
 
@@ -1218,11 +1199,10 @@ bool do_body_phase(SubdocExecutionContext& context) {
     // reallocate and move things around but just reuse the temporary
     // buffer we've already created.
     if (xattrsize == 0) {
-        context.in_doc.swap(body);
+        in_doc.swap(body);
         return true;
     }
 
-    context.rewrite_in_document({context.in_doc.view.data(), xattrsize},
-                                body.view);
+    rewrite_in_document({in_doc.view.data(), xattrsize}, body.view);
     return true;
 }
