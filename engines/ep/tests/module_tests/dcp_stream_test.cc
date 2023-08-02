@@ -865,11 +865,11 @@ TEST_P(StreamTest, BackfillSmallBuffer) {
        size of a mutation */
     producer->setBackfillBufferSize(1);
 
+    ASSERT_TRUE(stream->isBackfilling());
+    ASSERT_EQ(stream->getNumBackfillPauses(), 0);
+
     /* We want the backfill task to run in a background thread */
     ExecutorPool::get()->setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount{1});
-
-    EXPECT_EQ(stream->getNumBackfillPauses(), 0);
-    stream->transitionStateToBackfilling();
 
     /* Backfill can only read 1 as its buffer will become full after that */
     {
