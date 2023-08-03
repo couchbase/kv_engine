@@ -10,7 +10,6 @@
  */
 #pragma once
 
-#include <gsl/gsl-lite.hpp>
 #include <mcbp/protocol/dcp_stream_end_status.h>
 #include <mcbp/protocol/status.h>
 #include <memcached/dcp_stream_id.h>

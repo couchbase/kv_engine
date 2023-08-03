@@ -16,6 +16,7 @@
 
 #include <boost/io/ios_state.hpp>
 #include <folly/lang/Assume.h>
+#include <gsl/gsl-lite.hpp>
 #include <platform/compress.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>

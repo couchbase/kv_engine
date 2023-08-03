@@ -11,7 +11,6 @@
 
 #pragma once
 
-#include <gsl/gsl-lite.hpp>
 #include <mcbp/protocol/response.h>
 #include <mcbp/protocol/status.h>
 #include <nlohmann/json_fwd.hpp>

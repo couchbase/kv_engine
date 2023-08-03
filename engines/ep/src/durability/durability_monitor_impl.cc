@@ -12,6 +12,7 @@
 #include "durability_monitor_impl.h"
 #include <fmt/core.h>
 #include <folly/lang/Assume.h>
+#include <gsl/gsl-lite.hpp>
 #include <utilities/logtags.h>
 #include <utility>
 

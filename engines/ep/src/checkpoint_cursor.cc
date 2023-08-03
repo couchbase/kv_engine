@@ -12,6 +12,7 @@
 #include "checkpoint_cursor.h"
 
 #include "checkpoint.h"
+#include <gsl/gsl-lite.hpp>
 #include <utility>
 
 CheckpointCursor::CheckpointCursor(std::string name,

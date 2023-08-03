@@ -9,9 +9,9 @@
  */
 
 #include "check_password.h"
-#include "../cbcrypto.h"
 
 #include <cbsasl/util.h>
+#include <gsl/gsl-lite.hpp>
 #include <platform/base64.h>
 
 using cb::crypto::Algorithm;

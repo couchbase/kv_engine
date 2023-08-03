@@ -10,7 +10,6 @@
  */
 #pragma once
 
-#include <gsl/gsl-lite.hpp>
 #include <nlohmann/json.hpp>
 #include <cstdint>
 #include <string>

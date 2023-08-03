@@ -11,9 +11,9 @@
 
 #include "checkpoint_config.h"
 
-#include "bucket_logger.h"
 #include "configuration.h"
 #include "ep_engine.h"
+#include <gsl/gsl-lite.hpp>
 
 /**
  * A listener class to update checkpoint related configs at runtime.

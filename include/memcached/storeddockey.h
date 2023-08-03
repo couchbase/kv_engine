@@ -13,7 +13,6 @@
 
 #include <memcached/storeddockey_fwd.h>
 
-#include <gsl/gsl-lite.hpp>
 #include <memcached/dockey.h>
 #include <limits>
 #include <string>

@@ -13,6 +13,7 @@
 
 #include "connhandler.h"
 #include "ep_engine.h"
+#include <gsl/gsl-lite.hpp>
 
 ConnStore::ConnStore(EventuallyPersistentEngine& engine)
     : cookieToConnHandle(CookieToConnMapHandle(*this)),
