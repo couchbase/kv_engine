@@ -18,7 +18,7 @@
 #include <folly/Synchronized.h>
 #include <memcached/engine.h>
 #include <memcached/engine_error.h>
-#include <testing_hook.h>
+#include <utilities/testing_hook.h>
 #include <memory>
 
 class EPBucket;

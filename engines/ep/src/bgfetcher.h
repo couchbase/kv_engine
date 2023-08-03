@@ -11,8 +11,8 @@
 #pragma once
 
 #include "kvstore/kvstore_iface.h"
-#include "testing_hook.h"
 #include "vb_ready_queue.h"
+#include <utilities/testing_hook.h>
 #include <atomic>
 
 // Forward declarations.

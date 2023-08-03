@@ -11,13 +11,11 @@
 
 #pragma once
 
-#include "testing_hook.h"
-
 #include <boost/dynamic_bitset.hpp>
 #include <folly/MPMCQueue.h>
 #include <memcached/engine_common.h>
 #include <memcached/vbucket.h>
-
+#include <utilities/testing_hook.h>
 #include <mutex>
 #include <queue>
 #include <unordered_set>

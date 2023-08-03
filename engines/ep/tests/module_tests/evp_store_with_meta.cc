@@ -22,8 +22,8 @@
 #include "vbucket.h"
 
 #include <programs/engine_testapp/mock_cookie.h>
-#include <string_utilities.h>
 #include <utilities/engine_errc_2_mcbp.h>
+#include <utilities/string_utilities.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 

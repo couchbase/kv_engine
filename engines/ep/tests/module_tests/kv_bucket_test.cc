@@ -60,7 +60,7 @@
 #include <platform/dirutils.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
-#include <string_utilities.h>
+#include <utilities/string_utilities.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 

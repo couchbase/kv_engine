@@ -18,11 +18,11 @@
 #include "dcp/response.h"
 #include "ep_engine.h"
 
-#include <json_utilities.h>
 #include <memcached/rbac/privileges.h>
 #include <nlohmann/json.hpp>
 #include <platform/checked_snprintf.h>
 #include <statistics/cbstat_collector.h>
+#include <utilities/json_utilities.h>
 #include <memory>
 
 namespace Collections::VB {

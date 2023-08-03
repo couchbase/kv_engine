@@ -11,15 +11,12 @@
 
 #pragma once
 
-#include "testing_hook.h"
-
-#include <chrono>
-
-#include <platform/atomic.h>
-
 #include <memcached/engine.h>
 #include <memcached/engine_common.h>
+#include <platform/atomic.h>
 #include <platform/checked_snprintf.h>
+#include <utilities/testing_hook.h>
+#include <chrono>
 
 /*
  * HLC manages a hybrid logical clock for 'time' stamping events.

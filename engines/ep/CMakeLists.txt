@@ -24,7 +24,6 @@ INCLUDE_DIRECTORIES(BEFORE
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_BINARY_DIR}/src
-        ${Memcached_SOURCE_DIR}/utilities
         # flatbuffers should be in the previous section
         # but using SYSTEM caused clang-analyze to report
         # a memory leak in one of the flatbuffers headers

@@ -13,8 +13,8 @@
 
 #include "dcp_test.h"
 #include "hash_table.h"
-#include "test_manifest.h"
 #include "vbucket_queue_item_ctx.h"
+#include <utilities/test_manifest.h>
 
 class MockDcpConsumer;
 class MockPassiveStream;

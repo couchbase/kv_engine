@@ -15,8 +15,8 @@
 #include "kv_bucket.h"
 #include "kvstore/kvstore_iface.h"
 #include "test_helpers.h"
-#include "test_manifest.h"
 #include "vbucket.h"
+#include <utilities/test_manifest.h>
 
 #include <folly/portability/GTest.h>
 

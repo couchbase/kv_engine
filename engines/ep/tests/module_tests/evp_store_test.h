@@ -19,7 +19,7 @@
 
 #include "evp_store_single_threaded_test.h"
 #include "kv_bucket_test.h"
-#include "test_manifest.h"
+#include <utilities/test_manifest.h>
 
 /**
  * Persistent bucket only tests

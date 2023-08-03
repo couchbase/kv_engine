@@ -11,13 +11,12 @@
 
 #include "item.h"
 #include "ep_time.h"
-#include "logtags.h"
 #include "objectregistry.h"
-
 #include <boost/io/ios_state.hpp>
 #include <folly/lang/Assume.h>
 #include <gsl/gsl-lite.hpp>
 #include <platform/compress.h>
+#include <utilities/logtags.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 #include <chrono>

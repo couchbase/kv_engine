@@ -18,8 +18,6 @@
 #include "kv_bucket.h"
 #include "utility.h"
 
-#include <json_utilities.h>
-
 #include <gsl/gsl-lite.hpp>
 #include <memcached/engine_error.h>
 #include <nlohmann/json.hpp>
@@ -27,7 +25,7 @@
 #include <spdlog/fmt/fmt.h>
 #include <statistics/cbstat_collector.h>
 #include <statistics/labelled_collector.h>
-
+#include <utilities/json_utilities.h>
 #include <cctype>
 #include <cstring>
 #include <iostream>

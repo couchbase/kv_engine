@@ -37,7 +37,6 @@
 #endif
 #include "learning_age_and_mfu_based_eviction.h"
 #include "tasks.h"
-#include "test_manifest.h"
 #include "tests/mock/mock_ep_bucket.h"
 #include "tests/mock/mock_global_task.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
@@ -45,13 +44,12 @@
 #include "vbucket.h"
 #include "vbucket_bgfetch_item.h"
 #include "warmup.h"
-
 #include <folly/synchronization/Baton.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
+#include <utilities/test_manifest.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
-
 #include <thread>
 #include <utility>
 

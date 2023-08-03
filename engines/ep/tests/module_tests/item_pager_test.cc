@@ -31,14 +31,13 @@
 #include "vb_adapters.h"
 #include "vbucket.h"
 #include "vbucket_utils.h"
-#include <statistics/tests/mock/mock_stat_collector.h>
-
 #include <folly/portability/GTest.h>
 #include <platform/cb_arena_malloc.h>
 #include <platform/semaphore.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <statistics/labelled_collector.h>
-#include <string_utilities.h>
+#include <statistics/tests/mock/mock_stat_collector.h>
+#include <utilities/string_utilities.h>
 #include <utilities/test_manifest.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>

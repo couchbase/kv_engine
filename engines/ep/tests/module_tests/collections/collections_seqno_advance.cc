@@ -11,7 +11,6 @@
 #include "checkpoint_manager.h"
 #include "dcp/response.h"
 #include "kv_bucket.h"
-#include "test_manifest.h"
 #include "tests/mock/mock_dcp_producer.h"
 #include "tests/mock/mock_stream.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
@@ -21,7 +20,7 @@
 #include "vbucket.h"
 
 #include <memcached/dcp_stream_id.h>
-
+#include <utilities/test_manifest.h>
 #include <array>
 #include <deque>
 #include <utility>

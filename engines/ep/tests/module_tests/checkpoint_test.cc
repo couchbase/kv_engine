@@ -28,11 +28,11 @@
 #include "failover-table.h"
 #include "kv_bucket.h"
 #include "programs/engine_testapp/mock_server.h"
-#include "test_manifest.h"
 #include "tests/module_tests/test_helpers.h"
 #include "vbucket.h"
 #include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>
+#include <utilities/test_manifest.h>
 #include <thread>
 
 #define DCP_CURSOR_PREFIX "dcp-client-"

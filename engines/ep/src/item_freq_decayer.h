@@ -16,7 +16,7 @@
 
 #include <folly/Synchronized.h>
 #include <platform/semaphore.h>
-#include <weak_ptr_bag.h>
+#include <utilities/weak_ptr_bag.h>
 #include <memory>
 #include <mutex>
 #include <unordered_set>

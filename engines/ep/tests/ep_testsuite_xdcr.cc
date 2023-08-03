@@ -16,7 +16,6 @@
 #include "ep_testsuite_common.h"
 #include "hlc.h"
 #include <platform/cb_malloc.h>
-#include <string_utilities.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 

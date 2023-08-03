@@ -25,10 +25,9 @@
 #include <platform/dirutils.h>
 #include <platform/timeutils.h>
 #include <programs/engine_testapp/mock_server.h>
-#include <string_utilities.h>
+#include <utilities/string_utilities.h>
 #include <xattr/blob.h>
 #include <filesystem>
-
 #include <memory>
 #include <regex>
 #include <thread>

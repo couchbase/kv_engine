@@ -18,11 +18,11 @@
 #include "kvstore/nexus-kvstore/nexus-kvstore.h"
 #include "kvstore/rollback_callback.h"
 #include "test_helpers.h"
-#include "test_manifest.h"
 #include "tests/module_tests/thread_gate.h"
 #include "vbucket.h"
 #include "vbucket_bgfetch_item.h"
 #include "vbucket_state.h"
+#include <utilities/test_manifest.h>
 
 // GTest warns about uninstantiated tests and currently the only variants of
 // Nexus tests are EE only as they require magma. NexusKVStore supports other

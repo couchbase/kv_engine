@@ -37,7 +37,7 @@
 #include <platform/platform_thread.h>
 #include <platform/platform_time.h>
 #include <programs/engine_testapp/mock_engine.h>
-#include <string_utilities.h>
+#include <utilities/string_utilities.h>
 #include <xattr/blob.h>
 #include <chrono>
 #include <cstdio>

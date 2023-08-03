@@ -64,11 +64,10 @@
 #include <platform/cb_arena_malloc.h>
 #include <platform/dirutils.h>
 #include <platform/semaphore.h>
-#include <string_utilities.h>
+#include <utilities/string_utilities.h>
 #include <utilities/test_manifest.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
-
 #include <regex>
 #include <thread>
 

@@ -9,12 +9,11 @@
  *   the file licenses/APL2.txt.
  */
 
-#include "utilities/readfile.h"
-
 #include <fmt/format.h>
-#include <json_utilities.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
+#include <utilities/json_utilities.h>
+#include <utilities/readfile.h>
 #include <fstream>
 #include <map>
 #include <string>
