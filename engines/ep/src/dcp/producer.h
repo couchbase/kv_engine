@@ -123,8 +123,7 @@ public:
                           const CookieIface* c,
                           const VBucket& vb);
 
-    void aggregateQueueStats(ConnCounter& aggregator,
-                             bool accurateItemsRemaining) const override;
+    void aggregateQueueStats(ConnCounter& aggregator) const override;
 
     /**
      * ALERT: Do NOT call this function while holding ConnMap::connLock.
@@ -481,7 +480,7 @@ protected:
         size_t backfillItemsMemory{};
     };
 
-    StreamAggStats getStreamAggStats(bool accurateItemsRemaining) const;
+    StreamAggStats getStreamAggStats() const;
 
     /**
      * Map the cb::mcbp::DcpStreamEndStatus to one the client can understand.

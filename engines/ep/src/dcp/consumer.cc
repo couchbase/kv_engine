@@ -1246,8 +1246,7 @@ void DcpConsumer::addStats(const AddStatFn& add_stat, const CookieIface* c) {
     addStat("synchronous_replication", isSyncReplicationEnabled(), add_stat, c);
 }
 
-void DcpConsumer::aggregateQueueStats(ConnCounter& aggregator,
-                                      bool accurateItemsRemaining) const {
+void DcpConsumer::aggregateQueueStats(ConnCounter& aggregator) const {
     aggregator.conn_queueBackoff += backoffs;
 }
 

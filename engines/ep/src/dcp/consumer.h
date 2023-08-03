@@ -258,8 +258,7 @@ public:
 
     void addStats(const AddStatFn& add_stat, const CookieIface* c) override;
 
-    void aggregateQueueStats(ConnCounter& aggregator,
-                             bool accurateItemsRemaining) const override;
+    void aggregateQueueStats(ConnCounter& aggregator) const override;
 
     void notifyStreamReady(Vbid vbucket);
 

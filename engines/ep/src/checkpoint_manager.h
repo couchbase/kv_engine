@@ -371,12 +371,8 @@ public:
      * Returns the count of all items (empty item excluded) that the given
      * cursor has yet to process (i.e. between the cursor's current position and
      * the end of the last checkpoint).
-     *
-     * @param cursor The cursor for which the caller want to know the item count
-     * @param accurate [unused] Added in MB-57400, @todo: remove
      */
-    size_t getNumItemsForCursor(const CheckpointCursor* cursor,
-                                bool accurate = true) const;
+    size_t getNumItemsForCursor(const CheckpointCursor* cursor) const;
 
     /* WARNING! This method can return inaccurate counts - see MB-28431. It
      * at *least* can suffer from overcounting by at least 1 (in scenarios as
@@ -746,8 +742,7 @@ protected:
      * @return number of items to be processed
      */
     size_t getNumItemsForCursor(const std::lock_guard<std::mutex>& lh,
-                                const CheckpointCursor* cursor,
-                                bool accurate) const;
+                                const CheckpointCursor* cursor) const;
 
     /**
      * Clears this CM, effectively removing all checkpoints in the list and

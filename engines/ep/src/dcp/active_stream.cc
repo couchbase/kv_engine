@@ -2263,7 +2263,7 @@ void ActiveStream::transitionState(StreamState newState) {
     }
 }
 
-size_t ActiveStream::getItemsRemaining(bool accurateItemsRemaining) {
+size_t ActiveStream::getItemsRemaining() {
     VBucketPtr vbucket = engine->getVBucket(vb_);
 
     if (!vbucket || !isActive()) {
@@ -2275,8 +2275,7 @@ size_t ActiveStream::getItemsRemaining(bool accurateItemsRemaining) {
     // (b) Items pending in our readyQ
     size_t ckptItems = 0;
     if (auto sp = cursor.lock()) {
-        ckptItems = vbucket->checkpointManager->getNumItemsForCursor(
-                sp.get(), accurateItemsRemaining);
+        ckptItems = vbucket->checkpointManager->getNumItemsForCursor(sp.get());
     }
 
     // Note: concurrent access to readyQ guarded by streamMutex

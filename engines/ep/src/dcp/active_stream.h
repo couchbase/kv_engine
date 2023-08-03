@@ -286,10 +286,8 @@ public:
     /**
      * Returns a count of how many items are outstanding to be sent for this
      * stream's vBucket.
-     *
-     * @param accurate [unused] Added in MB-57400, @todo: remove
      */
-    size_t getItemsRemaining(bool accurateItemsRemaining = true);
+    size_t getItemsRemaining();
 
     /// @returns the count of items backfilled from disk.
     size_t getBackfillItemsDisk() const;

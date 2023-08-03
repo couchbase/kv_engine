@@ -1043,8 +1043,7 @@ protected:
                                    const AddStatFn& add_stat,
                                    std::string_view sep);
     cb::engine_errc doConnAggStatsInner(const BucketStatCollector& collector,
-                                        std::string_view sep,
-                                        bool cmdStat);
+                                        std::string_view sep);
     void doTimingStats(const BucketStatCollector& collector);
     cb::engine_errc doSchedulerStats(const CookieIface* cookie,
                                      const AddStatFn& add_stat);
