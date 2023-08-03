@@ -11,7 +11,6 @@
 
 #pragma once
 
-#include <gsl/gsl-lite.hpp>
 #include <nlohmann/json_fwd.hpp>
 #include <filesystem>
 #include <list>

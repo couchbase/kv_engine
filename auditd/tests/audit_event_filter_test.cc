@@ -11,12 +11,8 @@
 #include <audit.h>
 #include <audit_event_filter.h>
 #include <auditd/couchbase_audit_events.h>
-#include <boost/filesystem/path.hpp>
 #include <folly/portability/GTest.h>
 #include <nlohmann/json.hpp>
-#include <platform/dirutils.h>
-
-using namespace std::string_view_literals;
 
 TEST(AuditEventFilterTest, CreateFromJson) {
     auto json =

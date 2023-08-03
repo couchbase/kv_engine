@@ -15,7 +15,6 @@
 #include <memcached/isotime.h>
 #include <nlohmann/json.hpp>
 #include <platform/platform_time.h>
-#include <atomic>
 #include <fstream>
 #include <iostream>
 #include <map>

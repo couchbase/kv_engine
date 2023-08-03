@@ -7,20 +7,13 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-#include <gsl/gsl-lite.hpp>
-#include <nlohmann/json.hpp>
-#include <platform/dirutils.h>
-#include <cstdlib>
-#include <iostream>
-#include <map>
-
-#include <cerrno>
-#include <cstring>
 #include "auditconfig.h"
 #include "mock_auditconfig.h"
-
 #include <audit_descriptor_manager.h>
 #include <folly/portability/GTest.h>
+#include <nlohmann/json.hpp>
+#include <platform/dirutils.h>
+#include <map>
 
 class AuditConfigTest : public ::testing::Test {
 protected:
