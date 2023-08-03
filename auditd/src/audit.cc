@@ -12,13 +12,11 @@
 #include "audit_event_filter.h"
 #include "configureevent.h"
 #include "event.h"
-#include "eventdescriptor.h"
 
 #include <auditd/couchbase_audit_events.h>
 #include <logger/logger.h>
 #include <memcached/isotime.h>
 #include <nlohmann/json.hpp>
-#include <phosphor/phosphor.h>
 #include <platform/dirutils.h>
 #include <statistics/collector.h>
 #include <statistics/definitions.h>
@@ -26,7 +24,6 @@
 
 #include <algorithm>
 #include <chrono>
-#include <queue>
 #include <string>
 
 using namespace std::string_view_literals;

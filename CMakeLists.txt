@@ -74,7 +74,6 @@ include_directories(BEFORE
         ${CMAKE_CURRENT_BINARY_DIR}/include)
 
 include_directories(AFTER SYSTEM
-        ${phosphor_SOURCE_DIR}/include
         ${gsl_lite_SOURCE_DIR}/include
         ${LIBEVENT_INCLUDE_DIR}
         ${BOOST_INCLUDE_DIR})

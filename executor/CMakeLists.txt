@@ -22,6 +22,7 @@ add_library(mcd_executor STATIC
             cb3_taskqueue.h
             tasks.def.h
             workload.h)
+target_link_libraries(mcd_executor PRIVATE phosphor)
 target_link_libraries(mcd_executor PUBLIC Folly::folly hdrhistogram platform spdlog::spdlog statistics)
 cb_enable_unity_build(mcd_executor)
 kv_enable_pch(mcd_executor)
