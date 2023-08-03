@@ -13,26 +13,22 @@ CMAKE_DEPENDENT_OPTION(EP_USE_MAGMA "Enable support for Magma" ON
 CMAKE_DEPENDENT_OPTION(EP_USE_ROCKSDB "Enable support for RocksDB" ON
         "ROCKSDB_INCLUDE_DIR;ROCKSDB_LIBRARIES" OFF)
 
-INCLUDE_DIRECTORIES(BEFORE ${CMAKE_INSTALL_PREFIX}/include
-                           ${CMAKE_CURRENT_SOURCE_DIR}
-                           ${CMAKE_CURRENT_SOURCE_DIR}/src
-                           ${CMAKE_CURRENT_BINARY_DIR}/src
-                           ${BOOST_INCLUDE_DIR}
+INCLUDE_DIRECTORIES(BEFORE SYSTEM
                            ${SNAPPY_INCLUDE_DIR}
-                           ${BOOST_INCLUDE_DIR}
-                           ${FLATBUFFERS_INCLUDE_DIR}
                            ${Platform_SOURCE_DIR}/include
                            ${Platform_SOURCE_DIR}/external
-                           ${Memcached_SOURCE_DIR}
-                           ${Memcached_SOURCE_DIR}/utilities
-                           ${Memcached_SOURCE_DIR}/tracing
-                           ${Memcached_SOURCE_DIR}/include
                            ${Couchstore_SOURCE_DIR}/include
-                           ${Couchstore_BINARY_DIR}/include
-                           ${CMAKE_CURRENT_BINARY_DIR}
-        )
+                           ${Couchstore_BINARY_DIR}/include)
 
-INCLUDE_DIRECTORIES(AFTER ${Memcached_BINARY_DIR}/include)
+INCLUDE_DIRECTORIES(BEFORE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+        ${CMAKE_CURRENT_BINARY_DIR}/src
+        ${Memcached_SOURCE_DIR}/utilities
+        # flatbuffers should be in the previous section
+        # but using SYSTEM caused clang-analyze to report
+        # a memory leak in one of the flatbuffers headers
+        ${FLATBUFFERS_INCLUDE_DIR})
 
 SET(EP_STORAGE_LIBS couchstore_static ep-engine_storage_common)
 

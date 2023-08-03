@@ -70,13 +70,11 @@ endif ()
 
 include_directories(BEFORE
         ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_CURRENT_BINARY_DIR}/include)
+        ${CMAKE_CURRENT_SOURCE_DIR})
 
 include_directories(AFTER SYSTEM
         ${gsl_lite_SOURCE_DIR}/include
-        ${LIBEVENT_INCLUDE_DIR}
-        ${BOOST_INCLUDE_DIR})
+        ${LIBEVENT_INCLUDE_DIR})
 
 if (WIN32)
     include_directories(BEFORE SYSTEM ${Platform_SOURCE_DIR}/include/win32)
