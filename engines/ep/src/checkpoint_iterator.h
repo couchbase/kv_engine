@@ -146,12 +146,12 @@ public:
         return iter;
     }
 
+private:
     /// Is the iterator currently pointing to the "end" element.
     bool isAtEnd() const {
         return (iter == container.get().end());
     }
 
-private:
     /// Is the iterator currently pointing to the first element,
     bool isAtStart() const {
         return (iter == container.get().begin());
