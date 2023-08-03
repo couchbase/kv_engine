@@ -301,13 +301,17 @@ std::string SubdocExecutionContext::macroToString(
 }
 
 cb::engine_errc SubdocExecutionContext::pre_link_document(item_info& info) {
-    if (do_macro_expansion) {
+    if (do_macro_expansion && cb::mcbp::datatype::is_xattr(info.datatype)) {
         cb::char_buffer blob_buffer{static_cast<char*>(info.value[0].iov_base),
                                     info.value[0].iov_len};
+        // Subdoc operates on inflated versions of the document
+        Expects(!cb::mcbp::datatype::is_snappy(info.datatype));
+        cb::xattr::Blob xattr_blob(blob_buffer, false);
 
-        cb::xattr::Blob xattr_blob(
-                blob_buffer, cb::mcbp::datatype::is_snappy(info.datatype));
-
+        // The same xattr key may be used multiple times in the
+        // spec. Loop over the xattr spec and pick out the keys we
+        // want to operate on and insert them into a set so that
+        // we only try to replace the macro in the blob _once_
         std::unordered_set<std::string> keys;
 
         for (const auto& op :
