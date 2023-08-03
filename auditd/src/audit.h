@@ -67,16 +67,10 @@ public:
     /// configuration change.
     static std::atomic<uint64_t> generation;
 
+    /// Write the provided json to the audit trail
+    bool write_to_audit_trail(const nlohmann::json& json);
+
 protected:
-    /// The event class needs access to the configuration object
-    /// and the event descriptors as part of filtering events (it'll be
-    /// fixed in a later commit)
-    friend class Event;
-
-    /// The AuditDaemonFilteringTest tries to add it's own event descriptor
-    /// to use in the unit tests
-    friend class AuditDaemonFilteringTest;
-
     /**
      * Create an internal audit event structure
      *

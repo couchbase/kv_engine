@@ -17,6 +17,7 @@
 #include <statistics/labelled_collector.h>
 #include <statistics/prometheus_collector.h>
 #include <statistics/tests/mock/mock_stat_collector.h>
+#include <test/dummy_cookie.h>
 
 /**
  * Helper class for access to protected/private state of
@@ -27,18 +28,19 @@
  */
 class BucketManagerIntrospector {
 public:
-    static cb::engine_errc create(uint32_t cid,
-                                  const std::string name,
+    static cb::engine_errc create(const std::string name,
                                   const std::string config,
                                   BucketType type) {
-        return BucketManager::instance().create(cid, name, config, type);
+        cb::test::DummyCookie cookie;
+        return BucketManager::instance().create(cookie, name, config, type);
     }
 
-    static cb::engine_errc destroy(std::string_view cid,
-                                   const std::string name,
+    static cb::engine_errc destroy(const std::string name,
                                    bool force,
                                    std::optional<BucketType> type = {}) {
-        return BucketManager::instance().destroy(cid, name, force, type);
+        cb::test::DummyCookie cookie;
+        return BucketManager::instance().doBlockingDestroy(
+                cookie, name, force, type);
     }
 };
 
@@ -54,14 +56,13 @@ protected:
     }
     void SetUp() override {
         // create a bucket named foobar
-        BucketManagerIntrospector::create(
-                123, "foobar", "", BucketType::Memcached);
+        BucketManagerIntrospector::create("foobar", "", BucketType::Memcached);
         bucket = &BucketManager::instance().at(1);
     }
 
     void TearDown() override {
         // destroy the bucket which was created for this test
-        BucketManagerIntrospector::destroy("123", "foobar", true);
+        BucketManagerIntrospector::destroy("foobar", true);
     }
 
     Bucket* bucket;

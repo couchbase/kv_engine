@@ -298,3 +298,24 @@ void AuditImpl::consume_events() {
 std::unique_ptr<AuditEventFilter> AuditImpl::createAuditEventFilter() {
     return event_filter.rlock()->clone();
 }
+
+bool AuditImpl::write_to_audit_trail(const nlohmann::json& json) {
+    if (!auditfile.ensure_open()) {
+        LOG_WARNING("Audit: error opening audit file. Dropping event: {}",
+                    cb::UserDataView(json.dump()));
+        return false;
+    }
+
+    if (auditfile.write_event_to_disk(json)) {
+        return true;
+    }
+
+    LOG_WARNING("Audit: error writing event to disk. Dropping event: {}",
+                cb::UserDataView(json.dump()));
+
+    // If the write_event_to_disk function returns false then it is
+    // possible the audit file has been closed. Therefore, ensure
+    // the file is open.
+    auditfile.ensure_open();
+    return false;
+}

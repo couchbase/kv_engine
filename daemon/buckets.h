@@ -429,11 +429,10 @@ public:
      * @param type The type of bucket to create
      * @return Status for the operation
      */
-    cb::engine_errc create(Cookie& cookie,
+    cb::engine_errc create(CookieIface& cookie,
                            const std::string name,
                            const std::string config,
                            BucketType type);
-
 
     /// Set the cluster configuration for the named bucket
     cb::engine_errc setClusterConfig(
@@ -461,6 +460,26 @@ public:
             const std::string name,
             bool force,
             std::optional<BucketType> type);
+
+    /**
+     * Destroy a bucket (will block until connections are closed and operations
+     * in flight are complete).
+     *
+     * Wraps startDestroy in a while loop; use startDestroy directly if the
+     * caller needs to do anything else while bucket deletion is in progress
+     * (e.g., needs to snooze a task rather than blocking a thread).
+     *
+     * @param cookie The cookie requested bucket deletion
+     * @param name The name of the bucket to delete
+     * @param force If set to true the underlying engine should not try to
+     *              persist pending items etc
+     * @param type Only delete the bucket if it is of the given type
+     * @return Status for the operation
+     */
+    cb::engine_errc doBlockingDestroy(CookieIface& cookie,
+                                      const std::string name,
+                                      bool force,
+                                      std::optional<BucketType> type);
 
     /// Destroy all of the buckets
     void destroyAll();
@@ -509,7 +528,7 @@ public:
      * @param name The name of the bucket to pause.
      * @return Status for operation.
      */
-    cb::engine_errc pause(Cookie& cookie, std::string_view name);
+    cb::engine_errc pause(CookieIface& cookie, std::string_view name);
 
     /**
      * Resume a bucket
@@ -518,7 +537,7 @@ public:
      * @param name The name of the bucket to resume.
      * @return Status for operation.
      */
-    cb::engine_errc resume(Cookie& cookie, std::string_view name);
+    cb::engine_errc resume(CookieIface& cookie, std::string_view name);
 
     /**
      * Check to see if the provided number of units is available in the
@@ -670,33 +689,10 @@ protected:
 
     BucketManager();
 
-    /**
-     * Destroy a bucket (will block until connections are closed and operations
-     * in flight are complete).
-     *
-     * Wraps startDestroy in a while loop; use startDestroy directly if the
-     * caller needs to do anything else while bucket deletion is in progress
-     * (e.g., needs to snooze a task rather than blocking a thread).
-     *
-     *
-     * @param cookie The cookie requested bucket deletion
-     * @param name The name of the bucket to delete
-     * @param force If set to true the underlying engine should not try to
-     *              persist pending items etc
-     * @param type Only delete the bucket if it is of the given type
-     * @return Status for the operation
-     */
-    cb::engine_errc destroy(Cookie& cookie,
-                            const std::string name,
-                            bool force,
-                            std::optional<BucketType> type);
-
     /// The "unassigned resources" gauge to use for throttling of commands.
     SloppyGauge unassigned_resources_gauge;
 
     /// The maximum number of unassigned resources to use (updated every tick
     /// from the node capacity - all buckets reserved). See Throttling.md
     std::atomic<std::size_t> unassigned_resources_limit{0};
-
-    friend class BucketManagerIntrospector;
 };

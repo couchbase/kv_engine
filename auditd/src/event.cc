@@ -16,22 +16,5 @@
 #include <utilities/logtags.h>
 
 bool Event::process(AuditImpl& audit) {
-    if (!audit.auditfile.ensure_open()) {
-        LOG_WARNING("Audit: error opening audit file. Dropping event: {}",
-                    cb::UserDataView(payload.dump()));
-        return false;
-    }
-
-    if (audit.auditfile.write_event_to_disk(payload)) {
-        return true;
-    }
-
-    LOG_WARNING("Audit: error writing event to disk. Dropping event: {}",
-                cb::UserDataView(payload.dump()));
-
-    // If the write_event_to_disk function returns false then it is
-    // possible the audit file has been closed. Therefore, ensure
-    // the file is open.
-    audit.auditfile.ensure_open();
-    return false;
+    return audit.write_to_audit_trail(payload);
 }

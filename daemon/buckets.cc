@@ -604,7 +604,7 @@ void BucketManager::createEngineInstance(Bucket& bucket,
     bucket.type.store(type, std::memory_order_seq_cst);
 }
 
-cb::engine_errc BucketManager::create(Cookie& cookie,
+cb::engine_errc BucketManager::create(CookieIface& cookie,
                                       const std::string name,
                                       const std::string config,
                                       BucketType type) {
@@ -680,10 +680,11 @@ cb::engine_errc BucketManager::create(uint32_t cid,
     return result;
 }
 
-cb::engine_errc BucketManager::destroy(Cookie& cookie,
-                                       const std::string name,
-                                       bool force,
-                                       std::optional<BucketType> type) {
+cb::engine_errc BucketManager::doBlockingDestroy(
+        CookieIface& cookie,
+        const std::string name,
+        bool force,
+        std::optional<BucketType> type) {
     return destroy(std::to_string(cookie.getConnectionId()), name, force, type);
 }
 
@@ -977,7 +978,8 @@ void BucketManager::destroyAll() {
         }
     }
 }
-cb::engine_errc BucketManager::pause(Cookie& cookie, std::string_view name) {
+cb::engine_errc BucketManager::pause(CookieIface& cookie,
+                                     std::string_view name) {
     return pause(std::to_string(cookie.getConnectionId()), name);
 }
 
@@ -1122,7 +1124,8 @@ cb::engine_errc BucketManager::pause(std::string_view cid, std::string_view name
     return status;
 }
 
-cb::engine_errc BucketManager::resume(Cookie& cookie, std::string_view name) {
+cb::engine_errc BucketManager::resume(CookieIface& cookie,
+                                      std::string_view name) {
     return resume(std::to_string(cookie.getConnectionId()), name);
 }
 
