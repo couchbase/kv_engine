@@ -8,7 +8,7 @@ add_library(audit_generator_utilities OBJECT
             generator_utilities.cc
             generator_utilities.h)
 target_link_libraries(audit_generator_utilities
-                      PRIVATE nlohmann_json::nlohmann_json fmt::fmt)
+                      PRIVATE nlohmann_json::nlohmann_json platform fmt::fmt)
 kv_enable_pch(audit_generator_utilities)
 cb_enable_unity_build(audit_generator_utilities)
 
