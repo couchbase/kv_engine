@@ -8627,7 +8627,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "checkpoint_memory_recovery_upper_mark=0;checkpoint_memory_"
-                 "recovery_lower_mark=0",
+                 "recovery_lower_mark=0;chk_expel_enabled=false",
                  /* In ephemeral buckets the test is run from module tests:
                     EphTombstoneTest.ImmediateDeletedPurge() */
                  /* TODO RDB: Need to purge in a compaction filter,
@@ -8643,7 +8643,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup,
                  teardown,
                  "checkpoint_memory_recovery_upper_mark=0;checkpoint_memory_"
-                 "recovery_lower_mark=0",
+                 "recovery_lower_mark=0;chk_expel_enabled=false",
                  /* In ephemeral buckets the test is run from module tests:
                     StreamTest.RollbackDueToPurge() */
                  /* TODO RDB: Need to purge in a compaction filter,
