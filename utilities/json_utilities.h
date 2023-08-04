@@ -24,13 +24,8 @@ namespace cb {
  */
 [[noreturn]] inline void throwJsonTypeError(const std::string& msg) {
     const int nlohmannExceptionTypeCode = 302;
-#if NLOHMANN_JSON_VERSION_MAJOR == 3 && NLOHMANN_JSON_VERSION_MINOR < 10
-    /// The nlohmann exception code for incorrect types
-    throw nlohmann::detail::type_error::create(nlohmannExceptionTypeCode, msg);
-#else
     throw nlohmann::detail::type_error::create(
             nlohmannExceptionTypeCode, msg, nullptr);
-#endif
 }
 
 /**
