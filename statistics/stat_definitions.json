@@ -2024,10 +2024,24 @@
         "added": "7.1.0"
     },
     {
+        "key": "clock_fine_resolution_ns",
+        "unit": "none",
+        "prometheus": false,
+        "description": "The resolution (the smallest measurable time period between two consecutive calls to now()) of the fine clock",
+        "added": "7.6.0"
+    },
+    {
         "key": "clock_coarse_overhead_ns",
         "unit": "none",
         "prometheus": false,
         "added": "7.1.0"
+    },
+    {
+        "key": "clock_coarse_resolution_ns",
+        "unit": "none",
+        "prometheus": false,
+        "description": "The resolution (the smallest measurable time period between two consecutive calls to now()) of the coarse clock",
+        "added": "7.6.0"
     },
     {
         "key": "clock_measurement_period_ns",

@@ -589,9 +589,11 @@ TEST_P(StatsTest, TestSingleBucketOpStats) {
 TEST_P(StatsTest, TestClocksStats) {
     auto stats = userConnection->stats("clocks");
 
-    std::array<std::string_view, 3> keys{{"clock_fine_overhead_ns"sv,
-                                          "clock_coarse_overhead_ns"sv,
-                                          "clock_measurement_period_ns"sv}};
+    std::array keys{"clock_fine_overhead_ns"sv,
+                    "clock_fine_resolution_ns"sv,
+                    "clock_coarse_overhead_ns"sv,
+                    "clock_coarse_resolution_ns"sv,
+                    "clock_measurement_period_ns"sv};
     for (auto key : keys) {
         auto it = stats.find(key);
         EXPECT_NE(stats.end(), it) << "Expected key '" << key << "' not found.";

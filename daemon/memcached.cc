@@ -867,10 +867,18 @@ int memcached_main(int argc, char** argv) {
     // if we have a "slow" clock or not..
     const auto fineClock =
             cb::estimateClockOverhead<std::chrono::steady_clock>();
-    LOG_INFO("Fine clock overhead: {}", fineClock.overhead);
+    const auto fineClockResolution =
+            cb::estimateClockResolution<std::chrono::steady_clock>();
+    LOG_INFO("Fine clock resolution:{}, overhead:{}",
+             fineClockResolution,
+             fineClock.overhead);
     const auto coarseClock =
             cb::estimateClockOverhead<folly::chrono::coarse_steady_clock>();
-    LOG_INFO("Coarse clock overhead: {})", coarseClock.overhead);
+    const auto coarseClockResolution =
+            cb::estimateClockResolution<folly::chrono::coarse_steady_clock>();
+    LOG_INFO("Coarse clock resolution:{}, overhead:{}",
+             coarseClockResolution,
+             coarseClock.overhead);
     // Note: benchmark measurementPeriod is the same across all tested clocks,
     // to just report once.
     LOG_INFO("(Clock measurement period: {})", coarseClock.measurementPeriod);

@@ -83,12 +83,21 @@ void server_clock_stats(const StatCollector& collector) {
             cb::estimateClockOverhead<std::chrono::steady_clock>();
     collector.addStat(Key::clock_fine_overhead_ns,
                       fineClockOverhead.overhead.count());
+    const auto fineClockResolution =
+            cb::estimateClockResolution<std::chrono::steady_clock>();
+    collector.addStat(Key::clock_fine_resolution_ns,
+                      fineClockResolution.count());
 
     const auto coarseClockOverhead =
             cb::estimateClockOverhead<folly::chrono::coarse_steady_clock>();
     collector.addStat(Key::clock_coarse_overhead_ns,
                       coarseClockOverhead.overhead.count());
-    // Note that measurementPeriod is the for fine and coarse - it's the
+    const auto coarseClockResolution =
+            cb::estimateClockResolution<folly::chrono::coarse_steady_clock>();
+    collector.addStat(Key::clock_coarse_resolution_ns,
+                      coarseClockResolution.count());
+
+    // Note that measurementPeriod is the same for fine and coarse - it's the
     // period of the clock we use to _measure_ the given clock with - and hence
     // just report it once.
     collector.addStat(Key::clock_measurement_period_ns,
