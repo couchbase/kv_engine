@@ -22,6 +22,7 @@
 #include <event2/bufferevent_ssl.h>
 #include <logger/logger.h>
 #include <mcbp/protocol/header.h>
+#include <openssl/err.h>
 #include <phosphor/phosphor.h>
 #include <platform/string_hex.h>
 
@@ -73,19 +74,27 @@ LibeventConnection::LibeventConnection(SOCKET sfd,
 
 LibeventConnection::~LibeventConnection() = default;
 
-std::string LibeventConnection::getOpenSSLErrors() {
+std::vector<unsigned long> LibeventConnection::getOpenSslErrorCodes() {
+    std::vector<unsigned long> ret;
     unsigned long err;
-    auto buffer = thread.getScratchBuffer();
-    std::vector<std::string> messages;
     while ((err = bufferevent_get_openssl_error(bev.get())) != 0) {
-        std::stringstream ss;
-        ERR_error_string_n(err, buffer.data(), buffer.size());
-        ss << "{" << buffer.data() << "},";
-        messages.emplace_back(ss.str());
+        ret.push_back(err);
     }
 
-    if (messages.empty()) {
+    return ret;
+}
+
+std::string LibeventConnection::formatOpenSslErrorCodes(
+        const std::vector<unsigned long>& codes) {
+    if (codes.empty()) {
         return {};
+    }
+
+    auto buffer = thread.getScratchBuffer();
+    std::vector<std::string> messages;
+    for (const auto& err : codes) {
+        ERR_error_string_n(err, buffer.data(), buffer.size());
+        messages.emplace_back(fmt::format("{{{}}},", buffer.data()));
     }
 
     if (messages.size() == 1) {
@@ -101,6 +110,10 @@ std::string LibeventConnection::getOpenSSLErrors() {
     }
     ret.back() = ']';
     return ret;
+}
+
+std::string LibeventConnection::getOpenSSLErrors() {
+    return formatOpenSslErrorCodes(getOpenSslErrorCodes());
 }
 
 void LibeventConnection::read_callback() {
@@ -189,12 +202,28 @@ void LibeventConnection::event_callback(bufferevent*, short event, void* ctx) {
     auto& instance = *reinterpret_cast<LibeventConnection*>(ctx);
     bool term = false;
 
-    std::string ssl_errors;
-    if (instance.isTlsEnabled()) {
-        ssl_errors = instance.getOpenSSLErrors();
+    bool conn_reset = (event & BEV_EVENT_EOF) == BEV_EVENT_EOF;
+    if ((event & BEV_EVENT_ERROR) == BEV_EVENT_ERROR &&
+        EVUTIL_SOCKET_ERROR() == ECONNRESET) {
+        conn_reset = true;
     }
 
-    if ((event & BEV_EVENT_EOF) == BEV_EVENT_EOF) {
+    std::string ssl_errors;
+    if (instance.isTlsEnabled() && !conn_reset) {
+        auto errors = instance.getOpenSslErrorCodes();
+        for (const auto& err : errors) {
+            if (ERR_GET_REASON(err) == SSL_R_UNEXPECTED_EOF_WHILE_READING) {
+                conn_reset = true;
+                break;
+            }
+        }
+
+        if (!conn_reset) {
+            ssl_errors = instance.formatOpenSslErrorCodes(errors);
+        }
+    }
+
+    if (conn_reset) {
         LOG_DEBUG("{}: Socket EOF", instance.getId());
         instance.setTerminationReason("Client closed connection");
         term = true;
@@ -204,24 +233,15 @@ void LibeventConnection::event_callback(bufferevent*, short event, void* ctx) {
         const auto sockErr = EVUTIL_SOCKET_ERROR();
         if (sockErr != 0) {
             const auto errStr = evutil_socket_error_to_string(sockErr);
-            if (sockErr == ECONNRESET) {
-                LOG_DEBUG(
-                        "{}: Unrecoverable error encountered. Connection reset "
-                        "by peer. Shutting down connection",
-                        instance.getId());
-                instance.setTerminationReason("Client closed connection");
-            } else {
-                LOG_WARNING(
-                        "{}: Unrecoverable error encountered: {}, "
-                        "socket_error: {}:{}, shutting down connection",
-                        instance.getId(),
-                        BevEvent2Json(event).dump(),
-                        sockErr,
-                        errStr);
-                instance.setTerminationReason(
-                        "socket_error: " + std::to_string(sockErr) + ":" +
-                        errStr);
-            }
+            LOG_WARNING(
+                    "{}: Unrecoverable error encountered: {}, "
+                    "socket_error: {}:{}, shutting down connection",
+                    instance.getId(),
+                    BevEvent2Json(event).dump(),
+                    sockErr,
+                    errStr);
+            instance.setTerminationReason(
+                    "socket_error: " + std::to_string(sockErr) + ":" + errStr);
         } else if (!ssl_errors.empty()) {
             LOG_WARNING(
                     "{}: Unrecoverable error encountered: {}, ssl_error: "

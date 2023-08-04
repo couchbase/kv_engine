@@ -633,3 +633,10 @@ TEST_P(ConnectionResetTest, MB58263_Dont_log_connection_reset) {
     }
     testit("MB58263", "Connection reset by peer");
 }
+
+TEST_P(ConnectionResetTest, MB58262_Dont_log_connection_reset_TLS) {
+    if (!userConnection->isSsl()) {
+        GTEST_SKIP();
+    }
+    testit("MB58262", "unexpected eof while reading");
+}

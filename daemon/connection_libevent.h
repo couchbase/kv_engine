@@ -41,7 +41,13 @@ protected:
     /// The bufferevent structure for the object
     cb::libevent::unique_bufferevent_ptr bev;
 
+    /// Get a formatted string of all OpenSSL Errors
     std::string getOpenSSLErrors();
+    /// Format all the OpenSSL Errors in the provided vector
+    std::string formatOpenSslErrorCodes(
+            const std::vector<unsigned long>& codes);
+    /// Get all of the OpenSSL Errors currently set
+    std::vector<unsigned long> getOpenSslErrorCodes();
 
     /**
      * The callback method called from bufferevent when there is new data

@@ -523,7 +523,7 @@ static SOCKET new_socket(const std::string& host,
 }
 
 SOCKET MemcachedConnection::releaseSocket() {
-    if (ssl) {
+    if (ssl && getenv("MEMCACHED_UNIT_TESTS") == nullptr) {
         throw std::runtime_error(
                 "MemcachedConnection::releaseSocket: Can't release SSL socket");
     }
