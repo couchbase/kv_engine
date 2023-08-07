@@ -331,7 +331,7 @@ private:
     cb::engine_error updateFromIOComplete(
             const VBucketStateRLockMap& vbStateLocks,
             KVBucket& bucket,
-            std::unique_ptr<Manifest> newManifest,
+            Manifest&& newManifest,
             CookieIface* cookie);
 
     /**
@@ -347,7 +347,7 @@ private:
             const VBucketStateRLockMap& vbStateLocks,
             KVBucket& bucket,
             folly::Synchronized<Manifest>::UpgradeLockedPtr& current,
-            std::unique_ptr<Manifest> newManifest);
+            Manifest&& newManifest);
 
     /**
      * Get a copy of stats which are relevant at a per-collection level.

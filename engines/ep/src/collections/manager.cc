@@ -71,7 +71,7 @@ cb::engine_error Collections::Manager::update(
         std::unique_ptr<Manifest> newManifest(*manifest);
         return updateFromIOComplete(std::move(vbStateLocks),
                                     bucket,
-                                    std::move(newManifest),
+                                    std::move(*newManifest),
                                     cookie);
     }
 
@@ -110,7 +110,7 @@ cb::engine_error Collections::Manager::update(
         return applyNewManifest(std::move(vbStateLocks),
                                 bucket,
                                 current,
-                                std::move(newManifest));
+                                std::move(*newManifest));
     } else {
         *lockedUpdateCookie = cookie;
         status = cb::engine_errc::would_block;
@@ -122,7 +122,7 @@ cb::engine_error Collections::Manager::update(
 cb::engine_error Collections::Manager::updateFromIOComplete(
         const VBucketStateRLockMap& vbStateLocks,
         KVBucket& bucket,
-        std::unique_ptr<Manifest> newManifest,
+        Manifest&& newManifest,
         CookieIface* cookie) {
     auto current = currentManifest.ulock(); // Will update to newManifest
     return applyNewManifest(
@@ -134,9 +134,9 @@ cb::engine_error Collections::Manager::applyNewManifest(
         const VBucketStateRLockMap& vbStateLocks,
         KVBucket& bucket,
         folly::Synchronized<Manifest>::UpgradeLockedPtr& current,
-        std::unique_ptr<Manifest> newManifest) {
+        Manifest&& newManifest) {
     auto updated =
-            updateAllVBuckets(std::move(vbStateLocks), bucket, *newManifest);
+            updateAllVBuckets(std::move(vbStateLocks), bucket, newManifest);
     if (updated.has_value()) {
         return {cb::engine_errc::cannot_apply_collections_manifest,
                 "Collections::Manager::update aborted on " +
@@ -145,7 +145,7 @@ cb::engine_error Collections::Manager::applyNewManifest(
 
     // Now switch to write locking and change the manifest. The lock is
     // released after this statement.
-    *current.moveFromUpgradeToWrite() = std::move(*newManifest);
+    *current.moveFromUpgradeToWrite() = std::move(newManifest);
     return {cb::engine_errc::success,
             "Collections::Manager::update applied new manifest"};
 }
