@@ -6217,6 +6217,109 @@ TEST_P(CDCPassiveStreamTest, MemorySnapshotTransitionToHistory) {
     manager.getItemsForCursor(outboundDcpCursor.get(), items, 1000);
 }
 
+TEST_P(CDCPassiveStreamTest, TouchedByExpelCheckpointNotReused) {
+    auto& vb = *store->getVBucket(vbid);
+    ASSERT_EQ(0, vb.getHighSeqno());
+    auto& manager = static_cast<MockCheckpointManager&>(*vb.checkpointManager);
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(2, manager.getNumOpenChkItems()); // cs, vbs
+    const auto& list = manager.getCheckpointList();
+    ASSERT_FALSE(list.back()->modifiedByExpel());
+
+    createHistoricalCollection(CheckpointType::Memory, 1, 1);
+    ASSERT_EQ(3, manager.getNumOpenChkItems()); // cs, vbs, sys
+    ASSERT_EQ(1, vb.getHighSeqno());
+    removeCheckpoint(vb);
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(1, manager.getNumOpenChkItems()); // cs
+
+    const auto initialId = manager.getOpenCheckpointId();
+
+    const uint64_t opaque = 1;
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       2, // start
+                                       2, // end
+                                       MARKER_FLAG_MEMORY | MARKER_FLAG_CHK |
+                                               MARKER_FLAG_HISTORY,
+                                       {},
+                                       {}));
+    // The open checkpoint is "empty" (ie, it doesn't store any non-meta item)
+    // and it has never been touched by Expel, we can reuse it
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_EQ(initialId, manager.getOpenCheckpointId());
+
+    const auto key = makeStoredDocKey("key", CollectionEntry::historical);
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->mutation(opaque,
+                                 key,
+                                 {},
+                                 0,
+                                 0,
+                                 0,
+                                 vbid,
+                                 0,
+                                 2, // seqno
+                                 0,
+                                 0,
+                                 0,
+                                 {},
+                                 0));
+
+    EXPECT_EQ(2, manager.getNumOpenChkItems()); // cs, mut
+
+    // Move cursors to allow Expel
+    if (isPersistent()) {
+        flushVBucket(vbid);
+    }
+
+    // Now Expel everything from the open checkpoint
+    {
+        const auto res = manager.expelUnreferencedCheckpointItems();
+        ASSERT_EQ(1, res.count); // mut
+        ASSERT_TRUE(list.back()->modifiedByExpel());
+    }
+
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       3, // start
+                                       3, // end
+                                       MARKER_FLAG_MEMORY | MARKER_FLAG_CHK |
+                                               MARKER_FLAG_HISTORY,
+                                       {},
+                                       {}));
+    // The open checkpoint is "empty" (ie, it doesn't store any non-meta item)
+    // but we expelled items in it, we can't reuse it, a new checkpoint must be
+    // created
+    EXPECT_EQ(1, manager.getNumCheckpoints());
+    EXPECT_GT(manager.getOpenCheckpointId(), initialId);
+
+    // Before the fix this step throws an exception:
+    //
+    // libc++abi: terminating due to uncaught exception of type
+    // std::logic_error: CheckpointManager::queueDirty: Got
+    // status:failure:duplicate item when vb:0 is non-active:2,
+    // item:[op:mutation, seqno:3, key:<ud>cid:0xf:key</ud>], lastBySeqno:2,
+    // openCkpt:[start:3, end:3]
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->mutation(opaque,
+                                 key,
+                                 {},
+                                 0,
+                                 0,
+                                 0,
+                                 vbid,
+                                 0,
+                                 3, // seqno
+                                 0,
+                                 0,
+                                 0,
+                                 {},
+                                 0));
+}
+
 INSTANTIATE_TEST_SUITE_P(Persistent,
                          CDCPassiveStreamTest,
                          STParameterizedBucketTest::magmaConfigValues(),

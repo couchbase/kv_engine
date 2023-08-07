@@ -1458,7 +1458,7 @@ void CheckpointManager::createSnapshot(
 
     auto& openCkpt = getOpenCheckpoint(lh);
 
-    if (!openCkpt.hasNonMetaItems()) {
+    if (!openCkpt.modifiedByExpel() && !openCkpt.hasNonMetaItems()) {
         openCkpt.setSnapshotStartSeqno(snapStartSeqno);
         openCkpt.setSnapshotEndSeqno(snapEndSeqno, visibleSnapEnd);
         openCkpt.setCheckpointType(checkpointType);
