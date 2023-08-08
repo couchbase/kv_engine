@@ -2051,21 +2051,32 @@ TEST_F(DcpConnMapTest,
 }
 
 // MB-57304: Test that the number of backfills a single DCP connection can
-// have active at a time is limited to
+// have active at a time is limited based on
+// dcp_backfill_in_progress_per_connection_limit
 TEST_F(DcpConnMapTest, LimitToOneBackfillPerConnection) {
-    using ::testing::InSequence;
-    using ::testing::Return;
-
+    // canAddBackfillToActiveQ returns success as long as DCP client has not
+    // reached dcp_backfill_in_progress_per_connection_limit.
+    // For the purposes of testing, reduce this to 3 to simplify test.
+    const auto limit = 3;
+    engine->getConfiguration().setDcpBackfillInProgressPerConnectionLimit(
+            limit);
     DcpConnMap connMap(*engine);
+    ASSERT_GE(connMap.getMaxRunningBackfills(), limit * 2)
+            << "Require maxRunningBackfills is at least 2x of the tested "
+               "dcp_backfill_in_progress_per_connection_limit, as we simulate "
+               "two concurrent DCP connections each attempting the limit";
 
-    // canAddBackfillToActiveQ returns success if client is not already
-    // running any backfills - for multiple "clients"
-    EXPECT_TRUE(connMap.canAddBackfillToActiveQ(0));
-    EXPECT_TRUE(connMap.canAddBackfillToActiveQ(0));
-
-    // Returns false if one is already in progress.
-    EXPECT_FALSE(connMap.canAddBackfillToActiveQ(1));
-    EXPECT_FALSE(connMap.canAddBackfillToActiveQ(1));
+    for (int attempt = 0; attempt < limit; attempt++) {
+        // Fist N backfill attempts should be added to active queue.
+        // running any backfills - for multiple "clients" - modelled by just
+        // calling canAddBackfillToActiveQ() twice with same attempt count.
+        SCOPED_TRACE(fmt::format("attempt:{}", attempt));
+        EXPECT_TRUE(connMap.canAddBackfillToActiveQ(attempt));
+        EXPECT_TRUE(connMap.canAddBackfillToActiveQ(attempt));
+    }
+    // Returns false once limit is reached.
+    EXPECT_FALSE(connMap.canAddBackfillToActiveQ(limit));
+    EXPECT_FALSE(connMap.canAddBackfillToActiveQ(limit));
 }
 
 class NotifyTest : public DCPTest {

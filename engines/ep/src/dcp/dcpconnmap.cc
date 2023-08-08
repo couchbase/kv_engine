@@ -439,19 +439,38 @@ void DcpConnMap::notifyBackfillManagerTasks() {
 
 bool DcpConnMap::canAddBackfillToActiveQ(int numInProgress) {
     // MB-57304: Given there's only one BackfillManager task per DCP
-    // connection, and we use synchronous IO, we limit the number of backfills
-    // in-progress per DCP connection to dcp_backfill_in_progress_per_connection_limit
-    // - default "1".
-    // This significantly reduces the number of concurrently in-progress
-    // backfills, down from (up to) 1024 per connection to 1 per connection,
-    // and hence significantly reduces the likelihood that one set of DCP
-    // connections (asking for many vBuckets at once) could starve another DCP
-    // connection also asking for backfills (e.g. replication).
+    // connection, and we use synchronous IO, in _theory_ we only need one
+    // backfill in-progress per DCP connection to achieve the maximum backfill
+    // throughput from disk.
+    // This holds up in practice for a simple no-op DCP client like dcpdrain
+    // (it just reads the DCP messages off the wire and discards them), where
+    // we see the same throughput (+/- 2%) for a range of concurrent backfill
+    // values (1, 2, 4, 8, 16).
+    // If we reduce concurrent backfills to one, then this significantly
+    // reduces the number of concurrently in-progress backfills, down from
+    // (up to) 1024 per connection to 1 per connection, and hence significantly
+    // reduces the likelihood that one set of DCP connections (asking for many
+    // vBuckets at once) could starve another DCP connection also asking for
+    // backfills (e.g. replication) - so it would be highly desirable to be
+    // able to limit to one.
+    // Unfortunately, for real DCP clients like GSI & XDCR, we see a
+    // significant degradation in throughput (XDCR:20%, GSI:4x)  when limiting
+    // concurrent backfills to one. This is due to the fact that XDCR & GSI
+    // both extract concurrency from the DCP connection at the vBucket level
+    // - i.e. they define some number of queues / worker threads and assign
+    // incoming DCP messages to a given queue/worker based on the vbid. As such,
+    // if KV-Engine send a single vBuckets' worth of DCP messages at once before
+    // then sending the next entire vBucket, then XDCR/GSI lose their
+    // concurrency in processing the DCP messages and their throughput
+    // (transmitting to remote Bucket / building indexes) suffers greatly.
+    // As such, we cannot be as aggressive as reducing to one, but we do still
+    // constrain to a finite number (see configuration.json) to reduce the
+    // impact different DCP Conncections have on each other.
     //
-    // If / when we can actually backfill more than one vBucket at the same
-    // time on a single connection then we can increase this limit (e.g. either
-    // multiple BackfillManager tasks each performing sync IO, or async IO
-    // support for BackfillManager).
+    // Note: If / when we can actually backfill more than one vBucket at the
+    // same time on a single connection then there _is_ a throughput argument
+    // to increasing this limit (e.g. either multiple BackfillManager tasks
+    // each performing sync IO, or async IO support for BackfillManager).
     if (numInProgress >= maxNumBackfillsPerConnection) {
         return false;
     }
