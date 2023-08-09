@@ -26,10 +26,9 @@
 
 namespace Collections {
 
-PersistManifestTask::PersistManifestTask(
-        EPBucket& bucket,
-        std::unique_ptr<Collections::Manifest> manifest,
-        CookieIface* cookie)
+PersistManifestTask::PersistManifestTask(EPBucket& bucket,
+                                         Collections::Manifest&& manifest,
+                                         CookieIface* cookie)
     : ::GlobalTask(bucket.getEPEngine(),
                    TaskId::PersistCollectionsManifest,
                    0,
@@ -50,10 +49,6 @@ bool PersistManifestTask::run() {
             ->getCollectionsManager()
             .updatePersistManifestTaskDone(*engine, cookie, status);
     engine->notifyIOComplete(cookie, cb::engine_errc(status));
-    if (status == cb::engine_errc::success) {
-        // Success, release the manifest back to set_collections
-        manifest.release();
-    }
     return false;
 }
 
@@ -68,7 +63,7 @@ cb::engine_errc PersistManifestTask::doTaskCore() {
     finalFile += cb::io::DirectorySeparator + std::string(ManifestFileName);
     auto tmpFile = cb::io::mktemp(finalFile);
 
-    auto fbData = manifest->toFlatbuffer();
+    auto fbData = manifest.toFlatbuffer();
 
     // Now wrap with a CRC
     flatbuffers::FlatBufferBuilder builder;

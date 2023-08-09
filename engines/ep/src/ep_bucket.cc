@@ -2392,14 +2392,14 @@ bool EPBucket::isValidBucketDurabilityLevel(cb::durability::Level level) const {
     folly::assume_unreachable();
 }
 
-// task does not own the manifest, cookie does
+// Manifest is copied into engine specific storage and task
 bool EPBucket::maybeScheduleManifestPersistence(
-        CookieIface* cookie,
-        std::unique_ptr<Collections::Manifest>& newManifest) {
-    getEPEngine().storeEngineSpecific(*cookie, newManifest.get());
+        CookieIface* cookie, const Collections::Manifest& newManifest) {
+    getEPEngine().storeEngineSpecific(*cookie,
+                                      Collections::Manifest(newManifest));
 
     ExTask task = std::make_shared<Collections::PersistManifestTask>(
-            *this, std::move(newManifest), cookie);
+            *this, Collections::Manifest(newManifest), cookie);
     ExecutorPool::get()->schedule(task);
     return true; // we took the manifest
 }

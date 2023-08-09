@@ -69,11 +69,15 @@ std::ostream& operator<<(std::ostream&, const Scope&);
  */
 class Manifest {
 public:
+    ~Manifest();
+
     /**
      * Constructs an epoch manifest
      * Default scope, default collection and uid of 0
      */
     Manifest();
+
+    explicit Manifest(const Manifest&);
 
     /*
      * Create a manifest from json.
@@ -86,6 +90,7 @@ public:
     explicit Manifest(std::string_view flatbufferData, FlatBuffers tag);
 
     Manifest(Manifest&&);
+
     /**
      * Assignment operator that is aware of a forced assign (so uid can go back)
      */

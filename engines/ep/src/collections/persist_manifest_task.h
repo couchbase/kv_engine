@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <collections/manifest.h>
 #include <executor/globaltask.h>
 #include <memcached/engine_error.h>
 
@@ -20,7 +21,6 @@ class CookieIface;
 class EPBucket;
 
 namespace Collections {
-class Manifest;
 
 /**
  * A task for storing the Collection::Manifest into the bucket's data directory
@@ -28,7 +28,7 @@ class Manifest;
 class PersistManifestTask : public ::GlobalTask {
 public:
     PersistManifestTask(EPBucket& bucket,
-                        std::unique_ptr<Collections::Manifest> manifest,
+                        Collections::Manifest&& manifest,
                         CookieIface* cookie);
 
     std::string getDescription() const override;
@@ -53,12 +53,7 @@ public:
 private:
     cb::engine_errc doTaskCore();
 
-    /**
-     * The task is given ownership whilst scheduled and running of the manifest
-     * to store. The task releases ownership on successful store or keeps it
-     * for destruction on failure.
-     */
-    std::unique_ptr<Collections::Manifest> manifest;
+    Collections::Manifest manifest;
     CookieIface* cookie;
 };
 

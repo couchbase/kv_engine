@@ -306,7 +306,7 @@ public:
 
     bool maybeScheduleManifestPersistence(
             CookieIface* cookie,
-            std::unique_ptr<Collections::Manifest>& newManifest) override;
+            const Collections::Manifest& newManifest) override;
 
     BgFetcher& getBgFetcher(Vbid vbid);
     Flusher* getFlusher(Vbid vbid);

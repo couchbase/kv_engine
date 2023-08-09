@@ -86,8 +86,25 @@ static void throwIfWrongType(const std::string& errorKey,
                              const nlohmann::json& object,
                              nlohmann::json::value_t expectedType);
 
+Manifest::~Manifest() = default;
+
 Manifest::Manifest() {
     buildCollectionIdToEntryMap();
+}
+
+Manifest::Manifest(const Manifest& other)
+    : defaultCollectionExists(other.defaultCollectionExists),
+      scopes(other.scopes),
+      uid(other.uid) {
+    collections.reserve(other.collections.size());
+    buildCollectionIdToEntryMap();
+}
+
+Manifest::Manifest(Manifest&& other)
+    : defaultCollectionExists(other.defaultCollectionExists),
+      scopes(std::move(other.scopes)),
+      collections(std::move(other.collections)),
+      uid(other.uid) {
 }
 
 Manifest::Manifest(std::string_view json, size_t numVbuckets)
@@ -283,18 +300,13 @@ std::pair<DataLimit, uint64_t> Manifest::processLimits(
     return {value / numVbuckets, value};
 }
 
-Manifest::Manifest(Manifest&& other) {
-    *this = std::move(other);
-}
-
 Manifest& Manifest::operator=(Manifest&& other) {
     if (this != &other) {
         defaultCollectionExists = other.defaultCollectionExists;
         scopes = std::move(other.scopes);
         collections = std::move(other.collections);
-            uid = other.uid;
+        uid.reset(other.uid); // uid can go back
     }
-
     return *this;
 }
 

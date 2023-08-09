@@ -453,7 +453,6 @@ bool EphemeralBucket::isValidBucketDurabilityLevel(
 }
 
 bool EphemeralBucket::maybeScheduleManifestPersistence(
-        CookieIface* cookie,
-        std::unique_ptr<Collections::Manifest>& newManifest) {
+        CookieIface* cookie, const Collections::Manifest& newManifest) {
     return false; // newManifest not taken
 }

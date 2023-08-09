@@ -853,13 +853,11 @@ public:
      * Dependent on bucket type schedule a task for collection manifest
      * persistence.
      * @param cookie connection cookie
-     * @param unique_ptr to the new manifest - the task will take ownership of
-     * this.
+     * @param newManifest new manifest that may be copied
      * @return true if a task was scheduled
      */
     virtual bool maybeScheduleManifestPersistence(
-            CookieIface* cookie,
-            std::unique_ptr<Collections::Manifest>& newManifest) = 0;
+            CookieIface* cookie, const Collections::Manifest& newManifest) = 0;
 
     /**
      * Create a new range scan on a vbucket

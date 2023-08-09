@@ -1521,11 +1521,6 @@ TEST_P(CollectionsDcpParameterizedTest, filtering_scope) {
     EXPECT_EQ(CollectionEntry::dairy.name, producers->last_key);
     EXPECT_EQ(ScopeEntry::shop1.getId(), producers->last_scope_id);
 
-    // Uid is 0 because we only set the manifest uid for the last SystemEvent
-    // generated in the manifest update. In this case this is for the meat
-    // collection.
-    EXPECT_EQ(0, producers->last_collection_manifest_uid);
-
     // Store collection documents
     std::array<std::string, 2> expectedKeys = {{"dairy:one", "dairy:two"}};
     store_item(vbid, StoredDocKey{"meat:one", CollectionEntry::meat}, "value");

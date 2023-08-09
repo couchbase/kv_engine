@@ -49,16 +49,17 @@ cb::engine_error Collections::Manager::update(
 
     // Now getEngineSpecific - if that is null this is a new command, else
     // it's the IO complete command
-    auto manifest = bucket.getEPEngine().takeEngineSpecific<Manifest*>(*cookie);
+    auto maybeManifest =
+            bucket.getEPEngine().takeEngineSpecific<Manifest>(*cookie);
 
-    if (manifest.has_value()) {
+    if (maybeManifest.has_value()) {
         // I/O complete path?
+        auto& manifest = *maybeManifest;
         if (!*lockedUpdateCookie) {
             // This can occur for a DCP connection, cookie is 'reserved'.
             EP_LOG_WARN(
-                    "Collections::Manager::update aborted as we have found a "
-                    "manifest:{} but updateInProgress:{}",
-                    static_cast<const void*>(*manifest),
+                    "Collections::Manager::update aborted as "
+                    "updateInProgress:{}",
                     static_cast<const void*>(*lockedUpdateCookie));
             return {cb::engine_errc::failed,
                     "Collections::Manager::update failure"};
@@ -68,18 +69,14 @@ cb::engine_error Collections::Manager::update(
         // specific so the next update can start after this one returns.
         *lockedUpdateCookie = nullptr;
 
-        // Take ownership back of the manifest so it destructs/frees on return
-        std::unique_ptr<Manifest> newManifest(*manifest);
-        return updateFromIOComplete(std::move(vbStateLocks),
-                                    bucket,
-                                    std::move(*newManifest),
-                                    cookie);
+        return updateFromIOComplete(
+                std::move(vbStateLocks), bucket, std::move(manifest), cookie);
     }
 
     // Construct a new Manifest (ctor will throw if JSON was illegal)
-    std::unique_ptr<Manifest> newManifest;
+    Manifest newManifest;
     try {
-        newManifest = std::make_unique<Manifest>(
+        newManifest = Manifest(
                 manifestString,
                 bucket.getEPEngine().getConfiguration().getMaxVbuckets());
     } catch (std::exception& e) {
@@ -97,7 +94,7 @@ cb::engine_error Collections::Manager::update(
     // Persistence will schedule a task and drop the lock whereas ephemeral will
     // upgrade from read to write locking and do the update
     auto current = currentManifest.ulock();
-    auto isSuccessorResult = current->isSuccessor(*newManifest);
+    auto isSuccessorResult = current->isSuccessor(newManifest);
     if (isSuccessorResult.code() != cb::engine_errc::success) {
         return isSuccessorResult;
     }
@@ -105,19 +102,17 @@ cb::engine_error Collections::Manager::update(
     // New manifest is a legal successor the update is going ahead.
     // Ephemeral bucket can update now, Persistent bucket on wake-up from
     // successful run of the PeristManifestTask.
-    cb::engine_errc status = cb::engine_errc::success;
     if (!bucket.maybeScheduleManifestPersistence(cookie, newManifest)) {
         // Ephemeral case, apply immediately
         return applyNewManifest(std::move(vbStateLocks),
                                 bucket,
                                 current,
-                                std::move(*newManifest));
+                                std::move(newManifest));
     } else {
         *lockedUpdateCookie = cookie;
-        status = cb::engine_errc::would_block;
+        return {cb::engine_errc::would_block,
+                "Collections::Manager::update part one complete"};
     }
-
-    return {status, "Collections::Manager::update part one complete"};
 }
 
 cb::engine_error Collections::Manager::updateFromIOComplete(

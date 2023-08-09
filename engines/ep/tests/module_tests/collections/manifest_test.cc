@@ -21,6 +21,38 @@
 #include <limits>
 #include <unordered_set>
 
+static const std::string_view manifestJson = R"({"uid" : "1",
+        "scopes":[{"name":"_default", "uid":"0",
+                        "collections":[
+                            {"name":"_default", "uid":"0"},
+                            {"name":"meat", "uid":"8"}]},
+                  {"name":"brewerA", "uid":"8",
+                   "limits": { "kv": {"data_size": 123456}},
+                        "collections":[
+                            {"name":"beer", "uid":"9"},
+                            {"name":"meat", "uid":"a"}]}]})";
+
+TEST(ManifestTest, contructors) {
+    using Collections::Manifest;
+
+    Manifest m1;
+    Manifest m2(manifestJson);
+    Manifest m3(m2);
+    EXPECT_NE(m1, m2);
+    EXPECT_EQ(m2, m3);
+
+    // Assign uid=0 to uid=1 to test that the monotonic uid can be reset
+    m2 = Manifest(m1);
+    EXPECT_EQ(m1, m2);
+
+    m1 = Manifest(m3);
+    m2 = std::move(m3);
+    EXPECT_EQ(m1, m2);
+
+    Manifest m4(std::move(m2));
+    EXPECT_EQ(m1, m4);
+}
+
 TEST(ManifestTest, defaultState) {
     Collections::Manifest m;
     EXPECT_TRUE(m.doesDefaultCollectionExist());
@@ -1046,17 +1078,7 @@ TEST(ManifestTest, isNotSuccesor) {
 }
 
 TEST(ManifestTest, scopeDataSize) {
-    std::string manifest = R"({"uid" : "1",
-                "scopes":[{"name":"_default", "uid":"0",
-                                "collections":[
-                                    {"name":"_default", "uid":"0"},
-                                    {"name":"meat", "uid":"8"}]},
-                          {"name":"brewerA", "uid":"8",
-                           "limits": { "kv": {"data_size": 123456}},
-                                "collections":[
-                                    {"name":"beer", "uid":"9"},
-                                    {"name":"meat", "uid":"a"}]}]})";
-    Collections::Manifest cm(manifest);
+    Collections::Manifest cm(manifestJson);
     auto scope = cm.findScope(ScopeID{8});
     ASSERT_NE(scope, cm.endScopes());
     EXPECT_EQ(123456, scope->second.dataLimitFromCluster);
