@@ -1507,7 +1507,13 @@ snapshot_info_t CheckpointManager::getSnapshotInfo() {
     // we should just use the last by sequence number. The open checkpoint will
     // be overwritten once the next snapshot marker is received since there are
     // no items in it.
-    if (!openCkpt.hasNonMetaItems() &&
+    //
+    // Note: Condition on "modifiedByExpel" added in MB-39344 for ensuring that
+    // the semantic here doesn't change by the new ItemExpel semantic.
+    // Actually new unit tests cover this code path and prove that there is no
+    // semantic change here caused by MB-39344. But, the additional condition
+    // covers us by any unexpected (and uncaught in unit tests) behaviour.
+    if (!openCkpt.modifiedByExpel() && !openCkpt.hasNonMetaItems() &&
         static_cast<uint64_t>(lastBySeqno) < info.range.getStart()) {
         info.range = snapshot_range_t(lastBySeqno, lastBySeqno);
     }

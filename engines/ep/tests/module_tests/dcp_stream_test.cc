@@ -4509,6 +4509,147 @@ TEST_P(SingleThreadedPassiveStreamTest, MB42780_DiskToMemoryFromPre65) {
     ASSERT_EQ(4, manager.getHighSeqno());
 }
 
+TEST_P(SingleThreadedPassiveStreamTest, GetSnapshotInfo) {
+    auto& vb = *store->getVBucket(vbid);
+    ASSERT_EQ(0, vb.getHighSeqno());
+    auto& manager = static_cast<MockCheckpointManager&>(*vb.checkpointManager);
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(2, manager.getNumOpenChkItems()); // cs, vbs
+
+    removeCheckpoint(vb);
+    ASSERT_EQ(0, vb.getHighSeqno());
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(1, manager.getNumOpenChkItems()); // cs
+    const auto& list = manager.getCheckpointList();
+    ASSERT_FALSE(list.back()->modifiedByExpel());
+
+    // The stream isn't in any snapshot (no data received)
+    auto snapInfo = manager.getSnapshotInfo();
+    EXPECT_EQ(0, snapInfo.start);
+    EXPECT_EQ(snapshot_range_t(0, 0), snapInfo.range);
+
+    const uint64_t opaque = 1;
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       1, // start
+                                       2, // end
+                                       MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+                                       {},
+                                       {}));
+
+    const auto key = makeStoredDocKey("key");
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->mutation(opaque,
+                                 key,
+                                 {},
+                                 0,
+                                 0,
+                                 0,
+                                 vbid,
+                                 0,
+                                 1, // seqno
+                                 0,
+                                 0,
+                                 0,
+                                 {},
+                                 0));
+
+    EXPECT_EQ(1, vb.getHighSeqno());
+    EXPECT_EQ(2, manager.getNumOpenChkItems()); // cs, mut
+
+    // The stream is in a partial snapshot here
+    snapInfo = manager.getSnapshotInfo();
+    EXPECT_EQ(1, snapInfo.start);
+    EXPECT_EQ(snapshot_range_t(1, 2), snapInfo.range);
+
+    // Move cursors to allow Expel
+    if (isPersistent()) {
+        flushVBucket(vbid);
+    }
+    // Now Expel everything from the open checkpoint
+    {
+        const auto res = manager.expelUnreferencedCheckpointItems();
+        ASSERT_EQ(1, res.count); // mut
+        ASSERT_TRUE(list.back()->modifiedByExpel());
+    }
+
+    // Crucial test: We have expelled everything from the checkpoint and that
+    // doesn't have to change the PassiveStream snapshot information.
+    // Note: There were no production changes required for holding this
+    // invariant.
+    snapInfo = manager.getSnapshotInfo();
+    EXPECT_EQ(1, snapInfo.start);
+    EXPECT_EQ(snapshot_range_t(1, 2), snapInfo.range);
+
+    // In the following we verify the snapshot-info behaviour in the case where
+    // the open checkpoint contains only meta-items
+
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->mutation(opaque,
+                                 key,
+                                 {},
+                                 0,
+                                 0,
+                                 0,
+                                 vbid,
+                                 0,
+                                 2, // seqno
+                                 0,
+                                 0,
+                                 0,
+                                 {},
+                                 0));
+
+    snapInfo = manager.getSnapshotInfo();
+    EXPECT_EQ(2, snapInfo.start);
+    EXPECT_EQ(snapshot_range_t(1, 2), snapInfo.range);
+
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       3, // start
+                                       4, // end
+                                       MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+                                       {},
+                                       {}));
+
+    // No mutation in the new empty checkpoint, snapshot info is from the
+    // previous checkpoint.
+    EXPECT_EQ(2, manager.getNumCheckpoints());
+    EXPECT_EQ(1, manager.getNumOpenChkItems()); // cs
+    EXPECT_EQ(3, list.back()->getSnapshotStartSeqno());
+    EXPECT_EQ(4, list.back()->getSnapshotEndSeqno());
+
+    snapInfo = manager.getSnapshotInfo();
+    EXPECT_EQ(2, snapInfo.start);
+    EXPECT_EQ(snapshot_range_t(2, 2), snapInfo.range);
+
+    // Now queue a meta-item
+    consumer->setVBucketState(opaque, vbid, vbucket_state_pending);
+    EXPECT_EQ(2, manager.getNumOpenChkItems()); // cs, vbs
+
+    snapInfo = manager.getSnapshotInfo();
+    EXPECT_EQ(2, snapInfo.start);
+    EXPECT_EQ(snapshot_range_t(2, 2), snapInfo.range);
+
+    // Try to expel the vbs meta-item.
+    if (isPersistent()) {
+        flushVBucket(vbid);
+    }
+    {
+        const auto res = manager.expelUnreferencedCheckpointItems();
+        // Nothing expelled, ItemExpel doesn't touch checkpoints that store only
+        // meta items.
+        EXPECT_EQ(0, res.count); // vbs
+        EXPECT_FALSE(list.back()->modifiedByExpel());
+    }
+
+    snapInfo = manager.getSnapshotInfo();
+    EXPECT_EQ(2, snapInfo.start);
+    EXPECT_EQ(snapshot_range_t(2, 2), snapInfo.range);
+}
+
 /**
  * MB-38444: We fix an Ephemeral-only bug, but test covers Persistent bucket too
  */

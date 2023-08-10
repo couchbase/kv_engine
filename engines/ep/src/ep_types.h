@@ -202,6 +202,10 @@ struct snapshot_range_t {
         return end;
     }
 
+    bool operator==(const snapshot_range_t& rhs) const {
+        return (start == rhs.start) && (end == rhs.end);
+    }
+
 private:
     void checkInvariant() const {
         if (start > end) {
