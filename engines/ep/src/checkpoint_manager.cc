@@ -1535,7 +1535,10 @@ uint64_t CheckpointManager::getVisibleSnapshotEndSeqno() const {
 
     // This clause is also in getSnapshotInfo, if we have no items for the open
     // checkpoint, return the "end" as maxVisible
-    if (!openCkpt.hasNonMetaItems() &&
+    //
+    // Note: Condition on "modifiedByExpel" added in MB-39344 for ensuring that
+    // the logic here doesn't change by the new ItemExpel semantic.
+    if (!openCkpt.modifiedByExpel() && !openCkpt.hasNonMetaItems() &&
         static_cast<uint64_t>(lastBySeqno) < openCkpt.getSnapshotStartSeqno()) {
         return maxVisibleSeqno;
     }
