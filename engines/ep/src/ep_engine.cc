@@ -6094,21 +6094,19 @@ cb::engine_errc EventuallyPersistentEngine::doDcpVbTakeoverStats(
     auto producer = std::dynamic_pointer_cast<DcpProducer>(conn);
     if (producer) {
         producer->addTakeoverStats(add_stat, cookie, *vb);
-    } else {
-        /**
-         * There is not a legitimate case where a connection is not a
-         * DcpProducer.  But just in case it does happen log the event and
-         * return cb::engine_errc::no_such_key.
-         */
-        EP_LOG_WARN(
-                "doDcpVbTakeoverStats: connection {} for "
-                "{} is not a DcpProducer",
-                dcpName,
-                vbid);
-        return cb::engine_errc::no_such_key;
+        return cb::engine_errc::success;
     }
 
-    return cb::engine_errc::success;
+    /**
+     * There is not a legitimate case where a connection is not a
+     * DcpProducer.  But just in case it does happen log the event and
+     * return cb::engine_errc::no_such_key.
+     */
+    EP_LOG_WARN(
+            "doDcpVbTakeoverStats: connection {} for {} is not a DcpProducer",
+            dcpName,
+            vbid);
+    return cb::engine_errc::no_such_key;
 }
 
 cb::engine_errc EventuallyPersistentEngine::returnMeta(
