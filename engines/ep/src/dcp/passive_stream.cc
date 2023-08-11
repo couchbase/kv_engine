@@ -1078,8 +1078,9 @@ cb::engine_errc PassiveStream::processModifyCollection(
         vb.replicaModifyCollection(
                 Collections::ManifestUid{collection.uid()},
                 collection.collectionId(),
-                getCanDeduplicateFromHistory(collection.history()),
                 maxTtl,
+                Collections::getMetered(collection.metered()),
+                getCanDeduplicateFromHistory(collection.history()),
                 *event.getBySeqno());
     } catch (std::exception& e) {
         log(spdlog::level::level_enum::warn,

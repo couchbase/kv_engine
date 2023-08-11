@@ -22,9 +22,16 @@
  * Note this is designed as a relatively quick micro-benchmark suite; tests
  * are tuned to complete in <2 seconds to maintain the quick turnaround.
 **/
-#include "ep_test_apis.h"
-#include "ep_testsuite_common.h"
+
+// clang-format off
+// ep_testsuite_common.h/ep_test_apis.h must come after mock_dcp.h as it defined
+// the check macro. That macro will cause a compilation failure when
+// folly/Synchronized.h is later included
 #include "mock/mock_dcp.h"
+#include "ep_testsuite_common.h"
+#include "ep_test_apis.h"
+// clang-format on
+
 #include "module_tests/test_helpers.h"
 #include "module_tests/thread_gate.h"
 

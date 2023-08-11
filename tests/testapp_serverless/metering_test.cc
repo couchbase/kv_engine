@@ -54,17 +54,14 @@ static std::string to_string(MeteringType type) {
 class MeteringTest : public ::testing::TestWithParam<MeteringType> {
 public:
     static void SetUpTestCase() {
-        // Set one collection with no metering
+        // Set one collection with metering and one without
         auto entry = CollectionEntry::dairy;
-        entry.metered = false;
         cluster->collections.add(entry);
 
-        // temp: set one collection with metering. This is required because
-        // for now metering cannot be modified, meaning the default collection
-        // cannot be used for metering tests.
-        entry = CollectionEntry::fruit;
+        // Modify the default collection to enable metering
+        entry = CollectionEntry::defaultC;
         entry.metered = true;
-        cluster->collections.add(entry);
+        cluster->collections.update(entry, {});
 
         cluster->getBucket("metering")
                 ->setCollectionManifest(cluster->collections.getJson());
@@ -92,7 +89,7 @@ protected:
         if (GetParam() == MeteringType::UnmeteredByCollection) {
             return CollectionEntry::dairy.getId();
         }
-        return CollectionEntry::fruit.getId();
+        return CollectionID::Default;
     }
 
     bool isUnmetered() const {

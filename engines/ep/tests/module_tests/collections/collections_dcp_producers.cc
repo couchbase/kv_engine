@@ -399,6 +399,8 @@ cb::engine_errc CollectionsDcpTestProducers::systemEventVersion2(
         last_can_deduplicate =
                 getCanDeduplicateFromHistory(collection.history());
 
+        last_metered = Collections::getMetered(collection.metered());
+
         if (collection.ttlValid()) {
             last_max_ttl = std::chrono::seconds(collection.maxTtl());
         }

@@ -148,12 +148,12 @@ struct CollectionMetaData {
 
     // compare only the properties which are not permitted to change
     bool compareImmutableProperties(const CollectionMetaData& other) const {
-        return sid == other.sid && cid == other.cid && name == other.name &&
-               metered == other.metered;
+        return sid == other.sid && cid == other.cid && name == other.name;
     }
 
     bool compareMutableProperties(const CollectionMetaData& other) const {
-        return canDeduplicate == other.canDeduplicate && maxTtl == other.maxTtl;
+        return canDeduplicate == other.canDeduplicate &&
+               maxTtl == other.maxTtl && metered == other.metered;
     }
 };
 
@@ -251,22 +251,17 @@ struct StatsForFlush {
 class CollectionSharedMetaData;
 class CollectionSharedMetaDataView {
 public:
-    CollectionSharedMetaDataView(std::string_view name,
-                                 ScopeID scope,
-                                 Metered metered);
+    CollectionSharedMetaDataView(std::string_view name, ScopeID scope);
     CollectionSharedMetaDataView(const CollectionSharedMetaData&);
     std::string to_string() const;
     std::string_view name;
     const ScopeID scope;
-    Metered metered;
 };
 
 // The type stored by the Manager SharedMetaDataTable
 class CollectionSharedMetaData : public RCValue {
 public:
-    CollectionSharedMetaData(std::string_view name,
-                             ScopeID scope,
-                             Metered metered);
+    CollectionSharedMetaData(std::string_view name, ScopeID scope);
     CollectionSharedMetaData(const CollectionSharedMetaDataView& view);
     bool operator==(const CollectionSharedMetaDataView& view) const;
     bool operator!=(const CollectionSharedMetaDataView& view) const {
@@ -297,9 +292,6 @@ public:
 
     const std::string name;
     const ScopeID scope;
-
-    // can be updated (corrected) post creation from any thread
-    std::atomic<Metered> metered;
 };
 
 std::ostream& operator<<(std::ostream& os,

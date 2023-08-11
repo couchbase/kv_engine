@@ -500,8 +500,9 @@ public:
                             *vbR,
                             Collections::ManifestUid{collection.uid()},
                             collection.collectionId(),
-                            getCanDeduplicateFromHistory(collection.history()),
                             maxTtl,
+                            Collections::getMetered(collection.metered()),
+                            getCanDeduplicateFromHistory(collection.history()),
                             qi->getBySeqno());
                     break;
                 }

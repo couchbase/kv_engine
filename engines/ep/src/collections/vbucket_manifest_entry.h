@@ -39,13 +39,15 @@ public:
     ManifestEntry(SingleThreadedRCPtr<VB::CollectionSharedMetaData> meta,
                   uint64_t startSeqno,
                   CanDeduplicate canDeduplicate,
-                  cb::ExpiryLimit ttl)
+                  cb::ExpiryLimit ttl,
+                  Metered metered)
         : itemCount(0),
           highSeqno(startSeqno),
           persistedHighSeqno(startSeqno),
           meta(std::move(meta)),
           startSeqno(startSeqno),
-          canDeduplicate(canDeduplicate) {
+          canDeduplicate(canDeduplicate),
+          metered(metered) {
         setMaxTtl(ttl);
     }
 
@@ -101,7 +103,11 @@ public:
 
     /// @return collection Metered state (Yes or No)
     Metered isMetered() const {
-        return meta->metered;
+        return metered;
+    }
+
+    void setMetered(Metered m) {
+        metered = m;
     }
 
     /// increment how many items are stored for this collection
@@ -313,6 +319,13 @@ private:
      * needed.
      */
     std::atomic<CanDeduplicate> canDeduplicate;
+
+    /**
+     * The collections metered setting. This must be stored per vbucket
+     * so that collection modification events (per vb) can be generated when
+     * needed.
+     */
+    std::atomic<Metered> metered;
 
     /**
      * maxTTL of the collection. Stored as uint32 and not cb::ExpiryLimit to

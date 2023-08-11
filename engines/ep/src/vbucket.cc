@@ -1932,8 +1932,9 @@ void VBucket::replicaCreateCollection(Collections::ManifestUid uid,
 
 void VBucket::replicaModifyCollection(Collections::ManifestUid uid,
                                       CollectionID cid,
-                                      CanDeduplicate canDeduplicate,
                                       cb::ExpiryLimit maxTtl,
+                                      Collections::Metered metered,
+                                      CanDeduplicate canDeduplicate,
                                       int64_t bySeqno) {
     // The state of the VBucket must not change here, because
     // replicaModifyCollection will generate SystemEvent items.
@@ -1942,7 +1943,7 @@ void VBucket::replicaModifyCollection(Collections::ManifestUid uid,
     // technically required for now.
     folly::SharedMutex::ReadHolder rlh(stateLock);
     manifest->wlock(rlh).replicaModifyCollection(
-            *this, uid, cid, canDeduplicate, maxTtl, bySeqno);
+            *this, uid, cid, maxTtl, metered, canDeduplicate, bySeqno);
 }
 
 void VBucket::replicaDropCollection(Collections::ManifestUid uid,

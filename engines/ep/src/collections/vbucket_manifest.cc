@@ -95,15 +95,14 @@ Manifest::Manifest(Manifest& other) : manager(other.manager) {
 
     // Collection/Scope maps are not trivially copyable, so we do it manually
     for (auto& [cid, entry] : other.map) {
-        CollectionSharedMetaDataView meta{entry.getName(),
-                                          entry.getScopeID(),
-                                          entry.isMetered()};
+        CollectionSharedMetaDataView meta{entry.getName(), entry.getScopeID()};
         auto [itr, inserted] =
                 map.try_emplace(cid,
                                 other.manager->createOrReferenceMeta(cid, meta),
                                 entry.getStartSeqno(),
                                 entry.getCanDeduplicate(),
-                                entry.getMaxTtl());
+                                entry.getMaxTtl(),
+                                entry.isMetered());
         Expects(inserted);
         itr->second.setItemCount(entry.getItemCount());
         itr->second.setDiskSize(entry.getDiskSize());
@@ -208,8 +207,9 @@ std::optional<Manifest::CollectionModification> Manifest::applyModifications(
                          vb,
                          manifestUid,
                          modification.cid,
-                         modification.canDeduplicate,
                          modification.maxTtl,
+                         modification.metered,
+                         modification.canDeduplicate,
                          OptionalSeqno{/*no-seqno*/});
     }
     changes.clear();
@@ -434,8 +434,9 @@ void Manifest::completeUpdate(VBucketStateLockRef vbStateLock,
                          vb,
                          changeset.getUidForChange(manifestUid),
                          finalModification.value().cid,
-                         finalModification.value().canDeduplicate,
                          finalModification.value().maxTtl,
+                         finalModification.value().metered,
+                         finalModification.value().canDeduplicate,
                          OptionalSeqno{/*no-seqno*/});
     }
 
@@ -566,14 +567,14 @@ ManifestEntry& Manifest::addNewCollectionEntry(ScopeCollectionPair identifiers,
                                                Metered metered,
                                                CanDeduplicate canDeduplicate,
                                                int64_t startSeqno) {
-    CollectionSharedMetaDataView meta{
-            collectionName, identifiers.first, metered};
+    CollectionSharedMetaDataView meta{collectionName, identifiers.first};
     auto [itr, inserted] = map.try_emplace(
             identifiers.second,
             manager->createOrReferenceMeta(identifiers.second, meta),
             startSeqno,
             canDeduplicate,
-            maxTtl);
+            maxTtl,
+            metered);
 
     if (!inserted) {
         throwException<std::logic_error>(
@@ -678,8 +679,9 @@ void Manifest::modifyCollection(VBucketStateLockRef vbStateLock,
                                 ::VBucket& vb,
                                 ManifestUid newManUid,
                                 CollectionID cid,
-                                CanDeduplicate canDeduplicate,
                                 cb::ExpiryLimit maxTtl,
+                                Metered metered,
+                                CanDeduplicate canDeduplicate,
                                 OptionalSeqno optionalSeqno) {
     auto itr = map.find(cid);
     if (itr == map.end()) {
@@ -693,6 +695,7 @@ void Manifest::modifyCollection(VBucketStateLockRef vbStateLock,
     // Now change the values
     itr->second.setCanDeduplicate(canDeduplicate);
     itr->second.setMaxTtl(maxTtl);
+    itr->second.setMetered(metered);
 
     auto seqno = queueCollectionSystemEvent(vbStateLock,
                                             wHandle,
@@ -706,13 +709,14 @@ void Manifest::modifyCollection(VBucketStateLockRef vbStateLock,
 
     EP_LOG_DEBUG(
             "{} modify collection:id:{} from scope:{}, seq:{}, manifest:{:#x}"
-            ", {}, {}{}",
+            ", {}, {}, {}{}",
             vb.getId(),
             cid,
             itr->second.getScopeID(),
             seqno,
             newManUid,
             canDeduplicate,
+            metered,
             maxTtl.has_value()
                     ? "maxttl:" + std::to_string(maxTtl.value().count())
                     : "no maxttl",
@@ -890,11 +894,14 @@ Manifest::ManifestChanges Manifest::processManifest(
             // Not found, so this collection should be dropped.
             rv.collectionsToDrop.push_back(cid);
         } else if (entry.getCanDeduplicate() != itr->second.canDeduplicate ||
-                   entry.getMaxTtl() != itr->second.maxTtl) {
-            // Found the collection and history or TTL was modified, save the
-            // new state
-            rv.collectionsToModify.push_back(
-                    {cid, itr->second.canDeduplicate, itr->second.maxTtl});
+                   entry.getMaxTtl() != itr->second.maxTtl ||
+                   entry.isMetered() != itr->second.metered) {
+            // Found the collection and history/TTL/metered was modified, save
+            // the new state
+            rv.collectionsToModify.push_back({cid,
+                                              itr->second.canDeduplicate,
+                                              itr->second.maxTtl,
+                                              itr->second.metered});
         }
     }
 

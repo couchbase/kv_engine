@@ -104,40 +104,34 @@ std::string to_string(ManifestUpdateStatus status) {
 }
 
 CollectionSharedMetaDataView::CollectionSharedMetaDataView(
-        std::string_view name, ScopeID scope, Metered metered)
-    : name(name), scope(scope), metered(metered) {
+        std::string_view name, ScopeID scope)
+    : name(name), scope(scope) {
 }
 
 CollectionSharedMetaDataView::CollectionSharedMetaDataView(
         const CollectionSharedMetaData& meta)
-    : name(meta.name),
-      scope(meta.scope),
-      metered(meta.metered) {
+    : name(meta.name), scope(meta.scope) {
 }
 
 std::string CollectionSharedMetaDataView::to_string() const {
     return "Collection: name:" + std::string(name) +
-           ", scope:" + scope.to_string() + ", " +
-           Collections::to_string(metered);
+           ", scope:" + scope.to_string();
 }
 
 CollectionSharedMetaData::CollectionSharedMetaData(std::string_view name,
-                                                   ScopeID scope,
-                                                   Metered metered)
-    : name(name), scope(scope), metered(metered) {
+                                                   ScopeID scope)
+    : name(name), scope(scope) {
 }
 
 CollectionSharedMetaData::CollectionSharedMetaData(
         const CollectionSharedMetaDataView& view)
-    : name(view.name),
-      scope(view.scope),
-      metered(view.metered) {
+    : name(view.name), scope(view.scope) {
 }
 
 bool CollectionSharedMetaData::operator==(
         const CollectionSharedMetaDataView& view) const {
     // note: this operator does not compare the operation counters
-    return name == view.name && scope == view.scope && metered == view.metered;
+    return name == view.name && scope == view.scope;
 }
 
 bool CollectionSharedMetaData::operator==(
@@ -170,8 +164,7 @@ OperationCounts CollectionSharedMetaData::getOperationCounts() const {
 
 std::ostream& operator<<(std::ostream& os,
                          const CollectionSharedMetaData& meta) {
-    return os << " name:" << meta.name << ", scope:" << meta.scope << ", "
-              << meta.metered;
+    return os << " name:" << meta.name << ", scope:" << meta.scope;
 }
 
 ScopeSharedMetaDataView::ScopeSharedMetaDataView(

@@ -72,22 +72,24 @@ public:
     // Tests need entry data which appear in default and 'shop1' scopes
     std::unique_ptr<Collections::VB::ManifestEntry> entryInDefaultScope =
             std::make_unique<Collections::VB::ManifestEntry>(
-                    manager->createOrReferenceMeta(CollectionID::Default,
-                                                   {"name1",
-                                                    ScopeID::Default,
-                                                    Collections::Metered::Yes}),
+                    manager->createOrReferenceMeta(
+                            CollectionID::Default,
+                            Collections::VB::CollectionSharedMetaDataView{
+                                    "name1", ScopeID::Default}),
                     0,
                     CanDeduplicate::Yes,
-                    cb::NoExpiryLimit);
+                    cb::NoExpiryLimit,
+                    Collections::Metered::No);
     std::unique_ptr<Collections::VB::ManifestEntry> entryInShop1Scope =
             std::make_unique<Collections::VB::ManifestEntry>(
-                    manager->createOrReferenceMeta(CollectionID::Default,
-                                                   {"name2",
-                                                    ScopeUid::shop1,
-                                                    Collections::Metered::Yes}),
+                    manager->createOrReferenceMeta(
+                            CollectionID::Default,
+                            Collections::VB::CollectionSharedMetaDataView{
+                                    "name2", ScopeUid::shop1}),
                     0,
                     CanDeduplicate::Yes,
-                    cb::NoExpiryLimit);
+                    cb::NoExpiryLimit,
+                    Collections::Metered::No);
 
     CookieIface* cookie = nullptr;
 };

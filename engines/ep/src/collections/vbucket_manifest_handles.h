@@ -732,22 +732,26 @@ public:
      * @param vb The vbucket to create the collection in
      * @param manifestUid the uid of the manifest which made the change
      * @param cid The collection id
-     * @param canDeduplicate New deduplicate value
+     * @param maxTtl An optional maxTtl for the collection
+     * @param metered Is the collection metered or "free"?
+     * @param canDeduplicate Can the collection do any deduplication?
      * @param startSeqno The start-seqno assigned to the collection.
      */
     void replicaModifyCollection(::VBucket& vb,
                                  ManifestUid manifestUid,
                                  CollectionID cid,
-                                 CanDeduplicate canDeduplicate,
                                  cb::ExpiryLimit maxTtl,
+                                 Metered metered,
+                                 CanDeduplicate canDeduplicate,
                                  int64_t startSeqno) {
         manifest.modifyCollection(vbStateLock,
                                   *this,
                                   vb,
                                   manifestUid,
                                   cid,
-                                  canDeduplicate,
                                   maxTtl,
+                                  metered,
+                                  canDeduplicate,
                                   OptionalSeqno{startSeqno});
     }
 

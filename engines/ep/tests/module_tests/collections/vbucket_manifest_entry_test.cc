@@ -18,12 +18,13 @@ using namespace std::chrono_literals;
 // Basic ManifestEntry construction checks
 TEST(ManifestEntry, test_getters) {
     auto meta = make_STRCPtr<Collections::VB::CollectionSharedMetaData>(
-            "name",
-            ScopeID{101},
-            Collections::Metered::No);
+            "name", ScopeID{101});
 
-    Collections::VB::ManifestEntry m(
-            meta, 1000, CanDeduplicate::No, cb::ExpiryLimit{5000});
+    Collections::VB::ManifestEntry m(meta,
+                                     1000,
+                                     CanDeduplicate::No,
+                                     cb::ExpiryLimit{5000},
+                                     Collections::Metered::No);
     EXPECT_EQ(1000, m.getStartSeqno());
     EXPECT_TRUE(m.getMaxTtl());
     EXPECT_TRUE(m.getMaxTtl().has_value());
@@ -36,12 +37,15 @@ TEST(ManifestEntry, test_getters) {
 
 TEST(ManifestEntry, exceptions) {
     auto meta = make_STRCPtr<Collections::VB::CollectionSharedMetaData>(
-            "name", ScopeID{101}, Collections::Metered::Yes);
+            "name", ScopeID{101});
 
     // Collection starts at seqno 1000, note these test require a name because
     // the ManifestEntry ostream<< will be invoked by the exception path
-    Collections::VB::ManifestEntry m(
-            meta, 1000, CanDeduplicate::Yes, cb::NoExpiryLimit);
+    Collections::VB::ManifestEntry m(meta,
+                                     1000,
+                                     CanDeduplicate::Yes,
+                                     cb::NoExpiryLimit,
+                                     Collections::Metered::No);
 
     EXPECT_FALSE(m.getMaxTtl().has_value());
 

@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "collections/collections_types.h"
 #include <dcp/dcp-types.h>
 #include <ep_types.h>
 #include <mcbp/protocol/opcode.h>
@@ -200,6 +201,7 @@ public:
     bool isCollectionsSupported = false;
     CanDeduplicate last_can_deduplicate = CanDeduplicate::Yes;
     cb::ExpiryLimit last_max_ttl;
+    Collections::Metered last_metered = Collections::Metered::No;
 
 protected:
     /// Helper method for deletion / deletion_v2 / expiration

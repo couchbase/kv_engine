@@ -722,10 +722,7 @@ protected:
         }
         CurrentCollectionInfo() = default;
         void reset() {
-            sid.reset();
-            cid.reset();
-            manifestUid = 0;
-            metered = false;
+            *this = {};
         }
         std::optional<ScopeID> sid;
         std::optional<CollectionID> cid;

@@ -25,6 +25,7 @@
 #include <folly/container/F14Map.h>
 #include <memcached/collections.h>
 #include <nlohmann/json.hpp>
+#include <serverless/config.h>
 #include <spdlog/fmt/ostr.h>
 #include <statistics/cbstat_collector.h>
 #include <statistics/labelled_collector.h>
@@ -287,7 +288,10 @@ Collections::Manager::getCollectionEntry(CollectionID cid) const {
     // 'shortcut' For the default collection, just return the default scope.
     // If the default collection was deleted the vbucket will have the final say
     // but for this interface allow this without taking the rlock.
-    if (cid.isDefaultCollection()) {
+    // Note: That this can only work safely for !serverless where we don't care
+    // for the metering value. When serverless, lookup from the manifest and
+    // read the current metering state.
+    if (cid.isDefaultCollection() && !cb::serverless::isEnabled()) {
         // Allow the default collection in the default scope...
         return std::make_pair<uint64_t,
                               std::optional<Collections::CollectionMetaData>>(
