@@ -725,12 +725,12 @@ protected:
             sid.reset();
             cid.reset();
             manifestUid = 0;
-            metered = true;
+            metered = false;
         }
         std::optional<ScopeID> sid;
         std::optional<CollectionID> cid;
         uint64_t manifestUid{0};
-        bool metered{true};
+        bool metered{false};
     } currentCollectionInfo;
 
     /// The privilege context the command should use for evaluating commands

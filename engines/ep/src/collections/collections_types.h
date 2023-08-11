@@ -134,7 +134,7 @@ struct CollectionMetaData {
     CollectionID cid{CollectionID::Default}; // The collection's ID
     std::string name{DefaultCollectionName}; // The collection's name
     cb::ExpiryLimit maxTtl{}; // The collection's maxTTL
-    Metered metered{Metered::Yes};
+    Metered metered{Metered::No};
     CanDeduplicate canDeduplicate{CanDeduplicate::Yes};
 
     bool operator==(const CollectionMetaData& other) const {

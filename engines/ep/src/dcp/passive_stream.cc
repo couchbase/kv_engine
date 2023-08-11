@@ -968,7 +968,7 @@ cb::engine_errc PassiveStream::processCreateCollection(
                 {event.getScopeID(), event.getCollectionID()},
                 event.getKey(),
                 event.getMaxTtl(),
-                Collections::Metered::Yes,
+                Collections::Metered::No,
                 CanDeduplicate::Yes,
                 event.getBySeqno());
     } catch (std::exception& e) {

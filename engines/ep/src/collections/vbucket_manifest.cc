@@ -39,7 +39,7 @@ Manifest::Manifest(std::shared_ptr<Manager> manager)
     addNewCollectionEntry({ScopeID::Default, CollectionID::Default},
                           DefaultCollectionIdentifier,
                           cb::NoExpiryLimit,
-                          Collections::Metered::Yes,
+                          Collections::Metered::No,
                           CanDeduplicate::Yes,
                           0 /*startSeqno*/);
 }

@@ -392,14 +392,16 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
                 auto meta = getMaybeModifiedCollectionMetaData(
                         entry->collectionId(),
                         entry->startSeqno(),
-                        {entry->scopeId(),
-                         entry->collectionId(),
-                         {},
-                         entry->ttlValid()
-                                 ? std::chrono::seconds{entry->maxTtl()}
-                                 : cb::NoExpiryLimit,
-                         Collections::getMetered(entry->metered()),
-                         getCanDeduplicateFromHistory(entry->history())});
+                        CollectionMetaData{
+                                entry->scopeId(),
+                                entry->collectionId(),
+                                {},
+                                entry->ttlValid()
+                                        ? std::chrono::seconds{entry->maxTtl()}
+                                        : cb::NoExpiryLimit,
+                                Collections::getMetered(entry->metered()),
+                                getCanDeduplicateFromHistory(
+                                        entry->history())});
 
                 exclusiveInsertCollection(
                         entry->collectionId(),
@@ -445,7 +447,7 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
                                 Collections::DefaultCollectionIdentifier
                                         .data()),
                         getHistoryFromCanDeduplicate(meta.canDeduplicate),
-                        true /* metered */));
+                        false /* metered */));
     }
 
     auto collectionsVector = builder.CreateVector(finalisedOpenCollection);

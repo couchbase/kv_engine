@@ -137,8 +137,9 @@ public:
                 auto name = collection["name"].get<std::string>();
 
                 auto jsonMetered = collection.find("metered");
-                auto metered = Collections::Metered::Yes;
+                auto metered = Collections::Metered::No;
                 if (jsonMetered != collection.end()) {
+                    // metered is specified in the manifest, use the value
                     metered = Collections::getMetered(jsonMetered->get<bool>());
                 }
 
@@ -372,7 +373,7 @@ TEST_P(CollectionsKVStoreTest, initial_meta) {
     EXPECT_EQ(CollectionID::Default, md.collections[0].metaData.cid);
     EXPECT_EQ(ScopeID(ScopeID::Default), md.collections[0].metaData.sid);
     EXPECT_FALSE(md.collections[0].metaData.maxTtl.has_value());
-    EXPECT_EQ(Collections::Metered::Yes, md.collections[0].metaData.metered);
+    EXPECT_EQ(Collections::Metered::No, md.collections[0].metaData.metered);
 
     EXPECT_EQ(0, md.scopes[0].startSeqno);
     EXPECT_EQ(ScopeID(ScopeID::Default), md.scopes[0].metaData.sid);

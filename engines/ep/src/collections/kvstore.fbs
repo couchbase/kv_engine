@@ -38,9 +38,10 @@ table Collection {
 
     // All fields after here are added from 7.5
     //
-    // metered: MB-51979: The default is true - for all collections which exist
-    // and didn't define this value, true is correct - they should be metered.
-    metered:bool = true;
+    // metered: MB-51979: The default is false - for all collections which exist
+    // and didn't define this value, metering must be enabled only by a change
+    // pushed from ns_server
+    metered:bool = false;
 }
 
 // All of the open collections

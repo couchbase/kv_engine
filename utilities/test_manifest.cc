@@ -74,8 +74,8 @@ CollectionsManifest& CollectionsManifest::add(
         jsonEntry["maxTTL"] = maxTtl.value().count();
     }
 
-    if (!collectionEntry.metered) {
-        jsonEntry["metered"] = false;
+    if (collectionEntry.metered) {
+        jsonEntry["metered"] = true;
     }
 
     if (history) {

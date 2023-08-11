@@ -58,6 +58,14 @@ public:
         auto entry = CollectionEntry::dairy;
         entry.metered = false;
         cluster->collections.add(entry);
+
+        // temp: set one collection with metering. This is required because
+        // for now metering cannot be modified, meaning the default collection
+        // cannot be used for metering tests.
+        entry = CollectionEntry::fruit;
+        entry.metered = true;
+        cluster->collections.add(entry);
+
         cluster->getBucket("metering")
                 ->setCollectionManifest(cluster->collections.getJson());
     }
@@ -84,7 +92,7 @@ protected:
         if (GetParam() == MeteringType::UnmeteredByCollection) {
             return CollectionEntry::dairy.getId();
         }
-        return CollectionID::Default;
+        return CollectionEntry::fruit.getId();
     }
 
     bool isUnmetered() const {

@@ -407,7 +407,7 @@ public:
                                 {dcpData.metaData.sid, dcpData.metaData.cid},
                                 dcpData.metaData.name,
                                 dcpData.metaData.maxTtl,
-                                Collections::Metered::Yes,
+                                Collections::Metered::No,
                                 CanDeduplicate::Yes,
                                 qi->getBySeqno());
                     }
@@ -1385,28 +1385,28 @@ TEST_P(VBucketManifestTest, add_with_metered) {
 
     // Add a scope with metered=false and check the status on active/replica
     auto fruitEntry = CollectionEntry::fruit;
-    fruitEntry.metered = false;
+    fruitEntry.metered = true;
     EXPECT_TRUE(manifest.update(cm.add(fruitEntry)));
 
-    // Check default and vegetable collection which are metered
-    EXPECT_EQ(Collections::Metered::Yes,
+    // Check default and vegetable collection which are unmetered
+    EXPECT_EQ(Collections::Metered::No,
               manifest.getActiveManifest().public_getMetered(
                       CollectionID::Default));
-    EXPECT_EQ(Collections::Metered::Yes,
+    EXPECT_EQ(Collections::Metered::No,
               manifest.getActiveManifest().public_getMetered(
                       CollectionEntry::vegetable));
-    EXPECT_EQ(Collections::Metered::Yes,
+    EXPECT_EQ(Collections::Metered::No,
               manifest.getReplicaManifest().public_getMetered(
                       CollectionID::Default));
-    EXPECT_EQ(Collections::Metered::Yes,
+    EXPECT_EQ(Collections::Metered::No,
               manifest.getReplicaManifest().public_getMetered(
                       CollectionEntry::vegetable));
 
     // Check fruit which is unmetered
-    EXPECT_EQ(Collections::Metered::No,
+    EXPECT_EQ(Collections::Metered::Yes,
               manifest.getActiveManifest().public_getMetered(
                       CollectionEntry::fruit));
-    EXPECT_EQ(Collections::Metered::No,
+    EXPECT_EQ(Collections::Metered::Yes,
               manifest.getReplicaManifest().public_getMetered(
                       CollectionEntry::fruit));
 }

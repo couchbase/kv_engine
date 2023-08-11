@@ -219,10 +219,10 @@ Manifest::Manifest(std::string_view json, size_t numVbuckets)
                 collectionCanDeduplicate = CanDeduplicate::No;
             }
 
-            Metered meteredState{Metered::Yes};
-            if (metered && !metered.value()) {
-                // metered:false present in JSON
-                meteredState = Metered::No;
+            Metered meteredState{Metered::No};
+            if (metered && metered.value()) {
+                // metered:true present in the JSON manifest
+                meteredState = Metered::Yes;
             }
 
             enableDefaultCollection(cidValue);
@@ -381,9 +381,9 @@ nlohmann::json Manifest::to_json(
                 if (c.maxTtl) {
                     collection[MaxTtlKey] = c.maxTtl.value().count();
                 }
-                // Include "metered" only when false
-                if (c.metered == Metered::No) {
-                    collection[MeteredKey] = false;
+                // Include "metered" only when true
+                if (c.metered == Metered::Yes) {
+                    collection[MeteredKey] = true;
                 }
                 if (getHistoryFromCanDeduplicate(c.canDeduplicate)) {
                     // Only include when the value is true

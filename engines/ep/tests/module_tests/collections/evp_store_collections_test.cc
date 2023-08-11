@@ -3102,7 +3102,7 @@ TEST_P(CollectionsParameterizedTest, GetScopeIdForGivenKeyAndVbucket) {
     EXPECT_EQ(cb::engine_errc::success, result.result);
     EXPECT_EQ(cmDairyVb.getUid(), result.getManifestId());
     EXPECT_EQ(ScopeID(ScopeEntry::shop1), result.getScopeId());
-    EXPECT_TRUE(result.isMetered());
+    EXPECT_FALSE(result.isMetered());
 
     result = engine->get_collection_meta(*cookie, CollectionEntry::meat, vbid);
     EXPECT_EQ(cb::engine_errc::unknown_collection, result.result);
@@ -3172,7 +3172,7 @@ TEST_P(CollectionsParameterizedTest, GetScopeIdForGivenKeyNoVbid) {
     EXPECT_EQ(cb::engine_errc::success, result.result);
     EXPECT_EQ(0, result.getManifestId());
     EXPECT_EQ(ScopeUid::defaultS, result.getScopeId());
-    EXPECT_TRUE(result.isMetered());
+    EXPECT_FALSE(result.isMetered());
 
     result = engine->get_collection_meta(*cookie, CollectionEntry::dairy, {});
     EXPECT_EQ(cb::engine_errc::success, result.result);
