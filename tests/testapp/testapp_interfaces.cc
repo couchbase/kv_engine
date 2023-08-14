@@ -570,3 +570,66 @@ TEST_P(InterfacesTest, MB_52058_NoPasswordForEncryptedCert) {
     ASSERT_FALSE(rsp.isSuccess()) << to_string(rsp.getStatus()) << std::endl
                                   << rsp.getDataString();
 }
+
+class ConnectionResetTest : public TestappClientTest {
+protected:
+    /// Wait for the the client named "name" to hello
+    void waitForClientConnected(std::string_view name) {
+        bool found = false;
+        do {
+            // Logging is async so back off and wait a short while...
+            std::this_thread::sleep_for(std::chrono::milliseconds{50});
+            mcd_env->iterateLogLines([&found, &name](auto line) {
+                if (line.find(name) != std::string_view ::npos) {
+                    found = true;
+                }
+                return true;
+            });
+        } while (!found);
+    };
+
+    /**
+     * Test the connection reset logging by first connecting a client, then
+     * just close the connection. Then connect a second client and run HELO
+     * with a known agent name and wait for that to appear in the logs. At
+     * this time all events happening before that should be in the logs so
+     * we may search for the given pattern in the log file.
+     *
+     * @param agentname
+     * @param pattern
+     */
+    void testit(std::string agentname, std::string_view pattern) {
+        auto conn = userConnection->clone();
+
+        cb::net::closesocket(conn->releaseSocket());
+        conn = userConnection->clone(false);
+        conn->setAgentName(agentname);
+        conn->connect();
+        conn->setFeature(cb::mcbp::Feature::XERROR, true);
+        waitForClientConnected(agentname);
+
+        std::string error;
+        mcd_env->iterateLogLines([&error, pattern](auto line) {
+            if (line.find(pattern) != std::string_view ::npos) {
+                error = std::string{line};
+                return false;
+            }
+            return true;
+        });
+
+        EXPECT_TRUE(error.empty()) << "Found: " << error;
+    }
+};
+
+INSTANTIATE_TEST_SUITE_P(TransportProtocols,
+                         ConnectionResetTest,
+                         ::testing::Values(TransportProtocols::McbpSsl,
+                                           TransportProtocols::McbpPlain),
+                         ::testing::PrintToStringParamName());
+
+TEST_P(ConnectionResetTest, MB58263_Dont_log_connection_reset) {
+    if (userConnection->isSsl()) {
+        GTEST_SKIP();
+    }
+    testit("MB58263", "Connection reset by peer");
+}

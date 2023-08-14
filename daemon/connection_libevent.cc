@@ -185,9 +185,7 @@ static nlohmann::json BevEvent2Json(short event) {
     return err;
 }
 
-void LibeventConnection::event_callback(bufferevent* bev,
-                                        short event,
-                                        void* ctx) {
+void LibeventConnection::event_callback(bufferevent*, short event, void* ctx) {
     auto& instance = *reinterpret_cast<LibeventConnection*>(ctx);
     bool term = false;
 
@@ -207,13 +205,11 @@ void LibeventConnection::event_callback(bufferevent* bev,
         if (sockErr != 0) {
             const auto errStr = evutil_socket_error_to_string(sockErr);
             if (sockErr == ECONNRESET) {
-                LOG_INFO(
-                        "{}: Unrecoverable error encountered: {}, "
-                        "socket_error: {}:{}, shutting down connection",
-                        instance.getId(),
-                        BevEvent2Json(event).dump(),
-                        sockErr,
-                        errStr);
+                LOG_DEBUG(
+                        "{}: Unrecoverable error encountered. Connection reset "
+                        "by peer. Shutting down connection",
+                        instance.getId());
+                instance.setTerminationReason("Client closed connection");
             } else {
                 LOG_WARNING(
                         "{}: Unrecoverable error encountered: {}, "
@@ -222,9 +218,10 @@ void LibeventConnection::event_callback(bufferevent* bev,
                         BevEvent2Json(event).dump(),
                         sockErr,
                         errStr);
+                instance.setTerminationReason(
+                        "socket_error: " + std::to_string(sockErr) + ":" +
+                        errStr);
             }
-            instance.setTerminationReason(
-                    "socket_error: " + std::to_string(sockErr) + ":" + errStr);
         } else if (!ssl_errors.empty()) {
             LOG_WARNING(
                     "{}: Unrecoverable error encountered: {}, ssl_error: "
