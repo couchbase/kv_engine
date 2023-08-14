@@ -195,6 +195,12 @@ protected:
     // SetUp()?
     bool enableSyncReplication = false;
 
+    /**
+     * Should the SetUp() code set the vbucket to replica and create
+     * consumer + PassiveStream.
+     */
+    bool startAsReplica = true;
+
     std::shared_ptr<MockDcpConsumer> consumer;
     // Owned by the engine
     MockPassiveStream* stream;

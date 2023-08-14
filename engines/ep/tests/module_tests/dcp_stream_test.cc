@@ -1673,6 +1673,10 @@ void SingleThreadedActiveStreamTest::recreateStream(
 void SingleThreadedPassiveStreamTest::SetUp() {
     STParameterizedBucketTest::SetUp();
 
+    if (!startAsReplica) {
+        return;
+    }
+
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
 
     setupConsumerAndPassiveStream();
@@ -3312,6 +3316,200 @@ TEST_P(SingleThreadedPassiveStreamTest, InvalidMarkerVisibleSnapEndThrows) {
         return;
     }
     FAIL();
+}
+
+/**
+ * Fixture for tests which start out as active and switch to replica to assert
+ * we setup the PassiveStream correctly.
+ */
+class SingleThreadedActiveToPassiveStreamTest
+    : public SingleThreadedPassiveStreamTest {
+public:
+    void SetUp() override {
+        startAsReplica = false;
+        SingleThreadedPassiveStreamTest::SetUp();
+        setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    }
+
+    void TearDown() override {
+        SingleThreadedPassiveStreamTest::TearDown();
+    }
+
+    std::unique_ptr<StreamRequest> startPassiveStream() {
+        setupConsumer();
+        setupPassiveStream();
+
+        const auto& readyQ = stream->public_readyQ();
+        EXPECT_EQ(1, readyQ.size());
+        auto msg = stream->public_popFromReadyQ();
+        EXPECT_TRUE(msg);
+        EXPECT_EQ(DcpResponse::Event::StreamReq, msg->getEvent());
+
+        // Cast the message pointer to the correct type.
+        std::unique_ptr<StreamRequest> sr(
+                dynamic_cast<StreamRequest*>(msg.get()));
+        EXPECT_TRUE(sr);
+        msg.release();
+
+        stream->acceptStream(cb::mcbp::Status::Success, 0);
+        EXPECT_TRUE(stream->isActive());
+
+        return sr;
+    }
+};
+
+/**
+ * If the node changes to replica, and the last checkpoint only contains meta
+ * items, check that the stream requests has startSeqno of the last mutation
+ * (the current CheckpointManager::lastBySeqno).
+ */
+TEST_P(SingleThreadedActiveToPassiveStreamTest,
+       ReplicaStreamRequestUsesLastMutationSeqno) {
+    auto& vb = *store->getVBucket(vbid);
+    auto& cm = *vb.checkpointManager;
+
+    cm.registerCursorBySeqno("keep", 0, CheckpointCursor::Droppable::No)
+            .takeCursor()
+            .lock();
+
+    store_item(vbid, makeStoredDocKey("item 1"), "value"); // seqno 1
+    store_item(vbid, makeStoredDocKey("item 2"), "value"); // seqno 2
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    // Flip back to replica, but make sure the set_vbucket_state is in its
+    // own snapshot.
+    cm.createNewCheckpoint();
+    // The set_vbucket_state{replica} will have seqno 3.
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    const auto& list =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(cm);
+    EXPECT_EQ(2, list.size());
+
+    auto& first = list.front();
+    EXPECT_EQ(0, first->getSnapshotStartSeqno());
+    EXPECT_EQ(2, first->getSnapshotEndSeqno());
+
+    auto& second = list.back();
+    EXPECT_EQ(3, second->getSnapshotStartSeqno());
+    EXPECT_EQ(3, second->getSnapshotEndSeqno());
+
+    // The StreamRequest on the PassiveStream's readyQ has a snapshot startSeqno
+    // lower than the last checkpoint snapshot startSeqno.
+    auto streamReq = startPassiveStream();
+    EXPECT_EQ(2, streamReq->getStartSeqno());
+    EXPECT_EQ(2, streamReq->getSnapStartSeqno());
+}
+
+/**
+ * Check that the first snapshot marker returned for a stream has startSnapSeqno
+ * equal to the one specified in the stream request.
+ */
+TEST_P(SingleThreadedActiveStreamTest,
+       FirstSnapshotHasRequestedStartSnapSeqno) {
+    // Replace initial stream with one registered with DCP producer.
+    setupProducer({}, true);
+
+    auto& vb = *store->getVBucket(vbid);
+    auto& cm = *vb.checkpointManager;
+    // Prevent checkpoint destruction on ephemeral
+    const auto keepCursor =
+            cm.registerCursorBySeqno(
+                      "cursor", 0, CheckpointCursor::Droppable::No)
+                    .takeCursor()
+                    .lock();
+
+    store_item(vbid, makeStoredDocKey("item 1"), "value"); // seqno 1
+    store_item(vbid, makeStoredDocKey("item 2"), "value"); // seqno 2
+    cm.createNewCheckpoint();
+    store_item(vbid, makeStoredDocKey("item 3"), "value"); // seqno 3
+    store_item(vbid, makeStoredDocKey("item 4"), "value"); // seqno 4
+    cm.createNewCheckpoint();
+
+    stream = producer->mockActiveStreamRequest(
+            0,
+            /*opaque*/ 0,
+            vb,
+            /*st_seqno*/ 2,
+            /*en_seqno*/ ~0,
+            /*vb_uuid*/ vb.failovers->getFailoverLog().back().uuid,
+            /*snap_start_seqno*/ 2,
+            /*snap_end_seqno*/ 2);
+
+    MockDcpMessageProducers producers;
+    runCheckpointProcessor(*producer, producers);
+
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
+
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers.last_op);
+    EXPECT_EQ(2, producers.last_snap_start_seqno);
+    EXPECT_EQ(4, producers.last_snap_end_seqno);
+
+    EXPECT_EQ(cb::engine_errc::success, producer->step(false, producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpMutation, producers.last_op);
+    EXPECT_EQ(3, producers.last_byseqno);
+}
+
+/**
+ * processItems should skip meta-only checkpoints and they should never
+ * be seen by the ActiveStream.
+ *
+ * In MB-57767, we saw a crash because while the meta-only checkpoint is ignored
+ * for replication and no SnapshotMarker is sent, we updated the nextSnapStart
+ * during processItems, resulting in invariant breaking once we moved on
+ * from the meta-only checkpoint.
+ */
+TEST_P(SingleThreadedActiveStreamTest, MetaOnlyCheckpointsSkipped) {
+    // Replace initial stream with one registered with DCP producer.
+    setupProducer({}, true);
+
+    auto& vb = *store->getVBucket(vbid);
+    auto& cm = *vb.checkpointManager;
+
+    store_item(vbid, makeStoredDocKey("item 1"), "value"); // seqno 1
+    store_item(vbid, makeStoredDocKey("item 2"), "value"); // seqno 2
+
+    cm.createNewCheckpoint();
+    // CM: [1, 2]
+
+    // Simulate set_vbucket_state{replica}.
+    cm.queueSetVBState();
+    // CM: [1, 2] [3, 3]
+
+    // And a snapshot received from active.
+    cm.createSnapshot(2, 3, {}, CheckpointType::Memory, 3);
+    // CM: [1, 2] [3, 3] [2, ]
+
+    // CM: [1, 2] [3, 3] [2, 3]
+    store_item(vbid, makeStoredDocKey("item 3"), "value"); // seqno 3
+
+    auto items = stream->getOutstandingItems(vb);
+    // getOutstandingItems will return 3 ranges, including the
+    // [3, 3] meta-only snapshot. processItems should ignore it, as it doesn't
+    // need to be replicated over DCP.
+    ASSERT_EQ(3, items.ranges.size());
+    ASSERT_EQ(0, items.ranges[0].getStart());
+    ASSERT_EQ(3, items.ranges[1].getStart());
+    ASSERT_EQ(2, items.ranges[2].getStart());
+
+    // Make sure we don't crash here, processing [2, 3] after [3, 3].
+    EXPECT_NO_THROW(stream->public_processItems(items));
+
+    auto& readyQ = stream->public_readyQ();
+    EXPECT_EQ(5, readyQ.size());
+
+    // Ready queue shouldn't have a snapshot marker for the meta-only checkpoint
+    // (with the set_vbucket_state).
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ.front()->getEvent());
+    readyQ.pop();
+    EXPECT_EQ(DcpResponse::Event::Mutation, readyQ.front()->getEvent());
+    readyQ.pop();
+    EXPECT_EQ(DcpResponse::Event::Mutation, readyQ.front()->getEvent());
+    readyQ.pop();
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, readyQ.front()->getEvent());
+    readyQ.pop();
+    EXPECT_EQ(DcpResponse::Event::Mutation, readyQ.front()->getEvent());
+    readyQ.pop();
 }
 
 /**
@@ -5105,6 +5303,12 @@ INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
 INSTANTIATE_TEST_SUITE_P(
         AllBucketTypes,
         SingleThreadedPassiveStreamTest,
+        STParameterizedBucketTest::persistentAllBackendsConfigValues(),
+        STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(
+        AllBucketTypes,
+        SingleThreadedActiveToPassiveStreamTest,
         STParameterizedBucketTest::persistentAllBackendsConfigValues(),
         STParameterizedBucketTest::PrintToStringParamName);
 

@@ -68,7 +68,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       lastSentSeqno(st_seqno, {*this}),
       lastSentSeqnoAdvance(0, {*this}),
       curChkSeqno(st_seqno, {*this}),
-      nextSnapStart(0, {*this}),
+      nextSnapStart(0),
       takeoverState(vbucket_state_pending),
       itemsFromMemoryPhase(0),
       firstMarkerSent(false),
@@ -1397,8 +1397,6 @@ void ActiveStream::processItemsInner(
                 mutations.clear();
                 highNonVisibleSeqno = std::nullopt;
             }
-            /* mark true as it indicates a new checkpoint snapshot */
-            nextSnapshotIsCheckpoint = true;
 
             if (outstandingItemsResult.ranges.empty()) {
                 throw std::logic_error(
@@ -1408,6 +1406,11 @@ void ActiveStream::processItemsInner(
                         std::to_string(qi->getBySeqno()));
             }
 
+            /* mark true as it indicates a new checkpoint snapshot */
+            nextSnapshotIsCheckpoint = true;
+            /* and record the checkpoint's snapshot start, as we use it to
+             * override the snapshot_marker start seqno to guard against things
+             * like MB-50543 */
             nextSnapStart = outstandingItemsResult.ranges.begin()->getStart();
 
             continue;

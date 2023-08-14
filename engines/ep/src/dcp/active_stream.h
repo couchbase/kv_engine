@@ -870,14 +870,15 @@ private:
     //! The last known seqno pointed to by the checkpoint cursor
     ATOMIC_WEAKLY_MONOTONIC3(uint64_t, curChkSeqno, Labeller);
 
-    /*
-     * The next snapshot start that we will send (set when we set
-     * nextSnapshotIsCheckpoint). Updated at the next checkpoint start which is
-     * simpler than dealing with some transitions between backfill and memory
-     * which also set nextSnapshotIsCheckpoint to true but do not need an
-     * override snap start.
+    /**
+     * Updated at the next checkpoint start which is simpler than dealing with
+     * some transitions between backfill and memory which also set
+     * nextSnapshotIsCheckpoint to true but do not need an override snap start.
+     * This snapshot range might not be sent, for example if the checkpoint
+     * contains only meta items.
+     * MB-57767: This value is *not* monotonic.
      */
-    WEAKLY_MONOTONIC3(uint64_t, nextSnapStart, Labeller);
+    uint64_t nextSnapStart;
 
     //! The current vbucket state to send in the takeover stream
     vbucket_state_t takeoverState;
