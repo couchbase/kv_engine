@@ -132,7 +132,7 @@ void McProgramGetopt::assemble() {
 
 std::unique_ptr<MemcachedConnection> McProgramGetopt::getConnection() {
     if (connection) {
-        auto ret = connection->clone();
+        auto ret = connection->clone(false);
         ret->connect();
         if (!user.empty()) {
             ret->authenticate(user,
