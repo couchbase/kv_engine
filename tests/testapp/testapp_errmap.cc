@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -11,7 +10,7 @@
 
 #include "testapp.h"
 #include "testapp_client_test.h"
-
+#include <fmt/format.h>
 #include <nlohmann/json.hpp>
 
 class ErrmapTest : public TestappClientTest {
@@ -52,5 +51,22 @@ TEST_P(ErrmapTest, GetErrmapNewer) {
     // Only two versions exist: 1 and 2.
     for (uint16_t ii = 3; ii < 10; ++ii) {
         checkVersion(ii, 2);
+    }
+}
+
+TEST_P(ErrmapTest, AllErrorsDocumented) {
+    const auto rsp = userConnection->execute(BinprotGetErrorMapCommand{2});
+    ASSERT_TRUE(rsp.isSuccess());
+    const auto json = nlohmann::json::parse(rsp.getDataString());
+    using namespace cb::mcbp;
+
+    auto& errors = json.at("errors");
+
+    for (int ii = 0; ii < int(Status::COUNT); ++ii) {
+        const auto status = Status(ii);
+        if (is_known(status)) {
+            EXPECT_TRUE(errors.contains(fmt::format("{0:x}", ii)))
+                    << "Missing entry for : " << status;
+        }
     }
 }
