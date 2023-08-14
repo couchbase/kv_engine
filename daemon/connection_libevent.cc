@@ -234,27 +234,30 @@ void LibeventConnection::event_callback(bufferevent*, short event, void* ctx) {
         if (sockErr != 0) {
             const auto errStr = evutil_socket_error_to_string(sockErr);
             LOG_WARNING(
-                    "{}: Unrecoverable error encountered: {}, "
+                    "{}: {} Unrecoverable error encountered: {}, "
                     "socket_error: {}:{}, shutting down connection",
                     instance.getId(),
+                    instance.getDescription(),
                     BevEvent2Json(event).dump(),
                     sockErr,
                     errStr);
             instance.setTerminationReason(
-                    "socket_error: " + std::to_string(sockErr) + ":" + errStr);
+                    fmt::format("socket_error: {}: {}", sockErr, errStr));
         } else if (!ssl_errors.empty()) {
             LOG_WARNING(
-                    "{}: Unrecoverable error encountered: {}, ssl_error: "
+                    "{}: {} Unrecoverable error encountered: {}, ssl_error: "
                     "{}, shutting down connection",
                     instance.getId(),
+                    instance.getDescription(),
                     BevEvent2Json(event).dump(),
                     ssl_errors);
             instance.setTerminationReason("ssl_error: " + ssl_errors);
         } else {
             LOG_WARNING(
-                    "{}: Unrecoverable error encountered: {}, shutting down "
+                    "{}: {} Unrecoverable error encountered: {}, shutting down "
                     "connection",
                     instance.getId(),
+                    instance.getDescription(),
                     BevEvent2Json(event).dump());
             instance.setTerminationReason("Network error");
         }
