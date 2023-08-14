@@ -58,7 +58,11 @@ static void dcp_step(EngineIface* h,
                   err == cb::engine_errc::would_block,
           "Expected success or engine_ewouldblock");
     if (err == cb::engine_errc::would_block) {
+        // Preserve last_opaque, as that is sometimes needed by the other
+        // side of the connection to respond to the message.
+        auto last_opaque = producers.last_opaque;
         producers.clear_dcp_data();
+        producers.last_opaque = last_opaque;
     }
 }
 
@@ -3091,6 +3095,13 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
 
         // Check that the set noop interval message is sent
         dcpStepAndExpectControlMsg("set_noop_interval"s);
+        // MB-56973: Consumer ewouldblocks waiting for a response from producer,
+        // so send a response so setup can continue.
+        resp.setMagic(cb::mcbp::Magic::ClientResponse);
+        resp.setOpaque(producers.last_opaque);
+        resp.setOpcode(cb::mcbp::ClientOpcode::DcpControl);
+        resp.setStatus(cb::mcbp::Status::Success);
+        dcpHandleResponse(h, cookie, resp, producers);
     }
 
     dcpStepAndExpectControlMsg("set_priority"s);

@@ -172,7 +172,10 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
     pendingEnableNoop = config.isDcpEnableNoop();
     getErrorMapState = pendingEnableNoop ? GetErrorMapState::PendingRequest
                                          : GetErrorMapState::Skip;
-    pendingSendNoopInterval = config.isDcpEnableNoop();
+    noopIntervalNegotiation.state =
+            config.isDcpEnableNoop()
+                    ? NoopIntervalNegotiation::State::PendingMillisecondsRequest
+                    : NoopIntervalNegotiation::State::Completed;
     pendingSetPriority = true;
     pendingSupportCursorDropping = true;
     pendingSupportHifiMFU = true;
@@ -1005,6 +1008,11 @@ bool DcpConsumer::handleResponse(const cb::mcbp::Response& response) {
     const auto opcode = response.getClientOpcode();
     const auto opaque = response.getOpaque();
 
+    logger->debug("handleResponse(): opcode:{}, opqaue:{}, status:{}",
+                  opcode,
+                  opaque,
+                  response.getStatus());
+
     if (opcode == cb::mcbp::ClientOpcode::DcpStreamReq) {
         auto oitr = opaqueMap_.find(opaque);
         if (oitr == opaqueMap_.end()) {
@@ -1098,6 +1106,36 @@ bool DcpConsumer::handleResponse(const cb::mcbp::Response& response) {
             changeStreamsNegotiation.state =
                     BlockingDcpControlNegotiation::State::Completed;
             changeStreams = (response.getStatus() == cb::mcbp::Status::Success);
+        } else if (opaque == noopIntervalNegotiation.opaque) {
+            using State = NoopIntervalNegotiation::State;
+            switch (noopIntervalNegotiation.state) {
+            case State::PendingMillisecondsResponse:
+                // Producer accepted the value encoded as milliseconds
+                // (i.e. v7.6+), negotiation complete, otherwise fallback and
+                // attempt integer seconds request.
+                noopIntervalNegotiation.state =
+                        (response.getStatus() == cb::mcbp::Status::Success)
+                                ? State::Completed
+                                : State::PendingSecondsRequest;
+                break;
+            case State::PendingSecondsResponse:
+                if (response.getStatus() != cb::mcbp::Status::Success) {
+                    logger->error(
+                            "Got non-success status {} for "
+                            "DcpControl(\"set_noop_interval\") - "
+                            "disconnecting",
+                            noopIntervalNegotiation.state);
+                    return false;
+                }
+                noopIntervalNegotiation.state = State::Completed;
+                break;
+            default:
+                logger->error(
+                        "Unexpected noopIntervalNegotiation state:{} when "
+                        "handling DcpControl response - disconnecting",
+                        noopIntervalNegotiation.state);
+                return false;
+            }
         }
         return true;
     } else if (opcode == cb::mcbp::ClientOpcode::GetErrorMap) {
@@ -1532,15 +1570,45 @@ cb::engine_errc DcpConsumer::handleNoop(DcpMessageProducersIface& producers) {
         return ret;
     }
 
-    auto intervalCount = dcpNoopTxInterval.count();
+    using State = NoopIntervalNegotiation::State;
+    using namespace std::chrono;
 
-    if (pendingSendNoopInterval) {
-        cb::engine_errc ret;
+    logger->debug("handleNoop(): state:{}", noopIntervalNegotiation.state);
+
+    switch (noopIntervalNegotiation.state) {
+    case State::PendingMillisecondsRequest: {
+        // MB-56973: For v7.6+ producers, support sub-second noop-interval
+        // encoded as fractional seconds.
         uint32_t opaque = ++opaqueCounter;
-        std::string interval = std::to_string(intervalCount);
-        ret = producers.control(opaque, noopIntervalCtrlMsg, interval);
-        pendingSendNoopInterval = false;
-        return ret;
+        duration<float> interval = dcpNoopTxInterval;
+        noopIntervalNegotiation = {State::PendingMillisecondsResponse, opaque};
+        return producers.control(
+                opaque, noopIntervalCtrlMsg, std::to_string(interval.count()));
+    }
+    case State::PendingMillisecondsResponse:
+        // We have to wait for the response before proceeding.
+        return cb::engine_errc::would_block;
+
+    case State::PendingSecondsRequest: {
+        // MB-56973: pre 7.6.0 producer, send integer seconds count, at least
+        // 1 second - rounding dcpNoopTxInterval to seconds, so we can correctly
+        // query the configured value after.
+        uint32_t opaque = ++opaqueCounter;
+        dcpNoopTxInterval = round<seconds>(dcpNoopTxInterval);
+        dcpNoopTxInterval =
+                std::max(std::chrono::duration<float>(1), dcpNoopTxInterval);
+        seconds interval = duration_cast<seconds>(dcpNoopTxInterval);
+
+        noopIntervalNegotiation = {State::PendingSecondsResponse, opaque};
+        return producers.control(
+                opaque, noopIntervalCtrlMsg, std::to_string(interval.count()));
+    }
+    case State::PendingSecondsResponse:
+        // We have to wait for the response before proceeding.
+        return cb::engine_errc::would_block;
+
+    case State::Completed:
+        break;
     }
 
     const auto now = ep_current_time();
@@ -1553,7 +1621,7 @@ cb::engine_errc DcpConsumer::handleNoop(DcpMessageProducersIface& producers) {
                 "DCP noop interval is {}s.",
                 dcpIdleTimeout.count(),
                 (now - lastMessageTime),
-                intervalCount);
+                dcpNoopTxInterval.count());
         return cb::engine_errc::disconnect;
     }
 
@@ -2036,4 +2104,24 @@ bool DcpConsumer::shouldBufferOperations() const {
 
 bool DcpConsumer::isFlowControlEnabled() const {
     return flowControl.isEnabled();
+}
+
+std::ostream& operator<<(std::ostream& os,
+                         DcpConsumer::NoopIntervalNegotiation::State state) {
+    using State = DcpConsumer::NoopIntervalNegotiation::State;
+    switch (state) {
+    case State::PendingMillisecondsRequest:
+        return os << "PendingMillisecondsRequest";
+    case State::PendingMillisecondsResponse:
+        return os << "PendingMillisecondsResponse";
+    case State::PendingSecondsRequest:
+        return os << "PendingSecondsRequest";
+    case State::PendingSecondsResponse:
+        return os << "PendingSecondsResponse";
+    case State::Completed:
+        return os << "Completed";
+    }
+    os << fmt::format("Invalid NoopIntervalNegotiation::State: {}",
+                      uint8_t(state));
+    return os;
 }

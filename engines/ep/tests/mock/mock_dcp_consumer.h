@@ -127,6 +127,14 @@ public:
     }
 
     /**
+     * @return the entire NoopIntervalNegotiation struct used to setup noop
+     *         interval messages - for testing.
+     */
+    const NoopIntervalNegotiation& public_getnoopIntervalNegotiation() const {
+        return noopIntervalNegotiation;
+    }
+
+    /**
      * Enable the use of V7 status codes for DCP in tests
      */
     void enableV7DcpStatus() {
@@ -134,11 +142,17 @@ public:
     }
 
     bool isOpaqueBlockingDcpControl(uint64_t opaque) const {
-        return v7DcpStatusCodesNegotiation.opaque == opaque ||
-               syncReplNegotiation.opaque == opaque ||
-               deletedUserXattrsNegotiation.opaque == opaque ||
-               flatBuffersNegotiation.opaque == opaque ||
-               changeStreamsNegotiation.opaque == opaque;
+        for (auto blockingOpaque : {v7DcpStatusCodesNegotiation.opaque,
+                                    syncReplNegotiation.opaque,
+                                    deletedUserXattrsNegotiation.opaque,
+                                    flatBuffersNegotiation.opaque,
+                                    changeStreamsNegotiation.opaque,
+                                    noopIntervalNegotiation.opaque}) {
+            if (blockingOpaque == opaque) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

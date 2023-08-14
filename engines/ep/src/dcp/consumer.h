@@ -57,6 +57,29 @@ public:
     };
 
     /**
+     * State of the noop interval negotiation. As of v7.6 we support sub-second
+     * DCP no-op intervals to facilitate ns_server performing faster failover,
+     * as only expecting a DCP NOOP every second (and needing multiple NACKs to
+     * consider unhealthy) significantly limits how quickly an unhealthy DCP
+     * stream can be detected. However, prior to 7.6 only integer second
+     * interval could be specified. Negotiation therefore initially tries
+     * a sub-second (fractional second) control message, if that is rejected
+     * (i.e. mixed-mode cluster where the producer is downlevel) then we retry
+     * with the previous integer second interval.
+     */
+    struct NoopIntervalNegotiation {
+        enum class State : uint8_t {
+            PendingMillisecondsRequest,
+            PendingMillisecondsResponse,
+            PendingSecondsRequest,
+            PendingSecondsResponse,
+            Completed
+        } state;
+        // Used to identify the specific response from Producer.
+        uint32_t opaque{0};
+    };
+
+    /**
      * Construct a DCP consumer object.
      *
      * @param e Engine which owns this consumer.
@@ -555,13 +578,13 @@ protected:
 
     cb::RelaxedAtomic<uint32_t> backoffs;
     // The interval that the consumer tells the producer to send noops
-    const std::chrono::seconds dcpNoopTxInterval;
+    std::chrono::duration<float> dcpNoopTxInterval;
 
     // Step can't start sending packets until we've received add stream
     bool pendingAddStream = true;
 
     bool pendingEnableNoop;
-    bool pendingSendNoopInterval;
+    NoopIntervalNegotiation noopIntervalNegotiation;
     bool pendingSetPriority;
     bool pendingSupportCursorDropping;
     bool pendingSendStreamEndOnClientStreamClose;
@@ -659,6 +682,9 @@ protected:
     static const std::string hifiMFUCtrlMsg;
     static const std::string enableOpcodeExpiryCtrlMsg;
 };
+
+std::ostream& operator<<(std::ostream& os,
+                         DcpConsumer::NoopIntervalNegotiation::State state);
 
 /**
  * RAII helper class to update the flowControl object with the number of
