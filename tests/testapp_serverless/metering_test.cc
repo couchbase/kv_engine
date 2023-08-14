@@ -3336,21 +3336,22 @@ static std::string MeteringTypeToString(
 }
 
 TEST_P(MeteringTest, ImposedUsersMayMeter) {
-    upsert(StoredDocKey{"ImposedUsersMayMeter", getTestCollection()},
-           getStringValue());
+    auto key = StoredDocKey{"ImposedUsersMayMeter", getTestCollection()};
+    upsert(key, getStringValue());
 
     auto admin = cluster->getConnection(0);
     admin->authenticate("@admin", "password");
     admin->selectBucket("metering");
     admin->setFeature(cb::mcbp::Feature::ReportUnitUsage, true);
+    admin->setFeature(cb::mcbp::Feature::Collections, true);
 
     nlohmann::json before;
     admin->stats(
             [&before](auto k, auto v) { before = nlohmann::json::parse(v); },
             "bucket_details metering");
 
-    // Verify that we don't meter
-    BinprotGetCommand cmd("ImposedUsersMayMeter");
+    // Verify that we don't meter - admin user has the Unmetered privilege
+    BinprotGetCommand cmd(std::string{key});
     auto rsp = admin->execute(cmd);
     ASSERT_TRUE(rsp.isSuccess());
     EXPECT_FALSE(rsp.getReadUnits()) << *rsp.getReadUnits();
@@ -3360,16 +3361,25 @@ TEST_P(MeteringTest, ImposedUsersMayMeter) {
                  "bucket_details metering");
     EXPECT_EQ(before["ru"].get<int>(), after["ru"].get<int>());
 
+    // Now verify that the impersonated user does get metered
     cb::mcbp::request::ImpersonateUserFrameInfo fi("^metering");
     cmd.addFrameInfo(fi);
     rsp = admin->execute(cmd);
     ASSERT_TRUE(rsp.isSuccess());
-    EXPECT_TRUE(rsp.getReadUnits());
-    EXPECT_EQ(2, *rsp.getReadUnits());
 
     admin->stats([&after](auto k, auto v) { after = nlohmann::json::parse(v); },
                  "bucket_details metering");
-    EXPECT_EQ(before["ru"].get<int>() + 2, after["ru"].get<int>());
+
+    if (GetParam() == MeteringType::UnmeteredByCollection) {
+        // This test doesn't make sense for the impersonate case - if the
+        // collection is unmetered (e.g. "system" collection) expect no metering
+        EXPECT_FALSE(rsp.getReadUnits());
+        EXPECT_EQ(before["ru"].get<int>(), after["ru"].get<int>());
+    } else {
+        EXPECT_TRUE(rsp.getReadUnits());
+        EXPECT_EQ(2, *rsp.getReadUnits());
+        EXPECT_EQ(before["ru"].get<int>() + 2, after["ru"].get<int>());
+    }
 }
 
 // Store a document in vbucket 2 and wait for it to expire, and
