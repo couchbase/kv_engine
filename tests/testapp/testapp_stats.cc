@@ -661,3 +661,17 @@ TEST_P(StatsTest, ThreadDetails) {
     EXPECT_TRUE(json.contains("num_writer_threads"));
     EXPECT_LT(5, json.size()) << "There should be some threads reported";
 }
+
+/// The stats should contain max user and system connections to allow
+/// for alerting by monitoring the current levels with the max
+TEST_P(StatsTest, MB58199) {
+    nlohmann::json stats;
+    adminConnection->executeInBucket(
+            bucketName, [&stats](auto& conn) { stats = conn.stats(""); });
+    ASSERT_TRUE(stats.contains("max_system_connections"));
+    ASSERT_TRUE(stats.contains("max_user_connections"));
+    const auto max_system = Testapp::MAX_CONNECTIONS / 4;
+    const auto max_user = Testapp::MAX_CONNECTIONS - max_system;
+    EXPECT_EQ(max_system, stats["max_system_connections"]);
+    EXPECT_EQ(max_user, stats["max_user_connections"]);
+}

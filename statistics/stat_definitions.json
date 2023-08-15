@@ -2063,6 +2063,18 @@
         "added": "7.0.0"
     },
     {
+        "key": "max_user_connections",
+        "description": "Maximum number of connections to the interfaces marked as user",
+        "unit": "count",
+        "added": "trinity"
+    },
+    {
+        "key": "max_system_connections",
+        "description": "Maximum number of connections to the interfaces marked as system only",
+        "unit": "count",
+        "added": "trinity"
+    },
+    {
         "key": "total_connections",
         "unit": "count",
         "added": "7.0.0"

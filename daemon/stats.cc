@@ -49,6 +49,10 @@ static void server_global_stats(const StatCollector& collector) {
                     : 0);
     collector.addStat(Key::curr_connections, stats.curr_conns);
     collector.addStat(Key::system_connections, stats.system_conns);
+    collector.addStat(Key::max_user_connections,
+                      Settings::instance().getMaxUserConnections());
+    collector.addStat(Key::max_system_connections,
+                      Settings::instance().getSystemConnections());
     collector.addStat(Key::total_connections, stats.total_conns);
     collector.addStat(Key::connection_structures, stats.conn_structs);
 
