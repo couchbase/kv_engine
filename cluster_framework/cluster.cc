@@ -19,7 +19,6 @@
 #include <filesystem>
 #include <iostream>
 #include <string>
-#include <system_error>
 #include <vector>
 
 namespace cb::test {
@@ -31,94 +30,21 @@ public:
     ClusterImpl() = delete;
     ClusterImpl(const ClusterImpl&) = delete;
     ClusterImpl(std::vector<std::unique_ptr<Node>>& nod,
-                std::filesystem::path dir)
-        : nodes(std::move(nod)),
-          directory(std::move(dir)),
-          authProviderService(*this),
-          uuid(::to_string(cb::uuid::random())) {
-        manifest = {{"rev", 0},
-                    {"clusterCapabilities", nlohmann::json::object()},
-                    {"clusterCapabilitiesVer", {1, 0}}};
-        auto [ipv4, ipv6] = cb::net::getIpAddresses(true);
-        (void)ipv6; // currently not used
-        const auto& hostname = ipv4.front();
-        for (const auto& n : nodes) {
-            n->getConnectionMap().iterate(
-                    [this, &hostname](const MemcachedConnection& c) {
-                        if (c.getFamily() == AF_INET) {
-                            manifest["nodesExt"].emplace_back(
-                                    nlohmann::json{{"services",
-                                                    {{"mgmt", 6666},
-                                                     {"kv", c.getPort()},
-                                                     {"capi", 6666}}},
-                                                   {"hostname", hostname}});
-                        }
-                    });
-        }
-
-        // And finally store the CCCP map on the nodes:
-        const auto globalmap = manifest.dump(2);
-        for (const auto& n : nodes) {
-            auto connection = n->getConnection();
-            connection->connect();
-            connection->authenticate("@admin", "password", "plain");
-            connection->setAgentName("cluster_testapp");
-            connection->setFeatures({cb::mcbp::Feature::MUTATION_SEQNO,
-                                     cb::mcbp::Feature::XATTR,
-                                     cb::mcbp::Feature::XERROR,
-                                     cb::mcbp::Feature::SELECT_BUCKET,
-                                     cb::mcbp::Feature::JSON,
-                                     cb::mcbp::Feature::SNAPPY});
-            auto rsp = connection->execute(BinprotSetClusterConfigCommand{
-                    0, globalmap, epoch, revno.load(), ""});
-            if (!rsp.isSuccess()) {
-                std::cerr << "Failed to set global CCCP version: "
-                          << rsp.getDataString() << std::endl;
-            }
-        }
-    }
-
+                std::filesystem::path dir);
     ~ClusterImpl() override;
-
     std::shared_ptr<Bucket> createBucket(const std::string& name,
                                          const nlohmann::json& attributes,
                                          DcpPacketFilter packet_filter,
                                          bool setUpReplication) override;
-
     void deleteBucket(const std::string& name) override;
-
-    std::shared_ptr<Bucket> getBucket(const std::string& name) const override {
-        for (auto& bucket : buckets) {
-            if (bucket->getName() == name) {
-                return bucket;
-            }
-        }
-
-        return std::shared_ptr<Bucket>();
-    }
-
+    std::shared_ptr<Bucket> getBucket(const std::string& name) const override;
     std::unique_ptr<MemcachedConnection> getConnection(
-            size_t node) const override {
-        if (node < nodes.size()) {
-            return nodes[node]->getConnection();
-        }
-        throw std::invalid_argument(
-                "ClusterImpl::getConnection: Invalid node number");
-    }
-
+            size_t node) const override;
     size_t size() const override;
-
-    AuthProviderService& getAuthProviderService() override {
-        return authProviderService;
-    }
-
+    AuthProviderService& getAuthProviderService() override;
     nlohmann::json to_json() const override;
-
     void iterateNodes(std::function<void(const Node&)> visitor) const override;
-
-    nlohmann::json getGlobalClusterMap() override {
-        return manifest;
-    }
+    nlohmann::json getGlobalClusterMap() override;
 
 protected:
     std::vector<std::unique_ptr<Node>> nodes;
@@ -130,6 +56,78 @@ protected:
     std::atomic<int64_t> revno{1};
     static constexpr int64_t epoch = 1;
 };
+
+ClusterImpl::ClusterImpl(std::vector<std::unique_ptr<Node>>& nod,
+                         std::filesystem::path dir)
+    : nodes(std::move(nod)),
+      directory(std::move(dir)),
+      authProviderService(*this),
+      uuid(::to_string(cb::uuid::random())) {
+    manifest = {{"rev", 0},
+                {"clusterCapabilities", nlohmann::json::object()},
+                {"clusterCapabilitiesVer", {1, 0}}};
+    auto [ipv4, ipv6] = cb::net::getIpAddresses(true);
+    (void)ipv6; // currently not used
+    const auto& hostname = ipv4.front();
+    for (const auto& n : nodes) {
+        n->getConnectionMap().iterate([this, &hostname](
+                                              const MemcachedConnection& c) {
+            if (c.getFamily() == AF_INET) {
+                manifest["nodesExt"].emplace_back(nlohmann::json{
+                        {"services",
+                         {{"mgmt", 6666}, {"kv", c.getPort()}, {"capi", 6666}}},
+                        {"hostname", hostname}});
+            }
+        });
+    }
+
+    // And finally store the CCCP map on the nodes:
+    const auto globalmap = manifest.dump(2);
+    for (const auto& n : nodes) {
+        auto connection = n->getConnection();
+        connection->connect();
+        connection->authenticate("@admin", "password", "plain");
+        connection->setAgentName("cluster_testapp");
+        connection->setFeatures({cb::mcbp::Feature::MUTATION_SEQNO,
+                                 cb::mcbp::Feature::XATTR,
+                                 cb::mcbp::Feature::XERROR,
+                                 cb::mcbp::Feature::SELECT_BUCKET,
+                                 cb::mcbp::Feature::JSON,
+                                 cb::mcbp::Feature::SNAPPY});
+        auto rsp = connection->execute(BinprotSetClusterConfigCommand{
+                0, globalmap, epoch, revno.load(), ""});
+        if (!rsp.isSuccess()) {
+            std::cerr << "Failed to set global CCCP version: "
+                      << rsp.getDataString() << std::endl;
+        }
+    }
+}
+
+std::shared_ptr<Bucket> ClusterImpl::getBucket(const std::string& name) const {
+    for (auto& bucket : buckets) {
+        if (bucket->getName() == name) {
+            return bucket;
+        }
+    }
+    return {};
+}
+
+std::unique_ptr<MemcachedConnection> ClusterImpl::getConnection(
+        size_t node) const {
+    if (node < nodes.size()) {
+        return nodes[node]->getConnection();
+    }
+    throw std::invalid_argument(
+            "ClusterImpl::getConnection: Invalid node number");
+}
+
+AuthProviderService& ClusterImpl::getAuthProviderService() {
+    return authProviderService;
+}
+
+nlohmann::json ClusterImpl::getGlobalClusterMap() {
+    return manifest;
+}
 
 std::shared_ptr<Bucket> ClusterImpl::createBucket(
         const std::string& name,
@@ -218,7 +216,7 @@ std::shared_ptr<Bucket> ClusterImpl::createBucket(
             connection->createBucket(name, config, BucketType::Couchbase);
             connection->selectBucket(name);
 
-            // iterate over all of the vbuckets and find that node number and
+            // iterate over all the vbuckets and find that node number and
             // define the vbuckets
             for (std::size_t vbucket = 0; vbucket < vbucketmap.size();
                  ++vbucket) {
