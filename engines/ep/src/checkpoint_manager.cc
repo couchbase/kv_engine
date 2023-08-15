@@ -370,6 +370,13 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
                 result.tryBackfill = true;
                 break;
             } else if (startBySeqno <= en) {
+                // checkpoint was empty by expel, so we don't know the real
+                // start, backfill is needed whilst we continue the search for
+                // a checkpoint to best satisfy the start. MB-58261
+                if (st == 0) {
+                    result.tryBackfill = true;
+                }
+
                 // MB-47551 Skip this checkpoint if it is closed and the
                 // requested start is the high seqno. The cursor should go to an
                 // open checkpoint ready for new mutations.

@@ -1959,8 +1959,9 @@ TEST_F(SingleThreadedCheckpointTest,
     testRegisterCursorInCheckpointEmptyByExpel(true);
 }
 
-TEST_F(SingleThreadedCheckpointTest,
-       RegisterCursor_CheckpointEmptyByExpel_MultipleCheckpoints) {
+void SingleThreadedCheckpointTest::
+        testRegisterCursorCheckpointEmptyByExpelMultipleCheckpoints(
+                uint64_t startSeqno) {
     // Setup an active vbucket/cm like:
     //
     // [disk | e:1 cs:1 x x vbs:3) [memory | e:3 cs:3)
@@ -2024,6 +2025,7 @@ TEST_F(SingleThreadedCheckpointTest,
     EXPECT_EQ(0, checkpoint.getMinimumCursorSeqno());
     EXPECT_EQ(0, checkpoint.getHighSeqno());
     EXPECT_EQ(1, manager.getNumOpenChkItems());
+    EXPECT_EQ(2, checkpoint.getId());
     ASSERT_EQ(2, checkpoint.getHighestExpelledSeqno());
 
     // Set vb to pending
@@ -2047,14 +2049,36 @@ TEST_F(SingleThreadedCheckpointTest,
     // [disk | e:1 cs:1 x x vbs:3) [memory | e:3 cs:3)
     //                                       ^
     const auto res = manager.registerCursorBySeqno(
-            "cursor", 2, CheckpointCursor::Droppable::Yes);
+            "cursor", startSeqno, CheckpointCursor::Droppable::Yes);
+    manager.dump();
     // @todo MB-53616: We don't need a backfill here
+    // @todo MB-58261: When start is zero we do need backfill
     EXPECT_TRUE(res.tryBackfill);
     const auto cursor = res.cursor.lock();
-    EXPECT_EQ(3, (*cursor->getCheckpoint())->getId());
-    EXPECT_EQ(queue_op::empty, (*cursor->getPos())->getOperation());
-    EXPECT_EQ(3, (*cursor->getPos())->getBySeqno());
-    EXPECT_EQ(0, cursor->getDistance());
+
+    if (startSeqno == 0) {
+        EXPECT_EQ(res.seqno, 1);
+        EXPECT_EQ(2, (*cursor->getCheckpoint())->getId());
+        EXPECT_EQ(queue_op::empty, (*cursor->getPos())->getOperation());
+        EXPECT_EQ(1, (*cursor->getPos())->getBySeqno());
+        EXPECT_EQ(0, cursor->getDistance());
+    } else {
+        EXPECT_EQ(res.seqno, 3);
+        EXPECT_EQ(3, (*cursor->getCheckpoint())->getId());
+        EXPECT_EQ(queue_op::empty, (*cursor->getPos())->getOperation());
+        EXPECT_EQ(3, (*cursor->getPos())->getBySeqno());
+        EXPECT_EQ(0, cursor->getDistance());
+    }
+}
+
+TEST_F(SingleThreadedCheckpointTest,
+       testRegisterCursorCheckpointEmptyByExpelMultipleCheckpoints) {
+    testRegisterCursorCheckpointEmptyByExpelMultipleCheckpoints(2);
+}
+
+TEST_F(SingleThreadedCheckpointTest,
+       testRegisterCursorCheckpointEmptyByExpelMultipleCheckpoints_startZero) {
+    testRegisterCursorCheckpointEmptyByExpelMultipleCheckpoints(0);
 }
 
 TEST_F(SingleThreadedCheckpointTest, QueueSetVBStateSchedulesDcpStep) {
