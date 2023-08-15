@@ -14,6 +14,7 @@
 #include "node.h"
 
 #include <boost/filesystem/operations.hpp>
+#include <folly/Synchronized.h>
 #include <platform/uuid.h>
 #include <protocol/connection/client_mcbp_commands.h>
 #include <filesystem>
@@ -44,15 +45,33 @@ public:
     AuthProviderService& getAuthProviderService() override;
     nlohmann::json to_json() const override;
     void iterateNodes(std::function<void(const Node&)> visitor) const override;
-    nlohmann::json getGlobalClusterMap() override;
 
 protected:
-    std::vector<std::unique_ptr<Node>> nodes;
-    std::vector<std::shared_ptr<Bucket>> buckets;
+    /**
+     * Helper function to iterate over all the nodes in the cluster (performs
+     * the same operation as iterateNodes, but that's a virtual function which
+     * shouldn't be used in constructors/destructors)
+     *
+     * @param visitor the callback method for each node
+     */
+    void forAllNodes(std::function<void(const Node&)> visitor) const;
+
+    /**
+     * Helper function to create the bucket on a single node
+     *
+     * @param node The node to create the bucket on
+     * @param bucket The bucket to create
+     * @param config The config used to create the bucket
+     */
+    void createBucketOnNode(const Node& node,
+                            Bucket& bucket,
+                            std::string_view config);
+
+    folly::Synchronized<std::vector<std::unique_ptr<Node>>> nodes;
+    folly::Synchronized<std::vector<std::shared_ptr<Bucket>>> buckets;
     const std::filesystem::path directory;
     AuthProviderService authProviderService;
     const std::string uuid;
-    nlohmann::json manifest;
     std::atomic<int64_t> revno{1};
     static constexpr int64_t epoch = 1;
 };
@@ -63,15 +82,17 @@ ClusterImpl::ClusterImpl(std::vector<std::unique_ptr<Node>>& nod,
       directory(std::move(dir)),
       authProviderService(*this),
       uuid(::to_string(cb::uuid::random())) {
-    manifest = {{"rev", 0},
-                {"clusterCapabilities", nlohmann::json::object()},
-                {"clusterCapabilitiesVer", {1, 0}}};
     auto [ipv4, ipv6] = cb::net::getIpAddresses(true);
     (void)ipv6; // currently not used
     const auto& hostname = ipv4.front();
-    for (const auto& n : nodes) {
-        n->getConnectionMap().iterate([this, &hostname](
-                                              const MemcachedConnection& c) {
+
+    nlohmann::json manifest = {
+            {"rev", 0},
+            {"clusterCapabilities", nlohmann::json::object()},
+            {"clusterCapabilitiesVer", {1, 0}}};
+    // Build the CCCP map
+    forAllNodes([&manifest, &hostname](const auto& node) {
+        node.getConnectionMap().iterate([&manifest, &hostname](const auto& c) {
             if (c.getFamily() == AF_INET) {
                 manifest["nodesExt"].emplace_back(nlohmann::json{
                         {"services",
@@ -79,12 +100,12 @@ ClusterImpl::ClusterImpl(std::vector<std::unique_ptr<Node>>& nod,
                         {"hostname", hostname}});
             }
         });
-    }
+    });
 
     // And finally store the CCCP map on the nodes:
-    const auto globalmap = manifest.dump(2);
-    for (const auto& n : nodes) {
-        auto connection = n->getConnection();
+    const auto globalmap = manifest.dump();
+    forAllNodes([this, &globalmap](const auto& node) {
+        auto connection = node.getConnection();
         connection->connect();
         connection->authenticate("@admin", "password", "plain");
         connection->setAgentName("cluster_testapp");
@@ -95,38 +116,116 @@ ClusterImpl::ClusterImpl(std::vector<std::unique_ptr<Node>>& nod,
                                  cb::mcbp::Feature::JSON,
                                  cb::mcbp::Feature::SNAPPY});
         auto rsp = connection->execute(BinprotSetClusterConfigCommand{
-                0, globalmap, epoch, revno.load(), ""});
+                0, globalmap, epoch, revno.load(), {}});
         if (!rsp.isSuccess()) {
-            std::cerr << "Failed to set global CCCP version: "
-                      << rsp.getDataString() << std::endl;
+            fmt::print(stderr,
+                       "Failed to set global CCCP on node {}: {}",
+                       node.getId(),
+                       rsp.getDataView());
         }
-    }
+    });
 }
 
 std::shared_ptr<Bucket> ClusterImpl::getBucket(const std::string& name) const {
-    for (auto& bucket : buckets) {
-        if (bucket->getName() == name) {
-            return bucket;
+    return buckets.withRLock([&name](auto& vector) {
+        for (auto& bucket : vector) {
+            if (bucket->getName() == name) {
+                return bucket;
+            }
         }
-    }
-    return {};
+        return std::shared_ptr<Bucket>{};
+    });
 }
 
 std::unique_ptr<MemcachedConnection> ClusterImpl::getConnection(
         size_t node) const {
-    if (node < nodes.size()) {
-        return nodes[node]->getConnection();
-    }
-    throw std::invalid_argument(
-            "ClusterImpl::getConnection: Invalid node number");
+    return nodes.withRLock([node](auto& vector) {
+        if (node < vector.size()) {
+            return vector[node]->getConnection();
+        }
+        throw std::invalid_argument(
+                fmt::format("ClusterImpl::getConnection: Node {} is outside "
+                            "the legal range of [0,{}]",
+                            node,
+                            vector.size() - 1));
+    });
 }
 
 AuthProviderService& ClusterImpl::getAuthProviderService() {
     return authProviderService;
 }
 
-nlohmann::json ClusterImpl::getGlobalClusterMap() {
-    return manifest;
+void ClusterImpl::createBucketOnNode(const Node& node,
+                                     Bucket& bucket,
+                                     std::string_view config) {
+    auto connection = node.getConnection();
+    connection->connect();
+    connection->authenticate("@admin", "password", "plain");
+    connection->setAgentName("cluster_testapp");
+    connection->setFeatures({cb::mcbp::Feature::MUTATION_SEQNO,
+                             cb::mcbp::Feature::XATTR,
+                             cb::mcbp::Feature::XERROR,
+                             cb::mcbp::Feature::SELECT_BUCKET,
+                             cb::mcbp::Feature::JSON,
+                             cb::mcbp::Feature::SNAPPY,
+                             // CC onwards, enable collections
+                             cb::mcbp::Feature::Collections});
+
+    const auto dbname = node.directory / bucket.getName();
+    connection->createBucket(
+            bucket.getName(),
+            fmt::format("{}dbname={};alog_path={}",
+                        config,
+                        dbname.generic_string(),
+                        (dbname / "access.log").generic_string()),
+            BucketType::Couchbase);
+    connection->selectBucket(bucket.getName());
+
+    // iterate over all vbuckets and find the node number and define the
+    // vbuckets
+    auto& vbucketmap = bucket.getVbucketMap();
+    for (std::size_t vbucket = 0; vbucket < vbucketmap.size(); ++vbucket) {
+        std::vector<std::string> chain;
+        for (int ii : vbucketmap[vbucket]) {
+            chain.emplace_back("n_" + std::to_string(ii));
+        }
+        nlohmann::json topology = {
+                {"topology", nlohmann::json::array({chain})}};
+        for (std::size_t ii = 0; ii < vbucketmap[vbucket].size(); ++ii) {
+            if (vbucketmap[vbucket][ii] ==
+                std::stoi(std::string(node.getId().substr(2)))) {
+                // This is me
+                if (ii == 0) {
+                    connection->setVbucket(Vbid{uint16_t(vbucket)},
+                                           vbucket_state_active,
+                                           topology);
+                } else {
+                    connection->setVbucket(
+                            Vbid{uint16_t(vbucket)}, vbucket_state_replica, {});
+                }
+            }
+        }
+    }
+
+    // Call enable traffic
+    auto rsp = connection->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::EnableTraffic});
+
+    if (!rsp.isSuccess()) {
+        throw ConnectionError("Failed to enable traffic", rsp.getStatus());
+    }
+
+    rsp = connection->execute(
+            BinprotSetClusterConfigCommand{0,
+                                           bucket.getManifest().dump(2),
+                                           epoch,
+                                           revno.load(),
+                                           bucket.getName()});
+    if (!rsp.isSuccess()) {
+        throw ConnectionError(
+                fmt::format("Failed to push CCCP to {}", node.getId()),
+                rsp.getStatus());
+    }
 }
 
 std::shared_ptr<Bucket> ClusterImpl::createBucket(
@@ -135,7 +234,7 @@ std::shared_ptr<Bucket> ClusterImpl::createBucket(
         DcpPacketFilter packet_filter,
         bool setUpReplication) {
     size_t vbuckets = 1024;
-    size_t replicas = std::min<size_t>(nodes.size() - 1, 3);
+    size_t replicas = std::min<size_t>(size() - 1, 3);
 
     nlohmann::json json = {{"max_size", 67108864},
                            {"backend", "couchdb"},
@@ -172,151 +271,95 @@ std::shared_ptr<Bucket> ClusterImpl::createBucket(
         replicas = iter->get<size_t>();
         // The underlying bucket don't know about replicas
         json.erase(iter);
-        if (replicas > nodes.size() - 1) {
+        if (replicas > size() - 1) {
             throw std::invalid_argument(
-                    "ClusterImpl::createBucket: Not enough nodes in the "
-                    "cluster for " +
-                    std::to_string(replicas) + " replicas");
+                    fmt::format("ClusterImpl::createBucket: Not enough nodes "
+                                "in the cluster for {} replicas",
+                                replicas));
         }
     }
 
     revno++;
     auto bucket = std::make_shared<Bucket>(
             *this, name, vbuckets, replicas, packet_filter);
-    const auto& vbucketmap = bucket->getVbucketMap();
     json["uuid"] = bucket->getUuid();
-
-    try {
-        //  @todo I need at least the number of nodes to set active + n replicas
-        for (std::size_t node_idx = 0; node_idx < nodes.size(); ++node_idx) {
-            auto connection = nodes[node_idx]->getConnection();
-            connection->connect();
-            connection->authenticate("@admin", "password", "plain");
-            connection->setAgentName("cluster_testapp");
-            connection->setFeatures({cb::mcbp::Feature::MUTATION_SEQNO,
-                                     cb::mcbp::Feature::XATTR,
-                                     cb::mcbp::Feature::XERROR,
-                                     cb::mcbp::Feature::SELECT_BUCKET,
-                                     cb::mcbp::Feature::JSON,
-                                     cb::mcbp::Feature::SNAPPY,
-                                     // CC onwards, enable collections
-                                     cb::mcbp::Feature::Collections});
-            const auto dbname = nodes[node_idx]->directory / name;
-            json["dbname"] = dbname.generic_string();
-            json["alog_path"] = (dbname / "access.log").generic_string();
-            std::string config;
-            for (auto it = json.begin(); it != json.end(); ++it) {
-                if (it.value().is_string()) {
-                    config += it.key() + "=" + it.value().get<std::string>() +
-                              ";";
-                } else {
-                    config += it.key() + "=" + it.value().dump() + ";";
-                }
-            }
-            connection->createBucket(name, config, BucketType::Couchbase);
-            connection->selectBucket(name);
-
-            // iterate over all the vbuckets and find that node number and
-            // define the vbuckets
-            for (std::size_t vbucket = 0; vbucket < vbucketmap.size();
-                 ++vbucket) {
-                std::vector<std::string> chain;
-                for (int ii : vbucketmap[vbucket]) {
-                    chain.emplace_back("n_" + std::to_string(ii));
-                }
-                nlohmann::json topology = {
-                        {"topology", nlohmann::json::array({chain})}};
-                for (std::size_t ii = 0; ii < vbucketmap[vbucket].size();
-                     ++ii) {
-                    if (vbucketmap[vbucket][ii] == int(node_idx)) {
-                        // This is me
-                        if (ii == 0) {
-                            connection->setVbucket(Vbid{uint16_t(vbucket)},
-                                                   vbucket_state_active,
-                                                   topology);
-                        } else {
-                            connection->setVbucket(Vbid{uint16_t(vbucket)},
-                                                   vbucket_state_replica,
-                                                   {});
-                        }
-                    }
-                }
-            }
-
-            // Call enable traffic
-            auto rsp = connection->execute(BinprotGenericCommand{
-                    cb::mcbp::ClientOpcode::EnableTraffic});
-
-            if (!rsp.isSuccess()) {
-                throw ConnectionError("Failed to enable traffic",
-                                      rsp.getStatus());
-            }
-
-            rsp = connection->execute(BinprotSetClusterConfigCommand{
-                    0,
-                    bucket->getManifest().dump(2),
-                    epoch,
-                    revno.load(),
-                    name});
-            if (!rsp.isSuccess()) {
-                throw ConnectionError("Failed to push CCCP", rsp.getStatus());
-            }
+    std::string config;
+    for (auto it = json.begin(); it != json.end(); ++it) {
+        if (it.value().is_string()) {
+            config += it.key() + "=" + it.value().get<std::string>() + ";";
+        } else {
+            config += it.key() + "=" + it.value().dump() + ";";
         }
+    }
+    try {
+        forAllNodes([this, &bucket, &config](const auto& node) {
+            createBucketOnNode(node, *bucket, config);
+        });
 
         if (setUpReplication) {
             bucket->setupReplication();
         }
-        buckets.push_back(bucket);
+        buckets.wlock()->push_back(bucket);
         return bucket;
     } catch (const ConnectionError& e) {
         std::cerr << "ERROR: " << e.what() << std::endl;
-        for (auto& b : nodes) {
-            auto connection = b->getConnection();
+        forAllNodes([&name](const auto& node) {
+            auto connection = node.getConnection();
             connection->connect();
             connection->authenticate("@admin", "password", "plain");
             try {
                 connection->deleteBucket(name);
             } catch (const std::exception&) {
             }
-        }
+        });
     }
 
     return {};
 }
 
 void ClusterImpl::deleteBucket(const std::string& name) {
-    for (auto iter = buckets.begin(); iter != buckets.end(); ++iter) {
-        if ((*iter)->getName() == name) {
-            // The DCP replicators throws an exception if they get a
-            // read error (in the case of others holding a reference
-            // to the bucket class)...
-            (*iter)->shutdownReplication();
-            buckets.erase(iter);
-            break;
+    // The DCP replicators throws an exception if they get a
+    // read error (in the case of others holding a reference
+    // to the bucket class)... Start by locating the bucket
+    // and shut down replication for the bucket and then remove
+    // it from our list of known buckets.
+    buckets.withWLock([&name](auto& vector) {
+        for (auto iter = vector.begin(); iter != vector.end(); ++iter) {
+            if ((*iter)->getName() == name) {
+                (*iter)->shutdownReplication();
+                vector.erase(iter);
+                break;
+            }
         }
-    }
+    });
 
-    // I should wait for the bucket being closed on all nodes..
-    for (auto& n : nodes) {
-        auto connection = n->getConnection();
+    // Iterate over all the nodes and delete the bucket.
+    // Note that failing to delete the bucket on one node would cause
+    // an exception to be thrown and leave the bucket alive on the
+    // remaining nodes. We're going to ignore that problem for now as this
+    // is a testing framework and in that case the test would most likely
+    // fail...
+    forAllNodes([name](const auto& node) {
+        auto connection = node.getConnection();
         connection->connect();
         connection->authenticate("@admin", "password", "plain");
         connection->deleteBucket(name);
-        // And nuke the files for the database on that node..
-        removeWithRetry(n->directory / name);
-    }
+        // And nuke the files for the database on that node.
+        removeWithRetry(node.directory / name);
+    });
 }
 
 size_t ClusterImpl::size() const {
-    return nodes.size();
+    return nodes.rlock()->size();
 }
 
 ClusterImpl::~ClusterImpl() {
-    buckets.clear();
+    // Delete all buckets (tears down replication)
+    buckets.wlock()->clear();
     bool cleanup = true;
 
-    for (auto& n : nodes) {
-        const auto minidump_dir = n->directory / "crash";
+    forAllNodes([&cleanup](const auto& node) {
+        const auto minidump_dir = node.directory / "crash";
         for (const auto& p :
              std::filesystem::directory_iterator(minidump_dir)) {
             if (is_regular_file(p)) {
@@ -324,9 +367,11 @@ ClusterImpl::~ClusterImpl() {
                 break;
             }
         }
-    }
+    });
 
-    nodes.clear();
+    // clear the nodes array (causing the destructor of the nodes
+    // to be called and shut down the memcached processes.)
+    nodes.wlock()->clear();
     // @todo I should make this configurable?
     if (cleanup && exists(directory) && is_directory(directory)) {
         // I'm seeing a lot of failures on windows where file removal returns
@@ -353,9 +398,15 @@ nlohmann::json ClusterImpl::to_json() const {
 }
 
 void ClusterImpl::iterateNodes(std::function<void(const Node&)> visitor) const {
-    for (const auto& n : nodes) {
-        visitor(*n);
-    }
+    forAllNodes(std::move(visitor));
+}
+
+void ClusterImpl::forAllNodes(std::function<void(const Node&)> visitor) const {
+    nodes.withRLock([&visitor](auto& vector) {
+        for (const auto& node : vector) {
+            visitor(*node);
+        }
+    });
 }
 
 static std::filesystem::path createTemporaryDirectory() {

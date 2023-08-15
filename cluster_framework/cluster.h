@@ -127,8 +127,6 @@ public:
     /// cluster is initialized
     static nlohmann::json getUninitializedJson();
 
-    virtual nlohmann::json getGlobalClusterMap() = 0;
-
     /**
      * Utility function to try to remove a file or directory with retries
      * (on windows you cannot remove a file if someone have it open and we
