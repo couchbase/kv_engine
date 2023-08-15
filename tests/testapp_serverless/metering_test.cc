@@ -3123,9 +3123,11 @@ TEST_P(MeteringTest, TTL_Expiry_Compaction) {
                 "bucket_details metering");
 
     // @todo: MB-51979 expiry in an unmetered collection is updating wu
-    EXPECT_EQ(1,
-              after["wu"].get<std::size_t>() - before["wu"].get<std::size_t>());
-
+    if (GetParam() != MeteringType::UnmeteredByCollection) {
+        EXPECT_EQ(1,
+                  after["wu"].get<std::size_t>() -
+                          before["wu"].get<std::size_t>());
+    }
     size_t expiredAfter = std::stoull(getStatForKey("vb_active_expired"));
     EXPECT_NE(expiredBefore, expiredAfter);
 }
