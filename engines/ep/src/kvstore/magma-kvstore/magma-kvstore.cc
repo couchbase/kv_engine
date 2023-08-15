@@ -188,9 +188,13 @@ static std::chrono::seconds getHistoryTimeStamp(const Slice& metaSlice) {
     return getDocMeta(metaSlice).getHistoryTimeStamp();
 }
 
-static std::chrono::seconds getHistoryTimeNow() {
-    // @todo: require interface changes so that we can locate the vbucket and
-    // then peek at the correct HLC
+static std::chrono::seconds getHistoryTimeNow(
+        EventuallyPersistentEngine* engine, Magma::KVStoreID kvid) {
+    if (engine) {
+        return engine->getVBucketHlcNow(Vbid(kvid)).now;
+    }
+
+    // Some unit tests run without an engine and may require a "relevant" time
     using namespace std::chrono;
     return duration_cast<seconds>(nanoseconds(HLC::getMaskedTime()));
 }
@@ -623,7 +627,9 @@ MagmaKVStore::MagmaKVStore(MagmaKVStoreConfig& configuration)
     configuration.magmaCfg.GetValueSize = magmakv::getValueSize;
     configuration.magmaCfg.IsTombstone = magmakv::isDeleted;
     configuration.magmaCfg.GetHistoryTimestamp = magmakv::getHistoryTimeStamp;
-    configuration.magmaCfg.GetHistoryTimeNow = magmakv::getHistoryTimeNow;
+    configuration.magmaCfg.GetHistoryTimeNow = [this](Magma::KVStoreID kvid) {
+        return magmakv::getHistoryTimeNow(currEngine, kvid);
+    };
     configuration.magmaCfg.GetHistoryModeFromMeta =
             magmakv::getHistoryModeFromMeta;
 
