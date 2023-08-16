@@ -45,6 +45,9 @@ public:
         // window.
         config_string += "history_retention_bytes=104857600";
 
+        // run the tests with eager removal to cover an issue noted in MB-56452
+        config_string += ";checkpoint_removal_mode=eager";
+
         CollectionsDcpParameterizedTest::SetUp();
         // To allow tests to set where history begins, use MockMagmaKVStore
         replaceMagmaKVStore();
@@ -388,6 +391,11 @@ TEST_P(HistoryScanTest, TwoSnapshots) {
 
     ensureDcpWillBackfill();
 
+    // Two more keys to create more checkpoints so we could trigger eager
+    // checkpoint removal to cover MB-56452
+    store_item(vbid, makeStoredDocKey("k0", CollectionEntry::vegetable), "v4");
+    store_item(vbid, makeStoredDocKey("k0", CollectionEntry::vegetable), "v5");
+
     // DCP stream with no filter - all collections visible.
     createDcpObjects(std::string_view{},
                      OutOfOrderSnapshots::No,
@@ -396,11 +404,19 @@ TEST_P(HistoryScanTest, TwoSnapshots) {
                      ~0ull,
                      ChangeStreams::Yes);
 
-    // In this test scan and scanHistory must be invoked.
-    // 1) scan
-    runBackfill();
-    // 2) scanHistory
-    runBackfill();
+    // Run the backfill task, which has a number of steps to complete. Note that
+    // to reproduce an issue from MB-56452 run the backfill manually so a flush
+    // can be interleaved. This makes a checkpoint eligible for removal during
+    // the markDisksnaphot callbacks
+    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    // backfill:create()
+    runNextTask(lpAuxioQ);
+
+    // flush after the snapshot is opened
+    flush_vbucket_to_disk(vbid, 2);
+
+    // backfill:scan()
+    runNextTask(lpAuxioQ);
 
     auto vbR = store->getVBucket(replicaVB);
     auto vbA = store->getVBucket(vbid);
@@ -419,7 +435,8 @@ TEST_P(HistoryScanTest, TwoSnapshots) {
 
     EXPECT_EQ(items1.back().getBySeqno(), vbR->getHighSeqno());
     EXPECT_EQ(0, vbR->checkpointManager->getSnapshotInfo().range.getStart());
-    EXPECT_EQ(vbA->getHighSeqno(),
+    // note: test hasn't replicated the final mutations, so - 2 for some expects
+    EXPECT_EQ(vbA->getHighSeqno() - 2,
               vbR->checkpointManager->getSnapshotInfo().range.getEnd());
 
     SCOPED_TRACE("History Snapshot");
@@ -435,11 +452,18 @@ TEST_P(HistoryScanTest, TwoSnapshots) {
                      {},
                      items2);
 
-    EXPECT_EQ(vbA->getHighSeqno(), vbR->getHighSeqno());
+    // note: test hasn't replicated the final mutations, so - 2 for some expects
+    EXPECT_EQ(vbA->getHighSeqno() - 2, vbR->getHighSeqno());
     EXPECT_EQ(items2.back().getBySeqno(), vbR->getHighSeqno());
     EXPECT_EQ(0, vbR->checkpointManager->getSnapshotInfo().range.getStart());
-    EXPECT_EQ(vbA->getHighSeqno(),
+    EXPECT_EQ(vbA->getHighSeqno() - 2,
               vbR->checkpointManager->getSnapshotInfo().range.getEnd());
+
+    // MB-56452: A bug with cursor registration and eager checkpoint removal
+    // meant that the stream was back to backfilling... it should be in-memory
+    auto stream = producer->findStream(vbid);
+    ASSERT_TRUE(stream);
+    EXPECT_TRUE(stream->isInMemory());
 }
 
 // Test OSO switches to history

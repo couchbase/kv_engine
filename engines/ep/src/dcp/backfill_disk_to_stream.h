@@ -113,7 +113,8 @@ protected:
          * the snapshot range of the disk snapshot being used by DCP backfill.
          */
         HistoryScanCtx(uint64_t historyStartSeqno,
-                       snapshot_info_t snapshotInfo);
+                       snapshot_info_t snapshotInfo,
+                       SnapshotType snapshotType);
         ~HistoryScanCtx();
 
         /**
@@ -136,6 +137,11 @@ protected:
          */
         bool startSeqnoIsInsideHistoryWindow() const;
 
+        /**
+         * @return the type for the current history scan
+         */
+        SnapshotType getSnapshotType() const;
+
         // Record the historyStartSeqno
         uint64_t historyStartSeqno{0};
 
@@ -144,6 +150,9 @@ protected:
 
         // A ScanContext which "drives" the history scan
         std::unique_ptr<ScanContext> scanCtx;
+
+        // type of the history scan (see the enum definition)
+        const SnapshotType snapshotType;
     };
 
     // If a history scan is required this optional will be initialised.
