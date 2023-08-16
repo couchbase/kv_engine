@@ -643,6 +643,10 @@ std::shared_ptr<InitialMFUTask> KVBucketTest::getInitialMfuUpdaterTask() const {
     return store->initialMfuUpdaterTask;
 }
 
+void KVBucketTest::setProcessExpiredItemHook(std::function<void()> cb) {
+    store->processExpiredItemHook = std::move(cb);
+}
+
 class KVBucketParamTest : public STParameterizedBucketTest {
     void SetUp() override {
         STParameterizedBucketTest::SetUp();

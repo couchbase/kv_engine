@@ -6727,6 +6727,7 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
               "ep_bfilter_residency_threshold",
               "ep_bg_fetch_avg_read_amplification",
               "ep_bg_fetched",
+              "ep_bg_fetched_compaction",
               "ep_bg_meta_fetched",
               "ep_bg_remaining_items",
               "ep_bg_remaining_jobs",

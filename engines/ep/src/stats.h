@@ -379,6 +379,9 @@ public:
 
     //! Number of times background fetches occurred.
     Counter bg_fetched;
+    //! Number of times background fetches were triggered by compaction (for
+    //! expiry).
+    Counter bg_fetched_compaction;
     //! Number of times meta background fetches occurred.
     Counter bg_meta_fetched;
     //! Number of remaining bg fetch items

@@ -3468,5 +3468,13 @@
         "type": "counter",
         "description": "Counter of all SetWithMeta/DelWithMeta conflict resolution results. The result may be that the incoming operation was: accepted as it is 'ahead', rejected as it is 'behind', or rejected as it appears identical (by metadata, not comparing document bodies)",
         "added": "7.2.0"
+    },
+    {
+        "key": "ep_bg_fetched_compaction",
+        "cbstat": "ep_bg_fetched_compaction",
+        "unit": "none",
+        "type": "counter",
+        "description": "The number of bgfetches which are triggered by compaction",
+        "added": "7.1.5"
     }
 ]
