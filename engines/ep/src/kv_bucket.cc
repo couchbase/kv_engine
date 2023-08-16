@@ -632,10 +632,13 @@ void KVBucket::processExpiredItem(Item& it, time_t startTime, ExpireBy source) {
 
     // Obtain reader access to the VB state change lock so that the VB can't
     // switch state whilst we're processing
-    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-    if (vb->getState() == vbucket_state_active) {
-        vb->processExpiredItem(it, startTime, source);
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        if (vb->getState() == vbucket_state_active) {
+            vb->processExpiredItem(it, startTime, source);
+        }
     }
+    processExpiredItemHook();
 }
 
 bool KVBucket::isMetaDataResident(VBucketPtr &vb, const DocKey& key) {

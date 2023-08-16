@@ -383,6 +383,11 @@ public:
 
     std::shared_ptr<InitialMFUTask> getInitialMfuUpdaterTask() const;
 
+    /**
+     * Register a hook which will be called in KVBucket::processExpiredItem;
+     */
+    void setProcessExpiredItemHook(std::function<void()> cb);
+
 private:
     /**
      * Destroy the test objects - e.g. engine/store/cookie

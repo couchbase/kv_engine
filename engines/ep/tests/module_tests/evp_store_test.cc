@@ -659,8 +659,7 @@ TEST_P(EPBucketFullEvictionTest, ExpiryFindNonResidentItem) {
     flushVBucketToDiskIfPersistent(vbid, 1);
 }
 
-void EPBucketFullEvictionTest::compactionFindsNonResidentItem(
-        bool dropCollection, bool switchToReplica) {
+void EPBucketFullEvictionTest::compactionFindsNonResidentItem() {
     EXPECT_EQ(cb::engine_errc::success,
               store->setVBucketState(vbid, vbucket_state_active, {}));
 
@@ -687,19 +686,11 @@ void EPBucketFullEvictionTest::compactionFindsNonResidentItem(
     ASSERT_EQ(0, vb->numExpiredItems);
 
     // 4) Callback from the "compactor" with Av1
-    vb->processExpiredItem(*q[diskDocKey].value.item, 0, ExpireBy::Compactor);
+    store->processExpiredItem(
+            *q[diskDocKey].value.item, 0, ExpireBy::Compactor);
 
-    int expectedExpiredItems = 1;
-    if (dropCollection) {
-        CollectionsManifest cm;
-        cm.remove(CollectionEntry::defaultC);
-        EXPECT_EQ(setCollections(cookie, cm), cb::engine_errc::success);
-        expectedExpiredItems = 0;
-        flushVBucketToDiskIfPersistent(vbid, 1);
-    } else {
-        // We should not have deleted the item and should not flush anything
-        flushVBucketToDiskIfPersistent(vbid, 0);
-    }
+    // We should not have deleted the item and should not flush anything
+    flushVBucketToDiskIfPersistent(vbid, 0);
 
     EXPECT_EQ(0, vb->numExpiredItems);
 
@@ -707,55 +698,78 @@ void EPBucketFullEvictionTest::compactionFindsNonResidentItem(
     EXPECT_EQ(1, vb->getNumItems());
     ASSERT_TRUE(vb->hasPendingBGFetchItems());
 
-    auto highSeqno = vb->getHighSeqno();
-    if (switchToReplica) {
-        EXPECT_EQ(cb::engine_errc::success,
-                  store->setVBucketState(vbid, vbucket_state_replica, {}));
-    }
-
     runBGFetcherTask();
-
-    if (!switchToReplica) {
-        EXPECT_FALSE(vb->hasPendingBGFetchItems());
-
-        // We should have expired the item
-        EXPECT_EQ(expectedExpiredItems, vb->numExpiredItems);
-
-        // But it still exists on disk until we flush
-        EXPECT_EQ(1, vb->getNumItems());
-
-        auto expectedItems = 0;
-        if (isRocksDB() || dropCollection) {
-            // RocksDB doesn't know if we insert or update so item counts are
-            // not correct. Or if we drop the collection, no expiry. Item count
-            // won't be updated until collections are purged, so 1 is correct.
-            expectedItems = 1;
-            if (dropCollection) {
-                EXPECT_EQ(highSeqno, vb->getHighSeqno());
-            }
-        } else {
-            EXPECT_LT(highSeqno, vb->getHighSeqno());
-            flushVBucketToDiskIfPersistent(vbid, 1);
-        }
-        EXPECT_EQ(expectedItems, vb->getNumItems());
-    } else {
-        EXPECT_EQ(0, vb->numExpiredItems);
-        EXPECT_EQ(highSeqno, vb->getHighSeqno());
-    }
 }
 
 TEST_P(EPBucketFullEvictionTest, CompactionFindsNonResidentItem) {
-    compactionFindsNonResidentItem(false, false);
+    auto vb = store->getVBucket(vbid);
+    auto highSeqno = vb->getHighSeqno();
+    compactionFindsNonResidentItem();
+
+    EXPECT_FALSE(vb->hasPendingBGFetchItems());
+
+    // We should have expired the item
+    EXPECT_EQ(1, vb->numExpiredItems);
+
+    if (isRocksDB()) {
+        // RocksDB doesn't know if we insert or update so item counts are
+        // not correct.
+        EXPECT_EQ(1, vb->getNumItems());
+    } else {
+        EXPECT_EQ(1, vb->getNumItems());
+        flushVBucketToDiskIfPersistent(vbid, 1);
+        EXPECT_EQ(0, vb->getNumItems());
+    }
+    EXPECT_EQ(highSeqno + 2, vb->getHighSeqno());
 }
 
 TEST_P(EPBucketFullEvictionTest, MB_42295_dropCollectionBeforeExpiry) {
-    compactionFindsNonResidentItem(true, false);
+    auto vb = store->getVBucket(vbid);
+    auto highSeqno = vb->getHighSeqno();
+    // set callback which will be triggered _after_ vb->processExpiredItem
+    // but _before_ the CompactionBGFetchItem is completed
+    setProcessExpiredItemHook([&]() {
+        CollectionsManifest cm;
+        cm.remove(CollectionEntry::defaultC);
+        EXPECT_EQ(setCollections(cookie, cm), cb::engine_errc::success);
+        flushVBucketToDiskIfPersistent(vbid, 1);
+    });
+    compactionFindsNonResidentItem();
+
+    EXPECT_FALSE(vb->hasPendingBGFetchItems());
+
+    // We should not have expired the item (it was dropped instead)
+    EXPECT_EQ(0, vb->numExpiredItems);
+
+    // item should have been created, but no deletion generated
+    // _but_, there will be a system event
+    EXPECT_EQ(highSeqno + 2, vb->getHighSeqno());
+    // item should still be on disk until compaction (full eviction
+    // num items comes from disk)
+    EXPECT_EQ(1, vb->getNumItems());
 }
 
 TEST_P(EPBucketFullEvictionTest, MB_48841_switchToReplica) {
     // Test will switch from active to replica, bgfetch runs whilst replica and
     // all pending expiries must not take affect.
-    compactionFindsNonResidentItem(false, true);
+    auto vb = store->getVBucket(vbid);
+    auto highSeqno = vb->getHighSeqno();
+    // set callback which will be triggered _after_ vb->processExpiredItem
+    // but _before_ the CompactionBGFetchItem is completed.
+    // Checks that the vbucket does not erroneously delete an expired item even
+    // after changing state to replica
+    setProcessExpiredItemHook([&]() {
+        EXPECT_EQ(cb::engine_errc::success,
+                  store->setVBucketState(vbid, vbucket_state_replica, {}));
+    });
+    compactionFindsNonResidentItem();
+    // shouldn't have expired any items
+    EXPECT_EQ(0, vb->numExpiredItems);
+    // one document should have been created, and it should not have been
+    // deleted (even though it has expired) as replicas cannot expire items
+    EXPECT_EQ(highSeqno + 1, vb->getHighSeqno());
+    // item should still be on disk
+    EXPECT_EQ(1, vb->getNumItems());
 }
 
 /**
