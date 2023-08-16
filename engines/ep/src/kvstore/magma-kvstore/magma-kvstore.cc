@@ -3666,8 +3666,6 @@ bool MagmaKVStore::getStat(std::string_view name, size_t& value) const {
 
 GetStatsMap MagmaKVStore::getStats(
         gsl::span<const std::string_view> keys) const {
-    auto magmaStats = magma->GetStats();
-
     GetStatsMap stats;
     auto fill = [&](std::string_view statName, size_t value) {
         auto it = std::find(keys.begin(), keys.end(), statName);
@@ -3675,8 +3673,16 @@ GetStatsMap MagmaKVStore::getStats(
             stats.try_emplace(*it, value);
         }
     };
-    fill("memory_quota", magmaStats->MemoryQuota);
+
+    // failure_get does not call into magma, if no other stat is required return
+    // early without calling into magma
     fill("failure_get", st.numGetFailure.load());
+    if (keys.size() == stats.size()) {
+        return stats;
+    }
+
+    auto magmaStats = magma->GetStats();
+    fill("memory_quota", magmaStats->MemoryQuota);
     fill("storage_mem_used", magmaStats->TotalMemUsed);
     fill("magma_HistorySizeBytesEvicted", magmaStats->HistorySizeBytesEvicted);
     fill("magma_HistoryTimeBytesEvicted", magmaStats->HistoryTimeBytesEvicted);
