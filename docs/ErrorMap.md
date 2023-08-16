@@ -112,6 +112,8 @@ deal with the attributes they understand.
 
 * `rate-limit`: The error is related to rate limitation for the client (version 2)
 
+* `guard-rail`: The error is related to guard rails (version 2)
+
 * `success`: The operation was successful for those situations where the error
   code is indicating successful (i.e. subdocument operations carried out on a
   deleted document)

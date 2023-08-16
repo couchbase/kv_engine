@@ -217,6 +217,7 @@
             "name": "BUCKET_RESIDENT_RATIO_TOO_LOW",
             "desc": "Bucket resident ratio too low, write to this bucket is rejected",
             "attrs": [
+                "guard-rail",
                 "item-only",
                 "rate-limit"
             ]
@@ -225,6 +226,7 @@
             "name": "BUCKET_DATA_SIZE_TOO_BIG",
             "desc": "Bucket Data Size exceeds maximum allowed size, writes to this bucket is rejected",
             "attrs": [
+                "guard-rail",
                 "item-only",
                 "rate-limit"
             ]
@@ -233,6 +235,7 @@
             "name": "BUCKET_DISK_SPACE_TOO_LOW",
             "desc": "Disk space where the bucket is deployed is above the configured threshold, writes to this bucket is rejected",
             "attrs": [
+                "guard-rail",
                 "item-only",
                 "rate-limit"
             ]
