@@ -65,18 +65,22 @@ protected:
         return kvstore->getCollectionStats(vbid, cid).second.diskSize;
     }
 
+    void setAndCommit(queued_item& qi, bool expected) {
+        auto ctx =
+                kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
+        kvstore->set(*ctx, qi);
+        flush.proposedVBState.lastSnapStart = qi->getBySeqno();
+        flush.proposedVBState.lastSnapEnd = qi->getBySeqno();
+        EXPECT_EQ(expected, kvstore->commit(std::move(ctx), flush));
+    }
+
     queued_item doWrite(uint64_t seqno,
                         bool expected,
                         const std::string& key = "key") {
-        auto ctx =
-                kvstore->begin(vbid, std::make_unique<PersistenceCallback>());
         auto qi = makeCommittedItem(makeStoredDocKey(key),
                                     "value" + std::to_string(seqno));
         qi->setBySeqno(seqno);
-        flush.proposedVBState.lastSnapStart = seqno;
-        flush.proposedVBState.lastSnapEnd = seqno;
-        kvstore->set(*ctx, qi);
-        EXPECT_EQ(expected, kvstore->commit(std::move(ctx), flush));
+        setAndCommit(qi, expected);
         return qi;
     };
 
@@ -981,6 +985,17 @@ protected:
         configStr = "history_retention_bytes=104857600;";
         MagmaKVStoreTest::SetUp();
     }
+
+    queued_item doWrite(uint64_t seqno,
+                        bool expected,
+                        const std::string& key = "key") {
+        auto qi = makeCommittedItem(makeStoredDocKey(key),
+                                    "seqno:" + std::to_string(seqno));
+        qi->setBySeqno(seqno);
+        qi->setCanDeduplicate(CanDeduplicate::No);
+        setAndCommit(qi, expected);
+        return qi;
+    };
 
     void TearDown() override {
         MagmaKVStoreTest::TearDown();
