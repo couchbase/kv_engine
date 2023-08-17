@@ -39,7 +39,7 @@ def cmd_decorator(f):
 
         # check arguments are suitable for wrapped func
         mc = args[0]
-        spec = inspect.getargspec(f)
+        spec = inspect.getfullargspec(f)
         max_args = len(spec.args)
         defaults = len(spec.defaults) if spec.defaults else 0
         min_args = max_args - defaults
