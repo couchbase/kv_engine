@@ -407,12 +407,6 @@ TEST_F(StatTest, CollectorMapsTypesCorrectly) {
     testTypes(float(), float());
 }
 
-MATCHER_P(StatDefNameMatcher,
-          expectedName,
-          "Check the unique name of the StatDef matches") {
-    return arg.cbstatsKey.key == expectedName;
-}
-
 MATCHER_P(MetricFamilyMatcher,
           expectedName,
           "Check the Prometheus metric family of the StatDef matches") {

@@ -64,6 +64,10 @@ public:
         return cb::engine_errc::no_such_key;
     }
 
+    void getAggregatedVBucketStats(
+            const BucketStatCollector& collector,
+            cb::prometheus::MetricGroup metricGroup) override;
+
     size_t getPageableMemCurrent() const override;
     size_t getPageableMemHighWatermark() const override;
     size_t getPageableMemLowWatermark() const override;

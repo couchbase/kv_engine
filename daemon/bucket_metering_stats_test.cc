@@ -68,13 +68,6 @@ protected:
     Bucket* bucket;
 };
 
-MATCHER_P(StatDefNameMatcher,
-          expectedName,
-          fmt::format("Check the name of the StatDef matches '{}'",
-                      expectedName)) {
-    return arg.cbstatsKey.key == expectedName;
-}
-
 TEST_F(BucketMeteringStatsTest, CollectInitialMeteringStats) {
     using namespace ::testing;
     using namespace std::literals::string_view_literals;

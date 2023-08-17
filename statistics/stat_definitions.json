@@ -3093,6 +3093,30 @@
         },
         "added": "7.0.0"
     },
+    /* Ephemeral and replica-only */
+    {
+        "key": "ephemeral_vb_ht_memory",
+        "unit": "bytes",
+        "cbstat": "ht_mem_used_{state}",
+        "prometheus": {
+            "family": "ephemeral_vb_ht_memory"
+        },
+        "added": "trinity",
+        "stability": "internal",
+        "description": "Total memory used by HashTable items"
+    },
+    /* Ephemeral and replica-only */
+    {
+        "key": "ephemeral_vb_checkpoint_memory_overhead",
+        "unit": "bytes",
+        "cbstat": "{state}_checkpoint_memory_overhead",
+        "prometheus": {
+            "family": "ephemeral_vb_checkpoint_memory_overhead"
+        },
+        "added": "trinity",
+        "stability": "internal",
+        "description": "Total memory overhead of all checkpoints"
+    },
     {
         "key": "connagg_connection_count",
         "unit": "count",

@@ -28,8 +28,11 @@
 #include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_stream.h"
 #include "../mock/mock_synchronous_ep_engine.h"
+#include <folly/portability/GMock.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
+#include <statistics/labelled_collector.h>
+#include <statistics/tests/mock/mock_stat_collector.h>
 
 /*
  * Test statistics related to an individual VBucket's sequence list.
@@ -268,6 +271,37 @@ TEST_F(EphemeralBucketStatTest, ReplicaMemoryTrackingStateChange) {
 
     EXPECT_EQ(0, stats.replicaHTMemory);
     EXPECT_EQ(0, stats.replicaCheckpointOverhead);
+}
+
+TEST_F(EphemeralBucketStatTest, ReplicaMemoryTrackingStats) {
+    {
+        SCOPED_TRACE("");
+        replicaMemoryTrackingTestSetup();
+    }
+
+    using namespace ::testing;
+    using namespace std::literals::string_view_literals;
+    // Now check what happens when we delete a vBucket, we first need to change
+    // back to replica though to start tracking memory against the replica
+    // counters again.
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    auto& stats = engine->getEpStats();
+
+    NiceMock<MockStatCollector> collector;
+    EXPECT_CALL(collector,
+                addStat(StatDefNameMatcher("ephemeral_vb_ht_memory_bytes"),
+                        Matcher<int64_t>(stats.replicaHTMemory),
+                        Contains(Pair("state"sv, "replica"))));
+    EXPECT_CALL(
+            collector,
+            addStat(StatDefNameMatcher(
+                            "ephemeral_vb_checkpoint_memory_overhead_bytes"),
+                    Matcher<int64_t>(stats.replicaCheckpointOverhead),
+                    Contains(Pair("state"sv, "replica"))));
+
+    store->getAggregatedVBucketStats(collector.forBucket("foobar"),
+                                     cb::prometheus::MetricGroup::High);
 }
 
 TEST_F(EphemeralBucketStatTest, AutoDeleteCountResetOnStateChange) {

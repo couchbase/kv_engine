@@ -349,10 +349,10 @@ public:
     //! Core-local statistics
     CoreStore<folly::cacheline_aligned<CoreLocalStats>> coreLocal;
 
-    // Total memory used by hashtable items for replica vbuckets.
+    // Total memory used by hashtable items for replica vbuckets for Ephemeral.
     cb::RelaxedAtomic<int64_t> replicaHTMemory;
 
-    // Total memory used by checkpoints for replica vbuckets.
+    // Total memory overhead of checkpoints for replica vbuckets.
     cb::RelaxedAtomic<int64_t> replicaCheckpointOverhead;
 
     //! Whether or not to force engine shutdown.

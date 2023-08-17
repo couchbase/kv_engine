@@ -140,6 +140,32 @@ bool EphemeralBucket::initialize() {
     return true;
 }
 
+void EphemeralBucket::getAggregatedVBucketStats(
+        const BucketStatCollector& collector,
+        cb::prometheus::MetricGroup metricGroup) {
+    using namespace cb::stats;
+    KVBucket::getAggregatedVBucketStats(collector, metricGroup);
+
+    bool doHigh = cb::prometheus::MetricGroup::All == metricGroup ||
+                  cb::prometheus::MetricGroup::High == metricGroup;
+    if (doHigh) {
+        auto replicaCollector = collector.withLabels(
+                {{"state", VBucket::toString(vbucket_state_replica)}});
+        // For ephemeral replica vBuckets, we track two more stats used for
+        // paging decisions. These are replicaHTMemory and
+        // replicaCheckpointOverhead. While we have stats with the same
+        // semantics already - vb_ht_memory{state=replica} and
+        // vb_checkpoint_memory_overhead{state=replica}, those are not using the
+        // same underlying counters.
+        //
+        // MB-55695: Expose replicaHTMemory and replicaCheckpointOverhead
+        replicaCollector.addStat(Key::ephemeral_vb_ht_memory,
+                                 stats.replicaHTMemory);
+        replicaCollector.addStat(Key::ephemeral_vb_checkpoint_memory_overhead,
+                                 stats.replicaCheckpointOverhead);
+    }
+}
+
 size_t EphemeralBucket::getPageableMemCurrent() const {
     // Ephemeral buckets differ from persistent in terms of how memory can
     // be freed - only active items can (potentially) be directly deleted

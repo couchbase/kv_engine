@@ -72,3 +72,10 @@ public:
                 (std::optional<ScopeID> sid, std::optional<CollectionID> cid),
                 (const, override));
 };
+
+MATCHER_P(StatDefNameMatcher,
+          expectedName,
+          fmt::format("Check the metric family of the StatDef matches '{}'",
+                      expectedName)) {
+    return arg.metricFamily == expectedName;
+}
