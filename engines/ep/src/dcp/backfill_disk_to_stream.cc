@@ -71,7 +71,8 @@ bool DCPBackfillDiskToStream::setupForHistoryScan(ActiveStream& stream,
         // Set the start then as the requested startSeqno
         historyScan = std::make_unique<HistoryScanCtx>(
                 scanCtx.historyStartSeqno,
-                snapshot_info_t{startSeqno, completeRange});
+                snapshot_info_t{startSeqno, completeRange},
+                SnapshotType::History);
         return true;
     } else {
         // The scan will be in both ranges, scan crosses from the non-history
@@ -79,7 +80,8 @@ bool DCPBackfillDiskToStream::setupForHistoryScan(ActiveStream& stream,
         // Set the start then as the historyStartSeqno
         historyScan = std::make_unique<HistoryScanCtx>(
                 scanCtx.historyStartSeqno,
-                snapshot_info_t{scanCtx.historyStartSeqno, completeRange});
+                snapshot_info_t{scanCtx.historyStartSeqno, completeRange},
+                SnapshotType::HistoryFollowingNoHistory);
         // Adjust the current scan so that it doesn't enter into the history
         // range, it will include, then stop after the last seqno before history
         // begins.
@@ -135,10 +137,21 @@ bool DCPBackfillDiskToStream::HistoryScanCtx::startSeqnoIsInsideHistoryWindow()
 }
 
 DCPBackfillDiskToStream::HistoryScanCtx::HistoryScanCtx(
-        uint64_t historyStartSeqno, snapshot_info_t snapshotInfo)
-    : historyStartSeqno(historyStartSeqno), snapshotInfo(snapshotInfo) {
+        uint64_t historyStartSeqno,
+        snapshot_info_t snapshotInfo,
+        SnapshotType snapshotType)
+    : historyStartSeqno(historyStartSeqno),
+      snapshotInfo(snapshotInfo),
+      snapshotType(snapshotType) {
+    Expects(snapshotType == SnapshotType::History ||
+            snapshotType == SnapshotType::HistoryFollowingNoHistory);
 }
+
 DCPBackfillDiskToStream::HistoryScanCtx::~HistoryScanCtx() = default;
+
+SnapshotType DCPBackfillDiskToStream::HistoryScanCtx::getSnapshotType() const {
+    return snapshotType;
+}
 
 // Creation "step"
 bool DCPBackfillDiskToStream::scanHistoryCreate(
@@ -168,7 +181,7 @@ bool DCPBackfillDiskToStream::scanHistoryCreate(
                 ctx.persistedCompletedSeqno,
                 ctx.maxVisibleSeqno,
                 ctx.timestamp,
-                ActiveStream::SnapshotSource::History)) {
+                historyScanCtx.getSnapshotType())) {
         // Stream rejected the marker
         return false;
     }

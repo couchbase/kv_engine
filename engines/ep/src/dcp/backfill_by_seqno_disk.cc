@@ -295,8 +295,8 @@ bool DCPBackfillBySeqnoDisk::markDiskSnapshot(ActiveStream& stream,
             scanCtx.persistedCompletedSeqno,
             scanCtx.maxVisibleSeqno,
             scanCtx.timestamp,
-            historyScan ? ActiveStream::SnapshotSource::NoHistoryPrologue
-                        : ActiveStream::SnapshotSource::NoHistory);
+            historyScan ? SnapshotType::NoHistoryPrecedingHistory
+                        : SnapshotType::NoHistory);
 }
 
 // This function is used for backfills where the stream is configured as a
@@ -372,7 +372,7 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
                                        scanCtx.persistedCompletedSeqno,
                                        scanCtx.maxVisibleSeqno,
                                        scanCtx.timestamp,
-                                       ActiveStream::SnapshotSource::NoHistory);
+                                       SnapshotType::NoHistory);
     }
 
     // Need to figure out the maxSeqno/maxVisibleSeqno for calling
@@ -456,13 +456,12 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
     if (gv.getStatus() == cb::engine_errc::success) {
         if (gv.item->isCommitted()) {
             // Step 3. If this is a committed item, done.
-            return stream.markDiskSnapshot(
-                    startSeqno,
-                    stats.highSeqno,
-                    {},
-                    stats.highSeqno,
-                    {},
-                    ActiveStream::SnapshotSource::NoHistory);
+            return stream.markDiskSnapshot(startSeqno,
+                                           stats.highSeqno,
+                                           {},
+                                           stats.highSeqno,
+                                           {},
+                                           SnapshotType::NoHistory);
         }
     } else if (gv.getStatus() != cb::engine_errc::no_such_key) {
         stream.log(spdlog::level::level_enum::warn,
@@ -580,7 +579,7 @@ bool DCPBackfillBySeqnoDisk::markLegacyDiskSnapshot(ActiveStream& stream,
                                        {},
                                        cb.maxVisibleSeqno,
                                        {},
-                                       ActiveStream::SnapshotSource::NoHistory);
+                                       SnapshotType::NoHistory);
     } else {
         endStreamIfNeeded();
         // Found nothing committed at all
