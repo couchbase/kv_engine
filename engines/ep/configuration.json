@@ -267,6 +267,12 @@
             "dynamic": false,
             "type": "bool"
         },
+        "compaction_expiry_fetch_inline" : {
+            "default": "true",
+            "descr": "If compaction requires a bgfetch before attempting expiry to ensure it does not expire an older version of the document, true: fetch it in the compaction thread. false: queue a bgfetch for the bgfetcher task to complete",
+            "dynamic": true,
+            "type": "bool"
+        },
         "compression_mode": {
             "default": "off",
             "descr": "Determines which compression mode the bucket operates in",

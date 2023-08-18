@@ -851,6 +851,8 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setMagmaKeyTreeIndexBlockSize(std::stoull(val));
         } else if (key == "compaction_expire_from_start") {
             configuration.setCompactionExpireFromStart(cb_stob(val));
+        } else if (key == "compaction_expiry_fetch_inline") {
+            configuration.setCompactionExpiryFetchInline(cb_stob(val));
         } else if (key == "vbucket_mapping_sanity_checking") {
             configuration.setVbucketMappingSanityChecking(cb_stob(val));
         } else if (key == "vbucket_mapping_sanity_checking_error_mode") {

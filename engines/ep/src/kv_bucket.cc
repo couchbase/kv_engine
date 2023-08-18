@@ -165,6 +165,8 @@ public:
             }
         } else if (key == "xattr_enabled") {
             store.setXattrEnabled(value);
+        } else if (key.compare("compaction_expiry_fetch_inline") == 0) {
+            store.setCompactionExpiryFetchInline(value);
         }
     }
 
@@ -438,6 +440,11 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     config.addValueChangedListener(
             "history_retention_bytes",
             std::make_unique<EPStoreValueChangeListener>(*this));
+
+    setCompactionExpiryFetchInline(config.isCompactionExpiryFetchInline());
+    config.addValueChangedListener(
+            "compaction_expiry_fetch_inline",
+            std::make_unique<EPStoreValueChangeListener>(*this));
 }
 
 bool KVBucket::initialize() {
@@ -630,15 +637,32 @@ void KVBucket::processExpiredItem(Item& it, time_t startTime, ExpireBy source) {
         runPreExpiryHook(*vb, it);
     }
 
+    std::unique_ptr<CompactionBGFetchItem> bgfetch;
+
     // Obtain reader access to the VB state change lock so that the VB can't
     // switch state whilst we're processing
     {
         folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         if (vb->getState() == vbucket_state_active) {
-            vb->processExpiredItem(it, startTime, source);
+            bgfetch = vb->processExpiredItem(it, startTime, source);
         }
     }
     processExpiredItemHook();
+
+    if (!bgfetch) {
+        return;
+    }
+
+    Expects(source == ExpireBy::Compactor);
+
+    auto fetchStartTime = std::chrono::steady_clock::now();
+
+    auto key = DiskDocKey(it);
+    auto gv = getROUnderlying(vb->getId())->get(key, vb->getId());
+
+    bgfetch->value = &gv;
+
+    bgfetch->complete(engine, vb, fetchStartTime, key);
 }
 
 bool KVBucket::isMetaDataResident(VBucketPtr &vb, const DocKey& key) {
@@ -3224,4 +3248,12 @@ void KVBucket::createNewActiveCheckpoints() {
             }
         }
     }
+}
+
+void KVBucket::setCompactionExpiryFetchInline(bool value) {
+    compactionExpiryFetchInline = value;
+}
+
+bool KVBucket::isCompactionExpiryFetchInline() const {
+    return compactionExpiryFetchInline;
 }

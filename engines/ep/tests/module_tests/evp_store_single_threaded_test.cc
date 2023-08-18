@@ -690,6 +690,11 @@ std::string STParameterizedBucketTest::PrintToStringParamName(
                        "per_doc_comp");
     boost::replace_all(
             config, "magma_per_document_compression_enabled=false", "");
+
+    boost::replace_all(config,
+                       "compaction_expiry_fetch_inline=true",
+                       "compaction_fetch_inline");
+    boost::replace_all(config, "_compaction_expiry_fetch_inline=false", "");
     return config;
 }
 
