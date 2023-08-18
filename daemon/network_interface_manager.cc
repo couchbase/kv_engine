@@ -156,6 +156,10 @@ void NetworkInterfaceManager::createBootstrapInterface() {
     writeInterfaceFile(true);
 }
 
+bool NetworkInterfaceManager::isTlsConfigured() {
+    return tlsConfiguration.rlock()->get();
+}
+
 void NetworkInterfaceManager::writeInterfaceFile(bool terminate) {
     auto& settings = Settings::instance();
 
@@ -476,17 +480,12 @@ NetworkInterfaceManager::doTlsReconfigure(const nlohmann::json& spec) {
 }
 
 uniqueSslPtr NetworkInterfaceManager::createClientSslHandle() {
-    uniqueSslPtr ret;
-    try {
-        tlsConfiguration.withRLock([&ret](auto& config) {
-            if (config) {
-                ret = config->createClientSslHandle();
-            }
-        });
-    } catch (const std::exception& e) {
-        LOG_WARNING("Create TLS handle failed: {}", e.what());
-    }
-    return ret;
+    return tlsConfiguration.withRLock([](auto& config) -> uniqueSslPtr {
+        if (config) {
+            return config->createClientSslHandle();
+        }
+        return {};
+    });
 }
 
 std::shared_ptr<folly::SSLContext> NetworkInterfaceManager::getSslContext() {

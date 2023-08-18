@@ -1172,14 +1172,10 @@ std::unique_ptr<Connection> Connection::create(
     if (folly) {
         std::shared_ptr<folly::SSLContext> context;
         if (descr->tls) {
-            try {
-                context = networkInterfaceManager->getSslContext();
-            } catch (const std::exception&) {
-                if (descr->system) {
-                    --stats.system_conns;
-                }
-                safe_close(sfd);
-                throw;
+            context = networkInterfaceManager->getSslContext();
+            if (!context) {
+                throw std::runtime_error(
+                        "Connection::create: Failed to create TLS context");
             }
         }
 
@@ -1189,14 +1185,10 @@ std::unique_ptr<Connection> Connection::create(
 
     uniqueSslPtr context;
     if (descr->tls) {
-        try {
-            context = networkInterfaceManager->createClientSslHandle();
-        } catch (const std::exception&) {
-            if (descr->system) {
-                --stats.system_conns;
-            }
-            safe_close(sfd);
-            throw;
+        context = networkInterfaceManager->createClientSslHandle();
+        if (!context) {
+            throw std::runtime_error(
+                    "Connection::create: Failed to create TLS context");
         }
     }
 

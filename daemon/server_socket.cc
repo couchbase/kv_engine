@@ -93,6 +93,9 @@ protected:
     /// The libevent object we're using
     cb::libevent::unique_event_ptr ev;
 
+    /// Is TLS configured yet?
+    bool tls_configured = false;
+
     /// The notification handler registered in libevent
     static void listen_event_handler(evutil_socket_t, short, void* arg);
 };
@@ -220,6 +223,25 @@ void LibeventServerSocketImpl::acceptNewClient() {
         LOG_WARNING_RAW("Failed to make socket non-blocking. closing it");
         safe_close(client);
         return;
+    }
+
+    if (interface->tls && !tls_configured) {
+        tls_configured = networkInterfaceManager->isTlsConfigured();
+        if (!tls_configured) {
+            try {
+                LOG_INFO(
+                        "MB-58154: Closing connection from {} to TLS port as "
+                        "TLS isn't configured yet",
+                        cb::net::getpeername(client));
+
+            } catch (const std::exception&) {
+                LOG_INFO_RAW(
+                        "MB-58154: Closing connection to TLS port as TLS isn't "
+                        "configured yet");
+            }
+            safe_close(client);
+            return;
+        }
     }
 
     // Check if we're exceeding the connection limits

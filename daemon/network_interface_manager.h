@@ -53,6 +53,9 @@ public:
     /// Create the bootstrap interface for external users to connect to
     void createBootstrapInterface();
 
+    // Check to see if TLS is configured or not
+    bool isTlsConfigured();
+
     std::pair<cb::mcbp::Status, std::string> doGetTlsConfig();
     std::pair<cb::mcbp::Status, std::string> doTlsReconfigure(
             const nlohmann::json& spec);
