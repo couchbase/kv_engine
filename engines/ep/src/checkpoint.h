@@ -14,11 +14,11 @@
 #include "checkpoint_types.h"
 #include "ep_types.h"
 #include "item.h"
-#include <folly/Synchronized.h>
 #include <folly/container/F14Map.h>
 #include <memcached/engine_common.h>
 #include <platform/monotonic.h>
 #include <platform/non_negative_counter.h>
+#include <atomic>
 #include <optional>
 
 /**
@@ -319,20 +319,20 @@ public:
      * Return the current state of this checkpoint.
      */
     checkpoint_state getState() const {
-        return *checkpointState.rlock();
+        return checkpointState.load();
     }
 
     /**
      * Set the current state of this checkpoint to closed.
      */
     void close() {
-        auto& state = *checkpointState.wlock();
-        if (state == checkpoint_state::CHECKPOINT_CLOSED) {
+        auto expected = checkpoint_state::CHECKPOINT_OPEN;
+        if (!checkpointState.compare_exchange_strong(
+                    expected, checkpoint_state::CHECKPOINT_CLOSED)) {
             throw std::logic_error(
                     "Checkpoint::close() can't close a closed "
                     "checkpoint!");
         }
-        state = checkpoint_state::CHECKPOINT_CLOSED;
     }
 
     void incNumOfCursorsInCheckpoint() {
@@ -648,7 +648,7 @@ private:
 
     const Vbid vbucketId;
 
-    folly::Synchronized<checkpoint_state> checkpointState;
+    std::atomic<checkpoint_state> checkpointState;
 
     // Count of the number of all cursors (ie persistence and DCP) that reside
     // in the checkpoint
