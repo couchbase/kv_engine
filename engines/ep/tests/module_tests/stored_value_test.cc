@@ -32,9 +32,8 @@ class ValueTest : public ::testing::Test {
 public:
     ValueTest()
         : stats(),
-          factory(stats),
           ht(stats,
-             std::make_unique<Factory>(stats),
+             std::make_unique<Factory>(),
              /*size*/ 47,
              /*locks*/ 1,
              /*freqCounterIncFactor*/ 0.012),
@@ -404,7 +403,7 @@ TEST(StoredValueTest, DISABLED_StoredValuesAllocatedInExpectedBin) {
     for (auto keySize : {23, 24, 25, 26}) {
         const int expectedBin = 80;
         auto stats = EPStats();
-        auto sv = StoredValueFactory(stats)(
+        auto sv = StoredValueFactory()(
                 make_item(Vbid(0),
                           makeStoredDocKey(std::string(keySize, 'k').c_str()),
                           ""),
@@ -417,7 +416,7 @@ TEST(StoredValueTest, DISABLED_StoredValuesAllocatedInExpectedBin) {
     for (auto keySize : {27, 28, 29, 30}) {
         const int expectedBin = 96;
         auto stats = EPStats();
-        auto sv = StoredValueFactory(stats)(
+        auto sv = StoredValueFactory()(
                 make_item(Vbid(0),
                           makeStoredDocKey(std::string(keySize, 'k').c_str()),
                           ""),

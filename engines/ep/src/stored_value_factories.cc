@@ -21,7 +21,6 @@ StoredValue::UniquePtr StoredValueFactory::operator()(
             new (::operator new(StoredValue::getRequiredStorage(itm.getKey())))
                     StoredValue(itm,
                                 std::move(next),
-                                *stats,
                                 /*isOrdered*/ false),
             TaggedPtrBase::NoTagValue));
 }
@@ -30,10 +29,10 @@ StoredValue::UniquePtr StoredValueFactory::copyStoredValue(
         const StoredValue& other, StoredValue::UniquePtr next) {
     // Allocate a buffer to store the copy of StoredValue and any
     // trailing bytes required for the key.
-    return StoredValue::UniquePtr(TaggedPtr<StoredValue>(
-            new (::operator new(other.getObjectSize()))
-                    StoredValue(other, std::move(next), *stats),
-            TaggedPtrBase::NoTagValue));
+    return StoredValue::UniquePtr(
+            TaggedPtr<StoredValue>(new (::operator new(other.getObjectSize()))
+                                           StoredValue(other, std::move(next)),
+                                   TaggedPtrBase::NoTagValue));
 }
 
 StoredValue::UniquePtr OrderedStoredValueFactory::operator()(
@@ -41,9 +40,8 @@ StoredValue::UniquePtr OrderedStoredValueFactory::operator()(
     // Allocate a buffer to store the OrderStoredValue and any trailing
     // bytes required for the key.
     return StoredValue::UniquePtr(TaggedPtr<StoredValue>(
-            new (::operator new(
-                    OrderedStoredValue::getRequiredStorage(itm.getKey())))
-                    OrderedStoredValue(itm, std::move(next), *stats),
+            new (::operator new(OrderedStoredValue::getRequiredStorage(
+                    itm.getKey()))) OrderedStoredValue(itm, std::move(next)),
             TaggedPtrBase::NoTagValue));
 }
 
@@ -53,6 +51,6 @@ StoredValue::UniquePtr OrderedStoredValueFactory::copyStoredValue(
     // trailing bytes required for the key.
     return StoredValue::UniquePtr(TaggedPtr<StoredValue>(
             new (::operator new(other.getObjectSize()))
-                    OrderedStoredValue(other, std::move(next), *stats),
+                    OrderedStoredValue(other, std::move(next)),
             TaggedPtrBase::NoTagValue));
 }

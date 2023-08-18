@@ -14,10 +14,8 @@
 #include "ep_time.h"
 #include "item.h"
 #include "objectregistry.h"
-#include "stats.h"
 #include "systemevent_factory.h"
 
-#include <platform/cb_malloc.h>
 #include <platform/compress.h>
 
 #include <collections/vbucket_manifest.h>
@@ -30,10 +28,7 @@ const int64_t StoredValue::state_deleted_key = -3;
 const int64_t StoredValue::state_non_existent_key = -4;
 const int64_t StoredValue::state_temp_init = -5;
 
-StoredValue::StoredValue(const Item& itm,
-                         UniquePtr n,
-                         EPStats& stats,
-                         bool isOrdered)
+StoredValue::StoredValue(const Item& itm, UniquePtr n, bool isOrdered)
     : value(itm.getValue()),
       chain_next_or_replacement(std::move(n)),
       cas(itm.getCas()),
@@ -80,7 +75,7 @@ StoredValue::~StoredValue() {
     ObjectRegistry::onDeleteStoredValue(this);
 }
 
-StoredValue::StoredValue(const StoredValue& other, UniquePtr n, EPStats& stats)
+StoredValue::StoredValue(const StoredValue& other, UniquePtr n)
     : value(other.value), // Implicitly also copies the frequency counter
       chain_next_or_replacement(std::move(n)),
       cas(other.cas),

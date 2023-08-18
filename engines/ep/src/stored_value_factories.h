@@ -57,9 +57,6 @@ class StoredValueFactory : public AbstractStoredValueFactory {
 public:
     using value_type = StoredValue;
 
-    explicit StoredValueFactory(EPStats& s) : stats(&s) {
-    }
-
     /**
      * Create an concrete StoredValue object.
      */
@@ -68,9 +65,6 @@ public:
 
     StoredValue::UniquePtr copyStoredValue(
             const StoredValue& other, StoredValue::UniquePtr next) override;
-
-private:
-    EPStats* stats;
 };
 
 /**
@@ -79,9 +73,6 @@ private:
 class OrderedStoredValueFactory : public AbstractStoredValueFactory {
 public:
     using value_type = OrderedStoredValue;
-
-    explicit OrderedStoredValueFactory(EPStats& s) : stats(&s) {
-    }
 
     /**
      * Create a new OrderedStoredValue with the given item.
@@ -94,7 +85,4 @@ public:
      */
     StoredValue::UniquePtr copyStoredValue(
             const StoredValue& other, StoredValue::UniquePtr next) override;
-
-private:
-    EPStats* stats;
 };

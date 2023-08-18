@@ -129,9 +129,9 @@ bool HashTableTest::del(HashTable& ht, const DocKey& key) {
 std::unique_ptr<AbstractStoredValueFactory> HashTableTest::makeFactory(
         bool isOrdered) {
     if (isOrdered) {
-        return std::make_unique<OrderedStoredValueFactory>(global_stats);
+        return std::make_unique<OrderedStoredValueFactory>();
     }
-    return std::make_unique<StoredValueFactory>(global_stats);
+    return std::make_unique<StoredValueFactory>();
 }
 
 // ----------------------------------------------------------------------

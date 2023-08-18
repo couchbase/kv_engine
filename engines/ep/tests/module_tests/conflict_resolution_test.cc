@@ -27,8 +27,7 @@
  */
 class ConflictResolutionTest : public ::testing::Test {
 public:
-    ConflictResolutionTest()
-        : factory(epstats), localValue(getReferenceValue()) {
+    ConflictResolutionTest() : localValue(getReferenceValue()) {
     }
 
     /**
@@ -43,7 +42,6 @@ public:
      */
     StoredValue::UniquePtr getReferenceValue();
 
-    EPStats epstats;
     StoredValueFactory factory;
 
     StoredValue::UniquePtr localValue;

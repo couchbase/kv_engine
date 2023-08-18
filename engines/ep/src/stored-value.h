@@ -917,13 +917,9 @@ protected:
      *           the hash bucket chain, which this new item will take
      *           ownership of. (Typically the top of the hash bucket into
      *           which the new item is being inserted).
-     * @param stats EPStats to update for this new StoredValue
      * @param isOrdered Are we constructing an OrderedStoredValue?
      */
-    StoredValue(const Item& itm,
-                UniquePtr n,
-                EPStats& stats,
-                bool isOrdered);
+    StoredValue(const Item& itm, UniquePtr n, bool isOrdered);
 
     // Destructor. protected, as needs to be carefully deleted (via
     // StoredValue::Destructor) depending on the value of isOrdered flag.
@@ -938,11 +934,8 @@ protected:
      *           the hash bucket chain, which this new item will take
      *           ownership of. (Typically the top of the hash bucket into
      *           which the new item is being inserted).
-     * @param stats EPStats to update for this new StoredValue
      */
-    StoredValue(const StoredValue& other,
-                UniquePtr n,
-                EPStats& stats);
+    StoredValue(const StoredValue& other, UniquePtr n);
 
     /* Do not allow assignment */
     StoredValue& operator=(const StoredValue& other) = delete;
@@ -1292,10 +1285,8 @@ protected:
 private:
     // Constructor. Private, as needs to be carefully created via
     // OrderedStoredValueFactory.
-    OrderedStoredValue(const Item& itm,
-                       UniquePtr n,
-                       EPStats& stats)
-        : StoredValue(itm, std::move(n), stats, /*isOrdered*/ true) {
+    OrderedStoredValue(const Item& itm, UniquePtr n)
+        : StoredValue(itm, std::move(n), /*isOrdered*/ true) {
     }
 
     // Copy Constructor. Private, as needs to be carefully created via
@@ -1304,10 +1295,8 @@ private:
     // Only StoredValue part (Hash Chain included) is copied. Hence the copied
     // StoredValue will be in the HashTable, but not in the ordered
     // data structure.
-    OrderedStoredValue(const StoredValue& other,
-                       UniquePtr n,
-                       EPStats& stats)
-        : StoredValue(other, std::move(n), stats) {
+    OrderedStoredValue(const StoredValue& other, UniquePtr n)
+        : StoredValue(other, std::move(n)) {
     }
 
     /**

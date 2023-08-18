@@ -309,7 +309,7 @@ BENCHMARK_DEFINE_F(MemTrackingVBucketBench, FlushVBucket)
 
 BENCHMARK_DEFINE_F(VBucketBench, CreateDeleteStoredValue)
 (benchmark::State& state) {
-    auto factory = std::make_unique<StoredValueFactory>(engine->getEpStats());
+    auto factory = std::make_unique<StoredValueFactory>();
 
     const std::string value(1, 'x');
     while (state.KeepRunning()) {

@@ -65,7 +65,7 @@ EphemeralVBucket::EphemeralVBucket(
               lastSnapEnd,
               std::move(table),
               /*flusherCb*/ nullptr,
-              std::make_unique<OrderedStoredValueFactory>(st),
+              std::make_unique<OrderedStoredValueFactory>(),
               std::move(newSeqnoCb),
               syncWriteResolvedCb,
               syncWriteCb,

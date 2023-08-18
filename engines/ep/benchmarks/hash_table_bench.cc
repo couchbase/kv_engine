@@ -26,7 +26,7 @@ class HashTableBench : public benchmark::Fixture {
 public:
     HashTableBench()
         : ht(stats,
-             std::make_unique<StoredValueFactory>(stats),
+             std::make_unique<StoredValueFactory>(),
              Configuration().getHtSize(),
              Configuration().getHtLocks(),
              Configuration().getFreqCounterIncrementFactor()) {

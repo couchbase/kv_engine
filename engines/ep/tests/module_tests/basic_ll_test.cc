@@ -33,7 +33,7 @@ public:
     }
 
     static std::unique_ptr<AbstractStoredValueFactory> makeFactory() {
-        return std::make_unique<OrderedStoredValueFactory>(global_stats);
+        return std::make_unique<OrderedStoredValueFactory>();
     }
 
     static void expectRange(const SeqRange& expected, const RangeGuard& guard) {
