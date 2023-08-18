@@ -120,7 +120,10 @@ void HistoryScanTest::validateSnapshot(
                               item.getKey().makeDocKeyWithoutCollectionID()});
             EXPECT_EQ(producers->last_vbucket, vbucket);
             EXPECT_EQ(producers->last_byseqno, item.getBySeqno());
-            EXPECT_EQ(producers->last_revseqno, item.getRevSeqno());
+            if (!item.isAbort()) {
+                // no rev on abort
+                EXPECT_EQ(producers->last_revseqno, item.getRevSeqno());
+            }
             EXPECT_EQ(producers->last_value, item.getValueView());
             EXPECT_EQ(producers->last_stream_id, sid);
             EXPECT_EQ(producers->last_datatype, item.getDataType());
@@ -759,7 +762,7 @@ TEST_P(HistoryScanTest, MB_55837_incorrect_item_count) {
     // Next store 2 versions of k1, but using prepare/commit.
     auto vb = store->getVBucket(vbid);
     auto key = StoredDocKey{"turnip", CollectionEntry::vegetable};
-    items.emplace_back(store_item(
+    store_item(
             vbid,
             key,
             "v0",
@@ -767,7 +770,7 @@ TEST_P(HistoryScanTest, MB_55837_incorrect_item_count) {
             {cb::engine_errc::sync_write_pending},
             PROTOCOL_BINARY_RAW_BYTES,
             cb::durability::Requirements(cb::durability::Level::Majority,
-                                         cb::durability::Timeout::Infinity())));
+                                         cb::durability::Timeout::Infinity()));
     {
         folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         ASSERT_EQ(
@@ -781,7 +784,7 @@ TEST_P(HistoryScanTest, MB_55837_incorrect_item_count) {
     items.back().setRevSeqno(1);
     items.back().setDataType(PROTOCOL_BINARY_RAW_BYTES);
 
-    items.emplace_back(store_item(
+    store_item(
             vbid,
             key,
             "v1",
@@ -789,7 +792,7 @@ TEST_P(HistoryScanTest, MB_55837_incorrect_item_count) {
             {cb::engine_errc::sync_write_pending},
             PROTOCOL_BINARY_RAW_BYTES,
             cb::durability::Requirements(cb::durability::Level::Majority,
-                                         cb::durability::Timeout::Infinity())));
+                                         cb::durability::Timeout::Infinity()));
 
     {
         folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
@@ -867,14 +870,13 @@ void HistoryScanTest::preparePrepare(queue_op operation) {
     // exception in the replica
     auto vb = store->getVBucket(vbid);
     auto key = StoredDocKey{"turnip", CollectionEntry::vegetable};
-    items.emplace_back(store_pending_item(vbid, key, "v0"));
+    store_pending_item(vbid, key, "v0");
 
     flush_vbucket_to_disk(vbid, 2);
 
     // put an item in at seqno:3
     items.emplace_back(make_item(vbid, key, "v0"));
     items.back().setBySeqno(3);
-    items.back().setRevSeqno(1);
     items.back().setDataType(PROTOCOL_BINARY_RAW_BYTES);
 
     if (operation == queue_op::abort_sync_write) {
@@ -888,22 +890,19 @@ void HistoryScanTest::preparePrepare(queue_op operation) {
         folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
         ASSERT_EQ(cb::engine_errc::success,
                   vb->commit(rlh, key, 2, {}, vb->lockCollections(key)));
-
     } else {
         FAIL() << "Wrong operation type";
     }
 
     // and pending again
-    items.emplace_back(store_pending_item(vbid, key, "v1"));
+    auto prepareSeqno = store_pending_item(vbid, key, "v1").getBySeqno();
 
     {
         folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-        ASSERT_EQ(cb::engine_errc::success,
-                  vb->commit(rlh,
-                             key,
-                             items.back().getBySeqno(),
-                             {},
-                             vb->lockCollections(key)));
+        ASSERT_EQ(
+                cb::engine_errc::success,
+                vb->commit(
+                        rlh, key, prepareSeqno, {}, vb->lockCollections(key)));
     }
 
     // put a "committed" item in at seqno:5
@@ -928,7 +927,6 @@ void HistoryScanTest::preparePrepare(queue_op operation) {
                      ~0ull,
                      ChangeStreams::Yes);
     runBackfill();
-
     validateSnapshot(vbid,
                      0,
                      items.back().getBySeqno(),

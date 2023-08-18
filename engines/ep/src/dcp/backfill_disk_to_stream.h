@@ -98,13 +98,9 @@ protected:
      *
      * @param bucket The bucket for the scan
      * @param scanCtx The ScanContext created in the Create phase
-     * @param streamPtr The ActiveStream for the scan (as a shared_ptr)
      * @return true if the ScanContext was created, false for failure.
      */
-    bool createHistoryScanContext(
-            KVBucket& bucket,
-            ScanContext& scanCtx,
-            const std::shared_ptr<ActiveStream>& streamPtr);
+    bool createHistoryScanContext(KVBucket& bucket, ScanContext& scanCtx);
 
     struct HistoryScanCtx {
         /**
@@ -124,13 +120,9 @@ protected:
          * @param kvs KVStore to call initBySeqnoContext on
          * @param ctx The ScanContext from the initial scan phase, this can be
          *            ByID or BySeq.
-         * @param streamPtr The shared_ptr for the ActiveStream - this allows
-         *        the new ScanContext to create a new callback.
          * @return true if successfully created, false for a failure.
          */
-        bool createScanContext(const KVStoreIface& kvs,
-                               ScanContext& ctx,
-                               const std::shared_ptr<ActiveStream>& streamPtr);
+        bool createScanContext(const KVStoreIface& kvs, ScanContext& ctx);
 
         /**
          * @return true if startSeqno >= historyStartSeqno
