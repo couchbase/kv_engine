@@ -103,15 +103,16 @@ nlohmann::json Connection::to_json() const {
     ret["bucket_index"] = getBucketIndex();
     ret["internal"] = isInternal();
 
-    if (authenticated) {
-        if (user.is_internal()) {
+    if (isAuthenticated()) {
+        const auto& ui = getUser();
+        if (ui.is_internal()) {
             // We want to be able to map these connections, and given
             // that it is internal, we don't reveal any user data
-            ret["user"]["name"] = user.name;
+            ret["user"]["name"] = ui.name;
         } else {
-            ret["user"]["name"] = cb::tagUserData(user.name);
+            ret["user"]["name"] = cb::tagUserData(ui.name);
         }
-        ret["user"]["domain"] = to_string(user.domain);
+        ret["user"]["domain"] = to_string(ui.domain);
     }
 
     ret["refcount"] = refcount;
@@ -252,13 +253,13 @@ nlohmann::json Connection::to_json() const {
 }
 
 void Connection::restartAuthentication() {
-    if (authenticated) {
-        if (user.domain == cb::sasl::Domain::External) {
-            externalAuthManager->logoff(user.name);
-        }
+    if (getUser().domain == cb::sasl::Domain::External) {
+        externalAuthManager->logoff(getUser().name);
     }
-    authenticated = false;
-    user = cb::rbac::UserIdent{"unknown", cb::rbac::Domain::Local};
+    user.reset();
+    updateDescription();
+    privilegeContext = cb::rbac::PrivilegeContext{getUser().domain};
+    updatePrivilegeContext();
 }
 
 void Connection::updatePrivilegeContext() {
@@ -295,10 +296,11 @@ cb::engine_errc Connection::dropPrivilege(cb::rbac::Privilege privilege) {
 cb::rbac::PrivilegeContext Connection::getPrivilegeContext() {
     if (privilegeContext.isStale()) {
         try {
-            privilegeContext = cb::rbac::createContext(user, getBucket().name);
+            privilegeContext =
+                    cb::rbac::createContext(getUser(), getBucket().name);
         } catch (const cb::rbac::NoSuchBucketException&) {
             // Remove all access to the bucket
-            privilegeContext = cb::rbac::createContext(user, "");
+            privilegeContext = cb::rbac::createContext(getUser(), "");
             LOG_INFO(
                     "{}: RBAC: {} No access to bucket [{}]. "
                     "New privilege set: {}",
@@ -308,7 +310,7 @@ cb::rbac::PrivilegeContext Connection::getPrivilegeContext() {
                     privilegeContext.to_string());
         } catch (const cb::rbac::NoSuchUserException&) {
             // Remove all access to the bucket
-            privilegeContext = cb::rbac::PrivilegeContext{user.domain};
+            privilegeContext = cb::rbac::PrivilegeContext{getUser().domain};
             if (isAuthenticated()) {
                 LOG_INFO("{}: RBAC: {} No RBAC definition for the user.",
                          getId(),
@@ -419,14 +421,14 @@ cb::engine_errc Connection::remapErrorCode(cb::engine_errc code) {
 
 void Connection::updateDescription() {
     description.assign("[ " + peername.dump() + " - " + sockname.dump());
-    if (authenticated) {
+    if (isAuthenticated()) {
         description += " (";
         if (isInternal()) {
             description += "System, ";
         }
-        description += cb::tagUserData(user.name);
+        description += cb::tagUserData(getUser().name);
 
-        if (user.domain == cb::sasl::Domain::External) {
+        if (getUser().domain == cb::sasl::Domain::External) {
             description += " (LDAP)";
         }
         description += ")";
@@ -446,18 +448,18 @@ void Connection::setBucketIndex(int index, Cookie* cookie) {
     // Update the privilege context. If a problem occurs within the RBAC
     // module we'll assign an empty privilege context to the connection.
     try {
-        if (authenticated) {
+        if (isAuthenticated()) {
             // The user have logged in, so we should create a context
             // representing the users context in the desired bucket.
             privilegeContext =
-                    cb::rbac::createContext(user, all_buckets[index].name);
+                    cb::rbac::createContext(getUser(), all_buckets[index].name);
         } else {
             // The user has not authenticated. Assign an empty profile which
             // won't give you any privileges.
-            privilegeContext = cb::rbac::PrivilegeContext{user.domain};
+            privilegeContext = cb::rbac::PrivilegeContext{getUser().domain};
         }
     } catch (const cb::rbac::Exception&) {
-        privilegeContext = cb::rbac::PrivilegeContext{user.domain};
+        privilegeContext = cb::rbac::PrivilegeContext{getUser().domain};
     }
 
     if (index == 0) {
@@ -1066,35 +1068,36 @@ static void maximize_sndbuf(const SOCKET sfd) {
     hint = last_good;
 }
 
-void Connection::setAuthenticated(bool authenticated_, cb::rbac::UserIdent ui) {
-    authenticated = authenticated_;
+void Connection::setAuthenticated(cb::rbac::UserIdent ui) {
     user = std::move(ui);
-    if (authenticated_) {
-        maximize_sndbuf(socketDescriptor);
+    maximize_sndbuf(socketDescriptor);
 
 #ifdef __linux__
-        if (!listening_port->system) {
-            uint32_t timeout = Settings::instance().getTcpUserTimeout().count();
-            if (!cb::net::setSocketOption<uint32_t>(socketDescriptor,
-                                                    IPPROTO_TCP,
-                                                    TCP_USER_TIMEOUT,
-                                                    timeout)) {
-                LOG_WARNING("{} Failed to set TCP_USER_TIMEOUT to {}: {}",
-                            getId(),
-                            timeout,
-                            cb_strerror(cb::net::get_socket_error()));
-            }
+    if (!listening_port->system) {
+        uint32_t timeout = Settings::instance().getTcpUserTimeout().count();
+        if (!cb::net::setSocketOption<uint32_t>(
+                    socketDescriptor, IPPROTO_TCP, TCP_USER_TIMEOUT, timeout)) {
+            LOG_WARNING("{} Failed to set TCP_USER_TIMEOUT to {}: {}",
+                        getId(),
+                        timeout,
+                        cb_strerror(cb::net::get_socket_error()));
         }
+    }
 #endif
 
-        updateDescription();
-        droppedPrivileges.reset();
-        privilegeContext = cb::rbac::createContext(user, "");
-    } else {
-        updateDescription();
-        privilegeContext = cb::rbac::PrivilegeContext{user.domain};
-    }
+    updateDescription();
+    droppedPrivileges.reset();
+    privilegeContext = cb::rbac::createContext(getUser(), "");
     updatePrivilegeContext();
+}
+
+const cb::rbac::UserIdent& Connection::getUser() const {
+    static const cb::rbac::UserIdent unknown{"unknown",
+                                             cb::sasl::Domain::Local};
+    if (user.has_value()) {
+        return user.value();
+    }
+    return unknown;
 }
 
 bool Connection::isTlsEnabled() const {
@@ -1107,7 +1110,7 @@ bool Connection::tryAuthUserFromX509Cert(std::string_view userName,
         cb::rbac::UserIdent ident{std::string{userName.data(), userName.size()},
                                   cb::sasl::Domain::Local};
         auto context = cb::rbac::createInitialContext(ident);
-        setAuthenticated(true, ident);
+        setAuthenticated(ident);
         audit_auth_success(*this);
         LOG_INFO(
                 "{}: Client {} using cipher '{}' authenticated as '{}' via "
@@ -1118,9 +1121,9 @@ bool Connection::tryAuthUserFromX509Cert(std::string_view userName,
                 cb::UserDataView(ident.name));
         // External users authenticated by using X.509 certificates should not
         // be able to use SASL to change its identity.
-        saslAuthEnabled = user.is_internal();
+        saslAuthEnabled = getUser().is_internal();
     } catch (const cb::rbac::NoSuchUserException& e) {
-        setAuthenticated(false);
+        restartAuthentication();
         LOG_WARNING("{}: User [{}] is not defined as a user in Couchbase",
                     getId(),
                     cb::UserDataView(e.what()));
@@ -1240,8 +1243,8 @@ Connection::~Connection() {
     if (listening_port->system) {
         --stats.system_conns;
     }
-    if (authenticated && user.domain == cb::sasl::Domain::External) {
-        externalAuthManager->logoff(user.name);
+    if (user && user->domain == cb::sasl::Domain::External) {
+        externalAuthManager->logoff(user->name);
     }
 
     --stats.conn_structs;
@@ -2581,7 +2584,7 @@ void Connection::onTlsConnect(const SSL* ssl_st) {
 
     if (disconnect) {
         shutdown();
-    } else if (!authenticated) {
+    } else if (!isAuthenticated()) {
         // tryAuthFromSslCertificate logged the cipher
         LOG_INFO("{}: Using cipher '{}', peer certificate {}provided",
                  getId(),

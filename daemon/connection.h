@@ -127,20 +127,26 @@ public:
 
     /// Is the connection representing a system internal user
     bool isInternal() const {
-        return user.is_internal();
+        return getUser().is_internal();
     }
 
     bool isAuthenticated() const {
-        return authenticated;
+        return user.has_value();
     }
 
-    void setAuthenticated(bool authenticated,
-                          cb::rbac::UserIdent ui = {"unknown",
-                                                    cb::sasl::Domain::Local});
+    void setAuthenticated(cb::rbac::UserIdent ui);
+
+    const cb::rbac::UserIdent& getUser() const override;
 
     ConnectionPriority getPriority() const override {
         return priority.load();
     }
+
+    /**
+     * Restart the authentication (this clears all of the authentication
+     * data...)
+     */
+    void restartAuthentication();
 
     void setPriority(ConnectionPriority value) override;
 
@@ -155,10 +161,6 @@ public:
      * @return true on success, false otherwise
      */
     bool setTcpNoDelay(bool enable);
-
-    const cb::rbac::UserIdent& getUser() const override {
-        return user;
-    }
 
     /**
      * Get the current reference count
@@ -212,12 +214,6 @@ public:
     void setPushedClustermapRevno(ClustermapVersion version) {
         pushed_clustermap = version;
     }
-
-    /**
-     * Restart the authentication (this clears all of the authentication
-     * data...)
-     */
-    void restartAuthentication();
 
     bool isXerrorSupport() const {
         return xerror_support;
@@ -1016,8 +1012,8 @@ protected:
     /// The current dropped privilege set
     cb::rbac::PrivilegeMask droppedPrivileges;
 
-    /// The authenticated user
-    cb::rbac::UserIdent user{std::string("unknown"), cb::sasl::Domain::Local};
+    /// The (authenticated) user for the connection.
+    std::optional<cb::rbac::UserIdent> user;
 
     /// The description of the connection
     std::string description;
@@ -1082,9 +1078,6 @@ protected:
 
     /// The cluster map revision used by this client
     ClustermapVersion pushed_clustermap;
-
-    /// Is the connection authenticated or not
-    bool authenticated{false};
 
     /// Is tcp nodelay enabled or not?
     bool nodelay{false};

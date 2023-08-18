@@ -63,7 +63,7 @@ cb::engine_errc SaslAuthCommandContext::tryHandleSaslOk(
     }
 
     // Success
-    connection.setAuthenticated(true, serverContext.getUser());
+    connection.setAuthenticated(serverContext.getUser());
     audit_auth_success(connection, &cookie);
     LOG_INFO("{}: Client {} authenticated as {}",
              connection.getId(),
