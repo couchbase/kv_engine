@@ -356,21 +356,20 @@ UserEntry::UserEntry(const std::string& username,
     internal = username.front() == '@';
 
     // Domain must be present so that we know where it comes from
-    auto iter = json.find("domain");
-    if (iter != json.end()) {
-        const auto domain = cb::sasl::to_domain(iter->get<std::string>());
-        if (domain != expectedDomain) {
+    {
+        UserIdent ident(username,
+                        cb::sasl::to_domain(json.value("domain", "local")));
+        if (ident.domain != expectedDomain) {
             throw std::runtime_error(
                     R"(UserEntry::UserEntry: Invalid domain in this context)");
         }
-
-        if (internal && domain != Domain::Local) {
+        if (ident.is_internal() && ident.domain != Domain::Local) {
             throw std::runtime_error(
                     R"(UserEntry::UserEntry: Internal users should be local)");
         }
     }
 
-    iter = json.find("privileges");
+    auto iter = json.find("privileges");
     if (iter != json.end()) {
         // Parse the privileges
         privilegeMask = parsePrivileges(*iter, false);
@@ -474,11 +473,10 @@ PrivilegeContext PrivilegeDatabase::createContext(
     return {generation, domain, ue.getPrivileges(), iter->second};
 }
 
-std::pair<PrivilegeContext, bool> PrivilegeDatabase::createInitialContext(
+PrivilegeContext PrivilegeDatabase::createInitialContext(
         const UserIdent& user) const {
     const auto& ue = lookup(user.name);
-    return {PrivilegeContext(generation, user.domain, ue.getPrivileges(), {}),
-            ue.isInternal()};
+    return PrivilegeContext(generation, user.domain, ue.getPrivileges(), {});
 }
 
 nlohmann::json PrivilegeDatabase::to_json(Domain domain) const {
@@ -613,7 +611,7 @@ PrivilegeContext createContext(const UserIdent& user,
     return (*ctx.db.rlock())->createContext(user.name, user.domain, bucket);
 }
 
-std::pair<PrivilegeContext, bool> createInitialContext(const UserIdent& user) {
+PrivilegeContext createInitialContext(const UserIdent& user) {
     auto& ctx = contexts[to_index(user.domain)];
     return (*ctx.db.rlock())->createInitialContext(user);
 }

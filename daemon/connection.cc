@@ -104,9 +104,9 @@ nlohmann::json Connection::to_json() const {
     ret["internal"] = isInternal();
 
     if (authenticated) {
-        if (internal) {
+        if (user.is_internal()) {
             // We want to be able to map these connections, and given
-            // that it is internal we don't reveal any user data
+            // that it is internal, we don't reveal any user data
             ret["user"]["name"] = user.name;
         } else {
             ret["user"]["name"] = cb::tagUserData(user.name);
@@ -257,7 +257,6 @@ void Connection::restartAuthentication() {
             externalAuthManager->logoff(user.name);
         }
     }
-    internal = false;
     authenticated = false;
     user = cb::rbac::UserIdent{"unknown", cb::rbac::Domain::Local};
 }
@@ -1067,11 +1066,8 @@ static void maximize_sndbuf(const SOCKET sfd) {
     hint = last_good;
 }
 
-void Connection::setAuthenticated(bool authenticated_,
-                                  bool internal_,
-                                  cb::rbac::UserIdent ui) {
+void Connection::setAuthenticated(bool authenticated_, cb::rbac::UserIdent ui) {
     authenticated = authenticated_;
-    internal = internal_;
     user = std::move(ui);
     if (authenticated_) {
         maximize_sndbuf(socketDescriptor);
@@ -1111,7 +1107,7 @@ bool Connection::tryAuthUserFromX509Cert(std::string_view userName,
         cb::rbac::UserIdent ident{std::string{userName.data(), userName.size()},
                                   cb::sasl::Domain::Local};
         auto context = cb::rbac::createInitialContext(ident);
-        setAuthenticated(true, context.second, ident);
+        setAuthenticated(true, ident);
         audit_auth_success(*this);
         LOG_INFO(
                 "{}: Client {} using cipher '{}' authenticated as '{}' via "
@@ -1122,7 +1118,7 @@ bool Connection::tryAuthUserFromX509Cert(std::string_view userName,
                 cb::UserDataView(ident.name));
         // External users authenticated by using X.509 certificates should not
         // be able to use SASL to change its identity.
-        saslAuthEnabled = internal;
+        saslAuthEnabled = user.is_internal();
     } catch (const cb::rbac::NoSuchUserException& e) {
         setAuthenticated(false);
         LOG_WARNING("{}: User [{}] is not defined as a user in Couchbase",

@@ -45,13 +45,11 @@ SaslAuthCommandContext::SaslAuthCommandContext(Cookie& cookie)
 cb::engine_errc SaslAuthCommandContext::tryHandleSaslOk(
         std::string_view payload) {
     auto& serverContext = *connection.getSaslServerContext();
-    std::pair<cb::rbac::PrivilegeContext, bool> context{
-            cb::rbac::PrivilegeContext{cb::sasl::Domain::Local}, false};
 
     // Authentication successful, but it still has to be defined in
     // our system
     try {
-        context = cb::rbac::createInitialContext(serverContext.getUser());
+        cb::rbac::createInitialContext(serverContext.getUser());
     } catch (const cb::rbac::NoSuchUserException&) {
         LOG_WARNING(
                 "{}: User [{}] is not defined as a user in Couchbase. "
@@ -65,7 +63,7 @@ cb::engine_errc SaslAuthCommandContext::tryHandleSaslOk(
     }
 
     // Success
-    connection.setAuthenticated(true, context.second, serverContext.getUser());
+    connection.setAuthenticated(true, serverContext.getUser());
     audit_auth_success(connection, &cookie);
     LOG_INFO("{}: Client {} authenticated as {}",
              connection.getId(),

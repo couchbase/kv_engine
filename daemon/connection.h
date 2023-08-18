@@ -125,11 +125,9 @@ public:
      */
     void resetThrottledCookies();
 
-    /**
-     * Is the connection representing a system internal user
-     */
+    /// Is the connection representing a system internal user
     bool isInternal() const {
-        return internal;
+        return user.is_internal();
     }
 
     bool isAuthenticated() const {
@@ -137,7 +135,6 @@ public:
     }
 
     void setAuthenticated(bool authenticated,
-                          bool internal = false,
                           cb::rbac::UserIdent ui = {"unknown",
                                                     cb::sasl::Domain::Local});
 
@@ -1085,9 +1082,6 @@ protected:
 
     /// The cluster map revision used by this client
     ClustermapVersion pushed_clustermap;
-
-    /// Is this a system internal connection
-    bool internal{false};
 
     /// Is the connection authenticated or not
     bool authenticated{false};

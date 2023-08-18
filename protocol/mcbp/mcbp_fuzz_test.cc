@@ -112,8 +112,7 @@ public:
     }
 
     FuzzValidator() : connection(thread) {
-        connection.setAuthenticated(
-                true, true, {"@admin", cb::rbac::Domain::Local});
+        connection.setAuthenticated(true, {"@admin", cb::rbac::Domain::Local});
         connection.setCollectionsSupported(true);
         connection.enableDatatype(cb::mcbp::Feature::JSON);
         connection.enableDatatype(cb::mcbp::Feature::XATTR);

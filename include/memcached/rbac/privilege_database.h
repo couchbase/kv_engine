@@ -41,6 +41,9 @@ struct UserIdent {
     UserIdent() = default;
     UserIdent(std::string n, Domain d) : name(std::move(n)), domain(d) {
     }
+    bool is_internal() const {
+        return !name.empty() && name.front() == '@';
+    }
     explicit UserIdent(const nlohmann::json& json);
     std::string name;
     Domain domain{cb::rbac::Domain::Local};
@@ -245,14 +248,6 @@ public:
      */
     const PrivilegeMask& getPrivileges() const {
         return privilegeMask;
-    }
-
-    /**
-     * Is this a system internal user or not? A system internal user is a
-     * user one of the system components use.
-     */
-    bool isInternal() const {
-        return internal;
     }
 
     nlohmann::json to_json(Domain domain) const;
@@ -487,13 +482,10 @@ public:
      * Create the initial context for a given user
      *
      * @param user The username to look up
-     * @return A pair with a privilege context as the first element, and
-     *         a boolean indicating if this is a system user as the second
-     *         element.
+     * @return Privilege context for the user
      * @throws cb::rbac::NoSuchUserException if the user doesn't exist
      */
-    std::pair<PrivilegeContext, bool> createInitialContext(
-            const UserIdent& user) const;
+    PrivilegeContext createInitialContext(const UserIdent& user) const;
 
     std::unique_ptr<PrivilegeDatabase> updateUser(const std::string& user,
                                                   Domain domain,
@@ -532,12 +524,10 @@ PrivilegeContext createContext(const UserIdent& user,
  * Create the initial context for a given user
  *
  * @param user The user to look up
- * @return A pair with a privilege context as the first element, and
- *         a boolean indicating if this is a system user as the second
- *         element.
+ * @return privilege context for the user
  * @throws cb::rbac::NoSuchUserException if the user doesn't exist
  */
-std::pair<PrivilegeContext, bool> createInitialContext(const UserIdent& user);
+PrivilegeContext createInitialContext(const UserIdent& user);
 
 /**
  * Load the named file and install it as the current privilege database

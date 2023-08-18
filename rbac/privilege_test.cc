@@ -49,9 +49,6 @@ TEST(UserEntryTest, ParseLegalConfigOldFormat) {
         ASSERT_TRUE(it->second);
         EXPECT_EQ(privs, it->second->getPrivileges());
     }
-
-    // The username does not start with @
-    EXPECT_FALSE(ue.isInternal());
 }
 
 TEST(UserEntryTest, DomainMustBeString) {
