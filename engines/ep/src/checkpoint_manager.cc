@@ -337,24 +337,34 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
 
     std::lock_guard<std::mutex> lh(queueLock);
 
-    // If cursor exists with the same name as the one being created, then
-    // remove it.
-    for (const auto& [currCName, cursor] : cursors) {
-        if (name == currCName) {
-            Expects(cursor);
-            removeCursorRes = removeCursor(lh, *cursor);
-            break;
-        }
-    }
-
     auto ckptIt = checkpointList.begin();
-    auto createCursorRegResult = [this, &name, &ckptIt, droppable](
-                                         ChkptQueueIterator pos,
-                                         size_t distance,
-                                         bool tryBackfill,
-                                         uint64_t seqno) -> CursorRegResult {
+    auto createCursorRegResult =
+            [this, &name, &ckptIt, droppable, &lh, &removeCursorRes](
+                    ChkptQueueIterator pos,
+                    size_t distance,
+                    bool tryBackfill,
+                    uint64_t seqno) -> CursorRegResult {
         auto cursor = std::make_shared<CheckpointCursor>(
                 name, ckptIt, pos, droppable, distance);
+
+        // If a cursor with the same name exists remove it before adding the new
+        // one
+        for (const auto& [currCName, cursor] : cursors) {
+            if (name == currCName) {
+                Expects(cursor);
+                // Place a temporary entry in the map for the new cursor. This
+                // ensures that the checkpoint of the cursor cannot become
+                // eligible for eager removal (triggering a use-after-free
+                // situation)
+                const auto tempName = "temp" + name;
+                cursors[tempName] = cursor;
+                removeCursorRes = removeCursor(lh, *cursor);
+                cursors.erase(tempName);
+                break;
+            }
+        }
+
+        // Finally save the newCursor
         cursors[name] = cursor;
         return {*this, tryBackfill, seqno, Cursor{cursor}};
     };

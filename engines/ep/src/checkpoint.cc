@@ -99,6 +99,7 @@ Checkpoint::~Checkpoint() {
     auto& core = stats.coreLocal.get();
     core->memOverhead -= getMemOverhead();
     core->numCheckpoints--;
+    Expects(getNumCursorsInCheckpoint() == 0);
 }
 
 QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {

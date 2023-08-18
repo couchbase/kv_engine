@@ -236,15 +236,6 @@ void ActiveStream::registerCursor(CheckpointManager& chkptmgr,
         CursorRegResult result = chkptmgr.registerCursorBySeqno(
                 name_, lastProcessedSeqno, CheckpointCursor::Droppable::Yes);
 
-        log(spdlog::level::level_enum::info,
-            "{} ActiveStream::registerCursor name \"{}\", "
-            "lastProcessedSeqno:{}, registeredSeqno:{}, backfill:{}",
-            logPrefix,
-            name_,
-            lastProcessedSeqno,
-            result.seqno,
-            result.tryBackfill);
-
         /*
          * MB-22960:  Due to cursor dropping we re-register the replication
          * cursor only during backfill when we mark the disk snapshot.  However
@@ -268,6 +259,16 @@ void ActiveStream::registerCursor(CheckpointManager& chkptmgr,
         }
         curChkSeqno = result.seqno;
         cursor = result.takeCursor();
+
+        log(spdlog::level::level_enum::info,
+            "{} ActiveStream::registerCursor name \"{}\", wantedSeqno:{}, "
+            "result{{tryBackfill:{}, seqno:{}}}, pendingBackfill:{}",
+            logPrefix,
+            name_,
+            lastProcessedSeqno,
+            result.tryBackfill,
+            result.seqno,
+            pendingBackfill);
     } catch (std::exception& error) {
         log(spdlog::level::level_enum::warn,
             "{} Failed to register cursor: {}",
@@ -1900,10 +1901,12 @@ void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
             }
         }
         log(spdlog::level::level_enum::info,
-            "{} ActiveStream::scheduleBackfill_UNLOCKED: register cursor with "
-            "name \"{}\", backfill:{}, seqno:{}, op:{}, lastReadSeqno:{}",
+            "{} ActiveStream::scheduleBackfill_UNLOCKED register cursor with "
+            "name \"{}\" wantedSeqno:{}, result{{tryBackfill:{}, seqno:{}}}, "
+            "op:{}, lastReadSeqno:{}",
             logPrefix,
             name_,
+            lastReadSeqno.load(),
             registerResult.tryBackfill,
             registerResult.seqno,
             op ? ::to_string(*op) : "N/A",
