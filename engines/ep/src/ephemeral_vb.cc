@@ -885,8 +885,20 @@ cb::engine_errc EphemeralVBucket::addTempItemAndBGFetch(
             std::string(reinterpret_cast<const char*>(key.data()), key.size()));
 }
 
-cb::engine_errc EphemeralVBucket::bgFetchForCompactionExpiry(
+std::unique_ptr<CompactionBGFetchItem>
+EphemeralVBucket::createBgFetchForCompactionExpiry(
+        const HashTable::HashBucketLock& hbl,
+        const DocKey& key,
+        const Item& item) {
+    throw std::logic_error(
+            "EphemeralVBucket::createBgFetchForCompactionExpiry() is not "
+            "valid. "
+            "Called on " +
+            getId().to_string() + " for key: " +
+            std::string(reinterpret_cast<const char*>(key.data()), key.size()));
+}
 
+void EphemeralVBucket::bgFetchForCompactionExpiry(
         HashTable::HashBucketLock& hbl, const DocKey& key, const Item& item) {
     throw std::logic_error(
             "EphemeralVBucket::bgFetchForCompactionExpiry() is not valid. "

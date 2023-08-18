@@ -1053,6 +1053,21 @@ public:
      */
     uint8_t getInitialMFU() const;
 
+    /**
+     * Set whether compaction threads should immediately fetch (in the current
+     * thread) values from disk, if required for expiry.
+     */
+    void setCompactionExpiryFetchInline(bool value);
+
+    /**
+     * Check if compaction threads should immediately fetch (in the current
+     * thread) values from disk, if required for expiry.
+     *
+     * If false, bgfetches will be queued, and the expiry completed on the
+     * thread running the bgfetcher task.
+     */
+    bool isCompactionExpiryFetchInline() const;
+
 protected:
     /**
      * Get the checkpoint destroyer task responsible for checkpoints from the
@@ -1375,6 +1390,19 @@ protected:
      * bgfetch context. For tests.
      */
     TestingHook<> processExpiredItemHook;
+
+    /**
+     * How compaction threads should fetch documents from disk if required for
+     * expiry:
+     *
+     * true -> inline, on the thead performing compaction
+     * false -> queues a bgfetch, expiry is completed on thread performing
+     *          bgfetch.
+     *
+     * Cached from config param compaction_expiry_fetch_inline to avoid taking
+     * config lock on each read.
+     */
+    std::atomic<bool> compactionExpiryFetchInline;
 
     friend class KVBucketTest;
 
