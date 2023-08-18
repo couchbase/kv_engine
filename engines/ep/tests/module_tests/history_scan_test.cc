@@ -10,6 +10,7 @@
  */
 
 #include "../mock/mock_synchronous_ep_engine.h"
+#include "checkpoint.h"
 #include "checkpoint_manager.h"
 #include "collections/collections_dcp_test.h"
 #include "collections/vbucket_manifest_handles.h"
@@ -995,6 +996,98 @@ TEST_P(HistoryScanTestSingleEvictionMode, HistoryScanFailMarkDiskSnapshot) {
     // stream will error markDiskSnapshot
     stream->setDead(cb::mcbp::DcpStreamEndStatus::Ok);
     EXPECT_EQ(backfill_finished, backfill->run());
+}
+
+// This test covers MB-56565 where eager checkpoint removal can lead to a DCP
+// stream being stuck perpetually in backfilling, even though there's no memory
+// pressure. The bug occurred because DCP's own cursor re-registration path
+// would trigger the removal of the checkpoint it needed to regain in-memory
+// streaming.
+TEST_P(HistoryScanTest, MB_56565) {
+    producers->consumer = nullptr;
+    CollectionsManifest cm;
+    // Create 1 history enabled collection
+    setCollections(cookie, cm.add(CollectionEntry::vegetable, {}, true));
+    flush_vbucket_to_disk(vbid, 1);
+    createDcpObjects(std::string_view{},
+                     OutOfOrderSnapshots::Yes,
+                     0,
+                     true, // sync-repl enabled
+                     ~0ull,
+                     ChangeStreams::Yes);
+    // Move DCP away from seqno:0 and receive the first message.
+    notifyAndStepToCheckpoint();
+    stepAndExpect(ClientOpcode::DcpSystemEvent);
+    auto stream = producer->findStream(vbid);
+    ASSERT_TRUE(stream);
+    EXPECT_TRUE(stream->isInMemory());
+    // Now drop the DCP cursor and check we can recover to in-memory
+    stream->handleSlowStream();
+    // Now push the vbucket along, flush an call ensureDcpWillBackfill ensuring
+    // that DCP can't switch straight back to in-memory
+    store_item(vbid, makeStoredDocKey("k0", CollectionEntry::vegetable), "s2");
+    flush_vbucket_to_disk(vbid, 1);
+    ensureDcpWillBackfill();
+    store_item(vbid, makeStoredDocKey("k0", CollectionEntry::vegetable), "s3");
+    flush_vbucket_to_disk(vbid, 1);
+    // DCP step - memory->backfilling
+    ASSERT_TRUE(stream->isInMemory());
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
+    ASSERT_TRUE(stream->isBackfilling());
+    // Now push the vbucket along again and importantly flush after the snapshot
+    // is opened so DCP backfill cannot get these two items and importantly that
+    // the persistence cursor is on seqno:5 so that the checkpoint for seqno:4
+    // is currently unreferenced.
+    store_item(vbid, makeStoredDocKey("k0", CollectionEntry::vegetable), "s4");
+    store_item(vbid, makeStoredDocKey("k0", CollectionEntry::vegetable), "s5");
+    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    EXPECT_EQ(1, stream->getLastReadSeqno());
+    auto cursor = stream->getCursor().lock();
+    ASSERT_TRUE(cursor);
+    EXPECT_EQ(3, (*cursor->getPos())->getBySeqno());
+    EXPECT_EQ(3, (*cursor->getCheckpoint())->getMinimumCursorSeqno());
+    // backfill:create and scan
+    runNextTask(lpAuxioQ);
+    // flush after the snapshot is opened to move persistence cursor to the end
+    flush_vbucket_to_disk(vbid, 2);
+    // For this MB, markDiskSnapshot has opened a snapshot that ends with seqno
+    // 3 and wants to register a cursor from seqno 3. As markDiskSnapshot
+    // calls registerCursor(3) the CP manager can initially satisfy the request
+    // but internally eager checkpoint removal is triggered and the checkpoint
+    // for seqno 4 is removed. The rest of the registerCursor code then cannot
+    // satisfy from seqno 3 and a second backfill is scheduled. This entire loop
+    // can be perpetually cycled if the flusher just keeps the persistence
+    // cursor ahead so each markDiskSnapshot removes the checkpoint it needs.
+    EXPECT_EQ(3, stream->getLastReadSeqno());
+    cursor = stream->getCursor().lock();
+    ASSERT_TRUE(cursor);
+    EXPECT_EQ(4, (*cursor->getPos())->getBySeqno());
+    EXPECT_EQ(4, (*cursor->getCheckpoint())->getMinimumCursorSeqno());
+    // backfill:finished()
+    runNextTask(lpAuxioQ);
+    EXPECT_TRUE(stream->isBackfilling());
+    stepAndExpect(ClientOpcode::DcpSnapshotMarker);
+    EXPECT_EQ(2, producers->last_snap_start_seqno);
+    EXPECT_EQ(3, producers->last_snap_end_seqno);
+    stepAndExpect(ClientOpcode::DcpMutation);
+    EXPECT_EQ(2, producers->last_byseqno);
+    stepAndExpect(ClientOpcode::DcpMutation);
+    EXPECT_EQ(3, producers->last_byseqno);
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
+    // Stream would remain in backfilling with MB-56565
+    EXPECT_TRUE(stream->isInMemory());
+    // run checkpoint processor for in-memory continuation
+    notifyAndStepToCheckpoint();
+    EXPECT_EQ(4, producers->last_snap_start_seqno);
+    EXPECT_EQ(4, producers->last_snap_end_seqno);
+    stepAndExpect(ClientOpcode::DcpMutation);
+    EXPECT_EQ(4, producers->last_byseqno);
+    // CDC: new snapshot for seq:5
+    stepAndExpect(ClientOpcode::DcpSnapshotMarker);
+    EXPECT_EQ(5, producers->last_snap_start_seqno);
+    EXPECT_EQ(5, producers->last_snap_end_seqno);
+    stepAndExpect(ClientOpcode::DcpMutation);
+    EXPECT_EQ(5, producers->last_byseqno);
 }
 
 INSTANTIATE_TEST_SUITE_P(HistoryScanTests,
