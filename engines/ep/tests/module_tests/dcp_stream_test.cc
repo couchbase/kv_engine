@@ -2727,6 +2727,22 @@ TEST_P(SingleThreadedPassiveStreamTest, MB_33773_stream_end) {
     mb_33773(mb_33773Mode::streamEndMessage);
 }
 
+// This test covers a "race" where the streamEnd code would use the return value
+// from removeStream - which was a nullptr. This test simulates that race by
+// injecting a closeStream into the streamDead path.
+TEST_P(SingleThreadedPassiveStreamTest, MB_56675) {
+    // Create a hook which will remove the stream during the steamEnd code.
+    // With MB-56675 this leads to a crash because the streamEnd code would
+    // assume removeStream returns a valid stream.
+    std::function<void()> hook = [this]() {
+        consumer->closeStreamDueToVbStateChange(vbid, vbucket_state_active);
+    };
+    stream->setStreamDeadHook(hook);
+    consumer->streamEnd(1, vbid, cb::mcbp::DcpStreamEndStatus::StateChanged);
+    EXPECT_EQ(StreamEndResponse::baseMsgBytes,
+              consumer->getFlowControl().getFreedBytes());
+}
+
 void SingleThreadedPassiveStreamTest::
         testInitialDiskSnapshotFlagClearedOnTransitionToActive(
                 vbucket_state_t initialState) {
