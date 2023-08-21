@@ -28,6 +28,8 @@
 #include <platform/cbassert.h>
 #include <array>
 
+using namespace std::chrono_literals;
+
 /* static storage for environment variable set by putenv(). */
 static std::array<char, 28> allow_no_stats_env{
         {"ALLOW_NO_STATS_UPDATE=yeah\0"}};
@@ -39,6 +41,11 @@ static std::array<char, 28> allow_no_stats_env{
  */
 class UnitTestServerCore : public ServerCoreIface {
 public:
+    std::chrono::steady_clock::time_point get_uptime_now() override {
+        // Reutn a fixed time point of 0.
+        return std::chrono::steady_clock::time_point(0s);
+    }
+
     rel_time_t get_current_time() override {
         // Return a fixed time of '0'.
         return 0;

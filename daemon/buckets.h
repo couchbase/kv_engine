@@ -520,7 +520,9 @@ public:
      */
     void disassociateBucket(Bucket* bucket);
 
-    /// move the clock forwards in all buckets
+    /** Move the clock forwards in all buckets. Expected to be called
+     * periodically, once per second.
+     */
     void tick();
 
     /**

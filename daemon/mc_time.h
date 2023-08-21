@@ -22,8 +22,16 @@ class EventBase;
 }
 
 /*
+ * Return a monotonically increasing value, representing the time point in terms
+ * of when memcached started.
+ */
+std::chrono::steady_clock::time_point mc_time_uptime_now();
+
+/*
  * Return a monotonically increasing value.
  * The value returned represents seconds since memcached started.
+ * Note: Prefer mc_time_uptime_now() for new code - more accurate and stronger
+ * typed.
  */
 rel_time_t mc_time_get_current_time();
 
@@ -158,6 +166,9 @@ protected:
     folly::EventBase& eventBase;
 
     const Duration interval;
+
+    // Time when BucketManager::tick() should next be called.
+    std::chrono::steady_clock::time_point nextBucketManagerTick;
 };
 
 using SteadyClock = std::function<std::chrono::steady_clock::time_point()>;
@@ -191,7 +202,20 @@ public:
     Duration tick(std::optional<Duration> expectedPeriod = std::nullopt);
 
     /**
+     * Returns the current time of the uptime clock. As per getUptime(),
+     * this will only change if tick() is called appropriately.
+     *
+     * @return The time point the uptime clock is currently at.
+     */
+    std::chrono::steady_clock::time_point now() const;
+
+    /**
+     * Returns the number of seconds since the clock's epoch.
+     *
      * Note: This function only returns a changing value if tick() is called
+     *
+     * Note2: Prefer the more accurate (to milliseconds) and more type-safe
+     * now() method returning SteadyClock (time_point).
      * @return number of seconds the process has been up
      */
     std::chrono::seconds getUptime() const;

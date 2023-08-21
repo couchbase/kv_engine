@@ -33,6 +33,10 @@ struct ServerBucketApi : public ServerBucketIface {
 };
 
 struct ServerCoreApi : public ServerCoreIface {
+    std::chrono::steady_clock::time_point get_uptime_now() override {
+        return mc_time_uptime_now();
+    }
+
     rel_time_t get_current_time() override {
         return mc_time_get_current_time();
     }

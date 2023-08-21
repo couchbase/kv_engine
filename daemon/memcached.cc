@@ -69,6 +69,8 @@
 #include <numa.h>
 #endif
 
+using namespace std::chrono_literals;
+
 std::atomic<bool> memcached_shutdown;
 std::atomic<bool> sigint;
 std::atomic<bool> sigterm;
@@ -1008,7 +1010,7 @@ int memcached_main(int argc, char** argv) {
     cb::time::UptimeClock::instance().configureSteadyClockCheck(
             std::chrono::milliseconds(100));
     /* Create memcached time Regulator and begin periodic ticking */
-    cb::time::Regulator::createAndRun(*main_base, std::chrono::seconds(1));
+    cb::time::Regulator::createAndRun(*main_base, 100ms);
 
     // Optional parent monitor
     {

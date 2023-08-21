@@ -20,6 +20,13 @@ struct ServerCoreIface {
     virtual ~ServerCoreIface() = default;
 
     /**
+     * The current time of the server uptime clock.
+     * This is more powerful version of get_current_time() - it supports
+     * sub-second precision, and returns a more strongly typed value.
+     */
+    virtual std::chrono::steady_clock::time_point get_uptime_now() = 0;
+
+    /**
      * The current time.
      */
     virtual rel_time_t get_current_time() = 0;

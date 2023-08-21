@@ -53,6 +53,10 @@ using namespace std::chrono;
  */
 const seconds memcached_maximum_relative_time(60 * 60 * 24 * 30);
 
+std::chrono::steady_clock::time_point mc_time_uptime_now() {
+    return cb::time::UptimeClock::instance().now();
+}
+
 /*
  * Return a monotonically increasing value.
  * The value returned represents seconds since memcached started.
@@ -162,7 +166,9 @@ static void mc_gather_timing_samples() {
 namespace cb::time {
 
 Regulator::Regulator(folly::EventBase& eventBase, Duration interval)
-    : eventBase(eventBase), interval(interval) {
+    : eventBase(eventBase),
+      interval(interval),
+      nextBucketManagerTick(UptimeClock::instance().now()) {
 }
 
 void Regulator::scheduleOneTick() {
@@ -190,7 +196,12 @@ void Regulator::tickUptimeClockOnce() {
 
 void Regulator::tick(std::optional<Duration> expectedPeriod) {
     UptimeClock::instance().tick(expectedPeriod);
-    BucketManager::instance().tick();
+    const auto now = UptimeClock::instance().now();
+    // Every 1s we should tick the BucketManager.
+    if (now >= nextBucketManagerTick) {
+        BucketManager::instance().tick();
+        nextBucketManagerTick = now + 1s;
+    }
     mc_gather_timing_samples();
 }
 
@@ -229,6 +240,10 @@ UptimeClock::UptimeClock(SteadyClock steadyClock, SystemClock systemClock)
       epoch(lastKnownSystemTime),
       systemCheckLastKnownSteadyTime(start),
       lastKnownSteadyTime(start) {
+}
+
+std::chrono::steady_clock::time_point UptimeClock::now() const {
+    return std::chrono::steady_clock::time_point(uptime.load());
 }
 
 seconds UptimeClock::getUptime() const {

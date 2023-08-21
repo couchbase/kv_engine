@@ -137,8 +137,8 @@ public:
      * @return the test fixture steadyTime
      */
     cb::time::Duration tick(int ticks = 1,
-                            milliseconds steadyTick = 1000ms,
-                            milliseconds systemTick = 1000ms) {
+                            milliseconds steadyTick = 100ms,
+                            milliseconds systemTick = 100ms) {
         for (int tick = 0; tick < ticks; tick++) {
             steadyTime += steadyTick;
             systemTime += systemTick;
@@ -160,14 +160,14 @@ public:
 TEST_F(McTimeUptimeTest, expectedFlow) {
     tick();
     ASSERT_EQ(0, uptimeClock.getSystemClockWarnings());
-    ASSERT_EQ(1s, uptimeClock.getUptime());
+    ASSERT_EQ(100ms, uptimeClock.now().time_since_epoch());
 
     // tick, but without time moving
     uptimeClock.tick();
-    ASSERT_EQ(1s, uptimeClock.getUptime());
+    ASSERT_EQ(100ms, uptimeClock.now().time_since_epoch());
 
     tick(2);
-    ASSERT_EQ(3s, uptimeClock.getUptime());
+    ASSERT_EQ(300ms, uptimeClock.now().time_since_epoch());
 }
 
 TEST_F(McTimeUptimeTest, systemTimeCheckTriggers) {
@@ -183,37 +183,37 @@ TEST_F(McTimeUptimeTest, systemTimeCheckTriggers) {
 }
 
 TEST_F(McTimeUptimeTest, systemTimeNoTriggerDragging) {
-    // Enable monitoring. Every 2 seconds check if the system clock has moved by
-    // 2 (+/- 1) seconds.
-    uptimeClock.configureSystemClockCheck(2s, 1s);
+    // Enable monitoring. Every 200ms check if the system clock has moved by
+    // 200 (+/- 100) milliseconds.
+    uptimeClock.configureSystemClockCheck(200ms, 100ms);
 
     // Tick both equally - no warning. steady=2, system=2
-    EXPECT_EQ(2s, tick(2));
+    EXPECT_EQ(200ms, tick(2));
     EXPECT_EQ(0, uptimeClock.getSystemClockWarnings());
     EXPECT_EQ(1, uptimeClock.getSystemClockChecks());
 
-    // Now "drag" the system clock. Every 1 second of steady time, 0.5s of
+    // Now "drag" the system clock. Every 100ms of steady time, 50ms of
     // system will pass, however this is within tolerance and does not trigger
     // a warning.
-    EXPECT_EQ(4s, tick(2, 1000ms, 500ms));
+    EXPECT_EQ(400ms, tick(2, 100ms, 50ms));
     EXPECT_EQ(0, uptimeClock.getSystemClockWarnings());
     EXPECT_EQ(2, uptimeClock.getSystemClockChecks());
 }
 
 TEST_F(McTimeUptimeTest, systemTimeNoTriggerRushing) {
-    // Enable monitoring. Every 2 seconds check if the system clock has moved by
-    // 2 (+/- 1) seconds.
-    uptimeClock.configureSystemClockCheck(2s, 1s);
+    // Enable monitoring. Every 200ms check if the system clock has moved by
+    // 200 (+/- 100) milliseconds.
+    uptimeClock.configureSystemClockCheck(200ms, 100ms);
 
     // Tick both equally - no warning. steady=2, system=2
-    EXPECT_EQ(2s, tick(2));
+    EXPECT_EQ(200ms, tick(2));
     EXPECT_EQ(0, uptimeClock.getSystemClockWarnings());
     EXPECT_EQ(1, uptimeClock.getSystemClockChecks());
 
-    // Now "rush" the system clock. Every 1 second of steady time, 1.5s of
+    // Now "rush" the system clock. Every 100ms of steady time, 150ms of
     // system will pass, however this is within tolerance and does not trigger
     // a warning.
-    EXPECT_EQ(4s, tick(2, 1000ms, 1500ms));
+    EXPECT_EQ(400ms, tick(2, 100ms, 150ms));
     EXPECT_EQ(0, uptimeClock.getSystemClockWarnings());
     EXPECT_EQ(2, uptimeClock.getSystemClockChecks());
 }
@@ -284,18 +284,22 @@ TEST_F(McTimeUptimeTest, millisecondTicking) {
     EXPECT_EQ(epoch, uptimeClock.getEpochSeconds());
     // still appears as if 0s elapsed
     EXPECT_EQ(0s, uptimeClock.getUptime());
+    // ... but does using now() API
+    EXPECT_EQ(60ms, uptimeClock.now().time_since_epoch());
 
     // Now tick onwards over 1s
     EXPECT_EQ(1060ms, tick(100, 10ms, 10ms));
     EXPECT_EQ(2, uptimeClock.getSystemClockWarnings());
     EXPECT_EQ(106, uptimeClock.getSystemClockChecks());
     EXPECT_EQ(1s, uptimeClock.getUptime());
+    EXPECT_EQ(1060ms, uptimeClock.now().time_since_epoch());
 
     // Now a big jump
     EXPECT_EQ(1070ms, tick(1, 10ms, -8000ms));
     EXPECT_EQ(3, uptimeClock.getSystemClockWarnings());
     EXPECT_EQ(107, uptimeClock.getSystemClockChecks());
     EXPECT_EQ(1s, uptimeClock.getUptime());
+    EXPECT_EQ(1070ms, uptimeClock.now().time_since_epoch());
 
     // uptime:1s, clock jump -8s
     EXPECT_EQ(epoch - 8s - 1s, uptimeClock.getEpochSeconds());
@@ -349,8 +353,8 @@ TEST_F(McTimeUptimeTest, tickDelay) {
 }
 
 TEST_F(McTimeUptimeTest, MB11548) {
-    uptimeClock.configureSystemClockCheck(60s, 1s);
-    EXPECT_EQ(60s, tick(60));
+    uptimeClock.configureSystemClockCheck(600ms, 100ms);
+    EXPECT_EQ(6s, tick(60));
     ASSERT_EQ(0, uptimeClock.getSystemClockWarnings());
 
     // partially test MB11548. MB11548 affected expiry when time changed to a
@@ -358,10 +362,10 @@ TEST_F(McTimeUptimeTest, MB11548) {
     // test doesn't check expiry, but checks how the time functions which are
     // used in expiry paths behave.
 
-    // First mimic a store which sets expiry as 120s. KV always turns anything
+    // First mimic a store which sets expiry as 12s. KV always turns anything
     // under 30days into an absolute time. If expiry was over 30days, it is
     // used as is (assumed to be the correct absolute time of expiry).
-    auto expiryInput = 120s;
+    auto expiryInput = 12s;
 
     auto t1 = mc_time_convert_to_real_time(expiryInput.count(),
                                            uptimeClock.getEpoch(),
@@ -369,9 +373,9 @@ TEST_F(McTimeUptimeTest, MB11548) {
     auto absoluteExpiryTime =
             mc_time_convert_to_abs_time(t1, uptimeClock.getEpoch());
 
-    // System clock now goes back, but 60 seconds must pass before we adjust
-    systemTime -= 360s;
-    EXPECT_EQ(120s, tick(60));
+    // System clock now goes back, but 6 seconds must pass before we adjust
+    systemTime -= 36s;
+    EXPECT_EQ(12s, tick(60));
     ASSERT_EQ(1, uptimeClock.getSystemClockWarnings());
 
     // ep-engine checks for expiry using ep_abs_time(ep_current_time())
@@ -380,7 +384,7 @@ TEST_F(McTimeUptimeTest, MB11548) {
     auto expiryCheck = mc_time_convert_to_abs_time(
             uptimeClock.getUptime().count(), uptimeClock.getEpoch());
 
-    // Check must fail to expir, only 60s of steady time passed, the document
+    // Check must fail to expir, only 6s of steady time passed, the document
     // lives for now.
 
     EXPECT_FALSE(absoluteExpiryTime < expiryCheck);
@@ -390,12 +394,12 @@ TEST_F(McTimeUptimeTest, MB11548) {
 // can be seen to follow. With the fix no warnings occur because system time is
 // compared to steady time
 TEST_F(McTimeUptimeTest, MB_57249) {
-    uptimeClock.configureSystemClockCheck(60s, 1s);
-    uptimeClock.configureSteadyClockCheck(1s);
+    uptimeClock.configureSystemClockCheck(6s, 100ms);
+    uptimeClock.configureSteadyClockCheck(100ms);
 
     // Code follows the description from the MB.
-    // First trigger a check at 60 seconds where everything is good
-    EXPECT_EQ(60s, tick(60));
+    // First trigger a check at 6 seconds where everything is good
+    EXPECT_EQ(6s, tick(60));
     EXPECT_EQ(0, uptimeClock.getSteadyClockWarnings());
     EXPECT_EQ(0, uptimeClock.getSystemClockWarnings());
     EXPECT_EQ(1, uptimeClock.getSystemClockChecks());
@@ -403,16 +407,16 @@ TEST_F(McTimeUptimeTest, MB_57249) {
     // Second trigger a check, but all clocks are moving correctly. It was the
     // call of tick that was not on time.
     // First 59 on time ticks
-    EXPECT_EQ(119s, tick(59));
+    EXPECT_EQ(11'900ms, tick(59));
     EXPECT_EQ(0, uptimeClock.getSteadyClockWarnings());
     EXPECT_EQ(0, uptimeClock.getSystemClockWarnings());
     EXPECT_EQ(1, uptimeClock.getSystemClockChecks());
 
     // Now "delay" the next tick, which corresponds to a system check. Both
     // clocks have moved together and really there's no problem.
-    steadyTime += 5s;
-    systemTime += 5s;
-    EXPECT_EQ(5s, uptimeClock.tick(1s));
+    steadyTime += 500ms;
+    systemTime += 500ms;
+    EXPECT_EQ(500ms, uptimeClock.tick(100ms));
 
     // Prior to fixing the MB, a warning was triggered here. Now no warning as
     // system time is checked against steady time - and they're both equal. A
@@ -422,17 +426,17 @@ TEST_F(McTimeUptimeTest, MB_57249) {
     EXPECT_EQ(2, uptimeClock.getSystemClockChecks());
 
     // In the MB, a third check gets it wrong. The previous check was late and
-    // this one is on time - all clocks have moved forwards equally by 56
-    // seconds to the 180 seconds of uptime, but a warning occurs. The log
+    // this one is on time - all clocks have moved forwards equally by 5.6
+    // seconds to the 18 seconds of uptime, but a warning occurs. The log
     // message was also confusingly a number suggesting system clock has gone
     // backwards. Prior to fixing a second warning would occur next.
-    EXPECT_EQ(184s, tick(60));
+    EXPECT_EQ(18'400ms, tick(60));
     EXPECT_EQ(1, uptimeClock.getSteadyClockWarnings());
     EXPECT_EQ(0, uptimeClock.getSystemClockWarnings());
     EXPECT_EQ(3, uptimeClock.getSystemClockChecks());
 
     // Check again, all is good.
-    EXPECT_EQ(244s, tick(60));
+    EXPECT_EQ(24'400ms, tick(60));
     EXPECT_EQ(1, uptimeClock.getSteadyClockWarnings());
     EXPECT_EQ(0, uptimeClock.getSystemClockWarnings());
     EXPECT_EQ(4, uptimeClock.getSystemClockChecks());

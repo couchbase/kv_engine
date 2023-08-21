@@ -21,12 +21,14 @@
 #include <memcached/engine_testapp.h>
 #include <memcached/server_bucket_iface.h>
 #include <memcached/server_core_iface.h>
+#include <platform/atomic_duration.h>
 #include <platform/platform_time.h>
 #include <utilities/engine_errc_2_mcbp.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <cstring>
 #include <ctime>
 #include <list>
@@ -36,6 +38,9 @@
 #define REALTIME_MAXDELTA 60*60*24*3
 
 std::atomic<time_t> process_started;     /* when the mock server was started */
+
+// When the mock server was started, std::chrono variant
+cb::AtomicTimePoint<> process_started_steady;
 
 /* Offset from 'real' time used to test time handling */
 std::atomic<rel_time_t> time_travel_offset;
@@ -58,6 +63,16 @@ folly::Synchronized<CookieToNotificationsMap, std::mutex> cookieNotifications;
 std::condition_variable cookieNotificationSignal;
 
 /* Forward declarations */
+
+static std::chrono::steady_clock::time_point mock_get_uptime_now() {
+    // Want to return a time_point in terms of time since our server startup
+    // (not since steady_clock's epoch), so need to first calculate the
+    // duration since startup, then conver to time_point.
+    auto duration_since_start = std::chrono::steady_clock::now() -
+                                process_started_steady.load() +
+                                std::chrono::seconds(time_travel_offset);
+    return std::chrono::steady_clock::time_point(duration_since_start);
+}
 
 /* time-sensitive callers can call it by hand with this, outside the
    normal ever-1-second timer */
@@ -125,6 +140,10 @@ void mock_time_travel(int by) {
 }
 
 struct MockServerCoreApi : public ServerCoreIface {
+    std::chrono::steady_clock::time_point get_uptime_now() override {
+        return mock_get_uptime_now();
+    }
+
     rel_time_t get_current_time() override {
         return mock_get_current_time();
     }
@@ -224,6 +243,8 @@ ServerApi* get_mock_server_api() {
 
 void init_mock_server() {
     process_started = time(nullptr);
+    process_started_steady = std::chrono::steady_clock::now();
+
     time_travel_offset = 0;
     log_level = spdlog::level::level_enum::critical;
 }
