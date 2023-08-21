@@ -310,12 +310,20 @@ ManifestUpdateStatus Manifest::update(VBucketStateLockRef vbStateLock,
                     changes.scopesToDrop.size(),
                     changes.collectionsToDrop.size());
             return ManifestUpdateStatus::EqualUidWithDifferences;
+        } else if (changes.scopesToModify.empty() &&
+                   !changes.changeScopeWithDataLimitExists) {
+            // else only a scope modification or change of
+            // scopeWithDataLimitExists is allowed when the uid is equal
+            EP_LOG_CRITICAL(
+                    "Manifest::update {} scopesToModify:{} "
+                    "changeScopeWithDataLimitExists:{} {}{}",
+                    vb.getId(),
+                    changes.scopesToModify.empty(),
+                    changes.changeScopeWithDataLimitExists.has_value(),
+                    *this,
+                    manifest);
+            Expects(false);
         }
-
-        // else a scope modification or change of scopeWithDataLimitExists is
-        // allowed when the uid is equal
-        Expects(!changes.scopesToModify.empty() ||
-                changes.changeScopeWithDataLimitExists);
     }
 
     completeUpdate(vbStateLock, std::move(upgradeLock), vb, changes);

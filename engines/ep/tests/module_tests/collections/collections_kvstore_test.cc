@@ -474,6 +474,17 @@ TEST_P(CollectionsKVStoreTest, create_and_modify_same_batch) {
     applyAndCheck(cm);
 }
 
+// Created for MB-58319. Modify the default collection when in epoch state, i.e.
+// the VB "disk" state is empty and we flush the first copy of the default
+// collection - but in this case it's a modified copy.
+TEST_P(CollectionsKVStoreTest, epochAndModify) {
+    CollectionsManifest cm;
+    auto entry = CollectionEntry::defaultC;
+    entry.metered = true;
+    cm.update(entry, cb::NoExpiryLimit);
+    applyAndCheck(cm);
+}
+
 // Check that the history state persists and comes back
 TEST_P(CollectionsKVStoreTest, one_update_with_history) {
     CollectionsManifest cm;

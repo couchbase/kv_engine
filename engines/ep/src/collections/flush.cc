@@ -447,7 +447,7 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
                                 Collections::DefaultCollectionIdentifier
                                         .data()),
                         getHistoryFromCanDeduplicate(meta.canDeduplicate),
-                        false /* metered */));
+                        Collections::getMeteredFromEnum(meta.metered)));
     }
 
     auto collectionsVector = builder.CreateVector(finalisedOpenCollection);
