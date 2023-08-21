@@ -26,6 +26,13 @@ struct ServerCoreIface;
 void initialize_time_functions(ServerCoreIface* core_api);
 
 extern rel_time_t ep_current_time();
+
+/** @returns the duration since the server started.
+ * See cb::time::Regulator for how often this time is updated (i.e. resolution)
+ * - not necessarily every millisecond.
+ */
+std::chrono::steady_clock::time_point ep_uptime_now();
+
 extern time_t ep_abs_time(rel_time_t);
 extern rel_time_t ep_reltime(rel_time_t);
 extern time_t ep_real_time();

@@ -59,6 +59,8 @@
 #include <thread>
 #include <unordered_map>
 
+using namespace std::chrono_literals;
+
 // For some reason g++ 10.2.0 fails building googletest 1.11.0 due to not
 // finding the ostream operator... workaround that for now..
 namespace std::chrono {
@@ -841,6 +843,11 @@ TEST_P(ConnectionTest, test_mb19955) {
     destroy_mock_cookie(cookie);
 }
 
+/*
+ * Test that if a noop is ready to send, but the DCP buffer is full, that
+ * we correctly handle that and don't incorrectly record that the noop was
+ * successfully sent.
+ */
 TEST_P(ConnectionTest, test_maybesendnoop_buffer_full) {
     auto* cookie = create_mock_cookie(engine);
     // Create a Mock Dcp producer
@@ -849,6 +856,8 @@ TEST_P(ConnectionTest, test_maybesendnoop_buffer_full) {
                                                       "test_producer",
                                                       /*flags*/ 0);
 
+    // Define mock producers which return too_big when attempting to send
+    // a noop - i.e. buffer is full.
     class MockE2BigMessageProducers : public MockDcpMessageProducers {
     public:
         cb::engine_errc noop(uint32_t) override {
@@ -858,8 +867,12 @@ TEST_P(ConnectionTest, test_maybesendnoop_buffer_full) {
     } producers;
 
     producer->setNoopEnabled(MockDcpProducer::NoopMode::Enabled);
-    const auto send_time = ep_current_time() + 21;
-    producer->setNoopSendTime(send_time);
+    // Record current send time, so we can later check it hasn't changed.
+    const auto send_time = producer->getNoopSendTime();
+    // Advance time so when we call maybeSendNoop, it appears as if sufficient
+    // time has advanced that we should attempt to send noop.
+    TimeTraveller marty(engine->getConfiguration().getDcpIdleTimeout() + 1);
+    // Attempt to send no-op - should fail as mock claims buffer is full.
     cb::engine_errc ret = producer->maybeSendNoop(producers);
     EXPECT_EQ(cb::engine_errc::too_big, ret)
             << "maybeSendNoop not returning cb::engine_errc::too_big";
@@ -871,6 +884,10 @@ TEST_P(ConnectionTest, test_maybesendnoop_buffer_full) {
     destroy_mock_cookie(cookie);
 }
 
+/**
+ * Test that a DCP Producer correctly sends a noop after the specified interval
+ * has elapsed.
+ */
 TEST_P(ConnectionTest, test_maybesendnoop_send_noop) {
     auto* cookie = create_mock_cookie(engine);
     // Create a Mock Dcp producer
@@ -881,7 +898,11 @@ TEST_P(ConnectionTest, test_maybesendnoop_send_noop) {
 
     MockDcpMessageProducers producers;
     producer->setNoopEnabled(MockDcpProducer::NoopMode::Enabled);
-    const auto send_time = ep_current_time() + 21;
+    // Record current send time, so we can later check it changes on send.
+    const auto send_time = producer->getNoopSendTime();
+    // Advance time so when we call maybeSendNoop, it appears as if sufficient
+    // time has advanced that we should attempt to send noop.
+    TimeTraveller marty(engine->getConfiguration().getDcpIdleTimeout() + 1);
     producer->setNoopSendTime(send_time);
     cb::engine_errc ret = producer->maybeSendNoop(producers);
     EXPECT_EQ(cb::engine_errc::success, ret)
@@ -903,7 +924,7 @@ TEST_P(ConnectionTest, test_maybesendnoop_noop_already_pending) {
                                                       /*flags*/ 0);
 
     MockDcpMessageProducers producers;
-    const auto send_time = ep_current_time();
+    const auto send_time = ep_uptime_now();
     TimeTraveller marty(engine->getConfiguration().getDcpIdleTimeout() + 1);
     producer->setNoopEnabled(MockDcpProducer::NoopMode::Enabled);
     producer->setNoopSendTime(send_time);
@@ -925,8 +946,9 @@ TEST_P(ConnectionTest, test_maybesendnoop_noop_already_pending) {
     // cb::engine_errc::disconnect
     EXPECT_EQ(cb::engine_errc::disconnect, ret)
             << "maybeDisconnect not returning cb::engine_errc::disconnect";
-    producer->setLastReceiveTime(
-            send_time + engine->getConfiguration().getDcpIdleTimeout() + 1);
+    const auto idleTimeout = std::chrono::seconds(
+            engine->getConfiguration().getDcpIdleTimeout());
+    producer->setLastReceiveTime(send_time + idleTimeout + 1s);
     ret = producer->maybeDisconnect();
     // Check to see if we don't want to disconnect i.e. returned
     // cb::engine_errc::failed
@@ -948,7 +970,7 @@ TEST_P(ConnectionTest, test_maybesendnoop_not_enabled) {
 
     MockDcpMessageProducers producers;
     producer->setNoopEnabled(MockDcpProducer::NoopMode::Disabled);
-    const auto send_time = ep_current_time() + 21;
+    const auto send_time = ep_uptime_now() + 21s;
     producer->setNoopSendTime(send_time);
     cb::engine_errc ret = producer->maybeSendNoop(producers);
     EXPECT_EQ(cb::engine_errc::failed, ret)
@@ -971,7 +993,7 @@ TEST_P(ConnectionTest, test_maybesendnoop_not_sufficient_time_passed) {
 
     MockDcpMessageProducers producers;
     producer->setNoopEnabled(MockDcpProducer::NoopMode::Enabled);
-    rel_time_t current_time = ep_current_time();
+    auto current_time = ep_uptime_now();
     producer->setNoopSendTime(current_time);
     cb::engine_errc ret = producer->maybeSendNoop(producers);
     EXPECT_EQ(cb::engine_errc::failed, ret)
@@ -1155,17 +1177,21 @@ TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
     // Create a Mock Dcp consumer
     auto consumer =
             std::make_shared<MockDcpConsumer>(*engine, cookie, "test_consumer");
-    consumer->setLastMessageTime(1234);
+    // Define a known, large time point which we initialise consumer's
+    // lastMessageTime to, we can then check after receiving messages it has
+    // changed.
+    const std::chrono::steady_clock::time_point initMsgTime(1234s);
+    consumer->setLastMessageTime(initMsgTime);
     consumer->addStream(/*opaque*/ 0, vbid, /*flags*/ 0);
-    EXPECT_NE(1234, consumer->getLastMessageTime())
+    EXPECT_NE(initMsgTime, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for addStream";
-    consumer->setLastMessageTime(1234);
+    consumer->setLastMessageTime(initMsgTime);
     consumer->closeStream(/*opaque*/ 0, vbid);
-    EXPECT_NE(1234, consumer->getLastMessageTime())
+    EXPECT_NE(initMsgTime, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for closeStream";
-    consumer->setLastMessageTime(1234);
+    consumer->setLastMessageTime(initMsgTime);
     consumer->streamEnd(/*opaque*/ 0, vbid, cb::mcbp::DcpStreamEndStatus::Ok);
-    EXPECT_NE(1234, consumer->getLastMessageTime())
+    EXPECT_NE(initMsgTime, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for streamEnd";
     const DocKey docKey{nullptr, 0, DocKeyEncodesCollectionId::No};
     consumer->mutation(0, // opaque
@@ -1182,9 +1208,9 @@ TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
                        0, // exptime
                        {}, // meta
                        0); // nru
-    EXPECT_NE(1234, consumer->getLastMessageTime())
+    EXPECT_NE(initMsgTime, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for mutation";
-    consumer->setLastMessageTime(1234);
+    consumer->setLastMessageTime(initMsgTime);
     consumer->deletion(0, // opaque
                        docKey,
                        {}, // value
@@ -1195,9 +1221,9 @@ TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
                        0, // by seqno
                        0, // rev seqno
                        {}); // meta
-    EXPECT_NE(1234, consumer->getLastMessageTime())
+    EXPECT_NE(initMsgTime, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for deletion";
-    consumer->setLastMessageTime(1234);
+    consumer->setLastMessageTime(initMsgTime);
     consumer->expiration(0, // opaque
                          docKey,
                          {}, // value
@@ -1208,9 +1234,9 @@ TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
                          0, // by seqno
                          0, // rev seqno
                          {}); // meta
-    EXPECT_NE(1234, consumer->getLastMessageTime())
+    EXPECT_NE(initMsgTime, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for expiration";
-    consumer->setLastMessageTime(1234);
+    consumer->setLastMessageTime(initMsgTime);
     consumer->snapshotMarker(/*opaque*/ 0,
                              vbid,
                              /*start_seqno*/ 0,
@@ -1218,17 +1244,17 @@ TEST_P(ConnectionTest, test_update_of_last_message_time_in_consumer) {
                              /*flags*/ 0,
                              /*HCS*/ {},
                              /*maxVisibleSeqno*/ {});
-    EXPECT_NE(1234, consumer->getLastMessageTime())
+    EXPECT_NE(initMsgTime, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for snapshotMarker";
-    consumer->setLastMessageTime(1234);
+    consumer->setLastMessageTime(initMsgTime);
     consumer->noop(/*opaque*/0);
-    EXPECT_NE(1234, consumer->getLastMessageTime())
+    EXPECT_NE(initMsgTime, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for noop";
-    consumer->setLastMessageTime(1234);
+    consumer->setLastMessageTime(initMsgTime);
     consumer->setVBucketState(/*opaque*/ 0,
                               vbid,
                               /*state*/ vbucket_state_active);
-    EXPECT_NE(1234, consumer->getLastMessageTime())
+    EXPECT_NE(initMsgTime, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for setVBucketState";
     destroy_mock_cookie(cookie);
 }

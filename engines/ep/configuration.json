@@ -1060,14 +1060,14 @@
             "type": "size_t"
         },
         "dcp_noop_tx_interval": {
-            "default": "1.0",
+            "default": "0.1",
             "descr": "The time interval in seconds between noop messages being sent to the consumer",
             "dynamic": true,
             "type": "float",
             "validator": {
                 "range": {
                     "max" : 360,
-                    "min" : 1
+                    "min" : 0.1
                 }
             }
         },

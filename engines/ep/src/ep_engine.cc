@@ -938,7 +938,7 @@ cb::engine_errc EventuallyPersistentEngine::setDcpParam(const std::string& key,
             validate(v, size_t(1), std::numeric_limits<size_t>::max());
             getConfiguration().setDcpIdleTimeout(v);
         } else if (key == "dcp_noop_tx_interval") {
-            getConfiguration().setDcpNoopTxInterval(std::stoull(val));
+            getConfiguration().setDcpNoopTxInterval(std::stof(val));
         } else if (key == "dcp_oso_backfill") {
             getConfiguration().setDcpOsoBackfill(val);
         } else if (key == "dcp_oso_backfill_large_value_ratio") {
@@ -1307,7 +1307,7 @@ cb::engine_errc EventuallyPersistentEngine::get_failover_log(
                     "failover log API");
             return cb::engine_errc::disconnect;
         }
-        producer->setLastReceiveTime(ep_current_time());
+        producer->setLastReceiveTime(ep_uptime_now());
         if (producer->doDisconnect()) {
             return cb::engine_errc::disconnect;
         }

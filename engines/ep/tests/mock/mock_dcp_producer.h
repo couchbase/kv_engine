@@ -44,15 +44,11 @@ public:
         return DcpProducer::maybeSendNoop(producers);
     }
 
-    void setLastReceiveTime(const rel_time_t timeValue) {
-        lastReceiveTime = timeValue;
-    }
-
-    void setNoopSendTime(const rel_time_t timeValue) {
+    void setNoopSendTime(std::chrono::steady_clock::time_point timeValue) {
         noopCtx.sendTime = timeValue;
     }
 
-    rel_time_t getNoopSendTime() {
+    std::chrono::steady_clock::time_point getNoopSendTime() {
         return noopCtx.sendTime;
     }
 

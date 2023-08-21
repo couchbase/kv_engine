@@ -186,7 +186,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
     : ConnHandler(e, cookie, name),
       sendStreamEndOnClientStreamClose(false),
       consumerSupportsHifiMfu(false),
-      lastSendTime(ep_current_time()),
+      lastSendTime(ep_uptime_now()),
       log(*this),
       backfillMgr(std::make_shared<BackfillManager>(
               *e.getKVBucket(),
@@ -238,7 +238,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
     // The consumer assigns opaques starting at 0 so lets have the producer
     //start using opaques at 10M to prevent any opaque conflicts.
     noopCtx.opaque = 10000000;
-    noopCtx.sendTime = ep_current_time();
+    noopCtx.sendTime = ep_uptime_now();
 
     // This is for backward compatibility with Couchbase 3.0. In 3.0 we set the
     // noop interval to 20 seconds by default, but in post 3.0 releases we set
@@ -274,7 +274,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
 
 DcpProducer::~DcpProducer() {
     // Log runtime / pause information when we destruct.
-    const auto now = ep_current_time();
+    const auto now = ep_uptime_now();
     auto noopDescr = fmt::format("Noop enabled:{}", noopCtx.enabled);
     if (noopCtx.enabled) {
         noopDescr += fmt::format(
@@ -313,7 +313,7 @@ cb::engine_errc DcpProducer::streamRequest(
         uint64_t* rollback_seqno,
         dcp_add_failover_log callback,
         std::optional<std::string_view> json) {
-    lastReceiveTime = ep_current_time();
+    lastReceiveTime = ep_uptime_now();
     if (doDisconnect()) {
         return cb::engine_errc::disconnect;
     }
@@ -956,13 +956,13 @@ cb::engine_errc DcpProducer::step(bool throttled,
         totalBytesSent.fetch_add(resp->getMessageSize());
     }
 
-    lastSendTime = ep_current_time();
+    lastSendTime = ep_uptime_now();
     return ret;
 }
 
 cb::engine_errc DcpProducer::bufferAcknowledgement(uint32_t opaque,
                                                    uint32_t buffer_bytes) {
-    lastReceiveTime = ep_current_time();
+    lastReceiveTime = ep_uptime_now();
     log.acknowledge(buffer_bytes);
     return cb::engine_errc::success;
 }
@@ -995,7 +995,7 @@ cb::engine_errc DcpProducer::deletionV1OrV2(IncludeDeleteTime incDeleteTime,
 cb::engine_errc DcpProducer::control(uint32_t opaque,
                                      std::string_view key,
                                      std::string_view value) {
-    lastReceiveTime = ep_current_time();
+    lastReceiveTime = ep_uptime_now();
     const char* param = key.data();
     std::string keyStr(key.data(), key.size());
     std::string valueStr(value.data(), value.size());
@@ -1065,18 +1065,20 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
         consumerSupportsHifiMfu = (valueStr == "true");
         return cb::engine_errc::success;
     } else if (strncmp(param, "set_noop_interval", key.size()) == 0) {
-        uint32_t noopInterval;
-        if (safe_strtoul(valueStr, noopInterval)) {
+        float noopInterval;
+        if (safe_strtof(valueStr, noopInterval)) {
             /*
              * We need to ensure that we only set the noop interval to a value
              * that is greater or equal to the connection manager interval.
              * The reason is that if there is no DCP traffic we snooze for the
              * connection manager interval before sending the noop.
              */
-            if (float(noopInterval) >=
+            if (noopInterval >=
                 engine_.getConfiguration().getConnectionManagerInterval()) {
-                noopCtx.dcpNoopTxInterval = std::chrono::seconds(noopInterval);
-                return cb::engine_errc::success;
+                    noopCtx.dcpNoopTxInterval = std::chrono::duration_cast<
+                            std::chrono::milliseconds>(
+                            std::chrono::duration<float>(noopInterval));
+                    return cb::engine_errc::success;
             }
             logger->warn(
                     "Attempt to set DCP control set_noop_interval to {}s which "
@@ -1254,7 +1256,7 @@ cb::engine_errc DcpProducer::seqno_acknowledged(uint32_t opaque,
 }
 
 bool DcpProducer::handleResponse(const cb::mcbp::Response& response) {
-    lastReceiveTime = ep_current_time();
+    lastReceiveTime = ep_uptime_now();
     if (doDisconnect()) {
         return false;
     }
@@ -1418,7 +1420,7 @@ std::pair<std::shared_ptr<Stream>, bool> DcpProducer::closeStreamInner(
 cb::engine_errc DcpProducer::closeStream(uint32_t opaque,
                                          Vbid vbucket,
                                          cb::mcbp::DcpStreamId sid) {
-    lastReceiveTime = ep_current_time();
+    lastReceiveTime = ep_uptime_now();
     if (doDisconnect()) {
         return cb::engine_errc::disconnect;
     }
@@ -1528,8 +1530,16 @@ void DcpProducer::addStats(const AddStatFn& add_stat, CookieIface& c) {
         addStat("total_uncompressed_data_size", getTotalUncompressedDataSize(),
                 add_stat, c);
     }
-    addStat("last_sent_time", lastSendTime, add_stat, c);
-    addStat("last_receive_time", lastReceiveTime, add_stat, c);
+    auto toFloatSecs = [](std::chrono::steady_clock::time_point t) {
+        using namespace std::chrono;
+        return duration_cast<duration<float>>(t.time_since_epoch()).count();
+    };
+
+    addStat("last_sent_time", toFloatSecs(lastSendTime), add_stat, c);
+    addStat("last_receive_time",
+            toFloatSecs(lastReceiveTime),
+            add_stat,
+            c);
     addStat("noop_enabled", noopCtx.enabled, add_stat, c);
     addStat("noop_tx_interval",
             cb::time2text(noopCtx.dcpNoopTxInterval),
@@ -1763,7 +1773,7 @@ void DcpProducer::closeAllStreams() {
 
     closeAllStreamsPostLockHook();
 
-    lastReceiveTime = ep_current_time();
+    lastReceiveTime = ep_uptime_now();
     std::vector<Vbid> vbvector;
     {
         std::for_each(streams->begin(),
@@ -1918,10 +1928,10 @@ void DcpProducer::notifyStreamReady(Vbid vbucket) {
 }
 
 cb::engine_errc DcpProducer::maybeDisconnect() {
-    const auto now = ep_current_time();
-    auto elapsedTime = now - lastReceiveTime;
+    const auto now = ep_uptime_now();
+    auto elapsedTime = now - lastReceiveTime.load();
     auto dcpIdleTimeout = getIdleTimeout();
-    if (noopCtx.enabled && std::chrono::seconds(elapsedTime) > dcpIdleTimeout) {
+    if (noopCtx.enabled && elapsedTime > dcpIdleTimeout) {
         logger->warn(
                 "Disconnecting because a message has not been received for "
                 "the DCP idle timeout of {}s. "
@@ -1931,7 +1941,7 @@ cb::engine_errc DcpProducer::maybeDisconnect() {
                 "opaque:{}, pendingRecv:{}], "
                 "paused:{}, pausedReason:{}",
                 dcpIdleTimeout.count(),
-                (now - lastSendTime),
+                (now - lastSendTime.load()),
                 elapsedTime,
                 (now - noopCtx.sendTime),
                 (now - noopCtx.recvTime),
@@ -1954,7 +1964,8 @@ cb::engine_errc DcpProducer::maybeSendNoop(
         // without sending a noop
         return cb::engine_errc::failed;
     }
-    std::chrono::seconds elapsedTime(ep_current_time() - noopCtx.sendTime);
+    const auto now = ep_uptime_now();
+    const auto elapsedTime(now - noopCtx.sendTime);
 
     // Check to see if waiting for a noop reply.
     // If not try to send a noop to the consumer if the interval has passed
@@ -1963,7 +1974,7 @@ cb::engine_errc DcpProducer::maybeSendNoop(
 
         if (ret == cb::engine_errc::success) {
             noopCtx.pendingRecv = true;
-            noopCtx.sendTime = ep_current_time();
+            noopCtx.sendTime = now;
             lastSendTime = noopCtx.sendTime;
         }
         return ret;

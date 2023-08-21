@@ -408,7 +408,7 @@ protected:
             IncludeDeletedUserXattrs::No};
 
     //! Connection creation time
-    const rel_time_t created;
+    const std::chrono::steady_clock::time_point created;
 
     /**
      * Flag used to state if we've received a control message with

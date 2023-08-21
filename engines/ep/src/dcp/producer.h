@@ -23,6 +23,7 @@
 #include <folly/AtomicHashMap.h>
 #include <folly/SharedMutex.h>
 #include <folly/lang/Aligned.h>
+#include <platform/atomic_duration.h>
 
 class BackfillManager;
 class CheckpointCursor;
@@ -238,7 +239,7 @@ public:
         return multipleStreamRequests == MultipleStreamRequests::Yes;
     }
 
-    void setLastReceiveTime(const rel_time_t time) {
+    void setLastReceiveTime(std::chrono::steady_clock::time_point time) {
         lastReceiveTime = time;
     }
 
@@ -431,15 +432,15 @@ protected:
 
     struct {
         // The time of the last noop message sent by this producer
-        rel_time_t sendTime = 0;
+        std::chrono::steady_clock::time_point sendTime;
 
         // The time of the last noop response message received by this producer
-        rel_time_t recvTime = 0;
+        std::chrono::steady_clock::time_point recvTime;
 
         uint32_t opaque;
 
         /// How often are DCP noop messages transmitted?
-        std::chrono::seconds dcpNoopTxInterval;
+        std::chrono::milliseconds dcpNoopTxInterval;
 
         /**
          * True if a DCP NOOP request has been sent and we are waiting for a
@@ -450,7 +451,7 @@ protected:
     } noopCtx;
 
     /// Timestamp of when we last recieved a message from our peer.
-    cb::RelaxedAtomic<rel_time_t> lastReceiveTime;
+    cb::AtomicTimePoint<> lastReceiveTime;
 
     std::unique_ptr<DcpResponse> getNextItem();
 
@@ -597,7 +598,7 @@ protected:
     std::string consumerName;
 
     /// Timestamp of when we last transmitted a message to our peer.
-    cb::RelaxedAtomic<rel_time_t> lastSendTime;
+    cb::AtomicTimePoint<> lastSendTime;
     BufferLog log;
 
     // backfill manager object is owned by this class, but use an

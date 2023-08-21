@@ -26,6 +26,14 @@ rel_time_t ep_current_time() {
     throw std::logic_error("ep_current_time called, but core API not set");
 }
 
+std::chrono::steady_clock::time_point ep_uptime_now() {
+    auto* iface = core.load(std::memory_order_acquire);
+    if (iface) {
+        return iface->get_uptime_now();
+    }
+    throw std::logic_error("ep_uptime_now called, but core API not set");
+}
+
 time_t ep_abs_time(rel_time_t rel_time) {
     auto* iface = core.load(std::memory_order_acquire);
     if (iface) {

@@ -25,6 +25,7 @@
 #include "objectregistry.h"
 #include "replicationthrottle.h"
 #include "vbucket.h"
+#include <fmt/chrono.h>
 #include <executor/executorpool.h>
 #include <phosphor/phosphor.h>
 #include <xattr/utils.h>
@@ -147,7 +148,7 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
                          const std::string& name,
                          std::string consumerName_)
     : ConnHandler(engine, cookie, name),
-      lastMessageTime(ep_current_time()),
+      lastMessageTime(ep_uptime_now()),
       opaqueCounter(0),
       processorTaskId(0),
       processorTaskState(all_processed),
@@ -216,10 +217,10 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine& engine,
 
 DcpConsumer::~DcpConsumer() {
     // Log runtime / pause information when we destruct.
-    const auto now = ep_current_time();
+    const auto now = ep_uptime_now();
     logger->info(
-            "Destroying connection. Created {} s ago. Last message received "
-            "{} s ago. {}",
+            "Destroying connection. Created {} ago. Last message received "
+            "{} ago. {}",
             (now - created),
             (now - lastMessageTime),
             getPausedDetails());
@@ -274,7 +275,7 @@ cb::engine_errc DcpConsumer::addStream(uint32_t opaque,
     TRACE_EVENT2(
             "DcpConsumer", "addStream", "vbid", vbucket.get(), "flags", flags);
 
-    lastMessageTime = ep_current_time();
+    lastMessageTime = ep_uptime_now();
     if (doDisconnect()) {
         return cb::engine_errc::disconnect;
     }
@@ -364,7 +365,7 @@ cb::engine_errc DcpConsumer::closeStream(uint32_t opaque,
                  "vbid",
                  vbucket.get());
 
-    lastMessageTime = ep_current_time();
+    lastMessageTime = ep_uptime_now();
     if (doDisconnect()) {
         removeStream(vbucket);
         return cb::engine_errc::disconnect;
@@ -405,7 +406,7 @@ cb::engine_errc DcpConsumer::streamEnd(uint32_t opaque,
                  "status",
                  uint32_t(status));
 
-    lastMessageTime = ep_current_time();
+    lastMessageTime = ep_uptime_now();
     UpdateFlowControl ufc(*this, StreamEndResponse::baseMsgBytes);
 
     auto stream = findStream(vbucket);
@@ -501,7 +502,7 @@ cb::engine_errc DcpConsumer::mutation(uint32_t opaque,
                                       uint32_t lock_time,
                                       cb::const_byte_buffer meta,
                                       uint8_t nru) {
-    lastMessageTime = ep_current_time();
+    lastMessageTime = ep_uptime_now();
 
     if (bySeqno == 0) {
         logger->warn("({}) Invalid sequence number(0) for mutation!", vbucket);
@@ -589,7 +590,7 @@ cb::engine_errc DcpConsumer::deletion(uint32_t opaque,
                                       IncludeDeleteTime includeDeleteTime,
                                       DeleteSource deletionCause,
                                       UpdateFlowControl& ufc) {
-    lastMessageTime = ep_current_time();
+    lastMessageTime = ep_uptime_now();
 
     if (doDisconnect()) {
         return cb::engine_errc::disconnect;
@@ -802,7 +803,7 @@ cb::engine_errc DcpConsumer::snapshotMarker(
         uint32_t flags,
         std::optional<uint64_t> high_completed_seqno,
         std::optional<uint64_t> max_visible_seqno) {
-    lastMessageTime = ep_current_time();
+    lastMessageTime = ep_uptime_now();
     uint32_t bytes = SnapshotMarker::baseMsgBytes;
     if (high_completed_seqno || max_visible_seqno) {
         bytes += sizeof(cb::mcbp::request::DcpSnapshotMarkerV2xPayload) +
@@ -836,7 +837,7 @@ cb::engine_errc DcpConsumer::snapshotMarker(
 }
 
 cb::engine_errc DcpConsumer::noop(uint32_t opaque) {
-    lastMessageTime = ep_current_time();
+    lastMessageTime = ep_uptime_now();
     return cb::engine_errc::success;
 }
 
@@ -850,7 +851,7 @@ cb::engine_errc DcpConsumer::setVBucketState(uint32_t opaque,
                  "state",
                  int(state));
 
-    lastMessageTime = ep_current_time();
+    lastMessageTime = ep_uptime_now();
     UpdateFlowControl ufc(*this, SetVBucketState::baseMsgBytes);
 
     auto msg = std::make_unique<SetVBucketState>(opaque, vbucket, state);
@@ -1611,9 +1612,9 @@ cb::engine_errc DcpConsumer::handleNoop(DcpMessageProducersIface& producers) {
         break;
     }
 
-    const auto now = ep_current_time();
+    const auto now = ep_uptime_now();
     auto dcpIdleTimeout = getIdleTimeout();
-    if (std::chrono::seconds(now - lastMessageTime) > dcpIdleTimeout) {
+    if ((now - lastMessageTime) > dcpIdleTimeout) {
         logger->warn(
                 "Disconnecting because a message has not been received for "
                 "the DCP idle timeout of {}s. "
@@ -1886,7 +1887,7 @@ cb::engine_errc DcpConsumer::systemEvent(uint32_t opaque,
                                          mcbp::systemevent::version version,
                                          cb::const_byte_buffer key,
                                          cb::const_byte_buffer eventData) {
-    lastMessageTime = ep_current_time();
+    lastMessageTime = ep_uptime_now();
     UpdateFlowControl ufc(
             *this,
             SystemEventMessage::baseMsgBytes + key.size() + eventData.size());
@@ -1911,7 +1912,7 @@ cb::engine_errc DcpConsumer::prepare(uint32_t opaque,
                                      uint8_t nru,
                                      DocumentState document_state,
                                      cb::durability::Level level) {
-    lastMessageTime = ep_current_time();
+    lastMessageTime = ep_uptime_now();
 
     if (by_seqno == 0) {
         logger->warn("({}) Invalid sequence number(0) for prepare!", vbucket);
@@ -2005,7 +2006,7 @@ cb::engine_errc DcpConsumer::commit(uint32_t opaque,
                                     const DocKey& key,
                                     uint64_t prepare_seqno,
                                     uint64_t commit_seqno) {
-    lastMessageTime = ep_current_time();
+    lastMessageTime = ep_uptime_now();
     const size_t msgBytes = CommitSyncWrite::commitBaseMsgBytes + key.size();
     UpdateFlowControl ufc(*this, msgBytes);
 
@@ -2024,7 +2025,7 @@ cb::engine_errc DcpConsumer::abort(uint32_t opaque,
                                    const DocKey& key,
                                    uint64_t prepareSeqno,
                                    uint64_t abortSeqno) {
-    lastMessageTime = ep_current_time();
+    lastMessageTime = ep_uptime_now();
     UpdateFlowControl ufc(*this,
                           AbortSyncWrite::abortBaseMsgBytes + key.size());
 

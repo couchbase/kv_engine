@@ -36,11 +36,11 @@ public:
         pendingAddStream = value;
     }
 
-    void setLastMessageTime(const rel_time_t timeValue) {
+    void setLastMessageTime(std::chrono::steady_clock::time_point timeValue) {
         lastMessageTime = timeValue;
     }
 
-    rel_time_t getLastMessageTime() {
+    std::chrono::steady_clock::time_point getLastMessageTime() {
         return lastMessageTime;
     }
 

@@ -43,7 +43,7 @@ ConnHandler::ConnHandler(EventuallyPersistentEngine& e,
                          std::string n)
     : engine_(e),
       stats(engine_.getEpStats()),
-      created(ep_current_time()),
+      created(ep_uptime_now()),
       name(std::move(n)),
       cookie(c),
       disconnect(false),
@@ -311,7 +311,10 @@ void ConnHandler::addStats(const AddStatFn& add_stat, CookieIface& c) {
     using namespace std::chrono;
 
     addStat("type", getType(), add_stat, c);
-    addStat("created", created, add_stat, c);
+    addStat("created",
+            duration_cast<seconds>(created.time_since_epoch()).count(),
+            add_stat,
+            c);
     addStat("pending_disconnect", disconnect.load(), add_stat, c);
     addStat("supports_ack", supportAck.load(), add_stat, c);
     addStat("paused", isPaused(), add_stat, c);
