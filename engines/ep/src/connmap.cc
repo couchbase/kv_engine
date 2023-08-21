@@ -18,6 +18,7 @@
 #include <daemon/tracing.h>
 #include <executor/executorpool.h>
 #include <phosphor/phosphor.h>
+#include <chrono>
 #include <limits>
 #include <queue>
 #include <string>
@@ -33,9 +34,9 @@ public:
             : connManager(connManager) {
         }
 
-        void sizeValueChanged(const std::string& key, size_t value) override {
+        void floatValueChanged(const std::string& key, float value) override {
             if (key == "connection_manager_interval") {
-                connManager.setSnoozeTime(value);
+                connManager.setSnoozeTime(std::chrono::duration<float>(value));
             }
         }
 
@@ -66,7 +67,7 @@ public:
     bool run() override {
         TRACE_EVENT0("ep-engine/task", "ConnManager");
         connmap->manageConnections();
-        snooze(snoozeTime);
+        snooze(snoozeTime.count());
         return !engine->getEpStats().isShutdown ||
                connmap->isConnections() ||
                !connmap->isDeadConnectionsEmpty();
@@ -78,21 +79,21 @@ public:
 
     std::chrono::microseconds maxExpectedDuration() const override {
         // In *theory* this should run very quickly (p50 of <1ms); however
-        // there's evidence it sometimes takes much longer than that - p99.99
-        // of 10s.
-        // Set slow limit to 1s initially to highlight the worst runtimes;
-        // consider reducing further when they are solved.
-        return std::chrono::seconds(1);
+        // there's evidence it sometimes takes much longer than that.
+        // Given default interval is 0.1s, consider it "slow" if it takes
+        // more than 50ms - i.e. at the default interval it would consume
+        // half of a core if it took 50+ms.
+        return std::chrono::milliseconds(50);
     }
 
-    void setSnoozeTime(size_t snooze) {
+    void setSnoozeTime(std::chrono::duration<float> snooze) {
         snoozeTime = snooze;
     }
 
 private:
     EventuallyPersistentEngine *engine;
     ConnMap *connmap;
-    size_t snoozeTime;
+    std::chrono::duration<float> snoozeTime;
 };
 
 ConnMap::ConnMap(EventuallyPersistentEngine& theEngine)

@@ -1069,26 +1069,23 @@ cb::engine_errc DcpProducer::control(uint32_t opaque,
         if (safe_strtoul(valueStr, noopInterval)) {
             /*
              * We need to ensure that we only set the noop interval to a value
-             * that is a multiple of the connection manager interval. The reason
-             * is that if there is no DCP traffic we snooze for the connection
-             * manager interval before sending the noop.
+             * that is greater or equal to the connection manager interval.
+             * The reason is that if there is no DCP traffic we snooze for the
+             * connection manager interval before sending the noop.
              */
-            if (noopInterval % engine_.getConfiguration().
-                    getConnectionManagerInterval() == 0) {
+            if (float(noopInterval) >=
+                engine_.getConfiguration().getConnectionManagerInterval()) {
                 noopCtx.dcpNoopTxInterval = std::chrono::seconds(noopInterval);
                 return cb::engine_errc::success;
-            } else {
-                logger->warn(
-                        "The ctrl parameter "
-                        "set_noop_interval:{} is being set to seconds."
-                        "This is not a multiple of the "
-                        "connectionManagerInterval:{} "
-                        "of seconds, and so is not supported.",
-                        noopInterval,
-                        engine_.getConfiguration()
-                                .getConnectionManagerInterval());
-                return cb::engine_errc::invalid_arguments;
             }
+            logger->warn(
+                    "Attempt to set DCP control set_noop_interval to {}s which "
+                    "is less than the connectionManagerInterval of {}s "
+                    "- rejecting with {}",
+                    noopInterval,
+                    engine_.getConfiguration().getConnectionManagerInterval(),
+                    cb::engine_errc::invalid_arguments);
+            return cb::engine_errc::invalid_arguments;
         }
     } else if (strncmp(param, "set_priority", key.size()) == 0) {
         if (valueStr == "high") {

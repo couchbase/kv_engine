@@ -919,7 +919,7 @@ cb::engine_errc EventuallyPersistentEngine::setDcpParam(const std::string& key,
         } else if (key == "dcp_consumer_buffer_ratio") {
             getConfiguration().setDcpConsumerBufferRatio(std::stof(val));
         } else if (key == "connection_manager_interval") {
-            getConfiguration().setConnectionManagerInterval(std::stoull(val));
+            getConfiguration().setConnectionManagerInterval(std::stof(val));
         } else if (key ==
                    "dcp_consumer_process_buffered_messages_yield_limit") {
             getConfiguration().setDcpConsumerProcessBufferedMessagesYieldLimit(
