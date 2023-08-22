@@ -16,6 +16,7 @@
 #include "utilities/testing_hook.h"
 #include <memcached/engine_error.h>
 #include <platform/non_negative_counter.h>
+#include <platform/ring_buffer.h>
 #include <relaxed_atomic.h>
 #include <spdlog/common.h>
 #include <optional>
@@ -983,4 +984,13 @@ private:
      * A prefix to use in all stream log messages
      */
     std::string logPrefix;
+
+    // @todo MB-58321: Temp code, remove
+    struct OperationInfo {
+        int64_t seqno;
+        queue_op op;
+    };
+    cb::RingBufferVector<OperationInfo> itemsFromCheckpoints;
+
+    friend std::ostream& operator<<(std::ostream& os, const ActiveStream& s);
 };

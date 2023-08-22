@@ -29,6 +29,8 @@
 #include <platform/timeutils.h>
 #include <statistics/cbstat_collector.h>
 
+#include <iostream>
+
 // OutstandingItemsResult ctor and dtor required to be defined out of line to
 // allow us to forward declare CheckpointSnapshotRange
 ActiveStream::OutstandingItemsResult::OutstandingItemsResult() = default;
@@ -94,7 +96,8 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       flatBuffersSystemEventsEnabled(p->areFlatBuffersSystemEventsEnabled()),
       filter(std::move(f)),
       sid(filter.getStreamId()),
-      changeStreamsEnabled(p->areChangeStreamsEnabled()) {
+      changeStreamsEnabled(p->areChangeStreamsEnabled()),
+      itemsFromCheckpoints(1000) {
     const char* type = "";
     if (isTakeoverStream()) {
         type = "takeover ";
@@ -1330,6 +1333,10 @@ void ActiveStream::processItems(
          */
         std::optional<uint64_t> highNonVisibleSeqno;
         for (auto& qi : outstandingItemsResult.items) {
+            // @todo MB-58321: Temp code, remove
+            itemsFromCheckpoints.push_back(
+                    {qi->getBySeqno(), qi->getOperation()});
+
             if (qi->getOperation() == queue_op::checkpoint_end) {
                 // At the end of each checkpoint remove its snapshot range, so
                 // we don't use it to set nextSnapStart for the next checkpoint.
@@ -1494,6 +1501,16 @@ void ActiveStream::snapshot(const OutstandingItemsResult& meta,
     }
 
     /* This assumes that all items in the "items deque" is put onto readyQ */
+    if (lastReadSeqnoUnSnapshotted <= lastReadSeqno) {
+        // stderr
+        std::cerr << *this << std::endl;
+        // memcached logs
+        const auto msg = fmt::format(
+                "ActiveStream::snapshot: Trying to break monotonic invariant "
+                "on lastReadSeqno: {}",
+                *this);
+        throw std::logic_error(msg);
+    }
     lastReadSeqno.store(lastReadSeqnoUnSnapshotted);
 
     if (isCurrentSnapshotCompleted()) {
@@ -2755,4 +2772,27 @@ void ActiveStream::removeBackfill(BackfillManager& bfm) {
     if (removeThis) {
         bfm.removeBackfill(removeThis);
     }
+}
+
+std::ostream& operator<<(std::ostream& os, const ActiveStream& s) {
+    os << "ActiveStream[" << &s << ", "
+       << s.name_ + " " + s.vb_.to_string() + " " + s.sid.to_string()
+       << "] with"
+       << " lastReadSeqno:" << s.lastReadSeqno
+       << ", lastBackfilledSeqno:" << s.lastBackfilledSeqno
+       << ", lastReadSeqnoUnSnapshotted:" << s.lastReadSeqnoUnSnapshotted
+       << ", lastSentSeqno:" << s.lastSentSeqno
+       << ", lastSentSeqnoAdvance:" << s.lastSentSeqnoAdvance
+       << ", curChkSeqno:" << s.curChkSeqno
+       << ", nextSnapStart:" << s.nextSnapStart
+       << ", lastSentSnapEndSeqno:" << s.lastSentSnapEndSeqno
+       << ", maxScanSeqno:" << s.maxScanSeqno << std::endl;
+    for (const auto& op : s.itemsFromCheckpoints) {
+        if (op.seqno == 0) {
+            continue;
+        }
+        os << "\t{" << op.seqno << ", " << to_string(op.op) << "}";
+        os << std::endl;
+    }
+    return os;
 }
