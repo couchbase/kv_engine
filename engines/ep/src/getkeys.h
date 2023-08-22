@@ -49,6 +49,11 @@ public:
         return {status, {keys.data(), keys.size()}};
     }
 
+protected:
+    /// The actual run method (created as a separate method to avoid
+    /// duplicate the notification logic)
+    cb::engine_errc doRun();
+
 private:
     CookieIface& cookie;
     const std::string description;

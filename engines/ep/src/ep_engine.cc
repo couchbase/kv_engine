@@ -6233,14 +6233,17 @@ cb::engine_errc EventuallyPersistentEngine::getAllKeys(
         return status;
     }
 
-    VBucketPtr vb = getVBucket(request.getVBucket());
-    if (!vb) {
-        return cb::engine_errc::not_my_vbucket;
-    }
+    // Fail fast for requests hitting the incorrect node
+    {
+        auto vb = getVBucket(request.getVBucket());
+        if (!vb) {
+            return cb::engine_errc::not_my_vbucket;
+        }
 
-    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
-    if (vb->getState() != vbucket_state_active) {
-        return cb::engine_errc::not_my_vbucket;
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        if (vb->getState() != vbucket_state_active) {
+            return cb::engine_errc::not_my_vbucket;
+        }
     }
 
     // key: key, ext: no. of keys to fetch, sorting-order

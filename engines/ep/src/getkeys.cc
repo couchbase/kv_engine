@@ -116,14 +116,27 @@ FetchAllKeysTask::FetchAllKeysTask(EventuallyPersistentEngine& e,
 
 bool FetchAllKeysTask::run() {
     TRACE_EVENT0("ep-engine/task", "FetchAllKeysTask");
-    if (!engine->getKVBucket()
-                 ->getVBuckets()
-                 .getBucket(vbid)
-                 ->isBucketCreation()) {
-        auto cb = std::make_shared<AllKeysCallback>(keys, collection, count);
-        status = engine->getKVBucket()->getROUnderlying(vbid)->getAllKeys(
-                vbid, start_key, count, cb);
-    }
+    status = doRun();
     engine->notifyIOComplete(cookie, status);
     return false;
+}
+
+cb::engine_errc FetchAllKeysTask::doRun() {
+    VBucketPtr vb = engine->getVBucket(vbid);
+    if (!vb) {
+        return cb::engine_errc::not_my_vbucket;
+    }
+
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    if (vb->getState() != vbucket_state_active) {
+        return cb::engine_errc::not_my_vbucket;
+    }
+
+    if (!vb->isBucketCreation()) {
+        auto cb = std::make_shared<AllKeysCallback>(keys, collection, count);
+        return engine->getKVBucket()->getROUnderlying(vbid)->getAllKeys(
+                vbid, start_key, count, cb);
+    }
+
+    return cb::engine_errc::success;
 }
