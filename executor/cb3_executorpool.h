@@ -185,6 +185,14 @@ public:
         adjustWorkers(READER_TASK_IDX, calcNumReaders(v));
     }
 
+    void setNumReadersExactly(uint16_t v) override {
+        adjustWorkers(READER_TASK_IDX, v);
+    }
+
+    size_t getNumReadersExactly() const override {
+        return numWorkers[READER_TASK_IDX].load();
+    }
+
     void setNumWriters(ThreadPoolConfig::ThreadCount v) override {
         adjustWorkers(WRITER_TASK_IDX, calcNumWriters(v));
     }

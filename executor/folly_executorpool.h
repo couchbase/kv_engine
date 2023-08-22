@@ -163,6 +163,8 @@ public:
     size_t getNumAuxIO() const override;
     size_t getNumNonIO() const override;
     void setNumReaders(ThreadPoolConfig::ThreadCount v) override;
+    void setNumReadersExactly(uint16_t v) override;
+    size_t getNumReadersExactly() const override;
     void setNumWriters(ThreadPoolConfig::ThreadCount v) override;
     void setNumAuxIO(uint16_t v) override;
     void setNumNonIO(uint16_t v) override;

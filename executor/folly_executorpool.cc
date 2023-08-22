@@ -749,6 +749,15 @@ void FollyExecutorPool::setNumReaders(ThreadPoolConfig::ThreadCount v) {
     readerPool->setNumThreads(maxReaders);
 }
 
+void FollyExecutorPool::setNumReadersExactly(uint16_t v) {
+    maxReaders = v;
+    readerPool->setNumThreads(maxReaders);
+}
+
+size_t FollyExecutorPool::getNumReadersExactly() const {
+    return readerPool->numThreads();
+}
+
 void FollyExecutorPool::setNumWriters(ThreadPoolConfig::ThreadCount v) {
     maxWriters = calcNumWriters(v);
     writerPool->setNumThreads(maxWriters);

@@ -1554,8 +1554,13 @@ TYPED_TEST_SUITE(ExecutorPoolDynamicWorkerTest, ExecutorPoolTypes);
 
 TYPED_TEST(ExecutorPoolDynamicWorkerTest, decrease_workers) {
     ASSERT_EQ(2, this->pool->getNumWriters());
+    ASSERT_EQ(2, this->pool->getNumReaders());
+
     this->pool->setNumWriters(ThreadPoolConfig::ThreadCount(1));
     EXPECT_EQ(1, this->pool->getNumWriters());
+
+    this->pool->setNumReaders(ThreadPoolConfig::ThreadCount(1));
+    EXPECT_EQ(1, this->pool->getNumReaders());
 }
 
 TYPED_TEST(ExecutorPoolDynamicWorkerTest, setDefault) {
@@ -1606,6 +1611,15 @@ TEST_P(ExecutorPoolTestWithParam, max_threads_test_parameterized) {
 
     pool.unregisterTaskable(taskable, false);
     pool.shutdown();
+}
+
+TYPED_TEST(ExecutorPoolDynamicWorkerTest, setNumReadersExactly) {
+    ASSERT_EQ(2, this->pool->getNumReaders());
+
+    this->pool->setNumReadersExactly(0);
+    EXPECT_EQ(0, this->pool->getNumReadersExactly());
+    this->pool->setNumReadersExactly(1);
+    EXPECT_EQ(1, this->pool->getNumReadersExactly());
 }
 
 std::vector<ThreadCountsParams> threadCountValues = {

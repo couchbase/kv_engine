@@ -75,6 +75,9 @@ public:
     /// @returns the number of Reader IO threads.
     virtual size_t getNumReaders() const = 0;
 
+    /// @returns number of Reader IO threads, bypassing any calcNumReaders logic
+    virtual size_t getNumReadersExactly() const = 0;
+
     /// @returns the number of Writer IO threads.
     virtual size_t getNumWriters() const = 0;
 
@@ -84,8 +87,14 @@ public:
     /// @returns the number of Non-IO threads.
     virtual size_t getNumNonIO() const = 0;
 
-    /// Set the number of Reader IO threads to the specified number.
+    /**
+     * Set the number of Reader IO threads using the ThreadCount as input to
+     * calcNumReaders
+     */
     virtual void setNumReaders(ThreadPoolConfig::ThreadCount v) = 0;
+
+    /// Set the number of Reader IO threads exactly to the input value
+    virtual void setNumReadersExactly(uint16_t v) = 0;
 
     /// Set the number of Writer IO threads to the specified number.
     virtual void setNumWriters(ThreadPoolConfig::ThreadCount v) = 0;
