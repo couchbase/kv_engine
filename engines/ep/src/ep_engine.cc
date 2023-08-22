@@ -4655,12 +4655,6 @@ cb::engine_errc EventuallyPersistentEngine::doSeqnoStats(
     return cb::engine_errc::success;
 }
 
-void EventuallyPersistentEngine::addLookupAllKeys(CookieIface& cookie,
-                                                  cb::engine_errc err) {
-    std::lock_guard<std::mutex> lh(lookupMutex);
-    allKeysLookups[&cookie] = err;
-}
-
 void EventuallyPersistentEngine::runDefragmenterTask() {
     kvBucket->runDefragmenterTask();
 }
@@ -6221,14 +6215,34 @@ cb::engine_errc EventuallyPersistentEngine::getAllKeys(
         return cb::engine_errc::not_supported;
     }
 
-    {
-        std::lock_guard<std::mutex> lh(lookupMutex);
-        auto it = allKeysLookups.find(&cookie);
-        if (it != allKeysLookups.end()) {
-            cb::engine_errc err = it->second;
-            allKeysLookups.erase(it);
-            return err;
+    // Unfortunately we can't stash the std::shared_ptr directly into
+    // the engine_storage. Create a holder struct and store a pointer
+    // to the struct instead.
+    struct GetAllKeysEngineStorage {
+        GetAllKeysEngineStorage(std::shared_ptr<FetchAllKeysTask> task)
+            : task(std::move(task)) {
         }
+        std::shared_ptr<FetchAllKeysTask> task;
+    };
+
+    std::unique_ptr<GetAllKeysEngineStorage> taskHolder(
+            takeEngineSpecific<GetAllKeysEngineStorage*>(cookie).value_or(
+                    nullptr));
+
+    if (taskHolder) {
+        const auto [status, keys] = taskHolder->task->getResult();
+        cookie.addDocumentReadBytes(keys.size());
+        if (status != cb::engine_errc::success) {
+            return status;
+        }
+        response({},
+                 {},
+                 {keys.data(), keys.size()},
+                 ValueIsJson::No,
+                 cb::mcbp::Status::Success,
+                 0,
+                 cookie);
+        return status;
     }
 
     VBucketPtr vb = getVBucket(request.getVBucket());
@@ -6260,14 +6274,15 @@ cb::engine_errc EventuallyPersistentEngine::getAllKeys(
         keysCollection = start_key.getCollectionID();
     }
 
-    ExTask task = std::make_shared<FetchAllKeysTask>(*this,
-                                                     cookie,
-                                                     response,
-                                                     start_key,
-                                                     request.getVBucket(),
-                                                     count,
-                                                     keysCollection);
-    ExecutorPool::get()->schedule(task);
+    taskHolder = std::make_unique<GetAllKeysEngineStorage>(
+            std::make_shared<FetchAllKeysTask>(*this,
+                                               cookie,
+                                               start_key,
+                                               request.getVBucket(),
+                                               count,
+                                               keysCollection));
+    ExecutorPool::get()->schedule(taskHolder->task);
+    storeEngineSpecific(cookie, taskHolder.release());
     return cb::engine_errc::would_block;
 }
 

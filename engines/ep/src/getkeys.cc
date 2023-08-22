@@ -11,6 +11,7 @@
 
 #include "getkeys.h"
 
+#include "callbacks.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
 #include "kvstore/kvstore.h"
@@ -22,6 +23,39 @@
 #include <phosphor/phosphor.h>
 
 #include <utility>
+
+/**
+ * Callback class used by AllKeysAPI, for caching fetched keys
+ *
+ * As by default (or in most cases), number of keys is 1000,
+ * and an average key could be 32B in length, initialize buffersize of
+ * allKeys to 34000 (1000 * 32 + 1000 * 2), the additional 2 bytes per
+ * key is for the keylength.
+ *
+ * This initially allocated buffersize is doubled whenever the length
+ * of the buffer holding all the keys, crosses the buffersize.
+ */
+class AllKeysCallback : public StatusCallback<const DiskDocKey&> {
+public:
+    AllKeysCallback(std::vector<char>& buffer,
+                    std::optional<CollectionID> collection,
+                    uint32_t maxCount)
+        : buffer(buffer),
+          collection(std::move(collection)),
+          maxCount(maxCount) {
+        buffer.reserve(avgKeySize * expNumKeys);
+    }
+
+    void callback(const DiskDocKey& key) override;
+
+private:
+    std::vector<char>& buffer;
+    std::optional<CollectionID> collection;
+    uint32_t addedKeyCount = 0;
+    uint32_t maxCount = 0;
+    static const int avgKeySize = 32 + sizeof(uint16_t);
+    static const int expNumKeys = 1000;
+};
 
 void AllKeysCallback::callback(const DiskDocKey& key) {
     setStatus(cb::engine_errc::not_stored);
@@ -67,7 +101,6 @@ void AllKeysCallback::callback(const DiskDocKey& key) {
 
 FetchAllKeysTask::FetchAllKeysTask(EventuallyPersistentEngine& e,
                                    CookieIface& c,
-                                   AddResponseFn resp,
                                    const DocKey start_key_,
                                    Vbid vbucket,
                                    uint32_t count_,
@@ -75,7 +108,6 @@ FetchAllKeysTask::FetchAllKeysTask(EventuallyPersistentEngine& e,
     : GlobalTask(e, TaskId::FetchAllKeysTask, 0, false),
       cookie(c),
       description("Running the ALL_DOCS api on " + vbucket.to_string()),
-      response(std::move(resp)),
       start_key(start_key_),
       vbid(vbucket),
       count(count_),
@@ -84,36 +116,14 @@ FetchAllKeysTask::FetchAllKeysTask(EventuallyPersistentEngine& e,
 
 bool FetchAllKeysTask::run() {
     TRACE_EVENT0("ep-engine/task", "FetchAllKeysTask");
-    auto err = cb::engine_errc::success;
-    if (engine->getKVBucket()
-                ->getVBuckets()
-                .getBucket(vbid)
-                ->isBucketCreation()) {
-        // Returning an empty packet with a SUCCESS response as
-        // there aren't any keys during the vbucket file creation.
-        response({}, // key
-                 {}, // extra
-                 {}, // body
-                 ValueIsJson::No,
-                 cb::mcbp::Status::Success,
-                 0,
-                 cookie);
-    } else {
-        auto cb = std::make_shared<AllKeysCallback>(collection, count);
-        err = engine->getKVBucket()->getROUnderlying(vbid)->getAllKeys(
+    if (!engine->getKVBucket()
+                 ->getVBuckets()
+                 .getBucket(vbid)
+                 ->isBucketCreation()) {
+        auto cb = std::make_shared<AllKeysCallback>(keys, collection, count);
+        status = engine->getKVBucket()->getROUnderlying(vbid)->getAllKeys(
                 vbid, start_key, count, cb);
-        cookie.addDocumentReadBytes(cb->getAllKeysLen());
-        if (err == cb::engine_errc::success) {
-            response({}, // key
-                     {}, // extra
-                     {cb->getAllKeysPtr(), cb->getAllKeysLen()},
-                     ValueIsJson::No,
-                     cb::mcbp::Status::Success,
-                     0,
-                     cookie);
-        }
     }
-    engine->addLookupAllKeys(cookie, err);
-    engine->notifyIOComplete(cookie, err);
+    engine->notifyIOComplete(cookie, status);
     return false;
 }

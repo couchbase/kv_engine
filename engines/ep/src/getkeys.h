@@ -11,61 +11,22 @@
 
 #pragma once
 
-#include "callbacks.h"
 #include "diskdockey.h"
 #include <executor/globaltask.h>
-
-#include <memcached/engine_common.h>
+#include <memcached/dockey.h>
+#include <memcached/engine_error.h>
+#include <memcached/vbucket.h>
 #include <optional>
+#include <vector>
 
 class CookieIface;
 class EventuallyPersistentEngine;
 
-/**
- * Callback class used by AllKeysAPI, for caching fetched keys
- *
- * As by default (or in most cases), number of keys is 1000,
- * and an average key could be 32B in length, initialize buffersize of
- * allKeys to 34000 (1000 * 32 + 1000 * 2), the additional 2 bytes per
- * key is for the keylength.
- *
- * This initially allocated buffersize is doubled whenever the length
- * of the buffer holding all the keys, crosses the buffersize.
- */
-class AllKeysCallback : public StatusCallback<const DiskDocKey&> {
-public:
-    AllKeysCallback(std::optional<CollectionID> collection, uint32_t maxCount)
-        : collection(std::move(collection)), maxCount(maxCount) {
-        buffer.reserve((avgKeySize + sizeof(uint16_t)) * expNumKeys);
-    }
-
-    void callback(const DiskDocKey& key) override;
-
-    char* getAllKeysPtr() {
-        return buffer.data();
-    }
-    uint64_t getAllKeysLen() {
-        return buffer.size();
-    }
-
-private:
-    std::vector<char> buffer;
-    std::optional<CollectionID> collection;
-    uint32_t addedKeyCount = 0;
-    uint32_t maxCount = 0;
-    static const int avgKeySize = 32;
-    static const int expNumKeys = 1000;
-};
-
-/*
- * Task that fetches all_docs and returns response,
- * runs in background.
- */
+/// Task that fetches the requested document keys in the background
 class FetchAllKeysTask : public GlobalTask {
 public:
     FetchAllKeysTask(EventuallyPersistentEngine& e,
                      CookieIface& c,
-                     AddResponseFn resp,
                      const DocKey start_key_,
                      Vbid vbucket,
                      uint32_t count_,
@@ -83,12 +44,18 @@ public:
 
     bool run() override;
 
+    /// Get the result of the operation (status and all keys)
+    std::pair<cb::engine_errc, std::string_view> getResult() const {
+        return {status, {keys.data(), keys.size()}};
+    }
+
 private:
     CookieIface& cookie;
     const std::string description;
-    AddResponseFn response;
     DiskDocKey start_key;
     Vbid vbid;
     uint32_t count;
     std::optional<CollectionID> collection;
+    std::vector<char> keys;
+    cb::engine_errc status = cb::engine_errc::success;
 };

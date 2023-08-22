@@ -3271,6 +3271,8 @@ TEST_P(CollectionsPersistentParameterizedTest,
               sendGetKeys("default0", {}, getAllKeysResponseHandler));
     runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
                 "Running the ALL_DOCS api on vb:0");
+    EXPECT_EQ(cb::engine_errc::success,
+              sendGetKeys("default0", {}, getAllKeysResponseHandler));
     EXPECT_EQ(generateExpectedKeys("default", 5), lastGetKeysResult);
 }
 
@@ -3291,6 +3293,8 @@ TEST_P(CollectionsPersistentParameterizedTest,
               sendGetKeys("default0", {10}, getAllKeysResponseHandler));
     runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
                 "Running the ALL_DOCS api on vb:0");
+    EXPECT_EQ(cb::engine_errc::success,
+              sendGetKeys("default0", {10}, getAllKeysResponseHandler));
     EXPECT_EQ(10, lastGetKeysResult.size());
 }
 
@@ -3303,6 +3307,8 @@ TEST_P(CollectionsPersistentParameterizedTest, GetAllKeysStartHalfWay) {
               sendGetKeys("default2", {}, getAllKeysResponseHandler));
     runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
                 "Running the ALL_DOCS api on vb:0");
+    EXPECT_EQ(cb::engine_errc::success,
+              sendGetKeys("default2", {}, getAllKeysResponseHandler));
     std::set<std::string> twoKeys;
     twoKeys.insert("default2");
     twoKeys.insert("default3");
@@ -3332,6 +3338,11 @@ TEST_P(CollectionsPersistentParameterizedTest,
                           getAllKeysResponseHandler));
     runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
                 "Running the ALL_DOCS api on vb:0");
+    EXPECT_EQ(cb::engine_errc::success,
+              sendGetKeys(makeCollectionEncodedString("meat2",
+                                                      CollectionEntry::meat),
+                          {},
+                          getAllKeysResponseHandler));
     std::set<std::string> twoKeys;
     twoKeys.insert("\bmeat2");
     twoKeys.insert("\bmeat3");
@@ -3361,7 +3372,11 @@ TEST_P(CollectionsPersistentParameterizedTest,
                         getAllKeysResponseHandler));
     runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
                 "Running the ALL_DOCS api on vb:0");
-
+    EXPECT_EQ(
+            cb::engine_errc::success,
+            sendGetKeys(makeCollectionEncodedString("", CollectionEntry::meat),
+                        {},
+                        getAllKeysResponseHandler));
     EXPECT_EQ(generateExpectedKeys("meat", 4, CollectionEntry::meat),
               lastGetKeysResult);
 }
@@ -3380,7 +3395,11 @@ TEST_P(CollectionsPersistentParameterizedTest,
                           getAllKeysResponseHandler));
     runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
                 "Running the ALL_DOCS api on vb:0");
-
+    EXPECT_EQ(cb::engine_errc::success,
+              sendGetKeys(makeCollectionEncodedString("default4",
+                                                      CollectionEntry::meat),
+                          {},
+                          getAllKeysResponseHandler));
     // As the requested key does not match any of the stored keys we expect
     // to get all keys in the default collection back
     EXPECT_EQ(generateExpectedKeys("default", 5), lastGetKeysResult);
@@ -3416,11 +3435,9 @@ TEST_P(CollectionsPersistentParameterizedTest, GetAllKeysCollectionConnection) {
     // GetKeys task
     runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
                 "Running the ALL_DOCS api on vb:0");
-    EXPECT_EQ(generateExpectedKeys("default", 5), lastGetKeysResult);
-    // Calling GetKeys again should return cb::engine_errc::success indicating
-    // all keys have been fetched
     EXPECT_EQ(cb::engine_errc::success,
               sendGetKeys(startKey, {}, getAllKeysResponseHandler));
+    EXPECT_EQ(generateExpectedKeys("default", 5), lastGetKeysResult);
 
     startKey = makeCollectionEncodedString("beef0", CollectionEntry::meat);
     // Get the keys for meat collection, in this case we should get all 10 keys
@@ -3430,12 +3447,10 @@ TEST_P(CollectionsPersistentParameterizedTest, GetAllKeysCollectionConnection) {
     // GetKeys task
     runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
                 "Running the ALL_DOCS api on vb:0");
-    EXPECT_EQ(generateExpectedKeys("beef", 10, CollectionEntry::meat),
-              lastGetKeysResult);
-    // Calling GetKeys again should return cb::engine_errc::success indicating
-    // all keys have been fetched
     EXPECT_EQ(cb::engine_errc::success,
               sendGetKeys(startKey, {}, getAllKeysResponseHandler));
+    EXPECT_EQ(generateExpectedKeys("beef", 10, CollectionEntry::meat),
+              lastGetKeysResult);
 }
 
 static bool wasKeyStatsResponseHandlerCalled = false;
@@ -3697,12 +3712,12 @@ TEST_F(CollectionsRbacTest, GetAllKeysRbacCollectionConnection) {
     // GetKeys task
     runNextTask(*task_executor->getLpTaskQ()[READER_TASK_IDX],
                 "Running the ALL_DOCS api on vb:0");
-    EXPECT_EQ(generateExpectedKeys("beef", 10, CollectionEntry::meat),
-              lastGetKeysResult);
-    // Calling GetKeys again should return cb::engine_errc::success indicating
-    // all keys have been fetched
+
     EXPECT_EQ(cb::engine_errc::success,
               sendGetKeys(startKey, {}, getAllKeysResponseHandler));
+
+    EXPECT_EQ(generateExpectedKeys("beef", 10, CollectionEntry::meat),
+              lastGetKeysResult);
 
     // Add an item to the dairy so we would get a key if RBAC failed
     store_item(

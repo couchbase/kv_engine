@@ -801,14 +801,6 @@ public:
      */
     ConnHandler& getConnHandler(CookieIface& cookie);
 
-    /**
-     * Method to add a cookie to allKeysLookups to store the result of the
-     * getAllKeys() request.
-     * @param cookie the cookie that the getAllKeys() was processed for
-     * @param err Engine error code of the result of getAllKeys()
-     */
-    void addLookupAllKeys(CookieIface& cookie, cb::engine_errc err);
-
     /*
      * Explicitly trigger the defragmenter task. Provided to facilitate
      * testing.
@@ -1479,9 +1471,6 @@ protected:
     // The conflict resolution mode for this bucket (as used by XDCR via
     // SET/DEL_WITH_META operations).
     ConflictResolutionMode conflictResolutionMode;
-
-    std::unordered_map<CookieIface*, cb::engine_errc> allKeysLookups;
-    std::mutex lookupMutex;
     GET_SERVER_API getServerApiFunc;
 
     std::unique_ptr<DcpFlowControlManager> dcpFlowControlManager;
