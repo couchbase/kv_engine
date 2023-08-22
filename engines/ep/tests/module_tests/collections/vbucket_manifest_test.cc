@@ -1439,6 +1439,44 @@ TEST_P(VBucketManifestTest, modify_ttl) {
                       CollectionEntry::fruit));
 }
 
+TEST_P(VBucketManifestTest, logically_deleted) {
+    ASSERT_TRUE(manifest.update(
+            cm.add(CollectionEntry::meat).add(ScopeEntry::customer)));
+
+    auto readHandle = manifest.active.lock();
+
+    // One of the ways we can mark as logically deleted is if the collection
+    // startSeqno newer than the seqno of the item (as this indicates a
+    // collection which has the same cid but is distinct). Use a sufficiently
+    // large test seqno so we don't consider as deleted for this reason.
+    auto testSeqno = 1000;
+
+    EXPECT_FALSE(readHandle.isLogicallyDeleted(
+            SystemEventFactory::makeCollectionEventKey(CollectionEntry::meat,
+                                                       SystemEvent::Collection),
+            testSeqno));
+    EXPECT_FALSE(readHandle.isLogicallyDeleted(
+            SystemEventFactory::makeCollectionEventKey(
+                    CollectionEntry::meat, SystemEvent::ModifyCollection),
+            testSeqno));
+
+    EXPECT_TRUE(readHandle.isLogicallyDeleted(
+            SystemEventFactory::makeCollectionEventKey(CollectionEntry::dairy2,
+                                                       SystemEvent::Collection),
+            testSeqno));
+    EXPECT_TRUE(readHandle.isLogicallyDeleted(
+            SystemEventFactory::makeCollectionEventKey(
+                    CollectionEntry::dairy2, SystemEvent::ModifyCollection),
+            testSeqno));
+
+    EXPECT_FALSE(readHandle.isLogicallyDeleted(
+            SystemEventFactory::makeScopeEventKey(ScopeEntry::customer),
+            testSeqno));
+    EXPECT_TRUE(readHandle.isLogicallyDeleted(
+            SystemEventFactory::makeScopeEventKey(ScopeEntry::shop2),
+            testSeqno));
+}
+
 INSTANTIATE_TEST_SUITE_P(VBucketManifestTests,
                          VBucketManifestTest,
                          ::testing::Bool(),

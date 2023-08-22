@@ -644,6 +644,8 @@ void STItemPagerTest::pagerEvictsSomething(bool dropCollection) {
 
     if (dropCollection) {
         CollectionsManifest cm(NoDefault{});
+        // Add 1 scope which reproduces MB-58333
+        cm.add(ScopeEntry::shop1);
         vb->updateFromManifest(
                 folly::SharedMutex::ReadHolder(vb->getStateLock()),
                 makeManifest(cm));

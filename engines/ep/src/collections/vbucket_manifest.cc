@@ -997,7 +997,15 @@ Manifest::container::const_iterator Manifest::getManifestIterator(
 bool Manifest::isLogicallyDeleted(const DocKey& key, int64_t seqno) const {
     CollectionID lookup = key.getCollectionID();
     if (lookup == CollectionID::System) {
-        lookup = getCollectionIDFromKey(key);
+        // Check what the system event relates to (scope/collection).
+        switch (SystemEventFactory::getSystemEventType(key).first) {
+        case SystemEvent::Collection:
+        case SystemEvent::ModifyCollection:
+            lookup = getCollectionIDFromKey(key);
+            break;
+        case SystemEvent::Scope:
+            return !Manifest::isScopeValid(getScopeIDFromKey(key));
+        }
     }
     auto itr = map.find(lookup);
     return isLogicallyDeleted(itr, seqno);
