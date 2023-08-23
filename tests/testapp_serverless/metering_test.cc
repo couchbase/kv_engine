@@ -3052,6 +3052,10 @@ TEST_P(MeteringTest, SubdocReplaceBodyWithXattr_Durability) {
 }
 
 TEST_P(MeteringTest, TTL_Expiry_Get) {
+    // MB-58363
+    if (folly::kIsSanitizeThread) {
+        GTEST_SKIP();
+    }
     const StoredDocKey id{"TTL_Expiry_Get", getTestCollection()};
     const auto value = getJsonDoc().dump();
     const auto xattr_value = getStringValue(false);
@@ -3096,6 +3100,10 @@ TEST_P(MeteringTest, TTL_Expiry_Get) {
 }
 
 TEST_P(MeteringTest, TTL_Expiry_Compaction) {
+    // MB-58363
+    if (folly::kIsSanitizeThread) {
+        GTEST_SKIP();
+    }
     const StoredDocKey id{"TTL_Expiry_Compaction", getTestCollection()};
     const auto value = getJsonDoc().dump();
     const auto xattr_value = getStringValue(false);
