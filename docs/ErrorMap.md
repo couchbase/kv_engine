@@ -106,13 +106,18 @@ deal with the attributes they understand.
 
 * `retry-later`: The operation may be retried after some time.
 
+* `no-retry`: The client should not retry the operation.
+
 * `subdoc`: The error is related to the subdocument subsystem.
 
 * `dcp`: The error is related to the DCP subsystem.
 
 * `rate-limit`: The error is related to rate limitation for the client (version 2)
 
-* `guard-rail`: The error is related to guard rails (version 2)
+* `system-constraint`: The error is related to a system-defined hard limit for
+                         resource usage. Retrying the operation will most likely
+                         not succeed unless an action was taken on the server
+                         to resolve the issue (version 2)
 
 * `success`: The operation was successful for those situations where the error
   code is indicating successful (i.e. subdocument operations carried out on a
