@@ -18,6 +18,15 @@ long decode_ssl_protocol(std::string_view protocol) {
     // MB-41757 - Disable renegotiation
     long disallow = SSL_OP_NO_SSL_MASK | SSL_OP_NO_RENEGOTIATION;
 
+    // MB-57002: Disable issuing session tickets to client for session
+    // resumption, as (a) KV-Engine doesn't fully enable them, (b) neither
+    // do the vast majority of our SDKs (only .NET on Windows using Schannel),
+    // and (c) they are potentially security risks before TLSv1.3.
+    // If we wanted to reduce the cost of a TLS client connecting to the same
+    // server a subsequent time we could look into re-enabling this, but needs
+    // explicit support on most of our SDKs. See MB for lots more detail.
+    disallow |= SSL_OP_NO_TICKET;
+
     if (protocol.empty() || protocol == "TLS 1.2") {
         disallow &= ~(SSL_OP_NO_TLSv1_2 | SSL_OP_NO_TLSv1_3);
     } else if (protocol == "TLS 1.3") {
