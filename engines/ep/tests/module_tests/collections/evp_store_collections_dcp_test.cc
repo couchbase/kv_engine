@@ -2390,7 +2390,6 @@ TEST_P(CollectionsDcpParameterizedTest, DefaultCollectionDropped) {
     store->getVBucket(replicaVB)->checkpointManager->clear();
     producers->consumer = nullptr; // effectively stops faux 'replication'
     createDcpStream({std::string{}}, replicaVB, cb::engine_errc::success, 0);
-    stepAndExpect(cb::mcbp::ClientOpcode::DcpNoop);
 
     notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
                               false /*from-memory... false backfill*/);

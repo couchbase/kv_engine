@@ -115,7 +115,10 @@ void DCPTest::create_dcp_producer(
                                                  /*startTask*/ true);
 
     if (includeXattrs == IncludeXattrs::Yes) {
-        producer->setNoopEnabled(true);
+        // Need to enable NOOP for XATTRS (and collections), but don't actually
+        // care about receiving DcpNoop messages.
+        producer->setNoopEnabled(
+                MockDcpProducer::NoopMode::EnabledButNeverSent);
     }
 
     // Since we are creating a mock active stream outside of
@@ -854,7 +857,7 @@ TEST_P(ConnectionTest, test_maybesendnoop_buffer_full) {
 
     } producers;
 
-    producer->setNoopEnabled(true);
+    producer->setNoopEnabled(MockDcpProducer::NoopMode::Enabled);
     const auto send_time = ep_current_time() + 21;
     producer->setNoopSendTime(send_time);
     cb::engine_errc ret = producer->maybeSendNoop(producers);
@@ -877,7 +880,7 @@ TEST_P(ConnectionTest, test_maybesendnoop_send_noop) {
                                                       /*flags*/ 0);
 
     MockDcpMessageProducers producers;
-    producer->setNoopEnabled(true);
+    producer->setNoopEnabled(MockDcpProducer::NoopMode::Enabled);
     const auto send_time = ep_current_time() + 21;
     producer->setNoopSendTime(send_time);
     cb::engine_errc ret = producer->maybeSendNoop(producers);
@@ -902,7 +905,7 @@ TEST_P(ConnectionTest, test_maybesendnoop_noop_already_pending) {
     MockDcpMessageProducers producers;
     const auto send_time = ep_current_time();
     TimeTraveller marty(engine->getConfiguration().getDcpIdleTimeout() + 1);
-    producer->setNoopEnabled(true);
+    producer->setNoopEnabled(MockDcpProducer::NoopMode::Enabled);
     producer->setNoopSendTime(send_time);
     cb::engine_errc ret = producer->maybeSendNoop(producers);
     // Check to see if a noop was sent i.e. returned cb::engine_errc::success
@@ -944,7 +947,7 @@ TEST_P(ConnectionTest, test_maybesendnoop_not_enabled) {
                                                       /*flags*/ 0);
 
     MockDcpMessageProducers producers;
-    producer->setNoopEnabled(false);
+    producer->setNoopEnabled(MockDcpProducer::NoopMode::Disabled);
     const auto send_time = ep_current_time() + 21;
     producer->setNoopSendTime(send_time);
     cb::engine_errc ret = producer->maybeSendNoop(producers);
@@ -967,7 +970,7 @@ TEST_P(ConnectionTest, test_maybesendnoop_not_sufficient_time_passed) {
                                                       /*flags*/ 0);
 
     MockDcpMessageProducers producers;
-    producer->setNoopEnabled(true);
+    producer->setNoopEnabled(MockDcpProducer::NoopMode::Enabled);
     rel_time_t current_time = ep_current_time();
     producer->setNoopSendTime(current_time);
     cb::engine_errc ret = producer->maybeSendNoop(producers);

@@ -31,6 +31,30 @@ MockDcpProducer::MockDcpProducer(EventuallyPersistentEngine& theEngine,
     backfillMgr = std::make_shared<MockDcpBackfillManager>(engine_);
 }
 
+void MockDcpProducer::setNoopEnabled(MockDcpProducer::NoopMode mode) {
+    switch (mode) {
+    case NoopMode::Disabled:
+        noopCtx.enabled = false;
+        return;
+    case NoopMode::Enabled:
+        noopCtx.enabled = true;
+        noopCtx.dcpNoopTxInterval = DcpProducer::defaultDcpNoopTxInterval;
+        return;
+    case NoopMode::EnabledButNeverSent:
+        noopCtx.enabled = true;
+        // Set dcpNoopTxInterval to a sufficiently large value that in practical
+        // terms the MockDcpProducer should never transmit a NOOP request.
+        // Note: while seconds::max() might be an obvious value to use here; we
+        // do manipulate this interval as nanoseconds in places (e.g. when in
+        // cb::time2text() when printing as a stat), and seconds::max() cannot
+        // be represented as nanoseconds in some envs (UBSan complains about
+        // overflow), so instead use a large-but-still-manageable value of
+        // 1 year:
+        noopCtx.dcpNoopTxInterval = std::chrono::hours(24 * 365);
+        return;
+    }
+}
+
 std::shared_ptr<MockActiveStream> MockDcpProducer::mockActiveStreamRequest(
         uint32_t flags,
         uint32_t opaque,

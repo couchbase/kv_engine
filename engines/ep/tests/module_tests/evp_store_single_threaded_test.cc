@@ -312,7 +312,7 @@ std::shared_ptr<MockDcpProducer> SingleThreadedKVBucketTest::createDcpProducer(
     newProducer->createCheckpointProcessorTask();
 
     // Need to enable NOOP for XATTRS (and collections).
-    newProducer->setNoopEnabled(true);
+    newProducer->setNoopEnabled(MockDcpProducer::NoopMode::EnabledButNeverSent);
     if (flatBuffersSystemEvents) {
         EXPECT_EQ(cb::engine_errc::success,
                   newProducer->control(
@@ -2934,7 +2934,7 @@ TEST_P(STParameterizedBucketTest, enable_expiry_output) {
     createDcpStream(*producer);
 
     // noop off as we will play with time travel
-    producer->setNoopEnabled(false);
+    producer->setNoopEnabled(MockDcpProducer::NoopMode::Disabled);
     // Enable DCP Expiry opcodes
     producer->setDCPExpiry(true);
 
@@ -3896,7 +3896,7 @@ void STParamPersistentBucketTest::backfillExpiryOutput(bool xattr) {
     ASSERT_TRUE(producer->getReadyQueue().empty());
 
     // noop on as could be using xattr's
-    producer->setNoopEnabled(true);
+    producer->setNoopEnabled(MockDcpProducer::NoopMode::EnabledButNeverSent);
 
     // Enable DCP Expiry opcodes
     producer->setDCPExpiry(true);
@@ -4202,7 +4202,7 @@ TEST_P(STParameterizedBucketTest, produce_delete_times) {
     createDcpStream(*producer);
 
     // noop off as we will play with time travel
-    producer->setNoopEnabled(false);
+    producer->setNoopEnabled(MockDcpProducer::NoopMode::Disabled);
 
     auto step = [this, producer, &producers](bool inMemory) {
         notifyAndStepToCheckpoint(*producer,

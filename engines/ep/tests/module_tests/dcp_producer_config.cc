@@ -80,9 +80,11 @@ std::shared_ptr<MockDcpProducer> DcpProducerConfig::createDcpProducer(
     // Create the task object, but don't schedule
     newProducer->createCheckpointProcessorTask();
 
-    // Need to enable NOOP for XATTRS (and collections).
+    // Need to enable NOOP for XATTRS (and collections), but don't actually
+    // care about receiving DcpNoop messages.
     if (useXattrs()) {
-        newProducer->setNoopEnabled(true);
+        newProducer->setNoopEnabled(
+                MockDcpProducer::NoopMode::EnabledButNeverSent);
     }
 
     configure(*newProducer);

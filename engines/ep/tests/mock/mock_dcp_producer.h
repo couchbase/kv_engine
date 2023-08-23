@@ -60,9 +60,29 @@ public:
         return noopCtx.pendingRecv;
     }
 
-    void setNoopEnabled(const bool booleanValue) {
-        noopCtx.enabled = booleanValue;
-    }
+    enum class NoopMode {
+        /// Noops disabled. Prevents enabling XATTRs or collections (as they
+        /// both require noops to be on to configured).
+        Disabled,
+        /// Noops enabled, will be sent at the default interval
+        /// (DcpProducer::defaultDcpNoopTxInterval) unless otherwise specified.
+        Enabled,
+        /// Noops enabled, but the TX interval is set to an arbitrarily large
+        /// value, so in practical terms will never be sent.
+        /// Unless a test actually *requires* Noops, this mode is preferred
+        /// over 'Enabled'.
+        /// The purpose of this setting is to "enable" NOOPs - which in turn
+        /// allows newer features like XATTRS and collections - but avoid the
+        /// complexity of having to actually handle noops requests (and
+        /// respond to them) in tests where they are not directly relevent,
+        /// as they can arrive in unexpected points if we are not careful in
+        /// managing time, or a test is slow, or we are running under a
+        /// debugger.
+        EnabledButNeverSent,
+    };
+
+    /// Configure Noop transmit mode for this DCP Producer.
+    void setNoopEnabled(NoopMode mode);
 
     bool getNoopEnabled() {
         return noopCtx.enabled;

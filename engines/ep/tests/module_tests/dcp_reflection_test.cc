@@ -196,8 +196,10 @@ public:
         // Create the task object, but don't schedule
         producer->createCheckpointProcessorTask();
 
-        // Need to enable NOOP for XATTRS (and collections).
-        producer->setNoopEnabled(true);
+        // Need to enable NOOP for XATTRS (and collections), but don't actually
+        // care about receiving DcpNoop messages.
+        producer->setNoopEnabled(
+                MockDcpProducer::NoopMode::EnabledButNeverSent);
 
         producer->scheduleCheckpointProcessorTask();
         if (enableExpiryOutput == EnableExpiryOutput::Yes) {
