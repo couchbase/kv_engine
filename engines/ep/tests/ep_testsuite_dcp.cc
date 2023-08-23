@@ -3040,7 +3040,9 @@ static uint32_t add_stream_for_consumer(EngineIface* h,
                 checkne(opaque, producers.last_opaque, "Unexpected opaque");
             };
 
-    dcpStepAndExpectControlMsg("connection_buffer_size"s);
+    if (get_bool_stat(h, "ep_dcp_consumer_flow_control_enabled")) {
+        dcpStepAndExpectControlMsg("connection_buffer_size"s);
+    }
 
     if (get_bool_stat(h, "ep_dcp_enable_noop")) {
         // MB-29441: Check that the GetErrorMap message is sent
@@ -8251,28 +8253,28 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_reconnect_full,
                  test_setup,
                  teardown,
-                 "dcp_enable_noop=false",
+                 "dcp_enable_noop=false;dcp_consumer_flow_control_enabled=false",
                  prepare,
                  cleanup),
         TestCase("test reconnect partial snapshot",
                  test_dcp_reconnect_partial,
                  test_setup,
                  teardown,
-                 "dcp_enable_noop=false",
+                 "dcp_enable_noop=false;dcp_consumer_flow_control_enabled=false",
                  prepare,
                  cleanup),
         TestCase("test crash full snapshot",
                  test_dcp_crash_reconnect_full,
                  test_setup,
                  teardown,
-                 "dcp_enable_noop=false",
+                 "dcp_enable_noop=false;dcp_consumer_flow_control_enabled=false",
                  prepare,
                  cleanup),
         TestCase("test crash partial snapshot",
                  test_dcp_crash_reconnect_partial,
                  test_setup,
                  teardown,
-                 "dcp_enable_noop=false",
+                 "dcp_enable_noop=false;dcp_consumer_flow_control_enabled=false",
                  prepare,
                  cleanup),
         TestCase("test rollback to zero on consumer",
@@ -8482,7 +8484,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_erroneous_marker,
                  test_setup,
                  teardown,
-                 nullptr,
+                 "dcp_enable_noop=false;dcp_consumer_flow_control_enabled=false",
                  prepare,
                  cleanup),
         TestCase("dcp invalid mutation(s)/deletion(s)",
