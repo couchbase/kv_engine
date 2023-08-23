@@ -6215,22 +6215,10 @@ cb::engine_errc EventuallyPersistentEngine::getAllKeys(
         return cb::engine_errc::not_supported;
     }
 
-    // Unfortunately we can't stash the std::shared_ptr directly into
-    // the engine_storage. Create a holder struct and store a pointer
-    // to the struct instead.
-    struct GetAllKeysEngineStorage {
-        GetAllKeysEngineStorage(std::shared_ptr<FetchAllKeysTask> task)
-            : task(std::move(task)) {
-        }
-        std::shared_ptr<FetchAllKeysTask> task;
-    };
-
-    std::unique_ptr<GetAllKeysEngineStorage> taskHolder(
-            takeEngineSpecific<GetAllKeysEngineStorage*>(cookie).value_or(
-                    nullptr));
-
-    if (taskHolder) {
-        const auto [status, keys] = taskHolder->task->getResult();
+    auto running =
+            takeEngineSpecific<std::shared_ptr<FetchAllKeysTask>>(cookie);
+    if (running.has_value()) {
+        const auto [status, keys] = running.value()->getResult();
         cookie.addDocumentReadBytes(keys.size());
         if (status != cb::engine_errc::success) {
             return status;
@@ -6274,15 +6262,14 @@ cb::engine_errc EventuallyPersistentEngine::getAllKeys(
         keysCollection = start_key.getCollectionID();
     }
 
-    taskHolder = std::make_unique<GetAllKeysEngineStorage>(
-            std::make_shared<FetchAllKeysTask>(*this,
-                                               cookie,
-                                               start_key,
-                                               request.getVBucket(),
-                                               count,
-                                               keysCollection));
-    ExecutorPool::get()->schedule(taskHolder->task);
-    storeEngineSpecific(cookie, taskHolder.release());
+    auto task = std::make_shared<FetchAllKeysTask>(*this,
+                                                   cookie,
+                                                   start_key,
+                                                   request.getVBucket(),
+                                                   count,
+                                                   keysCollection);
+    ExecutorPool::get()->schedule(task);
+    storeEngineSpecific(cookie, std::move(task));
     return cb::engine_errc::would_block;
 }
 
