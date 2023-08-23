@@ -74,7 +74,7 @@ bool PagingVisitor::maybeExpire(StoredValue& v) {
     // Delete expired items for an active vbucket.
     bool isExpired = (vbState == vbucket_state_active) &&
                      v.isExpired(startTime) && !v.isDeleted();
-    if (isExpired) {
+    if (isExpired || v.isTempNonExistentItem() || v.isTempDeletedItem()) {
         std::unique_ptr<Item> it = v.toItem(currentBucket->getId());
         expired.push_back(*it.get());
         return true;
