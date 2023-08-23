@@ -2493,58 +2493,59 @@ cb::engine_errc VBucket::deleteWithMeta(
     std::optional<VBNotifyCtx> notifyCtx;
     bool metaBgFetch = true;
     const auto cachedVbState = getState(); // read cachedVbState once
+    const bool mayNeedXattrsPreserving =
+            v && cachedVbState == vbucket_state_active &&
+            cb::mcbp::datatype::is_xattr(v->getDatatype()) &&
+            !v->isTempNonExistentItem();
+
+    std::unique_ptr<Item> itm;
+    // MB-33919: The incoming meta.exptime should be used as the delete-time
+    // so request GenerateDeleteTime::No, if the incoming value is 0, a new
+    // delete-time will be generated.
+    VBQueueItemCtx queueItmCtx{genBySeqno,
+                               generateCas,
+                               GenerateDeleteTime::No,
+                               TrackCasDrift::Yes,
+                               {},
+                               nullptr /* No pre link step needed */,
+                               {} /*overwritingPrepareSeqno*/,
+                               cHandle.getCanDeduplicate()};
+
     if (!v) {
         if (eviction == EvictionPolicy::Full) {
             delrv = MutationStatus::NeedBgFetch;
         } else {
             delrv = MutationStatus::NotFound;
         }
-    } else if (cachedVbState == vbucket_state_active &&
-               cb::mcbp::datatype::is_xattr(v->getDatatype()) &&
-               !v->isResident()) {
+    } else if (mayNeedXattrsPreserving && !v->isResident()) {
         // MB-25671: A temp deleted xattr with no value must be fetched before
         // the deleteWithMeta can be applied.
         // MB-36087: Any non-resident value
+        // MB-56970: Any non-resident value, which _actually exists_
         delrv = MutationStatus::NeedBgFetch;
         metaBgFetch = false;
+    } else if (mayNeedXattrsPreserving &&
+               (itm = pruneXattrDocument(*v, itemMeta))) {
+        // A new item has been generated and must be given a new seqno
+        queueItmCtx.genBySeqno = GenerateBySeqno::Yes;
+
+        // MB-36101: The result should always be a deleted item
+        itm->setDeleted();
+        std::tie(v, delrv, notifyCtx) =
+                updateStoredValue(hbl, *v, *itm, queueItmCtx);
     } else {
-        // MB-33919: The incoming meta.exptime should be used as the delete-time
-        // so request GenerateDeleteTime::No, if the incoming value is 0, a new
-        // delete-time will be generated.
-        VBQueueItemCtx queueItmCtx{genBySeqno,
-                                   generateCas,
-                                   GenerateDeleteTime::No,
-                                   TrackCasDrift::Yes,
-                                   {},
-                                   nullptr /* No pre link step needed */,
-                                   {} /*overwritingPrepareSeqno*/,
-                                   cHandle.getCanDeduplicate()};
-
-        std::unique_ptr<Item> itm;
-        if (cachedVbState == vbucket_state_active &&
-            cb::mcbp::datatype::is_xattr(v->getDatatype()) &&
-            (itm = pruneXattrDocument(*v, itemMeta))) {
-            // A new item has been generated and must be given a new seqno
-            queueItmCtx.genBySeqno = GenerateBySeqno::Yes;
-
-            // MB-36101: The result should always be a deleted item
-            itm->setDeleted();
-            std::tie(v, delrv, notifyCtx) =
-                    updateStoredValue(hbl, *v, *itm, queueItmCtx);
-        } else {
-            // system xattrs must remain, however no need to prune xattrs if
-            // this is a replication call (i.e. not to an active vbucket),
-            // the active has done this and we must just store what we're
-            // given.
-            std::tie(delrv, v, notifyCtx) = processSoftDelete(htRes,
-                                                              *v,
-                                                              cas,
-                                                              itemMeta,
-                                                              queueItmCtx,
-                                                              /*use_meta*/ true,
-                                                              bySeqno,
-                                                              deleteSource);
-        }
+        // system xattrs must remain, however no need to prune xattrs if
+        // this is a replication call (i.e. not to an active vbucket),
+        // the active has done this and we must just store what we're
+        // given.
+        std::tie(delrv, v, notifyCtx) = processSoftDelete(htRes,
+                                                          *v,
+                                                          cas,
+                                                          itemMeta,
+                                                          queueItmCtx,
+                                                          /*use_meta*/ true,
+                                                          bySeqno,
+                                                          deleteSource);
     }
     cas = v ? v->getCas() : 0;
 

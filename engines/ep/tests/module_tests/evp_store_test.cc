@@ -2098,6 +2098,182 @@ TEST_P(EPBucketFullEvictionNoBloomFilterTest,
     EXPECT_EQ(0, vb->ht.getNumTempItems());
 }
 
+TEST_P(EPBucketFullEvictionNoBloomFilterTest,
+       MB_56970_DeleteWithMetaDoesNotBGFetchNonExistent_CASZero) {
+    MB_56970(CASValue::Zero);
+}
+
+TEST_P(EPBucketFullEvictionNoBloomFilterTest,
+       MB_56970_DeleteWithMetaDoesNotBGFetchNonExistent_CASMismatch) {
+    MB_56970(CASValue::Incorrect);
+}
+
+TEST_P(EPBucketFullEvictionNoBloomFilterTest,
+       MB_56970_DeleteWithMetaDoesNotBGFetchNonExistent_CASCorrect) {
+    MB_56970(CASValue::Correct);
+}
+
+void EPBucketFullEvictionNoBloomFilterTest::MB_56970(CASValue casToUse) {
+    // MB-56970: test that a delWithMeta will not attempt a bgfetch
+    // for a temp non-existent item.
+    // No value will exist, and the bgfetch will not alter the in memory
+    // temp item, so the delWithMeta would repeatedly find the item and trigger
+    // a bgfetch, over and over.
+    if (isRocksDB()) {
+        GTEST_SKIP();
+    }
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto key = makeStoredDocKey("key");
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+
+    store_item(vbid,
+               key,
+               createXattrValue("foobar", true, false),
+               0,
+               {cb::engine_errc::success},
+               PROTOCOL_BINARY_DATATYPE_XATTR);
+
+    store_item(vbid,
+               key,
+               createXattrValue("", true, false),
+               0,
+               {cb::engine_errc::success},
+               PROTOCOL_BINARY_DATATYPE_XATTR,
+               {/* no durability*/},
+               true /* delete */);
+    store_item(vbid,
+               makeStoredDocKey("padding-so-delete-can-be-purged"),
+               "",
+               0,
+               {cb::engine_errc::success},
+               PROTOCOL_BINARY_RAW_BYTES);
+    flushVBucketToDiskIfPersistent(vbid, 2);
+
+    {
+        // deleted value does not exist in HT, should be removed when persisted
+        auto res = vb->ht.findForUpdate(key);
+        ASSERT_FALSE(res.committed);
+    }
+
+    // getMetaData to trigger a meta-only bgfetch
+    ItemMetaData itemMeta;
+    uint32_t deleted = 0;
+    uint8_t datatype = 0;
+    ASSERT_EQ(
+            cb::engine_errc::would_block,
+            store->getMetaData(key, vbid, cookie, itemMeta, deleted, datatype));
+
+    // complete the bgfetch
+    runBGFetcherTask();
+
+    {
+        // check that there is now a temp deleted item in the HT
+        auto res = vb->ht.findForUpdate(key);
+        ASSERT_TRUE(res.committed);
+        ASSERT_FALSE(res.committed->isResident());
+        ASSERT_TRUE(res.committed->isTempDeletedItem());
+    }
+
+    // finish the getMetaData - not important
+    ASSERT_EQ(
+            cb::engine_errc::success,
+            store->getMetaData(key, vbid, cookie, itemMeta, deleted, datatype));
+
+    // trigger a compaction to drop the delete
+    CompactionConfig config1{1, 1, true, true};
+    auto* mockEPBucket = dynamic_cast<MockEPBucket*>(engine->getKVBucket());
+    ASSERT_EQ(cb::engine_errc::would_block,
+              mockEPBucket->scheduleCompaction(
+                      vbid, config1, nullptr, std::chrono::seconds(0)));
+    auto task = mockEPBucket->getCompactionTask(vbid);
+    ASSERT_TRUE(task);
+    ASSERT_EQ(config1, task->getCurrentConfig());
+    ASSERT_FALSE(task->run());
+
+    // perform a delWithMeta, should attempt to bgfetch the value
+    auto dwmItem = makeDeletedItem(key);
+    dwmItem->setCas(0x12340000);
+    dwmItem->setBySeqno(1000000);
+    dwmItem->setRevSeqno(2222222);
+    const auto& dwmItemMeta = dwmItem->getMetaData();
+
+    auto* cookie1 = create_mock_cookie(engine.get());
+
+    // store the desired cas, the wouldblock call to deleteWithMeta will
+    // modify the value - but a real deleteWithMeta retrying after wouldblock
+    // will still use the originally requested value.
+    uint64_t casForDWM = 0;
+
+    switch (casToUse) {
+    case CASValue::Zero:
+        casForDWM = 0;
+        break;
+    case CASValue::Incorrect:
+        casForDWM = 0xdeadbeef;
+        break;
+    case CASValue::Correct:
+        casForDWM = itemMeta.cas;
+        break;
+    }
+
+    uint64_t cas = casForDWM;
+
+    EXPECT_EQ(cb::engine_errc::would_block,
+              store->deleteWithMeta(dwmItem->getKey(),
+                                    cas,
+                                    nullptr,
+                                    vbid,
+                                    cookie,
+                                    {vbucket_state_active},
+                                    CheckConflicts::Yes,
+                                    dwmItemMeta,
+                                    GenerateBySeqno::Yes,
+                                    GenerateCas::No,
+                                    dwmItem->getBySeqno(),
+                                    nullptr,
+                                    DeleteSource::Explicit));
+
+    // run the triggered bgfetch
+    runBGFetcherTask();
+
+    {
+        // check that there is now a temp deleted item in the HT
+        auto res = vb->ht.findForUpdate(key);
+        ASSERT_TRUE(res.committed);
+        EXPECT_FALSE(res.committed->isResident());
+        EXPECT_TRUE(res.committed->isTempNonExistentItem());
+    }
+
+    // remember to make the DWM use the actual requested cas, not the modified
+    // value
+    cas = casForDWM;
+
+    auto expected = casToUse == CASValue::Incorrect
+                            ? cb::engine_errc::key_already_exists
+                            : cb::engine_errc::success;
+
+    // delwithmeta should not require a bgfetch - the item does not exist
+    // on disk!
+    EXPECT_EQ(expected,
+              store->deleteWithMeta(dwmItem->getKey(),
+                                    cas,
+                                    nullptr,
+                                    vbid,
+                                    cookie,
+                                    {vbucket_state_active},
+                                    CheckConflicts::Yes,
+                                    itemMeta,
+                                    GenerateBySeqno::Yes,
+                                    GenerateCas::No,
+                                    dwmItem->getBySeqno(),
+                                    nullptr,
+                                    DeleteSource::Explicit));
+
+    destroy_mock_cookie(cookie1);
+}
+
 void EPBucketFullEvictionNoBloomFilterTest::MB_52067(bool forceCasMismatch) {
     /* Test that removing a temp non-existent item from the hashtable does not
      * "short circuit" ongoing front end requests expecting to find that item
