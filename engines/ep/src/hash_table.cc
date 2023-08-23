@@ -147,7 +147,7 @@ HashTable::~HashTable() {
     clear_UNLOCKED(true);
 }
 
-void HashTable::cleanupIfTemporaryItem(const HashBucketLock& hbl,
+bool HashTable::cleanupIfTemporaryItem(const HashBucketLock& hbl,
                                        StoredValue& v) {
     if (!hbl.getHTLock()) {
         throw std::invalid_argument(
@@ -155,7 +155,9 @@ void HashTable::cleanupIfTemporaryItem(const HashBucketLock& hbl,
     }
     if (v.isTempDeletedItem() || v.isTempNonExistentItem()) {
         unlocked_del(hbl, v);
+        return true;
     }
+    return false;
 }
 
 void HashTable::clear(bool deactivate) {

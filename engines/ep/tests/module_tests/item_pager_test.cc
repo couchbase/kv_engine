@@ -2599,6 +2599,130 @@ TEST_P(MultiPagingVisitorTest, ExpiryPagerCreatesMultiplePagers) {
     }
 }
 
+/**
+ * Test fixture with bloom filter disabled.
+ */
+class STNoBloomFilterExpiryPagerTest : public STExpiryPagerTest {
+public:
+    void SetUp() override {
+        if (!config_string.empty()) {
+            config_string += ";";
+        }
+        config_string += "bfilter_enabled=false";
+        STExpiryPagerTest::SetUp();
+    }
+    void testTempItemCleanUp(StoredDocKey key, bool expectCleanup);
+};
+
+void STNoBloomFilterExpiryPagerTest::testTempItemCleanUp(StoredDocKey key,
+                                                         bool expectCleanup) {
+    auto vb = store->getVBucket(vbid);
+    ASSERT_EQ(1, vb->getNumTempItems());
+    ASSERT_TRUE(vb);
+    wakeUpExpiryPager();
+    auto& stats = engine->getEpStats();
+    ASSERT_EQ(1, stats.expiryPagerRuns);
+    EXPECT_EQ(0, stats.expired_pager);
+    EXPECT_EQ(0, vb->numExpiredItems);
+
+    if (expectCleanup) {
+        EXPECT_EQ(0, vb->getNumTempItems());
+        // Item is gone, all is good
+        auto htRes = vb->ht.findForUpdate(key);
+        EXPECT_FALSE(htRes.committed);
+        EXPECT_FALSE(htRes.pending);
+    } else {
+        EXPECT_EQ(1, vb->getNumTempItems());
+        // Item is still in the HT
+        auto htRes = vb->ht.findForUpdate(key);
+        EXPECT_TRUE(htRes.committed);
+        EXPECT_FALSE(htRes.pending);
+    }
+}
+
+TEST_P(STNoBloomFilterExpiryPagerTest, TempInitialNotCleanUpNotExpired) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto key = makeStoredDocKey("key");
+
+    ItemMetaData metadata;
+    uint32_t deleted;
+    uint8_t datatype;
+    // GetMeta for a non-existent document
+    EXPECT_EQ(
+            cb::engine_errc::would_block,
+            store->getMetaData(key, vbid, cookie, metadata, deleted, datatype));
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    // Verify that the item is TempInitial (bgfetch incomplete)
+    {
+        auto htRes = vb->ht.findForUpdate(key);
+        ASSERT_TRUE(htRes.committed);
+        ASSERT_TRUE(htRes.committed->isTempInitialItem());
+        EXPECT_FALSE(htRes.pending);
+    }
+    // And proceed with the test
+    testTempItemCleanUp(key, false);
+}
+
+TEST_P(STNoBloomFilterExpiryPagerTest, TempNonExistentCleanedUpNotExpired) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    // Store the item to trigger a metadata bg fetch, running it will create a
+    // TempNonExistent item
+    auto key = makeStoredDocKey("key");
+
+    ItemMetaData metadata;
+    uint32_t deleted;
+    uint8_t datatype;
+    // GetMeta for a non-existent document
+    EXPECT_EQ(
+            cb::engine_errc::would_block,
+            store->getMetaData(key, vbid, cookie, metadata, deleted, datatype));
+    // Allow the BGFetch to complete
+    runBGFetcherTask();
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+    // Verify that the item is TempNonExistent
+    {
+        auto htRes = vb->ht.findForUpdate(key);
+        ASSERT_TRUE(htRes.committed);
+        ASSERT_TRUE(htRes.committed->isTempNonExistentItem());
+        EXPECT_FALSE(htRes.pending);
+    }
+    // And proceed with the test
+    testTempItemCleanUp(key, true);
+}
+
+TEST_P(STNoBloomFilterExpiryPagerTest, TempDeletedCleanedUpNotExpired) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    // Store a deleted item so that an add driven bg fetch will restore
+    // deleted meta (setting the previously TempInitial item to TempDeleted)
+    auto key = makeStoredDocKey("key");
+    auto item = makeDeletedItem(key);
+    EXPECT_EQ(cb::engine_errc::success, store->set(*item, cookie));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb);
+
+    ItemMetaData metadata;
+    uint32_t deleted;
+    uint8_t datatype;
+    EXPECT_EQ(
+            cb::engine_errc::would_block,
+            store->getMetaData(key, vbid, cookie, metadata, deleted, datatype));
+    runBGFetcherTask();
+    // Verify that the item is TempDeleted
+    {
+        auto htRes = vb->ht.findForUpdate(key);
+        ASSERT_TRUE(htRes.committed);
+        ASSERT_TRUE(htRes.committed->isTempDeletedItem());
+        EXPECT_FALSE(htRes.pending);
+    }
+    // And proceed with the test
+    testTempItemCleanUp(key, true);
+}
+
 // TODO: Ideally all of these tests should run with or without jemalloc,
 // however we currently rely on jemalloc for accurate memory tracking; and
 // hence it is required currently.
@@ -2618,6 +2742,11 @@ INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
 INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
                          STExpiryPagerTest,
                          STParameterizedBucketTest::allConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(Persistent,
+                         STNoBloomFilterExpiryPagerTest,
+                         STParameterizedBucketTest::persistentConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
 INSTANTIATE_TEST_SUITE_P(ValueOnly,
@@ -2649,7 +2778,7 @@ INSTANTIATE_TEST_SUITE_P(PersistentFullValue,
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(STItemPagerTest);
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(MultiPagingVisitorTest);
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(STExpiryPagerTest);
-GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(STFullEvictionNoBloomFilterPagerTest);
+GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(STNoBloomFilterExpiryPagerTest);
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(STValueEvictionExpiryPagerTest);
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(MB_32669);
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(STEphemeralItemPagerTest);

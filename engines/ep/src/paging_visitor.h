@@ -81,7 +81,7 @@ protected:
      * This may be because the item is a prepare or because this is an
      * replica ephemeral bucket for example.
      */
-    bool shouldVisit(StoredValue& v);
+    bool shouldVisit(const HashTable::HashBucketLock& lh, StoredValue& v);
 
     /**
      * Expire the item if its TTL was up when the visitor was created.

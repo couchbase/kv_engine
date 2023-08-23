@@ -49,7 +49,8 @@ PagingVisitor::PagingVisitor(KVBucket& s,
     setVBucketFilter(vbFilter);
 }
 
-bool PagingVisitor::shouldVisit(StoredValue& v) {
+bool PagingVisitor::shouldVisit(const HashTable::HashBucketLock& lh,
+                                StoredValue& v) {
     // We should never touch a prepare. Prepares will be eventually
     // purged, but should not expire, whether completed or pending.
     if (v.isPending() || v.isPrepareCompleted()) {
@@ -65,6 +66,14 @@ bool PagingVisitor::shouldVisit(StoredValue& v) {
         return false;
     }
 
+    // MB-57049: Clean up temp items when visited by the expiry pager.
+    // We hit this code path before the expiration/eviction code paths, so
+    // by returning here, we avoid updating the expiration/ejection counts.
+    // Only the temp item count will be updated as a result of this clean up.
+    if (currentBucket->ht.cleanupIfTemporaryItem(lh, v)) {
+        return false;
+    }
+
     return true;
 }
 
@@ -74,7 +83,7 @@ bool PagingVisitor::maybeExpire(StoredValue& v) {
     // Delete expired items for an active vbucket.
     bool isExpired = (vbState == vbucket_state_active) &&
                      v.isExpired(startTime) && !v.isDeleted();
-    if (isExpired || v.isTempNonExistentItem() || v.isTempDeletedItem()) {
+    if (isExpired) {
         std::unique_ptr<Item> it = v.toItem(currentBucket->getId());
         expired.push_back(*it.get());
         return true;
@@ -184,7 +193,7 @@ ExpiredPagingVisitor::shouldInterrupt() {
 
 bool ExpiredPagingVisitor::visit(const HashTable::HashBucketLock& lh,
                                  StoredValue& v) {
-    if (!shouldVisit(v)) {
+    if (!shouldVisit(lh, v)) {
         return true;
     }
     maybeExpire(v);
@@ -232,7 +241,7 @@ ItemPagingVisitor::shouldInterrupt() {
 
 bool ItemPagingVisitor::visit(const HashTable::HashBucketLock& lh,
                               StoredValue& v) {
-    if (!shouldVisit(v)) {
+    if (!shouldVisit(lh, v)) {
         return true;
     }
     if (maybeExpire(v)) {
