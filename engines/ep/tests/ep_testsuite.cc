@@ -7744,6 +7744,8 @@ static enum test_result test_mb19687_fixed(EngineIface* h) {
         std::initializer_list<std::string_view> persistence_stats = {
                 "vb_0:persistence:cursor_checkpoint_id",
                 "vb_0:persistence:cursor_seqno",
+                "vb_0:persistence:cursor_op",
+                "vb_0:persistence:cursor_distance",
                 "vb_0:persistence:num_visits",
                 "vb_0:num_items_for_persistence"};
         auto& ckpt_stats = statsKeys.at("checkpoint");
