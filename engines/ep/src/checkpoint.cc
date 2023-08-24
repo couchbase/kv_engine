@@ -674,6 +674,13 @@ void Checkpoint::addStats(const AddStatFn& add_stat,
                      getId());
     add_casted_stat(
             buf.data(), isCheckpointHistorical(historical), add_stat, cookie);
+
+    checked_snprintf(buf.data(),
+                     buf.size(),
+                     "vb_%d:id_%" PRIu64 ":highest_expelled_seqno",
+                     vbucketId.get(),
+                     getId());
+    add_casted_stat(buf.data(), highestExpelledSeqno, add_stat, cookie);
 }
 
 void Checkpoint::detachFromManager() {
@@ -746,8 +753,8 @@ std::ostream& operator <<(std::ostream& os, const Checkpoint& c) {
     os << "Checkpoint[" << &c << "] with"
        << " id:" << c.checkpointId << " seqno:{" << c.getMinimumCursorSeqno()
        << "," << c.getHighSeqno() << "}"
-       << " snap:{" << c.getSnapshotStartSeqno() << ","
-       << c.getSnapshotEndSeqno()
+       << " highestExpelledSeqno:" << c.getHighestExpelledSeqno() << " snap:{"
+       << c.getSnapshotStartSeqno() << "," << c.getSnapshotEndSeqno()
        << ", visible:" << c.getVisibleSnapshotEndSeqno() << "}"
        << " state:" << to_string(c.getState())
        << " numCursors:" << c.getNumCursorsInCheckpoint()
