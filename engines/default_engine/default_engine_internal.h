@@ -198,7 +198,7 @@ struct default_engine : public EngineIface {
 
     bool isXattrEnabled() override;
 
-    cb::HlcTime getVBucketHlcNow(Vbid vbucket) override;
+    std::optional<cb::HlcTime> getVBucketHlcNow(Vbid vbucket) override;
 
     BucketCompressionMode getCompressionMode() override;
 

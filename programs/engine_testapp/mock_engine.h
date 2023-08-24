@@ -140,7 +140,7 @@ struct MockEngine : public EngineIface, public DcpIface {
         return the_engine->isXattrEnabled();
     }
 
-    cb::HlcTime getVBucketHlcNow(Vbid vbucket) override {
+    std::optional<cb::HlcTime> getVBucketHlcNow(Vbid vbucket) override {
         return the_engine->getVBucketHlcNow(vbucket);
     }
 

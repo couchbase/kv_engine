@@ -920,8 +920,9 @@ bool default_engine::isXattrEnabled() {
     return config.xattr_enabled;
 }
 
-cb::HlcTime default_engine::getVBucketHlcNow(Vbid) {
-    return {std::chrono::seconds::zero(), cb::HlcTime::Mode::Logical};
+std::optional<cb::HlcTime> default_engine::getVBucketHlcNow(Vbid) {
+    return cb::HlcTime{std::chrono::seconds::zero(),
+                       cb::HlcTime::Mode::Logical};
 }
 
 BucketCompressionMode default_engine::getCompressionMode() {

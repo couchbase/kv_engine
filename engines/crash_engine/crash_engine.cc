@@ -204,7 +204,7 @@ public:
         return {};
     }
 
-    cb::HlcTime getVBucketHlcNow(Vbid) override {
+    std::optional<cb::HlcTime> getVBucketHlcNow(Vbid) override {
         return {};
     }
 };

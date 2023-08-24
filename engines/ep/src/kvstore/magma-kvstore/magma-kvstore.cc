@@ -191,7 +191,7 @@ static std::chrono::seconds getHistoryTimeStamp(const Slice& metaSlice) {
 static std::chrono::seconds getHistoryTimeNow(
         EventuallyPersistentEngine* engine, Magma::KVStoreID kvid) {
     if (engine) {
-        return engine->getVBucketHlcNow(Vbid(kvid)).now;
+        return engine->getVBucketHlcNow(Vbid(kvid)).value_or(cb::HlcTime{}).now;
     }
 
     // Some unit tests run without an engine and may require a "relevant" time

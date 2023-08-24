@@ -634,7 +634,9 @@ std::string_view SubdocExecutionContext::get_document_vattr() {
 
 std::string_view SubdocExecutionContext::get_vbucket_vattr() {
     if (vbucket_vattr.empty()) {
-        auto hlc = connection.getBucketEngine().getVBucketHlcNow(vbucket);
+        auto hlc =
+                connection.getBucketEngine().getVBucketHlcNow(vbucket).value_or(
+                        cb::HlcTime{});
         using namespace nlohmann;
         std::string mode =
                 (hlc.mode == cb::HlcTime::Mode::Real) ? "real"s : "logical"s;

@@ -676,10 +676,12 @@ struct EngineIface {
     /**
      * Get the "current" time and mode of the Hybrid Logical Clock for the
      * specified vBucket.
-     * @returns seconds since unix epoch of the HLC, along with the current
-     * HLC Mode (Real / Logical).
+     * @returns if the vbucket exists return (in the optional) seconds since
+     *          unix epoch of the HLC, along with the current HLC Mode
+     *          (Real / Logical) else if the vbucket does not exist return
+     *          std::nullopt.
      */
-    virtual cb::HlcTime getVBucketHlcNow(Vbid vbucket) = 0;
+    virtual std::optional<cb::HlcTime> getVBucketHlcNow(Vbid vbucket) = 0;
 
     /**
      * @returns the compression mode of the bucket

@@ -228,7 +228,7 @@ public:
             std::optional<Vbid> vbid) const override;
     cb::engine::FeatureSet getFeatures() override;
     bool isXattrEnabled() override;
-    cb::HlcTime getVBucketHlcNow(Vbid vbucket) override;
+    std::optional<cb::HlcTime> getVBucketHlcNow(Vbid vbucket) override;
     BucketCompressionMode getCompressionMode() override {
         return compressionMode;
     }

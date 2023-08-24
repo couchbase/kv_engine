@@ -1769,8 +1769,13 @@ bool EventuallyPersistentEngine::isXattrEnabled() {
     return getKVBucket()->isXattrEnabled();
 }
 
-cb::HlcTime EventuallyPersistentEngine::getVBucketHlcNow(Vbid vbucket) {
-    return getKVBucket()->getVBucket(vbucket)->getHLCNow();
+std::optional<cb::HlcTime> EventuallyPersistentEngine::getVBucketHlcNow(
+        Vbid vbucket) {
+    auto vb = getKVBucket()->getVBucket(vbucket);
+    if (!vb) {
+        return std::nullopt;
+    }
+    return vb->getHLCNow();
 }
 
 EventuallyPersistentEngine::EventuallyPersistentEngine(

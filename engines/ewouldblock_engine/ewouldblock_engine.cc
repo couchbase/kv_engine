@@ -263,7 +263,7 @@ public:
             std::optional<Vbid> vbid) const override;
     cb::engine::FeatureSet getFeatures() override;
     bool isXattrEnabled() override;
-    cb::HlcTime getVBucketHlcNow(Vbid vbucket) override;
+    std::optional<cb::HlcTime> getVBucketHlcNow(Vbid vbucket) override;
     BucketCompressionMode getCompressionMode() override;
     size_t getMaxItemSize() override;
     float getMinCompressionRatio() override;
@@ -1407,7 +1407,7 @@ bool EWB_Engine::isXattrEnabled() {
     return real_engine->isXattrEnabled();
 }
 
-cb::HlcTime EWB_Engine::getVBucketHlcNow(Vbid vbucket) {
+std::optional<cb::HlcTime> EWB_Engine::getVBucketHlcNow(Vbid vbucket) {
     return real_engine->getVBucketHlcNow(vbucket);
 }
 

@@ -371,7 +371,7 @@ public:
         return ret;
     }
 
-    cb::HlcTime getVBucketHlcNow(Vbid vbucket) override {
+    std::optional<cb::HlcTime> getVBucketHlcNow(Vbid vbucket) override {
         return {};
     }
 
