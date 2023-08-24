@@ -190,13 +190,22 @@ static std::chrono::seconds getHistoryTimeStamp(const Slice& metaSlice) {
     return getDocMeta(metaSlice).getHistoryTimeStamp();
 }
 
-static std::chrono::seconds getHistoryTimeNow(
+static std::optional<std::chrono::seconds> getHistoryTimeNow(
         EventuallyPersistentEngine* engine, Magma::KVStoreID kvid) {
-    if (engine) {
-        return engine->getVBucketHlcNow(Vbid(kvid)).value_or(cb::HlcTime{}).now;
+    if (std::optional<cb::HlcTime> hlc;
+        engine && (hlc = engine->getVBucketHlcNow(Vbid(kvid)))) {
+        return hlc->now;
+    } else if (engine) {
+        // "NMVB" - indicate to caller that no time could be determined.
+        // This occurs whilst compacting runs against a vbucket that KV has
+        // removed from the vbucket map. In this case returning "no-time"
+        // ensures the caller gets a clear message that no history should be
+        // purged by time checks during this state.
+        return std::nullopt;
     }
 
-    // Some unit tests run without an engine and may require a "relevant" time
+    // else no engine, some unit tests run without an engine and may require
+    // a "relevant" time
     using namespace std::chrono;
     return duration_cast<seconds>(nanoseconds(HLC::getMaskedTime()));
 }

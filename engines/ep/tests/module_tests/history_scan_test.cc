@@ -14,11 +14,11 @@
 #include "checkpoint_manager.h"
 #include "collections/collections_dcp_test.h"
 #include "collections/vbucket_manifest_handles.h"
-
 #include "dcp/backfill_by_seqno_disk.h"
 #include "ep_vb.h"
 #include "failover-table.h"
 #include "kv_bucket.h"
+#include "kvstore/magma-kvstore/magma-kvstore_config.h"
 #include "tests/mock/mock_dcp.h"
 #include "tests/mock/mock_dcp_consumer.h"
 #include "tests/mock/mock_dcp_producer.h"
@@ -997,6 +997,16 @@ TEST_P(HistoryScanTest, MB_56565) {
     EXPECT_EQ(5, producers->last_snap_end_seqno);
     stepAndExpect(ClientOpcode::DcpMutation);
     EXPECT_EQ(5, producers->last_byseqno);
+}
+
+TEST_P(HistoryScanTest, GetHistoryTimeNow) {
+    auto& config = dynamic_cast<const MagmaKVStoreConfig&>(
+            store->getRWUnderlying(vbid)->getConfig());
+    // vb:0 we can get a time
+    EXPECT_TRUE(config.magmaCfg.GetHistoryTimeNow(0));
+
+    // vb:200 not-my-vbucket, cannot determine a time
+    EXPECT_FALSE(config.magmaCfg.GetHistoryTimeNow(200));
 }
 
 INSTANTIATE_TEST_SUITE_P(HistoryScanTests,
