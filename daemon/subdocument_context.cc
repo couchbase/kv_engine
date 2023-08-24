@@ -634,17 +634,19 @@ std::string_view SubdocExecutionContext::get_document_vattr() {
 
 std::string_view SubdocExecutionContext::get_vbucket_vattr() {
     if (vbucket_vattr.empty()) {
-        auto hlc =
-                connection.getBucketEngine().getVBucketHlcNow(vbucket).value_or(
-                        cb::HlcTime{});
-        using namespace nlohmann;
-        std::string mode =
-                (hlc.mode == cb::HlcTime::Mode::Real) ? "real"s : "logical"s;
-        json root = {{"$vbucket",
-                      {{"HLC",
-                        {{"now", std::to_string(hlc.now.count())},
-                         {"mode", mode}}}}}};
-        vbucket_vattr = root.dump();
+        auto hlc = connection.getBucketEngine().getVBucketHlcNow(vbucket);
+        // hlc valid if vbucket exists
+        if (hlc) {
+            using namespace nlohmann;
+            std::string mode = (hlc->mode == cb::HlcTime::Mode::Real)
+                                       ? "real"s
+                                       : "logical"s;
+            json root = {{"$vbucket",
+                          {{"HLC",
+                            {{"now", std::to_string(hlc->now.count())},
+                             {"mode", mode}}}}}};
+            vbucket_vattr = root.dump();
+        }
     }
 
     return vbucket_vattr;
@@ -792,6 +794,10 @@ cb::mcbp::Status SubdocExecutionContext::operate_one_path(
         } else if (vattr_key == cb::xattr::vattrs::VBUCKET) {
             // replace the document with the vbucket virtual one..
             doc = get_vbucket_vattr();
+            if (doc.empty()) {
+                // operation's vbucket does not exist
+                return cb::mcbp::Status::NotMyVbucket;
+            }
         } else {
             return cb::mcbp::Status::SubdocXattrUnknownVattr;
         }
