@@ -105,7 +105,12 @@ static void external_append_stats(std::string_view key,
                                   std::string_view value,
                                   CookieIface& ctx) {
     auto& cookie = asCookie(ctx);
-    append_stats(key, value, cookie);
+    cookie.getConnection()
+            .getThread()
+            .eventBase.runImmediatelyOrRunInEventBaseThreadAndWait(
+                    [&cookie, key, value]() {
+                        append_stats(key, value, cookie);
+                    });
 }
 
 // Create a static std::function to wrap append_stats, instead of creating a

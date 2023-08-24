@@ -14,6 +14,7 @@
 #include "front_end_thread.h"
 #include "listening_port.h"
 #include "mcaudit.h"
+#include "platform/backtrace.h"
 #include "sendbuffer.h"
 #include "settings.h"
 #include "tracing.h"
@@ -325,10 +326,7 @@ void LibeventConnection::triggerCallback() {
 }
 
 void LibeventConnection::copyToOutputStream(std::string_view data) {
-    if (data.empty()) {
-        return;
-    }
-
+    Expects(getThread().eventBase.isInEventBaseThread());
     if (bufferevent_write(bev.get(), data.data(), data.size()) == -1) {
         throw std::bad_alloc();
     }
@@ -337,6 +335,7 @@ void LibeventConnection::copyToOutputStream(std::string_view data) {
 }
 
 void LibeventConnection::copyToOutputStream(gsl::span<std::string_view> data) {
+    Expects(getThread().eventBase.isInEventBaseThread());
     size_t nb = 0;
     for (const auto& d : data) {
         if (bufferevent_write(bev.get(), d.data(), d.size()) == -1) {
@@ -353,6 +352,7 @@ static void sendbuffer_cleanup_cb(const void*, size_t, void* extra) {
 
 void LibeventConnection::chainDataToOutputStream(
         std::unique_ptr<SendBuffer> buffer) {
+    Expects(getThread().eventBase.isInEventBaseThread());
     if (!buffer || buffer->getPayload().empty()) {
         throw std::logic_error(
                 "LibeventConnection::chainDataToOutputStream: buffer must be "

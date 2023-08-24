@@ -168,19 +168,19 @@ void FollyConnection::copyToOutputStream(std::string_view data) {
 }
 
 void FollyConnection::copyToOutputStream(gsl::span<std::string_view> data) {
-    asyncSocket->getEventBase()->runImmediatelyOrRunInEventBaseThreadAndWait(
-            [this, &data]() { asyncWriteCallback->send(data); });
+    Expects(asyncSocket->getEventBase()->isInEventBaseThread());
+    asyncWriteCallback->send(data);
 }
 
 void FollyConnection::chainDataToOutputStream(
         std::unique_ptr<SendBuffer> buffer) {
+    Expects(asyncSocket->getEventBase()->isInEventBaseThread());
     if (!buffer || buffer->getPayload().empty()) {
         throw std::logic_error(
                 "FollyConnection::chainDataToOutputStream: buffer must be set");
     }
 
-    asyncSocket->getEventBase()->runImmediatelyOrRunInEventBaseThreadAndWait(
-            [this, &buffer]() { asyncWriteCallback->send(std::move(buffer)); });
+    asyncWriteCallback->send(std::move(buffer));
 }
 
 bool FollyConnection::isPacketAvailable() const {
