@@ -1993,13 +1993,43 @@ std::string KVBucket::validateKey(const DocKey& key,
 
         if (diskItem.getFlags() != v->getFlags()) {
             return "flags_mismatch";
-        } else if (v->isResident() && memcmp(diskItem.getData(),
-                                             v->getValue()->getData(),
-                                             diskItem.getNBytes())) {
-            return "data_mismatch";
-        } else {
-            return "valid";
         }
+
+        if (v->isResident()) {
+            if (diskItem.getDataType() != v->getDatatype()) {
+                auto d1 = diskItem.getDataType();
+                auto d2 = v->getDatatype();
+
+                using cb::mcbp::datatype::is_snappy;
+                if (is_snappy(d1) && !is_snappy(d2)) {
+                    diskItem.decompressValue();
+                } else if (!is_snappy(d1) && is_snappy(d2)) {
+                    diskItem.compressValue();
+                }
+
+                if (diskItem.getDataType() != v->getDatatype()) {
+                    return fmt::format(
+                            "datatype_mismatch: {} vs {}",
+                            cb::mcbp::datatype::to_string(
+                                    diskItem.getDataType()),
+                            cb::mcbp::datatype::to_string(v->getDatatype()));
+                }
+            }
+
+            if (diskItem.getNBytes() != v->getValue()->valueSize()) {
+                return fmt::format("data_size_mismatch: {} vs {}",
+                                   diskItem.getNBytes(),
+                                   v->getValue()->valueSize());
+            }
+
+            if (memcmp(diskItem.getData(),
+                       v->getValue()->getData(),
+                       diskItem.getNBytes())) {
+                return "data_mismatch";
+            }
+        }
+
+        return "valid";
     } else {
         return "item_deleted";
     }

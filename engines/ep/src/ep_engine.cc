@@ -4283,7 +4283,7 @@ cb::engine_errc EventuallyPersistentEngine::doKeyStats(
                         cookie);
         add_casted_stat("key_is_resident", kstats.resident, add_stat, cookie);
         if (validate) {
-            add_casted_stat("key_valid", valid.c_str(), add_stat, cookie);
+            add_casted_stat("key_valid", valid, add_stat, cookie);
         }
     }
     return rv;

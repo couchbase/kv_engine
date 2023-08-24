@@ -48,9 +48,12 @@ protected:
                             if (v.find("snappy") != std::string::npos) {
                                 compressed = true;
                             }
+                            if (k == "key_valid"s) {
+                                EXPECT_EQ("valid"s, v);
+                            }
                         }
                     },
-                    fmt::format("key {} 0", name));
+                    fmt::format("vkey {} 0", name));
             if (compressed) {
                 break;
             } else {
