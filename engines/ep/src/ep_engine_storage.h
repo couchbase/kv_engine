@@ -36,7 +36,7 @@ public:
     /// Create a new instance initialised to the given value.
     template <typename U,
               typename = std::enable_if_t<std::is_same_v<T, std::decay_t<U>>>>
-    explicit EPEngineStorage(U&& data) : data(std::move(data)) {
+    explicit EPEngineStorage(U&& data) : data(std::forward<U>(data)) {
     }
 
     /// Access the stored value.

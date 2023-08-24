@@ -460,6 +460,17 @@ TEST_P(EPEnginePersistentTest, EngineSpecificStorageThrowsBadCast) {
     EXPECT_THROW(engine->getEngineSpecific<char>(cookie), std::bad_cast);
 }
 
+TEST_P(EPEnginePersistentTest, EngineSpecificStorageCanHoldSharedPtr) {
+    MockCookie cookie(engine);
+    auto ptr = std::make_shared<int>(1);
+    engine->storeEngineSpecific(cookie, ptr);
+    ASSERT_TRUE(ptr);
+    auto optionalPtr = engine->getEngineSpecific<std::shared_ptr<int>>(cookie);
+    EXPECT_TRUE(optionalPtr);
+    EXPECT_TRUE(*optionalPtr);
+    EXPECT_EQ(ptr, *optionalPtr);
+}
+
 TEST_P(EPEnginePersistentTest, ShardCountsOnSecondBucketInit) {
     auto originalShardCount = engine->getWorkLoadPolicy().getNumShards();
     auto newShardCount = originalShardCount + 1;
