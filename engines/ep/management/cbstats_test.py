@@ -20,5 +20,13 @@ class CBStatsTest(unittest.TestCase):
         self.assertEqual(cbstats.time_label(600*1000*1000), ' 600s')
         self.assertEqual(cbstats.time_label(605000000), '10m:05s')
 
+    def test_size_label(self):
+        self.assertEqual(cbstats.size_label(1000), '1000.00B ')
+        self.assertEqual(cbstats.size_label(1024), '1.00KB')
+        self.assertEqual(cbstats.size_label(1000 * 1024), '1000.00KB')
+        self.assertEqual(cbstats.size_label(1024 * 1024), '1.00MB')
+        self.assertEqual(cbstats.size_label(1000 * 1024 * 1024), '1000.00MB')
+        self.assertEqual(cbstats.size_label(1024 * 1024 * 1024), '1.00GB')
+
 if __name__ == '__main__':
     unittest.main()

@@ -585,6 +585,10 @@ public:
      */
     void maybeCreateNewCheckpoint();
 
+    // Test hook that executes in the section where ItemExpel has released
+    // (and not yet re-acquired) the CM::lock. Introduced in MB-56644.
+    TestingHook<> expelHook;
+
 protected:
     /**
      * @param lh, the queueLock held
