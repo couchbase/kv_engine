@@ -13,6 +13,7 @@
 #include <folly/portability/GMock.h>
 #include <memcached/stat_group.h>
 #include <protocol/mcbp/ewb_encode.h>
+#include <utilities/timing_histogram_printer.h>
 
 using namespace std::string_view_literals;
 
@@ -393,14 +394,25 @@ TEST_P(StatsTest, TestTasksAllInfo) {
 }
 
 TEST_P(StatsTest, TestSchedulerInfo) {
-    auto stats = adminConnection->stats("worker_thread_info");
-    // We should at least have an entry for the first thread
-    EXPECT_NE(stats.end(), stats.find("0"));
+    int found = 0;
+    adminConnection->stats(
+            [&found](const auto& k, const auto& v) {
+                TimingHistogramPrinter tp(nlohmann::json::parse(v));
+                ++found;
+            },
+            "worker_thread_info");
+    EXPECT_GT(4, found);
 }
 
 TEST_P(StatsTest, TestSchedulerInfo_Aggregate) {
-    auto stats = adminConnection->stats("worker_thread_info aggregate");
-    EXPECT_NE(stats.end(), stats.find("aggregate"));
+    int found = 0;
+    adminConnection->stats(
+            [&found](const auto& k, const auto& v) {
+                TimingHistogramPrinter tp(nlohmann::json::parse(v));
+                ++found;
+            },
+            "worker_thread_info aggregate");
+    EXPECT_EQ(1, found);
 }
 
 TEST_P(StatsTest, TestSchedulerInfo_InvalidSubcommand) {
@@ -504,11 +516,14 @@ TEST_P(StatsTest, TestConnectionsInvalidNumber) {
 }
 
 TEST_P(StatsTest, TestSubdocExecute) {
-    auto stats = userConnection->stats("subdoc_execute");
-
-    // json returned should have zero samples as no ops have been performed
-    EXPECT_TRUE(stats.is_object());
-    EXPECT_EQ(0, stats["0"]["total"].get<uint64_t>());
+    int found = 0;
+    adminConnection->stats(
+            [&found](const auto& k, const auto& v) {
+                TimingHistogramPrinter tp(nlohmann::json::parse(v));
+                ++found;
+            },
+            "subdoc_execute");
+    EXPECT_EQ(1, found);
 }
 
 TEST_P(StatsTest, TestResponseStats) {

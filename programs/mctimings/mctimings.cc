@@ -16,9 +16,8 @@
 #include <programs/mc_program_getopt.h>
 #include <protocol/connection/client_connection.h>
 #include <protocol/connection/client_mcbp_commands.h>
-#include <utilities/json_utilities.h>
+#include <utilities/timing_histogram_printer.h>
 #include <array>
-#include <cinttypes>
 #include <cstdlib>
 #include <iostream>
 #include <stdexcept>
@@ -40,183 +39,32 @@ const static std::string_view histogramInfo = R"(Histogram Legend:
 class Timings {
 public:
     explicit Timings(const nlohmann::json& json) {
-        initialize(json);
+        if (json.find("error") != json.end()) {
+            // The server responded with an error... send that to the user
+            throw std::runtime_error(json["error"].get<std::string>());
+        }
+        if (json.find("data") != json.end()) {
+            printer = std::make_unique<TimingHistogramPrinter>(json);
+        }
     }
 
     uint64_t getTotal() const {
-        return total + overflowed;
+        if (printer) {
+            return printer->getTotal();
+        }
+        return 0;
     }
 
     void dumpHistogram(const std::string& opcode) {
-        if (data.is_null()) {
+        if (!printer) {
             return;
         }
 
-        fmt::print(
-                stdout, "The following data is collected for \"{}\"\n", opcode);
-
-        auto dataArray = data.get<std::vector<std::vector<nlohmann::json>>>();
-        for (auto item : dataArray) {
-            auto count = item[1].get<uint64_t>();
-            if (count > maxCount) {
-                maxCount = count;
-            }
-        }
-        maxCount = std::max(maxCount, overflowed);
-
-        // If no buckets have no recorded values do not try to render buckets
-        if (maxCount > 0) {
-            // create double versions of sec, ms, us so we can print them to 2dp
-            using namespace std::chrono;
-            using doubleMicroseconds = duration<long double, std::micro>;
-            using doubleMilliseconds = duration<long double, std::milli>;
-            using doubleSeconds = duration<long double>;
-
-            // loop though all the buckets in the json object and print them
-            // to std out
-            uint64_t lastBuckLow = bucketsLow;
-            for (auto bucket : dataArray) {
-                // Get the current bucket's highest value it would track counts
-                // for
-                auto buckHigh = bucket[0].get<int64_t>();
-                // Get the counts for this bucket
-                auto count = bucket[1].get<int64_t>();
-                // Get the percentile of counts that are <= buckHigh
-                auto percentile = bucket[2].get<double>();
-
-                // Cast the high bucket width to us, ms and seconds so we
-                // can check which units we should be using for this bucket
-                auto buckHighUs = doubleMicroseconds(buckHigh);
-                auto buckHighMs = duration_cast<doubleMilliseconds>(buckHighUs);
-                auto buckHighS = duration_cast<doubleSeconds>(buckHighUs);
-
-                if (buckHighS.count() > 1) {
-                    auto low = duration_cast<doubleSeconds>(
-                            microseconds(lastBuckLow));
-                    dump("s",
-                         low.count(),
-                         buckHighS.count(),
-                         count,
-                         percentile);
-                } else if (buckHighMs.count() > 1) {
-                    auto low = duration_cast<doubleMilliseconds>(
-                            doubleMicroseconds(lastBuckLow));
-                    dump("ms",
-                         low.count(),
-                         buckHighMs.count(),
-                         count,
-                         percentile);
-                } else {
-                    dump("us", lastBuckLow, buckHigh, count, percentile);
-                }
-
-                // Set the low bucket value to this buckets high width value.
-                lastBuckLow = buckHigh;
-            }
-
-            // Emit a pseudo-bucket for any overflowed samples which could not
-            // be represented, if present.
-            if (overflowed) {
-                const auto barWidth = barChartWidth(overflowed);
-                const auto countWidth = countFieldWidth();
-                const doubleSeconds maxTrackableS =
-                        doubleMicroseconds(maxTrackableValue);
-                fmt::print("[{:6.2f} - {:6.2f}]s (overflowed)\t{}| {}\n",
-                           maxTrackableS.count(),
-                           std::numeric_limits<double>::infinity(),
-                           fmt::format("{0:>{1}}", overflowed, countWidth),
-                           std::string(barWidth, '#'));
-            }
-        }
-
-        fmt::print(stdout, "Total: {} operations\n", getTotal());
+        printer->dumpHistogram(opcode);
     }
 
 private:
-    void initialize(const nlohmann::json& root) {
-        if (root.find("error") != root.end()) {
-            // The server responded with an error.. send that to the user
-            throw std::runtime_error(root["error"].get<std::string>());
-        }
-        if (root.find("data") != root.end()) {
-            total = cb::jsonGet<uint64_t>(root, "total");
-            data = cb::jsonGet<nlohmann::json>(root, "data");
-            bucketsLow = cb::jsonGet<uint64_t>(root, "bucketsLow");
-
-            // "overflowed" and "maxTrackableValue" only added in 7.2.0; ignore
-            // if not present
-            overflowed =
-                    cb::getOptionalJsonObject(root, "overflowed").value_or(0);
-            maxTrackableValue = cb::getOptionalJsonObject(root, "max_trackable")
-                                        .value_or(0);
-        }
-    }
-
-    void dump(const char* timeunit,
-              long double low,
-              long double high,
-              int64_t count,
-              double percentile) {
-        int num = barChartWidth(count);
-        int numberOfSpaces = countFieldWidth();
-
-        fmt::print(stdout,
-                   "[{:6.2f} - {:6.2f}]{} ({:6.4f}%)\t{}| {}\n",
-                   low,
-                   high,
-                   timeunit,
-                   percentile,
-                   fmt::format("{0:>{1}}", count, numberOfSpaces),
-                   std::string(num, '#'));
-    }
-
-    // Calculation for padding around the count in each histogram bucket
-    int countFieldWidth() const {
-        return fmt::formatted_size("{}", maxCount) + 1;
-    }
-
-    // Calculation for histogram size rendering - how wide should the
-    // ASCII bar be for the count of samples.
-    int barChartWidth(int64_t count) const {
-        double factionOfHashes =
-                maxCount > 0 ? (count / static_cast<double>(maxCount)) : 0.0;
-        int num = static_cast<int>(44.0 * factionOfHashes);
-        return num;
-    }
-
-    /**
-     * The highest value of all the samples (used to figure out the width
-     * used for each sample in the printout)
-     */
-    uint64_t maxCount = 0;
-    /**
-     * Json object to store the data returned by memcached
-     */
-    nlohmann::json data;
-    /**
-     * The starting point of the lowest buckets width.
-     * E.g. if buckets were [10 - 20][20 - 30] it would be 10.
-     * Used to help reduce the amount the amount of json sent to
-     * mctimings
-     */
-    uint64_t bucketsLow = 0;
-    /**
-     * Total number of counts recorded in the histogram buckets.
-     */
-    uint64_t total = 0;
-
-    /**
-     * Number of samples which overflowed the histograms' buckets.
-     * (Added in 7.2.0).
-     */
-    uint64_t overflowed = 0;
-
-    /**
-     * Maximum value the histogram can track. Any values which are greater
-     * than this are counted in `overflowed`.
-     * (Added in 7.2.0).
-     */
-    uint64_t maxTrackableValue = 0;
+    std::unique_ptr<TimingHistogramPrinter> printer;
 };
 
 std::string opcode2string(cb::mcbp::ClientOpcode opcode) {
@@ -306,9 +154,37 @@ static void request_stat_timings(MemcachedConnection& connection,
                                  const std::string& key,
                                  bool verbose,
                                  std::optional<nlohmann::json>& json_output) {
-    std::map<std::string, std::string> map;
+    bool found = false;
     try {
-        map = connection.statsMap(key);
+        connection.stats(
+                [&json_output, &key, verbose, &found](const auto&,
+                                                      const auto& value) {
+                    if (value.find(R"("data":[)") != std::string::npos &&
+                        value.find(R"("bucketsLow":)") != std::string::npos) {
+                        try {
+                            auto json = nlohmann::json::parse(value);
+                            if (json_output.has_value()) {
+                                json["command"] = key;
+                                json_output->push_back(json);
+                            } else {
+                                Timings timings(json);
+                                if (verbose) {
+                                    timings.dumpHistogram(key);
+                                } else {
+                                    fmt::print(stdout,
+                                               " {} {} operations\n",
+                                               key,
+                                               timings.getTotal());
+                                }
+                            }
+                            found = true;
+                        } catch (const std::exception& ex) {
+                            fmt::print(stderr, "Fatal error: {}\n", ex.what());
+                            std::exit(EXIT_FAILURE);
+                        }
+                    }
+                },
+                key);
     } catch (const ConnectionError& ex) {
         if (ex.isNotFound()) {
             fmt::print(stderr, "Cannot find statistic: {}\n", key);
@@ -321,40 +197,8 @@ static void request_stat_timings(MemcachedConnection& connection,
         exit(EXIT_FAILURE);
     }
 
-    // The return value from stats injects the result in a k-v pair, but
-    // these responses (i.e. subdoc_execute) don't include a key,
-    // so the statsMap adds them into the map with a counter to make sure
-    // that you can fetch all of them. We only expect a single entry, which
-    // would be named "0"
-    auto iter = map.find("0");
-    if (iter == map.end()) {
+    if (!found) {
         fmt::print(stderr, "Failed to fetch statistics for \"{}\"\n", key);
-        exit(EXIT_FAILURE);
-    }
-
-    // And the value for the item should be valid JSON
-    nlohmann::json json = nlohmann::json::parse(iter->second);
-    if (json.is_null()) {
-        fmt::print(stderr,
-                   "Failed to fetch statistics for \"{}\". Not json\n",
-                   key);
-        exit(EXIT_FAILURE);
-    }
-    try {
-        if (json_output.has_value()) {
-            json["command"] = key;
-            json_output->push_back(json);
-        } else {
-            Timings timings(json);
-            if (verbose) {
-                timings.dumpHistogram(key);
-            } else {
-                fmt::print(
-                        stdout, " {} {} operations\n", key, timings.getTotal());
-            }
-        }
-    } catch (const std::exception& e) {
-        fmt::print(stderr, "Fatal error: {}\n", e.what());
         exit(EXIT_FAILURE);
     }
 }

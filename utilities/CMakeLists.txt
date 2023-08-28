@@ -42,6 +42,8 @@ add_library(mcd_util STATIC
             thread_pool_config.cc
             throttle_utilities.cc
             throttle_utilities.h
+            timing_histogram_printer.cc
+            timing_histogram_printer.h
             types.cc
             util.cc
             vbucket.cc )

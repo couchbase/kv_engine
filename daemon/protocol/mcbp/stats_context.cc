@@ -166,9 +166,9 @@ static cb::engine_errc stat_sched_executor(const std::string& arg,
     if (arg.empty()) {
         for (size_t ii = 0; ii < Settings::instance().getNumWorkerThreads();
              ++ii) {
-            auto hist = scheduler_info[ii].to_string();
-            std::string key = std::to_string(ii);
-            append_stats(key, hist, cookie);
+            append_stats(fmt::format("Thread-{}", ii),
+                         scheduler_info[ii].to_string(),
+                         cookie);
         }
         return cb::engine_errc::success;
     }
@@ -180,8 +180,7 @@ static cb::engine_errc stat_sched_executor(const std::string& arg,
             histogram += h;
         }
         // Add the stat
-        auto hist = histogram.to_string();
-        append_stats(key, hist, cookie);
+        append_stats(key, histogram.to_string(), cookie);
         return cb::engine_errc::success;
     }
 
@@ -349,6 +348,7 @@ static cb::engine_errc stat_client_connection_details_executor(
  * specified Bucket histogram data member.
  */
 static cb::engine_errc stat_histogram_executor(
+        std::string_view key,
         const std::string& arg,
         Cookie& cookie,
         Hdr1sfMicroSecHistogram Bucket::*histogram) {
@@ -367,7 +367,7 @@ static cb::engine_errc stat_histogram_executor(
             auto& bucket = cookie.getConnection().getBucket();
             json_str = (bucket.*histogram).to_string();
         }
-        append_stats({}, json_str, cookie);
+        append_stats(key, json_str, cookie);
         return cb::engine_errc::success;
     } else {
         return cb::engine_errc::invalid_arguments;
@@ -383,7 +383,8 @@ static cb::engine_errc stat_histogram_executor(
  */
 static cb::engine_errc stat_json_validate_executor(const std::string& arg,
                                                    Cookie& cookie) {
-    return stat_histogram_executor(arg, cookie, &Bucket::jsonValidateTimes);
+    return stat_histogram_executor(
+            "json_validate"sv, arg, cookie, &Bucket::jsonValidateTimes);
 }
 
 /**
@@ -395,8 +396,10 @@ static cb::engine_errc stat_json_validate_executor(const std::string& arg,
  */
 static cb::engine_errc stat_snappy_decompress_executor(const std::string& arg,
                                                        Cookie& cookie) {
-    return stat_histogram_executor(
-            arg, cookie, &Bucket::snappyDecompressionTimes);
+    return stat_histogram_executor("snappy_decompress"sv,
+                                   arg,
+                                   cookie,
+                                   &Bucket::snappyDecompressionTimes);
 }
 
 /**
@@ -409,7 +412,7 @@ static cb::engine_errc stat_snappy_decompress_executor(const std::string& arg,
 static cb::engine_errc stat_subdoc_execute_executor(const std::string& arg,
                                                     Cookie& cookie) {
     return stat_histogram_executor(
-            arg, cookie, &Bucket::subjson_operation_times);
+            "subdoc_execute"sv, arg, cookie, &Bucket::subjson_operation_times);
 }
 
 static cb::engine_errc stat_responses_json_executor(const std::string&,

@@ -13,6 +13,8 @@
 #include <platform/terminal_size.h>
 #include <programs/mc_program_getopt.h>
 #include <protocol/connection/client_connection.h>
+#include <utilities/timing_histogram_printer.h>
+#include <cctype>
 #include <iostream>
 #include <limits>
 
@@ -44,10 +46,35 @@ static void request_stat(MemcachedConnection& connection,
             auto stats = connection.stats(key, getFrameInfos);
             std::cout << stats.dump(format ? 2 : -1) << std::endl;
         } else {
+            std::string_view name = key;
             connection.stats(
-                    [](const std::string& key,
-                       const std::string& value) -> void {
-                        std::cout << key << " " << value << std::endl;
+                    [name](const std::string& key,
+                           const std::string& value) -> void {
+                        bool printed = false;
+                        if (value.find(R"("data":[)") != std::string::npos &&
+                            value.find(R"("bucketsLow":)") !=
+                                    std::string::npos) {
+                            // this might be a timing histogram... just try to
+                            // dump as such
+                            std::string_view nm;
+                            if (key.empty() || std::isdigit(key.front())) {
+                                nm = name;
+                            } else {
+                                nm = key;
+                            }
+
+                            try {
+                                TimingHistogramPrinter printer(
+                                        nlohmann::json::parse(value));
+                                printer.dumpHistogram(nm);
+                                printed = true;
+                            } catch (const std::exception&) {
+                            }
+                        }
+
+                        if (!printed) {
+                            std::cout << key << " " << value << std::endl;
+                        }
                     },
                     key,
                     getFrameInfos);
