@@ -187,6 +187,8 @@ public:
     bool public_nextSnapshotIsCheckpoint() const {
         return nextSnapshotIsCheckpoint;
     }
+
+    std::unique_ptr<DcpResponse> public_backfillPhase(DcpProducer& producer);
 };
 
 /**

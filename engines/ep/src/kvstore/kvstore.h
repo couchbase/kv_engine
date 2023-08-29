@@ -532,8 +532,8 @@ public:
                     uint64_t historyStartSeqno = 0);
     std::vector<ByIdRange> ranges;
     // Key should be set by KVStore when a scan must be paused, this is where
-    // a scan can resume from
-    DiskDocKey lastReadKey;
+    // a scan can resume from (inclusive)
+    DiskDocKey resumeFromKey;
 };
 
 struct FileStats {
