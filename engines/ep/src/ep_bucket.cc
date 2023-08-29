@@ -371,14 +371,6 @@ bool EPBucket::canDeduplicate(Item* lastFlushed,
         return false;
     }
 
-    // MB-56256: retain all "resolutions" to a prepare so there is no
-    // prepare(k)->prepare(k) sequence in the history window. Between each
-    // prepare there must always be a resolution, e.g. abort(k) or commit(k).
-    if (historical == CheckpointHistorical::Yes &&
-        (candidate.isAbort() || candidate.isCommitSyncWrite())) {
-        return false;
-    }
-
     // items match - the candidate must have a lower seqno.
     Expects(lastFlushed->getBySeqno() > candidate.getBySeqno());
 
