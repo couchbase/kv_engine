@@ -2084,11 +2084,12 @@ void DcpConnMapTest::testLockInversionInSetVBucketStateAndNewProducer() {
     EXPECT_TRUE(connMap.doesVbConnExist(vbid, "eq_dcpq:" + connName));
 
     std::thread t1 = std::thread([this]() -> void {
-        engine->getKVBucket()->setVBucketState(
-                vbid,
-                vbucket_state_t::vbucket_state_replica,
-                {} /*meta*/,
-                TransferVB::No);
+        EXPECT_EQ(cb::engine_errc::success,
+                  engine->getKVBucket()->setVBucketState(
+                          vbid,
+                          vbucket_state_t::vbucket_state_replica,
+                          {} /*meta*/,
+                          TransferVB::No));
     });
 
     // New producer in this thread.

@@ -182,6 +182,11 @@ public:
         atomic_setIfBigger(waketime, tp_ns);
     }
 
+    // @return true if task was put to sleep with INT_MAX (sleep forever)
+    bool isSleepingForever() const {
+        return getWaketime() == std::chrono::steady_clock::time_point::max();
+    }
+
     std::chrono::steady_clock::time_point getLastStartTime() const {
         const auto waketime_chrono = std::chrono::nanoseconds(lastStartTime);
         return std::chrono::steady_clock::time_point(waketime_chrono);

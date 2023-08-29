@@ -241,6 +241,11 @@ struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
             return;
         }
 
+        // Don't attempt to schedule when sleeping forever
+        if (task->isSleepingForever()) {
+            return;
+        }
+
         using namespace std::chrono;
         auto timeout = duration_cast<milliseconds>(task->getWaketime() -
                                                    steady_clock::now());
@@ -1186,6 +1191,11 @@ void FollyExecutorPool::rescheduleTaskAfterRun(TaskProxy& proxy) {
         // taskOwners, decrement the refcount and potentially delete the
         // GlobalTask.
         state->cancelTask(proxy.task->getId());
+        return;
+    }
+
+    // Don't attempt to schedule when sleeping forever
+    if (proxy.task->isSleepingForever()) {
         return;
     }
 
