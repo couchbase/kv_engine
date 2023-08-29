@@ -21,9 +21,11 @@
  */
 template <typename Fun>
 void DcpConnMap::each(Fun&& f) {
-    // Hold the handle to keep the lock during iteration
-    auto handle = connStore->getCookieToConnectionMapHandle();
-    for (auto& c : *handle) {
+    // We want to minimise how long cookieToConnMap is locked for - i.e.
+    // we don't want to run `f` for each item while locked.
+    // As such, take a copy of the map (under lock) then iterate that copy.
+    auto copy = connStore->getCookieToConnectionMapHandle()->copyCookieToConn();
+    for (auto& c : copy) {
         f(c.second);
     }
 }
