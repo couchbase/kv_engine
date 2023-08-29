@@ -2129,9 +2129,9 @@ ScanStatus MagmaKVStore::scan(ByIdScanContext& ctx) const {
             range.rangeScanSuccess = true;
             continue;
         case ScanStatus::Yield:
-            // Set the resume point
-            range.startKey = ctx.lastReadKey;
-            range.startKey.append(0);
+            // Update the startKey so backfill can resume from the right
+            // resume point. See how resumeFromKey is set for details.
+            range.startKey = ctx.resumeFromKey;
             return status;
         case ScanStatus::Failed:
             // deeper calls log details
@@ -2165,9 +2165,11 @@ ScanStatus MagmaKVStore::scan(ByIdScanContext& ctx,
                 });
         switch (result.code) {
         case MagmaScanResult::Status::Yield:
-            // Only need to update lastReadKey for a Yield.
+            // Only need to set the resume point for a Yield.
             // Doing this here to avoid unneeded alloc+copy on every key scanned
-            ctx.lastReadKey = makeDiskDocKey(keySlice);
+            ctx.resumeFromKey = makeDiskDocKey(keySlice);
+            ctx.resumeFromKey.append(0);
+            [[fallthrough]];
         case MagmaScanResult::Status::Success:
         case MagmaScanResult::Status::Cancelled:
         case MagmaScanResult::Status::Failed:

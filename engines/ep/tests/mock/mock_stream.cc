@@ -89,6 +89,12 @@ void MockActiveStream::consumeAllBackfillItems(DcpProducer& producer) {
     }
 }
 
+std::unique_ptr<DcpResponse> MockActiveStream::public_backfillPhase(
+        DcpProducer& producer) {
+    std::lock_guard<std::mutex> lh(streamMutex);
+    return backfillPhase(producer, lh);
+}
+
 cb::engine_errc MockPassiveStream::messageReceived(
         std::unique_ptr<DcpResponse> dcpResponse) {
     auto consumer = consumerPtr.lock();

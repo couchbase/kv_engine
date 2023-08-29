@@ -2403,10 +2403,9 @@ ScanStatus CouchKVStore::scan(ByIdScanContext& ctx) const {
                                               static_cast<void*>(&ctx));
         if (errorCode != COUCHSTORE_SUCCESS) {
             if (errorCode == COUCHSTORE_ERROR_SCAN_YIELD) {
-                // Update the startKey so backfill can resume from the key next
-                // to lastReadKey
-                range.startKey = ctx.lastReadKey;
-                range.startKey.append(0);
+                // Update the startKey so backfill can resume from the right
+                // resume point. See how resumeFromKey is set for details.
+                range.startKey = ctx.resumeFromKey;
             }
             break;
         } else {
@@ -2938,8 +2937,9 @@ static int byIdScanCallback(Db* db, DocInfo* docinfo, void* ctx) {
     auto status = couchstore_error_t(bySeqnoScanCallback(db, docinfo, ctx));
     if (status == COUCHSTORE_ERROR_SCAN_YIELD) {
         auto* sctx = static_cast<ByIdScanContext*>(ctx);
-        // Save the last processed key
-        sctx->lastReadKey = makeDiskDocKey(docinfo->id);
+        // save the resume point
+        sctx->resumeFromKey = makeDiskDocKey(docinfo->id);
+        sctx->resumeFromKey.append(0);
     }
     return int(status);
 }

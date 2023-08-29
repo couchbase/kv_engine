@@ -131,7 +131,7 @@ ByIdScanContext::ByIdScanContext(
                   maxSeqno,
                   historyStartSeqno),
       ranges(std::move(ranges)),
-      lastReadKey(nullptr, 0) {
+      resumeFromKey(nullptr, 0) {
 }
 
 bool ByIdRange::operator==(const ByIdRange& other) const {
