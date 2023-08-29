@@ -4125,6 +4125,10 @@ static void showConnAggStat(const std::string& connType,
             labelled.addStat(Key::connagg_consumer_count,
                              counter.totalConns - counter.totalProducers);
         }
+        labelled.addStat(Key::connagg_items_backfilled_disk,
+                         counter.conn_backfillDisk);
+        labelled.addStat(Key::connagg_items_backfilled_memory,
+                         counter.conn_backfillMemory);
         labelled.addStat(Key::connagg_items_sent, counter.conn_queueDrain);
         labelled.addStat(Key::connagg_items_remaining,
                           counter.conn_queueRemaining);
@@ -4191,6 +4195,8 @@ void EventuallyPersistentEngine::addAggregatedProducerStats(
     col.addStat(Key::dcp_total_uncompressed_data_size,
                 aggregator.conn_totalUncompressedDataSize);
     col.addStat(Key::dcp_queue_fill, aggregator.conn_queueFill);
+    col.addStat(Key::dcp_queue_backfill_disk, aggregator.conn_backfillDisk);
+    col.addStat(Key::dcp_queue_backfill_memory, aggregator.conn_backfillMemory);
     col.addStat(Key::dcp_items_sent, aggregator.conn_queueDrain);
     col.addStat(Key::dcp_items_remaining, aggregator.conn_queueRemaining);
     col.addStat(

@@ -1654,6 +1654,8 @@ void DcpProducer::aggregateQueueStats(ConnCounter& aggregator) const {
 
     aggregator.conn_queueRemaining += streamAggStats.itemsRemaining;
     aggregator.conn_queueMemory += streamAggStats.readyQueueMemory;
+    aggregator.conn_backfillDisk += streamAggStats.backfillItemsDisk;
+    aggregator.conn_backfillMemory += streamAggStats.backfillItemsMemory;
 }
 
 void DcpProducer::notifySeqnoAvailable(Vbid vbucket,
@@ -1992,7 +1994,7 @@ size_t DcpProducer::getItemsRemaining() const {
 }
 
 DcpProducer::StreamAggStats DcpProducer::getStreamAggStats() const {
-    DcpProducer::StreamAggStats stats{};
+    DcpProducer::StreamAggStats stats;
 
     std::for_each(
             streams->begin(),
@@ -2003,6 +2005,9 @@ DcpProducer::StreamAggStats DcpProducer::getStreamAggStats() const {
                     if (as) {
                         stats.itemsRemaining += as->getItemsRemaining();
                         stats.readyQueueMemory += as->getReadyQueueMemory();
+                        stats.backfillItemsDisk += as->getBackfillItemsDisk();
+                        stats.backfillItemsMemory +=
+                                as->getBackfillItemsMemory();
                     }
                 }
             });

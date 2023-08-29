@@ -293,6 +293,12 @@ public:
      */
     size_t getItemsRemaining();
 
+    /// @returns the count of items backfilled from disk.
+    size_t getBackfillItemsDisk() const;
+
+    /// @returns the count of items backfilled from memory.
+    size_t getBackfillItemsMemory() const;
+
     uint64_t getLastReadSeqno() const;
 
     uint64_t getLastSentSeqno() const;
