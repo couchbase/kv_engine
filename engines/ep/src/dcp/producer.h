@@ -457,8 +457,10 @@ protected:
     size_t getItemsRemaining() const;
 
     struct StreamAggStats {
-        size_t itemsRemaining;
-        size_t readyQueueMemory;
+        size_t itemsRemaining{};
+        size_t readyQueueMemory{};
+        size_t backfillItemsDisk{};
+        size_t backfillItemsMemory{};
     };
 
     StreamAggStats getStreamAggStats() const;

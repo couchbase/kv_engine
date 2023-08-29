@@ -3203,6 +3203,30 @@
         },
         "added": "7.1.0"
     },
+     {
+        "key": "connagg_items_backfilled_disk",
+        "unit": "count",
+        "cbstat": "{connection_type}:items_backfilled_disk",
+        "prometheus": {
+            "family": "dcp_items_backfilled",
+             "labels": {
+                "from": "disk"
+            }
+        },
+        "added": "7.2.1"
+    },
+    {
+        "key": "connagg_items_backfilled_memory",
+        "unit": "count",
+        "cbstat": "{connection_type}:items_backfilled_memory",
+        "prometheus": {
+            "family": "dcp_items_backfilled",
+             "labels": {
+                "from": "memory"
+            }
+        },
+        "added": "7.2.1"
+    },
 /*
  * Aggregated dcp stats (for all DCP clients).
  * These are not included in Prometheus as they are redundant - they
@@ -3265,7 +3289,20 @@
         "prometheus": false,
         "added": "7.0.2"
     },
-
+    {
+        "key": "dcp_queue_backfill_disk",
+        "unit": "count",
+        "cbstat": "ep_dcp_backfill_disk",
+        "prometheus": false,
+        "added": "7.2.1"
+    },
+    {
+        "key": "dcp_queue_backfill_memory",
+        "unit": "count",
+        "cbstat": "ep_dcp_backfill_memory",
+        "prometheus": false,
+        "added": "7.2.1"
+    },
     {
         "key": "dcp_num_running_backfills",
         "unit": "count",
