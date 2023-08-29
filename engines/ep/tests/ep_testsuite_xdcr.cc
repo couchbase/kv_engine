@@ -1739,6 +1739,8 @@ static enum test_result test_temp_item_deletion(EngineIface* h) {
     // Disable nonio so that we have better control of the expirypager
     ExecutorPool::get()->setNumNonIO(0);
 
+    auto pagerRuns = get_int_stat(h, "ep_num_expiry_pager_runs");
+
     // Tell the harness not to handle EWOULDBLOCK for us - we want it to
     // be outstanding while we check the below stats.
     auto* cookie = testHarness->create_cookie(h);
@@ -1788,10 +1790,14 @@ static enum test_result test_temp_item_deletion(EngineIface* h) {
             get_int_stat(h, "ep_num_ops_get_meta"),
             "Num get meta ops not as expected");
 
+    checkne(0, get_int_stat(h, "curr_temp_items"), "Expected temp_items");
+
     // Trigger the expiry pager and verify that two temp items are deleted
     ExecutorPool::get()->setNumNonIO(1);
 
-    wait_for_stat_to_be(h, "ep_num_expiry_pager_runs", 1);
+    // Wait for the pager to increase over the value we recorded after disabling
+    // the NonIO tasks
+    wait_for_stat_to_be_gte(h, "ep_num_expiry_pager_runs", pagerRuns + 1);
 
     checkeq(0, get_int_stat(h, "curr_items"), "Expected zero curr_items");
     checkeq(0, get_int_stat(h, "curr_temp_items"), "Expected zero temp_items");
