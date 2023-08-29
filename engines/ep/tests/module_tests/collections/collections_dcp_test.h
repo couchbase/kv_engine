@@ -140,6 +140,18 @@ public:
     static cb::engine_errc dcpAddFailoverLog(
             const std::vector<vbucket_failover_t>&);
 
+    /**
+     * Make a stream request value for requesting a set of collection IDs.
+     * Returns a serialised JSON object of the form:
+     *
+     *     {"collections": ["a", "b", "c"] }
+     *
+     * For each of the collection IDs specified (e.g. 10, 11, 12).
+     * @param collections Set of collection IDs to stream.
+     */
+    static std::string makeStreamRequestValue(
+            std::initializer_list<CollectionID> collections);
+
     CookieIface* cookieC;
     CookieIface* cookieP;
     std::unique_ptr<CollectionsDcpTestProducers> producers;

@@ -831,10 +831,6 @@ private:
     Collections::KVStore::Manifest dropCollectionAndFlush(
             const std::string& json, CollectionID collection, int items);
 
-    void storeItems(CollectionID collection,
-                    int items,
-                    cb::engine_errc = cb::engine_errc::success);
-
     /**
      * Create manifest object from persisted manifest and validate if we can
      * write to the collection.
@@ -857,15 +853,6 @@ private:
     static bool cannotWrite(const Collections::VB::Manifest& manifest,
                             CollectionID collection);
 };
-
-void CollectionsFlushTest::storeItems(CollectionID collection,
-                                      int items,
-                                      cb::engine_errc expected) {
-    for (int ii = 0; ii < items; ii++) {
-        std::string key = "key" + std::to_string(ii);
-        store_item(vbid, StoredDocKey{key, collection}, "value", 0, {expected});
-    }
-}
 
 Collections::KVStore::Manifest CollectionsFlushTest::createCollectionAndFlush(
         const std::string& json, CollectionID collection, int items) {
