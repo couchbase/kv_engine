@@ -102,7 +102,8 @@ class ActiveDurabilityMonitor : public DurabilityMonitor {
 public:
     struct ReplicationChain;
     // Container type used for State::trackedWrites
-    using Container = std::list<DurabilityMonitor::ActiveSyncWrite>;
+    using Element = DurabilityMonitor::ActiveSyncWrite;
+    using Container = DurabilityMonitorTrackedWrites<Element>;
 
     /**
      * Construct an ActiveDM for the given vBucket.
@@ -246,6 +247,14 @@ public:
     size_t getNumAccepted() const override;
     size_t getNumCommitted() const override;
     size_t getNumAborted() const override;
+
+    /**
+     * Get the memory used by this object. The memory used only includes the
+     * size of all Item objects (Item::getSize) that are referenced as "tracked
+     * writes".
+     * @return memory used in bytes (see above for detail as to what is tracked)
+     */
+    size_t getTotalMemoryUsed() const override;
 
     /**
      * @return the size of FirstChain

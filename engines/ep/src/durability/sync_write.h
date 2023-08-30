@@ -68,6 +68,10 @@ public:
         return status == SyncWriteStatus::Completed;
     }
 
+    size_t getSize() const {
+        return sizeof(SyncWrite) + item->size();
+    }
+
 protected:
     // An Item stores all the info that the DurabilityMonitor needs:
     // - seqno

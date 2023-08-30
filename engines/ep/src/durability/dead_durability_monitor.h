@@ -73,6 +73,10 @@ public:
         return 0;
     }
 
+    size_t getTotalMemoryUsed() const override {
+        return trackedWritesMemoryUsage;
+    }
+
     void notifyLocalPersistence() override {
         // No work required here
     }
@@ -92,9 +96,9 @@ protected:
 
     int64_t highPreparedSeqno = 0;
     int64_t highCompletedSeqno = 0;
-
+    size_t trackedWritesMemoryUsage = 0;
     using Container = std::list<SyncWrite>;
-    Container trackedWrites;
+    const Container trackedWrites;
 
     // lastConsistentSeqno is taken when we transition to DDM. If we are
     // transitioning from active to dead (ADM to DDM) then it is the
