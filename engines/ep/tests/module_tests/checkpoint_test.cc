@@ -1003,6 +1003,28 @@ TEST_P(CheckpointTest,
     EXPECT_FALSE(this->queueNewItem("key"));
 }
 
+TEST_P(CheckpointTest, MB_58321) {
+    manager->createNewCheckpoint();
+    ASSERT_TRUE(this->queueNewItem("a")); // seqno:1001
+    manager->createNewCheckpoint();
+    ASSERT_TRUE(this->queueNewItem("b")); // seqno:1002
+    auto cursor = manager->registerCursorBySeqno(
+            "mb58321", 1001, CheckpointCursor::Droppable::Yes);
+
+    EXPECT_EQ(1002, cursor.seqno);
+    EXPECT_FALSE(cursor.tryBackfill);
+
+    std::vector<queued_item> items;
+    auto result = this->manager->getNextItemsForCursor(
+            cursor.cursor.lock().get(), items);
+
+    ASSERT_FALSE(items.empty());
+    for (const auto& qi : items) {
+        // Should be 1002 onwards
+        ASSERT_GT(qi->getBySeqno(), 1001);
+    }
+}
+
 /*
  * Test modified following formal removal of backfill queue. Now the test
  * demonstrates an initial disk backfill being received and completed and that
@@ -2050,24 +2072,17 @@ void SingleThreadedCheckpointTest::
     //                                       ^
     const auto res = manager.registerCursorBySeqno(
             "cursor", startSeqno, CheckpointCursor::Droppable::Yes);
-    manager.dump();
-    // @todo MB-53616: We don't need a backfill here
-    // @todo MB-58261: When start is zero we do need backfill
-    EXPECT_TRUE(res.tryBackfill);
-    const auto cursor = res.cursor.lock();
 
+    const auto cursor = res.cursor.lock();
+    EXPECT_EQ(res.seqno, 3);
+    EXPECT_EQ(3, (*cursor->getCheckpoint())->getId());
+    EXPECT_EQ(queue_op::empty, (*cursor->getPos())->getOperation());
+    EXPECT_EQ(3, (*cursor->getPos())->getBySeqno());
+    EXPECT_EQ(0, cursor->getDistance());
     if (startSeqno == 0) {
-        EXPECT_EQ(res.seqno, 1);
-        EXPECT_EQ(2, (*cursor->getCheckpoint())->getId());
-        EXPECT_EQ(queue_op::empty, (*cursor->getPos())->getOperation());
-        EXPECT_EQ(1, (*cursor->getPos())->getBySeqno());
-        EXPECT_EQ(0, cursor->getDistance());
+        EXPECT_TRUE(res.tryBackfill);
     } else {
-        EXPECT_EQ(res.seqno, 3);
-        EXPECT_EQ(3, (*cursor->getCheckpoint())->getId());
-        EXPECT_EQ(queue_op::empty, (*cursor->getPos())->getOperation());
-        EXPECT_EQ(3, (*cursor->getPos())->getBySeqno());
-        EXPECT_EQ(0, cursor->getDistance());
+        EXPECT_FALSE(res.tryBackfill);
     }
 }
 
@@ -2373,7 +2388,7 @@ void CheckpointTest::testExpelCheckpointItems() {
     regResult = manager->registerCursorBySeqno(
             dcp_cursor2.c_str(), 1002, CheckpointCursor::Droppable::Yes);
     EXPECT_EQ(1003, regResult.seqno);
-    EXPECT_TRUE(regResult.tryBackfill);
+    EXPECT_FALSE(regResult.tryBackfill);
 
     // Try to register a DCP cursor from 1003 - the first item still in chk
     std::string dcp_cursor3(DCP_CURSOR_PREFIX + std::to_string(3));
@@ -3608,7 +3623,7 @@ TEST_P(CheckpointTest, MB_47551) {
 
     // And we expect to be in the open checkpoint, so we don't hold the closed
     // one. Possibly don't need backfill=true, but DCP streams handle this case
-    EXPECT_TRUE(cursor2.tryBackfill);
+    EXPECT_FALSE(cursor2.tryBackfill);
     EXPECT_EQ(1003, cursor2.seqno);
     EXPECT_EQ(2, (*cursor2.cursor.lock()->getCheckpoint())->getId());
 }
@@ -3642,7 +3657,7 @@ TEST_P(EagerCheckpointDisposalTest, reRegisterCheckpointCursor) {
 
     EXPECT_FALSE(cursor.tryBackfill);
     EXPECT_EQ(1003, cursor.seqno);
-    EXPECT_EQ(2, (*cursor.cursor.lock()->getCheckpoint())->getId());
+    EXPECT_EQ(3, (*cursor.cursor.lock()->getCheckpoint())->getId());
 }
 
 CheckpointManager::ExtractItemsResult CheckpointTest::extractItemsToExpel() {

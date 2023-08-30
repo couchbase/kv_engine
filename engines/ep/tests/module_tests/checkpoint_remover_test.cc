@@ -581,10 +581,10 @@ TEST_P(CheckpointRemoverEPTest, expelsOnlyIfOldestCheckpointIsReferenced) {
     // "holes" in the data a cursor would read.
 
     size_t beforeCount =
-            getItemsWithCursor("Cursor1", 0, /* expect tryBackfill*/ true)
+            getItemsWithCursor("Cursor1", 0, /* expect tryBackfill*/ false)
                     .size();
     cm->expelUnreferencedCheckpointItems();
-    size_t afterCount = getItemsWithCursor("Cursor2", 0, true).size();
+    size_t afterCount = getItemsWithCursor("Cursor2", 0, false).size();
 
     EXPECT_EQ(beforeCount, afterCount);
 

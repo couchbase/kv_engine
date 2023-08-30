@@ -1047,8 +1047,8 @@ TEST_P(HistoryScanTest, MB_56565) {
     EXPECT_EQ(3, stream->getLastReadSeqno());
     cursor = stream->getCursor().lock();
     ASSERT_TRUE(cursor);
-    EXPECT_EQ(3, (*cursor->getPos())->getBySeqno());
-    EXPECT_EQ(3, (*cursor->getCheckpoint())->getMinimumCursorSeqno());
+    EXPECT_EQ(4, (*cursor->getPos())->getBySeqno());
+    EXPECT_EQ(4, (*cursor->getCheckpoint())->getMinimumCursorSeqno());
 
     // backfill:finished()
     runNextTask(lpAuxioQ);

@@ -367,7 +367,11 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
                         name, ckptIt, (*ckptIt)->begin(), droppable, 0);
                 result.seqno = st;
                 result.cursor.setCursor(newCursor);
-                result.tryBackfill = true;
+                // Set tryBackfill:true only if startBySeqno to st is non
+                // contiguous. Note this is likely the fix for MB-53616/MB-58302
+                // which were noted in master only, and likely backported to the
+                // neo branch via MB-39344
+                result.tryBackfill = st - startBySeqno > 1;
                 break;
             } else if (startBySeqno <= en) {
                 // checkpoint was empty by expel, so we don't know the real
@@ -382,6 +386,14 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
                 // open checkpoint ready for new mutations.
                 if ((*ckptIt)->getState() == CHECKPOINT_CLOSED &&
                     startBySeqno == uint64_t(lastBySeqno.load())) {
+                    continue;
+                }
+
+                // MB-58321: Skip this checkpoint if the requested start is on
+                // the end (and if there are more checkpoints).
+                const bool isLastCkpt =
+                        std::next(ckptIt) == checkpointList.end();
+                if (startBySeqno == en && !isLastCkpt) {
                     continue;
                 }
 
