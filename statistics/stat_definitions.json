@@ -2811,6 +2811,24 @@
         "added": "7.2.0"
     },
     {
+        "key": "vb_dm_mem_used",
+        "unit": "bytes",
+        "cbstat": "vb_{state}_dm_mem_used",
+        "prometheus": {
+            "family": "vb_dm_mem_used"
+        },
+        "added": "7.2.1"
+    },
+        {
+        "key": "vb_dm_num_tracked",
+        "unit": "count",
+        "cbstat": "vb_{state}_dm_num_tracked",
+        "prometheus": {
+            "family": "vb_dm_num_tracked"
+        },
+        "added": "7.2.1"
+    },
+    {
         "key": "vb_evictable_mfu",
         "unit": "count",
         "cbstat": "vb_{state}_evictable_mfu",

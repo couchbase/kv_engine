@@ -341,6 +341,16 @@ public:
      */
     size_t getSyncWriteAbortedCount() const;
 
+    /**
+     * @returns a memory usage value that the DurabilityMonitor is using
+     */
+    size_t getDurabilityMonitorMemory() const;
+
+    /**
+     * @returns the number of tracked writes in the DurabilityMonitor
+     */
+    size_t getDurabilityNumTracked() const;
+
     bool isTakeoverBackedUp() {
         return takeover_backed_up.load();
     }

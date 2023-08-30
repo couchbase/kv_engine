@@ -16,6 +16,7 @@
 #include "checkpoint_manager.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "durability/active_durability_monitor.h"
+#include "durability/sync_write.h"
 #include "item.h"
 #include "vbucket_queue_item_ctx.h"
 #include "vbucket_utils.h"
@@ -3913,6 +3914,76 @@ TEST_P(ActiveDurabilityMonitorTest, MB_41235_commit) {
     adm.checkForCommit();
     EXPECT_NO_THROW(adm.processCompletedSyncWriteQueue(
             folly::SharedMutex::ReadHolder(vb->getStateLock())));
+}
+
+TEST(DurabilityMonitorTrackedWritesTest, emplace_and_erase) {
+    DurabilityMonitorTrackedWrites<DurabilityMonitor::SyncWrite> container;
+    EXPECT_EQ(0, container.getTotalMemoryUsed());
+
+    queued_item item1{new Item(makeStoredDocKey("key1", CollectionEntry::fruit),
+                               0 /*flags*/,
+                               0 /*exp*/,
+                               "value",
+                               5 /*valueSize*/,
+                               PROTOCOL_BINARY_RAW_BYTES,
+                               0 /*cas*/,
+                               1)};
+
+    container.emplace_back(item1);
+    EXPECT_EQ(1, container.size());
+    EXPECT_FALSE(container.empty());
+    EXPECT_EQ(sizeof(DurabilityMonitor::SyncWrite) + item1->size(),
+              container.getTotalMemoryUsed());
+    container.erase(container.begin());
+    EXPECT_EQ(0, container.getTotalMemoryUsed());
+    EXPECT_EQ(0, container.size());
+    EXPECT_TRUE(container.empty());
+}
+
+TEST(DurabilityMonitorTrackedWritesTest, splice1) {
+    DurabilityMonitorTrackedWrites<DurabilityMonitor::SyncWrite> container;
+    EXPECT_EQ(0, container.getTotalMemoryUsed());
+
+    for (auto i : {1, 2, 3, 4}) {
+        container.emplace_back(
+                makeCommittedItem(makeStoredDocKey("key" + std::to_string(i)),
+                                  std::string(i, 'v')));
+    }
+
+    DurabilityMonitorTrackedWrites<DurabilityMonitor::SyncWrite> container2;
+
+    // This splice variant "moves" all from container to container2
+    auto memory = container.getTotalMemoryUsed();
+    container2.splice(container2.end(), container);
+    EXPECT_EQ(memory, container2.getTotalMemoryUsed());
+    EXPECT_EQ(4, container2.size());
+    EXPECT_EQ(0, container.getTotalMemoryUsed());
+    EXPECT_EQ(0, container.size());
+}
+
+TEST(DurabilityMonitorTrackedWritesTest, splice2) {
+    DurabilityMonitorTrackedWrites<DurabilityMonitor::SyncWrite> container;
+    EXPECT_EQ(0, container.getTotalMemoryUsed());
+
+    for (auto i : {1, 2, 3, 4}) {
+        container.emplace_back(
+                makeCommittedItem(makeStoredDocKey("key" + std::to_string(i)),
+                                  std::string(i, 'v')));
+    }
+    auto itr = container.begin();
+    std::advance(itr, 2);
+    auto memoryToMove = itr->getSize();
+
+    DurabilityMonitorTrackedWrites<DurabilityMonitor::SyncWrite> container2;
+
+    // This splice variant moves the element referenced by itr from container to
+    // container2.
+    auto memory = container.getTotalMemoryUsed();
+    container2.splice(container2.end(), container, itr);
+    EXPECT_EQ(memoryToMove, container2.getTotalMemoryUsed());
+    EXPECT_EQ(1, container2.size());
+    EXPECT_EQ(memory - memoryToMove, container.getTotalMemoryUsed());
+    EXPECT_EQ(3, container.size());
 }
 
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,

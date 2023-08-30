@@ -389,6 +389,22 @@ size_t VBucket::getSyncWriteAbortedCount() const {
     return durabilityMonitor->getNumAborted();
 }
 
+size_t VBucket::getDurabilityMonitorMemory() const {
+    folly::SharedMutex::ReadHolder lh(stateLock);
+    if (!durabilityMonitor) {
+        return 0;
+    }
+    return durabilityMonitor->getTotalMemoryUsed();
+}
+
+size_t VBucket::getDurabilityNumTracked() const {
+    folly::SharedMutex::ReadHolder lh(stateLock);
+    if (!durabilityMonitor) {
+        return 0;
+    }
+    return durabilityMonitor->getNumTracked();
+}
+
 void VBucket::fireAllOps(EventuallyPersistentEngine& engine,
                          cb::engine_errc code) {
     std::unique_lock<std::mutex> lh(pendingOpLock);

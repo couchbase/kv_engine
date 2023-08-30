@@ -65,6 +65,12 @@ public:
     virtual size_t getNumAborted() const = 0;
 
     /**
+     * @returns returns an implementation accounted value for the memory usage
+     *          of all referenced Item objects (in bytes).
+     */
+    virtual size_t getTotalMemoryUsed() const = 0;
+
+    /**
      * Inform the DurabilityMonitor that the Flusher has run.
      * Expected to be called by the Flusher after a flush-batch (that contains
      * pending Prepares) has been committed to the storage.
@@ -115,3 +121,68 @@ protected:
 };
 
 std::string to_string(DurabilityMonitor::ReplicationChainName name);
+
+/**
+ * DurabilityMonitorTrackedWrites is a sub-class "wrapper" for std::list usage
+ * in DurabilityMonitor sub-classes to provide memory usage tracking. It
+ * requires that the Element type exposes a getSize method and for each exposed
+ * modifier function, memory usage is tracked. Note that it will not account for
+ * duplicated queued_item (will account twice) however it is expected that the
+ * DurabilityMonitor sub-classes do not store the same
+ * queued_item more than once.
+ */
+template <typename Element>
+class DurabilityMonitorTrackedWrites : private std::list<Element> {
+public:
+    using Base = std::list<Element>;
+    using Base::back;
+    using Base::Base;
+    using Base::begin;
+    using Base::empty;
+    using Base::end;
+    using Base::front;
+    using Base::size;
+    using typename Base::const_iterator;
+    using typename Base::iterator;
+
+    DurabilityMonitorTrackedWrites(const DurabilityMonitorTrackedWrites&) =
+            delete;
+    DurabilityMonitorTrackedWrites(DurabilityMonitorTrackedWrites&&) = delete;
+
+    template <class... Args>
+    void emplace_back(Args&&... args) {
+        Base::emplace_back(std::forward<Args>(args)...);
+        memUsed += Base::back().getSize();
+    }
+
+    iterator erase(iterator itr) {
+        memUsed -= itr->getSize();
+        return Base::erase(itr);
+    }
+
+    void splice(const_iterator pos,
+                DurabilityMonitorTrackedWrites<Element>& other) {
+        memUsed += std::exchange(other.memUsed, 0);
+        Base::splice(pos, other);
+    }
+
+    void splice(const_iterator pos,
+                DurabilityMonitorTrackedWrites<Element>& other,
+                const_iterator it) {
+        memUsed += it->getSize();
+        other.memUsed -= it->getSize();
+        Base::splice(pos, other, it);
+    }
+
+    // @return memory usage for all Element::getSize in the list
+    size_t getTotalMemoryUsed() const {
+        return memUsed;
+    }
+
+protected:
+    /**
+     * For all stored "Element" this tracks the sum of Element::getSize. It is
+     * updated as the container is mutated by emplace/erase/splice
+     */
+    size_t memUsed{0};
+};
