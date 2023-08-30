@@ -191,9 +191,9 @@ void BackfillManager::setBackfillOrder(BackfillManager::ScheduleOrder order) {
 
 BackfillManager::ScheduleResult BackfillManager::schedule(
         UniqueDCPBackfillPtr backfill) {
-    std::lock_guard<std::mutex> lh(lock);
+    std::unique_lock<std::mutex> lh(lock);
     ScheduleResult result;
-    if (scanTracker.canCreateBackfill()) {
+    if (scanTracker.canCreateBackfill(getNumInProgressBackfills(lh))) {
         initializingBackfills.push_back(std::move(backfill));
         result = ScheduleResult::Active;
     } else {
@@ -282,7 +282,7 @@ backfill_status_t BackfillManager::backfill() {
         return backfill_snooze;
     }
 
-    movePendingToInitializing();
+    movePendingToInitializing(lh);
     moveSnoozingToActiveQueue();
 
     if (buffer.full) {
@@ -327,6 +327,12 @@ backfill_status_t BackfillManager::backfill() {
     scanBuffer.bytesRead = 0;
     scanBuffer.itemsRead = 0;
 
+    // Irrespective of status of backfill, it will no longer be "untracked" -
+    // if status is backfill_finished then it's no longer in progress; if
+    // status is success or snooze then it is added back to the appropriate
+    // in-progress queue.
+    numInProgressUntrackedBackfills--;
+
     switch (status) {
         case backfill_success:
             switch (scheduleOrder) {
@@ -367,8 +373,10 @@ backfill_status_t BackfillManager::backfill() {
     return backfill_success;
 }
 
-void BackfillManager::movePendingToInitializing() {
-    while (!pendingBackfills.empty() && scanTracker.canCreateBackfill()) {
+void BackfillManager::movePendingToInitializing(
+        const std::unique_lock<std::mutex>& lh) {
+    while (!pendingBackfills.empty() &&
+           scanTracker.canCreateBackfill(getNumInProgressBackfills(lh))) {
         initializingBackfills.splice(initializingBackfills.end(),
                                      pendingBackfills,
                                      pendingBackfills.begin());
@@ -392,6 +400,12 @@ void BackfillManager::moveSnoozingToActiveQueue() {
     }
 }
 
+int BackfillManager::getNumInProgressBackfills(
+        const std::unique_lock<std::mutex>& lh) const {
+    return initializingBackfills.size() + activeBackfills.size() +
+           snoozingBackfills.size() + numInProgressUntrackedBackfills;
+}
+
 std::pair<UniqueDCPBackfillPtr, BackfillManager::Source>
 BackfillManager::dequeueNextBackfill(std::unique_lock<std::mutex>&) {
     // Dequeue from initializingBackfills if non-empty, else activeBackfills.
@@ -402,6 +416,7 @@ BackfillManager::dequeueNextBackfill(std::unique_lock<std::mutex>&) {
     if (!queue.empty()) {
         auto next = std::move(queue.front());
         queue.pop_front();
+        numInProgressUntrackedBackfills++;
         return {std::move(next), source};
     }
     return {};

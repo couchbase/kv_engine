@@ -2347,6 +2347,21 @@ TEST_F(ActiveStreamChkptProcessorTaskTest, DeleteDeadStreamEntry) {
      getting the item(s) */
     notifyAndStepToCheckpoint();
 }
+// MB-57304: Test that the number of backfills a single DCP connection can
+// have active at a time is limited to
+TEST_F(SingleThreadedKVBucketTest, LimitToOneBackfillPerConnection) {
+    using ::testing::InSequence;
+    using ::testing::Return;
+
+    // canAddBackfillToActiveQ returns success if client is not already
+    // running any backfills - for multiple "clients"
+    EXPECT_TRUE(store->getKVStoreScanTracker().canCreateBackfill(0));
+    EXPECT_TRUE(store->getKVStoreScanTracker().canCreateBackfill(0));
+
+    // Returns false if one is already in progress.
+    EXPECT_FALSE(store->getKVStoreScanTracker().canCreateBackfill(1));
+    EXPECT_FALSE(store->getKVStoreScanTracker().canCreateBackfill(1));
+}
 
 // Test handleResponse accepts opcodes that the producer can send
 TEST_F(SingleThreadedKVBucketTest, ProducerHandleResponse) {

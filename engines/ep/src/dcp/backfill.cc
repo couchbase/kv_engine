@@ -167,8 +167,26 @@ DCPBackfill::State DCPBackfill::validateTransition(State currentState,
     return newState;
 }
 
-bool KVStoreScanTracker::canCreateBackfill() {
-    return scans.withLock([](auto& scans) {
+bool KVStoreScanTracker::canCreateBackfill(size_t numInProgress) {
+    // MB-57304: Given there's only one BackfillManager task per DCP
+    // connection, and we use synchronous IO, we limit the number of backfills
+    // in-progress per DCP connection to
+    // dcp_backfill_in_progress_per_connection_limit - default "1".
+    // This significantly reduces the number of concurrently in-progress
+    // backfills, down from (up to) 1024 per connection to 1 per connection,
+    // and hence significantly reduces the likelihood that one set of DCP
+    // connections (asking for many vBuckets at once) could starve another DCP
+    // connection also asking for backfills (e.g. replication).
+    //
+    // If / when we can actually backfill more than one vBucket at the same
+    // time on a single connection then we can increase this limit (e.g. either
+    // multiple BackfillManager tasks each performing sync IO, or async IO
+    // support for BackfillManager).
+    return scans.withLock([&numInProgress](auto& scans) {
+        if (numInProgress >= scans.maxNumBackfillsPerConnection) {
+            return false;
+        }
+
         // For backfills compare total against the absolute max, maxRunning
         if (scans.getTotalRunning() < scans.maxRunning) {
             ++scans.runningBackfills;
@@ -217,24 +235,39 @@ void KVStoreScanTracker::decrNumRunningRangeScans() {
     }
 }
 
+void KVStoreScanTracker::updateMaxRunningDcpBackfills(size_t maxBackfills) {
+    scans.withLock([&maxBackfills](auto& backfills) {
+        backfills.maxNumBackfillsPerConnection = maxBackfills;
+    });
+    EP_LOG_DEBUG("KVStoreScanTracker::updateMaxRunningDcpBackfills {}",
+                 maxBackfills);
+}
+
 void KVStoreScanTracker::updateMaxRunningScans(size_t maxDataSize,
-                                               float rangeScanRatio) {
+                                               float rangeScanRatio,
+                                               size_t maxBackfills) {
     auto newMaxRunningScans =
             getMaxRunningScansForQuota(maxDataSize, rangeScanRatio);
-    setMaxRunningScans(newMaxRunningScans.first, newMaxRunningScans.second);
+    setMaxRunningScans(
+            newMaxRunningScans.first, newMaxRunningScans.second, maxBackfills);
 }
 
 void KVStoreScanTracker::setMaxRunningScans(uint16_t newMaxRunningBackfills,
-                                            uint16_t newMaxRunningRangeScans) {
+                                            uint16_t newMaxRunningRangeScans,
+                                            size_t maxBackfills) {
     scans.withLock([&newMaxRunningBackfills,
-                    &newMaxRunningRangeScans](auto& backfills) {
+                    &newMaxRunningRangeScans,
+                    &maxBackfills](auto& backfills) {
         backfills.maxRunning = newMaxRunningBackfills;
         backfills.maxRunningRangeScans = newMaxRunningRangeScans;
+        backfills.maxNumBackfillsPerConnection = maxBackfills;
     });
     EP_LOG_DEBUG(
-            "KVStoreScanTracker::setMaxRunningScans scans:{} rangeScans:{}",
+            "KVStoreScanTracker::setMaxRunningScans scans:{} rangeScans:{} "
+            "maxBackfills:{}",
             newMaxRunningBackfills,
-            newMaxRunningRangeScans);
+            newMaxRunningRangeScans,
+            maxBackfills);
 }
 
 /* Db file memory */
