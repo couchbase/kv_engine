@@ -23,8 +23,11 @@ template <typename Fun>
 void DcpConnMap::each(Fun&& f) {
     // We want to minimise how long cookieToConnMap is locked for - i.e.
     // we don't want to run `f` for each item while locked.
-    // As such, take a copy of the map (under lock) then iterate that copy.
-    auto copy = connStore->getCookieToConnectionMapHandle()->copyCookieToConn();
+    // As such, take a copy of the map (under shared lock) then iterate that
+    // copy.
+    auto copy = std::as_const(*connStore)
+                        .getCookieToConnectionMapHandle()
+                        ->copyCookieToConn();
     for (auto& c : copy) {
         f(c.second);
     }
