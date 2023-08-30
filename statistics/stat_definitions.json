@@ -385,13 +385,13 @@
         "key": "ep_arena_memory_allocated",
         "unit": "bytes",
         "description": "The total memory allocated from the engine's arena",
-        "added": "elixir"
+        "added": "7.6.0"
     },
     {
         "key": "ep_arena_memory_resident",
         "unit": "bytes",
         "description": "The resident set size of the engine's arena",
-        "added": "elixir"
+        "added": "7.6.0"
     },
     {
         "key": "ep_mem_low_wat_percent",
@@ -1037,7 +1037,7 @@
         "key": "ep_defragmenter_sleep_time",
         "unit": "seconds",
         "description": "The amount of time the defragmenter task will sleep before it is scheduled to run again.",
-        "added": "elixir"
+        "added": "7.6.0"
     },
     {
         "key": "ep_item_compressor_num_visited",
@@ -1095,7 +1095,7 @@
         "key": "ep_num_checkpoints_pending_destruction",
         "unit": "count",
         "description": "Number of checkpoints detached from CM and owned by Destroyers",
-        "added": "elixir"
+        "added": "7.6.0"
     },
     {
         "key": "ep_data_write_failed",
@@ -1561,7 +1561,7 @@
     {
         "key": "ep_magma_tree_snapshot_mem_used",
         "unit": "bytes",
-        "added": "elixir"
+        "added": "7.6.0"
     },
     {
         "key": "ep_magma_index_resident_ratio",
@@ -2080,13 +2080,13 @@
         "key": "max_user_connections",
         "description": "Maximum number of connections to the interfaces marked as user",
         "unit": "count",
-        "added": "trinity"
+        "added": "7.6.0"
     },
     {
         "key": "max_system_connections",
         "description": "Maximum number of connections to the interfaces marked as system only",
         "unit": "count",
-        "added": "trinity"
+        "added": "7.6.0"
     },
     {
         "key": "total_connections",
@@ -2216,7 +2216,7 @@
     {
         "key": "subdoc_update_races",
         "unit": "count",
-        "added": "trinity"
+        "added": "7.6.0"
     },
     {
         "key": "stat_timings_mem_usage",
@@ -2429,7 +2429,7 @@
     {
         "key": "thread_cpu_usage",
         "unit": "microseconds",
-        "added": "elixir"
+        "added": "7.6.0"
     },
     {
         "key": "conn_yields",
@@ -2492,13 +2492,13 @@
         "key": "clients",
         "unit": "count",
         "description": "The number of references to the bucket",
-        "added": "elixir"
+        "added": "7.6.0"
     },
     {
         "key": "items_in_transit",
         "unit": "count",
         "description": "The number of items currently in transit (with a reference into the engine)",
-        "added": "elixir"
+        "added": "7.6.0"
     },
     {
         "key": "audit_enabled",
@@ -2817,7 +2817,7 @@
         "prometheus": {
             "family": "vb_evictable_mfu"
         },
-        "added": "elixir"
+        "added": "7.6.0"
     },
     {
         "key": "curr_items",
@@ -3101,7 +3101,7 @@
         "prometheus": {
             "family": "ephemeral_vb_ht_memory"
         },
-        "added": "trinity",
+        "added": "7.6.0",
         "stability": "internal",
         "description": "Total memory used by HashTable items"
     },
@@ -3113,7 +3113,7 @@
         "prometheus": {
             "family": "ephemeral_vb_checkpoint_memory_overhead"
         },
-        "added": "trinity",
+        "added": "7.6.0",
         "stability": "internal",
         "description": "Total memory overhead of all checkpoints"
     },
@@ -3357,7 +3357,7 @@
         "key": "collection_metered",
         "unit": "none",
         "cbstat": "metered",
-        "added": "elixir",
+        "added": "7.6.0",
         "stability": "internal"
     },
     {
@@ -3439,7 +3439,7 @@
         "unit": "seconds",
         "type": "gauge",
         "description": "The time KV last restarted (and counters reset)",
-        "added": "elixir",
+        "added": "7.6.0",
         "stability": "internal"
     },
     {
@@ -3447,7 +3447,7 @@
         "unit": "none",
         "type": "counter",
         "description": "Total Read Units used by a bucket since reset",
-        "added": "elixir",
+        "added": "7.6.0",
         "stability": "internal"
     },
     {
@@ -3455,7 +3455,7 @@
         "unit": "none",
         "type": "counter",
         "description": "Total Write Units used by a bucket since reset",
-        "added": "elixir",
+        "added": "7.6.0",
         "stability": "internal"
     },
     {
@@ -3463,7 +3463,7 @@
         "unit": "none",
         "type": "counter",
         "description": "Total Compute Units used by a bucket since reset",
-        "added": "elixir",
+        "added": "7.6.0",
         "stability": "internal"
     },
     {
@@ -3471,7 +3471,7 @@
         "unit": "none",
         "type": "counter",
         "description": "Total operations successfully executed for a bucket since reset",
-        "added": "elixir",
+        "added": "7.6.0",
         "stability": "internal"
     },
     {
@@ -3479,7 +3479,7 @@
         "unit": "none",
         "type": "counter",
         "description": "Total Read Units refunded for a bucket (RU was charged, but operation failed) since reset",
-        "added": "elixir",
+        "added": "7.6.0",
         "stability": "internal"
     },
     {
@@ -3487,7 +3487,7 @@
         "unit": "none",
         "type": "counter",
         "description": "Total Write Units refunded for a bucket (WU was charged, but operation failed) since reset",
-        "added": "elixir",
+        "added": "7.6.0",
         "stability": "internal"
     },
     {
@@ -3495,7 +3495,7 @@
         "unit": "none",
         "type": "counter",
         "description": "Total Compute Units refunded for a bucket (CU was charged, but operation failed) since reset",
-        "added": "elixir",
+        "added": "7.6.0",
         "stability": "internal"
     },
     {
@@ -3503,7 +3503,7 @@
         "unit": "none",
         "type": "counter",
         "description": "Total number of operations rejected for a bucket since reset (e.g., invalid operations)",
-        "added": "elixir",
+        "added": "7.6.0",
         "stability": "internal"
     },
     {
@@ -3511,7 +3511,7 @@
         "unit": "none",
         "type": "counter",
         "description": "Total time spent throttling requests for a bucket since reset",
-        "added": "elixir",
+        "added": "7.6.0",
         "stability": "internal"
     },
     {
@@ -3519,7 +3519,7 @@
         "unit": "none",
         "type": "counter",
         "description": "Total number of times requests have been throttled for a bucket since reset",
-        "added": "elixir",
+        "added": "7.6.0",
         "stability": "internal"
     },
     {
@@ -3527,7 +3527,7 @@
         "unit": "bytes",
         "type": "gauge",
         "description": "Total bytes on disk used by a bucket",
-        "added": "elixir",
+        "added": "7.6.0",
         "stability": "internal"
     },
 
@@ -3536,7 +3536,7 @@
         "cbstat": "vb_{state}_logical_data_size",
         "unit": "bytes",
         "description": "The logical size of all user data on disk (per-bucket), with compression applied",
-        "added": "elixir"
+        "added": "7.6.0"
     },
     {
         "key": "conflicts_resolved",
