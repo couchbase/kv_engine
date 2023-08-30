@@ -15,6 +15,7 @@
 #include "kv_bucket.h"
 #include "tests/mock/mock_dcp_consumer.h"
 #include "tests/mock/mock_dcp_producer.h"
+#include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/collections/collections_dcp_test.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
 #include "tests/module_tests/test_helpers.h"
@@ -29,6 +30,10 @@ public:
 
     void SetUp() override {
         config_string += "collections_enabled=true";
+        // Disable OSO backfill auto-selection to simplify most of the
+        // functional tests - set to always.
+        config_string += ";dcp_oso_backfill=enabled";
+
         CollectionsDcpParameterizedTest::SetUp();
         producers = std::make_unique<CollectionsDcpTestProducers>();
         // Start vbucket as active to allow us to store items directly to it.
@@ -773,6 +778,40 @@ TEST_P(CollectionsOSODcpTest, cursor_dropped) {
     }
 }
 
+// Similar to basic, except we disable OSO at the bucket level and check
+// this correctly falls back to seqno
+TEST_P(CollectionsOSODcpTest, fallbackToSeqnoIfOsoDisabled) {
+    // Write to default collection and deliberately not in lexicographical order
+    store_item(vbid, makeStoredDocKey("b"), "q");
+    store_item(vbid, makeStoredDocKey("d"), "a");
+    store_item(vbid, makeStoredDocKey("a"), "w");
+    store_item(vbid, makeStoredDocKey("c"), "y");
+    flush_vbucket_to_disk(vbid, 4);
+
+    // Reset so we have to stream from backfill
+    resetEngineAndWarmup();
+
+    // Disable OSO at the bucket level.
+    engine->getConfiguration().setDcpOsoBackfill("disabled");
+
+    // Filter on default collection (this will request from seqno:0)
+    createDcpObjects(
+            {{R"({"collections":["0"]})"}}, OutOfOrderSnapshots::Yes, 0);
+
+    // We have a single filter, expect the backfill to be OSO
+    runBackfill();
+
+    // OSO snapshots are never really used in KV to KV replication, but this
+    // test is using KV to KV test code, hence we need to set a snapshot so
+    // that any transferred items don't trigger a snapshot exception.
+    consumer->snapshotMarker(1, replicaVB, 0, 4, 0, 0, 4);
+
+    // Manually step the producer check we get a non-OSO snapshot.
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->stepWithBorderGuard(*producers));
+    EXPECT_EQ(cb::mcbp::ClientOpcode::DcpSnapshotMarker, producers->last_op);
+}
+
 // OSO doesn't support ephemeral - this one test checks it falls back to normal
 // snapshots
 class CollectionsOSOEphemeralTest : public CollectionsDcpParameterizedTest {
@@ -817,6 +856,147 @@ TEST_P(CollectionsOSOEphemeralTest, basic) {
     }
 }
 
+// Test fixture for Collections DCP tests for dcp_oso_backfill=auto - is
+// OSO or seqno correctly selected based on which is expected to be fastest.
+class CollectionsOSODcpAutoSelectTest : public CollectionsOSODcpTest {
+protected:
+    // Helper method - tests that two collections which have number of items
+    // of the given ratio of the total bucket are streamed via OSO and
+    // seqno backfill respectively, when populated with items of the given
+    // size.
+    void testDcpOsoBackfillAutomaticMode(double osoCollectionRatio,
+                                         double seqnoCollectionRatio,
+                                         size_t valueSize) {
+        // Need to change dcp_oso_backfill mode back to "auto" for this test.
+        engine->getConfiguration().setDcpOsoBackfill("auto");
+
+        // Setup 3 collections:
+        //  - 'fruit' is sized to osoCollectionRatio of all items in the
+        //     vBucket, and is expected to be streamed via OSO backfill.
+        //  - 'vegetable' is sized to seqnoCollectionRatio of all items in the
+        //     vBucket, and is expected to be streamed by seqno backfill.
+        //  -  default contains all the other items (such that fruit and veg
+        //     have their desired percentages).
+        CollectionsManifest cm(CollectionEntry::fruit);
+        setCollections(cookie, cm.add(CollectionEntry::vegetable));
+        flush_vbucket_to_disk(vbid, 2);
+
+        const auto totalItems = 1000;
+        const size_t fruitItems = std::round(osoCollectionRatio * totalItems);
+        ASSERT_GT(fruitItems, 0)
+                << "Cannot populate 'fruit' collection at ratio "
+                << osoCollectionRatio << "with only " << totalItems
+                << " items total";
+        const size_t vegetableItems =
+                std::round(seqnoCollectionRatio * totalItems);
+        ASSERT_GT(vegetableItems, 0)
+                << "Cannot populate 'fruit' collection at ratio "
+                << seqnoCollectionRatio << "with only " << totalItems
+                << " items total";
+
+        storeItems(CollectionEntry::fruit,
+                   fruitItems,
+                   cb::engine_errc::success,
+                   valueSize);
+        storeItems(CollectionEntry::vegetable,
+                   vegetableItems,
+                   cb::engine_errc::success,
+                   valueSize);
+        storeItems(CollectionEntry::defaultC,
+                   totalItems - fruitItems - vegetableItems);
+        flush_vbucket_to_disk(vbid, totalItems);
+        ensureDcpWillBackfill();
+
+        // For each of fruit and vegetable; stream via DCP. Fruit should be
+        // streamed via OSO as it is small enough; vegetable should be streamed
+        // via seqno as it is too large.
+        using cb::mcbp::ClientOpcode;
+        struct Test {
+            CollectionID id;
+            ClientOpcode marker;
+        };
+        for (auto [collection, marker] :
+             {Test{CollectionEntry::fruit, ClientOpcode::DcpOsoSnapshot},
+              Test{CollectionEntry::vegetable,
+                   ClientOpcode::DcpSnapshotMarker}}) {
+            createDcpObjects(makeStreamRequestValue({collection}),
+                             OutOfOrderSnapshots::Yes,
+                             0);
+            runBackfill();
+            runBackfill();
+
+            // OSO snapshots are never really used in KV to KV replication, but
+            // this test is using KV to KV test code, hence we need to set a
+            // snapshot so that any transferred items don't trigger a snapshot
+            // exception.
+            consumer->snapshotMarker(1, replicaVB, 0, 4, 0, 0, 4);
+            // Manually step the producer and check the snapshot type.
+            EXPECT_EQ(cb::engine_errc::success,
+                      producer->stepWithBorderGuard(*producers));
+            EXPECT_EQ(marker, producers->last_op)
+                    << "For collection:" << collection.to_string();
+        }
+    }
+};
+
+// For a collection where the average item size is "small" (less than 256B),
+// check that OSO is only used when the collection requested is smaller than
+// 0.5% of the total (v)Bucket item count.
+//
+TEST_P(CollectionsOSODcpAutoSelectTest, SmallItems) {
+    testDcpOsoBackfillAutomaticMode(0.004, 0.006, 200);
+}
+
+// Test that runtime changes to dcp_oso_backfill_small_value_ratio are reflected
+// in backfill behaviour.
+//
+TEST_P(CollectionsOSODcpAutoSelectTest, SmallItemsDynamic) {
+    // Increase dcp_oso_backfill_small_value_ratio from 0.5% to 2% and
+    // confirm change is reflected when oso vs seqno selection.
+    std::string msg;
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setDcpParam(
+                      "dcp_oso_backfill_small_value_ratio", "0.02", msg));
+    testDcpOsoBackfillAutomaticMode(0.01, 0.03, 200);
+}
+
+// For a collection where the average item size is "large" (greater than 256B),
+// check that OSO is only used when the collection requested is smaller than
+// 4% of the total (v)Bucket item count.
+//
+TEST_P(CollectionsOSODcpAutoSelectTest, LargeItems) {
+    testDcpOsoBackfillAutomaticMode(0.03, 0.05, 300);
+}
+
+// Test that runtime changes to dcp_oso_backfill_large_value_ratio are reflected
+// in backfill behaviour.
+//
+TEST_P(CollectionsOSODcpAutoSelectTest, LargeItemsDynamic) {
+    // Increase dcp_oso_backfill_large_value_ratio from 4% to 10% and
+    // confirm change is reflected when oso vs seqno selection.
+    std::string msg;
+    ASSERT_EQ(cb::engine_errc::success,
+              engine->setDcpParam(
+                      "dcp_oso_backfill_large_value_ratio", "0.1", msg));
+    testDcpOsoBackfillAutomaticMode(0.09, 0.11, 300);
+}
+
+// Test that runtime changes to dcp_oso_backfill_small_item_size_threshold are
+// reflected in backfill behaviour.
+//
+TEST_P(CollectionsOSODcpAutoSelectTest, SmallThresholdDynamic) {
+    // Increase dcp_oso_backfill_small_item_size_threshold from 256B to 400B,
+    // confirm change is reflected when oso vs seqno selection.
+    std::string msg;
+    ASSERT_EQ(
+            cb::engine_errc::success,
+            engine->setDcpParam(
+                    "dcp_oso_backfill_small_item_size_threshold", "400", msg));
+    // Now 300B is considered "small", we should only see OSO backfill if
+    // collection is less than 0.5% of items.
+    testDcpOsoBackfillAutomaticMode(0.004, 0.006, 300);
+}
+
 INSTANTIATE_TEST_SUITE_P(CollectionsOSOEphemeralTests,
                          CollectionsOSOEphemeralTest,
                          STParameterizedBucketTest::ephConfigValues(),
@@ -824,5 +1004,10 @@ INSTANTIATE_TEST_SUITE_P(CollectionsOSOEphemeralTests,
 
 INSTANTIATE_TEST_SUITE_P(CollectionsOSODcpTests,
                          CollectionsOSODcpTest,
+                         STParameterizedBucketTest::persistentConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(CollectionsOSODcpAutoSelectTests,
+                         CollectionsOSODcpAutoSelectTest,
                          STParameterizedBucketTest::persistentConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);

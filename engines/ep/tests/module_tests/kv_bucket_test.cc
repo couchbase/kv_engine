@@ -55,6 +55,7 @@
 #include "../mock/mock_magma_kvstore.h"
 #endif
 
+#include <folly/Random.h>
 #include <folly/portability/GMock.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <platform/dirutils.h>
@@ -277,6 +278,20 @@ Item KVBucketTest::store_deleted_item(
                << cb::to_string(returnCode) << " for key:" << key.to_string();
     }
     return ::testing::AssertionSuccess();
+}
+
+void KVBucketTest::storeItems(CollectionID collection,
+                              int items,
+                              cb::engine_errc expected,
+                              size_t valueSize) {
+    std::string value(valueSize, 0);
+    for (auto& element : value) {
+        element = folly::Random::rand32();
+    }
+    for (int ii = 0; ii < items; ii++) {
+        std::string key = "key" + std::to_string(ii);
+        store_item(vbid, StoredDocKey{key, collection}, value, 0, {expected});
+    }
 }
 
 void KVBucketTest::flush_vbucket_to_disk(Vbid vbid, size_t expected) {

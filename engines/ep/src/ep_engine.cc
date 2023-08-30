@@ -936,6 +936,17 @@ cb::engine_errc EventuallyPersistentEngine::setDcpParam(const std::string& key,
             getConfiguration().setDcpIdleTimeout(v);
         } else if (key == "dcp_noop_tx_interval") {
             getConfiguration().setDcpNoopTxInterval(std::stoull(val));
+        } else if (key == "dcp_oso_backfill") {
+            getConfiguration().setDcpOsoBackfill(val);
+        } else if (key == "dcp_oso_backfill_large_value_ratio") {
+            auto v = std::stod(val);
+            getConfiguration().setDcpOsoBackfillLargeValueRatio(v);
+        } else if (key == "dcp_oso_backfill_small_value_ratio") {
+            auto v = std::stod(val);
+            getConfiguration().setDcpOsoBackfillSmallValueRatio(v);
+        } else if (key == "dcp_oso_backfill_small_item_size_threshold") {
+            auto v = size_t(std::stoul(val));
+            getConfiguration().setDcpOsoBackfillSmallItemSizeThreshold(v);
         } else if (key == "dcp_producer_snapshot_marker_yield_limit") {
             getConfiguration().setDcpProducerSnapshotMarkerYieldLimit(
                     std::stoull(val));

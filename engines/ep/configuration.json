@@ -1065,6 +1065,49 @@
                 }
             }
         },
+        "dcp_oso_backfill": {
+            "default": "auto",
+            "descr": "Whether DCP out-of-sequence-order backfill is enabled, for backfills which it is applicable. Enabled: always use OSO if possible. Disabled: never use OSO, fallback to seqno order. Auto: use OSO only if it is expected to be faster than seqno.",
+            "dynamic": true,
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                    "enabled",
+                    "disabled",
+                    "auto"
+                ]
+            }
+        },
+        "dcp_oso_backfill_large_value_ratio": {
+            "default": "0.04",
+            "desr": "When considering out-of-seqno order (OSO) DCP backfill for a collection with 'large' mean value size, OSO will only be selected if the backfilling collection item count is less than this fraction of the vBucket item count. Whether the collection has 'small' or 'large' items depends on the value of 'dcp_oso_backfill_mean_item_size_threshold'.",
+            "dynamic": true,
+            "type": "float",
+            "validator": {
+                "range": {
+                    "min": 0.0,
+                    "max": 1.0
+                }
+            }
+        },
+        "dcp_oso_backfill_small_value_ratio": {
+            "default": "0.005",
+            "desr": "When considering out-of-seqno order (OSO) DCP backfill for a collection with 'small' mean value size, OSO will only be selected if the backfilling collection item count is less than this fraction of the vBucket item count. Whether the collection has 'small' or 'large' items depends on the value of 'dcp_oso_backfill_mean_item_size_threshold'.",
+            "dynamic": true,
+            "type": "float",
+            "validator": {
+                "range": {
+                    "min": 0.0,
+                    "max": 1.0
+                }
+            }
+        },
+        "dcp_oso_backfill_small_item_size_threshold": {
+            "default": "256",
+            "desr": "When considering out-of-seqno order (OSO) DCP backfill for a collection, should the items in the collection be considered 'small' or 'large' and subsequently should backfill use 'dcp_oso_backfill_small_value_collection_ratio' or 'dcp_oso_backfill_large_value_collection_ratio' when deciding ot use OSO or not? Collections whoss mean on-disk value size is less than this parameter are considered 'small', otherwise they are considered 'large'",
+            "dynamic": true,
+            "type": "size_t"
+        },
         "dcp_scan_byte_limit": {
             "default": {
                 "on-prem": "4 * 1024 * 1024",

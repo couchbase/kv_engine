@@ -13,6 +13,7 @@
 
 #include "checkpoint.h"
 #include "checkpoint_manager.h"
+#include "configuration.h"
 #include "dcp/producer.h"
 #include "dcp/response.h"
 #include "ep_time.h"
@@ -21,6 +22,7 @@
 #include "queue_op.h"
 #include "vbucket.h"
 
+#include <collections/vbucket_manifest_handles.h>
 #include <fmt/chrono.h>
 #include <memcached/protocol_binary.h>
 #include <platform/optional.h>
@@ -1987,7 +1989,7 @@ void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
 
 bool ActiveStream::tryAndScheduleOSOBackfill(DcpProducer& producer,
                                              VBucket& vb) {
-    // OSO only allowed:
+    // OSO only _allowed_ (but may not be chosen):
     // if the filter is set to a single collection.
     // if this is the initial backfill request
     // if the client has enabled OSO
@@ -1995,6 +1997,38 @@ bool ActiveStream::tryAndScheduleOSOBackfill(DcpProducer& producer,
         lastReadSeqno.load() == 0 &&
         ((curChkSeqno.load() > lastReadSeqno.load() + 1) || (isDiskOnly()))) {
         CollectionID cid = filter.front();
+
+        // however OSO is only _used_ if:
+        // - dcp_oso_backfill is set to enabled,
+        // - dcp_oso_backfill is set to "auto", and OSO is predicted to be
+        //   faster for this backfill.
+        const auto& config = engine->getConfiguration();
+        const auto osoBackfill = config.getDcpOsoBackfill();
+        if (osoBackfill == "disabled") {
+            return false;
+        }
+        if (osoBackfill == "auto") {
+            // Retrieve collection stats from manifest; minimising the scope
+            // of manifest lock.
+            const auto [colItemCount, colDiskSize] = [&vb, cid] {
+                const auto stats = vb.getManifest().lock(cid);
+                return std::pair{stats.getItemCount(), stats.getDiskSize()};
+            }();
+            const auto vbItemCount = vb.getNumItems();
+            if (!isOSOPreferredForCollectionBackfill(
+                        config, colItemCount, colDiskSize, vbItemCount)) {
+                log(spdlog::level::level_enum::info,
+                    "{} Skipping OSO backfill for cid:{} as collection item "
+                    "count ({}) is too large a percentage of the vBucket item "
+                    "count ({}) ({:.2f}%)",
+                    logPrefix,
+                    cid,
+                    colItemCount,
+                    vbItemCount,
+                    (float(colItemCount) * 100) / vbItemCount);
+                return false;
+            }
+        }
 
         // OSO possible - engage.
         producer.scheduleBackfillManager(vb, shared_from_this(), cid);
@@ -2737,4 +2771,129 @@ bool ActiveStream::areChangeStreamsEnabled() const {
 
 bool ActiveStream::isFlatBuffersSystemEventEnabled() const {
     return flatBuffersSystemEventsEnabled;
+}
+
+bool ActiveStream::isOSOPreferredForCollectionBackfill(
+        const Configuration& config,
+        uint64_t collectionItems,
+        uint64_t collectionDiskSize,
+        uint64_t totalItems) {
+    // Determine if OSO backfill or seqno backfill should be used for this
+    // collection - which is expected to be faster?
+    //
+    // === Background ===
+    //
+    // In the abstract, OSO backfill _should_ always be faster than seqno as it
+    // only has to scan the specific keys which are part of the collection,
+    // whereas seqno backfill must scan _all_ items in the vbucket, only
+    // fetching the values which belong to the requested collection.
+    // However, in practice this isn't actually the case :-
+    // - Couchstore arranges values in seqno order, so iterating in seqno
+    //   order results in less random IO and more sequential IO.
+    // - Magma places values next to their seqno, which means that iterating
+    //   by seqno will find the value immediately next to the seqno without
+    //   any extra IO, whereas iterating by key requires a random IO per
+    //   fetched document.
+    //
+    // As such, performing a seqno scan requires less random IO and hence a
+    // "brute force" approach of iterating over all seqnos but only sending
+    // the ones which match the collection can be *much* faster.
+    //
+    // For example, performing backfills of a collection which contains 1.5%
+    // of all 511M items from the Bucket, with a value size of 232B, using a
+    // cloud EBS-style disk, the runtime of OSO & seqno backfill for Magma and
+    // Couchstore is:
+    //
+    //    Magma OSO:        202 seconds
+    //    Magma seqno:       63 seconds
+    //    Couchstore OSO:   286 seconds
+    //    Couchstore seqno: 185 seconds
+    //
+    // In other words, it's 3.2x (Magma) or ~1.5x (Couchstore) faster to use
+    // a seqno scan instead of an OSO scan in this setup. Thedifference is
+    // more significant the larger the collections are - speedups of over 20x
+    // have been observed when the collection is the entire bucket.
+    //
+    // === Experimental Results ===
+    //
+    // Various experiments have been performed to measure backfill runtimes
+    // under different configs (see MB-56346), and based on those, OSO vs seqno
+    // ratio function can be estimated by a power function with a negative
+    // coefficient:
+    //
+    //     oso/seqno ratio = Mx ^ E
+    //
+    //  where:
+    //     'x' is the size of the collection as a fraction of the
+    //         bucket (0, 1.0).
+    //     'M' has been observed to range from 20 to 350.
+    //     'E' has been observed to range from -0.9 to -0.6.
+    //
+    // The coefficient and exponent vary somewhat based on the value size,
+    // storage engine (Couchstore vs Magma), disk type and concurrency being
+    // driven - and as such the break-even point collection size has been
+    // observed to range from ~0.2% to ~6% of the bucket items.
+    //
+    // Generating an accurate model (where we can determine the coefficient and
+    // exponent to use for a given backfill) is difficult - those values appear
+    // to depend on (at least):
+    //
+    // a) Properties of the data (collection size as a percentage of bucket
+    //    items, collection item sizes).
+    // b) Which storage engine is used.
+    // c) Properties of the environment (disk sequential IO vs random IO,
+    //    disk throughput at different IO sizes, ...).
+    //
+    // While (a) and (b) can be measured reasonably easily inside ep-engine,
+    // (c) is much more difficult, can vary significantly, and has a very
+    // big impact on the performance of each method. For example, the exact
+    // same backfill setup above but performed on a local NVMe disk shows
+    // the following runtimes:
+    //
+    //    Magma NVMe OSO:    87 seconds
+    //    Magma NVMe seqno:  61 seconds
+    //
+    // i.e. seqno scan time is 1.03x faster than what it was with an EBS-style
+    // disk, however OSO is 2.3x faster - which moves where the break-even point
+    // between the two approaches is.
+    //
+    // === Chosen model ===
+    //
+    // Given the challenge in determining the "correct" coefficient & exponent
+    // values all of the above, we use a pretty simple model whose primary
+    // aim is to avoid any pathological behaviour :-
+    //
+    //   - If the average item size is "small", then use OSO if collection size
+    //     is less than dcp_oso_backfill_small_value_ratio (e.g. 0.5% of
+    //     bucket).
+    //   - If the average item size is "large", then use OSO if collection
+    //     size is less than dcp_oso_backfill_large_value_ratio (e.g. 4% of
+    //     bucket).
+    //   - The threshold for considering average item size of small vs large
+    //     is determined by dcp_oso_backfill_small_vs_large_item_size_threshold.
+    //
+    // The rationale for this approach is based on the fact that the largest
+    // collection size which OSO is beneficial (across all experiments) is only
+    // 6% - i.e. even in the best case, OSO is only beneficial to a very small
+    // range of collection sizes. Given we can only test so many environments,
+    // it would be dangerous to try to "overfit" a power series to the limited
+    // experimental evidence we have. Additionally, a simple model like the one
+    // chosen is easy to understand and explain.
+
+    // If the collection is empty then we should always use OSO - a key index
+    // scan should be able to efficiently find "all" items in the collection.
+    // This also avoids a potential div-by-zero case below.
+    if (collectionItems == 0) {
+        return true;
+    }
+
+    const auto collectionRatio = double(collectionItems) / totalItems;
+    const auto meanCollectionItemSize = collectionDiskSize / collectionItems;
+    const auto maxCollectionRatioForOso =
+            meanCollectionItemSize <
+                            config.getDcpOsoBackfillSmallItemSizeThreshold()
+                    ? config.getDcpOsoBackfillSmallValueRatio()
+                    : config.getDcpOsoBackfillLargeValueRatio();
+
+    return collectionRatio < maxCollectionRatioForOso;
 }

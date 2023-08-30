@@ -4598,6 +4598,9 @@ TEST_P(SingleThreadedActiveStreamTest,
         GTEST_SKIP();
     }
 
+    // require an OSO backfill for this test, using "auto" will skip and fail
+    engine->getConfiguration().setDcpOsoBackfill("enabled");
+
     auto vb = engine->getVBucket(vbid);
     auto& ckptMgr = *vb->checkpointManager;
     // Get rid of set_vb_state and any other queue_op we are not interested in
