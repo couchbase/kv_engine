@@ -193,6 +193,15 @@ public:
     }
 
     /**
+     * Get a read-locked (shared) handle on the CookieToConnectionMap
+     * @return folly::RLockedPtr to the CookieToConnMapHandle (result of
+     *         folly::Synchronized<>.rlock()). Auto because the type is too long
+     */
+    auto getCookieToConnectionMapHandle() const {
+        return cookieToConnHandle.rlock();
+    }
+
+    /**
      * Get a locked handle on the list of VBConns for a given VB.
      */
     IterableHandle<std::list<VBConn>> getConnsForVBHandle(Vbid vb);

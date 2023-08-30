@@ -897,7 +897,6 @@ void BucketManager::tick() {
 }
 
 void BucketManager::forEach(std::function<bool(Bucket&)> fn) {
-    std::lock_guard<std::mutex> all_bucket_lock(buckets_lock);
     for (Bucket& bucket : all_buckets) {
         bool do_break = false;
         if (bucket.state == Bucket::State::Ready) {
