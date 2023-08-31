@@ -445,6 +445,9 @@ protected:
     // The VBucket owning this DurabilityMonitor instance
     VBucket& vb;
 
+    // The allocator which state will use (must be constructed before state)
+    MemoryTrackingAllocator<Element> trackedWritesAllocator;
+
     /// Bulk of ActiveDM state. Guarded by folly::Synchronized to manage
     /// concurrent access. Uses unique_ptr for pimpl.
     struct State;
