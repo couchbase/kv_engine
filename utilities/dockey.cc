@@ -126,10 +126,20 @@ std::string DocKey::to_string() const {
     std::string_view remainingKey{reinterpret_cast<const char*>(key.data()),
                                   key.size()};
     if (getCollectionID().isSystem()) {
+        if (key.empty()) {
+            // This case can occur if range scanning the system namespace
+            return "System with empty data";
+        }
+
         // Get the hex value of the type of system event
         auto [systemEventID, keyWithoutEvent] =
-                cb::mcbp::unsigned_leb128<uint32_t>::decode(
+                cb::mcbp::unsigned_leb128<uint32_t>::decodeNoThrow(
                         {key.data(), key.size()});
+        if (!keyWithoutEvent.data()) {
+            // This case can occur if range scanning the system namespace
+            return "System " + toPrintableString();
+        }
+
         // Get the cid or sid of the system event is for
         auto [cidOrSid, keySuffix] =
                 cb::mcbp::unsigned_leb128<uint32_t>::decode(

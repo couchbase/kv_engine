@@ -2466,7 +2466,7 @@ KVStoreIface::ReadVBStateResult MagmaKVStore::readVBStateFromDisk(
         return {ReadVBStateStatus::JsonInvalid, {}};
     }
 
-    logger->TRACE("MagmaKVStore::readVBStateFromDisk {} vbstate:{}", vbid, j);
+    logger->TRACE("MagmaKVStore::readVBStateFromDisk {} vbstate:{}", vbid, valString);
 
     vbucket_state vbstate = j;
     mergeMagmaDbStatsIntoVBState(vbstate, vbid);
