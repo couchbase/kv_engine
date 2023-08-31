@@ -176,9 +176,11 @@ public:
      * to include a new scan and the caller must now proceed to create the scan.
      * If no more backfills can be created returns false.
      *
+     * @param numInProgress count of Backfills already in progress by the
+     *        calling connection.
      * @return true if a Backfill can be created
      */
-    virtual bool canCreateBackfill();
+    virtual bool canCreateBackfill(size_t numInProgress);
 
     /**
      * Check if a RangeScan can be created (which will create a ScanContext).
@@ -196,14 +198,20 @@ public:
     /// Decrement number of running RangeScans by one
     virtual void decrNumRunningRangeScans();
 
+    /// update only the maxNumBackfillsPerConnection limit
+    void updateMaxRunningDcpBackfills(size_t maxBackfills);
+
     /**
      * Update the maxRunning and maxRunningRangeScans limits based on a quota.
      * The values are found by calling:
      *   getMaxRunningScansForQuota(maxDataSize, rangeScanRatio)
      * @param maxDataSize The bucket quota
      * @param rangeScanRatio The ratio of total scans available for RangeScan
+     * @param maxBackfills The maximum number of DCP backfills
      */
-    void updateMaxRunningScans(size_t maxDataSize, float rangeScanRatio);
+    void updateMaxRunningScans(size_t maxDataSize,
+                               float rangeScanRatio,
+                               size_t maxBackfills);
 
     /**
      * Set the max running scans (separate limits for backfill/RangeScan). This
@@ -211,9 +219,11 @@ public:
      *
      * @param newMaxRunningBackfills How many DCP backfills can exist
      * @param newMaxRunningRangeScans How many RangeScans can exist
+     * @param maxBackfills The maximum number of backfills
      */
     void setMaxRunningScans(uint16_t newMaxRunningBackfills,
-                            uint16_t newMaxRunningRangeScans);
+                            uint16_t newMaxRunningRangeScans,
+                            size_t maxBackfills);
 
     /// @return how many DCP backfills are running
     uint16_t getNumRunningBackfills() {
@@ -263,6 +273,10 @@ private:
 
         // The upper limit for RangeScan and is generally lower than maxRunning
         uint16_t maxRunningRangeScans{0};
+
+        /// Maximum number of backfills per connection - taken from
+        /// dcp_backfill_in_progress_per_connection_limit
+        size_t maxNumBackfillsPerConnection{0};
     };
     folly::Synchronized<Scans, std::mutex> scans;
 };

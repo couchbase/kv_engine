@@ -913,7 +913,10 @@ cb::engine_errc EventuallyPersistentEngine::setDcpParam(const std::string& key,
                                                         std::string& msg) {
     auto rv = cb::engine_errc::success;
     try {
-        if (key == "dcp_consumer_buffer_ratio") {
+        if (key == "dcp_backfill_in_progress_per_connection_limit") {
+            getConfiguration().setDcpBackfillInProgressPerConnectionLimit(
+                    std::stoull(val));
+        } else if (key == "dcp_consumer_buffer_ratio") {
             getConfiguration().setDcpConsumerBufferRatio(std::stof(val));
         } else if (key == "connection_manager_interval") {
             getConfiguration().setConnectionManagerInterval(std::stoull(val));
@@ -6913,7 +6916,9 @@ void EventuallyPersistentEngine::setMaxDataSize(size_t size) {
     configureMemWatermarksForQuota(size);
 
     kvBucket->getKVStoreScanTracker().updateMaxRunningScans(
-            size, configuration.getRangeScanKvStoreScanRatio());
+            size,
+            configuration.getRangeScanKvStoreScanRatio(),
+            configuration.getDcpBackfillInProgressPerConnectionLimit());
 
     configureStorageMemoryForQuota(size);
 

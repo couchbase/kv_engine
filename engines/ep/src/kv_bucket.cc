@@ -143,6 +143,8 @@ public:
             store.setHistoryRetentionSeconds(std::chrono::seconds(value));
         } else if (key == "history_retention_bytes") {
             store.setHistoryRetentionBytes(value);
+        } else if (key == "dcp_backfill_in_progress_per_connection_limit") {
+            store.getKVStoreScanTracker().updateMaxRunningDcpBackfills(value);
         } else {
             EP_LOG_WARN("Failed to change value for unknown variable, {}", key);
         }
@@ -339,7 +341,9 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
             std::make_unique<StatsValueChangeListener>(stats, *this));
 
     getKVStoreScanTracker().updateMaxRunningScans(
-            config.getMaxSize(), config.getRangeScanKvStoreScanRatio());
+            config.getMaxSize(),
+            config.getRangeScanKvStoreScanRatio(),
+            config.getDcpBackfillInProgressPerConnectionLimit());
 
     config.addValueChangedListener(
             "mem_low_wat",
@@ -444,6 +448,10 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
     setCompactionExpiryFetchInline(config.isCompactionExpiryFetchInline());
     config.addValueChangedListener(
             "compaction_expiry_fetch_inline",
+            std::make_unique<EPStoreValueChangeListener>(*this));
+
+    config.addValueChangedListener(
+            "dcp_backfill_in_progress_per_connection_limit",
             std::make_unique<EPStoreValueChangeListener>(*this));
 }
 

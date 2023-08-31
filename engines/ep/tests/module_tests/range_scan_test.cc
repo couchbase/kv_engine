@@ -1978,7 +1978,7 @@ TEST_F(RangeScanOwnerTest, cancelRangeScansExceedingDuration) {
 // Test that RangeScan create fails once the limit is reached
 TEST_P(RangeScanTestSimple, limitRangeScans) {
     // Override the KVStoreScanTracker and set that 1 RangeScan can be created
-    store->getKVStoreScanTracker().setMaxRunningScans(1, 1);
+    store->getKVStoreScanTracker().setMaxRunningScans(1, 1, 1);
     EXPECT_EQ(1, store->getKVStoreScanTracker().getMaxRunningRangeScans());
     EXPECT_EQ(0, store->getKVStoreScanTracker().getNumRunningRangeScans());
 
