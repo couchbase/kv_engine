@@ -26,7 +26,6 @@
 #include "magma-kvstore_iorequest.h"
 #include "magma-kvstore_rollback_purge_seqno_ctx.h"
 #include "magma-memory-tracking-proxy.h"
-#include "magma-scan-result.h"
 #include "objectregistry.h"
 #include "vb_commit.h"
 #include "vbucket.h"
@@ -2081,7 +2080,7 @@ ScanStatus MagmaKVStore::scan(BySeqnoScanContext& ctx,
     if (!itr) {
         logger->warn("MagmaKVStore::scan {} Failed to get magma seq iterator",
                      mctx.vbid);
-        return ScanStatus(MagmaScanResult::Status::Failed);
+        return ScanStatus::Failed;
     }
 
     for (itr->Initialize(startSeqno, ctx.maxSeqno, mode); itr->Valid();
@@ -2100,16 +2099,21 @@ ScanStatus MagmaKVStore::scan(BySeqnoScanContext& ctx,
                                     "scan(BySeqno) tried to read the value");
                         });
 
-        switch (result.code) {
-        case MagmaScanResult::Status::Yield:
+        // Always update the lastReadSeqno for correct resume behaviour and
+        // sane debug/logging for failure cases.
+        // Note: MB-53806 made changes which mean that in a yield case this
+        // seqno has been processed and any resume then will be lastReadSeqno+1
+        // (as per the start of this function)
+        ctx.lastReadSeqno = seqno;
 
-        case MagmaScanResult::Status::Success:
-        case MagmaScanResult::Status::Cancelled:
-        case MagmaScanResult::Status::Failed:
-            return ScanStatus(result.code);
-        case MagmaScanResult::Status::Next:
-            // Update the lastReadSeqno as this is the 'resume' point
-            ctx.lastReadSeqno = seqno;
+        switch (result) {
+        case ScanStatus::Cancelled:
+        case ScanStatus::Failed:
+        case ScanStatus::Yield:
+            return result;
+        case ScanStatus::Success:
+            // scan was successful after processing the seqno and there's no
+            // reason to not continue to the next seqno.
             continue;
         }
     }
@@ -2118,9 +2122,11 @@ ScanStatus MagmaKVStore::scan(BySeqnoScanContext& ctx,
         logger->warn("MagmaKVStore::scan(BySeq) scan failed {} error:{}",
                      ctx.vbid,
                      itr->GetStatus().String());
-
+        // Loop terminated as iterator indicates failure
         return ScanStatus::Failed;
     }
+
+    // Loop terminated at the end of the range - success
     return ScanStatus::Success;
 }
 
@@ -2172,18 +2178,20 @@ ScanStatus MagmaKVStore::scan(ByIdScanContext& ctx,
                 ctx, keySlice, seqno, metaSlice, {}, [&itr](Slice& value) {
                     return itr->GetValue(value);
                 });
-        switch (result.code) {
-        case MagmaScanResult::Status::Yield:
-            // Only need to set the resume point for a Yield.
-            // Doing this here to avoid unneeded alloc+copy on every key scanned
+
+        switch (result) {
+        case ScanStatus::Yield:
+            // Only need to set the resume point for a Yield. The resumeFromKey
+            // could  be set for all cases, but this reduces copying for every
+            // scanned key.
             ctx.resumeFromKey = makeDiskDocKey(keySlice);
             ctx.resumeFromKey.append(0);
             [[fallthrough]];
-        case MagmaScanResult::Status::Success:
-        case MagmaScanResult::Status::Cancelled:
-        case MagmaScanResult::Status::Failed:
-            return ScanStatus(result.code);
-        case MagmaScanResult::Status::Next:
+        case ScanStatus::Cancelled:
+        case ScanStatus::Failed:
+            return result;
+        case ScanStatus::Success:
+            // Success - scan the next key
             continue;
         }
     }
@@ -2192,12 +2200,15 @@ ScanStatus MagmaKVStore::scan(ByIdScanContext& ctx,
         logger->warn("MagmaKVStore::scan(ById) scan failed {} error:{}",
                      ctx.vbid,
                      itr->GetStatus().String());
+        // Loop terminated as iterator indicates failure
         return ScanStatus::Failed;
     }
+
+    // Loop terminated at the end of the range - success
     return ScanStatus::Success;
 }
 
-MagmaScanResult MagmaKVStore::scanOne(
+ScanStatus MagmaKVStore::scanOne(
         ScanContext& ctx,
         const Slice& keySlice,
         uint64_t seqno,
@@ -2226,7 +2237,6 @@ MagmaScanResult MagmaKVStore::scanOne(
 
     const auto docMeta = magmakv::getDocMeta(metaSlice);
     if (docMeta.isDeleted() && ctx.docFilter == DocumentFilter::NO_DELETES) {
-        ctx.lastReadSeqno = seqno;
         if (logger->should_log(spdlog::level::TRACE)) {
             logger->TRACE(
                     "MagmaKVStore::scanOne SKIPPED(Deleted) {} key:{} "
@@ -2235,14 +2245,13 @@ MagmaScanResult MagmaKVStore::scanOne(
                     cb::UserData{lookup.getKey().to_string()},
                     seqno);
         }
-        return MagmaScanResult::Next();
+        return ScanStatus::Success;
     }
 
     // Determine if the key is logically deleted before trying cache/disk read
     if (ctx.docFilter != DocumentFilter::ALL_ITEMS_AND_DROPPED_COLLECTIONS) {
         if (ctx.collectionsContext.isLogicallyDeleted(
                     lookup.getKey().getDocKey(), docMeta.isDeleted(), seqno)) {
-            ctx.lastReadSeqno = seqno;
             if (logger->should_log(spdlog::level::TRACE)) {
                 logger->TRACE(
                         "MagmaKVStore::scanOne SKIPPED(Collection "
@@ -2251,7 +2260,7 @@ MagmaScanResult MagmaKVStore::scanOne(
                         cb::UserData{lookup.getKey().to_string()},
                         seqno);
             }
-            return MagmaScanResult::Next();
+            return ScanStatus::Success;
         }
     }
 
@@ -2269,10 +2278,8 @@ MagmaScanResult MagmaKVStore::scanOne(
                         cb::UserData{lookup.getKey().to_string()},
                         seqno);
             }
-            return MagmaScanResult::Next();
+            return ScanStatus::Success;
         } else if (ctx.getCacheCallback().shouldYield()) {
-            // Scan yields after successfully processing this seqno
-            ctx.lastReadSeqno = seqno;
             if (logger->should_log(spdlog::level::TRACE)) {
                 logger->TRACE(
                         "MagmaKVStore::scanOne lookup->callback {} "
@@ -2280,7 +2287,7 @@ MagmaScanResult MagmaKVStore::scanOne(
                         ctx.vbid,
                         cb::UserData{lookup.getKey().to_string()});
             }
-            return MagmaScanResult::Yield();
+            return ScanStatus::Yield;
         } else if (ctx.getCacheCallback().getStatus() !=
                    cb::engine_errc::success) {
             if (logger->should_log(spdlog::level::TRACE)) {
@@ -2291,7 +2298,7 @@ MagmaScanResult MagmaKVStore::scanOne(
                         cb::UserData{lookup.getKey().to_string()},
                         to_string(ctx.getCacheCallback().getStatus()));
             }
-            return MagmaScanResult::Cancelled();
+            return ScanStatus::Cancelled;
         }
     }
 
@@ -2306,7 +2313,7 @@ MagmaScanResult MagmaKVStore::scanOne(
                     cb::UserData{lookup.getKey().to_string()},
                     seqno,
                     status.String());
-            return MagmaScanResult::Failed();
+            return ScanStatus::Failed;
         }
         ctx.diskBytesRead += value.Len();
     }
@@ -2339,7 +2346,7 @@ MagmaScanResult MagmaKVStore::scanOne(
                     cb::UserData{lookup.getKey().to_string()},
                     seqno);
             // return Failed to stop the scan and for DCP, end the stream
-            return MagmaScanResult::Failed();
+            return ScanStatus::Failed;
         }
     }
 
@@ -2350,11 +2357,8 @@ MagmaScanResult MagmaKVStore::scanOne(
     ctx.getValueCallback().callback(rv);
     auto callbackStatus = ctx.getValueCallback().getStatus();
     if (callbackStatus == cb::engine_errc::success) {
-        return MagmaScanResult::Next();
+        return ScanStatus::Success;
     } else if (ctx.getValueCallback().shouldYield()) {
-        // Scan is yielding _after_ successfully processing this doc.
-        // Resume at next item.
-        ctx.lastReadSeqno = seqno;
         if (logger->should_log(spdlog::level::TRACE)) {
             logger->TRACE(
                     "MagmaKVStore::scanOne callback {} "
@@ -2362,7 +2366,7 @@ MagmaScanResult MagmaKVStore::scanOne(
                     ctx.vbid,
                     cb::UserData{lookup.getKey().to_string()});
         }
-        return MagmaScanResult::Yield();
+        return ScanStatus::Yield;
     }
 
     if (logger->should_log(spdlog::level::TRACE)) {
@@ -2373,7 +2377,7 @@ MagmaScanResult MagmaKVStore::scanOne(
                 cb::UserData{lookup.getKey().to_string()},
                 to_string(callbackStatus));
     }
-    return MagmaScanResult::Cancelled();
+    return ScanStatus::Cancelled;
 }
 
 void MagmaKVStore::mergeMagmaDbStatsIntoVBState(vbucket_state& vbstate,

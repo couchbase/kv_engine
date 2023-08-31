@@ -418,11 +418,6 @@ cb::engine_errc RangeScan::continueOnIOThread(KVStoreIface& kvstore) {
     cb::engine_errc engineStatus = cb::engine_errc::success;
     switch (scanStatus) {
     case ScanStatus::Yield: {
-        // Scan reached a limit and has yielded.
-        // For RangeScan we have already consumed the last key, so we adjust the
-        // startKey so we continue from next.
-        scanCtx->ranges[0].startKey.append(0);
-
         engineStatus = continueRunState.getYieldStatusCodeAndReset();
         break;
     }
