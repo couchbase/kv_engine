@@ -830,6 +830,11 @@ TEST_F(CouchKVStoreErrorInjectionTest, get_docinfo_by_id) {
         gv = kvstore->get(DiskDocKey{*items.front()}, Vbid(0));
     }
     EXPECT_EQ(cb::engine_errc::temporary_failure, gv.getStatus());
+
+    /* Check we incremented the read failures */
+    size_t getFailures = 0;
+    kvstore->getStat("failure_get", getFailures);
+    EXPECT_EQ(1, getFailures);
 }
 
 /**
@@ -881,6 +886,11 @@ TEST_F(CouchKVStoreErrorInjectionTest, getMulti_docinfos_by_id) {
     }
     EXPECT_EQ(cb::engine_errc::temporary_failure,
               itms[DiskDocKey{*items.at(0)}].value.getStatus());
+
+    /* Check we incremented the read failures */
+    size_t getFailures = 0;
+    kvstore->getStat("failure_get", getFailures);
+    EXPECT_EQ(1, getFailures);
 }
 
 /**
