@@ -2074,7 +2074,14 @@
     {
         "key": "system_connections",
         "unit": "count",
-        "added": "7.0.0"
+        "added": "7.0.0",
+        "description" : "The number of connections to system ports in memcached"
+    },
+    {
+        "key": "user_connections",
+        "unit": "count",
+        "added": "7.6.0",
+        "description" : "The number of connections to user ports in memcached"
     },
     {
         "key": "max_user_connections",

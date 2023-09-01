@@ -47,8 +47,11 @@ static void server_global_stats(const StatCollector& collector) {
             networkInterfaceManager
                     ? networkInterfaceManager->getNumberOfDaemonConnections()
                     : 0);
-    collector.addStat(Key::curr_connections, stats.curr_conns);
-    collector.addStat(Key::system_connections, stats.system_conns);
+    auto curr = stats.curr_conns.load();
+    auto sys = stats.system_conns.load();
+    collector.addStat(Key::curr_connections, curr);
+    collector.addStat(Key::system_connections, sys);
+    collector.addStat(Key::user_connections, curr > sys ? curr - sys : 0);
     collector.addStat(Key::max_user_connections,
                       Settings::instance().getMaxUserConnections());
     collector.addStat(Key::max_system_connections,
