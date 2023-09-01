@@ -644,7 +644,9 @@ GetValue CouchKVStore::getWithHeader(DbHolder& db,
         }
     }
 
-    if(errCode != COUCHSTORE_SUCCESS) {
+    // MB-57609: Only report actual get errors, no_such_key should not count
+    if (errCode != COUCHSTORE_SUCCESS &&
+        errCode != COUCHSTORE_ERROR_DOC_NOT_FOUND) {
         ++st.numGetFailure;
     }
 
