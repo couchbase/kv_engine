@@ -159,10 +159,10 @@ size_t ExecutorPool::calcNumAuxIO(size_t threadCount) const {
         return static_cast<size_t>(threadCount);
     }
 
-    // Default: configure threads based on CPU count; constraining
-    // to between 2 and 8 threads (relatively conservative number).
+    // Default: configure threads based on CPU count; constraining to between
+    // 2 and 128 threads (similar to Reader/Writer thread counts above).
     auto auxIO = maxGlobalThreads;
-    auxIO = std::clamp(auxIO, size_t{2}, size_t{8});
+    auxIO = std::clamp(auxIO, size_t{2}, size_t{128});
     return auxIO;
 }
 

@@ -1114,7 +1114,23 @@ ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
     if (isDiskCheckpointType(result.checkpointType)) {
         // CM can never return multiple disk checkpoints or checkpoints of
         // different types. So if Disk, then one range.
-        Expects(itemsForCursor.ranges.size() == 1);
+
+        if (itemsForCursor.ranges.size() != 1) {
+            const auto msg = fmt::format(
+                    "ActiveStream::getOutstandingItems: stream:{} {} "
+                    "processing checkpoint type:{}, {}, ranges:{}, HCS:{}, "
+                    "MVS:{}, items:{}",
+                    name_,
+                    vb_,
+                    ::to_string(itemsForCursor.checkpointType),
+                    ::to_string(itemsForCursor.historical),
+                    itemsForCursor.ranges.size(),
+                    ::to_string_or_none(itemsForCursor.highCompletedSeqno),
+                    itemsForCursor.visibleSeqno,
+                    result.items.size());
+            throw std::logic_error(msg);
+        }
+
         const auto& range = itemsForCursor.ranges.front();
         if (!itemsForCursor.highCompletedSeqno) {
             const auto msg = fmt::format(
