@@ -1281,11 +1281,10 @@ protected:
     /**
      * helper method so that some commands can set the datatype of the document.
      *
-     * @param cookie connection cookie
+     * @param cookie connection cookie (used for JSON validation)
      * @param datatype the current document datatype
      * @param body a buffer containing the document body
      * @returns a datatype which will now include JSON if the document is JSON
-     *          and the connection does not support datatype JSON.
      */
     protocol_binary_datatype_t checkForDatatypeJson(
             CookieIface& cookie,

@@ -5569,16 +5569,16 @@ protocol_binary_datatype_t EventuallyPersistentEngine::checkForDatatypeJson(
         CookieIface& cookie,
         protocol_binary_datatype_t datatype,
         std::string_view body) {
-    if (!cookie.isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_JSON)) {
-        // JSON check the body if xattr's are enabled
-        if (cb::mcbp::datatype::is_xattr(datatype)) {
-            body = cb::xattr::get_body(body);
-        }
+    // JSON check the body if xattr's are enabled
+    if (cb::mcbp::datatype::is_xattr(datatype)) {
+        body = cb::xattr::get_body(body);
+    }
 
-        NonBucketAllocationGuard guard;
-        if (cookie.isValidJson(body)) {
-            datatype |= PROTOCOL_BINARY_DATATYPE_JSON;
-        }
+    NonBucketAllocationGuard guard;
+    if (cookie.isValidJson(body)) {
+        datatype |= PROTOCOL_BINARY_DATATYPE_JSON;
+    } else {
+        datatype &= ~PROTOCOL_BINARY_DATATYPE_JSON;
     }
     return datatype;
 }
