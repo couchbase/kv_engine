@@ -43,7 +43,6 @@ class MagmaMemoryTrackingProxy;
 class MagmaRequest;
 struct kvstats_ctx;
 struct MagmaKVStoreTransactionContext;
-struct MagmaScanResult;
 class MagmaRequest;
 struct vbucket_state;
 
@@ -806,10 +805,9 @@ protected:
      *        to obtain the value (when ctx.cacheCallback fails to find a value)
      * @param valRead a function that can read the value (for the case when
      *        valSlice is empty).
-     * @return A MagmaScanResult, which is ScanResult with one bespoke extra
-     *         status (Next)
+     * @return ScanStatus
      */
-    MagmaScanResult scanOne(
+    ScanStatus scanOne(
             ScanContext& ctx,
             const magma::Slice& keySlice,
             uint64_t seqno,
