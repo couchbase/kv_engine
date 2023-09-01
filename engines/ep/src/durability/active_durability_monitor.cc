@@ -563,7 +563,7 @@ void ActiveDurabilityMonitor::unresolveCompletedSyncWriteQueue() {
     // First, remove all of the writes from the resolvedQueue. We should be
     // called from under a WriteHolder of the vBucket state lock so it's safe to
     // release the resolvedQueue consumer lock afterwards.
-    Container writesToTrack;
+    Container writesToTrack{trackedWritesAllocator};
     { // Scope for ResolvedQueue::ConsumerLock
         std::lock_guard<ResolvedQueue::ConsumerLock> lock(
                 resolvedQueue->getConsumerLock());
@@ -665,7 +665,8 @@ void ActiveDurabilityMonitor::removedQueuedAck(const std::string& node) {
 ActiveDurabilityMonitor::State::State(
         ActiveDurabilityMonitor& adm,
         std::unique_ptr<EventDrivenDurabilityTimeoutIface> nextExpiryChanged)
-    : lastTrackedSeqno(0, {adm.vb.getId()}),
+    : trackedWrites(adm.trackedWritesAllocator),
+      lastTrackedSeqno(0, {adm.vb.getId()}),
       lastCommittedSeqno(0, {adm.vb.getId()}),
       lastAbortedSeqno(0, {adm.vb.getId()}),
       highPreparedSeqno(0, {adm.vb.getId()}),
@@ -946,7 +947,7 @@ ActiveDurabilityMonitor::State::removeSyncWrite(Container::iterator it,
         }
     }
 
-    Container removed;
+    Container removed{trackedWrites.get_allocator()};
     removed.splice(removed.end(), trackedWrites, it);
 
     if (removingFirstElement) {

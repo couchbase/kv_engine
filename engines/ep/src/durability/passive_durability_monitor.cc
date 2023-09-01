@@ -619,7 +619,7 @@ void PassiveDurabilityMonitor::toOStream(std::ostream& os) const {
 }
 
 PassiveDurabilityMonitor::State::State(const PassiveDurabilityMonitor& pdm)
-    : pdm(pdm) {
+    : trackedWrites(trackedWritesAllocator), pdm(pdm) {
     highPreparedSeqno.lastWriteSeqno.setLabeler(
             {highPreparedSeqnoPrefix, pdm.vb.getId()});
     highPreparedSeqno.lastAckSeqno.setLabeler(
