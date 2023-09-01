@@ -213,7 +213,8 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine& e,
                       : IncludeDeleteTime::No),
       createChkPtProcessorTsk(startTask),
       connectionSupportsSnappy(
-              cookie->isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_SNAPPY)) {
+              cookie->isDatatypeSupported(PROTOCOL_BINARY_DATATYPE_SNAPPY)),
+      collectionsEnabled(cookie->isCollectionsSupported()) {
     setSupportAck(true);
     pause(PausedReason::Initializing);
     setLogHeader("DCP (Producer) " + getName() + " -");
@@ -1660,12 +1661,17 @@ void DcpProducer::aggregateQueueStats(ConnCounter& aggregator) const {
 
 void DcpProducer::notifySeqnoAvailable(Vbid vbucket,
                                        SyncWriteOperation syncWrite) {
-    if (syncWrite == SyncWriteOperation::Yes &&
-        getSyncReplSupport() == SyncReplication::No) {
-        // Don't bother notifying this Producer if the operation is a prepare
-        // and we do not support SyncWrites or SyncReplication. It wouldn't send
-        // anything anyway and we'd run a bunch of tasks on NonIO threads, front
-        // end worker threads and potentially AuxIO threads.
+    if (!isSyncWritesEnabled() &&
+        ((!isSeqnoAdvancedEnabled() && syncWrite != SyncWriteOperation::None) ||
+         (isSeqnoAdvancedEnabled() &&
+          syncWrite == SyncWriteOperation::Prepare))) {
+        // Skip notifying this producer when sync-writes are not enabled and...
+        //
+        // 1) When the stream does not support seqno-advance, then skip both
+        //    prepare and abort as nothing will be transmitted.
+        // 2) When the stream supports seqno-advance only prepares skip the
+        //    notify. If the operation is an abort we will wake-up the stream.
+        //    See MB-56148 as to why this distinction exists.
         return;
     }
 

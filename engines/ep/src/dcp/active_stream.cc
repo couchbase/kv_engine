@@ -2622,7 +2622,8 @@ bool ActiveStream::isSeqnoAdvancedEnabled() const {
     // sync-writes - so we can replace abort/prepare with seqno-advance
     // FlatBuffers - so we can replace ModifyCollection with seqno-advance
     return isCollectionEnabledStream() &&
-           (!supportSyncReplication() || !flatBuffersSystemEventsEnabled);
+           (syncReplication == SyncReplication::No ||
+            !flatBuffersSystemEventsEnabled);
 }
 
 bool ActiveStream::isSeqnoAdvancedNeededBackFill() const {

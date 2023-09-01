@@ -42,7 +42,6 @@ enum class TrackCasDrift : char { No, Yes };
 enum class WantsDeleted : char { No, Yes };
 enum class TrackReference : char { No, Yes };
 enum class CheckConflicts : char { No, Yes };
-enum class SyncWriteOperation : char { No, Yes };
 enum class IsSystem : char { No, Yes };
 enum class IsDeleted : char { No, Yes };
 enum class IsCommitted : char { No, Yes };
@@ -83,6 +82,13 @@ enum class WriteOperation : char {
     /// This improves write performance for some KVStore implementations (e.g.
     /// Magma).
     Insert
+};
+
+/// Types of operation for progressing a SyncWrite
+enum class SyncWriteOperation : char {
+    None, // Note that this covers a "vanilla" mutation and a commit
+    Prepare, // The first phase of a sync-write, the operation is pending
+    Abort // The sync-write has been aborted
 };
 
 enum class CheckpointType : uint8_t {

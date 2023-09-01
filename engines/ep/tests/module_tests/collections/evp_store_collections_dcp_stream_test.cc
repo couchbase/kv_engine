@@ -23,7 +23,10 @@
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/collections/collections_dcp_test.h"
 #include "tests/module_tests/collections/collections_test_helpers.h"
+#include "tests/module_tests/test_helpers.h"
 #include "vbucket.h"
+
+#include <programs/engine_testapp/mock_server.h>
 #include <utilities/test_manifest.h>
 
 class CollectionsDcpStreamsTest : public CollectionsDcpTest {
@@ -85,6 +88,93 @@ TEST_F(CollectionsDcpStreamsTest, request_validation) {
         EXPECT_EQ(cb::engine_errc::dcp_streamid_invalid,
                   cb::engine_errc(e.code().value()));
     }
+}
+
+// A collection enabled stream should be notified for some sync-write activity
+// so that a suitable seqno-advance message can be transmitted. For MB-56148
+// aborts were not waking a collection enabled (but sync-write disabled)
+// producer leaving an indexing client behind the high-seqno.
+TEST_F(CollectionsDcpStreamsTest, NonSyncWriteStreamNotify) {
+    // Setup the active vbucket so sync-writes can be created.
+    setVBucketStateAndRunPersistTask(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+    VBucketPtr vb = store->getVBucket(vbid);
+
+    // Manually force creation of the checkpoint processor task so we can drive
+    // the test via runNextTask
+    producer->createCheckpointProcessorTask();
+    producer->scheduleCheckpointProcessorTask();
+
+    // Create a new DCP stream for the entire bucket (collections are enabled
+    // but sync-writes are not)
+    uint64_t rollbackSeqno{0};
+    EXPECT_EQ(cb::engine_errc::success,
+              producer->streamRequest(0,
+                                      1, // opaque
+                                      vbid,
+                                      0, // start_seqno
+                                      ~0ull, // end_seqno
+                                      vb->failovers->getLatestUUID(),
+                                      0, // snap_start_seqno,
+                                      0, // snap_end_seqno,
+                                      &rollbackSeqno,
+                                      &CollectionsDcpTest::dcpAddFailoverLog,
+                                      std::string_view{}));
+    EXPECT_EQ(0, rollbackSeqno);
+
+    // Consume a notification generated from the streamRequest
+    EXPECT_EQ(cb::engine_errc::success, mock_waitfor_cookie(cookieP));
+
+    // poke the producer as if the frontend executor has awoken
+    EXPECT_EQ(cb::engine_errc(cb::engine_errc::would_block),
+              producer->step(false, *producers));
+
+    // MB-56148 reproducible with any collection, stick to default collection.
+    StoredDocKey key{"key", CollectionID::Default};
+
+    // Test requires prepare(key), abort(key)
+    auto item = makePendingItem(key, "value");
+    EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
+
+    // The prepare will not notify
+    EXPECT_FALSE(mock_cookie_notified(cookieP))
+            << "Prepare not expected to notify";
+    {
+        folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+        EXPECT_EQ(cb::engine_errc::success,
+                  vb->abort(rlh,
+                            key,
+                            item->getBySeqno(),
+                            {},
+                            vb->lockCollections(key)));
+    }
+    // With the fix the abort will notify
+    EXPECT_TRUE(mock_cookie_notified(cookieP));
+    // Prior to MB-56148 the test would hang here as no notify occurs.
+    EXPECT_EQ(cb::engine_errc::success, mock_waitfor_cookie(cookieP));
+
+    // Now that cookie was notified it can step, expect nothing as the task gets
+    // scheduled.
+    EXPECT_EQ(cb::engine_errc(cb::engine_errc::would_block),
+              producer->step(false, *producers));
+
+    // The abort will have scheduled a task to process the checkpoint.
+    auto& nonIOQueue = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    runNextTask(nonIOQueue,
+                "Process checkpoint(s) for DCP producer test_producer");
+
+    // And we get a snapshot - seqno advance replaces the abort.
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
+                  cb::engine_errc::success);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSeqnoAdvanced,
+                  cb::engine_errc::success);
+
+    EXPECT_EQ(vb->getHighSeqno(), producers->last_byseqno);
+    // should be no more ops
+    EXPECT_EQ(cb::engine_errc(cb::engine_errc::would_block),
+              producer->step(false, *producers));
 }
 
 TEST_F(CollectionsDcpStreamsTest, streamRequestNoRollbackSeqnoAdvanced) {
