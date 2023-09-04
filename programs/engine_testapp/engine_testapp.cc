@@ -360,7 +360,7 @@ static test_result execute_test(engine_test_t test, const char* default_cfg) {
     auto executorBackend = ExecutorPool::Backend::Default;
     int executorNumMaxThread = 0;
     auto executorNumAuxIo = ThreadPoolConfig::AuxIoThreadCount::Default;
-    int executorNumNonIo = 0;
+    auto executorNumNonIo = ThreadPoolConfig::NonIoThreadCount::Default;
     int maxReaders = 0;
     int maxWriters = 0;
 
@@ -377,7 +377,8 @@ static test_result execute_test(engine_test_t test, const char* default_cfg) {
             executorNumAuxIo =
                     ThreadPoolConfig::AuxIoThreadCount{std::stoi(kv.back())};
         } else if (kv.front() == "num_nonio_threads") {
-            executorNumNonIo = std::stoi(kv.back());
+            executorNumNonIo =
+                    ThreadPoolConfig::NonIoThreadCount{std::stoi(kv.back())};
         } else if (kv.front() == "num_reader_threads") {
             maxReaders = std::stoi(kv.back());
         } else if (kv.front() == "num_writer_threads") {

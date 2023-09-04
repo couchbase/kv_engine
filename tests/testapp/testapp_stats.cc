@@ -642,7 +642,8 @@ TEST_P(StatsTest, TestSettingAndGettingThreadCount) {
                     Pair("num_frontend_threads_configured", Gt(0)),
                     Pair("num_frontend_threads_actual", Gt(0)),
                     // background threads by default are configured as
-                    // "default", which is encoded as zero, or -1 for AuxIO.
+                    // "default", which is encoded as zero, or -1 for AuxIO /
+                    // NonIO.
                     // Created should be non-zero however (based on CPU count).
                     Pair("num_reader_threads_configured", 0),
                     Pair("num_reader_threads_actual", Gt(0)),
@@ -650,7 +651,7 @@ TEST_P(StatsTest, TestSettingAndGettingThreadCount) {
                     Pair("num_writer_threads_actual", Gt(0)),
                     Pair("num_auxio_threads_configured", -1),
                     Pair("num_auxio_threads_actual", Gt(0)),
-                    Pair("num_nonio_threads_configured", 0),
+                    Pair("num_nonio_threads_configured", -1),
                     Pair("num_nonio_threads_actual", Gt(0))));
 
     // 2. Reconfigure with a different number, check the stats update as

@@ -1737,7 +1737,7 @@ static enum test_result test_temp_item_deletion(EngineIface* h) {
     ExecutorPool::get()->setNumReadersExactly(0);
 
     // Disable nonio so that we have better control of the expirypager
-    ExecutorPool::get()->setNumNonIO(0);
+    ExecutorPool::get()->setNumNonIO(ThreadPoolConfig::NonIoThreadCount{0});
 
     auto pagerRuns = get_int_stat(h, "ep_num_expiry_pager_runs");
 
@@ -1793,7 +1793,7 @@ static enum test_result test_temp_item_deletion(EngineIface* h) {
     checkne(0, get_int_stat(h, "curr_temp_items"), "Expected temp_items");
 
     // Trigger the expiry pager and verify that two temp items are deleted
-    ExecutorPool::get()->setNumNonIO(1);
+    ExecutorPool::get()->setNumNonIO(ThreadPoolConfig::NonIoThreadCount{1});
 
     // Wait for the pager to increase over the value we recorded after disabling
     // the NonIO tasks

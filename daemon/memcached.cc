@@ -663,7 +663,7 @@ static void startExecutorPool() {
             ThreadPoolConfig::ThreadCount(settings.getNumReaderThreads()),
             ThreadPoolConfig::ThreadCount(settings.getNumWriterThreads()),
             ThreadPoolConfig::AuxIoThreadCount(settings.getNumAuxIoThreads()),
-            settings.getNumNonIoThreads());
+            ThreadPoolConfig::NonIoThreadCount(settings.getNumNonIoThreads()));
     ExecutorPool::get()->registerTaskable(NoBucketTaskable::instance());
     ExecutorPool::get()->setDefaultTaskable(NoBucketTaskable::instance());
 
@@ -713,11 +713,12 @@ static void startExecutorPool() {
                     return true;
                 });
             });
-    settings.addChangeListener("num_nonio_threads",
-                               [](const std::string&, Settings& s) -> void {
-                                   auto val = s.getNumNonIoThreads();
-                                   ExecutorPool::get()->setNumNonIO(val);
-                               });
+    settings.addChangeListener(
+            "num_nonio_threads", [](const std::string&, Settings& s) -> void {
+                auto val = ThreadPoolConfig::NonIoThreadCount(
+                        s.getNumNonIoThreads());
+                ExecutorPool::get()->setNumNonIO(val);
+            });
 }
 
 static void initialize_serverless_config() {

@@ -23,7 +23,7 @@ public:
                           ThreadPoolConfig::ThreadCount(1) /*maxReaders*/,
                           ThreadPoolConfig::ThreadCount(1) /*maxWriters*/,
                           ThreadPoolConfig::AuxIoThreadCount(1) /*maxAuxIO*/,
-                          1 /*maxNonIO*/) {
+                          ThreadPoolConfig::NonIoThreadCount(1) /*maxNonIO*/) {
     }
 
     /**

@@ -33,7 +33,7 @@ public:
         KVBucketTest::SetUp();
         // Set 5 NonIO threads.
         // all tests will make NonIO tasks.
-        ExecutorPool::get()->setNumNonIO(5);
+        ExecutorPool::get()->setNumNonIO(ThreadPoolConfig::NonIoThreadCount{5});
     }
     std::vector<std::shared_ptr<ConcurrencyTestTask>> makeTasks(
             cb::AwaitableSemaphore& sem, size_t taskCount, Callback callback);

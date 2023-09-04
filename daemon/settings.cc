@@ -307,7 +307,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
                 setNumNonIoThreads(value.get<size_t>());
             } else if (value.is_string() &&
                        value.get<std::string>() == "default") {
-                setNumNonIoThreads(0);
+                setNumNonIoThreads(static_cast<int>(
+                        ThreadPoolConfig::NonIoThreadCount::Default));
             } else {
                 throw std::invalid_argument(fmt::format(
                         "Value to set number of NonIO threads must be an "

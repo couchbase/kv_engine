@@ -26,7 +26,8 @@
 #include <sstream>
 
 size_t CB3ExecutorPool::getNumNonIO() const {
-    return calcNumNonIO(numWorkers[NONIO_TASK_IDX].load());
+    return calcNumNonIO(ThreadPoolConfig::NonIoThreadCount(
+            numWorkers[NONIO_TASK_IDX].load()));
 }
 
 size_t CB3ExecutorPool::getNumAuxIO() const {
@@ -48,7 +49,7 @@ CB3ExecutorPool::CB3ExecutorPool(size_t maxThreads,
                                  ThreadPoolConfig::ThreadCount maxReaders,
                                  ThreadPoolConfig::ThreadCount maxWriters,
                                  ThreadPoolConfig::AuxIoThreadCount maxAuxIO,
-                                 size_t maxNonIO)
+                                 ThreadPoolConfig::NonIoThreadCount maxNonIO)
     : ExecutorPool(maxThreads),
       totReadyTasks(0),
       isHiPrioQset(false),
@@ -65,7 +66,7 @@ CB3ExecutorPool::CB3ExecutorPool(size_t maxThreads,
     numWorkers[WRITER_TASK_IDX] = static_cast<int>(maxWriters);
     numWorkers[READER_TASK_IDX] = static_cast<int>(maxReaders);
     numWorkers[AUXIO_TASK_IDX] = static_cast<int>(maxAuxIO);
-    numWorkers[NONIO_TASK_IDX] = maxNonIO;
+    numWorkers[NONIO_TASK_IDX] = static_cast<int>(maxNonIO);
 }
 
 CB3ExecutorPool::~CB3ExecutorPool() {
