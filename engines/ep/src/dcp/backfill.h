@@ -53,6 +53,11 @@ struct DCPBackfillIface {
      * @returns true if the backfill task should be cancelled
      */
     virtual bool shouldCancel() const = 0;
+
+    /**
+     * Get the u64 value which uniquely identifies this object
+     */
+    virtual uint64_t getUID() const = 0;
 };
 
 /**
@@ -125,6 +130,10 @@ public:
         return *state.rlock();
     };
 
+    uint64_t getUID() const override {
+        return uid;
+    }
+
 protected:
     friend std::ostream& operator<<(std::ostream&, State);
 
@@ -139,6 +148,8 @@ protected:
      * Id of the vbucket on which the backfill is running
      */
     const Vbid vbid{0};
+
+    const uint64_t uid{0};
 
     /// Cumulative runtime of this backfill.
     std::chrono::steady_clock::duration runtime{0};

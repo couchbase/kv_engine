@@ -26,6 +26,7 @@ public:
     MOCK_METHOD0(cancel, void());
     MOCK_CONST_METHOD0(getVBucketId, Vbid());
     MOCK_CONST_METHOD0(shouldCancel, bool());
+    MOCK_CONST_METHOD0(getUID, uint64_t());
 };
 
 class GMockBackfillTracker : public KVStoreScanTracker {
