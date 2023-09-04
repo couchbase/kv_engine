@@ -15,6 +15,7 @@
 #include <platform/memory_tracking_allocator.h>
 
 #include <list>
+#include <utility>
 
 class CookieIface;
 
