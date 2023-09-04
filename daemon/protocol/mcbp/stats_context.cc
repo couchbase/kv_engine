@@ -530,36 +530,62 @@ static cb::engine_errc stat_timings_executor(const std::string&,
     return cb::engine_errc::success;
 }
 
+/**
+ * Emit configured and actual thread counts for all thread pools; calls
+ * `emitter` twice per each thread; once with key = *_configured, then with
+ * key = *_actual.
+ * Helper function for stat_threads_executor().
+ */
+static void stat_threads_emit_configured_and_actual(
+        std::function<void(std::string_view key, std::string_view value)>
+                emitter) {
+    auto& setting = Settings::instance();
+    auto& exPool = *ExecutorPool::get();
+
+    auto emitThread =
+            [&emitter](std::string_view type, auto configured, auto actual) {
+                emitter(fmt::format("num_{}_threads_configured", type),
+                        fmt::format("{}", configured));
+                emitter(fmt::format("num_{}_threads_actual", type),
+                        fmt::format("{}", actual));
+            };
+
+    // Report both the number of threads configured in settings, and the
+    // number actually created. This is useful because the ExecutorPool sizes
+    // can (a) be changed dynamically and (b) support
+    // derived sizes (e.g. "default", "disk_io_optimized" ) based on the CPU
+    // count of the machine, for these we return the _actual_ number of threads
+    // chosen.
+
+    // For frontend threads, configured and created emit the same
+    // value, as we don't track them differently.
+    emitThread("frontend",
+               setting.getNumWorkerThreads(),
+               setting.getNumWorkerThreads());
+    emitThread("reader", setting.getNumReaderThreads(), exPool.getNumReaders());
+    emitThread("writer", setting.getNumWriterThreads(), exPool.getNumWriters());
+    emitThread("auxio", setting.getNumAuxIoThreads(), exPool.getNumAuxIO());
+    emitThread("nonio", setting.getNumNonIoThreads(), exPool.getNumNonIO());
+}
+
 static cb::engine_errc stat_threads_executor(const std::string& arg,
                                              Cookie& cookie) {
-    auto& setting = Settings::instance();
-
     if (arg.empty()) {
-        append_stats(std::string{"num_frontend_threads"},
-                     std::to_string(setting.getNumWorkerThreads()),
-                     cookie);
-        append_stats(std::string{"num_reader_threads"},
-                     std::to_string(setting.getNumReaderThreads()),
-                     cookie);
-        append_stats(std::string{"num_writer_threads"},
-                     std::to_string(setting.getNumWriterThreads()),
-                     cookie);
-        append_stats(std::string{"num_auxio_threads"},
-                     std::to_string(setting.getNumAuxIoThreads()),
-                     cookie);
-        append_stats(std::string{"num_nonio_threads"},
-                     std::to_string(setting.getNumNonIoThreads()),
-                     cookie);
+        // Just report configured and actual thread counts.
+        stat_threads_emit_configured_and_actual(
+                [&cookie](auto key, auto value) {
+                    append_stats(key, value, cookie);
+                });
+
         return cb::engine_errc::success;
     }
 
     if (arg == "details") {
-        nlohmann::json json{
-                {"num_frontend_threads", setting.getNumWorkerThreads()},
-                {"num_reader_threads", setting.getNumReaderThreads()},
-                {"num_writer_threads", setting.getNumWriterThreads()},
-                {"num_auxio_threads", setting.getNumAuxIoThreads()},
-                {"num_nonio_threads", setting.getNumNonIoThreads()}};
+        // Report (as a JSON object) configured & actual thread counts, plus
+        // additional details on each thread.
+        nlohmann::json json;
+        stat_threads_emit_configured_and_actual(
+                [&json](auto key, auto value) { json.emplace(key, value); });
 
         try {
             const auto pid = getpid();
