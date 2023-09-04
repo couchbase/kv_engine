@@ -91,6 +91,13 @@ void CheckpointCursor::incrPos() {
 }
 
 size_t CheckpointCursor::getRemainingItemsInCurrentCheckpoint() const {
+    // MB-58342: Special case for when the cursor sits before checkpoint_start
+    // and the checkpoint is "empty" (only stores empty, checkpoint_start). This
+    // ensures stats aren't misleading (report 0 not 1)
+    if ((*currentPos)->getOperation() == queue_op::empty &&
+        (*currentCheckpoint)->getNumItems() == 1) {
+        return 0;
+    }
     return (*currentCheckpoint)->getNumItems() - distance;
 }
 

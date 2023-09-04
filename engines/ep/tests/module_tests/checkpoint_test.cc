@@ -88,7 +88,7 @@ void CheckpointTest::createManager(int64_t lastSeqno) {
     ASSERT_EQ(1, manager->getNumOfCursors());
     ASSERT_EQ(1, manager->getNumOpenChkItems());
     ASSERT_EQ(1, manager->getNumCheckpoints());
-    ASSERT_EQ(1, manager->getNumItemsForCursor(cursor));
+    ASSERT_EQ(0, manager->getNumItemsForCursor(cursor));
 }
 
 void CheckpointTest::resetManager() {
@@ -143,7 +143,7 @@ TEST_P(CheckpointTest, CheckFixture) {
     EXPECT_EQ(1, this->manager->getNumOfCursors());
     // cs item
     EXPECT_EQ(1, manager->getNumOpenChkItems());
-    EXPECT_EQ(1, manager->getNumItemsForCursor(cursor));
+    EXPECT_EQ(0, manager->getNumItemsForCursor(cursor));
 
     // Check that the items fetched matches the number we were told to expect.
     std::vector<queued_item> items;
@@ -754,8 +754,7 @@ TEST_P(CheckpointTest, CursorMovement) {
     EXPECT_EQ(curr_open_chkpt_id + 1, this->manager->getOpenCheckpointId());
 
     /* Get items for persistence cursor */
-    EXPECT_EQ(1, manager->getNumItemsForCursor(cursor))
-            << "Expected to have just the checkpoint_start item for cursor";
+    EXPECT_EQ(0, manager->getNumItemsForCursor(cursor));
     items.clear();
     result = manager->getNextItemsForCursor(cursor, items);
 
@@ -2169,7 +2168,7 @@ TEST_P(CheckpointTest, TakeAndResetCursors) {
     for (const auto* c : cursors) {
         ASSERT_NE(nullptr, c);
         // cs
-        ASSERT_EQ(1, manager->getNumItemsForCursor(c));
+        ASSERT_EQ(0, manager->getNumItemsForCursor(c));
         ASSERT_EQ(0, c->getDistance());
     }
 
@@ -2216,7 +2215,7 @@ TEST_P(CheckpointTest, TakeAndResetCursors) {
             2,
             manager2->getCheckpointList().front()->getNumCursorsInCheckpoint());
     for (const auto* c : cursors) {
-        EXPECT_EQ(1, manager2->getNumItemsForCursor(c));
+        EXPECT_EQ(0, manager2->getNumItemsForCursor(c));
         EXPECT_EQ(0, c->getDistance());
     }
 }
@@ -3328,6 +3327,36 @@ TEST_P(EagerCheckpointDisposalTest, CursorMovement) {
     }
 }
 
+// Not sure eager disposal is part of the issue, but that's how we roll.
+TEST_P(EagerCheckpointDisposalTest, MB_58342) {
+    // Add two items to the initial (open) checkpoint.
+    for (auto i : {1, 2}) {
+        EXPECT_TRUE(this->queueNewItem("key" + std::to_string(i)));
+    }
+    EXPECT_EQ(1, this->manager->getNumCheckpoints());
+    EXPECT_EQ(3, manager->getNumOpenChkItems());
+    EXPECT_EQ(3, manager->getNumItemsForCursor(cursor));
+
+    using namespace testing;
+
+    {
+        std::vector<queued_item> items;
+        manager->getItemsForCursor(
+                cursor, items, std::numeric_limits<size_t>::max());
+    }
+
+    // need a new checkpoint so that getItemsForCursor moves to the new CP
+    // in a real deployment a new checkpoint could be created by the CP remover
+    // task.
+    manager->createNewCheckpoint();
+
+    // The cursor sits on "empty" and in the DCP use-case may not get poked to
+    // progress onto the cp_start marker until a real item is ready, so in that
+    // case expect 0, thus stats like dcp_num_items_remaining are not showing 1
+    // when no data is available.
+    EXPECT_EQ(0, manager->getNumItemsForCursor(cursor));
+}
+
 TEST_P(EagerCheckpointDisposalTest, NewClosedCheckpointMovesCursor) {
     // Add two items to the initial (open) checkpoint.
     for (auto i : {1, 2}) {
@@ -3371,7 +3400,7 @@ TEST_P(EagerCheckpointDisposalTest, NewClosedCheckpointMovesCursor) {
         this->manager->createNewCheckpoint();
         EXPECT_EQ(1, manager->getNumOpenChkItems());
         EXPECT_EQ(1, this->manager->getNumCheckpoints());
-        EXPECT_EQ(1, manager->getNumItemsForCursor(cursor));
+        EXPECT_EQ(0, manager->getNumItemsForCursor(cursor));
     }
 }
 

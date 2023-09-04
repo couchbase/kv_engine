@@ -4938,10 +4938,10 @@ TEST_P(SingleThreadedActiveStreamTest,
     // Verify that the stream doesn't know of any checkpoint so far
     ASSERT_FALSE(stream->public_nextSnapshotIsCheckpoint());
 
-    // Verify 1 item for cursor (checkpoint_start)
+    // Verify no items for cursor
     auto cursor = stream->getCursor().lock();
-    EXPECT_TRUE(manager.hasItemsForCursor(*cursor));
-    EXPECT_EQ(1, cursor->getRemainingItemsInCurrentCheckpoint());
+    EXPECT_FALSE(manager.hasItemsForCursor(*cursor));
+    EXPECT_EQ(0, cursor->getRemainingItemsInCurrentCheckpoint());
 
     // Run the StreamTask
     ASSERT_EQ(0, readyQ.size());
