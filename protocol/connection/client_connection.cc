@@ -26,6 +26,7 @@
 #include <platform/dirutils.h>
 #include <platform/socket.h>
 #include <platform/string_hex.h>
+#include <xattr/utils.h>
 #include <cerrno>
 #include <functional>
 #include <iostream>
@@ -40,7 +41,11 @@
 #include <thread>
 
 static const bool packet_dump = getenv("COUCHBASE_PACKET_DUMP") != nullptr;
-static const bool unit_tests = getenv("MEMCACHED_UNIT_TESTS") != nullptr;
+
+/// Helper function to check if we're running in unit test mode or not
+static bool is_unit_test_mode() {
+    return getenv("MEMCACHED_UNIT_TESTS") != nullptr;
+}
 
 /**
  * We can't throw the exception from inside folly's event loop and we're
@@ -365,17 +370,17 @@ MemcachedConnection::MemcachedConnection(std::string host,
       family(family),
       ssl(ssl),
       eventBase(eb ? std::move(eb) : std::make_shared<folly::EventBase>()),
-      validateReceivedFrame(unit_tests) {
-    if (getenv("MEMCACHED_UNIT_TESTS") == nullptr) {
+      validateReceivedFrame(is_unit_test_mode()) {
+    if (is_unit_test_mode()) {
+        // When running in unit tests we want it to fail fast, but not
+        // too fast as the CV builders are sometimes heavily loaded
+        timeout = std::chrono::seconds{10};
+    } else {
         // None of the command line commands we had used to have a timeout
         // specified so lets bump it to 30 minutes to make sure that
         // for instance 'mcstat connections' starts to fail on a busy
         // cluster
         timeout = std::chrono::minutes{30};
-    } else {
-        // When running in unit tests we want it to fail fast, but not
-        // too fast as the CV builders are sometimes heavily loaded
-        timeout = std::chrono::seconds{10};
     }
 
     agentInfo["a"] = "MemcachedConnection";
@@ -398,7 +403,7 @@ MemcachedConnection::MemcachedConnection(std::string host,
                     }
                     std::cerr << packet;
                 };
-    };
+    }
 }
 
 MemcachedConnection::~MemcachedConnection() {
@@ -497,22 +502,20 @@ static SOCKET new_socket(const std::string& host,
                                         "\" Port: " + std::to_string(port));
     }
 
-    bool unit_tests = getenv("MEMCACHED_UNIT_TESTS") != nullptr;
-
-    // Iterate over all of the entries returned by getaddrinfo
+    // Iterate over all entries returned by getaddrinfo
     // and try to connect to them. Depending on the input data we
     // might get multiple returns (ex: localhost with AF_UNSPEC returns
     // both IPv4 and IPv6 address, and IPv4 could fail while IPv6
     // might succeed.
     for (auto* next = ai; next; next = next->ai_next) {
-        int retry = unit_tests ? 200 : 0;
+        int retry = is_unit_test_mode() ? 200 : 0;
         do {
             try {
                 auto sfd = try_connect_socket(next, hostname, port);
                 freeaddrinfo(ai);
                 return sfd;
             } catch (const std::system_error& error) {
-                if (unit_tests) {
+                if (is_unit_test_mode()) {
                     std::cerr << "Failed building socket: " << error.what()
                               << std::endl;
 #ifndef WIN32
@@ -537,7 +540,7 @@ static SOCKET new_socket(const std::string& host,
 }
 
 SOCKET MemcachedConnection::releaseSocket() {
-    if (ssl && getenv("MEMCACHED_UNIT_TESTS") == nullptr) {
+    if (ssl && !is_unit_test_mode()) {
         throw std::runtime_error(
                 "MemcachedConnection::releaseSocket: Can't release SSL socket");
     }
@@ -726,8 +729,7 @@ void MemcachedConnection::connect() {
         throw std::runtime_error("Failed to create folly async socket");
     }
 
-    bool unitTests = getenv("MEMCACHED_UNIT_TESTS") != nullptr;
-    if (!ssl && unitTests) {
+    if (!ssl && is_unit_test_mode()) {
         // Enable LINGER with zero timeout. This changes the
         // behaviour of close() - any unsent data will be
         // discarded, and the connection will be immediately
@@ -923,6 +925,9 @@ std::unique_ptr<MemcachedConnection> MemcachedConnection::clone(
 
 void MemcachedConnection::doValidateReceivedFrame(
         const cb::mcbp::Header& packet) {
+    using namespace cb::mcbp;
+    using namespace cb::mcbp::datatype;
+
     if (!packet.isValid()) {
         throw std::runtime_error(fmt::format(
                 "MemcachedConnection::doValidateReceivedFrame: Invalid frame "
@@ -931,51 +936,81 @@ void MemcachedConnection::doValidateReceivedFrame(
                             sizeof(packet)})));
     }
 
+    if (is_server_magic(Magic(packet.getMagic()))) {
+        return;
+    }
+
     std::string backing;
     std::string_view payload = packet.getValueString();
 
-    if (cb::mcbp::datatype::is_snappy(packet.getDatatype())) {
-        if (!hasFeature(cb::mcbp::Feature::SNAPPY)) {
+    if (is_snappy(packet.getDatatype())) {
+        if (!hasFeature(Feature::SNAPPY) &&
+            !hasFeature(Feature::SnappyEverywhere)) {
             throw std::runtime_error(fmt::format(
                     "Received package with Snappy datatype, but that's "
                     "not enabled. packet: {}",
-                    packet.to_json(false)));
+                    packet.to_json(false).dump()));
         }
         using namespace cb::compression;
         Buffer output;
         if (!inflateSnappy(payload, output)) {
             throw std::runtime_error(fmt::format(
                     "Received snappy compressed frame we failed to inflate: {}",
-                    packet.to_json(false)));
+                    packet.to_json(false).dump()));
         }
         backing = std::string{output.data(), output.size()};
         payload = backing;
     }
 
-    if (cb::mcbp::datatype::is_json(packet.getDatatype())) {
-        if (!hasFeature(cb::mcbp::Feature::JSON)) {
+    const bool xattr = is_xattr(packet.getDatatype());
+    if (xattr) {
+        if (!hasFeature(Feature::XATTR)) {
             throw std::runtime_error(fmt::format(
-                    "Received package with JSON datatype, but that's "
+                    "Received package with XATTR datatype, but that's "
                     "not enabled. packet: {}",
-                    packet.to_json(false)));
+                    packet.to_json(false).dump()));
         }
-
-        if (!jsonValidator) {
-            jsonValidator = cb::json::SyntaxValidator::New();
-        }
-        if (!jsonValidator->validate(payload)) {
-            throw std::runtime_error(fmt::format(
-                    "Received package with JSON datatype, but failed to parse "
-                    "the JSON. packet: {}",
-                    packet.to_json(false)));
-        }
+        payload = cb::xattr::get_body(payload);
     }
 
-    if (cb::mcbp::datatype::is_xattr(packet.getDatatype()) &&
-        !hasFeature(cb::mcbp::Feature::XATTR)) {
+    if (!jsonValidator) {
+        jsonValidator = cb::json::SyntaxValidator::New();
+    }
+
+    const auto json = jsonValidator->validate(payload);
+    if (hasFeature(Feature::JSON)) {
+        const auto opcode = ClientOpcode(packet.getOpcode());
+        if (json) {
+            if (!is_json(packet.getDatatype())) {
+                if (opcode != ClientOpcode::Stat &&
+                    opcode != ClientOpcode::DcpControl) {
+                    // Stat and DcpControl send a bunch of kv-pair which might
+                    // be parsable as JSON (true/false/numbers). The packet
+                    // validator for DcpControl enforce that the datatype must
+                    // be Raw, so we can't really start setting the correct
+                    // value unless breaking communication with an old
+                    // server. It's easier to ignore those two commands for
+                    // now
+                    throw std::runtime_error(
+                            fmt::format("Received package with JSON content "
+                                        "without JSON datatype set. Packet: {}",
+                                        packet.to_json(false).dump()));
+                }
+            }
+        } else if (is_json(packet.getDatatype()) &&
+                   opcode != ClientOpcode::ReturnMeta) {
+            // ReturnMeta returns the datatype as part of the response
+            // without the value for some reason
+            throw std::runtime_error(
+                    fmt::format("Received package with JSON datatype set, "
+                                "but the content isn't JSON. Packet: {}",
+                                packet.to_json(false).dump()));
+        }
+    } else if (is_json(packet.getDatatype())) {
         throw std::runtime_error(
-                fmt::format("Received package with XATTR datatype, but that's "
-                            "not enabled. packet: "));
+                fmt::format("Received package with JSON datatype, but that's "
+                            "not enabled. Packet: {}",
+                            packet.to_json(false).dump()));
     }
 }
 

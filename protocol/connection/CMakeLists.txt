@@ -25,4 +25,5 @@ target_link_libraries(mc_client_connection PRIVATE
     ${COUCHBASE_NETWORK_LIBS}
   PRIVATE
     cbcompress
-    json_validator)
+    json_validator
+    xattr)

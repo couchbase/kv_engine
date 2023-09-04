@@ -352,12 +352,8 @@ static void ioctl_get_executor(Cookie& cookie) {
     auto remapErr = connection.remapErrorCode(ret);
     switch (remapErr) {
     case cb::engine_errc::success:
-        cookie.sendResponse(cb::mcbp::Status::Success,
-                            {},
-                            {},
-                            {value.data(), value.size()},
-                            datatype,
-                            0);
+        cookie.sendResponse(
+                cb::mcbp::Status::Success, {}, {}, value, datatype, 0);
         break;
     case cb::engine_errc::would_block:
         cookie.setEwouldblock(true);

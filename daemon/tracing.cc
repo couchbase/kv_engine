@@ -273,13 +273,14 @@ cb::engine_errc ioctlGetTraceDump(Cookie& cookie,
         return cb::engine_errc::invalid_arguments;
     }
 
-    return traceDumps.withLock([&value, &uuid, &cookie](auto& map) {
+    return traceDumps.withLock([&value, &uuid, &cookie, &datatype](auto& map) {
         auto iter = map.find(uuid);
         if (iter == map.end()) {
             cookie.setErrorContext(
                     "Dump ID must correspond to an existing dump");
             return cb::engine_errc::no_such_key;
         }
+        datatype = cb::mcbp::Datatype::JSON;
         value.assign(iter->second.content);
         return cb::engine_errc::success;
     });

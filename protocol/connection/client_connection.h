@@ -84,7 +84,7 @@ public:
     }
 
     std::vector<uint8_t> payload;
-    typedef std::vector<uint8_t>::size_type size_type;
+    using size_type = std::vector<uint8_t>::size_type;
 };
 
 class DocumentInfo {
@@ -311,9 +311,9 @@ public:
      */
     SOCKET releaseSocket();
 
-    // Set a tag / label on this connection
-    void setTag(std::string tag) {
-        MemcachedConnection::tag = std::move(tag);
+    /// Set a tag / label on this connection
+    void setTag(std::string value) {
+        tag = std::move(value);
     }
 
     const std::string& getTag() const {
@@ -977,8 +977,8 @@ public:
 
     /// Set the agent name used on the server for this connection
     /// (need to call setFeatures() to push it to the server)
-    void setAgentName(std::string name) {
-        agentInfo["a"] = std::move(name);
+    void setAgentName(std::string agentname) {
+        agentInfo["a"] = std::move(agentname);
     }
 
     /// Set the connection id used on the server for this connection
@@ -1091,7 +1091,7 @@ protected:
     std::string serverInterfaceUuid;
     std::optional<std::chrono::microseconds> traceData;
 
-    typedef std::unordered_set<uint16_t> Featureset;
+    using Featureset = std::unordered_set<uint16_t>;
 
     uint64_t incr_decr(cb::mcbp::ClientOpcode opcode,
                        const std::string& key,
@@ -1107,7 +1107,7 @@ protected:
      * The internal `features` array is updated with the result sent back
      * from the server.
      *
-     * @param feat the featureset to enable.
+     * @param feat the features to enable.
      */
     void applyFeatures(const Featureset& features);
 
