@@ -3804,7 +3804,7 @@ static enum test_result test_workload_stats(EngineIface* h) {
 }
 
 static enum test_result test_max_workload_stats(EngineIface* h) {
-    ExecutorPool::get()->setNumAuxIO(1);
+    ExecutorPool::get()->setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount{1});
     ExecutorPool::get()->setNumNonIO(4);
     auto* cookie = testHarness->create_cookie(h);
     checkeq(cb::engine_errc::success,

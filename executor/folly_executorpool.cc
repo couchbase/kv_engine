@@ -648,11 +648,12 @@ private:
     TaskOwnerMap taskOwners;
 };
 
-FollyExecutorPool::FollyExecutorPool(size_t maxThreads,
-                                     ThreadPoolConfig::ThreadCount maxReaders_,
-                                     ThreadPoolConfig::ThreadCount maxWriters_,
-                                     size_t maxAuxIO_,
-                                     size_t maxNonIO_)
+FollyExecutorPool::FollyExecutorPool(
+        size_t maxThreads,
+        ThreadPoolConfig::ThreadCount maxReaders_,
+        ThreadPoolConfig::ThreadCount maxWriters_,
+        ThreadPoolConfig::AuxIoThreadCount maxAuxIO_,
+        size_t maxNonIO_)
     : ExecutorPool(maxThreads),
       state(std::make_unique<State>()),
       maxReaders(calcNumReaders(maxReaders_)),
@@ -768,8 +769,8 @@ void FollyExecutorPool::setNumWriters(ThreadPoolConfig::ThreadCount v) {
     writerPool->setNumThreads(maxWriters);
 }
 
-void FollyExecutorPool::setNumAuxIO(uint16_t v) {
-    maxAuxIO = v;
+void FollyExecutorPool::setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount v) {
+    maxAuxIO = calcNumAuxIO(v);
     auxPool->setNumThreads(maxAuxIO);
 }
 

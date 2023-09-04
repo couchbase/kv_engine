@@ -105,6 +105,57 @@ TEST_P(MiscTest, Config_ValidateInvalidJSON) {
     ASSERT_EQ(cb::mcbp::Status::Einval, rsp.getStatus());
 }
 
+// Sanity test that the current config can be passed to ConfigValidate, and
+// this returns Success.
+TEST_P(MiscTest, Config_Identical) {
+    const auto rsp = adminConnection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::ConfigValidate, "", memcached_cfg.dump()});
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+}
+
+// Check that AuxIO threads can be set to "default", and this derives the
+// correct thread count (N CPUs).
+TEST_P(MiscTest, Config_AuxIoThreadsDefault) {
+    // Lookup the "default" thread count for AuxIO; we will compare this to
+    // what we get later when we flip away from "default" and back again.
+    auto getAuxIoThreads = [] {
+        return adminConnection->stats("threads")
+                .at("num_auxio_threads_actual")
+                .get<int>();
+    };
+
+    const auto defaultAuxIoThreads = getAuxIoThreads();
+    ASSERT_GE(defaultAuxIoThreads, 2)
+            << "Sanity check - should always have at least 2 AuxIO threads";
+
+    // The initial value is "default", and nothing happens if config param
+    // hasn't changed, so first need to reconfigure to some non-default value.
+    auto newConfig = memcached_cfg;
+    newConfig["num_auxio_threads"] = 1;
+    auto rsp = adminConnection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::ConfigValidate, "", newConfig.dump()});
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+
+    write_config_to_file(newConfig.dump());
+    rsp = adminConnection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::ConfigReload, "", ""});
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+
+    // Ok, now do the actual test - set to "default" and confirm this correctly
+    // sets the thread count.
+    newConfig["num_auxio_threads"] = "default";
+    rsp = adminConnection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::ConfigValidate, "", newConfig.dump()});
+    ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+
+    write_config_to_file(newConfig.dump());
+    rsp = adminConnection->execute(BinprotGenericCommand{
+            cb::mcbp::ClientOpcode::ConfigReload, "", ""});
+    EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
+
+    EXPECT_EQ(defaultAuxIoThreads, getAuxIoThreads());
+}
+
 TEST_P(MiscTest, SessionCtrlToken) {
     // Validate that you may successfully set the token to a legal value
     auto rsp = adminConnection->execute(

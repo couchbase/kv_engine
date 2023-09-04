@@ -788,7 +788,7 @@ TEST_P(StreamTest, BackfillOnly) {
     setup_dcp_stream();
 
     /* We want the backfill task to run in a background thread */
-    ExecutorPool::get()->setNumAuxIO(1);
+    ExecutorPool::get()->setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount{1});
     stream->transitionStateToBackfilling();
 
     // MB-27199: Just stir things up by doing some front-end ops whilst
@@ -854,7 +854,7 @@ TEST_P(StreamTest, DiskBackfillFail) {
     setup_dcp_stream();
 
     /* Run the backfill task in a background thread */
-    ExecutorPool::get()->setNumAuxIO(1);
+    ExecutorPool::get()->setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount{1});
 
     /* Wait for the backfill task to fail and stream to transition to dead
        state */
@@ -886,7 +886,7 @@ TEST_P(StreamTest, BackfillSmallBuffer) {
     producer->setBackfillBufferSize(1);
 
     /* We want the backfill task to run in a background thread */
-    ExecutorPool::get()->setNumAuxIO(1);
+    ExecutorPool::get()->setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount{1});
 
     EXPECT_EQ(stream->getNumBackfillPauses(), 0);
     stream->transitionStateToBackfilling();
@@ -939,7 +939,7 @@ TEST_P(StreamTest, CursorDroppingBasicBackfillState) {
 
     /* Run the backfill task in background thread to run so that it can
        complete/cancel itself */
-    ExecutorPool::get()->setNumAuxIO(1);
+    ExecutorPool::get()->setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount{1});
     /* Finish up with the backilling of the remaining item */
     cb::waitForPredicate(
             [&] { return numItems == stream->getLastReadSeqno(); });
@@ -992,7 +992,7 @@ TEST_P(StreamTest, MB_32329CursorDroppingResetCursor) {
 
     /* Run the backfill task in background thread to run so that it can
        complete/cancel itself */
-    ExecutorPool::get()->setNumAuxIO(1);
+    ExecutorPool::get()->setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount{1});
     /* Finish up with the backilling of the remaining item */
     cb::waitForPredicate(
             [&] { return numItems == stream->getLastReadSeqno(); });

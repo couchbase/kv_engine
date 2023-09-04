@@ -634,23 +634,24 @@ TEST_P(StatsTest, TestSettingAndGettingThreadCount) {
     };
 
     // 1. Check the default values of configured and actual threads.
-    EXPECT_THAT(getThreadStats(),
-                UnorderedElementsAre(
-                        // Frontend threads don't support symbolic values,
-                        // so just check they are both non-zero.
-                        Pair("num_frontend_threads_configured", Gt(0)),
-                        Pair("num_frontend_threads_actual", Gt(0)),
-                        // background threads by default are configured as
-                        // "default", which is encoded as zero. Created should
-                        // be non-zero howver (based on CPU count).
-                        Pair("num_reader_threads_configured", 0),
-                        Pair("num_reader_threads_actual", Gt(0)),
-                        Pair("num_writer_threads_configured", 0),
-                        Pair("num_writer_threads_actual", Gt(0)),
-                        Pair("num_auxio_threads_configured", 0),
-                        Pair("num_auxio_threads_actual", Gt(0)),
-                        Pair("num_nonio_threads_configured", 0),
-                        Pair("num_nonio_threads_actual", Gt(0))));
+    EXPECT_THAT(
+            getThreadStats(),
+            UnorderedElementsAre(
+                    // Frontend threads don't support symbolic values,
+                    // so just check they are both non-zero.
+                    Pair("num_frontend_threads_configured", Gt(0)),
+                    Pair("num_frontend_threads_actual", Gt(0)),
+                    // background threads by default are configured as
+                    // "default", which is encoded as zero, or -1 for AuxIO.
+                    // Created should be non-zero however (based on CPU count).
+                    Pair("num_reader_threads_configured", 0),
+                    Pair("num_reader_threads_actual", Gt(0)),
+                    Pair("num_writer_threads_configured", 0),
+                    Pair("num_writer_threads_actual", Gt(0)),
+                    Pair("num_auxio_threads_configured", -1),
+                    Pair("num_auxio_threads_actual", Gt(0)),
+                    Pair("num_nonio_threads_configured", 0),
+                    Pair("num_nonio_threads_actual", Gt(0))));
 
     // 2. Reconfigure with a different number, check the stats update as
     // expected.

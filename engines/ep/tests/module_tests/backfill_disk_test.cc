@@ -326,7 +326,7 @@ TEST_F(DCPBackfillDiskTest,
     stream->setActive();
 
     // Allow backfills to run in the background
-    ExecutorPool::get()->setNumAuxIO(1);
+    ExecutorPool::get()->setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount{1});
 
     stream->transitionStateToBackfilling();
 

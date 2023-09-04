@@ -146,13 +146,14 @@ public:
      *                   use number of CPU cores.
      * @param maxReaders Number of Reader threads to create.
      * @param maxWriters Number of Writer threads to create.
-     * @param maxAuxIO Number of AuxIO threads to create (0 = auto-configure).
+     * @param maxAuxIO Number of AuxIO threads to create (Default =
+     * auto-configure).
      * @param maxNonIO Number of NonIO threads to create (0 = auto-configure).
      */
     FollyExecutorPool(size_t maxThreads,
                       ThreadPoolConfig::ThreadCount maxReaders,
                       ThreadPoolConfig::ThreadCount maxWriters,
-                      size_t maxAuxIO,
+                      ThreadPoolConfig::AuxIoThreadCount maxAuxIO,
                       size_t maxNonIO);
 
     ~FollyExecutorPool() override;
@@ -166,7 +167,7 @@ public:
     void setNumReadersExactly(uint16_t v) override;
     size_t getNumReadersExactly() const override;
     void setNumWriters(ThreadPoolConfig::ThreadCount v) override;
-    void setNumAuxIO(uint16_t v) override;
+    void setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount v) override;
     void setNumNonIO(uint16_t v) override;
     size_t getNumSleepers() const override;
     size_t getNumReadyTasks() const override;

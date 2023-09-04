@@ -556,7 +556,7 @@ void DcpStreamSyncReplTest::testBackfillPrepare(DocumentState docState,
 
     MockDcpMessageProducers producers;
 
-    ExecutorPool::get()->setNumAuxIO(1);
+    ExecutorPool::get()->setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount{1});
     stream->transitionStateToBackfilling();
 
     // Wait for the backfill task to have pushed all items to the Stream::readyQ
@@ -647,7 +647,7 @@ void DcpStreamSyncReplTest::testBackfillPrepareCommit(
 
     MockDcpMessageProducers producers;
 
-    ExecutorPool::get()->setNumAuxIO(1);
+    ExecutorPool::get()->setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount{1});
     stream->transitionStateToBackfilling();
 
     // Wait for the backfill task to have pushed all items to the Stream::readyQ
@@ -741,7 +741,7 @@ void DcpStreamSyncReplTest::testBackfillPrepareAbort(
 
     MockDcpMessageProducers producers;
 
-    ExecutorPool::get()->setNumAuxIO(1);
+    ExecutorPool::get()->setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount{1});
     stream->transitionStateToBackfilling();
 
     // Wait for the backfill task to have pushed all items to the Stream::readyQ

@@ -28,7 +28,7 @@ public:
     TestExecutorPool(size_t maxThreads,
                      ThreadPoolConfig::ThreadCount maxReaders,
                      ThreadPoolConfig::ThreadCount maxWriters,
-                     size_t maxAuxIO,
+                     ThreadPoolConfig::AuxIoThreadCount maxAuxIO,
                      size_t maxNonIO)
         : CB3ExecutorPool(
                   maxThreads, maxReaders, maxWriters, maxAuxIO, maxNonIO) {
