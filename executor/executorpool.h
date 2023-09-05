@@ -49,7 +49,9 @@ public:
                        ThreadPoolConfig::AuxIoThreadCount maxAuxIO =
                                ThreadPoolConfig::AuxIoThreadCount::Default,
                        ThreadPoolConfig::NonIoThreadCount maxNonIO =
-                               ThreadPoolConfig::NonIoThreadCount::Default);
+                               ThreadPoolConfig::NonIoThreadCount::Default,
+                       ThreadPoolConfig::IOThreadsPerCore =
+                               ThreadPoolConfig::IOThreadsPerCore::Default);
 
     /// Is the ExecutorPool created or not
     static bool exists();
@@ -106,6 +108,18 @@ public:
 
     /// Set the number of Non-IO threads to the specified number.
     virtual void setNumNonIO(ThreadPoolConfig::NonIoThreadCount v) = 0;
+
+    /// @returns the number of AuxIO threads created per core (for
+    /// auto-configured thread pool sizes).
+    size_t getNumIOThreadsPerCore() const;
+
+    /**
+     * Set the threads per core coefficient to the specified value. This
+     * will also recalculate the number of AuxIO threads if they are set to be
+     * derived from the core count (i.e. user didn't explicitly specify a
+     * count).
+     */
+    void setNumIOThreadPerCore(ThreadPoolConfig::IOThreadsPerCore val);
 
     /// @returns the number of threads currently sleeping.
     virtual size_t getNumSleepers() const = 0;
@@ -254,7 +268,8 @@ public:
     TestingHook<> unregisterTaskablePostCancelHook;
 
 protected:
-    ExecutorPool(size_t maxThreads);
+    ExecutorPool(size_t maxThreads,
+                 ThreadPoolConfig::IOThreadsPerCore ioThreadsPerCore);
 
     /**
      * Calculate the number of Reader threads to use for the given thread limit.
@@ -293,4 +308,11 @@ protected:
      * outlive all other taskables.
      */
     Taskable* defaultTaskable = nullptr;
+
+    /**
+     * When auto-configuring thread counts for IO thread pools, how many
+     * threads should be created per CPU core?
+     * atomic to allow read / write from multiple threads.
+     */
+    std::atomic<ThreadPoolConfig::IOThreadsPerCore> ioThreadsPerCore;
 };

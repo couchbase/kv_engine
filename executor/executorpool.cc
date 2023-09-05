@@ -28,19 +28,28 @@ void ExecutorPool::create(Backend backend,
                           ThreadPoolConfig::ThreadCount maxReaders,
                           ThreadPoolConfig::ThreadCount maxWriters,
                           ThreadPoolConfig::AuxIoThreadCount maxAuxIO,
-                          ThreadPoolConfig::NonIoThreadCount maxNonIO) {
+                          ThreadPoolConfig::NonIoThreadCount maxNonIO,
+                          ThreadPoolConfig::IOThreadsPerCore ioThreadsPerCore) {
     if (getInstance()) {
         throw std::logic_error("ExecutorPool::create() Pool already created");
     }
 
     switch (backend) {
     case Backend::Folly:
-        getInstance() = std::make_unique<FollyExecutorPool>(
-                maxThreads, maxReaders, maxWriters, maxAuxIO, maxNonIO);
+        getInstance() = std::make_unique<FollyExecutorPool>(maxThreads,
+                                                            maxReaders,
+                                                            maxWriters,
+                                                            maxAuxIO,
+                                                            maxNonIO,
+                                                            ioThreadsPerCore);
         return;
     case Backend::CB3:
-        getInstance() = std::make_unique<CB3ExecutorPool>(
-                maxThreads, maxReaders, maxWriters, maxAuxIO, maxNonIO);
+        getInstance() = std::make_unique<CB3ExecutorPool>(maxThreads,
+                                                          maxReaders,
+                                                          maxWriters,
+                                                          maxAuxIO,
+                                                          maxNonIO,
+                                                          ioThreadsPerCore);
         return;
     case Backend::Fake:
         getInstance() = std::make_unique<SingleThreadedExecutorPool>();
@@ -84,9 +93,21 @@ void ExecutorPool::setDefaultTaskable(Taskable& taskable) {
     defaultTaskable = &taskable;
 }
 
-ExecutorPool::ExecutorPool(size_t maxThreads)
+size_t ExecutorPool::getNumIOThreadsPerCore() const {
+    return std::underlying_type_t<ThreadPoolConfig::IOThreadsPerCore>(
+            ioThreadsPerCore.load());
+}
+
+void ExecutorPool::setNumIOThreadPerCore(
+        ThreadPoolConfig::IOThreadsPerCore val) {
+    ioThreadsPerCore = val;
+}
+
+ExecutorPool::ExecutorPool(size_t maxThreads,
+                           ThreadPoolConfig::IOThreadsPerCore ioThreadsPerCore)
     : maxGlobalThreads(maxThreads ? maxThreads
-                                  : Couchbase::get_available_cpu_count()) {
+                                  : Couchbase::get_available_cpu_count()),
+      ioThreadsPerCore(ioThreadsPerCore) {
 }
 
 size_t ExecutorPool::calcNumReaders(
@@ -157,10 +178,12 @@ size_t ExecutorPool::calcNumAuxIO(
         ThreadPoolConfig::AuxIoThreadCount threadCount) const {
     switch (threadCount) {
     case ThreadPoolConfig::AuxIoThreadCount::Default: {
-        // Default: configure threads based on CPU count; constraining to
-        // between 2 and 128 threads (similar to Reader/Writer thread counts
-        // above).
-        auto auxIO = maxGlobalThreads;
+        // Default: configure threads based on CPU count multiplied by
+        // ioThreadsPerCore; constraining to between 2 and 128 threads
+        // (similar to Reader/Writer thread counts above).
+        auto auxIO = maxGlobalThreads *
+                     std::underlying_type_t<ThreadPoolConfig::IOThreadsPerCore>(
+                             ioThreadsPerCore.load());
         auxIO = std::clamp(auxIO, size_t{2}, size_t{128});
         return auxIO;
     }

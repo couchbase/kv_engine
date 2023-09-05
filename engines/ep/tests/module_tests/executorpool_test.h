@@ -29,9 +29,14 @@ public:
                      ThreadPoolConfig::ThreadCount maxReaders,
                      ThreadPoolConfig::ThreadCount maxWriters,
                      ThreadPoolConfig::AuxIoThreadCount maxAuxIO,
-                     ThreadPoolConfig::NonIoThreadCount maxNonIO)
-        : CB3ExecutorPool(
-                  maxThreads, maxReaders, maxWriters, maxAuxIO, maxNonIO) {
+                     ThreadPoolConfig::NonIoThreadCount maxNonIO,
+                     ThreadPoolConfig::IOThreadsPerCore ioThreadsPerCore)
+        : CB3ExecutorPool(maxThreads,
+                          maxReaders,
+                          maxWriters,
+                          maxAuxIO,
+                          maxNonIO,
+                          ioThreadsPerCore) {
     }
 
     ~TestExecutorPool() override = default;
@@ -50,7 +55,8 @@ protected:
                   int numReaders = 2,
                   int numWriters = 2,
                   int numAuxIO = 2,
-                  int numNonIO = 2);
+                  int numNonIO = 2,
+                  int ioThreadsPerCore = 1);
 
     std::unique_ptr<T> pool;
 

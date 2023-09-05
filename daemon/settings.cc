@@ -315,6 +315,20 @@ void Settings::reconfigure(const nlohmann::json& json) {
                         "unsigned integer or \"default\"!! Value:'{}'",
                         value.dump()));
             }
+        } else if (key == "num_io_threads_per_core"sv) {
+            if (value.is_number_unsigned()) {
+                setNumIOThreadsPerCore(value.get<int>());
+            } else if (value.is_string() &&
+                       value.get<std::string>() == "default") {
+                setNumIOThreadsPerCore(std::underlying_type_t<
+                                       ThreadPoolConfig::IOThreadsPerCore>(
+                        ThreadPoolConfig::IOThreadsPerCore::Default));
+            } else {
+                throw std::invalid_argument(fmt::format(
+                        "Number of IO threads per core must be an "
+                        "unsigned integer or \"default\"!! Value:'{}'",
+                        value.dump()));
+            }
         } else if (key == "tracing_enabled"sv) {
             setTracingEnabled(value.get<bool>());
         } else if (key == "scramsha_fallback_salt"sv) {
@@ -405,6 +419,12 @@ void Settings::setOpcodeAttributesOverride(const std::string& value) {
     opcode_attributes_override.wlock()->assign(value);
     has.opcode_attributes_override = true;
     notify_changed("opcode_attributes_override");
+}
+
+void Settings::setNumIOThreadsPerCore(int val) {
+    num_io_threads_per_core.store(val, std::memory_order_release);
+    has.num_io_threads_per_core = true;
+    notify_changed("num_io_threads_per_core");
 }
 
 void Settings::updateSettings(const Settings& other, bool apply) {
@@ -948,6 +968,17 @@ void Settings::updateSettings(const Settings& other, bool apply) {
                  getNumNonIoThreads(),
                  other.getNumNonIoThreads());
         setNumNonIoThreads(other.getNumNonIoThreads());
+    }
+
+    if (other.has.num_io_threads_per_core) {
+        const auto oldTPC = getNumIOThreadsPerCore();
+        const auto newTPC = other.getNumIOThreadsPerCore();
+        if (oldTPC != newTPC) {
+            LOG_INFO("Change number of IO threads per core from: {} to {}",
+                     oldTPC,
+                     newTPC);
+            setNumIOThreadsPerCore(newTPC);
+        }
     }
 
     if (other.has.quota_sharing_pager_concurrency_percentage &&

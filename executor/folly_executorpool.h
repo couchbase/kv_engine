@@ -150,12 +150,16 @@ public:
      * auto-configure).
      * @param maxNonIO Number of NonIO threads to create (Default =
      * auto-configure).
+     * @param ioThreadsPerCore When auto-configuring IO thread counts
+     *        (AuxIO), what coefficient should be multiplied by
+     *        the core count to derive the IO thread count?
      */
     FollyExecutorPool(size_t maxThreads,
                       ThreadPoolConfig::ThreadCount maxReaders,
                       ThreadPoolConfig::ThreadCount maxWriters,
                       ThreadPoolConfig::AuxIoThreadCount maxAuxIO,
-                      ThreadPoolConfig::NonIoThreadCount maxNonIO);
+                      ThreadPoolConfig::NonIoThreadCount maxNonIO,
+                      ThreadPoolConfig::IOThreadsPerCore ioThreadsPerCore);
 
     ~FollyExecutorPool() override;
 
