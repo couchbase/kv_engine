@@ -11,6 +11,7 @@
 #include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>
 
+#include <daemon/yielding_limited_concurrency_task.h>
 #include <daemon/yielding_task.h>
 #include <executor/executorpool.h>
 #include <executor/fake_executorpool.h>
@@ -37,19 +38,17 @@ public:
     }
 };
 
-TEST_F(TasksTest, YieldingTaskCalledAgain) {
-    // test that a YieldingTask is called again if it returns a snooze time,
-    // and is not called again when returning a nullopt to indicate it is
-    // "done"
-    using namespace testing;
-    StrictMock<MockFunction<std::optional<std::chrono::duration<double>>()>>
-            mockTaskFunc;
+using MockTaskFunc = testing::StrictMock<
+        testing::MockFunction<std::optional<std::chrono::duration<double>>()>>;
 
-    ExecutorPool::get()->schedule(
-            std::make_shared<YieldingTask>(TaskId::Core_DeleteBucketTask,
-                                           "foobar",
-                                           mockTaskFunc.AsStdFunction(),
-                                           std::chrono::seconds(30)));
+/**
+ * Test that a task is called again if it returns a snooze time,
+ * and is not called again when returning a nullopt to indicate it is "done"
+ */
+static void testTaskCalledAgain(ExTask task, MockTaskFunc& mockTaskFunc) {
+    using namespace testing;
+
+    ExecutorPool::get()->schedule(task);
 
     InSequence s;
 
@@ -67,17 +66,34 @@ TEST_F(TasksTest, YieldingTaskCalledAgain) {
                  std::logic_error);
 }
 
-TEST_F(TasksTest, YieldingTaskSnoozes) {
-    // test that a YieldingTask is correctly snooze()'ed
+TEST_F(TasksTest, YieldingTaskCalledAgain) {
+    MockTaskFunc func;
+    testTaskCalledAgain(
+            std::make_shared<YieldingTask>(TaskId::Core_DeleteBucketTask,
+                                           "foobar",
+                                           func.AsStdFunction(),
+                                           std::chrono::seconds(30)),
+            func);
+}
 
+TEST_F(TasksTest, YieldingLimitedConcurrencyTaskCalledAgain) {
+    MockTaskFunc func;
+    cb::AwaitableSemaphore semaphore{4};
+    testTaskCalledAgain(std::make_shared<YieldingLimitedConcurrencyTask>(
+                                TaskId::Core_DeleteBucketTask,
+                                "foobar",
+                                func.AsStdFunction(),
+                                semaphore,
+                                std::chrono::seconds(30)),
+                        func);
+}
+
+/**
+ * Test that a task is correctly snooze()'ed
+ */
+static void testTaskSnoozes(ExTask task, MockTaskFunc& mockTaskFunc) {
     using namespace testing;
-    StrictMock<MockFunction<std::optional<std::chrono::duration<double>>()>>
-            mockTaskFunc;
 
-    auto task = std::make_shared<YieldingTask>(TaskId::Core_DeleteBucketTask,
-                                               "foobar",
-                                               mockTaskFunc.AsStdFunction(),
-                                               std::chrono::seconds(30));
     ExecutorPool::get()->schedule(task);
 
     using namespace std::chrono;
@@ -95,4 +111,26 @@ TEST_F(TasksTest, YieldingTaskSnoozes) {
 
     EXPECT_EQ(TASK_SNOOZED, task->getState());
     EXPECT_GE(task->getWaketime(), beforeTime + 10min);
+}
+
+TEST_F(TasksTest, YieldingTaskSnoozes) {
+    MockTaskFunc func;
+    testTaskSnoozes(
+            std::make_shared<YieldingTask>(TaskId::Core_DeleteBucketTask,
+                                           "foobar",
+                                           func.AsStdFunction(),
+                                           std::chrono::seconds(30)),
+            func);
+}
+
+TEST_F(TasksTest, YieldingLimitedConcurrencyTaskSnoozes) {
+    MockTaskFunc func;
+    cb::AwaitableSemaphore semaphore{4};
+    testTaskSnoozes(std::make_shared<YieldingLimitedConcurrencyTask>(
+                            TaskId::Core_DeleteBucketTask,
+                            "foobar",
+                            func.AsStdFunction(),
+                            semaphore,
+                            std::chrono::seconds(30)),
+                    func);
 }

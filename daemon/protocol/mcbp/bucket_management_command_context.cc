@@ -16,7 +16,7 @@
 #include <daemon/one_shot_limited_concurrency_task.h>
 #include <daemon/session_cas.h>
 #include <daemon/settings.h>
-#include <daemon/yielding_task.h>
+#include <daemon/yielding_limited_concurrency_task.h>
 #include <executor/executorpool.h>
 #include <logger/logger.h>
 #include <memcached/config_parser.h>
@@ -157,35 +157,36 @@ cb::engine_errc BucketManagementCommandContext::remove() {
 
     std::string taskname{"Delete bucket [" + name + "]"};
     using namespace std::chrono_literals;
-    ExecutorPool::get()->schedule(std::make_shared<YieldingTask>(
-            TaskId::Core_DeleteBucketTask,
-            taskname,
-            [destroyer = std::move(*optDestroyer),
-             client = &cookie,
-             nm = std::move(name)]() mutable
+    auto task = [destroyer = std::move(*optDestroyer),
+                 client = &cookie,
+                 nm = std::move(name)]() mutable
             -> std::optional<std::chrono::duration<double>> {
-                auto& connection = client->getConnection();
-                cb::engine_errc status;
-                try {
-                    status = destroyer.drive();
-                } catch (const std::runtime_error& error) {
-                    LOG_WARNING(
-                            "{}: An error occurred while deleting bucket [{}]: "
-                            "{}",
-                            connection.getId(),
-                            nm,
-                            error.what());
-                    status = cb::engine_errc::failed;
-                }
-                if (status == cb::engine_errc::would_block) {
-                    // destroyer hasn't completed yet (waiting for connections
-                    // or operations), try again in 10ms
-                    return {10ms};
-                }
-                client->notifyIoComplete(status);
-                return {};
-            },
-            100ms));
+        auto& connection = client->getConnection();
+        cb::engine_errc status;
+        try {
+            status = destroyer.drive();
+        } catch (const std::runtime_error& error) {
+            LOG_WARNING("{}: An error occurred while deleting bucket [{}]: {}",
+                        connection.getId(),
+                        nm,
+                        error.what());
+            status = cb::engine_errc::failed;
+        }
+        if (status == cb::engine_errc::would_block) {
+            // destroyer hasn't completed yet (waiting for connections
+            // or operations), try again in 10ms
+            return {10ms};
+        }
+        client->notifyIoComplete(status);
+        return {};
+    };
+    ExecutorPool::get()->schedule(
+            std::make_shared<YieldingLimitedConcurrencyTask>(
+                    TaskId::Core_DeleteBucketTask,
+                    std::move(taskname),
+                    std::move(task),
+                    ConcurrencySemaphores::instance().bucket_management,
+                    100ms));
 
     state = State::Done;
     return cb::engine_errc::would_block;

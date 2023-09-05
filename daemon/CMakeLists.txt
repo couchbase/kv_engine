@@ -109,6 +109,7 @@ add_library(memcached_daemon STATIC
             tls_configuration.h
             tracing.cc
             tracing.h
+            yielding_limited_concurrency_task.cc
             yielding_task.cc
         )
 
