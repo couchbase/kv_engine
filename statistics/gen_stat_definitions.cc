@@ -329,14 +329,12 @@ nlohmann::json readJsonFile(const char* filename) {
     }
 }
 
-void addDocumentation(const Spec& spec,
-                      const nlohmann::json& statJson,
-                      nlohmann::json& documentation) {
-    if (!spec.prometheusEnabled) {
-        return;
-    }
-    // begin building json representation matching the format
-    // documentation requires
+/**
+ * Generate a metrics documentation entry from the spec.
+ * @return A tuple of the exported metric name and the doc entry.
+ */
+std::pair<std::string, nlohmann::json> generateDocEntry(const Spec& spec) {
+    using namespace nlohmann;
 
     // documentation specification does not allow for untyped metrics.
     // If a type has not been provided, assume a gauge - this is the
@@ -345,25 +343,12 @@ void addDocumentation(const Spec& spec,
                         ? prometheus::MetricType::Gauge
                         : spec.type;
 
-    using namespace nlohmann;
-    json statDoc{{"type", type}, {"help", statJson.value("description", "")}};
+    // begin building json representation matching the format
+    // documentation requires
+    json statDoc{{"type", type}, {"stability", spec.stability}};
 
-    statDoc["stability"] = spec.stability;
-
-    if (auto itr = statJson.find("added"); itr != statJson.end()) {
-        statDoc["added"] = itr.value();
-    }
-
-    if (statJson.contains("/prometheus/labels"_json_pointer)) {
-        auto labels = json::array();
-        for (const auto& elem :
-             statJson["/prometheus/labels"_json_pointer].items()) {
-            labels.push_back(elem.key());
-        }
-
-        if (!labels.empty()) {
-            statDoc["labels"] = std::move(labels);
-        }
+    if (!spec.added.empty()) {
+        statDoc["added"] = spec.added;
     }
 
     // work out the full name
@@ -382,9 +367,42 @@ void addDocumentation(const Spec& spec,
                                                     : spec.prometheus.family);
     name += suffix;
 
-    statDoc["enumKey"] = spec.enumKey;
+    return {std::move(name), std::move(statDoc)};
+}
 
-    documentation[name] = std::move(statDoc);
+void addDocumentation(const Spec& spec,
+                      const nlohmann::json& statJson,
+                      nlohmann::json& documentation) {
+    using namespace nlohmann;
+    if (!spec.prometheusEnabled) {
+        return;
+    }
+
+    auto [statName, statDoc] = generateDocEntry(spec);
+    statDoc["help"] = statJson.value("description", "");
+
+    if (statJson.contains("/prometheus/labels"_json_pointer)) {
+        auto labels = json::array();
+        for (const auto& elem :
+             statJson["/prometheus/labels"_json_pointer].items()) {
+            labels.push_back(elem.key());
+        }
+
+        if (!labels.empty()) {
+            statDoc["labels"] = std::move(labels);
+        }
+    }
+
+    documentation[statName] = std::move(statDoc);
+}
+
+void addConfigDocumentation(const Spec& spec,
+                            std::string_view helpText,
+                            nlohmann::json& documentation) {
+    auto [statName, statDoc] = generateDocEntry(spec);
+    statDoc["help"] = helpText;
+
+    documentation[statName] = std::move(statDoc);
 }
 
 int main(int argc, char** argv) {
@@ -468,9 +486,6 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    docfile << documentation.dump(/* indent */ 4);
-    docfile.close();
-
     for (const auto& configParam : config.at("params").items()) {
         // config params use only the key currently, no units or description
         std::vector<std::string> keys;
@@ -487,13 +502,23 @@ int main(int argc, char** argv) {
             Spec spec;
             spec.enumKey = "ep_" + key;
             spec.unit = "none";
+            // For now, we expose all config parameters as internal.
+            spec.stability = "internal";
             // format the enum key for the .h
             fmt::format_to(
                     std::back_inserter(enumKeysBuf), "{},\n", spec.enumKey);
             // format the whole stat def for the .cc
             fmt::format_to(std::back_inserter(statDefsBuf), "{},\n", spec);
+
+            auto description = configParam.value().value("descr", "");
+            addConfigDocumentation(spec, description, documentation);
         }
     }
+
+    // Documentation contains all keys exposed via Prometheus, including
+    // stats and config.
+    docfile << documentation.dump(/* indent */ 4);
+    docfile.close();
 
     // Great! All the definitions were parsed fine. Now write the .h and .cc
 
