@@ -353,7 +353,22 @@ NetworkInterfaceManager::createInterface(
 }
 
 std::pair<cb::mcbp::Status, std::string>
+NetworkInterfaceManager::defineInterface(const nlohmann::json& spec) {
+    std::pair<cb::mcbp::Status, std::string> ret;
+    eventBase.runInEventBaseThreadAndWait(
+            [this, &spec, &ret]() { ret = doDefineInterface(spec); });
+    return ret;
+}
+
+std::pair<cb::mcbp::Status, std::string>
 NetworkInterfaceManager::doDefineInterface(const nlohmann::json& spec) {
+    if (!eventBase.isInEventBaseThread()) {
+        throw std::logic_error(
+                "NetworkInterfaceManager::doDefineInterface(): Must be running "
+                "in the event base thread as it updates the list of server "
+                "sockets");
+    }
+
     auto descr = NetworkInterfaceDescription(spec);
 
     if (descr.getType() == NetworkInterfaceDescription::Type::Prometheus) {
@@ -406,7 +421,22 @@ NetworkInterfaceManager::doDefineInterface(const nlohmann::json& spec) {
 }
 
 std::pair<cb::mcbp::Status, std::string>
+NetworkInterfaceManager::deleteInterface(const std::string& uuid) {
+    std::pair<cb::mcbp::Status, std::string> ret;
+    eventBase.runInEventBaseThreadAndWait(
+            [this, &uuid, &ret]() { ret = doDeleteInterface(uuid); });
+    return ret;
+}
+
+std::pair<cb::mcbp::Status, std::string>
 NetworkInterfaceManager::doDeleteInterface(const std::string& uuid) {
+    if (!eventBase.isInEventBaseThread()) {
+        throw std::logic_error(
+                "NetworkInterfaceManager::doDeleteInterface(): Must be running "
+                "in the event base thread as it updates the list of server "
+                "sockets");
+    }
+
     for (auto iter = listen_conn.begin(); iter != listen_conn.end(); iter++) {
         if (iter->get()->getUuid() == uuid) {
             if (listen_conn.size() == 1) {
@@ -434,7 +464,22 @@ NetworkInterfaceManager::doDeleteInterface(const std::string& uuid) {
 }
 
 std::pair<cb::mcbp::Status, std::string>
+NetworkInterfaceManager::listInterface() {
+    std::pair<cb::mcbp::Status, std::string> ret;
+    eventBase.runInEventBaseThreadAndWait(
+            [this, &ret]() { ret = doListInterface(); });
+    return ret;
+}
+
+std::pair<cb::mcbp::Status, std::string>
 NetworkInterfaceManager::doListInterface() {
+    if (!eventBase.isInEventBaseThread()) {
+        throw std::logic_error(
+                "NetworkInterfaceManager::doListInterface(): Must be running "
+                "in the event base thread as it operates on the list of server "
+                "sockets");
+    }
+
     nlohmann::json ret = nlohmann::json::array();
 
     for (const auto& connection : listen_conn) {
@@ -450,7 +495,7 @@ NetworkInterfaceManager::doListInterface() {
 }
 
 std::pair<cb::mcbp::Status, std::string>
-NetworkInterfaceManager::doGetTlsConfig() {
+NetworkInterfaceManager::getTlsConfig() {
     try {
         return tlsConfiguration.withRLock([](auto& config)
                                                   -> std::pair<cb::mcbp::Status,
@@ -466,7 +511,7 @@ NetworkInterfaceManager::doGetTlsConfig() {
 }
 
 std::pair<cb::mcbp::Status, std::string>
-NetworkInterfaceManager::doTlsReconfigure(const nlohmann::json& spec) {
+NetworkInterfaceManager::reconfigureTlsConfig(const nlohmann::json& spec) {
     try {
         auto next = std::make_unique<TlsConfiguration>(spec);
         auto desc = next->to_json().dump();
