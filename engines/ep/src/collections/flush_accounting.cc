@@ -403,22 +403,6 @@ FlushAccounting::UpdateStatsResult FlushAccounting::updateStats(
     return result;
 }
 
-void FlushAccounting::updateStatsPostCompression(
-        const DocKey& key,
-        uint64_t seqno,
-        size_t uncompressedSize,
-        size_t compressedSize,
-        CompactionCallbacks compactionCallbacks) {
-    auto cid = getCollectionEventAndCollectionID(key).second;
-    // this should only be called as a follow up if stats have previously been
-    // modified for this operation, so the collection id _must_ be valid at
-    // this stage
-    Expects(cid);
-    getStatsAndMaybeSetPersistedHighSeqno(
-            cid.value(), seqno, compactionCallbacks)
-            .update(compressedSize - uncompressedSize);
-}
-
 void FlushAccounting::maybeUpdatePersistedHighSeqno(const DocKey& key,
                                                     uint64_t seqno,
                                                     bool isDelete) {

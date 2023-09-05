@@ -128,30 +128,6 @@ public:
                                           CompactionCallbacks::LatestRevision);
 
     /**
-     * Update collection stats from the flusher when an item has been compressed
-     * during persistence.
-     *
-     * Should only be called if the stats were _previously_ updated to
-     * reflect the uncompressed size of the new document - i.e., updateStats
-     * returned true.
-     *
-     *
-     * @param key The key of the item flushed
-     * @param seqno The seqno of the item flushed
-     * @param uncompressedSize size of the item before compression
-     * @param compressedSize size of the item after compression
-     * @param compactionCallbacks For which items does the store invoke the
-     *                            compaction callbacks?
-     */
-    void updateStatsPostCompression(
-            const DocKey& key,
-            uint64_t seqno,
-            size_t uncompressedSize,
-            size_t compressedSize,
-            CompactionCallbacks compactionCallbacks =
-                    CompactionCallbacks::LatestRevision);
-
-    /**
      * Update the collection high-seqno (only if the flushed item is higher)
      *
      * @param key The key of the item flushed
