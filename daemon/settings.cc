@@ -294,7 +294,8 @@ void Settings::reconfigure(const nlohmann::json& json) {
                 setNumAuxIoThreads(value.get<size_t>());
             } else if (value.is_string() &&
                        value.get<std::string>() == "default") {
-                setNumAuxIoThreads(0);
+                setNumAuxIoThreads(static_cast<int>(
+                        ThreadPoolConfig::AuxIoThreadCount::Default));
             } else {
                 throw std::invalid_argument(fmt::format(
                         "Value to set number of AuxIO threads must be an "

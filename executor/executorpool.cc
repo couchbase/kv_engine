@@ -27,7 +27,7 @@ void ExecutorPool::create(Backend backend,
                           size_t maxThreads,
                           ThreadPoolConfig::ThreadCount maxReaders,
                           ThreadPoolConfig::ThreadCount maxWriters,
-                          size_t maxAuxIO,
+                          ThreadPoolConfig::AuxIoThreadCount maxAuxIO,
                           size_t maxNonIO) {
     if (getInstance()) {
         throw std::logic_error("ExecutorPool::create() Pool already created");
@@ -153,17 +153,21 @@ size_t ExecutorPool::calcNumWriters(
     }
 }
 
-size_t ExecutorPool::calcNumAuxIO(size_t threadCount) const {
-    if (threadCount) {
+size_t ExecutorPool::calcNumAuxIO(
+        ThreadPoolConfig::AuxIoThreadCount threadCount) const {
+    switch (threadCount) {
+    case ThreadPoolConfig::AuxIoThreadCount::Default: {
+        // Default: configure threads based on CPU count; constraining to
+        // between 2 and 128 threads (similar to Reader/Writer thread counts
+        // above).
+        auto auxIO = maxGlobalThreads;
+        auxIO = std::clamp(auxIO, size_t{2}, size_t{128});
+        return auxIO;
+    }
+    default:
         // User specified an explicit value - use that unmodified.
         return static_cast<size_t>(threadCount);
     }
-
-    // Default: configure threads based on CPU count; constraining to between
-    // 2 and 128 threads (similar to Reader/Writer thread counts above).
-    auto auxIO = maxGlobalThreads;
-    auxIO = std::clamp(auxIO, size_t{2}, size_t{128});
-    return auxIO;
 }
 
 size_t ExecutorPool::calcNumNonIO(size_t threadCount) const {

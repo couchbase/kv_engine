@@ -46,7 +46,8 @@ public:
                                ThreadPoolConfig::ThreadCount::Default,
                        ThreadPoolConfig::ThreadCount maxWriters =
                                ThreadPoolConfig::ThreadCount::Default,
-                       size_t maxAuxIO = 0,
+                       ThreadPoolConfig::AuxIoThreadCount maxAuxIO =
+                               ThreadPoolConfig::AuxIoThreadCount::Default,
                        size_t maxNonIO = 0);
 
     /// Is the ExecutorPool created or not
@@ -100,7 +101,7 @@ public:
     virtual void setNumWriters(ThreadPoolConfig::ThreadCount v) = 0;
 
     /// Set the number of Auxillary IO threads to the specified number.
-    virtual void setNumAuxIO(uint16_t v) = 0;
+    virtual void setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount v) = 0;
 
     /// Set the number of Non-IO threads to the specified number.
     virtual void setNumNonIO(uint16_t v) = 0;
@@ -268,7 +269,7 @@ protected:
      * Calculate the number of Auxiliary IO threads to use for the given thread
      * limit.
      */
-    size_t calcNumAuxIO(size_t threadCount) const;
+    size_t calcNumAuxIO(ThreadPoolConfig::AuxIoThreadCount threadCount) const;
 
     /**
      * Calculate the number of Non-IO threads to use for the given thread limit.

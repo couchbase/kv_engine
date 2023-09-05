@@ -80,7 +80,7 @@ public:
             pool = std::make_unique<T>(nonIOCount,
                                        ThreadPoolConfig::ThreadCount(1),
                                        ThreadPoolConfig::ThreadCount(1),
-                                       1,
+                                       ThreadPoolConfig::AuxIoThreadCount(1),
                                        nonIOCount);
             pool->registerTaskable(taskable);
             poolPtr.store(pool.get());

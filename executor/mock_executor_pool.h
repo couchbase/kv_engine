@@ -22,7 +22,7 @@ public:
         : CB3ExecutorPool(4 /*maxThreads*/,
                           ThreadPoolConfig::ThreadCount(1) /*maxReaders*/,
                           ThreadPoolConfig::ThreadCount(1) /*maxWriters*/,
-                          1 /*maxAuxIO*/,
+                          ThreadPoolConfig::AuxIoThreadCount(1) /*maxAuxIO*/,
                           1 /*maxNonIO*/) {
     }
 

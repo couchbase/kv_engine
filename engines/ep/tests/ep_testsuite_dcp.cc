@@ -7449,7 +7449,7 @@ static enum test_result test_mb19153(EngineIface* h) {
 
     // Set max num AUX IO to 0, so no backfill would start
     // immediately
-    ExecutorPool::get()->setNumAuxIO(0);
+    ExecutorPool::get()->setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount{0});
 
     int num_items = 10000;
 
@@ -7508,7 +7508,7 @@ static enum test_result test_mb19153(EngineIface* h) {
 
     // Set auxIO threads to 1, so the backfill for the closed producer
     // is picked up, and begins to run.
-    ExecutorPool::get()->setNumAuxIO(1);
+    ExecutorPool::get()->setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount{1});
 
     // Terminate engine
     return SUCCESS;
