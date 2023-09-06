@@ -23,10 +23,14 @@ cb::engine_errc SaslRefreshCommandContext::doSaslRefresh() {
         using namespace cb::sasl;
         switch (server::reload_password_database({})) {
         case Error::OK:
+            LOG_INFO_RAW("Password database updated successfully");
             return cb::engine_errc::success;
         case Error::NO_MEM:
+            LOG_WARNING_RAW(
+                    "Failed to allocate memory to update password database");
             return cb::engine_errc::no_memory;
         case Error::FAIL:
+            // Already logged
             return cb::engine_errc::failed;
 
         case Error::CONTINUE:
