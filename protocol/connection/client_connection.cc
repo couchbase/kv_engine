@@ -936,9 +936,11 @@ void MemcachedConnection::doValidateReceivedFrame(
                             sizeof(packet)})));
     }
 
-    if (is_server_magic(Magic(packet.getMagic()))) {
+    const auto magic = Magic(packet.getMagic());
+    if (is_server_magic(magic) || is_request(magic)) {
         return;
     }
+    auto& response = packet.getResponse();
 
     std::string backing;
     std::string_view payload = packet.getValueString();
@@ -979,7 +981,7 @@ void MemcachedConnection::doValidateReceivedFrame(
 
     const auto json = jsonValidator->validate(payload);
     if (hasFeature(Feature::JSON)) {
-        const auto opcode = ClientOpcode(packet.getOpcode());
+        const auto opcode = response.getClientOpcode();
         if (json) {
             if (!is_json(packet.getDatatype())) {
                 if (opcode != ClientOpcode::Stat &&
@@ -1010,6 +1012,15 @@ void MemcachedConnection::doValidateReceivedFrame(
         throw std::runtime_error(
                 fmt::format("Received package with JSON datatype, but that's "
                             "not enabled. Packet: {}",
+                            packet.to_json(false).dump()));
+    }
+
+    if (response.getClientOpcode() == ClientOpcode::SubdocMultiLookup &&
+        response.getStatus() == Status::SubdocMultiPathFailure &&
+        response.getCas() == cas::Wildcard) {
+        throw std::runtime_error(
+                fmt::format("Rececived SubdocMultiPathFailure response error "
+                            "CAS == 0. Packet: {}",
                             packet.to_json(false).dump()));
     }
 }

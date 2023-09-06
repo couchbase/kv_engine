@@ -254,15 +254,18 @@ private:
         }
 
         state = State::SendResponse;
-        if (execution_context->overall_status == cb::mcbp::Status::Success) {
-            if (traits.is_mutator) {
+
+        if (traits.is_mutator) {
+            if (execution_context->overall_status ==
+                cb::mcbp::Status::Success) {
                 state = State::AllocateNewItem;
-            } else {
-                if (!traits.is_mutator) {
-                    // Make sure we use the correct cas in the response.
-                    cookie.setCas(execution_context->in_cas);
-                }
             }
+        } else if (execution_context->overall_status ==
+                           cb::mcbp::Status::Success ||
+                   execution_context->overall_status ==
+                           cb::mcbp::Status::SubdocMultiPathFailure) {
+            // Make sure we use the correct cas in the response.
+            cookie.setCas(execution_context->in_cas);
         }
     }
 
