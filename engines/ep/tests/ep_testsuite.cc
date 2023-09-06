@@ -3805,7 +3805,7 @@ static enum test_result test_workload_stats(EngineIface* h) {
 
 static enum test_result test_max_workload_stats(EngineIface* h) {
     ExecutorPool::get()->setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount{1});
-    ExecutorPool::get()->setNumNonIO(4);
+    ExecutorPool::get()->setNumNonIO(ThreadPoolConfig::NonIoThreadCount{4});
     auto* cookie = testHarness->create_cookie(h);
     checkeq(cb::engine_errc::success,
             h->get_stats(*cookie, "workload"sv, {}, add_stats),
@@ -8269,7 +8269,7 @@ static enum test_result test_bucket_quota_reduction(EngineIface* h) {
     // skip it) but not delete it (different code path). Then, we can enable
     // our NonIO threads again to run the BucketQuotaChangeTask.
     set_vbucket_state(h, Vbid(0), vbucket_state_dead);
-    ExecutorPool::get()->setNumNonIO(1);
+    ExecutorPool::get()->setNumNonIO(ThreadPoolConfig::NonIoThreadCount{1});
 
     // Wait for a change in HWM to check that the BucketQuotaChangeTask has run
     // (it will not enforce the quota until memory usage is lower)
@@ -8293,7 +8293,7 @@ static enum test_result test_bucket_quota_reduction(EngineIface* h) {
 
     // We want to store our item now and check the return result, set NonIO
     // back to 0 to avoid ItemPager runs and the vBucket back to active.
-    ExecutorPool::get()->setNumNonIO(0);
+    ExecutorPool::get()->setNumNonIO(ThreadPoolConfig::NonIoThreadCount{0});
 
     set_vbucket_state(h, Vbid(0), vbucket_state_active);
     checkeq(cb::engine_errc::success,
@@ -8303,7 +8303,7 @@ static enum test_result test_bucket_quota_reduction(EngineIface* h) {
             "memory limits until memory usage is low enough.");
 
     // Let the ItemPager run and free up some memory
-    ExecutorPool::get()->setNumNonIO(1);
+    ExecutorPool::get()->setNumNonIO(ThreadPoolConfig::NonIoThreadCount{1});
 
     // Should be able to wait for memory usage to be reduced below the new HWM
     wait_for_memory_usage_below(h, newHWM);

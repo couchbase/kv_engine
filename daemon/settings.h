@@ -1103,7 +1103,8 @@ protected:
     std::atomic<int> num_writer_threads{0};
     std::atomic<int> num_auxio_threads{
             static_cast<int>(ThreadPoolConfig::AuxIoThreadCount::Default)};
-    std::atomic<int> num_nonio_threads{0};
+    std::atomic<int> num_nonio_threads{
+            static_cast<int>(ThreadPoolConfig::NonIoThreadCount::Default)};
 
     /// Number of storage backend threads
     std::atomic<int> num_storage_threads{0};

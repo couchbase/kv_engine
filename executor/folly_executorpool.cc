@@ -653,7 +653,7 @@ FollyExecutorPool::FollyExecutorPool(
         ThreadPoolConfig::ThreadCount maxReaders_,
         ThreadPoolConfig::ThreadCount maxWriters_,
         ThreadPoolConfig::AuxIoThreadCount maxAuxIO_,
-        size_t maxNonIO_)
+        ThreadPoolConfig::NonIoThreadCount maxNonIO_)
     : ExecutorPool(maxThreads),
       state(std::make_unique<State>()),
       maxReaders(calcNumReaders(maxReaders_)),
@@ -774,8 +774,8 @@ void FollyExecutorPool::setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount v) {
     auxPool->setNumThreads(maxAuxIO);
 }
 
-void FollyExecutorPool::setNumNonIO(uint16_t v) {
-    maxNonIO = v;
+void FollyExecutorPool::setNumNonIO(ThreadPoolConfig::NonIoThreadCount v) {
+    maxNonIO = calcNumNonIO(v);
     nonIoPool->setNumThreads(maxNonIO);
 }
 

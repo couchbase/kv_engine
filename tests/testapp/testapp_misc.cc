@@ -22,6 +22,12 @@ public:
         TestappTest::SetUpTestCase();
         createUserConnection = true;
     }
+
+    // Helper function to test if "default" thread setting is applied correctly
+    // for the given named thread type, and a function to return the current
+    // size of that thread pool.
+    void testConfigDefaultThreads(std::string name,
+                                  std::function<int()> getPoolSize);
 };
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
@@ -116,22 +122,38 @@ TEST_P(MiscTest, Config_Identical) {
 // Check that AuxIO threads can be set to "default", and this derives the
 // correct thread count (N CPUs).
 TEST_P(MiscTest, Config_AuxIoThreadsDefault) {
-    // Lookup the "default" thread count for AuxIO; we will compare this to
-    // what we get later when we flip away from "default" and back again.
     auto getAuxIoThreads = [] {
         return adminConnection->stats("threads")
                 .at("num_auxio_threads_actual")
                 .get<int>();
     };
+    testConfigDefaultThreads("num_auxio_threads", getAuxIoThreads);
+}
 
-    const auto defaultAuxIoThreads = getAuxIoThreads();
-    ASSERT_GE(defaultAuxIoThreads, 2)
-            << "Sanity check - should always have at least 2 AuxIO threads";
+// Check that NonIO threads can be set to "default", and this derives the
+// correct thread count (N CPUs).
+TEST_P(MiscTest, Config_NonIoThreadsDefault) {
+    auto getAuxIoThreads = [] {
+        return adminConnection->stats("threads")
+                .at("num_nonio_threads_actual")
+                .get<int>();
+    };
+    testConfigDefaultThreads("num_nonio_threads", getAuxIoThreads);
+}
+
+void MiscTest::testConfigDefaultThreads(std::string name,
+                                        std::function<int()> getPoolSize) {
+    SCOPED_TRACE(name);
+    // Lookup the "default" thread count; we will compare this to
+    // what we get later when we flip away from "default" and back again.
+    const auto defaultThreads = getPoolSize();
+    ASSERT_GE(defaultThreads, 2)
+            << "Sanity check - should always have at least 2 threads";
 
     // The initial value is "default", and nothing happens if config param
     // hasn't changed, so first need to reconfigure to some non-default value.
     auto newConfig = memcached_cfg;
-    newConfig["num_auxio_threads"] = 1;
+    newConfig[name] = 1;
     auto rsp = adminConnection->execute(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::ConfigValidate, "", newConfig.dump()});
     ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
@@ -143,7 +165,7 @@ TEST_P(MiscTest, Config_AuxIoThreadsDefault) {
 
     // Ok, now do the actual test - set to "default" and confirm this correctly
     // sets the thread count.
-    newConfig["num_auxio_threads"] = "default";
+    newConfig[name] = "default";
     rsp = adminConnection->execute(BinprotGenericCommand{
             cb::mcbp::ClientOpcode::ConfigValidate, "", newConfig.dump()});
     ASSERT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
@@ -153,7 +175,7 @@ TEST_P(MiscTest, Config_AuxIoThreadsDefault) {
             cb::mcbp::ClientOpcode::ConfigReload, "", ""});
     EXPECT_EQ(cb::mcbp::Status::Success, rsp.getStatus());
 
-    EXPECT_EQ(defaultAuxIoThreads, getAuxIoThreads());
+    EXPECT_EQ(defaultThreads, getPoolSize());
 }
 
 TEST_P(MiscTest, SessionCtrlToken) {
