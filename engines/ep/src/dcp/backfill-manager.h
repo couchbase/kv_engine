@@ -244,6 +244,18 @@ public:
                snoozingBackfills.size() + pendingBackfills.size();
     }
 
+    /**
+     * Look in all of the internal containers for a backfill matching the given
+     * UID - if found remove it.
+     *
+     * Note that this function has a O(n) worst case cost, where n is sum(size)
+     * of all 4 internal lists.
+     *
+     * @param backfillUID The uid of the backfill to try and remove
+     * @return true if found (and removed), false if not found
+     */
+    bool removeBackfill(uint64_t backfillUID);
+
     std::string to_string(ScheduleOrder order);
 
     void setBackfillByteLimit(size_t bytes);

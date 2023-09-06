@@ -34,6 +34,8 @@ namespace Collections::VB {
 class Filter;
 }
 
+struct DCPBackfillIface;
+
 class DcpProducer : public ConnHandler,
                     public std::enable_shared_from_this<DcpProducer> {
 public:
@@ -210,14 +212,38 @@ public:
      */
     void recordBackfillManagerBytesSent(size_t bytes);
 
-    virtual bool scheduleBackfillManager(VBucket& vb,
-                                         std::shared_ptr<ActiveStream> s,
-                                         uint64_t start,
-                                         uint64_t end);
+    /**
+     * Schedule a seqno backfill
+     * @param vb Vbucket requesting the backfill
+     * @param s ActiveStream requesting the backfill
+     * @param start range start
+     * @param end range end
+     * @return uid of the new backfill or 0 if none was scheduled.
+     */
+    virtual uint64_t scheduleBackfillManager(VBucket& vb,
+                                             std::shared_ptr<ActiveStream> s,
+                                             uint64_t start,
+                                             uint64_t end);
 
-    bool scheduleBackfillManager(VBucket& vb,
-                                 std::shared_ptr<ActiveStream> s,
-                                 CollectionID cid);
+    /**
+     * Schedule a backfill which targets the given collection
+     * @param vb Vbucket requesting the backfill
+     * @param s ActiveStream requesting the backfill
+     * @param cid collection to scan
+     * @return uid of the new backfill or 0 if none was scheduled.
+     */
+    uint64_t scheduleBackfillManager(VBucket& vb,
+                                     std::shared_ptr<ActiveStream> s,
+                                     CollectionID cid);
+
+    /**
+     * Pass a uid down to BackfillManager::removeBackfill iff
+     * backfillMgr exists
+     *
+     * @param backfillUID ID of backfill to be removed
+     * @return result of removeBackfill or false if backfillMgr does not exist
+     */
+    bool removeBackfill(uint64_t backfillUID);
 
     bool isCompressionEnabled() const {
         return forceValueCompression || isSnappyEnabled();

@@ -20,12 +20,14 @@
 #include <spdlog/common.h>
 #include <optional>
 
+class BackfillManager;
 class Configuration;
 class CheckpointManager;
 class VBucket;
 enum class ValueFilter;
 
 struct CheckpointSnapshotRange;
+struct DCPBackfillIface;
 
 /**
  * This class represents an "active" Stream of DCP messages for a given vBucket.
@@ -484,6 +486,14 @@ public:
     TestingHook<> scheduleBackfillRegisterCursorHook;
 
     bool isFlatBuffersSystemEventEnabled() const;
+
+    /**
+     * Request that the ActiveStream calls removeBackfill on the given object
+     * iff ActiveStream has a backfill to remove.
+     *
+     * @param bfm call removeBackfill on this object.
+     */
+    void removeBackfill(BackfillManager& bfm);
 
     /**
      * Determine if OSO backfill is preferred for the specified collection.
@@ -978,6 +988,18 @@ private:
      * marker can be shipped. See MB-55590
      */
     std::unique_ptr<SnapshotMarker> pendingDiskMarker;
+
+    /**
+     * This stores a UID which the BackfillManager returns from schedule().
+     * This object can now choose to force removal of the DCPBackfill with the
+     * given UID, and will do so from ~ActiveStream.
+     *
+     * A value of 0 is reserved to mean "no backfill" and is used to skip the
+     * removal path.
+     *
+     * This value must be read/written whilst holding streamMutex
+     */
+    uint64_t backfillUID{0};
 
 protected:
     /**

@@ -15,8 +15,11 @@
 
 #include <folly/ScopeGuard.h>
 #include <phosphor/phosphor.h>
+#include <platform/monotonic.h>
 
-DCPBackfill::DCPBackfill(Vbid vbid) : vbid(vbid) {
+static AtomicMonotonic<uint64_t> backfillUID{0};
+
+DCPBackfill::DCPBackfill(Vbid vbid) : vbid(vbid), uid(++backfillUID) {
 }
 
 backfill_status_t DCPBackfill::run() {
