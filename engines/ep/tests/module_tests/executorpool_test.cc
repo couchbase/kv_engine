@@ -952,18 +952,18 @@ TYPED_TEST(ExecutorPoolTest, ThreadPriorities) {
     // Windows (via folly portability) uses 20 for default (normal) priority.
     const int defaultPriority = folly::kIsWindows ? 20 : 0;
 
-    // We only set Writer threads to a non-default level on Linux.
-    const int expectedWriterPriority = folly::kIsLinux ? 19 : defaultPriority;
+    // We set Writer and AuxIO threads to a non-default level on Linux.
+    const int expectedHighPriority = folly::kIsLinux ? 19 : defaultPriority;
 
     for (const auto& task : tasks) {
         const auto type = GlobalTask::getTaskType(task->getTaskId());
         switch (type) {
         case WRITER_TASK_IDX:
-            EXPECT_EQ(expectedWriterPriority, task->threadPriority)
+        case AUXIO_TASK_IDX:
+            EXPECT_EQ(expectedHighPriority, task->threadPriority)
                     << "for task: " << task->getDescription();
             break;
         case READER_TASK_IDX:
-        case AUXIO_TASK_IDX:
         case NONIO_TASK_IDX:
             EXPECT_EQ(defaultPriority, task->threadPriority)
                     << "for task: " << task->getDescription();

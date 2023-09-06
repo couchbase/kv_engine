@@ -199,9 +199,10 @@ size_t ExecutorPool::calcNumNonIO(
 }
 
 int ExecutorPool::getThreadPriority(task_type_t taskType) {
-    // Decrease the priority of Writer threads to lessen their impact on
+    // Decrease the priority of Writer and AuxIO threads to lessen their impact on
     // other threads (esp front-end workers which should be prioritized ahead
-    // of non-critical path Writer tasks (both Flusher and Compaction).
+    // of non-critical path Writer tasks (both Flusher and Compaction) or AuxIO
+    // tasks (such as Backfilling) which are not latency sensitive.
     // TODO: Investigate if it is worth increasing the priority of Flusher tasks
     // which _are_ on the critical path for front-end operations - i.e.
     // SyncWrites at level=persistMajority / persistActive.
@@ -219,10 +220,10 @@ int ExecutorPool::getThreadPriority(task_type_t taskType) {
     //   would be pointless.
     switch (taskType) {
     case WRITER_TASK_IDX:
+    case AUXIO_TASK_IDX:
         // Linux uses the range -20..19 (highest..lowest).
         return 19;
     case READER_TASK_IDX:
-    case AUXIO_TASK_IDX:
     case NONIO_TASK_IDX:
         return 0;
     case NO_TASK_TYPE:
