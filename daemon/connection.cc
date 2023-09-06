@@ -105,13 +105,7 @@ nlohmann::json Connection::to_json() const {
 
     if (isAuthenticated()) {
         const auto& ui = getUser();
-        if (ui.is_internal()) {
-            // We want to be able to map these connections, and given
-            // that it is internal, we don't reveal any user data
-            ret["user"]["name"] = ui.name;
-        } else {
-            ret["user"]["name"] = cb::tagUserData(ui.name);
-        }
+        ret["user"]["name"] = ui.getSanitizedName();
         ret["user"]["domain"] = to_string(ui.domain);
     }
 
@@ -426,7 +420,7 @@ void Connection::updateDescription() {
         if (isInternal()) {
             description += "System, ";
         }
-        description += cb::tagUserData(getUser().name);
+        description += getUser().getSanitizedName();
 
         if (getUser().domain == cb::sasl::Domain::External) {
             description += " (LDAP)";
@@ -1118,7 +1112,7 @@ bool Connection::tryAuthUserFromX509Cert(std::string_view userName,
                 getId(),
                 getPeername().dump(),
                 cipherName,
-                cb::UserDataView(ident.name));
+                ident.getSanitizedName());
         // External users authenticated by using X.509 certificates should not
         // be able to use SASL to change its identity.
         saslAuthEnabled = getUser().is_internal();

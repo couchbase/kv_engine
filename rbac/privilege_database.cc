@@ -49,6 +49,13 @@ UserIdent::UserIdent(const nlohmann::json& json) {
     name = iter->get<std::string>();
 }
 
+std::string UserIdent::getSanitizedName() const {
+    if (is_internal()) {
+        return name;
+    }
+    return cb::UserDataView(name).getSanitizedValue();
+}
+
 struct DatabaseContext {
     // Every time we create a new PrivilegeDatabase we bump the generation.
     // The PrivilegeContext contains the generation number it was generated

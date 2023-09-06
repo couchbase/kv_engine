@@ -44,6 +44,11 @@ struct UserIdent {
     bool is_internal() const {
         return !name.empty() && name.front() == '@';
     }
+
+    /// Get the name of the user. Internal users won't have the log
+    /// redaction tags around the name
+    std::string getSanitizedName() const;
+
     explicit UserIdent(const nlohmann::json& json);
     std::string name;
     Domain domain{cb::rbac::Domain::Local};

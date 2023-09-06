@@ -65,10 +65,13 @@ cb::engine_errc SaslAuthCommandContext::tryHandleSaslOk(
     // Success
     connection.setAuthenticated(serverContext.getUser());
     audit_auth_success(connection, &cookie);
-    LOG_INFO("{}: Client {} authenticated as {}",
+    auto& user = connection.getUser();
+    LOG_INFO("{}: Client {} authenticated as {}. Mechanism:[{}]{}",
              connection.getId(),
              connection.getPeername().dump(),
-             cb::UserDataView(connection.getUser().name));
+             user.getSanitizedName(),
+             mechanism,
+             user.domain == cb::sasl::Domain::External ? " (LDAP)" : "");
 
     if (Settings::instance().isDeprecatedBucketAutoselectEnabled()) {
         // associate the connection with the appropriate bucket
@@ -148,7 +151,7 @@ cb::engine_errc SaslAuthCommandContext::doHandleSaslAuthTaskResult(
                 "{}: Invalid password specified for [{}]. Mechanism:[{}], "
                 "UUID:[{}]",
                 connection.getId(),
-                cb::UserDataView(serverContext.getUser().name),
+                serverContext.getUser().getSanitizedName(),
                 mechanism,
                 cookie.getEventId());
         audit_auth_failure(connection,
