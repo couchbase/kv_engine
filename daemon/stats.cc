@@ -183,10 +183,6 @@ static void server_bucket_stats(const BucketStatCollector& collector,
     collector.addStat(Key::bytes_read, thread_stats.bytes_read);
     collector.addStat(Key::bytes_written, thread_stats.bytes_written);
     collector.addStat(Key::conn_yields, thread_stats.conn_yields);
-    collector.addStat(Key::iovused_high_watermark,
-                      thread_stats.iovused_high_watermark);
-    collector.addStat(Key::msgused_high_watermark,
-                      thread_stats.msgused_high_watermark);
     collector.addStat(Key::subdoc_update_races,
                       thread_stats.subdoc_update_races);
 

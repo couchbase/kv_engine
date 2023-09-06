@@ -2469,16 +2469,6 @@
         "added": "7.0.0"
     },
     {
-        "key": "iovused_high_watermark",
-        "unit": "none",
-        "added": "7.0.0"
-    },
-    {
-        "key": "msgused_high_watermark",
-        "unit": "none",
-        "added": "7.0.0"
-    },
-    {
         "key": "lock_errors",
         "unit": "count",
         "added": "7.0.0"

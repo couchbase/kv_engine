@@ -61,9 +61,6 @@ struct thread_stats {
         bytes_subdoc_lookup_extracted = 0;
         bytes_subdoc_mutation_total = 0;
         bytes_subdoc_mutation_inserted = 0;
-
-        iovused_high_watermark = 0;
-        msgused_high_watermark = 0;
     }
 
     thread_stats & operator += (const thread_stats &other) {
@@ -96,9 +93,6 @@ struct thread_stats {
         bytes_subdoc_lookup_extracted += other.bytes_subdoc_lookup_extracted;
         bytes_subdoc_mutation_total += other.bytes_subdoc_mutation_total;
         bytes_subdoc_mutation_inserted += other.bytes_subdoc_mutation_inserted;
-
-        iovused_high_watermark.setIfGreater(other.iovused_high_watermark);
-        msgused_high_watermark.setIfGreater(other.msgused_high_watermark);
         subdoc_update_races += other.subdoc_update_races;
 
         return *this;
@@ -154,11 +148,6 @@ struct thread_stats {
     /* # of bytes inserted during a subdoc mutation operation (which were
        received from the client). */
     cb::RelaxedAtomic<uint64_t> bytes_subdoc_mutation_inserted;
-
-    /* Highest value iovsize has got to */
-    cb::RelaxedAtomic<int> iovused_high_watermark;
-    /* High value Connection->msgused has got to */
-    cb::RelaxedAtomic<int> msgused_high_watermark;
 
     /// The number of races updating subdoc documents (document changed
     /// between fetching and storing the document)
