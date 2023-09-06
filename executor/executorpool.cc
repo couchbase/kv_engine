@@ -203,14 +203,10 @@ size_t ExecutorPool::calcNumNonIO(
         // introduction of SyncWrites we require NonIO tasks to run to complete
         // them (both DCP ActiveStreamCheckpointProcessorTask and
         // DurabilityCompletionTask) and hence we have increased the
-        // coefficient,
-        // based on empirical testing. We could likely increase
-        // further, however if
-        // there was a problem with other NonIO tasks
-        // consuming excessive CPU that
-        // could start to impact front-end
-        // threads, so let's increase this
-        // gradually...
+        // coefficient, based on empirical testing. We could likely increase
+        // further, however if there was a problem with other NonIO tasks
+        // consuming excessive CPU that could start to impact front-end
+        // threads, so let's increase this gradually...
         size_t count = maxGlobalThreads * 0.5;
 
         // 2. adjust computed value to be within range
