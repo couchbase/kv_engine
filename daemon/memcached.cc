@@ -663,7 +663,9 @@ static void startExecutorPool() {
             ThreadPoolConfig::ThreadCount(settings.getNumReaderThreads()),
             ThreadPoolConfig::ThreadCount(settings.getNumWriterThreads()),
             ThreadPoolConfig::AuxIoThreadCount(settings.getNumAuxIoThreads()),
-            ThreadPoolConfig::NonIoThreadCount(settings.getNumNonIoThreads()));
+            ThreadPoolConfig::NonIoThreadCount(settings.getNumNonIoThreads()),
+            ThreadPoolConfig::IOThreadsPerCore(
+                    settings.getNumIOThreadsPerCore()));
     ExecutorPool::get()->registerTaskable(NoBucketTaskable::instance());
     ExecutorPool::get()->setDefaultTaskable(NoBucketTaskable::instance());
 
@@ -718,6 +720,24 @@ static void startExecutorPool() {
                 auto val = ThreadPoolConfig::NonIoThreadCount(
                         s.getNumNonIoThreads());
                 ExecutorPool::get()->setNumNonIO(val);
+            });
+    settings.addChangeListener(
+            "num_io_thread_per_core", [](const std::string&, Settings& s) {
+                // Update the ExecutorPool with the new coefficient, then
+                // recalculate the number of AuxIO threads.
+                auto* executorPool = ExecutorPool::get();
+                executorPool->setNumIOThreadPerCore(
+                        ThreadPoolConfig::IOThreadsPerCore{
+                                s.getNumIOThreadsPerCore()});
+                executorPool->setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount{
+                        s.getNumAuxIoThreads()});
+                // Notify engines of change in AuxIO thread count.
+                BucketManager::instance().forEach([](Bucket& b) {
+                    if (b.type != BucketType::ClusterConfigOnly) {
+                        b.getEngine().notify_num_auxio_threads_changed();
+                    }
+                    return true;
+                });
             });
 }
 

@@ -62,12 +62,15 @@ void ExecutorPoolTest<T>::makePool(int maxThreads,
                                    int numReaders,
                                    int numWriters,
                                    int numAuxIO,
-                                   int numNonIO) {
-    pool = std::make_unique<T>(maxThreads,
-                               ThreadPoolConfig::ThreadCount(numReaders),
-                               ThreadPoolConfig::ThreadCount(numWriters),
-                               ThreadPoolConfig::AuxIoThreadCount(numAuxIO),
-                               ThreadPoolConfig::NonIoThreadCount(numNonIO));
+                                   int numNonIO,
+                                   int ioThreadsPerCore) {
+    pool = std::make_unique<T>(
+            maxThreads,
+            ThreadPoolConfig::ThreadCount(numReaders),
+            ThreadPoolConfig::ThreadCount(numWriters),
+            ThreadPoolConfig::AuxIoThreadCount(numAuxIO),
+            ThreadPoolConfig::NonIoThreadCount(numNonIO),
+            ThreadPoolConfig::IOThreadsPerCore(ioThreadsPerCore));
 }
 
 using ExecutorPoolTypes = ::testing::Types<TestExecutorPool, FollyExecutorPool>;
@@ -1595,7 +1598,8 @@ TEST_P(ExecutorPoolTestWithParam, max_threads_test_parameterized) {
                           expected.in_reader_writer,
                           expected.in_reader_writer,
                           ThreadPoolConfig::AuxIoThreadCount::Default,
-                          ThreadPoolConfig::NonIoThreadCount::Default);
+                          ThreadPoolConfig::NonIoThreadCount::Default,
+                          ThreadPoolConfig::IOThreadsPerCore::Default);
 
     pool.registerTaskable(taskable);
 

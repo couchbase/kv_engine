@@ -42,3 +42,13 @@ std::ostream& operator<<(std::ostream& os,
         return os;
     }
 }
+
+std::ostream& operator<<(std::ostream& os,
+                         const ThreadPoolConfig::IOThreadsPerCore& tpc) {
+    switch (tpc) {
+    case ThreadPoolConfig::IOThreadsPerCore::Default:
+        return os << "Default";
+    default:
+        return os << static_cast<int>(tpc);
+    }
+}

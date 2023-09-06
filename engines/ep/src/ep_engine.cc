@@ -4497,6 +4497,12 @@ cb::engine_errc EventuallyPersistentEngine::doWorkloadStats(
                 statname.data(), statname.size(), "ep_workload:num_nonio");
         add_casted_stat(statname.data(), nonio, add_stat, cookie);
 
+        auto threadsPerCore = expool->getNumIOThreadsPerCore();
+        checked_snprintf(statname.data(),
+                         statname.size(),
+                         "ep_workload:num_io_threads_per_core");
+        add_casted_stat(statname.data(), threadsPerCore, add_stat, cookie);
+
         int shards = workload->getNumShards();
         checked_snprintf(
                 statname.data(), statname.size(), "ep_workload:num_shards");

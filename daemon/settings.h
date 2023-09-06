@@ -846,6 +846,12 @@ public:
         notify_changed("num_nonio_threads");
     }
 
+    int getNumIOThreadsPerCore() const {
+        return num_io_threads_per_core.load(std::memory_order_acquire);
+    }
+
+    void setNumIOThreadsPerCore(int val);
+
     std::pair<in_port_t, sa_family_t> getPrometheusConfig() {
         return *prometheus_config.rlock();
     }
@@ -1106,6 +1112,13 @@ protected:
     std::atomic<int> num_nonio_threads{
             static_cast<int>(ThreadPoolConfig::NonIoThreadCount::Default)};
 
+    /// When calculating IO thread counts (AuxIO, later Reader & Writer),
+    /// how many threads should be created per logical core - i.e. what
+    /// coefficient should be applied to the CPU count.
+    std::atomic<int> num_io_threads_per_core{
+            std::underlying_type_t<ThreadPoolConfig::IOThreadsPerCore>(
+                    ThreadPoolConfig::IOThreadsPerCore::Default)};
+
     /// Number of storage backend threads
     std::atomic<int> num_storage_threads{0};
 
@@ -1243,6 +1256,7 @@ public:
         bool num_writer_threads = false;
         bool num_auxio_threads = false;
         bool num_nonio_threads = false;
+        bool num_io_threads_per_core = false;
         bool num_storage_threads = false;
         bool portnumber_file = false;
         bool parent_identifier = false;
