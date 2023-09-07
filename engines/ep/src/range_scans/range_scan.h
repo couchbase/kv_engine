@@ -18,6 +18,8 @@
 #include <memcached/range_scan_id.h>
 #include <memcached/storeddockey.h>
 #include <memcached/vbucket.h>
+#include <relaxed_atomic.h>
+
 #include <atomic>
 #include <chrono>
 #include <iostream>
@@ -384,13 +386,13 @@ protected:
     std::unique_ptr<RangeScanDataHandlerIFace> handler;
     KVStoreScanTracker& resourceTracker;
     /// keys read for the life of this scan (counted for key and value scans)
-    size_t totalKeys{0};
+    cb::RelaxedAtomic<size_t> totalKeys{0};
     /// items read from memory for the life of this scan (only for value scans)
-    size_t totalValuesFromMemory{0};
+    cb::RelaxedAtomic<size_t> totalValuesFromMemory{0};
     /// items read from disk for the life of this scan (only for value scans)
-    size_t totalValuesFromDisk{0};
+    cb::RelaxedAtomic<size_t> totalValuesFromDisk{0};
     /// how many continues were issued, this is useful in analysing performance
-    size_t continueCount{0};
+    cb::RelaxedAtomic<size_t> continueCount{0};
     /// Time the scan was created
     std::chrono::steady_clock::time_point createTime;
 
