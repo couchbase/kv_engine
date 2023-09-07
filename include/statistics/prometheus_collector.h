@@ -93,6 +93,8 @@ public:
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) const override;
 
+    [[nodiscard]] bool allowPrivilegedStats() const override;
+
     /**
      * Return a copy of this collector which will add stats to the same
      * result map (metricFamilies reference), but with the provided

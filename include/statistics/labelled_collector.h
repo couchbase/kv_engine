@@ -83,6 +83,8 @@ public:
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) const override;
 
+    [[nodiscard]] bool allowPrivilegedStats() const override;
+
     /**
      * Create a new LabelledStatCollector with all the labels of the current
      * instance, plus the _additional_ labels provided as arguments.

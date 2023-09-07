@@ -71,6 +71,8 @@ public:
                 testPrivilegeForStat,
                 (std::optional<ScopeID> sid, std::optional<CollectionID> cid),
                 (const, override));
+
+    MOCK_METHOD(bool, allowPrivilegedStats, (), (const, override));
 };
 
 MATCHER_P(StatDefNameMatcher,

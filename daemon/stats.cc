@@ -42,39 +42,41 @@ static void server_global_stats(const StatCollector& collector) {
     collector.addStat(Key::version, get_server_version());
     collector.addStat(Key::memcached_version, MEMCACHED_VERSION);
 
-    collector.addStat(
-            Key::daemon_connections,
-            networkInterfaceManager
-                    ? networkInterfaceManager->getNumberOfDaemonConnections()
-                    : 0);
-    auto curr = stats.curr_conns.load();
-    auto sys = stats.system_conns.load();
-    collector.addStat(Key::curr_connections, curr);
-    collector.addStat(Key::system_connections, sys);
-    collector.addStat(Key::user_connections, curr > sys ? curr - sys : 0);
-    collector.addStat(Key::max_user_connections,
-                      Settings::instance().getMaxUserConnections());
-    collector.addStat(Key::max_system_connections,
-                      Settings::instance().getSystemConnections());
-    collector.addStat(Key::total_connections, stats.total_conns);
-    collector.addStat(Key::connection_structures, stats.conn_structs);
+    if (collector.allowPrivilegedStats()) {
+        collector.addStat(Key::daemon_connections,
+                          networkInterfaceManager
+                                  ? networkInterfaceManager
+                                            ->getNumberOfDaemonConnections()
+                                  : 0);
+        auto curr = stats.curr_conns.load();
+        auto sys = stats.system_conns.load();
+        collector.addStat(Key::curr_connections, curr);
+        collector.addStat(Key::system_connections, sys);
+        collector.addStat(Key::user_connections, curr > sys ? curr - sys : 0);
+        collector.addStat(Key::max_user_connections,
+                          Settings::instance().getMaxUserConnections());
+        collector.addStat(Key::max_system_connections,
+                          Settings::instance().getSystemConnections());
+        collector.addStat(Key::total_connections, stats.total_conns);
+        collector.addStat(Key::connection_structures, stats.conn_structs);
 
-    auto pool_size = Settings::instance().getFreeConnectionPoolSize();
-    if (pool_size != 0) {
-        collector.addStat(
-                Key::connection_recycle_high_watermark,
-                Settings::instance().getMaxUserConnections() - pool_size);
-    }
+        auto pool_size = Settings::instance().getFreeConnectionPoolSize();
+        if (pool_size != 0) {
+            collector.addStat(
+                    Key::connection_recycle_high_watermark,
+                    Settings::instance().getMaxUserConnections() - pool_size);
+        }
 
-    std::unordered_map<std::string, size_t> allocStats;
-    cb::ArenaMalloc::getGlobalStats(allocStats);
-    auto allocated = allocStats.find("allocated");
-    if (allocated != allocStats.end()) {
-        collector.addStat(Key::daemon_memory_allocated, allocated->second);
-    }
-    auto resident = allocStats.find("resident");
-    if (resident != allocStats.end()) {
-        collector.addStat(Key::daemon_memory_resident, resident->second);
+        std::unordered_map<std::string, size_t> allocStats;
+        cb::ArenaMalloc::getGlobalStats(allocStats);
+        auto allocated = allocStats.find("allocated");
+        if (allocated != allocStats.end()) {
+            collector.addStat(Key::daemon_memory_allocated, allocated->second);
+        }
+        auto resident = allocStats.find("resident");
+        if (resident != allocStats.end()) {
+            collector.addStat(Key::daemon_memory_resident, resident->second);
+        }
     }
 }
 
@@ -233,7 +235,9 @@ cb::engine_errc server_stats(const StatCollector& collector,
                              const Bucket& bucket) {
     try {
         server_global_stats(collector);
-        server_agg_stats(collector);
+        if (collector.allowPrivilegedStats()) {
+            server_agg_stats(collector);
+        }
         auto bucketC = collector.forBucket(bucket.name);
         server_bucket_stats(bucketC, bucket);
     } catch (const std::bad_alloc&) {

@@ -377,5 +377,8 @@ public:
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) const = 0;
 
+    /// Check if the collector is allowed to collect privileged stats
+    [[nodiscard]] virtual bool allowPrivilegedStats() const = 0;
+
     virtual ~StatCollector() = default;
 };

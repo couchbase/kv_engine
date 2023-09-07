@@ -172,6 +172,19 @@ cb::engine_errc CBStatCollector::testPrivilegeForStat(
     return cb::engine_errc::failed;
 }
 
+bool CBStatCollector::allowPrivilegedStats() const {
+    try {
+        return cookie.testPrivilege(cb::rbac::Privilege::Stats, {}, {})
+                .success();
+    } catch (const std::exception& e) {
+        LOG_ERROR(
+                "CBStatCollector::allowPrivilegedStats: received exception"
+                "while checking privilege: {}",
+                e.what());
+        return false;
+    }
+}
+
 std::string CBStatCollector::formatKey(std::string_view key,
                                        const Labels& labels) const {
     fmt::memory_buffer buf;

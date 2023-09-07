@@ -130,6 +130,13 @@ cb::engine_errc PrometheusStatCollector::testPrivilegeForStat(
     return cb::engine_errc::success;
 }
 
+bool PrometheusStatCollector::allowPrivilegedStats() const {
+    // Prometheus MetricServer requires the authed user to have the Stats
+    // privilege, so a PrometheusStatCollector will only be created for
+    // users with access to _all_ stats
+    return true;
+}
+
 void PrometheusStatCollector::addClientMetric(
         const cb::stats::StatDef& key,
         const Labels& additionalLabels,

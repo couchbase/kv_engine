@@ -71,6 +71,8 @@ public:
             std::optional<ScopeID> sid,
             std::optional<CollectionID> cid) const override;
 
+    [[nodiscard]] bool allowPrivilegedStats() const override;
+
     /**
      * Get the wrapped cookie and addStatFn. Useful while code is
      * being transitioned to the StatCollector interface.

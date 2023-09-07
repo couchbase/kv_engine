@@ -91,6 +91,10 @@ cb::engine_errc LabelledStatCollector::testPrivilegeForStat(
     return parent.testPrivilegeForStat(std::move(sid), std::move(cid));
 }
 
+bool LabelledStatCollector::allowPrivilegedStats() const {
+    return parent.allowPrivilegedStats();
+}
+
 BucketStatCollector::BucketStatCollector(const StatCollector& parent,
                                          std::string_view bucket)
     : LabelledStatCollector(parent, {{"bucket", bucket}}) {

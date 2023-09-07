@@ -36,6 +36,38 @@ TEST_P(StatsTest, TestDefaultStats) {
     //           positive number and never equal to 0
     EXPECT_LT(0, stats["bytes_written"].get<int>());
     EXPECT_LT(0, stats["bytes_read"].get<int>());
+
+    auto validatePrivilegedStats = [](bool privileged, nlohmann::json json) {
+        for (const auto& field : {"daemon_connections",
+                                  "curr_connections",
+                                  "system_connections",
+                                  "user_connections",
+                                  "max_user_connections",
+                                  "max_system_connections",
+                                  "total_connections",
+                                  "connection_structures",
+                                  "cmd_total_sets",
+                                  "cmd_total_gets",
+                                  "cmd_total_ops",
+                                  "rejected_conns",
+                                  "threads",
+                                  "cmd_lookup_10s_count",
+                                  "cmd_lookup_10s_duration_us",
+                                  "cmd_mutation_10s_count",
+                                  "cmd_mutation_10s_duration_us"}) {
+            if (privileged) {
+                EXPECT_NE(json.end(), json.find(field)) << field;
+            } else {
+                EXPECT_EQ(json.end(), json.find(field)) << field;
+            }
+        }
+    };
+
+    validatePrivilegedStats(false, stats);
+    adminConnection->executeInBucket(
+            bucketName, [&validatePrivilegedStats](auto& conn) {
+                validatePrivilegedStats(true, conn.stats(""));
+            });
 }
 
 TEST_P(StatsTest, TestGetMeta) {
