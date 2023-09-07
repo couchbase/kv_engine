@@ -49,7 +49,4 @@ protected:
     void complete(ActiveStream& stream);
 
     void complete(ActiveStream& stream, bool cancelled);
-
-    /// collection to scan for
-    CollectionID cid;
 };

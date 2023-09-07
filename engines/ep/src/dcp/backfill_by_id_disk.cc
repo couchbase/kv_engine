@@ -20,7 +20,35 @@
 DCPBackfillByIdDisk::DCPBackfillByIdDisk(KVBucket& bucket,
                                          std::shared_ptr<ActiveStream> s,
                                          CollectionID cid)
-    : DCPBackfillDiskToStream(s), DCPBackfillDisk(bucket), cid(cid) {
+    : DCPBackfillDiskToStream(s), DCPBackfillDisk(bucket) {
+    (void)cid; // @todo: clean-up and remove parameter, no longer used.
+}
+
+static ByIdRange createCollectionSystemNamespaceRange(CollectionID cid) {
+    // The system event start/end we can make from SystemEventFactory
+    auto sysRange =
+            SystemEventFactory::makeCollectionEventKeyPairForRangeScan(cid);
+    return ByIdRange{sysRange.first, sysRange.second};
+}
+
+static ByIdRange createCollectionRange(CollectionID cid) {
+    // Create the start and end keys for the collection itself
+    cb::mcbp::unsigned_leb128<CollectionIDType> start(uint32_t{cid});
+
+    // The end key is the "start key" + "\xff", so we clone the start key into
+    // an array that is 1 byte larger than the largest possible leb128 prefix
+    // and set the byte after the leb128 prefix to be 0xff.
+    std::array<uint8_t,
+               cb::mcbp::unsigned_leb128<CollectionIDType>::getMaxSize() + 1>
+            end;
+    std::copy(start.begin(), start.end(), end.begin());
+    end[start.size()] = std::numeric_limits<uint8_t>::max();
+    return ByIdRange{DiskDocKey{{start.data(),
+                                 start.size(),
+                                 DocKeyEncodesCollectionId::Yes}},
+                     DiskDocKey{{end.data(),
+                                 start.size() + 1,
+                                 DocKeyEncodesCollectionId::Yes}}};
 }
 
 backfill_status_t DCPBackfillByIdDisk::create() {
@@ -39,38 +67,19 @@ backfill_status_t DCPBackfillByIdDisk::create() {
 
     auto valFilter = stream->getValueFilter();
 
-    // Create two ranges of keys to have loaded from the scan.
-    // 1) system/collection/cid - for the 'metadata', i.e the create/drop marker
-    // 2) the range for the collection itself
-    // The range for each of the above is the prefix we want and then the suffix
-    // of "\xff". E.g. for collection 8
-    // start="\8", end="\8\xFF"
-
-    // The system event start/end we can make from SystemEventFactory
-    auto sysRange =
-            SystemEventFactory::makeCollectionEventKeyPairForRangeScan(cid);
-
-    // Create the start and end keys for the collection itself
-    cb::mcbp::unsigned_leb128<CollectionIDType> start(uint32_t{cid});
-
-    // The end key is the "start key" + "\xff", so we clone the start key into
-    // an array that is 1 byte larger than the largest possible leb128 prefixe
-    // and set the byte after the leb128 prefix to be 0xff.
-    std::array<uint8_t,
-               cb::mcbp::unsigned_leb128<CollectionIDType>::getMaxSize() + 1>
-            end;
-    std::copy(start.begin(), start.end(), end.begin());
-    end[start.size()] = std::numeric_limits<uint8_t>::max();
-
+    // Iterate through the collections of the ActiveStream::filter. Note the
+    // assumption is that if we are executing here, the ActiveStream's filter
+    // is suitable for the ByID scan.
     std::vector<ByIdRange> ranges;
-    ranges.emplace_back(ByIdRange{sysRange.first, sysRange.second});
-    ranges.emplace_back(
-            ByIdRange{DiskDocKey{{start.data(),
-                                  start.size(),
-                                  DocKeyEncodesCollectionId::Yes}},
-                      DiskDocKey{{end.data(),
-                                  start.size() + 1,
-                                  DocKeyEncodesCollectionId::Yes}}});
+    for (auto [cid, sid] : stream->getFilter()) {
+        (void)sid; // No use for the mapped scope in building the scan
+        // Create the ByIdRange objects required to scan the given collection.
+        // Two ranges required for a collection scan, first is the system
+        // namespace but looking for events relating to the collection.
+        // Second is the collection itself.
+        ranges.emplace_back(createCollectionSystemNamespaceRange(cid));
+        ranges.emplace_back(createCollectionRange(cid));
+    }
 
     scanCtx = kvstore->initByIdScanContext(
             std::make_unique<DiskCallback>(stream),
@@ -141,10 +150,9 @@ backfill_status_t DCPBackfillByIdDisk::scan() {
     case ScanStatus::Failed:
         // Scan did not complete successfully. Propagate error to stream.
         stream->log(spdlog::level::err,
-                    "DCPBackfillByIdDisk::scan(): ({}, {}) Scan failed Setting "
+                    "DCPBackfillByIdDisk::scan(): {} Scan failed Setting "
                     "stream to dead state.",
-                    getVBucketId(),
-                    cid.to_string());
+                    getVBucketId());
         stream->setDead(cb::mcbp::DcpStreamEndStatus::BackfillFail);
         return backfill_finished;
     }
@@ -157,9 +165,8 @@ void DCPBackfillByIdDisk::complete(ActiveStream& stream) {
     stream.completeOSOBackfill(
             scanCtx->maxSeqno, runtime, scanCtx->diskBytesRead);
     stream.log(spdlog::level::level_enum::debug,
-               "({}) Backfill task cid:{} complete",
-               vbid,
-               cid.to_string());
+               "({}) DCPBackfillByIdDisk task complete",
+               vbid);
 }
 
 backfill_status_t DCPBackfillByIdDisk::scanHistory() {
