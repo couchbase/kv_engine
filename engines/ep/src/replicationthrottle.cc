@@ -14,6 +14,7 @@
 #include "ep_engine.h"
 #include "kv_bucket.h"
 #include "stats.h"
+#include <utilities/math_utilities.h>
 
 ReplicationThrottleEP::ReplicationThrottleEP(
         const EventuallyPersistentEngine& engine)
@@ -29,7 +30,7 @@ bool ReplicationThrottleEP::hasSomeMemory() const {
     const auto* bucket = engine.getKVBucket();
     Expects(bucket);
 
-    return memoryUsed <= maxSize * bucket->getMutationMemRatio();
+    return memoryUsed <= cb::fractionOf(maxSize, bucket->getMutationMemRatio());
 }
 
 ReplicationThrottleEP::Status ReplicationThrottleEP::getStatus() const {

@@ -13,12 +13,13 @@
 #include "ep_engine.h"
 #include "ep_engine_group.h"
 #include "kv_bucket.h"
+#include <utilities/math_utilities.h>
 
 bool StrictQuotaMemoryTracker::isBelowMutationMemoryQuota(
         size_t pendingBytes) const {
     return engine.getEpStats().getEstimatedTotalMemoryUsed() + pendingBytes <
-           engine.getEpStats().getMaxDataSize() *
-                   engine.getKVBucket()->getMutationMemRatio();
+           cb::fractionOf(engine.getEpStats().getMaxDataSize(),
+                          engine.getKVBucket()->getMutationMemRatio());
 }
 
 bool StrictQuotaMemoryTracker::isBelowMemoryQuota(size_t pendingBytes) const {
@@ -28,8 +29,8 @@ bool StrictQuotaMemoryTracker::isBelowMemoryQuota(size_t pendingBytes) const {
 
 bool StrictQuotaMemoryTracker::isBelowBackfillThreshold() const {
     return engine.getEpStats().getEstimatedTotalMemoryUsed() <
-           engine.getEpStats().getMaxDataSize() *
-                   engine.getKVBucket()->getBackfillMemoryThreshold();
+           cb::fractionOf(engine.getEpStats().getMaxDataSize(),
+                          engine.getKVBucket()->getBackfillMemoryThreshold());
 }
 
 bool StrictQuotaMemoryTracker::needsToFreeMemory() const {

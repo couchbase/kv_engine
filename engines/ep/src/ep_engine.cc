@@ -80,6 +80,7 @@
 #include <statistics/prometheus.h>
 #include <utilities/engine_errc_2_mcbp.h>
 #include <utilities/logtags.h>
+#include <utilities/math_utilities.h>
 #include <xattr/utils.h>
 #include <functional>
 
@@ -97,10 +98,6 @@
 
 using cb::tracing::Code;
 using namespace std::string_view_literals;
-
-static size_t percentOf(size_t val, double percent) {
-    return static_cast<size_t>(static_cast<double>(val) * percent);
-}
 
 struct EPHandleReleaser {
     void operator()(const EventuallyPersistentEngine*) {
@@ -6947,8 +6944,10 @@ void EventuallyPersistentEngine::setMaxDataSize(size_t size) {
 }
 
 void EventuallyPersistentEngine::configureMemWatermarksForQuota(size_t quota) {
-    configuration.setMemLowWat(percentOf(quota, stats.mem_low_wat_percent));
-    configuration.setMemHighWat(percentOf(quota, stats.mem_high_wat_percent));
+    configuration.setMemLowWat(
+            cb::fractionOf(quota, stats.mem_low_wat_percent));
+    configuration.setMemHighWat(
+            cb::fractionOf(quota, stats.mem_high_wat_percent));
 }
 
 void EventuallyPersistentEngine::configureStorageMemoryForQuota(size_t quota) {

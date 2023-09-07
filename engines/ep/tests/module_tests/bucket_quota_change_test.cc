@@ -19,16 +19,13 @@
 #include "kvstore/kvstore_iface.h"
 #include "test_helpers.h"
 #include "vbucket.h"
+#include <utilities/math_utilities.h>
 
 #include "../mock/mock_synchronous_ep_engine.h"
 
 #ifdef EP_USE_MAGMA
 #include "kvstore/magma-kvstore/magma-kvstore_config.h"
 #endif
-
-auto percentOf(size_t val, double percent) {
-    return static_cast<size_t>(static_cast<double>(val) * percent);
-}
 
 class BucketQuotaChangeTest : public STParameterizedBucketTest {
 public:
@@ -114,14 +111,14 @@ public:
     }
 
     void setLowWatermark(double percentage) {
-        auto newValue = percentOf(getCurrentBucketQuota(), percentage);
+        auto newValue = cb::fractionOf(getCurrentBucketQuota(), percentage);
         std::string msg;
         engine->setFlushParam("mem_low_wat", std::to_string(newValue), msg);
         initialMemLowWatPercent = percentage;
     }
 
     void setHighWatermark(double percentage) {
-        auto newValue = percentOf(getCurrentBucketQuota(), percentage);
+        auto newValue = cb::fractionOf(getCurrentBucketQuota(), percentage);
         std::string msg;
         engine->setFlushParam("mem_high_wat", std::to_string(newValue), msg);
         initialMemHighWatPercent = percentage;
@@ -135,11 +132,11 @@ public:
     void checkWatermarkValues(size_t quotaValue) {
         EXPECT_EQ(initialMemLowWatPercent,
                   engine->getEpStats().mem_low_wat_percent);
-        EXPECT_EQ(percentOf(quotaValue, initialMemLowWatPercent),
+        EXPECT_EQ(cb::fractionOf(quotaValue, initialMemLowWatPercent),
                   engine->getConfiguration().getMemLowWat());
         EXPECT_EQ(initialMemHighWatPercent,
                   engine->getEpStats().mem_high_wat_percent);
-        EXPECT_EQ(percentOf(quotaValue, initialMemHighWatPercent),
+        EXPECT_EQ(cb::fractionOf(quotaValue, initialMemHighWatPercent),
                   engine->getConfiguration().getMemHighWat());
     }
 
@@ -162,8 +159,8 @@ public:
             engine->getKVBucket()->getOneRWUnderlying()->getStat("memory_quota",
                                                                  magmaQuota);
             EXPECT_EQ(
-                    percentOf(quotaValue,
-                              magmaKVStoreConfig.getMagmaMemQuotaRatio()),
+                    cb::fractionOf(quotaValue,
+                                   magmaKVStoreConfig.getMagmaMemQuotaRatio()),
                     magmaQuota * engine->getConfiguration().getMaxNumShards());
         }
 #endif
@@ -291,10 +288,10 @@ public:
         // backfills, and storage engine quota, before it changes the actual
         // quota, check that those values have been updated now (and that quota
         // is still the same).
-        EXPECT_EQ(percentOf(newQuota, initialMemLowWatPercent),
+        EXPECT_EQ(cb::fractionOf(newQuota, initialMemLowWatPercent),
                   engine->getConfiguration().getMemLowWat());
 
-        EXPECT_EQ(percentOf(newQuota, initialMemHighWatPercent),
+        EXPECT_EQ(cb::fractionOf(newQuota, initialMemHighWatPercent),
                   engine->getConfiguration().getMemHighWat());
 
         checkMaxRunningBackfills(newQuota);
