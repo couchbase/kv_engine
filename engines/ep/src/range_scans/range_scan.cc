@@ -134,13 +134,15 @@ RangeScan::~RangeScan() {
 
     auto cs = *continueState.rlock();
 
-    EP_LOG_INFO("{} finished in {} status:{}, after {}ms, keys:{}{}",
-                getLogId(),
-                cs.state,
-                cs.finalStatus,
-                duration,
-                totalKeys,
-                std::string_view{valueScanStats.data(), valueScanStats.size()});
+    EP_LOG_INFO(
+            "{} finished in {} status:{}, after {}ms, continued:{}, keys:{}{}",
+            getLogId(),
+            cs.state,
+            cs.finalStatus,
+            duration,
+            continueCount,
+            totalKeys,
+            std::string_view{valueScanStats.data(), valueScanStats.size()});
 
     // All waiting cookies must of been notified before we destruct. This should
     // be null as the cookie is "taken" out of the object by the I/O task.
@@ -486,6 +488,7 @@ void RangeScan::setStateContinuing(CookieIface& client,
                                    size_t limit,
                                    std::chrono::milliseconds timeLimit,
                                    size_t byteLimit) {
+    continueCount++;
     continueState.withWLock(
             [&client, limit, timeLimit, byteLimit, this](auto& cs) {
                 switch (cs.state) {
@@ -663,6 +666,7 @@ void RangeScan::addStats(const StatCollector& collector) const {
     addStat("total_keys", totalKeys);
     addStat("total_items_from_memory", totalValuesFromMemory);
     addStat("total_items_from_disk", totalValuesFromDisk);
+    addStat("continues", continueCount);
 
     continueRunState.addStats(std::string_view{prefix.data(), prefix.size()},
                               collector);
@@ -708,6 +712,7 @@ std::ostream& operator<<(std::ostream& os, const RangeScan& scan) {
                scan.totalKeys,
                scan.totalValuesFromMemory,
                scan.totalValuesFromDisk,
+               scan.getContinueCount(),
                scan.continueRunState,
                cs);
 

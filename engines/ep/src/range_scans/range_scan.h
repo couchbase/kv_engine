@@ -318,6 +318,11 @@ public:
     /// @return a string for this scan which can be used for consistent logging
     std::string getLogId() const;
 
+    /// @return count of how many continues have been invoked for this scan
+    size_t getContinueCount() const {
+        return continueCount;
+    }
+
     /**
      * To facilitate testing, the now function, which returns a time point can
      * be replaced
@@ -384,6 +389,8 @@ protected:
     size_t totalValuesFromMemory{0};
     /// items read from disk for the life of this scan (only for value scans)
     size_t totalValuesFromDisk{0};
+    /// how many continues were issued, this is useful in analysing performance
+    size_t continueCount{0};
     /// Time the scan was created
     std::chrono::steady_clock::time_point createTime;
 

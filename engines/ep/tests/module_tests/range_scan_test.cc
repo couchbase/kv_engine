@@ -427,12 +427,16 @@ void RangeScanTest::testRangeScan(
                                     : cb::engine_errc::range_scan_complete;
     continueRangeScan(uuid, itemLimit, timeLimit, byteLimit, ioCompleteStatus);
 
+    auto vb = store->getVBucket(vbid);
+    auto& epVb = dynamic_cast<EPVBucket&>(*vb);
+
     // Tests will need more continues if a limit is in-play
     for (size_t count = 0; count < extraContinues; count++) {
         // Last continue should reach complete
         auto ioCompleteStatus = (count < extraContinues - 1)
                                         ? cb::engine_errc::range_scan_more
                                         : cb::engine_errc::range_scan_complete;
+        EXPECT_EQ(1 + count, epVb.getRangeScan(uuid)->getContinueCount());
         continueRangeScan(
                 uuid, itemLimit, timeLimit, byteLimit, ioCompleteStatus);
     }
