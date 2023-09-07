@@ -56,14 +56,14 @@ public:
     // Check to see if TLS is configured or not
     bool isTlsConfigured();
 
-    std::pair<cb::mcbp::Status, std::string> doGetTlsConfig();
-    std::pair<cb::mcbp::Status, std::string> doTlsReconfigure(
+    std::pair<cb::mcbp::Status, std::string> getTlsConfig();
+    std::pair<cb::mcbp::Status, std::string> reconfigureTlsConfig(
             const nlohmann::json& spec);
-    std::pair<cb::mcbp::Status, std::string> doDefineInterface(
+    std::pair<cb::mcbp::Status, std::string> listInterface();
+    std::pair<cb::mcbp::Status, std::string> defineInterface(
             const nlohmann::json& spec);
-    std::pair<cb::mcbp::Status, std::string> doDeleteInterface(
+    std::pair<cb::mcbp::Status, std::string> deleteInterface(
             const std::string& uuid);
-    std::pair<cb::mcbp::Status, std::string> doListInterface();
 
     uniqueSslPtr createClientSslHandle();
 
@@ -73,6 +73,12 @@ public:
     std::size_t getNumberOfDaemonConnections() const;
 
 protected:
+    std::pair<cb::mcbp::Status, std::string> doListInterface();
+    std::pair<cb::mcbp::Status, std::string> doDeleteInterface(
+            const std::string& uuid);
+    std::pair<cb::mcbp::Status, std::string> doDefineInterface(
+            const nlohmann::json& spec);
+
     /**
      * Create the file containing all of the interfaces we're currently
      * listening to.
@@ -94,7 +100,12 @@ protected:
 
     folly::EventBase& eventBase;
     const cb::prometheus::AuthCallback authCallback;
+    /// The listen_conn vector owns all of the server sockets, and all
+    /// access to the listen_conn vector _MUST_ be performed by the thread
+    /// running the event base (as the objects are registered within libevent
+    /// and may be in use in a callback at the same time)
     std::vector<std::unique_ptr<ServerSocket>> listen_conn;
+    /// The current TLS configuration. May be accessed from all threads
     folly::Synchronized<std::unique_ptr<TlsConfiguration>> tlsConfiguration;
 };
 
