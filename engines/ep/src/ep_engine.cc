@@ -1785,7 +1785,14 @@ bool EventuallyPersistentEngine::isXattrEnabled() {
 
 std::optional<cb::HlcTime> EventuallyPersistentEngine::getVBucketHlcNow(
         Vbid vbucket) {
-    auto vb = getKVBucket()->getVBucket(vbucket);
+    // Initialisation and shutdown paths can means that this function could be
+    // called before kvBucket is created/assigned and after a VBucket is removed
+    // from the map. In both cases be resilient and return nullopt.
+    auto* kvBucket = getKVBucket();
+    if (!kvBucket) {
+        return std::nullopt;
+    }
+    auto vb = kvBucket->getVBucket(vbucket);
     if (!vb) {
         return std::nullopt;
     }
