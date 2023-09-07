@@ -1825,7 +1825,8 @@ TEST_P(SingleThreadedActiveStreamTest, DiskBackfillInitializingItemsRemaining) {
     store_item(vbid, makeStoredDocKey("key3"), "value");
 
     const auto openId = manager.getOpenCheckpointId();
-    ASSERT_GT(manager.createNewCheckpoint(), openId);
+    manager.createNewCheckpoint();
+    ASSERT_GT(manager.getOpenCheckpointId(), openId);
     flushVBucketToDiskIfPersistent(vbid, 3 /*expected_num_flushed*/);
     ASSERT_EQ(1, manager.getNumCheckpoints());
     ASSERT_EQ(1, manager.getNumOpenChkItems());
@@ -1912,7 +1913,8 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillDeletedVBucket) {
         store_item(vbid, makeStoredDocKey("key2"), "value");
 
         const auto openId = manager.getOpenCheckpointId();
-        ASSERT_GT(manager.createNewCheckpoint(), openId);
+        manager.createNewCheckpoint();
+        ASSERT_GT(manager.getOpenCheckpointId(), openId);
         flushVBucketToDiskIfPersistent(vbid, 2 /*expected_num_flushed*/);
         ASSERT_EQ(1, manager.getNumCheckpoints());
         ASSERT_EQ(1, manager.getNumOpenChkItems());
@@ -1987,7 +1989,8 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSequential) {
         // longer present in CheckpointManager. Achieve this by creating a
         // new checkpoint, flushing the (now-closed) one and removing it.
         const auto openId = manager.getOpenCheckpointId();
-        ASSERT_GT(manager.createNewCheckpoint(), openId);
+        manager.createNewCheckpoint();
+        ASSERT_GT(manager.getOpenCheckpointId(), openId);
         flushVBucketToDiskIfPersistent(vbid, 2 /*expected_num_flushed*/);
         ASSERT_EQ(1, manager.getNumCheckpoints());
         ASSERT_EQ(1, manager.getNumOpenChkItems());
@@ -2112,7 +2115,8 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillSkipsScanIfStreamInWrongState) {
         EXPECT_EQ(cb::engine_errc::success,
                   vb->set(rlh, item, cookie, *engine, {}, cHandle));
     }
-    EXPECT_EQ(2, ckptMgr.createNewCheckpoint());
+    ckptMgr.createNewCheckpoint();
+    EXPECT_EQ(2, ckptMgr.getOpenCheckpointId());
 
     if (persistent()) {
         flush_vbucket_to_disk(vbid);
@@ -3659,7 +3663,8 @@ TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
     store_item(vbid, makeStoredDocKey("key1"), "value");
 
     const auto openId = ckptMgr.getOpenCheckpointId();
-    ASSERT_GT(ckptMgr.createNewCheckpoint(), openId);
+    ckptMgr.createNewCheckpoint();
+    ASSERT_GT(ckptMgr.getOpenCheckpointId(), openId);
     flushVBucketToDiskIfPersistent(vbid, 1 /*expected_num_flushed*/);
     ASSERT_EQ(1, ckptMgr.getNumCheckpoints());
     ASSERT_EQ(1, ckptMgr.getNumOpenChkItems());
@@ -4463,7 +4468,8 @@ TEST_P(SingleThreadedActiveStreamTest, NoValueStreamBackfillsFullSystemEvent) {
 
     // Ensure backfill
     const auto openId = manager.getOpenCheckpointId();
-    ASSERT_GT(manager.createNewCheckpoint(), openId);
+    manager.createNewCheckpoint();
+    ASSERT_GT(manager.getOpenCheckpointId(), openId);
     flushVBucketToDiskIfPersistent(vbid, 2 /*expected_num_flushed*/);
     ASSERT_EQ(1, manager.getNumCheckpoints());
     ASSERT_EQ(1, manager.getNumOpenChkItems());
@@ -4956,7 +4962,8 @@ TEST_P(SingleThreadedActiveStreamTest, BackfillRangeCoversAllDataInTheStorage) {
 
     // Steps to ensure backfill when we re-create the stream in the following
     const auto openId = manager.getOpenCheckpointId();
-    ASSERT_GT(manager.createNewCheckpoint(), openId);
+    manager.createNewCheckpoint();
+    ASSERT_GT(manager.getOpenCheckpointId(), openId);
     flushVBucketToDiskIfPersistent(vbid, 2 /*expected_num_flushed*/);
     ASSERT_EQ(1, manager.getNumCheckpoints());
     ASSERT_EQ(1, manager.getNumOpenChkItems());
@@ -5050,7 +5057,8 @@ TEST_P(SingleThreadedActiveStreamTest, MB_45757) {
     stream.reset();
     producer.reset();
     const auto openId = manager.getOpenCheckpointId();
-    ASSERT_GT(manager.createNewCheckpoint(), openId);
+    manager.createNewCheckpoint();
+    ASSERT_GT(manager.getOpenCheckpointId(), openId);
     flushVBucketToDiskIfPersistent(vbid, 1 /*expected_num_flushed*/);
     ASSERT_EQ(1, manager.getNumCheckpoints());
     ASSERT_EQ(1, manager.getNumOpenChkItems());

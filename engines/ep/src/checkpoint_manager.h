@@ -441,10 +441,8 @@ public:
 
     /**
      * Create a new open checkpoint.
-     *
-     * @return the new open checkpoint id
      */
-    uint64_t createNewCheckpoint();
+    void createNewCheckpoint();
 
     /**
      * @return the memory usage of all the checkpoints managed

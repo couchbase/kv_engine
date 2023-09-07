@@ -592,7 +592,8 @@ TEST_P(VBucketTest, DISABLED_GetItemsToPersist_Limit) {
 
     // Create second checkpoint
     const auto firstCkptId = manager.getOpenCheckpointId();
-    const auto secondCkptId = manager.createNewCheckpoint();
+    manager.createNewCheckpoint();
+    const auto secondCkptId = manager.getOpenCheckpointId();
     ASSERT_GT(secondCkptId, firstCkptId);
 
     // Add items to the second checkpoint

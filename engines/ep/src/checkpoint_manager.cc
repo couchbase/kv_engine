@@ -1508,10 +1508,9 @@ queued_item CheckpointManager::createCheckpointMetaItem(uint64_t checkpointId,
     return queued_item(new Item(key, vb.getId(), op, checkpointId, seqno));
 }
 
-uint64_t CheckpointManager::createNewCheckpoint() {
+void CheckpointManager::createNewCheckpoint() {
     std::lock_guard<std::mutex> lh(queueLock);
     addNewCheckpoint(lh);
-    return getOpenCheckpointId(lh);
 }
 
 size_t CheckpointManager::getMemUsage() const {

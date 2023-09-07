@@ -295,7 +295,8 @@ TEST_P(CheckpointTest, OneOpenOneClosed) {
     const uint64_t ckpt_id1 = this->manager->getOpenCheckpointId();
 
     // Create a new checkpoint (closing the current open one).
-    const uint64_t ckpt_id2 = this->manager->createNewCheckpoint();
+    manager->createNewCheckpoint();
+    const uint64_t ckpt_id2 = manager->getOpenCheckpointId();
     EXPECT_EQ(ckpt_id1 + 1, ckpt_id2)
             << "New checkpoint ID should differ from old";
     EXPECT_EQ(1, manager->getNumOpenChkItems()); // just cs
