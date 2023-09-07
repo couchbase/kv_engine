@@ -141,6 +141,8 @@ static cb::engine_errc stat_reset_executor(const std::string& arg,
                                            Cookie& cookie) {
     if (arg.empty()) {
         stats_reset(cookie);
+        stats.auth_cmds = 0;
+        stats.auth_errors = 0;
         bucket_reset_stats(cookie);
         all_buckets[0].timings.reset();
         cookie.getConnection().getBucket().timings.reset();

@@ -77,6 +77,8 @@ static void server_global_stats(const StatCollector& collector) {
         if (resident != allocStats.end()) {
             collector.addStat(Key::daemon_memory_resident, resident->second);
         }
+        collector.addStat(Key::auth_cmds, stats.auth_cmds);
+        collector.addStat(Key::auth_errors, stats.auth_errors);
     }
 }
 
@@ -169,8 +171,6 @@ static void server_bucket_stats(const BucketStatCollector& collector,
     collector.addStat(Key::cmd_mutation, mutations);
     collector.addStat(Key::cmd_lookup, lookups);
 
-    collector.addStat(Key::auth_cmds, thread_stats.auth_cmds);
-    collector.addStat(Key::auth_errors, thread_stats.auth_errors);
     collector.addStat(Key::get_hits, thread_stats.get_hits);
     collector.addStat(Key::get_misses, thread_stats.get_misses);
     collector.addStat(Key::delete_misses, thread_stats.delete_misses);

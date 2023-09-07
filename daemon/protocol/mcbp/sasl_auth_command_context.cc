@@ -99,7 +99,7 @@ cb::engine_errc SaslAuthCommandContext::tryHandleSaslOk(
                         payload,
                         cb::mcbp::Datatype::Raw,
                         0);
-    get_thread_stats(&connection)->auth_cmds++;
+    stats.auth_cmds++;
     state = State::Done;
     return cb::engine_errc::success;
 }
@@ -212,9 +212,8 @@ cb::engine_errc SaslAuthCommandContext::authContinue(
 }
 
 cb::engine_errc SaslAuthCommandContext::authBadParameters() {
-    auto* ts = get_thread_stats(&connection);
-    ts->auth_cmds++;
-    ts->auth_errors++;
+    stats.auth_cmds++;
+    stats.auth_errors++;
     connection.releaseSaslServerContext();
     return cb::engine_errc::invalid_arguments;
 }
@@ -234,9 +233,8 @@ cb::engine_errc SaslAuthCommandContext::authFailure(cb::sasl::Error error) {
         cookie.sendResponse(cb::mcbp::Status::AuthError);
     }
 
-    auto* ts = get_thread_stats(&connection);
-    ts->auth_cmds++;
-    ts->auth_errors++;
+    stats.auth_cmds++;
+    stats.auth_errors++;
 
     connection.releaseSaslServerContext();
     return cb::engine_errc::success;
