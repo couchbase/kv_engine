@@ -42,7 +42,13 @@ class Semaphore;
  */
 class ItemPager : public NotifiableTask {
 public:
+    // ctor when ItemPager is not associated with a specific bucket.
     ItemPager(Taskable& t,
+              size_t numConcurrentPagers,
+              std::chrono::milliseconds sleepTime);
+
+    // ctor when Item pager is associated with a specific bucket.
+    ItemPager(EventuallyPersistentEngine& engine,
               size_t numConcurrentPagers,
               std::chrono::milliseconds sleepTime);
 
@@ -170,7 +176,6 @@ private:
      */
     void resetPhase();
 
-    EventuallyPersistentEngine& engine;
     EPStats& stats;
 };
 

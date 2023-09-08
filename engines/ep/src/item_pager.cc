@@ -58,6 +58,13 @@ ItemPager::ItemPager(Taskable& t,
       sleepTime(sleepTime) {
 }
 
+ItemPager::ItemPager(EventuallyPersistentEngine& engine,
+                     size_t numConcurrentPagers,
+                     std::chrono::milliseconds sleepTime)
+    : ItemPager(engine.getTaskable(), numConcurrentPagers, sleepTime) {
+    GlobalTask::engine = &engine;
+}
+
 std::optional<VBucketFilter> ItemPager::createVBucketFilter(
         KVBucket& kvBucket, PermittedVBStates acceptedStates) {
     VBucketFilter filter;
@@ -93,11 +100,10 @@ PermittedVBStates ItemPager::getStatesForEviction(EvictionRatios ratios) const {
 StrictQuotaItemPager::StrictQuotaItemPager(EventuallyPersistentEngine& e,
                                            EPStats& st,
                                            size_t numConcurrentPagers)
-    : ItemPager(e.getTaskable(),
+    : ItemPager(e,
                 numConcurrentPagers,
                 std::chrono::milliseconds(
                         e.getConfiguration().getPagerSleepTimeMs())),
-      engine(e),
       stats(st) {
 }
 
@@ -139,7 +145,7 @@ EvictionRatios StrictQuotaItemPager::getEvictionRatios(
 }
 
 ItemPager::PageableMemInfo StrictQuotaItemPager::getPageableMemInfo() const {
-    KVBucket* kvBucket = engine.getKVBucket();
+    KVBucket* kvBucket = engine->getKVBucket();
     auto current = kvBucket->getPageableMemCurrent();
     auto upper = kvBucket->getPageableMemHighWatermark();
     auto lower = kvBucket->getPageableMemLowWatermark();
@@ -183,7 +189,7 @@ bool ItemPager::runInner(bool manuallyNotified) {
 std::function<std::unique_ptr<ItemEvictionStrategy>()>
 StrictQuotaItemPager::getEvictionStrategyFactory(
         EvictionRatios evictionRatios) {
-    const auto& cfg = engine.getConfiguration();
+    const auto& cfg = engine->getConfiguration();
 
     auto strategy = cfg.getItemEvictionStrategy();
 
@@ -191,7 +197,7 @@ StrictQuotaItemPager::getEvictionStrategyFactory(
         MFUHistogram activePendingMFUHist;
         MFUHistogram replicaMFUHist;
 
-        KVBucket* kvBucket = engine.getKVBucket();
+        KVBucket* kvBucket = engine->getKVBucket();
         for (auto& vbucket : kvBucket->getVBuckets()) {
             switch (vbucket.getState()) {
             case vbucket_state_active:
@@ -278,7 +284,7 @@ size_t ItemPager::getEvictableBytes(KVBucket& kvBucket,
 }
 
 void StrictQuotaItemPager::schedulePagingVisitors(std::size_t bytesToEvict) {
-    auto* kvBucket = engine.getKVBucket();
+    auto* kvBucket = engine->getKVBucket();
     if (kvBucket->getItemEvictionPolicy() == EvictionPolicy::Value) {
         doEvict = true;
     }
