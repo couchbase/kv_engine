@@ -670,6 +670,13 @@ void Checkpoint::addStats(const AddStatFn& add_stat, CookieIface& cookie) {
                      vbucketId.get(),
                      getId());
     add_casted_stat(buf.data(), getNumItems(), add_stat, cookie);
+
+    checked_snprintf(buf.data(),
+                     buf.size(),
+                     "vb_%d:id_%" PRIu64 ":num_cursors_in_checkpoint",
+                     vbucketId.get(),
+                     getId());
+    add_casted_stat(buf.data(), numOfCursorsInCheckpoint, add_stat, cookie);
 }
 
 void Checkpoint::detachFromManager() {
