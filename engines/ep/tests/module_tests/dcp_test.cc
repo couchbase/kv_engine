@@ -1596,8 +1596,6 @@ protected:
     }
 
     void TearDown() override {
-        ExecutorPool::get()->unregisterTaskable(engine->getTaskable(),
-                                                false /*force*/);
         engine.reset();
         ObjectRegistry::onSwitchThread(nullptr);
         ExecutorPool::shutdown();

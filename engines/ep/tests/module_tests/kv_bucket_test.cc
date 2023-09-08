@@ -152,7 +152,7 @@ void KVBucketTest::TearDown() {
 void KVBucketTest::destroy(bool force) {
     destroy_mock_cookie(cookie);
     engine->getDcpConnMap().manageConnections();
-    engine->destroyInner(force);
+    engine.get_deleter().force = force;
     engine.reset();
 }
 

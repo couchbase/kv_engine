@@ -2713,7 +2713,6 @@ TEST_F(DurabilityRespondAmbiguousTest, RespondAmbiguousNotificationDeadLock) {
         engine->getDcpConnMap().manageConnections();
 
         // Should deadlock here
-        engine->destroyInner(false);
         engine.reset();
 
         // The RespondAmbiguousNotification task requires our cookie to still be

@@ -28,7 +28,7 @@
 #include <memcached/engine_error.h>
 #include <memcached/storeddockey_fwd.h>
 #include <tests/ep_request_utils.h>
-#include <tests/mock/mock_synchronous_ep_engine_fwd.h>
+#include <tests/mock/mock_synchronous_ep_engine.h>
 
 #include <memory>
 #include <unordered_map>

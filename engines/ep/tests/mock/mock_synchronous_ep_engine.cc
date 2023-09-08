@@ -207,12 +207,6 @@ QuotaSharingManager& SynchronousEPEngine::getQuotaSharingManager() {
     return *quotaSharingManager;
 }
 
-void SynchronousEPEngineDeleter::operator()(SynchronousEPEngine* engine) {
-    ObjectRegistry::onSwitchThread(engine);
-    delete engine;
-    ObjectRegistry::onSwitchThread(nullptr);
-}
-
 void SynchronousEPEngine::initializeConnmap() {
     dcpConnMap_->initialize();
 }

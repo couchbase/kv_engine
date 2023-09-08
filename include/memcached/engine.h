@@ -907,15 +907,29 @@ inline EngineErrorItemPair makeEngineErrorItemPair(cb::engine_errc err,
 }
 }
 
+/**
+ * Deleter for EngineIface and derived classes. Supports forceful deletion.
+ *
+ * Typical usage is via a unique_ptr (see unique_engine_ptr below), allowing
+ * safe management of EngineIface objects.
+ * To forcefully delete when used via unique_ptr, access the deleter and set
+ * force to true before resetting - e.g.
+ *
+ *     engine.get_deleter().force = true;
+ *     engine.reset();
+ *
+ * @tparam T Type of the pointer being managed.
+ */
+template <class T = EngineIface>
 struct EngineDeletor {
-    void operator()(EngineIface* engine) {
+    void operator()(T* engine) {
         engine->destroy(force);
     }
 
     bool force = false;
 };
 
-using unique_engine_ptr = std::unique_ptr<EngineIface, EngineDeletor>;
+using unique_engine_ptr = std::unique_ptr<EngineIface, EngineDeletor<>>;
 
 /**
  * @}

@@ -63,9 +63,10 @@ public:
         engine->getDcpConnMap().manageConnections();
         // ensure all the task have done away so we can shutdown
         shutdownAndPurgeTasks(engine.get());
-        // release the engine object which will cleanly clean up any objects
-        // still in memory
-        engine.reset(nullptr);
+        // release the engine object which will free any objects
+        // still in memory, but don't perform a "clean" shutdown.
+        engine.get_deleter().force = true;
+        engine.reset();
         ObjectRegistry::onSwitchThread(nullptr);
     };
 
