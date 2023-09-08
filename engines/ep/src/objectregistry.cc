@@ -119,9 +119,10 @@ ObjectRegistry::switchToEngine(EventuallyPersistentEngine* engine,
     // engine and domain - or disable tracking.
     if (engine) {
         old_domain = cb::ArenaMalloc::switchToClient(
-                engine->getArenaMallocClient(), domain);
+                             engine->getArenaMallocClient(), domain)
+                             .domain;
     } else {
-        old_domain = cb::ArenaMalloc::switchFromClient();
+        old_domain = cb::ArenaMalloc::switchFromClient().domain;
     }
 
     return {old_engine, old_domain};

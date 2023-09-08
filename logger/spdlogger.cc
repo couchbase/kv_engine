@@ -13,6 +13,7 @@
 #include "logger.h"
 #include "logger_config.h"
 
+#include <platform/cb_arena_malloc.h>
 #include <spdlog/async.h>
 #include <spdlog/async_logger.h>
 #include <spdlog/sinks/dist_sink.h>
@@ -43,12 +44,15 @@ static const std::string log_pattern{"%^%Y-%m-%dT%T.%f%z %l %v%$"};
 static std::shared_ptr<spdlog::logger> file_logger;
 
 void cb::logger::flush() {
+    NoArenaGuard guard;
     if (file_logger) {
         file_logger->flush();
     }
 }
 
 void cb::logger::shutdown() {
+    NoArenaGuard guard;
+
     // Force a flush (posts a message to the async logger if we are not in unit
     // test mode)
     flush();
@@ -78,6 +82,8 @@ bool cb::logger::isInitialized() {
  */
 std::optional<std::string> cb::logger::initialize(
         const Config& logger_settings) {
+    NoArenaGuard guard;
+
     auto fname = logger_settings.filename;
     auto buffersz = logger_settings.buffersize;
     auto cyclesz = logger_settings.cyclesize;
@@ -176,11 +182,13 @@ spdlog::logger* cb::logger::get() {
 }
 
 void cb::logger::reset() {
+    NoArenaGuard guard;
     spdlog::drop(logger_name);
     file_logger.reset();
 }
 
 void cb::logger::createBlackholeLogger() {
+    NoArenaGuard guard;
     // delete if already exists
     spdlog::drop(logger_name);
 
@@ -194,6 +202,7 @@ void cb::logger::createBlackholeLogger() {
 }
 
 void cb::logger::createConsoleLogger() {
+    NoArenaGuard guard;
     // delete if already exists
     spdlog::drop(logger_name);
 
@@ -207,6 +216,7 @@ void cb::logger::createConsoleLogger() {
 }
 
 void cb::logger::registerSpdLogger(std::shared_ptr<spdlog::logger> l) {
+    NoArenaGuard guard;
     try {
         file_logger->debug("Registering logger {}", l->name());
         spdlog::register_logger(l);
@@ -222,10 +232,12 @@ void cb::logger::registerSpdLogger(std::shared_ptr<spdlog::logger> l) {
 }
 
 void cb::logger::unregisterSpdLogger(const std::string& n) {
+    NoArenaGuard guard;
     spdlog::drop(n);
 }
 
 bool cb::logger::checkLogLevels(spdlog::level::level_enum level) {
+    NoArenaGuard guard;
     bool correct = true;
     spdlog::apply_all([&](std::shared_ptr<spdlog::logger> l) {
         if (l->level() != level) {
@@ -236,6 +248,7 @@ bool cb::logger::checkLogLevels(spdlog::level::level_enum level) {
 }
 
 void cb::logger::setLogLevels(spdlog::level::level_enum level) {
+    NoArenaGuard guard;
     // Apply the function to each registered spdlogger
     spdlog::apply_all([&](std::shared_ptr<spdlog::logger> l) {
         try {

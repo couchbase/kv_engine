@@ -115,7 +115,11 @@ void BucketLogger::unregister() {
 }
 
 std::shared_ptr<BucketLogger>& getGlobalBucketLogger() {
-    static auto logger =
-            BucketLogger::createBucketLogger(globalBucketLoggerName);
+    // This is a process-wide singleton used by all engines, as such its memory
+    // should not be allocated to any specific bucket.
+    static auto logger = []() {
+        NonBucketAllocationGuard guard;
+        return BucketLogger::createBucketLogger(globalBucketLoggerName);
+    }();
     return logger;
 }

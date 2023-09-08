@@ -210,7 +210,10 @@ private:
     spdlog::logger* spdLogger;
 };
 
-// Global BucketLogger declaration for use in macros
+// Global (one instance shared across all ep-engine instances) BucketLogger
+// declaration for use in EP_LOG macros.
+// While "global", it will still print the selected bucket for the current
+// thread (via ObjectRegistry::getCurrentEngine).
 // This is a shared_ptr (not a unique_ptr as one might expect) as
 // the spdlog registry only deals with weak_ptrs, and we must register each
 // spdlogger we create to respect runtime verbosity changes
