@@ -2036,7 +2036,6 @@ bool ActiveStream::tryAndScheduleOSOBackfill(DcpProducer& producer,
     if (producer.isOutOfOrderSnapshotsEnabled() && filter.singleCollection() &&
         lastReadSeqno.load() == 0 &&
         ((curChkSeqno.load() > lastReadSeqno.load() + 1) || (isDiskOnly()))) {
-        CollectionID cid = filter.front();
 
         // however OSO is only _used_ if:
         // - dcp_oso_backfill is set to enabled,
@@ -2048,21 +2047,25 @@ bool ActiveStream::tryAndScheduleOSOBackfill(DcpProducer& producer,
             return false;
         }
         if (osoBackfill == "auto") {
-            // Retrieve collection stats from manifest; minimising the scope
-            // of manifest lock.
-            const auto [colItemCount, colDiskSize] = [&vb, cid] {
+            size_t colItemCount = 0, colDiskSize = 0;
+
+            // For each collection, obtain the item count and disk size
+            for (auto [cid, sid] : filter) {
+                (void)sid;
                 const auto stats = vb.getManifest().lock(cid);
-                return std::pair{stats.getItemCount(), stats.getDiskSize()};
-            }();
+                colItemCount += stats.getItemCount();
+                colDiskSize += stats.getDiskSize();
+            }
+
             const auto vbItemCount = vb.getNumItems();
             if (!isOSOPreferredForCollectionBackfill(
                         config, colItemCount, colDiskSize, vbItemCount)) {
                 log(spdlog::level::level_enum::info,
-                    "{} Skipping OSO backfill for cid:{} as collection item "
+                    "{} Skipping OSO backfill of size:{} total collection item "
                     "count ({}) is too large a percentage of the vBucket item "
                     "count ({}) - ({:.2f}%)",
                     logPrefix,
-                    cid,
+                    filter.size(),
                     colItemCount,
                     vbItemCount,
                     (float(colItemCount) * 100) / vbItemCount);
@@ -2080,9 +2083,9 @@ bool ActiveStream::tryAndScheduleOSOBackfill(DcpProducer& producer,
         // CheckpointManager
         log(spdlog::level::level_enum::info,
             "{} Scheduling OSO backfill "
-            "for cid:{} diskOnly:{} lastReadSeqno:{} curChkSeqno:{}",
+            "for size:{} diskOnly:{} lastReadSeqno:{} curChkSeqno:{}",
             logPrefix,
-            cid.to_string(),
+            filter.size(),
             isDiskOnly(),
             lastReadSeqno.load(),
             curChkSeqno.load());
