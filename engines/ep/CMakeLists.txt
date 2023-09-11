@@ -519,7 +519,7 @@ if(EP_USE_MAGMA)
     list(APPEND MOCK_SOURCE tests/mock/mock_magma_kvstore.cc)
 endif()
 
-add_library(ep_mocks OBJECT ${MOCK_SOURCE})
+add_library(ep_mocks EXCLUDE_FROM_ALL OBJECT ${MOCK_SOURCE})
 set_property(TARGET ep_mocks PROPERTY POSITION_INDEPENDENT_CODE 1)
 target_link_libraries(ep_mocks PUBLIC platform hdrhistogram spdlog::spdlog GTest::gmock)
 add_sanitizers(ep_mocks)

@@ -2,13 +2,13 @@ include(CouchbaseGoogleTest)
 
 add_compile_options_disable_optimization()
 
-ADD_LIBRARY(mock_dcp OBJECT mock/mock_dcp.cc)
+ADD_LIBRARY(mock_dcp EXCLUDE_FROM_ALL OBJECT mock/mock_dcp.cc)
 SET_PROPERTY(TARGET mock_dcp PROPERTY POSITION_INDEPENDENT_CODE 1)
 kv_enable_pch(mock_dcp)
 add_sanitizers(mock_dcp)
 target_link_libraries(mock_dcp PUBLIC platform)
 
-ADD_LIBRARY(ep_testsuite_objs OBJECT
+ADD_LIBRARY(ep_testsuite_objs EXCLUDE_FROM_ALL OBJECT
         ep_request_utils.cc
         ep_testsuite_common.cc
         ep_test_apis.cc
