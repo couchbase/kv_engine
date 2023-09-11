@@ -46,9 +46,6 @@ public:
         // window.
         config_string += "history_retention_bytes=104857600";
 
-        // run the tests with eager removal to cover an issue noted in MB-56452
-        config_string += ";checkpoint_removal_mode=eager";
-
         // Disable OSO backfill auto-selection to simplify most of the
         // functional tests - set to always.
         config_string += ";dcp_oso_backfill=enabled";

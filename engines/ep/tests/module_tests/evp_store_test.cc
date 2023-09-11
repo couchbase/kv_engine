@@ -2920,14 +2920,8 @@ void EPBucketCDCTest::SetUp() {
     if (!config_string.empty()) {
         config_string += ";";
     }
-    // Note: Checkpoint removal isn't under test at all here.
-    // Eager checkpoint removal, default prod setting in Neo and post-Neo.
-    // That helps in cleaning up the CheckpointManager during the test and
-    // we won't need to fix the testsuite when merging into the master
-    // branch.
-    config_string += "checkpoint_removal_mode=eager";
     // Enable history retention
-    config_string += ";history_retention_bytes=10485760";
+    config_string += "history_retention_bytes=10485760";
 
     EPBucketTest::SetUp();
 
