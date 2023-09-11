@@ -13,6 +13,7 @@
 
 #include "bucket_logger.h"
 #include "environment.h"
+#include "objectregistry.h"
 
 #include <gsl/gsl-lite.hpp>
 
@@ -29,6 +30,7 @@ static void cacheEvictionHandler(
 }
 
 CouchKVStoreFileCache& CouchKVStoreFileCache::get() {
+    NonBucketAllocationGuard guard;
     static CouchKVStoreFileCache fc;
     return fc;
 }
@@ -60,6 +62,8 @@ CouchKVStoreFileCache::CacheMap::iterator CouchKVStoreFileCache::Handle::find(
 }
 
 void CouchKVStoreFileCache::Handle::resize(size_t value) {
+    NonBucketAllocationGuard guard;
+
     // Size should be at least 0 as this is a special case in folly that removes
     // the size limit and stops the cache from evicting things
     Expects(value > 0);
