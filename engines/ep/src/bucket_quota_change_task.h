@@ -60,7 +60,7 @@ class BucketQuotaChangeTask : public GlobalTask {
 public:
     explicit BucketQuotaChangeTask(EventuallyPersistentEngine& e)
         : GlobalTask(e,
-                     TaskId::CheckpointMemRecoveryTask,
+                     TaskId::BucketQuotaChangeTask,
                      /*initialSleepTime*/ INT_MAX,
                      /*completeBeforeShutdown*/ false) {
     }
