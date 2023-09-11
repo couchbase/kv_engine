@@ -622,9 +622,7 @@ void CB3ExecutorPool::_unregisterTaskable(Taskable& taskable, bool force) {
 }
 
 void CB3ExecutorPool::unregisterTaskable(Taskable& taskable, bool force) {
-    // Note: unregistering a bucket is special - any memory allocations /
-    // deallocations made while unregistering *should* be accounted to the
-    // bucket in question - hence no `onSwitchThread(NULL)` call.
+    NonBucketAllocationGuard guard;
     _unregisterTaskable(taskable, force);
 }
 
