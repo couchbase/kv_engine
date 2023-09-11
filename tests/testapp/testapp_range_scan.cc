@@ -273,6 +273,60 @@ TEST_P(RangeScanTest, CreateInvalid) {
     userConnection.reset();
 }
 
+TEST_P(RangeScanTest, CreateKeyExceedMaxLength) {
+    // fill construct some keys. s is invalid, e is not
+    std::string s(251, 'L');
+    std::string e(250, 'L');
+
+    // Exceed the 250 byte limit (the non-encoded size is what matters)
+    auto keyInvalid = cb::base64::encode(s, false);
+    auto keyValid = cb::base64::encode(e, false);
+    BinprotRangeScanCreate create1(
+            Vbid(0),
+            nlohmann::json{
+                    {"range", {{"start", keyInvalid}, {"end", keyValid}}}});
+    userConnection->sendCommand(create1);
+    BinprotResponse resp;
+    userConnection->recvResponse(resp);
+    ASSERT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
+    EXPECT_EQ("invalid key size in range start:251, end:250",
+              resp.getErrorContext());
+
+    // flip input and expect failure
+    BinprotRangeScanCreate create2(
+            Vbid(0),
+            nlohmann::json{
+                    {"range", {{"start", keyValid}, {"end", keyInvalid}}}});
+    userConnection->sendCommand(create2);
+    userConnection->recvResponse(resp);
+    ASSERT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
+    EXPECT_EQ("invalid key size in range start:250, end:251",
+              resp.getErrorContext());
+
+    BinprotRangeScanCreate create3(
+            Vbid(0),
+            nlohmann::json{
+                    {"range", {{"start", keyInvalid}, {"end", keyInvalid}}}});
+    userConnection->sendCommand(create3);
+    userConnection->recvResponse(resp);
+    ASSERT_EQ(cb::mcbp::Status::Einval, resp.getStatus());
+    EXPECT_EQ("invalid key size in range start:251, end:251",
+              resp.getErrorContext());
+
+    // Now both valid, maximum keys
+    BinprotRangeScanCreate create4(
+            Vbid(0),
+            nlohmann::json{
+                    {"range", {{"start", keyValid}, {"end", keyValid}}}});
+    userConnection->sendCommand(create4);
+    userConnection->recvResponse(resp);
+
+    // NotFound because the scan range is empty (but was legal)
+    ASSERT_EQ(cb::mcbp::Status::KeyEnoent, resp.getStatus());
+    EXPECT_NE(std::string::npos,
+              resp.getErrorContext().find("no keys in range"));
+}
+
 TEST_P(RangeScanTest, CreateCancel) {
     BinprotRangeScanCreate create(Vbid(0), config);
     userConnection->sendCommand(create);

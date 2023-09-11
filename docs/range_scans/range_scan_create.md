@@ -94,6 +94,8 @@ Key values for each key are base64 encodings of the desired strings.
 * A start and an end must be defined.
 * The create will fail if `"start"` and `"excl_start"` are defined.
 * The create will fail if `"end"` and `"excl_end"` are defined.
+* The size of the start/end key (before base64 encoding) must not exceed 250
+  (this is the maximum key length for all documents).
 
 ### For a random-sample
 
@@ -244,6 +246,11 @@ response shows UUID 00112233-4455-6677-8899-aabbccddeeff.
 **Status::KeyEnoent (0x01)**
 
 The requested range is empty.
+
+**Status::Einval (0x04)**
+
+Input validation failure (e.g. incorrect key length). The returned error context
+(JSON object) will contain details.
 
 **Status::NotStored (0x05)**
 

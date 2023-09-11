@@ -244,6 +244,11 @@ public:
     /// @throws exception if a parse error occurs (not json for instance)
     nlohmann::json getDataJson() const;
 
+    /// For error response return the context string. Note minimal validation
+    /// occurs and should only be used when a error JSON blob is expected.
+    /// @return "error"."context" value from the JSON payload
+    std::string getErrorContext() const;
+
     /// @throws std::logic_exception if the object is invalid
     const cb::mcbp::Response& getResponse() const;
 

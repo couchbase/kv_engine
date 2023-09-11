@@ -483,6 +483,10 @@ nlohmann::json BinprotResponse::getDataJson() const {
     return nlohmann::json::parse(view);
 }
 
+std::string BinprotResponse::getErrorContext() const {
+    return getDataJson()["error"]["context"];
+}
+
 const cb::mcbp::Response& BinprotResponse::getResponse() const {
     return getHeader().getResponse();
 }

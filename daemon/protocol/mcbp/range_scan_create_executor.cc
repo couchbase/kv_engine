@@ -13,6 +13,7 @@
 #include "executors.h"
 
 #include <daemon/cookie.h>
+#include <daemon/memcached.h>
 #include <mcbp/protocol/request.h>
 #include <memcached/range_scan.h>
 #include <memcached/range_scan_id.h>
@@ -101,6 +102,10 @@ static cb::rangescan::SnapshotRequirements getSnapshotRequirements(
     return rv;
 }
 
+static bool isValidKey(const std::string& key) {
+    return key.size() <= KEY_MAX_LENGTH;
+}
+
 /**
  * Return a std::string and the KeyType from the "range" object, this can be
  * re-used to find start/e_start end/e_end.
@@ -172,6 +177,14 @@ static std::pair<cb::engine_errc, cb::rangescan::Id> createRangeScan(
         // And now get the 'raw' key encoding from the base64 encoding
         start = cb::base64::decode(start);
         end = cb::base64::decode(end);
+
+        if (!isValidKey(start) || !isValidKey(end)) {
+            cookie.setErrorContext(
+                    fmt::format("invalid key size in range start:{}, end:{}",
+                                start.size(),
+                                end.size()));
+            return {cb::engine_errc::invalid_arguments, {}};
+        }
     }
 
     std::optional<cb::rangescan::SnapshotRequirements> snapshotReqs;
