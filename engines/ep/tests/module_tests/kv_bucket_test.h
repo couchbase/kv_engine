@@ -57,6 +57,15 @@ struct PersistedStats;
  * EphemeralBucket) based on the Configuration passed (specifically the
  * bucket_type parameter), defaulting to EPBucket if no bucket_type is
  * specified.
+ *
+ * These tests are normally "low-ish level" directly manipulating KVBucket and
+ * lower objects - i.e. they don't go via the EngineIface as the front-end
+ * normally does.
+ * As such, the test fixture's SetUp() method will switch the calling thread
+ * to be associated with the newly-created engine, so any allocations performed
+ * by the KVBucket (or anywhere else) will by default be associated with the
+ * KVBucket. If this is not desired for some tests, they should switch away
+ * using NonBucketAllocationGuard (scoped).
  */
 class KVBucketTest : virtual public ::testing::Test {
 public:

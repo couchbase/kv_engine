@@ -80,6 +80,9 @@ void KVBucketTest::SetUp() {
         ExecutorPool::create();
     }
     initialise(config_string);
+    Expects(ObjectRegistry::getCurrentEngine() &&
+            "After initialise() the calling thread should be associated with "
+            "the newly-created engine");
 
     if (completeWarmup && engine->getKVBucket()->getWarmup()) {
         engine->getKVBucket()->getWarmup()->setFinishedLoading();
@@ -111,6 +114,10 @@ void KVBucketTest::initialise(std::string config) {
     }
 
     engine = SynchronousEPEngine::build(config);
+    Expects(ObjectRegistry::getCurrentEngine() &&
+            "Expect current thread is associated with 'engine' after "
+            "build()ing it so any subsequent allocations below are accounted to"
+            "'engine' correctly.");
 
     store = engine->getKVBucket();
 
@@ -135,7 +142,12 @@ void KVBucketTest::initialise(std::string config) {
                 std::make_shared<CheckpointDestroyerTask>(*engine));
     }
 
-    cookie = create_mock_cookie(engine.get());
+    // Note cookies are owned by the frontend (not any specific engine) so
+    // should not be allocated in the engine's context.
+    {
+        NonBucketAllocationGuard guard;
+        cookie = create_mock_cookie(engine.get());
+    }
 }
 
 void KVBucketTest::TearDown() {

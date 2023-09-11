@@ -131,7 +131,8 @@ SynchronousEPEngineUniquePtr SynchronousEPEngine::build(
             new SynchronousEPEngine(client, config));
 
     // switch current thread to this new engine, so all sub-created objects
-    // are accounted in it's mem_used.
+    // in this function are accounted in the buckets' mem_used, and we return
+    // to the caller with the current thread associated with the built engine.
     ObjectRegistry::onSwitchThread(engine.get());
 
     // Similarly to EPEngine::initialize, create the data directory.

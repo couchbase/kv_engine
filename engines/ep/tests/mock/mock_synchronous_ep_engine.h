@@ -48,10 +48,17 @@ public:
     /**
      * Constructs a SynchronousEPEngine instance, along with the necessary
      * sub-components.
-     * Similar in scope as EventuallyPersistentEngine ctor +
+     * Similar in function to create_ep_engine_instance() +
      * EventuallyPersistentEngine::initialize(), with the main difference
      * being none of the asynchronous parts of ::initialize() are performed
-     * (background tasks, etc...)
+     * (background tasks, etc...).
+     *
+     * Note: Registers the engine as a new client for memory tracking (via
+     * ArenaMalloc), and accounts all allocations made during building to
+     * that arena. Calling thread's current engine is set to the created
+     * EpEngine instance, so direct calls to the engine or sub-objects
+     * (i.e. not via EngineIface) will continue to track allocations against
+     * this engine.
      */
     static SynchronousEPEngineUniquePtr build(const std::string& config);
 
