@@ -32,10 +32,6 @@ static bool check_access_to_global_config(Cookie& cookie) {
     if (cookie.checkPrivilege(Privilege::SystemSettings).success()) {
         return true;
     }
-    LOG_WARNING("{} {}: no access to Global Cluster Config.{}",
-                conn.getId(),
-                conn.getDescription(),
-                xerror ? "" : " XError not enabled, closing connection");
     audit_command_access_failed(cookie);
     if (xerror) {
         cookie.sendResponse(cb::mcbp::Status::Eaccess);
