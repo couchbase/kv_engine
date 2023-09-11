@@ -10,6 +10,7 @@
  */
 #pragma once
 
+#include <cstdint>
 #include <iosfwd>
 #include <string>
 
@@ -383,7 +384,7 @@ enum class ClientOpcode : uint8_t {
     Invalid = 0xff
 };
 
-enum class ServerOpcode {
+enum class ServerOpcode : uint8_t {
     /**
      * The client may subscribe to notifications for when the cluster
      * map changes for the current bucket.
