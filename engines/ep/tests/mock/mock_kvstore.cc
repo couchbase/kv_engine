@@ -51,7 +51,7 @@ MockKVStore::MockKVStore(std::unique_ptr<KVStoreIface> real)
         ON_CALL(*this, getAggrDbFileInfo()).WillByDefault([this]() {
             return this->realKVS->getAggrDbFileInfo();
         });
-        ON_CALL(*this, getConfig()).WillByDefault([this]() {
+        ON_CALL(*this, getConfig()).WillByDefault([this]() -> const auto& {
             return this->realKVS->getConfig();
         });
         ON_CALL(*this, snapshotVBucket(_, _))
