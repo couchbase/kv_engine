@@ -592,11 +592,10 @@ UniqueDCPBackfillPtr EPVBucket::createDCPBackfill(
 }
 
 UniqueDCPBackfillPtr EPVBucket::createDCPBackfill(
-        EventuallyPersistentEngine& e,
-        std::shared_ptr<ActiveStream> stream,
-        CollectionID cid) {
+        EventuallyPersistentEngine& e, std::shared_ptr<ActiveStream> stream) {
     /* create a DCPBackfillByIdDisk object */
-    return std::make_unique<DCPBackfillByIdDisk>(*e.getKVBucket(), stream, cid);
+    return std::make_unique<DCPBackfillByIdDisk>(*e.getKVBucket(),
+                                                 std::move(stream));
 }
 
 cb::engine_errc EPVBucket::evictKey(

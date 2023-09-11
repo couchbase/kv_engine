@@ -18,10 +18,8 @@
 #include <mcbp/protocol/unsigned_leb128.h>
 
 DCPBackfillByIdDisk::DCPBackfillByIdDisk(KVBucket& bucket,
-                                         std::shared_ptr<ActiveStream> s,
-                                         CollectionID cid)
-    : DCPBackfillDiskToStream(s), DCPBackfillDisk(bucket) {
-    (void)cid; // @todo: clean-up and remove parameter, no longer used.
+                                         std::shared_ptr<ActiveStream> s)
+    : DCPBackfillDiskToStream(std::move(s)), DCPBackfillDisk(bucket) {
 }
 
 static ByIdRange createCollectionSystemNamespaceRange(CollectionID cid) {

@@ -226,15 +226,13 @@ public:
                                              uint64_t end);
 
     /**
-     * Schedule a backfill which targets the given collection
+     * Schedule a backfill which targets collection(s) using an ID scan.
      * @param vb Vbucket requesting the backfill
      * @param s ActiveStream requesting the backfill
-     * @param cid collection to scan
      * @return uid of the new backfill or 0 if none was scheduled.
      */
     uint64_t scheduleBackfillManager(VBucket& vb,
-                                     std::shared_ptr<ActiveStream> s,
-                                     CollectionID cid);
+                                     std::shared_ptr<ActiveStream> s);
 
     /**
      * Pass a uid down to BackfillManager::removeBackfill iff

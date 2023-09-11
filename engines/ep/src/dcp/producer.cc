@@ -1515,9 +1515,8 @@ uint64_t DcpProducer::scheduleBackfillManager(VBucket& vb,
 }
 
 uint64_t DcpProducer::scheduleBackfillManager(VBucket& vb,
-                                              std::shared_ptr<ActiveStream> s,
-                                              CollectionID cid) {
-    auto backfill = vb.createDCPBackfill(engine_, s, cid);
+                                              std::shared_ptr<ActiveStream> s) {
+    auto backfill = vb.createDCPBackfill(engine_, std::move(s));
     const auto backfillUID = backfill->getUID();
     backfillMgr->schedule(std::move(backfill));
     return backfillUID;

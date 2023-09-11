@@ -140,9 +140,9 @@ public:
                                            uint64_t startSeqno,
                                            uint64_t endSeqno) override;
 
-    UniqueDCPBackfillPtr createDCPBackfill(EventuallyPersistentEngine& e,
-                                           std::shared_ptr<ActiveStream> stream,
-                                           CollectionID cid) override;
+    UniqueDCPBackfillPtr createDCPBackfill(
+            EventuallyPersistentEngine& e,
+            std::shared_ptr<ActiveStream> stream) override;
 
     uint64_t getPersistenceSeqno() const override {
         return persistenceSeqno.load();

@@ -1584,20 +1584,19 @@ public:
             uint64_t endSeqno) = 0;
 
     /**
-     * Creates a DCP backfill object for retrieving the given collection
+     * Creates a DCP backfill using DCPBackfillById which will be configured
+     * from the given stream.
      *
      * @param e ref to EventuallyPersistentEngine
      * @param stream Shared ptr to the stream for which this backfill obj is
      *               created
-     * @param cid CollectionID to scan for
      *
      * @return pointer to the backfill object created. Caller to own this
      *         object and hence must handle deletion.
      */
     virtual std::unique_ptr<DCPBackfillIface> createDCPBackfill(
             EventuallyPersistentEngine& e,
-            std::shared_ptr<ActiveStream> stream,
-            CollectionID cid) = 0;
+            std::shared_ptr<ActiveStream> stream) = 0;
 
     /**
      * Debug - print a textual description of the VBucket to the given stream,

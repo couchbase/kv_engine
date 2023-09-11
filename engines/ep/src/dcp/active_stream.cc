@@ -2071,8 +2071,7 @@ bool ActiveStream::tryAndScheduleOSOBackfill(DcpProducer& producer,
         }
 
         // OSO possible - engage.
-        backfillUID =
-                producer.scheduleBackfillManager(vb, shared_from_this(), cid);
+        backfillUID = producer.scheduleBackfillManager(vb, shared_from_this());
 
         // Expect a non zero UID. 0 is reserved to mean "no backfill to remove"
         Expects(backfillUID);

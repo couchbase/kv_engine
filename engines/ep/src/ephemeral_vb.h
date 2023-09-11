@@ -134,8 +134,7 @@ public:
 
     std::unique_ptr<DCPBackfillIface> createDCPBackfill(
             EventuallyPersistentEngine& e,
-            std::shared_ptr<ActiveStream> stream,
-            CollectionID cid) override;
+            std::shared_ptr<ActiveStream> stream) override;
 
     /**
      * Creates a range iterator for the underlying SequenceList 'optionally'.

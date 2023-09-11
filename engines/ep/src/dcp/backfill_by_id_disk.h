@@ -24,9 +24,7 @@ class KVBucket;
 class DCPBackfillByIdDisk : public DCPBackfillDiskToStream,
                             public DCPBackfillDisk {
 public:
-    DCPBackfillByIdDisk(KVBucket& bucket,
-                        std::shared_ptr<ActiveStream> s,
-                        CollectionID cid);
+    DCPBackfillByIdDisk(KVBucket& bucket, std::shared_ptr<ActiveStream> s);
 
 protected:
     /**
