@@ -128,7 +128,8 @@ public:
     /// Get network byte order of the value
     CollectionIDNetworkOrder to_network() const;
 
-    std::string to_string() const;
+    /// @param xPrefix true if the result should be 0x prefixed
+    std::string to_string(bool xPrefix = true) const;
 
     /**
      * A number of interfaces pass collection-ID as a string, e.g. the Manifest

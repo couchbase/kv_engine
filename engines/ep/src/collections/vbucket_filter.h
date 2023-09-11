@@ -194,11 +194,6 @@ public:
         return filter.end();
     }
 
-    /// @return true if this filter represents a single collection
-    bool singleCollection() const {
-        return !passthrough && filter.size() == 1;
-    }
-
     /**
      * Method to check if the filter dose not filter collections
      * @return true if the filter is a pass-through filter
@@ -217,6 +212,15 @@ public:
     bool isCollectionFilter() const {
         return !isPassThroughFilter() && !isLegacyFilter();
     }
+
+    /**
+     * Check if the filter is suitable for an OSO snapshot given the limit.
+     * Currently a !passthrough filter with a size that does not exceed the
+     * limit would result in true.
+     *
+     * @return true if an OSO snapshot is ok for this filter
+     */
+    bool isOsoSuitable(size_t limit) const;
 
     /**
      * Dump this to std::cerr

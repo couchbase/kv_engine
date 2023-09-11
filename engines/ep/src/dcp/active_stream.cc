@@ -2030,18 +2030,19 @@ void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
 bool ActiveStream::tryAndScheduleOSOBackfill(DcpProducer& producer,
                                              VBucket& vb) {
     // OSO only _allowed_ (but may not be chosen):
-    // if the filter is set to a single collection.
-    // if this is the initial backfill request
     // if the client has enabled OSO
-    if (producer.isOutOfOrderSnapshotsEnabled() && filter.singleCollection() &&
+    // if the size of the collection filter fits the current configured max
+    // if this is the initial backfill request (diskonly or not)
+    const auto& config = engine->getConfiguration();
+
+    if (producer.isOutOfOrderSnapshotsEnabled() &&
+        filter.isOsoSuitable(config.getDcpOsoMaxCollectionsPerBackfill()) &&
         lastReadSeqno.load() == 0 &&
         ((curChkSeqno.load() > lastReadSeqno.load() + 1) || (isDiskOnly()))) {
-
         // however OSO is only _used_ if:
         // - dcp_oso_backfill is set to enabled,
         // - dcp_oso_backfill is set to "auto", and OSO is predicted to be
         //   faster for this backfill.
-        const auto& config = engine->getConfiguration();
         const auto osoBackfill = config.getDcpOsoBackfill();
         if (osoBackfill == "disabled") {
             return false;

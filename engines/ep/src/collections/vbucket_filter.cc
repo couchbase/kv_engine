@@ -503,6 +503,15 @@ cb::engine_errc Filter::checkPrivileges(
     return cb::engine_errc::success;
 }
 
+bool Filter::isOsoSuitable(size_t limit) const {
+    // Note: passthrough means all collections match, we could probably do OSO
+    // for passthrough, setting the key range to match every collection, i.e.
+    // namespace \00 to \01 and \08 to \ff, but for now just consider the
+    // explicitly filter case and when the filter size is acceptable for the
+    // given limit.
+    return !passthrough && filter.size() <= limit;
+}
+
 void Filter::dump() const {
     std::cerr << *this << std::endl;
 }

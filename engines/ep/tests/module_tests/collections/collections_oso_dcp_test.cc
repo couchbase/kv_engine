@@ -21,6 +21,8 @@
 #include "tests/module_tests/test_helpers.h"
 #include "vbucket.h"
 
+#include <folly/portability/GMock.h>
+#include <folly/portability/GTest.h>
 #include <spdlog/fmt/fmt.h>
 
 class CollectionsOSODcpTest : public CollectionsDcpParameterizedTest {
@@ -29,10 +31,12 @@ public:
     }
 
     void SetUp() override {
-        config_string += "collections_enabled=true";
         // Disable OSO backfill auto-selection to simplify most of the
         // functional tests - set to always.
-        config_string += ";dcp_oso_backfill=enabled";
+        if (!config_string.empty()) {
+            config_string += ";";
+        }
+        config_string += "dcp_oso_backfill=enabled";
 
         CollectionsDcpParameterizedTest::SetUp();
         producers = std::make_unique<CollectionsDcpTestProducers>();
@@ -997,6 +1001,90 @@ TEST_P(CollectionsOSODcpAutoSelectTest, SmallThresholdDynamic) {
     testDcpOsoBackfillAutomaticMode(0.004, 0.006, 300);
 }
 
+class CollectionsOSOMultiTest : public CollectionsOSODcpTest {
+public:
+    void SetUp() override {
+        CollectionsOSODcpTest::SetUp();
+        std::string msg;
+        ASSERT_EQ(cb::engine_errc::success,
+                  engine->setDcpParam(
+                          "dcp_oso_max_collections_per_backfill", "100", msg));
+    }
+};
+
+// The test uses three collections and filters for two and expects the two
+// filtered collections to be sent in the OSO snapshot
+TEST_P(CollectionsOSOMultiTest, multi) {
+    using namespace cb::mcbp;
+
+    CollectionsManifest cm;
+    setCollections(cookie,
+                   cm.add(CollectionEntry::vegetable)
+                           .add(CollectionEntry::fruit)
+                           .add(CollectionEntry::dairy));
+    flush_vbucket_to_disk(vbid, 3);
+
+    // 3 collections
+    std::array<CollectionID, 3> collections = {CollectionUid::fruit,
+                                               CollectionUid::dairy,
+                                               CollectionUid::vegetable};
+    // 4 keys
+    std::array<std::string, 4> keys = {{"a", "b", "c", "d"}};
+
+    // combine!
+    for (auto cid : collections) {
+        for (const auto& key : keys) {
+            store_item(vbid, makeStoredDocKey(key, cid), "value" + key);
+        }
+        flush_vbucket_to_disk(vbid, keys.size());
+    }
+
+    ensureDcpWillBackfill();
+
+    // filter on collections 1 and 2 of the 3 that have been written to.
+    nlohmann::json filter = {{"collections",
+                              {collections.at(1).to_string(false),
+                               collections.at(2).to_string(false)}}};
+    createDcpObjects(filter.dump(), OutOfOrderSnapshots::Yes, 0);
+
+    runBackfill();
+
+    stepAndExpect(ClientOpcode::DcpOsoSnapshot);
+    EXPECT_EQ(uint32_t(request::DcpOsoSnapshotFlags::Start),
+              producers->last_oso_snapshot_flags);
+
+    std::unordered_set<std::string> keys1, keys2;
+
+    // This test is written to not assume any ordering of the snapshot.
+    // This loop will collect all keys and check they are for the correct
+    // collections and the correct keys
+    while (producer->stepWithBorderGuard(*producers) ==
+                   cb::engine_errc::success &&
+           producers->last_op != ClientOpcode::DcpOsoSnapshot) {
+        EXPECT_THAT(producers->last_op,
+                    testing::AnyOf(ClientOpcode::DcpSystemEvent,
+                                   ClientOpcode::DcpMutation));
+        EXPECT_THAT(producers->last_collection_id,
+                    testing::AnyOf(collections.at(1), collections.at(2)));
+
+        if (producers->last_op == ClientOpcode::DcpMutation) {
+            EXPECT_THAT(producers->last_key, testing::AnyOfArray(keys));
+
+            if (producers->last_collection_id == collections.at(1)) {
+                keys1.emplace(producers->last_key);
+            } else {
+                keys2.emplace(producers->last_key);
+            }
+        }
+    }
+
+    EXPECT_EQ(uint32_t(request::DcpOsoSnapshotFlags::End),
+              producers->last_oso_snapshot_flags);
+    // All Keys from each collection must of been observed
+    EXPECT_EQ(keys.size(), keys1.size());
+    EXPECT_EQ(keys.size(), keys2.size());
+}
+
 INSTANTIATE_TEST_SUITE_P(CollectionsOSOEphemeralTests,
                          CollectionsOSOEphemeralTest,
                          STParameterizedBucketTest::ephConfigValues(),
@@ -1009,5 +1097,10 @@ INSTANTIATE_TEST_SUITE_P(CollectionsOSODcpTests,
 
 INSTANTIATE_TEST_SUITE_P(CollectionsOSODcpAutoSelectTests,
                          CollectionsOSODcpAutoSelectTest,
+                         STParameterizedBucketTest::persistentConfigValues(),
+                         STParameterizedBucketTest::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(CollectionsOSOMultiTests,
+                         CollectionsOSOMultiTest,
                          STParameterizedBucketTest::persistentConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);

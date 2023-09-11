@@ -1114,6 +1114,12 @@
             "dynamic": true,
             "type": "size_t"
         },
+        "dcp_oso_max_collections_per_backfill": {
+            "default": "1",
+            "desr": "This is the maximum number of collections that a DCP stream can be filtering to be eligible for OSO",
+            "dynamic": true,
+            "type": "size_t"
+        },
         "dcp_scan_byte_limit": {
             "default": {
                 "on-prem": "4 * 1024 * 1024",
