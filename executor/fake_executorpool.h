@@ -58,6 +58,10 @@ public:
     void cancelAndClearAll() {
         std::lock_guard<std::mutex> lh(tMutex);
         cancelAll_UNLOCKED();
+        // taskLocator is shared across all buckets; any deallocations
+        // happening during clear() should not be associated with any specific
+        // bucket.
+        NonBucketAllocationGuard guard;
         taskLocator.clear();
     }
 
