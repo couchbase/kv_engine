@@ -585,6 +585,14 @@ public:
      */
     void maybeCreateNewCheckpoint();
 
+    /**
+     * Checks if the given checkpoint is:
+     *  * the oldest checkpoint
+     *  * closed
+     *  * unreferenced
+     */
+    bool isEligibleForRemoval(const Checkpoint& checkpoint) const;
+
     // Test hook that executes in the section where ItemExpel has released
     // (and not yet re-acquired) the CM::lock. Introduced in MB-56644.
     TestingHook<> expelHook;
@@ -608,14 +616,6 @@ protected:
      * @return the memory usage of all the checkpoints managed
      */
     size_t getMemUsage(std::lock_guard<std::mutex>& lh) const;
-
-    /**
-     * Checks if the given checkpoint is:
-     *  * the oldest checkpoint
-     *  * closed
-     *  * unreferenced
-     */
-    bool isEligibleForRemoval(const Checkpoint& checkpoint) const;
 
     /**
      * Checks if the provided checkpoint is eligible for removal (see

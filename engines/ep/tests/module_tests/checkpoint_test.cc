@@ -2071,20 +2071,107 @@ TEST_F(SingleThreadedCheckpointTest, ItemExpelResilientToVBucketRollback) {
 }
 
 // Test that when the same client registers twice, the first cursor 'dies'
-TEST_P(CheckpointTest, reRegister) {
-    auto dcpCursor1 =
-            manager->registerCursorBySeqno(
-                           "name", 0, CheckpointCursor::Droppable::Yes)
-                    .takeCursor();
-    EXPECT_NE(nullptr, dcpCursor1.lock().get());
-    auto dcpCursor2 =
-            this->manager
-                    ->registerCursorBySeqno(
-                            "name", 0, CheckpointCursor::Droppable::Yes)
-                    .takeCursor();
-    EXPECT_EQ(nullptr, dcpCursor1.lock().get());
-    EXPECT_NE(nullptr, dcpCursor2.lock().get());
-    EXPECT_EQ(2, this->manager->getNumOfCursors());
+TEST_P(CheckpointTest, ReRegister) {
+    ASSERT_EQ(1, manager->getNumOfCursors());
+
+    const std::string name = "dcp-cursor";
+    auto cursor1 = manager->registerCursorBySeqno(
+                                  name, 0, CheckpointCursor::Droppable::Yes)
+                           .takeCursor();
+    EXPECT_NE(nullptr, cursor1.lock().get());
+    EXPECT_EQ(2, manager->getNumOfCursors());
+
+    auto cursor2 = this->manager
+                           ->registerCursorBySeqno(
+                                   name, 0, CheckpointCursor::Droppable::Yes)
+                           .takeCursor();
+    EXPECT_EQ(nullptr, cursor1.lock().get());
+    EXPECT_NE(nullptr, cursor2.lock().get());
+    EXPECT_EQ(2, manager->getNumOfCursors());
+}
+
+TEST_P(CheckpointTest, ReRegister_ClosedCheckpoint) {
+    ASSERT_EQ(1, manager->getNumOfCursors());
+
+    ASSERT_EQ(1, manager->getNumCheckpoints());
+    ASSERT_EQ(1, manager->getNumOpenChkItems());
+    ASSERT_EQ(1000, manager->getHighSeqno());
+    queueNewItem("key1");
+    EXPECT_EQ(1001, manager->getHighSeqno());
+    manager->createNewCheckpoint();
+    ASSERT_EQ(2, manager->getNumCheckpoints());
+    queueNewItem("key2");
+    EXPECT_EQ(1002, manager->getHighSeqno());
+
+    const auto& list =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    *manager);
+    const auto& closed = *list.front();
+    ASSERT_EQ(1, closed.getId());
+    ASSERT_EQ(1, closed.getNumCursorsInCheckpoint());
+    ASSERT_EQ(3, closed.getNumItems()); // cs, m, ce
+    const auto& open = *list.back();
+    ASSERT_EQ(2, open.getId());
+    ASSERT_EQ(0, open.getNumCursorsInCheckpoint());
+    ASSERT_EQ(2, open.getNumItems()); // cs, m
+
+    const std::string name = "dcp-cursor";
+    auto cursor1 = manager->registerCursorBySeqno(
+                                  name, 0, CheckpointCursor::Droppable::Yes)
+                           .takeCursor();
+    EXPECT_TRUE(cursor1.lock());
+    EXPECT_EQ(2, manager->getNumOfCursors());
+    EXPECT_EQ(2, closed.getNumCursorsInCheckpoint());
+    ASSERT_EQ(1, (*cursor1.lock()->getCheckpoint())->getId());
+
+    // Advance the baseline cursor, moving it out of the closed checkpoint.
+    // The checkpoint isn't removed as it is still referenced by dcp-cursor.
+    {
+        std::vector<queued_item> items;
+        manager->getItemsForCursor(*cursor,
+                                   items,
+                                   std::numeric_limits<size_t>::max(),
+                                   std::numeric_limits<size_t>::max());
+    }
+    EXPECT_EQ(2, manager->getNumCheckpoints());
+    EXPECT_EQ(2, manager->getOpenCheckpointId());
+    ASSERT_EQ(2, (*cursor->getCheckpoint())->getId());
+    EXPECT_EQ(1, closed.getNumCursorsInCheckpoint());
+    EXPECT_FALSE(manager->isEligibleForRemoval(closed));
+    EXPECT_EQ(1, open.getNumCursorsInCheckpoint());
+    EXPECT_FALSE(manager->isEligibleForRemoval(open));
+
+    // Verify that re-registering the same dcp-cursor into the same closed
+    // checkpoint doesn't trigger checkpoint removal.
+    auto cursor2 = manager->registerCursorBySeqno(
+                                  name, 0, CheckpointCursor::Droppable::Yes)
+                           .takeCursor();
+    EXPECT_FALSE(cursor1.lock());
+    EXPECT_TRUE(cursor2.lock());
+    EXPECT_EQ(2, manager->getNumCheckpoints());
+    EXPECT_EQ(2, manager->getOpenCheckpointId());
+    EXPECT_EQ(1, (*cursor2.lock()->getCheckpoint())->getId());
+    EXPECT_EQ(2, manager->getNumOfCursors());
+    EXPECT_EQ(1, closed.getNumCursorsInCheckpoint());
+    EXPECT_FALSE(manager->isEligibleForRemoval(closed));
+    EXPECT_EQ(1, open.getNumCursorsInCheckpoint());
+    EXPECT_FALSE(manager->isEligibleForRemoval(open));
+
+    // Moving dcp-cursor out of the closed checkpoint makes it unreferenced,
+    // so it's removed.
+    {
+        std::vector<queued_item> items;
+        manager->getItemsForCursor(*cursor2.lock(),
+                                   items,
+                                   std::numeric_limits<size_t>::max(),
+                                   std::numeric_limits<size_t>::max());
+    }
+    EXPECT_EQ(0, manager->getNumItemsForCursor(*cursor2.lock()));
+    EXPECT_EQ(1, manager->getNumCheckpoints());
+    EXPECT_EQ(2, manager->getOpenCheckpointId());
+    EXPECT_EQ(2, (*cursor2.lock()->getCheckpoint())->getId());
+    EXPECT_EQ(2, open.getNumCursorsInCheckpoint());
+    EXPECT_FALSE(manager->isEligibleForRemoval(open));
 }
 
 TEST_P(CheckpointTest, TakeAndResetCursors) {
