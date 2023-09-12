@@ -914,6 +914,7 @@ std::unique_ptr<MemcachedConnection> MemcachedConnection::clone(
     ret->tls12_ciphers = tls12_ciphers;
     ret->tls13_ciphers = tls13_ciphers;
     ret->packet_dump_callback = packet_dump_callback;
+    ret->userValidateReceivedFrameCallback = userValidateReceivedFrameCallback;
     if (connect) {
         ret->connect();
         ret->applyFeatures(effective_features);
@@ -934,6 +935,10 @@ void MemcachedConnection::doValidateReceivedFrame(
                 "received: {}",
                 cb::to_hex({reinterpret_cast<const uint8_t*>(&packet),
                             sizeof(packet)})));
+    }
+
+    if (userValidateReceivedFrameCallback) {
+        userValidateReceivedFrameCallback(packet);
     }
 
     const auto magic = Magic(packet.getMagic());

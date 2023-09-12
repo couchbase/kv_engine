@@ -176,7 +176,7 @@ static cb::engine_errc stat_sched_executor(const std::string& arg,
     }
 
     if (arg == "aggregate") {
-        static const std::string key = {"aggregate"};
+        static const std::string key = {"Thread-aggregate"};
         Hdr1sfMicroSecHistogram histogram{};
         for (const auto& h : scheduler_info) {
             histogram += h;
@@ -246,7 +246,8 @@ static cb::engine_errc stat_bucket_details_executor(const std::string& arg,
         auto json = bucket.to_json();
         if (!json.empty() && json["name"] == arg) {
             const auto stats_str = json.dump();
-            append_stats(arg, stats_str, cookie);
+            append_stats(
+                    fmt::format("bucket details:{}", arg), stats_str, cookie);
             return cb::engine_errc::success;
         }
     }
@@ -618,7 +619,7 @@ static cb::engine_errc stat_threads_executor(const std::string& arg,
                         e.what());
         }
 
-        append_stats("details", json.dump(), cookie);
+        append_stats("threads:details", json.dump(), cookie);
         return cb::engine_errc::success;
     }
 

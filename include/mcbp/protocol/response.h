@@ -183,6 +183,10 @@ public:
     cb::byte_buffer getKey() {
         return reinterpret_cast<Header*>(this)->getKey();
     }
+    std::string_view getKeyString() const {
+        auto ret = getKey();
+        return {reinterpret_cast<const char*>(ret.data()), ret.size()};
+    }
 
     cb::const_byte_buffer getValue() const {
         return reinterpret_cast<const Header*>(this)->getValue();

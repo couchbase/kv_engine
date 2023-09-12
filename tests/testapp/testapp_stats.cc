@@ -12,12 +12,133 @@
 #include <fmt/format.h>
 #include <folly/portability/GMock.h>
 #include <memcached/stat_group.h>
+#include <platform/dirutils.h>
 #include <protocol/mcbp/ewb_encode.h>
 #include <utilities/timing_histogram_printer.h>
 
 using namespace std::string_view_literals;
 
-class StatsTest : public TestappClientTest {};
+class StatsTest : public TestappClientTest {
+public:
+    static void SetUpTestCase() {
+        try {
+            const auto path = std::filesystem::path(SOURCE_ROOT) /
+                              "statistics" / "stat_definitions.json";
+            stats_definitions = nlohmann::json::parse(
+                    cb::io::loadFile(path.generic_string()),
+                    nullptr,
+                    true,
+                    true);
+        } catch (const std::exception& e) {
+            fmt::print(
+                    stderr, "Failed to load stat definitions: {}\n", e.what());
+            std::exit(EXIT_FAILURE);
+        }
+
+        TestappClientTest::SetUpTestCase();
+    }
+
+protected:
+    void SetUp() override {
+        TestappClientTest::SetUp();
+
+        auto validator = [this](const auto& header) { validateStat(header); };
+        userConnection->setUserValidateReceivedFrameCallback(validator);
+        adminConnection->setUserValidateReceivedFrameCallback(validator);
+    }
+
+    void TearDown() override {
+        TestappClientTest::SetUp();
+        userConnection->setUserValidateReceivedFrameCallback({});
+        adminConnection->setUserValidateReceivedFrameCallback({});
+    }
+
+private:
+    void validateStat(const cb::mcbp::Header& header) {
+        using namespace cb::mcbp;
+        if (is_server_magic(Magic(header.getMagic())) || header.isRequest()) {
+            return;
+        }
+        const auto& res = header.getResponse();
+        auto key = res.getKeyString();
+        if (res.getClientOpcode() != ClientOpcode::Stat || key.empty()) {
+            return;
+        }
+
+        // 1. we should be able to locate the key
+        // 2. we should be able to locate the description for the key
+        if (key.find("ep_") == 0 || key.find("vb_") == 0 ||
+            key == "mem_used_primary" || key == "mem_used_secondary") {
+            // ignore for now. ep-engine may have its own tests
+            return;
+        }
+
+        bool found = false;
+        std::string descr;
+
+        for (const auto& obj : stats_definitions) {
+            if (obj["key"].get<std::string>() == key) {
+                found = true;
+            } else {
+                auto iter = obj.find("cbstat");
+                if (iter != obj.end() && iter->is_string()) {
+                    auto v = iter->get<std::string>();
+                    if (v.empty()) {
+                        std::cout << obj.dump(2) << std::endl;
+                    }
+                    for (const auto& macro :
+                         {"{tid}", ":{name}", "{stat_key}"}) {
+                        auto idx = v.find(macro);
+                        if (idx != std::string::npos) {
+                            v.resize(idx);
+                        }
+                    }
+                    if (key.find(v) == 0) {
+                        found = true;
+                    }
+                }
+            }
+            if (found) {
+                descr = obj.value("description", "");
+                break;
+            }
+        }
+
+        if (found) {
+            if (descr.empty()) {
+                FAIL() << fmt::format(
+                        "Missing description for stat key [{}] with value [{}]",
+                        key,
+                        res.getValueString());
+            }
+        } else {
+            if (print_skeleton) {
+                std::string format = R"(
+{
+    "key": "{}_{}",
+    "cbstat": "{}",
+    "unit": "none",
+    "prometheus": false,
+    "added": "7.0.0"
+},
+)";
+                std::cout << fmt::format(format, "memcached", key, key)
+                          << std::endl;
+                std::cout.flush();
+            } else {
+                FAIL() << fmt::format(
+                        "Missing entry for stat key [{}] with value [{}]",
+                        key,
+                        res.getValueString());
+            }
+        }
+    }
+
+    bool print_skeleton = false;
+    static nlohmann::json stats_definitions;
+};
+
+nlohmann::json StatsTest::stats_definitions;
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          StatsTest,
@@ -331,6 +452,15 @@ TEST_P(StatsTest, TestAudit) {
     EXPECT_EQ(0, stats["dropped_events"].get<size_t>());
 }
 
+TEST_P(StatsTest, TestStatTimings) {
+    auto stats = userConnection->stats("stat-timings");
+    if (stats.empty()) {
+        stats = userConnection->stats("stat-timings");
+    }
+    EXPECT_FALSE(stats.empty())
+            << "We should at least have timings for stat-timings";
+}
+
 TEST_P(StatsTest, UnprivilegedUserCantGetPrivilegedStats) {
     // Verify that all of the stat groups listed as privileged fails
     // with eaccess
@@ -379,7 +509,7 @@ TEST_P(StatsTest, TestBucketDetailsSingleBucket) {
             [this, &json, &ncallback](const auto& k, const auto& v) {
                 ++ncallback;
                 if (!k.empty()) {
-                    ASSERT_EQ(bucketName, k);
+                    ASSERT_EQ(fmt::format("bucket details:{}", bucketName), k);
                     ASSERT_FALSE(v.empty());
                     json = nlohmann::json::parse(v);
                 } else {

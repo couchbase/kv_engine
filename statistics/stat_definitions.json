@@ -138,6 +138,7 @@
 /* default_engine stats */
     {
         "key": "default_evictions",
+        "description": "Number of items evicted from the bucket",
         "unit": "count",
         "cbstat": "evictions",
         "prometheus": {
@@ -157,6 +158,7 @@
     },
     {
         "key": "default_total_items",
+        "description": "Total number of items in the bucket",
         "unit": "count",
         "cbstat": "total_items",
         "prometheus": {
@@ -176,6 +178,7 @@
     },
     {
         "key": "default_reclaimed",
+        "description": "Number of items allocated by reusing expired objects",
         "unit": "count",
         "cbstat": "reclaimed",
         "prometheus": {
@@ -185,6 +188,7 @@
     },
     {
         "key": "default_engine_maxbytes",
+        "description": "The max size of the bucket",
         "unit": "count",
         "cbstat": "engine_maxbytes",
         "prometheus": {
@@ -2021,11 +2025,13 @@
 /* server_stats */
     {
         "key": "uptime",
+        "description" : "The number of seconds elapsed since process start",
         "unit": "seconds",
         "added": "7.0.0"
     },
     {
         "key": "stat_reset",
+        "description": "Timestamp when the stats was reset",
         "unit": "none",
         "added": "7.0.0"
     },
@@ -2034,6 +2040,7 @@
  */
     {
         "key": "time",
+        "description" : "The servers current time (seconds since January 1st, 1970 at 00:00:00 UTC)",
         "unit": "seconds",
         "added": "7.0.0"
     },
@@ -2044,6 +2051,7 @@
  */
     {
         "key": "clock_fine_overhead_ns",
+        "description": "The overhead of calling \"now()\" on the fine clock",
         "unit": "none",
         "prometheus": false,
         "added": "7.1.0"
@@ -2057,6 +2065,7 @@
     },
     {
         "key": "clock_coarse_overhead_ns",
+        "description": "The overhead of calling \"now()\" on the coarse clock",
         "unit": "none",
         "prometheus": false,
         "added": "7.1.0"
@@ -2070,29 +2079,34 @@
     },
     {
         "key": "clock_measurement_period_ns",
+        "description": "The period of the clock we use to _measure_ the given clock with",
         "unit": "none",
         "prometheus": false,
         "added": "7.1.0"
     },
     {
         "key": "version",
+        "description": "The version of Couchbase",
         "unit": "none",
         "added": "7.0.0"
     },
 /* version string */
     {
         "key": "memcached_version",
+        "description": "The SHA1 for the git commit of the current memcached",
         "unit": "none",
         "added": "7.0.0"
     },
 /* version string */
     {
         "key": "daemon_connections",
+        "description": "The number of server sockets currently in use",
         "unit": "count",
         "added": "7.0.0"
     },
     {
         "key": "curr_connections",
+        "description": "The current number of connections. This includes user, system and daemon connections",
         "unit": "count",
         "added": "7.0.0"
     },
@@ -2122,12 +2136,13 @@
     },
     {
         "key": "total_connections",
+        "description": "The total number of connections to this system since the process started (or reset)",
         "unit": "count",
         "added": "7.0.0"
     },
-/* total since start/reset */
     {
         "key": "connection_structures",
+        "description": "Current number of allocated connection structures",
         "unit": "count",
         "added": "7.0.0"
     },
@@ -2139,17 +2154,20 @@
 /* Amount of memory allocated by the daemon. */
     {
         "key": "daemon_memory_allocated",
+        "description": "Total amount of memory allocated (outside the context of a bucket)",
         "unit": "bytes",
         "added": "7.1.0"
     },
 /* Resident size of memory allocated by the daemon itself. */
     {
         "key": "daemon_memory_resident",
+        "description": "Total amount of memory resident (outside the context of a bucket)",
         "unit": "bytes",
         "added": "7.1.0"
     },
     {
         "key": "cmd_get",
+        "description": "The number of get operations",
         "unit": "count",
         "prometheus": false,
         "added": "7.0.0"
@@ -2159,6 +2177,7 @@
  */
     {
         "key": "cmd_set",
+        "description": "The number of set operations",
         "unit": "count",
         "prometheus": {
             "family": "ops",
@@ -2170,6 +2189,7 @@
     },
     {
         "key": "cmd_flush",
+        "description": "The number of flush operations",
         "unit": "count",
         "prometheus": {
             "family": "ops",
@@ -2181,6 +2201,7 @@
     },
     {
         "key": "cmd_lock",
+        "description": "The number of lock operations",
         "unit": "count",
         "prometheus": {
             "family": "ops",
@@ -2192,6 +2213,7 @@
     },
     {
         "key": "cmd_subdoc_lookup",
+        "description": "The number of subdoc operations performing lookup",
         "unit": "count",
         "prometheus": {
             "family": "subdoc_ops",
@@ -2203,6 +2225,7 @@
     },
     {
         "key": "cmd_subdoc_mutation",
+        "description": "The number of subdoc operations performing data mutations",
         "unit": "count",
         "prometheus": {
             "family": "subdoc_ops",
@@ -2214,6 +2237,7 @@
     },
     {
         "key": "bytes_subdoc_lookup_total",
+        "description": "The total size of all documents used for subdoc lookup operations",
         "unit": "bytes",
         "prometheus": {
             "family": "subdoc_lookup_searched"
@@ -2223,6 +2247,7 @@
 /* type _bytes will be suffixed */
     {
         "key": "bytes_subdoc_lookup_extracted",
+        "description": "The total number of bytes from the documents being returned as part of subdoc lookup operations",
         "unit": "bytes",
         "prometheus": {
             "family": "subdoc_lookup_extracted"
@@ -2231,6 +2256,7 @@
     },
     {
         "key": "bytes_subdoc_mutation_total",
+        "description": "The total number of bytes for the documents mutated via subdoc",
         "unit": "bytes",
         "prometheus": {
             "family": "subdoc_mutation_updated"
@@ -2239,6 +2265,7 @@
     },
     {
         "key": "bytes_subdoc_mutation_inserted",
+        "description": "The total number of bytes inserted into the documents via subdoc",
         "unit": "bytes",
         "prometheus": {
             "family": "subdoc_mutation_inserted"
@@ -2247,43 +2274,51 @@
     },
     {
         "key": "subdoc_update_races",
+        "description": "The number of times a subdoc mutation had to be retried as the document was changed by a different actor while performing the operation",
         "unit": "count",
         "added": "7.6.0"
     },
     {
         "key": "stat_timings_mem_usage",
+        "description": "The memory footprint for tracing times spent processing stat requests",
         "unit": "bytes",
         "added": "7.1.0"
     },
 /* aggregates over all buckets */
     {
         "key": "cmd_total_sets",
+        "description": "The total number of mutation operations (all buckets)",
         "unit": "count",
         "added": "7.0.0"
     },
     {
         "key": "cmd_total_gets",
+        "description": "The total number of data retrieval operations (all buckets)",
         "unit": "count",
         "added": "7.0.0"
     },
     {
         "key": "cmd_total_ops",
+        "description": "The sum of cmd_total_sets and cmd_total_gets (all buckets)",
         "unit": "count",
         "added": "7.0.0"
     },
 /* aggregates over multiple operations for a single bucket */
     {
         "key": "cmd_mutation",
+        "description": "The number of mutation operations",
         "unit": "count",
         "added": "7.0.0"
     },
     {
         "key": "cmd_lookup",
+        "description": "The number of lookup operations",
         "unit": "count",
         "added": "7.0.0"
     },
     {
         "key": "stat_timings",
+        "description": "Timing data for execution of a stat call",
         "unit": "microseconds",
         "cbstat": "stat:{stat_key}{arg_suffix}",
         "prometheus": false,
@@ -2291,16 +2326,19 @@
     },
     {
         "key": "auth_cmds",
+        "description": "The number of authentication commands",
         "unit": "count",
         "added": "7.0.0"
     },
     {
         "key": "auth_errors",
+        "description": "The number of failed authentication requests",
         "unit": "count",
         "added": "7.0.0"
     },
     {
         "key": "get_hits",
+        "description": "The number of successful get operations",
         "unit": "count",
         "prometheus": {
             "family": "ops",
@@ -2313,6 +2351,7 @@
     },
     {
         "key": "get_misses",
+        "description": "The number of unsuccessful get operations",
         "unit": "count",
         "prometheus": {
             "family": "ops",
@@ -2325,6 +2364,7 @@
     },
     {
         "key": "delete_misses",
+        "description": "The number of unsuccessful delete operations",
         "unit": "count",
         "prometheus": {
             "family": "ops",
@@ -2337,6 +2377,7 @@
     },
     {
         "key": "delete_hits",
+        "description": "The number of successful delete operations",
         "unit": "count",
         "prometheus": {
             "family": "ops",
@@ -2349,6 +2390,7 @@
     },
     {
         "key": "incr_misses",
+        "description": "The number of unsuccessful INCR operations",
         "unit": "count",
         "prometheus": {
             "family": "ops",
@@ -2361,6 +2403,7 @@
     },
     {
         "key": "incr_hits",
+        "description": "The number of successful INCR operations",
         "unit": "count",
         "prometheus": {
             "family": "ops",
@@ -2373,6 +2416,7 @@
     },
     {
         "key": "decr_misses",
+        "description": "The number of unsuccesful DECR operations",
         "unit": "count",
         "prometheus": {
             "family": "ops",
@@ -2385,6 +2429,7 @@
     },
     {
         "key": "decr_hits",
+        "description": "The number of successful DECR operations",
         "unit": "count",
         "prometheus": {
             "family": "ops",
@@ -2397,6 +2442,7 @@
     },
     {
         "key": "cas_misses",
+        "description": "The number of unsuccessful CAS operations due to missing document",
         "unit": "count",
         "prometheus": {
             "family": "ops",
@@ -2409,6 +2455,7 @@
     },
     {
         "key": "cas_hits",
+        "description": "The number of successful CAS operations",
         "unit": "count",
         "prometheus": {
             "family": "ops",
@@ -2421,6 +2468,7 @@
     },
     {
         "key": "cas_badval",
+        "description": "The number of unsuccessful CAS operations due to incorrect CAS value",
         "unit": "count",
         "prometheus": {
             "family": "ops",
@@ -2433,6 +2481,7 @@
     },
     {
         "key": "bytes_read",
+        "description": "The number bytes received from all connections bound to this bucket",
         "unit": "bytes",
         "prometheus": {
             "family": "read"
@@ -2442,6 +2491,7 @@
 /* type _bytes will be suffixed */
     {
         "key": "bytes_written",
+        "description": "The number bytes sent to all connections bound to this bucket",
         "unit": "bytes",
         "prometheus": {
             "family": "written"
@@ -2450,11 +2500,13 @@
     },
     {
         "key": "rejected_conns",
+        "description": "The number of connections rejected due to hitting the maximum number of connections",
         "unit": "count",
         "added": "7.0.0"
     },
     {
         "key": "threads",
+        "description": "The number of threads used to serve clients",
         "unit": "count",
         "added": "7.0.0"
     },
@@ -2465,11 +2517,13 @@
     },
     {
         "key": "conn_yields",
+        "description": "The total number all clients in this bucket yield due to using their entire timeslice",
         "unit": "count",
         "added": "7.0.0"
     },
     {
         "key": "lock_errors",
+        "description": "The number of times an operation failed due to accessing a locked document",
         "unit": "count",
         "added": "7.0.0"
     },
@@ -2507,7 +2561,31 @@
     },
     {
         "key": "total_resp_errors",
+        "description": "The number of error messages returned",
         "unit": "count",
+        "added": "7.0.0"
+    },
+    {
+        "key": "mcbp_response_counters",
+        "cbstat": "responses",
+        "description": "Counters for the various status codes returned to the client",
+        "unit": "none",
+        "prometheus": false,
+        "added": "7.0.0"
+    },
+    {
+        "key": "subdoc_execute",
+        "description": "Timing histogram for subdoc execute phase",
+        "unit": "none",
+        "prometheus": false,
+        "added": "7.0.0"
+    },
+    {
+        "key": "scheduler_info",
+        "description": "Timing histogram of scheduler info for front end worker threads",
+        "cbstat": "Thread-{tid}",
+        "unit": "none",
+        "prometheus": false,
         "added": "7.0.0"
     },
     {
@@ -2524,6 +2602,7 @@
     },
     {
         "key": "audit_enabled",
+        "description": "Boolean value to indicate if audit is enabled or not",
         "unit": "none",
         "cbstat": "enabled",
         "prometheus": {
@@ -2533,6 +2612,7 @@
     },
     {
         "key": "audit_dropped_events",
+        "description": "The number of audit events dropped due to errors while trying to insert them to the audit trail",
         "unit": "count",
         "cbstat": "dropped_events",
         "type": "counter",
@@ -2540,6 +2620,214 @@
             "family": "audit_dropped_events"
         },
         "added": "7.0.0"
+    },
+    {
+        "key" : "bucket_details",
+        "description": "Internal bucket metrics",
+        "cbstat": "bucket details:{name}",
+        "unit": "none",
+        "prometheus": false,
+        "added": "7.0.0"
+    },
+    {
+        "key": "phosphor_registry_group_count",
+        "cbstat": "registry_group_count",
+        "description": "Internal tracing information collected by Phosphor",
+        "added": "7.0.0",
+        "prometheus": false,
+        "unit": "none"
+    },
+    {
+        "key": "phosphor_buffer_name",
+        "cbstat": "buffer_name",
+        "description": "Internal tracing information collected by Phosphor",
+        "added": "7.0.0",
+        "prometheus": false,
+        "unit": "none"
+    },
+    {
+        "key": "phosphor_buffer_is_full",
+        "cbstat": "buffer_is_full",
+        "description": "Internal tracing information collected by Phosphor",
+        "added": "7.0.0",
+        "prometheus": false,
+        "unit": "none"
+    },
+    {
+        "key": "phosphor_buffer_chunk_count",
+        "cbstat": "buffer_chunk_count",
+        "description": "Internal tracing information collected by Phosphor",
+        "added": "7.0.0",
+        "prometheus": false,
+        "unit": "none"
+    },
+    {
+        "key": "phosphor_buffer_total_loaned",
+        "cbstat": "buffer_total_loaned",
+        "description": "Internal tracing information collected by Phosphor",
+        "added": "7.0.0",
+        "prometheus": false,
+        "unit": "none"
+    },
+    {
+        "key": "phosphor_buffer_loaned_chunks",
+        "cbstat": "buffer_loaned_chunks",
+        "description": "Internal tracing information collected by Phosphor",
+        "added": "7.0.0",
+        "prometheus": false,
+        "unit": "none"
+    },
+    {
+        "key": "phosphor_buffer_size",
+        "cbstat": "buffer_size",
+        "description": "Internal tracing information collected by Phosphor",
+        "added": "7.0.0",
+        "prometheus": false,
+        "unit": "none"
+    },
+    {
+        "key": "phosphor_buffer_generation",
+        "cbstat": "buffer_generation",
+        "description": "Internal tracing information collected by Phosphor",
+        "added": "7.0.0",
+        "prometheus": false,
+        "unit": "none"
+    },
+    {
+        "key": "phosphor_log_is_enabled",
+        "cbstat": "log_is_enabled",
+        "description": "Internal tracing information collected by Phosphor",
+        "added": "7.0.0",
+        "prometheus": false,
+        "unit": "none"
+    },
+    {
+        "key": "phosphor_log_has_buffer",
+        "cbstat": "log_has_buffer",
+        "description": "Internal tracing information collected by Phosphor",
+        "added": "7.0.0",
+        "prometheus": false,
+        "unit": "none"
+    },
+    {
+        "key": "phosphor_log_thread_names",
+        "cbstat": "log_thread_names",
+        "description": "Internal tracing information collected by Phosphor",
+        "added": "7.0.0",
+        "prometheus": false,
+        "unit": "none"
+    },
+    {
+        "key": "phosphor_log_deregistered_threads",
+        "cbstat": "log_deregistered_threads",
+        "description": "Internal tracing information collected by Phosphor",
+        "added": "7.0.0",
+        "prometheus": false,
+        "unit": "none"
+    },
+    {
+        "key": "phosphor_log_registered_tenants",
+        "cbstat": "log_registered_tenants",
+        "description": "Internal tracing information collected by Phosphor",
+        "added": "7.0.0",
+        "prometheus": false,
+        "unit": "none"
+    },
+    {
+        "key": "memory_allocator",
+        "cbstat": "allocator",
+        "description": "Internal memory allocator information",
+        "added": "7.0.0",
+        "prometheus": false,
+        "unit": "none"
+    },
+    {
+        "key": "memcached_thread_information",
+        "cbstat": "threads:details",
+        "description": "Detailed thread information for threads in memcached",
+        "added": "7.6.0",
+        "prometheus": false,
+        "unit": "none"
+    },
+    {
+        "key": "memcached_num_auxio_threads_actual",
+        "cbstat": "num_auxio_threads_actual",
+        "description": "The current number of threads in the AUXIO pool",
+        "added": "7.6.0",
+        "prometheus": false,
+        "unit": "none"
+    },
+    {
+        "key": "memcached_num_auxio_threads_configured",
+        "cbstat": "num_auxio_threads_configured",
+        "description": "The configured number of threads in the AUXIO pool",
+        "added": "7.6.0",
+        "prometheus": false,
+        "unit": "none"
+    },
+    {
+        "key": "memcached_num_frontend_threads_actual",
+        "cbstat": "num_frontend_threads_actual",
+        "description": "The current number of threads in the front end worker pool",
+        "added": "7.6.0",
+        "prometheus": false,
+        "unit": "none"
+    },
+    {
+        "key": "memcached_num_frontend_threads_configured",
+        "cbstat": "num_frontend_threads_configured",
+        "description": "The configured number of threads in the front end worker pool",
+        "added": "7.6.0",
+        "prometheus": false,
+        "unit": "none"
+    },
+    {
+        "key": "memcached_num_nonio_threads_actual",
+        "cbstat": "num_nonio_threads_actual",
+        "description": "The current number of threads in the NONIO pool",
+        "added": "7.6.0",
+        "prometheus": false,
+        "unit": "none"
+    },
+    {
+        "key": "memcached_num_nonio_threads_configured",
+        "cbstat": "num_nonio_threads_configured",
+        "description": "The configured number of threads in the NONIO pool",
+        "added": "7.6.0",
+        "prometheus": false,
+        "unit": "none"
+    },
+    {
+        "key": "memcached_num_reader_threads_actual",
+        "cbstat": "num_reader_threads_actual",
+        "description": "The current number of threads in the reader pool",
+        "added": "7.6.0",
+        "prometheus": false,
+        "unit": "none"
+    },
+    {
+        "key": "memcached_num_reader_threads_configured",
+        "cbstat": "num_reader_threads_configured",
+        "description": "The configured number of threads in the reader pool",
+        "added": "7.6.0",
+        "prometheus": false,
+        "unit": "none"
+    },
+    {
+        "key": "memcached_num_writer_threads_actual",
+        "cbstat": "num_writer_threads_actual",
+        "description": "The current number of threads in the writer pool",
+        "added": "7.6.0",
+        "prometheus": false,
+        "unit": "none"
+    },
+    {
+        "key": "memcached_num_writer_threads_configured",
+        "cbstat": "num_writer_threads_configured",
+        "description": "The configured number of threads in the writer pool",
+        "added": "7.6.0",
+        "prometheus": false,
+        "unit": "none"
     },
     {
         "key": "vb_num",

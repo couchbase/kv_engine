@@ -1035,12 +1035,23 @@ public:
         packet_dump_callback = std::move(callback);
     }
 
-    /// Enable / disable validation of the received frame. Validation include
-    ///  a) The frame header is valid
-    ///  b) The datatype received is one of the ones we've enabled support for
-    ///  c) The value is what the datatype say it is
+    /**
+     * Enable / disable validation of the received frame. Validation include
+     *  a) The frame header is valid
+     *  b) The optional user-provided validate callback completes
+     *  c) The datatype received is one of the ones we've enabled support for
+     *  d) The value is what the datatype say it is
+     *
+     * If validation fails it'll throw an exception
+     */
     void setValidateReceivedFrame(bool value) {
         validateReceivedFrame = value;
+    }
+
+    /// Add an extra validate callback for received frames
+    void setUserValidateReceivedFrameCallback(
+            std::function<void(const cb::mcbp::Header&)> callback) {
+        userValidateReceivedFrameCallback = std::move(callback);
     }
 
 protected:
@@ -1117,5 +1128,7 @@ protected:
 
     bool validateReceivedFrame;
     void doValidateReceivedFrame(const cb::mcbp::Header& packet);
+    std::function<void(const cb::mcbp::Header&)>
+            userValidateReceivedFrameCallback;
     std::unique_ptr<cb::json::SyntaxValidator> jsonValidator;
 };
