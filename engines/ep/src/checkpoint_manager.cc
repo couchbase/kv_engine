@@ -249,24 +249,28 @@ void CheckpointManager::addOpenCheckpoint(
         uint64_t highPreparedSeqno,
         CheckpointType checkpointType,
         CheckpointHistorical historical) {
-    const auto msg = fmt::format(
-            "CheckpointManager::addOpenCheckpoint: {}, snapStart:{}, "
-            "snapEnd:{}, visibleSnapEnd:{}, HCS:{}, HPS:{}, type:{}, {}",
-            vb.getId(),
-            snapStart,
-            snapEnd,
-            visibleSnapEnd,
-            highPreparedSeqno,
-            to_string_or_none(highCompletedSeqno),
-            ::to_string(checkpointType),
-            ::to_string(historical));
+    const auto makeException = [&](std::string_view suffix) {
+        return std::invalid_argument(fmt::format(
+                "CheckpointManager::addOpenCheckpoint: {}, snapStart:{}, "
+                "snapEnd:{}, visibleSnapEnd:{}, HCS:{}, HPS:{}, type:{}, {} - "
+                "{}",
+                vb.getId(),
+                snapStart,
+                snapEnd,
+                visibleSnapEnd,
+                highPreparedSeqno,
+                to_string_or_none(highCompletedSeqno),
+                ::to_string(checkpointType),
+                ::to_string(historical),
+                suffix));
+    };
 
     if (snapStart > snapEnd) {
-        throw std::invalid_argument(msg + " - snapStart > snapEnd");
+        throw makeException("snapStart > snapEnd");
     }
 
     if (isDiskCheckpointType(checkpointType) && !highCompletedSeqno) {
-        throw std::invalid_argument(msg + " - missing HCS");
+        throw makeException("missing HCS");
     }
 
     Expects(checkpointList.empty() ||
