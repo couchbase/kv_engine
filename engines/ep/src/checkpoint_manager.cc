@@ -344,29 +344,29 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
                     size_t distance,
                     bool tryBackfill,
                     uint64_t seqno) -> CursorRegResult {
-        auto cursor = std::make_shared<CheckpointCursor>(
+        const auto newCursor = std::make_shared<CheckpointCursor>(
                 name, ckptIt, pos, droppable, distance);
 
         // If a cursor with the same name exists remove it before adding the new
         // one
-        for (const auto& [currCName, cursor] : cursors) {
+        for (const auto& [currCName, oldCursor] : cursors) {
             if (name == currCName) {
-                Expects(cursor);
+                Expects(oldCursor);
                 // Place a temporary entry in the map for the new cursor. This
                 // ensures that the checkpoint of the cursor cannot become
                 // eligible for eager removal (triggering a use-after-free
-                // situation)
+                // situation).
                 const auto tempName = "temp" + name;
-                cursors[tempName] = cursor;
-                removeCursorRes = removeCursor(lh, *cursor);
+                cursors[tempName] = newCursor;
+                removeCursorRes = removeCursor(lh, *oldCursor);
                 cursors.erase(tempName);
                 break;
             }
         }
 
         // Finally save the newCursor
-        cursors[name] = cursor;
-        return {*this, tryBackfill, seqno, Cursor{cursor}};
+        cursors[name] = newCursor;
+        return {*this, tryBackfill, seqno, Cursor{newCursor}};
     };
 
     // If:
