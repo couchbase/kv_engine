@@ -344,26 +344,31 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
                     size_t distance,
                     bool tryBackfill,
                     uint64_t seqno) -> CursorRegResult {
+        // Note
+        // When we re-register a cursor with the same name we can fall into 2
+        // cases:
+        // 1. The cursor is re-registered into the same checkpoint
+        // 2. The cursor is re-registered into a subsequent checkpoint (eg,
+        //    stream transition backfill->memory).
+        // At (1) we want to prevent that the "replacement" operation triggers
+        // checkpoint removal. For that, we construct the new cursor before
+        // removing the old one, thus ensuring that the checkpoint stays
+        // referenced during the whole process.
+        //
+        // Also note: We just need to construct the new cursor for making the
+        // checkpoint referenced and not-eligible for removal. No need to add it
+        // to the ::cursors map.
         const auto newCursor = std::make_shared<CheckpointCursor>(
                 name, ckptIt, pos, droppable, distance);
-
-        // If a cursor with the same name exists remove it before adding the new
-        // one
+        // Remove the old cursor (if any) before adding the new one to the
+        // ::cursors map
         for (const auto& [currCName, oldCursor] : cursors) {
             if (name == currCName) {
                 Expects(oldCursor);
-                // Place a temporary entry in the map for the new cursor. This
-                // ensures that the checkpoint of the cursor cannot become
-                // eligible for eager removal (triggering a use-after-free
-                // situation).
-                const auto tempName = "temp" + name;
-                cursors[tempName] = newCursor;
                 removeCursorRes = removeCursor(lh, *oldCursor);
-                cursors.erase(tempName);
                 break;
             }
         }
-
         // Finally save the newCursor
         cursors[name] = newCursor;
         return {*this, tryBackfill, seqno, Cursor{newCursor}};
