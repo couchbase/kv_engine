@@ -1,9 +1,8 @@
 IF(NOT WIN32)
-    INCLUDE_DIRECTORIES(${JEMALLOC_INCLUDE_DIR})
-
     cb_add_test_executable(jemalloc_allocator_stats
             jemalloc_allocator_stats.cc)
-    kv_enable_pch(jemalloc_allocator_stats)
+    target_include_directories(jemalloc_allocator_stats
+            SYSTEM PRIVATE ${JEMALLOC_INCLUDE_DIR})
 
     target_link_libraries(jemalloc_allocator_stats
             PRIVATE platform ${JEMALLOC_LIBRARIES})
