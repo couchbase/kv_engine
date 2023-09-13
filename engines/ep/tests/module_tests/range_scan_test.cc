@@ -2015,6 +2015,26 @@ TEST_P(RangeScanTestSimple, limitRangeScans) {
     EXPECT_EQ(0, store->getKVStoreScanTracker().getNumRunningRangeScans());
 }
 
+TEST_P(RangeScanTestSimple, beforeFlush) {
+    Vbid testvb = Vbid(1);
+    setVBucketState(testvb, vbucket_state_active);
+
+    // The vbucket is in "creating" state, i.e. nothing flushed (for couchstore
+    // there is no 1.couch.1 file)
+    EXPECT_EQ(cb::engine_errc::temporary_failure,
+              store->createRangeScan(
+                           *cookie,
+                           std::move(handler),
+                           cb::rangescan::CreateParameters{testvb,
+                                                           CollectionID::Default,
+                                                           {"\0"},
+                                                           {"\xff"},
+                                                           getScanType(),
+                                                           {},
+                                                           {}})
+                      .first);
+}
+
 // A handler which will execute a callback as part of handleStatus
 class MB_54053Handler : public RangeScanDataHandlerIFace {
 public:

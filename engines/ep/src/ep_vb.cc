@@ -1309,7 +1309,11 @@ std::pair<cb::engine_errc, cb::rangescan::Id> EPVBucket::createRangeScan(
             return createRangeScanComplete(std::move(rangeScanCreateToken),
                                            cookie);
         }
+    } else if (isBucketCreation()) {
+        // Scan create is racing with vbucket creation
+        return {cb::engine_errc::temporary_failure, {}};
     } else {
+
         // Create our RangeScanCreateToken, the state will now be Pending
         rangeScanCreateToken = std::make_unique<RangeScanCreateToken>();
         // Place pointer in the cookie so we can get this object back on success
