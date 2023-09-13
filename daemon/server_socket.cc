@@ -107,15 +107,6 @@ void LibeventServerSocketImpl::listen_event_handler(evutil_socket_t,
                                                     void* arg) {
     auto& c = *reinterpret_cast<LibeventServerSocketImpl*>(arg);
 
-    if (is_memcached_shutting_down()) {
-        // Someone requested memcached to shut down. The listen thread should
-        // be stopped immediately to avoid new connections
-        LOG_INFO_RAW("Stopping listen thread");
-        event_del(c.ev.get());
-        c.ev.reset();
-        return;
-    }
-
     try {
         c.acceptNewClient();
     } catch (std::invalid_argument& e) {
@@ -200,6 +191,11 @@ void LibeventServerSocketImpl::acceptNewClient() {
     stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
     if (cb::net::set_socket_noblocking(client) == -1) {
         LOG_WARNING_RAW("Failed to make socket non-blocking. closing it");
+        safe_close(client);
+        return;
+    }
+
+    if (is_memcached_shutting_down()) {
         safe_close(client);
         return;
     }

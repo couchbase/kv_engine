@@ -62,6 +62,8 @@ add_library(memcached_daemon STATIC
             network_interface.h
             network_interface_description.cc
             network_interface_description.h
+            network_interface_manager_thread.cc
+            network_interface_manager_thread.h
             network_interface_manager.cc
             network_interface_manager.h
             opentelemetry.cc
