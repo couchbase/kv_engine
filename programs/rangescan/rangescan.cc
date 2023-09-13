@@ -124,9 +124,10 @@ Options:
     exit(EXIT_FAILURE);
 }
 
-std::string calculateThroughput(size_t bytes, size_t sec) {
-    if (sec > 1) {
-        bytes /= sec;
+static std::string calculateThroughput(size_t bytes,
+                                       std::chrono::seconds seconds) {
+    if (seconds > std::chrono::seconds(1)) {
+        bytes /= seconds.count();
     }
 
     std::vector<const char*> suffix = {"B/s", "kB/s", "MB/s", "GB/s"};
@@ -140,7 +141,7 @@ std::string calculateThroughput(size_t bytes, size_t sec) {
         }
     }
 
-    return std::to_string(bytes) + suffix[ii];
+    return std::to_string(bytes) + suffix.at(ii);
 }
 
 /// The RangeScanConnection class is responsible for a single connection and
@@ -220,19 +221,23 @@ public:
         return records;
     }
 
-    void reportConnectionStats() {
+    nlohmann::json getConnectionStats() {
         const auto duration =
                 std::chrono::duration_cast<std::chrono::milliseconds>(stop -
                                                                       start);
-
-        size_t total_bytes = getTotalBytesReceived();
-        std::cout << "Connection took " << duration.count() << " ms - "
-                  << records << " records with a total of " << total_bytes
-                  << " bytes received (overhead "
-                  << total_bytes - mutation_bytes << ") ("
-                  << calculateThroughput(total_bytes, duration.count() / 1000)
-                  << ") total range-scan-continues:" << continueCount
-                  << std::endl;
+        const auto totalBytes = getTotalBytesReceived();
+        nlohmann::json result;
+        result["connection"] = connection->to_string();
+        result["duration_ms"] = duration.count();
+        result["records"] = records;
+        result["total_bytes_rx"] = totalBytes;
+        result["record_bytes_rx"] = recordBytes;
+        result["overhead_bytes_rx"] = totalBytes - recordBytes;
+        result["throughput"] = calculateThroughput(
+                totalBytes,
+                std::chrono::duration_cast<std::chrono::seconds>(duration));
+        result["continues"] = continueCount;
+        return result;
     }
 
 protected:
@@ -378,6 +383,7 @@ protected:
                 auto key = payload.next();
                 while (key.data()) {
                     records++;
+                    recordBytes += key.size();
                     if (verbose) {
                         std::cout << "KEY:" << key << std::endl;
                     }
@@ -389,6 +395,11 @@ protected:
                 auto record = payload.next();
                 while (record.key.data()) {
                     records++;
+                    recordBytes += record.key.size();
+                    recordBytes += record.value.size();
+                    // Account the document metadata as well.
+                    recordBytes += sizeof(
+                            cb::mcbp::response::RangeScanContinueMetaResponse);
                     if (verbose) {
                         std::cout << "KEY:" << record.key
                                   << " VALUE:" << record.value << std::endl;
@@ -402,7 +413,7 @@ protected:
     }
 
     uint32_t opaque{1};
-    size_t mutation_bytes = 0;
+    size_t recordBytes = 0; // Count of bytes for the key/document.
     size_t records = 0;
     size_t current_buffer_window = 0;
     size_t max_vbuckets = 0;
@@ -870,18 +881,21 @@ int main(int argc, char** argv) {
 
     size_t total_bytes = 0;
     size_t records = 0;
+    nlohmann::json result;
     for (const auto& c : connections) {
         total_bytes += c->getTotalBytesReceived();
         records += c->getRecords();
-        if (connections.size() > 1) {
-            c->reportConnectionStats();
-        }
+        result["connection_stats"].emplace_back(c->getConnectionStats());
     }
 
-    std::cout << "Took " << duration.count() << " ms - " << records
-              << " records with a total of " << total_bytes << " ("
-              << calculateThroughput(total_bytes, duration.count() / 1000)
-              << ")" << std::endl;
+    result["connections"] = connections.size();
+    result["total_duration_ms"] = duration.count();
+    result["total_records"] = records;
+    result["total_records_per_ms"] = float(records) / duration.count();
+    result["total_throughput"] = calculateThroughput(
+            total_bytes,
+            std::chrono::duration_cast<std::chrono::seconds>(duration));
+    std::cout << result.dump() << std::endl;
 
     connections.clear();
     return EXIT_SUCCESS;
