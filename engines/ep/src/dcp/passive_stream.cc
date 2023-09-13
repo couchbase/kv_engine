@@ -661,7 +661,7 @@ cb::engine_errc PassiveStream::processMessage(MutationConsumerMessage* message,
         message->getItem()->setCas();
     }
 
-    cb::engine_errc ret;
+    auto ret = cb::engine_errc::failed;
     DeleteSource deleteSource = DeleteSource::Explicit;
     bool switchComplete = false;
     switch (messageType) {

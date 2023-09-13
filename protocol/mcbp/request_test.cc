@@ -45,7 +45,7 @@ static std::vector<uint8_t> encodeFrameInfo(request::FrameInfoId id,
 }
 
 TEST(Request_ParseFrameExtras, ExtendedIdAndSize) {
-    uint8_t blob[37];
+    uint8_t blob[37] = {};
     auto fe = encodeFrameInfo(request::FrameInfoId(32), {blob, sizeof(blob)});
     std::vector<uint8_t> packet(1024);
     RequestBuilder builder({packet.data(), packet.size()});
