@@ -141,6 +141,19 @@ cb::EngineErrorCasPair bucket_store_if(
                                                         durability,
                                                         document_state,
                                                         preserveTtl);
+    LOG_TRACE(
+            "bucket_store_if() key:{} cas:{} operation:{} predicate:{} "
+            "durability:{} doc_state:{} preserve_ttl:{} -> {}",
+            item_.getDocKey().toPrintableString(),
+            cas,
+            operation,
+            predicate ? "yes" : "no",
+            durability.has_value() ? nlohmann::json(durability.value()).dump()
+                                   : "no",
+            document_state,
+            preserveTtl ? "yes" : "no",
+            rstatus);
+
     if (rstatus == cb::engine_errc::success) {
         using namespace cb::audit::document;
         add(cookie,
