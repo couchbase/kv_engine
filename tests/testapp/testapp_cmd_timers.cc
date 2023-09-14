@@ -127,6 +127,19 @@ TEST_P(CmdTimerTest, CurrentBucket) {
 }
 
 /**
+ * We removed support for getting command timings for not the current bucket
+ * as it was broken and unused
+ */
+TEST_P(CmdTimerTest, NotCurrentBucket) {
+    adminConnection->executeInBucket(bucketName, [this](auto& c) {
+        const auto response = c.execute(BinprotGetCmdTimerCommand{
+                "rbac_test", cb::mcbp::ClientOpcode::Scrub});
+        EXPECT_FALSE(response.isSuccess());
+        EXPECT_EQ(cb::mcbp::Status::NotSupported, response.getStatus());
+    });
+}
+
+/**
  * We should get no access for unknown buckets
  */
 TEST_P(CmdTimerTest, NonexistentBucket) {

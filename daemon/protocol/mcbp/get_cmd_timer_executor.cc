@@ -174,27 +174,9 @@ std::pair<cb::engine_errc, std::string> get_cmd_timer(Cookie& cookie) {
         return std::make_pair(bt.first, std::string{});
     }
 
-    // The user specified a bucket... let's locate the bucket
-    std::pair<cb::engine_errc, Hdr1sfMicroSecHistogram> ret;
-
-    for (auto& b : all_buckets) {
-        ret = maybe_get_timings(cookie, b, opcode, bucket);
-        if (ret.first != cb::engine_errc::no_such_key &&
-            ret.first != cb::engine_errc::success) {
-            break;
-        }
-    }
-
-    if (ret.first == cb::engine_errc::success) {
-        return std::make_pair(cb::engine_errc::success, ret.second.to_string());
-    }
-
-    if (ret.first == cb::engine_errc::no_such_key) {
-        // Don't tell the user that the bucket doesn't exist
-        ret.first = cb::engine_errc::no_access;
-    }
-
-    return std::make_pair(ret.first, std::string{});
+    // We removed support for getting command timings for not the current bucket
+    // as it was broken and unused
+    return std::make_pair(cb::engine_errc::not_supported, std::string{});
 }
 
 void get_cmd_timer_executor(Cookie& cookie) {
