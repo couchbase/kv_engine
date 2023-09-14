@@ -505,11 +505,12 @@ TEST_P(StatsTest, TestBucketDetailsSingleBucket) {
     nlohmann::json json;
     size_t ncallback = 0;
 
+    adminConnection->setUserValidateReceivedFrameCallback({});
     adminConnection->stats(
             [this, &json, &ncallback](const auto& k, const auto& v) {
                 ++ncallback;
                 if (!k.empty()) {
-                    ASSERT_EQ(fmt::format("bucket details:{}", bucketName), k);
+                    ASSERT_EQ(bucketName, k);
                     ASSERT_FALSE(v.empty());
                     json = nlohmann::json::parse(v);
                 } else {

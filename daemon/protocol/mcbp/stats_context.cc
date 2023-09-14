@@ -245,9 +245,7 @@ static cb::engine_errc stat_bucket_details_executor(const std::string& arg,
         Bucket& bucket = BucketManager::instance().at(ii);
         auto json = bucket.to_json();
         if (!json.empty() && json["name"] == arg) {
-            const auto stats_str = json.dump();
-            append_stats(
-                    fmt::format("bucket details:{}", arg), stats_str, cookie);
+            append_stats(arg, json.dump(), cookie);
             return cb::engine_errc::success;
         }
     }
