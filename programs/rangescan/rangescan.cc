@@ -197,8 +197,12 @@ public:
                 tailp = head.get();
             }
         }
+
         connection->getUnderlyingAsyncSocket().writeChain(
                 &terminateOnErrorWriteCallback, std::move(head));
+
+        start = std::chrono::steady_clock::now();
+
         connection->enterMessagePumpMode(
                 [this](const cb::mcbp::Header& header) {
                     if (verbose) {
@@ -210,7 +214,6 @@ public:
                         handleResponse(header.getResponse());
                     }
                 });
-        start = std::chrono::steady_clock::now();
     }
 
     size_t getTotalBytesReceived() const {
@@ -307,14 +310,11 @@ protected:
     }
 
     void handleCreateRangeEmpty(const cb::mcbp::Response& response) {
-        if (verbose) {
-            auto vb = creates.at(response.getOpaque());
-            std::cout << "vb:" << vb << " with no keys in range"
-                      << response.to_json(false).dump() << std::endl;
-        }
+        auto vb = creates.at(response.getOpaque());
+        std::cerr << "Warning vb:" << vb << " has no keys in range"
+                  << response.to_json(false).dump() << std::endl;
         // erase this scan
         creates.erase(response.getOpaque());
-        start = stop = {};
     }
 
     void continueNextScan() {
@@ -895,6 +895,7 @@ int main(int argc, char** argv) {
     result["total_throughput"] = calculateThroughput(
             total_bytes,
             std::chrono::duration_cast<std::chrono::seconds>(duration));
+    result["duration_ms"] = duration.count();
     std::cout << result.dump() << std::endl;
 
     connections.clear();
