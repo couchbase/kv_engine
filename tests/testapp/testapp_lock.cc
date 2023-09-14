@@ -148,11 +148,14 @@ TEST_P(LockTest, DeleteLockedDocument) {
 
 TEST_P(LockTest, UnlockNoSuchDocument) {
     try {
+        userConnection->setAutoRetryTmpfail(false);
         userConnection->unlock(name, Vbid(0), 0xdeadbeef);
         FAIL() << "The document should not exist";
     } catch (const ConnectionError& ex) {
-        EXPECT_TRUE(ex.isNotFound());
+        // full eviction returns tmpfail
+        EXPECT_TRUE(ex.isNotFound() || ex.isTemporaryFailure());
     }
+    userConnection->setAutoRetryTmpfail(true);
 }
 
 TEST_P(LockTest, UnlockInvalidVBucket) {
