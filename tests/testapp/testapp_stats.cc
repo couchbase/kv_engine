@@ -269,6 +269,9 @@ TEST_P(StatsTest, TestReset) {
  * isn't resident)
  */
 TEST_P(StatsTest, Test_MB_17815) {
+    if (GetTestBucket().isFullEviction()) {
+        GTEST_SKIP();
+    }
     const auto cmd_set_before = get_cmd_counter("cmd_set");
     auto sequence = ewb::encodeSequence({cb::engine_errc::would_block,
                                          cb::engine_errc::success,

@@ -102,6 +102,12 @@ TEST_P(RegressionTest, MB_26828_AddIsUnaffected) {
  * This test verifies that the fix resolved the problem
  */
 TEST_P(RegressionTest, MB_26828_SetIsFixed) {
+    if (GetTestBucket().isFullEviction()) {
+        // we can't test this test under full eviction as we're programming
+        // a return sequence for ewb, and that may be different under full
+        // eviction.
+        GTEST_SKIP();
+    }
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
 

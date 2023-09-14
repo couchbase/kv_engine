@@ -198,6 +198,10 @@ public:
     bool supportsRangeScans() const override {
         return false;
     }
+
+    bool isFullEviction() const override {
+        return false;
+    }
 };
 
 class EpBucketImpl : public TestBucketImpl {
@@ -341,6 +345,11 @@ public:
 
     bool supportsRangeScans() const override {
         return true;
+    }
+
+    bool isFullEviction() const override {
+        return extraConfig.find("item_eviction_policy=full_eviction") !=
+               std::string::npos;
     }
 
     /// Directory for any database files.

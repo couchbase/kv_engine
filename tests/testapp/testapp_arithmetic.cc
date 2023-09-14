@@ -241,6 +241,13 @@ TEST_P(ArithmeticTest, TestIllegalDatatype) {
  *  -> Done
  */
 TEST_P(ArithmeticTest, MB33813) {
+    if (GetTestBucket().isFullEviction()) {
+        // we can't test this test under full eviction as we're programming
+        // a return sequence for ewb, and that may be different under full
+        // eviction.
+        GTEST_SKIP();
+    }
+
     std::string key(name + "_inc");
 
     // Make the 3rd request send to the engine return

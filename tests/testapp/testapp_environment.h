@@ -63,6 +63,8 @@ public:
     virtual bool supportsCollections() const = 0;
     virtual bool supportsRangeScans() const = 0;
 
+    virtual bool isFullEviction() const = 0;
+
     /**
      * Make sure that xattr is enabled / disabled in the named bucket
      *
