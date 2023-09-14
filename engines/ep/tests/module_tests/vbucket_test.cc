@@ -688,6 +688,58 @@ TEST_P(VBucketEvictionTest, MB21448_UnlockedSetWithCASDeleted) {
             << "When trying to replace-with-CAS a deleted item";
 }
 
+// Check that we correctly set the TTL when the preserveTTL flag is set but
+// there's alive (non-deleted) item - we should set the TTL to the
+// specified request value.
+TEST_P(VBucketEvictionTest, MB_58664_SetPerserveTTLDeleted) {
+    // Setup - create a key and then delete it.
+    StoredDocKey key = makeStoredDocKey("key");
+    Item item(key, 0, 0, "deleted", strlen("deleted"));
+    ASSERT_EQ(MutationStatus::WasClean,
+              this->public_processSet(item, item.getCas()));
+    ASSERT_EQ(MutationStatus::WasDirty,
+              this->public_processSoftDelete(key).first);
+
+    // Attempt to perform a set on a deleted key, specifying a new TTL value
+    // and preserve TTL. Given the document doesn't logically exist, should
+    // set the TTL to specified value.
+    Item ttlItem(key, 0, 0, "value", strlen("value"));
+    ttlItem.setExpTime(123);
+    ttlItem.setPreserveTtl(true);
+    ASSERT_EQ(MutationStatus::WasDirty, this->public_processSet(ttlItem, 0));
+
+    // Check ttl value is correct
+    const auto* v = this->vbucket->ht.findForRead(key).storedValue;
+    ASSERT_TRUE(v);
+    EXPECT_EQ(123, v->getExptime());
+}
+
+// Check that we correctly set the TTL when the preserveTTL flag is set but
+// there's no non-temp item - we should set the TTL to the
+// specified request value.
+TEST_P(VBucketEvictionTest, MB_58664_SetPerserveTTLNonExistent) {
+    // Setup - create a temp non-existent item
+    StoredDocKey key = makeStoredDocKey("key");
+    addOneTemp(key);
+    {
+        auto hbl_sv = lockAndFind(key);
+        hbl_sv.second->setNonExistent();
+    }
+
+    // Attempt to perform a set on a non-existent key, specifying a new TTL value
+    // and preserve TTL. Given the document doesn't exist, should
+    // set the TTL to specified value.
+    Item ttlItem(key, 0, 0, "value", strlen("value"));
+    ttlItem.setExpTime(123);
+    ttlItem.setPreserveTtl(true);
+    ASSERT_EQ(MutationStatus::WasClean, this->public_processSet(ttlItem, 0));
+
+    // Check ttl value is correct
+    const auto* v = this->vbucket->ht.findForRead(key).storedValue;
+    ASSERT_TRUE(v);
+    EXPECT_EQ(123, v->getExptime());
+}
+
 TEST_P(VBucketEvictionTest, Durability_PendingNeverEjected) {
     // Necessary for enqueueing into the DurabilityMonitor (VBucket::set fails
     // otherwise)
