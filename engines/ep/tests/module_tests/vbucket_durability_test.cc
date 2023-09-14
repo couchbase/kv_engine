@@ -130,6 +130,7 @@ void VBucketDurabilityTest::testAddPrepare(
     }
 
     EXPECT_EQ(initialNumItems + writes.size(), ckptList.back()->getNumItems());
+
     for (const auto& qi : *ckptList.front()) {
         if (!qi->isCheckPointMetaItem()) {
             EXPECT_EQ(queue_op::pending_sync_write, qi->getOperation());
@@ -572,7 +573,7 @@ TEST_P(VBucketDurabilityTest, Active_Commit_MultipleReplicas) {
         EXPECT_EQ(CommittedState::Pending, sv->getCommitted());
 
         ASSERT_EQ(2, ckptList.back()->getNumItems());
-        for (const auto& qi : *ckptList.back()) {
+        for (const auto& qi : *ckptList.front()) {
             if (!qi->isCheckPointMetaItem()) {
                 EXPECT_EQ(queue_op::pending_sync_write, qi->getOperation());
                 EXPECT_EQ(preparedSeqno, qi->getBySeqno());
@@ -588,7 +589,7 @@ TEST_P(VBucketDurabilityTest, Active_Commit_MultipleReplicas) {
         EXPECT_EQ(CommittedState::CommittedViaPrepare, sv->getCommitted());
 
         EXPECT_EQ(2, ckptList.back()->getNumItems());
-        for (const auto& qi : *ckptList.back()) {
+        for (const auto& qi : *ckptList.front()) {
             if (!qi->isCheckPointMetaItem()) {
                 EXPECT_EQ(queue_op::commit_sync_write, qi->getOperation());
                 EXPECT_GT(qi->getBySeqno() /*commitSeqno*/, preparedSeqno);

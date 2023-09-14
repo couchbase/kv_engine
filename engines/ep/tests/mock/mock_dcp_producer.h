@@ -110,13 +110,6 @@ public:
         DcpProducer::createCheckpointProcessorTask();
     }
 
-    /**
-     * Schedule the checkpointCreator->task on the ExecutorPool
-     */
-    void scheduleCheckpointProcessorTask() {
-        DcpProducer::scheduleCheckpointProcessorTask();
-    }
-
     ActiveStreamCheckpointProcessorTask* getCheckpointSnapshotTask() const;
 
     /**

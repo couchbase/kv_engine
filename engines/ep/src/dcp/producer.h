@@ -385,6 +385,11 @@ public:
     */
     void scheduleCheckpointProcessorTask(std::shared_ptr<ActiveStream> s);
 
+    /**
+     * Schedule the checkpointCreatorTask on the ExecutorPool
+     */
+    void scheduleCheckpointProcessorTask();
+
     /** Searches the streams map for a stream for vbucket ID. Returns the
      *  found stream, or an empty pointer if none found.
      */
@@ -448,11 +453,6 @@ protected:
      * checkpointCreatorTask
      */
     void createCheckpointProcessorTask();
-
-    /**
-     * Schedule the checkpointCreatorTask on the ExecutorPool
-     */
-    void scheduleCheckpointProcessorTask();
 
     struct {
         // The time of the last noop message sent by this producer

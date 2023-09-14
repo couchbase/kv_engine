@@ -885,11 +885,11 @@ TEST_P(StreamTest, BackfillSmallBuffer) {
        size of a mutation */
     producer->setBackfillBufferSize(1);
 
+    ASSERT_TRUE(stream->isBackfilling());
+    ASSERT_EQ(stream->getNumBackfillPauses(), 0);
+
     /* We want the backfill task to run in a background thread */
     ExecutorPool::get()->setNumAuxIO(ThreadPoolConfig::AuxIoThreadCount{1});
-
-    EXPECT_EQ(stream->getNumBackfillPauses(), 0);
-    stream->transitionStateToBackfilling();
 
     /* Backfill can only read 1 as its buffer will become full after that */
     cb::waitForPredicate(
@@ -1404,7 +1404,7 @@ protected:
         StreamTest::SetUp();
         store_item(vbid, key, "value");
 
-        removeCheckpoint(numItems);
+        removeCheckpoint();
 
         /* Set up a DCP stream for the backfill */
         setup_dcp_stream();
@@ -1571,16 +1571,8 @@ void SingleThreadedActiveStreamTest::TearDown() {
     STParameterizedBucketTest::TearDown();
 }
 
-void SingleThreadedActiveStreamTest::startCheckpointTask() {
-    if (!producer->getCheckpointSnapshotTask()) {
-        producer->createCheckpointProcessorTask();
-        producer->scheduleCheckpointProcessorTask();
-    }
-}
-
 void SingleThreadedActiveStreamTest::setupProducer(
-        const std::vector<std::pair<std::string, std::string>>& controls,
-        bool startCheckpointProcessorTask) {
+        const std::vector<std::pair<std::string, std::string>>& controls) {
     uint32_t flags = 0;
 
     // We don't set the startTask flag here because we will create the task
@@ -1592,10 +1584,7 @@ void SingleThreadedActiveStreamTest::setupProducer(
                                                  flags,
                                                  false /*startTask*/);
     producer->createCheckpointProcessorTask();
-
-    if (startCheckpointProcessorTask) {
-        producer->scheduleCheckpointProcessorTask();
-    }
+    producer->scheduleCheckpointProcessorTask();
 
     for (const auto& c : controls) {
         EXPECT_EQ(cb::engine_errc::success,
@@ -3433,7 +3422,7 @@ TEST_P(SingleThreadedActiveToPassiveStreamTest,
 TEST_P(SingleThreadedActiveStreamTest,
        FirstSnapshotHasRequestedStartSnapSeqno) {
     // Replace initial stream with one registered with DCP producer.
-    setupProducer({}, true);
+    setupProducer({});
 
     auto& vb = *store->getVBucket(vbid);
     auto& cm = *vb.checkpointManager;
@@ -3486,7 +3475,7 @@ TEST_P(SingleThreadedActiveStreamTest,
  */
 TEST_P(SingleThreadedActiveStreamTest, MetaOnlyCheckpointsSkipped) {
     // Replace initial stream with one registered with DCP producer.
-    setupProducer({}, true);
+    setupProducer({});
 
     auto& vb = *store->getVBucket(vbid);
     auto& cm = *vb.checkpointManager;
@@ -3759,11 +3748,7 @@ TEST_P(SingleThreadedActiveStreamTest, CompleteBackfillRaceNoStreamEnd) {
 // seqno(s) until another mutation for that vBucket occurs.
 TEST_P(SingleThreadedActiveStreamTest,
        RaceBetweenNotifyAndProcessingExistingItems) {
-    // Replace initial stream with one registered with DCP producer.
-    setupProducer({}, true);
-
     auto vb = engine->getVBucket(vbid);
-    producer->scheduleCheckpointProcessorTask();
     stream = producer->mockActiveStreamRequest(0,
                                                /*opaque*/ 0,
                                                *vb,
@@ -6040,7 +6025,6 @@ void CDCActiveStreamTest::SetUp() {
               producer->control(0, DcpControlKeys::ChangeStreams, "true"));
     ASSERT_TRUE(producer->areChangeStreamsEnabled());
     producer->public_enableSyncReplication();
-    startCheckpointTask();
 
     recreateStream(*vb,
                    true,
