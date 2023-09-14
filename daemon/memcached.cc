@@ -25,7 +25,7 @@
 #include "mcaudit.h"
 #include "mcbp_executors.h"
 #include "network_interface.h"
-#include "network_interface_manager.h"
+#include "network_interface_manager_thread.h"
 #include "nobucket_taskable.h"
 #include "protocol/mcbp/engine_wrapper.h"
 #include "settings.h"
@@ -1005,12 +1005,8 @@ int memcached_main(int argc, char** argv) {
     }
 #endif
 
-    LOG_INFO_RAW("Starting network interface manager");
-    networkInterfaceManager = std::make_unique<NetworkInterfaceManager>(
-            *main_base, prometheus_auth_callback);
-    networkInterfaceManager->createBootstrapInterface();
-
-    /* start up worker threads if MT mode */
+    auto nim_thread = std::make_unique<NetworkInterfaceManagerThread>(
+            prometheus_auth_callback);
     worker_threads_init();
 
     LOG_INFO(R"(Starting Phosphor tracing with config: "{}")",
@@ -1051,9 +1047,10 @@ int memcached_main(int argc, char** argv) {
         }
     }
 
+    LOG_INFO_RAW("Initialization complete. Accepting clients.");
+    nim_thread->start();
+
     if (!memcached_shutdown) {
-        /* enter the event loop */
-        LOG_INFO_RAW("Initialization complete. Accepting clients.");
         main_base->loopForever();
     }
 
@@ -1073,8 +1070,10 @@ int memcached_main(int argc, char** argv) {
     LOG_INFO_RAW("Shutting down client worker threads");
     threads_shutdown();
 
-    LOG_INFO_RAW("Releasing server sockets");
-    networkInterfaceManager.reset();
+    LOG_INFO_RAW("Shutting down network interface manager thread");
+    nim_thread->shutdown();
+    nim_thread->waitForState(Couchbase::ThreadState::Zombie);
+    nim_thread.reset();
 
     LOG_INFO_RAW("Releasing bucket resources");
     cleanup_buckets();
