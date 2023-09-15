@@ -2501,7 +2501,7 @@ TEST_P(ReplicaCheckpointTest, ExpelCheckpointItemsDisk) {
 
 // Test that we correctly handle duplicates, where the initial version of the
 // document has been expelled.
-TEST_P(CheckpointTest, ExpelCheckpointItemsWithDuplicateTest) {
+TEST_P(CheckpointTest, ExpelCheckpointItemsWithDuplicate) {
     const int itemCount{3};
 
     for (auto ii = 0; ii < itemCount; ++ii) {

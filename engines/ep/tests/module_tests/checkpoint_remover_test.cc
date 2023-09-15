@@ -633,22 +633,22 @@ TEST_P(CheckpointRemoverEPTest,
         cm->incrCursor(*cursor);
     }
 
-    // Can now expel the 2 items in (ckpt_start, cursor)
+    // Can now expel the 2 items in (ckpt_start, cursor]
     auto result = cm->expelUnreferencedCheckpointItems();
 
-    EXPECT_EQ(2, result.count);
+    EXPECT_EQ(3, result.count);
 
     /* items in first checkpoint
      *
      *   dummy
      *   chk start
-     *   key_1
      *   key_2
+     *   chk end
      */
 
     afterCount = getItemsWithCursor("Cursor4", 0, true).size();
 
-    EXPECT_EQ(beforeCount - 2, afterCount);
+    EXPECT_EQ(beforeCount - 3, afterCount);
 }
 
 TEST_P(CheckpointRemoverEPTest, earliestCheckpointSelectedCorrectly) {
