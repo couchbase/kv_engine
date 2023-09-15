@@ -545,7 +545,7 @@ void DcpStreamSyncReplTest::testBackfillPrepare(DocumentState docState,
     // Store a pending item then remove the checkpoint to force backfill.
     using cb::durability::Level;
     auto prepared = storePending(docState, "1", "X", {level, {}});
-    removeCheckpoint(1);
+    removeCheckpoint();
 
     // Create sync repl DCP stream
     setup_dcp_stream(0,
@@ -623,7 +623,7 @@ void DcpStreamSyncReplTest::testBackfillPrepareCommit(
     EXPECT_EQ(1, pdm.getNumTracked());
     EXPECT_EQ(0, pdm.getHighCompletedSeqno());
 
-    removeCheckpoint(1);
+    removeCheckpoint();
     EXPECT_EQ(1, vb0->getPersistenceSeqno());
 
     EXPECT_EQ(cb::engine_errc::success,
@@ -635,7 +635,7 @@ void DcpStreamSyncReplTest::testBackfillPrepareCommit(
     EXPECT_EQ(0, pdm.getNumTracked());
     EXPECT_EQ(1, pdm.getHighCompletedSeqno());
 
-    removeCheckpoint(1);
+    removeCheckpoint();
     EXPECT_EQ(2, vb0->getPersistenceSeqno());
 
     // Create sync repl DCP stream
@@ -730,7 +730,7 @@ void DcpStreamSyncReplTest::testBackfillPrepareAbort(
                              {},
                              vb0->lockCollections(prepared->getKey())));
     }
-    removeCheckpoint(2);
+    removeCheckpoint();
 
     // Create sync repl DCP stream
     setup_dcp_stream(0,

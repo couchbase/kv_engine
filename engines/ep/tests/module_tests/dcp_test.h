@@ -92,7 +92,7 @@ protected:
     /* Add items onto the vbucket and wait for the checkpoint to be removed */
     void addItemsAndRemoveCheckpoint(int numItems);
 
-    void removeCheckpoint(int numItems);
+    void removeCheckpoint();
 
     void runCheckpointProcessor(DcpMessageProducersIface& producers);
 

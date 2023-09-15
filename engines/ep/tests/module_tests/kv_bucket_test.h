@@ -173,7 +173,7 @@ public:
     void flushVBucketToDiskIfPersistent(Vbid vbid, int expected = 1);
 
     /**
-     * Removes the open checkpoint.
+     * Creates a new open checkpoint and removes all the closed ones.
      */
     void removeCheckpoint(VBucket& vb);
 

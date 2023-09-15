@@ -291,7 +291,8 @@ public:
                           CookieIface& c,
                           const VBucket& vb);
 
-    /* Returns a count of how many items are outstanding to be sent for this
+    /**
+     * Returns a count of how many items are outstanding to be sent for this
      * stream's vBucket.
      */
     size_t getItemsRemaining();

@@ -4047,6 +4047,11 @@ struct ConnStatBuilder {
 };
 
 struct ConnAggStatBuilder {
+    /**
+     * Construct with the separator.
+     * @param sep The separator used for determining "type" of DCP connection
+     *            by splitting the connection name with sep.
+     */
     ConnAggStatBuilder(std::string_view sep) : sep(sep) {
     }
 

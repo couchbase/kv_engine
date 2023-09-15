@@ -229,10 +229,10 @@ void DCPTest::addItemsAndRemoveCheckpoint(int numItems) {
         std::string key("key" + std::to_string(i));
         store_item(vbid, key, "value");
     }
-    removeCheckpoint(numItems);
+    removeCheckpoint();
 }
 
-void DCPTest::removeCheckpoint(int numItems) {
+void DCPTest::removeCheckpoint() {
     /* Create new checkpoint so that we can remove the current checkpoint
        and force a backfill in the DCP stream */
     auto& ckpt_mgr = *vb0->checkpointManager;

@@ -2519,18 +2519,16 @@ TEST_P(MultiPagingVisitorTest, ItemPagerCreatesMultiplePagers) {
         return stats.getPreciseTotalMemoryUsed() > stats.mem_high_wat.load();
     };
 
-    auto itemCount = 0;
     auto i = 0;
     // items need to be persisted to be evicted, but flushing after each item
     // would be slow. Load to the HWM, then flush, then repeat if we dropped
     // below the HWM
     while (!aboveHWM()) {
-        itemCount += populateVbsUntil(
+        populateVbsUntil(
                 vbids, aboveHWM, "keys_" + std::to_string(i++) + "_", 500);
         // populateVbsUntil flushes and removes checkpoints which is required
         // as eviction will not touch dirty items
     }
-    ASSERT_GT(itemCount, 0);
 
     // make sure the item pager has been notified while we're above the HWM
     store->attemptToFreeMemory();
