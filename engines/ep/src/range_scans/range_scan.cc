@@ -93,13 +93,13 @@ RangeScan::RangeScan(
         }
     }
 
-    EP_LOG_INFO("{}: {} created. cid:{}, mode:{}{}{}",
-                cookie.getConnectionId(),
-                getLogId(),
-                this->start.getDocKey().getCollectionID(),
-                keyOnly == cb::rangescan::KeyOnly::Yes ? "keys" : "values",
-                std::string_view{snapshotLog.data(), snapshotLog.size()},
-                std::string_view{samplingLog.data(), samplingLog.size()});
+    EP_LOG_DEBUG("{}: {} created. cid:{}, mode:{}{}{}",
+                 cookie.getConnectionId(),
+                 getLogId(),
+                 this->start.getDocKey().getCollectionID(),
+                 keyOnly == cb::rangescan::KeyOnly::Yes ? "keys" : "values",
+                 std::string_view{snapshotLog.data(), snapshotLog.size()},
+                 std::string_view{samplingLog.data(), samplingLog.size()});
 }
 
 RangeScan::RangeScan(cb::rangescan::Id id, KVStoreScanTracker& resourceTracker)
@@ -134,7 +134,13 @@ RangeScan::~RangeScan() {
 
     auto cs = *continueState.rlock();
 
-    EP_LOG_INFO(
+    auto level = spdlog::level::level_enum::debug;
+    if (cs.finalStatus != cb::engine_errc::range_scan_complete) {
+        level = spdlog::level::level_enum::warn;
+    }
+
+    EP_LOG_FMT(
+            level,
             "{} finished in {} status:{}, after {}ms, continued:{}, keys:{}{}",
             getLogId(),
             cs.state,
