@@ -11,6 +11,7 @@
 #include "testapp.h"
 #include "testapp_client_test.h"
 
+#include <fmt/format.h>
 #include <nlohmann/json.hpp>
 #include <protocol/connection/client_connection.h>
 #include <algorithm>
@@ -64,29 +65,61 @@ INSTANTIATE_TEST_SUITE_P(TransportProtocols,
                          ::testing::PrintToStringParamName());
 
 /**
- * Test that we return the aggreate of all the buckets we've got access
- * to if we request with no key (and no selected bucket) or by using
- * the special bucket "/all/"
+ * Test that we return the aggregate of all the buckets we've got access to
+ * if we request with the special bucket "/all/"
  */
 TEST_P(CmdTimerTest, AllBuckets) {
 
     // Admin should have full access
-    for (const auto& bucket : {"", "/all/"}) {
-        const auto response =
-                adminConnection->execute(BinprotGetCmdTimerCommand{
-                        bucket, cb::mcbp::ClientOpcode::Scrub});
-        EXPECT_TRUE(response.isSuccess());
-        EXPECT_EQ(2, getNumberOfOps(response.getDataString()));
-    }
+    auto response = adminConnection->execute(
+            BinprotGetCmdTimerCommand{"/all/", cb::mcbp::ClientOpcode::Scrub});
+    EXPECT_TRUE(response.isSuccess());
+    EXPECT_EQ(2, getNumberOfOps(response.getDataString()));
 
-    // Smith only have acces to the bucket rbac_test
+    // Smith only has access to the bucket rbac_test - should only see numbers
+    // from that.
     auto& c = getConnection();
     c.authenticate("smith", "smithpassword", "PLAIN");
-    for (const auto& bucket : {"", "/all/"}) {
-        const auto response = c.execute(BinprotGetCmdTimerCommand{
+
+    response = c.execute(
+            BinprotGetCmdTimerCommand{"/all/", cb::mcbp::ClientOpcode::Scrub});
+    EXPECT_TRUE(response.isSuccess());
+    EXPECT_EQ(1, getNumberOfOps(response.getDataString()));
+    c.reconnect();
+}
+
+/**
+ * Test that timings for commands not associated with a bucket can be returned
+ * either by not associating with a bucket or by explicitly asking for
+ * "@no bucket@", as long as appropriate privs are present.
+ */
+TEST_P(CmdTimerTest, NoBucket) {
+    // Perform an operation against "@no bucket@" so we can request its timing
+    // stats in a moment.
+    adminConnection->unselectBucket();
+    adminConnection->execute(
+            BinprotGenericCommand{cb::mcbp::ClientOpcode::Scrub});
+
+    // Admin should have full access - either by unselecting any bucket
+    // and issuing a request with the empty string, or by explicilty asking for
+    // "@no bucket@".
+    for (auto bucket : {"", "@no bucket@"}) {
+        SCOPED_TRACE(fmt::format("for bucket '{}'", bucket));
+        auto response = adminConnection->execute(BinprotGetCmdTimerCommand{
                 bucket, cb::mcbp::ClientOpcode::Scrub});
         EXPECT_TRUE(response.isSuccess());
         EXPECT_EQ(1, getNumberOfOps(response.getDataString()));
+    }
+
+    // Smith attempting to access no-bucket should fail.
+    auto& c = getConnection();
+    c.authenticate("smith", "smithpassword", "PLAIN");
+
+    for (auto bucket : {"", "@no bucket@"}) {
+        SCOPED_TRACE(fmt::format("for bucket '{}'", bucket));
+        auto response = c.execute(BinprotGetCmdTimerCommand{
+                bucket, cb::mcbp::ClientOpcode::Scrub});
+        EXPECT_EQ(cb::mcbp::Status::Eaccess, response.getStatus());
     }
     c.reconnect();
 }

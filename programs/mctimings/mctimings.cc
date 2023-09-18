@@ -300,8 +300,8 @@ int main(int argc, char** argv) {
                       Argument::Required,
                       "bucketname",
                       "The name of the bucket to operate on (specify \"@no "
-                      "bucket@\" to get aggregated stats from all buckets. The "
-                      "user must have the Stats privilege to do so)"});
+                      "bucket@\" to get stats not associated with a bucket; "
+                      "the user must have the Stats privilege to do so)"});
 
     getopt.addOption({[&file](auto value) { file = std::string{value}; },
                       'f',

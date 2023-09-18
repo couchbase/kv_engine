@@ -30,32 +30,31 @@
  */
 static std::pair<cb::engine_errc, Hdr1sfMicroSecHistogram> get_timings(
         Cookie& cookie, const Bucket& bucket, uint8_t opcode) {
+    auto& connection = cookie.getConnection();
+    // Need SimpleStats for normal buckets, but Stats for the
+    // no-bucket as that tracks timings for all operations performed
+    // not against a specific bucket.
+    const auto requiredPrivilege = (bucket.type == BucketType::NoBucket)
+                                           ? cb::rbac::Privilege::Stats
+                                           : cb::rbac::Privilege::SimpleStats;
+    bool access = false;
     // Don't create a new privilege context if the one we've got is for the
     // connected bucket:
-    auto& connection = cookie.getConnection();
     if (bucket.name == connection.getBucket().name) {
-        auto ret = mcbp::checkPrivilege(cookie,
-                                        cb::rbac::Privilege::SimpleStats);
-        if (ret != cb::engine_errc::success) {
-            return {cb::engine_errc::no_access, {}};
-        }
+        auto ret = mcbp::checkPrivilege(cookie, requiredPrivilege);
+        access = (ret == cb::engine_errc::success);
     } else {
         // Check to see if we've got access to the bucket
-        bool access = false;
         try {
             auto context =
                     cb::rbac::createContext(connection.getUser(), bucket.name);
-            if (context.check(cb::rbac::Privilege::SimpleStats, {}, {})
-                        .success()) {
-                access = true;
-            }
+            access = context.check(requiredPrivilege, {}, {}).success();
         } catch (const cb::rbac::Exception&) {
             // We don't have access to that bucket
         }
-
-        if (!access) {
-            return {cb::engine_errc::no_access, {}};
-        }
+    }
+    if (!access) {
+        return {cb::engine_errc::no_access, {}};
     }
 
     auto* histo = bucket.timings.get_timing_histogram(opcode);
@@ -83,10 +82,9 @@ static std::pair<cb::engine_errc, Hdr1sfMicroSecHistogram> maybe_get_timings(
         Cookie& cookie,
         const Bucket& bucket,
         uint8_t opcode,
-        const std::string& bucketname) {
+        std::string_view bucketname) {
     std::lock_guard<std::mutex> guard(bucket.mutex);
-    if (bucket.type != BucketType::NoBucket &&
-        bucket.state == Bucket::State::Ready && bucketname == bucket.name) {
+    if (bucket.state == Bucket::State::Ready && bucketname == bucket.name) {
         return get_timings(cookie, bucket, opcode);
     }
     return {cb::engine_errc::no_such_key, {}};
@@ -119,29 +117,35 @@ static std::pair<cb::engine_errc, std::string> get_aggregated_timings(
 
 std::pair<cb::engine_errc, std::string> get_cmd_timer(Cookie& cookie) {
     const auto& request = cookie.getRequest();
-    const auto key = request.getKey();
-    std::string bucket(reinterpret_cast<const char*>(key.data()),
-                             key.size());
+    const auto bucket = request.getKeyString();
     const auto extras = request.getExtdata();
     const auto opcode = extras[0];
-    int index = cookie.getConnection().getBucketIndex();
+
+    // Determine which bucket the user wants to lookup stats for.
+    // * If the user doesn't specify a bucket name in the command key, they get
+    //   the bucket they are currently associated with (or the no-bucket if
+    //   they haven't selected one yet).
+    // * If the user specifies the name "/all/", they get aggregated stats
+    //   across all buckets they have access to, including the no-bucket.
+    // * If the user specifies the name of the currently associated bucket,
+    //   they get that specific bucket.
+    // * If the user specifies the name "@no bucket@", they get the no-bucket.
+    // * Otherwise, the user specified the name of a different bucket, which is
+    //   not supported.
 
     if (bucket == "/all/") {
-        if (cookie.testPrivilege(cb::rbac::Privilege::Stats, {}, {}) ==
-            cb::rbac::PrivilegeAccessOk) {
-            // The caller have the Stats privilege and access to all buckets
-            // so we may just use the aggregated stats instead of looking
-            // up bucket by bucket.
-            bucket = "@no bucket@";
-        } else {
-            index = 0;
-        }
+        return get_aggregated_timings(cookie, opcode);
     }
 
-    // Requesting stats from the no bucket is restricted to those who has
-    // the global stats privilege as it contains information from _ALL_ buckets
-    if (bucket == "@no bucket@") {
-        if (cookie.testPrivilege(cb::rbac::Privilege::Stats, {}, {}) ==
+    // Lookup which bucket they are associated with (which could be none -
+    // index 0).
+    const auto index = cookie.getConnection().getBucketIndex();
+
+    // Requesting stats from the no-bucket is restricted to those who have
+    // the global stats privilege as it contains information about non-bucket
+    // level opcodes.
+    if (index == 0 || bucket == "@no bucket@") {
+        if (cookie.testPrivilege(cb::rbac::Privilege::Stats) ==
             cb::rbac::PrivilegeAccessOk) {
             std::lock_guard<std::mutex> guard(all_buckets[0].mutex);
             auto* histo = all_buckets[0].timings.get_timing_histogram(opcode);
@@ -156,10 +160,6 @@ std::pair<cb::engine_errc, std::string> get_cmd_timer(Cookie& cookie) {
         }
 
         return {cb::engine_errc::no_access, {}};
-    }
-
-    if (index == 0) {
-        return get_aggregated_timings(cookie, opcode);
     }
 
     if (bucket.empty() || bucket == all_buckets[index].name) {

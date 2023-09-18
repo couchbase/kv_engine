@@ -828,18 +828,13 @@ void Cookie::collectTimings(
     const auto elapsed = endTime - start;
     tracer.record(cb::tracing::Code::Request, start, endTime);
 
-    // aggregated timing for all buckets
-    all_buckets[0].timings.collect(opcode, elapsed);
-
-    // timing for current bucket
-    const auto bucketid = connection.getBucketIndex();
-    /* bucketid will be zero initially before you run sasl auth
-     * (unless there is a default bucket), or if someone tries
-     * to delete the bucket you're associated with and your're idle.
-     */
-    if (bucketid != 0) {
-        all_buckets[bucketid].timings.collect(opcode, elapsed);
-    }
+    // Bucket index will be zero initially before you run SASL auth,
+    // or if someone tries to delete the bucket you're associated with
+    // and you're idle.
+    // We record timings to the "current" bucket; even for the no-bucket (0),
+    // so we include timings for commands like HELO, SASL_* which occur before
+    // bucket selection.
+    connection.getBucket().timings.collect(opcode, elapsed);
 
     // Log operations taking longer than the "slow" threshold for the opcode.
     maybeLogSlowCommand(elapsed);
