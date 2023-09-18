@@ -1169,16 +1169,19 @@
     {
         "key": "ep_magma_sets",
         "unit": "count",
+        "description": "Number of set operations (DocUpsert)",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_gets",
         "unit": "count",
+        "description": "Number of get operations",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_inserts",
         "unit": "count",
+        "description": "Number of DocInsert operations",
         "added": "7.1.0"
     },
     {
@@ -1237,11 +1240,13 @@
     {
         "key": "ep_magma_history_size_evicted",
         "unit": "bytes",
+        "description": "History eviction bytes based on size",
         "added": "7.2.0"
     },
     {
         "key": "ep_magma_history_time_evicted",
         "unit": "bytes",
+        "description": "History eviction bytes based on time",
         "added": "7.2.0"
     },
 /* Compaction. */
@@ -1284,88 +1289,105 @@
     {
         "key": "ep_magma_flushes",
         "unit": "count",
+        "description": "Number of write cache flushes performed",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_ttl_compactions",
         "unit": "count",
+        "description": "Number of time-to-live based compactions",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_filecount_compactions",
         "unit": "count",
+        "description": "Number of compactions triggered by file count",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_keyindex_filecount_compactions",
         "unit": "count",
+        "description": "Number of compactions triggered by file count for the KeyIndex",
         "added": "7.2.0"
     },
     {
         "key": "ep_magma_seqindex_filecount_compactions",
         "unit": "count",
+        "description": "Number of compactions triggered by file count for the SeqIndex",
         "added": "7.2.0"
     },
     {
         "key": "ep_magma_writer_compactions",
         "unit": "count",
+        "description": "Number of compaction performed on the writer thread",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_keyindex_writer_compactions",
         "unit": "count",
+        "description": "Number of compaction performed on the writer thread for the KeyIndex",
         "added": "7.2.0"
     },
     {
         "key": "ep_magma_seqindex_writer_compactions",
         "unit": "count",
+        "description": "Number of compaction performed on the writer thread for the SeqIndex",
         "added": "7.2.0"
     },
 /* Read amp. */
     {
         "key": "ep_magma_readamp",
         "unit": "ratio",
+        "description": "Bytes read from disk / bytes outgoing. Bytes read from disk includes Gets and compactors (excluding WAL)",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_readamp_get",
         "unit": "ratio",
+        "description": "Bytes Read from disk by only Get threads / Bytes outgoing",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_read_bytes",
         "unit": "bytes",
+        "description": "Total bytes read from disk as per Magma's manual accounting in various code paths",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_read_bytes_compact",
         "unit": "bytes",
+        "description": "Total bytes read from disk by compactors",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_read_bytes_get",
         "unit": "bytes",
+        "description": "Total bytes read from disk by gets",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_bytes_outgoing",
         "unit": "bytes",
+        "description": "Total bytes returned via get (excluding bytes returned from sequence iterator)",
         "added": "7.1.0"
     },
 /* ReadIOAmp. */
     {
         "key": "ep_magma_readio",
         "unit": "count",
+        "description": "Number of read IOs performed",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_readioamp",
         "unit": "ratio",
+        "description": "Number of read IOs performed by GetDocs divided by the number of GetDocs",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_bytes_per_read",
         "unit": "ratio",
+        "description": "Bytes read by get / number of Gets",
         "added": "7.1.0"
     },
 /* Write amp. */
@@ -1475,166 +1497,198 @@
     {
         "key": "ep_magma_logical_data_size",
         "unit": "bytes",
+        "description": "The logical data size, including history",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_logical_disk_size",
         "unit": "bytes",
+        "description": "The logical disk size, including history",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_history_logical_data_size",
         "unit": "bytes",
+        "description": "The logical data size of history",
         "added": "7.2.0"
     },
     {
         "key": "ep_magma_history_logical_disk_size",
         "unit": "bytes",
+        "description": "The logical disk size of history",
         "added": "7.2.0"
     },
     {
         "key": "ep_magma_fragmentation",
         "unit": "ratio",
+        "description": "Fragmentation on disk (excludes history)",
         "added": "7.1.0"
     },
 /* Disk usage. */
     {
         "key": "ep_magma_total_disk_usage",
         "unit": "bytes",
+        "description": "Compressed size of all SSTables in all checkpoints, WAL and any other files on disk",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_wal_disk_usage",
         "unit": "bytes",
+        "description": "Disk usage by the WAL",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_checkpoint_disk_usage",
         "unit": "bytes",
+        "description": "Checkpoint overhead",
         "added": "7.2.0"
     },
     {
         "key": "ep_magma_active_disk_usage",
         "unit": "bytes",
+        "description": "Compressed disk size of latest version of the LSM Trees. This includes history",
         "added": "7.2.0"
     },
 /* Memory usage. */
     {
         "key": "ep_magma_read_ahead_buffer_mem_used",
         "unit": "bytes",
+        "description": "Memory consumed by read ahead buffers. They are used for compactions and sequence iterators. This is included in BufferMemUsed",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_lsmtree_object_mem_used",
         "unit": "bytes",
+        "description": "Memory used by LSMTree objects",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_table_object_mem_used",
         "unit": "bytes",
+        "description": "Memory used by SSTable objects",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_histogram_mem_used",
         "unit": "bytes",
+        "description": "Memory usage for MagmaHistogramStats and file histograms",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_block_cache_mem_used",
         "unit": "bytes",
+        "description": "Memory used by block cache. Accounts for allocated size of blocks that includes allocator internal fragmentation and any internal cache overheads due to auxilliary structures",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_write_cache_mem_used",
         "unit": "bytes",
+        "description": "Memory usage of the write cache",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_wal_mem_used",
         "unit": "bytes",
+        "description": "Total WAL memory used, including WAL buffer and any auxiliary memory",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_table_meta_mem_used",
         "unit": "bytes",
+        "description": "Memory used by sstable metadata",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_buffer_mem_used",
         "unit": "bytes",
+        "description": "Memory usage for some buffers",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_bloom_filter_mem_used",
         "unit": "bytes",
+        "description": "Bloom filter memory usage in all versions of the LSM Trees",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_total_mem_used",
         "unit": "bytes",
+        "description": "Total memory used by bloom filters, write cache, block cache and index blocks This account for all versions of the trees",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_tree_snapshot_mem_used",
         "unit": "bytes",
+        "description": "Memory consumed by all LSMTree TreeSnapshots",
         "added": "7.6.0"
     },
     {
         "key": "ep_magma_index_resident_ratio",
         "unit": "ratio",
+        "description": "Proportion of keyIndex (data+index blocks) and seqIndex (index blocks) in memory",
         "added": "7.1.0"
     },
 /* Block cache. */
     {
         "key": "ep_magma_block_cache_hits",
         "unit": "count",
+        "description": "Number of block cache hits",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_block_cache_misses",
         "unit": "count",
+        "description": "Number of block cache misses",
         "added": "7.1.0"
     },
 /* SST file count. */
     {
         "key": "ep_magma_tables_created",
         "unit": "count",
+        "description": "Number of table files created",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_tables_deleted",
         "unit": "count",
+        "description": "Number of table files deleted",
         "added": "7.1.0"
     },
     {
         "key": "ep_magma_tables",
         "unit": "count",
+        "description": "Number of files used for tables",
         "added": "7.1.0"
     },
 /* NSync. */
     {
         "key": "ep_magma_syncs",
         "unit": "count",
+        "description": "Number of fsyncs performed",
         "added": "7.1.0"
     },
     {
         "key" : "ep_magma_data_blocks_uncompressed_size",
         "unit": "count",
+        "description": "Data blocks uncompressed size",
         "added": "7.2.0"
     },
     {
         "key" : "ep_magma_data_blocks_compressed_size",
         "unit": "count",
+        "description": "Data blocks compressed size; actual size in storage",
         "added": "7.2.0"
     },
     {
         "key" : "ep_magma_data_blocks_compression_ratio",
         "unit": "ratio",
+        "description": "The compression ratio calculated by dividing the uncompressed data size by the compressed data size",
         "added": "7.2.0"
     },
     {
         "key" : "ep_magma_data_blocks_space_reduction_estimate_pct",
         "unit": "percent",
+        "description": "Estimated percentage of space savings in compressed data blocks (0-100)",
         "added": "7.2.0"
     },
     {
