@@ -1,0 +1,3617 @@
+{
+    "kv_audit_dropped_events": {
+        "added": "7.0.0",
+        "help": "The number of audit events dropped due to errors while trying to insert them to the audit trail",
+        "stability": "committed",
+        "type": "counter",
+        "unit": "count"
+    },
+    "kv_audit_enabled": {
+        "added": "7.0.0",
+        "help": "Boolean value to indicate if audit is enabled or not",
+        "stability": "committed",
+        "type": "gauge"
+    },
+    "kv_auth_cmds": {
+        "added": "7.0.0",
+        "help": "The number of authentication commands",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_auth_errors": {
+        "added": "7.0.0",
+        "help": "The number of failed authentication requests",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_bg_batch_size": {
+        "added": "7.0.0",
+        "help": "Batch size for background fetches",
+        "stability": "committed",
+        "type": "histogram",
+        "unit": "count"
+    },
+    "kv_bg_load_seconds": {
+        "added": "7.0.0",
+        "help": "Background fetches waiting for disk",
+        "stability": "committed",
+        "type": "histogram",
+        "unit": "seconds"
+    },
+    "kv_bg_wait_seconds": {
+        "added": "7.0.0",
+        "help": "Background fetches waiting in the dispatcher queue",
+        "stability": "committed",
+        "type": "histogram",
+        "unit": "seconds"
+    },
+    "kv_cmd_duration_seconds": {
+        "added": "7.0.0",
+        "help": "Per-opcode histogram of time taken to execute operations",
+        "stability": "committed",
+        "type": "histogram",
+        "unit": "seconds"
+    },
+    "kv_cmd_lookup": {
+        "added": "7.0.0",
+        "help": "The number of lookup operations",
+        "stability": "committed",
+        "type": "counter",
+        "unit": "count"
+    },
+    "kv_cmd_lookup_10s_count": {
+        "added": "7.0.0",
+        "help": "The number of lookup operations performed within the last 10 seconds",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_cmd_lookup_10s_duration_seconds": {
+        "added": "7.0.0",
+        "help": "The total duration of lookup operations performed over the last 10 seconds",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "seconds"
+    },
+    "kv_cmd_mutation": {
+        "added": "7.0.0",
+        "help": "The number of mutation operations",
+        "stability": "committed",
+        "type": "counter",
+        "unit": "count"
+    },
+    "kv_cmd_mutation_10s_count": {
+        "added": "7.0.0",
+        "help": "The number of mutation operations performed within the last 10 seconds",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_cmd_mutation_10s_duration_seconds": {
+        "added": "7.0.0",
+        "help": "The total duration of mutation operations performed over the last 10 seconds",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "seconds"
+    },
+    "kv_cmd_total_gets": {
+        "added": "7.0.0",
+        "help": "The total number of data retrieval operations (all buckets)",
+        "stability": "committed",
+        "type": "counter",
+        "unit": "count"
+    },
+    "kv_cmd_total_ops": {
+        "added": "7.0.0",
+        "help": "The sum of cmd_total_sets and cmd_total_gets (all buckets)",
+        "stability": "committed",
+        "type": "counter",
+        "unit": "count"
+    },
+    "kv_cmd_total_sets": {
+        "added": "7.0.0",
+        "help": "The total number of mutation operations (all buckets)",
+        "stability": "committed",
+        "type": "counter",
+        "unit": "count"
+    },
+    "kv_collection_data_size_bytes": {
+        "added": "7.0.0",
+        "help": "Per-collection data size on disk",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_collection_history": {
+        "added": "7.2.0",
+        "help": "Whether history (CDC) is enabled for each collection",
+        "stability": "committed",
+        "type": "gauge"
+    },
+    "kv_collection_item_count": {
+        "added": "7.0.0",
+        "help": "Per-collection item count",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_collection_maxTTL_seconds": {
+        "added": "7.0.0",
+        "help": "Per-collection maxTTL (maximum expiry) if configured",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "seconds"
+    },
+    "kv_collection_mem_used_bytes": {
+        "added": "7.0.0",
+        "help": "Per-collection memory usage",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_collection_ops": {
+        "added": "7.0.0",
+        "help": "Per-collection counters of sets/gets/deletes",
+        "labels": [
+            "op"
+        ],
+        "stability": "committed",
+        "type": "counter",
+        "unit": "count"
+    },
+    "kv_conflicts_resolved": {
+        "added": "7.2.0",
+        "help": "Counter of all SetWithMeta/DelWithMeta conflict resolution results. The result may be that the incoming operation was: accepted as it is 'ahead', rejected as it is 'behind', or rejected as it appears identical (by metadata, not comparing document bodies)",
+        "stability": "committed",
+        "type": "counter"
+    },
+    "kv_conn_yields": {
+        "added": "7.0.0",
+        "help": "The total number all clients in this bucket yield due to consuming the number of ops allowed for the current timeslice",
+        "stability": "committed",
+        "type": "counter",
+        "unit": "count"
+    },
+    "kv_connection_recycle_high_watermark": {
+        "added": "7.2.0",
+        "help": "Number (or percentage of total available) connections allowed before KV will begin to close older connections to avoid reaching the limit",
+        "stability": "committed",
+        "type": "gauge"
+    },
+    "kv_connection_structures": {
+        "added": "7.0.0",
+        "help": "Current number of allocated connection structures",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_curr_connections": {
+        "added": "7.0.0",
+        "help": "The current number of connections. This includes user, system and daemon connections",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_curr_items": {
+        "added": "7.0.0",
+        "help": "Count of alive (non-deleted) items in active vbuckets, including non-resident items",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_curr_items_tot": {
+        "added": "7.0.0",
+        "help": "Total number of items",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_curr_temp_items": {
+        "added": "7.0.0",
+        "help": "Number of temporary items in memory",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_daemon_connections": {
+        "added": "7.0.0",
+        "help": "The number of server sockets currently in use",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_daemon_memory_allocated_bytes": {
+        "added": "7.1.0",
+        "help": "Total amount of memory allocated (outside the context of a bucket)",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_daemon_memory_resident_bytes": {
+        "added": "7.1.0",
+        "help": "Total amount of memory resident (outside the context of a bucket)",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_datatype_count": {
+        "added": "7.0.2",
+        "help": "Count of items in memory with a given datatype combination",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_dcp_backoff": {
+        "added": "7.0.0",
+        "help": "Number of times Consumer DCP connections (i.e., replica) have paused consuming items because memory usage is too high",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_dcp_connection_count": {
+        "added": "7.0.0",
+        "help": "Current number of DCP connections (Consumers or Producers)",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_dcp_count": {
+        "added": "7.0.0",
+        "help": "Current number of DCP connections",
+        "labels": [
+            "type"
+        ],
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_dcp_items_backfilled": {
+        "added": "7.2.1",
+        "help": "Number of items pushed into the DCP stream ready queue from a backfill",
+        "labels": [
+            "from"
+        ],
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_dcp_items_remaining": {
+        "added": "7.0.0",
+        "help": "Current total number of items remaining for to be sent for all outgoing DCP streams (approximate)",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_dcp_items_sent": {
+        "added": "7.0.0",
+        "help": "Total number of items sent out by all _currently existing_ outgoing DCP streams, since each stream was created",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_dcp_max_running_backfills": {
+        "added": "7.0.2",
+        "help": "Maximum number of backfills across all DCP connections",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_dcp_num_running_backfills": {
+        "added": "7.0.2",
+        "help": "Total number of running backfills across all DCP connections",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_dcp_ready_queue_size_bytes": {
+        "added": "7.1.0",
+        "help": "Estimated memory usage of items waiting to be sent across all _existing_ DCP connections",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_dcp_total_data_size_bytes": {
+        "added": "7.0.0",
+        "help": "Total data sent across all _existing_ DCP connections",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_dcp_total_uncompressed_data_size_bytes": {
+        "added": "7.0.0",
+        "help": "Total equivalent uncompressed size of data sent across all _existing_ DCP connections",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_disk_seconds": {
+        "added": "7.0.0",
+        "help": "time spent waiting for disk",
+        "labels": [
+            "op"
+        ],
+        "stability": "committed",
+        "type": "histogram",
+        "unit": "seconds"
+    },
+    "kv_domain_memory_used_bytes": {
+        "added": "7.1.0",
+        "help": "Current memory used in KV for primary/secondary domain",
+        "labels": [
+            "domain"
+        ],
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_access_scanner_enabled": {
+        "added": "7.0.0",
+        "help": "True if access scanner task is enabled",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_access_scanner_last_runtime_seconds": {
+        "added": "7.0.0",
+        "help": "Number of seconds that last Access Scanner task run took to complete.",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "seconds"
+    },
+    "kv_ep_access_scanner_num_items": {
+        "added": "7.0.0",
+        "help": "Number of items that last Access Scanner task run wrote to the Access Log.",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_access_scanner_task_time": {
+        "added": "7.0.0",
+        "help": "Time of the next access scanner task (GMT), NOT_SCHEDULED if access scanner has been disabled",
+        "stability": "committed",
+        "type": "gauge"
+    },
+    "kv_ep_ahead_exceptions": {
+        "added": "7.0.0",
+        "help": "Total number of times a vbucket saw an item with a HLC CAS from too far in the future (indicating the clock is behind)",
+        "stability": "committed",
+        "type": "counter",
+        "unit": "count"
+    },
+    "kv_ep_allow_sanitize_value_in_deletion": {
+        "added": "7.0.0",
+        "help": "Let EPE delete/prepare/del_with_meta prune any invalid body in the payload instead of failing",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_alog_block_size": {
+        "added": "7.0.0",
+        "help": "Logging block size.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_alog_max_stored_items": {
+        "added": "7.0.0",
+        "help": "",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_alog_resident_ratio_threshold": {
+        "added": "7.0.0",
+        "help": "",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_alog_sleep_time": {
+        "added": "7.0.0",
+        "help": "Number of minutes between each sweep for the access log",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_alog_task_time": {
+        "added": "7.0.0",
+        "help": "Hour in GMT time when access scanner task is scheduled to run",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_backfill_mem_threshold": {
+        "added": "7.0.0",
+        "help": "",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_behind_exceptions": {
+        "added": "7.0.0",
+        "help": "Total number of times a vbucket saw an item with a HLC CAS from too far in the past (indicating the clock is ahead)",
+        "stability": "committed",
+        "type": "counter",
+        "unit": "count"
+    },
+    "kv_ep_bfilter_enabled": {
+        "added": "7.0.0",
+        "help": "",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_bfilter_fp_prob": {
+        "added": "7.0.0",
+        "help": "",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_bfilter_key_count": {
+        "added": "7.0.0",
+        "help": "",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_bfilter_residency_threshold": {
+        "added": "7.0.0",
+        "help": "",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_bg_fetch_avg_read_amplification_ratio": {
+        "added": "7.0.0",
+        "help": "Average read amplification for all background fetch operations - ratio of read()s to documents fetched.",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "ratio"
+    },
+    "kv_ep_bg_fetched": {
+        "added": "7.0.0",
+        "help": "Number of items fetched from disk",
+        "stability": "committed",
+        "type": "counter",
+        "unit": "count"
+    },
+    "kv_ep_bg_fetched_compaction": {
+        "added": "7.1.5",
+        "help": "The number of bgfetches which are triggered by compaction",
+        "stability": "committed",
+        "type": "counter"
+    },
+    "kv_ep_bg_load_avg_seconds": {
+        "added": "7.0.0",
+        "help": "The average time for an item to be loaded from disk",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "seconds"
+    },
+    "kv_ep_bg_load_seconds": {
+        "added": "7.0.0",
+        "help": "The total elapsed time for items to be loaded from disk",
+        "stability": "committed",
+        "type": "counter",
+        "unit": "seconds"
+    },
+    "kv_ep_bg_max_load_seconds": {
+        "added": "7.0.0",
+        "help": "The longest load time when loading from disk",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "seconds"
+    },
+    "kv_ep_bg_max_wait_seconds": {
+        "added": "7.0.0",
+        "help": "The longest time in the queue waiting to be loaded from disk",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "seconds"
+    },
+    "kv_ep_bg_meta_fetched": {
+        "added": "7.0.0",
+        "help": "Number of metadata fetches from disk",
+        "stability": "committed",
+        "type": "counter",
+        "unit": "count"
+    },
+    "kv_ep_bg_min_load_seconds": {
+        "added": "7.0.0",
+        "help": "The shortest load time when loading from disk",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "seconds"
+    },
+    "kv_ep_bg_min_wait_seconds": {
+        "added": "7.0.0",
+        "help": "The shortest time in the queue waiting to be loaded from disk",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "seconds"
+    },
+    "kv_ep_bg_num_samples": {
+        "added": "7.0.0",
+        "help": "The number of samples included in the average",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_bg_remaining_items": {
+        "added": "7.0.0",
+        "help": "Number of remaining bg fetch items",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_bg_remaining_jobs": {
+        "added": "7.0.0",
+        "help": "Number of remaining bg fetch jobs",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_bg_wait_avg_seconds": {
+        "added": "7.0.0",
+        "help": "The average wait time for an item before it's serviced by the dispatcher",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "seconds"
+    },
+    "kv_ep_bg_wait_seconds": {
+        "added": "7.0.0",
+        "help": "The total elapse time for the wait queue",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "seconds"
+    },
+    "kv_ep_blob_num": {
+        "added": "7.0.0",
+        "help": "The number of blob objects in the cache",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_bucket_quota_change_task_poll_interval": {
+        "added": "7.0.0",
+        "help": "Time in seconds between the BucketQuotaChangeTask polling memory usage to attempt to reduce the bucket quota",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_cache_size": {
+        "added": "7.0.0",
+        "help": "Memory quota (in bytes) for this bucket.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_checkpoint_computed_max_size_bytes": {
+        "added": "7.1.0",
+        "help": "Actual max size in bytes of a single Checkpoint",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_checkpoint_destruction_tasks": {
+        "added": "7.0.0",
+        "help": "Number of tasks responsible for destroying closed unreferenced checkpoints.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_checkpoint_max_size": {
+        "added": "7.0.0",
+        "help": "Max size (in bytes) of a single checkpoint. '0' for EPEngine auto-setup.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_checkpoint_memory_bytes": {
+        "added": "7.0.0",
+        "help": "Memory of items in all checkpoints",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_checkpoint_memory_pending_destruction_bytes": {
+        "added": "7.1.0",
+        "help": "Memory of checkpoint structures awaiting destruction by a background task",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_checkpoint_memory_quota_bytes": {
+        "added": "7.1.0",
+        "help": "Max allocation allowed in all checkpoints",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_checkpoint_memory_ratio": {
+        "added": "7.0.0",
+        "help": "Max ratio of the bucket quota that can be allocated in checkpoints. The system enters a TempOOM phase if hit.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_checkpoint_memory_recovery_lower_mark": {
+        "added": "7.0.0",
+        "help": "Fraction of the checkpoint quota (as computed by checkpoint_memory_ratio) that represents the target of checkpoint memory recovery. Memory recovery yields when reached.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_checkpoint_memory_recovery_lower_mark_bytes": {
+        "added": "7.1.0",
+        "help": "Fraction of the checkpoint quota (as computed by checkpoint_memory_ratio) that represents the target of checkpoint memory recovery. Memory recovery yields when reached",
+        "stability": "committed",
+        "type": "gauge"
+    },
+    "kv_ep_checkpoint_memory_recovery_upper_mark": {
+        "added": "7.0.0",
+        "help": "Fraction of the checkpoint quota (as computed by checkpoint_memory_ratio) that triggers attempt of memory releasing from checkpoint.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_checkpoint_memory_recovery_upper_mark_bytes": {
+        "added": "7.1.0",
+        "help": "Fraction of the checkpoint quota (as computed by checkpoint_memory_ratio) that triggers attempt of memory releasing from checkpoint",
+        "stability": "committed",
+        "type": "gauge"
+    },
+    "kv_ep_checkpoint_remover_task_count": {
+        "added": "7.0.0",
+        "help": "Number of concurrent tasks performing ItemExpel and CursorDrop/CheckpointRemoval",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_chk_expel_enabled": {
+        "added": "7.0.0",
+        "help": "Enable the ability to expel (remove from memory) items from a checkpoint.  An item can be expelled if all cursors in the checkpoint have iterated past the item.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_chk_persistence_remains": {
+        "added": "7.0.0",
+        "help": "Number of remaining vbuckets for checkpoint persistence",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_chk_remover_stime": {
+        "added": "7.0.0",
+        "help": "",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_clock_cas_drift_threshold_exceeded": {
+        "added": "7.0.0",
+        "help": "ep_active_ahead_exceptions + ep_replica_ahead_exceptions",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_collections_drop_compaction_delay": {
+        "added": "7.0.0",
+        "help": "How many milliseconds before compaction runs following the drop of a collection",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_collections_enabled": {
+        "added": "7.0.0",
+        "help": "Enable the collections functionality, enabling the storage of collection metadata",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_commit_num": {
+        "added": "7.0.0",
+        "help": "Total number of write commits",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_commit_time_seconds": {
+        "added": "7.0.0",
+        "help": "Number of milliseconds of most recent commit",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "seconds"
+    },
+    "kv_ep_commit_time_total_seconds": {
+        "added": "7.0.0",
+        "help": "Cumulative milliseconds spent committing",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "seconds"
+    },
+    "kv_ep_compaction_aborted": {
+        "added": "7.1.0",
+        "help": "Counter of how many times compaction aborted, e.g. the vbucket is required to rollback, so compaction is aborted",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_compaction_expire_from_start": {
+        "added": "7.0.0",
+        "help": "Should compaction expire items that were logically deleted at the start of the compaction (true) or at the point in time at which they were visited (false)?",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_compaction_expiry_fetch_inline": {
+        "added": "7.0.0",
+        "help": "If compaction requires a bgfetch before attempting expiry to ensure it does not expire an older version of the document, true: fetch it in the compaction thread. false: queue a bgfetch for the bgfetcher task to complete",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_compaction_failed": {
+        "added": "7.1.0",
+        "help": "Counter of how many times compaction has failed, e.g. a system call error caused compaction to fail",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_compaction_max_concurrent_ratio": {
+        "added": "7.0.0",
+        "help": "",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_concurrent_pagers": {
+        "added": "7.0.0",
+        "help": "Number of eviction pager tasks to create when memory usage is high",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_connection_manager_interval": {
+        "added": "7.0.0",
+        "help": "How often connection manager task should be run (in seconds).",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_couchstore_file_cache_max_size": {
+        "added": "7.0.0",
+        "help": "Maximum number of couchstore files that we will keep open. Default value is 30 * 1024 (i.e. one file for each vBucket and 30 Buckets - the supported limit).",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_couchstore_midpoint_rollback_optimisation": {
+        "added": "7.0.0",
+        "help": "Should we have to rollback more than half of the seqnos seen by this vBucket we will instead rollback to 0 and re-stream from the active if set to true",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_couchstore_mprotect": {
+        "added": "7.0.0",
+        "help": "Enable couchstore to mprotect the iobuffer",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_couchstore_tracing": {
+        "added": "7.0.0",
+        "help": "Enable couchstore tracing",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_couchstore_write_validation": {
+        "added": "7.0.0",
+        "help": "Validate couchstore writes ",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_cross_bucket_ht_quota_sharing": {
+        "added": "7.0.0",
+        "help": "Allow this Bucket's HashTable quota to be shared with other Buckets which have this setting enabled.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_cursors_dropped": {
+        "added": "7.0.0",
+        "help": "Number of cursors dropped by the checkpoint remover",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_data_read_failed": {
+        "added": "7.0.0",
+        "help": "Total number of get failures",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_data_traffic_enabled": {
+        "added": "7.0.0",
+        "help": "True if we want to enable data traffic after warmup is complete",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_data_write_failed": {
+        "added": "7.0.0",
+        "help": "Total compaction and commit failures",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_db_data_size_bytes": {
+        "added": "7.0.0",
+        "help": "Total size of valid data in db files",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_db_file_size_bytes": {
+        "added": "7.0.0",
+        "help": "Total size of the db files",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_db_history_file_size_bytes": {
+        "added": "7.2.0",
+        "help": "The total size of all history currently stored by the bucket",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_db_history_start_timestamp_seconds": {
+        "added": "7.2.0",
+        "help": "The timestamp of the oldest document stored in the history window, oldest of all vbuckets",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "seconds"
+    },
+    "kv_ep_db_prepare_size_bytes": {
+        "added": "7.0.0",
+        "help": "Total size of SyncWrite prepares in db files",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_dcp_backfill_byte_limit": {
+        "added": "7.0.0",
+        "help": "Max bytes a connection can backfill into memory before backfill is paused",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_dcp_backfill_in_progress_per_connection_limit": {
+        "added": "7.0.0",
+        "help": "The maximum number of backfills each connection can have in-progress (i.e. KVStore snapshot open and reading data from)",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_dcp_consumer_buffer_ratio": {
+        "added": "7.0.0",
+        "help": "Ratio of the BucketQuota that can be allocated by all DCP consumers for buffered messages",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_dcp_consumer_control_enabled": {
+        "added": "7.0.0",
+        "help": "When true, a DcpConsumer can accept control messages. This is intended to be used by tests.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_dcp_consumer_flow_control_enabled": {
+        "added": "7.0.0",
+        "help": "Whether DCP Consumer on this node enable flow control",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_dcp_consumer_process_buffered_messages_batch_size": {
+        "added": "7.0.0",
+        "help": "The maximum number of items stream->processBufferedMessages will consume.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_dcp_consumer_process_buffered_messages_yield_limit": {
+        "added": "7.0.0",
+        "help": "The number of processBufferedMessages iterations before forcing the task to yield.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_dcp_enable_noop": {
+        "added": "7.0.0",
+        "help": "Whether DCP Consumer connections should attempt to negotiate no-ops with the Producer",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_dcp_idle_timeout": {
+        "added": "7.0.0",
+        "help": "The maximum number of seconds between dcp messages before a connection is disconnected",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_dcp_min_compression_ratio": {
+        "added": "7.0.0",
+        "help": "",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_dcp_noop_mandatory_for_v5_features": {
+        "added": "7.0.0",
+        "help": "Forces clients to enable noop for v5 features",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_dcp_noop_tx_interval": {
+        "added": "7.0.0",
+        "help": "The time interval in seconds between noop messages being sent to the consumer",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_dcp_oso_backfill_large_value_ratio": {
+        "added": "7.0.0",
+        "help": "",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_dcp_oso_backfill_small_item_size_threshold": {
+        "added": "7.0.0",
+        "help": "",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_dcp_oso_backfill_small_value_ratio": {
+        "added": "7.0.0",
+        "help": "",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_dcp_oso_max_collections_per_backfill": {
+        "added": "7.0.0",
+        "help": "",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_dcp_producer_snapshot_marker_yield_limit": {
+        "added": "7.0.0",
+        "help": "The number of snapshots before ActiveStreamCheckpointProcessorTask::run yields.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_dcp_scan_byte_limit": {
+        "added": "7.0.0",
+        "help": "Max bytes that can be read in a single backfill scan before yielding",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_dcp_scan_item_limit": {
+        "added": "7.0.0",
+        "help": "Max items that can be read in a single backfill scan before yielding",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_dcp_takeover_max_time": {
+        "added": "7.0.0",
+        "help": "Max amount of time for takeover send (in seconds) after which front end ops would return ETMPFAIL",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_defragmenter_age_threshold": {
+        "added": "7.0.0",
+        "help": "How old (measured in number of DefragmenterVisitor passes) must a document be to be considered for defragmentation.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_defragmenter_auto_lower_threshold": {
+        "added": "7.0.0",
+        "help": "When mode is not static and scored fragmentation is above this value, a sleep time between defragmenter_auto_min_sleep and defragmenter_auto_max_sleep will be used",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_defragmenter_auto_max_sleep": {
+        "added": "7.0.0",
+        "help": "The maximum sleep that the auto controller can set",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_defragmenter_auto_min_sleep": {
+        "added": "7.0.0",
+        "help": "The minimum sleep that the auto controller can set",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_defragmenter_auto_pid_d": {
+        "added": "7.0.0",
+        "help": "The d term for the PID controller",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_defragmenter_auto_pid_dt": {
+        "added": "7.0.0",
+        "help": "The dt (interval) term for the PID controller. Value represents milliseconds",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_defragmenter_auto_pid_i": {
+        "added": "7.0.0",
+        "help": "The i term for the PID controller",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_defragmenter_auto_pid_p": {
+        "added": "7.0.0",
+        "help": "The p term for the PID controller",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_defragmenter_auto_upper_threshold": {
+        "added": "7.0.0",
+        "help": "When mode is auto_linear and scored fragmentation is above this value, the defragmenter will use defragmenter_auto_min_sleep",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_defragmenter_chunk_duration": {
+        "added": "7.0.0",
+        "help": "Maximum time (in ms) defragmentation task will run for before being paused (and resumed at the next defragmenter_interval).",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_defragmenter_enabled": {
+        "added": "7.0.0",
+        "help": "True if defragmenter task is enabled",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_defragmenter_interval": {
+        "added": "7.0.0",
+        "help": "How often defragmenter task should be run (in seconds).",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_defragmenter_num_moved": {
+        "added": "7.0.0",
+        "help": "Number of items moved by the defragmentater task.",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_defragmenter_num_visited": {
+        "added": "7.0.0",
+        "help": "Number of items visited (considered for defragmentation) by the defragmenter task.",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_defragmenter_stored_value_age_threshold": {
+        "added": "7.0.0",
+        "help": "How old (measured in number of DefragmenterVisitor passes) must a StoredValue be to be considered for defragmentation.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_defragmenter_sv_num_moved": {
+        "added": "7.0.0",
+        "help": "Number of StoredValues moved by the defragmentater task.",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_degraded_mode": {
+        "added": "7.0.0",
+        "help": "True if the engine is either warming up or data traffic is disabled",
+        "stability": "committed",
+        "type": "gauge"
+    },
+    "kv_ep_diskqueue_drain": {
+        "added": "7.0.0",
+        "help": "Total drained items on disk queue",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_diskqueue_fill": {
+        "added": "7.0.0",
+        "help": "Total enqueued items on disk queue",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_diskqueue_items": {
+        "added": "7.0.0",
+        "help": "Total items in disk queue",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_diskqueue_memory_bytes": {
+        "added": "7.0.0",
+        "help": "Total memory used in disk queue",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_diskqueue_pending": {
+        "added": "7.0.0",
+        "help": "Total bytes of pending writes",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_ephemeral_metadata_mark_stale_chunk_duration": {
+        "added": "7.0.0",
+        "help": "Maximum time (in ms) ephemeral hash table cleaner task will run for before being paused (and resumed at the next ephemeral_metadata_purge_interval).",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_ephemeral_metadata_purge_age": {
+        "added": "7.0.0",
+        "help": "Age in seconds after which Ephemeral metadata is purged entirely from memory. Purging disabled if set to -1.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_ephemeral_metadata_purge_interval": {
+        "added": "7.0.0",
+        "help": "Time in seconds between automatic, periodic runs of the Ephemeral metadata purge task. Periodic purging disabled if set to 0.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_ephemeral_metadata_purge_stale_chunk_duration": {
+        "added": "7.0.0",
+        "help": "Maximum time (in ms) ephemeral stale metadata purge task will run for before being paused (and resumed at the next ephemeral_metadata_purge_interval).",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_exp_pager_enabled": {
+        "added": "7.0.0",
+        "help": "True if expiry pager task is enabled",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_exp_pager_initial_run_time": {
+        "added": "7.0.0",
+        "help": "Hour in GMT time when expiry pager can be scheduled for initial run",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_exp_pager_stime": {
+        "added": "7.0.0",
+        "help": "Number of seconds between expiry pager runs.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_expired_access": {
+        "added": "7.0.0",
+        "help": "Number of times an item was expired on application access",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_expired_compactor": {
+        "added": "7.0.0",
+        "help": "Number of times an item was expired by the compactor",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_expired_pager": {
+        "added": "7.0.0",
+        "help": "Number of times an item was expired by the item pager",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_expiry_pager_concurrency": {
+        "added": "7.0.0",
+        "help": "Number of tasks which are created to scan for and delete expired items",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_expiry_pager_task_time": {
+        "added": "7.0.0",
+        "help": "Time of the next expiry pager task (GMT), NOT_SCHEDULED if expiry pager has been disabled",
+        "stability": "committed",
+        "type": "gauge"
+    },
+    "kv_ep_failpartialwarmup": {
+        "added": "7.0.0",
+        "help": "If true then do not allow traffic to be enabled to the bucket if warmup didn't complete successfully",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_flush_duration_total_seconds": {
+        "added": "7.0.0",
+        "help": "Cumulative milliseconds spent flushing",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "seconds"
+    },
+    "kv_ep_flusher_todo": {
+        "added": "7.0.0",
+        "help": "Number of items currently being written",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_flusher_total_batch_limit": {
+        "added": "7.0.0",
+        "help": "Number of items that all flushers can be currently flushing. Each flusher has flusher_total_batch_limit / num_writer_threads individual batch size. Individual batches may be larger than this value, as we cannot split Memory checkpoints across multiple commits.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_freq_counter_increment_factor": {
+        "added": "7.0.0",
+        "help": "The increment factor of the ProbabilisticCounter being used for the frequency counter. The default value of 0.012 is set such that it allows an 8-bit ProbabilisticCounter to mimic a uint16 counter. See the comment on the ProbabilisticCounter class for more information.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_fsync_after_every_n_bytes_written": {
+        "added": "7.0.0",
+        "help": "Perform a file sync() operation after every N bytes written. Disabled if set to 0.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_getl_default_timeout": {
+        "added": "7.0.0",
+        "help": "The default timeout for a getl lock in (s)",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_getl_max_timeout": {
+        "added": "7.0.0",
+        "help": "The maximum timeout for a getl lock in (s)",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_history_retention_bytes": {
+        "added": "7.0.0",
+        "help": "Max bytes of history a bucket should aim to retain on disk.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_history_retention_seconds": {
+        "added": "7.0.0",
+        "help": "Seconds of history the bucket should aim to retain on disk.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_hlc_drift_ahead_threshold_us": {
+        "added": "7.0.0",
+        "help": "The μs threshold of drift at which we will increment a vbucket's ahead counter.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_hlc_drift_behind_threshold_us": {
+        "added": "7.0.0",
+        "help": "The μs threshold of drift at which we will increment a vbucket's behind counter.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_hlc_drift_count": {
+        "added": "7.0.0",
+        "help": "The accumulated number of times the corresponding kv_ep_hlc_drift_count has been updated",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_hlc_drift_seconds": {
+        "added": "7.0.0",
+        "help": "The accumulated drift between this node's HLC and the remote node. For active vbucket's this represents the difference in CAS and local HLC for withMeta operations, for replica vbucket's this represents the difference in CAS and local HLC from DCP replication.",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "seconds"
+    },
+    "kv_ep_ht_item_memory_bytes": {
+        "added": "7.1.0",
+        "help": "The total byte size of all items, no matter the vbucket's state, no matter if an item's value is ejected. Tracks the same value as ep_total_cache_size",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_ht_locks": {
+        "added": "7.0.0",
+        "help": "",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_ht_resize_interval": {
+        "added": "7.0.0",
+        "help": "Interval in seconds to wait between HashtableResizerTask executions.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_ht_size": {
+        "added": "7.0.0",
+        "help": "Initial number of slots in HashTable objects.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_io_bg_fetch_read_count": {
+        "added": "7.0.0",
+        "help": "Accumulated count of read system calls issued by BG fetches, only maintained by couchstore buckets",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_io_compaction_read_bytes_bytes": {
+        "added": "7.0.0",
+        "help": "Total number of bytes read during compaction",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_io_compaction_write_bytes_bytes": {
+        "added": "7.0.0",
+        "help": "Total number of bytes written during compaction",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_io_document_write_bytes_bytes": {
+        "added": "7.0.0",
+        "help": "Total number of bytes written. Only maintained by couchstore buckets and includes Couchstore B-Tree and other overheads",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_io_total_read_bytes_bytes": {
+        "added": "7.0.0",
+        "help": "Total number of bytes read",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_io_total_write_bytes_bytes": {
+        "added": "7.0.0",
+        "help": "Total number of bytes written",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_item_begin_failed": {
+        "added": "7.0.0",
+        "help": "Number of times a transaction failed to start due to storage errors",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_item_commit_failed": {
+        "added": "7.0.0",
+        "help": "Number of times a transaction failed to commit due to storage errors",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_item_compressor_chunk_duration": {
+        "added": "7.0.0",
+        "help": "Maximum time (in ms) item compression task will run for before being paused (and resumed at the next item_compressor_interval).",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_item_compressor_interval": {
+        "added": "7.0.0",
+        "help": "How often the item compressor task should run (in milliseconds)",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_item_compressor_num_compressed": {
+        "added": "7.0.0",
+        "help": "Number of items compressed by the item compressor task.",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_item_compressor_num_visited": {
+        "added": "7.0.0",
+        "help": "Number of items visited (considered for compression) by the item compressor task.",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_item_eviction_age_percentage": {
+        "added": "7.0.0",
+        "help": "The age percentage used when determining the age threshold in the learning_age_and_mfu eviction policy.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_item_eviction_freq_counter_age_threshold": {
+        "added": "7.0.0",
+        "help": "",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_item_eviction_initial_mfu_percentile": {
+        "added": "7.0.0",
+        "help": "Percentile of existing item MFU distribution to use to determine the MFU to give to new items (0 would insert new items with MFU equal to that of the coldest item present; 100 to that of hottest item present) for the upfront_mfu_only eviction strategy.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_item_eviction_initial_mfu_update_interval": {
+        "added": "7.0.0",
+        "help": "Time between updates of the initial MFU given to new items (seconds)",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_item_flush_expired": {
+        "added": "7.0.0",
+        "help": "Number of times an item is not flushed due to the expiry of the item",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_item_flush_failed": {
+        "added": "7.0.0",
+        "help": "Number of times an item failed to flush due to storage errors",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_item_freq_decayer_chunk_duration": {
+        "added": "7.0.0",
+        "help": "Maximum time (in ms) itemFreqDecayer task will run for before being paused.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_item_freq_decayer_percent": {
+        "added": "7.0.0",
+        "help": "The percent that the frequency counter of a document is decayed when visited by item_freq_decayer.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_item_num": {
+        "added": "7.0.0",
+        "help": "The number of item objects allocated",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_items_expelled_from_checkpoints": {
+        "added": "7.0.0",
+        "help": "Number of items expelled from checkpoints. Expelled refers to items that have been ejected from memory but are still considered to be part of the checkpoint.",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_items_rm_from_checkpoints": {
+        "added": "7.0.0",
+        "help": "Number of items removed from closed unreferenced checkpoints",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_key_value_size_bytes": {
+        "added": "7.0.0",
+        "help": "Memory used to store items metadata, keys and values in the system, no matter the vbucket's state",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_magma_active_disk_usage_bytes": {
+        "added": "7.2.0",
+        "help": "Compressed disk size of latest version of the LSM Trees. This includes history",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_magma_block_cache_hits": {
+        "added": "7.1.0",
+        "help": "Number of block cache hits",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_block_cache_mem_used_bytes": {
+        "added": "7.1.0",
+        "help": "Memory used by block cache. Accounts for allocated size of blocks that includes allocator internal fragmentation and any internal cache overheads due to auxilliary structures",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_magma_block_cache_misses": {
+        "added": "7.1.0",
+        "help": "Number of block cache misses",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_bloom_filter_accuracy": {
+        "added": "7.0.0",
+        "help": "",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_bloom_filter_accuracy_for_bottom_level": {
+        "added": "7.0.0",
+        "help": "",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_bloom_filter_mem_used_bytes": {
+        "added": "7.1.0",
+        "help": "Bloom filter memory usage in all versions of the LSM Trees",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_magma_buffer_mem_used_bytes": {
+        "added": "7.1.0",
+        "help": "Memory usage for some buffers",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_magma_bytes_incoming_bytes": {
+        "added": "7.1.0",
+        "help": "Data written to key, seq, local index as part of the KV frontend writes.",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_magma_bytes_outgoing_bytes": {
+        "added": "7.1.0",
+        "help": "Total bytes returned via get (excluding bytes returned from sequence iterator)",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_magma_bytes_per_read_ratio": {
+        "added": "7.1.0",
+        "help": "Bytes read by get / number of Gets",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "ratio"
+    },
+    "kv_ep_magma_checkpoint_disk_usage_bytes": {
+        "added": "7.2.0",
+        "help": "Checkpoint overhead",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_magma_checkpoint_interval": {
+        "added": "7.0.0",
+        "help": "Frequency of checkpoint interval; in seconds. A checkpoint provides a rollback point to which the data store can rollback to in the event of a failure.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_checkpoint_threshold": {
+        "added": "7.0.0",
+        "help": "Threshold of data written before a checkpoint is created; threshold is based on a fraction of the total data size. Checkpoints require data to be retained in order to provide rollback capability. If the amount of data written during a checkpoint interval is large, we need to do more frequent checkpoints to reduce space amplification.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_compactions": {
+        "added": "7.1.0",
+        "help": "Count of Magma compactions in key, seq and local index.",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_data_blocks_compressed_size": {
+        "added": "7.2.0",
+        "help": "Data blocks compressed size; actual size in storage",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_data_blocks_compression_ratio_ratio": {
+        "added": "7.2.0",
+        "help": "The compression ratio calculated by dividing the uncompressed data size by the compressed data size",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "ratio"
+    },
+    "kv_ep_magma_data_blocks_space_reduction_estimate_pct_ratio": {
+        "added": "7.2.0",
+        "help": "Estimated percentage of space savings in compressed data blocks (0-100)",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "ratio"
+    },
+    "kv_ep_magma_data_blocks_uncompressed_size": {
+        "added": "7.2.0",
+        "help": "Data blocks uncompressed size",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_delete_frag_ratio": {
+        "added": "7.0.0",
+        "help": "Magma compaction always removes duplicate keys but not all sstables are visited during compaction.. This is the minimum fragmentation ratio threshold for when a compaction will be triggerred.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_delete_memtable_writecache": {
+        "added": "7.0.0",
+        "help": "Magma uses a lazy update model to maintain the sequence index. It maintains a list of deleted seq #s that were deleted from the key Index.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_enable_block_cache": {
+        "added": "7.0.0",
+        "help": "The block cache is an LRU policy driven cache that is used to maintain index blocks for the sstable's btrees.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_enable_direct_io": {
+        "added": "7.0.0",
+        "help": "Using direct IO tells magma to bypass the file system cache when writing or reading sstables.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_enable_group_commit": {
+        "added": "7.0.0",
+        "help": "",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_enable_memory_optimized_writes": {
+        "added": "7.0.0",
+        "help": "When enabled, if copying a write batch into memtable results in exceeding the write cache quota, Magma avoids the copy and instead flushes the batch to disk on the writer thread itself. This tradeoffs an increase in write latency for reduced memory consumption and obeys quota limits. If copying a batch keeps us under the quota, Magma will to continue to copy and do the flush in background.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_enable_upsert": {
+        "added": "7.0.0",
+        "help": "When true, the kv_engine will utilize Magma's upsert capabiltiy but accurate document counts for the data store or collections can not be maintained.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_enable_wal": {
+        "added": "7.0.0",
+        "help": "WAL ensures Magma's atomicity, durability. Disabling it is useful in performance analysis.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_expiry_frag_threshold": {
+        "added": "7.0.0",
+        "help": "All compactions perform expiry but not all sstables are visited by compaction. Magma maintains an expiry histogram across the kvstore to help determine which range of sstables need to have compaction run on them because there are a significant number of expired items. The frag threshold is the number of expired keys vs keys in the data store.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_expiry_purger_interval": {
+        "added": "7.0.0",
+        "help": "Magma maintains statistics about expired documents to run compaction based on magma_expiry_frag_threshold. This config determines the the expiry purger polling interval in seconds to trigger compaction on eligible sstables",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_filecount_compactions": {
+        "added": "7.1.0",
+        "help": "Number of compactions triggered by file count",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_flusher_thread_percentage": {
+        "added": "7.0.0",
+        "help": "Percentage of storage threads that are flusher threads (i.e. with a value of 20 we will allocate 4 (1/5th) of the storage threads to flushers and the remaining 16 (4/5ths) threads will be compactors).",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_flushes": {
+        "added": "7.1.0",
+        "help": "Number of write cache flushes performed",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_fragmentation_percentage": {
+        "added": "7.0.0",
+        "help": "The percentage of fragmentation a magma bucket aims to maintain. A 100 value will disable sequence tree compactions by setting the desired fragmentation percentage to 100%. Smaller compactions of the key and local indexes will still run.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_fragmentation_ratio": {
+        "added": "7.1.0",
+        "help": "Fragmentation on disk (excludes history)",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "ratio"
+    },
+    "kv_ep_magma_gets": {
+        "added": "7.1.0",
+        "help": "Number of get operations",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_group_commit_max_sync_wait_duration_ms": {
+        "added": "7.0.0",
+        "help": "",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_group_commit_max_transaction_count": {
+        "added": "7.0.0",
+        "help": "",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_heartbeat_interval": {
+        "added": "7.0.0",
+        "help": "Frequency of heartbeat interval; in seconds. A heartbeat task is scheduled to provide cleanup and maintenance when magma is idle.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_histogram_mem_used_bytes": {
+        "added": "7.1.0",
+        "help": "Memory usage for MagmaHistogramStats and file histograms",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_magma_history_logical_data_size_bytes": {
+        "added": "7.2.0",
+        "help": "The logical data size of history",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_magma_history_logical_disk_size_bytes": {
+        "added": "7.2.0",
+        "help": "The logical disk size of history",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_magma_history_size_evicted_bytes": {
+        "added": "7.2.0",
+        "help": "History eviction bytes based on size",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_magma_history_time_evicted_bytes": {
+        "added": "7.2.0",
+        "help": "History eviction bytes based on time",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_magma_index_resident_ratio_ratio": {
+        "added": "7.1.0",
+        "help": "Proportion of keyIndex (data+index blocks) and seqIndex (index blocks) in memory",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "ratio"
+    },
+    "kv_ep_magma_initial_wal_buffer_size": {
+        "added": "7.0.0",
+        "help": "The WAL buffer is used to stage items to the write ahead log along with control information like begin and end transaction. This parameter refers to the initial WAL buffer size. The WAL buffer will adjust its size up to a maximum of 4MB or down to a minimum of 64KB depending on the transaction batch size with consideration for other magma components which consume memory such as the block cache, bloom filters, write cache and meta data overhead.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_inserts": {
+        "added": "7.1.0",
+        "help": "Number of DocInsert operations",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_key_tree_data_block_size": {
+        "added": "7.0.0",
+        "help": "Magma uses SSTables for storage. SSTables are made up of different types of blocks. Data blocks contain the bulk of the data and contain the key and metadata for each of the items in the block. Larger block sizes can decrease storage space by better block compression but they require more memory, cpu and io bandwidth to read and write them.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_key_tree_index_block_size": {
+        "added": "7.0.0",
+        "help": "Magma uses SSTables for storage. SSTables are made up of different types of blocks. Index blocks contain keys that help traverse the SSTable to locate the data item. Larger block sizes can decrease storage space by better block compression but they require more memory, cpu and io bandwidth to read and write them.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_keyindex_filecount_compactions": {
+        "added": "7.2.0",
+        "help": "Number of compactions triggered by file count for the KeyIndex",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_keyindex_writer_compactions": {
+        "added": "7.2.0",
+        "help": "Number of compaction performed on the writer thread for the KeyIndex",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_logical_data_size_bytes": {
+        "added": "7.1.0",
+        "help": "The logical data size, including history",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_magma_logical_disk_size_bytes": {
+        "added": "7.1.0",
+        "help": "The logical disk size, including history",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_magma_lsmtree_object_mem_used_bytes": {
+        "added": "7.1.0",
+        "help": "Memory used by LSMTree objects",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_magma_max_checkpoints": {
+        "added": "7.0.0",
+        "help": "Maximum # of checkpoints retained for rollback.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_max_default_storage_threads": {
+        "added": "7.0.0",
+        "help": "If the number of storage threads = 0, then we set the number of storage threads based on the number of writer threads up to a maximum of 20 threads and use magma_flusher_thread_percentage to determine the ratio of flusher and compactor threads.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_max_level_0_ttl": {
+        "added": "7.0.0",
+        "help": "Maximum time (in seconds) that data is kept in level 0 before it is merged.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_max_recovery_bytes": {
+        "added": "7.0.0",
+        "help": "Maximum amount of data that is replayed from the WAL during magma recovery. When this threshold is reached magma, creates a temporary checkpoint to recover at. This is per kvstore and in bytes.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_max_write_cache": {
+        "added": "7.0.0",
+        "help": "Magma uses a common skiplist to buffer all items at the shard level called the write cache. The write cache contains items from all the kvstores that are part of the shard and when it is flushed, each kvstore will receive a few items each. Regardless of how much memory might be available, this would be the maximum amount that could be allocated.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_mem_quota_low_watermark_ratio": {
+        "added": "7.0.0",
+        "help": "Fraction of memory quota used by magma as it's low water mark. Magma uses this low watermark to size it's write cache and block cache. This sizing includes bloom filters memory usage but bloom filter eviction is based on the memory quota",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_mem_quota_ratio": {
+        "added": "7.0.0",
+        "help": "Magma total memory ratio of the Bucket Quota across all shards and Magma limit's it's memory usage to this value.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_min_checkpoint_interval": {
+        "added": "7.0.0",
+        "help": "Minimum interval between two checkpoints; in seconds. Prevents excessive creation of checkpoints.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_min_value_block_size_threshold": {
+        "added": "7.0.0",
+        "help": "Magma creates value blocks for values larger than this size. Value blocks only contain a single KV item and their reads/writes are optimised for memory as it avoids many value copies. Right now compression is turned off for value blocks to reduce memory consumption while building them. This setting should be at least as large as the SeqIndex block size.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_per_document_compression_enabled": {
+        "added": "7.0.0",
+        "help": "Apply Snappy compression to each document when persisted (magma only)",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_read_ahead_buffer_mem_used_bytes": {
+        "added": "7.1.0",
+        "help": "Memory consumed by read ahead buffers. They are used for compactions and sequence iterators. This is included in BufferMemUsed",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_magma_read_bytes_bytes": {
+        "added": "7.1.0",
+        "help": "Total bytes read from disk as per Magma's manual accounting in various code paths",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_magma_read_bytes_compact_bytes": {
+        "added": "7.1.0",
+        "help": "Total bytes read from disk by compactors",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_magma_read_bytes_get_bytes": {
+        "added": "7.1.0",
+        "help": "Total bytes read from disk by gets",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_magma_readamp_get_ratio": {
+        "added": "7.1.0",
+        "help": "Bytes Read from disk by only Get threads / Bytes outgoing",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "ratio"
+    },
+    "kv_ep_magma_readamp_ratio": {
+        "added": "7.1.0",
+        "help": "Bytes read from disk / bytes outgoing. Bytes read from disk includes Gets and compactors (excluding WAL)",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "ratio"
+    },
+    "kv_ep_magma_readio": {
+        "added": "7.1.0",
+        "help": "Number of read IOs performed",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_readioamp_ratio": {
+        "added": "7.1.0",
+        "help": "Number of read IOs performed by GetDocs divided by the number of GetDocs",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "ratio"
+    },
+    "kv_ep_magma_seq_tree_data_block_size": {
+        "added": "7.0.0",
+        "help": "Magma uses SSTables for storage. SSTables are made up of different types of blocks. Data blocks contain the bulk of the data and contain the key, metadata and value for each of the items in the block. Larger block sizes can decrease storage space by better block compression but they require more memory, cpu and io bandwidth to read and write them.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_seq_tree_index_block_size": {
+        "added": "7.0.0",
+        "help": "Magma uses SSTables for storage. SSTables are made up of different types of blocks. Index blocks contain keys that help traverse the SSTable to locate the data item. Larger block sizes can decrease storage space by better block compression but they require more memory, cpu and io bandwidth to read and write them.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_seqindex_filecount_compactions": {
+        "added": "7.2.0",
+        "help": "Number of compactions triggered by file count for the SeqIndex",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_seqindex_writer_compactions": {
+        "added": "7.2.0",
+        "help": "Number of compaction performed on the writer thread for the SeqIndex",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_sets": {
+        "added": "7.1.0",
+        "help": "Number of set operations (DocUpsert)",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_sync_every_batch": {
+        "added": "7.0.0",
+        "help": "Couchstore generates a commit point at the end of every batch of items. During normal operation, Magma checkpoints are taken at every magma_checkpoint_interval. Many of the tests require more frequent checkpoints so this configuration parameter makes sure every batch generates a checkpoint. Each checkpoint generated in this way is a \"Sync\" checkpoint and isn't going to be useful for rollback as it only the latest checkpoint is a \"Sync\" checkpoiont. A \"Rollback\" checkpoint will be made instead if we set magma_checkpoint_interval to 0. The \"Rollback\" checkpoints are stored in the checkpoint queue as potential rollback points. Should be used for testing only!",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_syncs": {
+        "added": "7.1.0",
+        "help": "Number of fsyncs performed",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_table_meta_mem_used_bytes": {
+        "added": "7.1.0",
+        "help": "Memory used by sstable metadata",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_magma_table_object_mem_used_bytes": {
+        "added": "7.1.0",
+        "help": "Memory used by SSTable objects",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_magma_tables": {
+        "added": "7.1.0",
+        "help": "Number of files used for tables",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_tables_created": {
+        "added": "7.1.0",
+        "help": "Number of table files created",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_tables_deleted": {
+        "added": "7.1.0",
+        "help": "Number of table files deleted",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_total_disk_usage_bytes": {
+        "added": "7.1.0",
+        "help": "Compressed size of all SSTables in all checkpoints, WAL and any other files on disk",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_magma_total_mem_used_bytes": {
+        "added": "7.1.0",
+        "help": "Total memory used by bloom filters, write cache, block cache and index blocks This account for all versions of the trees",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_magma_ttl_compactions": {
+        "added": "7.1.0",
+        "help": "Number of time-to-live based compactions",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_wal_disk_usage_bytes": {
+        "added": "7.1.0",
+        "help": "Disk usage by the WAL",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_magma_wal_mem_used_bytes": {
+        "added": "7.1.0",
+        "help": "Total WAL memory used, including WAL buffer and any auxiliary memory",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_magma_write_bytes_bytes": {
+        "added": "7.1.0",
+        "help": "Bytes written by Magma flushes, compactions and WAL writes.",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_magma_write_bytes_compact_bytes": {
+        "added": "7.1.0",
+        "help": "Bytes written by Magma compactions.",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_magma_write_cache_mem_used_bytes": {
+        "added": "7.1.0",
+        "help": "Memory usage of the write cache",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_magma_write_cache_ratio": {
+        "added": "7.0.0",
+        "help": "Memory is maintained across 3 magma components; Bloom filters, Block cache and Write cache. The least important of these is the write cache. If there is insufficent memory for the write cache, the write cache will grow to the size of the batch and then be immediately flushed and freed. If there is available memory, the write cache is limited to 20% of the available memory (after bloom filter and block cache get their memory up to magma_max_write_cache (128MB). Bloom filters are the most important and are never paged out. Bloom filter memory can cause magma to go above the memory quota. To allevaite this, the bottom layer where the majority of bloom filter memory is, won't use bloom filters when OptimizeBloomFilterForMisses is on (which it is by default). The block cache grows each time the index sizes change. But its growth is bounded by the available memory or what's left over after the bloom filter memory is subtracted.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_magma_writer_compactions": {
+        "added": "7.1.0",
+        "help": "Number of compaction performed on the writer thread",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_max_checkpoints": {
+        "added": "7.0.0",
+        "help": "The expected max number of checkpoints in each VBucket on a balanced system. Note: That is not a hard limit on the single vbucket. That is used (together with checkpoint_memory_ratio) for computing checkpoint_max_size, which triggers checkpoint creation.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_max_failover_entries": {
+        "added": "7.0.0",
+        "help": "maximum number of failover log entries",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_max_item_privileged_bytes": {
+        "added": "7.0.0",
+        "help": "Maximum number of bytes allowed for 'privileged' (system) data for an item in addition to the max_item_size bytes",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_max_item_size": {
+        "added": "7.0.0",
+        "help": "Maximum number of bytes allowed for an item",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_max_num_bgfetchers": {
+        "added": "7.0.0",
+        "help": "Maximum number of bg fetcher objects (the number of concurrent bg fetch tasks we can run). 0 = auto-configure which means we use the same number as the number of shards (max_num_shards - for historic reasons). See also num_reader_threads.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_max_num_flushers": {
+        "added": "7.0.0",
+        "help": "Maximum number of flusher objects (the number of concurrent flusher tasks we can run). 0 = auto-configure which means we use the same number as the number of shards (max_num_shards - for historic reasons). See also num_writer_threads.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_max_num_shards": {
+        "added": "7.0.0",
+        "help": "Maximum mumber of shards (0 = auto-configure)",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_max_num_workers": {
+        "added": "7.0.0",
+        "help": "Bucket Priority relative to other buckets",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_max_size": {
+        "added": "7.0.0",
+        "help": "Memory quota (in bytes) for this bucket.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_max_threads": {
+        "added": "7.0.0",
+        "help": "Maximum number of threads of any single class (0 = automatically select based on core count)",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_max_ttl": {
+        "added": "7.0.0",
+        "help": "A maximum TTL (in seconds) that will apply to all new documents, documents set with no TTL will be given this value. A value of 0 means this is disabled",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_max_vbuckets": {
+        "added": "7.0.0",
+        "help": "Maximum number of vbuckets expected",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_mem_freed_by_checkpoint_item_expel_bytes": {
+        "added": "7.1.0",
+        "help": "Memory recovered from Checkpoint by expelling clean items (i.e. items processed by all cursors) from the queue",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_mem_freed_by_checkpoint_removal_bytes": {
+        "added": "7.1.0",
+        "help": "Amount of memory freed through ckpt removal",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_mem_high_wat": {
+        "added": "7.0.0",
+        "help": "",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_mem_high_wat_percent_ratio": {
+        "added": "7.0.0",
+        "help": "High water mark (as a percentage)",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "ratio"
+    },
+    "kv_ep_mem_low_wat": {
+        "added": "7.0.0",
+        "help": "",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_mem_low_wat_percent_ratio": {
+        "added": "7.0.0",
+        "help": "Low water mark (as a percentage)",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "ratio"
+    },
+    "kv_ep_mem_tracker_enabled": {
+        "added": "7.0.0",
+        "help": "True if memory usage tracker is enabled",
+        "stability": "committed",
+        "type": "gauge"
+    },
+    "kv_ep_mem_used_merge_threshold_percent": {
+        "added": "7.0.0",
+        "help": "What percent of max_data size should we allow the estimated total memory to lag by (EPStats::getEstimatedTotalMemoryUsed)",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_meta_data_disk_bytes": {
+        "added": "7.0.0",
+        "help": "Estimate of how much metadata has been written to disk since startup",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_meta_data_memory_bytes": {
+        "added": "7.0.0",
+        "help": "Total memory used by meta data, including the key",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_min_compression_ratio": {
+        "added": "7.0.0",
+        "help": "specifies a minimum compression ratio below which storing the document will be stored as uncompressed.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_mutation_mem_ratio": {
+        "added": "7.0.0",
+        "help": "",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_nexus_concurrent_flush_compaction_enabled": {
+        "added": "7.0.0",
+        "help": "Should NexusKVStore enable concurrent flushing and compaction?",
+        "stability": "internal",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_nexus_implicit_compaction_enabled": {
+        "added": "7.0.0",
+        "help": "Should NexusKVStore enable implicit compaction?",
+        "stability": "internal",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_num_access_scanner_runs": {
+        "added": "7.0.0",
+        "help": "Number of times we ran accesss scanner to snapshot working set",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_num_access_scanner_skips": {
+        "added": "7.0.0",
+        "help": "Number of times accesss scanner task decided not to generate access log",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_num_checkpoints": {
+        "added": "7.1.0",
+        "help": "The number of checkpoint objects allocated",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_num_eject_failures": {
+        "added": "7.0.0",
+        "help": "Number of items that could not be ejected",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_num_expiry_pager_runs": {
+        "added": "7.0.0",
+        "help": "Number of times we ran expiry pager loops to purge expired items from memory/disk",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_num_freq_decayer_runs": {
+        "added": "7.0.0",
+        "help": "Number of times we ran the freq decayer task because a frequency counter has become saturated",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_num_non_resident": {
+        "added": "7.0.0",
+        "help": "The number of non-resident items",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_num_not_my_vbuckets": {
+        "added": "7.0.0",
+        "help": "Number of times Not My VBucket exception happened during runtime",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_num_pager_runs": {
+        "added": "7.0.0",
+        "help": "Number of times we ran pager loops to seek additional memory",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_num_value_ejects": {
+        "added": "7.0.0",
+        "help": "Number of times item values got ejected from memory to disk",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_num_workers": {
+        "added": "7.0.0",
+        "help": "Global number of shared worker threads",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_oom_errors": {
+        "added": "7.0.0",
+        "help": "Number of times unrecoverable OOMs happened while processing operations",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_pager_sleep_time_ms": {
+        "added": "7.0.0",
+        "help": "How long in milliseconds the ItemPager will sleep for when not being requested to run",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_pending_compactions": {
+        "added": "7.0.0",
+        "help": "Number of pending vbucket compactions",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_pending_ops": {
+        "added": "7.0.0",
+        "help": "Number of ops awaiting pending vbuckets",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_pending_ops_max": {
+        "added": "7.0.0",
+        "help": "Max ops seen awaiting 1 pending vbucket",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_pending_ops_max_duration_seconds": {
+        "added": "7.0.0",
+        "help": "Max time (µs) used waiting on pending vbuckets",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "seconds"
+    },
+    "kv_ep_pending_ops_total": {
+        "added": "7.0.0",
+        "help": "Total blocked pending ops since reset",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_persist_vbstate_total": {
+        "added": "7.0.0",
+        "help": "Total VB persist state to disk",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_persistent_metadata_purge_age": {
+        "added": "7.0.0",
+        "help": "Age in seconds after which tombstones may be purged. Defaults to 3 days. Max of 60 days. If this is dynamically changed for a magma bucket then magma may not trigger compactions when it should, this can be avoided by running a full manual compaction after changing this parameter.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_pitr_enabled": {
+        "added": "7.0.0",
+        "help": "Is PiTR enabled or not",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_pitr_granularity": {
+        "added": "7.0.0",
+        "help": "The granularity (interval between each rollback point) in seconds (up to 5 hours)",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_pitr_max_history_age": {
+        "added": "7.0.0",
+        "help": "The number of seconds of the oldest entry to keep as part of compaction (up to 48 hours)",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_queue_size": {
+        "added": "7.0.0",
+        "help": "Number of items queued for storage",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_range_scan_kv_store_scan_ratio": {
+        "added": "7.0.0",
+        "help": "The ratio for calculating how many RangeScans can exist, a ratio of total KVStore scans.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_range_scan_max_continue_tasks": {
+        "added": "7.0.0",
+        "help": "The maximum number of range scan tasks that can exist concurrently. Setting to 0 results in num_auxio_threads - 1 tasks",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_range_scan_max_lifetime": {
+        "added": "7.0.0",
+        "help": "The maximum lifetime in seconds for a range-scan. Scans that don't complete before this limit are cancelled",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_range_scan_read_buffer_send_size": {
+        "added": "7.0.0",
+        "help": "The size of a buffer used to store data read during the I/O phase of a range-scan-continue. Once the buffer size is >= to this value the data is sent to the connection",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_retain_erroneous_tombstones": {
+        "added": "7.0.0",
+        "help": "whether erroneous tombstones need to be retain during compaction. Erroneous tombstones are those that have invalid meta data in it. For example, a delete time of 0.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_rocksdb_block_cache_data_hit_ratio_ratio": {
+        "added": "7.0.0",
+        "help": "Cache hit ratio for Data blocks",
+        "stability": "internal",
+        "type": "gauge",
+        "unit": "ratio"
+    },
+    "kv_ep_rocksdb_block_cache_filter_hit_ratio_ratio": {
+        "added": "7.0.0",
+        "help": "Cache hit ratio for Filter blocks",
+        "stability": "internal",
+        "type": "gauge",
+        "unit": "ratio"
+    },
+    "kv_ep_rocksdb_block_cache_high_pri_pool_ratio": {
+        "added": "7.0.0",
+        "help": "RocksDB ratio of the BlockCache quota reserved for index/filter blocks. A value of 0.0 disables the 'cache_index_and_filter_blocks_with_high_priority=true' option.",
+        "stability": "internal",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_rocksdb_block_cache_index_hit_ratio_ratio": {
+        "added": "7.0.0",
+        "help": "Cache hit ratio for Index blocks",
+        "stability": "internal",
+        "type": "gauge",
+        "unit": "ratio"
+    },
+    "kv_ep_rocksdb_block_cache_ratio": {
+        "added": "7.0.0",
+        "help": "RocksDB Block Cache ratio of the Bucket Quota. A value of 0.0 sets to the default.",
+        "stability": "internal",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_rocksdb_default_kSizeAllMemTables_bytes": {
+        "added": "7.0.0",
+        "help": "Total MT size for default CFs",
+        "stability": "internal",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_rocksdb_default_kTotalSstFilesSize_bytes": {
+        "added": "7.0.0",
+        "help": "Total SST size for default CFs",
+        "stability": "internal",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_rocksdb_high_pri_background_threads": {
+        "added": "7.0.0",
+        "help": "Number of RocksDB high priority background threads. 0 = auto-select.",
+        "stability": "internal",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_rocksdb_kCacheTotal_bytes": {
+        "added": "7.0.0",
+        "help": "Size of the Block Cache",
+        "stability": "internal",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_rocksdb_kMemTableTotal_bytes": {
+        "added": "7.0.0",
+        "help": "Total size of all Memtables",
+        "stability": "internal",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_rocksdb_kMemTableUnFlushed_bytes": {
+        "added": "7.0.0",
+        "help": "Total size of immutable Memtables",
+        "stability": "internal",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_rocksdb_kTableReadersTotal_bytes": {
+        "added": "7.0.0",
+        "help": "Memory used by Index/Filter blocks",
+        "stability": "internal",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_rocksdb_low_pri_background_threads": {
+        "added": "7.0.0",
+        "help": "Number of RocksDB low priority background threads. 0 = auto-select.",
+        "stability": "internal",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_rocksdb_memtables_ratio": {
+        "added": "7.0.0",
+        "help": "RocksDB total (i.e., all Column Families) Memtables ratio of the Bucket Quota). A value of 0.0 sets to the default.",
+        "stability": "internal",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_rocksdb_scan_oldSeqnoHits": {
+        "added": "7.0.0",
+        "help": "",
+        "stability": "internal",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_rocksdb_scan_totalSeqnoHits": {
+        "added": "7.0.0",
+        "help": "",
+        "stability": "internal",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_rocksdb_seqno_kSizeAllMemTables_bytes": {
+        "added": "7.0.0",
+        "help": "Total MT size for seqno CFs",
+        "stability": "internal",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_rocksdb_seqno_kTotalSstFilesSize_bytes": {
+        "added": "7.0.0",
+        "help": "Total SST size for seqno CFs",
+        "stability": "internal",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_rocksdb_uc_max_size_amplification_percent": {
+        "added": "7.0.0",
+        "help": "RocksDB Universal-Compaction 'max_size_amplification_percent' option. The default value is the RocksDB internal default (200).",
+        "stability": "internal",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_rocksdb_write_rate_limit": {
+        "added": "7.0.0",
+        "help": "RocksDB write rate limit (in Bytes/Sec). Use to control write rate of flush and compaction. A value of 0 sets to the default (no limit).",
+        "stability": "internal",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_rollback_count": {
+        "added": "7.0.0",
+        "help": "Number of rollbacks on consumer",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_seqno_persistence_timeout": {
+        "added": "7.0.0",
+        "help": "Timeout in seconds after which a pending SeqnoPersistence operation is temp-failed",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_startup_time_seconds": {
+        "added": "7.0.0",
+        "help": "System-generated engine startup time",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "seconds"
+    },
+    "kv_ep_storedval_num": {
+        "added": "7.0.0",
+        "help": "The number of storedval objects allocated",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_sync_writes_max_allowed_replicas": {
+        "added": "7.0.0",
+        "help": "The maximum number of supported replicas for SyncWrites. Attempts to issue SyncWrites against a topology with more replicas than this setting will fail with DurabilityImpossible.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_tmp_oom_errors": {
+        "added": "7.0.0",
+        "help": "Number of times temporary OOMs happened while processing operations",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_total_cache_size_bytes": {
+        "added": "7.0.0",
+        "help": "The total byte size of all items, no matter the vbucket's state, no matter if an item's value is ejected. Tracks the same value as ep_ht_item_memory",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_ep_total_deduplicated": {
+        "added": "7.0.0",
+        "help": "Total number of items de-duplicated when queued to CheckpointManager",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_total_deduplicated_flusher": {
+        "added": "7.2.0",
+        "help": "Total number of items de-duplicated when flushed to disk",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_total_del_items": {
+        "added": "7.0.0",
+        "help": "Total number of persisted deletions",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_total_enqueued": {
+        "added": "7.0.0",
+        "help": "Total number of items queued for persistence",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_total_new_items": {
+        "added": "7.0.0",
+        "help": "Total number of persisted new items",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_total_persisted": {
+        "added": "7.0.0",
+        "help": "Total number of items persisted",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_uncommitted_items": {
+        "added": "7.0.0",
+        "help": "The amount of items that have not been written to disk",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_vb_total": {
+        "added": "7.0.0",
+        "help": "Total vBuckets (count)",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_vbucket_del": {
+        "added": "7.0.0",
+        "help": "Number of vbucket deletion events",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_vbucket_del_avg_walltime_seconds": {
+        "added": "7.0.0",
+        "help": "Avg wall time (µs) spent by deleting a vbucket",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "seconds"
+    },
+    "kv_ep_vbucket_del_fail": {
+        "added": "7.0.0",
+        "help": "Number of failed vbucket deletion events",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_vbucket_del_max_walltime_seconds": {
+        "added": "7.0.0",
+        "help": "Max wall time (µs) spent by deleting a vbucket",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "seconds"
+    },
+    "kv_ep_vbucket_mapping_sanity_checking": {
+        "added": "7.0.0",
+        "help": "Are vBucket mappings (key -> vBucket) checked by the server? This is a sanity checking mode which crc32 hashes the key to ensure that the client is supplying the expected vBucket for each key.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_warmup": {
+        "added": "7.0.0",
+        "help": "Is Warmup of existing data enabled",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_warmup_access_log": {
+        "added": "7.1.0",
+        "help": "Number of keys present in access log",
+        "stability": "committed",
+        "type": "gauge"
+    },
+    "kv_ep_warmup_backfill_scan_chunk_duration": {
+        "added": "7.0.0",
+        "help": "The duration (in ms) after which warmup's backfill scans will yield and re-schedule; allowing other tasks on the same threads to run.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_warmup_batch_size": {
+        "added": "7.0.0",
+        "help": "The size of each batch loaded during warmup.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_warmup_dups": {
+        "added": "7.0.0",
+        "help": "Duplicates encountered during warmup",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_warmup_estimate_time_seconds": {
+        "added": "7.1.0",
+        "help": "Total time spent in the estimate item count phase of warmup",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "seconds"
+    },
+    "kv_ep_warmup_estimated_key_count": {
+        "added": "7.1.0",
+        "help": "Estimated number of keys in database",
+        "stability": "committed",
+        "type": "gauge"
+    },
+    "kv_ep_warmup_estimated_value_count": {
+        "added": "7.1.0",
+        "help": "Estimated number of values in database",
+        "stability": "committed",
+        "type": "gauge"
+    },
+    "kv_ep_warmup_key_count": {
+        "added": "7.1.0",
+        "help": "Number of keys warmed up",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_warmup_keys_time_seconds": {
+        "added": "7.1.0",
+        "help": "Time (µs) spent by warming keys",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "seconds"
+    },
+    "kv_ep_warmup_min_item_threshold": {
+        "added": "7.1.0",
+        "help": "The minimum number of items that needs to be warmed up before external data mutations is allowed. This is in % of the number of items.",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_warmup_min_items_threshold": {
+        "added": "7.0.0",
+        "help": "Percentage of total items warmed up before we enable traffic.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_warmup_min_memory_threshold": {
+        "added": "7.0.0",
+        "help": "Percentage of max mem warmed up before we enable traffic.",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_warmup_oom": {
+        "added": "7.0.0",
+        "help": "OOMs encountered during warmup",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_warmup_status": {
+        "added": "7.2.0",
+        "help": "The current status of the warmup thread",
+        "stability": "committed",
+        "type": "gauge"
+    },
+    "kv_ep_warmup_thread": {
+        "added": "7.0.0",
+        "help": "Warmup thread status",
+        "stability": "committed",
+        "type": "gauge"
+    },
+    "kv_ep_warmup_time_seconds": {
+        "added": "7.0.0",
+        "help": "Time (µs) spent by warming data",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "seconds"
+    },
+    "kv_ep_warmup_value_count": {
+        "added": "7.1.0",
+        "help": "Number of values warmed up",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ep_xattr_enabled": {
+        "added": "7.0.0",
+        "help": "",
+        "stability": "volatile",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_item_alloc_sizes_bytes": {
+        "added": "7.0.0",
+        "help": "Item allocation size counters (in bytes)",
+        "stability": "committed",
+        "type": "histogram",
+        "unit": "bytes"
+    },
+    "kv_lock_errors": {
+        "added": "7.0.0",
+        "help": "The number of times an operation failed due to accessing a locked document",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_magma_compactions": {
+        "added": "7.2.0",
+        "help": "Count of Magma compactions",
+        "labels": [
+            "for"
+        ],
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_manifest_force": {
+        "added": "7.0.0",
+        "help": "Whether the manifest was set by ns_server with the force flag",
+        "stability": "internal",
+        "type": "gauge"
+    },
+    "kv_mem_used_bytes": {
+        "added": "7.0.0",
+        "help": "Engine's total memory usage",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_mem_used_estimate_bytes": {
+        "added": "7.0.0",
+        "help": "Engine's total estimated memory usage (this is a faster stat to read, but lags mem_used as it's only updated when a threshold is crossed see mem_used_merge_threshold)",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_memcache_curr_items": {
+        "added": "7.0.0",
+        "help": "Number of active items in memory",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_memcache_engine_maxbytes": {
+        "added": "7.0.0",
+        "help": "The max size of the bucket",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_memcache_evictions": {
+        "added": "7.0.0",
+        "help": "Number of items evicted from the bucket",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_memcache_mem_size_bytes": {
+        "added": "7.0.0",
+        "help": "Engine's total memory usage",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_memcache_reclaimed": {
+        "added": "7.0.0",
+        "help": "Number of items allocated by reusing expired objects",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_memcache_total_items": {
+        "added": "7.0.0",
+        "help": "Total number of items in the bucket",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_memory_overhead_bytes": {
+        "added": "7.0.0",
+        "help": "The \"unused\" memory caused by the allocator returning bigger chunks than requested",
+        "labels": [
+            "for"
+        ],
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_memory_used_bytes": {
+        "added": "7.0.0",
+        "help": "Memory used for various objects",
+        "labels": [
+            "for"
+        ],
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_num_high_pri_requests": {
+        "added": "7.0.0",
+        "help": "Num of async high priority requests",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_num_vbuckets": {
+        "added": "7.0.0",
+        "help": "Number of vBuckets",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ops": {
+        "added": "7.0.0",
+        "help": "Number of operations",
+        "labels": [
+            "op"
+        ],
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_ops_failed": {
+        "added": "7.0.0",
+        "help": "Number of operations failed due to conflict resolution",
+        "labels": [
+            "op"
+        ],
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_read_bytes": {
+        "added": "7.0.0",
+        "help": "The number bytes received from all connections bound to this bucket",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_rejected_conns": {
+        "added": "7.0.0",
+        "help": "The number of connections rejected due to hitting the maximum number of connections",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_rollback_item_count": {
+        "added": "7.0.0",
+        "help": "Num of items rolled back",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_scope_collection_count": {
+        "added": "7.0.0",
+        "help": "Number of collections in the scope",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_scope_data_limit": {
+        "added": "7.1.0",
+        "help": "The configured data limit for the scope (not used)",
+        "stability": "internal",
+        "type": "gauge"
+    },
+    "kv_stat_reset": {
+        "added": "7.0.0",
+        "help": "Timestamp when the stats was reset",
+        "stability": "committed",
+        "type": "gauge"
+    },
+    "kv_stat_timings_mem_usage_bytes": {
+        "added": "7.1.0",
+        "help": "The memory footprint for tracing times spent processing stat requests",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_subdoc_lookup_extracted_bytes": {
+        "added": "7.0.0",
+        "help": "The total number of bytes from the documents being returned as part of subdoc lookup operations",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_subdoc_lookup_searched_bytes": {
+        "added": "7.0.0",
+        "help": "The total size of all documents used for subdoc lookup operations",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_subdoc_mutation_inserted_bytes": {
+        "added": "7.0.0",
+        "help": "The total number of bytes inserted into the documents via subdoc",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_subdoc_mutation_updated_bytes": {
+        "added": "7.0.0",
+        "help": "The total number of bytes for the documents mutated via subdoc",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_subdoc_ops": {
+        "added": "7.0.0",
+        "help": "The number of subdoc operations",
+        "labels": [
+            "op"
+        ],
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_sync_write_commit_duration_seconds": {
+        "added": "7.0.0",
+        "help": "Commit duration for SyncWrites",
+        "labels": [
+            "level"
+        ],
+        "stability": "committed",
+        "type": "histogram",
+        "unit": "seconds"
+    },
+    "kv_system_connections": {
+        "added": "7.0.0",
+        "help": "The number of connections to system ports in memcached",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_threads": {
+        "added": "7.0.0",
+        "help": "The number of threads used to serve clients",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_time_seconds": {
+        "added": "7.0.0",
+        "help": "The servers current time (seconds since January 1st, 1970 at 00:00:00 UTC)",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "seconds"
+    },
+    "kv_total_connections": {
+        "added": "7.0.0",
+        "help": "The total number of connections to this system since the process started (or reset)",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_total_memory_overhead_bytes": {
+        "added": "7.0.0",
+        "help": "Extra memory used by transient data like persistence queue, replication queues, checkpoints, etc",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_total_memory_used_bytes": {
+        "added": "7.0.0",
+        "help": "Engine's total memory usage",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_total_resp_errors": {
+        "added": "7.0.0",
+        "help": "The number of error messages returned",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_uptime_seconds": {
+        "added": "7.0.0",
+        "help": "The number of seconds elapsed since process start",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "seconds"
+    },
+    "kv_vb_auto_delete_count": {
+        "added": "7.0.0",
+        "help": "Cumulative count of documents auto-deleted due to NRU ejection (Ephemeral Buckets only)",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_vb_bloom_filter_memory_bytes": {
+        "added": "7.1.0",
+        "help": "The memory usage in bytes of the per-vBucket Bloom filters",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_vb_checkpoint_memory_bytes": {
+        "added": "7.0.0",
+        "help": "Total memory in checkpoints, sum of kv_vb__checkpoint_memory_overhead_bytes and kv_vb_checkpoint_memory_queue_bytes",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_vb_checkpoint_memory_overhead_bytes": {
+        "added": "7.0.0",
+        "help": "Checkpoints memory overhead. That is the sum of kv_vb_checkpoint_memory_overhead_index_bytes and kv_vb_checkpoint_memory_overhead_queue_bytes.",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_vb_checkpoint_memory_overhead_index_bytes": {
+        "added": "7.1.0",
+        "help": "Memory overhead in the checkpoints key-index. For every index entry, that accounts the internal structure allocation plus the key-size.",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_vb_checkpoint_memory_overhead_queue_bytes": {
+        "added": "7.1.0",
+        "help": "Memory overhead in the checkpoints internal items queue. For every item in the queue, that accounts the internal structure allocation for holding the item's reference.",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_vb_checkpoint_memory_queue_bytes": {
+        "added": "7.1.0",
+        "help": "Total memory of all the items queued in checkpoints. For every item in the queue, that accounts the item's key, metadata and value size. The value allocation may have shared ownership HashTable and DCP Stream readyQ.",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_vb_curr_items": {
+        "added": "7.0.0",
+        "help": "Count of alive (non-deleted) items in the vbucket, including non-resident items",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_vb_dm_mem_used_bytes": {
+        "added": "7.2.1",
+        "help": "The memory usage in bytes of the per-VBucket Durability Monitor (in-progress SyncWrites)",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_vb_dm_num_tracked": {
+        "added": "7.2.1",
+        "help": "The number of items tracked in the per-VBucket Durability Monitor (in-progress SyncWrites)",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_vb_eject": {
+        "added": "7.0.0",
+        "help": "Cumulative count of the number of items whose values have been ejected for this vBucket",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_vb_expired": {
+        "added": "7.0.0",
+        "help": "Cumulative count of the number of items which have been expired for this vBucket",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_vb_ht_item_memory_bytes": {
+        "added": "7.1.0",
+        "help": "The memory usage of items stored in the HashTable",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_vb_ht_item_memory_uncompressed_bytes": {
+        "added": "7.1.0",
+        "help": "The memory usage of items stored in the HashTable, if the values were not compressed",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_vb_ht_memory_bytes": {
+        "added": "7.0.0",
+        "help": "Memory overhead of the HashTable",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_vb_ht_tombstone_purged_count": {
+        "added": "7.0.0",
+        "help": "Number of purged tombstones (Ephemeral)",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_vb_max_history_disk_size_bytes": {
+        "added": "7.2.0",
+        "help": "The total size of history stored per-vBucket (the largest size reported by any vBucket)",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_vb_mem_freed_by_checkpoint_item_expel_bytes": {
+        "added": "7.1.0",
+        "help": "Memory recovered from Checkpoint by expelling clean items (i.e. items processed by all cursors) from the queue",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_vb_mem_freed_by_checkpoint_removal_bytes": {
+        "added": "7.1.0",
+        "help": "Amount of memory freed through ckpt removal",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_vb_meta_data_disk_bytes": {
+        "added": "7.0.0",
+        "help": "Estimate of how much metadata has been written to disk since startup",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_vb_meta_data_memory_bytes": {
+        "added": "7.0.0",
+        "help": "Total memory used by meta data, including the key",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_vb_num_non_resident": {
+        "added": "7.0.0",
+        "help": "The number of non-resident items",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_vb_ops_create": {
+        "added": "7.0.0",
+        "help": "Number of operations where an item has been flushed to disk that did not previously exist",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_vb_ops_delete": {
+        "added": "7.0.0",
+        "help": "Number of operations where a delete has been persisted",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_vb_ops_get": {
+        "added": "7.0.0",
+        "help": "Number of successful front-end get operations",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_vb_ops_reject": {
+        "added": "7.0.0",
+        "help": "Number of fatal errors in persisting a mutation (including deletion)",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_vb_ops_update": {
+        "added": "7.0.0",
+        "help": "Number of operations where a new version of an item has been persisted",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_vb_perc_mem_resident_ratio": {
+        "added": "7.0.0",
+        "help": "Percentage of items which are resident in memory",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "ratio"
+    },
+    "kv_vb_queue_age_seconds": {
+        "added": "7.0.0",
+        "help": "Sum of disk queue item age in seconds",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "seconds"
+    },
+    "kv_vb_queue_drain": {
+        "added": "7.0.0",
+        "help": "Total drained items",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_vb_queue_fill": {
+        "added": "7.0.0",
+        "help": "Total items enqueued on disk queues",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_vb_queue_memory_bytes": {
+        "added": "7.0.0",
+        "help": "Total memory used by the disk queues",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_vb_queue_pending_bytes": {
+        "added": "7.0.0",
+        "help": "Total bytes of pending writes in the disk queue",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_vb_queue_size": {
+        "added": "7.0.0",
+        "help": "Number of items in the disk queues",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_vb_rollback_item_count": {
+        "added": "7.0.0",
+        "help": "Total number of mutations discarded during rollback",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_vb_seqlist_count": {
+        "added": "7.0.0",
+        "help": "Number of items in the sequence list",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_vb_seqlist_deleted_count": {
+        "added": "7.0.0",
+        "help": "Number of deleted items in the sequence list",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_vb_seqlist_purged_count": {
+        "added": "7.0.0",
+        "help": "Number of tombstones purged from the sequence list",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_vb_seqlist_read_range_count": {
+        "added": "7.0.0",
+        "help": "Number of sequence numbers visible according to the sequence list read range",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_vb_seqlist_stale_count": {
+        "added": "7.0.0",
+        "help": "Number of stale items in the sequence list",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_vb_seqlist_stale_metadata_bytes": {
+        "added": "7.0.0",
+        "help": "Total bytes of stale metadata (key + fixed metadata) in the sequence list",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_vb_seqlist_stale_value_bytes": {
+        "added": "7.0.0",
+        "help": "Total bytes of stale values in the sequence list",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    },
+    "kv_vb_sync_write_aborted_count": {
+        "added": "7.0.0",
+        "help": "Total number of aborted SyncWrites",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_vb_sync_write_accepted_count": {
+        "added": "7.0.0",
+        "help": "Total number of accepted SyncWrites (in-progress, aborted or committed)",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_vb_sync_write_committed_count": {
+        "added": "7.0.0",
+        "help": "Total number of comitted SyncWrites",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "count"
+    },
+    "kv_written_bytes": {
+        "added": "7.0.0",
+        "help": "The number bytes sent to all connections bound to this bucket",
+        "stability": "committed",
+        "type": "gauge",
+        "unit": "bytes"
+    }
+}

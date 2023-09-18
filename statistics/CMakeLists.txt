@@ -10,6 +10,10 @@ kv_enable_pch(statistics)
 add_sanitizers(statistics)
 add_dependencies(statistics generated_source_files)
 
+INSTALL (FILES metrics_metadata_7.6.0-1627.json
+        DESTINATION "etc/couchbase/kv"
+        RENAME metrics_metadata.json)
+
 target_include_directories(statistics
         PUBLIC ${Memcached_BINARY_DIR}/engines/ep/src)
 
