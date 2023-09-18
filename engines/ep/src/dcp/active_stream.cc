@@ -2276,12 +2276,14 @@ bool ActiveStream::handleSlowStream() {
         ", "
         "vBucketHighSeqno : {}"
         ", "
+        "curChkSeqno: {}, "
         "isBackfillTaskRunning : {}",
         logPrefix,
         to_string(state_.load()).c_str(),
         lastReadSeqno.load(),
         lastSentSeqno.load(),
         engine->getVBucket(vb_)->getHighSeqno(),
+        curChkSeqno.load(),
         isBackfillTaskRunning.load() ? "True" : "False");
 
     bool status = false;
