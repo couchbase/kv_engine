@@ -1013,7 +1013,7 @@
             "type": "size_t"
         },
         "dcp_backfill_in_progress_per_connection_limit": {
-            "default": "1",
+            "default": "64",
             "descr": "The maximum number of backfills each connection can have in-progress (i.e. KVStore snapshot open and reading data from)",
             "dynamic": true,
             "type": "size_t"

@@ -278,14 +278,25 @@ void ActiveStream::registerCursor(CheckpointManager& chkptmgr,
         curChkSeqno = result.seqno;
         cursor = result.takeCursor();
 
+        // Note: We have just registered a cursor and then unlocked the CM at
+        // return. Might cursor-drop kick in before we even try to access the
+        // cursor for logging here?
+        std::optional<queue_op> op{};
+        {
+            const auto lockedCursor = cursor.lock();
+            if (lockedCursor) {
+                op = (*lockedCursor->getPos())->getOperation();
+            }
+        }
         log(spdlog::level::level_enum::info,
             "{} ActiveStream::registerCursor name \"{}\", wantedSeqno:{}, "
-            "result{{tryBackfill:{}, seqno:{}}}, pendingBackfill:{}",
+            "result{{tryBackfill:{}, seqno:{}, op:{}}}, pendingBackfill:{}",
             logPrefix,
             name_,
             lastProcessedSeqno,
             result.tryBackfill,
             result.seqno,
+            op ? ::to_string(*op) : "N/A",
             pendingBackfill);
     } catch (std::exception& error) {
         log(spdlog::level::level_enum::warn,
