@@ -251,6 +251,9 @@ public:
      */
     const bool blockShutdown;
 
+    /// Return a string in the format: TaskName[ThreadPool]
+    static std::string getTaskIdString(TaskId id);
+
 protected:
     /**
      * The invoked function when the task is executed.

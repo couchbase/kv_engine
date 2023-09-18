@@ -10,12 +10,13 @@
  */
 #pragma once
 
-#include <relaxed_atomic.h>
-
+#include <executor/globaltask.h>
+#include <hdrhistogram/hdrhistogram.h>
 #include <memcached/engine_error.h>
-
+#include <relaxed_atomic.h>
 #include <cstdint>
 #include <mutex>
+#include <unordered_map>
 #include <vector>
 
 namespace cb::prometheus {
@@ -183,6 +184,14 @@ struct stats {
     cb::RelaxedAtomic<uint64_t> auth_cmds;
     /** The number of authentication errors */
     cb::RelaxedAtomic<uint64_t> auth_errors;
+
+    // ! Histograms of various task wait times, one per Task.
+    std::array<Hdr1sfMicroSecHistogram, static_cast<int>(TaskId::TASK_COUNT)>
+            taskSchedulingHistogram;
+
+    // ! Histograms of various task run times, one per Task.
+    std::array<Hdr1sfMicroSecHistogram, static_cast<int>(TaskId::TASK_COUNT)>
+            taskRuntimeHistogram;
 };
 
 extern stats stats;

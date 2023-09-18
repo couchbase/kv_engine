@@ -648,6 +648,56 @@ static cb::engine_errc stat_tasks_all_executor(const std::string&,
     return cb::engine_errc::success;
 }
 
+static cb::engine_errc stat_runtimes_executor(const std::string& arg,
+                                              Cookie& cookie) {
+    if (arg == "@no bucket@") {
+        if (cookie.testPrivilege(cb::rbac::Privilege::Stats).success()) {
+            for (TaskId id : GlobalTask::allTaskIds) {
+                if (!stats.taskRuntimeHistogram[static_cast<int>(id)]
+                             .isEmpty()) {
+                    add_stat(cookie,
+                             appendStatsFn,
+                             GlobalTask::getTaskIdString(id).c_str(),
+                             stats.taskRuntimeHistogram[static_cast<int>(id)]
+                                     .to_string());
+                }
+            }
+            return cb::engine_errc::success;
+        }
+        return cb::engine_errc::no_access;
+    }
+    if (!arg.empty()) {
+        return cb::engine_errc::invalid_arguments;
+    }
+
+    return bucket_get_stats(cookie, "runtimes"sv, {}, appendStatsFn);
+}
+
+static cb::engine_errc stat_scheduler_executor(const std::string& arg,
+                                               Cookie& cookie) {
+    if (arg == "@no bucket@") {
+        if (cookie.testPrivilege(cb::rbac::Privilege::Stats).success()) {
+            for (TaskId id : GlobalTask::allTaskIds) {
+                if (!stats.taskSchedulingHistogram[static_cast<int>(id)]
+                             .isEmpty()) {
+                    add_stat(cookie,
+                             appendStatsFn,
+                             GlobalTask::getTaskIdString(id).c_str(),
+                             stats.taskSchedulingHistogram[static_cast<int>(id)]
+                                     .to_string());
+                }
+            }
+            return cb::engine_errc::success;
+        }
+        return cb::engine_errc::no_access;
+    }
+    if (!arg.empty()) {
+        return cb::engine_errc::invalid_arguments;
+    }
+
+    return bucket_get_stats(cookie, "scheduler"sv, {}, appendStatsFn);
+}
+
 /***************************** STAT HANDLERS *****************************/
 
 struct command_stat_handler {
@@ -694,7 +744,9 @@ static std::unordered_map<StatGroupId, struct command_stat_handler>
                  {false, stat_bucket_collections_stats}},
                 {StatGroupId::StatTimings, {true, stat_timings_executor}},
                 {StatGroupId::Threads, {true, stat_threads_executor}},
-                {StatGroupId::TasksAll, {true, stat_tasks_all_executor}}};
+                {StatGroupId::TasksAll, {true, stat_tasks_all_executor}},
+                {StatGroupId::Runtimes, {true, stat_runtimes_executor}},
+                {StatGroupId::Scheduler, {true, stat_scheduler_executor}}};
 
 /**
  * For a given key, try and return the handler for it

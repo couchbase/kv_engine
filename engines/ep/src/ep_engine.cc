@@ -4436,15 +4436,10 @@ cb::engine_errc EventuallyPersistentEngine::doFrequencyCountersStats(
     return cb::engine_errc::success;
 }
 
-static std::string getTaskDescrForStats(TaskId id) {
-    return std::string(GlobalTask::getTaskName(id)) + "[" +
-           to_string(GlobalTask::getTaskType(id)) + "]";
-}
-
 cb::engine_errc EventuallyPersistentEngine::doSchedulerStats(
         CookieIface& cookie, const AddStatFn& add_stat) {
     for (TaskId id : GlobalTask::allTaskIds) {
-        add_casted_stat(getTaskDescrForStats(id).c_str(),
+        add_casted_stat(GlobalTask::getTaskIdString(id).c_str(),
                         stats.schedulingHisto[static_cast<int>(id)],
                         add_stat,
                         cookie);
@@ -4456,7 +4451,7 @@ cb::engine_errc EventuallyPersistentEngine::doSchedulerStats(
 cb::engine_errc EventuallyPersistentEngine::doRunTimeStats(
         CookieIface& cookie, const AddStatFn& add_stat) {
     for (TaskId id : GlobalTask::allTaskIds) {
-        add_casted_stat(getTaskDescrForStats(id).c_str(),
+        add_casted_stat(GlobalTask::getTaskIdString(id).c_str(),
                         stats.taskRuntimeHisto[static_cast<int>(id)],
                         add_stat,
                         cookie);

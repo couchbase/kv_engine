@@ -13,6 +13,7 @@
 
 #include <engines/ep/src/ep_engine.h>
 #include <engines/ep/src/objectregistry.h>
+#include <fmt/format.h>
 #include <folly/lang/Hint.h>
 #include <utilities/debug_variable.h>
 #include <climits>
@@ -193,6 +194,10 @@ task_type_t GlobalTask::getTaskType(TaskId id) {
     }
     throw std::logic_error("GlobalTask::getTaskType() unknown id " +
                            std::to_string(static_cast<int>(id)));
+}
+
+std::string GlobalTask::getTaskIdString(TaskId id) {
+    return fmt::format("{}[{}]", getTaskName(id), to_string(getTaskType(id)));
 }
 
 std::array<TaskId, static_cast<int>(TaskId::TASK_COUNT)>
