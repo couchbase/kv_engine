@@ -158,3 +158,12 @@ gtest_discover_tests(memcached_testapp
     DISCOVERY_TIMEOUT 60
     PROPERTIES TIMEOUT 300
                ENVIRONMENT ${GTEST_ALL_SANITIZERS_ENV})
+
+gtest_discover_tests(memcached_testapp
+        EXTRA_ARGS -E ep -c item_eviction_policy=full_eviction ${VERBOSE_EXTRA_ARG}
+        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+        TEST_PREFIX memcached_testapp.ep-full_eviction.
+        ONE_CTEST_PER_SUITE
+        DISCOVERY_TIMEOUT 60
+        PROPERTIES TIMEOUT 300
+        ENVIRONMENT ${THREAD_SANITIZER_TEST_ENV})
