@@ -2287,6 +2287,103 @@ TEST_F(SingleThreadedCheckpointTest,
     EXPECT_EQ(0, destroyer.getNumCheckpoints());
 }
 
+TEST_F(SingleThreadedCheckpointTest,
+       ReRegister_OldAndNewInClosedSubsequentCheckpoints) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+    auto vb = store->getVBuckets().getBucket(vbid);
+    auto* manager =
+            static_cast<MockCheckpointManager*>(vb->checkpointManager.get());
+    ASSERT_TRUE(manager);
+
+    ASSERT_EQ(1, manager->getNumOfCursors());
+
+    ASSERT_EQ(1, manager->getNumCheckpoints());
+    ASSERT_EQ(2, manager->getNumOpenChkItems()); // cs, vbs
+    ASSERT_EQ(0, manager->getHighSeqno());
+    const std::string value = "value";
+    store_item(vbid, makeStoredDocKey("key1"), value);
+    EXPECT_EQ(1, manager->getHighSeqno());
+    manager->createNewCheckpoint();
+    ASSERT_EQ(2, manager->getNumCheckpoints());
+    store_item(vbid, makeStoredDocKey("key2"), value);
+    EXPECT_EQ(2, manager->getHighSeqno());
+    manager->createNewCheckpoint();
+    ASSERT_EQ(3, manager->getNumCheckpoints());
+    store_item(vbid, makeStoredDocKey("key3"), value);
+    EXPECT_EQ(3, manager->getHighSeqno());
+
+    const auto& list =
+            CheckpointManagerTestIntrospector::public_getCheckpointList(
+                    *manager);
+    auto it = list.begin();
+    ASSERT_EQ(1, (*it)->getId());
+    ASSERT_EQ(1, (*it)->getNumCursorsInCheckpoint());
+    ASSERT_EQ(4, (*it)->getNumItems()); // cs, vbs,  m, ce
+    ++it;
+    ASSERT_EQ(2, (*it)->getId());
+    ASSERT_EQ(0, (*it)->getNumCursorsInCheckpoint());
+    ASSERT_EQ(3, (*it)->getNumItems()); // cs, m, ce
+    ++it;
+    ASSERT_EQ(3, (*it)->getId());
+    ASSERT_EQ(0, (*it)->getNumCursorsInCheckpoint());
+    ASSERT_EQ(2, (*it)->getNumItems()); // cs, m
+
+    const std::string name = "dcp-cursor";
+    auto cursor1 = manager->registerCursorBySeqno(
+                                  name, 0, CheckpointCursor::Droppable::Yes)
+                           .takeCursor();
+    EXPECT_TRUE(cursor1.lock());
+    EXPECT_EQ(2, manager->getNumOfCursors());
+    EXPECT_EQ(2, (list.front())->getNumCursorsInCheckpoint());
+    ASSERT_EQ(1, (*cursor1.lock()->getCheckpoint())->getId());
+
+    // No checkpoint at Destroyer
+    auto& destroyer = *getCkptDestroyerTask(vbid);
+    ASSERT_EQ(0, destroyer.getNumCheckpoints());
+
+    // Advance the baseline cursor, moving it out of the closed checkpoint.
+    // The checkpoint isn't removed as it is still referenced by dcp-cursor.
+    {
+        std::vector<queued_item> items;
+        manager->getNextItemsForPersistence(items);
+    }
+    EXPECT_EQ(3, manager->getNumCheckpoints());
+    EXPECT_EQ(3, manager->getOpenCheckpointId());
+    ASSERT_EQ(3, (*manager->getPersistenceCursor()->getCheckpoint())->getId());
+    EXPECT_EQ(1, (list.front())->getNumCursorsInCheckpoint()); // closed
+    EXPECT_FALSE(manager->isEligibleForRemoval(*list.front()));
+    EXPECT_EQ(1, (list.back())->getNumCursorsInCheckpoint());
+    EXPECT_FALSE(manager->isEligibleForRemoval(*list.back())); // open
+
+    EXPECT_EQ(0, destroyer.getNumCheckpoints());
+
+    // Verify that re-registering the same dcp-cursor into the subsequent closed
+    // checkpoint makes the first closed checkpoint unreferenced and triggers
+    // checkpoint removal.
+    //
+    // Note: This step covers MB-58692, where we hit a case of referenced
+    // checkpoint removed at cursor-replacement. At bug, the subsequent steps
+    // throw an assertion that verifies no-cursor in the removed checkpoints.
+    auto cursor2 = manager->registerCursorBySeqno(
+                                  name, 1, CheckpointCursor::Droppable::Yes)
+                           .takeCursor();
+    EXPECT_FALSE(cursor1.lock());
+    EXPECT_TRUE(cursor2.lock());
+    EXPECT_EQ(2, manager->getNumCheckpoints());
+    EXPECT_EQ(3, manager->getOpenCheckpointId());
+    EXPECT_EQ(2, (*cursor2.lock()->getCheckpoint())->getId());
+    EXPECT_EQ(2, manager->getNumOfCursors());
+    EXPECT_EQ(1, (list.front())->getNumCursorsInCheckpoint()); // closed
+    EXPECT_FALSE(manager->isEligibleForRemoval(*list.front()));
+    EXPECT_EQ(1, (list.back())->getNumCursorsInCheckpoint()); // open
+    EXPECT_FALSE(manager->isEligibleForRemoval(*list.back()));
+
+    // Release the removed checkpoint
+    EXPECT_EQ(1, destroyer.getNumCheckpoints());
+    destroyer.run();
+    EXPECT_EQ(0, destroyer.getNumCheckpoints());
+}
+
 TEST_P(CheckpointTest, TakeAndResetCursors) {
     // The test runs with 2 cursors:
     // 1: CheckpointTest::cursor -> that is Persistence/DCP depending on the

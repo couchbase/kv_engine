@@ -354,10 +354,6 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
         // checkpoint removal. For that, we construct the new cursor before
         // removing the old one, thus ensuring that the checkpoint stays
         // referenced during the whole process.
-        //
-        // Also note: We just need to construct the new cursor for making the
-        // checkpoint referenced and not-eligible for removal. No need to add it
-        // to the ::cursors map.
         const auto newCursor = std::make_shared<CheckpointCursor>(
                 name, ckptIt, pos, droppable, distance);
         // Remove the old cursor (if any) before adding the new one to the
@@ -365,7 +361,10 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
         for (const auto& [currCName, oldCursor] : cursors) {
             if (name == currCName) {
                 Expects(oldCursor);
+                const auto tempName = "temp" + name;
+                cursors[tempName] = newCursor;
                 removeCursorRes = removeCursor(lh, *oldCursor);
+                cursors.erase(tempName);
                 break;
             }
         }
