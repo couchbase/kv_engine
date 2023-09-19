@@ -9,8 +9,8 @@
 #   the file licenses/APL2.txt.
 #
 
-"""Parses a memcached log file for 'Slow op' and 'Slow runtime' warnings, and
-+converts into a Google Trace Event Format file
+"""Parses a memcached log file for 'Slow op', 'Slow runtime' and
+'Slow scheduling' warnings, and converts into a Google Trace Event Format file
 (https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview#heading=h.yr4qxyxotyw).
 
 Usage:
@@ -19,6 +19,7 @@ Usage:
 """
 
 from datetime import datetime, timedelta
+import copy
 import fileinput
 import json
 import re
@@ -66,12 +67,12 @@ def human_duration_to_sec(h):
             raise ValueError("Unhandled unit '{}'".format(unit))
 
 def update_steady_clock_offset(system_clock, steady_clock):
-    """To be able to plot Slow task runtimes (see parse_slow_task_runtime) on
-    the same timeline as Slow operations, we need to map the system-clock
-    timestamp to the steady-clock timestamp used by Slow operations.
-    In theory system clock can drift relative to steady-clock, so re-calculate
-    the delta for each "Slow operation" encountered to minimise any
-    inaccuracies.
+    """To be able to plot Slow task runtimes/scheduling
+    (see parse_slow_task_runtime) on the same timeline as Slow operations, we
+    need to map the system-clock timestamp to the steady-clock timestamp used
+    by Slow operations. In theory system clock can drift relative to
+    steady-clock, so re-calculate the delta for each "Slow operation"
+    encountered to minimise any inaccuracies.
     """
     global system_clock_steady_clock_delta
     system_epoch = iso8601_to_epoch(system_clock)
@@ -184,6 +185,50 @@ def parse_slow_task_runtime(m):
         thread_seen[thread] = True
 
 
+def parse_slow_task_scheduling(m):
+    (time, bucket, task, thread, runtime) = m.groups()
+
+    # 'Slow scheduling' events are asynchronous with respect to the reported
+    # thread - i.e. there could be multiple tasks which all have slow scheduling
+    # at the same time, and hence conceptually overlap each other. As such,
+    # we represent as Async Google Trace events, which require (b)egin and
+    # (e)end events.
+    event = dict()
+    event['args'] = {'time': time, 'task' : task}
+    event['cat'] = "Slow scheduling"
+    event['name'] = "Slow scheduling"
+    event['id'] = task + time
+    event['pid'] = thread
+
+    # Convert log message timestamp to same time domain as Slow operations
+    # (steady_clock seconds)
+    timestamp_epoch = iso8601_to_epoch(time)
+    timestamp_steady_clock = timestamp_epoch + system_clock_steady_clock_delta
+    runtime_sec = human_duration_to_sec(runtime)
+
+    begin = copy.deepcopy(event)
+    begin['ph'] = "b"
+
+    end = copy.deepcopy(event)
+    end['ph'] = "e"
+
+    # Timestamps and duration are expressed in microseconds
+    begin['ts'] = (timestamp_steady_clock - runtime_sec) * 1000000
+    end['ts'] = begin['ts'] + (runtime_sec * 1000000)
+
+    print_event(begin)
+    print_event(end)
+
+    if thread not in thread_seen:
+        meta = dict()
+        meta['name'] = "process_sort_index"
+        meta['ph'] = "M"
+        meta['pid'] = thread
+        meta['args'] = {'sort_index': -1}
+        print_event(meta)
+        thread_seen[thread] = True
+
+
 def parse_slow_op(trace):
     """
     Parse the trace JSON from the slow operation log.
@@ -219,6 +264,7 @@ def main():
     global first
     node = ""
     skipped_slow_runtime_events = 0
+    skipped_slow_scheduling_events = 0
     for line in fileinput.input():
         # Check if we're parsing logs from multiple nodes, extracting data for rebasing timestamps if we are.
         #
@@ -236,6 +282,7 @@ def main():
         if m:
             parse_slow_operation(node,m)
             continue
+
         # Check for "Slow runtime" messages from tasks, e.g.
         #   2022-11-21T18:06:56.188574-05:00 WARNING (No Engine) Slow runtime for 'Compact DB file 421' on thread WriterPool3: 32 s
         m = re.search(
@@ -246,14 +293,26 @@ def main():
                 parse_slow_task_runtime(m)
             else:
                 skipped_slow_runtime_events += 1
+
+        # Check for "Slow scheduling" messages from tasks, e.g.
+        #   2023-09-18T15:50:39.002619+00:00 WARNING (No Engine) Slow scheduling for NON_IO task 'Paging out items.' on thread NonIoPool1. Schedule overhead: 15 s
+        m = re.search(
+            time_regex + " WARNING \(([^)]+)\) Slow scheduling for [\w_]+ task '(.+)' on thread (.+). Schedule overhead: (.+)",
+            line)
+        if m:
+            if system_clock_steady_clock_delta:
+                parse_slow_task_scheduling(m)
+            else:
+                skipped_slow_scheduling_events += 1
     print(']')
-    if skipped_slow_runtime_events > 0:
-        print(("Warning: Failed to generate traces for {} 'Slow runtime' " +
-               "event{} as system_clock delta is unset.\nEnsure there is " +
-               "at least one 'Slow operation' parsed prior to the " +
-               "Slow runtime event(s) if you want to include them.").format(
+    if skipped_slow_runtime_events > 0 or skipped_slow_scheduling_events > 0:
+        print(("Warning: Failed to generate traces for {} 'Slow runtime' and "
+               "{} 'Slow scheduling' events as system_clock delta is unset.\n"
+               "Ensure there is at least one 'Slow operation' parsed prior to "
+               "the Slow runtime / schduler event(s) if you want to include "
+               "them.").format(
             skipped_slow_runtime_events,
-            "s" if skipped_slow_runtime_events else ""),
+            skipped_slow_scheduling_events),
             file=sys.stderr)
 
 
