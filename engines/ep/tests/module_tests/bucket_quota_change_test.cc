@@ -187,7 +187,7 @@ public:
     }
 
     void checkBucketQuotaAndRelatedValues(size_t quotaValue) {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         checkQuota(quotaValue);
         checkWatermarkValues(quotaValue);
         checkMaxRunningBackfills(quotaValue);
@@ -204,11 +204,11 @@ public:
     }
 
     void testQuotaChangeUp() {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         auto currentQuota = getCurrentBucketQuota();
 
         {
-            SCOPED_TRACE("");
+            CB_SCOPED_TRACE("");
             checkBucketQuotaAndRelatedValues(currentQuota);
         }
 
@@ -216,17 +216,17 @@ public:
         setBucketQuotaAndRunQuotaChangeTask(newQuota);
 
         {
-            SCOPED_TRACE("");
+            CB_SCOPED_TRACE("");
             checkBucketQuotaAndRelatedValues(newQuota);
         }
     }
 
     void testQuotaChangeDown() {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         auto currentQuota = getCurrentBucketQuota();
 
         {
-            SCOPED_TRACE("");
+            CB_SCOPED_TRACE("");
             checkBucketQuotaAndRelatedValues(currentQuota);
         }
 
@@ -234,13 +234,13 @@ public:
         setBucketQuotaAndRunQuotaChangeTask(newQuota);
 
         {
-            SCOPED_TRACE("");
+            CB_SCOPED_TRACE("");
             checkBucketQuotaAndRelatedValues(newQuota);
         }
     }
 
     void setUpQuotaChangeDownHighMemoryUsageTest() {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         // Drop our initial quota values because we're going to create a "large"
         // item to inflate memory usage for the purposes of this test and we
         // don't want that item to have to be too large (allocations aren't
@@ -277,7 +277,7 @@ public:
         auto oldQuota = getCurrentBucketQuota();
 
         {
-            SCOPED_TRACE("");
+            CB_SCOPED_TRACE("");
             checkBucketQuotaAndRelatedValues(oldQuota);
         }
 
@@ -320,11 +320,11 @@ public:
 };
 
 TEST_P(BucketQuotaChangeTest, QuotaChangeEqual) {
-    SCOPED_TRACE("");
+    CB_SCOPED_TRACE("");
     auto currentQuota = getCurrentBucketQuota();
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         checkBucketQuotaAndRelatedValues(currentQuota);
     }
 
@@ -332,37 +332,37 @@ TEST_P(BucketQuotaChangeTest, QuotaChangeEqual) {
     setBucketQuotaAndRunQuotaChangeTask(newQuota);
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         checkBucketQuotaAndRelatedValues(newQuota);
     }
 }
 
 TEST_P(BucketQuotaChangeTest, QuotaChangeDown) {
-    SCOPED_TRACE("");
+    CB_SCOPED_TRACE("");
     testQuotaChangeDown();
 }
 
 TEST_P(BucketQuotaChangeTest, QuotaChangeUp) {
-    SCOPED_TRACE("");
+    CB_SCOPED_TRACE("");
     testQuotaChangeUp();
 }
 
 TEST_P(BucketQuotaChangeTest, QuotaChangeUpNonDefaultWatermarks) {
-    SCOPED_TRACE("");
+    CB_SCOPED_TRACE("");
     setLowWatermark(0.5);
     setHighWatermark(0.6);
     testQuotaChangeUp();
 }
 
 TEST_P(BucketQuotaChangeTest, QuotaChangeDownNonDefaultWatermarks) {
-    SCOPED_TRACE("");
+    CB_SCOPED_TRACE("");
     setLowWatermark(0.5);
     setHighWatermark(0.6);
     testQuotaChangeDown();
 }
 
 TEST_P(BucketQuotaChangeTest, QuotaChangeDownMemoryUsageHigh) {
-    SCOPED_TRACE("");
+    CB_SCOPED_TRACE("");
     setUpQuotaChangeDownHighMemoryUsageTest();
 
     auto oldQuota = engine->getEpStats().getMaxDataSize();
@@ -435,7 +435,7 @@ TEST_P(BucketQuotaChangeTest, QuotaChangeDownMemoryUsageHigh) {
     // Finally, we can check that the new quota values have applied
     // successfully.
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         checkBucketQuotaAndRelatedValues(newQuota);
         checkCkptMarksResetToInitialValues();
     }
@@ -445,7 +445,7 @@ TEST_P(BucketQuotaChangeTest, HandleIdenticalQuotaChange) {
     auto currentQuota = getCurrentBucketQuota();
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         checkBucketQuotaAndRelatedValues(currentQuota);
     }
 
@@ -458,13 +458,13 @@ TEST_P(BucketQuotaChangeTest, HandleIdenticalQuotaChange) {
     setBucketQuota(newQuota);
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         checkBucketQuotaAndRelatedValues(newQuota);
     }
 
     runQuotaChangeTaskOnce();
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         checkBucketQuotaAndRelatedValues(newQuota);
     }
 }
@@ -482,7 +482,7 @@ TEST_P(BucketQuotaChangeTest, HandleQuotaChangeCancel) {
     setBucketQuotaAndRunQuotaChangeTask(currentQuota);
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         checkBucketQuotaAndRelatedValues(currentQuota);
     }
 }
@@ -501,7 +501,7 @@ TEST_P(BucketQuotaChangeTest, HandleQuotaIncreaseDuringQuotaDecreaseChange) {
     setBucketQuotaAndRunQuotaChangeTask(newQuota);
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         checkBucketQuotaAndRelatedValues(newQuota);
     }
 }

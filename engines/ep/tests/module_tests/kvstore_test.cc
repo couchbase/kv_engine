@@ -491,12 +491,12 @@ void KVStoreParamTest::testBgFetchDocsReadGet(bool deleted) {
 }
 
 TEST_P(KVStoreParamTest, BgFetchDocsReadGet) {
-    SCOPED_TRACE("");
+    CB_SCOPED_TRACE("");
     testBgFetchDocsReadGet(false /*deleted*/);
 }
 
 TEST_P(KVStoreParamTest, BgFetchDocsReadGetDeleted) {
-    SCOPED_TRACE("");
+    CB_SCOPED_TRACE("");
     testBgFetchDocsReadGet(true /*deleted*/);
 }
 

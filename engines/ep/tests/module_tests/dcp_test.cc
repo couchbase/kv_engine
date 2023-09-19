@@ -2102,7 +2102,7 @@ void DcpConnMapTest::testLockInversionInSetVBucketStateAndNewProducer() {
 
     // Check that the conne has been created and exists in vbConns at stream-req
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         streamRequest(*producer);
     }
     EXPECT_TRUE(connMap.doesVbConnExist(vbid, "eq_dcpq:" + connName));
@@ -2125,7 +2125,7 @@ void DcpConnMapTest::testLockInversionInSetVBucketStateAndNewProducer() {
     // Check that the connection has been re-created with the same name
     // and exists in vbConns at stream-req
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         streamRequest(*producer);
     }
     EXPECT_TRUE(connMap.doesVbConnExist(vbid, "eq_dcpq:" + connName));
@@ -2393,7 +2393,7 @@ TEST_F(DcpConnMapTest, LimitToOneBackfillPerConnection) {
         // Fist N backfill attempts should be added to active queue.
         // running any backfills - for multiple "clients" - modelled by just
         // calling canAddBackfillToActiveQ() twice with same attempt count.
-        SCOPED_TRACE(fmt::format("attempt:{}", attempt));
+        CB_SCOPED_TRACE(fmt::format("attempt:{}", attempt));
         EXPECT_TRUE(tracker.canCreateBackfill(attempt));
         EXPECT_TRUE(tracker.canCreateBackfill(attempt));
     }

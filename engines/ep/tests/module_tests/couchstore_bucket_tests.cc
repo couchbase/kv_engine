@@ -144,7 +144,7 @@ TEST_P(STParamCouchstoreBucketTest, FlusherMarksCleanBySeqno) {
     // into the PersistenceCallback.
     const uint64_t cas = 0x0123456789abcdef;
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         setWithMeta(cas, 1 /*revSeqno*/, 1 /*expectedSeqno*/);
     }
     auto& vb = *engine->getKVBucket()->getVBucket(vbid);
@@ -167,7 +167,7 @@ TEST_P(STParamCouchstoreBucketTest, FlusherMarksCleanBySeqno) {
     // setWithMeta(s:2) with same CAS and higher revSeqno, so s:2 wins conflict
     // resolution and the operation succeeds.
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         setWithMeta(cas, 2 /*revSeqno*/, 2 /*expectedSeqno*/);
     }
 

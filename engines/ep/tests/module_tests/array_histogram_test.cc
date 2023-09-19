@@ -11,6 +11,7 @@
 
 #include "array_histogram.h"
 
+#include "test_helpers.h"
 #include "thread_gate.h"
 
 #include <folly/portability/GTest.h>
@@ -77,7 +78,7 @@ TEST(ArrayHistogramTest, Percentile) {
     // base case for when there are _no_ samples
 
     {
-        SCOPED_TRACE("no samples");
+        CB_SCOPED_TRACE("no samples");
         expect(0, 0, 0);
     }
 
@@ -93,7 +94,7 @@ TEST(ArrayHistogramTest, Percentile) {
     // only one value has been seen (though with a frequency of 10)
     // all percentiles fall in the same bucket.
     {
-        SCOPED_TRACE("one bucket");
+        CB_SCOPED_TRACE("one bucket");
         expect(100, 100, 100);
     }
 
@@ -104,7 +105,7 @@ TEST(ArrayHistogramTest, Percentile) {
     hist.add(110, 10);
 
     {
-        SCOPED_TRACE("two buckets (even number of samples)");
+        CB_SCOPED_TRACE("two buckets (even number of samples)");
         expect(100, 100, 110);
     }
 
@@ -117,7 +118,7 @@ TEST(ArrayHistogramTest, Percentile) {
     hist.add(110, 1);
 
     {
-        SCOPED_TRACE("50%ile bumped to 110");
+        CB_SCOPED_TRACE("50%ile bumped to 110");
         expect(100, 110, 110);
     }
 
@@ -129,7 +130,7 @@ TEST(ArrayHistogramTest, Percentile) {
     hist.add(120, 30);
 
     {
-        SCOPED_TRACE("50%ile and 100%ile bumped to 120");
+        CB_SCOPED_TRACE("50%ile and 100%ile bumped to 120");
         expect(100, 120, 120);
     }
 
@@ -141,7 +142,7 @@ TEST(ArrayHistogramTest, Percentile) {
     hist.add(110, std::numeric_limits<int32_t>::max());
 
     {
-        SCOPED_TRACE("50%ile bumped to 110");
+        CB_SCOPED_TRACE("50%ile bumped to 110");
         expect(100, 110, 120);
     }
 }

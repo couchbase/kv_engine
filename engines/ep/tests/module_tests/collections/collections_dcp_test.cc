@@ -26,6 +26,7 @@
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "tests/module_tests/dcp_producer_config.h"
 #include "tests/module_tests/dcp_stream_request_config.h"
+#include "tests/module_tests/test_helpers.h"
 
 #include <utilities/test_manifest.h>
 
@@ -367,7 +368,7 @@ void CollectionsDcpTest::ensureDcpWillBackfill() {
 
 void CollectionsDcpTest::runEraser() {
     {
-        SCOPED_TRACE("CollectionsDcpTest::runEraser - active");
+        CB_SCOPED_TRACE("CollectionsDcpTest::runEraser - active");
         runCollectionsEraser(vbid);
     }
 
@@ -375,7 +376,7 @@ void CollectionsDcpTest::runEraser() {
     // will iterate over the vbuckets, so has already hit vbid and replicaVB
     // in the first runEraser above
     if (isPersistent()) {
-        SCOPED_TRACE("CollectionsDcpTest::runEraser - replica");
+        CB_SCOPED_TRACE("CollectionsDcpTest::runEraser - replica");
         runCollectionsEraser(replicaVB);
     }
 }

@@ -235,7 +235,7 @@ void ActiveDurabilityMonitorTest::testLocalAck(int64_t ackSeqno,
     monitor->notifyLocalPersistence();
     EXPECT_EQ(expectedNumTracked, monitor->getNumTracked());
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNodeTracking(
                 active, expectedLastWriteSeqno, expectedLastAckSeqno);
     }
@@ -252,7 +252,7 @@ void ActiveDurabilityMonitorTest::testSeqnoAckReceived(
     EXPECT_NO_THROW(getActiveDM().seqnoAckReceived(replica, ackSeqno));
     vb->processResolvedSyncWrites();
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNodeTracking(
                 replica, expectedLastWriteSeqno, expectedLastAckSeqno);
         assertNumTrackedAndHPSAndHCS(
@@ -384,12 +384,12 @@ void ActiveDurabilityMonitorPersistentTest::testSeqnoAckPersistToMajority(
             {cb::durability::Level::PersistToMajority, {}});
     EXPECT_EQ(3, monitor->getNumTracked());
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNodeTracking(active, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         for (const auto& node : nodesToAck) {
             assertNodeTracking(node, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
         }
@@ -398,7 +398,7 @@ void ActiveDurabilityMonitorPersistentTest::testSeqnoAckPersistToMajority(
     const int64_t ackSeqno = 5;
 
     for (const auto& node : nodesToAck) {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         testSeqnoAckReceived(node,
                              ackSeqno /*ackSeqno*/,
                              5 /*expectedLastWriteSeqno*/,
@@ -422,12 +422,12 @@ void ActiveDurabilityMonitorPersistentTest::
             {cb::durability::Level::MajorityAndPersistOnMaster, {}});
     ASSERT_EQ(3, monitor->getNumTracked());
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNodeTracking(active, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
     // Nothing ack'ed yet by Replicas
     for (const auto& node : nodesToAck) {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNodeTracking(node, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
 
@@ -435,7 +435,7 @@ void ActiveDurabilityMonitorPersistentTest::
 
     // Ack all replicas, nothing should be committed
     for (const auto& node : nodesToAck) {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         testSeqnoAckReceived(node,
                              ackSeqno,
                              5 /*expectedLastWriteSeqno*/,
@@ -445,7 +445,7 @@ void ActiveDurabilityMonitorPersistentTest::
                              0 /*expectedHCS*/);
     }
 
-    SCOPED_TRACE("");
+    CB_SCOPED_TRACE("");
 
     // Simulate the Flusher that notifies the local DurabilityMonitor after
     // persistence. Then: all satisfied, all committed.
@@ -461,24 +461,24 @@ void ActiveDurabilityMonitorTest::testSeqnoAckUnknownNode(
     DurabilityMonitorTest::addSyncWrite(1);
     ASSERT_EQ(1, monitor->getNumTracked());
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNodeTracking(active, 1 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
     // Nothing ack'ed yet
     for (const auto& node : unchangedNodes) {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNodeTracking(node, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
 
     EXPECT_NO_THROW(getActiveDM().seqnoAckReceived(nodeToAck, 1));
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNodeTracking(active, 1 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
     // Nothing ack'ed yet
     for (const auto& node : unchangedNodes) {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNodeTracking(node, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
     EXPECT_EQ(1, monitor->getNumTracked());
@@ -493,7 +493,7 @@ void ActiveDurabilityMonitorTest::testRepeatedSeqnoAck(int64_t firstAck,
 
     ASSERT_EQ(1, numTracked);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertHPSAndHCS(1, 0);
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
@@ -552,13 +552,13 @@ TEST_P(ActiveDurabilityMonitorTest, SeqnoAckReceivedEqualPending) {
     auto numItems = addSyncWrites(seqnoStart, seqnoEnd);
     ASSERT_EQ(3, numItems);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertHPSAndHCS(3, 0);
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
 
     for (int64_t ackSeqno = seqnoStart; ackSeqno <= seqnoEnd; ackSeqno++) {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         testSeqnoAckReceived(replica1,
                              ackSeqno,
                              ackSeqno /*expectedLastWriteSeqno*/,
@@ -581,7 +581,7 @@ TEST_P(ActiveDurabilityMonitorTest, SeqnoAckReceivedEqualPendingTwoChains) {
     auto numItems = addSyncWrites(seqnoStart, seqnoEnd);
     ASSERT_EQ(3, numItems);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertHPSAndHCS(3, 0);
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
         assertNodeTracking(replica2, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
@@ -589,7 +589,7 @@ TEST_P(ActiveDurabilityMonitorTest, SeqnoAckReceivedEqualPendingTwoChains) {
 
     // At every ack, FirstChain is satisfied but SecondChain is not
     for (int64_t ackSeqno = seqnoStart; ackSeqno <= seqnoEnd; ackSeqno++) {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         testSeqnoAckReceived(replica1,
                              ackSeqno,
                              ackSeqno /*expectedLastWriteSeqno*/,
@@ -601,7 +601,7 @@ TEST_P(ActiveDurabilityMonitorTest, SeqnoAckReceivedEqualPendingTwoChains) {
 
     // At every ack, both chains are satisfied
     for (int64_t ackSeqno = seqnoStart; ackSeqno <= seqnoEnd; ackSeqno++) {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         testSeqnoAckReceived(replica2,
                              ackSeqno,
                              ackSeqno /*expectedLastWriteSeqno*/,
@@ -619,13 +619,13 @@ TEST_P(ActiveDurabilityMonitorTest,
     auto numItems = addSyncWrites(1 /*seqnoStart*/, 3 /*seqnoEnd*/);
     ASSERT_EQ(3, numItems);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertHPSAndHCS(3, 0);
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         testSeqnoAckReceived(replica1,
                              2 /*ackSeqno*/,
                              2 /*expectedLastWriteSeqno*/,
@@ -647,13 +647,13 @@ TEST_P(ActiveDurabilityMonitorTest,
     auto numItems = addSyncWrites(1 /*seqnoStart*/, 3 /*seqnoEnd*/);
     ASSERT_EQ(3, numItems);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertHPSAndHCS(3, 0);
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         testSeqnoAckReceived(replica1,
                              2 /*ackSeqno*/,
                              2 /*expectedLastWriteSeqno*/,
@@ -664,7 +664,7 @@ TEST_P(ActiveDurabilityMonitorTest,
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         testSeqnoAckReceived(replica2,
                              2 /*ackSeqno*/,
                              2 /*expectedLastWriteSeqno*/,
@@ -683,13 +683,13 @@ TEST_P(ActiveDurabilityMonitorTest,
     auto numTracked = monitor->getNumTracked();
     ASSERT_EQ(3, numTracked);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertHPSAndHCS(5, 0);
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         testSeqnoAckReceived(replica1,
                              4 /*ackSeqno*/,
                              3 /*expectedLastWriteSeqno*/,
@@ -712,14 +712,14 @@ TEST_P(ActiveDurabilityMonitorTest,
     auto numTracked = monitor->getNumTracked();
     ASSERT_EQ(3, numTracked);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertHPSAndHCS(5, 0);
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
         assertNodeTracking(replica2, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         testSeqnoAckReceived(replica1,
                              4 /*ackSeqno*/,
                              3 /*expectedLastWriteSeqno*/,
@@ -730,7 +730,7 @@ TEST_P(ActiveDurabilityMonitorTest,
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         testSeqnoAckReceived(replica2,
                              4 /*ackSeqno*/,
                              3 /*expectedLastWriteSeqno*/,
@@ -746,7 +746,7 @@ TEST_P(ActiveDurabilityMonitorTest,
     auto numTracked = addSyncWrites(1 /*seqnoStart*/, 3 /*seqnoEnd*/);
     ASSERT_EQ(3, numTracked);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertHPSAndHCS(3, 0);
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
@@ -773,7 +773,7 @@ TEST_P(ActiveDurabilityMonitorTest,
     auto numTracked = addSyncWrites(1 /*seqnoStart*/, 3 /*seqnoEnd*/);
     ASSERT_EQ(3, numTracked);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertHPSAndHCS(3, 0);
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
         assertNodeTracking(replica2, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
@@ -802,7 +802,7 @@ TEST_P(ActiveDurabilityMonitorTest,
     auto numTracked = monitor->getNumTracked();
     ASSERT_EQ(3, numTracked);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertHPSAndHCS(5, 0);
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
@@ -828,7 +828,7 @@ TEST_P(ActiveDurabilityMonitorTest,
     auto numTracked = monitor->getNumTracked();
     ASSERT_EQ(3, numTracked);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertHPSAndHCS(5, 0);
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
         assertNodeTracking(replica2, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
@@ -855,7 +855,7 @@ TEST_P(ActiveDurabilityMonitorTest, SeqnoAckWithNoTrackedWrites) {
     auto numTracked = monitor->getNumTracked();
     ASSERT_EQ(0, numTracked);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertHPSAndHCS(0, 0);
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
@@ -889,7 +889,7 @@ TEST_P(ActiveDurabilityMonitorTest, SeqnoAckTwiceDoesNotIncreaseAckCountTwice) {
 
     ASSERT_EQ(1, numTracked);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertHPSAndHCS(1, 0);
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
@@ -936,7 +936,7 @@ TEST_P(ActiveDurabilityMonitorTest,
     DurabilityMonitorTest::addSyncWrites({1, 3, 5} /*seqnos*/);
     EXPECT_EQ(3, monitor->getNumTracked());
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNodeTracking(active, 5 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
         assertNodeTracking(replica2, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
@@ -944,7 +944,7 @@ TEST_P(ActiveDurabilityMonitorTest,
 
     const int64_t ackSeqno = 5;
 
-    SCOPED_TRACE("");
+    CB_SCOPED_TRACE("");
     // active has already acked, replica 1 now acks which gives us majority on
     // both fist and second chain. However, we still need the ack from our new
     // active (replica2)
@@ -1167,7 +1167,7 @@ TEST_P(ActiveDurabilityMonitorTest, SeqnoAckReceived_MultipleReplicas) {
     addSyncWrite(preparedSeqno);
     ASSERT_EQ(1, monitor->getNumTracked());
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertHPSAndHCS(preparedSeqno /*HPS*/, 0);
         for (const auto& node : {replica1, replica2, replica3}) {
             assertNodeTracking(node, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
@@ -1175,7 +1175,7 @@ TEST_P(ActiveDurabilityMonitorTest, SeqnoAckReceived_MultipleReplicas) {
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         testSeqnoAckReceived(replica2,
                              preparedSeqno /*ackSeqno*/,
                              preparedSeqno /*expectedLastWriteSeqno*/,
@@ -1187,7 +1187,7 @@ TEST_P(ActiveDurabilityMonitorTest, SeqnoAckReceived_MultipleReplicas) {
 
     // Majority reached
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         testSeqnoAckReceived(replica3,
                              preparedSeqno /*ackSeqno*/,
                              preparedSeqno /*expectedLastWriteSeqno*/,
@@ -1198,7 +1198,7 @@ TEST_P(ActiveDurabilityMonitorTest, SeqnoAckReceived_MultipleReplicas) {
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
 }
@@ -1216,7 +1216,7 @@ TEST_P(ActiveDurabilityMonitorTest,
     addSyncWrite(preparedSeqno);
     ASSERT_EQ(1, monitor->getNumTracked());
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertHPSAndHCS(preparedSeqno /*HPS*/, 0);
         for (const auto& node : {replica1, replica2, replica3, replica4}) {
             assertNodeTracking(node, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
@@ -1228,7 +1228,7 @@ TEST_P(ActiveDurabilityMonitorTest,
      * replica3 ack -> majority satisfied in FirstChain
      */
     for (const auto& node : {replica2, replica3}) {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         testSeqnoAckReceived(node,
                              preparedSeqno /*ackSeqno*/,
                              preparedSeqno /*expectedLastWriteSeqno*/,
@@ -1240,7 +1240,7 @@ TEST_P(ActiveDurabilityMonitorTest,
 
     // This satisfies majority in SecondChain, so Prepare is committed
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         testSeqnoAckReceived(replica4,
                              preparedSeqno /*ackSeqno*/,
                              preparedSeqno /*expectedLastWriteSeqno*/,
@@ -1251,7 +1251,7 @@ TEST_P(ActiveDurabilityMonitorTest,
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
 }
@@ -1269,7 +1269,7 @@ TEST_P(ActiveDurabilityMonitorTest,
     addSyncWrite(preparedSeqno);
     ASSERT_EQ(1, monitor->getNumTracked());
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertHPSAndHCS(preparedSeqno /*HPS*/, 0);
         for (const auto& node :
              {replica1, replica2, replica3, replica4, replica5, replica6}) {
@@ -1283,7 +1283,7 @@ TEST_P(ActiveDurabilityMonitorTest,
      * replica4 ack
      */
     for (const auto& node : {replica2, replica3, replica4}) {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         testSeqnoAckReceived(node,
                              preparedSeqno /*ackSeqno*/,
                              preparedSeqno /*expectedLastWriteSeqno*/,
@@ -1295,7 +1295,7 @@ TEST_P(ActiveDurabilityMonitorTest,
 
     // This satisfies majority in SecondChain, so Prepare is committed
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         testSeqnoAckReceived(replica5,
                              preparedSeqno /*ackSeqno*/,
                              preparedSeqno /*expectedLastWriteSeqno*/,
@@ -1306,7 +1306,7 @@ TEST_P(ActiveDurabilityMonitorTest,
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
         assertNodeTracking(replica6, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
@@ -1354,7 +1354,7 @@ TEST_P(ActiveDurabilityMonitorTest, ProcessTimeout) {
     addSyncWrite(1 /*seqno*/, {level, cb::durability::Timeout(1)});
     EXPECT_EQ(1, monitor->getNumTracked());
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNodeTracking(active, 1 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
@@ -1365,7 +1365,7 @@ TEST_P(ActiveDurabilityMonitorTest, ProcessTimeout) {
 
     EXPECT_EQ(0, monitor->getNumTracked());
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         // @todo: Here and below, the next check means that after abort the
         //     tracking for a node (the Active in this case) is like:
         //     - Position::it -> points to Container::end()
@@ -1385,7 +1385,7 @@ TEST_P(ActiveDurabilityMonitorTest, ProcessTimeout) {
     addSyncWrite(103 /*seqno*/, {level, cb::durability::Timeout(20)});
     ASSERT_EQ(3, monitor->getNumTracked());
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNodeTracking(active, 103 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
@@ -1396,7 +1396,7 @@ TEST_P(ActiveDurabilityMonitorTest, ProcessTimeout) {
 
     EXPECT_EQ(0, monitor->getNumTracked());
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNodeTracking(active, 103 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
@@ -1410,7 +1410,7 @@ TEST_P(ActiveDurabilityMonitorTest, ProcessTimeout) {
     addSyncWrite(203 /*seqno*/, {level, cb::durability::Timeout(50000)});
     ASSERT_EQ(3, monitor->getNumTracked());
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNodeTracking(active, 203 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
@@ -1425,7 +1425,7 @@ TEST_P(ActiveDurabilityMonitorTest, ProcessTimeout) {
     EXPECT_TRUE(tracked.find(202) == tracked.end());
     EXPECT_TRUE(tracked.find(203) != tracked.end());
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNodeTracking(active, 203 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
@@ -1436,7 +1436,7 @@ TEST_P(ActiveDurabilityMonitorTest, ProcessTimeout) {
 
     EXPECT_EQ(0, monitor->getNumTracked());
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNodeTracking(active, 203 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
@@ -1451,7 +1451,7 @@ TEST_P(ActiveDurabilityMonitorTest, ProcessTimeout) {
     addSyncWrite(303 /*seqno*/, {level, cb::durability::Timeout(1)});
     ASSERT_EQ(3, monitor->getNumTracked());
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNodeTracking(active, 303 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
         assertNodeTracking(replica1, 0 /*lastWriteSeqno*/, 0 /*lastAckSeqno*/);
     }
@@ -1542,7 +1542,7 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_NoReplica) {
 
 TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_1Replica) {
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         EXPECT_TRUE(testDurabilityPossible({{"active", "replica"}},
                                            makePendingWithSeqno(1),
                                            2 /*expectedFirstChainSize*/,
@@ -1550,7 +1550,7 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_1Replica) {
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         EXPECT_FALSE(testDurabilityPossible({{"active", nullptr}},
                                             makePendingWithSeqno(2),
                                             1 /*expectedFirstChainSize*/,
@@ -1560,7 +1560,7 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_1Replica) {
 
 TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_1Replica) {
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         EXPECT_TRUE(
                 testDurabilityPossible({{active, replica1}, {active, replica2}},
                                        makePendingWithSeqno(1),
@@ -1572,7 +1572,7 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_1Replica) {
 
     auto item = makePendingWithSeqno(2);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         EXPECT_FALSE(
                 testDurabilityPossible({{active, nullptr}, {active, replica2}},
                                        item,
@@ -1583,7 +1583,7 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_1Replica) {
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         EXPECT_FALSE(
                 testDurabilityPossible({{active, replica1}, {active, nullptr}},
                                        item,
@@ -1596,7 +1596,7 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_1Replica) {
 
 TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_2Replicas) {
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         auto item = makePendingWithSeqno(1);
         EXPECT_TRUE(testDurabilityPossible({{"active", "replica1", "replica2"}},
                                            item,
@@ -1605,7 +1605,7 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_2Replicas) {
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         auto item = makePendingWithSeqno(2);
         EXPECT_TRUE(testDurabilityPossible({{"active", "replica1", nullptr}},
                                            item,
@@ -1614,7 +1614,7 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_2Replicas) {
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         auto item = makePendingWithSeqno(3);
         EXPECT_FALSE(testDurabilityPossible({{"active", nullptr, nullptr}},
                                             item,
@@ -1625,7 +1625,7 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_2Replicas) {
 
 TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_2Replicas) {
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         EXPECT_TRUE(testDurabilityPossible(
                 {{active, replica1, replica2}, {active, replica3, replica4}},
                 makePendingWithSeqno(1),
@@ -1637,7 +1637,7 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_2Replicas) {
 
     auto item = makePendingWithSeqno(2);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         EXPECT_TRUE(testDurabilityPossible(
                 {{active, replica1, nullptr}, {active, replica3, replica4}},
                 item,
@@ -1648,7 +1648,7 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_2Replicas) {
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         EXPECT_FALSE(testDurabilityPossible(
                 {{active, nullptr, nullptr}, {active, replica3, replica4}},
                 item,
@@ -1659,7 +1659,7 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_2Replicas) {
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         EXPECT_TRUE(testDurabilityPossible(
                 {{active, replica1, replica2}, {active, replica3, nullptr}},
                 makePendingWithSeqno(4),
@@ -1670,7 +1670,7 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_2Replicas) {
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         EXPECT_FALSE(testDurabilityPossible(
                 {{active, replica1, replica2}, {active, nullptr, nullptr}},
                 makePendingWithSeqno(5),
@@ -1687,7 +1687,7 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_3Replicas) {
     // Not sure if ns_server can set something like that (e.g. {A, u, R2, u}),
     // but better that we cover the most general case.
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         EXPECT_TRUE(testDurabilityPossible(
                 {{"active", "replica1", "replica2", "replica3"}},
                 makePendingWithSeqno(1),
@@ -1696,7 +1696,7 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_3Replicas) {
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         EXPECT_TRUE(testDurabilityPossible(
                 {{"active", "replica1", nullptr, "replica3"}},
                 makePendingWithSeqno(2),
@@ -1706,7 +1706,7 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_3Replicas) {
 
     auto item = makePendingWithSeqno(3);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         EXPECT_FALSE(testDurabilityPossible(
                 {{"active", nullptr, nullptr, "replica3"}},
                 item,
@@ -1721,7 +1721,7 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_3Replicas) {
     // rejected) then the following step fails as well, as trying to
     // re-queueing s:3 will break seqno-invariant.
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         EXPECT_FALSE(
                 testDurabilityPossible({{"active", nullptr, nullptr, nullptr}},
                                        item,
@@ -1736,7 +1736,7 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_3Replicas) {
     // Not sure if ns_server can set something like that (e.g. {A, u, R2, u}),
     // but better that we cover the most general case.
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         EXPECT_TRUE(
                 testDurabilityPossible({{active, replica1, replica2, replica3},
                                         {active, replica4, replica5, replica6}},
@@ -1748,7 +1748,7 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_3Replicas) {
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         EXPECT_TRUE(
                 testDurabilityPossible({{active, replica1, nullptr, replica3},
                                         {active, replica4, replica5, replica6}},
@@ -1761,7 +1761,7 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_3Replicas) {
 
     auto item3 = makePendingWithSeqno(3);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         EXPECT_FALSE(
                 testDurabilityPossible({{active, nullptr, nullptr, replica3},
                                         {active, replica3, replica5, replica6}},
@@ -1773,7 +1773,7 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_3Replicas) {
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         EXPECT_FALSE(
                 testDurabilityPossible({{active, nullptr, nullptr, nullptr},
                                         {active, replica4, replica5, replica6}},
@@ -1785,7 +1785,7 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_3Replicas) {
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         EXPECT_TRUE(
                 testDurabilityPossible({{active, replica1, replica2, replica3},
                                         {active, replica4, nullptr, replica6}},
@@ -1798,7 +1798,7 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_3Replicas) {
 
     auto item4 = makePendingWithSeqno(4);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         EXPECT_FALSE(
                 testDurabilityPossible({{active, replica1, replica2, replica3},
                                         {active, nullptr, nullptr, replica6}},
@@ -1810,7 +1810,7 @@ TEST_P(ActiveDurabilityMonitorTest, DurabilityImpossible_TwoChains_3Replicas) {
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         EXPECT_FALSE(
                 testDurabilityPossible({{active, replica1, replica2, replica3},
                                         {active, nullptr, nullptr, nullptr}},
@@ -2991,7 +2991,7 @@ TEST_P(ActiveDurabilityMonitorTest,
     // To start, we have 1 chain with active and replica1
     addSyncWrite(1);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(1, 1, 0);
     }
 
@@ -2999,7 +2999,7 @@ TEST_P(ActiveDurabilityMonitorTest,
     EXPECT_NO_THROW(getActiveDM().seqnoAckReceived(replica2, 1));
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(1, 1, 0);
     }
 
@@ -3010,7 +3010,7 @@ TEST_P(ActiveDurabilityMonitorTest,
 
     // Should have committed
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(0, 1, 1);
     }
 }
@@ -3022,7 +3022,7 @@ TEST_P(ActiveDurabilityMonitorTest, FirstChainNodeAckBeforeTopologySet) {
     // To start, we have 1 chain with active and replica1
     addSyncWrite(1);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(1, 1, 0);
     }
 
@@ -3030,7 +3030,7 @@ TEST_P(ActiveDurabilityMonitorTest, FirstChainNodeAckBeforeTopologySet) {
     EXPECT_NO_THROW(getActiveDM().seqnoAckReceived(replica3, 1));
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(1, 1, 0);
     }
 
@@ -3040,7 +3040,7 @@ TEST_P(ActiveDurabilityMonitorTest, FirstChainNodeAckBeforeTopologySet) {
 
     // Should not have committed
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(1, 1, 0);
     }
 
@@ -3058,7 +3058,7 @@ TEST_P(ActiveDurabilityMonitorTest, SecondChainNodeAckBeforeTopologySet) {
     // To start, we have 1 chain with active and replica1
     addSyncWrite(1);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(1, 1, 0);
     }
 
@@ -3066,7 +3066,7 @@ TEST_P(ActiveDurabilityMonitorTest, SecondChainNodeAckBeforeTopologySet) {
     EXPECT_NO_THROW(getActiveDM().seqnoAckReceived(replica2, 1));
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(1, 1, 0);
     }
 
@@ -3076,7 +3076,7 @@ TEST_P(ActiveDurabilityMonitorTest, SecondChainNodeAckBeforeTopologySet) {
 
     // Still can't commit because firstChain must also be satisfied
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(1, 1, 0);
     }
 
@@ -3094,7 +3094,7 @@ TEST_P(ActiveDurabilityMonitorTest,
        SecondChainNodeAckBeforeTopologySetMultipleReplica) {
     addSyncWrite(1);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(1, 1, 0);
     }
 
@@ -3102,7 +3102,7 @@ TEST_P(ActiveDurabilityMonitorTest,
     EXPECT_NO_THROW(getActiveDM().seqnoAckReceived(replica2, 1));
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(1, 1, 0);
     }
 
@@ -3112,7 +3112,7 @@ TEST_P(ActiveDurabilityMonitorTest,
 
     // Still can't commit because firstChain must also be satisfied
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(1, 1, 0);
     }
 
@@ -3134,7 +3134,7 @@ TEST_P(ActiveDurabilityMonitorTest,
                          1 /*expectedHPS*/,
                          1 /*expectedHCS*/);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(0, 1, 1);
     }
 }
@@ -3144,7 +3144,7 @@ TEST_P(ActiveDurabilityMonitorTest,
     // To start, we have 1 chain with active and replica1
     addSyncWrite(1);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(1, 1, 0);
     }
 
@@ -3160,7 +3160,7 @@ TEST_P(ActiveDurabilityMonitorTest,
     // We ack a new "unknown" node, already committed.
     EXPECT_NO_THROW(getActiveDM().seqnoAckReceived(replica2, 1));
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(0, 1, 1);
     }
 
@@ -3180,14 +3180,14 @@ TEST_P(ActiveDurabilityMonitorTest, BothChainNodeAckBeforeTopologySet) {
     // To start, we have 1 chain with active and replica1
     addSyncWrite(1);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(1, 1, 0);
     }
 
     // We ack a new "unknown" node
     EXPECT_NO_THROW(getActiveDM().seqnoAckReceived(replica2, 1));
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(1, 1, 0);
     }
 
@@ -3197,7 +3197,7 @@ TEST_P(ActiveDurabilityMonitorTest, BothChainNodeAckBeforeTopologySet) {
                                    {active, replica1, replica2, replica3}})));
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(1, 1, 0);
     }
 
@@ -3216,7 +3216,7 @@ TEST_P(ActiveDurabilityMonitorTest, MaintainSyncWriteAckCount) {
             nlohmann::json::array({{active, replica1, replica2, replica3}}));
     addSyncWrite(1);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(1, 1, 0);
     }
 
@@ -3229,7 +3229,7 @@ TEST_P(ActiveDurabilityMonitorTest, MaintainSyncWriteAckCount) {
                          0 /*expectedHCS*/);
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(1, 1, 0);
     }
 
@@ -3239,12 +3239,12 @@ TEST_P(ActiveDurabilityMonitorTest, MaintainSyncWriteAckCount) {
                                    {active, replica1, replica2, nullptr}}));
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(1, 1, 0);
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         // Should commit on replica2 ack as this should satisfy both chains
         testSeqnoAckReceived(replica2,
                              1 /*ackSeqno*/,
@@ -3256,7 +3256,7 @@ TEST_P(ActiveDurabilityMonitorTest, MaintainSyncWriteAckCount) {
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(0, 1, 1);
     }
 }
@@ -3268,7 +3268,7 @@ TEST_P(ActiveDurabilityMonitorTest, MaintainSyncWriteAckCount_SecondChain) {
                                    {active, replica1, replica2, replica4}}));
     addSyncWrite(1);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(1, 1, 0);
     }
 
@@ -3281,7 +3281,7 @@ TEST_P(ActiveDurabilityMonitorTest, MaintainSyncWriteAckCount_SecondChain) {
                          0 /*expectedHCS*/);
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(1, 1, 0);
     }
 
@@ -3291,13 +3291,13 @@ TEST_P(ActiveDurabilityMonitorTest, MaintainSyncWriteAckCount_SecondChain) {
                                    {active, replica1, replica2, nullptr}}));
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(1, 1, 0);
     }
 
     {
         // Replica1 ack should not commit (neither chain satisfied)
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         testSeqnoAckReceived(replica1,
                              1 /*ackSeqno*/,
                              1 /*expectedLastWriteSeqno*/,
@@ -3308,7 +3308,7 @@ TEST_P(ActiveDurabilityMonitorTest, MaintainSyncWriteAckCount_SecondChain) {
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         // Should commit on replica2 ack as this should satisfy both chains
         testSeqnoAckReceived(replica2,
                              1 /*ackSeqno*/,
@@ -3320,7 +3320,7 @@ TEST_P(ActiveDurabilityMonitorTest, MaintainSyncWriteAckCount_SecondChain) {
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(0, 1, 1);
     }
 }
@@ -3329,7 +3329,7 @@ TEST_P(ActiveDurabilityMonitorTest, HPSResetOnTopologyChange) {
     // To start, we have 1 chain with active and replica1
     addSyncWrite(1);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(1, 1, 0);
     }
 
@@ -3342,7 +3342,7 @@ TEST_P(ActiveDurabilityMonitorTest, HPSResetOnTopologyChange) {
                          1 /*expectedHPS*/,
                          1 /*expectedHCS*/);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(0, 1, 1);
     }
 
@@ -3352,7 +3352,7 @@ TEST_P(ActiveDurabilityMonitorTest, HPSResetOnTopologyChange) {
 
     // HPS should still be 1.
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(0, 1, 1);
     }
 }
@@ -3369,7 +3369,7 @@ TEST_P(ActiveDurabilityMonitorTest,
     // To start, we have 1 chain with active and replica1
     addSyncWrite(1);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(1, 1, 0);
     }
 
@@ -3379,7 +3379,7 @@ TEST_P(ActiveDurabilityMonitorTest,
     vb->processResolvedSyncWrites();
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(0, 1, 1);
     }
     EXPECT_EQ(0, getActiveDM().getNumCommitted());
@@ -3401,7 +3401,7 @@ TEST_P(ActiveDurabilityMonitorTest,
     using namespace cb::durability;
     addSyncWrite(1, Requirements{Level::Majority, Timeout::Infinity()});
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(1, 1, 0);
     }
 
@@ -3410,7 +3410,7 @@ TEST_P(ActiveDurabilityMonitorTest,
             nlohmann::json::array({{active, nullptr}})));
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(1, 1, 0);
     }
     EXPECT_EQ(0, getActiveDM().getNumCommitted());
@@ -3435,7 +3435,7 @@ TEST_P(ActiveDurabilityMonitorPersistentTest,
     addSyncWrite(2,
                  Requirements(Level::Majority, cb::durability::Timeout(30000)));
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(2, 0, 0);
     }
 
@@ -3451,7 +3451,7 @@ TEST_P(ActiveDurabilityMonitorPersistentTest,
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(2, 0, 0);
     }
 
@@ -3466,7 +3466,7 @@ TEST_P(ActiveDurabilityMonitorPersistentTest,
             adm, std::chrono::steady_clock::now() + std::chrono::seconds(31));
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(0, 0, 2);
     }
 
@@ -3477,7 +3477,7 @@ TEST_P(ActiveDurabilityMonitorPersistentTest,
     monitor->notifyLocalPersistence();
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         assertNumTrackedAndHPSAndHCS(0, 0, 2);
     }
 }

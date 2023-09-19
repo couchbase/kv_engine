@@ -2741,7 +2741,7 @@ TEST_P(CollectionsParameterizedTest, PerCollectionMemUsed) {
     KVBucketTest::flushVBucketToDiskIfPersistent(vbid, 1);
 
     {
-        SCOPED_TRACE("new item added to collection");
+        CB_SCOPED_TRACE("new item added to collection");
         // default collection memory usage should _increase_
         auto d = MemChecker(vb, CollectionEntry::defaultC, std::greater<>());
         // meta collection memory usage should _stay the same_
@@ -2753,7 +2753,7 @@ TEST_P(CollectionsParameterizedTest, PerCollectionMemUsed) {
     }
 
     {
-        SCOPED_TRACE("new item added to collection");
+        CB_SCOPED_TRACE("new item added to collection");
         auto d = MemChecker(vb, CollectionEntry::defaultC, std::equal_to<>());
         auto m = MemChecker(vb, CollectionEntry::meat, std::greater<>());
 
@@ -2764,7 +2764,7 @@ TEST_P(CollectionsParameterizedTest, PerCollectionMemUsed) {
     }
 
     {
-        SCOPED_TRACE("update item with larger value");
+        CB_SCOPED_TRACE("update item with larger value");
         auto d = MemChecker(vb, CollectionEntry::defaultC, std::greater<>());
         auto m = MemChecker(vb, CollectionEntry::meat, std::equal_to<>());
 
@@ -2775,7 +2775,7 @@ TEST_P(CollectionsParameterizedTest, PerCollectionMemUsed) {
     }
 
     {
-        SCOPED_TRACE("delete item");
+        CB_SCOPED_TRACE("delete item");
         auto d = MemChecker(vb, CollectionEntry::defaultC, std::less<>());
         auto m = MemChecker(vb, CollectionEntry::meat, std::equal_to<>());
 
@@ -2788,7 +2788,7 @@ TEST_P(CollectionsParameterizedTest, PerCollectionMemUsed) {
     }
 
     {
-        SCOPED_TRACE("evict item");
+        CB_SCOPED_TRACE("evict item");
         auto d = MemChecker(vb, CollectionEntry::defaultC, std::equal_to<>());
         auto m = MemChecker(vb, CollectionEntry::meat, std::less<>());
 
@@ -2810,7 +2810,7 @@ TEST_P(CollectionsPersistentParameterizedTest, PerCollectionDiskSize) {
     KVBucketTest::flushVBucketToDiskIfPersistent(vbid, 1);
 
     {
-        SCOPED_TRACE("new item added to collection");
+        CB_SCOPED_TRACE("new item added to collection");
         // default collection disk size should _increase_
         auto d = DiskChecker(vb, CollectionEntry::defaultC, std::greater<>());
         // meta collection disk size should _stay the same_
@@ -2822,7 +2822,7 @@ TEST_P(CollectionsPersistentParameterizedTest, PerCollectionDiskSize) {
     }
 
     {
-        SCOPED_TRACE("new item added to collection");
+        CB_SCOPED_TRACE("new item added to collection");
         auto d = DiskChecker(vb, CollectionEntry::defaultC, std::equal_to<>());
         auto m = DiskChecker(vb, CollectionEntry::meat, std::greater<>());
 
@@ -2833,7 +2833,7 @@ TEST_P(CollectionsPersistentParameterizedTest, PerCollectionDiskSize) {
     }
 
     {
-        SCOPED_TRACE("update item with larger value");
+        CB_SCOPED_TRACE("update item with larger value");
         auto d = DiskChecker(vb, CollectionEntry::defaultC, std::greater<>());
         auto m = DiskChecker(vb, CollectionEntry::meat, std::equal_to<>());
 
@@ -2844,7 +2844,7 @@ TEST_P(CollectionsPersistentParameterizedTest, PerCollectionDiskSize) {
     }
 
     {
-        SCOPED_TRACE("delete item");
+        CB_SCOPED_TRACE("delete item");
         auto d = DiskChecker(vb, CollectionEntry::defaultC, std::less<>());
         auto m = DiskChecker(vb, CollectionEntry::meat, std::equal_to<>());
 
@@ -2862,7 +2862,7 @@ TEST_P(CollectionsPersistentParameterizedTest, PerCollectionDiskSize) {
     }
 
     {
-        SCOPED_TRACE("evict item");
+        CB_SCOPED_TRACE("evict item");
         // should not change the on disk size
         auto d = DiskChecker(vb, CollectionEntry::defaultC, std::equal_to<>());
         auto m = DiskChecker(vb, CollectionEntry::meat, std::equal_to<>());
@@ -2891,7 +2891,7 @@ TEST_P(CollectionsPersistentParameterizedTest, PerCollectionDiskSizeRollback) {
     KVBucketTest::flushVBucketToDiskIfPersistent(vbid);
 
     {
-        SCOPED_TRACE("Rollback");
+        CB_SCOPED_TRACE("Rollback");
         // post rollback, stats should have been reset to what they are
         // currently
         auto d = DiskChecker(vb, CollectionEntry::defaultC, std::equal_to<>());
@@ -2902,7 +2902,7 @@ TEST_P(CollectionsPersistentParameterizedTest, PerCollectionDiskSizeRollback) {
         {
             // now add another item to change the stats. This item will be
             // removed by rollback
-            SCOPED_TRACE("new item added to collection");
+            CB_SCOPED_TRACE("new item added to collection");
             // default collection disk size should _increase_ as we add the item
             auto d = DiskChecker(
                     vb, CollectionEntry::defaultC, std::greater<>());
@@ -2971,7 +2971,7 @@ TEST_P(CollectionsPersistentParameterizedTest,
     auto key = StoredDocKey{"key", CollectionEntry::defaultC};
 
     {
-        SCOPED_TRACE("Prepare item");
+        CB_SCOPED_TRACE("Prepare item");
         // default collection disk size should _increase_ - prepares are
         // included
         auto d = DiskChecker(vb,
@@ -2991,7 +2991,7 @@ TEST_P(CollectionsPersistentParameterizedTest,
     }
 
     {
-        SCOPED_TRACE("Commit item");
+        CB_SCOPED_TRACE("Commit item");
         // default collection disk size should _increase_
         auto d = DiskChecker(vb, CollectionEntry::defaultC, std::greater<>());
 
@@ -3001,7 +3001,7 @@ TEST_P(CollectionsPersistentParameterizedTest,
     }
 
     {
-        SCOPED_TRACE("Purge completed prepare");
+        CB_SCOPED_TRACE("Purge completed prepare");
         // default collection disk size should _decrease_
 
         StatChecker::PostFunc comparator = std::less<>();
@@ -3018,7 +3018,7 @@ TEST_P(CollectionsPersistentParameterizedTest,
     }
 
     {
-        SCOPED_TRACE("Warmup");
+        CB_SCOPED_TRACE("Warmup");
         auto d = DiskChecker(vb, CollectionEntry::defaultC, std::equal_to<>());
         vb.reset();
         resetEngineAndWarmup();
@@ -3026,7 +3026,7 @@ TEST_P(CollectionsPersistentParameterizedTest,
     }
 
     {
-        SCOPED_TRACE("Prepare item round 2");
+        CB_SCOPED_TRACE("Prepare item round 2");
         // default collection disk size should _increase_ - prepares are
         // included
 
@@ -3054,7 +3054,7 @@ TEST_P(CollectionsPersistentParameterizedTest,
     }
 
     {
-        SCOPED_TRACE("Abort item");
+        CB_SCOPED_TRACE("Abort item");
         // default collection disk size should _decrease_ - aborts are
         // included so should decrease
         auto d = DiskChecker(vb,
@@ -4543,16 +4543,16 @@ TEST_P(CollectionsParameterizedTest, PerCollectionMemUsedAndDeleteVbucket) {
         flushVBucketToDiskIfPersistent(id, 3);
     };
 
-    SCOPED_TRACE("new item added to collection vb:0");
+    CB_SCOPED_TRACE("new item added to collection vb:0");
     addItems(vb0, vbid0);
     auto vb0size =
             engine->getEpStats().getCollectionMemUsed(CollectionID::Default);
-    SCOPED_TRACE("new item added to collection vb:1");
+    CB_SCOPED_TRACE("new item added to collection vb:1");
     addItems(vb1, vbid1);
 
     vb1.reset(); // deleting this one next
     {
-        SCOPED_TRACE("Delete vb:1");
+        CB_SCOPED_TRACE("Delete vb:1");
         auto d = MemChecker(vb0, CollectionEntry::defaultC, std::less<>());
         EXPECT_EQ(cb::engine_errc::success, store->deleteVBucket(vbid1));
         // Run the deletion task

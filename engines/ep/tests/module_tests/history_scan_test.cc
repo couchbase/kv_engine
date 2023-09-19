@@ -442,7 +442,7 @@ TEST_P(HistoryScanTest, TwoSnapshots) {
     EXPECT_EQ(vbA->getHighSeqno() - 2,
               vbR->checkpointManager->getSnapshotInfo().range.getEnd());
 
-    SCOPED_TRACE("History Snapshot");
+    CB_SCOPED_TRACE("History Snapshot");
     validateSnapshot(vbid,
                      0,
                      5,

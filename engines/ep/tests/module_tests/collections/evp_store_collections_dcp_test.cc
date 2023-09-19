@@ -766,7 +766,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_create_delete) {
         // create
         // and delete)
         {
-            SCOPED_TRACE("DCP 1");
+            CB_SCOPED_TRACE("DCP 1");
             testDcpCreateDelete(
                     {CollectionEntry::dairy, CollectionEntry::fruit},
                     {CollectionEntry::dairy},
@@ -791,7 +791,7 @@ TEST_P(CollectionsDcpParameterizedTest, test_dcp_create_delete) {
     // Streamed from disk, one create (create of fruit) and items of fruit
     // And the tombstone of dairy
     {
-        SCOPED_TRACE("DCP 2");
+        CB_SCOPED_TRACE("DCP 2");
         testDcpCreateDelete({CollectionEntry::fruit},
                             {CollectionEntry::dairy},
                             items,
@@ -1060,7 +1060,7 @@ TEST_F(CollectionsDcpTest, MB_26455) {
     // Streamed from disk, one create (create of fruit) and items of fruit and
     // every delete (tombstones)
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         testDcpCreateDelete(
                 {CollectionEntry::Entry{CollectionName::fruit, (m - 1) + 10}},
                 dropped,
@@ -1477,7 +1477,7 @@ TEST_P(CollectionsDcpParameterizedTest, filtering) {
     // 1x create - create of dairy
     // 2x mutations in the dairy collection
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         testDcpCreateDelete({CollectionEntry::dairy},
                             {},
                             2,
@@ -3395,14 +3395,14 @@ void CollectionsDcpPersistentOnly::resurrectionTest(bool dropAtEnd,
     auto* activeKVS = vb->getShard()->getRWUnderlying();
     ASSERT_TRUE(activeKVS);
     {
-        SCOPED_TRACE("Active");
+        CB_SCOPED_TRACE("Active");
         checkKVS(*activeKVS, vbid);
     }
 
     auto* replicaKVS = rvb->getShard()->getRWUnderlying();
     ASSERT_TRUE(replicaKVS);
     {
-        SCOPED_TRACE("Replica");
+        CB_SCOPED_TRACE("Replica");
         checkKVS(*replicaKVS, replicaVB);
     }
 
@@ -4064,7 +4064,7 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
     // 1.6. Ensure we backfill receiving all the documents written before the
     // stream started as a disk snapshot.
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker,
                                   false);
     }
@@ -4080,7 +4080,7 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
 
     // 1.7. Then stream the document we wrote to memory after backfill.
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     }
     ASSERT_TRUE(MARKER_FLAG_CHK & producers->last_flags);
@@ -4093,7 +4093,7 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
     // to the last checkpoint, thus replicated without a MARKER_FLAG_CHK
     store_item(vbid, makeStoredDocKey("setTwo"), "value");
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     }
     ASSERT_FALSE(MARKER_FLAG_CHK & producers->last_flags);
@@ -4185,7 +4185,7 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
     // vbucket state of 2.3.
     ASSERT_TRUE(activeTakeOverStream->isTakeoverSend());
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         notifyAndStepToCheckpoint(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
     }
     activeTakeOverStream->snapshotMarkerAckReceived();
@@ -4259,7 +4259,7 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
     // 3.2 Ensure we can get the disk snapshot from the new active, from memory
     // as it's not been flushed to disk
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
                 *replicProducer,
                 *producers2,
@@ -4284,7 +4284,7 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
     // nextSnapStart would go backwards due to the new active's vbucket state
     // being corrupted at 2.6.
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         EXPECT_NO_THROW(SingleThreadedKVBucketTest::notifyAndStepToCheckpoint(
                 *replicProducer,
                 *producers2,
@@ -4299,7 +4299,7 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
     EXPECT_EQ(6, producers2->last_byseqno);
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         EXPECT_EQ(cb::engine_errc::success,
                   replicProducer->stepAndExpect(
                           *producers2,
@@ -4314,7 +4314,7 @@ TEST_P(CollectionsDcpPersistentOnly, MB_51105) {
     EXPECT_EQ(7, producers2->last_byseqno);
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         EXPECT_EQ(cb::engine_errc::success,
                   replicProducer->stepAndExpect(
                           *producers2,
@@ -5199,30 +5199,30 @@ TEST_P(CollectionsDcpPersistentOnly, DefaultCollectionLegacySeqnos) {
         validateSeqnos(vbid, mvs, legacyHighSeqno, highSeqno);
         if (highSeqno) {
             flush_vbucket_to_disk(vbid, 1);
-            SCOPED_TRACE("post flush");
+            CB_SCOPED_TRACE("post flush");
             validateSeqnos(vbid, mvs, legacyHighSeqno, highSeqno);
         }
         resetEngineAndWarmup();
-        SCOPED_TRACE("post warmup");
+        CB_SCOPED_TRACE("post warmup");
         validateSeqnos(vbid, mvs, legacyHighSeqno, highSeqno);
     };
 
     {
-        SCOPED_TRACE("Initial state");
+        CB_SCOPED_TRACE("Initial state");
         validate(0, 0, 0);
     }
     // Pending item so mvs doesn't move
     auto item = makePendingItem(makeStoredDocKey("prepare"), "value");
     EXPECT_EQ(cb::engine_errc::sync_write_pending, store->set(*item, cookie));
     {
-        SCOPED_TRACE("Pending operation @ seqno 1");
+        CB_SCOPED_TRACE("Pending operation @ seqno 1");
         // due to MB-55451 no validation of MVS, it breaks at warmup.
         validate(std::nullopt, 1, 1);
     }
     // Committed item, so all counters move
     store_item(vbid, makeStoredDocKey("k0"), "v0");
     {
-        SCOPED_TRACE("Mutation @ seqno 2");
+        CB_SCOPED_TRACE("Mutation @ seqno 2");
         validate(2, 2, 2);
     }
 
@@ -5231,7 +5231,7 @@ TEST_P(CollectionsDcpPersistentOnly, DefaultCollectionLegacySeqnos) {
     cm.update(defaultC, cb::NoExpiryLimit, true /*history*/);
     setCollections(cookie, cm);
     {
-        SCOPED_TRACE("Modify collection @ seqno 3");
+        CB_SCOPED_TRACE("Modify collection @ seqno 3");
         validate(2, 2, 3);
     }
 
@@ -5256,7 +5256,7 @@ TEST_P(CollectionsDcpPersistentOnly, DefaultCollectionLegacySeqnos) {
                                             cb::engine_errc::success});
 
     {
-        SCOPED_TRACE("Initial replica state");
+        CB_SCOPED_TRACE("Initial replica state");
         validateSeqnos(replicaVB, 0, 0, 0);
     }
 
@@ -5266,14 +5266,14 @@ TEST_P(CollectionsDcpPersistentOnly, DefaultCollectionLegacySeqnos) {
     producer->stepAndExpect(*producers, ClientOpcode::DcpPrepare);
     EXPECT_EQ(producers->last_byseqno, 1);
     {
-        SCOPED_TRACE("Prepare replicated @ seqno 1");
+        CB_SCOPED_TRACE("Prepare replicated @ seqno 1");
         validateSeqnos(replicaVB, 0, 1, 1);
     }
 
     producer->stepAndExpect(*producers, ClientOpcode::DcpMutation);
     EXPECT_EQ(producers->last_byseqno, 2);
     {
-        SCOPED_TRACE("Mutation replicated @ seqno 2");
+        CB_SCOPED_TRACE("Mutation replicated @ seqno 2");
         validateSeqnos(replicaVB, 2, 2, 2);
     }
     producer->stepAndExpect(*producers, ClientOpcode::DcpSystemEvent);
@@ -5281,14 +5281,14 @@ TEST_P(CollectionsDcpPersistentOnly, DefaultCollectionLegacySeqnos) {
     EXPECT_EQ(producers->last_collection_id, CollectionID::Default);
     EXPECT_EQ(producers->last_byseqno, 3);
     {
-        SCOPED_TRACE("Modify event replicated @ seqno 3");
+        CB_SCOPED_TRACE("Modify event replicated @ seqno 3");
         validateSeqnos(replicaVB, 2, 2, 3);
     }
     flush_vbucket_to_disk(replicaVB, 3);
 
     resetEngineAndWarmup();
     {
-        SCOPED_TRACE("Replica warmup");
+        CB_SCOPED_TRACE("Replica warmup");
         validateSeqnos(replicaVB, 2, 2, 3);
     }
 }

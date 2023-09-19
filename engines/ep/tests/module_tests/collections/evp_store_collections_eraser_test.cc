@@ -1436,7 +1436,7 @@ TEST_P(CollectionsEraserSyncWriteTest, AbortAfterDropBeforeErase) {
 
 TEST_P(CollectionsEraserSyncWriteTest, ResurrectionTestDontCommitOldPrepare) {
     {
-        SCOPED_TRACE("First generation");
+        CB_SCOPED_TRACE("First generation");
         addCollection();
 
         // Do a prepare
@@ -1456,7 +1456,7 @@ TEST_P(CollectionsEraserSyncWriteTest, ResurrectionTestDontCommitOldPrepare) {
     }
 
     {
-        SCOPED_TRACE("Second generation");
+        CB_SCOPED_TRACE("Second generation");
         addCollection();
         EXPECT_EQ(4, vb->getHighSeqno());
         EXPECT_EQ(0, vb->getHighCompletedSeqno());
@@ -1471,7 +1471,7 @@ TEST_P(CollectionsEraserSyncWriteTest, ResurrectionTestDontCommitOldPrepare) {
 
 TEST_P(CollectionsEraserSyncWriteTest, ResurrectionTestDontAbortOldPrepare) {
     {
-        SCOPED_TRACE("First generation");
+        CB_SCOPED_TRACE("First generation");
         addCollection();
 
         // Do a prepare
@@ -1493,7 +1493,7 @@ TEST_P(CollectionsEraserSyncWriteTest, ResurrectionTestDontAbortOldPrepare) {
     }
 
     {
-        SCOPED_TRACE("Second generation");
+        CB_SCOPED_TRACE("Second generation");
         addCollection();
         EXPECT_EQ(4, vb->getHighSeqno());
         EXPECT_EQ(0, vb->getHighCompletedSeqno());

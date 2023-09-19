@@ -115,7 +115,7 @@ void VBucketDurabilityTest::testAddPrepare(
     const auto initialNumItems = ckptList.back()->getNumItems();
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         storeSyncWrites(writes);
     }
 

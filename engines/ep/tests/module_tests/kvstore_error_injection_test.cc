@@ -329,7 +329,7 @@ TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPersistNonMetaItems) {
     // to disk all the required vbstate entries at flush
     const std::string valueA = "valueA";
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         store_item(vbid,
                    makeStoredDocKey("keyA"),
                    valueA,
@@ -340,7 +340,7 @@ TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPersistNonMetaItems) {
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         store_item(vbid,
                    makeStoredDocKey("keyB"),
                    "valueB",
@@ -401,7 +401,7 @@ TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPersistNonMetaItems) {
     // Flush stats not updated
     EXPECT_EQ(2, vb.dirtyQueueSize);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         checkCachedAndOnDiskVBState(0 /*lastSnapStart*/,
                                     0 /*lastSnapEnd*/,
                                     0 /*highSeqno*/,
@@ -429,7 +429,7 @@ TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPersistNonMetaItems) {
     // Flush stats updated
     EXPECT_EQ(0, vb.dirtyQueueSize);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         // Notes: expected (snapStart = snapEnd) for complete snap flushed,
         //  which is always the case at Active
         checkCachedAndOnDiskVBState(3 /*lastSnapStart*/,
@@ -491,7 +491,7 @@ TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPersistVBStateOnly_ErrorWrite) {
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         checkCachedAndOnDiskVBState(vbucket_state_active);
     }
 
@@ -508,7 +508,7 @@ TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPersistVBStateOnly_ErrorWrite) {
     EXPECT_EQ(cb::engine_errc::success,
               store->setVBucketState(vbid, vbucket_state_replica));
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         checkCachedAndOnDiskVBState(vbucket_state_active);
         checkSetVBStateItemForCursor();
         EXPECT_EQ(1, vb.dirtyQueueSize);
@@ -520,7 +520,7 @@ TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPersistVBStateOnly_ErrorWrite) {
     EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0), epBucket.flushVBucket(vbid));
     EXPECT_EQ(1, vb.dirtyQueueSize);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         checkCachedAndOnDiskVBState(vbucket_state_active);
         checkSetVBStateItemForCursor();
     }
@@ -530,7 +530,7 @@ TEST_P(KVStoreErrorInjectionTest, FlushFailureAtPersistVBStateOnly_ErrorWrite) {
     EXPECT_EQ(FlushResult(MoreAvailable::No, 0), epBucket.flushVBucket(vbid));
     EXPECT_EQ(0, vb.dirtyQueueSize);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         checkCachedAndOnDiskVBState(vbucket_state_replica);
     }
 }
@@ -559,7 +559,7 @@ void KVStoreErrorInjectionTest::testFlushFailureStatsAtDedupedNonMetaItems(
     // stress deduplication at flush-vbucket, so we just avoid checkpoint dedup.
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         store_item(vbid,
                    makeStoredDocKey("keyA"),
                    "value",
@@ -577,7 +577,7 @@ void KVStoreErrorInjectionTest::testFlushFailureStatsAtDedupedNonMetaItems(
     const auto storedKey = makeStoredDocKey("keyA");
     const std::string value2 = "value2";
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         store_item(vbid,
                    storedKey,
                    value2,
@@ -761,7 +761,7 @@ TEST_P(KVStoreErrorInjectionTest, ResetPCursorAtPersistNonMetaItems) {
     // to disk all the required vbstate entries at flush
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         store_item(vbid,
                    makeStoredDocKey("keyA"),
                    "value",
@@ -772,7 +772,7 @@ TEST_P(KVStoreErrorInjectionTest, ResetPCursorAtPersistNonMetaItems) {
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         store_item(vbid,
                    makeStoredDocKey("keyB"),
                    "value",
@@ -782,7 +782,7 @@ TEST_P(KVStoreErrorInjectionTest, ResetPCursorAtPersistNonMetaItems) {
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         store_item(vbid,
                    makeStoredDocKey("keyB"),
                    "value",
@@ -828,7 +828,7 @@ TEST_P(KVStoreErrorInjectionTest, ResetPCursorAtPersistNonMetaItems) {
     // Flush stats not updated
     EXPECT_EQ(2, vb->dirtyQueueSize);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         checkCachedAndOnDiskVBState(0 /*lastSnapStart*/,
                                     0 /*lastSnapEnd*/,
                                     0 /*highSeqno*/,
@@ -844,7 +844,7 @@ TEST_P(KVStoreErrorInjectionTest, ResetPCursorAtPersistNonMetaItems) {
     // Flush stats updated
     EXPECT_EQ(0, vb->dirtyQueueSize);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         // Notes: expected (snapStart = snapEnd) for complete snap flushed,
         //  which is always the case at Active
         checkCachedAndOnDiskVBState(3 /*lastSnapStart*/,

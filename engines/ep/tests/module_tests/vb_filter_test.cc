@@ -11,6 +11,7 @@
 #include <folly/portability/GMock.h>
 #include <folly/portability/GTest.h>
 
+#include "test_helpers.h"
 #include "vb_filter.h"
 
 class VBucketFilterTest : public ::testing::Test {};
@@ -38,14 +39,14 @@ TEST_F(VBucketFilterTest, Split) {
 
     using namespace testing;
     {
-        SCOPED_TRACE("Identity");
+        CB_SCOPED_TRACE("Identity");
         auto filters = filter.split(1);
         EXPECT_THAT(filters, SizeIs(1));
         EXPECT_TRUE(filter == filters.at(0));
     }
 
     {
-        SCOPED_TRACE("Split N");
+        CB_SCOPED_TRACE("Split N");
         // Expected: {0}, {1}, {2}, {3}
         auto filters = filter.split(4);
         EXPECT_THAT(filters, SizeIs(4));
@@ -56,7 +57,7 @@ TEST_F(VBucketFilterTest, Split) {
     }
 
     {
-        SCOPED_TRACE("Split >N");
+        CB_SCOPED_TRACE("Split >N");
         // Expected: {0}, {1}, {2}, {3}
         auto filters = filter.split(5);
         // Never return an empty filter -- empty filter objects match everything
@@ -68,7 +69,7 @@ TEST_F(VBucketFilterTest, Split) {
     }
 
     {
-        SCOPED_TRACE("Split <N");
+        CB_SCOPED_TRACE("Split <N");
         // Expected: {0, 3}, {1}, {2}
         auto filters = filter.split(3);
         EXPECT_THAT(filters, SizeIs(3));

@@ -1203,17 +1203,17 @@ TEST_F(MagmaKVStoreHistoryTest, historyStartSeqno) {
     };
 
     flush.historical = CheckpointHistorical::No;
-    SCOPED_TRACE("History OFF");
+    CB_SCOPED_TRACE("History OFF");
     validate(0); // no flush yet - and no history
     doWrite(2, true); // write seqno 2
     validate(0);
 
     // Now enable history
     flush.historical = CheckpointHistorical::Yes;
-    SCOPED_TRACE("History ON flushed seqno 3");
+    CB_SCOPED_TRACE("History ON flushed seqno 3");
     doWrite(3, true); // write seqno 3
     validate(3);
-    SCOPED_TRACE("History ON flushed seqno 4");
+    CB_SCOPED_TRACE("History ON flushed seqno 4");
     doWrite(4, true); // write seqno 4
     validate(3); // history still starts at 3
 

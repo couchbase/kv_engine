@@ -1942,7 +1942,7 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWrite20SyncDelete20) {
                 vb, keyName + std::to_string(i), R"({ "Hello": "World" })");
 
         {
-            SCOPED_TRACE("flush sync write: " + std::to_string(i));
+            CB_SCOPED_TRACE("flush sync write: " + std::to_string(i));
             verifyOnDiskItemCount(vb, i + 1);
             verifyCollectionItemCount(vb, 0, i + 1);
         }
@@ -1951,7 +1951,7 @@ TEST_P(DurabilityEPBucketTest, PersistSyncWrite20SyncDelete20) {
     for (uint32_t i = 0; i < numberOfDocks; i++) {
         testSyncDeleteFlushAfterCommit(vb, keyName + std::to_string(i));
         {
-            SCOPED_TRACE("flush sync delete: " + std::to_string(i));
+            CB_SCOPED_TRACE("flush sync delete: " + std::to_string(i));
             verifyOnDiskItemCount(vb, numberOfDocks - i - 1);
             verifyCollectionItemCount(vb, 0, numberOfDocks - i - 1);
         }

@@ -2845,7 +2845,7 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaNeverMergesDiskSnapshot) {
     };
     auto initalNumberOfCheckpoints = vb->checkpointManager->getNumCheckpoints();
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         receiveSnapshot(1 /*snapStart*/,
                         1 /*snapEnd*/,
                         dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
@@ -2855,7 +2855,7 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaNeverMergesDiskSnapshot) {
 
     // Merged with the previous snapshot
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         receiveSnapshot(2 /*snapStart*/,
                         2 /*snapEnd*/,
                         dcp_marker_flag_t::MARKER_FLAG_MEMORY,
@@ -2865,7 +2865,7 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaNeverMergesDiskSnapshot) {
 
     // Disk + we miss the MARKER_FLAG_CHK, still not merged
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         receiveSnapshot(3 /*snapStart*/,
                         3 /*snapEnd*/,
                         dcp_marker_flag_t::MARKER_FLAG_DISK,
@@ -2874,7 +2874,7 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaNeverMergesDiskSnapshot) {
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         receiveSnapshot(4 /*snapStart*/,
                         4 /*snapEnd*/,
                         dcp_marker_flag_t::MARKER_FLAG_DISK | MARKER_FLAG_CHK,
@@ -2884,7 +2884,7 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaNeverMergesDiskSnapshot) {
 
     // From Disk to Disk + we miss the MARKER_FLAG_CHK, still not merged
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         receiveSnapshot(5 /*snapStart*/,
                         5 /*snapEnd*/,
                         dcp_marker_flag_t::MARKER_FLAG_DISK,
@@ -2894,7 +2894,7 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaNeverMergesDiskSnapshot) {
 
     // Memory snap but previous snap is Disk -> no merge
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         receiveSnapshot(6 /*snapStart*/,
                         6 /*snapEnd*/,
                         dcp_marker_flag_t::MARKER_FLAG_MEMORY,
@@ -2903,7 +2903,7 @@ TEST_P(SingleThreadedPassiveStreamTest, ReplicaNeverMergesDiskSnapshot) {
     }
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         receiveSnapshot(7 /*snapStart*/,
                         7 /*snapEnd*/,
                         dcp_marker_flag_t::MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
@@ -2974,7 +2974,7 @@ void SingleThreadedPassiveStreamTest::testConsumerRejectsBodyInDeletion(
     cb::const_byte_buffer value{reinterpret_cast<const uint8_t*>(body.data()),
                                 body.size()};
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         verifyDCPFailure(value, PROTOCOL_BINARY_RAW_BYTES);
     }
 
@@ -2983,7 +2983,7 @@ void SingleThreadedPassiveStreamTest::testConsumerRejectsBodyInDeletion(
     value = {reinterpret_cast<const uint8_t*>(xattrValue.data()),
              xattrValue.size()};
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         verifyDCPFailure(
                 value,
                 PROTOCOL_BINARY_RAW_BYTES | PROTOCOL_BINARY_DATATYPE_XATTR);
@@ -3065,7 +3065,7 @@ void SingleThreadedPassiveStreamTest::testConsumerSanitizesBodyInDeletion(
     cb::const_byte_buffer value{reinterpret_cast<const uint8_t*>(body.data()),
                                 body.size()};
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         verifyDCPSuccess(value, PROTOCOL_BINARY_RAW_BYTES, 1 /*bySeqno*/);
     }
     auto& ht = vb.ht;
@@ -3111,7 +3111,7 @@ void SingleThreadedPassiveStreamTest::testConsumerSanitizesBodyInDeletion(
     value = {reinterpret_cast<const uint8_t*>(xattrValue.data()),
              xattrValue.size()};
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         verifyDCPSuccess(
                 value,
                 PROTOCOL_BINARY_RAW_BYTES | PROTOCOL_BINARY_DATATYPE_XATTR,
@@ -4113,7 +4113,7 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
 
     // Verify that the value of the item in CM has not changed
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         checkPayloadInCM();
     }
 
@@ -4126,7 +4126,7 @@ void SingleThreadedActiveStreamTest::testProducerPrunesUserXattrsForDelete(
     // (which is a reference-counted object in memory) rather that a copy of it.
     // So here we check that the item's value in CM is still untouched.
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         checkPayloadInCM();
     }
 
@@ -5798,7 +5798,7 @@ TEST_P(STPassiveStreamPersistentTest, VBStateNotLostAfterFlushFailure) {
     EXPECT_EQ(FlushResult(MoreAvailable::Yes, 0), epBucket.flushVBucket(vbid));
     EXPECT_EQ(3, vb.dirtyQueueSize);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         checkVBState(0 /*lastSnapStart*/,
                      0 /*lastSnapEnd*/,
                      CheckpointType::Memory,
@@ -5812,7 +5812,7 @@ TEST_P(STPassiveStreamPersistentTest, VBStateNotLostAfterFlushFailure) {
     EXPECT_EQ(FlushResult(MoreAvailable::No, 3), epBucket.flushVBucket(vbid));
     EXPECT_EQ(0, vb.dirtyQueueSize);
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         // Notes:
         //   1) expected (snapStart = snapEnd) for complete snap flushed
         //   2) expected (HPS = snapEnd) for complete Disk snap flushed
@@ -6040,7 +6040,7 @@ TEST_P(STPassiveStreamPersistentTest, DiskSnapWithoutPrepareSetsDiskHPS) {
     // (both on disk and in memory) which is 4 in this case due to changes made
     // as part of MB-34873.
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         checkVBState(4 /*lastSnapStart*/,
                      4 /*lastSnapEnd*/,
                      CheckpointType::InitialDisk,
@@ -6115,7 +6115,7 @@ TEST_P(STPassiveStreamPersistentTest, DiskSnapWithPrepareSetsHPSToSnapEnd) {
     flushVBucketToDiskIfPersistent(vbid, 4);
 
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         checkVBState(6 /*lastSnapStart*/,
                      6 /*lastSnapEnd*/,
                      CheckpointType::InitialDisk,

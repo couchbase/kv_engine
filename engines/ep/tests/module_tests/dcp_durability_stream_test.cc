@@ -3873,7 +3873,7 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
     }
     ASSERT_EQ(0, ckptMgr.getHighSeqno());
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         checkDM(0 /*numTracked*/, 0 /*HPS*/, 0 /*HCS*/);
     }
 
@@ -3934,10 +3934,10 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
     }
     EXPECT_EQ(prepareSeqno, ckptMgr.getHighSeqno());
     if (persistent() && !flush && level == Level::PersistToMajority) {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         checkDM(1 /*numTracked*/, 0 /*HPS*/, 0 /*HCS*/);
     } else {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         checkDM(1 /*numTracked*/, 1 /*HPS*/, 0 /*HCS*/);
     }
 
@@ -4023,10 +4023,10 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
     using namespace cb::durability;
     if (persistent() && !flush && level == Level::PersistToMajority) {
         // Completed Prepare still tracked in PDM as HPS has never covered it.
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         checkDM(1 /*numTracked*/, 0 /*HPS*/, 1 /*HCS*/);
     } else {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         checkDM(0 /*numTracked*/, 1 /*HPS*/, 1 /*HCS*/);
     }
 
@@ -4109,10 +4109,10 @@ void DurabilityPassiveStreamTest::testPrepareCompletedAtAbort(
     EXPECT_EQ(abortSeqno, ckptMgr.getHighSeqno());
     if (persistent() && !flush && level == Level::PersistToMajority) {
         // Completed Prepare still tracked in PDM as HPS has never covered it.
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         checkDM(1 /*numTracked*/, 0 /*HPS*/, 1 /*HCS*/);
     } else {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         checkDM(0 /*numTracked*/, 1 /*HPS*/, 1 /*HCS*/);
     }
 }
@@ -4653,7 +4653,7 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
     // Still in Checkpoint snap{Disk, 2, 4} (created at the step (1) of the
     // test)
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         checkOpenCheckpoint(CheckpointType::InitialDisk, 2, 4);
     }
 
@@ -4664,7 +4664,7 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
     // - closed the checkpoint snap{2, 4, Disk}
     // - created a new checkpoint snap{4, 4, Memory}
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         checkOpenCheckpoint(CheckpointType::Memory, 4, 4);
     }
 
@@ -4697,7 +4697,7 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
 
     // Commit(7) queued in a new checkpoint
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         checkOpenCheckpoint(CheckpointType::Memory, 7, 7);
     }
 
@@ -5149,7 +5149,7 @@ void DurabilityPromotionStreamTest::
 
     // 1) Replica receives PRE:1 and M:2 (logic CMT:2) in a disk checkpoint
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         DurabilityPassiveStreamTest::
                 testReceiveMutationOrDeletionInsteadOfCommitWhenStreamingFromDisk(
                         1 /*diskSnapStart*/,
@@ -5163,7 +5163,7 @@ void DurabilityPromotionStreamTest::
     // 2) Replica receives PRE:3 and M:4 (logic CMT:4) in a second disk
     // checkpoint
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         DurabilityPassiveStreamTest::
                 testReceiveMutationOrDeletionInsteadOfCommitWhenStreamingFromDisk(
                         3 /*diskSnapStart*/,
@@ -5193,7 +5193,7 @@ void DurabilityPromotionStreamTest::
     // Checkpoint, but the new Memory checkpoint is no used in the following)
     ASSERT_EQ(baseNumberOfCheckpoints + 3, ckptMgr.getNumCheckpoints());
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         checkOpenCheckpoint(CheckpointType::Memory, 4, 4);
     }
 

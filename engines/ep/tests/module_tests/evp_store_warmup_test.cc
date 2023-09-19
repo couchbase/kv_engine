@@ -1828,7 +1828,7 @@ TEST_P(DurabilityWarmupTest, WarmUpHPSAndHCSWithNonSeqnoSortedItems) {
     auto itemA = makePendingItem(makeStoredDocKey("a"), "value");
     ASSERT_EQ(cb::engine_errc::sync_write_pending, store->set(*itemB, cookie));
     ASSERT_EQ(cb::engine_errc::sync_write_pending, store->set(*itemA, cookie));
-    SCOPED_TRACE("A");
+    CB_SCOPED_TRACE("A");
     flush_vbucket_to_disk(vbid, 2);
     {
         auto vb = engine->getVBucket(vbid);
@@ -1840,7 +1840,7 @@ TEST_P(DurabilityWarmupTest, WarmUpHPSAndHCSWithNonSeqnoSortedItems) {
 
         flush_vbucket_to_disk(vbid, 2);
     }
-    SCOPED_TRACE("B");
+    CB_SCOPED_TRACE("B");
     resetEngineAndWarmup();
     {
         auto vb = engine->getVBucket(vbid);

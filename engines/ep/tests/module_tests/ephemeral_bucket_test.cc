@@ -244,7 +244,7 @@ void EphemeralBucketStatTest::replicaMemoryTrackingTestSetup() {
 
 TEST_F(EphemeralBucketStatTest, ReplicaMemoryTrackingStateChange) {
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         replicaMemoryTrackingTestSetup();
     }
 
@@ -275,7 +275,7 @@ TEST_F(EphemeralBucketStatTest, ReplicaMemoryTrackingStateChange) {
 
 TEST_F(EphemeralBucketStatTest, ReplicaMemoryTrackingStats) {
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         replicaMemoryTrackingTestSetup();
     }
 
@@ -333,7 +333,7 @@ TEST_F(EphemeralBucketStatTest, AutoDeleteCountResetOnStateChange) {
 
 TEST_F(EphemeralBucketStatTest, ReplicaMemoryTrackingRollback) {
     {
-        SCOPED_TRACE("");
+        CB_SCOPED_TRACE("");
         replicaMemoryTrackingTestSetup();
     }
 

@@ -5518,7 +5518,7 @@ TEST_P(STParamPersistentBucketTest, MB_47134) {
     // Create C:3
     store_item(vbid, makeStoredDocKey("C"), "value");
 
-    SCOPED_TRACE("");
+    CB_SCOPED_TRACE("");
 
     EXPECT_EQ(1, vb.dirtyQueueSize);
 
@@ -5557,7 +5557,7 @@ TEST_P(STParamPersistentBucketTest,
     auto& manager = *vb.checkpointManager;
     ASSERT_EQ(2, manager.getNumOpenChkItems()); // cs + vbs
 
-    SCOPED_TRACE("");
+    CB_SCOPED_TRACE("");
     store_item(vbid,
                makeStoredDocKey("keyA"),
                "value",

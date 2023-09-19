@@ -382,7 +382,7 @@ protected:
         // We shouldn't be able to schedule the Item Pager task yet as it's not
         // ready.
         try {
-            SCOPED_TRACE("");
+            CB_SCOPED_TRACE("");
             runNextTask(lpNonioQ, itemPagerTaskName());
             FAIL() << "Unexpectedly managed to run Item Pager";
         } catch (std::logic_error&) {
