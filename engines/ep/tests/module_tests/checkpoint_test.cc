@@ -1822,8 +1822,9 @@ TEST_F(SingleThreadedCheckpointTest,
     testRegisterCursorInCheckpointEmptyByExpel(true);
 }
 
-TEST_F(SingleThreadedCheckpointTest,
-       RegisterCursor_CheckpointEmptyByExpel_MultipleCheckpoints) {
+void SingleThreadedCheckpointTest::
+        testRegisterCursorCheckpointEmptyByExpelMultipleCheckpoints(
+                uint64_t startSeqno) {
     // Setup an active vbucket/cm like:
     //
     // [disk | e:1 cs:1 x x vbs:3) [memory | e:3 cs:3)
@@ -1888,6 +1889,7 @@ TEST_F(SingleThreadedCheckpointTest,
     EXPECT_EQ(0, checkpoint.getMinimumCursorSeqno());
     EXPECT_EQ(0, checkpoint.getHighSeqno());
     EXPECT_EQ(1, manager.getNumOpenChkItems());
+    EXPECT_EQ(3, manager.getOpenCheckpointId());
     ASSERT_EQ(2, checkpoint.getHighestExpelledSeqno());
 
     // Set vb to pending
@@ -1902,6 +1904,7 @@ TEST_F(SingleThreadedCheckpointTest,
     setVBucketState(vbid, vbucket_state_active, {}, TransferVB::Yes);
     EXPECT_EQ(2, manager.getNumCheckpoints());
     EXPECT_EQ(manager.getOpenCheckpointType(), CheckpointType::Memory);
+    EXPECT_EQ(4, manager.getOpenCheckpointId());
     EXPECT_EQ(2, manager.getNumOpenChkItems());
     EXPECT_EQ(4, manager.getOpenCheckpointId());
 
@@ -1911,14 +1914,27 @@ TEST_F(SingleThreadedCheckpointTest,
     // [disk | e:1 cs:1 x x vbs:3) [memory | e:3 cs:3)
     //                                       ^
     auto res = manager.registerCursorBySeqno(
-            "cursor", 2, CheckpointCursor::Droppable::Yes);
-    // @todo MB-53616: We don't need a backfill here
+            "cursor", startSeqno, CheckpointCursor::Droppable::Yes);
+
+    // @todo MB-53616: We don't need a backfill here if startSeqno=2
     EXPECT_TRUE(res.tryBackfill);
+
     const auto cursor = res.takeCursor().lock();
+    EXPECT_EQ(3, res.seqno);
     EXPECT_EQ(4, (*cursor->getCheckpoint())->getId());
     EXPECT_EQ(queue_op::empty, (*cursor->getPos())->getOperation());
     EXPECT_EQ(3, (*cursor->getPos())->getBySeqno());
     EXPECT_EQ(0, cursor->getDistance());
+}
+
+TEST_F(SingleThreadedCheckpointTest,
+       RegisterCursorCheckpointEmptyByExpelMultipleCheckpoints) {
+    testRegisterCursorCheckpointEmptyByExpelMultipleCheckpoints(2);
+}
+
+TEST_F(SingleThreadedCheckpointTest,
+       RegisterCursorCheckpointEmptyByExpelMultipleCheckpoints_startZero) {
+    testRegisterCursorCheckpointEmptyByExpelMultipleCheckpoints(0);
 }
 
 TEST_F(SingleThreadedCheckpointTest, QueueSetVBStateSchedulesDcpStep) {

@@ -138,6 +138,9 @@ public:
      *  contains a meta-item after checkpoint_start
      */
     void testRegisterCursorInCheckpointEmptyByExpel(bool extraMetaItem);
+
+    void testRegisterCursorCheckpointEmptyByExpelMultipleCheckpoints(
+            uint64_t startSeqno);
 };
 
 /**
