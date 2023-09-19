@@ -18,7 +18,7 @@ Usage:
     <open Chrome -> chrome://tracing -> Load 'trace.json'
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import fileinput
 import json
 import re
@@ -41,17 +41,29 @@ def iso8601_to_epoch(ts):
 
 def human_duration_to_sec(h):
     """Converts a human-readable duration to floating-point seconds.
-    e.g.
-        2 s -> 2
+    Supports multiple units, with either whitespace separation or not with
+    colon between units or not, e.g.
         123 ms -> 0.123
+        2 s -> 2
+        3.456s -> 3.456
+        10m2.222s -> 602.222
+        10m:2s -> 602
     """
-    (value, unit) = h.split(' ')
-    if unit == "s":
-        return float(value)
-    if unit == "ms":
-        return float(value) / 1000
-    raise ValueError("Unhandled unit '{}'".format(unit))
-
+    ts = timedelta()
+    debug=False
+    while True:
+        m = re.search(r'^([\d.]+)\s?([a-z]+):?(.*$)', h)
+        if not m:
+            return ts.total_seconds()
+        (value, unit, h) = m.groups()
+        if unit == "m":
+            ts = ts + timedelta(minutes=float(value))
+        elif unit == "s":
+            ts = ts + timedelta(seconds=float(value))
+        elif unit == "ms":
+            ts = ts + timedelta(milliseconds=float(value))
+        else:
+            raise ValueError("Unhandled unit '{}'".format(unit))
 
 def update_steady_clock_offset(system_clock, steady_clock):
     """To be able to plot Slow task runtimes (see parse_slow_task_runtime) on
@@ -356,6 +368,29 @@ class TestParsing(unittest.TestCase):
         self.assertEqual(obj['cid'], 'AF12/4FC/6c')
         self.assertEqual(obj['peer']['ip'], '0.0.0.0')
         self.assertEqual(obj['peer']['port'], 54300)
+
+
+class TestHumanDurationToSec(unittest.TestCase):
+
+    def test_milliseconds(self):
+        self.assertEqual(human_duration_to_sec("12ms"), 0.012);
+        self.assertEqual(human_duration_to_sec("12 ms"), 0.012);
+
+    def test_seconds(self):
+        self.assertEqual(human_duration_to_sec("12s"), 12);
+        self.assertEqual(human_duration_to_sec("12 s"), 12);
+
+    def test_minutes(self):
+        self.assertEqual(human_duration_to_sec("12m"), 12 * 60);
+        self.assertEqual(human_duration_to_sec("12 m"), 12 * 60);
+
+    def test_minutes_seconds(self):
+        self.assertEqual(human_duration_to_sec("2m:5s"), 125);
+        self.assertEqual(human_duration_to_sec("2m5s"), 125);
+
+    def test_minutes_seconds_millis(self):
+        self.assertEqual(human_duration_to_sec("2m:5s:120ms"), 125.12);
+        self.assertEqual(human_duration_to_sec("2m5s120ms"), 125.12);
 
 
 if __name__ == '__main__':

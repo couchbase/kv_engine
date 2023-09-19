@@ -26,7 +26,7 @@ ADD_TEST(NAME cbstats_py_test
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/cbstats_test.py)
 
 ADD_TEST(NAME kv_slow_ops_2_gtrace_test
-        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/kv_slow_ops_2_gtrace)
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/kv_slow_ops_2_gtrace -v)
 set_property(TEST kv_slow_ops_2_gtrace_test PROPERTY ENVIRONMENT "UNITTEST=1")
 # runs cbstats & cbepctl - will fail on basic syntax errors
 ADD_TEST(NAME cbstats_test
