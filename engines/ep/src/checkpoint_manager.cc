@@ -667,6 +667,8 @@ void CheckpointManager::scheduleDestruction(CheckpointList&& toRemove) {
     size_t numItemsRemoved = 0;
     size_t memoryReleased = 0;
     for (const auto& checkpoint : toRemove) {
+        Expects(checkpoint->getNumCursorsInCheckpoint() == 0);
+
         numItemsRemoved += checkpoint->getNumItems();
         memoryReleased += checkpoint->getMemUsage();
 
