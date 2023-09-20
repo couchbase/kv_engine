@@ -2267,8 +2267,7 @@ void EPBucket::startWarmupTask() {
     }
 }
 
-bool EPBucket::maybeEnableTraffic() {
-    // @todo rename.. skal vaere isTrafficDisabled elns
+bool EPBucket::hasWarmupReachedThreshold() const {
     auto memoryUsed =
             static_cast<double>(stats.getEstimatedTotalMemoryUsed());
     auto maxSize = static_cast<double>(stats.getMaxDataSize());

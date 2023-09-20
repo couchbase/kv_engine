@@ -811,7 +811,7 @@ static bool batchWarmupCallback(Vbid vbId,
                                 void* arg) {
     auto *c = static_cast<WarmupCookie *>(arg);
 
-    if (!c->epstore->maybeEnableTraffic()) {
+    if (!c->epstore->hasWarmupReachedThreshold()) {
         vb_bgfetch_queue_t items2fetch;
         for (auto& key : fetches) {
             // Access log only records Committed keys, therefore construct
@@ -1112,7 +1112,7 @@ void LoadStorageKVPairCallback::callback(GetValue& val) {
         } while (!succeeded && retry-- > 0);
 
         if (maybeEnableTraffic) {
-            stopLoading = epstore.maybeEnableTraffic();
+            stopLoading = epstore.hasWarmupReachedThreshold();
         }
 
         switch (warmupState) {
@@ -1747,7 +1747,7 @@ void Warmup::checkForAccessLog()
     EP_LOG_INFO("metadata loaded in {}",
                 cb::time2text(std::chrono::nanoseconds(metadata.load())));
 
-    if (store.maybeEnableTraffic()) {
+    if (store.hasWarmupReachedThreshold()) {
         transition(WarmupState::State::Done);
         return;
     }
@@ -1845,12 +1845,11 @@ void Warmup::loadingAccessLog(uint16_t shardId)
         // Nuke it now to get the memory back.
         accessLog.clear();
 
-        if (!store.maybeEnableTraffic()) {
+        if (!store.hasWarmupReachedThreshold()) {
             transition(WarmupState::State::LoadingData);
         } else {
             transition(WarmupState::State::Done);
         }
-
     }
 }
 

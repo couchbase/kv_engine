@@ -280,7 +280,14 @@ public:
      */
     void startWarmupTask();
 
-    bool maybeEnableTraffic();
+    /**
+     * Check a bucket mem_used against a number of configuration derived
+     * thresholds (warmup related). For example low water mark, warmup limit and
+     * then various eviction mode dependent checks.
+     *
+     * @return true if the bucket has reached "threshold".
+     */
+    bool hasWarmupReachedThreshold() const;
 
     void warmupCompleted();
 
