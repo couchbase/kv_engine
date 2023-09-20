@@ -382,9 +382,7 @@ std::string to_string(Bucket::State state);
 
 /**
  * All of the buckets are stored in the following array. Index 0 is reserved
- * for the "no bucket" where all connections start off (unless there is a
- * bucket named "default", and there is a username named "default"
- * with an empty password.).
+ * for the "no bucket" where all connections start off.
  */
 extern std::array<Bucket, cb::limits::TotalBuckets + 1> all_buckets;
 
