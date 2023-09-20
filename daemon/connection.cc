@@ -41,6 +41,7 @@
 #include <platform/string_hex.h>
 #include <platform/timeutils.h>
 #include <serverless/config.h>
+#include <utilities/debug_variable.h>
 #include <utilities/logtags.h>
 
 #include <exception>
@@ -828,6 +829,9 @@ void Connection::processNotifiedCookie(Cookie& cookie, cb::engine_errc status) {
     using std::chrono::microseconds;
     using std::chrono::nanoseconds;
 
+    // Make sure any core dumps from this code contain the bucket name.
+    cb::DebugVariable bucketName(cb::toCharArrayN<32>(getBucket().name));
+
     const auto start = last_used_timestamp = std::chrono::steady_clock::now();
     current_timeslice_end = start + Settings::instance().getCommandTimeSlice();
     try {
@@ -966,6 +970,9 @@ bool Connection::executeCommandsCallback() {
     using std::chrono::duration_cast;
     using std::chrono::microseconds;
     using std::chrono::nanoseconds;
+
+    // Make sure any core dumps from this code contain the bucket name.
+    cb::DebugVariable bucketName(cb::toCharArrayN<32>(getBucket().name));
 
     const auto start = last_used_timestamp = std::chrono::steady_clock::now();
     current_timeslice_end = start + Settings::instance().getCommandTimeSlice();
