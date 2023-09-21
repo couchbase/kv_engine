@@ -184,9 +184,17 @@ static void checkNumeric(const char* str) {
 
 void EventuallyPersistentEngine::destroy(const bool force) {
     auto eng = acquireEngine(this);
-    cb::ArenaMalloc::switchToClient(eng->getArenaMallocClient());
+
+    // Take a copy of the arena client before we deallocate the EPEngine object
+    // - so we can unregister the client afterwards.
+    auto arena = eng->getArenaMallocClient();
+    cb::ArenaMalloc::switchToClient(arena);
+
     eng->destroyInner(force);
     delete eng.get();
+    // Now unregister the arena - EpEngine has finished with it (all memory
+    // should have been deallocated from it).
+    cb::ArenaMalloc::unregisterClient(arena);
 }
 
 cb::unique_item_ptr EventuallyPersistentEngine::allocateItem(
@@ -1641,6 +1649,12 @@ void destroy_ep_engine() {
     ExecutorPool::shutdown();
 }
 
+EpEngineArenaHelper::EpEngineArenaHelper(EventuallyPersistentEngine& engine,
+                                         cb::ArenaMallocClient arena)
+    : arena(std::move(arena)) {
+    ObjectRegistry::onSwitchThread(&engine);
+}
+
 bool EventuallyPersistentEngine::get_item_info(const ItemIface& itm,
                                                item_info& itm_info) {
     const auto& it = static_cast<const Item&>(itm);
@@ -1803,7 +1817,8 @@ std::optional<cb::HlcTime> EventuallyPersistentEngine::getVBucketHlcNow(
 
 EventuallyPersistentEngine::EventuallyPersistentEngine(
         GET_SERVER_API get_server_api, cb::ArenaMallocClient arena)
-    : configuration(cb::serverless::isEnabled()),
+    : arenaHelper(*this, arena),
+      configuration(cb::serverless::isEnabled()),
       kvBucket(nullptr),
       workload(nullptr),
       workloadPriority(NO_BUCKET_PRIORITY),
@@ -1814,12 +1829,41 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
       startupTime(0),
       taskable(this),
       compressionMode(BucketCompressionMode::Off),
-      minCompressionRatio(default_min_compression_ratio),
-      arena(arena) {
+      minCompressionRatio(default_min_compression_ratio) {
+    // Note: The use of offsetof below is non-standard according to GCC 13.2
+    // because EventuallyPersistentEngine is not a standard layout type - and
+    // GCC warns about it:
+    //
+    //     warning: ‘offsetof’ within non-standard-layout type
+    //    ‘EventuallyPersistentEngine’ is conditionally-supported
+    //    [-Winvalid-offsetof]
+    //
+    // However, the compilers we use provide well-defined behavior as an
+    // extension (which is demonstrated since constexpr evaluation must
+    // diagnose all undefined behavior). As such, disable the warning for the
+    // scope of this check.
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Winvalid-offsetof"
+#endif
+    static_assert(offsetof(EventuallyPersistentEngine, arenaHelper) ==
+                          2 * sizeof(uintptr_t),
+                  "ArenaClientHolder must be first member in "
+                  "EventuallyPersistentEngine for correct memory tracking");
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
     // copy through to stats so we can ask for mem used
     getEpStats().arena = arena;
 
     serverApi = getServerApiFunc();
+
+    // Switch back to "no-bucket" engine (same as before ctor was invoked),
+    // so caller doesn't see an unexpected change in current engine. (Note
+    // that the ctor switches to this engine as part of constructing
+    // arenaHolder).
+    ObjectRegistry::onSwitchThread(nullptr);
 }
 
 void EventuallyPersistentEngine::reserveCookie(CookieIface& cookie) {
@@ -3167,12 +3211,14 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
     collector.addStat(Key::ep_persist_vbstate_total,
                       epstats.totalPersistVBState);
 
-    collector.addStat(Key::mem_used_primary,
-                      cb::ArenaMalloc::getEstimatedAllocated(
-                              arena, cb::MemoryDomain::Primary));
-    collector.addStat(Key::mem_used_secondary,
-                      cb::ArenaMalloc::getEstimatedAllocated(
-                              arena, cb::MemoryDomain::Secondary));
+    collector.addStat(
+            Key::mem_used_primary,
+            cb::ArenaMalloc::getEstimatedAllocated(getArenaMallocClient(),
+                                                   cb::MemoryDomain::Primary));
+    collector.addStat(
+            Key::mem_used_secondary,
+            cb::ArenaMalloc::getEstimatedAllocated(
+                    getArenaMallocClient(), cb::MemoryDomain::Secondary));
     collector.addStat(Key::mem_used_estimate,
                       stats.getEstimatedTotalMemoryUsed());
 
@@ -3184,7 +3230,7 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
     collector.addStat(Key::mem_used, memUsed);
 
     std::unordered_map<std::string, size_t> arenaStats;
-    cb::ArenaMalloc::getStats(arena, arenaStats);
+    cb::ArenaMalloc::getStats(getArenaMallocClient(), arenaStats);
     auto allocated = arenaStats.find("allocated");
     if (allocated != arenaStats.end()) {
             collector.addStat(Key::ep_arena_memory_allocated, allocated->second);
@@ -3480,7 +3526,7 @@ cb::engine_errc EventuallyPersistentEngine::doMemoryStats(
     add_casted_stat("mem_used", memUsed, add_stat, cookie);
 
     add_casted_stat("mem_used_merge_threshold",
-                    arena.estimateUpdateThreshold.load(),
+                    getArenaMallocClient().estimateUpdateThreshold.load(),
                     add_stat,
                     cookie);
 
@@ -3488,14 +3534,15 @@ cb::engine_errc EventuallyPersistentEngine::doMemoryStats(
     // which will have updated these stats.
     add_casted_stat("ep_mem_used_primary",
                     cb::ArenaMalloc::getEstimatedAllocated(
-                            arena, cb::MemoryDomain::Primary),
+                            getArenaMallocClient(), cb::MemoryDomain::Primary),
                     add_stat,
                     cookie);
-    add_casted_stat("ep_mem_used_secondary",
-                    cb::ArenaMalloc::getEstimatedAllocated(
-                            arena, cb::MemoryDomain::Secondary),
-                    add_stat,
-                    cookie);
+    add_casted_stat(
+            "ep_mem_used_secondary",
+            cb::ArenaMalloc::getEstimatedAllocated(getArenaMallocClient(),
+                                                   cb::MemoryDomain::Secondary),
+            add_stat,
+            cookie);
 
     add_casted_stat(
             "ht_mem_used_replica", stats.replicaHTMemory, add_stat, cookie);
@@ -3551,7 +3598,8 @@ cb::engine_errc EventuallyPersistentEngine::doMemoryStats(
     add_casted_stat("ep_item_num", stats.getNumItem(), add_stat, cookie);
 
     std::unordered_map<std::string, size_t> alloc_stats;
-    bool missing = cb::ArenaMalloc::getStats(arena, alloc_stats);
+    bool missing =
+            cb::ArenaMalloc::getStats(getArenaMallocClient(), alloc_stats);
     for (const auto& it : alloc_stats) {
         add_prefixed_stat(
                 "ep_arena", it.first.c_str(), it.second, add_stat, cookie);
@@ -6850,12 +6898,6 @@ cb::engine_errc EventuallyPersistentEngine::setVBucketState(
 EventuallyPersistentEngine::~EventuallyPersistentEngine() {
     workload.reset();
     checkpointConfig.reset();
-
-    // Engine going away, tell ArenaMalloc to unregister
-    cb::ArenaMalloc::unregisterClient(arena);
-    // Ensure the soon to be invalid engine is no longer in the ObjectRegistry
-    ObjectRegistry::onSwitchThread(nullptr);
-
     /* Unique_ptr(s) are deleted in the reverse order of the initialization */
 }
 
@@ -6974,9 +7016,9 @@ void EventuallyPersistentEngine::configureStorageMemoryForQuota(size_t quota) {
 
 void EventuallyPersistentEngine::updateArenaAllocThresholdForQuota(
         size_t size) {
-    arena.setEstimateUpdateThreshold(
+    getArenaMallocClient().setEstimateUpdateThreshold(
             size, configuration.getMemUsedMergeThresholdPercent());
-    cb::ArenaMalloc::setAllocatedThreshold(arena);
+    cb::ArenaMalloc::setAllocatedThreshold(getArenaMallocClient());
 }
 
 void EventuallyPersistentEngine::notify_num_writer_threads_changed() {

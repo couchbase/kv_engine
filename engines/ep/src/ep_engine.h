@@ -110,6 +110,22 @@ public:
     virtual ~QuotaSharingManager() = default;
 };
 
+// Helper class which ensures the calling thread switches to the specified
+// engine at the very start of EventuallyPersistentEngine's ctor; so
+// all memory allocations with the ctor are correctly tracked.
+//
+// For this to work, EpEngineArenaHelper must be the first member variable in
+// EventuallyPersistentEngine, this is statically asserted in the .cc.
+//
+// Given ObjectRegistry::switchToEngine requires access to the engine's
+// memory arena, this class also owns the memory arena.
+struct EpEngineArenaHelper {
+    EpEngineArenaHelper(EventuallyPersistentEngine& engine,
+                        cb::ArenaMallocClient arena);
+
+    cb::ArenaMallocClient arena;
+};
+
 /**
  * memcached engine interface to the KVBucket.
  */
@@ -896,7 +912,7 @@ public:
     void updateArenaAllocThresholdForQuota(size_t size);
 
     cb::ArenaMallocClient& getArenaMallocClient() {
-        return arena;
+        return arenaHelper.arena;
     }
 
     cb::engine_errc checkForPrivilegeAtLeastInOneCollection(
@@ -1435,6 +1451,17 @@ private:
     void configureRangeScanMaxDuration(
             std::chrono::seconds rangeScanMaxDuration);
 
+protected:
+    // Responsible for owning engine's memory arena and switching current
+    // thread to this engine asap on EpEngine creation. See EpEngineArenaHelper
+    // for details.
+    EpEngineArenaHelper arenaHelper;
+
+    // Bucket name. Second member variable (after arenaHelper) as it is referred
+    // to by other member variables dtors (e.g. DcpConnMap) and hence should
+    // stay valid for the majority of EpEngine's ctor.
+    std::string name;
+
 public:
     // Testing hook for MB-45756, to allow a throw to be made during
     // destroyInner() to simulate a crash while waiting for the flusher to
@@ -1477,7 +1504,6 @@ protected:
 
     std::unique_ptr<DcpConnMap> dcpConnMap_;
     std::unique_ptr<CheckpointConfig> checkpointConfig;
-    std::string name;
     size_t maxItemSize;
     size_t maxItemPrivilegedBytes;
     size_t getlDefaultTimeout;
@@ -1512,8 +1538,6 @@ protected:
      * be incorrect.
      */
     std::atomic<cb::ErrorHandlingMethod> vBucketMappingErrorHandlingMethod;
-
-    cb::ArenaMallocClient arena;
 };
 
 /**
