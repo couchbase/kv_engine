@@ -168,6 +168,7 @@ void CheckpointManager::addNewCheckpoint(
     // First, we must close the open checkpoint.
     auto& oldOpenCkpt = *checkpointList.back();
     const auto minSeqno = oldOpenCkpt.getMinimumCursorSeqno();
+    const auto highSeqno = oldOpenCkpt.getHighSeqno();
     EP_LOG_DEBUG(
             "CheckpointManager::addNewCheckpoint: Close "
             "the current open checkpoint: [{}, id:{}, snapStart:{}, "
@@ -175,7 +176,7 @@ void CheckpointManager::addNewCheckpoint(
             vb.getId(),
             oldOpenCkpt.getId(),
             (minSeqno ? std::to_string(*minSeqno) : "N/A"),
-            oldOpenCkpt.getHighSeqno());
+            (highSeqno ? std::to_string(*highSeqno) : "N/A"));
     queued_item qi = createCheckpointMetaItem(oldOpenCkpt.getId(),
                                               queue_op::checkpoint_end);
     oldOpenCkpt.queueDirty(qi);
@@ -391,15 +392,20 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
                 (*ckptIt)->begin(), 0, true, lastBySeqno + 1);
     }
 
+    // Note: We always have the highSeqno for the open checkpoint at this point
+    // - If there's only 1 checkpoint, then that must be open and not empty as
+    //   we caught the empty-by-expel case above
+    // - Else if we have multiple checkpoints, then the open one isn't the
+    //   oldest and so it can't be touched by expel at all
     const auto& openCkpt = getOpenCheckpoint(lh);
-    if (openCkpt.getHighSeqno() < startBySeqno) {
+    const auto highSeqno = *openCkpt.getHighSeqno();
+    if (highSeqno < startBySeqno) {
         throw std::invalid_argument(
-                "CheckpointManager::registerCursorBySeqno: startBySeqno (which "
-                "is " +
+                "CheckpointManager::registerCursorBySeqno: startBySeqno (" +
                 std::to_string(startBySeqno) +
                 ") is greater than last "
-                "checkpoint highSeqno (which is " +
-                std::to_string(openCkpt.getHighSeqno()) + ")");
+                "checkpoint highSeqno (" +
+                std::to_string(highSeqno) + ")");
     }
 
     // Path here handles all scenarios but the new one introduced in MB-39344
@@ -455,8 +461,10 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
         // returns the seqno's of non-meta items, so we'll move on to the next
         // checkpoint if there isn't a non-meta item for this seqno in the
         // current checkpoint.
-        auto en = ckpt.getHighSeqno();
-        if (startBySeqno >= en && !isLastCkpt) {
+        const auto en = ckpt.getHighSeqno();
+        // Note: We have 'st', we must have 'en'
+        Expects(en);
+        if (startBySeqno >= *en && !isLastCkpt) {
             continue;
         }
 
@@ -1969,6 +1977,7 @@ CheckpointManager::ExtractItemsResult CheckpointManager::extractItemsToExpel(
         // with the lowest seqno should be in that checkpoint.
         if (lowestCursor->getCheckpoint()->get() != oldestCheckpoint) {
             const auto minSeqno = oldestCheckpoint->getMinimumCursorSeqno();
+            const auto highSeqno = oldestCheckpoint->getHighSeqno();
 
             std::stringstream ss;
             ss << "CheckpointManager::extractItemsToExpel: (" << vb.getId()
@@ -1976,7 +1985,8 @@ CheckpointManager::ExtractItemsResult CheckpointManager::extractItemsToExpel(
                   "checkpoint. Oldest checkpoint ID: "
                << oldestCheckpoint->getId() << " lowSeqno: "
                << (minSeqno ? std::to_string(*minSeqno) : "N/A")
-               << " highSeqno: " << oldestCheckpoint->getHighSeqno()
+               << " highSeqno: "
+               << (highSeqno ? std::to_string(*highSeqno) : "N/A")
                << " snapStart: " << oldestCheckpoint->getSnapshotStartSeqno()
                << " snapEnd: " << oldestCheckpoint->getSnapshotEndSeqno()
                << ". Lowest cursor: " << lowestCursor->getName()

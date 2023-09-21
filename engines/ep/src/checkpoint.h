@@ -382,9 +382,15 @@ public:
     std::optional<uint64_t> getMinimumCursorSeqno() const;
 
     /**
-     * Returns the high-seqno for this checkpoints.
+     * Returns the high-seqno for this checkpoint.
+     *
+     * 1. At least 1 mutation in checkpoint -> Highest mutation seqno
+     * 2. No mutation in checkpoint
+     *    2a. Expel hasn't touched the checkpoint -> checkpoint_start seqno
+     *    2b. Empty-by-expel checkpoint -> nullopt, we can't determine what was
+     *        the highest mutation seqno in the checkpoint
      */
-    uint64_t getHighSeqno() const;
+    std::optional<uint64_t> getHighSeqno() const;
 
     uint64_t getSnapshotStartSeqno() const {
         return snapStartSeqno;

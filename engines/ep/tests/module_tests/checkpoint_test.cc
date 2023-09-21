@@ -1667,7 +1667,7 @@ void SingleThreadedCheckpointTest::testMinimumCursorSeqno(
 
         // We have expelled all the mutations
         EXPECT_FALSE(checkpoint.getMinimumCursorSeqno());
-        EXPECT_EQ(0, checkpoint.getHighSeqno());
+        EXPECT_FALSE(checkpoint.getHighSeqno());
 
         // Note: This is a very important point - Cursor registered at the same
         // position as in the Dedup case, but the Expel case requires a backfill
@@ -1786,7 +1786,7 @@ void SingleThreadedCheckpointTest::testRegisterCursorInCheckpointEmptyByExpel(
     // We have expelled all the mutations
     // [e:1 cs:1 x x)
     ASSERT_FALSE(checkpoint.getMinimumCursorSeqno());
-    ASSERT_EQ(0, checkpoint.getHighSeqno());
+    ASSERT_FALSE(checkpoint.getHighSeqno());
 
     if (extraMetaItem) {
         // Add a topology just as a variation from the previous state, that's
@@ -1797,7 +1797,7 @@ void SingleThreadedCheckpointTest::testRegisterCursorInCheckpointEmptyByExpel(
                 {{"topology", nlohmann::json::array({{"active", "replica"}})}});
         // cs + vbs
         ASSERT_EQ(2, checkpoint.getNumItems());
-        ASSERT_EQ(0, checkpoint.getHighSeqno());
+        ASSERT_FALSE(checkpoint.getHighSeqno());
         ASSERT_EQ(2, vb->getHighSeqno());
     }
 
@@ -1887,7 +1887,7 @@ void SingleThreadedCheckpointTest::
             CheckpointManagerTestIntrospector::public_getOpenCheckpoint(
                     manager);
     EXPECT_FALSE(checkpoint.getMinimumCursorSeqno());
-    EXPECT_EQ(0, checkpoint.getHighSeqno());
+    EXPECT_FALSE(checkpoint.getHighSeqno());
     EXPECT_EQ(1, manager.getNumOpenChkItems());
     EXPECT_EQ(3, manager.getOpenCheckpointId());
     ASSERT_EQ(2, checkpoint.getHighestExpelledSeqno());

@@ -449,11 +449,11 @@ std::optional<uint64_t> Checkpoint::getMinimumCursorSeqno() const {
     return (*pos)->getBySeqno();
 }
 
-uint64_t Checkpoint::getHighSeqno() const {
+std::optional<uint64_t> Checkpoint::getHighSeqno() const {
     if (isEmptyByExpel()) {
-        // No mutation in this checkpoint and we can't know exactly whether it
-        // will store any further mutation.
-        return 0;
+        // No mutation in this checkpoint and we can't determine what was
+        // the highest mutation seqno in the checkpoint
+        return {};
     }
 
     auto pos = end();
@@ -738,11 +738,12 @@ size_t Checkpoint::getHighestExpelledSeqno() const {
 }
 
 std::ostream& operator<<(std::ostream& os, const Checkpoint& c) {
+    const auto minSeqno = c.getMinimumCursorSeqno();
+    const auto highSeqno = c.getHighSeqno();
+
     os << "Checkpoint[" << &c << "] with id:" << c.checkpointId << " seqno:{"
-       << (c.getMinimumCursorSeqno()
-                   ? std::to_string(*c.getMinimumCursorSeqno())
-                   : "N/A")
-       << "," << c.getHighSeqno() << "}"
+       << (minSeqno ? std::to_string(*minSeqno) : "N/A") << ","
+       << (highSeqno ? std::to_string(*highSeqno) : "N/A") << "}"
        << " highestExpelledSeqno:" << c.getHighestExpelledSeqno() << " snap:{"
        << c.getSnapshotStartSeqno() << "," << c.getSnapshotEndSeqno()
        << ", visible:" << c.getVisibleSnapshotEndSeqno() << "}"
