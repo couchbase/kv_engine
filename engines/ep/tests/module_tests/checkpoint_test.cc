@@ -1666,7 +1666,7 @@ void SingleThreadedCheckpointTest::testMinimumCursorSeqno(
         EXPECT_EQ(1, checkpoint.getNumItems());
 
         // We have expelled all the mutations
-        EXPECT_EQ(0, checkpoint.getMinimumCursorSeqno());
+        EXPECT_FALSE(checkpoint.getMinimumCursorSeqno());
         EXPECT_EQ(0, checkpoint.getHighSeqno());
 
         // Note: This is a very important point - Cursor registered at the same
@@ -1785,7 +1785,7 @@ void SingleThreadedCheckpointTest::testRegisterCursorInCheckpointEmptyByExpel(
 
     // We have expelled all the mutations
     // [e:1 cs:1 x x)
-    ASSERT_EQ(0, checkpoint.getMinimumCursorSeqno());
+    ASSERT_FALSE(checkpoint.getMinimumCursorSeqno());
     ASSERT_EQ(0, checkpoint.getHighSeqno());
 
     if (extraMetaItem) {
@@ -1886,7 +1886,7 @@ void SingleThreadedCheckpointTest::
     const auto& checkpoint =
             CheckpointManagerTestIntrospector::public_getOpenCheckpoint(
                     manager);
-    EXPECT_EQ(0, checkpoint.getMinimumCursorSeqno());
+    EXPECT_FALSE(checkpoint.getMinimumCursorSeqno());
     EXPECT_EQ(0, checkpoint.getHighSeqno());
     EXPECT_EQ(1, manager.getNumOpenChkItems());
     EXPECT_EQ(3, manager.getOpenCheckpointId());

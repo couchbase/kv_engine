@@ -374,10 +374,12 @@ public:
      * expelling has modified the checkpoint queue:
      *
      * 1. Expel hasn't run -> that's the seqno of checkpoint_start
-     * 2. Expel has run -> that's the seqno of the first item after the
-     *    checkpoint_start
+     * 2. Expel has run, checkpoint non-empty -> that's the seqno of the first
+     *    item after the checkpoint_start
+     * 3. Expel has run, checkpoint empty -> nullopt, we can't determine whether
+     *    the checkpoint will store any further mutation/seqno
      */
-    uint64_t getMinimumCursorSeqno() const;
+    std::optional<uint64_t> getMinimumCursorSeqno() const;
 
     /**
      * Returns the high-seqno for this checkpoints.

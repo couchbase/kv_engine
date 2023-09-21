@@ -166,15 +166,15 @@ void CheckpointManager::addNewCheckpoint(
         CheckpointType checkpointType,
         CheckpointHistorical historical) {
     // First, we must close the open checkpoint.
-    auto* const oldOpenCkptPtr = checkpointList.back().get();
-    auto& oldOpenCkpt = *oldOpenCkptPtr;
+    auto& oldOpenCkpt = *checkpointList.back();
+    const auto minSeqno = oldOpenCkpt.getMinimumCursorSeqno();
     EP_LOG_DEBUG(
             "CheckpointManager::addNewCheckpoint: Close "
             "the current open checkpoint: [{}, id:{}, snapStart:{}, "
             "snapEnd:{}]",
             vb.getId(),
             oldOpenCkpt.getId(),
-            oldOpenCkpt.getMinimumCursorSeqno(),
+            (minSeqno ? std::to_string(*minSeqno) : "N/A"),
             oldOpenCkpt.getHighSeqno());
     queued_item qi = createCheckpointMetaItem(oldOpenCkpt.getId(),
                                               queue_op::checkpoint_end);
@@ -238,7 +238,7 @@ void CheckpointManager::addNewCheckpoint(
     // If the old open checkpoint had no cursors, it is now both closed and
     // unreferenced so it can be removed immediately.
     // Note: We need this call to handle the case where there's no cursor in CM
-    maybeScheduleDestruction(lh, *oldOpenCkptPtr);
+    maybeScheduleDestruction(lh, oldOpenCkpt);
 }
 
 void CheckpointManager::addOpenCheckpoint(
@@ -435,11 +435,19 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
             Expects(!ckpt.modifiedByExpel());
         }
 
+        // 0) Skip empty-by-expel checkpoint.
+        // Note: Given that ItemExpel touches only the oldest checkpoint, then
+        // hitting an empty-by-expel checkpoint here means that surely we have
+        // a subsequent one, so we can safely skip over.
+        const auto st = ckpt.getMinimumCursorSeqno();
+        if (!st) {
+            continue;
+        }
+
         // *Before Path* Case 1) If the seqno is before this checkpoint then
         // register the cursor at the empty item
-        auto st = ckpt.getMinimumCursorSeqno();
-        if (startBySeqno < st) {
-            return createCursorRegResult(ckpt.begin(), 0, true, st);
+        if (startBySeqno < *st) {
+            return createCursorRegResult(ckpt.begin(), 0, true, *st);
         }
 
         // *After Path* Case 2) If the seqno isn't in this checkpoint move on
@@ -1960,12 +1968,14 @@ CheckpointManager::ExtractItemsResult CheckpointManager::extractItemsToExpel(
         // Sanity check - if the oldest checkpoint is referenced, the cursor
         // with the lowest seqno should be in that checkpoint.
         if (lowestCursor->getCheckpoint()->get() != oldestCheckpoint) {
+            const auto minSeqno = oldestCheckpoint->getMinimumCursorSeqno();
+
             std::stringstream ss;
             ss << "CheckpointManager::extractItemsToExpel: (" << vb.getId()
                << ") lowest found cursor is not in the oldest "
                   "checkpoint. Oldest checkpoint ID: "
-               << oldestCheckpoint->getId()
-               << " lowSeqno: " << oldestCheckpoint->getMinimumCursorSeqno()
+               << oldestCheckpoint->getId() << " lowSeqno: "
+               << (minSeqno ? std::to_string(*minSeqno) : "N/A")
                << " highSeqno: " << oldestCheckpoint->getHighSeqno()
                << " snapStart: " << oldestCheckpoint->getSnapshotStartSeqno()
                << " snapEnd: " << oldestCheckpoint->getSnapshotEndSeqno()

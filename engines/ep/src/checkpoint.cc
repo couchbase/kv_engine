@@ -401,11 +401,11 @@ bool Checkpoint::canDedup(const queued_item& existing,
              !in->canDeduplicate());
 }
 
-uint64_t Checkpoint::getMinimumCursorSeqno() const {
+std::optional<uint64_t> Checkpoint::getMinimumCursorSeqno() const {
     if (isEmptyByExpel()) {
         // No mutation in this checkpoint and we can't know exactly whether it
         // will store any further mutation, nothing to pick for cursors.
-        return 0;
+        return {};
     }
 
     auto pos = begin();
@@ -738,12 +738,13 @@ size_t Checkpoint::getHighestExpelledSeqno() const {
 }
 
 std::ostream& operator<<(std::ostream& os, const Checkpoint& c) {
-    os << "Checkpoint[" << &c << "] with"
-       << " id:" << c.checkpointId << " seqno:{" << c.getMinimumCursorSeqno()
+    os << "Checkpoint[" << &c << "] with id:" << c.checkpointId << " seqno:{"
+       << (c.getMinimumCursorSeqno()
+                   ? std::to_string(*c.getMinimumCursorSeqno())
+                   : "N/A")
        << "," << c.getHighSeqno() << "}"
-       << " highestExpelledSeqno:" << c.getHighestExpelledSeqno()
-       << " snap:{" << c.getSnapshotStartSeqno() << ","
-       << c.getSnapshotEndSeqno()
+       << " highestExpelledSeqno:" << c.getHighestExpelledSeqno() << " snap:{"
+       << c.getSnapshotStartSeqno() << "," << c.getSnapshotEndSeqno()
        << ", visible:" << c.getVisibleSnapshotEndSeqno() << "}"
        << " state:" << to_string(c.getState())
        << " numCursors:" << c.getNumCursorsInCheckpoint()
