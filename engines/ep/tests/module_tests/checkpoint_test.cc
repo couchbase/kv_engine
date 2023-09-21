@@ -3864,6 +3864,101 @@ TEST_P(CheckpointTest, reRegisterCheckpointCursor) {
     EXPECT_EQ(2, (*cursor.takeCursor().lock()->getCheckpoint())->getId());
 }
 
+/**
+ * The test verifies that we handle correctly the possible CheckpointRemoval
+ * that might be triggered when the user attempts to register a cursor that
+ * already exists in CM with the same name. Examples of that are:
+ * - General external DCP clients
+ * - Internal outbound streams when they jump memory<->backfill and re-register
+ *   their cursor as part of that.
+ */
+TEST_P(CheckpointTest, RegisterDuplicateCursor_CheckpointRemoval) {
+    // Just keep the test simple, 1 mutation -> 1 checkpoint
+    config.setCheckpointMaxSize(1);
+    checkpoint_config = std::make_unique<CheckpointConfig>(config);
+    createManager();
+    ASSERT_EQ(1, manager->getCheckpointConfig().getCheckpointMaxSize());
+
+    ASSERT_EQ(1, manager->getNumCheckpoints());
+    ASSERT_EQ(1, manager->getNumOpenChkItems());
+    ASSERT_EQ(1, manager->getNumItems()); // cs
+
+    ASSERT_EQ(1000, manager->getHighSeqno());
+
+    const std::string value = "value";
+    for (size_t i = 0; i < 2; ++i) {
+        queued_item item(new Item(makeStoredDocKey("key" + std::to_string(i)),
+                                  0,
+                                  0,
+                                  value.c_str(),
+                                  value.size(),
+                                  PROTOCOL_BINARY_RAW_BYTES,
+                                  0,
+                                  -1,
+                                  Vbid(0)));
+        manager->queueDirty(
+                item, GenerateBySeqno::Yes, GenerateCas::Yes, nullptr);
+    }
+    ASSERT_EQ(2, manager->getNumCheckpoints());
+    ASSERT_EQ(5, manager->getNumItems()); // cs, m:1, ce, cs, m:2
+    ASSERT_EQ(2, manager->getNumOpenChkItems());
+    ASSERT_EQ(1002, manager->getHighSeqno());
+
+    // Register the test cursor into the first checkpoint
+    ASSERT_EQ(1, manager->getNumOfCursors());
+    const std::string cursorName = "dcp-cursor";
+    auto dcpCursor =
+            manager->registerCursorBySeqno(
+                           cursorName, 0, CheckpointCursor::Droppable::Yes)
+                    .takeCursor()
+                    .lock()
+                    .get();
+    ASSERT_TRUE(dcpCursor);
+    ASSERT_EQ(2, manager->getNumOfCursors());
+    const auto& ckptList = manager->getCheckpointList();
+    ASSERT_EQ(ckptList.front(), *dcpCursor->getCheckpoint());
+    ASSERT_EQ(CHECKPOINT_CLOSED, (*dcpCursor->getCheckpoint())->getState());
+
+    const auto initialMemUsage = manager->getMemUsage();
+    const auto firstCheckpointMemUsage = ckptList.front()->getMemUsage();
+
+    // Move the baseline cursor so that it doesn't prevent checkpoint removal in
+    // the next steps.
+    {
+        std::vector<queued_item> items;
+        manager->getItemsForCursor(*cursor, items, 111000111, 111000111);
+        ASSERT_EQ(ckptList.back(), *cursor->getCheckpoint());
+    }
+
+    // Now re-register the test cursor.
+    // Note that for triggering CheckpointRemoval we need to re-register the
+    // cursor at Open checkpoint.
+    // Before the MB-56094 fix this step causes a number of errors, all caught
+    // in the validation that follows as these quantities aren't updated:
+    // - CM::numItems
+    // - Global "num items removed from checkpoints"
+    // - Multiple CM mem usage stats - They end up into a wrong CM::memUsage
+    // - Global "mem freed by checkpoint removal"
+    dcpCursor =
+            manager->registerCursorBySeqno(
+                           cursorName, 1002, CheckpointCursor::Droppable::Yes)
+                    .takeCursor()
+                    .lock()
+                    .get();
+    ASSERT_TRUE(dcpCursor);
+    ASSERT_EQ(2, manager->getNumOfCursors());
+    ASSERT_EQ(ckptList.back(), *dcpCursor->getCheckpoint());
+    ASSERT_EQ(CHECKPOINT_OPEN, (*dcpCursor->getCheckpoint())->getState());
+
+    EXPECT_EQ(1, manager->getNumCheckpoints());
+    EXPECT_EQ(2, manager->getNumItems()); // cs, m:2
+    EXPECT_EQ(2, manager->getNumOpenChkItems());
+    EXPECT_EQ(global_stats.itemsRemovedFromCheckpoints, 3); // cs, m:1, ce
+    EXPECT_EQ(initialMemUsage - firstCheckpointMemUsage,
+              manager->getMemUsage());
+    EXPECT_GT(global_stats.memFreedByCheckpointRemoval, 0);
+}
+
 CheckpointManager::ExtractItemsResult CheckpointTest::extractItemsToExpel() {
     std::lock_guard<std::mutex> lh(manager->queueLock);
     return manager->extractItemsToExpel(lh);
