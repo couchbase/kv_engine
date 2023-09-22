@@ -338,6 +338,16 @@ public:
                           std::optional<CollectionID> cid) const;
 
     /**
+     * Check if the given privilege is part of the context
+     *
+     * @param privilege the privilege to check
+     * @return if access is granted or not.
+     */
+    PrivilegeAccess check(Privilege privilege) const {
+        return check(privilege, {}, {});
+    }
+
+    /**
      * Check if the given privilege exists in at least one of the bucket/
      * scope/collection
      *

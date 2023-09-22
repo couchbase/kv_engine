@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -18,18 +17,36 @@
 #include <hdrhistogram/hdrhistogram.h>
 
 /**
+ * Check to see if the provided UserIdent have the provided privilege in
+ * the context of the provided bucket
+ *
+ * @param ui The user to check
+ * @param bucket The bucket to check
+ * @param requiredPrivilege The privilege to check
+ * @return true if the provided user should have access
+ */
+static bool check_access(const cb::rbac::UserIdent& ui,
+                         const Bucket& bucket,
+                         cb::rbac::Privilege requiredPrivilege) {
+    auto context = cb::rbac::createContext(ui, std::string{bucket.name});
+    if (context.check(requiredPrivilege).failed()) {
+        return false;
+    }
+    return true;
+}
+
+/**
  * Get the timing histogram for the specified bucket if we've got access
  * to the bucket.
  *
  * @param Cookie The command cookie
  * @param bucket The bucket to get the timing data from
  * @param opcode The opcode to get the timing histogram for
- * @return A std::pair with the first being the error code for the operation
- *         and the second being the histogram (only valid if the first
- *         parameter is cb::engine_errc::success)
+ * @return the histogram data if the caller have access
  */
-static std::pair<cb::engine_errc, Hdr1sfMicroSecHistogram> get_timings(
-        Cookie& cookie, const Bucket& bucket, uint8_t opcode) {
+static std::optional<Hdr1sfMicroSecHistogram> get_timings(Cookie& cookie,
+                                                          const Bucket& bucket,
+                                                          uint8_t opcode) {
     auto& connection = cookie.getConnection();
     // Need SimpleStats for normal buckets, but Stats for the
     // no-bucket as that tracks timings for all operations performed
@@ -37,57 +54,43 @@ static std::pair<cb::engine_errc, Hdr1sfMicroSecHistogram> get_timings(
     const auto requiredPrivilege = (bucket.type == BucketType::NoBucket)
                                            ? cb::rbac::Privilege::Stats
                                            : cb::rbac::Privilege::SimpleStats;
-    bool access = false;
+
     // Don't create a new privilege context if the one we've got is for the
     // connected bucket:
     if (bucket.name == connection.getBucket().name) {
-        auto ret = mcbp::checkPrivilege(cookie, requiredPrivilege);
-        access = (ret == cb::engine_errc::success);
+        if (cookie.testPrivilege(requiredPrivilege).failed()) {
+            return {};
+        }
     } else {
         // Check to see if we've got access to the bucket
         try {
-            auto context =
-                    cb::rbac::createContext(connection.getUser(), bucket.name);
-            access = context.check(requiredPrivilege, {}, {}).success();
+            if (!check_access(
+                        connection.getUser(), bucket, requiredPrivilege)) {
+                // The user don't have access
+                return {};
+            }
+
+            // If we have an effective user (and we didn't inherit the simple
+            // stat privilege) we need to create a privilege context and
+            // check for the priv
+            if (cookie.getEffectiveUser() &&
+                !cookie.hasImposedUserExtraPrivilege(requiredPrivilege) &&
+                !check_access(*cookie.getEffectiveUser(),
+                              bucket,
+                              requiredPrivilege)) {
+                return {};
+            }
         } catch (const cb::rbac::Exception&) {
             // We don't have access to that bucket
+            return {};
         }
-    }
-    if (!access) {
-        return {cb::engine_errc::no_access, {}};
     }
 
     auto* histo = bucket.timings.get_timing_histogram(opcode);
     if (histo) {
-        return {cb::engine_errc::success, *histo};
-    } else {
-        // histogram for this opcode hasn't been created yet so just
-        // return an histogram with no data in it
-        return {cb::engine_errc::success, {}};
+        return {*histo};
     }
-}
-
-/**
- * Get the command timings for the provided bucket if:
- *    it's not NoBucket
- *    it is running
- *    it has the given name
- *
- * @param cookie The command cookie
- * @param bucket The bucket to look at
- * @param opcode The opcode we're interested in
- * @param bucketname The name of the bucket we want
- */
-static std::pair<cb::engine_errc, Hdr1sfMicroSecHistogram> maybe_get_timings(
-        Cookie& cookie,
-        const Bucket& bucket,
-        uint8_t opcode,
-        std::string_view bucketname) {
-    std::lock_guard<std::mutex> guard(bucket.mutex);
-    if (bucket.state == Bucket::State::Ready && bucketname == bucket.name) {
-        return get_timings(cookie, bucket, opcode);
-    }
-    return {cb::engine_errc::no_such_key, {}};
+    return {Hdr1sfMicroSecHistogram{}};
 }
 
 /**
@@ -99,20 +102,27 @@ static std::pair<cb::engine_errc, std::string> get_aggregated_timings(
     Hdr1sfMicroSecHistogram timings;
     bool found = false;
 
-    for (auto& bucket : all_buckets) {
-        auto bt = maybe_get_timings(cookie, bucket, opcode, bucket.name);
-        if (bt.first == cb::engine_errc::success) {
-            timings += bt.second;
-            found = true;
-        }
-    }
+    BucketManager::instance().forEach(
+            [&cookie, opcode, &timings, &found](auto& bucket) {
+                if (bucket.type == BucketType::NoBucket &&
+                    cookie.testPrivilege(cb::rbac::Privilege::Stats).failed()) {
+                    return true;
+                }
+
+                auto histogram = get_timings(cookie, bucket, opcode);
+                if (histogram.has_value()) {
+                    timings += *histogram;
+                    found = true;
+                }
+                return true;
+            });
 
     if (found) {
-        return std::make_pair(cb::engine_errc::success, timings.to_string());
+        return {cb::engine_errc::success, timings.to_string()};
     }
 
     // We didn't have access to any buckets!
-    return std::make_pair(cb::engine_errc::no_access, std::string{});
+    return {cb::engine_errc::no_access, {}};
 }
 
 std::pair<cb::engine_errc, std::string> get_cmd_timer(Cookie& cookie) {
@@ -145,38 +155,40 @@ std::pair<cb::engine_errc, std::string> get_cmd_timer(Cookie& cookie) {
     // the global stats privilege as it contains information about non-bucket
     // level opcodes.
     if (index == 0 || bucket == "@no bucket@") {
-        if (cookie.testPrivilege(cb::rbac::Privilege::Stats) ==
-            cb::rbac::PrivilegeAccessOk) {
-            std::lock_guard<std::mutex> guard(all_buckets[0].mutex);
+        // Use check privilege to ensure that it get logged if we don't
+        // have access.
+        if (cookie.checkPrivilege(cb::rbac::Privilege::Stats).success()) {
             auto* histo = all_buckets[0].timings.get_timing_histogram(opcode);
             if (histo) {
                 return {cb::engine_errc::success, histo->to_string()};
             }
 
-            // histogram for this opcode hasn't been created yet so just
-            // return an empty histogram
             Hdr1sfMicroSecHistogram h;
-            return {cb::engine_errc::success, h.to_string()};
+            return {cb::engine_errc::success, {}};
         }
 
         return {cb::engine_errc::no_access, {}};
     }
 
     if (bucket.empty() || bucket == all_buckets[index].name) {
-        // The current selected bucket
-        auto& connection = cookie.getConnection();
-        auto bt = get_timings(cookie, connection.getBucket(), opcode);
-        if (bt.first == cb::engine_errc::success) {
-            return std::make_pair(cb::engine_errc::success,
-                                  bt.second.to_string());
+        // Use checkPrivilege to ensure that it gets logged.
+        if (cookie.checkPrivilege(cb::rbac::Privilege::SimpleStats).failed()) {
+            return {cb::engine_errc::no_access, {}};
         }
 
-        return std::make_pair(bt.first, std::string{});
+        // The current selected bucket
+        auto& connection = cookie.getConnection();
+        auto* histo =
+                connection.getBucket().timings.get_timing_histogram(opcode);
+        if (histo) {
+            return {cb::engine_errc::success, histo->to_string()};
+        }
+        return {cb::engine_errc::success, {}};
     }
 
     // We removed support for getting command timings for not the current bucket
     // as it was broken and unused
-    return std::make_pair(cb::engine_errc::not_supported, std::string{});
+    return {cb::engine_errc::not_supported, {}};
 }
 
 void get_cmd_timer_executor(Cookie& cookie) {
@@ -188,10 +200,17 @@ void get_cmd_timer_executor(Cookie& cookie) {
     }
 
     if (ret.first == cb::engine_errc::success) {
+        auto value = std::move(ret.second);
+        if (value.empty()) {
+            // histogram for this opcode hasn't been created yet so just
+            // return a histogram with no data in it
+            Hdr1sfMicroSecHistogram h;
+            value = h.to_string();
+        }
         cookie.sendResponse(cb::mcbp::Status::Success,
                             {},
                             {},
-                            {ret.second.data(), ret.second.size()},
+                            value,
                             cb::mcbp::Datatype::JSON,
                             0);
     } else {

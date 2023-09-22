@@ -12,6 +12,7 @@
 #include "testapp_client_test.h"
 
 #include <fmt/format.h>
+#include <mcbp/codec/frameinfo.h>
 #include <nlohmann/json.hpp>
 #include <protocol/connection/client_connection.h>
 #include <algorithm>
@@ -192,5 +193,65 @@ TEST_P(CmdTimerTest, EmptySuccess) {
                 bucketName, cb::mcbp::ClientOpcode::Set});
         EXPECT_TRUE(response.isSuccess());
         EXPECT_EQ(0, getNumberOfOps(response.getDataString()));
+    });
+}
+
+/**
+ * Jones only have access to the bucket rbac_test, but is missing the
+ * simple-stats privilege. It should not be able to run the stats command
+ * through impersonate unless he is granted the extra privilege.
+ */
+TEST_P(CmdTimerTest, ImpersonateNoAccess) {
+    using namespace cb::mcbp::request;
+    adminConnection->executeInBucket("rbac_test", [](auto& conn) {
+        auto cmd = BinprotGetCmdTimerCommand{"", opcode};
+        cmd.addFrameInfo(ImpersonateUserFrameInfo("jones"));
+        const auto response = conn.execute(cmd);
+        EXPECT_FALSE(response.isSuccess());
+        EXPECT_EQ(cb::mcbp::Status::Eaccess, response.getStatus());
+    });
+
+    adminConnection->executeInBucket("rbac_test", [](auto& conn) {
+        auto cmd = BinprotGetCmdTimerCommand{"/all/", opcode};
+        cmd.addFrameInfo(ImpersonateUserFrameInfo("jones"));
+        const auto response = conn.execute(cmd);
+        EXPECT_FALSE(response.isSuccess());
+        EXPECT_EQ(cb::mcbp::Status::Eaccess, response.getStatus());
+    });
+
+    // But we may grant the user the extra privilege...
+    adminConnection->executeInBucket("rbac_test", [this](auto& conn) {
+        auto cmd = BinprotGetCmdTimerCommand{"", opcode};
+        cmd.addFrameInfo(ImpersonateUserFrameInfo("jones"));
+        cmd.addFrameInfo(ImpersonateUserExtraPrivilegeFrameInfo(
+                cb::rbac::Privilege::SimpleStats));
+        const auto response = conn.execute(cmd);
+        EXPECT_TRUE(response.isSuccess()) << response.getStatus();
+        EXPECT_EQ(1, getNumberOfOps(response.getDataString()));
+    });
+
+    // But we may grant the user the extra privilege (should also work for
+    // all, but you still won't have access to "@no bucket@")
+    adminConnection->executeInBucket("rbac_test", [this](auto& conn) {
+        auto cmd = BinprotGetCmdTimerCommand{"/all/", opcode};
+        cmd.addFrameInfo(ImpersonateUserFrameInfo("jones"));
+        cmd.addFrameInfo(ImpersonateUserExtraPrivilegeFrameInfo(
+                cb::rbac::Privilege::SimpleStats));
+        const auto response = conn.execute(cmd);
+        EXPECT_TRUE(response.isSuccess()) << response.getStatus();
+        EXPECT_EQ(2, getNumberOfOps(response.getDataString()));
+    });
+
+    // But we may grant the user the extra privileges and also get "@no bucket@"
+    adminConnection->executeInBucket("rbac_test", [this](auto& conn) {
+        auto cmd = BinprotGetCmdTimerCommand{"/all/", opcode};
+        cmd.addFrameInfo(ImpersonateUserFrameInfo("jones"));
+        cmd.addFrameInfo(ImpersonateUserExtraPrivilegeFrameInfo(
+                cb::rbac::Privilege::SimpleStats));
+        cmd.addFrameInfo(ImpersonateUserExtraPrivilegeFrameInfo(
+                cb::rbac::Privilege::Stats));
+        const auto response = conn.execute(cmd);
+        EXPECT_TRUE(response.isSuccess()) << response.getStatus();
+        EXPECT_EQ(3, getNumberOfOps(response.getDataString()));
     });
 }

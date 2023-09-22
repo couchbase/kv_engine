@@ -524,6 +524,11 @@ public:
         euidExtraPrivileges.set(idx);
     }
 
+    bool hasImposedUserExtraPrivilege(cb::rbac::Privilege privilege) {
+        const auto idx = size_t(privilege);
+        return euidExtraPrivileges.test(idx);
+    }
+
     bool isPreserveTtl() const {
         return preserveTtl;
     }

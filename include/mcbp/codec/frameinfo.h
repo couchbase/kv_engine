@@ -11,6 +11,7 @@
 
 #include <mcbp/protocol/request.h>
 #include <memcached/durability_spec.h>
+#include <memcached/rbac/privileges.h>
 #include <cstdint>
 #include <vector>
 
@@ -85,6 +86,10 @@ public:
 
 class ImpersonateUserExtraPrivilegeFrameInfo : public FrameInfo {
 public:
+    explicit ImpersonateUserExtraPrivilegeFrameInfo(
+            cb::rbac::Privilege privilege)
+        : ImpersonateUserExtraPrivilegeFrameInfo(to_string(privilege)) {
+    }
     explicit ImpersonateUserExtraPrivilegeFrameInfo(std::string privilege)
         : privilege(std::move(privilege)) {
     }
