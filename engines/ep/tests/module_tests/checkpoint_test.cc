@@ -1916,8 +1916,11 @@ void SingleThreadedCheckpointTest::
     auto res = manager.registerCursorBySeqno(
             "cursor", startSeqno, CheckpointCursor::Droppable::Yes);
 
-    // @todo MB-53616: We don't need a backfill here if startSeqno=2
-    EXPECT_TRUE(res.tryBackfill);
+    if (startSeqno >= 2) {
+        EXPECT_FALSE(res.tryBackfill);
+    } else {
+        EXPECT_TRUE(res.tryBackfill);
+    }
 
     const auto cursor = res.takeCursor().lock();
     EXPECT_EQ(3, res.seqno);
@@ -1946,8 +1949,7 @@ TEST_P(CheckpointTest, MB_58321) {
             "mb58321", 1001, CheckpointCursor::Droppable::Yes);
 
     EXPECT_EQ(1002, res.seqno);
-    // @todo MB-53616: backfill not necessary here
-    EXPECT_TRUE(res.tryBackfill);
+    EXPECT_FALSE(res.tryBackfill);
 
     auto cursor = res.takeCursor();
     std::vector<queued_item> items;
@@ -2645,7 +2647,7 @@ void CheckpointTest::testExpelCheckpointItems() {
     regResult = manager->registerCursorBySeqno(
             dcp_cursor2.c_str(), 1002, CheckpointCursor::Droppable::Yes);
     EXPECT_EQ(1003, regResult.seqno);
-    EXPECT_TRUE(regResult.tryBackfill);
+    EXPECT_FALSE(regResult.tryBackfill);
 
     // Try to register a DCP cursor from 1003 - the first item still in chk
     std::string dcp_cursor3(DCP_CURSOR_PREFIX + std::to_string(3));
@@ -3817,12 +3819,12 @@ TEST_P(ReplicaCheckpointTest, MB_47516) {
 // should not reference the closed checkpoint.
 TEST_P(ReplicaCheckpointTest, MB_47551) {
     // 1) Receive a snapshot, two items is plenty for the test
-    this->manager->createSnapshot(1001, 1002, 1002, CheckpointType::Disk, 1002);
-    ASSERT_TRUE(this->queueReplicatedItem("k1001", 1001)); // 1001
-    ASSERT_TRUE(this->queueReplicatedItem("k1002", 1002)); // 1002
+    manager->createSnapshot(1001, 1002, 1002, CheckpointType::Disk, 1002);
+    ASSERT_TRUE(queueReplicatedItem("k1001", 1001)); // 1001
+    ASSERT_TRUE(queueReplicatedItem("k1002", 1002)); // 1002
 
     // No as if vb-state changed, new checkpoint
-    this->manager->createNewCheckpoint();
+    manager->createNewCheckpoint();
 
     // 0, mid-way and high-seqno-1 request - expect the closed CP, data is
     // available
@@ -3846,8 +3848,9 @@ TEST_P(ReplicaCheckpointTest, MB_47551) {
             "cursor2", 1002, CheckpointCursor::Droppable::Yes);
 
     // And we expect to be in the open checkpoint, so we don't hold the closed
-    // one. Possibly don't need backfill=true, but DCP streams handle this case
-    EXPECT_TRUE(cursor2.tryBackfill);
+    // one. Also, we don't need a backfill as we are simulating a DCP client
+    // that has already got 1002 and the next seqno 1003 is in checkpoint. 
+    EXPECT_FALSE(cursor2.tryBackfill);
     EXPECT_EQ(1003, cursor2.seqno);
     EXPECT_EQ(3, (*cursor2.takeCursor().lock()->getCheckpoint())->getId());
 }

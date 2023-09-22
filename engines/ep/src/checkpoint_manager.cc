@@ -453,7 +453,9 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
         // *Before Path* Case 1) If the seqno is before this checkpoint then
         // register the cursor at the empty item
         if (startBySeqno < *st) {
-            return createCursorRegResult(ckpt.begin(), 0, true, *st);
+            // Trigger backfill only if there's a gap between startSeqno and st
+            const auto tryBackfill = (*st == startBySeqno + 1 ? false : true);
+            return createCursorRegResult(ckpt.begin(), 0, tryBackfill, *st);
         }
 
         // *After Path* Case 2) If the seqno isn't in this checkpoint move on
