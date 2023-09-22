@@ -25,6 +25,9 @@
         "Upsert",
         "SystemXattrRead",
         "SystemXattrWrite"
+      ],
+      "rbac_test": [
+        "SimpleStats"
       ]
     },
     "privileges": [],

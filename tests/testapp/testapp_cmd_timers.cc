@@ -16,28 +16,32 @@
 #include <protocol/connection/client_connection.h>
 #include <algorithm>
 
+/**
+ * The CmdTimerTest operates on 3 buckets: "@no bucket", "default" and
+ * "rbac_test".
+ * "admin" user should have access to all buckets.
+ * "luke" should have access to "default" and "rbac_test"
+ * "smith" should have access to "rbac_test"
+ * "jones" don't have stats access to any of the buckets.
+ *
+ * Each of these buckets contain 1 noop.
+ */
 class CmdTimerTest : public TestappClientTest {
 public:
-    void SetUp() override {
-        TestappClientTest::SetUp();
+    static void SetUpTestCase() {
+        TestappClientTest::SetUpTestCase();
         adminConnection->createBucket("rbac_test", "", BucketType::Memcached);
 
-        // Reset the command timers before we start
-        adminConnection->selectBucket(bucketName);
-        adminConnection->stats("reset");
-
-        // We just need to have a command we can check the numbers of
-        adminConnection->execute(
-                BinprotGenericCommand{cb::mcbp::ClientOpcode::Scrub});
-
-        adminConnection->executeInBucket("rbac_test", [](auto& c) {
-            c.execute(BinprotGenericCommand{cb::mcbp::ClientOpcode::Scrub});
-        });
+        for (const auto bucket : {"@no bucket@", "default", "rbac_test"}) {
+            adminConnection->executeInBucket(bucket, [](auto& c) {
+                c.execute(BinprotGenericCommand{opcode});
+            });
+        }
     }
 
-    void TearDown() override {
+    static void TearDownTestCase() {
         adminConnection->deleteBucket("rbac_test");
-        TestappClientTest::TearDown();
+        TestappClientTest::TearDownTestCase();
     }
 
 protected:
@@ -57,6 +61,9 @@ protected:
 
         return ret;
     }
+
+    /// The command we want to get the timings for.
+    static constexpr auto opcode = cb::mcbp::ClientOpcode::Noop;
 };
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
@@ -72,17 +79,17 @@ TEST_P(CmdTimerTest, AllBuckets) {
 
     // Admin should have full access
     auto response = adminConnection->execute(
-            BinprotGetCmdTimerCommand{"/all/", cb::mcbp::ClientOpcode::Scrub});
+            BinprotGetCmdTimerCommand{"/all/", opcode});
     EXPECT_TRUE(response.isSuccess());
-    EXPECT_EQ(2, getNumberOfOps(response.getDataString()));
+    // One noop in "@no bucket@"; one in "default" and one in "rbac_test"
+    EXPECT_EQ(3, getNumberOfOps(response.getDataString()));
 
     // Smith only has access to the bucket rbac_test - should only see numbers
     // from that.
     auto& c = getConnection();
     c.authenticate("smith", "smithpassword", "PLAIN");
 
-    response = c.execute(
-            BinprotGetCmdTimerCommand{"/all/", cb::mcbp::ClientOpcode::Scrub});
+    response = c.execute(BinprotGetCmdTimerCommand{"/all/", opcode});
     EXPECT_TRUE(response.isSuccess());
     EXPECT_EQ(1, getNumberOfOps(response.getDataString()));
     c.reconnect();
@@ -94,19 +101,13 @@ TEST_P(CmdTimerTest, AllBuckets) {
  * "@no bucket@", as long as appropriate privs are present.
  */
 TEST_P(CmdTimerTest, NoBucket) {
-    // Perform an operation against "@no bucket@" so we can request its timing
-    // stats in a moment.
-    adminConnection->unselectBucket();
-    adminConnection->execute(
-            BinprotGenericCommand{cb::mcbp::ClientOpcode::Scrub});
-
     // Admin should have full access - either by unselecting any bucket
     // and issuing a request with the empty string, or by explicilty asking for
     // "@no bucket@".
     for (auto bucket : {"", "@no bucket@"}) {
         SCOPED_TRACE(fmt::format("for bucket '{}'", bucket));
-        auto response = adminConnection->execute(BinprotGetCmdTimerCommand{
-                bucket, cb::mcbp::ClientOpcode::Scrub});
+        auto response = adminConnection->execute(
+                BinprotGetCmdTimerCommand{bucket, opcode});
         EXPECT_TRUE(response.isSuccess());
         EXPECT_EQ(1, getNumberOfOps(response.getDataString()));
     }
@@ -117,8 +118,7 @@ TEST_P(CmdTimerTest, NoBucket) {
 
     for (auto bucket : {"", "@no bucket@"}) {
         SCOPED_TRACE(fmt::format("for bucket '{}'", bucket));
-        auto response = c.execute(BinprotGetCmdTimerCommand{
-                bucket, cb::mcbp::ClientOpcode::Scrub});
+        auto response = c.execute(BinprotGetCmdTimerCommand{bucket, opcode});
         EXPECT_EQ(cb::mcbp::Status::Eaccess, response.getStatus());
     }
     c.reconnect();
@@ -133,16 +133,15 @@ TEST_P(CmdTimerTest, NoAccess) {
 
     c.authenticate("jones", "jonespassword", "PLAIN");
     for (const auto& bucket : {"", "/all/", "rbac_test", bucketName.c_str()}) {
-        const auto response = c.execute(BinprotGetCmdTimerCommand{
-                bucket, cb::mcbp::ClientOpcode::Scrub});
+        const auto response =
+                c.execute(BinprotGetCmdTimerCommand{bucket, opcode});
         EXPECT_FALSE(response.isSuccess());
         EXPECT_EQ(cb::mcbp::Status::Eaccess, response.getStatus());
     }
 
     // Make sure it doesn't work for the "current selected bucket"
     c.selectBucket("rbac_test");
-    const auto response = c.execute(
-            BinprotGetCmdTimerCommand{"", cb::mcbp::ClientOpcode::Scrub});
+    const auto response = c.execute(BinprotGetCmdTimerCommand{"", opcode});
     EXPECT_FALSE(response.isSuccess());
     EXPECT_EQ(cb::mcbp::Status::Eaccess, response.getStatus());
     c.reconnect();
@@ -151,8 +150,8 @@ TEST_P(CmdTimerTest, NoAccess) {
 TEST_P(CmdTimerTest, CurrentBucket) {
     adminConnection->executeInBucket("rbac_test", [this](auto& c) {
         for (const auto& bucket : {"", "rbac_test"}) {
-            const auto response = c.execute(BinprotGetCmdTimerCommand{
-                    bucket, cb::mcbp::ClientOpcode::Scrub});
+            const auto response =
+                    c.execute(BinprotGetCmdTimerCommand{bucket, opcode});
             EXPECT_TRUE(response.isSuccess());
             EXPECT_EQ(1, getNumberOfOps(response.getDataString()));
         }
@@ -165,8 +164,8 @@ TEST_P(CmdTimerTest, CurrentBucket) {
  */
 TEST_P(CmdTimerTest, NotCurrentBucket) {
     adminConnection->executeInBucket(bucketName, [this](auto& c) {
-        const auto response = c.execute(BinprotGetCmdTimerCommand{
-                "rbac_test", cb::mcbp::ClientOpcode::Scrub});
+        const auto response =
+                c.execute(BinprotGetCmdTimerCommand{"rbac_test", opcode});
         EXPECT_FALSE(response.isSuccess());
         EXPECT_EQ(cb::mcbp::Status::NotSupported, response.getStatus());
     });
@@ -177,8 +176,8 @@ TEST_P(CmdTimerTest, NotCurrentBucket) {
  */
 TEST_P(CmdTimerTest, NonexistentBucket) {
     auto& c = getConnection();
-    const auto response = c.execute(BinprotGetCmdTimerCommand{
-            "asdfasdfasdf", cb::mcbp::ClientOpcode::Scrub});
+    const auto response =
+            c.execute(BinprotGetCmdTimerCommand{"asdfasdfasdf", opcode});
     EXPECT_FALSE(response.isSuccess());
     EXPECT_EQ(cb::mcbp::Status::Eaccess, response.getStatus());
 }
@@ -189,7 +188,6 @@ TEST_P(CmdTimerTest, NonexistentBucket) {
  */
 TEST_P(CmdTimerTest, EmptySuccess) {
     adminConnection->executeInBucket(bucketName, [this](auto& c) {
-        c.stats("reset");
         const auto response = c.execute(BinprotGetCmdTimerCommand{
                 bucketName, cb::mcbp::ClientOpcode::Set});
         EXPECT_TRUE(response.isSuccess());
