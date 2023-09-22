@@ -1937,6 +1937,29 @@ TEST_F(SingleThreadedCheckpointTest,
     testRegisterCursorCheckpointEmptyByExpelMultipleCheckpoints(0);
 }
 
+TEST_P(CheckpointTest, MB_58321) {
+    manager->createNewCheckpoint();
+    ASSERT_TRUE(this->queueNewItem("a")); // seqno:1001
+    manager->createNewCheckpoint();
+    ASSERT_TRUE(this->queueNewItem("b")); // seqno:1002
+    auto res = manager->registerCursorBySeqno(
+            "mb58321", 1001, CheckpointCursor::Droppable::Yes);
+
+    EXPECT_EQ(1002, res.seqno);
+    // @todo MB-53616: backfill not necessary here
+    EXPECT_TRUE(res.tryBackfill);
+
+    auto cursor = res.takeCursor();
+    std::vector<queued_item> items;
+    auto result = manager->getNextItemsForDcp(*cursor.lock(), items);
+
+    ASSERT_FALSE(items.empty());
+    for (const auto& qi : items) {
+        // Should be 1002 onwards
+        ASSERT_GT(qi->getBySeqno(), 1001);
+    }
+}
+
 TEST_F(SingleThreadedCheckpointTest, QueueSetVBStateSchedulesDcpStep) {
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
 
