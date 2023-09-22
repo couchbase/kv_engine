@@ -241,22 +241,10 @@ void Settings::reconfigure(const nlohmann::json& json) {
         } else if (key == "tcp_keepalive_probes"sv) {
             setTcpKeepAliveProbes(value.get<uint32_t>());
         } else if (key == "tcp_user_timeout"sv) {
-#ifdef __linux__
             setTcpUserTimeout(std::chrono::seconds(value.get<uint32_t>()));
-#else
-            if (value.get<uint32_t>()) {
-                LOG_WARNING_RAW("TCP_USER_TIMEOUT is only supported on Linux");
-            }
-#endif
         } else if (key == "tcp_unauthenticated_user_timeout"sv) {
-#ifdef __linux__
             setTcpUnauthenticatedUserTimeout(
                     std::chrono::seconds(value.get<uint32_t>()));
-#else
-            if (value.get<uint32_t>()) {
-                LOG_WARNING_RAW("TCP_USER_TIMEOUT is only supported on Linux");
-            }
-#endif
         } else if (key == "xattr_enabled"sv) {
             setXattrEnabled(value.get<bool>());
         } else if (key == "client_cert_auth"sv) {
