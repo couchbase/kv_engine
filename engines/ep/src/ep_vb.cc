@@ -1355,6 +1355,12 @@ std::pair<cb::engine_errc, cb::rangescan::Id> EPVBucket::createRangeScan(
                 params.keyOnly == cb::rangescan::KeyOnly::Yes);
     }
 
+    // At this point the scan can proceed to create, but we need to check and
+    // reserve capacity for this scan.
+    if (!bucket->getKVStoreScanTracker().canCreateAndReserveRangeScan()) {
+        return {cb::engine_errc::too_busy, {}};
+    }
+
     // Create a task and give it the RangeScanCreateToken, on failure the task
     // will destruct the data
     ExecutorPool::get()->schedule(std::make_shared<RangeScanCreateTask>(

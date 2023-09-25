@@ -1998,12 +1998,19 @@ TEST_P(RangeScanTestSimple, limitRangeScans) {
     EXPECT_EQ(0, store->getKVStoreScanTracker().getNumRunningBackfills());
     EXPECT_EQ(1, store->getKVStoreScanTracker().getNumRunningRangeScans());
 
-    createScan(scanCollection,
-               {"\0"},
-               {"\xFF"},
-               {/* no snapshot requirements */},
-               {/* no sampling*/},
-               cb::engine_errc::too_busy);
+    // Now create gets too_busy
+    EXPECT_EQ(cb::engine_errc::too_busy,
+              store->createRangeScan(*cookie,
+                                     std::move(handler),
+                                     cb::rangescan::CreateParameters{
+                                             vbid,
+                                             CollectionID::Default,
+                                             {"\0"},
+                                             {"\xff"},
+                                             getScanType(),
+                                             {},
+                                             {}})
+                      .first);
 
     EXPECT_EQ(cb::engine_errc::success,
               store->cancelRangeScan(vbid, uuid1, *cookie));

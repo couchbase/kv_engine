@@ -218,7 +218,7 @@ bool KVStoreScanTracker::canCreateBackfill(size_t numInProgress) {
     });
 }
 
-bool KVStoreScanTracker::canCreateRangeScan() {
+bool KVStoreScanTracker::canCreateAndReserveRangeScan() {
     return scans.withLock([](auto& scans) {
         // For RangeScan compare total against maxRunningRangeScans
         if (scans.getTotalRunning() < scans.maxRunningRangeScans) {

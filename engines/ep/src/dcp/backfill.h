@@ -196,12 +196,12 @@ public:
     /**
      * Check if a RangeScan can be created (which will create a ScanContext).
      * If true is returned the KVStoreScanTracker has incremented the tracking
-     * to include a new scan and the caller must now proceed to create the scan.
-     * If no more backfills can be created returns false.
+     * to include/reserve a new scan and the caller must now proceed to create
+     * the scan. If no more backfills can be created returns false.
      *
      * @return true if a RangeScan can be created
      */
-    virtual bool canCreateRangeScan();
+    virtual bool canCreateAndReserveRangeScan();
 
     /// Decrement number of running backfills by one
     virtual void decrNumRunningBackfills();

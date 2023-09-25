@@ -48,13 +48,6 @@ RangeScan::RangeScan(
       name(std::move(name)),
       vbid(vbucket.getId()),
       keyOnly(keyOnly) {
-    if (!resourceTracker.canCreateRangeScan()) {
-        throw cb::engine_error(cb::engine_errc::too_busy,
-                               fmt::format("RangeScan::createScan {} denied by "
-                                           "BackfillTrackingIface",
-                                           getVBucketId()));
-    }
-
     try {
         uuid = createScan(cookie, bucket, snapshotReqs, samplingConfig);
         createTime = now();
@@ -107,12 +100,6 @@ RangeScan::RangeScan(cb::rangescan::Id id, KVStoreScanTracker& resourceTracker)
       start(StoredDocKey("start", CollectionID::Default)),
       end(StoredDocKey("end", CollectionID::Default)),
       resourceTracker(resourceTracker) {
-    if (!resourceTracker.canCreateRangeScan()) {
-        throw cb::engine_error(cb::engine_errc::temporary_failure,
-                               fmt::format("RangeScan::createScan {} denied by "
-                                           "BackfillTrackingIface",
-                                           getLogId()));
-    }
     createTime = now();
 }
 
