@@ -3622,8 +3622,9 @@ std::pair<MutationStatus, std::optional<VBNotifyCtx>> VBucket::processSetInner(
     MutationStatus status;
     VBNotifyCtx notifyCtx;
     if (v) {
-        if (itm.shouldPreserveTtl()) {
-            // copy the expiry time for the existing item over
+        if (itm.shouldPreserveTtl() && !v->isDeleted() &&
+            !v->isTempNonExistentItem()) {
+            // copy the expiry time for the alive, non-temp item over.
             itm.setExpTime(v->getExptime());
         }
 
