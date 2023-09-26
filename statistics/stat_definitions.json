@@ -77,7 +77,9 @@
  * ** "labels"
  *    Fixed labels which distinguish this stat from others in the metric family.
  *    More labels may be added at runtime, but where a label is always fixed
- *    ahead of time, it should be specified here.
+ *    ahead of time, it should be specified here. If a metrics family has
+ *    multiple definitions with different fixed labels, a separate description
+ *    for the family must be added: { family: string, description: string }.
  *
  * *  "added"
  *    Release version in which this metric was added. Required for metrics
@@ -360,6 +362,11 @@
         "added": "7.0.0"
     },
     {
+        "family": "domain_memory_used",
+        "unit": "bytes",
+        "description": "Current memory used in KV for primary/secondary domain"
+    },
+    {
         "key": "mem_used_primary",
         "unit": "bytes",
         "description": "Current memory used in KV for primary/secondary domain",
@@ -462,6 +469,11 @@
         "added": "7.6.0"
     },
     {
+        "family": "memory_overhead",
+        "unit": "bytes",
+        "description": "The \"unused\" memory caused by the allocator returning bigger chunks than requested"
+    },
+    {
         "key": "ep_blob_overhead",
         "unit": "bytes",
         "prometheus": {
@@ -472,6 +484,11 @@
         },
         "description": "The \"unused\" memory caused by the allocator returning bigger chunks than requested",
         "added": "7.0.0"
+    },
+    {
+        "family": "memory_used",
+        "unit": "bytes",
+        "description": "Memory used for various objects"
     },
 /* TODO: Assess what labels would actually be _useful_ for querying */
     {
@@ -942,6 +959,11 @@
         "added": "7.1.0"
     },
     {
+        "family": "ops",
+        "unit": "count",
+        "description": "Number of operations"
+    },
+    {
         "key": "ep_num_ops_get_meta",
         "unit": "count",
         "prometheus": {
@@ -976,6 +998,11 @@
         },
         "description": "Number of delWithMeta operations",
         "added": "7.0.0"
+    },
+    {
+        "family": "ops_failed",
+        "unit": "count",
+        "description": "Number of operations failed due to conflict resolution"
     },
     {
         "key": "ep_num_ops_set_meta_res_fail",
@@ -1202,6 +1229,11 @@
         "added": "7.1.0"
     },
     {
+        "family": "magma_itr",
+        "unit": "count",
+        "description": "Number of items returned by iterators"
+    },
+    {
         "key": "ep_magma_keyitr_items_read",
         "unit": "count",
         "added": "7.6.0",
@@ -1272,6 +1304,11 @@
         "unit": "count",
         "added": "7.1.0",
         "description": "Count of Magma compactions in key, seq and local index."
+    },
+    {
+        "family": "magma_compactions",
+        "unit": "count",
+        "description": "Count of Magma compactions"
     },
     {
         "key": "ep_magma_keyindex_compactions",
@@ -1415,6 +1452,11 @@
         "description": "Data written to key, seq, local index as part of the KV frontend writes."
     },
     {
+        "family": "magma_bytes_incoming",
+        "unit": "bytes",
+        "description": "Data written as part of the KV frontend writes."
+    },
+    {
         "key": "ep_magma_keyindex_bytes_incoming",
         "unit": "bytes",
         "added": "7.6.0",
@@ -1451,6 +1493,11 @@
         "description": "Bytes written by Magma flushes, compactions and WAL writes."
     },
     {
+        "family": "magma_write_bytes",
+        "unit": "bytes",
+        "description": "Bytes written by Magma flushes, compactions."
+    },
+    {
         "key": "ep_magma_keyindex_write_bytes",
         "unit": "bytes",
         "added": "7.6.0",
@@ -1485,6 +1532,11 @@
         "unit": "bytes",
         "added": "7.1.0",
         "description": "Bytes written by Magma compactions."
+    },
+    {
+        "family": "magma_write_bytes_filecount_compact",
+        "unit": "bytes",
+        "description": "Bytes written by Magma compactions due to file count triggers."
     },
     {
         "key": "ep_magma_keyindex_write_bytes_filecount_compact",
@@ -1963,6 +2015,11 @@
         "added": "7.0.0"
     },
     {
+        "family": "disk",
+        "unit": "microseconds",
+        "description": "time spent waiting for disk"
+    },
+    {
         "key": "disk_insert",
         "unit": "microseconds",
         "type": "histogram",
@@ -2056,6 +2113,11 @@
         "prometheus": false,
         "description": "Time spent in fetching all items by all dcp cursors from checkpoint queues",
         "added": "7.0.0"
+    },
+    {
+        "family": "sync_write_commit_duration",
+        "unit": "microseconds",
+        "description": "Commit duration for SyncWrites"
     },
     {
         "key": "sync_write_commit_majority",
@@ -2287,6 +2349,11 @@
             }
         },
         "added": "7.0.0"
+    },
+    {
+        "family": "subdoc_ops",
+        "unit": "count",
+        "description": "The number of subdoc operations"
     },
     {
         "key": "cmd_subdoc_lookup",
@@ -3614,6 +3681,11 @@
         "added": "7.0.0"
     },
     {
+        "family": "dcp_count",
+        "unit": "count",
+        "description": "Current number of DCP connections"
+    },
+    {
         "key": "connagg_producer_count",
         "unit": "count",
         "description": "Current number of DCP Producer connections (outbound)",
@@ -3689,7 +3761,12 @@
         },
         "added": "7.1.0"
     },
-     {
+    {
+        "family": "dcp_items_backfilled",
+        "unit": "count",
+        "description": "Number of items pushed into the DCP stream ready queue from a backfill"
+    },
+    {
         "key": "connagg_items_backfilled_disk",
         "unit": "count",
         "cbstat": "{connection_type}:items_backfilled_disk",
@@ -3900,6 +3977,11 @@
         "description": "Per-collection data size on disk",
         "cbstat": "data_size",
         "added": "7.0.0"
+    },
+    {
+        "family": "collection_ops",
+        "unit": "count",
+        "description": "Per-collection counters of sets/gets/deletes"
     },
     {
         "key": "collection_ops_store",

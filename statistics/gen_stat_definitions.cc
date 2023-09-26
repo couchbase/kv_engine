@@ -128,6 +128,26 @@ bool shouldDocumentConfigKey(std::string_view name) {
     return true;
 }
 
+enum DefinitionType {
+    /// Definition for a compile-time generated stat
+    /// { key: string, family: object?, added: string, unit: string,
+    ///   description: string }
+    StatDefinition,
+    /// Description for a metric family (for generating documentation)
+    /// { family: string, unit: string, description: string }
+    FamilyDescription,
+};
+
+DefinitionType getDefinitionType(const nlohmann::json& statDef) {
+    if (statDef.contains("family")) {
+        return DefinitionType::FamilyDescription;
+    }
+    return DefinitionType::StatDefinition;
+}
+
+/**
+ * Specification for emitting a stat definition.
+ */
 struct Spec {
     std::string enumKey;
     std::string cbstat;
@@ -143,6 +163,10 @@ struct Spec {
     bool prometheusEnabled = true;
     std::string stability = "committed";
     std::string added = "";
+
+    std::string_view getName() const {
+        return prometheus.family.empty() ? enumKey : prometheus.family;
+    }
 
     [[nodiscard]] bool validate() const {
         bool success = true;
@@ -393,6 +417,17 @@ std::pair<std::string, nlohmann::json> generateDocEntry(const Spec& spec) {
     return {std::move(name), std::move(statDoc)};
 }
 
+/**
+ * Adds a documentation entry for metric family described by the stat
+ * definition.
+ *
+ * If an entry for that metric family already exists (because there
+ * are multiple stat definitions emitting the same metric family), the entry
+ * becomes an array storing all of the conflicting definitions. Those must then
+ * be coalesce into a single documentation entry.
+ *
+ * @see resolveMetricFamilyConflicts
+ */
 void addDocumentation(const Spec& spec,
                       const nlohmann::json& statJson,
                       nlohmann::json& documentation) {
@@ -416,7 +451,84 @@ void addDocumentation(const Spec& spec,
         }
     }
 
-    documentation[statName] = std::move(statDoc);
+    if (!documentation.contains(statName)) {
+        documentation[statName] = std::move(statDoc);
+        return;
+    } else if (documentation[statName].type() == json::value_t::array) {
+        documentation[statName].push_back(std::move(statDoc));
+        return;
+    }
+
+    auto existingEntry = documentation[statName];
+    documentation[statName] =
+            json::array({std::move(existingEntry), std::move(statDoc)});
+}
+
+/**
+ * The stat_defnitions.json format is such that we might have multiple entries
+ * describing the same metric family with different labels. For example,
+ * kv_ops{op=get} and kv_ops{op=set} have two distinct definitions, but are the
+ * same metric family.
+ *
+ * @return true on success, false if any conflicts occurred
+ *
+ * @see addDocumentation
+ */
+bool resolveMetricFamilyConflicts(
+        nlohmann::json& documentation,
+        const std::unordered_map<std::string, nlohmann::json>&
+                familyDescriptions) {
+    using namespace nlohmann;
+
+    bool anyConflicts = false;
+
+    for (auto& entry : documentation.items()) {
+        if (entry.value().type() != json::value_t::array) {
+            continue;
+        }
+
+        if (entry.value().size() < 2) {
+            throw std::runtime_error(
+                    fmt::format("Unexpected array, only {} variant for {}",
+                                entry.value().size(),
+                                entry.key()));
+        }
+
+        // For now, we just pick the first metadata entry that we happen to have
+        // in the list. They should all be identical except for having different
+        // descriptions.
+        auto outputDocEntry = entry.value().at(0);
+
+        // We have multiple definitions for the metric family in entry.key().
+        // Need to pick one and a description.
+        auto familyIt = familyDescriptions.find(entry.key());
+        if (familyIt == familyDescriptions.end()) {
+            anyConflicts = true;
+            // This is not great to read but allows clearer output messages.
+            auto suffix = cb::stats::Unit::from_string(
+                                  outputDocEntry.value("unit", ""))
+                                  .getSuffix();
+            auto baseKey =
+                    entry.key()
+                            .substr(0, entry.key().size() - suffix.size())
+                            .substr(3);
+            fmt::print(stderr,
+                       "Multiple definitions emit the same metric "
+                       "family '{}' with different labels. To fix, ensure "
+                       "there is a family description:\n"
+                       "{{ \"family\": \"{}\", \"unit\": \"{}\", "
+                       "\"description\": \"...\" }}\n",
+                       entry.key(),
+                       baseKey,
+                       suffix.empty() ? "count" : suffix.substr(1));
+            continue;
+        }
+
+        outputDocEntry["help"] = familyIt->second.value("description", "");
+        entry.value() = outputDocEntry;
+    }
+
+    return !anyConflicts;
 }
 
 void addConfigDocumentation(const Spec& spec,
@@ -475,7 +587,23 @@ int main(int argc, char** argv) {
 
     bool anyFailedRequirements = false;
 
+    // List of the family descriptions we've seen
+    std::unordered_map<std::string, nlohmann::json> familyDescriptions;
+
     for (const auto& statJson : stats) {
+        auto type = getDefinitionType(statJson);
+        if (type == DefinitionType::FamilyDescription) {
+            auto baseName = statJson.at("family").get<std::string>();
+            auto unit = cb::stats::Unit::from_string(
+                    statJson.value("unit", "none"));
+            auto family = fmt::format("kv_{}{}", baseName, unit.getSuffix());
+            familyDescriptions.insert(std::make_pair(family, statJson));
+            continue;
+        }
+        if (type != DefinitionType::StatDefinition) {
+            throw std::runtime_error("Unexpected definition type!");
+        }
+
         // parse fields from json
         Spec spec = statJson;
         // check basic requirements are met
@@ -494,7 +622,10 @@ int main(int argc, char** argv) {
         addDocumentation(spec, statJson, documentation);
     }
 
-    if (anyFailedRequirements) {
+    bool conflictsResolved =
+            resolveMetricFamilyConflicts(documentation, familyDescriptions);
+
+    if (!conflictsResolved || anyFailedRequirements) {
         // requirements failures will have been logged to stderr already
         // just exit and fail this build.
         return 1;

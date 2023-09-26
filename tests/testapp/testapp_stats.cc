@@ -77,6 +77,10 @@ private:
         std::string descr;
 
         for (const auto& obj : stats_definitions) {
+            // Ignore family descriptions from stats_definitions.json
+            if (!obj.contains("key")) {
+                continue;
+            }
             if (obj["key"].get<std::string>() == key) {
                 found = true;
             } else {
