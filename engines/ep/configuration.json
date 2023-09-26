@@ -1691,7 +1691,7 @@
                 "on-prem": "100",
                 "serverless": "0"
             },
-            "descr": "Percentage of max mem warmed up before we enable traffic.",
+            "descr": "Mark warm-up as complete and enable traffic when bucket memory usage reaches this percentage of max_data_size. This is checked before evaluating warmup_min_items_threshold.",
             "dynamic": true,
             "type": "size_t",
             "validator": {
@@ -1706,7 +1706,7 @@
                 "on-prem": "100",
                 "serverless": "0"
             },
-            "descr": "Percentage of total items warmed up before we enable traffic.",
+            "descr": "Mark warm-up as complete and enable traffic when the number of values loaded by warm-up reaches this percentage of the available values. This is checked after evaluating warmup_min_memory_threshold.",
             "dynamic": true,
             "type": "size_t",
             "validator": {
