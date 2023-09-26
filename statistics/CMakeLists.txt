@@ -30,8 +30,9 @@ ADD_CUSTOM_COMMAND(
             genstats
         COMMENT "Generating stat definitions from json")
 
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/metrics_metadata.json
-        DESTINATION "etc/couchbase/kv")
+AddMetricsMetadata(
+        JSON "${CMAKE_CURRENT_BINARY_DIR}/metrics_metadata.json"
+        COMPONENT kv)
 
 add_custom_target(generated_stats_source_files
         DEPENDS
