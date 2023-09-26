@@ -813,8 +813,7 @@ TEST_F(EphTombstoneTest, ConcurrentPurge) {
     ThreadGate started(2);
     std::atomic<size_t> completed(0);
 
-    auto writer = [this](
-            ThreadGate& started, std::atomic<size_t>& completed, size_t id) {
+    auto writer = [this, &started, &completed](size_t id) {
         started.threadUp();
         for (size_t ii = 0; ii < 1000; ++ii) {
             auto key = makeStoredDocKey(std::to_string(id) + ":key_" +
@@ -825,8 +824,8 @@ TEST_F(EphTombstoneTest, ConcurrentPurge) {
         }
         ++completed;
     };
-    std::thread fe1{writer, std::ref(started), std::ref(completed), 1};
-    std::thread fe2{writer, std::ref(started), std::ref(completed), 2};
+    std::thread fe1{writer, 1};
+    std::thread fe2{writer, 2};
 
     do {
         mockEpheVB->markOldTombstonesStale(0);

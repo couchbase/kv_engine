@@ -27,7 +27,7 @@ using namespace cb::terminal;
  * @param json if true print as json otherwise print old-style
  */
 static void request_stat(MemcachedConnection& connection,
-                         const std::string& key,
+                         const std::string& statGroup,
                          bool json,
                          bool format,
                          const std::string& impersonate) {
@@ -43,13 +43,12 @@ static void request_stat(MemcachedConnection& connection,
             return ret;
         };
         if (json) {
-            auto stats = connection.stats(key, getFrameInfos);
+            auto stats = connection.stats(statGroup, getFrameInfos);
             std::cout << stats.dump(format ? 2 : -1) << std::endl;
         } else {
-            std::string_view name = key;
             connection.stats(
-                    [name](const std::string& key,
-                           const std::string& value) -> void {
+                    [statGroup](const std::string& key,
+                                const std::string& value) -> void {
                         bool printed = false;
                         if (value.find(R"("data":[)") != std::string::npos &&
                             value.find(R"("bucketsLow":)") !=
@@ -58,7 +57,7 @@ static void request_stat(MemcachedConnection& connection,
                             // dump as such
                             std::string_view nm;
                             if (key.empty() || std::isdigit(key.front())) {
-                                nm = name;
+                                nm = statGroup;
                             } else {
                                 nm = key;
                             }
@@ -76,7 +75,7 @@ static void request_stat(MemcachedConnection& connection,
                             std::cout << key << " " << value << std::endl;
                         }
                     },
-                    key,
+                    statGroup,
                     getFrameInfos);
         }
     } catch (const ConnectionError& ex) {

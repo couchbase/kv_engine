@@ -161,9 +161,9 @@ TEST_F(DocKeyTest, golden_nocollection_encoded) {
 TEST_F(DocKeyTest, no_prepare) {
     std::array<uint8_t, 4> data1 = {
             {CollectionID::DurabilityPrepare, 'k', 'e', 'y'}};
-    DocKey key(data1.data(), data1.size(), DocKeyEncodesCollectionId::No);
+    DocKey validKey(data1.data(), data1.size(), DocKeyEncodesCollectionId::No);
     try {
-        DocKey key(data1.data(), 0, DocKeyEncodesCollectionId::Yes);
+        DocKey invalidKey(data1.data(), 0, DocKeyEncodesCollectionId::Yes);
         FAIL() << "Expected constructor to throw an exception";
     } catch (const std::invalid_argument&) {
         // do nothing - expected to throw

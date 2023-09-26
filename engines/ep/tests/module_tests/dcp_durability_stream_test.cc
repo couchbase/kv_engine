@@ -2957,10 +2957,10 @@ void DurabilityPassiveStreamTest::testReceiveDcpAbort() {
     // Now simulate the Consumer receiving Abort for that Prepare
     uint32_t opaque = 0;
     auto abortReceived = [this, opaque, &key](
-                                 uint64_t prepareSeqno,
+                                 uint64_t preSeqno,
                                  uint64_t abortSeqno) -> cb::engine_errc {
         return stream->messageReceived(std::make_unique<AbortSyncWriteConsumer>(
-                opaque, vbid, key, prepareSeqno, abortSeqno));
+                opaque, vbid, key, preSeqno, abortSeqno));
     };
 
     // Check a negative first: at Replica we don't expect multiple Durable

@@ -114,12 +114,13 @@ TEST_P(EphemeralStreamTest, EphemeralBackfillSnapshotHasNoDuplicates) {
 }
 
 // Ephemeral only
-INSTANTIATE_TEST_SUITE_P(Ephemeral,
-                         EphemeralStreamTest,
-                         ::testing::Values("ephemeral"),
-                         [](const ::testing::TestParamInfo<std::string>& info) {
-                             return info.param;
-                         });
+INSTANTIATE_TEST_SUITE_P(
+        Ephemeral,
+        EphemeralStreamTest,
+        ::testing::Values("ephemeral"),
+        [](const ::testing::TestParamInfo<std::string>& testInfo) {
+            return testInfo.param;
+        });
 
 /**
  * Test verifies that Backfill skips a "stale item with replacement" in the case

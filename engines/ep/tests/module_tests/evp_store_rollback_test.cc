@@ -1350,12 +1350,12 @@ TEST_P(RollbackDcpTest, test_rollback_zero_MB_48398) {
     EXPECT_EQ(htState.dump(0), getHtState().dump(0));
 
     // All keys now gone
-    for (int ii = 0; ii < nitems; ii++) {
-        std::string key = "anykey_" + std::to_string(ii);
+    for (int i = 0; i < nitems; i++) {
+        std::string key_i = "anykey_" + std::to_string(i);
         auto result = store->get(
-                {key, DocKeyEncodesCollectionId::No}, vbid, cookie, {});
+                {key_i, DocKeyEncodesCollectionId::No}, vbid, cookie, {});
         EXPECT_EQ(cb::engine_errc::no_such_key, result.getStatus())
-                << "Problem with " << key;
+                << "Problem with " << key_i;
     }
     auto result = store->get(
             {"rogue1", DocKeyEncodesCollectionId::No}, vbid, cookie, {});

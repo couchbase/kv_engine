@@ -749,13 +749,12 @@ void RangeScanTest::testErrorsDuringContinue(cb::mcbp::Status error) {
             scanCanContinue = false;
         } else if (resp.getStatus() == cb::mcbp::Status::RangeScanMore) {
             // range-scan-more
-            BinprotRangeScanContinue scanContinue(
+            userConnection->sendCommand(BinprotRangeScanContinue(
                     Vbid(0),
                     id,
                     2, // 2 keys per continue
                     std::chrono::milliseconds(0) /* no time limit*/,
-                    0 /*no byte limit*/);
-            userConnection->sendCommand(scanContinue);
+                    0 /*no byte limit*/));
         } else if (resp.getStatus() == cb::mcbp::Status::Success) {
             // keys/values - next packet should be status
             ASSERT_NE(0, resp.getData().size());

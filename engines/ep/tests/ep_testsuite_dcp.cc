@@ -7296,13 +7296,12 @@ static enum test_result test_get_all_vb_seqnos(EngineIface* h) {
     for (int i = 1; i < num_vbuckets; i++) {
         // All inserts are into the default collection, testsuite doesn't yet
         // have the capability to properly write to collections
-        for (int j= 0; j < i; j++) {
-            std::string key("key" + std::to_string(i));
+        for (int j = 0; j < i; j++) {
             checkeq(cb::engine_errc::success,
                     store(h,
                           cookie,
                           StoreSemantics::Set,
-                          key,
+                          "key" + std::to_string(i),
                           "value",
                           nullptr,
                           0,

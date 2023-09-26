@@ -153,7 +153,7 @@ int main(int argc, char** argv) {
             }
             updates++;
         }
-        VB::Commit commit(manifest);
+        commit = VB::Commit(manifest);
         kvstore->commit(std::move(ctx), commit);
     }
 }

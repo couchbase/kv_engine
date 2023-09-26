@@ -665,7 +665,7 @@ TEST(ManifestTest, to_json) {
         ScopeEntry::Entry scope;
         cb::ExpiryLimit maxTtl;
     };
-    std::vector<std::pair<std::string, std::vector<TestInput>>> input = {
+    std::vector<std::pair<std::string, std::vector<TestInput>>> inputs = {
             {"abc0", {}},
             {"abc1",
              {{CollectionEntry::defaultC,
@@ -699,7 +699,7 @@ TEST(ManifestTest, to_json) {
     Collections::IsVisibleFunction isVisible =
             [](ScopeID, std::optional<CollectionID>) -> bool { return true; };
 
-    for (auto& manifest : input) {
+    for (auto& manifest : inputs) {
         CollectionsManifest cm(NoDefault{});
         std::unordered_set<ScopeID> scopesAdded;
         scopesAdded.insert(ScopeID::Default); // always the default scope

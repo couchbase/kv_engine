@@ -609,9 +609,9 @@ INSTANTIATE_TEST_SUITE_P(
                                              EvictionPolicy::Full),
                            ::testing::Bool()),
         [](const ::testing::TestParamInfo<std::tuple<EvictionPolicy, bool>>&
-                   info) {
-            std::string name = to_string(std::get<0>(info.param));
-            if (std::get<1>(info.param)) {
+                   testInfo) {
+            std::string name = to_string(std::get<0>(testInfo.param));
+            if (std::get<1>(testInfo.param)) {
                 name += "_DefragStoredValue";
             }
             return name;

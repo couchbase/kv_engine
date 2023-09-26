@@ -296,7 +296,7 @@ MutationLog::~MutationLog() {
         if (doLog) {
             EP_LOG_INFO_RAW("MutationLog::~MutationLog done");
         }
-    } catch (std::exception& e) {
+    } catch (const std::exception& e) {
         EP_LOG_ERR(
                 "MutationLog::~MutationLog: Exception thrown during "
                 "destruction: '{}' - forcefully closing file",
@@ -306,14 +306,14 @@ MutationLog::~MutationLog() {
         // the file if there's still a handle open.
         try {
             doClose(file);
-        } catch (std::exception& e) {
+        } catch (const std::exception& ee) {
             // If doClose fails then there's not much more we can do other
             // than report the error and leave the file in whatever state it
             // is in...
             EP_LOG_ERR(
                     "MutationLog::~MutationLog: Exception thrown during "
                     "forceful close of file: '{}' - leaving file as-is.",
-                    e.what());
+                    ee.what());
         }
     }
 }

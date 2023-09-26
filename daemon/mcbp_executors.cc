@@ -73,20 +73,19 @@ static void gat_executor(Cookie& cookie) {
 }
 
 static void evict_key_executor(Cookie& cookie) {
-    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& cookie) {
-              return bucket_evict_key(cookie,
-                                      cookie.getRequestKey(),
-                                      cookie.getRequest().getVBucket());
+    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
+              return bucket_evict_key(
+                      c, c.getRequestKey(), c.getRequest().getVBucket());
           }).drive();
 }
 
 static void seqno_persistence_executor(Cookie& cookie) {
-    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& cookie) {
-              auto data = cookie.getHeader().getExtdata();
+    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
+              auto data = c.getHeader().getExtdata();
               auto seqno =
                       ntohll(*reinterpret_cast<const uint64_t*>(data.data()));
               return bucket_wait_for_seqno_persistence(
-                      cookie, seqno, cookie.getRequest().getVBucket());
+                      c, seqno, c.getRequest().getVBucket());
           }).drive();
 }
 
@@ -95,14 +94,14 @@ static void ifconfig_executor(Cookie& cookie) {
 }
 
 static void start_persistence_executor(Cookie& cookie) {
-    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& cookie) {
-              return bucket_start_persistence(cookie);
+    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
+              return bucket_start_persistence(c);
           }).drive();
 }
 
 static void stop_persistence_executor(Cookie& cookie) {
-    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& cookie) {
-              return bucket_stop_persistence(cookie);
+    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
+              return bucket_stop_persistence(c);
           }).drive();
 }
 
@@ -111,16 +110,16 @@ static void observe_executor(Cookie& cookie) {
 }
 
 static void enable_traffic_control_mode_executor(Cookie& cookie) {
-    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& cookie) {
+    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
               return bucket_set_traffic_control_mode(
-                      cookie, TrafficControlMode::Enabled);
+                      c, TrafficControlMode::Enabled);
           }).drive();
 }
 
 static void disable_traffic_control_mode_executor(Cookie& cookie) {
-    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& cookie) {
+    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
               return bucket_set_traffic_control_mode(
-                      cookie, TrafficControlMode::Disabled);
+                      c, TrafficControlMode::Disabled);
           }).drive();
 }
 

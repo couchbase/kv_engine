@@ -303,21 +303,21 @@ bool MutationResponse::isEqual(const DcpResponse& rsp) const {
 }
 
 bool MutationConsumerMessage::isEqual(const DcpResponse& rsp) const {
-    const auto& other = static_cast<const MutationConsumerMessage&>(rsp);
-
-    auto compareEmd = [this](const MutationConsumerMessage& other) {
-        if (emd && other.emd) {
-            auto ext1 = emd->getExtMeta();
-            auto ext2 = other.emd->getExtMeta();
-            if (ext1.second == ext2.second) {
-                return std::memcmp(ext1.first, ext2.first, ext1.second) == 0;
-            }
-        } else if (!emd && !other.emd) {
-            return true;
-        }
+    if (!MutationResponse::isEqual(rsp)) {
         return false;
-    };
-    return compareEmd(other) && MutationResponse::isEqual(rsp);
+    }
+
+    const auto& other = static_cast<const MutationConsumerMessage&>(rsp);
+    if (emd && other.emd) {
+        auto ext1 = emd->getExtMeta();
+        auto ext2 = other.emd->getExtMeta();
+        if (ext1.second == ext2.second) {
+            return std::memcmp(ext1.first, ext2.first, ext1.second) == 0;
+        }
+    } else if (!emd && !other.emd) {
+        return true;
+    }
+    return false;
 }
 
 bool SeqnoAcknowledgement::isEqual(const DcpResponse& rsp) const {

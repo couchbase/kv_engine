@@ -347,12 +347,13 @@ TEST_P(EPEngineParamTest, VBucketSanityChecking) {
 }
 
 // Test cases which run for persistent and ephemeral buckets
-INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
-                         EPEngineParamTest,
-                         EPEngineParamTest::allConfigValues(),
-                         [](const ::testing::TestParamInfo<std::string>& info) {
-                             return info.param;
-                         });
+INSTANTIATE_TEST_SUITE_P(
+        EphemeralOrPersistent,
+        EPEngineParamTest,
+        EPEngineParamTest::allConfigValues(),
+        [](const ::testing::TestParamInfo<std::string>& testInfo) {
+            return testInfo.param;
+        });
 
 TEST_P(DurabilityTest, DurabilityStateStats) {
     // test that vbucket-durability-state stats group includes (only) the
@@ -547,19 +548,21 @@ TEST_P(EPEnginePersistentTest, EngineInitNoDataDir) {
     cookie = create_mock_cookie(engine);
 }
 
-INSTANTIATE_TEST_SUITE_P(Persistent,
-                         EPEnginePersistentTest,
-                         EPEngineParamTest::persistentConfigValues(),
-                         [](const ::testing::TestParamInfo<std::string>& info) {
-                             return info.param;
-                         });
+INSTANTIATE_TEST_SUITE_P(
+        Persistent,
+        EPEnginePersistentTest,
+        EPEngineParamTest::persistentConfigValues(),
+        [](const ::testing::TestParamInfo<std::string>& testInfo) {
+            return testInfo.param;
+        });
 
-INSTANTIATE_TEST_SUITE_P(EphemeralOrPersistent,
-                         DurabilityTest,
-                         EPEngineParamTest::allConfigValues(),
-                         [](const ::testing::TestParamInfo<std::string>& info) {
-                             return info.param;
-                         });
+INSTANTIATE_TEST_SUITE_P(
+        EphemeralOrPersistent,
+        DurabilityTest,
+        EPEngineParamTest::allConfigValues(),
+        [](const ::testing::TestParamInfo<std::string>& testInfo) {
+            return testInfo.param;
+        });
 
 /**
  * Regression test for MB-48925 - if a Task is scheduled against a Taskable

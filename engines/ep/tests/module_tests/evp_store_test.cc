@@ -1289,8 +1289,8 @@ TEST_P(EPBucketFullEvictionTest, RaceyFetchingMetaBgFetch) {
                    {cb::engine_errc::success} /*expected*/,
                    PROTOCOL_BINARY_RAW_BYTES);
         flushVBucketToDiskIfPersistent(vbid, 1);
-        const char* msg;
-        store->evictKey(key, vbid, &msg);
+        const char* unused;
+        store->evictKey(key, vbid, &unused);
 
         if (isFullEviction()) {
             // Need to make the item "temp" for the bg fetcher to consider
@@ -1970,8 +1970,8 @@ TEST_P(EPBucketFullEvictionNoBloomFilterTest, RaceyFetchingDeletedMetaBgFetch) {
                    PROTOCOL_BINARY_RAW_BYTES);
         flushVBucketToDiskIfPersistent(vbid, 1);
 
-        const char* msg;
-        store->evictKey(key, vbid, &msg);
+        const char* unused;
+        store->evictKey(key, vbid, &unused);
 
         // Need to make the item "temp" for the bg fetcher to consider
         // completing the bgfetch
@@ -2777,10 +2777,12 @@ TEST_P(EPBucketTestNoRocksDb,
     // Compaction is running. This should result in compaction running
     // again immediately following the first call.
     task1->setRunningCallback([this, mockEPBucket]() {
-        CompactionConfig config{100, 1, true, true};
         ASSERT_EQ(cb::engine_errc::would_block,
                   mockEPBucket->scheduleCompaction(
-                          vbid, config, nullptr, std::chrono::seconds(0)));
+                          vbid,
+                          CompactionConfig(100, 1, true, true),
+                          nullptr,
+                          std::chrono::seconds(0)));
     });
 
     // Test: trigger compaction. This should return true as it should be

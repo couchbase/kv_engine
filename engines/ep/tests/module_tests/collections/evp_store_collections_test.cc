@@ -904,7 +904,7 @@ bool CollectionsFlushTest::cannotWrite(
  *  3. Use a validator function to check if a collection is (or is not)
  *     writeable
  */
-void CollectionsFlushTest::collectionsFlusher(int items) {
+void CollectionsFlushTest::collectionsFlusher(int numItems) {
     struct testFuctions {
         std::function<Collections::KVStore::Manifest(int)> function;
         std::function<bool(const Collections::VB::Manifest&)> validator;
@@ -971,7 +971,7 @@ void CollectionsFlushTest::collectionsFlusher(int items) {
     int step = 0;
     for (auto& f : test) {
         auto m2 = std::make_unique<Collections::VB::Manifest>(
-                store->getSharedCollectionsManager(), f.function(items));
+                store->getSharedCollectionsManager(), f.function(numItems));
         // The manifest should change for each step
         EXPECT_NE(*m1, *m2) << "Failed step:" + std::to_string(step) << "\n"
                             << *m1 << "\n should not match " << *m2 << "\n";
@@ -1714,8 +1714,8 @@ TEST_P(CollectionsCouchstoreParameterizedTest, ConcCompactAbortPrepare) {
         }
         seenPrepare = true;
 
-        StoredDocKey meatKey{"beef", CollectionEntry::meat};
-        auto meatPending = makePendingItem(meatKey, "value");
+        auto meatPending =
+                makePendingItem({"beef", CollectionEntry::meat}, "value");
         EXPECT_EQ(cb::engine_errc::sync_write_pending,
                   store->set(*meatPending, cookie));
 

@@ -1070,12 +1070,13 @@ TEST(ScanContextTest, allLogicallyDeleted) {
             SystemEventFactory::makeScopeEventKey(ScopeID(8)), true, 99));
 }
 
-INSTANTIATE_TEST_SUITE_P(CollectionsKVStoreTests,
-                         CollectionsKVStoreTest,
-                         KVStoreParamTest::persistentConfigValues(),
-                         [](const ::testing::TestParamInfo<std::string>& info) {
-                             return info.param;
-                         });
+INSTANTIATE_TEST_SUITE_P(
+        CollectionsKVStoreTests,
+        CollectionsKVStoreTest,
+        KVStoreParamTest::persistentConfigValues(),
+        [](const ::testing::TestParamInfo<std::string>& testInfo) {
+            return testInfo.param;
+        });
 
 INSTANTIATE_TEST_SUITE_P(
         CollectionRessurectionKVStoreTests,
@@ -1086,12 +1087,13 @@ INSTANTIATE_TEST_SUITE_P(
                            ::testing::Bool(),
                            ::testing::Values(0, 1, 2)),
         [](const ::testing::TestParamInfo<
-                std::tuple<std::string, int, bool, bool, int>>& info) {
-            auto backend = std::get<0>(info.param);
-            auto cycles = std::to_string(std::get<1>(info.param));
-            auto dropAtEnd = std::to_string(std::get<2>(info.param));
-            auto newName = std::to_string(std::get<3>(info.param));
-            auto prologueSelection = std::to_string(std::get<4>(info.param));
+                std::tuple<std::string, int, bool, bool, int>>& testInfo) {
+            auto backend = std::get<0>(testInfo.param);
+            auto cycles = std::to_string(std::get<1>(testInfo.param));
+            auto dropAtEnd = std::to_string(std::get<2>(testInfo.param));
+            auto newName = std::to_string(std::get<3>(testInfo.param));
+            auto prologueSelection =
+                    std::to_string(std::get<4>(testInfo.param));
             return backend + "_with_" + cycles + "cycles_" + dropAtEnd + "_" +
                    newName + "_" + prologueSelection;
         });

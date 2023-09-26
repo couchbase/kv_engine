@@ -494,8 +494,8 @@ TEST_F(BasicClusterTest, SubdocReplicaGetWholedoc) {
     // We can read it from the active vbucket
     auto rsp = conn->execute(cmd);
     EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
-    auto getResultPair = [](BinprotResponse rsp) {
-        BinprotSubdocMultiLookupResponse response(std::move(rsp));
+    auto getResultPair = [](BinprotResponse resp) {
+        BinprotSubdocMultiLookupResponse response(std::move(resp));
         return std::pair<nlohmann::json, std::string>{
                 nlohmann::json::parse(response.getResults()[0].value),
                 response.getResults()[1].value};

@@ -175,6 +175,6 @@ INSTANTIATE_TEST_SUITE_P(
         FullAndValueEviction,
         EPVBucketTest,
         ::testing::Values(EvictionPolicy::Value, EvictionPolicy::Full),
-        [](const ::testing::TestParamInfo<EvictionPolicy>& info) {
-            return to_string(info.param);
+        [](const ::testing::TestParamInfo<EvictionPolicy>& testInfo) {
+            return to_string(testInfo.param);
         });

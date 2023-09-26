@@ -2545,7 +2545,7 @@ TEST_P(MultiPagingVisitorTest, ItemPagerCreatesMultiplePagers) {
     ASSERT_EQ(initialNonIoTasks + numConcurrentPagers,
               lpNonioQ.getFutureQueueSize());
 
-    for (size_t i = 0; i < numConcurrentPagers; ++i) {
+    for (size_t p = 0; p < numConcurrentPagers; ++p) {
         runPagingAdapterTask();
     }
 }

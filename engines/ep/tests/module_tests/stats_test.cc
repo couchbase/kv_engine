@@ -144,9 +144,8 @@ TEST_F(StatTest, HashStatsMemUsed) {
 
     std::string_view key{"_hash-dump 0"};
     int addStats_calls = 0;
-    auto callback = [&addStats_calls](std::string_view key,
-                                      std::string_view value,
-                                      const auto&) {
+    auto callback = [&addStats_calls](
+                            std::string_view, std::string_view, const auto&) {
         addStats_calls++;
 
         // This callback should run in the memcached-context so no engine should
@@ -1340,9 +1339,10 @@ INSTANTIATE_TEST_SUITE_P(Persistent,
                          STParameterizedBucketTest::persistentConfigValues(),
                          STParameterizedBucketTest::PrintToStringParamName);
 
-INSTANTIATE_TEST_SUITE_P(FullAndValueEviction,
-                         DatatypeStatTest,
-                         ::testing::Values("value_only", "full_eviction"),
-                         [](const ::testing::TestParamInfo<std::string>& info) {
-                             return info.param;
-                         });
+INSTANTIATE_TEST_SUITE_P(
+        FullAndValueEviction,
+        DatatypeStatTest,
+        ::testing::Values("value_only", "full_eviction"),
+        [](const ::testing::TestParamInfo<std::string>& testInfo) {
+            return testInfo.param;
+        });

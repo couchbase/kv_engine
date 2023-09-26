@@ -844,7 +844,7 @@ TEST_P(STParameterizedBucketTest,
         Expects(mockCookie);
         mockCookie->lock();
 
-        uint64_t rollbackSeqno;
+        uint64_t unused;
         auto result = producer->streamRequest(0,
                                               0,
                                               vbid1,
@@ -853,7 +853,7 @@ TEST_P(STParameterizedBucketTest,
                                               0,
                                               0,
                                               0,
-                                              &rollbackSeqno,
+                                              &unused,
                                               mock_dcp_add_failover_log,
                                               {});
         EXPECT_EQ(cb::engine_errc::success, result);
@@ -5075,8 +5075,8 @@ TEST_P(STParamPersistentBucketTest, RaceyFetchingValueBgFetch) {
                    PROTOCOL_BINARY_RAW_BYTES);
         flushVBucketToDiskIfPersistent(vbid, 1);
 
-        const char* msg;
-        store->evictKey(key, vbid, &msg);
+        const char* unused;
+        store->evictKey(key, vbid, &unused);
 
         if (isFullEviction()) {
             // Need to make the item "temp" for the bg fetcher to consider
