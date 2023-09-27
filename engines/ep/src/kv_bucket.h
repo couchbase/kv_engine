@@ -395,7 +395,7 @@ public:
 
     Position endPosition() const override;
 
-    Warmup* getWarmup() const override;
+    Warmup* getPrimaryWarmup() const override;
 
     cb::engine_errc getKeyStats(const DocKey& key,
                                 Vbid vbucket,

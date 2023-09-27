@@ -462,7 +462,7 @@ cb::engine_errc EventuallyPersistentEngine::doMetricGroupLow(
         return status;
     }
 
-    if (const auto* warmup = getKVBucket()->getWarmup()) {
+    if (const auto* warmup = getKVBucket()->getPrimaryWarmup()) {
         warmup->addStatusMetrics(collector);
     }
 
@@ -3417,7 +3417,7 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
 
     if (getConfiguration().getBucketType() == "persistent" &&
         getConfiguration().isWarmup()) {
-        Warmup *wp = kvBucket->getWarmup();
+        Warmup* wp = kvBucket->getPrimaryWarmup();
         if (wp == nullptr) {
             throw std::logic_error("EPEngine::doEngineStats: warmup is NULL");
         }

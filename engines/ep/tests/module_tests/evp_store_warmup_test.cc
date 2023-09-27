@@ -462,7 +462,7 @@ TEST_F(WarmupTest, MB_32577) {
     }
 
     // get hold of a pointer to the WarmUp object
-    auto* warmupPtr = store->getWarmup();
+    auto* warmupPtr = store->getPrimaryWarmup();
 
     // Run though all the warmup tasks till LoadingCollectionCounts task
     // at this point we want to stop as this is when we want to send a delete
@@ -725,7 +725,7 @@ TEST_F(WarmupTest, MB_58135_CorruptAccessLog) {
     // without access log.
     resetEngineAndWarmup("alog_path=access_log");
 
-    auto* warmup = engine->getKVBucket()->getWarmup();
+    auto* warmup = engine->getKVBucket()->getPrimaryWarmup();
     EXPECT_EQ(WarmupState::State::Done, warmup->getWarmupState());
 }
 
@@ -791,7 +791,7 @@ TEST_F(WarmupOrderTest, pauseResumeVisit) {
 TEST_F(WarmupOrderTest, populateShardVbStates) {
     resetEngineAndEnableWarmup();
     runReadersUntilWarmedUp();
-    const auto* warmup = store->getWarmup();
+    const auto* warmup = store->getPrimaryWarmup();
     ASSERT_TRUE(warmup);
     for (const auto& shard : warmup->getShardVbIds()) {
         EXPECT_EQ(16, shard.size());
@@ -1463,7 +1463,7 @@ TEST_P(DurabilityWarmupTest, WarmupCommitRaceWithPersistence) {
     // warmed up the original 1 item it identified earlier in warmup).
     // In production this isn't needed as data is loaded for many different
     // vBuckets; but to simplify here we just stick with a single VB.
-    store->getWarmup()->setItemThreshold(200);
+    store->getPrimaryWarmup()->setItemThreshold(200);
 
     // Batons used to synchronise the various setup phases:
     folly::Baton<true> syncWriteCommittedBaton;
@@ -1474,7 +1474,7 @@ TEST_P(DurabilityWarmupTest, WarmupCommitRaceWithPersistence) {
     // commit of all resolved sync writes once they have been loaded from disk
     // during warmup. (This would normally be done by DurabilityCompletionTask
     // but we are running single-threaded here).
-    store->getWarmup()->stateTransitionHook =
+    store->getPrimaryWarmup()->stateTransitionHook =
             [this,
              &key,
              &syncWriteCommittedBaton,
@@ -2578,7 +2578,7 @@ TEST_F(WarmupDiskTest, noDataFileCollectionCountsTest) {
         // have two shards
         if (runDiskFailure &&
             WarmupState::State::LoadingCollectionCounts ==
-                    getKVBucket()->getWarmup()->getWarmupState()) {
+                    getKVBucket()->getPrimaryWarmup()->getWarmupState()) {
             // delete the datafile on disk
             deleteDataFile();
             runDiskFailure = false;
@@ -2598,7 +2598,7 @@ TEST_F(WarmupDiskTest, noDataFileCollectionCountsTest) {
         }
     }
     EXPECT_EQ(WarmupState::State::LoadingCollectionCounts,
-              getKVBucket()->getWarmup()->getWarmupState());
+              getKVBucket()->getPrimaryWarmup()->getWarmupState());
 }
 
 /**
@@ -2630,7 +2630,7 @@ TEST_F(WarmupDiskTest, diskFailureBeforeLoadPrepares) {
         // have two shards
         if (runDiskFailure &&
             WarmupState::State::LoadPreparedSyncWrites ==
-            getKVBucket()->getWarmup()->getWarmupState()) {
+                    getKVBucket()->getPrimaryWarmup()->getWarmupState()) {
             // delete the datafile on disk
             deleteDataFile();
             runDiskFailure = false;
@@ -2650,7 +2650,7 @@ TEST_F(WarmupDiskTest, diskFailureBeforeLoadPrepares) {
         }
     }
     EXPECT_EQ(WarmupState::State::LoadPreparedSyncWrites,
-              getKVBucket()->getWarmup()->getWarmupState());
+              getKVBucket()->getPrimaryWarmup()->getWarmupState());
 }
 
 /**
@@ -2676,7 +2676,7 @@ TEST_F(WarmupDiskTest, readOnlyDataFileSetVbucketStateTest) {
         // have two shards
         if (runDiskFailure &&
             WarmupState::State::PopulateVBucketMap ==
-                    getKVBucket()->getWarmup()->getWarmupState()) {
+                    getKVBucket()->getPrimaryWarmup()->getWarmupState()) {
             // delete the datafile on disk
             makeFileReadOnly();
             runDiskFailure = false;
@@ -2688,7 +2688,7 @@ TEST_F(WarmupDiskTest, readOnlyDataFileSetVbucketStateTest) {
     }
     // Check that we finished warmuo
     EXPECT_EQ(WarmupState::State::Done,
-              getKVBucket()->getWarmup()->getWarmupState());
+              getKVBucket()->getPrimaryWarmup()->getWarmupState());
     EXPECT_FALSE(getKVBucket()->isWarmupLoadingData());
     // Ensure we don't enable traffic
     EXPECT_TRUE(getKVBucket()->hasWarmupSetVbucketStateFailed());
@@ -2726,7 +2726,7 @@ TEST_F(WarmupTest, DontStartFlushersUntilPopulateVBucketMap) {
     // Warmup - run past the PopulateVBucketMap step which is the one that
     // we care about
     auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
-    auto* warmup = engine->getKVBucket()->getWarmup();
+    auto* warmup = engine->getKVBucket()->getPrimaryWarmup();
     ASSERT_TRUE(warmup);
 
     while (warmup->getWarmupState() != WarmupState::State::CheckForAccessLog) {
@@ -2878,7 +2878,7 @@ TEST_F(WarmupTest, CrashWarmupAfterInitialize) {
         // Set up engine so its ready to warm up from disk
         resetEngineAndEnableWarmup();
         auto kvBucket = engine->getKVBucket();
-        auto warmup = kvBucket->getWarmup();
+        auto warmup = kvBucket->getPrimaryWarmup();
         // 1. Warmup stopping just before WarmupState::State::CreateVBuckets
         //    We should set 'ep_force_shutdown=true' in stats.log during
         //    WarmupState::State::initialize.
@@ -2932,7 +2932,7 @@ TEST_F(WarmupTest, ConsumerDuringWarmup) {
     flushVBucketToDiskIfPersistent(Vbid(1), 1);
 
     resetEngineAndEnableWarmup();
-    auto* warmupPtr = store->getWarmup();
+    auto* warmupPtr = store->getPrimaryWarmup();
     auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
     while (store->isWarmupLoadingData()) {
         if (warmupPtr->getWarmupState() == WarmupState::State::LoadingData) {
@@ -3059,10 +3059,9 @@ protected:
         //    initScanContext fail
         resetEngineAndEnableWarmup(extraConfig);
 
-        store->getWarmup()->stateTransitionHook = [this,
-                                                   injectState,
-                                                   injectFunc](
-                                                          const auto& state) {
+        store->getPrimaryWarmup()
+                ->stateTransitionHook = [this, injectState, injectFunc](
+                                                const auto& state) {
             using namespace ::testing;
             if (state == injectState) {
                 // Need to replace RW kvstore
@@ -3108,7 +3107,7 @@ protected:
         // Verify error was correctly handled - warmup should not have completed
         // (essentially bucket stops and doesn't proceed).
         auto kvBucket = engine->getKVBucket();
-        auto warmup = kvBucket->getWarmup();
+        auto warmup = kvBucket->getPrimaryWarmup();
         EXPECT_TRUE(kvBucket->isWarmupLoadingData());
         EXPECT_EQ(injectState, warmup->getWarmupState());
 
@@ -3175,7 +3174,7 @@ TEST_F(WarmupTest, WarmupStateRace) {
 
     // Warmup - run past the PopulateVBucketMap step which is the one that
     // we care about
-    auto* warmup = engine->getKVBucket()->getWarmup();
+    auto* warmup = engine->getKVBucket()->getPrimaryWarmup();
     ASSERT_TRUE(warmup);
     warmup->setWarmupStateTransitionHook([&]() { warmup->stop(); });
 
@@ -3280,7 +3279,7 @@ TEST_F(WarmupTest, WarmupStateAccessScannerDisabled) {
     // LoadingAccessLog state
     resetEngineAndEnableWarmup(epConfig);
     bool seenWarmupStateLoadAccessLog = false;
-    store->getWarmup()->stateTransitionHook =
+    store->getPrimaryWarmup()->stateTransitionHook =
             [&seenWarmupStateLoadAccessLog](WarmupState::State state) {
                 if (state == WarmupState::State::LoadingAccessLog) {
                     seenWarmupStateLoadAccessLog = true;

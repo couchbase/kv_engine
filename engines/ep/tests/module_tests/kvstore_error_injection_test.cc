@@ -898,7 +898,7 @@ TEST_P(KVStoreErrorInjectionTest, WarmupVBucketWithoutState) {
     // create a scan context if a vBucket state did not exist on disk.
     EXPECT_NO_THROW(runReadersUntilWarmedUp());
     EXPECT_EQ(WarmupState::State::Done,
-              engine->getKVBucket()->getWarmup()->getWarmupState());
+              engine->getKVBucket()->getPrimaryWarmup()->getWarmupState());
 }
 
 TEST_P(KVStoreErrorInjectionTest, WarmupKVStoreRevWhenVBStateNonExistent) {

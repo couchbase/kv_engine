@@ -394,6 +394,10 @@ public:
      */
     bool hasReachedThreshold() const;
 
+    const std::string& getName() const {
+        return name;
+    }
+
     /**
      * Testing hook which if set is called every time warmup transitions to
      * a new state.
@@ -607,6 +611,9 @@ private:
      * threads.
      */
     std::atomic<double> maxItemsScaleFactor{0.0};
+
+    /// A name used in logging about Warmup
+    std::string name;
 
     // To avoid making a number of methods on Warmup public; grant friendship
     // to the various Tasks which run the stages of warmup.

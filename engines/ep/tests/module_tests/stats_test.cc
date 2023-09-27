@@ -683,7 +683,7 @@ TEST_F(StatTest, WarmupState) {
     }
 
     resetEngineAndWarmup();
-    engine->getKVBucket()->getWarmup()->addStatusMetrics(collector);
+    engine->getKVBucket()->getPrimaryWarmup()->addStatusMetrics(collector);
 }
 
 TEST_F(StatTest, CBStatsScopeCollectionPrefix) {
@@ -833,7 +833,7 @@ TEST_F(StatTest, WarmupStats) {
     EXPECT_CALL(cb, Call("ep_warmup_estimate_time"sv, _, _)).Times(AtMost(1));
 
     CBStatCollector collector(cbFunc, *cookie);
-    store->getWarmup()->addStats(collector);
+    store->getPrimaryWarmup()->addStats(collector);
 }
 
 TEST_F(StatTest, EngineStatsWarmup) {

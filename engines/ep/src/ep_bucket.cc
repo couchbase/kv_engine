@@ -222,13 +222,11 @@ public:
         } else if (key == "alog_task_time") {
             bucket.resetAccessScannerStartTime();
         } else if (key == "warmup_min_memory_threshold") {
-            auto* warmup = bucket.getWarmup();
-            if (warmup) {
+            if (auto* warmup = bucket.getPrimaryWarmup()) {
                 warmup->setMemoryThreshold(value);
             }
         } else if (key == "warmup_min_items_threshold") {
-            auto* warmup = bucket.getWarmup();
-            if (warmup) {
+            if (auto* warmup = bucket.getPrimaryWarmup()) {
                 warmup->setItemThreshold(value);
             }
         } else {
@@ -2247,7 +2245,7 @@ void EPBucket::notifyNewSeqno(const Vbid vbid, const VBNotifyCtx& notifyCtx) {
     }
 }
 
-Warmup* EPBucket::getWarmup() const {
+Warmup* EPBucket::getPrimaryWarmup() const {
     return warmupTask.get();
 }
 

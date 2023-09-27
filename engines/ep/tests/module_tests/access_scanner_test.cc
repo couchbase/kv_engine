@@ -235,7 +235,7 @@ TEST_P(AccessLogTest, ReadAndWarmup) {
 
     // Step warmup until LoadingAccessLog
     auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
-    auto* warmup = store->getWarmup();
+    auto* warmup = store->getPrimaryWarmup();
     ASSERT_TRUE(warmup);
     while (warmup->getWarmupState() != WarmupState::State::LoadingAccessLog) {
         runNextTask(readerQueue);

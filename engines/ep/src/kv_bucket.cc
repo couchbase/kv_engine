@@ -526,7 +526,7 @@ KVBucket::~KVBucket() {
     EP_LOG_INFO_RAW("Deleted KvBucket.");
 }
 
-Warmup* KVBucket::getWarmup() const {
+Warmup* KVBucket::getPrimaryWarmup() const {
     return nullptr;
 }
 

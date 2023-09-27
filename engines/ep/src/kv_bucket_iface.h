@@ -576,7 +576,11 @@ public:
      */
     virtual Position endPosition() const = 0;
 
-    virtual Warmup* getWarmup() const = 0;
+    /**
+     * Return a pointer to the primary warmup object. Can be null for bucket's
+     * which don't warmup.
+     */
+    virtual Warmup* getPrimaryWarmup() const = 0;
 
     /**
      * Looks up the key stats for the given {vbucket, key}.
