@@ -126,53 +126,79 @@ std::string to_string(WarmupState::State val);
  *
  * The possible state transitions are:
  *
- *                [Initialise]
- *                     |
- *                     V
- *              [CreateVBuckets]
- *                     |
- *                     V
- *           [LoadingCollectionCounts]
- *                     |
- *                     V
- *          [EstimateDatabaseItemCount]
- *                     |
- *                     V
- *          [LoadPreparedSyncWrites]
- *                     |
- *                     V
- *            [PopulateVBucketMap]
- *                     |
- *                Eviction mode?
- *               /           \
- *            Value          Full
- *              |             |
- *              V             |
- *          [KeyDump]         |
- *              |             |
- *              V             V
- *            [CheckForAccessLog]
- *                     |
- *              Access Log Found?
- *               /              \
- *             Yes              No - Eviction mode?
- *              |                   /            \
- *              |                 Value          Full
- *              |                  |              |
- *              V                  |              V
- *       [LoadingAccessLog]        |       [LoadingKVPairs]
- *              |                  |              |
- *     maybe Enable Traffic?       |              |
- *     /                  \        |              |
- *    Yes                 No       |              |
- *     |                  |        |              |
- *     |                  V        V              |
- *     |                [LoadingData]             |
- *     |                     |                    |
- *     \---------------------+--------------------/
- *                           |
- *                           V
- *                        [Done]
+ *                       ┌──────────────────┐
+ *                       │    Initialise    │
+ *                       └──────────────────┘
+ *                                 │
+ *                                 ▼
+ *                       ┌──────────────────┐
+ *                       │  CreateVbuckets  │
+ *                       └──────────────────┘
+ *                                 │
+ *                                 ▼
+ *                    ┌─────────────────────────┐
+ *                    │ LoadingCollectionCounts │
+ *                    └─────────────────────────┘
+ *                                 │
+ *                                 ▼
+ *                   ┌───────────────────────────┐
+ *                   │ EstimateDatabaseItemCount │
+ *                   └───────────────────────────┘
+ *                                 │
+ *                                 ▼
+ *                   ┌───────────────────────────┐
+ *                   │   LoadPreparedSyncWrites  │
+ *                   └───────────────────────────┘
+ *                                 │
+ *                                 ▼
+ *                   ┌───────────────────────────┐
+ *                   │    PoplulateVBucketMap    │
+ *                   └───────────────────────────┘
+ *                                 │
+ *                                 │
+ *                          Eviction Mode?
+ *                                 │
+ *                  Value ◀────────┴─────▶ Full
+ *                     │                     │
+ *                     ▼                     │
+ *               ┌──────────┐                │
+ *               │ KeyDump  │      ┌─────────┘
+ *               └──────────┘      │
+ *                     │           │
+ *                     └───────────┤
+ *                                 ▼
+ *                      ┌────────────────────┐
+ *                      │ CheckForAccessLog  │
+ *                      └────────────────────┘
+ *                                 │
+ *                                 ▼
+ *                         Access Log Found?
+ *                                 │
+ *             ┌─────── Yes  ◀─────┴─────▶  No  ────┐
+ *             ▼                                    ▼
+ *   ┌───────────────────┐
+ *   │ LoadingAccessLog  │                   Eviction Mode?
+ *   └───────────────────┘                          │
+ *             │                     Value ◀────────┴─────▶ Full
+ *             ▼                         │                    │
+ *                                       │                    │
+ * Warm-up reached stop thresholds?      │                    │
+ *                                       │                    │
+ *             │                ┌────────┘                    │
+ *  Yes  ◀─────┴─────▶  No  ────┤                             │
+ *                              │                             │
+ *    │                         │                             │
+ *    │                         ▼                             ▼
+ *    │                  ┌─────────────┐           ┌────────────────────┐
+ *    │                  │ LoadingData │           │   LoadingKVPairs   │
+ *    │                  └─────────────┘           └────────────────────┘
+ *    │                         │                             │
+ *    │                         │                             │
+ *    │                         ▼                             │
+ *    │                      ┌────┐                           │
+ *    └─────────────────────▶│Done│◀──────────────────────────┘
+ *                           └────┘
+ *
  *
  * KV-engine has the following behaviour as warmup runs.
  *
