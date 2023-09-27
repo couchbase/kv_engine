@@ -56,10 +56,9 @@ struct WarmupCookie {
     size_t error;
 };
 
-void logWarmupStats(EPBucket& epstore) {
-    EPStats& stats = epstore.getEPEngine().getEpStats();
+void logWarmupStats(const EPStats& stats, const Warmup& warmup) {
     std::chrono::duration<double, std::chrono::seconds::period> seconds =
-            epstore.getWarmup()->getTime();
+            warmup.getTime();
     double keys_per_seconds = stats.warmedUpValues / seconds.count();
     double megabytes = stats.getPreciseTotalMemoryUsed() / 1.0e6;
     double megabytes_per_seconds = megabytes / seconds.count();
@@ -68,8 +67,7 @@ void logWarmupStats(EPBucket& epstore) {
             "mem_used now at {} MB ({} MB/s)",
             stats.warmedUpKeys,
             stats.warmedUpValues,
-            cb::time2text(
-                    std::chrono::nanoseconds(epstore.getWarmup()->getTime())),
+            cb::time2text(std::chrono::nanoseconds(warmup.getTime())),
             keys_per_seconds,
             megabytes,
             megabytes_per_seconds);
@@ -1143,7 +1141,8 @@ void LoadStorageKVPairCallback::callback(GetValue& val) {
         if (epstore.getWarmup()->setFinishedLoading()) {
             epstore.getWarmup()->setWarmupTime();
             epstore.warmupCompleted();
-            logWarmupStats(epstore);
+            logWarmupStats(epstore.getEPEngine().getEpStats(),
+                           *epstore.getWarmup());
         }
         EP_LOG_INFO(
                 "LoadStorageKVPairCallback::callback(): {} "
@@ -1922,7 +1921,7 @@ void Warmup::done() {
     if (setFinishedLoading()) {
         setWarmupTime();
         store.warmupCompleted();
-        logWarmupStats(store);
+        logWarmupStats(store.getEPEngine().getEpStats(), *this);
     }
 }
 
