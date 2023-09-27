@@ -621,25 +621,29 @@ public:
                              warmup,
                              TaskId::WarmupKeyDump,
                              "key dump",
-                             threadTaskCount){};
+                             threadTaskCount) {
+    }
 
     WarmupState::State getNextState() const override {
+        if (warmup.hasReachedThreshold()) {
+            return WarmupState::State::Done;
+        }
         return WarmupState::State::CheckForAccessLog;
     }
 
     ValueFilter getValueFilter() const override {
         return ValueFilter::KEYS_ONLY;
-    };
+    }
 
     bool shouldCheckIfWarmupThresholdReached() const override {
         // KeyDump has bespoke code in LoadStorageKVPairCallback which doesn't
         // use hasWarmupReachedThresholds.
         return false;
-    };
+    }
 
     CacheLookupCallBackPtr makeCacheLookupCallback() const override {
         return std::make_unique<NoLookupCallback>();
-    };
+    }
 };
 
 class WarmupCheckforAccessLog : public EpTask {
@@ -976,12 +980,14 @@ bool WarmupState::legalTransition(State from, State to) const {
     case State::LoadPreparedSyncWrites:
         return (to == State::PopulateVBucketMap);
     case State::PopulateVBucketMap:
-        return (to == State::KeyDump || to == State::CheckForAccessLog);
+        return (to == State::KeyDump || to == State::CheckForAccessLog ||
+                to == State::Done);
     case State::KeyDump:
-        return (to == State::LoadingKVPairs || to == State::CheckForAccessLog);
+        return (to == State::LoadingKVPairs || to == State::CheckForAccessLog ||
+                to == State::Done);
     case State::CheckForAccessLog:
         return (to == State::LoadingAccessLog || to == State::LoadingData ||
-                to == State::LoadingKVPairs || to == State::Done);
+                to == State::LoadingKVPairs);
     case State::LoadingAccessLog:
         return (to == State::Done || to == State::LoadingData);
     case State::LoadingKVPairs:
@@ -1697,6 +1703,8 @@ void Warmup::populateVBucketMap(uint16_t shardId) {
         notifyWaitingCookies(cb::engine_errc::success);
         if (store.getItemEvictionPolicy() == EvictionPolicy::Value) {
             transition(WarmupState::State::KeyDump);
+        } else if (hasReachedThreshold()) {
+            transition(WarmupState::State::Done);
         } else {
             transition(WarmupState::State::CheckForAccessLog);
         }
@@ -1731,11 +1739,6 @@ void Warmup::scheduleCheckForAccessLog() {
 }
 
 void Warmup::checkForAccessLog() {
-    if (hasReachedThreshold()) {
-        transition(WarmupState::State::Done);
-        return;
-    }
-
     size_t accesslogs = 0;
     if (config.isAccessScannerEnabled()) {
         accessLog.resize(getNumShards());
