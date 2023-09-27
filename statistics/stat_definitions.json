@@ -2600,10 +2600,17 @@
     },
     {
         "key": "conn_yields",
-        "description": "The total number all clients in this bucket yield due to using their entire timeslice",
+        "description": "The total number all clients in this bucket yield due to consuming the number of ops allowed for the current timeslice",
         "unit": "count",
         "type": "counter",
         "added": "7.0.0"
+    },
+    {
+        "key": "conn_timeslice_yields",
+        "description": "The total number all clients in this bucket yield due to using their entire timeslice",
+        "unit": "count",
+        "type": "counter",
+        "added": "7.6.0"
     },
     {
         "key": "lock_errors",

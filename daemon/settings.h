@@ -1095,7 +1095,7 @@ protected:
     /// The max amount of time spent executing commands per callback per
     /// connection before backing off
     std::atomic<std::chrono::milliseconds> command_time_slice{
-            std::chrono::milliseconds{250}};
+            std::chrono::milliseconds{25}};
 
     /// To prevent us from reading (and allocating) an insane amount of
     /// data off the network we'll ignore (and disconnect clients) that

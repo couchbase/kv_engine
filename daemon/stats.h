@@ -50,6 +50,7 @@ struct thread_stats {
         bytes_read = 0;
         cmd_flush = 0;
         conn_yields = 0;
+        conn_timeslice_yields = 0;
         cmd_subdoc_lookup = 0;
         cmd_subdoc_mutation = 0;
         cmd_lock = 0;
@@ -80,6 +81,7 @@ struct thread_stats {
         bytes_written += other.bytes_written;
         cmd_flush += other.cmd_flush;
         conn_yields += other.conn_yields;
+        conn_timeslice_yields += other.conn_timeslice_yields;
         cmd_subdoc_lookup += other.cmd_subdoc_lookup;
         cmd_subdoc_mutation += other.cmd_subdoc_mutation;
 
@@ -119,6 +121,8 @@ struct thread_stats {
     cb::RelaxedAtomic<uint64_t> cmd_flush;
     cb::RelaxedAtomic<uint64_t>
             conn_yields; /* # of yields for connections (-R option)*/
+    cb::RelaxedAtomic<uint64_t>
+            conn_timeslice_yields;
     /* # of subdoc lookup commands (GET/EXISTS/MULTI_LOOKUP) */
     cb::RelaxedAtomic<uint64_t> cmd_subdoc_lookup;
     /* # of subdoc mutation commands */

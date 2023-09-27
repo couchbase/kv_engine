@@ -693,10 +693,11 @@ void Connection::executeCommandPipeline() {
         now = std::chrono::steady_clock::now();
     }
 
-    if (numEvents == 0 || now > current_timeslice_end) {
+    if (numEvents == 0) {
         yields++;
-        // Update the aggregated stat
         get_thread_stats(this)->conn_yields++;
+    } else if (now > current_timeslice_end) {
+        get_thread_stats(this)->conn_timeslice_yields++;
     }
 
     if (isPacketAvailable()) {
