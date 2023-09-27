@@ -99,10 +99,36 @@
 using cb::tracing::Code;
 using namespace std::string_view_literals;
 
-struct EPHandleReleaser {
-    void operator()(const EventuallyPersistentEngine*) {
-        ObjectRegistry::onSwitchThread(nullptr);
+/// Deleter used with EPHandle which sets the calling threads' engine back
+/// to the previous value before the EPHandle was created.
+class EPHandleReleaser {
+public:
+    EPHandleReleaser(EventuallyPersistentEngine* previous)
+        : previous(previous) {
     }
+
+    void operator()(const EventuallyPersistentEngine*) {
+        ObjectRegistry::onSwitchThread(previous);
+    }
+
+    // The previous engine associated with the calling thread before the
+    // engine owned by the unique_ptr was switched to.
+    // Note: This should always be null in production - the daemon calls into
+    // the engine via EngineIface, whose methods all set the called-to engine
+    // as the 'current' engine, when the engine call finishes (and
+    // EPHandleReleaser::operator() is invoked) we return to the previous
+    // (null) engine.
+    // However, unit tests can do things like call a method on EpEngine via
+    // the EngineIface (which does the switching described), then call a
+    // method not on that interface which doesn't perform
+    // onSwitchThread(thisEngine), meaning if EPHandleReleaser::operator()
+    // simply set the current engine to nullptr then unit tests would observe
+    // their 'current' engine change to null after calls to EngineIface, and
+    // hence would need to make a call to onSwitchThread(thisEngine)
+    // after every EngineIface call, which can be verbose and error-prone.
+    // As such, this class records the previous engine, and restores the
+    // thread's current engine back to that on destruction.
+    EventuallyPersistentEngine* previous;
 };
 
 using EPHandle = std::unique_ptr<EventuallyPersistentEngine, EPHandleReleaser>;
@@ -125,9 +151,9 @@ struct ScheduledSeqnoPersistenceToken {};
 
 static inline EPHandle acquireEngine(EngineIface* handle) {
     auto ret = reinterpret_cast<EventuallyPersistentEngine*>(handle);
-    ObjectRegistry::onSwitchThread(ret);
+    auto* previous = ObjectRegistry::onSwitchThread(ret, true);
 
-    return EPHandle(ret);
+    return EPHandle(ret, {previous});
 }
 
 static inline ConstEPHandle acquireEngine(const EngineIface* handle) {
@@ -139,10 +165,10 @@ static inline ConstEPHandle acquireEngine(const EngineIface* handle) {
     // mutate through the ObjectRegistry. Note with MB-23086 in-place, EPStats
     // won't be updated by general memory allocation, so the scope for changing
     // the const engine* is very much reduced.
-    ObjectRegistry::onSwitchThread(
-            const_cast<EventuallyPersistentEngine*>(ret));
+    auto* previous = ObjectRegistry::onSwitchThread(
+            const_cast<EventuallyPersistentEngine*>(ret), true);
 
-    return ConstEPHandle(ret);
+    return ConstEPHandle(ret, {previous});
 }
 
 /**
