@@ -125,7 +125,7 @@ struct default_engine : public EngineIface {
             CookieIface& cookie,
             const DocKey& key,
             Vbid vbucket,
-            std::function<bool(const item_info&)> filter) override;
+            const std::function<bool(const item_info&)>& filter) override;
 
     cb::EngineErrorMetadataPair get_meta(CookieIface& cookie,
                                          const DocKey& key,

@@ -163,7 +163,7 @@ public:
             CookieIface& cookie,
             const DocKey& key,
             Vbid vbucket,
-            std::function<bool(const item_info&)> filter) override;
+            const std::function<bool(const item_info&)>& filter) override;
     cb::EngineErrorMetadataPair get_meta(CookieIface& cookie,
                                          const DocKey& key,
                                          Vbid vbucket) override;
@@ -485,7 +485,7 @@ public:
             CookieIface& cookie,
             const DocKey& key,
             Vbid vbucket,
-            std::function<bool(const item_info&)> filter);
+            const std::function<bool(const item_info&)>& filter);
 
     cb::EngineErrorItemPair getAndTouchInner(CookieIface& cookie,
                                              const DocKey& key,
@@ -632,11 +632,12 @@ public:
                              const DocKey& key,
                              Vbid vbucket);
 
-    cb::engine_errc observe(CookieIface& cookie,
-                            const DocKey& key,
-                            Vbid vbucket,
-                            std::function<void(uint8_t, uint64_t)> key_handler,
-                            uint64_t& persist_time_hint) override;
+    cb::engine_errc observe(
+            CookieIface& cookie,
+            const DocKey& key,
+            Vbid vbucket,
+            const std::function<void(uint8_t, uint64_t)>& key_handler,
+            uint64_t& persist_time_hint) override;
 
     cb::engine_errc observe_seqno(CookieIface& cookie,
                                   const cb::mcbp::Request& request,
@@ -733,7 +734,7 @@ public:
             CookieIface& cookie,
             const DocKey& key,
             Vbid vbucket,
-            std::function<void(uint8_t, uint64_t)> key_handler,
+            const std::function<void(uint8_t, uint64_t)>& key_handler,
             uint64_t& persist_time_hint);
 
     cb::engine_errc handleSeqnoPersistence(CookieIface& cookie,

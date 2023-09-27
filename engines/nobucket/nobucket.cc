@@ -70,7 +70,7 @@ public:
             CookieIface&,
             const DocKey&,
             Vbid,
-            std::function<bool(const item_info&)>) override {
+            const std::function<bool(const item_info&)>&) override {
         return cb::makeEngineErrorItemPair(cb::engine_errc::no_bucket);
     }
 

@@ -51,7 +51,7 @@ cb::engine_errc bucket_store(
         ItemIface& item_,
         uint64_t& cas,
         StoreSemantics operation,
-        std::optional<cb::durability::Requirements> durability,
+        const std::optional<cb::durability::Requirements>& durability,
         DocumentState document_state,
         bool preserveTtl);
 
@@ -60,8 +60,8 @@ cb::EngineErrorCasPair bucket_store_if(
         ItemIface& item_,
         uint64_t cas,
         StoreSemantics operation,
-        cb::StoreIfPredicate predicate,
-        std::optional<cb::durability::Requirements> durability,
+        const cb::StoreIfPredicate& predicate,
+        const std::optional<cb::durability::Requirements>& durability,
         DocumentState document_state,
         bool preserveTtl);
 
@@ -70,7 +70,7 @@ cb::engine_errc bucket_remove(
         const DocKey& key,
         uint64_t& cas,
         Vbid vbucket,
-        std::optional<cb::durability::Requirements> durability,
+        const std::optional<cb::durability::Requirements>& durability,
         mutation_descr_t& mut_info);
 
 cb::EngineErrorItemPair bucket_get(
@@ -90,14 +90,14 @@ cb::EngineErrorItemPair bucket_get_if(
         Cookie& cookie,
         const DocKey& key,
         Vbid vbucket,
-        std::function<bool(const item_info&)> filter);
+        const std::function<bool(const item_info&)>& filter);
 
 cb::EngineErrorItemPair bucket_get_and_touch(
         Cookie& cookie,
         const DocKey& key,
         Vbid vbucket,
         uint32_t expiration,
-        std::optional<cb::durability::Requirements> durability);
+        const std::optional<cb::durability::Requirements>& durability);
 
 BucketCompressionMode bucket_get_compression_mode(Cookie& cookie);
 
@@ -144,7 +144,7 @@ cb::engine_errc bucket_observe(
         Cookie& cookie,
         const DocKey& key,
         Vbid vbucket,
-        std::function<void(uint8_t, uint64_t)> key_handler,
+        const std::function<void(uint8_t, uint64_t)>& key_handler,
         uint64_t& persist_time_hint);
 
 /**

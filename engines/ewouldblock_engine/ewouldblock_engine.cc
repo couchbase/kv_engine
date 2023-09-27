@@ -195,7 +195,7 @@ public:
             CookieIface& cookie,
             const DocKey& key,
             Vbid vbucket,
-            std::function<bool(const item_info&)> filter) override;
+            const std::function<bool(const item_info&)>& filter) override;
     cb::EngineErrorItemPair get_and_touch(
             CookieIface& cookie,
             const DocKey& key,
@@ -217,11 +217,12 @@ public:
     cb::engine_errc evict_key(CookieIface& cookie,
                               const DocKey& key,
                               Vbid vbucket) override;
-    cb::engine_errc observe(CookieIface& cookie,
-                            const DocKey& key,
-                            Vbid vbucket,
-                            std::function<void(uint8_t, uint64_t)> key_handler,
-                            uint64_t& persist_time_hint) override;
+    cb::engine_errc observe(
+            CookieIface& cookie,
+            const DocKey& key,
+            Vbid vbucket,
+            const std::function<void(uint8_t, uint64_t)>& key_handler,
+            uint64_t& persist_time_hint) override;
     cb::engine_errc store(
             CookieIface& cookie,
             ItemIface& item,
@@ -1089,7 +1090,7 @@ cb::EngineErrorItemPair EWB_Engine::get_if(
         CookieIface& cookie,
         const DocKey& key,
         Vbid vbucket,
-        std::function<bool(const item_info&)> filter) {
+        const std::function<bool(const item_info&)>& filter) {
     cb::engine_errc err = cb::engine_errc::success;
     if (should_inject_error(Cmd::GET, &cookie, err)) {
         return cb::makeEngineErrorItemPair(cb::engine_errc::would_block);
@@ -1158,7 +1159,7 @@ cb::engine_errc EWB_Engine::observe(
         CookieIface& cookie,
         const DocKey& key,
         Vbid vbucket,
-        std::function<void(uint8_t, uint64_t)> key_handler,
+        const std::function<void(uint8_t, uint64_t)>& key_handler,
         uint64_t& persist_time_hint) {
     return real_engine->observe(
             cookie, key, vbucket, key_handler, persist_time_hint);

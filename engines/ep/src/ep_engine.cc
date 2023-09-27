@@ -281,7 +281,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::get_if(
         CookieIface& cookie,
         const DocKey& key,
         Vbid vbucket,
-        std::function<bool(const item_info&)> filter) {
+        const std::function<bool(const item_info&)>& filter) {
     return acquireEngine(this)->getIfInner(cookie, key, vbucket, filter);
 }
 
@@ -2391,7 +2391,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::getIfInner(
         CookieIface& cookie,
         const DocKey& key,
         Vbid vbucket,
-        std::function<bool(const item_info&)> filter) {
+        const std::function<bool(const item_info&)>& filter) {
     ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
             std::forward_as_tuple(stats.getCmdHisto),
             std::forward_as_tuple(cookie, cb::tracing::Code::GetIf));
@@ -5284,7 +5284,7 @@ cb::engine_errc EventuallyPersistentEngine::handleObserve(
         CookieIface& cookie,
         const DocKey& key,
         Vbid vbucket,
-        std::function<void(uint8_t, uint64_t)> key_handler,
+        const std::function<void(uint8_t, uint64_t)>& key_handler,
         uint64_t& persist_time_hint) {
     EP_LOG_DEBUG("Observing key {} in {}",
                  cb::UserDataView(key.to_string()),
@@ -5334,7 +5334,7 @@ cb::engine_errc EventuallyPersistentEngine::observe(
         CookieIface& cookie,
         const DocKey& key,
         Vbid vbucket,
-        std::function<void(uint8_t, uint64_t)> key_handler,
+        const std::function<void(uint8_t, uint64_t)>& key_handler,
         uint64_t& persist_time_hint) {
     return acquireEngine(this)->handleObserve(
             cookie, key, vbucket, key_handler, persist_time_hint);

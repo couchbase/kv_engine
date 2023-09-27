@@ -179,7 +179,7 @@ cb::EngineErrorItemPair MockEngine::get_if(
         CookieIface& cookie,
         const DocKey& key,
         Vbid vbucket,
-        std::function<bool(const item_info&)> filter) {
+        const std::function<bool(const item_info&)>& filter) {
     auto engine_fn = [this, &cookie, k = std::cref(key), vbucket, filter]() {
         return the_engine->get_if(cookie, k, vbucket, filter);
     };
@@ -396,7 +396,7 @@ cb::engine_errc MockEngine::observe(
         CookieIface& cookie,
         const DocKey& key,
         Vbid vbucket,
-        std::function<void(uint8_t, uint64_t)> key_handler,
+        const std::function<void(uint8_t, uint64_t)>& key_handler,
         uint64_t& persist_time_hint) {
     auto engine_fn = [this,
                       &cookie,

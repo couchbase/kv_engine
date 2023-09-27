@@ -55,7 +55,7 @@ struct MockEngine : public EngineIface, public DcpIface {
             CookieIface& cookie,
             const DocKey& key,
             Vbid vbucket,
-            std::function<bool(const item_info&)> filter) override;
+            const std::function<bool(const item_info&)>& filter) override;
 
     cb::EngineErrorMetadataPair get_meta(CookieIface& cookie,
                                          const DocKey& key,
@@ -79,11 +79,12 @@ struct MockEngine : public EngineIface, public DcpIface {
             const std::optional<cb::durability::Requirements>& durability)
             override;
 
-    cb::engine_errc observe(CookieIface& cookie,
-                            const DocKey& key,
-                            Vbid vbucket,
-                            std::function<void(uint8_t, uint64_t)> key_handler,
-                            uint64_t& persist_time_hint) override;
+    cb::engine_errc observe(
+            CookieIface& cookie,
+            const DocKey& key,
+            Vbid vbucket,
+            const std::function<void(uint8_t, uint64_t)>& key_handler,
+            uint64_t& persist_time_hint) override;
 
     cb::engine_errc store(
             CookieIface& cookie,

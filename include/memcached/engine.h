@@ -376,7 +376,7 @@ struct EngineIface {
             CookieIface& cookie,
             const DocKey& key,
             Vbid vbucket,
-            std::function<bool(const item_info&)> filter) = 0;
+            const std::function<bool(const item_info&)>& filter) = 0;
 
     /**
      * Retrieve metadata for a given item.
@@ -468,7 +468,7 @@ struct EngineIface {
             CookieIface& cookie,
             const DocKey& key,
             Vbid vbucket,
-            std::function<void(uint8_t, uint64_t)> key_handler,
+            const std::function<void(uint8_t, uint64_t)>& key_handler,
             uint64_t& persist_time_hint) {
         return cb::engine_errc::not_supported;
     }
@@ -659,7 +659,7 @@ struct EngineIface {
     virtual cb::EngineErrorGetCollectionMetaResult get_collection_meta(
             CookieIface& cookie,
             CollectionID cid,
-            std::optional<Vbid> vbid = std::nullopt) const;
+            std::optional<Vbid> vbid) const;
 
     /**
      * Ask the engine what features it supports.

@@ -402,7 +402,7 @@ cb::EngineErrorItemPair default_engine::get_if(
         CookieIface& cookie,
         const DocKey& key,
         Vbid vbucket,
-        std::function<bool(const item_info&)> filter) {
+        const std::function<bool(const item_info&)>& filter) {
     if (!handled_vbucket(this, vbucket)) {
         return cb::makeEngineErrorItemPair(cb::engine_errc::not_my_vbucket);
     }

@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -20,6 +19,7 @@
 #include <memcached/limits.h>
 #include <memcached/range_scan_optional_configuration.h>
 #include <utilities/logtags.h>
+#include <utility>
 
 using namespace std::string_literals;
 
@@ -83,7 +83,7 @@ cb::engine_errc bucket_store(
         ItemIface& item_,
         uint64_t& cas,
         StoreSemantics operation,
-        std::optional<cb::durability::Requirements> durability,
+        const std::optional<cb::durability::Requirements>& durability,
         DocumentState document_state,
         bool preserveTtl) {
     auto& c = cookie.getConnection();
@@ -128,8 +128,8 @@ cb::EngineErrorCasPair bucket_store_if(
         ItemIface& item_,
         uint64_t cas,
         StoreSemantics operation,
-        cb::StoreIfPredicate predicate,
-        std::optional<cb::durability::Requirements> durability,
+        const cb::StoreIfPredicate& predicate,
+        const std::optional<cb::durability::Requirements>& durability,
         DocumentState document_state,
         bool preserveTtl) {
     auto& c = cookie.getConnection();
@@ -177,7 +177,7 @@ cb::engine_errc bucket_remove(
         const DocKey& key,
         uint64_t& cas,
         Vbid vbucket,
-        std::optional<cb::durability::Requirements> durability,
+        const std::optional<cb::durability::Requirements>& durability,
         mutation_descr_t& mut_info) {
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine().remove(
@@ -276,7 +276,7 @@ cb::EngineErrorItemPair bucket_get_if(
         Cookie& cookie,
         const DocKey& key,
         Vbid vbucket,
-        std::function<bool(const item_info&)> filter) {
+        const std::function<bool(const item_info&)>& filter) {
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine().get_if(cookie, key, vbucket, filter);
 
@@ -297,7 +297,7 @@ cb::EngineErrorItemPair bucket_get_and_touch(
         const DocKey& key,
         Vbid vbucket,
         uint32_t expiration,
-        std::optional<cb::durability::Requirements> durability) {
+        const std::optional<cb::durability::Requirements>& durability) {
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine().get_and_touch(
             cookie, key, vbucket, expiration, durability);
@@ -536,11 +536,11 @@ cb::engine_errc bucket_observe(
         Cookie& cookie,
         const DocKey& key,
         Vbid vbucket,
-        std::function<void(uint8_t, uint64_t)> key_handler,
+        const std::function<void(uint8_t, uint64_t)>& key_handler,
         uint64_t& persist_time_hint) {
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine().observe(
-            cookie, key, vbucket, std::move(key_handler), persist_time_hint);
+            cookie, key, vbucket, key_handler, persist_time_hint);
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING(
                 "{}: {} bucket_observe returned cb::engine_errc::disconnect",
@@ -905,7 +905,7 @@ cb::engine_errc dcpStreamReq(Cookie& cookie,
                                snapStartSeqno,
                                snapEndSeqno,
                                rollbackSeqno,
-                               callback,
+                               std::move(callback),
                                json);
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING(
