@@ -2615,6 +2615,13 @@ The command will search resident items only using a randomised vbucket as a
 start point and then randomised hash-tables buckets for searching within a
 vbucket.
 
+Note that the command will only search a vbucket, if the collection's item count
+of the vbucket is greater than zero. The collection item count is only
+updated when a mutation is persisted and persistence executes asynchronously.
+A Get Random Key issued after any store operation will be guaranteed success
+until the asynchronous persistence task has updated the collection statistics.
+This is also true when the store uses durability.
+
 Request:
 
 * MAY have extras if client has enabled collections (see HELO)

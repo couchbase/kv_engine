@@ -22,6 +22,11 @@ their may be another `uint32_t` for the next key. This should be repeated to get
 all the keys returned till the number of bytes observed is equal to total body
 bytes.
 
+Note that the returned keys are only persisted and committed keys, and as such
+from a serial sequence of operations, GET_KEYS issued after any write is
+not guaranteed to include the write as the write may not be persisted before the
+GET_KEYS.
+
 ####Binary Implementation
 
     Get Meta Binary Request
