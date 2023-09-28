@@ -229,10 +229,7 @@ INSTANTIATE_TEST_SUITE_P(
 // whilst we have a snapshot open (have seen crashes/destruct issues)
 TEST_P(RangeScanTest, CreateAndLeave) {
     BinprotRangeScanCreate create(Vbid(0), config);
-    userConnection->sendCommand(create);
-
-    BinprotResponse resp;
-    userConnection->recvResponse(resp);
+    auto resp = userConnection->execute(create);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 }
 
@@ -329,10 +326,8 @@ TEST_P(RangeScanTest, CreateKeyExceedMaxLength) {
 
 TEST_P(RangeScanTest, CreateCancel) {
     BinprotRangeScanCreate create(Vbid(0), config);
-    userConnection->sendCommand(create);
+    auto resp = userConnection->execute(create);
 
-    BinprotResponse resp;
-    userConnection->recvResponse(resp);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     cb::rangescan::Id id;
     std::memcpy(id.data, resp.getData().data(), resp.getData().size());
@@ -354,10 +349,7 @@ TEST_P(RangeScanTest, CreateEmpty) {
     auto end = cb::base64::encode("M\xFF", false);
     nlohmann::json emptyRange = {{"range", {{"start", start}, {"end", end}}}};
     BinprotRangeScanCreate create(Vbid(0), emptyRange);
-    userConnection->sendCommand(create);
-
-    BinprotResponse resp;
-    userConnection->recvResponse(resp);
+    auto resp = userConnection->execute(create);
     ASSERT_EQ(cb::mcbp::Status::KeyEnoent, resp.getStatus());
 }
 
@@ -508,10 +500,7 @@ TEST_P(RangeScanTest, KeyOnly) {
     config["key_only"] = true;
 
     BinprotRangeScanCreate create(Vbid(0), config);
-    userConnection->sendCommand(create);
-
-    BinprotResponse resp;
-    userConnection->recvResponse(resp);
+    auto resp = userConnection->execute(create);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     cb::rangescan::Id id;
     std::memcpy(id.data, resp.getData().data(), resp.getData().size());
@@ -522,10 +511,7 @@ TEST_P(RangeScanTest, KeyOnly) {
 
 TEST_P(RangeScanTest, ValueScan) {
     BinprotRangeScanCreate create(Vbid(0), config);
-    userConnection->sendCommand(create);
-
-    BinprotResponse resp;
-    userConnection->recvResponse(resp);
+    auto resp = userConnection->execute(create);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     cb::rangescan::Id id;
     std::memcpy(id.data, resp.getData().data(), resp.getData().size());
@@ -553,10 +539,7 @@ void RangeScanTest::smallBufferTest(size_t itemLimit,
     config["key_only"] = true;
 
     BinprotRangeScanCreate create(Vbid(0), config);
-    userConnection->sendCommand(create);
-
-    BinprotResponse resp;
-    userConnection->recvResponse(resp);
+    auto resp = userConnection->execute(create);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     cb::rangescan::Id id;
     std::memcpy(id.data, resp.getData().data(), resp.getData().size());
@@ -591,10 +574,8 @@ TEST_P(RangeScanTest, ExclusiveRangeStart) {
     config["range"] = {{"excl_start", start}, {"end", end}};
 
     BinprotRangeScanCreate create(Vbid(0), config);
-    userConnection->sendCommand(create);
+    auto resp = userConnection->execute(create);
 
-    BinprotResponse resp;
-    userConnection->recvResponse(resp);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     cb::rangescan::Id id;
     std::memcpy(id.data, resp.getData().data(), resp.getData().size());
@@ -613,10 +594,8 @@ TEST_P(RangeScanTest, ExclusiveRangeEnd) {
     config["range"] = {{"start", start}, {"excl_end", end}};
 
     BinprotRangeScanCreate create(Vbid(0), config);
-    userConnection->sendCommand(create);
+    auto resp = userConnection->execute(create);
 
-    BinprotResponse resp;
-    userConnection->recvResponse(resp);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     cb::rangescan::Id id;
     std::memcpy(id.data, resp.getData().data(), resp.getData().size());
@@ -627,12 +606,11 @@ TEST_P(RangeScanTest, ExclusiveRangeEnd) {
 }
 
 TEST_P(RangeScanTest, TestStats) {
-    BinprotGenericCommand cmd(
+    BinprotGenericCommand create(
             cb::mcbp::ClientOpcode::RangeScanCreate, {}, config.dump());
-    cmd.setDatatype(cb::mcbp::Datatype::JSON);
-    userConnection->sendCommand(cmd);
-    BinprotResponse resp;
-    userConnection->recvResponse(resp);
+    create.setDatatype(cb::mcbp::Datatype::JSON);
+    auto resp = userConnection->execute(create);
+
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
 
     // Nothing in vbid1
@@ -658,10 +636,7 @@ TEST_P(RangeScanTest, TestStats) {
 // MB that lead to this test being added)
 void RangeScanTest::testErrorsDuringContinue(cb::mcbp::Status error) {
     BinprotRangeScanCreate create(Vbid(0), config);
-    userConnection->sendCommand(create);
-
-    BinprotResponse resp;
-    userConnection->recvResponse(resp);
+    auto resp = userConnection->execute(create);
     ASSERT_EQ(cb::mcbp::Status::Success, resp.getStatus());
     cb::rangescan::Id id;
     std::memcpy(id.data, resp.getData().data(), resp.getData().size());
@@ -682,9 +657,7 @@ void RangeScanTest::testErrorsDuringContinue(cb::mcbp::Status error) {
         });
     } else if (error == cb::mcbp::Status::NoBucket) {
         // Drop the B
-        adminConnection->executeInBucket(bucketName, [](auto& connection) {
-            connection.deleteBucket(bucketName);
-        });
+        adminConnection->deleteBucket(bucketName);
     } else if (error == cb::mcbp::Status::UnknownCollection) {
         // Drop the collection
         manifest->remove(CollectionEntry::Entry{"RangeScanTest", collectionId});
