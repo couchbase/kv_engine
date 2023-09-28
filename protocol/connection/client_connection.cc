@@ -108,7 +108,6 @@ static void handleFollyAsyncSocketException(
  */
 class AsyncReadCallback : public folly::AsyncReader::ReadCallback {
 private:
-    static constexpr size_t MaxFrameSize = 22 * 1024 * 1024;
     static constexpr size_t DefaultBufferSize = 8192;
     static constexpr size_t MinTailroomSize = 256;
 
@@ -231,19 +230,6 @@ public:
         }
 
         const auto framesize = packet.getFrame().size();
-        if (framesize > MaxFrameSize) {
-            if (throwOnError) {
-                throw std::runtime_error(
-                        fmt::format("AsyncReadCallback::isPacketAvailable(): "
-                                    "The packet size "
-                                    "{} exceeds the max allowed packet size {}",
-                                    std::to_string(framesize),
-                                    std::to_string(MaxFrameSize)));
-            } else {
-                return true;
-            }
-        }
-
         if (input_bytes < framesize) {
             return false;
         }
