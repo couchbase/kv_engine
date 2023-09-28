@@ -977,7 +977,7 @@ void WarmupState::transition(State to, bool allowAnyState) {
 bool WarmupState::legalTransition(State from, State to) const {
     switch (from) {
     case State::Initialize:
-        return (to == State::CreateVBuckets);
+        return (to == State::CreateVBuckets || to == State::CheckForAccessLog);
     case State::CreateVBuckets:
         return (to == State::LoadingCollectionCounts);
     case State::LoadingCollectionCounts:
@@ -1256,16 +1256,47 @@ void LoadValueCallback::callback(CacheLookup& lookup) {
 //                                                                          //
 //////////////////////////////////////////////////////////////////////////////
 
-Warmup::Warmup(EPBucket& st, const Configuration& config_)
+Warmup::Warmup(EPBucket& st,
+               const Configuration& config,
+               std::function<void()> warmupDoneFunction,
+               size_t memoryThreshold,
+               size_t itemsThreshold,
+               std::string name)
     : store(st),
-      config(config_),
-      stats(st.getEPEngine().getEpStats()),
+      config(config),
+      stats(store.getEPEngine().getEpStats()),
+      warmupDoneFunction(std::move(warmupDoneFunction)),
       shardVbStates(store.vbMap.getNumShards()),
       shardVbIds(store.vbMap.getNumShards()),
       warmedUpVbuckets(std::in_place, config.getMaxVbuckets()),
-      name("Primary") {
-    setMemoryThreshold(config.getWarmupMinMemoryThreshold());
-    setItemThreshold(config.getWarmupMinItemsThreshold());
+      name(std::move(name)) {
+    setup(memoryThreshold, itemsThreshold);
+}
+
+Warmup::Warmup(Warmup& warmup,
+               size_t memoryThreshold,
+               size_t itemsThreshold,
+               std::string name)
+    : store(warmup.store),
+      config(warmup.config),
+      stats(store.getEPEngine().getEpStats()),
+      warmupDoneFunction([]() { /* no done callback needed*/ }),
+      shardVbStates(std::move(warmup.shardVbStates)),
+      shardVbIds(std::move(warmup.shardVbIds)),
+      estimatedItemCount(warmup.getEstimatedItemCount()),
+      name(std::move(name)) {
+    setup(memoryThreshold, itemsThreshold);
+    // Jump into the state machine at CheckForAccessLog to begin loading data.
+    transition(WarmupState::State::CheckForAccessLog);
+}
+
+void Warmup::setup(size_t memoryThreshold, size_t itemsThreshold) {
+    {
+        std::lock_guard<std::mutex> lock(warmupStart.mutex);
+        warmupStart.time = std::chrono::steady_clock::now();
+    }
+    setMemoryThreshold(memoryThreshold);
+    setItemThreshold(itemsThreshold);
 }
 
 Warmup::~Warmup() = default;
@@ -1313,11 +1344,6 @@ void Warmup::scheduleInitialize() {
 }
 
 void Warmup::initialize() {
-    {
-        std::lock_guard<std::mutex> lock(warmupStart.mutex);
-        warmupStart.time = std::chrono::steady_clock::now();
-    }
-
     auto session_stats = store.getOneROUnderlying()->getPersistedStats();
     auto it = session_stats.find("ep_force_shutdown");
     if (it != session_stats.end() && it.value() == "false") {
@@ -1942,7 +1968,7 @@ void Warmup::scheduleCompletion() {
 void Warmup::done() {
     if (setFinishedLoading()) {
         setWarmupTime();
-        store.warmupCompleted();
+        warmupDoneFunction();
         logWarmupStats(store.getEPEngine().getEpStats(), *this);
     }
 }
@@ -1993,6 +2019,7 @@ void Warmup::step() {
 }
 
 void Warmup::transition(WarmupState::State to, bool force) {
+    EP_LOG_DEBUG("Warmup({}) transition to {}", getName(), to_string(to));
     state.transition(to, force);
     stateTransitionHook(to);
     step();

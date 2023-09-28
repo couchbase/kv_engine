@@ -254,6 +254,13 @@ public:
 
     Warmup* getPrimaryWarmup() const override;
 
+    /**
+     * Obtain a pointer to the optional secondary Warmup.
+     *
+     * @return pointer (can be null) to the secondary Warmup
+     */
+    const Warmup* getSecondaryWarmup() const;
+
     bool isWarmupLoadingData() override;
 
     bool isWarmupComplete() override;
@@ -500,6 +507,7 @@ protected:
     cb::RelaxedAtomic<bool> retainErroneousTombstones;
 
     std::unique_ptr<Warmup> warmupTask;
+    std::unique_ptr<Warmup> secondaryWarmupTask;
 
     std::vector<std::unique_ptr<BgFetcher>> bgFetchers;
 

@@ -2249,6 +2249,10 @@ Warmup* EPBucket::getPrimaryWarmup() const {
     return warmupTask.get();
 }
 
+const Warmup* EPBucket::getSecondaryWarmup() const {
+    return secondaryWarmupTask.get();
+}
+
 bool EPBucket::isWarmupLoadingData() {
     return warmupTask && !warmupTask->isFinishedLoading();
 }
@@ -2263,12 +2267,18 @@ cb::engine_errc EPBucket::doWarmupStats(const AddStatFn& add_stat,
         return cb::engine_errc::no_such_key;
     }
 
+    // This call adds important stats that are required for correct operation of
+    // the bucket, e.g. "ep_warmup_thread" that ns_server is monitoring. Thus if
+    // secondary warmup exists, do not call addStats on the secondary instance
     warmupTask->addStats(CBStatCollector(add_stat, cookie));
+
+    // @todo: MB-9418: add secondary warmup stats
     return cb::engine_errc::success;
 }
 
 bool EPBucket::isWarmupOOMFailure() {
-    return warmupTask && warmupTask->hasOOMFailure();
+    return (warmupTask && warmupTask->hasOOMFailure()) ||
+           (secondaryWarmupTask && secondaryWarmupTask->hasOOMFailure());
 }
 
 bool EPBucket::hasWarmupSetVbucketStateFailed() const {
@@ -2283,8 +2293,15 @@ bool EPBucket::maybeWaitForVBucketWarmup(CookieIface* cookie) {
 }
 
 void EPBucket::initializeWarmupTask() {
-    if (engine.getConfiguration().isWarmup()) {
-        warmupTask = std::make_unique<Warmup>(*this, engine.getConfiguration());
+    const auto& config = engine.getConfiguration();
+    if (config.isWarmup()) {
+        warmupTask = std::make_unique<Warmup>(
+                *this,
+                config,
+                [this]() { warmupCompleted(); },
+                config.getWarmupMinMemoryThreshold(),
+                config.getWarmupMinItemsThreshold(),
+                "Primary");
     }
 }
 
@@ -2298,6 +2315,10 @@ void EPBucket::startWarmupTask() {
 }
 
 void EPBucket::warmupCompleted() {
+    // warmupCompleted is a one-shot function that will create the secondary
+    // warmup object - there should be no second call once created.
+    Expects(!secondaryWarmupTask);
+
     if (!engine.getConfiguration().getAlogPath().empty()) {
         if (engine.getConfiguration().isAccessScannerEnabled()) {
             accessScanner.wlock()->enabled = true;
@@ -2332,6 +2353,20 @@ void EPBucket::warmupCompleted() {
     // makeCompactionContext which allows expiry via compaction, purging
     // collections etc..
     initializeShards();
+
+    // Check if secondary warmup should now be created and continue background
+    // warmup.
+    const auto& config = engine.getConfiguration();
+    if (warmupTask && (config.getSecondaryWarmupMinMemoryThreshold() ||
+                       config.getSecondaryWarmupMinItemsThreshold())) {
+        // This construction path will automatically call step and begin
+        // scheduling of the next step of warm-up.
+        secondaryWarmupTask = std::make_unique<Warmup>(
+                *warmupTask,
+                config.getSecondaryWarmupMinMemoryThreshold(),
+                config.getSecondaryWarmupMinItemsThreshold(),
+                "Secondary");
+    }
 }
 
 void EPBucket::stopWarmup() {

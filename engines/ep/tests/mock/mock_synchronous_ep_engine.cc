@@ -83,7 +83,9 @@ SynchronousEPEngine::SynchronousEPEngine(const cb::ArenaMallocClient& client,
     // Tests may need to create multiple failover table entries, so allow that
     maxFailoverEntries = configuration.getMaxFailoverEntries();
 
-    enableTraffic(true);
+    if (configuration.isDataTrafficEnabled()) {
+        enableTraffic(true);
+    }
 
     maxItemSize = configuration.getMaxItemSize();
 

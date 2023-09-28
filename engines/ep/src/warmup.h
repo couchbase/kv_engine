@@ -249,7 +249,46 @@ std::string to_string(WarmupState::State val);
  */
 class Warmup {
 public:
-    Warmup(EPBucket& st, const Configuration& config);
+    /**
+     * This constructor exists for the Primary warmup phase, which is a phase of
+     * warmup that will read all metadata and populate the given EPBucket with
+     * for example "VBucket" objects that are found on disk. On reaching the
+     * Done phase the given warmupDoneFunction is invoked.
+     *
+     * @param st reference to the owning bucket that will be populated
+     * @param config reference to the bucket's configuration
+     * @param warmupDoneFunction This function is invoked once by Warmup on
+     *        reaching the Done state.
+     * @param memoryThreshold see setMemoryThreshold - value is passed to that
+     *        function
+     * @param itemsThreshold see setItemThreshold - value is passed to that
+     *        function
+     * @param name A name used in logging
+     */
+    Warmup(EPBucket& st,
+           const Configuration& config,
+           std::function<void()> warmupDoneFunction,
+           size_t memoryThreshold,
+           size_t itemsThreshold,
+           std::string name);
+
+    /**
+     * Constructor exists for creating the Secondary warm-up object. This phase
+     * will skip the metadata loading (and assumes the given Warmup object has
+     * already done such loading). This object will begin warmup from the
+     * CheckForAccessLog phase.
+     *
+     * @param warmup Parts of this object are copied/moved into the new Warmup.
+     * @param memoryThreshold see setMemoryThreshold - value is passed to that
+     *        function
+     * @param itemsThreshold see setItemThreshold - value is passed to that
+     *        function
+     * @param name A name used in logging
+     */
+    Warmup(Warmup& warmup,
+           size_t memoryThreshold,
+           size_t itemsThreshold,
+           std::string name);
 
     ~Warmup();
 
@@ -533,11 +572,17 @@ private:
     ///         concurrency of certain stages).
     size_t getNumShards() const;
 
+    /// private and common setup used by the two constructors
+    void setup(size_t memoryThreshold, size_t itemsThreshold);
+
     WarmupState state;
 
     EPBucket& store;
     const Configuration& config;
     const EPStats& stats;
+
+    /// A callback to invoke when Warmup is Done.
+    std::function<void()> warmupDoneFunction;
 
     // Unordered set to hold the current executing tasks
     std::mutex taskSetMutex;
