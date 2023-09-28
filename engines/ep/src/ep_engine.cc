@@ -183,6 +183,10 @@ static void checkNumeric(const char* str) {
 }
 
 void EventuallyPersistentEngine::destroy(const bool force) {
+    Expects((ObjectRegistry::getCurrentEngine() != this) &&
+            "Calling thread should not have currentEngine set to the object "
+            "being destroyed when calling EpEngine::destroy() as that could "
+            "result in use-after-free");
     auto eng = acquireEngine(this);
 
     // Take a copy of the arena client before we deallocate the EPEngine object

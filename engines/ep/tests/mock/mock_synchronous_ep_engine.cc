@@ -167,6 +167,11 @@ SynchronousEPEngineUniquePtr SynchronousEPEngine::build(
     return engine;
 }
 
+void SynchronousEPEngine::destroy(bool force) {
+    ObjectRegistry::onSwitchThread(nullptr);
+    EventuallyPersistentEngine::destroy(force);
+}
+
 QuotaSharingManager& SynchronousEPEngine::getQuotaSharingManager() {
     struct QuotaSharingManagerImpl : public QuotaSharingManager {
         QuotaSharingManagerImpl(SynchronousEPEngine& engine)

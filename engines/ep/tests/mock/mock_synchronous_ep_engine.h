@@ -62,6 +62,14 @@ public:
      */
     static SynchronousEPEngineUniquePtr build(const std::string& config);
 
+    /**
+     * Destroys the SynchronousEPEngine instance.
+     * For symmetry with the build() method (which switches the calling thread
+     * to the created engine), this method switches back to the null engine
+     * before retuning to the caller.
+     */
+    void destroy(bool force) override;
+
     /** Construct independent managers, even for quota sharing configs. */
     QuotaSharingManager& getQuotaSharingManager() override;
 

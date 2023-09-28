@@ -130,6 +130,9 @@ void EventuallyPersistentEngineTest::shutdownEngine() {
         cookie = nullptr;
     }
     if (engine) {
+        // Should not have the current engine set to something we are about
+        // to destroy (could result in use-after free).
+        ObjectRegistry::onSwitchThread(nullptr);
         // Need to force the destroy (i.e. pass true) because
         // NonIO threads may have been disabled (see DCPTest subclass).
         engine->destroy(true);
