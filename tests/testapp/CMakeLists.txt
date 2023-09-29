@@ -159,12 +159,7 @@ gtest_discover_tests(memcached_testapp
     PROPERTIES TIMEOUT 300
                ENVIRONMENT ${GTEST_ALL_SANITIZERS_ENV})
 
-
-if (NOT WIN32)
-    # We've been running out of sockets on our windows CV slaves.
-    # disable this test batch while trying to figure out how to
-    # work around the problem
-    gtest_discover_tests(memcached_testapp
+gtest_discover_tests(memcached_testapp
         EXTRA_ARGS -E ep -c item_eviction_policy=full_eviction ${VERBOSE_EXTRA_ARG}
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
         TEST_PREFIX memcached_testapp.ep-full_eviction.
@@ -172,4 +167,3 @@ if (NOT WIN32)
         DISCOVERY_TIMEOUT 60
         PROPERTIES TIMEOUT 300
         ENVIRONMENT ${THREAD_SANITIZER_TEST_ENV})
-endif()
