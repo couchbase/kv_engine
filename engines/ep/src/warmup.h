@@ -454,9 +454,6 @@ private:
      */
     void done();
 
-    /* Returns the number of KV stores that holds the states of all the vbuckets */
-    uint16_t getNumKVStores();
-
     void populateShardVbStates();
 
     using MakeBackfillTaskFn = std::function<ExTask(size_t)>;
@@ -487,6 +484,10 @@ private:
      * phase. Returns an empty pointer if no such vBucket created.
      */
     VBucketPtr lookupVBucket(Vbid vbid) const;
+
+    /// @return how many shards warmup is working with (this sets the
+    ///         concurrency of certain stages).
+    size_t getNumShards() const;
 
     WarmupState state;
 
