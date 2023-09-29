@@ -55,7 +55,7 @@ cb::engine_errc select_bucket(Cookie& cookie, const std::string& bucketname) {
 
         if (cb::serverless::isEnabled() && !connection.isInternal()) {
             using cb::serverless::Config;
-            if (connection.getBucket().clients >=
+            if (connection.getBucket().clients >
                 Config::instance().maxConnectionsPerBucket.load(
                         std::memory_order_acquire)) {
                 if (oldIndex != connection.getBucketIndex()) {

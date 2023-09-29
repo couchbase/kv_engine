@@ -107,18 +107,26 @@ TEST(MiscTest, MaxConnectionPerBucket) {
                     nlohmann::json json = nlohmann::json::parse(v);
                     num_clients = json["clients"].get<size_t>();
                 },
-                "bucket_details bucket-0");
+                "bucket_details bucket-1");
         return num_clients;
     };
+
+    // Other tests may have left connections to the buckets which
+    // haven't been properly disconnected yet.
+    const size_t DeamonConnections = 4;
+    while (getNumClients() > DeamonConnections) {
+        std::this_thread::sleep_for(std::chrono::microseconds{100});
+    }
+    ASSERT_EQ(DeamonConnections, getNumClients());
 
     std::deque<std::unique_ptr<MemcachedConnection>> connections;
     bool done = false;
     BinprotResponse rsp;
     do {
         auto conn = cluster->getConnection(0);
-        conn->authenticate("bucket-0", "bucket-0");
+        conn->authenticate("bucket-1", "bucket-1");
         rsp = conn->execute(BinprotGenericCommand{
-                cb::mcbp::ClientOpcode::SelectBucket, "bucket-0"});
+                cb::mcbp::ClientOpcode::SelectBucket, "bucket-1"});
         if (rsp.isSuccess()) {
             connections.emplace_back(std::move(conn));
             ASSERT_LE(getNumClients(), MaxConnectionsPerBucket);
@@ -128,21 +136,28 @@ TEST(MiscTest, MaxConnectionPerBucket) {
             // Without XERROR E2BIG should be returned
             conn->setXerrorSupport(false);
             rsp = conn->execute(BinprotGenericCommand{
-                    cb::mcbp::ClientOpcode::SelectBucket, "bucket-0"});
+                    cb::mcbp::ClientOpcode::SelectBucket, "bucket-1"});
             ASSERT_FALSE(rsp.isSuccess());
             ASSERT_EQ(cb::mcbp::Status::E2big, rsp.getStatus());
             done = true;
         }
     } while (!done);
 
-    // But we should be allowed to connect internal users
-    for (int ii = 0; ii < 5; ++ii) {
-        auto conn = cluster->getConnection(0);
-        conn->authenticate("@admin", "password");
-        conn->selectBucket("bucket-0");
-        connections.emplace_back(std::move(conn));
+    // Disconnecting the clients on the server is an async task.
+    // Wait for it
+    while (getNumClients() > MaxConnectionsPerBucket) {
+        std::this_thread::sleep_for(std::chrono::microseconds{100});
     }
-    EXPECT_EQ(MaxConnectionsPerBucket + 4, getNumClients());
+
+    // All connections should be reserved by "normal" clients
+    ASSERT_EQ(MaxConnectionsPerBucket, getNumClients());
+
+    // It should be possible to connect "internal" users
+    auto conn = cluster->getConnection(0);
+    conn->authenticate("@admin", "password");
+    conn->selectBucket("bucket-1");
+    connections.emplace_back(std::move(conn));
+    EXPECT_EQ(MaxConnectionsPerBucket + 1, getNumClients());
 }
 
 /// Verify that we may set the bucket in a state where the client can no
