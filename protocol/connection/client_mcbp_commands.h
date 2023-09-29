@@ -1293,3 +1293,26 @@ class BinprotRangeScanCancel : public BinprotGenericCommand {
 public:
     BinprotRangeScanCancel(Vbid vbid, cb::rangescan::Id id);
 };
+
+class BinprotGetKeysCommand : public BinprotGenericCommand {
+public:
+    BinprotGetKeysCommand(std::string start,
+                          std::optional<uint32_t> nkeys = {});
+    void encode(std::vector<uint8_t>& buf) const override;
+
+    void setKeyLimit(uint32_t limit) {
+        nkeys = limit;
+    }
+
+protected:
+    std::optional<uint32_t> nkeys;
+};
+
+class BinprotGetKeysResponse : public BinprotResponse {
+public:
+    BinprotGetKeysResponse() = default;
+    explicit BinprotGetKeysResponse(BinprotResponse&& other)
+        : BinprotResponse(other) {
+    }
+    std::vector<std::string> getKeys() const;
+};

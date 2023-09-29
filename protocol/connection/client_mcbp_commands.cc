@@ -2298,3 +2298,48 @@ BinprotRangeScanCancel::BinprotRangeScanCancel(Vbid vbid, cb::rangescan::Id id)
     setExtras(std::string_view{reinterpret_cast<const char*>(id.data),
                                sizeof(id)});
 }
+
+BinprotGetKeysCommand::BinprotGetKeysCommand(std::string start,
+                                             std::optional<uint32_t> nkeys)
+    : BinprotGenericCommand(cb::mcbp::ClientOpcode::GetKeys, std::move(start)),
+      nkeys(nkeys) {
+}
+
+void BinprotGetKeysCommand::encode(std::vector<uint8_t>& buf) const {
+    if (nkeys) {
+        writeHeader(buf, 0, sizeof(uint32_t));
+        append(buf, *nkeys);
+        buf.insert(buf.end(), key.begin(), key.end());
+    } else {
+        return BinprotGenericCommand::encode(buf);
+    }
+}
+
+std::vector<std::string> BinprotGetKeysResponse::getKeys() const {
+    std::vector<std::string> ret;
+    // Parse the sequence of: u16 length [ length bytes key]
+    auto value = getDataView();
+    while (!value.empty()) {
+        uint16_t length;
+        if (value.size() < sizeof(length)) {
+            throw std::runtime_error(
+                    "BinprotGetKeysResponse::getKeys: Invalid encoding. "
+                    "Expected 2 length bytes");
+        }
+        std::memcpy(&length, value.data(), sizeof(length));
+        length = ntohs(length);
+        value.remove_prefix(sizeof(length));
+
+        if (value.size() < size_t(length)) {
+            throw std::runtime_error(fmt::format(
+                    "BinprotGetKeysResponse::getKeys: Invalid encoding. "
+                    "missing key data. Expected {} got {}",
+                    size_t(length),
+                    value.size()));
+        }
+        ret.emplace_back(std::string{value.data(), length});
+        value.remove_prefix(length);
+    }
+
+    return ret;
+}
