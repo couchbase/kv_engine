@@ -83,7 +83,7 @@ class LoadStorageKVPairCallback : public StatusCallback<GetValue> {
 public:
     LoadStorageKVPairCallback(
             EPBucket& ep,
-            bool maybeEnableTraffic,
+            bool stopIfWarmupThresholdsReached,
             WarmupState::State warmupState,
             std::optional<const std::chrono::steady_clock::duration>
                     deltaDeadlineFromNow = std::nullopt);
@@ -93,12 +93,7 @@ public:
     void updateDeadLine(std::chrono::steady_clock::time_point chunkStart) {
         if (deltaDeadlineFromNow) {
             deadline = (chunkStart + *deltaDeadlineFromNow);
-            pausedDueToDeadLine = false;
         }
-    };
-
-    bool isPausedDueToDeadLine() const {
-        return pausedDueToDeadLine;
     };
 
 private:
@@ -113,10 +108,13 @@ private:
     std::optional<const std::chrono::steady_clock::duration>
             deltaDeadlineFromNow;
     std::chrono::steady_clock::time_point deadline;
-    bool pausedDueToDeadLine = false;
 
-    /// If true, call EPBucket::maybeEnableTraffic() after each KV pair loaded.
-    const bool maybeEnableTraffic;
+    /**
+     * If true, after each K/V pair loaded check if the bucket has reached any
+     * of the thresholds which require warmup to stop. LoadStorageKVPairCallback
+     * will then stop and return control to scan (with status cancelled).
+     */
+    const bool stopIfWarmupThresholdsReached{false};
     WarmupState::State warmupState;
 };
 
@@ -373,7 +371,6 @@ public:
 
 private:
     EPBucket& ep;
-    bool needToScanAgain = false;
     const WarmupBackfillTask& backfillTask;
     std::unique_ptr<BySeqnoScanContext> currentScanCtx;
     /// Time when this chunk of work (task run()) begin, used to determine when
@@ -550,39 +547,37 @@ bool WarmupVbucketVisitor::visit(VBucket& vb) {
     auto scanStatus = kvstore->scan(*currentScanCtx);
     switch (scanStatus) {
     case ScanStatus::Cancelled:
-        // Cancelled is expected if a vBucket goes away. We should continue
-        // scanning the next vBucket. Fall-through to success
-        EP_LOG_WARN(
-                "WarmupVbucketVisitor::visit(): {} shardId:{} scan "
-                "cancelled, did the vBucket go away?",
-                vb.getId(),
-                backfillTask.getShardId());
-    case ScanStatus::Success:
-        // Finished backfill for this vbucket so we need to reset the scan ctx,
-        // so that we can create a scan ctx for the next vbucket.
-        currentScanCtx.reset();
-        needToScanAgain = false;
-        return true;
-
-    case ScanStatus::Yield:
-        needToScanAgain = kvCallback.isPausedDueToDeadLine();
-        // if the 'scan_again' was due to a OOM (e.i. not due to our deadline
-        // being met)causing warmup to be completed then log this and return
-        // false as we shouldn't keep scanning this vbucket
-        if (!needToScanAgain) {
-            // skip loading remaining VBuckets as memory limit was reached
+        if (kvCallback.getStatus() == cb::engine_errc::cancelled) {
+            // Reached threshold and warmup is "cancelled" for the VB
             EP_LOG_INFO(
                     "WarmupVbucketVisitor::visit(): {} shardId:{} "
-                    "lastReadSeqno:{} needToScanAgain:{} vbucket "
-                    "memory limit has been reached",
+                    "lastReadSeqno:{} vbucket memory limit has been reached",
                     vb.getId(),
                     backfillTask.getShardId(),
-                    currentScanCtx->lastReadSeqno,
-                    needToScanAgain);
-            // Backfill canceled due to OOM so destroy the scan ctx
-            currentScanCtx.reset();
+                    currentScanCtx->lastReadSeqno);
+        } else if (kvCallback.getStatus() == cb::engine_errc::not_my_vbucket) {
+            // Cancelled because the vBucket has gone away. We should continue
+            // scanning the next vBucket. Fall-through to success
+            EP_LOG_WARN(
+                    "WarmupVbucketVisitor::visit(): {} shardId:{} scan "
+                    "cancelled, did the vBucket go away?",
+                    vb.getId(),
+                    backfillTask.getShardId());
+        } else {
+            throw std::logic_error(
+                    "WarmupVbucketVisitor::visit unexpected callback status:" +
+                    cb::to_string(kvCallback.getStatus()));
         }
-        return !needToScanAgain;
+
+        [[fallthrough]]; // fallthrough to reset currentScanCtx and return true
+    case ScanStatus::Success:
+        // Finished or Cancelled backfill for this vbucket so we need to reset
+        // currentScanCtx ready for any continuation with the next vbucket.
+        currentScanCtx.reset();
+        return true;
+    case ScanStatus::Yield:
+        // Yield is always due to the scan time deadline being reached.
+        return false;
     case ScanStatus::Failed:
         // Disk error scanning keys - cannot continue warmup.
         currentScanCtx.reset();
@@ -992,7 +987,7 @@ std::ostream& operator<<(std::ostream& out, const WarmupState& state) {
 
 LoadStorageKVPairCallback::LoadStorageKVPairCallback(
         EPBucket& ep,
-        bool maybeEnableTraffic,
+        bool stopIfWarmupThresholdsReached,
         WarmupState::State warmupState,
         std::optional<const std::chrono::steady_clock::duration>
                 deltaDeadlineFromNow)
@@ -1002,7 +997,7 @@ LoadStorageKVPairCallback::LoadStorageKVPairCallback(
       hasPurged(false),
       deltaDeadlineFromNow(std::move(deltaDeadlineFromNow)),
       deadline(std::chrono::steady_clock::time_point::max()),
-      maybeEnableTraffic(maybeEnableTraffic),
+      stopIfWarmupThresholdsReached(stopIfWarmupThresholdsReached),
       warmupState(warmupState) {
 }
 
@@ -1105,7 +1100,7 @@ void LoadStorageKVPairCallback::callback(GetValue& val) {
             }
         } while (!succeeded && retry-- > 0);
 
-        if (maybeEnableTraffic) {
+        if (stopIfWarmupThresholdsReached) {
             stopLoading = epstore.hasWarmupReachedThreshold();
         }
 
@@ -1134,27 +1129,14 @@ void LoadStorageKVPairCallback::callback(GetValue& val) {
     }
 
     if (stopLoading) {
-        // warmup has completed, return cb::engine_errc::no_memory to
-        // cancel remaining data dumps from couchstore
-        if (epstore.getWarmup()->setFinishedLoading()) {
-            epstore.getWarmup()->setWarmupTime();
-            epstore.warmupCompleted();
-            logWarmupStats(epstore.getEPEngine().getEpStats(),
-                           *epstore.getWarmup());
-        }
-        EP_LOG_INFO(
-                "LoadStorageKVPairCallback::callback(): {} "
-                "Engine warmup is complete, request to stop "
-                "loading remaining database",
-                i->getVBucketId());
-        // This will trigger KVStore::scan to return to WarmupVisitor
-        yield();
+        // Returns to scan with status Cancelled, note any engine_errc other
+        // than not_my_bucket or temporary_failure can be used to cancel...
+        setStatus(cb::engine_errc::cancelled);
         return;
     }
 
     if (deltaDeadlineFromNow && std::chrono::steady_clock::now() >= deadline) {
-        pausedDueToDeadLine = true;
-        yield(); // force return from KVStore::scan
+        yield(); // Returns to scan with status Yield
     }
 }
 
