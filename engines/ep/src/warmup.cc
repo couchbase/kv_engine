@@ -1700,6 +1700,13 @@ void Warmup::populateVBucketMap(uint16_t shardId) {
         } else {
             transition(WarmupState::State::CheckForAccessLog);
         }
+
+        {
+            std::lock_guard<std::mutex> lock(warmupStart.mutex);
+            metadata.store(std::chrono::steady_clock::now() - warmupStart.time);
+        }
+        EP_LOG_INFO("metadata loaded in {}",
+                    cb::time2text(std::chrono::nanoseconds(metadata.load())));
     }
 }
 
@@ -1724,13 +1731,6 @@ void Warmup::scheduleCheckForAccessLog() {
 }
 
 void Warmup::checkForAccessLog() {
-    {
-        std::lock_guard<std::mutex> lock(warmupStart.mutex);
-        metadata.store(std::chrono::steady_clock::now() - warmupStart.time);
-    }
-    EP_LOG_INFO("metadata loaded in {}",
-                cb::time2text(std::chrono::nanoseconds(metadata.load())));
-
     if (hasReachedThreshold()) {
         transition(WarmupState::State::Done);
         return;
