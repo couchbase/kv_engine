@@ -91,33 +91,48 @@ void KVBucketTest::SetUp() {
     }
 }
 
-void KVBucketTest::initialise(std::string config) {
-    // Add dbname to config string.
-    if (!config.empty()) {
-        config += ";";
+void KVBucketTest::initialise(std::string_view baseConfig) {
+    {
+        // Build up the full config string needed to create the engine.
+        // Config defined in it's own scope to ensure correct memory accounting
+        // - we want to destroy (deallocate) it against the no-bucket context.
+        auto config = std::string{baseConfig};
+
+        // Add dbname to config string.
+        if (!config.empty()) {
+            config += ";";
+        }
+        config += "dbname=" + test_dbname;
+
+        // Need to initialize ep_real_time and friends.
+        initialize_time_functions(get_mock_server_api()->core);
+
+        if (config.find("backend=magma") != std::string::npos) {
+            config += ";" + magmaConfig;
+        }
+
+        // unless otherwise specified in the config, default to disabling
+        // the expiry pager. Tests which do not cover the expiry pager often
+        // make expectations about the executor futurepool, and don't expect the
+        // expiry pager to be present.
+        if (config.find("exp_pager_enabled") == std::string::npos) {
+            config += ";exp_pager_enabled=false";
+        }
+
+        engine = SynchronousEPEngine::build(config);
+        Expects(ObjectRegistry::getCurrentEngine() &&
+                "Expect current thread is associated with 'engine' after "
+                "build()ing it so any subsequent allocations below are "
+                "accounted to 'engine' correctly.");
+
+        // Switch back to no-engine before scope ends, so config is destroyed
+        // against no-bucket.
+        ObjectRegistry::onSwitchThread(nullptr);
     }
-    config += "dbname=" + test_dbname;
 
-    // Need to initialize ep_real_time and friends.
-    initialize_time_functions(get_mock_server_api()->core);
-
-    if (config.find("backend=magma") != std::string::npos) {
-        config += ";" + magmaConfig;
-    }
-
-    // unless otherwise specified in the config, default to disabling
-    // the expiry pager. Tests which do not cover the expiry pager often
-    // make expectations about the executor futurepool, and don't expect the
-    // expiry pager to be present.
-    if (config.find("exp_pager_enabled") == std::string::npos) {
-        config += ";exp_pager_enabled=false";
-    }
-
-    engine = SynchronousEPEngine::build(config);
-    Expects(ObjectRegistry::getCurrentEngine() &&
-            "Expect current thread is associated with 'engine' after "
-            "build()ing it so any subsequent allocations below are accounted to"
-            "'engine' correctly.");
+    // Switch current engine back to the one just created, so additional
+    // setup below correctly accounts any further allocations.
+    ObjectRegistry::onSwitchThread(engine.get());
 
     store = engine->getKVBucket();
 
@@ -162,7 +177,10 @@ void KVBucketTest::TearDown() {
 }
 
 void KVBucketTest::destroy(bool force) {
-    destroy_mock_cookie(cookie);
+    {
+        NonBucketAllocationGuard guard;
+        destroy_mock_cookie(cookie);
+    }
     engine->getDcpConnMap().manageConnections();
     engine.get_deleter().force = force;
     engine.reset();

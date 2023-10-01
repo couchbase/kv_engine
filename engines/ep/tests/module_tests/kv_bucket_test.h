@@ -386,8 +386,11 @@ public:
 
     /**
      * Initialise test objects - e.g. engine/store/cookie
+     * @param baseConfig The bucket config to create the bucket from.
+     * Initialise() will append additional config params (e.g. path to dbfiles)
+     * as appropriate.
      */
-    void initialise(std::string config);
+    void initialise(std::string_view baseConfig);
 
     /**
      * @return the stats for the given collections using

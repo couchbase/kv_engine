@@ -36,8 +36,12 @@
 #include <quota_sharing_item_pager.h>
 
 SynchronousEPEngine::SynchronousEPEngine(const cb::ArenaMallocClient& client,
-                                         std::string extra_config)
+                                         std::string_view extra_config)
     : EventuallyPersistentEngine(get_mock_server_api, client) {
+    // Account any additional allocations in setting up SynchronousEPEngine
+    // to the base class EPEngine's tracking.
+    BucketAllocationGuard guard(this);
+
     // Default to a reduced number of vBuckets & shards to speed up test
     // setup / teardown (fewer VBucket & other related objects).
     // Tests which require additional vbuckets can specify that in
@@ -51,8 +55,8 @@ SynchronousEPEngine::SynchronousEPEngine(const cb::ArenaMallocClient& client,
     // Merge any extra config into the main configuration.
     if (!extra_config.empty()) {
         if (!configuration.parseConfiguration(extra_config)) {
-            throw std::invalid_argument("Unable to parse config string: " +
-                                        extra_config);
+            throw std::invalid_argument(fmt::format(
+                    "Unable to parse config string: {}", extra_config));
         }
     }
 
