@@ -48,10 +48,6 @@ void AllKeysCallback::callback(const DiskDocKey& key) {
         }
     }
 
-    if (buffer.size() + outKey.size() + sizeof(uint16_t) > buffer.size()) {
-        // Reserve the 2x space for the copy-to buffer.
-        buffer.reserve(buffer.size() * 2);
-    }
     uint16_t outlen = htons(outKey.size());
     // insert 1 x u16
     const auto* outlenPtr = reinterpret_cast<const char*>(&outlen);
