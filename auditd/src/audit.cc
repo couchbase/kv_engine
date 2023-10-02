@@ -52,9 +52,14 @@ AuditImpl::AuditImpl(std::string config_file, std::string host)
 }
 
 AuditImpl::~AuditImpl() {
-    nlohmann::json payload;
-    create_audit_event(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON, payload);
-    put_event(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON, payload);
+    try {
+        nlohmann::json payload;
+        create_audit_event(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON, payload);
+        put_event(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON, payload);
+    } catch (const std::exception& exception) {
+        LOG_WARNING("AuditImpl::~AuditImpl(): Failed to add audit event: {}",
+                    exception.what());
+    }
 
     {
         // Set the flag to request the audit consumer to stop

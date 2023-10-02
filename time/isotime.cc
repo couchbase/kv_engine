@@ -38,6 +38,16 @@ int ISOTime::generatetimestamp(ISO8601String &destination,
         local = mktime(&local_time);
     }
 
+    if (utc == time_t(-1)) {
+        throw std::runtime_error(
+                "ISOTime::generatetimestamp(): mktime(utc_time) failed");
+    }
+
+    if (local == time_t(-1)) {
+        throw std::runtime_error(
+                "ISOTime::generatetimestamp(): mktime(local_time) failed");
+    }
+
     if (utc_time.tm_isdst != 0) {
         // UTC should not be adjusted to daylight savings
         utc -= 3600;
