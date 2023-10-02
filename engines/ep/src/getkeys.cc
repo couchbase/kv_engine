@@ -11,6 +11,7 @@
 
 #include "getkeys.h"
 
+#include "bucket_logger.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
 #include "kvstore/kvstore.h"
@@ -60,6 +61,8 @@ void AllKeysCallback::callback(const DiskDocKey& key) {
     return;
 }
 
+/// An upper bound for the number of keys to return
+static constexpr uint32_t FetchAllKeysLimit = 100000U;
 FetchAllKeysTask::FetchAllKeysTask(EventuallyPersistentEngine* e,
                                    const CookieIface* c,
                                    AddResponseFn resp,
@@ -73,8 +76,13 @@ FetchAllKeysTask::FetchAllKeysTask(EventuallyPersistentEngine* e,
       response(std::move(resp)),
       start_key(start_key_),
       vbid(vbucket),
-      count(count_),
+      count(std::min(count_, FetchAllKeysLimit)),
       collection(std::move(collection)) {
+    if (count != count_) {
+        EP_LOG_WARN("{}: FetchAllKeysTask: Limit max keys to {}",
+                    cookie->getConnectionId(),
+                    FetchAllKeysLimit);
+    }
 }
 
 bool FetchAllKeysTask::run() {
