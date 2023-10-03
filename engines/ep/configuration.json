@@ -1005,7 +1005,7 @@
         },
         "dcp_backfill_byte_limit": {
             "default": {
-                "on-prem": "2 * 1024 * 1024",
+                "on-prem": "20 * 1024 * 1024",
                 "serverless": "512 * 1024"
             },
             "descr": "Max bytes a connection can backfill into memory before backfill is paused",
