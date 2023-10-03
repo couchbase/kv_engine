@@ -4087,7 +4087,8 @@ struct ConnAggStatBuilder {
         // find the given separator
         size_t pos2 = name.find(sep);
         if (pos2 == std::string_view::npos) {
-            return nullptr;
+            // "eq_dcpq:<name>", no second separator
+            return &counters[std::string(name)];
         }
 
         // extract upto given separator e.g.,
