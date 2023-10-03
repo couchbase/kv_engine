@@ -1247,7 +1247,7 @@ void LoadValueCallback::callback(CacheLookup& lookup) {
 //                                                                          //
 //////////////////////////////////////////////////////////////////////////////
 
-Warmup::Warmup(EPBucket& st, Configuration& config_)
+Warmup::Warmup(EPBucket& st, const Configuration& config_)
     : store(st),
       config(config_),
       shardVbStates(store.vbMap.getNumShards()),

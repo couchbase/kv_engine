@@ -253,7 +253,7 @@ std::string to_string(WarmupState::State val);
  */
 class Warmup {
 public:
-    Warmup(EPBucket& st, Configuration& config);
+    Warmup(EPBucket& st, const Configuration& config);
 
     ~Warmup();
 
@@ -471,7 +471,7 @@ private:
     WarmupState state;
 
     EPBucket& store;
-    Configuration& config;
+    const Configuration& config;
 
     // Unordered set to hold the current executing tasks
     std::mutex taskSetMutex;
