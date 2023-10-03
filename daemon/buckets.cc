@@ -327,7 +327,7 @@ BucketManager::startDestroy(Cookie* cookie,
     std::string connectionId = "<none>";
     if (cookie != nullptr) {
         auto& connection = cookie->getConnection();
-        connectionId = connection.getId();
+        connectionId = std::to_string(connection.getId());
         if (idx == size_t(connection.getBucketIndex())) {
             disassociate_bucket(connection, cookie);
         }
