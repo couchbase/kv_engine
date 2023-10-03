@@ -61,6 +61,7 @@ std::optional<std::filesystem::path> tls_ca_store_file;
 
 /// We're going to use the same buffersize on all connections
 size_t buffersize = 13421772;
+float acknowledge_ratio = 0.5;
 
 /// When set to true we'll print out each message we see
 bool verbose = false;
@@ -92,6 +93,10 @@ Options:
                                  [Default = 13421772]. Set to 0 to disable
                                  DCP flow control (may use k or m to specify
                                  kilo or megabytes).
+  -a or --acknowledge-ratio      Percentage of buffer-size to receive before
+                                 acknowledge is sent back to memcached [Default
+                                 = 0.5]. Represented as a float, i.e. 0.5 is
+                                 50%.
   -c or --control key=value      Add a control message
   -C or --csv                    Print out the result as csv (ms;bytes;#items)
   -N or --name                   The dcp name to use
@@ -341,7 +346,7 @@ protected:
         if (dcpmsg && buffersize > 0) {
             current_buffer_window +=
                     req.getBodylen() + sizeof(cb::mcbp::Header);
-            if (current_buffer_window > (buffersize / 2)) {
+            if (current_buffer_window > (buffersize * acknowledge_ratio)) {
                 sendBufferAck();
             }
         }
@@ -632,6 +637,7 @@ int main(int argc, char** argv) {
             {"tls=", optional_argument, nullptr, 't'},
             {"help", no_argument, nullptr, 0},
             {"buffer-size", required_argument, nullptr, 'B'},
+            {"acknowledge-ratio", required_argument, nullptr, 'a'},
             {"control", required_argument, nullptr, 'c'},
             {"csv", no_argument, nullptr, 'C'},
             {"name", required_argument, nullptr, 'N'},
@@ -664,7 +670,7 @@ int main(int argc, char** argv) {
 
     while ((cmd = getopt_long(argc,
                               argv,
-                              "46h:p:u:b:P:B:c:vCMN:",
+                              "46h:p:u:b:P:B:a:c:vCMN:",
                               long_options.data(),
                               nullptr)) != EOF) {
         switch (cmd) {
@@ -702,6 +708,15 @@ int main(int argc, char** argv) {
             break;
         case 'B':
             buffersize = strtoul(optarg);
+            break;
+        case 'a':
+            acknowledge_ratio = std::strtof(optarg, nullptr);
+            if (acknowledge_ratio <= 0 || acknowledge_ratio >= 1) {
+                std::cerr << "Error: invalid value '" << optarg
+                          << "' specified for -acknowledge-ratio. Supported "
+                             "values are between 0 and 1\n";
+                return EXIT_FAILURE;
+            }
             break;
         case 'c':
             controls.emplace_back(parseControlMessage(optarg));
