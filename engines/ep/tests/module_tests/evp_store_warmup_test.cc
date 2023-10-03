@@ -1463,7 +1463,7 @@ TEST_P(DurabilityWarmupTest, WarmupCommitRaceWithPersistence) {
     // warmed up the original 1 item it identified earlier in warmup).
     // In production this isn't needed as data is loaded for many different
     // vBuckets; but to simplify here we just stick with a single VB.
-    engine->getEpStats().warmupNumReadCap = 2.0;
+    store->getWarmup()->setItemThreshold(200);
 
     // Batons used to synchronise the various setup phases:
     folly::Baton<true> syncWriteCommittedBaton;

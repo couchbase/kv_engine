@@ -1165,8 +1165,6 @@ protected:
                 nonDefaultCounterValue);
         stats.warmDups.store(nonDefaultCounterValue);
         stats.warmOOM.store(nonDefaultCounterValue);
-        stats.warmupMemUsedCap.store(nonDefaultCounterValue);
-        stats.warmupNumReadCap.store(nonDefaultCounterValue);
         stats.flusher_todo.store(nonDefaultCounterValue);
         stats.flusherCommits.store(nonDefaultCounterValue);
         stats.cumulativeFlushTime.store(nonDefaultCounterValue);
@@ -1303,8 +1301,6 @@ protected:
                       EPStatsIntrospector::public_getMaxDataSize(stats));
         }
 
-        EXPECT_EQ(nonStatValue, stats.warmupMemUsedCap);
-        EXPECT_EQ(nonStatValue, stats.warmupNumReadCap);
         EXPECT_EQ(nonStatValue, stats.mem_low_wat);
         EXPECT_EQ(nonStatValue, stats.mem_low_wat_percent);
         EXPECT_EQ(nonStatValue, stats.mem_high_wat);

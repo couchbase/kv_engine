@@ -24,9 +24,7 @@ EPStats::EPStats()
     // All variables initialized here are cached / calculated config values or
     // timestamps, that should not be included in a reset() call, and so cannot
     // be initialized in that function.
-    : warmupMemUsedCap(0),
-      warmupNumReadCap(0),
-      mem_low_wat(0),
+    : mem_low_wat(0),
       mem_low_wat_percent(0),
       mem_high_wat(0),
       mem_high_wat_percent(0),
@@ -48,7 +46,7 @@ EPStats::EPStats()
 
 EPStats::~EPStats() = default;
 
-static_assert(sizeof(EPStats) == 2176,
+static_assert(sizeof(EPStats) == 2160,
               "EPStats size is unexpected - have you added/removed stats?");
 
 void EPStats::setMaxDataSize(size_t size) {

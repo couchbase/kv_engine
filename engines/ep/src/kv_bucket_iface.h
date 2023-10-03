@@ -711,6 +711,9 @@ public:
      */
     virtual bool isWarmupComplete() = 0;
 
+    virtual cb::engine_errc doWarmupStats(const AddStatFn& add_stat,
+                                          CookieIface& cookie) const = 0;
+
     virtual bool isMemUsageAboveBackfillThreshold() = 0;
 
     virtual void addKVStoreStats(const AddStatFn& add_stat,

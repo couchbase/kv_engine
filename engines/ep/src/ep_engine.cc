@@ -5344,12 +5344,7 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
         return cb::engine_errc::success;
     }
     if (key == "warmup"sv) {
-        const auto* warmup = getKVBucket()->getWarmup();
-        if (warmup != nullptr) {
-            warmup->addStats(CBStatCollector(add_stat, c));
-            return cb::engine_errc::success;
-        }
-        return cb::engine_errc::no_such_key;
+        return getKVBucket()->doWarmupStats(add_stat, c);
     }
     if (key == "info"sv) {
         add_casted_stat("info", get_stats_info(), add_stat, c);

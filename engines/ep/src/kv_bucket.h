@@ -644,6 +644,8 @@ public:
     bool isWarmupLoadingData() override;
     bool isWarmupComplete() override;
     bool isWarmupOOMFailure() override;
+    cb::engine_errc doWarmupStats(const AddStatFn& add_stat,
+                                  CookieIface& cookie) const override;
 
     bool hasWarmupSetVbucketStateFailed() const override;
 

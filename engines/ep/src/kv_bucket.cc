@@ -86,10 +86,6 @@ public:
             stats.setLowWaterMark(value);
         } else if (key == "mem_high_wat") {
             stats.setHighWaterMark(value);
-        } else if (key == "warmup_min_memory_threshold") {
-            stats.warmupMemUsedCap.store(static_cast<double>(value) / 100.0);
-        } else if (key == "warmup_min_items_threshold") {
-            stats.warmupNumReadCap.store(static_cast<double>(value) / 100.0);
         } else {
             EP_LOG_WARN(
                     "StatsValueChangeListener(size_t) failed to change value "
@@ -352,17 +348,6 @@ KVBucket::KVBucket(EventuallyPersistentEngine& theEngine)
             std::make_unique<StatsValueChangeListener>(stats, *this));
     config.addValueChangedListener(
             "mem_high_wat",
-            std::make_unique<StatsValueChangeListener>(stats, *this));
-
-    stats.warmupMemUsedCap.store(static_cast<double>
-                               (config.getWarmupMinMemoryThreshold()) / 100.0);
-    config.addValueChangedListener(
-            "warmup_min_memory_threshold",
-            std::make_unique<StatsValueChangeListener>(stats, *this));
-    stats.warmupNumReadCap.store(static_cast<double>
-                                (config.getWarmupMinItemsThreshold()) / 100.0);
-    config.addValueChangedListener(
-            "warmup_min_items_threshold",
             std::make_unique<StatsValueChangeListener>(stats, *this));
 
     setMutationMemRatio(config.getMutationMemRatio());
@@ -2217,6 +2202,11 @@ bool KVBucket::isWarmupComplete() {
 
 bool KVBucket::isWarmupOOMFailure() {
     return false;
+}
+
+cb::engine_errc KVBucket::doWarmupStats(const AddStatFn& add_stat,
+                                        CookieIface& cookie) const {
+    return cb::engine_errc::no_such_key;
 }
 
 bool KVBucket::hasWarmupSetVbucketStateFailed() const {

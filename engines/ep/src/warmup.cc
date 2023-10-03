@@ -44,10 +44,14 @@
 #include <folly/lang/Assume.h>
 
 struct WarmupCookie {
-    WarmupCookie(EPBucket& s, StatusCallback<GetValue>& c, MutationLog& log)
-        : epstore(s), cb(c), log(log) {
+    WarmupCookie(EPBucket& s,
+                 const Warmup& warmup,
+                 StatusCallback<GetValue>& c,
+                 MutationLog& log)
+        : epstore(s), warmup(warmup), cb(c), log(log) {
     }
     EPBucket& epstore;
+    const Warmup& warmup;
     StatusCallback<GetValue>& cb;
     MutationLog& log;
 };
@@ -811,7 +815,7 @@ static bool batchWarmupCallback(Vbid vbId,
     Expects(arg);
     auto& c = *static_cast<WarmupCookie*>(arg);
 
-    if (!c.epstore.hasWarmupReachedThreshold()) {
+    if (!c.warmup.hasReachedThreshold()) {
         vb_bgfetch_queue_t items2fetch;
         for (auto& key : fetches) {
             // Access log only records Committed keys, therefore construct
@@ -1114,7 +1118,7 @@ void LoadStorageKVPairCallback::callback(GetValue& val) {
         } while (!succeeded && retry-- > 0);
 
         if (shouldCheckIfWarmupThresholdReached) {
-            stopLoading = epstore.hasWarmupReachedThreshold();
+            stopLoading = warmup.hasReachedThreshold();
         }
 
         switch (warmupState) {
@@ -1242,9 +1246,12 @@ void LoadValueCallback::callback(CacheLookup& lookup) {
 Warmup::Warmup(EPBucket& st, const Configuration& config_)
     : store(st),
       config(config_),
+      stats(st.getEPEngine().getEpStats()),
       shardVbStates(store.vbMap.getNumShards()),
       shardVbIds(store.vbMap.getNumShards()),
       warmedUpVbuckets(std::in_place, config.getMaxVbuckets()) {
+    setMemoryThreshold(config.getWarmupMinMemoryThreshold());
+    setItemThreshold(config.getWarmupMinItemsThreshold());
 }
 
 Warmup::~Warmup() = default;
@@ -1724,7 +1731,7 @@ void Warmup::checkForAccessLog() {
     EP_LOG_INFO("metadata loaded in {}",
                 cb::time2text(std::chrono::nanoseconds(metadata.load())));
 
-    if (store.hasWarmupReachedThreshold()) {
+    if (hasReachedThreshold()) {
         transition(WarmupState::State::Done);
         return;
     }
@@ -1809,10 +1816,10 @@ bool Warmup::loadingAccessLog(uint16_t shardId) {
         // Nuke it now to get the memory back.
         accessLog.clear();
 
-        if (!store.hasWarmupReachedThreshold()) {
-            transition(WarmupState::State::LoadingData);
-        } else {
+        if (hasReachedThreshold()) {
             transition(WarmupState::State::Done);
+        } else {
+            transition(WarmupState::State::LoadingData);
         }
     }
     return false;
@@ -1847,7 +1854,7 @@ Warmup::WarmupAccessLogState Warmup::doWarmup(
     // To constrain the number of elements from the access log we have to keep
     // alive (there may be millions of items per-vBucket), process it
     // a batch at a time.
-    WarmupCookie cookie(store, cb, lf);
+    WarmupCookie cookie(store, *this, cb, lf);
 
     using namespace std::chrono;
     auto start = steady_clock::now();
@@ -2001,9 +2008,9 @@ void Warmup::addStats(const StatCollector& collector) const {
     collector.addStat(Key::ep_warmup_key_count, stats.warmedUpKeys);
     collector.addStat(Key::ep_warmup_value_count, stats.warmedUpValues);
     collector.addStat(Key::ep_warmup_min_memory_threshold,
-                      stats.warmupMemUsedCap * 100.0);
+                      maxSizeScaleFactor * 100.0);
     collector.addStat(Key::ep_warmup_min_item_threshold,
-                      stats.warmupNumReadCap * 100.0);
+                      maxItemsScaleFactor * 100.0);
 
     auto md_time = metadata.load();
     if (md_time > md_time.zero()) {
@@ -2081,4 +2088,67 @@ void Warmup::populateShardVbStates() {
             }
         }
     }
+}
+
+void Warmup::setMemoryThreshold(size_t perc) {
+    maxSizeScaleFactor = static_cast<double>(perc) / 100.0;
+}
+
+void Warmup::setItemThreshold(size_t perc) {
+    maxItemsScaleFactor = static_cast<double>(perc) / 100.0;
+}
+
+bool Warmup::hasReachedThreshold() const {
+    const auto memoryUsed =
+            static_cast<double>(stats.getEstimatedTotalMemoryUsed());
+    const auto maxSize = static_cast<double>(stats.getMaxDataSize());
+
+    if (memoryUsed >= stats.mem_low_wat) {
+        EP_LOG_INFO(
+                "Total memory use reached to the low water mark, stop warmup"
+                ": memoryUsed ({}) >= low water mark ({})",
+                memoryUsed,
+                uint64_t(stats.mem_low_wat.load()));
+        return true;
+    }
+    if (memoryUsed > (maxSize * maxSizeScaleFactor)) {
+        EP_LOG_INFO(
+                "Enough MB of data loaded to enable traffic"
+                ": memoryUsed ({}) > (maxSize({}) * warmupMemUsedCap({}))",
+                memoryUsed,
+                maxSize,
+                maxSizeScaleFactor);
+        return true;
+    }
+    if (store.getItemEvictionPolicy() == EvictionPolicy::Value &&
+        stats.warmedUpValues >= (stats.warmedUpKeys * maxItemsScaleFactor)) {
+        // Let ep-engine think we're done with the warmup phase
+        // (we should refactor this into "enableTraffic")
+        EP_LOG_INFO(
+                "Enough number of items loaded to enable traffic (value "
+                "eviction)"
+                ": warmedUpValues({}) >= (warmedUpKeys({}) * "
+                "warmupNumReadCap({}))",
+                uint64_t(stats.warmedUpValues.load()),
+                uint64_t(stats.warmedUpKeys.load()),
+                maxItemsScaleFactor);
+        return true;
+    }
+    if (store.getItemEvictionPolicy() == EvictionPolicy::Full &&
+        stats.warmedUpValues >=
+                (getEstimatedItemCount() * maxItemsScaleFactor)) {
+        // In case of FULL EVICTION, warmed up keys always matches the number
+        // of warmed up values, therefore for honoring the min_item threshold
+        // in this scenario, we can consider warmup's estimated item count.
+        EP_LOG_INFO(
+                "Enough number of items loaded to enable traffic (full "
+                "eviction)"
+                ": warmedUpValues({}) >= (warmup est items({}) * "
+                "warmupNumReadCap({}))",
+                uint64_t(stats.warmedUpValues.load()),
+                uint64_t(getEstimatedItemCount()),
+                maxItemsScaleFactor);
+        return true;
+    }
+    return false;
 }

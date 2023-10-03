@@ -235,7 +235,8 @@ public:
      *        doesn't support Snappy compression then ValueFilter will not
      *        return compressed data.
      */
-    ValueFilter getValueFilterForCompressionMode(CookieIface* cookie = nullptr);
+    ValueFilter getValueFilterForCompressionMode(
+            CookieIface* cookie = nullptr) const;
 
     void notifyNewSeqno(const Vbid vbid, const VBNotifyCtx& notifyCtx) override;
 
@@ -256,6 +257,12 @@ public:
     bool isWarmupLoadingData() override;
 
     bool isWarmupComplete() override;
+
+    /**
+     * Add warmup stats if the warmupTask object exists
+     */
+    cb::engine_errc doWarmupStats(const AddStatFn& add_stat,
+                                  CookieIface& cookie) const override;
 
     bool isWarmupOOMFailure() override;
 
@@ -281,15 +288,6 @@ public:
      * Starts the warmup task if one is present
      */
     void startWarmupTask();
-
-    /**
-     * Check a bucket mem_used against a number of configuration derived
-     * thresholds (warmup related). For example low water mark, warmup limit and
-     * then various eviction mode dependent checks.
-     *
-     * @return true if the bucket has reached "threshold".
-     */
-    bool hasWarmupReachedThreshold() const;
 
     void warmupCompleted();
 

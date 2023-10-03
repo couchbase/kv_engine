@@ -355,6 +355,49 @@ public:
     }
 
     /**
+     * Setup a memory threshold at which Warmup will transition to Done. As
+     * Warmup loads data, mem_used will be checked against this percentage of
+     * the bucket quota (max_size).
+     *
+     * This function is related to the configuration parameter
+     * warmup_min_memory_threshold which requires a integer value from 0 to 100,
+     * but this function can accept values greater than 100 for test purposes.
+     *
+     * @param perc A integer value that is the % of max_size at which Warmup
+     *             will transition to Done.
+     */
+    void setMemoryThreshold(size_t perc);
+
+    /**
+     * Set a scale factor for calculating the ratio of available items that can
+     * be loaded before Warmup must transition to Done.
+     *
+     * Setup a item loaded threshold at which Warmup will transition to Done.
+     * As Warmup loads data it will transition to Done if this percentage of
+     * the available items is loaded.
+     *
+     * This function is related to the configuration parameter
+     * warmup_min_items_threshold which requires a integer value from 0 to 100,
+     * but this function can accept values greater than 100 for test purposes.
+     *
+     * @param perc A integer value that is the % of items at which Warmup
+     *             will transition to Done.
+     */
+    void setItemThreshold(size_t perc);
+
+    /**
+     * Check if Warmup has reached any of the thresholds at which it should
+     * transition to Done.
+     *
+     * A critical side-effect of this function is that when true is returned
+     * the reason is logged (a significant statement for the supportability of
+     * this component).
+     *
+     * @return true if the bucket has reached a Warmup "threshold".
+     */
+    bool hasReachedThreshold() const;
+
+    /**
      * Testing hook which if set is called every time warmup transitions to
      * a new state.
      */
@@ -493,6 +536,7 @@ private:
 
     EPBucket& store;
     const Configuration& config;
+    const EPStats& stats;
 
     // Unordered set to hold the current executing tasks
     std::mutex taskSetMutex;
@@ -553,6 +597,19 @@ private:
     VBMap warmedUpVbuckets;
 
     std::vector<std::vector<std::unique_ptr<MutationLog>>> accessLog;
+
+    /**
+     * A scale factor for computing how much memory can be consumed during
+     * Warmup. Atomic as it can be written and read and different threads.
+     */
+    std::atomic<double> maxSizeScaleFactor{0.0};
+
+    /**
+     * A scale factor for calculating the maximum number of items that can be
+     * loaded by Warmup. Atomic as it can be written and read and different
+     * threads.
+     */
+    std::atomic<double> maxItemsScaleFactor{0.0};
 
     // To avoid making a number of methods on Warmup public; grant friendship
     // to the various Tasks which run the stages of warmup.
