@@ -15,9 +15,9 @@
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 
-VBucketSyncWriteTimeoutTask::VBucketSyncWriteTimeoutTask(Taskable& taskable,
-                                                         VBucket& vBucket)
-    : GlobalTask(taskable, TaskId::DurabilityTimeoutTask, INT_MAX, false),
+VBucketSyncWriteTimeoutTask::VBucketSyncWriteTimeoutTask(
+        EventuallyPersistentEngine& ep, VBucket& vBucket)
+    : GlobalTask(ep, TaskId::DurabilityTimeoutTask, INT_MAX, false),
       vBucket(vBucket),
       vbid(vBucket.getId()) {
 }

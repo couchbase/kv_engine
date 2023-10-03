@@ -482,12 +482,10 @@ bool KVBucket::initialize() {
     // next SyncWrite to be completed is due to exceed its timeout. If that
     // SyncWrite is completed before the timeout then the task is re-scheduled
     // (and doesn't run).
-    syncWriteTimeoutFactory =
-            [&taskable = this->getEPEngine().getTaskable()](VBucket& vbucket) {
-                return std::make_unique<EventDrivenTimeoutTask>(
-                        std::make_shared<VBucketSyncWriteTimeoutTask>(taskable,
-                                                                      vbucket));
-            };
+    syncWriteTimeoutFactory = [&engine = getEPEngine()](VBucket& vbucket) {
+        return std::make_unique<EventDrivenTimeoutTask>(
+                std::make_shared<VBucketSyncWriteTimeoutTask>(engine, vbucket));
+    };
 
     durabilityCompletionTask =
             std::make_shared<DurabilityCompletionTask>(engine);

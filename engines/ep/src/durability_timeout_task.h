@@ -17,7 +17,8 @@ class VBucket;
 
 class VBucketSyncWriteTimeoutTask : public GlobalTask {
 public:
-    VBucketSyncWriteTimeoutTask(Taskable& taskable, VBucket& vBucket);
+    VBucketSyncWriteTimeoutTask(EventuallyPersistentEngine& ep,
+                                VBucket& vBucket);
 
     std::string getDescription() const override;
 
