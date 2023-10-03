@@ -809,7 +809,7 @@ private:
 static bool batchWarmupCallback(Vbid vbId,
                                 const std::set<StoredDocKey>& fetches,
                                 void* arg) {
-    auto *c = static_cast<WarmupCookie *>(arg);
+    auto* c = static_cast<WarmupCookie*>(arg);
 
     if (!c->epstore->hasWarmupReachedThreshold()) {
         vb_bgfetch_queue_t items2fetch;
@@ -867,7 +867,7 @@ static bool batchWarmupCallback(Vbid vbId,
     }
 }
 
-const char *WarmupState::toString() const {
+const char* WarmupState::toString() const {
     return getStateDescription(state.load());
 }
 
@@ -990,8 +990,7 @@ bool WarmupState::legalTransition(State from, State to) const {
     return false;
 }
 
-std::ostream& operator <<(std::ostream &out, const WarmupState &state)
-{
+std::ostream& operator<<(std::ostream& out, const WarmupState& state) {
     out << state.toString();
     return out;
 }
@@ -1208,8 +1207,7 @@ void LoadStorageKVPairCallback::purge() {
     hasPurged = true;
 }
 
-void LoadValueCallback::callback(CacheLookup &lookup)
-{
+void LoadValueCallback::callback(CacheLookup& lookup) {
     // If not value-eviction (LoadingData), then skip attempting to check for
     // value already resident, given we assume nothing has been loaded for this
     // document yet.
@@ -1270,8 +1268,7 @@ void Warmup::removeFromTaskSet(size_t taskId) {
     taskSet.erase(taskId);
 }
 
-void Warmup::setEstimatedWarmupCount(size_t to)
-{
+void Warmup::setEstimatedWarmupCount(size_t to) {
     estimatedWarmupCount.store(to);
 }
 
@@ -1286,7 +1283,7 @@ void Warmup::start() {
 void Warmup::stop() {
     {
         std::lock_guard<std::mutex> lh(taskSetMutex);
-        if(taskSet.empty()) {
+        if (taskSet.empty()) {
             return;
         }
         for (auto id : taskSet) {
@@ -1346,8 +1343,7 @@ void Warmup::initialize() {
     transition(WarmupState::State::CreateVBuckets);
 }
 
-void Warmup::scheduleCreateVBuckets()
-{
+void Warmup::scheduleCreateVBuckets() {
     threadtask_count = 0;
     for (size_t i = 0; i < store.vbMap.shards.size(); i++) {
         ExTask task = std::make_shared<WarmupCreateVBuckets>(store, i, this);
@@ -1567,8 +1563,7 @@ void Warmup::loadCollectionStatsForShard(uint16_t shardId) {
     }
 }
 
-void Warmup::scheduleEstimateDatabaseItemCount()
-{
+void Warmup::scheduleEstimateDatabaseItemCount() {
     threadtask_count = 0;
     estimateTime.store(std::chrono::steady_clock::duration::zero());
     estimatedItemCount = 0;
@@ -1732,14 +1727,12 @@ void Warmup::scheduleKeyDump() {
     scheduleBackfillTask(createTask);
 }
 
-void Warmup::scheduleCheckForAccessLog()
-{
+void Warmup::scheduleCheckForAccessLog() {
     ExTask task = std::make_shared<WarmupCheckforAccessLog>(store, this);
     ExecutorPool::get()->schedule(task);
 }
 
-void Warmup::checkForAccessLog()
-{
+void Warmup::checkForAccessLog() {
     {
         std::lock_guard<std::mutex> lock(warmupStart.mutex);
         metadata.store(std::chrono::steady_clock::now() - warmupStart.time);
@@ -1781,11 +1774,9 @@ void Warmup::checkForAccessLog()
             transition(WarmupState::State::LoadingKVPairs);
         }
     }
-
 }
 
-void Warmup::scheduleLoadingAccessLog()
-{
+void Warmup::scheduleLoadingAccessLog() {
     threadtask_count = 0;
     for (size_t i = 0; i < store.vbMap.shards.size(); i++) {
         ExTask task = std::make_shared<WarmupLoadAccessLog>(store, i, this);
@@ -1793,8 +1784,7 @@ void Warmup::scheduleLoadingAccessLog()
     }
 }
 
-void Warmup::loadingAccessLog(uint16_t shardId)
-{
+void Warmup::loadingAccessLog(uint16_t shardId) {
     LoadStorageKVPairCallback load_cb(store, true, state.getState());
     bool success = false;
     auto stTime = std::chrono::steady_clock::now();
@@ -1805,7 +1795,7 @@ void Warmup::loadingAccessLog(uint16_t shardId)
                 (size_t)-1) {
                 success = true;
             }
-        } catch (MutationLog::ReadException &e) {
+        } catch (MutationLog::ReadException& e) {
             corruptAccessLog = true;
             EP_LOG_WARN("Error reading warmup access log:  {}", e.what());
         }
@@ -1823,7 +1813,7 @@ void Warmup::loadingAccessLog(uint16_t shardId)
                     (size_t)-1) {
                     success = true;
                 }
-            } catch (MutationLog::ReadException &e) {
+            } catch (MutationLog::ReadException& e) {
                 corruptAccessLog = true;
                 EP_LOG_WARN("Error reading old access log:  {}", e.what());
             }
@@ -1836,7 +1826,7 @@ void Warmup::loadingAccessLog(uint16_t shardId)
                     uint64_t(numItems),
                     cb::time2text(std::chrono::steady_clock::now() - stTime));
     } else {
-        size_t estimatedCount= store.getEPEngine().getEpStats().warmedUpKeys;
+        size_t estimatedCount = store.getEPEngine().getEpStats().warmedUpKeys;
         setEstimatedWarmupCount(estimatedCount);
     }
 
@@ -1927,8 +1917,7 @@ void Warmup::scheduleCompletion() {
     ExecutorPool::get()->schedule(task);
 }
 
-void Warmup::done()
-{
+void Warmup::done() {
     if (setFinishedLoading()) {
         setWarmupTime();
         store.warmupCompleted();
@@ -2112,8 +2101,8 @@ void Warmup::populateShardVbStates() {
         // Now the VB lottery can begin.
         // Generate a psudeo random, weighted list of active/replica vbuckets.
         // The random seed is the shard ID so that re-running warmup
-        // for the same shard and vbucket set always gives the same output and keeps
-        // nodes of the cluster more equal after a warmup.
+        // for the same shard and vbucket set always gives the same output and
+        // keeps nodes of the cluster more equal after a warmup.
 
         std::mt19937 twister(i);
         // Give 'true' (aka active) 60% of the time
@@ -2129,7 +2118,8 @@ void Warmup::populateShardVbStates() {
                 shardVbIds[i].push_back(activeReplicaSource[num]->back());
                 activeReplicaSource[num]->pop_back();
             } else {
-                // Once active or replica set is empty, just drain the other one.
+                // Once active or replica set is empty, just drain the other
+                // one.
                 num = num ^ 1;
                 while (!activeReplicaSource[num]->empty()) {
                     shardVbIds[i].push_back(activeReplicaSource[num]->back());

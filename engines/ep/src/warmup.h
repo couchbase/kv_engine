@@ -277,7 +277,7 @@ public:
      */
     void addStatusMetrics(const StatCollector& c) const;
 
-    std::chrono::steady_clock::duration getTime() {
+    std::chrono::steady_clock::duration getTime() const {
         return warmup.load();
     }
 
@@ -327,7 +327,9 @@ public:
         return warmupOOMFailure.compare_exchange_strong(inverse, true);
     }
 
-    bool hasOOMFailure() { return warmupOOMFailure.load(); }
+    bool hasOOMFailure() const {
+        return warmupOOMFailure.load();
+    }
 
     bool hasSetVbucketStateFailure() const {
         return failedToSetAVbucketState;
