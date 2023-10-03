@@ -1002,7 +1002,7 @@ int main(int argc, char** argv) {
                   << std::endl;
     } else {
         fmt::print(
-                "Connection took {} ms - {} mutations with a total of {} bytes "
+                "Execution took {} ms - {} mutations with a total of {} bytes "
                 "received in {} snapshots and {} oso snapshots (overhead {} "
                 "bytes, {})",
                 duration.count(),
