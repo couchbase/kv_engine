@@ -114,8 +114,7 @@ void server_clock_stats(const StatCollector& collector) {
 /// add stats aggregated over all buckets
 static void server_agg_stats(const StatCollector& collector) {
     using namespace cb::stats;
-    // index 0 contains the aggregated timings for all buckets
-    auto& timings = all_buckets[0].timings;
+    auto& timings = BucketManager::instance().aggregatedTimings;
     uint64_t total_mutations = timings.get_aggregated_mutation_stats();
     uint64_t total_retrievals = timings.get_aggregated_retrieval_stats();
     uint64_t total_ops = total_retrievals + total_mutations;

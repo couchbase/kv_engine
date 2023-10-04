@@ -560,6 +560,9 @@ public:
         unassigned_resources_gauge.increment(units);
     }
 
+    /// Aggregated timings for all buckets
+    Timings aggregatedTimings;
+
 protected:
     /**
      * Create a bucket

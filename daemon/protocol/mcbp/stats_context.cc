@@ -145,6 +145,7 @@ static cb::engine_errc stat_reset_executor(const std::string& arg,
         stats.auth_errors = 0;
         bucket_reset_stats(cookie);
         all_buckets[0].timings.reset();
+        BucketManager::instance().aggregatedTimings.reset();
         cookie.getConnection().getBucket().timings.reset();
         return cb::engine_errc::success;
     } else if (arg == "timings") {

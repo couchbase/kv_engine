@@ -55,6 +55,57 @@ TEST(MiscTest, TestBucketDetailedStats) {
     EXPECT_NE(bucket.end(), bucket.find("num_rejected"));
 }
 
+/// Test command stats aggregation and reset
+TEST(MiscTest, TestCmdStats) {
+    const Vbid vbid0{0};
+
+    auto admin = cluster->getConnection(0);
+    admin->authenticate("@admin", "password");
+    admin->stats("reset");
+
+    auto user0 = cluster->getConnection(0);
+    user0->authenticate("bucket-0", "bucket-0");
+    user0->selectBucket("bucket-0");
+    user0->store("TestCmdStats_asdf", vbid0, "lorem");
+    for (int ii = 0; ii < 3; ++ii) {
+        user0->get("TestCmdStats_asdf", vbid0);
+    }
+    user0->remove("TestCmdStats_asdf", vbid0);
+
+    auto user1 = cluster->getConnection(0);
+    user1->authenticate("bucket-1", "bucket-1");
+    user1->selectBucket("bucket-1");
+    user1->store("TestCmdStats_zxcv", vbid0, "ipsum");
+    for (int ii = 0; ii < 2; ++ii) {
+        user1->get("TestCmdStats_zxcv", vbid0);
+    }
+    user1->remove("TestCmdStats_zxcv", vbid0);
+
+    admin->executeInBucket("bucket-0", [](auto& connection) {
+        auto stats = connection.stats("");
+        EXPECT_FALSE(stats.empty());
+
+        auto cmd_total_gets = stats["cmd_total_gets"].template get<long>();
+        auto cmd_total_sets = stats["cmd_total_sets"].template get<long>();
+        auto cmd_total_ops = stats["cmd_total_ops"].template get<long>();
+        EXPECT_EQ(5, cmd_total_gets);
+        EXPECT_EQ(4, cmd_total_sets);
+        EXPECT_EQ(cmd_total_ops, cmd_total_gets + cmd_total_sets);
+
+        connection.stats("reset");
+
+        stats = connection.stats("");
+        EXPECT_FALSE(stats.empty());
+
+        cmd_total_gets = stats["cmd_total_gets"].template get<long>();
+        cmd_total_sets = stats["cmd_total_sets"].template get<long>();
+        cmd_total_ops = stats["cmd_total_ops"].template get<long>();
+        EXPECT_EQ(0, cmd_total_gets);
+        EXPECT_EQ(0, cmd_total_sets);
+        EXPECT_EQ(0, cmd_total_ops);
+    });
+}
+
 /// Verify that when a bucket gets created the throttle limit gets set to
 /// the default value
 TEST(MiscTest, TestDefaultThrottleLimit) {

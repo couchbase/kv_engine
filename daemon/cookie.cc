@@ -828,6 +828,8 @@ void Cookie::collectTimings(
     const auto elapsed = endTime - start;
     tracer.record(cb::tracing::Code::Request, start, endTime);
 
+    BucketManager::instance().aggregatedTimings.collect(opcode, elapsed);
+
     // Bucket index will be zero initially before you run SASL auth,
     // or if someone tries to delete the bucket you're associated with
     // and you're idle.
