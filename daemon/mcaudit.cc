@@ -23,10 +23,10 @@
 #include <auditd/src/audit_descriptor_manager.h>
 #include <folly/Synchronized.h>
 #include <memcached/audit_interface.h>
-#include <memcached/isotime.h>
 #include <nlohmann/json.hpp>
 #include <platform/scope_timer.h>
 #include <platform/string_hex.h>
+#include <platform/timeutils.h>
 #include <sstream>
 
 /// @returns the singleton audit handle.
@@ -87,7 +87,7 @@ static nlohmann::json create_memcached_audit_object(
     root["id"] = id;
     root["name"] = descr.getName();
     root["description"] = descr.getDescription();
-    root["timestamp"] = ISOTime::generatetimestamp();
+    root["timestamp"] = cb::time::timestamp();
     root["remote"] = c.getPeername();
     root["local"] = c.getSockname();
     root["real_userid"] = ui;
@@ -468,7 +468,7 @@ cb::engine_errc mc_audit_event(Cookie& cookie,
     json["name"] = descr->getName();
     json["description"] = descr->getDescription();
     ScopeTimer1<SpanStopwatch> timer(cookie, Code::Audit);
-    return getAuditHandle().withRLock([audit_eventid, json](auto& handle) {
+    return getAuditHandle().withRLock([audit_eventid, &json](auto& handle) {
         if (!handle) {
             return cb::engine_errc::too_busy;
         }

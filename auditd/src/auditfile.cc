@@ -11,12 +11,12 @@
 
 #include <fmt/format.h>
 #include <logger/logger.h>
-#include <memcached/isotime.h>
 #include <nlohmann/json.hpp>
 #include <platform/cbassert.h>
 #include <platform/dirutils.h>
 #include <platform/platform_time.h>
 #include <platform/strerror.h>
+#include <platform/timeutils.h>
 #include <sys/stat.h>
 #include <algorithm>
 #include <chrono>
@@ -119,7 +119,7 @@ void AuditFile::close_and_rotate_log() {
 
     current_size = 0;
 
-    std::string ts = ISOTime::generatetimestamp(open_time, 0).substr(0,19);
+    auto ts = cb::time::timestamp(open_time).substr(0, 19);
     std::replace(ts.begin(), ts.end(), ':', '-');
 
     // move the audit_log to the archive.
@@ -197,7 +197,7 @@ void AuditFile::cleanup_old_logfile(const std::string& log_path) {
                 R"("{}" occurred while parsing "{}" while trying to determine timestamp. Using current time instead)",
                 exception.what(),
                 original.generic_string());
-        ts = ISOTime::generatetimestamp();
+        ts = cb::time::timestamp();
     }
 
     ts = ts.substr(0, 19);

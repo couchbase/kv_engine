@@ -15,14 +15,12 @@
 
 #include <auditd/couchbase_audit_events.h>
 #include <logger/logger.h>
-#include <memcached/isotime.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
+#include <platform/timeutils.h>
 #include <statistics/collector.h>
 #include <statistics/definitions.h>
 #include <utilities/logtags.h>
-
-#include <algorithm>
 #include <chrono>
 #include <string>
 
@@ -74,7 +72,7 @@ AuditImpl::~AuditImpl() {
 
 void AuditImpl::create_audit_event(uint32_t event_id, nlohmann::json& payload) {
     // Add common fields to the audit event
-    payload["timestamp"] = ISOTime::generatetimestamp();
+    payload["timestamp"] = cb::time::timestamp();
     const cb::rbac::UserIdent real_userid("@memcached",
                                           cb::rbac::Domain::Local);
     payload["real_userid"] = real_userid;
