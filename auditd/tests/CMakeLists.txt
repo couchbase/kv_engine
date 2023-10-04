@@ -4,13 +4,12 @@ cb_add_test_executable(memcached_audit_test
                auditfile_test.cc
                auditconfig_test.cc
                eventdescriptor_test.cc
-               ${Memcached_SOURCE_DIR}/auditd/src/eventdescriptor.h
-               ${Memcached_SOURCE_DIR}/include/memcached/isotime.h)
+               ${Memcached_SOURCE_DIR}/auditd/src/eventdescriptor.h)
 kv_enable_pch(memcached_audit_test)
 target_link_libraries(memcached_audit_test PRIVATE
                       auditd
                       memcached_logger
-                      mcd_time
+                      memcached_rbac
                       platform
                       GTest::gtest
                       GTest::gtest_main

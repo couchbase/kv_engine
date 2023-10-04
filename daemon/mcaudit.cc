@@ -22,10 +22,10 @@
 
 #include <folly/Synchronized.h>
 #include <memcached/audit_interface.h>
-#include <memcached/isotime.h>
 #include <nlohmann/json.hpp>
 #include <platform/scope_timer.h>
 #include <platform/string_hex.h>
+#include <platform/timeutils.h>
 #include <sstream>
 
 /// @returns the singleton audit handle.
@@ -100,7 +100,7 @@ static nlohmann::json create_memcached_audit_object(
         const std::optional<cb::rbac::UserIdent>& euid) {
     nlohmann::json root;
 
-    root["timestamp"] = ISOTime::generatetimestamp();
+    root["timestamp"] = cb::time::timestamp();
     root["remote"] = c.getPeername();
     root["local"] = c.getSockname();
     root["real_userid"] = ui.to_json();

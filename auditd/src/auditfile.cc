@@ -12,13 +12,13 @@
 
 #include <folly/ScopeGuard.h>
 #include <logger/logger.h>
-#include <memcached/isotime.h>
 #include <nlohmann/json.hpp>
 #include <platform/cbassert.h>
 #include <platform/dirutils.h>
 #include <platform/platform_time.h>
 #include <platform/strerror.h>
 #include <utilities/json_utilities.h>
+#include <platform/timeutils.h>
 #include <algorithm>
 #include <iostream>
 #include <sstream>
@@ -199,7 +199,7 @@ void AuditFile::close_and_rotate_log() {
 
     current_size = 0;
 
-    std::string ts = ISOTime::generatetimestamp(open_time, 0).substr(0,19);
+    auto ts = cb::time::timestamp(open_time).substr(0, 19);
     std::replace(ts.begin(), ts.end(), ':', '-');
 
     // move the audit_log to the archive.

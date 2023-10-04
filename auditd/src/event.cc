@@ -13,8 +13,8 @@
 #include "audit.h"
 #include "eventdescriptor.h"
 #include <logger/logger.h>
-#include <memcached/isotime.h>
 #include <nlohmann/json.hpp>
+#include <platform/timeutils.h>
 #include <utilities/logtags.h>
 #include <sstream>
 #include <string>
@@ -98,7 +98,7 @@ bool Event::process(AuditImpl& audit) {
     if (json_payload.find("timestamp") == json_payload.end()) {
         // the audit does not contain a timestamp, so the server
         // needs to insert one
-        const auto timestamp = ISOTime::generatetimestamp();
+        const auto timestamp = cb::time::timestamp();
         json_payload["timestamp"] = timestamp;
     }
 

@@ -15,10 +15,10 @@
 #include "eventdescriptor.h"
 
 #include <logger/logger.h>
-#include <memcached/isotime.h>
 #include <memcached/server_cookie_iface.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
+#include <platform/timeutils.h>
 #include <statistics/collector.h>
 #include <statistics/definitions.h>
 #include <utilities/logtags.h>
@@ -80,7 +80,7 @@ AuditImpl::~AuditImpl() {
 
 void AuditImpl::create_audit_event(uint32_t event_id, nlohmann::json& payload) {
     // Add common fields to the audit event
-    payload["timestamp"] = ISOTime::generatetimestamp();
+    payload["timestamp"] = cb::time::timestamp();
     nlohmann::json real_userid;
     real_userid["domain"] = "internal";
     real_userid["user"] = "couchbase";

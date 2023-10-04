@@ -33,13 +33,12 @@
 #include <JSON_checker.h>
 #include <gsl/gsl-lite.hpp>
 #include <mcbp/protocol/unsigned_leb128.h>
-#include <memcached/isotime.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <platform/compress.h>
 #include <platform/dirutils.h>
 #include <platform/strerror.h>
-
+#include <platform/timeutils.h>
 #include <spdlog/common.h>
 #include <charconv>
 #include <memory>
@@ -1430,22 +1429,17 @@ CompactDBStatus CouchKVStore::compactDBInternal(
     // Perform COMPACTION of vbucket.couch.rev into
     // vbucket.couch.rev.compact
     if (configuration.isPitrEnabled()) {
+        auto now = std::chrono::system_clock::now();
         std::chrono::nanoseconds timestamp =
-                std::chrono::system_clock::now().time_since_epoch() -
-                configuration.getPitrMaxHistoryAge();
+                now.time_since_epoch() - configuration.getPitrMaxHistoryAge();
         const auto delta = configuration.getPitrGranularity();
-        const auto seconds =
-                std::chrono::duration_cast<std::chrono::seconds>(timestamp);
-        const auto usec = std::chrono::duration_cast<std::chrono::microseconds>(
-                timestamp - seconds);
 
         EP_LOG_INFO(
                 "{}: Full compaction to {}, incremental with granularity of "
                 "{} sec",
                 vbid.to_string(),
-                ISOTime::generatetimestamp(seconds.count(), usec.count()),
-                std::chrono::duration_cast<std::chrono::seconds>(
-                        configuration.getPitrGranularity())
+                ::to_string(now),
+                std::chrono::duration_cast<std::chrono::seconds>(delta)
                         .count());
 
         // @todo I'm not sure if updating the bloom filter as part of
