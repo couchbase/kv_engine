@@ -43,7 +43,7 @@ public:
      * The task must match the expectedTaskName parameter
      */
     std::chrono::steady_clock::time_point runNextTask(
-            TaskQueue& taskQ, const std::string& expectedTaskName);
+            TaskQueue& taskQ, std::string_view expectedTaskName);
 
     /*
      * Run the next task from the taskQ
