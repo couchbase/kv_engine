@@ -29,7 +29,8 @@ public:
     virtual bool validate(std::string_view view) = 0;
 
     /// Create a new instance of the given type
-    static std::unique_ptr<SyntaxValidator> New(Type = Type::JSON_checker);
+    static std::unique_ptr<SyntaxValidator> New(
+            Type = Type::JSON_checker_vectorized);
 };
 
 } // namespace cb::json
