@@ -12,3 +12,11 @@ target_link_libraries(memcached_timestamp_test PRIVATE mcd_time platform GTest::
 ADD_TEST(NAME memcached-timestamp-test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_timestamp_test)
+
+cb_add_test_executable(memcached_timestamp_bench timestamp_bench.cc)
+target_link_libraries(memcached_timestamp_bench PRIVATE
+        benchmark::benchmark
+        benchmark::benchmark_main
+        GTest::gtest
+        mcd_time
+        platform)
