@@ -17,6 +17,7 @@
 #include <platform/terminal_color.h>
 #include <prometheus/metric_type.h>
 #include <statistics/units.h>
+#include <array>
 #include <fstream>
 #include <iostream>
 #include <optional>
@@ -81,6 +82,19 @@ constexpr const char* preamble = R"(/*
 
 constexpr const char* metricFamilyRegexStr = "[a-zA-Z_][a-zA-Z0-9_]*";
 
+/**
+ * Filter out any config keys which should not be in public documentation. The
+ * metadata for anything that matches here will be emitted as
+ * stability=internal.
+ */
+constexpr std::array<std::string_view, 2> excludedConfigKeys{
+        // Nexus is strictly for testing
+        "nexus_",
+        // RocksDB is not supported
+        "rocksdb_"};
+
+constexpr std::string_view configVersionAdded = "7.0.0";
+
 static void usage() {
     fmt::print(stderr,
                "Usage: gen_stat_definitions -j statJSON -C configJSON -c cfile "
@@ -103,6 +117,15 @@ bool isValidMetricFamily(std::string_view name) {
     static const std::regex metricFamilyRegex(metricFamilyRegexStr,
                                               std::regex_constants::ECMAScript);
     return std::regex_match(name.begin(), name.end(), metricFamilyRegex);
+}
+
+bool shouldDocumentConfigKey(std::string_view name) {
+    for (auto& matcher : excludedConfigKeys) {
+        if (name.find(matcher) != std::string::npos) {
+            return false;
+        }
+    }
+    return true;
 }
 
 struct Spec {
@@ -501,15 +524,23 @@ int main(int argc, char** argv) {
         for (const auto& key : keys) {
             Spec spec;
             spec.enumKey = "ep_" + key;
-            spec.unit = "none";
-            // For now, we expose all config parameters as internal.
-            spec.stability = "internal";
+            spec.unit = "count";
+            spec.added = configVersionAdded;
+            // We don't have a stability field for our config params, so for now
+            // we decide what it should be here.
+            spec.stability =
+                    shouldDocumentConfigKey(key) ? "volatile" : "internal";
             // format the enum key for the .h
             fmt::format_to(
                     std::back_inserter(enumKeysBuf), "{},\n", spec.enumKey);
             // format the whole stat def for the .cc
             fmt::format_to(std::back_inserter(statDefsBuf), "{},\n", spec);
 
+            auto type = configParam.value()["type"].get<std::string>();
+            // String config keys will never be exposed via Prometheus.
+            if (type == "std::string") {
+                continue;
+            }
             auto description = configParam.value().value("descr", "");
             addConfigDocumentation(spec, description, documentation);
         }
