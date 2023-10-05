@@ -480,8 +480,13 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
             // before a history seqno-ordered snapshot, wasFirst is false, yet
             // the snapshot variables are still zero and we would hit this
             // exception.
+            // Also, any subsequent backfill phase (eg, by CursorDrop) can
+            // generate double markers with same seqno range for CDC
+            // NonHistoryPrologue->History jumps, so we this check is invalid in
+            // that case.
             if (!wasFirst && lastSentSnapStartSeqno <= lastSentSnapEndSeqno &&
-                lastSentSnapStartSeqno && lastSentSnapEndSeqno) {
+                lastSentSnapStartSeqno && lastSentSnapEndSeqno &&
+                snapshotType != SnapshotType::HistoryFollowingNoHistory) {
                 auto msg = fmt::format(
                         "ActiveStream::markDiskSnapshot:"
                         "sent snapshot marker to client with snap start <= "

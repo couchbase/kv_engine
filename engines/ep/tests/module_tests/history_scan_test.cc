@@ -682,6 +682,99 @@ TEST_P(HistoryScanTest, DoubleSnapshotMarker_MB_55590) {
                      items);
 }
 
+TEST_P(HistoryScanTest, DoubleSnapshotMarker_CursorDrop) {
+    // Disable history and move the high-seqno forwards
+    store->setHistoryRetentionBytes(0);
+
+    auto& vb = *store->getVBucket(vbid);
+    auto& manager = *vb.checkpointManager;
+    manager.clear();
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(1, manager.getOpenCheckpointId());
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
+    ASSERT_EQ(0, manager.getHighSeqno());
+
+    const std::string value("v");
+    store_item(vbid, makeStoredDocKey("nonHistoryKey"), value);
+    flush_vbucket_to_disk(vbid, 1);
+    ASSERT_EQ(1, manager.getHighSeqno());
+
+    createDcpObjects(std::string_view{},
+                     OutOfOrderSnapshots::No,
+                     0,
+                     true,
+                     ~0ull,
+                     ChangeStreams::Yes);
+    ASSERT_TRUE(producer);
+    auto stream = producer->findStream(vbid);
+    ASSERT_TRUE(stream);
+    ASSERT_TRUE(stream->isInMemory());
+    ASSERT_EQ(0, stream->getLastReadSeqno());
+
+    // The stream gets the in-memory data
+    ASSERT_EQ(0, producers->last_byseqno);
+    runCheckpointProcessor();
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpSnapshotMarker);
+    stepAndExpect(cb::mcbp::ClientOpcode::DcpMutation);
+    EXPECT_EQ(1, producers->last_byseqno);
+
+    // History disabled so far
+    auto& underlying = *store->getRWUnderlying(vbid);
+    ASSERT_EQ(0, underlying.getHistoryStartSeqno(vbid));
+
+    // Bump highSeqno
+    store_item(vbid, makeStoredDocKey("nonHistoryKey"), value);
+    flush_vbucket_to_disk(vbid, 1);
+    ASSERT_EQ(2, manager.getHighSeqno());
+
+    // Prepare for checkpoint removal
+    moveHelperCursorToCMEnd();
+    manager.createNewCheckpoint();
+    ASSERT_EQ(2, manager.getNumCheckpoints());
+    ASSERT_EQ(2, manager.getOpenCheckpointId());
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
+
+    // Simulate memory pressure, cursor is dropped and checkpoints removed.
+    // Note: After this step the stream has to go to disk for resuming from
+    // seqno:2
+    ASSERT_TRUE(stream->handleSlowStream());
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(2, manager.getOpenCheckpointId());
+    ASSERT_EQ(1, manager.getNumOpenChkItems());
+
+    // Now enable history..
+    store->setHistoryRetentionBytes(1024 * 1024 * 100);
+    // ..and flush some items
+    store_item(vbid, makeStoredDocKey("historyKeyA"), value);
+    store_item(vbid, makeStoredDocKey("historyKeyB"), value);
+    flush_vbucket_to_disk(vbid, 2);
+    ASSERT_EQ(4, manager.getHighSeqno());
+    ASSERT_EQ(3, underlying.getHistoryStartSeqno(vbid));
+
+    // Move the stream, it jumps to backfill
+    ASSERT_TRUE(stream->isInMemory());
+    ASSERT_EQ(cb::engine_errc::would_block, producer->step(false, *producers));
+    ASSERT_TRUE(stream->isBackfilling());
+
+    // Note: In this test the NonHistory snapshot is non-empty, so we get a
+    // first marker for the NonHistory snapshot..
+    runBackfill(); // scan
+    // ..and then a second marker for the History snapshot.
+    //
+    // Note: Before the fix for MB-58548 this step throws an exception at
+    // ::markDiskSnapshot(), caused by that the stream doesn't consider that
+    // two markers with the same seqno range are sent when a backfill spans a
+    // nonHistory+History range
+    //
+    // libc++abi: terminating due to uncaught exception of type
+    // std::logic_error: ActiveStream::markDiskSnapshot:sent snapshot marker to
+    // client with snap start <= previous snap end vb:0 lastSentSnapStart:2
+    // lastSentSnapEnd:4 snapStart:2 snapEnd:4 sid:sid:none producer
+    // name:test_producer lastReadSeqno:1 curChkSeqno:5
+    // lastReadSeqnoUnSnapshotted:1
+    runBackfill(); // scanHistory
+}
+
 // A dropped collection can still exist inside the history window, test it is
 // not observable by DCP change stream when backfilling
 // MB-55557
