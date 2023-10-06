@@ -270,6 +270,13 @@ public:
     const Warmup* getSecondaryWarmup() const;
 
     /**
+     * Obtain a non const pointer to the optional secondary Warmup.
+     *
+     * @return pointer (can be null) to the secondary Warmup
+     */
+    Warmup* getSecondaryWarmup();
+
+    /**
      * @return true if Primary warm-up has yet to signal finished loading. Note
      *         that Secondary warm-up has no input on this function.
      */

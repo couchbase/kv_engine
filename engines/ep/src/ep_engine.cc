@@ -733,6 +733,10 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setWarmupMinMemoryThreshold(std::stoull(val));
         } else if (key == "warmup_min_items_threshold") {
             configuration.setWarmupMinItemsThreshold(std::stoull(val));
+        } else if (key == "warmup_secondary_min_memory_threshold") {
+            configuration.setWarmupSecondaryMinMemoryThreshold(std::stoull(val));
+        } else if (key == "warmup_secondary_min_items_threshold") {
+            configuration.setWarmupSecondaryMinItemsThreshold(std::stoull(val));
         } else if (key == "num_reader_threads" || key == "num_writer_threads" ||
                    key == "num_auxio_threads" || key == "num_nonio_threads") {
             msg = fmt::format(

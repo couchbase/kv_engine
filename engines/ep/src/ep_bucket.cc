@@ -231,6 +231,16 @@ public:
             if (auto* warmup = bucket.getPrimaryWarmup()) {
                 warmup->setItemThreshold(value);
             }
+        } else if (key == "warmup_secondary_min_memory_threshold") {
+            auto* warmup = bucket.getSecondaryWarmup();
+            if (warmup) {
+                warmup->setMemoryThreshold(value);
+            }
+        } else if (key == "warmup_secondary_min_items_threshold") {
+            auto* warmup = bucket.getSecondaryWarmup();
+            if (warmup) {
+                warmup->setItemThreshold(value);
+            }
         } else {
             EP_LOG_WARN("Failed to change value for unknown variable, {}", key);
         }
@@ -305,6 +315,12 @@ EPBucket::EPBucket(EventuallyPersistentEngine& engine)
             std::make_unique<ValueChangedListener>(*this));
     config.addValueChangedListener(
             "warmup_min_items_threshold",
+            std::make_unique<ValueChangedListener>(*this));
+    config.addValueChangedListener(
+            "warmup_secondary_min_memory_threshold",
+            std::make_unique<ValueChangedListener>(*this));
+    config.addValueChangedListener(
+            "warmup_secondary_min_items_threshold",
             std::make_unique<ValueChangedListener>(*this));
 
     // create the semaphore with a default capacity of 1. This will be
@@ -2269,6 +2285,10 @@ const Warmup* EPBucket::getSecondaryWarmup() const {
     return secondaryWarmupTask.get();
 }
 
+Warmup* EPBucket::getSecondaryWarmup() {
+    return secondaryWarmupTask.get();
+}
+
 bool EPBucket::isWarmupLoadingData() const {
     // This function only needs to check Primary warmup as this controls things
     // like enableTraffic and isDegraded. In both of those cases the Secondary
@@ -2380,14 +2400,14 @@ void EPBucket::primaryWarmupCompleted() {
     // Check if secondary warmup should now be created and continue background
     // warmup.
     const auto& config = engine.getConfiguration();
-    if (warmupTask && (config.getSecondaryWarmupMinMemoryThreshold() ||
-                       config.getSecondaryWarmupMinItemsThreshold())) {
+    if (warmupTask && (config.getWarmupSecondaryMinMemoryThreshold() ||
+                       config.getWarmupSecondaryMinItemsThreshold())) {
         // This construction path will automatically call step and begin
         // scheduling of the next step of warm-up.
         secondaryWarmupTask = std::make_unique<Warmup>(
                 *warmupTask,
-                config.getSecondaryWarmupMinMemoryThreshold(),
-                config.getSecondaryWarmupMinItemsThreshold(),
+                config.getWarmupSecondaryMinMemoryThreshold(),
+                config.getWarmupSecondaryMinItemsThreshold(),
                 "Secondary");
     }
 }
