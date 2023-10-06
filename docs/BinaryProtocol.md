@@ -512,8 +512,8 @@ information about a given command.
 | 0x91 | Observe seqno |
 | 0x92 | [Observe](#0x92-observe) |
 | 0x93 | Evict key |
-| 0x94 | Get locked |
-| 0x95 | Unlock key |
+| 0x94 | [Get locked](#0x94-get-locked) |
+| 0x95 | [Unlock key](#0x95-unlock-key) |
 | 0x96 | Get Failover Log |
 | 0x97 | Last closed checkpoint |
 | 0x9e | Deregister tap client - TAP removed in 5.0 |
@@ -2424,6 +2424,93 @@ The value in the request is encoded (in network byte order) with
 two bytes representing the vbucket id followed by two bytes
 representing the key length followed by the key (One may send
 multiple entries in a single command).
+
+### 0x94 Get locked
+
+Locks the item for mutations for a specified period of time. Locking an item
+updates the CAS and the new CAS value is returned. The item becomes unlocked:
+* when the timeout expires
+* when manually unlocked
+* under full eviction, when evicted
+
+Request:
+
+* MAY have extras.
+* MUST have key.
+* MUST NOT have value.
+
+Extra data:
+
+      Byte/     0       |       1       |       2       |       3       |
+         /              |               |               |               |
+        |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+        +---------------+---------------+---------------+---------------+
+       0| Expiration                                                    |
+        +---------------+---------------+---------------+---------------+
+        Total 4 bytes
+
+Response (if found):
+
+* MUST have extras.
+* MAY have key.
+* MAY have value.
+
+The Extras contains an optional expiration time. If one is not provided or if
+the value provided is 0, the default lock timeout is used. The configuration
+parameter is getl_default_timeout.
+
+The maximum timeout is set by the getl_max_timeout configuration parameter.
+
+Added in CB Server v1.6.3 (d86d4d9c746266449d39cbb89904b86a4e6e6796).
+
+### 0x95 Unlock key
+
+A key locked via the Get locked command can be unlocked explicitly before the
+expiry of the lock timeout by means of the Unlock key command.
+
+Request:
+
+* MUST NOT have extras.
+* MUST have key.
+* MUST NOT have value.
+* CAS MUST match locked CAS
+
+Response (if found):
+
+* MUST have extras.
+* MAY have key.
+* MAY have value.
+
+If the key is found and the CAS matches the request CAS, the key is unlocked
+and Success is returned. If the key is found and the CAS does NOT match,
+Locked is returned. If the key is not found or if the key has been evicted,
+the status code depends on the eviction policy.
+
+```
+                             │ Found?
+                             │
+                       yes   │ no
+                      ┌──────┴─────┐
+                      │            │         yes
+                      │      Eviction=Value? ──── [KeyEnoent]
+                      │            │
+                      │            │
+                  Locked?          │ no
+                      │            │
+                  yes │ no         │
+        CAS match? ───┴──────── [Tmpfail]
+              │
+           yes│ no
+[Success] ────┴──── [Locked*]
+```
+
+For clients which do not enable XError, Tmpfail is returned instead of Locked.
+
+Note about full eviction only: If a key is evicted it is automatically
+unlocked. If a key is not resident, we return Tmpfail. At this point, the
+key is either non-resident and unlocked or it doesn't exist.
+
+Added in CB Server v1.6.3 (d201a5ccd800fc78e0b10bfcc7638e7708d87bba).
 
 ### 0x96 Get Failover Log
 
