@@ -21,9 +21,21 @@ ADD_CUSTOM_COMMAND(
         COMMAND
             genstats -j ${CMAKE_CURRENT_SOURCE_DIR}/stat_definitions.json
                      -C ${Memcached_SOURCE_DIR}/engines/ep/configuration.json
-                     -d ${CMAKE_CURRENT_BINARY_DIR}/metrics_metadata.json
-                     -h ${CMAKE_CURRENT_BINARY_DIR}/src/generated_stats.h
-                     -c ${CMAKE_CURRENT_BINARY_DIR}/src/generated_stats.cc
+                     -d ${CMAKE_CURRENT_BINARY_DIR}/metrics_metadata.json.temp
+                     -h ${CMAKE_CURRENT_BINARY_DIR}/src/generated_stats.h.temp
+                     -c ${CMAKE_CURRENT_BINARY_DIR}/src/generated_stats.cc.temp
+        COMMAND
+            ${CMAKE_COMMAND} -E copy_if_different
+                ${CMAKE_CURRENT_BINARY_DIR}/src/generated_stats.h.temp
+                ${CMAKE_CURRENT_BINARY_DIR}/src/generated_stats.h
+        COMMAND
+            ${CMAKE_COMMAND} -E copy_if_different
+                ${CMAKE_CURRENT_BINARY_DIR}/src/generated_stats.cc.temp
+                ${CMAKE_CURRENT_BINARY_DIR}/src/generated_stats.cc
+        COMMAND
+            ${CMAKE_COMMAND} -E copy_if_different
+                ${CMAKE_CURRENT_BINARY_DIR}/metrics_metadata.json.temp
+                ${CMAKE_CURRENT_BINARY_DIR}/metrics_metadata.json
         DEPENDS
             ${Memcached_SOURCE_DIR}/engines/ep/configuration.json
             stat_definitions.json
