@@ -505,6 +505,10 @@ Filter::CollectionSizeStats Filter::getSizeStats(
     for (auto [cid, sid] : filter) {
         (void)sid;
         const auto stats = manifest.lock(cid);
+        if (!stats.valid()) {
+            // The collection has been dropped, so we don't increment the stats.
+            continue;
+        }
         colItemCount += stats.getItemCount();
         colDiskSize += stats.getDiskSize();
     }

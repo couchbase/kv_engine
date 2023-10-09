@@ -230,7 +230,8 @@ public:
     };
 
     /**
-     * Get aggregated collection stats for all collections in the filter.
+     * Get aggregated collection stats for all collections in the filter. Any
+     * collections which do not exist are ignored from the aggregate.
      */
     CollectionSizeStats getSizeStats(const Manifest& manifest) const;
 
