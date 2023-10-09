@@ -680,7 +680,7 @@ TEST_P(StreamTest, test_mb17766) {
             << "nextCheckpointItem() should initially be true.";
 
     // Get the set of outstanding items
-    auto items = stream->public_getOutstandingItems(*vb0);
+    auto items = stream->public_getOutstandingItems();
 
     // REGRESSION CHECK: nextCheckpointItem() should still return true
     EXPECT_TRUE(stream->public_nextCheckpointItem(*producer))
@@ -2200,7 +2200,7 @@ TEST_P(SingleThreadedActiveStreamTest, MB_53100_Check_Monotonicity) {
     newStream->setActive();
     // Now ask the stream to process any items in the checkpoint manager and
     // ensure we don't throw while processing them.
-    auto items = newStream->public_getOutstandingItems(vb);
+    auto items = newStream->public_getOutstandingItems();
     EXPECT_NO_THROW(newStream->public_processItems(items));
 }
 
@@ -3496,7 +3496,7 @@ TEST_P(SingleThreadedActiveStreamTest, MetaOnlyCheckpointsSkipped) {
     // CM: [1, 2] [3, 3] [2, 3]
     store_item(vbid, makeStoredDocKey("item 3"), "value"); // seqno 3
 
-    auto items = stream->getOutstandingItems(vb);
+    auto items = stream->getOutstandingItems();
     // getOutstandingItems will return 3 ranges, including the
     // [3, 3] meta-only snapshot. processItems should ignore it, as it doesn't
     // need to be replicated over DCP.
