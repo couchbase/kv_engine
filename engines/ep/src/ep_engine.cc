@@ -5677,31 +5677,46 @@ cb::engine_errc EventuallyPersistentEngine::setWithMeta(
         return cb::engine_errc::no_memory;
     }
 
-    if (ret == cb::engine_errc::success) {
-        cookie.addDocumentWriteBytes(value.size() + request.getKey().size());
-        auditDocumentAccess(cookie, cb::audit::document::Operation::Modify);
-        ++stats.numOpsSetMeta;
+    if (ret == cb::engine_errc::would_block) {
+        ++stats.numOpsGetMetaOnSetWithMeta;
+        storeEngineSpecific(cookie, startTime);
+        return cb::engine_errc::would_block;
+    }
+
+    auto scopeGuard = folly::makeGuard([&cookie,
+                                        startTime,
+                                        success = (ret ==
+                                                   cb::engine_errc::success),
+                                        this] {
         auto endTime = std::chrono::steady_clock::now();
+
         if (cookie.isTracingEnabled()) {
             NonBucketAllocationGuard guard;
             auto& tracer = cookie.getTracer();
             tracer.record(Code::SetWithMeta, startTime, endTime);
         }
-        auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
-                endTime - startTime);
-        stats.setWithMetaHisto.add(elapsed);
 
-        cas = commandCas;
-    } else if (ret == cb::engine_errc::no_memory) {
+        if (success) {
+            auto elapsed =
+                    std::chrono::duration_cast<std::chrono::microseconds>(
+                            endTime - startTime);
+            stats.setWithMetaHisto.add(elapsed);
+        }
+    });
+
+    if (ret == cb::engine_errc::no_memory) {
         return memoryCondition();
-    } else if (ret == cb::engine_errc::would_block) {
-        ++stats.numOpsGetMetaOnSetWithMeta;
-        storeEngineSpecific(cookie, startTime);
-        return ret;
-    } else {
+    }
+
+    if (ret != cb::engine_errc::success) {
         // Let the framework generate the error message
         return ret;
     }
+
+    cookie.addDocumentWriteBytes(value.size() + request.getKey().size());
+    auditDocumentAccess(cookie, cb::audit::document::Operation::Modify);
+    ++stats.numOpsSetMeta;
+    cas = commandCas;
 
     if (opcode == cb::mcbp::ClientOpcode::SetqWithMeta ||
         opcode == cb::mcbp::ClientOpcode::AddqWithMeta) {

@@ -63,7 +63,6 @@ enum class Code : uint8_t {
     /// Time spent in EngineIface::getStats
     GetStats,
     /// Time spent in EngineIface::setWithMeta
-    /// (only success.. @todo This seems weird and should be fixed)
     SetWithMeta,
     /// Time spent in EngineIface::store and EngineIface::store_if
     Store,
