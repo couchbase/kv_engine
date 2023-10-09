@@ -15,6 +15,7 @@
 #include <platform/dirutils.h>
 #include <utilities/json_utilities.h>
 
+#include <fmt/format.h>
 #include <algorithm>
 #include <atomic>
 #include <mutex>
@@ -401,4 +402,38 @@ TEST_P(BucketTest, DeleteSelectedBucket) {
     adminConnection->createBucket("bucket", "", BucketType::Memcached);
     adminConnection->selectBucket("bucket");
     deleteBucket(*adminConnection, "bucket", [](const std::string&) {});
+}
+
+// MB-58598 - verify that the id for the connection id for the connection in
+//            log messages related to bucket creation/deletion is correct
+TEST_P(BucketTest, MB58598_Connection_ID_clobbered) {
+    mcd_env->getTestBucket().setUpBucket("MB58598", {}, *adminConnection);
+    adminConnection->deleteBucket("MB58598");
+    const auto log_id =
+            fmt::format("INFO {}:", adminConnection->getServerConnectionId());
+
+    const auto timeout =
+            std::chrono::steady_clock::now() + std::chrono::seconds{30};
+    bool complete = false;
+    using namespace std::string_view_literals;
+    do {
+        mcd_env->iterateLogLines([&complete, &log_id](auto line) {
+            if (line.find("MB58598") != std::string_view::npos) {
+                // This line relates to the interesting bucket. Verify that
+                // the connection id is correct
+                EXPECT_NE(std::string_view ::npos, line.find(log_id))
+                        << "Failed to locate \"" << log_id << "\" in " << line;
+            }
+            if (line.find("Delete bucket [MB58598] complete") !=
+                std::string_view::npos) {
+                complete = true;
+                return false;
+            }
+
+            return true;
+        });
+    } while (std::chrono::steady_clock::now() < timeout && !complete);
+    if (!complete) {
+        FAIL() << "Timed out waiting for log messages to appear";
+    }
 }
