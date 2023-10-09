@@ -11,17 +11,15 @@
 
 #include "getkeys.h"
 
+#include "bucket_logger.h"
 #include "callbacks.h"
 #include "ep_engine.h"
 #include "kv_bucket.h"
 #include "kvstore/kvstore.h"
 #include "vbucket.h"
-
-#include <mcbp/protocol/datatype.h>
 #include <mcbp/protocol/status.h>
 #include <memcached/cookie_iface.h>
 #include <phosphor/phosphor.h>
-
 #include <utility>
 
 /**
@@ -95,6 +93,8 @@ void AllKeysCallback::callback(const DiskDocKey& key) {
     return;
 }
 
+/// An upper bound for the number of keys to return
+static constexpr uint32_t FetchAllKeysLimit = 100000U;
 FetchAllKeysTask::FetchAllKeysTask(EventuallyPersistentEngine& e,
                                    CookieIface& c,
                                    const DocKey start_key_,
@@ -106,8 +106,13 @@ FetchAllKeysTask::FetchAllKeysTask(EventuallyPersistentEngine& e,
       description("Running the ALL_DOCS api on " + vbucket.to_string()),
       start_key(start_key_),
       vbid(vbucket),
-      count(count_),
+      count(std::min(count_, FetchAllKeysLimit)),
       collection(std::move(collection)) {
+    if (count != count_) {
+        EP_LOG_WARN("{}: FetchAllKeysTask: Limit max keys to {}",
+                    cookie.getConnectionId(),
+                    FetchAllKeysLimit);
+    }
 }
 
 bool FetchAllKeysTask::run() {
