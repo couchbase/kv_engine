@@ -1922,12 +1922,9 @@ bool ActiveStream::tryAndScheduleOSOBackfill(DcpProducer& producer,
             return false;
         }
         if (osoBackfill == "auto") {
-            // Retrieve collection stats from manifest; minimising the scope
-            // of manifest lock.
-            const auto [colItemCount, colDiskSize] = [&vb, cid] {
-                const auto stats = vb.getManifest().lock(cid);
-                return std::pair{stats.getItemCount(), stats.getDiskSize()};
-            }();
+            auto [colItemCount, colDiskSize] =
+                    filter.getSizeStats(vb.getManifest());
+
             const auto vbItemCount = vb.getNumItems();
             if (!isOSOPreferredForCollectionBackfill(
                         config, colItemCount, colDiskSize, vbItemCount)) {

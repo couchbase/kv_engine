@@ -218,6 +218,22 @@ public:
         return !isPassThroughFilter() && !isLegacyFilter();
     }
 
+    struct CollectionSizeStats {
+        /**
+         * The number of items stored in the collections in the filter.
+         */
+        size_t itemCount;
+        /**
+         * The tracked size (in bytes) of the collections in the filter on disk.
+         */
+        size_t diskSize;
+    };
+
+    /**
+     * Get aggregated collection stats for all collections in the filter.
+     */
+    CollectionSizeStats getSizeStats(const Manifest& manifest) const;
+
     /**
      * Dump this to std::cerr
      */

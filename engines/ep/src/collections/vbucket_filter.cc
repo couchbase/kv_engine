@@ -498,6 +498,19 @@ cb::engine_errc Filter::checkPrivileges(
     return cb::engine_errc::success;
 }
 
+Filter::CollectionSizeStats Filter::getSizeStats(
+        const Manifest& manifest) const {
+    size_t colItemCount = 0, colDiskSize = 0;
+    // For each collection, obtain the item count and disk size
+    for (auto [cid, sid] : filter) {
+        (void)sid;
+        const auto stats = manifest.lock(cid);
+        colItemCount += stats.getItemCount();
+        colDiskSize += stats.getDiskSize();
+    }
+    return {colItemCount, colDiskSize};
+}
+
 void Filter::dump() const {
     std::cerr << *this << std::endl;
 }
