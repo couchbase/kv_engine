@@ -1021,10 +1021,24 @@ void KVBucket::setVBucketState_UNLOCKED(
                 vb->getId(), to, closeInboundStreams, &vbStateLock);
     }
 
+    if (to == vbucket_state_active) {
+        continueToActive(oldstate, transfer, vb, vbStateLock);
+    } else if (to == vbucket_state_dead) {
+        // Reset takeover state (which sets vBucket to dead)
+        vb->setTakeoverBackedUpState(false);
+    }
+
+    scheduleVBStatePersist(vb->getId());
+}
+
+void KVBucket::continueToActive(vbucket_state_t oldstate,
+                                TransferVB transfer,
+                                VBucketPtr& vb,
+                                folly::SharedMutex::WriteHolder& vbStateLock) {
     /**
      * Expect this to happen for failover
      */
-    if (to == vbucket_state_active && oldstate != vbucket_state_active) {
+    if (oldstate != vbucket_state_active) {
         /**
          * Create a new checkpoint to ensure that we do not now write to a
          * Disk checkpoint. This updates the snapshot range to maintain the
@@ -1045,8 +1059,7 @@ void KVBucket::setVBucketState_UNLOCKED(
         vb->setReceivingInitialDiskSnapshot(false);
     }
 
-    if (to == vbucket_state_active && oldstate != vbucket_state_active &&
-        transfer == TransferVB::No) {
+    if (oldstate != vbucket_state_active && transfer == TransferVB::No) {
         // Changed state to active and this isn't a transfer (i.e.
         // takeover), which means this is a new fork in the vBucket history
         // - create a new failover table entry.
@@ -1065,18 +1078,11 @@ void KVBucket::setVBucketState_UNLOCKED(
                 entry.by_seqno);
     }
 
-    if (oldstate == vbucket_state_pending && to == vbucket_state_active) {
+    if (oldstate == vbucket_state_pending) {
         ExTask notifyTask =
                 std::make_shared<PendingOpsNotification>(engine, vb);
         ExecutorPool::get()->schedule(notifyTask);
     }
-
-    if (to == vbucket_state_dead) {
-        // Reset takeover state (which sets vBucket to dead)
-        vb->setTakeoverBackedUpState(false);
-    }
-
-    scheduleVBStatePersist(vb->getId());
 }
 
 cb::engine_errc KVBucket::createVBucket_UNLOCKED(

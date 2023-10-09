@@ -1131,6 +1131,13 @@ protected:
     /* Notify flusher of a new seqno being added in the vbucket */
     virtual void notifyFlusher(const Vbid vbid);
 
+    /// Helper method from setVBucketState_UNLOCKED() - extracted
+    /// `to == vbucket_state_active` logic
+    void continueToActive(vbucket_state_t oldstate,
+                          TransferVB transfer,
+                          VBucketPtr& vb,
+                          folly::SharedMutex::WriteHolder& vbStateLock);
+
     /// Helper method from initialize() to setup the expiry pager
     void initializeExpiryPager(Configuration& config);
 
