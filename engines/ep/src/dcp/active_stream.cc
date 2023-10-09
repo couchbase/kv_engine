@@ -2065,15 +2065,8 @@ bool ActiveStream::tryAndScheduleOSOBackfill(DcpProducer& producer,
             return false;
         }
         if (osoBackfill == "auto") {
-            size_t colItemCount = 0, colDiskSize = 0;
-
-            // For each collection, obtain the item count and disk size
-            for (auto [cid, sid] : filter) {
-                (void)sid;
-                const auto stats = vb.getManifest().lock(cid);
-                colItemCount += stats.getItemCount();
-                colDiskSize += stats.getDiskSize();
-            }
+            auto [colItemCount, colDiskSize] =
+                    filter.getSizeStats(vb.getManifest());
 
             const auto vbItemCount = vb.getNumItems();
             if (!isOSOPreferredForCollectionBackfill(
