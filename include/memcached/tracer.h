@@ -110,9 +110,6 @@ public:
     // Record a complete Span (when both start and end are already known).
     void record(Code code, Clock::time_point start, Clock::time_point end);
 
-    // Extract the trace vector (and clears the internal trace vector)
-    std::vector<Span> extractDurations();
-
     Span::Duration getTotalMicros() const;
 
     uint16_t getEncodedMicros() const;
@@ -184,7 +181,7 @@ public:
         }
     }
 
-    bool isEnabled() const {
+    [[nodiscard]] bool isEnabled() const {
         if (traceable) {
             return (alwaysInclude || traceable->isTracingEnabled());
         }

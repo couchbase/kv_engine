@@ -72,8 +72,8 @@ TEST_F(TracingTest, ErrorRate) {
                               78821369,
                               118916406};
     for (auto micros : micros_list) {
-        auto repMicros = tracer.encodeMicros(micros);
-        auto decoded = uint64_t(tracer.decodeMicros(repMicros).count());
+        auto repMicros = MockTracer::encodeMicros(micros);
+        auto decoded = uint64_t(MockTracer::decodeMicros(repMicros).count());
 
         if (decoded > micros) {
             std::swap(micros, decoded);

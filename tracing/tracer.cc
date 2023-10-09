@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -9,11 +8,8 @@
  *   the file licenses/APL2.txt.
  */
 #include <memcached/tracer.h>
-
 #include <algorithm>
 #include <cmath>
-#include <iostream>
-#include <limits>
 #include <sstream>
 
 namespace cb::tracing {
@@ -25,12 +21,6 @@ void Tracer::record(Code code, Clock::time_point start, Clock::time_point end) {
             spans.emplace_back(code, start, duration);
         }
     });
-}
-
-std::vector<Span> Tracer::extractDurations() {
-    std::vector<Span> ret;
-    vecSpans.swap(ret);
-    return ret;
 }
 
 Span::Duration Tracer::getTotalMicros() const {
@@ -74,7 +64,7 @@ void Tracer::clear() {
 }
 
 std::string Tracer::to_string() const {
-    return vecSpans.withLock([this](auto& spans) {
+    return vecSpans.withLock([](auto& spans) {
         std::ostringstream os;
         auto size = spans.size();
         for (const auto& span : spans) {
