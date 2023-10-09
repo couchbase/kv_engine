@@ -755,9 +755,10 @@ void ActiveStream::setVBucketStateAckRecieved(DcpProducer& producer) {
             engine->getKVBucket()->setVBucketState_UNLOCKED(
                     vbucket,
                     vbucket_state_dead,
-                    {},
+                    false /* deleteVB */,
+                    nullptr /* meta */,
                     TransferVB::No,
-                    false /* notify_dcp */,
+                    false /* notifyDcp */,
                     epVbSetLh,
                     vbStateLh);
             log(spdlog::level::level_enum::info,

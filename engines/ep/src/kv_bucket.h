@@ -270,22 +270,23 @@ public:
      * Sets the vbucket to the desired state
      *
      * @param vb shared_ptr to the vbucket to set the state on
-     * @param state desired state for the vbucket
+     * @param to desired state for the vbucket
+     * @param deleteVB indicates that the vbucket is being deleted
      * @param meta optional meta information to apply alongside the state
      * @param transfer indicates that the vbucket is transferred to the active
      *                 post a failover and/or rebalance
-     * @param notify_dcp indicates whether we must consider closing DCP streams
-     *                    associated with the vbucket
+     * @param notifyDcp indicates whether we must consider closing DCP streams
+     *                  associated with the vbucket
      * @param vbset std::lock_guard<std::mutex> acquiring the 'vbsetMutex' lock
-     * in the EventuallyPersistentStore class
-     * @param vbStateLock WriterLockHolder of 'stateLock' in the vbucket
-     *                    class.
+     *              in the EventuallyPersistentStore class
+     * @param vbStateLock WriterLockHolder of 'stateLock' in the vbucket class
      */
     void setVBucketState_UNLOCKED(VBucketPtr& vb,
                                   vbucket_state_t to,
+                                  bool deleteVB,
                                   const nlohmann::json* meta,
                                   TransferVB transfer,
-                                  bool notify_dcp,
+                                  bool notifyDcp,
                                   std::unique_lock<std::mutex>& vbset,
                                   folly::SharedMutex::WriteHolder& vbStateLock);
 
