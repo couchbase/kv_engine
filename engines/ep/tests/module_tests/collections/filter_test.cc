@@ -1246,6 +1246,25 @@ TEST_F(CollectionsVBFilterTest, snappy_event) {
                             0}));
 }
 
+TEST_F(CollectionsVBFilterTest, size_stats_for_dropped_collection) {
+    cm.add(CollectionEntry::fruit);
+    auto m = makeManifest(cm);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+
+    // Filter by fruit collection.
+    std::string filterJson = R"({"collections":["9"]})";
+    std::optional<std::string_view> filterManifest{filterJson};
+    Collections::VB::Filter filter(filterManifest, vbm, *cookie, *engine);
+
+    cm.remove(CollectionEntry::fruit);
+    m = makeManifest(cm);
+    vbm.update(folly::SharedMutex::ReadHolder(vb->getStateLock()), *vb, m);
+
+    // Make sure getSizeStats does not crash due to the collection in the
+    // filter having been dropped.
+    filter.getSizeStats(vbm);
+}
+
 class CollectionsVBFilterAccessControlTest : public CollectionsVBFilterTest {
     void TearDown() override {
         MockCookie::setCheckPrivilegeFunction({});
