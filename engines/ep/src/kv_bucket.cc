@@ -1002,8 +1002,14 @@ cb::engine_errc KVBucket::setVBucketState(Vbid vbid,
     VBucketPtr vb = vbMap.getBucket(vbid);
     if (vb) {
         folly::SharedMutex::WriteHolder vbStateLock(vb->getStateLock());
-        setVBucketState_UNLOCKED(
-                vb, to, meta, transfer, true /*notifyDcp*/, lh, vbStateLock);
+        setVBucketState_UNLOCKED(vb,
+                                 to,
+                                 false /*deleteVB*/,
+                                 meta,
+                                 transfer,
+                                 true /*notifyDcp*/,
+                                 lh,
+                                 vbStateLock);
     } else if (vbid.get() < vbMap.getSize()) {
         return createVBucket_UNLOCKED(vbid, to, meta, lh);
     } else {
@@ -1015,14 +1021,15 @@ cb::engine_errc KVBucket::setVBucketState(Vbid vbid,
 void KVBucket::setVBucketState_UNLOCKED(
         VBucketPtr& vb,
         vbucket_state_t to,
+        bool deleteVB,
         const nlohmann::json* meta,
         TransferVB transfer,
-        bool notify_dcp,
+        bool notifyDcp,
         std::unique_lock<std::mutex>& vbset,
         folly::SharedMutex::WriteHolder& vbStateLock) {
     // Return success immediately if the new state is the same as the old,
-    // and no extra metadata was included.
-    if (to == vb->getState() && !meta) {
+    // no extra metadata was included, and the vbucket is not being deleted.
+    if (to == vb->getState() && !meta && !deleteVB) {
         return;
     }
 
@@ -1048,15 +1055,11 @@ void KVBucket::setVBucketState_UNLOCKED(
 
     auto oldstate = vbMap.setState_UNLOCKED(*vb, to, meta, vbStateLock);
 
-    if (oldstate != to && notify_dcp) {
-        bool closeInboundStreams = false;
-        if (to == vbucket_state_active && transfer == TransferVB::No) {
-            /**
-             * Close inbound (passive) streams into the vbucket
-             * only in case of a failover.
-             */
-            closeInboundStreams = true;
-        }
+    if (notifyDcp && (oldstate != to || deleteVB)) {
+        // Close inbound (passive) streams into the vbucket
+        // in case of a failover or if we are deleting the vbucket.
+        bool closeInboundStreams = deleteVB || (to == vbucket_state_active &&
+                                                transfer == TransferVB::No);
         engine.getDcpConnMap().vbucketStateChanged(
                 vb->getId(), to, closeInboundStreams, &vbStateLock);
     }
@@ -1209,12 +1212,23 @@ cb::engine_errc KVBucket::deleteVBucket(Vbid vbid, const CookieIface* c) {
             return cb::engine_errc::not_my_vbucket;
         }
 
-        vbMap.setState(*lockedVB, vbucket_state_dead, nullptr);
+        {
+            folly::SharedMutex::WriteHolder vbStateLock(
+                    lockedVB->getStateLock());
+            setVBucketState_UNLOCKED(lockedVB.getVB(),
+                                     vbucket_state_dead,
+                                     true /*deleteVB*/,
+                                     nullptr /*meta*/,
+                                     TransferVB::No,
+                                     true /*notifyDcp*/,
+                                     vbSetLh,
+                                     vbStateLock);
+        }
+
         getRWUnderlying(vbid)->abortCompactionIfRunning(lockedVB.getLock(),
                                                         vbid);
-        engine.getDcpConnMap().vbucketStateChanged(vbid, vbucket_state_dead);
 
-        // Drop the VB to begin the delete, the last holder of the VB will
+        // Drop the VB to begin deletion, the last holder of the VB will
         // unknowingly trigger the destructor which schedules a deletion task.
         vbMap.dropVBucketAndSetupDeferredDeletion(vbid, c);
     }
