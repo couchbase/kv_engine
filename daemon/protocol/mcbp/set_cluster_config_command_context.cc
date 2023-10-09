@@ -18,6 +18,7 @@
 #include <daemon/connection.h>
 #include <daemon/one_shot_limited_concurrency_task.h>
 #include <executor/executorpool.h>
+#include <folly/io/IOBuf.h>
 #include <logger/logger.h>
 #include <platform/compress.h>
 

@@ -161,8 +161,7 @@ size_t StoredValue::uncompressedValuelen() const {
         return 0;
     }
     if (cb::mcbp::datatype::is_snappy(datatype)) {
-        return cb::compression::get_uncompressed_length(
-                folly::io::CodecType::SNAPPY,
+        return cb::compression::getUncompressedLengthSnappy(
                 {value->getData(), value->valueSize()});
     }
     return valuelen();

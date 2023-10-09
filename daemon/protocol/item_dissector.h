@@ -45,6 +45,8 @@ public:
                   cb::unique_item_ptr item,
                   bool forceInflate);
 
+    ~ItemDissector();
+
     /**
      * Get a send buffer with the provided view (Which MUST be from within
      * a view returned from getXattrs or getValue).

@@ -877,7 +877,7 @@ std::unique_ptr<folly::IOBuf> Cookie::inflateSnappy(std::string_view input) {
                     getConnection().getBucket().snappyDecompressionTimes),
             std::forward_as_tuple(*this, Code::SnappyDecompress));
 
-    return cb::compression::inflate(folly::io::CodecType::SNAPPY, input);
+    return cb::compression::inflateSnappy(input);
 }
 
 cb::rbac::PrivilegeAccess Cookie::checkPrivilege(

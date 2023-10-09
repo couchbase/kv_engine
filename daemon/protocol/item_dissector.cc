@@ -56,6 +56,8 @@ ItemDissector::ItemDissector(CookieIface& cookie,
     }
 }
 
+ItemDissector::~ItemDissector() = default;
+
 std::unique_ptr<SendBuffer> ItemDissector::takeSendBuffer(std::string_view view,
                                                           Bucket& bucket) {
     if (inflated_value) {

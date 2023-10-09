@@ -7,6 +7,8 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
+#include <fmt/format.h>
+#include <folly/io/IOBuf.h>
 #include <gsl/gsl-lite.hpp>
 #include <nlohmann/json.hpp>
 #include <platform/compress.h>
