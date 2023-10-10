@@ -2611,7 +2611,9 @@ TaskStatus KVBucket::rollback(Vbid vbid, uint64_t rollbackSeqno) {
 }
 
 void KVBucket::attemptToFreeMemory() {
-    static_cast<NotifiableTask*>(itemPagerTask.get())->wakeup();
+    auto* pager = dynamic_cast<ItemPager*>(itemPagerTask.get());
+    Expects(pager);
+    pager->wakeUp();
 }
 
 void KVBucket::wakeUpCheckpointMemRecoveryTask() {

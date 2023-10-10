@@ -84,7 +84,7 @@ PermittedVBStates ItemPager::getStatesForEviction(EvictionRatios ratios) const {
 StrictQuotaItemPager::StrictQuotaItemPager(EventuallyPersistentEngine& e,
                                            EPStats& st,
                                            size_t numConcurrentPagers)
-    : NotifiableTask(
+    : EpNotifiableTask(
               e,
               TaskId::ItemPager,
               std::chrono::duration_cast<std::chrono::duration<double>>(
@@ -131,6 +131,10 @@ EvictionRatios StrictQuotaItemPager::getEvictionRatios(
     }
 
     return {activeAndPendingEvictionRatio, replicaEvictionRatio};
+}
+
+void StrictQuotaItemPager::wakeUp() {
+    EpNotifiableTask::wakeup();
 }
 
 ItemPager::PageableMemInfo StrictQuotaItemPager::getPageableMemInfo() const {

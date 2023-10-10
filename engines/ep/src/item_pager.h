@@ -10,7 +10,7 @@
  */
 #pragma once
 
-#include <executor/globaltask.h>
+#include "ep_task.h"
 
 #include <executor/notifiable_task.h>
 #include <folly/Synchronized.h>
@@ -46,6 +46,9 @@ public:
     ItemPager(size_t numConcurrentPagers);
 
     bool runPager(bool manuallyNotified);
+
+    //// Wake up the ItemPager if a run is not already pending.
+    virtual void wakeUp() = 0;
 
 protected:
     struct PageableMemInfo {
@@ -111,7 +114,7 @@ protected:
  * memory, by taking into account just the bucket's own memory usage and
  * watermarks.
  */
-class StrictQuotaItemPager : public NotifiableTask, public ItemPager {
+class StrictQuotaItemPager : public EpNotifiableTask, public ItemPager {
 public:
     /**
      * Construct an ItemPager.
@@ -138,6 +141,8 @@ public:
         // 25ms - a "fair" timeslice for a task to take.
         return std::chrono::milliseconds(25);
     }
+
+    void wakeUp() override;
 
     PageableMemInfo getPageableMemInfo() const override;
 

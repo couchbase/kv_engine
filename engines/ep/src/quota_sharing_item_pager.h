@@ -58,6 +58,8 @@ public:
 
     // ItemPager implementation //////////////////////////////////////////////
 
+    void wakeUp() override;
+
     PageableMemInfo getPageableMemInfo() const override;
 
     void schedulePagingVisitors(std::size_t bytesToEvict) override;

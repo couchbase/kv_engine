@@ -95,6 +95,10 @@ std::chrono::microseconds QuotaSharingItemPager::maxExpectedDuration() const {
     return std::chrono::milliseconds(25);
 }
 
+void QuotaSharingItemPager::wakeUp() {
+    NotifiableTask::wakeup();
+}
+
 ItemPager::PageableMemInfo QuotaSharingItemPager::getPageableMemInfo() const {
     ItemPager::PageableMemInfo memInfo;
     for (const auto& handle : group.getActive()) {
