@@ -33,6 +33,7 @@
 #include <memcached/types.h>
 #include <nlohmann/json.hpp>
 #include <platform/cbassert.h>
+#include <platform/compress.h>
 #include <platform/dirutils.h>
 #include <platform/platform_thread.h>
 #include <platform/platform_time.h>

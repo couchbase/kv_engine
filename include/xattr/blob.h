@@ -10,7 +10,7 @@
 #pragma once
 
 #include <nlohmann/json_fwd.hpp>
-#include <platform/compress.h>
+#include <platform/sized_buffer.h>
 #include <xattr/utils.h>
 #include <cstddef>
 #include <memory>
@@ -243,10 +243,6 @@ private:
     size_t get_xattrs_size(Type type) const;
 
     cb::char_buffer blob;
-
-    /// When the incoming data is compressed will auto-decompress into this
-    cb::compression::Buffer decompressed;
-
     std::unique_ptr<char[]> allocator;
     size_t alloc_size = 0;
 };

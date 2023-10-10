@@ -9,6 +9,7 @@
  */
 #include <gsl/gsl-lite.hpp>
 #include <nlohmann/json.hpp>
+#include <platform/compress.h>
 #include <xattr/blob.h>
 
 #ifdef WIN32
@@ -22,10 +23,6 @@
 namespace cb::xattr {
 
 Blob::Blob(const Blob& other) : alloc_size(other.blob.size()) {
-    decompressed.resize(other.decompressed.size());
-    std::copy_n(other.decompressed.data(),
-                other.decompressed.size(),
-                decompressed.data());
     allocator.reset(new char[alloc_size]);
     blob = { allocator.get(), alloc_size };
     std::copy(other.blob.begin(), other.blob.end(), blob.begin());
@@ -37,37 +34,35 @@ Blob::Blob(cb::char_buffer buffer, bool compressed)
 }
 
 Blob& Blob::assign(std::string_view buffer, bool compressed) {
-    if (compressed && !buffer.empty()) {
-        // inflate and attach blob to the compression::buffer
-        if (!cb::compression::inflateSnappy(
-                    {static_cast<const char*>(buffer.data()), buffer.size()},
-                    decompressed)) {
-            // inflate (de-compress) failed.  Try to grab the
-            // uncompressedLength for debugging purposes - zero indicates
-            // that it failed to return the uncompressedLength.
-            size_t uncompressedLength =
-                    cb::compression::get_uncompressed_length(
-                            folly::io::CodecType::SNAPPY,
-                            {static_cast<const char*>(buffer.data()),
-                             buffer.size()});
-            throw std::runtime_error(
-                    "Blob::assign failed to inflate.  buffer.size:" +
-                    std::to_string(buffer.size()) + " uncompressedLength:" +
-                    std::to_string(uncompressedLength));
+    if (buffer.empty()) {
+        blob = {};
+        alloc_size = 0;
+        allocator.reset();
+        return *this;
+    }
+
+    if (compressed) {
+        auto payload = cb::compression::inflateSnappy(buffer);
+        if (!payload) {
+            throw std::runtime_error(fmt::format(
+                    "Blob::assign failed to inflate.  buffer.size:{}",
+                    buffer.size()));
         }
 
-        // Connect blob to the decompressed xattrs after resizing which in
-        // theory /could/ release the now un-required non xattr data
-        decompressed.resize(cb::xattr::get_body_offset(decompressed));
-        blob = {decompressed.data(), decompressed.size()};
-    } else if (!buffer.empty()) {
-        // incoming data is not compressed, just get the size and attach
-        blob = {const_cast<char*>(buffer.data()),
-                cb::xattr::get_body_offset(buffer)};
-    } else {
-        // empty blob
-        blob = {};
+        auto range = folly::StringPiece(payload->coalesce());
+        auto size = cb::xattr::get_body_offset(range);
+        Expects(size);
+
+        allocator.reset(new char[size]);
+        std::copy(range.begin(), range.begin() + size, allocator.get());
+        alloc_size = size;
+        blob = {allocator.get(), size};
+        return *this;
     }
+
+    // incoming data is not compressed, just get the size and attach
+    blob = {const_cast<char*>(buffer.data()),
+            cb::xattr::get_body_offset(buffer)};
     return *this;
 }
 

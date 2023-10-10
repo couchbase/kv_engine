@@ -11,16 +11,13 @@
 #include "testapp.h"
 #include "testapp_client_test.h"
 
-#include <protocol/connection/client_mcbp_commands.h>
-
-#include <xattr/blob.h>
-#include <xattr/utils.h>
-
 #include <mcbp/codec/range_scan_continue_codec.h>
 #include <memcached/range_scan.h>
 #include <memcached/range_scan_id.h>
 #include <memcached/storeddockey.h>
 #include <platform/base64.h>
+#include <platform/compress.h>
+#include <protocol/connection/client_mcbp_commands.h>
 #include <utilities/test_manifest.h>
 
 #include <unordered_set>

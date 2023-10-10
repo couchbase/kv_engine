@@ -15,6 +15,7 @@
 #include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/header.h>
 #include <memcached/protocol_binary.h>
+#include <platform/compress.h>
 #include <xattr/blob.h>
 #include <memory>
 

@@ -11,6 +11,7 @@
 #include <folly/portability/GTest.h>
 
 #include <nlohmann/json.hpp>
+#include <platform/compress.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 
@@ -235,4 +236,31 @@ TEST(XattrBlob, iterator_insert) {
             EXPECT_EQ("inserted", (*itr).first);
         }
     }
+}
+
+TEST(XattrBlob, Compressed) {
+    cb::xattr::Blob blob;
+    for (int ii = 0; ii < 100; ++ii) {
+        blob.set(fmt::format("key-{}", ii), fmt::format("value-{}", ii));
+    }
+
+    auto validate = [](cb::xattr::Blob& b) {
+        for (int ii = 0; ii < 100; ++ii) {
+            auto val = b.get(fmt::format("key-{}", ii));
+            std::string value(val.data(), val.size());
+            ASSERT_EQ(fmt::format("value-{}", ii), value);
+        }
+    };
+
+    validate(blob);
+
+    // Compress the data
+    auto compressed = cb::compression::deflateSnappy(blob.finalize());
+    auto range = folly::StringPiece{compressed->coalesce()};
+
+    // Create a new Blob from compressed data and validate that we can
+    // get all keys
+    cb::xattr::Blob blob2({const_cast<char*>(range.data()), range.size()},
+                          true);
+    validate(blob2);
 }

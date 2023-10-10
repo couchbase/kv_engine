@@ -12,6 +12,7 @@
 #include "item_dissector.h"
 #include <daemon/cookie.h>
 #include <daemon/stats.h>
+#include <folly/io/IOBuf.h>
 #include <memcached/durability_spec.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>

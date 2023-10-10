@@ -9,6 +9,7 @@
  */
 
 #include "testapp_xattr.h"
+#include <platform/compress.h>
 #include <thread>
 
 class ClusterConfigTest : public TestappXattrClientTest {

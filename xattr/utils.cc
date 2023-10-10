@@ -10,6 +10,7 @@
  */
 #include <json/syntax_validator.h>
 #include <memcached/protocol_binary.h>
+#include <platform/compress.h>
 #include <xattr/blob.h>
 #include <xattr/key_validator.h>
 #include <xattr/utils.h>
