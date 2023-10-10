@@ -621,7 +621,7 @@ TEST_P(EPBucketFullEvictionTest, xattrExpiryOnFullyEvictedItem) {
     cb::xattr::Blob new_blob(value_buf, /*compressed?*/ false);
 
     const std::string& rev_str{"{\"rev\":10}"};
-    const std::string& meta_str = to_string(new_blob.get("_meta"));
+    const auto meta_str = new_blob.get("_meta");
 
     EXPECT_EQ(rev_str, meta_str) << "Unexpected system xattrs";
     EXPECT_TRUE(new_blob.get("foo").empty())

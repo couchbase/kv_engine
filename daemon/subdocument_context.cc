@@ -327,13 +327,15 @@ cb::engine_errc SubdocExecutionContext::pre_link_document(item_info& info) {
         }
 
         for (const auto& key : keys) {
-            auto value = xattr_blob.get(key);
-            if (value.empty()) {
+            auto view = xattr_blob.get(key);
+            if (view.empty()) {
                 // The segment is no longer there (we may have had another
                 // subdoc command which rewrote the segment where we injected
                 // the macro.
                 continue;
             }
+            auto value = cb::char_buffer{const_cast<char*>(view.data()),
+                                         view.size()};
 
             // Replace the CAS
             if (containsMacro(cb::xattr::macros::CAS)) {

@@ -1917,8 +1917,7 @@ TEST_P(STExpiryPagerTest, MB_25650) {
     EXPECT_EQ(0, blob.get("user").size());
     EXPECT_EQ(0, blob.get("meta").size());
     ASSERT_NE(0, blob.get("_sync").size());
-    EXPECT_STREQ("{\"cas\":\"0xdeadbeefcafefeed\"}",
-                 reinterpret_cast<char*>(blob.get("_sync").data()));
+    EXPECT_EQ("{\"cas\":\"0xdeadbeefcafefeed\"}", blob.get("_sync"));
 }
 
 // Test that when an expired system-xattr document is fetched with getMeta
@@ -2000,8 +1999,7 @@ TEST_P(STExpiryPagerTest, MB_25671) {
     EXPECT_EQ(0, blob.get("user").size());
     EXPECT_EQ(0, blob.get("meta").size());
     ASSERT_NE(0, blob.get("_sync").size());
-    EXPECT_STREQ("{\"cas\":\"0xdeadbeefcafefeed\"}",
-                 reinterpret_cast<char*>(blob.get("_sync").data()));
+    EXPECT_EQ("{\"cas\":\"0xdeadbeefcafefeed\"}", blob.get("_sync"));
     EXPECT_EQ(metadata.flags, item.item->getFlags());
     EXPECT_EQ(metadata.exptime, item.item->getExptime());
     EXPECT_EQ(metadata.cas, item.item->getCas());
@@ -2380,8 +2378,9 @@ TEST_P(MB_32669, expire_a_compressed_and_evicted_xattr_document) {
     cb::xattr::Blob new_blob(value_buf, false);
 
     // expect sys attributes to remain
-    const std::string& cas_str{R"({"cas":"0xdeadbeefcafefeed"})"};
-    const std::string& sync_str = to_string(new_blob.get("_sync"));
+    using namespace std::string_view_literals;
+    const auto cas_str = R"({"cas":"0xdeadbeefcafefeed"})"sv;
+    const auto sync_str = new_blob.get("_sync");
 
     EXPECT_EQ(cas_str, sync_str) << "Unexpected system xattrs";
     EXPECT_TRUE(new_blob.get("user").empty())
@@ -2479,8 +2478,7 @@ TEST_P(MB_36087, DelWithMeta_EvictedKey) {
     EXPECT_EQ(0, blob.get("user").size());
     EXPECT_EQ(0, blob.get("meta").size());
     ASSERT_NE(0, blob.get("_sync").size());
-    EXPECT_STREQ("{\"cas\":\"0xdeadbeefcafefeed\"}",
-                 reinterpret_cast<char*>(blob.get("_sync").data()));
+    EXPECT_EQ("{\"cas\":\"0xdeadbeefcafefeed\"}", blob.get("_sync"));
     EXPECT_EQ(metadata.flags, gv.item->getFlags());
     EXPECT_EQ(metadata.exptime, gv.item->getExptime());
     EXPECT_EQ(metadata.cas, gv.item->getCas());

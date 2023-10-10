@@ -71,6 +71,7 @@
 #include <regex>
 #include <thread>
 
+using namespace std::string_view_literals;
 using FlushResult = EPBucket::FlushResult;
 using MoreAvailable = EPBucket::MoreAvailable;
 
@@ -2761,8 +2762,8 @@ TEST_P(XattrSystemUserTest, pre_expiry_xattrs) {
 
     // If testing with system xattrs
     if (GetParam()) {
-        const std::string& cas_str{R"({"cas":"0xdeadbeefcafefeed"})"};
-        const std::string& sync_str = to_string(new_blob.get("_sync"));
+        const auto cas_str = R"({"cas":"0xdeadbeefcafefeed"})"sv;
+        const auto sync_str = new_blob.get("_sync");
 
         EXPECT_EQ(cas_str, sync_str) << "Unexpected system xattrs";
     }
@@ -3037,8 +3038,8 @@ TEST_P(XattrSystemUserTest, MB_29040) {
 
     // If testing with system xattrs
     if (GetParam()) {
-        const std::string& cas_str{R"({"cas":"0xdeadbeefcafefeed"})"};
-        const std::string& sync_str = to_string(new_blob.get("_sync"));
+        const auto cas_str = R"({"cas":"0xdeadbeefcafefeed"})"sv;
+        const auto sync_str = new_blob.get("_sync");
 
         EXPECT_EQ(cas_str, sync_str) << "Unexpected system xattrs";
         EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_XATTR, get_itm->getDataType())

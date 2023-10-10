@@ -63,7 +63,7 @@ Blob& Blob::assign(std::string_view buffer, bool compressed) {
     return *this;
 }
 
-cb::char_buffer Blob::get(std::string_view key) {
+std::string_view Blob::get(std::string_view key) const {
     try {
         size_t current = 4;
         while (current < blob.size()) {
@@ -190,7 +190,7 @@ void Blob::remove_segment(const size_t offset, const size_t size) {
         blob = {blob.data(), blob.size() - size};
     }
 
-    if (blob.size() > 0) {
+    if (!blob.empty()) {
         write_length(0, gsl::narrow<uint32_t>(blob.size()) - 4);
     }
 }
@@ -221,7 +221,7 @@ uint32_t Blob::read_length(size_t offset) const {
 
 size_t Blob::get_xattrs_size(Type type) const {
     // special case.. there are no xattr's
-    if (blob.size() == 0) {
+    if (blob.empty()) {
         return 0;
     }
 

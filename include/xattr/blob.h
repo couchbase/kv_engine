@@ -60,7 +60,7 @@ public:
      * @return a buffer containing it's value. If not found the buffer length
      *         is 0
      */
-    cb::char_buffer get(std::string_view key);
+    [[nodiscard]] std::string_view get(std::string_view key) const;
 
     /**
      * Remove a given key (and its value) from the blob.
@@ -87,41 +87,41 @@ public:
      *
      * @return the encoded blob
      */
-    std::string_view finalize() {
-        return std::string_view(blob.data(), blob.size());
+    [[nodiscard]] std::string_view finalize() const {
+        return {blob.data(), blob.size()};
     }
 
     /**
      * Get the size of the system xattrs located in the blob
      */
-    size_t get_system_size() const;
+    [[nodiscard]] size_t get_system_size() const;
 
     /**
      * Get the size of the user xattrs located in the blob
      */
-    size_t get_user_size() const;
+    [[nodiscard]] size_t get_user_size() const;
 
     /**
      * Get pointer to the xattr data (raw data, including the len word)
      */
-    const char* data() const {
+    [[nodiscard]] const char* data() const {
         return blob.data();
     }
 
     /**
      * Get the current size of the Blob
      */
-    size_t size() const {
+    [[nodiscard]] size_t size() const {
         return blob.size();
     }
 
     /// Get a JSON representation of the xattrs
-    nlohmann::json to_json() const;
+    [[nodiscard]] nlohmann::json to_json() const;
 
     /// Get a JSON representation of the xattrs. If the use case would be
     /// something like: to_json().dump() building the JSON object would
     /// need to parse all values which could be relatively expensive.
-    std::string to_string() const;
+    [[nodiscard]] std::string to_string() const;
 
     class iterator {
     public:
@@ -169,15 +169,15 @@ public:
         size_t current;
     };
 
-    iterator begin() const {
+    [[nodiscard]] iterator begin() const {
         if (blob.empty()) {
             return end();
         }
-        return iterator(*this, 4);
+        return {*this, 4};
     }
 
-    iterator end() const {
-        return iterator(*this, blob.size());
+    [[nodiscard]] iterator end() const {
+        return {*this, blob.size()};
     }
 
 protected:
@@ -208,7 +208,7 @@ protected:
      * @return the 32 bit value stored at that offset
      * @throw std::out_of_range if we ended up outside the legal range
      */
-    uint32_t read_length(size_t offset) const;
+    [[nodiscard]] uint32_t read_length(size_t offset) const;
 
     /**
      * Write a length in network byte order stored at a given location
@@ -232,7 +232,7 @@ protected:
      * @param offset The start offset we want to remove
      * @param size The number of bytes we want to remove
      */
-    void remove_segment(const size_t offset, const size_t size);
+    void remove_segment(size_t offset, size_t size);
 
 private:
     enum class Type : uint8_t { System, User };
@@ -240,7 +240,7 @@ private:
     /**
      * Get the size of the specific category of Xattrs located in the blob
      */
-    size_t get_xattrs_size(Type type) const;
+    [[nodiscard]] size_t get_xattrs_size(Type type) const;
 
     /// The current view of the content of the blob
     cb::char_buffer blob;

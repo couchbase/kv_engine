@@ -17,11 +17,13 @@
 
 #include "utilities/string_utilities.h"
 
+using namespace std::string_view_literals;
+
 TEST(XattrBlob, TestBlob) {
     cb::xattr::Blob blob;
 
     // Get from an empty buffer should return an empty value
-    auto value = to_string(blob.get("_sync"));
+    auto value = blob.get("_sync");
     EXPECT_TRUE(value.empty());
 
     // Add a couple of values
@@ -33,12 +35,9 @@ TEST(XattrBlob, TestBlob) {
     EXPECT_TRUE(cb::xattr::validate(blob.finalize()));
 
     // Try to fetch all of the values
-    EXPECT_EQ(std::string{"{\"cas\":\"0xdeadbeefcafefeed\"}"},
-              to_string(blob.get("_sync")));
-    EXPECT_EQ(std::string{"{\"author\":\"bubba\"}"},
-              to_string(blob.get("user")));
-    EXPECT_EQ(std::string{"{\"content-type\":\"text\"}"},
-              to_string(blob.get("meta")));
+    EXPECT_EQ("{\"cas\":\"0xdeadbeefcafefeed\"}"sv, blob.get("_sync"));
+    EXPECT_EQ("{\"author\":\"bubba\"}"sv, blob.get("user"));
+    EXPECT_EQ("{\"content-type\":\"text\"}"sv, blob.get("meta"));
 
     // Change the order of some bytes (that should just do an in-place
     // replacement)
@@ -46,30 +45,25 @@ TEST(XattrBlob, TestBlob) {
     EXPECT_TRUE(cb::xattr::validate(blob.finalize()));
 
     // Try to fetch all of the values
-    EXPECT_EQ(std::string{"{\"cas\":\"0xcafefeeddeadbeef\"}"},
-              to_string(blob.get("_sync")));
-    EXPECT_EQ(std::string{"{\"author\":\"bubba\"}"},
-              to_string(blob.get("user")));
-    EXPECT_EQ(std::string{"{\"content-type\":\"text\"}"},
-              to_string(blob.get("meta")));
+    EXPECT_EQ("{\"cas\":\"0xcafefeeddeadbeef\"}"sv, blob.get("_sync"));
+    EXPECT_EQ("{\"author\":\"bubba\"}"sv, blob.get("user"));
+    EXPECT_EQ("{\"content-type\":\"text\"}"sv, blob.get("meta"));
 
     // Remove one
     blob.remove("meta");
     EXPECT_TRUE(cb::xattr::validate(blob.finalize()));
-    value = to_string(blob.get("meta"));
+    value = blob.get("meta");
     EXPECT_TRUE(value.empty());
 
     // Try to fetch all of the values
-    EXPECT_EQ(std::string{"{\"cas\":\"0xcafefeeddeadbeef\"}"},
-              to_string(blob.get("_sync")));
-    EXPECT_EQ(std::string{"{\"author\":\"bubba\"}"},
-              to_string(blob.get("user")));
+    EXPECT_EQ("{\"cas\":\"0xcafefeeddeadbeef\"}"sv, blob.get("_sync"));
+    EXPECT_EQ("{\"author\":\"bubba\"}"sv, blob.get("user"));
 
     // remove the last ones
     blob.remove("user");
-    EXPECT_TRUE(to_string(blob.get("user")).empty());
+    EXPECT_TRUE(blob.get("user").empty());
     blob.remove("_sync");
-    EXPECT_TRUE(to_string(blob.get("_sync")).empty());
+    EXPECT_TRUE(blob.get("_sync").empty());
 
     // An empty buffer should be finalized to size 0
     const auto last = blob.finalize();
@@ -111,9 +105,8 @@ TEST(XattrBlob, TestPruneUser) {
     EXPECT_EQ(systemsize, blob.get_system_size());
 
     // and we should be able to get the system xattr's
-    EXPECT_EQ(std::string{"{\"cas\":\"0xdeadbeefcafefeed\"}"},
-              to_string(blob.get("_sync")));
-    EXPECT_EQ(std::string{"{\"foo\":\"bar\"}"}, to_string(blob.get("_rbac")));
+    EXPECT_EQ("{\"cas\":\"0xdeadbeefcafefeed\"}"sv, blob.get("_sync"));
+    EXPECT_EQ("{\"foo\":\"bar\"}"sv, blob.get("_rbac"));
 }
 
 TEST(XattrBlob, TestToJson) {
@@ -150,7 +143,7 @@ TEST(XattrBlob, MB_22691) {
     cb::xattr::Blob blob;
 
     // Add a couple of values
-    blob.set(std::string("integer_extra"), std::string("1"));
+    blob.set("integer_extra", "1");
 
     // Validate the the blob is correctly built
     auto buffer = blob.finalize();
@@ -171,7 +164,7 @@ TEST(XattrBlob, MB_22691) {
                                            "else",
                                            "end"};
     for (const auto& key : keys) {
-        blob.set(key, std::string("1"));
+        blob.set(key, "1");
     }
 
     for (const auto& key : keys) {

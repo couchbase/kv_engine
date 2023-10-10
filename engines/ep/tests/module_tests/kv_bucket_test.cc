@@ -1715,8 +1715,7 @@ TEST_P(KVBucketParamTest, MB_25948) {
     EXPECT_EQ(0, blob.get("user").size());
     EXPECT_EQ(0, blob.get("meta").size());
     ASSERT_NE(0, blob.get("_sync").size());
-    EXPECT_STREQ("{\"cas\":\"0xdeadbeefcafefeed\"}",
-                 reinterpret_cast<char*>(blob.get("_sync").data()));
+    EXPECT_EQ("{\"cas\":\"0xdeadbeefcafefeed\"}", blob.get("_sync"));
 }
 
 /**
@@ -1989,9 +1988,9 @@ TEST_P(KVBucketParamTest, MB_34346) {
     cb::xattr::Blob returnedBlob(
             {const_cast<char*>(gv2.item->getData()), gv2.item->getNBytes()},
             false);
-    EXPECT_STREQ(
+    EXPECT_EQ(
             "{\"fffff\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}",
-            reinterpret_cast<char*>(returnedBlob.get("_sync").data()));
+            returnedBlob.get("_sync"));
 
     flushVBucketToDiskIfPersistent(vbid, 1);
 

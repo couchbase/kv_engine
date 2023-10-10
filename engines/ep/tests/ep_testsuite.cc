@@ -794,8 +794,8 @@ static enum test_result test_expiry_with_xattr(EngineIface* h) {
     checkeq(systemsize, new_blob.get_system_size(),
             "The size of the blob doesn't match the size of system attributes");
 
-    const std::string& cas_str{R"({"cas":"0xdeadbeefcafefeed"})"};
-    const std::string& sync_str = to_string(blob.get("_sync"));
+    const auto cas_str = R"({"cas":"0xdeadbeefcafefeed"})"sv;
+    const auto sync_str = blob.get("_sync");
 
     checkeq(cas_str, sync_str , "system xattr is invalid");
 
