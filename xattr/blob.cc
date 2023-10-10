@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -22,9 +21,7 @@
 
 namespace cb::xattr {
 
-Blob::Blob(const Blob& other)
-    : allocator(default_allocator),
-      alloc_size(other.blob.size()) {
+Blob::Blob(const Blob& other) : alloc_size(other.blob.size()) {
     decompressed.resize(other.decompressed.size());
     std::copy_n(other.decompressed.data(),
                 other.decompressed.size(),
@@ -34,12 +31,8 @@ Blob::Blob(const Blob& other)
     std::copy(other.blob.begin(), other.blob.end(), blob.begin());
 }
 
-Blob::Blob(
-        cb::char_buffer buffer,
-        std::unique_ptr<char[]>& allocator_, // NOLINT(modernize-avoid-c-arrays)
-        bool compressed,
-        size_t size)
-    : blob(buffer), allocator(allocator_), alloc_size(size) {
+Blob::Blob(cb::char_buffer buffer, bool compressed)
+    : blob(buffer), alloc_size(0) {
     assign({buffer.data(), buffer.size()}, compressed);
 }
 

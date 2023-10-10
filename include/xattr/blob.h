@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2016-Present Couchbase, Inc.
  *
@@ -24,22 +23,8 @@ namespace cb::xattr {
  */
 class Blob {
 public:
-    /**
-     * Create an empty Blob
-     */
-    Blob() : Blob({nullptr, 0}, default_allocator, false) {}
-
-    /**
-     * Create a Blob to operate on the given buffer. Note that the buffer
-     * *MUST* be a valid xattr encoded buffer (if not you WILL crash!)
-     * If the incoming buffer is snappy compressed, it must contain a compressed
-     * xattr value.
-     *
-     * @param buffer an existing buffer to use
-     * @param compressed the buffer contains snappy compressed data
-     */
-    Blob(cb::char_buffer buffer, bool compressed)
-        : Blob(buffer, default_allocator, compressed, 0) {
+    /// Create an empty Blob
+    Blob() : Blob({}, false) {
     }
 
     /**
@@ -48,16 +33,9 @@ public:
      * *MUST* be a valid xattr encoded buffer (if not you WILL crash!)
      *
      * @param buffer the buffer containing the current encoded blob
-     * @param allocator_ where to store allocated data when we need to
-     *                   reallocate
      * @param compressed if the buffer contains snappy data, we will decompress
-     * @param size The current allocated size in allocator_ (so that we may
-     *             use that space before doing reallocations)
      */
-    Blob(cb::char_buffer buffer,
-         std::unique_ptr<char[]>& allocator_,
-         bool compressed,
-         size_t size = 0);
+    Blob(cb::char_buffer buffer, bool compressed);
 
     /**
      * Create a (deep) copy of the Blob (allocate a new backing store)
@@ -269,9 +247,8 @@ private:
     /// When the incoming data is compressed will auto-decompress into this
     cb::compression::Buffer decompressed;
 
-    std::unique_ptr<char[]>& allocator;
-    std::unique_ptr<char[]> default_allocator;
-    size_t alloc_size;
+    std::unique_ptr<char[]> allocator;
+    size_t alloc_size = 0;
 };
 
 inline bool operator==(const Blob::iterator& lhs, const Blob::iterator& rhs) {
