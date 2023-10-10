@@ -340,7 +340,7 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
     {
         std::unique_lock<std::mutex> lh(streamMutex);
 
-        uint64_t chkCursorSeqno = endSeqno;
+        const auto originalEndSeqno = endSeqno;
 
         if (!isBackfilling()) {
             log(spdlog::level::level_enum::warn,
@@ -371,7 +371,7 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
                     "because it contains no visible items",
                     logPrefix);
                 // reregister cursor at original end seqno
-                notifyEmptyBackfill_UNLOCKED(chkCursorSeqno);
+                notifyEmptyBackfill_UNLOCKED(originalEndSeqno);
                 return false;
             }
         }
@@ -527,7 +527,7 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
             // Only re-register the cursor if we still need to get memory
             // snapshots and this is not the second markDiskSnapshot of a
             // combined CDC snapshot
-            registerCursor(*vb->checkpointManager, chkCursorSeqno);
+            registerCursor(*vb->checkpointManager, originalEndSeqno);
         }
     }
     notifyStreamReady();
