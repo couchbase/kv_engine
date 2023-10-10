@@ -22,22 +22,20 @@
 
 namespace cb::xattr {
 
-Blob::Blob(const Blob& other) : alloc_size(other.blob.size()) {
-    allocator.reset(new char[alloc_size]);
-    blob = { allocator.get(), alloc_size };
-    std::copy(other.blob.begin(), other.blob.end(), blob.begin());
+Blob::Blob(const Blob& other) {
+    allocator = std::string{other.blob.data(), other.blob.size()};
+    blob = {allocator.data(), allocator.size()};
 }
 
-Blob::Blob(cb::char_buffer buffer, bool compressed)
-    : blob(buffer), alloc_size(0) {
+Blob::Blob(cb::char_buffer buffer, bool compressed) {
     assign({buffer.data(), buffer.size()}, compressed);
 }
 
 Blob& Blob::assign(std::string_view buffer, bool compressed) {
+    blob = {};
+    allocator = {};
+
     if (buffer.empty()) {
-        blob = {};
-        alloc_size = 0;
-        allocator.reset();
         return *this;
     }
 
@@ -53,10 +51,9 @@ Blob& Blob::assign(std::string_view buffer, bool compressed) {
         auto size = cb::xattr::get_body_offset(range);
         Expects(size);
 
-        allocator.reset(new char[size]);
-        std::copy(range.begin(), range.begin() + size, allocator.get());
-        alloc_size = size;
-        blob = {allocator.get(), size};
+        allocator.resize(size);
+        std::copy(range.begin(), range.begin() + size, allocator.data());
+        blob = {allocator.data(), size};
         return *this;
     }
 
@@ -94,7 +91,7 @@ cb::char_buffer Blob::get(std::string_view key) {
     }
 
     // Not found!
-    return {nullptr, 0};
+    return {};
 }
 
 void Blob::prune_user_keys() {
@@ -130,60 +127,19 @@ void Blob::remove(std::string_view key) {
 }
 
 void Blob::set(std::string_view key, std::string_view value) {
-    if (value.empty()) {
-        remove(key);
-        return;
-    }
-
-    // Locate the old value
-    auto old = get(key);
-    if (old.size() == value.size()) {
-        // lets do an in-place replacement
-        std::copy(value.begin(), value.end(), old.data());
-        return;
-    } else if (old.size() == 0) {
-        // The old one didn't exist
-        append_kvpair(key, value);
-    } else {
-        // we need to reorganize the buffer. Determine the size of
-        // the resulting document
-        const size_t newsize = blob.size() + value.size() - old.size();
-        const auto old_offset = old.data() - blob.data() - 1 - key.size() - 4;
-        const auto old_kv_size = 4 + key.size() + 1 + old.size() + 1;
-
-        if (newsize < alloc_size) {
-            // we can do an in-place removement
-            remove_segment(old_offset, old_kv_size);
-        } else {
-            // NOLINTNEXTLINE(modernize-avoid-c-arrays)
-            std::unique_ptr<char[]> temp(new char[newsize]);
-            // copy everything up to the old one
-            std::copy(blob.data(), blob.data() + old_offset, temp.get());
-            // Skip the old value and copy the rest
-            std::copy(blob.data() + old_offset + old_kv_size,
-                      blob.data() + blob.size(),
-                      temp.get() + old_offset);
-            allocator.swap(temp);
-            blob = {allocator.get(),
-                    newsize - 4 - key.size() - 1 - value.size() - 1};
-            alloc_size = newsize;
-        }
-
+    remove(key);
+    if (!value.empty()) {
         append_kvpair(key, value);
     }
 }
 
 void Blob::grow_buffer(uint32_t size) {
     if (blob.size() < size) {
-        if (alloc_size < size) {
-            // NOLINTNEXTLINE(modernize-avoid-c-arrays)
-            std::unique_ptr<char[]> temp(new char[size]);
-            std::copy(blob.data(), blob.data() + blob.size(), temp.get());
-            allocator.swap(temp);
-            blob = {allocator.get(), size};
-            alloc_size = size;
+        if (allocator.size() < size) {
+            allocator.resize(size);
+            blob = {allocator.data(), size};
         } else {
-            blob = {allocator.get(), size};
+            blob = {allocator.data(), size};
         }
     }
 }

@@ -35,7 +35,7 @@ public:
      * @param buffer the buffer containing the current encoded blob
      * @param compressed if the buffer contains snappy data, we will decompress
      */
-    Blob(cb::char_buffer buffer, bool compressed);
+    explicit Blob(cb::char_buffer buffer, bool compressed = false);
 
     /**
      * Create a (deep) copy of the Blob (allocate a new backing store)
@@ -242,9 +242,12 @@ private:
      */
     size_t get_xattrs_size(Type type) const;
 
+    /// The current view of the content of the blob
     cb::char_buffer blob;
-    std::unique_ptr<char[]> allocator;
-    size_t alloc_size = 0;
+
+    /// If we need to add data to the blob we need somewhere to store the
+    /// data of the entire blob until the object dies.
+    std::string allocator;
 };
 
 inline bool operator==(const Blob::iterator& lhs, const Blob::iterator& rhs) {
