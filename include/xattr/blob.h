@@ -30,18 +30,6 @@ public:
     Blob() : Blob({nullptr, 0}, default_allocator, false) {}
 
     /**
-     * Create an empty Blob
-     *
-     * @param allocator_ where to store allocated data when we need to
-     *                   reallocate
-     * @param size The current allocated size in allocator_ (so that we may
-     *             use that space before doing reallocations)
-     */
-    explicit Blob(std::unique_ptr<char[]>& allocator_, size_t size = 0)
-        : Blob({nullptr, 0}, allocator_, false, size) {
-    }
-
-    /**
      * Create a Blob to operate on the given buffer. Note that the buffer
      * *MUST* be a valid xattr encoded buffer (if not you WILL crash!)
      * If the incoming buffer is snappy compressed, it must contain a compressed
