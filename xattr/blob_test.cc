@@ -159,9 +159,17 @@ TEST(XattrBlob, MB_22691) {
     auto value = blob.get("integer");
     EXPECT_EQ(0, value.size());
 
-    const std::vector<std::string> keys = {"start", "integer", "in", "int",
-                                           "double", "for", "try", "as",
-                                           "while", "else", "end"};
+    const std::vector<std::string> keys = {"start",
+                                           "integer",
+                                           "in",
+                                           "int",
+                                           "double",
+                                           "for",
+                                           "try",
+                                           "as",
+                                           "while",
+                                           "else",
+                                           "end"};
     for (const auto& key : keys) {
         blob.set(key, std::string("1"));
     }
@@ -199,7 +207,7 @@ TEST(XattrBlob, iterator_simple_checks) {
 
     // Check we get an end iterator when we keep increasing
     auto itr = blob.begin();
-    for (const auto& k: keys) {
+    for (const auto& k : keys) {
         (void)k;
         itr++;
     }

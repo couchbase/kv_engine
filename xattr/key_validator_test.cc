@@ -76,7 +76,6 @@ TEST(XattrKeyValidator, FullWithArrayIndex) {
     EXPECT_TRUE(is_valid_xattr_key({key.data(), key.size()}));
 }
 
-
 /**
  * X-Keys starting with a leading underscore ('_', 0x5F) are considered system
  * Such keys must be at least two characters
