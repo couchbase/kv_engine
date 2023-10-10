@@ -771,7 +771,6 @@ TEST_P(HistoryScanTest, DoubleSnapshotMarker_CursorDrop) {
     // client with snap start <= previous snap end vb:0 lastSentSnapStart:2
     // lastSentSnapEnd:4 snapStart:2 snapEnd:4 sid:sid:none producer
     // name:test_producer lastReadSeqno:1 curChkSeqno:5
-    // lastReadSeqnoUnSnapshotted:1
     runBackfill(); // scanHistory
 }
 

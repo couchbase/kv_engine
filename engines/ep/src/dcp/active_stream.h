@@ -653,8 +653,8 @@ protected:
         std::string getLabel(const char* name) const;
         const ActiveStream& stream;
     };
-    /* The last sequence number queued from disk or memory and is
-       snapshotted and put onto readyQ */
+
+    // The last sequence number queued into the readyQ from disk or memory
     ATOMIC_MONOTONIC4(uint64_t, lastReadSeqno, Labeller, ThrowExceptionPolicy);
 
     /* backfill ById or BySeqno updates this member during the scan, then
@@ -715,11 +715,13 @@ private:
      * @param highNonVisibleSeqno the snapEnd seqno that includes any non
      * visible mutations i.e. prepares and aborts. This is only used when
      * collections is enabled and sync writes are not supported on the stream.
+     * @param newLastReadSeqno The new lastReadSeqno, see member for details-
      */
     void snapshot(const OutstandingItemsResult& meta,
                   std::deque<std::unique_ptr<DcpResponse>>& items,
                   uint64_t maxVisibleSeqno,
-                  std::optional<uint64_t> highNonVisibleSeqno);
+                  std::optional<uint64_t> highNonVisibleSeqno,
+                  uint64_t newLastReadSeqno);
 
     void endStream(cb::mcbp::DcpStreamEndStatus reason);
 
@@ -868,10 +870,6 @@ private:
 
     //! Number of times a backfill is paused.
     cb::RelaxedAtomic<uint64_t> numBackfillPauses{0};
-
-    /* The last sequence number queued from memory, but is yet to be
-       snapshotted and put onto readyQ */
-    std::atomic<uint64_t> lastReadSeqnoUnSnapshotted;
 
     //! The last sequence number sent to the network layer
     ATOMIC_MONOTONIC4(uint64_t, lastSentSeqno, Labeller, ThrowExceptionPolicy);

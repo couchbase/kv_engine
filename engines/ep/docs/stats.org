@@ -732,8 +732,6 @@ another colon.  For example, if your client is named, =slave1=, the
 | last_sent_seqno               | The last seqno sent by this stream                    |
 | last_sent_snap_end_seqno      | The last snapshot end seqno sent by active stream     |
 | last_read_seqno               | The last seqno read by this stream from disk or memory|
-| last_read_seqno_unsnapshotted | The last sequence number queued from memory, but is   |
-|                               | yet to be put in a snapshot                           |
 | ready_queue_memory            | Memory occupied by elements in the DCP readyQ         |
 | memory_phase                  | The amount of items sent during the memory phase      |
 | opaque                        | The unique stream identifier                          |
