@@ -38,25 +38,14 @@ class Semaphore;
 
 /**
  * An abstract base class for a task which runs periodically and evicts items
- * from memory.
+ * from memory. Handles the high-level logic for evicting items, but subclasses
+ * must implement the specifics of how to schedule paging visitors.
  */
-class ItemPager : public NotifiableTask {
+class ItemPager {
 public:
-    // ctor when ItemPager is not associated with a specific bucket.
-    ItemPager(Taskable& t,
-              size_t numConcurrentPagers,
-              std::chrono::milliseconds sleepTime);
+    ItemPager(size_t numConcurrentPagers);
 
-    // ctor when Item pager is associated with a specific bucket.
-    ItemPager(EventuallyPersistentEngine& engine,
-              size_t numConcurrentPagers,
-              std::chrono::milliseconds sleepTime);
-
-    bool runInner(bool manuallyNotified) override;
-
-    std::chrono::microseconds getSleepTime() const override {
-        return sleepTime;
-    }
+    bool runPager(bool manuallyNotified);
 
 protected:
     struct PageableMemInfo {
@@ -115,12 +104,6 @@ protected:
     const std::shared_ptr<cb::Semaphore> pagerSemaphore;
     // Should eviction continue until the low watermark is reached?
     bool doEvict;
-
-    /**
-     * How long this task sleeps for if not requested to run. Initialised from
-     * the configuration parameter - pager_sleep_time_ms
-     */
-    std::chrono::milliseconds sleepTime;
 };
 
 /**
@@ -128,7 +111,7 @@ protected:
  * memory, by taking into account just the bucket's own memory usage and
  * watermarks.
  */
-class StrictQuotaItemPager : public ItemPager {
+class StrictQuotaItemPager : public NotifiableTask, public ItemPager {
 public:
     /**
      * Construct an ItemPager.
@@ -144,6 +127,10 @@ public:
 
     std::string getDescription() const override {
         return "Paging out items.";
+    }
+
+    bool runInner(bool manuallyNotified) override {
+        return runPager(manuallyNotified);
     }
 
     std::chrono::microseconds maxExpectedDuration() const override {

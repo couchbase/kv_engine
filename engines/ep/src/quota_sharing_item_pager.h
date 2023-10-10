@@ -24,9 +24,9 @@ class CrossBucketVisitorAdapter;
 
 /**
  * Dispatcher job responsible for periodically pushing data out of
- * memory for buckets sharing HT quota.
+ * memory for multiple buckets sharing HT quota.
  */
-class QuotaSharingItemPager : public ItemPager {
+class QuotaSharingItemPager : public NotifiableTask, public ItemPager {
 public:
     /**
      * Creates a new instance of the quota sharing item pager.
@@ -46,11 +46,17 @@ public:
             std::function<size_t()> getNumConcurrentPagers,
             std::function<std::chrono::milliseconds()> getSleepTime);
 
+    // NotifiableTask implementation /////////////////////////////////////////
+
+    bool runInner(bool manuallyNotified) override;
+
     std::chrono::microseconds getSleepTime() const override;
 
     std::string getDescription() const override;
 
     std::chrono::microseconds maxExpectedDuration() const override;
+
+    // ItemPager implementation //////////////////////////////////////////////
 
     PageableMemInfo getPageableMemInfo() const override;
 

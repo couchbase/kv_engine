@@ -43,26 +43,10 @@
 
 #include <memory>
 
-ItemPager::ItemPager(Taskable& t,
-                     size_t numConcurrentPagers,
-                     std::chrono::milliseconds sleepTime)
-    : NotifiableTask(t,
-                     TaskId::ItemPager,
-                     std::chrono::duration_cast<std::chrono::duration<double>>(
-                             sleepTime)
-                             .count(),
-                     false),
-      numConcurrentPagers(numConcurrentPagers),
+ItemPager::ItemPager(size_t numConcurrentPagers)
+    : numConcurrentPagers(numConcurrentPagers),
       pagerSemaphore(std::make_shared<cb::Semaphore>(numConcurrentPagers)),
-      doEvict(false),
-      sleepTime(sleepTime) {
-}
-
-ItemPager::ItemPager(EventuallyPersistentEngine& engine,
-                     size_t numConcurrentPagers,
-                     std::chrono::milliseconds sleepTime)
-    : ItemPager(engine.getTaskable(), numConcurrentPagers, sleepTime) {
-    GlobalTask::engine = &engine;
+      doEvict(false) {
 }
 
 std::optional<VBucketFilter> ItemPager::createVBucketFilter(
@@ -100,10 +84,15 @@ PermittedVBStates ItemPager::getStatesForEviction(EvictionRatios ratios) const {
 StrictQuotaItemPager::StrictQuotaItemPager(EventuallyPersistentEngine& e,
                                            EPStats& st,
                                            size_t numConcurrentPagers)
-    : ItemPager(e,
-                numConcurrentPagers,
-                std::chrono::milliseconds(
-                        e.getConfiguration().getPagerSleepTimeMs())),
+    : NotifiableTask(
+              e,
+              TaskId::ItemPager,
+              std::chrono::duration_cast<std::chrono::duration<double>>(
+                      std::chrono::milliseconds(
+                              e.getConfiguration().getPagerSleepTimeMs()))
+                      .count(),
+              false),
+      ItemPager(numConcurrentPagers),
       stats(st) {
 }
 
@@ -152,7 +141,7 @@ ItemPager::PageableMemInfo StrictQuotaItemPager::getPageableMemInfo() const {
     return {current, upper, lower};
 }
 
-bool ItemPager::runInner(bool manuallyNotified) {
+bool ItemPager::runPager(bool manuallyNotified) {
     TRACE_EVENT0("ep-engine/task", "ItemPager");
 
     const auto memInfo = getPageableMemInfo();

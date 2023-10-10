@@ -65,11 +65,20 @@ QuotaSharingItemPager::QuotaSharingItemPager(
         Taskable& t,
         std::function<size_t()> getNumConcurrentPagers,
         std::function<std::chrono::milliseconds()> getSleepTime)
-    : ItemPager(t, getNumConcurrentPagers(), getSleepTime()),
+    : NotifiableTask(t,
+                     TaskId::ItemPager,
+                     std::chrono::duration_cast<std::chrono::duration<double>>(
+                             getSleepTime())
+                             .count()),
+      ItemPager(getNumConcurrentPagers()),
       bucketApi(bucketApi),
       group(group),
       getNumConcurrentPagers(std::move(getNumConcurrentPagers)),
       getSleepTimeCb(std::move(getSleepTime)) {
+}
+
+bool QuotaSharingItemPager::runInner(bool manuallyNotified) {
+    return runPager(manuallyNotified);
 }
 
 std::chrono::microseconds QuotaSharingItemPager::getSleepTime() const {
