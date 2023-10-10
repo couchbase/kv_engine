@@ -121,7 +121,7 @@ void LibeventConnection::read_callback() {
     if (isTlsEnabled()) {
         const auto ssl_errors = getOpenSSLErrors();
         if (!ssl_errors.empty()) {
-            LOG_INFO("{} - OpenSSL errors reported: {}",
+            LOG_INFO("{} - read_callback OpenSSL errors reported: {}",
                      this->getId(),
                      ssl_errors);
         }
@@ -145,7 +145,9 @@ void LibeventConnection::write_callback() {
     if (isTlsEnabled()) {
         const auto ssl_errors = getOpenSSLErrors();
         if (!ssl_errors.empty()) {
-            LOG_INFO("{} - OpenSSL errors reported: {}", getId(), ssl_errors);
+            LOG_INFO("{} - write_callback OpenSSL errors reported: {}",
+                     getId(),
+                     ssl_errors);
         }
     }
 
@@ -300,7 +302,7 @@ void LibeventConnection::ssl_read_callback(bufferevent* bev, void* ctx) {
 
     const auto ssl_errors = instance.getOpenSSLErrors();
     if (!ssl_errors.empty()) {
-        LOG_INFO("{} - OpenSSL errors reported: {}",
+        LOG_INFO("{} - ssl_read_callback OpenSSL errors reported: {}",
                  instance.getId(),
                  ssl_errors);
     }
