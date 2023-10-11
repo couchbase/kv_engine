@@ -13,7 +13,6 @@
 
 #include "blob.h"
 #include "ep_types.h"
-#include "item_pager.h"
 #include "serialised_dockey.h"
 #include "tagged_ptr.h"
 #include "utility.h"

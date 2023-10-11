@@ -26,6 +26,8 @@
 #include <platform/non_negative_counter.h>
 #include <relaxed_atomic.h>
 
+class EPStats;
+
 /* This option will configure "list" to use the member hook */
 using MemberHookOption =
         boost::intrusive::member_hook<OrderedStoredValue,

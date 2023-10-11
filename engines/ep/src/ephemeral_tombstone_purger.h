@@ -61,6 +61,7 @@
 #include "kv_bucket_iface.h"
 #include "progress_tracker.h"
 #include "vb_visitors.h"
+#include <executor/globaltask.h>
 
 class EphemeralBucket;
 class EphTombstoneStaleItemDeleter;

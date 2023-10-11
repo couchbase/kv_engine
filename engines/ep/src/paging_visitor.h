@@ -13,7 +13,6 @@
 
 #include "collections/vbucket_manifest_handles.h"
 #include "hash_table.h"
-#include "item_pager.h"
 #include "learning_age_and_mfu_based_eviction.h"
 #include "vb_visitors.h"
 

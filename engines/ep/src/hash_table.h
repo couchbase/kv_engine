@@ -24,6 +24,7 @@
 
 class AbstractStoredValueFactory;
 struct DocKey;
+class EPStats;
 class HashTableVisitor;
 class HashTableDepthVisitor;
 

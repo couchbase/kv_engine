@@ -31,6 +31,8 @@
 class CheckpointDestroyerTask;
 class BucketQuotaChangeTask;
 class DurabilityCompletionTask;
+class EPStats;
+class ExpiredItemPager;
 class InitialMFUTask;
 class NotifiableTask;
 class ReplicationThrottle;
@@ -449,9 +451,7 @@ public:
         return engine;
     }
 
-    size_t getExpiryPagerSleeptime() override {
-        return expiryPagerTask->getSleepTime().count();
-    }
+    size_t getExpiryPagerSleeptime() override;
 
     size_t getTransactionTimePerItem() override {
         return lastTransTimePerItem.load();
@@ -606,9 +606,7 @@ public:
         return accessScanner.rlock()->enabled;
     }
 
-    bool isExpPagerEnabled() override {
-        return expiryPagerTask->isEnabled();
-    }
+    bool isExpPagerEnabled() override;
 
     bool isWarmupLoadingData() override;
     bool isWarmupComplete() override;

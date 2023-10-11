@@ -24,6 +24,7 @@
 #include "ep_time.h"
 #include "failover-table.h"
 #include "item.h"
+#include "item_pager.h"
 #include "kvstore/couch-kvstore/couch-kvstore-metadata.h"
 #include "kvstore/kvstore.h"
 #include "programs/engine_testapp/mock_cookie.h"

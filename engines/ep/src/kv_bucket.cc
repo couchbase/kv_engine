@@ -37,6 +37,7 @@
 #include "item.h"
 #include "item_compressor.h"
 #include "item_freq_decayer.h"
+#include "item_pager.h"
 #include "kvshard.h"
 #include "kvstore/kvstore.h"
 #include "range_scans/range_scan_callbacks.h"
@@ -1166,6 +1167,10 @@ void KVBucket::scheduleVBStatePersist(Vbid vbid) {
     vb->checkpointManager->queueSetVBState();
 }
 
+size_t KVBucket::getExpiryPagerSleeptime() {
+    return expiryPagerTask->getSleepTime().count();
+}
+
 VBucketStateLockMap<folly::SharedMutex::ReadHolder>
 KVBucket::lockAllVBucketStates() {
     VBucketStateLockMap<folly::SharedMutex::ReadHolder> vbStateLocks;
@@ -2201,6 +2206,10 @@ void KVBucket::reset() {
         }
     }
     EP_LOG_INFO_RAW("KVBucket::reset(): Successfully flushed bucket");
+}
+
+bool KVBucket::isExpPagerEnabled() {
+    return expiryPagerTask->isEnabled();
 }
 
 bool KVBucket::isWarmupLoadingData() {
