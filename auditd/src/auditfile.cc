@@ -57,12 +57,16 @@ void AuditFile::close() {
 }
 
 uint32_t AuditFile::get_seconds_to_rotation() const {
-    if (is_open()) {
-        time_t now = auditd_time();
-        return rotate_interval - (uint32_t)difftime(now, open_time);
-    } else {
+    if (rotate_interval) {
+        if (is_open()) {
+            time_t now = auditd_time();
+            const auto diff = (uint32_t)difftime(now, open_time);
+            return std::clamp(
+                    rotate_interval - diff, uint32_t(0), rotate_interval);
+        }
         return rotate_interval;
     }
+    return std::numeric_limits<uint32_t>::max();
 }
 
 bool AuditFile::time_to_rotate_log() const {

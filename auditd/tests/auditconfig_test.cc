@@ -126,11 +126,6 @@ TEST_F(AuditConfigTest, TestRotateSizeLegalValue) {
     config = AuditConfig(json);
 }
 
-TEST_F(AuditConfigTest, TestRotateSizeIllegalValue) {
-    json["rotate_size"] = -1;
-    EXPECT_THROW(AuditConfig cfg(json), std::invalid_argument);
-}
-
 // rotate_interval
 
 TEST_F(AuditConfigTest, TestNoRotateInterval) {
@@ -145,10 +140,7 @@ TEST_F(AuditConfigTest, TestDisableRotateInterval) {
 }
 
 TEST_F(AuditConfigTest, TestRotateIntervalSetGet) {
-    const uint32_t min_file_rotation_time = AuditConfig::min_file_rotation_time;
-    for (size_t ii = min_file_rotation_time;
-         ii < min_file_rotation_time + 10;
-         ++ii) {
+    for (size_t ii = 0; ii < 10; ++ii) {
         config.set_rotate_interval(uint32_t(ii));
         EXPECT_EQ(ii, config.get_rotate_interval());
     }
@@ -157,22 +149,6 @@ TEST_F(AuditConfigTest, TestRotateIntervalSetGet) {
 TEST_F(AuditConfigTest, TestRotateIntervalIllegalDatatype) {
     json["rotate_interval"] = "foobar";
     EXPECT_THROW(AuditConfig cfg(json), nlohmann::json::exception);
-}
-
-TEST_F(AuditConfigTest, TestRotateIntervalLegalValue) {
-    for (uint32_t ii = AuditConfig::min_file_rotation_time;
-         ii < AuditConfig::max_file_rotation_time;
-         ii += 1000) {
-        json["rotate_interval"] = ii;
-        config = AuditConfig(json);
-    }
-}
-
-TEST_F(AuditConfigTest, TestRotateIntervalIllegalValue) {
-    json["rotate_interval"] = AuditConfig::min_file_rotation_time - 1;
-    EXPECT_THROW(AuditConfig cfg(json), std::invalid_argument);
-    json["rotate_interval"] = AuditConfig::max_file_rotation_time + 1;
-    EXPECT_THROW(AuditConfig cfg(json), std::invalid_argument);
 }
 
 // auditd_enabled

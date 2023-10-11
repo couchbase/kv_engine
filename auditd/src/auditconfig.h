@@ -95,9 +95,4 @@ protected:
     std::vector<std::pair<std::string, std::string>> disabled_userids;
     std::unordered_map<uint32_t, EventState> event_states;
     std::string uuid;
-
-public:
-    static constexpr uint32_t min_file_rotation_time = 900; // 15 minutes
-    static constexpr uint32_t max_file_rotation_time = 604800; // 1 week
-    static constexpr size_t max_rotate_file_size = 500 * 1024 * 1024; // 500MB
 };

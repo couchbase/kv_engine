@@ -78,19 +78,21 @@ TEST_F(AuditFileTest, TestFileCreation) {
     EXPECT_EQ(1, files.size());
 }
 
- /**
+static const uint32_t rotation_time = 100;
+
+/**
  * Test that an empty file is properly rotated using ensure_open()
  * Seen issues in the past such as MB-32232
  */
 TEST_F(AuditFileTest, TestRotateEmptyFile) {
-    config.set_rotate_interval(AuditConfig::min_file_rotation_time);
+    config.set_rotate_interval(rotation_time);
     config.set_rotate_size(1024*1024);
 
     AuditFile auditfile("testing");
     auditfile.reconfigure(config);
 
     auditfile.ensure_open();
-    cb_timeofday_timetravel(AuditConfig::min_file_rotation_time + 1);
+    cb_timeofday_timetravel(rotation_time + 1);
     auditfile.ensure_open();
 
     auditfile.close();
@@ -104,7 +106,7 @@ TEST_F(AuditFileTest, TestRotateEmptyFile) {
  * to use the next file
  */
 TEST_F(AuditFileTest, TestTimeRotate) {
-    config.set_rotate_interval(AuditConfig::min_file_rotation_time);
+    config.set_rotate_interval(rotation_time);
     config.set_rotate_size(1024*1024);
 
     AuditFile auditfile("testing");
@@ -115,7 +117,7 @@ TEST_F(AuditFileTest, TestTimeRotate) {
     for (int ii = 0; ii < 10; ++ii) {
         auditfile.ensure_open();
         auditfile.write_event_to_disk(event);
-        cb_timeofday_timetravel(AuditConfig::min_file_rotation_time + 1);
+        cb_timeofday_timetravel(rotation_time + 1);
     }
 
     auditfile.close();
@@ -137,7 +139,7 @@ TEST_F(AuditFileTest, TestTimeRotateDisabled) {
     for (int ii = 0; ii < 10; ++ii) {
         auditfile.ensure_open();
         auditfile.write_event_to_disk(event);
-        cb_timeofday_timetravel(AuditConfig::min_file_rotation_time + 1);
+        cb_timeofday_timetravel(rotation_time + 1);
     }
     auditfile.close();
 
@@ -150,7 +152,7 @@ TEST_F(AuditFileTest, TestTimeRotateDisabled) {
  * of the file gets bigger.
  */
 TEST_F(AuditFileTest, TestSizeRotate) {
-    config.set_rotate_interval(AuditConfig::max_file_rotation_time);
+    config.set_rotate_interval(0);
     config.set_rotate_size(100);
 
     AuditFile auditfile("testing");
@@ -170,7 +172,7 @@ TEST_F(AuditFileTest, TestSizeRotate) {
 }
 
 TEST_F(AuditFileTest, TestSizeRotateDisabled) {
-    config.set_rotate_interval(AuditConfig::max_file_rotation_time);
+    config.set_rotate_interval(0);
     config.set_rotate_size(0);
 
     AuditFile auditfile("testing");
@@ -194,13 +196,13 @@ TEST_F(AuditFileTest, TestSizeRotateDisabled) {
  * opened, and not from the instance was configured
  */
 TEST_F(AuditFileTest, TestRollover) {
-    config.set_rotate_interval(AuditConfig::min_file_rotation_time);
+    config.set_rotate_interval(rotation_time);
     config.set_rotate_size(100);
     AuditFile auditfile("testing");
     auditfile.reconfigure(config);
 
     uint32_t secs = auditfile.get_seconds_to_rotation();
-    EXPECT_EQ(AuditConfig::min_file_rotation_time, secs);
+    EXPECT_EQ(rotation_time, secs);
 
     cb_timeofday_timetravel(10);
     EXPECT_EQ(secs, auditfile.get_seconds_to_rotation())
@@ -209,13 +211,11 @@ TEST_F(AuditFileTest, TestRollover) {
     auditfile.ensure_open();
 
     secs = auditfile.get_seconds_to_rotation();
-    EXPECT_TRUE(secs == AuditConfig::min_file_rotation_time ||
-                secs == (AuditConfig::min_file_rotation_time - 1));
+    EXPECT_TRUE(secs == rotation_time || secs == (rotation_time - 1));
 
     cb_timeofday_timetravel(10);
     secs = auditfile.get_seconds_to_rotation();
-    EXPECT_TRUE(secs == AuditConfig::min_file_rotation_time - 10 ||
-                secs == (AuditConfig::min_file_rotation_time - 11));
+    EXPECT_TRUE(secs == rotation_time - 10 || secs == (rotation_time - 11));
 }
 
 /// The audit log contains a valid entry and the file gets renamed

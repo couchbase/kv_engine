@@ -86,13 +86,6 @@ void AuditConfig::set_auditd_enabled(bool value) {
 }
 
 void AuditConfig::set_rotate_size(size_t size) {
-    if (size > max_rotate_file_size) {
-        throw std::invalid_argument(
-                fmt::format("AuditConfig::set_rotate_size(): Rotation size {} "
-                            "is too big. Legal range is [0, {}]",
-                            size,
-                            max_rotate_file_size));
-    }
     rotate_size = size;
 }
 
@@ -101,16 +94,6 @@ size_t AuditConfig::get_rotate_size() const {
 }
 
 void AuditConfig::set_rotate_interval(uint32_t interval) {
-    if (interval != 0 && (interval > max_file_rotation_time ||
-                          interval < min_file_rotation_time)) {
-        throw std::invalid_argument(
-                fmt::format("AuditConfig::set_rotate_interval(): Rotation "
-                            "interval {} is outside the legal range [{}, {}]",
-                            interval,
-                            min_file_rotation_time,
-                            max_file_rotation_time));
-    }
-
     rotate_interval = interval;
 }
 
