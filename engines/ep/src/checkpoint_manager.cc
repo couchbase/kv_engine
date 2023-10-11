@@ -326,7 +326,7 @@ void CheckpointManager::addOpenCheckpoint(
 
 CursorRegResult CheckpointManager::registerCursorBySeqno(
         const std::string& name,
-        uint64_t startBySeqno,
+        uint64_t lastProcessedSeqno,
         CheckpointCursor::Droppable droppable) {
     // Note: The function is full of early-returns so that's a bit difficult to
     // handle the following by locked/lock-free scopes.
@@ -381,15 +381,23 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
     // If:
     // - there is only 1 checkpoint in CM
     // - and, ItemExpel removed all mutations from that checkpoint (MB-39344)
-    // then we register a cursor at checkpoint begin and inform the caller that
-    // there's nothing in memory, so a backfill is needed.
+    // then we register a cursor at checkpoint begin.
     //
     // Note: The legacy logic (below) for cursor-registering is based on
     // Checkpoint::getMinimumCursorSeqno()/getHighSeqno() that are meaningless
     // if all mutations have been expelled.
     if ((*ckptIt)->isOpen() && (*ckptIt)->isEmptyByExpel()) {
-        return createCursorRegResult(
-                (*ckptIt)->begin(), 0, true, lastBySeqno + 1);
+        // Trigger backfill only if there's a gap between lastProcessedSeqno and
+        // nextSeqnoAvailableFromCheckpoint
+        const uint64_t nextSeqnoAvailableFromCheckpoint = lastBySeqno + 1;
+        const auto tryBackfill =
+                (nextSeqnoAvailableFromCheckpoint == lastProcessedSeqno + 1
+                         ? false
+                         : true);
+        return createCursorRegResult((*ckptIt)->begin(),
+                                     0,
+                                     tryBackfill,
+                                     nextSeqnoAvailableFromCheckpoint);
     }
 
     // Note: We always have the highSeqno for the open checkpoint at this point
@@ -399,12 +407,12 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
     //   oldest and so it can't be touched by expel at all
     const auto& openCkpt = getOpenCheckpoint(lh);
     const auto highSeqno = *openCkpt.getHighSeqno();
-    if (highSeqno < startBySeqno) {
+    if (highSeqno < lastProcessedSeqno) {
         throw std::invalid_argument(
-                "CheckpointManager::registerCursorBySeqno: startBySeqno (" +
-                std::to_string(startBySeqno) +
-                ") is greater than last "
-                "checkpoint highSeqno (" +
+                "CheckpointManager::registerCursorBySeqno: lastProcessedSeqno "
+                "(" +
+                std::to_string(lastProcessedSeqno) +
+                ") is greater than last checkpoint highSeqno (" +
                 std::to_string(highSeqno) + ")");
     }
 
@@ -452,9 +460,11 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
 
         // *Before Path* Case 1) If the seqno is before this checkpoint then
         // register the cursor at the empty item
-        if (startBySeqno < *st) {
-            // Trigger backfill only if there's a gap between startSeqno and st
-            const auto tryBackfill = (*st == startBySeqno + 1 ? false : true);
+        if (lastProcessedSeqno < *st) {
+            // Trigger backfill only if there's a gap between lastProcessedSeqno
+            // and st
+            const auto tryBackfill =
+                    (*st == lastProcessedSeqno + 1 ? false : true);
             return createCursorRegResult(ckpt.begin(), 0, tryBackfill, *st);
         }
 
@@ -466,7 +476,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
         const auto en = ckpt.getHighSeqno();
         // Note: We have 'st', we must have 'en'
         Expects(en);
-        if (startBySeqno >= *en && !isLastCkpt) {
+        if (lastProcessedSeqno >= *en && !isLastCkpt) {
             continue;
         }
 
@@ -476,7 +486,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
         auto lastItemInCkptItr = std::prev(ckpt.end());
         Expects(lastItemInCkptItr != ckpt.begin());
         uint64_t lastItemInCkptSeqno = (*lastItemInCkptItr)->getBySeqno();
-        if (startBySeqno == lastItemInCkptSeqno && isLastCkpt) {
+        if (lastProcessedSeqno == lastItemInCkptSeqno && isLastCkpt) {
             return createCursorRegResult(lastItemInCkptItr,
                                          ckpt.getNumItems(),
                                          false,
@@ -493,7 +503,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
             auto nextItem = *std::next(curPos);
             const uint64_t nextSeqno = nextItem->getBySeqno();
 
-            if (startBySeqno < nextSeqno) {
+            if (lastProcessedSeqno < nextSeqno) {
                 return createCursorRegResult(
                         curPos, distance, false, nextSeqno);
             }
