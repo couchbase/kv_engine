@@ -31,7 +31,7 @@ class AuditEventFilter;
 class AuditImpl : public cb::audit::Audit {
 public:
     // Implementation of the public API
-    bool put_event(uint32_t event_id, nlohmann::json payload) override;
+    bool put_event(uint32_t event_id, nlohmann::json payload) final;
     void stats(const StatCollector& collector) override;
     bool configure_auditdaemon(std::string config,
                                CookieIface& cookie) override;
