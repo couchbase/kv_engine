@@ -2073,9 +2073,8 @@ void Warmup::addCommonStats(const StatCollector& collector) const {
 
     auto w_time = warmup.load();
     if (w_time > w_time.zero()) {
-        collector.addStat(
-                Key::ep_warmup_time,
-                duration_cast<std::chrono::microseconds>(w_time).count());
+        collector.addStat(Key::ep_warmup_time,
+                          duration_cast<microseconds>(w_time).count());
     }
 }
 
@@ -2099,9 +2098,8 @@ void Warmup::addStats(const StatCollector& collector) const {
 
     auto md_time = metadata.load();
     if (md_time > md_time.zero()) {
-        collector.addStat(
-                Key::ep_warmup_keys_time,
-                duration_cast<std::chrono::microseconds>(md_time).count());
+        collector.addStat(Key::ep_warmup_keys_time,
+                          duration_cast<microseconds>(md_time).count());
     }
 
     size_t itemCount = estimatedKeyCount.load();
@@ -2110,9 +2108,8 @@ void Warmup::addStats(const StatCollector& collector) const {
     } else {
         auto e_time = estimateTime.load();
         if (e_time != e_time.zero()) {
-            collector.addStat(
-                    Key::ep_warmup_estimate_time,
-                    duration_cast<std::chrono::microseconds>(e_time).count());
+            collector.addStat(Key::ep_warmup_estimate_time,
+                              duration_cast<microseconds>(e_time).count());
         }
         collector.addStat(Key::ep_warmup_estimated_key_count, itemCount);
     }
@@ -2126,6 +2123,42 @@ void Warmup::addStats(const StatCollector& collector) const {
         collector.addStat(Key::ep_warmup_estimated_value_count, "unknown");
     } else {
         collector.addStat(Key::ep_warmup_estimated_value_count, warmupCount);
+    }
+}
+
+void Warmup::addSecondaryWarmupStats(const StatCollector& collector) const {
+    using namespace cb::stats;
+    using namespace std::chrono;
+    collector.addStat(Key::ep_secondary_warmup_status, getThreadStatState());
+    collector.addStat(Key::ep_secondary_warmup_time,
+                      duration_cast<microseconds>(getTime()).count());
+
+    const char* stateName = state.toString();
+    collector.addStat(Key::ep_secondary_warmup_state, stateName);
+    collector.addStat(Key::ep_secondary_warmup_min_memory_threshold,
+                      maxSizeScaleFactor * 100.0);
+    collector.addStat(Key::ep_secondary_warmup_min_items_threshold,
+                      maxItemsScaleFactor * 100.0);
+
+    auto md_time = metadata.load();
+    if (md_time > md_time.zero()) {
+        collector.addStat(Key::ep_secondary_warmup_keys_time,
+                          duration_cast<microseconds>(md_time).count());
+    }
+
+    if (corruptAccessLog) {
+        collector.addStat(Key::ep_secondary_warmup_access_log, "corrupt");
+    }
+
+    // Secondary uses the key count from Primary - so don't report the key count
+    // but Secondary should proceed to estimate the values
+    size_t warmupCount = estimatedValueCount.load();
+    if (warmupCount == std::numeric_limits<size_t>::max()) {
+        collector.addStat(Key::ep_secondary_warmup_estimated_value_count,
+                          "unknown");
+    } else {
+        collector.addStat(Key::ep_secondary_warmup_estimated_value_count,
+                          warmupCount);
     }
 }
 

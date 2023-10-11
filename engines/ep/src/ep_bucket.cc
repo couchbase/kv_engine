@@ -2313,9 +2313,12 @@ cb::engine_errc EPBucket::doWarmupStats(const AddStatFn& add_stat,
     // This call adds important stats that are required for correct operation of
     // the bucket, e.g. "ep_warmup_thread" that ns_server is monitoring. Thus if
     // secondary warmup exists, do not call addStats on the secondary instance
-    warmupTask->addStats(CBStatCollector(add_stat, cookie));
+    CBStatCollector collector(add_stat, cookie);
+    warmupTask->addStats(collector);
 
-    // @todo: MB-9418: add secondary warmup stats
+    if (secondaryWarmupTask) {
+        secondaryWarmupTask->addSecondaryWarmupStats(collector);
+    }
     return cb::engine_errc::success;
 }
 
