@@ -118,9 +118,9 @@ const char* Flusher::stateName(State st) const {
         return "stopped";
     }
     throw std::logic_error(
-            "Flusher::stateName: called with invalid "
-            "state:" +
-            std::to_string(int(st)));
+            fmt::format("Flusher({})::stateName: called with invalid state:{}",
+                        getId(),
+                        int(st)));
 }
 
 bool Flusher::transitionState(State to) {
