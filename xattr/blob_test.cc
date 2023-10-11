@@ -15,8 +15,6 @@
 #include <xattr/blob.h>
 #include <xattr/utils.h>
 
-#include "utilities/string_utilities.h"
-
 using namespace std::string_view_literals;
 
 TEST(XattrBlob, TestBlob) {
