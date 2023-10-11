@@ -10,14 +10,19 @@
  */
 
 #include "limited_concurrency_task.h"
+#include <engines/ep/src/ep_engine.h>
 
 LimitedConcurrencyTask::LimitedConcurrencyTask(
         EventuallyPersistentEngine& e,
         TaskId id,
         cb::AwaitableSemaphore& semaphore,
         bool completeBeforeShutdown)
-    : NotifiableTask(e, id, 0 /* initial sleeptime*/, completeBeforeShutdown),
+    : NotifiableTask(e.getTaskable(),
+                     id,
+                     0 /* initial sleeptime*/,
+                     completeBeforeShutdown),
       semaphore(semaphore) {
+    GlobalTask::engine = &e;
 }
 
 void LimitedConcurrencyTask::signal() {

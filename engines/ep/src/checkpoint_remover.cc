@@ -87,8 +87,7 @@ CheckpointMemRecoveryTask::CheckpointMemRecoveryTask(
         EPStats& st,
         size_t interval,
         size_t removerId)
-    : NotifiableTask(e, TaskId::CheckpointMemRecoveryTask, interval),
-      engine(&e),
+    : EpNotifiableTask(e, TaskId::CheckpointMemRecoveryTask, interval),
       stats(st),
       sleepTime(interval),
       removerId(removerId) {

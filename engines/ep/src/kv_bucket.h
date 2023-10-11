@@ -29,6 +29,7 @@
 #include <cstdlib>
 
 class CheckpointDestroyerTask;
+class CheckpointMemRecoveryTask;
 class BucketQuotaChangeTask;
 class DurabilityCompletionTask;
 class EPStats;
@@ -1224,7 +1225,7 @@ protected:
     cb::RelaxedAtomic<uint8_t> initialMfuValue;
 
     // Checkpoint recovery tasks. The number is determined by config param
-    std::vector<std::shared_ptr<NotifiableTask>> chkRemovers;
+    std::vector<std::shared_ptr<CheckpointMemRecoveryTask>> chkRemovers;
 
     /**
      * One or more tasks responsible for destroying checkpoints which are

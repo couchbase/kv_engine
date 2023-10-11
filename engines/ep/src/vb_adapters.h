@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include <executor/globaltask.h>
+#include "ep_task.h"
 #include <executor/notifiable_task.h>
 #include <memcached/vbucket.h>
 #include <relaxed_atomic.h>
@@ -137,7 +137,7 @@ private:
  * The callback will be called with runAgain=false when the engine starts
  * shutting down.
  */
-class SingleSteppingVisitorAdapter : public NotifiableTask,
+class SingleSteppingVisitorAdapter : public EpNotifiableTask,
                                      public CallbackAdapter {
 public:
     SingleSteppingVisitorAdapter(

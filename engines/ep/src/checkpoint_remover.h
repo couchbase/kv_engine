@@ -12,8 +12,8 @@
 
 #include "checkpoint.h"
 #include "checkpoint_types.h"
+#include "ep_task.h"
 #include "utilities/testing_hook.h"
-#include <executor/globaltask.h>
 #include <executor/notifiable_task.h>
 #include <folly/Synchronized.h>
 #include <mutex>
@@ -64,7 +64,7 @@ private:
 /**
  * Dispatcher job responsible for ItemExpel and CursorDrop/CheckpointRemoval
  */
-class CheckpointMemRecoveryTask : public NotifiableTask {
+class CheckpointMemRecoveryTask : public EpNotifiableTask {
 public:
     /**
      * @param e the engine
@@ -130,7 +130,6 @@ protected:
      */
     ReductionRequired attemptCursorDropping();
 
-    EventuallyPersistentEngine *engine;
     EPStats                   &stats;
     size_t                     sleepTime;
 

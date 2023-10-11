@@ -35,12 +35,6 @@ public:
                    bool completeBeforeShutdown = false)
         : GlobalTask(t, id, sleeptime, completeBeforeShutdown){};
 
-    NotifiableTask(EventuallyPersistentEngine& e,
-                   TaskId id,
-                   double sleeptime,
-                   bool completeBeforeShutdown = false)
-        : GlobalTask(e, id, sleeptime, completeBeforeShutdown){};
-
     bool run() override;
 
     void wakeup();
