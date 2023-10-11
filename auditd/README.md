@@ -288,6 +288,9 @@ the following fields:
   one day.  Minimum is 15 minutes)
 * rotate_size - number of bytes written to the file before rotating to a new
   file
+* audit_prune_age - (optional field) Prune all audit log files older than the
+  specified value (in seconds). (set to 0 (or remove) to disable the
+  functionality).
 * buffered - should buffered file IO be used or not
 * sync - list of event ids containing those events that are synchronous.
   Synchronous events are not supported in Sherlock and so this should be the

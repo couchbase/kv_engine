@@ -381,3 +381,15 @@ TEST_F(AuditConfigTest, TestSpecifyEventStates) {
     EXPECT_EQ(AuditConfig::EventState::enabled, config.get_event_state(20488));
     EXPECT_EQ(AuditConfig::EventState::disabled, config.get_event_state(20480));
 }
+
+TEST_F(AuditConfigTest, AuditPruneAge) {
+    config = AuditConfig(json);
+    EXPECT_FALSE(config.get_audit_prune_age().has_value());
+    json["audit_prune_age"] = 0;
+    config = AuditConfig(json);
+    EXPECT_FALSE(config.get_audit_prune_age().has_value());
+    json["audit_prune_age"] = 1000;
+    config = AuditConfig(json);
+    EXPECT_TRUE(config.get_audit_prune_age().has_value());
+    EXPECT_EQ(1000, config.get_audit_prune_age().value().count());
+}

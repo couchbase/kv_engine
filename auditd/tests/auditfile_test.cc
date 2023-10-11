@@ -7,16 +7,18 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-#include <platform/dirutils.h>
-
 #include "auditfile.h"
+#include <fmt/format.h>
 #include <folly/FileUtil.h>
 #include <folly/portability/GTest.h>
 #include <nlohmann/json.hpp>
+#include <platform/dirutils.h>
 #include <platform/platform_time.h>
+#include <platform/strerror.h>
+#include <platform/timeutils.h>
+#include <deque>
+#include <filesystem>
 #include <fstream>
-#include <iostream>
-#include <map>
 
 using cb::io::findFilesWithPrefix;
 
@@ -394,4 +396,87 @@ TEST_F(AuditFileTest, MB53282) {
     MockAuditFile auditfile;
     auditfile.reconfigure(config);
     auditfile.test_mb53282();
+}
+
+TEST_F(AuditFileTest, PruneFiles) {
+    class MockAuditFile : public AuditFile {
+    public:
+        explicit MockAuditFile(const std::filesystem::path& logdir)
+            : AuditFile("PruneFiles") {
+            set_log_directory(logdir.generic_string());
+            for (int ii = 0; ii < 10; ++ii) {
+                createAuditLogFile(
+                        logdir, "PruneFiles", std::chrono::hours(ii));
+            }
+        };
+
+        static void createAuditLogFile(const std::filesystem::path& logdir,
+                                       std::string_view hostname,
+                                       std::chrono::seconds seconds) {
+            using namespace std::filesystem;
+            auto ts = cb::time::timestamp(time(nullptr) - seconds.count())
+                              .substr(0, 19);
+            std::replace(ts.begin(), ts.end(), ':', '-');
+            auto filename = fmt::format("{}-{}-audit.log", hostname, ts);
+            auto path = logdir / fmt::format("{}-{}-audit.log", hostname, ts);
+            FILE* fp = fopen(path.generic_string().c_str(), "w");
+            if (!fp) {
+                throw std::runtime_error(fmt::format(
+                        "createAuditLogFile: Failed to create {}: {}",
+                        path.generic_string(),
+                        cb_strerror()));
+            }
+            fclose(fp);
+            auto ftime = file_time_type::clock::now() - seconds;
+            last_write_time(path, ftime);
+        }
+
+        void set_prune_age(std::chrono::seconds age) {
+            using namespace std::chrono;
+            audit_prune_age = age;
+            next_prune = steady_clock::now() - seconds(1);
+        }
+
+        std::deque<std::filesystem::path> get_log_files() {
+            std::deque<std::filesystem::path> ret;
+            for (const auto& p :
+                 std::filesystem::directory_iterator(log_directory)) {
+                if (is_regular_file(p.path())) {
+                    ret.push_back(p.path());
+                }
+            }
+
+            std::sort(ret.begin(), ret.end());
+            return ret;
+        }
+    };
+
+    MockAuditFile auditfile(testdir);
+    auto blueprint = auditfile.get_log_files();
+    EXPECT_EQ(10, blueprint.size());
+
+    // We don't have a prune time, so all files should be there
+    auditfile.prune_old_audit_files();
+    EXPECT_EQ(blueprint, auditfile.get_log_files());
+
+    // If we set the prune time longer than all the files they should still
+    // be there
+    auditfile.set_prune_age(std::chrono::hours(9) + std::chrono::minutes{30});
+    auditfile.prune_old_audit_files();
+    EXPECT_EQ(blueprint, auditfile.get_log_files());
+
+    // set the prune time between the two last files
+    auditfile.set_prune_age(std::chrono::hours(8) + std::chrono::minutes{30});
+    auditfile.prune_old_audit_files();
+    blueprint.pop_front();
+    EXPECT_EQ(blueprint, auditfile.get_log_files());
+
+    // Verify that we nuke multiple old files by specifying a time
+    // only leaving one file
+    auditfile.set_prune_age(std::chrono::minutes{30});
+    auditfile.prune_old_audit_files();
+    while (blueprint.size() > 1) {
+        blueprint.pop_front();
+    }
+    EXPECT_EQ(blueprint, auditfile.get_log_files());
 }

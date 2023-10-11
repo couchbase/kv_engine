@@ -11,7 +11,9 @@
 
 #include <nlohmann/json_fwd.hpp>
 #include <atomic>
+#include <chrono>
 #include <cinttypes>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility> // For std::pair
@@ -68,14 +70,19 @@ public:
     /// while holding a mutex ;))
     nlohmann::json get_audit_event_filter() const;
 
+    [[nodiscard]] std::optional<std::chrono::seconds> get_audit_prune_age()
+            const {
+        return audit_prune_age;
+    }
+
 protected:
     /// Temporary function until the server provides a new type of configuration
     std::vector<std::string> get_disabled_users() const;
-    void sanitize_path(std::string& path);
-    void add_array(std::vector<uint32_t>& vec,
-                   const nlohmann::json& array,
-                   const char* name);
-    void add_pair_string_array(
+    static void sanitize_path(std::string& path);
+    static void add_array(std::vector<uint32_t>& vec,
+                          const nlohmann::json& array,
+                          const char* name);
+    static void add_pair_string_array(
             std::vector<std::pair<std::string, std::string>>& vec,
             const nlohmann::json& array,
             const char* name);
@@ -86,6 +93,7 @@ protected:
     bool auditd_enabled{false};
     uint32_t rotate_interval{900};
     size_t rotate_size{20 * 1024 * 1024};
+    std::optional<std::chrono::seconds> audit_prune_age;
     bool buffered{true};
     bool filtering_enabled{false};
     uint32_t version{0};
