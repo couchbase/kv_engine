@@ -13,10 +13,9 @@
 #include "cb3_executorthread.h"
 #include "cb3_taskqueue.h"
 
-#include <engines/ep/src/ep_engine.h>
-#include <engines/ep/src/objectregistry.h>
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
+#include <platform/cb_arena_malloc.h>
 #include <platform/checked_snprintf.h>
 #include <platform/string_hex.h>
 #include <platform/sysinfo.h>
@@ -235,7 +234,7 @@ bool CB3ExecutorPool::cancel(size_t taskId, bool remove) {
     // bucket, so an explicit BucketAllocationGuard encloses the forced reset
     // of 'task'
     {
-        NonBucketAllocationGuard guard;
+        cb::NoArenaGuard guard;
         task = _cancel(taskId, remove);
     }
 
@@ -246,8 +245,7 @@ bool CB3ExecutorPool::cancel(size_t taskId, bool remove) {
     // other ExecutorPool methods, e.g. pool->schedule(my_cleanup_task);
     bool taskFound = task != nullptr;
     if (task) {
-        BucketAllocationGuard bucketGuard(task->getEngine());
-        task.reset();
+        task->getTaskable().invokeViaTaskable([&task]() { task.reset(); });
     }
     return taskFound;
 }
@@ -263,7 +261,7 @@ bool CB3ExecutorPool::_wake(size_t taskId) {
 }
 
 bool CB3ExecutorPool::wakeAndWait(size_t taskId) {
-    NonBucketAllocationGuard guard;
+    cb::NoArenaGuard guard;
     bool rv = _wake(taskId);
     return rv;
 }
@@ -279,7 +277,7 @@ bool CB3ExecutorPool::_snooze(size_t taskId, double toSleep) {
 }
 
 bool CB3ExecutorPool::snoozeAndWait(size_t taskId, double toSleep) {
-    NonBucketAllocationGuard guard;
+    cb::NoArenaGuard guard;
     bool rv = _snooze(taskId, toSleep);
     return rv;
 }
@@ -368,7 +366,7 @@ size_t CB3ExecutorPool::_schedule(ExTask task) {
 }
 
 size_t CB3ExecutorPool::schedule(ExTask task) {
-    NonBucketAllocationGuard guard;
+    cb::NoArenaGuard guard;
     size_t rv = _schedule(task);
     return rv;
 }
@@ -416,7 +414,7 @@ void CB3ExecutorPool::_registerTaskable(Taskable& taskable) {
 }
 
 void CB3ExecutorPool::registerTaskable(Taskable& taskable) {
-    NonBucketAllocationGuard guard;
+    cb::NoArenaGuard guard;
     _registerTaskable(taskable);
 }
 
@@ -508,7 +506,7 @@ void CB3ExecutorPool::_adjustWorkers(task_type_t type, size_t desiredNumItems) {
 }
 
 void CB3ExecutorPool::adjustWorkers(task_type_t type, size_t newCount) {
-    NonBucketAllocationGuard guard;
+    cb::NoArenaGuard guard;
     _adjustWorkers(type, newCount);
 }
 
@@ -622,7 +620,7 @@ void CB3ExecutorPool::_unregisterTaskable(Taskable& taskable, bool force) {
 }
 
 void CB3ExecutorPool::unregisterTaskable(Taskable& taskable, bool force) {
-    NonBucketAllocationGuard guard;
+    cb::NoArenaGuard guard;
     _unregisterTaskable(taskable, force);
 }
 
@@ -633,7 +631,7 @@ void CB3ExecutorPool::doTaskQStat(Taskable& taskable,
         return;
     }
 
-    NonBucketAllocationGuard guard;
+    cb::NoArenaGuard guard;
     try {
         std::array<char, 80> statname{};
         if (isHiPrioQset) {
@@ -734,7 +732,7 @@ void CB3ExecutorPool::doWorkerStat(Taskable& taskable,
         return;
     }
 
-    NonBucketAllocationGuard guard;
+    cb::NoArenaGuard guard;
     std::lock_guard<std::mutex> lh(tMutex);
     // TODO: implement tracking per engine stats ..
     for (auto& tidx : threadQ) {
@@ -749,7 +747,7 @@ void CB3ExecutorPool::doTasksStat(Taskable& taskable,
         return;
     }
 
-    NonBucketAllocationGuard guard;
+    cb::NoArenaGuard guard;
 
     std::map<size_t, TaskQpair> taskLocatorCopy;
 
@@ -808,9 +806,7 @@ void CB3ExecutorPool::doTasksStat(Taskable& taskable,
     // memory is accounted to the correct bucket.
     for (auto& pair : taskLocatorCopy) {
         auto& task = pair.second.first;
-        auto* engine = task->getEngine();
-        BucketAllocationGuard guard(engine);
-        task.reset();
+        task->getTaskable().invokeViaTaskable([&task]() { task.reset(); });
     }
 }
 

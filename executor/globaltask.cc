@@ -10,11 +10,8 @@
  */
 
 #include "globaltask.h"
-
-#include <engines/ep/src/ep_engine.h>
-#include <engines/ep/src/objectregistry.h>
+#include "taskable.h"
 #include <fmt/format.h>
-#include <folly/lang/Hint.h>
 #include <utilities/debug_variable.h>
 #include <climits>
 
@@ -35,7 +32,6 @@ GlobalTask::GlobalTask(Taskable& t,
       state(TASK_RUNNING),
       uid(nextTaskId()),
       taskId(taskId),
-      engine(nullptr),
       taskable(t),
       totalRuntime(0),
       previousRuntime(0),
@@ -44,35 +40,13 @@ GlobalTask::GlobalTask(Taskable& t,
     snooze(initialSleepTime);
 }
 
-GlobalTask::GlobalTask(EventuallyPersistentEngine& e,
-                       TaskId taskId,
-                       double initialSleepTime,
-                       bool completeBeforeShutdown)
-    : GlobalTask(e.getTaskable(),
-                 taskId,
-                 initialSleepTime,
-                 completeBeforeShutdown) {
-    engine = &e;
-}
-
-GlobalTask::~GlobalTask() {
-    // Why is this here? We are dereferencing this pointer to try and catch in
-    // CV any destruction ordering issues (where the engine was destructed
-    // before the task). ASAN should catch such an issue. Note that the engine
-    // can be null in some unit tests
-    if (engine) {
-        folly::compiler_must_not_elide(engine->getConfiguration());
-    }
-}
+GlobalTask::~GlobalTask() = default;
 
 bool GlobalTask::execute(std::string_view threadName) {
     using namespace std::chrono;
     if (isdead()) {
         return false;
     }
-
-    // Invoke run with the engine as the target for alloc/dalloc
-    BucketAllocationGuard guard(engine);
 
     // Put the taskable name on the stack so we know which bucket's task was
     // running if we happen to crash.

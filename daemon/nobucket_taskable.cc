@@ -69,3 +69,9 @@ void NoBucketTaskable::logRunTime(const GlobalTask& task,
     auto us = std::chrono::duration_cast<std::chrono::microseconds>(runtime);
     stats.taskRuntimeHistogram[static_cast<int>(task.getTaskId())].add(us);
 }
+
+void NoBucketTaskable::invokeViaTaskable(std::function<void()> fn) {
+    // No specific memory tracking for NoBucketTaskable, memory is just
+    // accounted to the global (no bucket) client.
+    fn();
+}

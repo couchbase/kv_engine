@@ -47,7 +47,6 @@ enum class TaskPriority : int {
 };
 
 class Taskable;
-class EventuallyPersistentEngine;
 
 class GlobalTask {
     friend class CompareByDueDate;
@@ -56,11 +55,6 @@ class GlobalTask {
 
 public:
     GlobalTask(Taskable& t,
-               TaskId taskId,
-               double sleeptime = 0,
-               bool completeBeforeShutdown = true);
-
-    GlobalTask(EventuallyPersistentEngine& e,
                TaskId taskId,
                double sleeptime = 0,
                bool completeBeforeShutdown = true);
@@ -145,15 +139,6 @@ public:
      */
     TaskId getTaskId() const {
         return taskId;
-    }
-
-    /**
-     * Gets the engine that this task was scheduled from
-     *
-     * @returns A handle to the engine
-     */
-    EventuallyPersistentEngine* getEngine() {
-        return engine;
     }
 
     task_state_t getState() {
@@ -294,7 +279,6 @@ protected:
     const size_t uid;
     const TaskId taskId;
     TaskPriority priority;
-    EventuallyPersistentEngine* engine;
     Taskable& taskable;
 
     static std::atomic<size_t> task_id_counter;

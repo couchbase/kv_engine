@@ -38,6 +38,8 @@ public:
 
     bool isShutdown() const override;
 
+    void invokeViaTaskable(std::function<void()> fn) override;
+
     /// Get the one and only instance of the NoBucketTaskable
     static NoBucketTaskable& instance();
 

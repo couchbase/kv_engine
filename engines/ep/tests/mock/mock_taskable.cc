@@ -17,6 +17,8 @@ MockTaskable::MockTaskable(std::string name, bucket_priority_t priority)
     : name(std::move(name)), policy(priority, 1) {
     using namespace ::testing;
     ON_CALL(*this, isShutdown()).WillByDefault(Return(false));
+    ON_CALL(*this, invokeViaTaskable)
+            .WillByDefault([](std::function<void()> fn) { fn(); });
 }
 
 const std::string& MockTaskable::getName() const {

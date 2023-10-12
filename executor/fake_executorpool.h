@@ -25,8 +25,7 @@
 #include "cb3_executorpool.h"
 #include "cb3_executorthread.h"
 #include "cb3_taskqueue.h"
-
-#include <engines/ep/src/objectregistry.h>
+#include <platform/cb_arena_malloc.h>
 #include <memory>
 
 class SingleThreadedExecutorPool : public CB3ExecutorPool {
@@ -61,7 +60,7 @@ public:
         // taskLocator is shared across all buckets; any deallocations
         // happening during clear() should not be associated with any specific
         // bucket.
-        NonBucketAllocationGuard guard;
+        cb::NoArenaGuard guard;
         taskLocator.clear();
     }
 

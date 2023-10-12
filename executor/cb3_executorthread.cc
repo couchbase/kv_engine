@@ -14,10 +14,10 @@
 #include "cb3_taskqueue.h"
 #include "globaltask.h"
 
-#include <engines/ep/src/objectregistry.h>
 #include <folly/Portability.h>
 #include <folly/portability/SysResource.h>
 #include <logger/logger.h>
+#include <platform/cb_arena_malloc.h>
 #include <platform/timeutils.h>
 #include <chrono>
 #include <queue>
@@ -71,7 +71,7 @@ void CB3ExecutorThread::run() {
     // will accounting be back on. GlobalTask::execute will switch to the bucket
     // and CB3ExecutorPool::cancel will guard the task delete clause with the
     // BucketAllocationGuard to account task deletion to the bucket.
-    NonBucketAllocationGuard guard;
+    cb::NoArenaGuard guard;
 
     // Set priority based on this thread's task type.
 #if defined(__linux__)
@@ -169,8 +169,8 @@ void CB3ExecutorThread::resetCurrentTask() {
     {
         // Freeing of the Task object should be accounted to the engine
         // which owns it.
-        BucketAllocationGuard bucketGuard(resetThisObject->getEngine());
-        resetThisObject.reset();
+        resetThisObject->getTaskable().invokeViaTaskable(
+                [&resetThisObject]() { resetThisObject.reset(); });
     }
 }
 

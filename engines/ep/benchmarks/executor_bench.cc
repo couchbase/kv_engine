@@ -59,6 +59,10 @@ public:
         return false;
     }
 
+    void invokeViaTaskable(std::function<void()> fn) override {
+        fn();
+    }
+
 private:
     std::string name{"NullTaskable"};
     WorkLoadPolicy policy{HIGH_BUCKET_PRIORITY, 1};

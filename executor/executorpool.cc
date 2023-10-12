@@ -15,7 +15,6 @@
 #include "folly_executorpool.h"
 #include "mock_executor_pool.h"
 
-#include <engines/ep/src/objectregistry.h>
 #include <folly/lang/Assume.h>
 #include <vector>
 
@@ -75,7 +74,7 @@ ExecutorPool* ExecutorPool::get() {
 }
 
 void ExecutorPool::shutdown() {
-    NonBucketAllocationGuard guard;
+    cb::NoArenaGuard guard;
     getInstance().reset();
 }
 

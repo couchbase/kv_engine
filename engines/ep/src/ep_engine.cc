@@ -6970,6 +6970,11 @@ bool EpEngineTaskable::isShutdown() const {
     return myEngine->getEpStats().isShutdown;
 }
 
+void EpEngineTaskable::invokeViaTaskable(std::function<void()> fn) {
+    BucketAllocationGuard guard(myEngine);
+    fn();
+}
+
 item_info EventuallyPersistentEngine::getItemInfo(const Item& item) {
     VBucketPtr vb = getKVBucket()->getVBucket(item.getVBucketId());
     uint64_t uuid = 0;

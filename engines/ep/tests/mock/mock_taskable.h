@@ -45,6 +45,11 @@ public:
 
     MOCK_METHOD(bool, isShutdown, (), (const override));
 
+    MOCK_METHOD(void,
+                invokeViaTaskable,
+                (std::function<void()> fn),
+                (override));
+
 protected:
     const std::string name;
     WorkLoadPolicy policy;

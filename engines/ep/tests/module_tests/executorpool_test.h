@@ -21,6 +21,7 @@
 #include <executor/executorpool.h>
 #include <executor/fake_executorpool.h>
 #include <folly/portability/GTest.h>
+#include <platform/cb_arena_malloc.h>
 #include <thread>
 
 class TestExecutorPool : public CB3ExecutorPool {
@@ -91,7 +92,7 @@ class SingleThreadedExecutorPoolTest : public ::testing::Test {
 public:
     void SetUp() override {
         {
-            NonBucketAllocationGuard guard;
+            cb::NoArenaGuard guard;
             ExecutorPool::create(ExecutorPool::Backend::Fake);
         }
         pool = ExecutorPool::get();

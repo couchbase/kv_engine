@@ -15,6 +15,7 @@
 #include "ep_bucket.h"
 #include "ep_time.h"
 #include "item.h"
+#include "objectregistry.h"
 
 #include <executor/fake_executorpool.h>
 #include <mock/mock_synchronous_ep_engine.h>

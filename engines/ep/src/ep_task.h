@@ -34,6 +34,19 @@ public:
     ~EpTask() override;
 
     bool execute(std::string_view threadName) override;
+
+    /**
+     * Gets the engine that this task was scheduled from
+     *
+     * @returns A handle to the engine
+     */
+    EventuallyPersistentEngine* getEngine() {
+        return engine;
+    }
+
+protected:
+    /// The engine which owns this task.
+    EventuallyPersistentEngine* const engine;
 };
 
 /**

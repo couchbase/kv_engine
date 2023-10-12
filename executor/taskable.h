@@ -19,6 +19,7 @@
 #include "workload.h"
 
 #include <chrono>
+#include <functional>
 
 /*
     A type for identifying all tasks belonging to a task owner.
@@ -77,6 +78,14 @@ public:
     virtual void logRunTime(const GlobalTask& task,
                             std::string_view threadName,
                             std::chrono::steady_clock::duration runTime) = 0;
+
+    /**
+     * Call the given function in the context of this taskable - any memory
+     * (de)allocated by fn should be accounted to the given taskable.
+     *
+     * @param fn
+     */
+    virtual void invokeViaTaskable(std::function<void()> fn) = 0;
 
     /// @returns True if the Taskable is (in the process of) shutting down.
     virtual bool isShutdown() const = 0;

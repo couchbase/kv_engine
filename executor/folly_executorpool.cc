@@ -15,13 +15,13 @@
 #include "globaltask.h"
 #include "taskable.h"
 
-#include <engines/ep/src/objectregistry.h>
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <folly/executors/IOThreadPoolExecutor.h>
 #include <folly/executors/thread_factory/PriorityThreadFactory.h>
 #include <logger/logger.h>
 #include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
+#include <platform/cb_arena_malloc.h>
 #include <platform/string_hex.h>
 #include <statistics/cbstat_collector.h>
 #include <statistics/collector.h>
@@ -211,9 +211,11 @@ struct FollyExecutorPool::TaskProxy : public folly::HHWheelTimer::Callback {
             // retained a refcount.
             // Must account this to the relevent bucket.
             {
-                BucketAllocationGuard guard(ptrToReset->getEngine());
-                ptrToReset.reset();
-                pendingResets--;
+                ptrToReset->getTaskable().invokeViaTaskable(
+                        [&ptrToReset, &pendingResets]() {
+                            ptrToReset.reset();
+                            pendingResets--;
+                        });
             }
         };
 
@@ -795,7 +797,7 @@ size_t FollyExecutorPool::getNumReadyTasks() const {
 }
 
 void FollyExecutorPool::registerTaskable(Taskable& taskable) {
-    NonBucketAllocationGuard guard;
+    cb::NoArenaGuard guard;
 
     if (taskable.getWorkLoadPolicy().getBucketPriority() <
         HIGH_BUCKET_PRIORITY) {
@@ -815,7 +817,7 @@ void FollyExecutorPool::registerTaskable(Taskable& taskable) {
 }
 
 void FollyExecutorPool::unregisterTaskable(Taskable& taskable, bool force) {
-    NonBucketAllocationGuard guard;
+    cb::NoArenaGuard guard;
 
     LOG_TRACE("FollyExecutorPool::unregisterTaskable() taskable:'{}' force:{}",
               taskable.getName(),
@@ -916,7 +918,7 @@ void FollyExecutorPool::unregisterTaskable(Taskable& taskable, bool force) {
 }
 
 size_t FollyExecutorPool::getNumTaskables() const {
-    NonBucketAllocationGuard guard;
+    cb::NoArenaGuard guard;
     int numTaskables = 0;
     futurePool->getEventBase()->runImmediatelyOrRunInEventBaseThreadAndWait(
             [state = this->state.get(), &numTaskables] {
@@ -926,7 +928,7 @@ size_t FollyExecutorPool::getNumTaskables() const {
 }
 
 size_t FollyExecutorPool::schedule(ExTask task) {
-    NonBucketAllocationGuard guard;
+    cb::NoArenaGuard guard;
 
     using namespace std::chrono;
     LOG_TRACE("FollyExecutorPool::schedule() id:{} name:{} type:{} wakeTime:{}",
@@ -947,7 +949,7 @@ size_t FollyExecutorPool::schedule(ExTask task) {
 }
 
 bool FollyExecutorPool::cancel(size_t taskId, bool eraseTask) {
-    NonBucketAllocationGuard guard;
+    cb::NoArenaGuard guard;
 
     LOG_TRACE("FollyExecutorPool::cancel() id:{} eraseTask:{}",
               taskId,
@@ -963,7 +965,7 @@ bool FollyExecutorPool::cancel(size_t taskId, bool eraseTask) {
 }
 
 void FollyExecutorPool::wake(size_t taskId) {
-    NonBucketAllocationGuard guard;
+    cb::NoArenaGuard guard;
 
     LOG_TRACE("FollyExecutorPool::wake() id:{}", taskId);
 
@@ -973,7 +975,7 @@ void FollyExecutorPool::wake(size_t taskId) {
 }
 
 bool FollyExecutorPool::wakeAndWait(size_t taskId) {
-    NonBucketAllocationGuard guard;
+    cb::NoArenaGuard guard;
 
     LOG_TRACE("FollyExecutorPool::wakeAndWait() id:{}", taskId);
 
@@ -987,7 +989,7 @@ bool FollyExecutorPool::wakeAndWait(size_t taskId) {
 }
 
 void FollyExecutorPool::snooze(size_t taskId, double toSleep) {
-    NonBucketAllocationGuard guard;
+    cb::NoArenaGuard guard;
     using namespace std::chrono;
     LOG_TRACE("FollyExecutorPool::snooze() id:{} toSleep:{}", taskId, toSleep);
 
@@ -998,7 +1000,7 @@ void FollyExecutorPool::snooze(size_t taskId, double toSleep) {
 }
 
 bool FollyExecutorPool::snoozeAndWait(size_t taskId, double toSleep) {
-    NonBucketAllocationGuard guard;
+    cb::NoArenaGuard guard;
     using namespace std::chrono;
     LOG_TRACE("FollyExecutorPool::snoozeAndWait() id:{} toSleep:{}",
               taskId,
@@ -1028,7 +1030,7 @@ void FollyExecutorPool::doWorkerStat(Taskable& taskable,
 void FollyExecutorPool::doTasksStat(Taskable& taskable,
                                     CookieIface& cookie,
                                     const AddStatFn& add_stat) {
-    NonBucketAllocationGuard guard;
+    cb::NoArenaGuard guard;
 
     // Take a copy of the taskOwners map.
     auto* eventBase = futurePool->getEventBase();
@@ -1076,16 +1078,14 @@ void FollyExecutorPool::doTasksStat(Taskable& taskable,
     // running. As such, we need to ensure that if the task is deleted, its
     // memory is accounted to the correct bucket.
     for (auto& task : tasks) {
-        auto* engine = task->getEngine();
-        BucketAllocationGuard guard(engine);
-        task.reset();
+        task->getTaskable().invokeViaTaskable([&task]() { task.reset(); });
     }
 }
 
 void FollyExecutorPool::doTaskQStat(Taskable& taskable,
                                     CookieIface& cookie,
                                     const AddStatFn& add_stat) {
-    NonBucketAllocationGuard guard;
+    cb::NoArenaGuard guard;
 
     // Count how many tasks of each type are waiting to run - defined by
     // having an outstanding timeout.

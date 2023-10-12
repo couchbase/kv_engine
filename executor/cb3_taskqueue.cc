@@ -12,8 +12,8 @@
 #include "cb3_executorpool.h"
 #include "cb3_executorthread.h"
 
-#include <engines/ep/src/objectregistry.h>
 #include <logger/logger.h>
+#include <platform/cb_arena_malloc.h>
 #include <cmath>
 
 TaskQueue::TaskQueue(CB3ExecutorPool* m, task_type_t t, const char* nm)
@@ -143,12 +143,12 @@ bool TaskQueue::_fetchNextTaskInner(CB3ExecutorThread& t,
 }
 
 bool TaskQueue::fetchNextTask(CB3ExecutorThread& thread) {
-    NonBucketAllocationGuard guard;
+    cb::NoArenaGuard guard;
     return _fetchNextTask(thread);
 }
 
 bool TaskQueue::sleepThenFetchNextTask(CB3ExecutorThread& thread) {
-    NonBucketAllocationGuard guard;
+    cb::NoArenaGuard guard;
     return _sleepThenFetchNextTask(thread);
 }
 
@@ -184,7 +184,7 @@ std::chrono::steady_clock::time_point TaskQueue::_reschedule(ExTask& task) {
 }
 
 std::chrono::steady_clock::time_point TaskQueue::reschedule(ExTask& task) {
-    NonBucketAllocationGuard guard;
+    cb::NoArenaGuard guard;
     auto rv = _reschedule(task);
     return rv;
 }
@@ -216,7 +216,7 @@ void TaskQueue::_schedule(ExTask& task) {
 }
 
 void TaskQueue::schedule(ExTask& task) {
-    NonBucketAllocationGuard guard;
+    cb::NoArenaGuard guard;
     _schedule(task);
 }
 
@@ -245,6 +245,6 @@ void TaskQueue::_wake(ExTask& task) {
 }
 
 void TaskQueue::wake(ExTask& task) {
-    NonBucketAllocationGuard guard;
+    cb::NoArenaGuard guard;
     _wake(task);
 }

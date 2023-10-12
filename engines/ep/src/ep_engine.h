@@ -92,6 +92,8 @@ public:
 
     bool isShutdown() const override;
 
+    void invokeViaTaskable(std::function<void()> fn) override;
+
 private:
     EventuallyPersistentEngine* myEngine;
 };

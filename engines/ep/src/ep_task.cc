@@ -21,8 +21,8 @@ EpTask::EpTask(EventuallyPersistentEngine& e,
     : GlobalTask(e.getTaskable(),
                  taskId,
                  initialSleepTime,
-                 completeBeforeShutdown) {
-    GlobalTask::engine = &e;
+                 completeBeforeShutdown),
+      engine(&e) {
 }
 
 EpTask::~EpTask() {
