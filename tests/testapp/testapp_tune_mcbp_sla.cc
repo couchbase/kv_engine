@@ -10,9 +10,6 @@
  */
 #include "testapp_client_test.h"
 #include <mcbp/mcbp.h>
-#include <platform/dirutils.h>
-#include <utilities/string_utilities.h>
-#include <filesystem>
 #include <thread>
 
 /**
@@ -124,28 +121,22 @@ TEST_P(TuneMcbpSla, SlowCommandLogging) {
     // containing ": Slow operation: "
     auto findLogLines = []() {
         std::vector<std::string> ret;
-        for (const auto& p :
-             std::filesystem::directory_iterator(mcd_env->getLogDir())) {
-            if (is_regular_file(p)) {
-                auto lines = split_string(
-                        cb::io::loadFile(p.path().generic_string()), "\n");
-                for (auto& l : lines) {
-                    if (l.find(": Slow operation: ") != std::string::npos) {
-                        // The line may be partial!
-                        auto idx = l.find('{');
-                        if (idx != std::string::npos) {
-                            try {
-                                const auto json =
-                                        nlohmann::json::parse(l.substr(idx));
-                                // We've got the complete line.. use it
-                                ret.emplace_back(std::move(l));
-                            } catch (const std::exception& exception) {
-                            }
-                        }
+        mcd_env->iterateLogLines([&ret](auto line) {
+            if (line.find(": Slow operation: ") != std::string::npos) {
+                // The line may be partial!
+                auto idx = line.find('{');
+                if (idx != std::string::npos) {
+                    try {
+                        const auto json =
+                                nlohmann::json::parse(line.substr(idx));
+                        // We've got the complete line; use it
+                        ret.emplace_back(std::string{line});
+                    } catch (const std::exception& exception) {
                     }
                 }
             }
-        }
+            return true;
+        });
         return ret;
     };
 
