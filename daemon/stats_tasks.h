@@ -35,25 +35,38 @@ public:
 protected:
     bool run() final;
 
-    using StatVector = std::vector<std::pair<std::string, std::string>>;
-
     /**
      * The sub-classes of the task should override this method and
      * populate the error code and the stats vector with the values
+     * by calling add_stat_callback(k, v, cookie).
      *
      * @param command_error The result of the command
-     * @param stats The statistics generated
+     * @param add_stat_callback The callback to append stats
      */
     virtual void getStats(cb::engine_errc& command_error,
-                          StatVector& stats) = 0;
+                          const AddStatFn& add_stat_callback) = 0;
 
     StatsTask(TaskId id, Cookie& cookie);
     Cookie& cookie;
 
+private:
+    using StatVector = std::vector<std::pair<std::string, std::string>>;
     struct TaskData {
         cb::engine_errc command_error{cb::engine_errc::success};
         StatVector stats;
     };
+
+    /**
+     * Callback from the getStats implementation of the sub-class.
+     *
+     * @param writable_data Provides synchronised access to the task data.
+     * @param k The stat key.
+     * @param v The stat value.
+     */
+    void addStatCallback(TaskData& writable_data,
+                         std::string_view k,
+                         std::string_view v);
+
     folly::Synchronized<TaskData, std::mutex> taskData;
 };
 
@@ -70,9 +83,8 @@ public:
     std::chrono::microseconds maxExpectedDuration() const override;
 
 protected:
-    void getStats(
-            cb::engine_errc& command_error,
-            std::vector<std::pair<std::string, std::string>>& stats) override;
+    void getStats(cb::engine_errc& command_error,
+                  const AddStatFn& add_stat_callback) override;
 
     std::string key;
     std::string value;
@@ -85,9 +97,8 @@ public:
     std::chrono::microseconds maxExpectedDuration() const override;
 
 protected:
-    void getStats(
-            cb::engine_errc& command_error,
-            std::vector<std::pair<std::string, std::string>>& stats) override;
+    void getStats(cb::engine_errc& command_error,
+                  const AddStatFn& add_stat_callback) override;
     const int64_t fd;
 };
 
@@ -99,7 +110,6 @@ public:
     std::chrono::microseconds maxExpectedDuration() const override;
 
 protected:
-    void getStats(
-            cb::engine_errc& command_error,
-            std::vector<std::pair<std::string, std::string>>& stats) override;
+    void getStats(cb::engine_errc& command_error,
+                  const AddStatFn& add_stat_callback) override;
 };

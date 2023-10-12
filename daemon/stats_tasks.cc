@@ -37,7 +37,12 @@ void StatsTask::iterateStats(
 
 bool StatsTask::run() {
     taskData.withLock([this](auto& data) {
-        getStats(data.command_error, data.stats);
+        auto addStatFn = [this, &data](std::string_view key,
+                                       std::string_view value,
+                                       CookieIface&) {
+            addStatCallback(data, key, value);
+        };
+        getStats(data.command_error, addStatFn);
         // If the handler isn't would_block we should signal the cookie
         // with "success" causing the state machine to read the actual
         // status from the task. If it is "would block" the underlying
@@ -49,6 +54,12 @@ bool StatsTask::run() {
     return false;
 }
 
+void StatsTask::addStatCallback(TaskData& writable_data,
+                                std::string_view k,
+                                std::string_view v) {
+    writable_data.stats.emplace_back(k, v);
+}
+
 StatsTaskBucketStats::StatsTaskBucketStats(Cookie& cookie,
                                            std::string key,
                                            std::string value)
@@ -58,16 +69,14 @@ StatsTaskBucketStats::StatsTaskBucketStats(Cookie& cookie,
 }
 
 void StatsTaskBucketStats::getStats(cb::engine_errc& command_error,
-                                    StatVector& stats) {
+                                    const AddStatFn& add_stat_callback) {
     command_error = bucket_get_stats(
             cookie,
             key,
             cb::const_byte_buffer(
                     reinterpret_cast<const uint8_t*>(value.data()),
                     value.size()),
-            [&stats](std::string_view k, std::string_view v, CookieIface&) {
-                stats.emplace_back(k, v);
-            });
+            add_stat_callback);
 }
 
 std::string StatsTaskBucketStats::getDescription() const {
@@ -83,14 +92,14 @@ StatsTaskConnectionStats::StatsTaskConnectionStats(Cookie& cookie, int64_t fd)
 }
 
 void StatsTaskConnectionStats::getStats(cb::engine_errc& command_error,
-                                        StatVector& stats) {
+                                        const AddStatFn& add_stat_callback) {
     try {
-        iterate_all_connections([this, &stats](Connection& c) -> void {
-            if (fd == -1 || c.getId() == fd) {
-                stats.emplace_back(std::make_pair<std::string, std::string>(
-                        {}, c.to_json().dump()));
-            }
-        });
+        iterate_all_connections(
+                [this, &add_stat_callback](Connection& c) -> void {
+                    if (fd == -1 || c.getId() == fd) {
+                        add_stat_callback({}, c.to_json().dump(), cookie);
+                    }
+                });
     } catch (const std::exception& exception) {
         LOG_WARNING(
                 "{}: StatsTaskConnectionStats::getStats(): An exception "
@@ -120,13 +129,13 @@ StatsTaskClientConnectionDetails::StatsTaskClientConnectionDetails(
     : StatsTask(TaskId::Core_StatsConnectionTask, cookie) {
 }
 
-void StatsTaskClientConnectionDetails::getStats(cb::engine_errc& command_error,
-                                                StatVector& stats) {
+void StatsTaskClientConnectionDetails::getStats(
+        cb::engine_errc& command_error, const AddStatFn& add_stat_callback) {
     const auto clientConnectionMap =
             FrontEndThread::getClientConnectionDetails();
     const auto now = std::chrono::steady_clock::now();
     for (const auto& [ip, entry] : clientConnectionMap) {
-        stats.emplace_back(std::string(ip), entry.to_json(now).dump());
+        add_stat_callback(std::string(ip), entry.to_json(now).dump(), cookie);
     }
 }
 
