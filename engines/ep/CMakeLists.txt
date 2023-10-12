@@ -107,7 +107,6 @@ target_link_libraries(kvstore_gen PRIVATE
         ep-engine_collections
         mcd_executor
         mcbp
-        mcd_time
         mcd_tracing
         mcd_util
         hdrhistogram
@@ -123,7 +122,6 @@ target_link_libraries(pid_runner
         ep-engine_collections
         mcd_executor
         mcbp
-        mcd_time
         mcd_tracing
         xattr
         ${EP_STORAGE_LIBS})
@@ -453,7 +451,6 @@ target_link_libraries(ep
                 ep-engine_collections
                 mcbp
                 mcd_executor
-                mcd_time
                 mcd_tracing
                 mcd_util
                 phosphor
@@ -564,7 +561,6 @@ TARGET_LINK_LIBRARIES(ep_engine_benchmarks
                 GTest::gmock
                 mcbp
                 mcd_util
-                mcd_time
                 mcd_tracing
                 memcached_logger
                 phosphor
@@ -596,7 +592,6 @@ target_link_libraries(ep-engine_sizes
                 ep-engine_collections
                 mcbp
                 mcd_executor
-                mcd_time
                 mcd_tracing
                 mcd_util
                 phosphor

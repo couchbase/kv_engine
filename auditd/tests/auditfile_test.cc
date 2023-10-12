@@ -12,7 +12,6 @@
 #include "auditfile.h"
 #include <folly/FileUtil.h>
 #include <folly/portability/GTest.h>
-#include <memcached/isotime.h>
 #include <nlohmann/json.hpp>
 #include <platform/platform_time.h>
 #include <fstream>

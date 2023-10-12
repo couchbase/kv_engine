@@ -166,7 +166,6 @@ target_link_libraries(ep-engine_ep_unit_tests PRIVATE
         mcbp
         mcd_util
         mcd_test_util
-        mcd_time
         mcd_tracing
         mock_server
         platform
