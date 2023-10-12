@@ -417,7 +417,7 @@ flatbuffers::DetachedBuffer Flush::encodeOpenCollections(
                                 builder.CreateString(entry->name()),
                                 getHistoryFromCanDeduplicate(
                                         meta.canDeduplicate),
-                                entry->metered()));
+                                Collections::getMeteredFromEnum(meta.metered)));
 
             } else {
                 // Here we maintain the startSeqno of the dropped collection

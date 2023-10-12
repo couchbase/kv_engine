@@ -485,6 +485,24 @@ TEST_P(CollectionsKVStoreTest, epochAndModify) {
     applyAndCheck(cm);
 }
 
+// Created for MB-59088, modify a collection to enable metering depending on
+// the "batching" of the flush would use the wrong (unmodified) state.
+TEST_P(CollectionsKVStoreTest, MB_59088_modifyMetering) {
+    CollectionsManifest cm;
+    // Flush an unrelated collection, this ensures that the kvstore data exists
+    // ready for the next flush.
+    cm.add(CollectionEntry::vegetable, std::chrono::seconds{1});
+    applyAndCheck(cm);
+
+    // Just like the MB, modify the default collection to enable metering in
+    // a single "flush", Prior to the fix this test would detect that the
+    // kvstore meta collection state did not change.
+    auto entry = CollectionEntry::defaultC;
+    entry.metered = true;
+    cm.update(entry, cb::NoExpiryLimit);
+    applyAndCheck(cm);
+}
+
 // Check that the history state persists and comes back
 TEST_P(CollectionsKVStoreTest, one_update_with_history) {
     CollectionsManifest cm;
