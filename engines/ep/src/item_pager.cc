@@ -336,8 +336,7 @@ ExpiredItemPager::ExpiredItemPager(EventuallyPersistentEngine& e,
                                    size_t stime,
                                    ssize_t taskTime,
                                    int numConcurrentExpiryPagers)
-    : GlobalTask(
-              e, TaskId::ExpiredItemPager, static_cast<double>(stime), false),
+    : EpTask(e, TaskId::ExpiredItemPager, static_cast<double>(stime), false),
       engine(&e),
       stats(st),
       pagerSemaphore(

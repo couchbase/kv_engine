@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include <executor/globaltask.h>
+#include "ep_task.h"
 #include <string>
 
 class KVBucketIface;
@@ -20,7 +20,7 @@ class KVBucketIface;
  * Look around at hash tables and verify they're all sized
  * appropriately.
  */
-class HashtableResizerTask : public GlobalTask {
+class HashtableResizerTask : public EpTask {
 public:
 
     HashtableResizerTask(KVBucketIface& s, double sleepTime);

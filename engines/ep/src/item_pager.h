@@ -176,7 +176,7 @@ private:
  * act of expiring (deleting) the item generally results in the deletion of the
  * items value which saves memory and disk space.
  */
-class ExpiredItemPager : public GlobalTask,
+class ExpiredItemPager : public EpTask,
                          public std::enable_shared_from_this<ExpiredItemPager> {
 public:
 

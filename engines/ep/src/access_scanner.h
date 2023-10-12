@@ -10,7 +10,7 @@
  */
 #pragma once
 
-#include <executor/globaltask.h>
+#include "ep_task.h"
 
 #include <platform/semaphore.h>
 #include <platform/semaphore_guard.h>
@@ -22,7 +22,7 @@ class EPStats;
 class KVBucket;
 class AccessScannerValueChangeListener;
 
-class AccessScanner : public GlobalTask {
+class AccessScanner : public EpTask {
     friend class AccessScannerValueChangeListener;
 public:
     AccessScanner(KVBucket& _store,

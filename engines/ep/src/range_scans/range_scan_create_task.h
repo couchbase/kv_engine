@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include <executor/globaltask.h>
+#include "ep_task.h"
 #include <memcached/engine_error.h>
 #include <memcached/range_scan.h>
 #include <memcached/range_scan_id.h>
@@ -27,7 +27,7 @@ class RangeScanDataHandlerIFace;
  * RangeScanCreateTask performs the I/O required as part of creating a range
  * scan
  */
-class RangeScanCreateTask : public GlobalTask {
+class RangeScanCreateTask : public EpTask {
 public:
     RangeScanCreateTask(EPBucket& bucket,
                         CookieIface& cookie,

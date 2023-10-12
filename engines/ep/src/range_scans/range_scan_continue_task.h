@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include <executor/globaltask.h>
+#include "ep_task.h"
 #include <memcached/vbucket.h>
 
 class EPBucket;
@@ -24,7 +24,7 @@ class RangeScan;
  * The continuing step can occur many times depending on scan size and any
  * limits. A completed scan will also self-cancel on this task
  */
-class RangeScanContinueTask : public GlobalTask {
+class RangeScanContinueTask : public EpTask {
 public:
     RangeScanContinueTask(EPBucket& bucket);
 

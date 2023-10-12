@@ -20,7 +20,7 @@
 
 ItemCompressorTask::ItemCompressorTask(EventuallyPersistentEngine& e,
                                        EPStats& stats_)
-    : GlobalTask(e, TaskId::ItemCompressorTask, 0, false),
+    : EpTask(e, TaskId::ItemCompressorTask, 0, false),
       stats(stats_),
       epstore_position(engine->getKVBucket()->startPosition()) {
 }

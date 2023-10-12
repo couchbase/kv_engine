@@ -20,7 +20,7 @@ VBCBAdaptor::VBCBAdaptor(KVBucket* s,
                          std::unique_ptr<InterruptableVBucketVisitor> v,
                          const char* l,
                          bool shutdown)
-    : GlobalTask(s->getEPEngine(), id, 0 /*initialSleepTime*/, shutdown),
+    : EpTask(s->getEPEngine(), id, 0 /*initialSleepTime*/, shutdown),
       store(s),
       visitor(std::move(v)),
       label(l),

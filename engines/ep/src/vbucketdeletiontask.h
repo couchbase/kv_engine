@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include <executor/globaltask.h>
+#include "ep_task.h"
 
 class EPVBucket;
 class KVStoreRevision;
@@ -25,7 +25,7 @@ class VBucket;
  *
  * This task is designed to be invoked only when the VBucket has no owners.
  */
-class VBucketMemoryDeletionTask : public GlobalTask {
+class VBucketMemoryDeletionTask : public EpTask {
 public:
     /**
      * @param engine required for GlobalTask construction

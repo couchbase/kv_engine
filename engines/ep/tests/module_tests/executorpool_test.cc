@@ -1816,13 +1816,13 @@ public:
     ThreadGate& tg;
 };
 
-class ScheduleOnDestructTask : public GlobalTask {
+class ScheduleOnDestructTask : public EpTask {
 public:
     ScheduleOnDestructTask(EventuallyPersistentEngine& bucket,
                            Taskable& taskable,
                            ExecutorPool& pool,
                            ThreadGate& tg)
-        : GlobalTask(bucket, TaskId::ItemPager, 10, true),
+        : EpTask(bucket, TaskId::ItemPager, 10, true),
           scheduleOnDestruct(pool, taskable, tg) {
     }
 
@@ -1988,9 +1988,9 @@ TYPED_TEST(ExecutorPoolEpEngineTest, MemoryTracking_Run) {
     // - allocates memory on second execution
     // - deallocates memory on third execution.
     // Note it initially sleeps forever, must be explicitly woken to run.
-    struct MemoryAllocTask : public GlobalTask {
+    struct MemoryAllocTask : public EpTask {
         MemoryAllocTask(EventuallyPersistentEngine& engine)
-            : GlobalTask(engine, TaskId::ItemPager, INT_MAX, false) {
+            : EpTask(engine, TaskId::ItemPager, INT_MAX, false) {
         }
 
         std::string getDescription() const override {

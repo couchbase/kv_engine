@@ -17,7 +17,7 @@
 
 VBucketSyncWriteTimeoutTask::VBucketSyncWriteTimeoutTask(
         EventuallyPersistentEngine& ep, VBucket& vBucket)
-    : GlobalTask(ep, TaskId::DurabilityTimeoutTask, INT_MAX, false),
+    : EpTask(ep, TaskId::DurabilityTimeoutTask, INT_MAX, false),
       vBucket(vBucket),
       vbid(vBucket.getId()) {
 }

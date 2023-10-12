@@ -57,11 +57,11 @@
  */
 #pragma once
 
+#include "ep_task.h"
 #include "ephemeral_vb.h"
 #include "kv_bucket_iface.h"
 #include "progress_tracker.h"
 #include "vb_visitors.h"
-#include <executor/globaltask.h>
 
 class EphemeralBucket;
 class EphTombstoneStaleItemDeleter;
@@ -125,7 +125,7 @@ protected:
  * Task responsible for identifying tombstones (deleted item markers) which
  * are too old, and removing from the Ephemeral buckets' HashTable.
  */
-class EphTombstoneHTCleaner : public GlobalTask {
+class EphTombstoneHTCleaner : public EpTask {
 public:
     EphTombstoneHTCleaner(EventuallyPersistentEngine& e,
                           EphemeralBucket& bucket);
@@ -175,7 +175,7 @@ private:
  *
  * Works in conjunction with EphTombstoneCleanupHashTable.
  */
-class EphTombstoneStaleItemDeleter : public GlobalTask {
+class EphTombstoneStaleItemDeleter : public EpTask {
 public:
     EphTombstoneStaleItemDeleter(EventuallyPersistentEngine& e,
                                  EphemeralBucket& bucket);

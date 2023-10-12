@@ -27,9 +27,9 @@
 #include <memory>
 
 CheckpointDestroyerTask::CheckpointDestroyerTask(EventuallyPersistentEngine& e)
-    : GlobalTask(e,
-                 TaskId::CheckpointDestroyerTask,
-                 std::numeric_limits<int>::max() /* sleepTime */) {
+    : EpTask(e,
+             TaskId::CheckpointDestroyerTask,
+             std::numeric_limits<int>::max() /* sleepTime */) {
 }
 
 bool CheckpointDestroyerTask::run() {

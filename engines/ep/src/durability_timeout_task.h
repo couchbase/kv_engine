@@ -10,12 +10,12 @@
  */
 #pragma once
 
-#include <executor/globaltask.h>
+#include "ep_task.h"
 #include <memcached/vbucket.h>
 
 class VBucket;
 
-class VBucketSyncWriteTimeoutTask : public GlobalTask {
+class VBucketSyncWriteTimeoutTask : public EpTask {
 public:
     VBucketSyncWriteTimeoutTask(EventuallyPersistentEngine& ep,
                                 VBucket& vBucket);

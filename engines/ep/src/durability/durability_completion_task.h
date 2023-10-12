@@ -10,8 +10,8 @@
  */
 #pragma once
 
+#include "ep_task.h"
 #include "vb_ready_queue.h"
-#include <executor/globaltask.h>
 #include <memcached/vbucket.h>
 #include <vb_notifiable_task.h>
 

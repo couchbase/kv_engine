@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include <executor/globaltask.h>
+#include "ep_task.h"
 #include <chrono>
 
 /**
@@ -22,7 +22,7 @@
  * strategy is not upfront_mfu_only, or if the strategy changes at runtime,
  * the task should be woken up manually.
  */
-class InitialMFUTask : public GlobalTask {
+class InitialMFUTask : public EpTask {
 public:
     InitialMFUTask(EventuallyPersistentEngine& e);
 

@@ -17,6 +17,7 @@
 #include "collections/manifest_generated.h"
 #include "ep_bucket.h"
 #include "ep_engine.h"
+#include "ep_task.h"
 
 #include <nlohmann/json.hpp>
 #include <platform/crc32c.h>
@@ -29,10 +30,7 @@ namespace Collections {
 PersistManifestTask::PersistManifestTask(EPBucket& bucket,
                                          Collections::Manifest&& manifest,
                                          CookieIface* cookie)
-    : ::GlobalTask(bucket.getEPEngine(),
-                   TaskId::PersistCollectionsManifest,
-                   0,
-                   true),
+    : EpTask(bucket.getEPEngine(), TaskId::PersistCollectionsManifest, 0, true),
       manifest(std::move(manifest)),
       cookie(cookie) {
 }

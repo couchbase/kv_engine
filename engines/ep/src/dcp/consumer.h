@@ -15,9 +15,9 @@
 #include "connhandler.h"
 #include "dcp/dcp-types.h"
 #include "dcp/flow-control.h"
+#include "ep_task.h"
 #include "ep_types.h"
 #include "vb_ready_queue.h"
-#include <executor/globaltask.h>
 
 #include <collections/collections_types.h>
 #include <memcached/dcp_stream_id.h>
@@ -729,14 +729,14 @@ private:
  * Task that orchestrates rollback on Consumer,
  * runs in background.
  */
-class RollbackTask : public GlobalTask {
+class RollbackTask : public EpTask {
 public:
     RollbackTask(EventuallyPersistentEngine& e,
                  uint32_t opaque_,
                  Vbid vbid_,
                  uint64_t rollbackSeqno_,
                  std::shared_ptr<DcpConsumer> conn)
-        : GlobalTask(e, TaskId::RollbackTask, 0, false),
+        : EpTask(e, TaskId::RollbackTask, 0, false),
           description("Running rollback task for " + vbid_.to_string()),
           engine(&e),
           opaque(opaque_),

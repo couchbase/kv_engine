@@ -17,10 +17,10 @@
 #include "vbucket.h"
 
 InitialMFUTask::InitialMFUTask(EventuallyPersistentEngine& e)
-    : GlobalTask(e,
-                 TaskId::InitialMFUTask,
-                 e.getConfiguration().getItemEvictionInitialMfuUpdateInterval(),
-                 false /* completeBeforeShutdown */) {
+    : EpTask(e,
+             TaskId::InitialMFUTask,
+             e.getConfiguration().getItemEvictionInitialMfuUpdateInterval(),
+             false /* completeBeforeShutdown */) {
 }
 
 std::string InitialMFUTask::getDescription() const {

@@ -16,6 +16,7 @@
 #include "dcp/backfill_disk.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/producer.h"
+#include "ep_task.h"
 #include "ep_time.h"
 #include "kv_bucket.h"
 #include <executor/executorpool.h>
@@ -29,16 +30,16 @@ static const size_t sleepTime = 1;
 
 using namespace std::string_literals;
 
-class BackfillManagerTask : public GlobalTask {
+class BackfillManagerTask : public EpTask {
 public:
     BackfillManagerTask(EventuallyPersistentEngine& e,
                         std::shared_ptr<BackfillManager> mgr,
                         double sleeptime = 0,
                         bool completeBeforeShutdown = false)
-        : GlobalTask(e,
-                     TaskId::BackfillManagerTask,
-                     sleeptime,
-                     completeBeforeShutdown),
+        : EpTask(e,
+                 TaskId::BackfillManagerTask,
+                 sleeptime,
+                 completeBeforeShutdown),
           weak_manager(mgr),
           description("Backfilling items for "s + mgr->name) {
     }

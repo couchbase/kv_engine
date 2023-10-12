@@ -12,10 +12,10 @@
 #include "cross_bucket_visitor_adapter.h"
 
 #include "bucket_logger.h"
+#include "ep_task.h"
 #include "kv_bucket.h"
 #include "vb_visitors.h"
 #include <executor/executorpool.h>
-#include <executor/globaltask.h>
 #include <fmt/format.h>
 #include <random>
 

@@ -11,8 +11,8 @@
 
 #pragma once
 
+#include "ep_task.h"
 #include <collections/manifest.h>
-#include <executor/globaltask.h>
 #include <memcached/engine_error.h>
 
 #include <optional>
@@ -25,7 +25,7 @@ namespace Collections {
 /**
  * A task for storing the Collection::Manifest into the bucket's data directory
  */
-class PersistManifestTask : public ::GlobalTask {
+class PersistManifestTask : public EpTask {
 public:
     PersistManifestTask(EPBucket& bucket,
                         Collections::Manifest&& manifest,

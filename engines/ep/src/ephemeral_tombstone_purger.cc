@@ -78,10 +78,10 @@ void EphemeralVBucket::HTTombstonePurger::clearStats() {
 
 EphTombstoneHTCleaner::EphTombstoneHTCleaner(EventuallyPersistentEngine& e,
                                              EphemeralBucket& bucket)
-    : GlobalTask(e,
-                 TaskId::EphTombstoneHTCleaner,
-                 e.getConfiguration().getEphemeralMetadataPurgeInterval(),
-                 false),
+    : EpTask(e,
+             TaskId::EphTombstoneHTCleaner,
+             e.getConfiguration().getEphemeralMetadataPurgeInterval(),
+             false),
       bucket(bucket),
       bucketPosition(bucket.endPosition()),
       staleItemDeleterTask(
@@ -244,7 +244,7 @@ protected:
 
 EphTombstoneStaleItemDeleter::EphTombstoneStaleItemDeleter(
         EventuallyPersistentEngine& e, EphemeralBucket& bucket)
-    : GlobalTask(e, TaskId::EphTombstoneStaleItemDeleter, INT_MAX, false),
+    : EpTask(e, TaskId::EphTombstoneStaleItemDeleter, INT_MAX, false),
       bucket(bucket),
       bucketPosition(bucket.endPosition()) {
 }

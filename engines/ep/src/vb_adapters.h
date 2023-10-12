@@ -32,7 +32,7 @@ class InterruptableVBucketVisitor;
  * The set of vBuckets to visit is obtained by applying
  * VBucketVisitor::getVBucketFilter() to the set of vBuckets the Bucket has.
  */
-class VBCBAdaptor : public GlobalTask {
+class VBCBAdaptor : public EpTask {
 public:
     VBCBAdaptor(KVBucket* s,
                 TaskId id,

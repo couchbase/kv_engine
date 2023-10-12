@@ -25,7 +25,7 @@ RangeScanCreateTask::RangeScanCreateTask(
         std::unique_ptr<RangeScanDataHandlerIFace> handler,
         const cb::rangescan::CreateParameters& params,
         std::unique_ptr<RangeScanCreateToken> scanData)
-    : GlobalTask(bucket.getEPEngine(), TaskId::RangeScanCreateTask),
+    : EpTask(bucket.getEPEngine(), TaskId::RangeScanCreateTask),
       bucket(bucket),
       vbid(params.vbid),
       start(makeStartStoredDocKey(params.cid, params.start)),

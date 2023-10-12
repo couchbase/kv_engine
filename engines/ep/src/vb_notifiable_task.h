@@ -10,9 +10,9 @@
  */
 #pragma once
 
+#include "ep_task.h"
 #include "vb_ready_queue.h"
 #include "vbucket_fwd.h"
-#include <executor/globaltask.h>
 #include <memcached/vbucket.h>
 
 #include <chrono>
@@ -37,7 +37,7 @@
  * being visited repeatedly; subtypes should be prepared to visit a vbucket
  * and not necessarily find work to be done.
  */
-class VBNotifiableTask : public GlobalTask {
+class VBNotifiableTask : public EpTask {
 public:
     bool run() override;
 

@@ -22,13 +22,13 @@
 #include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/backfill-manager.h"
 #include "dcp/response.h"
+#include "ep_task.h"
 #include "failover-table.h"
 #include "replicationthrottle.h"
 #include "tests/module_tests/test_helpers.h"
 #include "tests/module_tests/test_task.h"
 #include "vbucket.h"
 #include <executor/executorpool.h>
-#include <executor/globaltask.h>
 #include <programs/engine_testapp/mock_cookie.h>
 
 TEST_F(SingleThreadedEPBucketTest, FlusherBatchSizeLimitLimitChange) {
@@ -262,10 +262,10 @@ TEST_F(SingleThreadedEPBucketTest, ReadyQueueMaintainsWakeTimeOrder) {
  * Incorrect counting can result in the run loop spinning for many threads.
  */
 TEST_F(SingleThreadedEPBucketTest, MB20235_wake_and_work_count) {
-    class TestTask : public GlobalTask {
+    class TestTask : public EpTask {
     public:
         TestTask(EventuallyPersistentEngine& e, double s)
-            : GlobalTask(e, TaskId::AccessScanner, s) {
+            : EpTask(e, TaskId::AccessScanner, s) {
         }
         bool run() override {
             return false;

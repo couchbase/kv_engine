@@ -19,6 +19,7 @@
 #include "collections/vbucket_manifest_handles.h"
 #include "ep_bucket.h"
 #include "ep_engine.h"
+#include "ep_task.h"
 #include "ep_vb.h"
 #include "failover-table.h"
 #include "flusher.h"
@@ -142,10 +143,10 @@ private:
 
 // Warmup Tasks ///////////////////////////////////////////////////////////////
 
-class WarmupInitialize : public GlobalTask {
+class WarmupInitialize : public EpTask {
 public:
     WarmupInitialize(EPBucket& st, Warmup* w)
-        : GlobalTask(st.getEPEngine(), TaskId::WarmupInitialize, 0, false),
+        : EpTask(st.getEPEngine(), TaskId::WarmupInitialize, 0, false),
           _warmup(w) {
         _warmup->addToTaskSet(uid);
     }
@@ -170,10 +171,10 @@ private:
     Warmup* _warmup;
 };
 
-class WarmupCreateVBuckets : public GlobalTask {
+class WarmupCreateVBuckets : public EpTask {
 public:
     WarmupCreateVBuckets(EPBucket& st, uint16_t sh, Warmup* w)
-        : GlobalTask(st.getEPEngine(), TaskId::WarmupCreateVBuckets, 0, false),
+        : EpTask(st.getEPEngine(), TaskId::WarmupCreateVBuckets, 0, false),
           _shardId(sh),
           _warmup(w),
           _description("Warmup - creating vbuckets: shard " +
@@ -203,13 +204,13 @@ private:
     const std::string _description;
 };
 
-class WarmupLoadingCollectionCounts : public GlobalTask {
+class WarmupLoadingCollectionCounts : public EpTask {
 public:
     WarmupLoadingCollectionCounts(EPBucket& st, uint16_t sh, Warmup& w)
-        : GlobalTask(st.getEPEngine(),
-                     TaskId::WarmupLoadingCollectionCounts,
-                     0,
-                     false),
+        : EpTask(st.getEPEngine(),
+                 TaskId::WarmupLoadingCollectionCounts,
+                 0,
+                 false),
           shardId(sh),
           warmup(w) {
         warmup.addToTaskSet(uid);
@@ -238,13 +239,13 @@ private:
     Warmup& warmup;
 };
 
-class WarmupEstimateDatabaseItemCount : public GlobalTask {
+class WarmupEstimateDatabaseItemCount : public EpTask {
 public:
     WarmupEstimateDatabaseItemCount(EPBucket& st, uint16_t sh, Warmup* w)
-        : GlobalTask(st.getEPEngine(),
-                     TaskId::WarmupEstimateDatabaseItemCount,
-                     0,
-                     false),
+        : EpTask(st.getEPEngine(),
+                 TaskId::WarmupEstimateDatabaseItemCount,
+                 0,
+                 false),
           _shardId(sh),
           _warmup(w),
           _description("Warmup - estimate item count: shard " +
@@ -279,12 +280,12 @@ private:
  * Warmup task which loads any prepared SyncWrites which are not yet marked
  * as Committed (or Aborted) from disk.
  */
-class WarmupLoadPreparedSyncWrites : public GlobalTask {
+class WarmupLoadPreparedSyncWrites : public EpTask {
 public:
     WarmupLoadPreparedSyncWrites(EventuallyPersistentEngine& engine,
                                  uint16_t shard,
                                  Warmup& warmup)
-        : GlobalTask(engine, TaskId::WarmupLoadPreparedSyncWrites, 0, false),
+        : EpTask(engine, TaskId::WarmupLoadPreparedSyncWrites, 0, false),
           shardId(shard),
           warmup(warmup),
           description("Warmup - loading prepared SyncWrites: shard " +
@@ -321,11 +322,10 @@ private:
 /**
  * Warmup task which moves all warmed-up VBuckets into the bucket's vbMap
  */
-class WarmupPopulateVBucketMap : public GlobalTask {
+class WarmupPopulateVBucketMap : public EpTask {
 public:
     WarmupPopulateVBucketMap(EPBucket& st, uint16_t shard, Warmup& warmup)
-        : GlobalTask(
-                  st.getEPEngine(), TaskId::WarmupPopulateVBucketMap, 0, false),
+        : EpTask(st.getEPEngine(), TaskId::WarmupPopulateVBucketMap, 0, false),
           shardId(shard),
           warmup(warmup),
           description("Warmup - populate VB Map: shard " +
@@ -394,7 +394,7 @@ private:
  * The task will also transition the warmup's state to the next warmup state
  * once threadTaskCount has meet the total number of shards.
  */
-class WarmupBackfillTask : public GlobalTask {
+class WarmupBackfillTask : public EpTask {
 public:
     /**
      * Constructor of WarmupBackfillTask
@@ -414,7 +414,7 @@ public:
                        TaskId taskId,
                        std::string_view taskDesc,
                        std::atomic<size_t>& threadTaskCount)
-        : GlobalTask(bucket.getEPEngine(), taskId, 0, true),
+        : EpTask(bucket.getEPEngine(), taskId, 0, true),
           warmup(warmup),
           shardId(shardId),
           description(fmt::format("Warmup - {} shard {}", taskDesc, shardId)),
@@ -640,11 +640,10 @@ public:
     };
 };
 
-class WarmupCheckforAccessLog : public GlobalTask {
+class WarmupCheckforAccessLog : public EpTask {
 public:
     WarmupCheckforAccessLog(EPBucket& st, Warmup* w)
-        : GlobalTask(
-                  st.getEPEngine(), TaskId::WarmupCheckforAccessLog, 0, false),
+        : EpTask(st.getEPEngine(), TaskId::WarmupCheckforAccessLog, 0, false),
           _warmup(w) {
         _warmup->addToTaskSet(uid);
     }
@@ -671,10 +670,10 @@ private:
     Warmup* _warmup;
 };
 
-class WarmupLoadAccessLog : public GlobalTask {
+class WarmupLoadAccessLog : public EpTask {
 public:
     WarmupLoadAccessLog(EPBucket& st, uint16_t sh, Warmup* w)
-        : GlobalTask(st.getEPEngine(), TaskId::WarmupLoadAccessLog, 0, false),
+        : EpTask(st.getEPEngine(), TaskId::WarmupLoadAccessLog, 0, false),
           _shardId(sh),
           _warmup(w),
           _description("Warmup - loading access log: shard " +
@@ -778,10 +777,10 @@ public:
     };
 };
 
-class WarmupCompletion : public GlobalTask {
+class WarmupCompletion : public EpTask {
 public:
     WarmupCompletion(EPBucket& st, Warmup* w)
-        : GlobalTask(st.getEPEngine(), TaskId::WarmupCompletion, 0, false),
+        : EpTask(st.getEPEngine(), TaskId::WarmupCompletion, 0, false),
           _warmup(w) {
         _warmup->addToTaskSet(uid);
     }

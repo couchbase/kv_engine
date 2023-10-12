@@ -133,8 +133,7 @@ void CrossBucketItemFreqDecayer::itemDecayerCompleted(ItemFreqDecayerTask& t) {
 ItemFreqDecayerTask::ItemFreqDecayerTask(EventuallyPersistentEngine& e,
                                          uint16_t percentage_,
                                          bool scheduleNow)
-    : GlobalTask(
-              e, TaskId::ItemFreqDecayerTask, scheduleNow ? 0 : INT_MAX, false),
+    : EpTask(e, TaskId::ItemFreqDecayerTask, scheduleNow ? 0 : INT_MAX, false),
       completed(false),
       epstore_position(engine->getKVBucket()->startPosition()),
       notified(false),

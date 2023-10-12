@@ -13,7 +13,7 @@
 
 #include "vb_ready_queue.h"
 
-#include <executor/globaltask.h>
+#include "ep_task.h"
 
 class KVBucket;
 
@@ -22,7 +22,7 @@ class KVBucket;
  * The task has a sleep time set so that it wakes up at the deadline of the
  * next expiring request. If no requests exist, task sleeps indefinitely.
  */
-class SeqnoPersistenceNotifyTask : public GlobalTask {
+class SeqnoPersistenceNotifyTask : public EpTask {
 public:
     SeqnoPersistenceNotifyTask(KVBucket& bucket);
 

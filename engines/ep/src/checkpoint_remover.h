@@ -24,7 +24,7 @@ class EventuallyPersistentEngine;
 /**
  * Task which destroys and frees checkpoints.
  */
-class CheckpointDestroyerTask : public GlobalTask {
+class CheckpointDestroyerTask : public EpTask {
 public:
     /**
      * Construct a CheckpointDestroyerTask.

@@ -10,9 +10,9 @@
  */
 #pragma once
 
+#include "ep_task.h"
 #include "kv_bucket_iface.h"
 #include "pid_controller.h"
-#include <executor/globaltask.h>
 
 namespace cb {
 class FragmentationStats;
@@ -94,7 +94,7 @@ class PauseResumeVBAdapter;
  * Instead, we limit the duration of each defragmention invocation (chunk),
  * pause, and then later start the next chunk form where we left off.
  */
-class DefragmenterTask : public GlobalTask {
+class DefragmenterTask : public EpTask {
 public:
     DefragmenterTask(EventuallyPersistentEngine& e, EPStats& stats_);
 

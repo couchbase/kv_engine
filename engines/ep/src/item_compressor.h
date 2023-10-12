@@ -10,8 +10,8 @@
  */
 #pragma once
 
+#include "ep_task.h"
 #include "kv_bucket_iface.h"
-#include <executor/globaltask.h>
 
 class ItemCompressorVisitor;
 class EPStats;
@@ -20,7 +20,7 @@ class PauseResumeVBAdapter;
 /**
  * Task responsible for compressing items in memory.
  */
-class ItemCompressorTask : public GlobalTask {
+class ItemCompressorTask : public EpTask {
 public:
     ItemCompressorTask(EventuallyPersistentEngine& e, EPStats& stats_);
 

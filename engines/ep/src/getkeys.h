@@ -12,7 +12,7 @@
 #pragma once
 
 #include "diskdockey.h"
-#include <executor/globaltask.h>
+#include "ep_task.h"
 #include <memcached/dockey.h>
 #include <memcached/engine_error.h>
 #include <memcached/vbucket.h>
@@ -23,7 +23,7 @@ class CookieIface;
 class EventuallyPersistentEngine;
 
 /// Task that fetches the requested document keys in the background
-class FetchAllKeysTask : public GlobalTask {
+class FetchAllKeysTask : public EpTask {
 public:
     FetchAllKeysTask(EventuallyPersistentEngine& e,
                      CookieIface& c,

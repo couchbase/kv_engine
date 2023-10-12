@@ -26,7 +26,7 @@
 /**
  * A task to manage connections.
  */
-class ConnManager : public GlobalTask {
+class ConnManager : public EpTask {
 public:
     class ConfigChangeListener : public ValueChangedListener {
     public:
@@ -45,11 +45,10 @@ public:
     };
 
     ConnManager(EventuallyPersistentEngine& e, ConnMap* cmap)
-        : GlobalTask(e,
-                     TaskId::ConnManager,
-                     e.getConfiguration().getConnectionManagerInterval(),
-                     true),
-          engine(&e),
+        : EpTask(e,
+                 TaskId::ConnManager,
+                 e.getConfiguration().getConnectionManagerInterval(),
+                 true),
           connmap(cmap),
           snoozeTime(e.getConfiguration().getConnectionManagerInterval()) {
         engine->getConfiguration().addValueChangedListener(
@@ -91,7 +90,6 @@ public:
     }
 
 private:
-    EventuallyPersistentEngine *engine;
     ConnMap *connmap;
     std::chrono::duration<float> snoozeTime;
 };

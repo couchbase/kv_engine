@@ -92,8 +92,7 @@ public:
      * Testing hook which is called back after scheduleNext schedules a task, so
      * we can test what happens if an unexpected task signals completion.
      */
-    TestingHook<std::deque<std::weak_ptr<GlobalTask>>&, GlobalTask*>
-            scheduleNextHook;
+    TestingHook<std::deque<std::weak_ptr<EpTask>>&, EpTask*> scheduleNextHook;
 
 private:
     /**
@@ -138,12 +137,12 @@ private:
      * The list of tasks we will wake up in the order specified by the
      * ScheduleOrder.
      */
-    std::deque<std::weak_ptr<GlobalTask>> orderedTasks;
+    std::deque<std::weak_ptr<EpTask>> orderedTasks;
 
     /**
      * The task that was scheduled and is expected to run and callback.
      */
-    GlobalTask* expectedTask;
+    EpTask* expectedTask;
 
     /*
      * Optional semaphore to release once completed.

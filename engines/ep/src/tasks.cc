@@ -172,10 +172,10 @@ std::vector<CookieIface*> CompactTask::takeCookies() {
 
 MultiBGFetcherTask::MultiBGFetcherTask(EventuallyPersistentEngine& e,
                                        BgFetcher* b)
-    : GlobalTask(e,
-                 TaskId::MultiBGFetcherTask,
-                 /*sleeptime*/ INT_MAX,
-                 /*completeBeforeShutdown*/ false),
+    : EpTask(e,
+             TaskId::MultiBGFetcherTask,
+             /*sleeptime*/ INT_MAX,
+             /*completeBeforeShutdown*/ false),
       bgfetcher(b) {
 }
 
@@ -197,10 +197,10 @@ bool VKeyStatBGFetchTask::run() {
 
 WorkLoadMonitor::WorkLoadMonitor(EventuallyPersistentEngine& e,
                                  bool completeBeforeShutdown)
-    : GlobalTask(e,
-                 TaskId::WorkLoadMonitor,
-                 WORKLOAD_MONITOR_FREQ,
-                 completeBeforeShutdown) {
+    : EpTask(e,
+             TaskId::WorkLoadMonitor,
+             WORKLOAD_MONITOR_FREQ,
+             completeBeforeShutdown) {
     prevNumMutations = getNumMutations();
     prevNumGets = getNumGets();
 }

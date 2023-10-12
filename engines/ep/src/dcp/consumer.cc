@@ -46,16 +46,13 @@ const std::string DcpConsumer::hifiMFUCtrlMsg = "supports_hifi_MFU";
 const std::string DcpConsumer::enableOpcodeExpiryCtrlMsg =
         "enable_expiry_opcode";
 
-class DcpConsumerTask : public GlobalTask {
+class DcpConsumerTask : public EpTask {
 public:
     DcpConsumerTask(EventuallyPersistentEngine& e,
                     std::shared_ptr<DcpConsumer> c,
                     double sleeptime = 1,
                     bool completeBeforeShutdown = true)
-        : GlobalTask(e,
-                     TaskId::DcpConsumerTask,
-                     sleeptime,
-                     completeBeforeShutdown),
+        : EpTask(e, TaskId::DcpConsumerTask, sleeptime, completeBeforeShutdown),
           consumerPtr(c),
           description("DcpConsumerTask, processing buffered items for " +
                       c->getName()) {

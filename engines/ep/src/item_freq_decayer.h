@@ -11,9 +11,8 @@
 
 #pragma once
 
+#include "ep_task.h"
 #include "kv_bucket_iface.h"
-#include <executor/globaltask.h>
-
 #include <folly/Synchronized.h>
 #include <platform/semaphore.h>
 #include <utilities/weak_ptr_bag.h>
@@ -112,7 +111,7 @@ private:
  * documents in a given hash table, decaying the frequency count of each
  * document by a given percentage.
  */
-class ItemFreqDecayerTask : public GlobalTask {
+class ItemFreqDecayerTask : public EpTask {
 public:
     /**
      * Create an ItemFreqDecayerTask.

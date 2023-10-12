@@ -21,7 +21,7 @@
 
 VBucketMemoryDeletionTask::VBucketMemoryDeletionTask(
         EventuallyPersistentEngine& eng, VBucket* vb, TaskId tid)
-    : GlobalTask(eng, tid, 0.0, true), vbucket(vb) {
+    : EpTask(eng, tid, 0.0, true), vbucket(vb) {
     if (!vbucket) {
         throw std::logic_error(
                 "VBucketMemoryDeletionTask::VBucketMemoryDeletionTask no "

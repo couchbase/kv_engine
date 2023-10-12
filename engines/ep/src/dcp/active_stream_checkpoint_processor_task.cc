@@ -21,8 +21,7 @@
 
 ActiveStreamCheckpointProcessorTask::ActiveStreamCheckpointProcessorTask(
         EventuallyPersistentEngine& e, std::shared_ptr<DcpProducer> p)
-    : GlobalTask(
-              e, TaskId::ActiveStreamCheckpointProcessorTask, INT_MAX, false),
+    : EpTask(e, TaskId::ActiveStreamCheckpointProcessorTask, INT_MAX, false),
       description("Process checkpoint(s) for DCP producer " + p->getName()),
       queue(e.getConfiguration().getMaxVbuckets()),
       notified(false),

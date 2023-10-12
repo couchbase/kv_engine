@@ -12,8 +12,8 @@
 #pragma once
 
 #include "dcp/active_stream.h"
+#include "ep_task.h"
 #include "vb_ready_queue.h"
-#include <executor/globaltask.h>
 
 #include <memcached/engine_common.h>
 
@@ -27,7 +27,7 @@ class Stream;
 template <class E>
 class StreamContainer;
 
-class ActiveStreamCheckpointProcessorTask : public GlobalTask {
+class ActiveStreamCheckpointProcessorTask : public EpTask {
 public:
     ActiveStreamCheckpointProcessorTask(EventuallyPersistentEngine& e,
                                         std::shared_ptr<DcpProducer> p);

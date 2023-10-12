@@ -114,15 +114,15 @@ void ReadyRangeScans::addStats(const StatCollector& collector) const {
 // Task used by RangeScans for checking that any scans of a vbucket have not
 // exceeded the "deadline", a configurable number of seconds each scan cannot
 // exceed.
-class RangeScanTimeoutTask : public GlobalTask {
+class RangeScanTimeoutTask : public EpTask {
 public:
     RangeScanTimeoutTask(EventuallyPersistentEngine& engine,
                          EPVBucket& vBucket,
                          std::chrono::seconds initialSleep)
-        : GlobalTask(engine,
-                     TaskId::RangeScanTimeoutTask,
-                     initialSleep.count(),
-                     false),
+        : EpTask(engine,
+                 TaskId::RangeScanTimeoutTask,
+                 initialSleep.count(),
+                 false),
           vBucket(vBucket),
           vbid(vBucket.getId()) {
     }

@@ -10,9 +10,8 @@
 
 #pragma once
 
-#include <executor/globaltask.h>
+#include "ep_task.h"
 #include <memcached/engine_error.h>
-
 #include <climits>
 
 /**
@@ -56,13 +55,13 @@
  * 7) Enforce the new quota by changing the config and stats values
  *
  */
-class BucketQuotaChangeTask : public GlobalTask {
+class BucketQuotaChangeTask : public EpTask {
 public:
     explicit BucketQuotaChangeTask(EventuallyPersistentEngine& e)
-        : GlobalTask(e,
-                     TaskId::BucketQuotaChangeTask,
-                     /*initialSleepTime*/ INT_MAX,
-                     /*completeBeforeShutdown*/ false) {
+        : EpTask(e,
+                 TaskId::BucketQuotaChangeTask,
+                 /*initialSleepTime*/ INT_MAX,
+                 /*completeBeforeShutdown*/ false) {
     }
 
     bool run() override;

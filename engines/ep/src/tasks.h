@@ -27,13 +27,13 @@ class EventuallyPersistentEngine;
  * A task for persisting items to disk.
  */
 class Flusher;
-class FlusherTask : public GlobalTask {
+class FlusherTask : public EpTask {
 public:
     FlusherTask(EventuallyPersistentEngine& e,
                 Flusher* f,
                 uint16_t flusherId,
                 bool completeBeforeShutdown = true)
-        : GlobalTask(e, TaskId::FlusherTask, 0, completeBeforeShutdown),
+        : EpTask(e, TaskId::FlusherTask, 0, completeBeforeShutdown),
           flusher(f) {
         std::stringstream ss;
         ss << "Running a flusher loop: flusher " << flusherId;
@@ -188,7 +188,7 @@ private:
  * A task for fetching items from disk.
  */
 class BgFetcher;
-class MultiBGFetcherTask : public GlobalTask {
+class MultiBGFetcherTask : public EpTask {
 public:
     MultiBGFetcherTask(EventuallyPersistentEngine& e, BgFetcher* b);
 
@@ -216,7 +216,7 @@ private:
 /**
  * A task for performing disk fetches for "stats vkey".
  */
-class VKeyStatBGFetchTask : public GlobalTask {
+class VKeyStatBGFetchTask : public EpTask {
 public:
     VKeyStatBGFetchTask(EventuallyPersistentEngine& e,
                         const DocKey& k,
@@ -225,10 +225,10 @@ public:
                         CookieIface& c,
                         int sleeptime = 0,
                         bool completeBeforeShutdown = false)
-        : GlobalTask(e,
-                     TaskId::VKeyStatBGFetchTask,
-                     sleeptime,
-                     completeBeforeShutdown),
+        : EpTask(e,
+                 TaskId::VKeyStatBGFetchTask,
+                 sleeptime,
+                 completeBeforeShutdown),
           key(k),
           vbucket(vbid),
           bySeqNum(s),
@@ -264,7 +264,7 @@ private:
 /**
  * A task that monitors if a bucket is read-heavy, write-heavy, or mixed.
  */
-class WorkLoadMonitor : public GlobalTask {
+class WorkLoadMonitor : public EpTask {
 public:
     explicit WorkLoadMonitor(EventuallyPersistentEngine& e,
                              bool completeBeforeShutdown = false);

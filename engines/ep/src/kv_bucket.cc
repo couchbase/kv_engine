@@ -210,10 +210,10 @@ private:
     KVBucket& store;
 };
 
-class PendingOpsNotification : public GlobalTask {
+class PendingOpsNotification : public EpTask {
 public:
     PendingOpsNotification(EventuallyPersistentEngine& e, VBucketPtr& vb)
-        : GlobalTask(e, TaskId::PendingOpsNotification, 0, false),
+        : EpTask(e, TaskId::PendingOpsNotification, 0, false),
           engine(e),
           vbucket(vb),
           description("Notify pending operations for " +
@@ -245,12 +245,12 @@ private:
     const std::string description;
 };
 
-class RespondAmbiguousNotification : public GlobalTask {
+class RespondAmbiguousNotification : public EpTask {
 public:
     RespondAmbiguousNotification(EventuallyPersistentEngine& e,
                                  VBucketPtr& vb,
                                  std::vector<CookieIface*>&& cookies_)
-        : GlobalTask(e, TaskId::RespondAmbiguousNotification, 0, false),
+        : EpTask(e, TaskId::RespondAmbiguousNotification, 0, false),
           weakVb(vb),
           cookies(std::move(cookies_)),
           description("Notify clients of Sync Write Ambiguous " +
