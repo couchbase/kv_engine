@@ -2192,12 +2192,12 @@ TYPED_TEST(ExecutorPoolEpEngineTest, TaskStats_MemAccounting) {
     // accounting) and schedule it.
     auto task = [&] {
         BucketAllocationGuard guard(this->engine.get());
-        return std::make_shared<LambdaTask>(
+        return std::make_shared<EpLambdaTask>(
                 *this->engine,
                 TaskId::ItemPager,
                 INT_MAX,
                 false,
-                [&](LambdaTask& task) { return false; });
+                [&](auto& task) { return false; });
     }();
     auto taskId = ExecutorPool::get()->schedule(std::move(task));
 

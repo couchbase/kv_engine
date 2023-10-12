@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include <executor/globaltask.h>
+#include "ep_task.h"
 #include <functional>
 #include <utility>
 
@@ -23,15 +23,6 @@ public:
                bool completeBeforeShutdown,
                std::function<bool(LambdaTask&)> f)
         : GlobalTask(t, taskId, sleeptime, completeBeforeShutdown),
-          func(std::move(f)) {
-    }
-
-    LambdaTask(EventuallyPersistentEngine& engine,
-               TaskId taskId,
-               double sleeptime,
-               bool completeBeforeShutdown,
-               std::function<bool(LambdaTask&)> f)
-        : GlobalTask(engine, taskId, sleeptime, completeBeforeShutdown),
           func(std::move(f)) {
     }
 
@@ -50,4 +41,32 @@ public:
 
 protected:
     std::function<bool(LambdaTask&)> func;
+};
+
+class EpLambdaTask : public EpTask {
+public:
+    EpLambdaTask(EventuallyPersistentEngine& engine,
+                 TaskId taskId,
+                 double sleeptime,
+                 bool completeBeforeShutdown,
+                 std::function<bool(EpLambdaTask&)> f)
+        : EpTask(engine, taskId, sleeptime, completeBeforeShutdown),
+          func(std::move(f)) {
+    }
+
+    bool run() override {
+        return func(*this);
+    }
+
+    std::string getDescription() const override {
+        return "Ep Lambda Task";
+    }
+
+    std::chrono::microseconds maxExpectedDuration() const override {
+        // Only used for testing; return an arbitrary large value.
+        return std::chrono::seconds(60);
+    }
+
+protected:
+    std::function<bool(EpLambdaTask&)> func;
 };
