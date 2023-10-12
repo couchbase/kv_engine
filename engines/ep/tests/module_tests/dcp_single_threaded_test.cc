@@ -69,6 +69,16 @@ protected:
     }
 
     /**
+     * Creates a producer and consumer and checks if they are disconnected on
+     * vbucket deletion
+     *
+     * @param state initial vbucket state
+     * @param setDead whether to set vbucket state to dead before deletion
+     */
+    void testDeleteVBucketClosesConnections(vbucket_state_t state,
+                                            bool setDead);
+
+    /**
      * @param producerState Are we simulating a negotiation against a Producer
      *  that enables IncludeDeletedUserXattrs?
      */
@@ -106,6 +116,80 @@ protected:
      */
     void testConsumerNegotiatesCDC(bool enabled);
 };
+
+class DcpStepper {
+public:
+    DcpStepper(CookieIface* cookie_, EventuallyPersistentEngine* engine_)
+        : cookie{cookie_}, engine{engine_} {
+    }
+
+    void operator()() {
+        cb::engine_errc ret;
+        while (ret = engine->step(*cookie, false, producers),
+               ret != cb::engine_errc::would_block) {
+            EXPECT_EQ(cb::engine_errc::success, ret);
+        }
+    }
+
+protected:
+    CookieIface* cookie;
+    EventuallyPersistentEngine* engine;
+    MockDcpMessageProducers producers;
+};
+
+void STDcpTest::testDeleteVBucketClosesConnections(vbucket_state_t state,
+                                                   bool setDead) {
+    setVBucketStateAndRunPersistTask(vbid, state);
+
+    auto& connMap = engine->getDcpConnMap();
+    auto* cookie = create_mock_cookie(engine.get());
+    ConnHandler* handler;
+
+    if (state == vbucket_state_active) {
+        auto* producer = connMap.newProducer(*cookie, "test_producer", 0);
+        // Open stream
+        ASSERT_EQ(cb::engine_errc::success, doStreamRequest(*producer).status);
+        handler = producer;
+    } else if (state == vbucket_state_replica) {
+        auto* consumer = connMap.newConsumer(*cookie, "test_consumer");
+        // Add passive stream
+        ASSERT_EQ(cb::engine_errc::success,
+                  consumer->addStream(0 /*opaque*/, vbid, 0 /*flags*/));
+        handler = consumer;
+    } else {
+        FAIL();
+    }
+
+    DcpStepper stepDcp{cookie, engine.get()};
+    stepDcp();
+    EXPECT_TRUE(connMap.vbConnectionExists(handler, vbid));
+
+    if (setDead) {
+        store->setVBucketState(vbid, vbucket_state_dead);
+        stepDcp();
+        if (state == vbucket_state_active) {
+            // Producer connection is closed for any state change
+            EXPECT_FALSE(connMap.vbConnectionExists(handler, vbid));
+        } else {
+            EXPECT_TRUE(connMap.vbConnectionExists(handler, vbid));
+        }
+    }
+
+    store->deleteVBucket(vbid);
+    stepDcp();
+    EXPECT_FALSE(connMap.vbConnectionExists(handler, vbid));
+
+    connMap.disconnect(cookie);
+    connMap.manageConnections();
+    destroy_mock_cookie(cookie);
+}
+
+TEST_P(STDcpTest, DeleteVBucketClosesConnections) {
+    testDeleteVBucketClosesConnections(vbucket_state_active, false);
+    testDeleteVBucketClosesConnections(vbucket_state_active, true);
+    testDeleteVBucketClosesConnections(vbucket_state_replica, false);
+    testDeleteVBucketClosesConnections(vbucket_state_replica, true);
+}
 
 /*
  * The following tests that when the disk_backfill_queue configuration is
