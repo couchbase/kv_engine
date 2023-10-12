@@ -2276,6 +2276,7 @@
         "key": "total_connections",
         "description": "The total number of connections to this system since the process started (or reset)",
         "unit": "count",
+        "type": "counter",
         "added": "7.0.0"
     },
     {
