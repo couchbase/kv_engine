@@ -86,8 +86,7 @@ bool AuditFile::time_to_rotate_log() const {
 }
 
 time_t AuditFile::auditd_time() {
-    struct timeval tv;
-
+    timeval tv = {};
     if (cb_get_timeofday(&tv) == -1) {
         throw std::runtime_error("auditd_time: cb_get_timeofday failed");
     }
@@ -150,11 +149,11 @@ void AuditFile::close_and_rotate_log() {
     open_time = 0;
 }
 
-static std::string tryGetTimestamp(const std::filesystem::path path) {
+static std::string tryGetTimestamp(const std::filesystem::path& path) {
     // open the audit.log that needs archiving
     auto str = cb::io::loadFile(path.generic_string());
     // extract the first event
-    std::size_t found = str.find_first_of("\n");
+    std::size_t found = str.find('\n');
     if (found != std::string::npos) {
         str.resize(found);
     }
@@ -309,23 +308,16 @@ bool AuditFile::flush() {
     return true;
 }
 
-bool AuditFile::is_timestamp_format_correct(std::string& str) {
-    const char *data = str.c_str();
-    if (str.length() < 19) {
+bool AuditFile::is_timestamp_format_correct(std::string_view data) {
+    if (data.length() < 19) {
         return false;
-    } else if (isdigit(data[0]) && isdigit(data[1]) &&
-               isdigit(data[2]) && isdigit(data[3]) &&
-               data[4] == '-' &&
-               isdigit(data[5]) && isdigit(data[6]) &&
-               data[7] == '-' &&
-               isdigit(data[8]) && isdigit(data[9]) &&
-               data[10] == 'T' &&
-               isdigit(data[11]) && isdigit(data[12]) &&
-               data[13] == ':' &&
-               isdigit(data[14]) && isdigit(data[15]) &&
-               data[16] == ':' &&
-               isdigit(data[17]) && isdigit(data[18])) {
-        return true;
     }
-    return false;
+
+    return (isdigit(data[0]) && isdigit(data[1]) && isdigit(data[2]) &&
+            isdigit(data[3]) && data[4] == '-' && isdigit(data[5]) &&
+            isdigit(data[6]) && data[7] == '-' && isdigit(data[8]) &&
+            isdigit(data[9]) && data[10] == 'T' && isdigit(data[11]) &&
+            isdigit(data[12]) && data[13] == ':' && isdigit(data[14]) &&
+            isdigit(data[15]) && data[16] == ':' && isdigit(data[17]) &&
+            isdigit(data[18]));
 }

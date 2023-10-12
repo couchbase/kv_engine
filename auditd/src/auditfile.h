@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2018-Present Couchbase, Inc.
  *
@@ -19,14 +18,27 @@
 #include <memory>
 #include <string>
 
+/**
+ * The AuditFile class is responsible for writing audit records to a file
+ * and perform file rotation (and prune old audit files).
+ *
+ * The "current" audit file is named "audit.log", and as part of file
+ * rotation it'll be renamed to "hostname-timestamp[-counter]-audit.log"
+ * (It is unlikely that the counter will be present, but in the theoretical
+ * situation as part of size based rotation and a load where the size would
+ * be reached within the second (causing an identical timestamp) the file
+ * would already exist)
+ *
+ */
 class AuditFile {
 public:
     explicit AuditFile(std::string hostname) : hostname(std::move(hostname)) {
     }
 
     /**
-     * Check if we need to rotate the logfile, and if so go ahead and
-     * do so.
+     * Check if we need to rotate the logfile, and if so go ahead and do so.
+     *
+     * @returns true if the file was rotated
      */
     bool maybe_rotate_files();
 
@@ -38,9 +50,7 @@ public:
      */
     bool ensure_open();
 
-    /**
-     * Close the audit trail (and rename it to the correct name
-     */
+    /// Close the audit trail (and rename it to the correct name)
     void close();
 
     /**
@@ -62,11 +72,9 @@ public:
      */
     bool write_event_to_disk(const nlohmann::json& output);
 
-    /**
-     * Is the audit file open already?
-     */
-    bool is_open() const {
-        return file.get() != nullptr;
+    /// Is the audit file open already?
+    [[nodiscard]] bool is_open() const {
+        return file.operator bool();
     }
 
     /**
@@ -77,26 +85,28 @@ public:
 
     /**
      * Flush the buffers to the disk
+     *
+     * @return true on success, false if an error occurs (and the file
+     *         is closed and rotated)
      */
     bool flush();
 
     /**
      * get the number of seconds for the next log rotation
      */
-    uint32_t get_seconds_to_rotation() const;
+    [[nodiscard]] uint32_t get_seconds_to_rotation() const;
 
 protected:
-    bool open();
-    bool time_to_rotate_log() const;
+    [[nodiscard]] bool open();
+    [[nodiscard]] bool time_to_rotate_log() const;
     void close_and_rotate_log();
     void set_log_directory(const std::string &new_directory);
-    bool is_timestamp_format_correct(std::string& str);
-
-    bool is_empty() const {
+    [[nodiscard]] bool is_empty() const {
         return (current_size == 0);
     }
 
-    static time_t auditd_time();
+    [[nodiscard]] static time_t auditd_time();
+    [[nodiscard]] static bool is_timestamp_format_correct(std::string_view str);
 
     struct FileDeleter {
         void operator()(FILE* fp) {
