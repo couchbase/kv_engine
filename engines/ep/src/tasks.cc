@@ -36,10 +36,10 @@ CompactTask::CompactTask(
         CookieIface* ck,
         cb::AwaitableSemaphore& semaphore,
         bool completeBeforeShutdown)
-    : LimitedConcurrencyTask(bucket.getEPEngine(),
-                             TaskId::CompactVBucketTask,
-                             semaphore,
-                             completeBeforeShutdown),
+    : EpLimitedConcurrencyTask(bucket.getEPEngine(),
+                               TaskId::CompactVBucketTask,
+                               semaphore,
+                               completeBeforeShutdown),
       bucket(bucket),
       vbid(vbid) {
     auto lockedState = compaction.wlock();

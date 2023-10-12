@@ -93,3 +93,68 @@ protected:
 
     std::atomic<bool> pendingRun{false};
 };
+
+/**
+ * Base type for ep tasks which need to be able to limit how many instances run
+ * concurrently, like CompactTask.
+ *
+ * A cb::AwaitableSemaphore limits how many instances may run. Tasks must
+ * acquire a token before running. If none are available, the task will snooze
+ * forever. When tokens become available, the task will be notified to run
+ * again.
+ *
+ * This is not currently transparent to the task - it is required that the
+ * task call:
+ *
+ * bool runInner() override {
+ *     auto guard = acquireOrWait();
+ *     if (!guard) {
+ *         // could not acquire a token, queued for notification.
+ *         // already snooze()-ed forever, just return true to
+ *         // reschedule.
+ *         return true;
+ *     }
+ *     // Do concurrency-limited work
+ * }
+ *
+ * However, a future refactor could avoid this by, for example,
+ * restructuring as a mixin or re-implementing at the thread pool level.
+ */
+class EpLimitedConcurrencyTask : public LimitedConcurrencyBase,
+                                 public EpNotifiableTask {
+public:
+    /**
+     * Construct a task which will be concurrency limited by the provided
+     * semaphore.
+     *
+     * @param e engine pointer
+     * @param id task id
+     * @param semaphore semphore from which a token must be acquired before the
+     *                  task can run
+     * @param completeBeforeShutdown should the task be required to complete
+     *                               before shutdown
+     */
+    EpLimitedConcurrencyTask(EventuallyPersistentEngine& e,
+                             TaskId id,
+                             cb::AwaitableSemaphore& semaphore,
+                             bool completeBeforeShutdown);
+
+    bool runInner(bool) override {
+        // Ignore the extra parameter from NotifiableTask as it is not needed.
+        return runInner();
+    }
+
+    /**
+     * Subtypes should provide an implementation for the task.
+     */
+    virtual bool runInner() = 0;
+
+    /**
+     * Called by cb::AwaitableSemaphore when tokens become available.
+     *
+     * Notifies the task to run.
+     *
+     * Implements the cb::Waiter interface.
+     */
+    void signal() override;
+};

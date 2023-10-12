@@ -15,6 +15,32 @@
 #include <platform/awaitable_semaphore.h>
 #include <platform/semaphore_guard.h>
 
+/// Base class for LimitedConcurrencyTasks.
+class LimitedConcurrencyBase : public cb::Waiter {
+public:
+    LimitedConcurrencyBase(cb::AwaitableSemaphore& semaphore)
+        : semaphore(semaphore) {
+    }
+
+protected:
+    /**
+     * Attempt to acquire a token from the semaphore provided at construction.
+     *
+     * If a token is available, return a valid guard. The task should then
+     * proceed.
+     *
+     * If no tokens are available, snooze() the task forever and queue to be
+     * notified by the semaphore when tokens become available.
+     *
+     * @return a guard, valid if a token was acquired and execution can
+     * continue.
+     */
+    cb::SemaphoreGuard<cb::Semaphore*> acquireOrWait();
+
+    // semaphore used to restrict how many tasks can run at once
+    cb::AwaitableSemaphore& semaphore;
+};
+
 /**
  * Base type for tasks which need to be able to limit how many instances run
  * concurrently, like CompactTask.
@@ -41,7 +67,8 @@
  * However, a future refactor could avoid this by, for example,
  * restructuring as a mixin or re-implementing at the thread pool level.
  */
-class LimitedConcurrencyTask : public cb::Waiter, public NotifiableTask {
+class LimitedConcurrencyTask : public LimitedConcurrencyBase,
+                               public NotifiableTask {
 public:
     /**
      * Construct a task which will be concurrency limited by the provided
@@ -55,25 +82,6 @@ public:
      *                               before shutdown
      */
     LimitedConcurrencyTask(Taskable& t,
-                           TaskId id,
-                           cb::AwaitableSemaphore& semaphore,
-                           bool completeBeforeShutdown)
-        : NotifiableTask(t, id, 0, completeBeforeShutdown),
-          semaphore(semaphore) {
-    }
-
-    /**
-     * Construct a task which will be concurrency limited by the provided
-     * semaphore.
-     *
-     * @param e engine pointer
-     * @param id task id
-     * @param semaphore semphore from which a token must be acquired before the
-     *                  task can run
-     * @param completeBeforeShutdown should the task be required to complete
-     *                               before shutdown
-     */
-    LimitedConcurrencyTask(EventuallyPersistentEngine& e,
                            TaskId id,
                            cb::AwaitableSemaphore& semaphore,
                            bool completeBeforeShutdown);
@@ -96,21 +104,4 @@ public:
      * Implements the cb::Waiter interface.
      */
     void signal() override;
-
-protected:
-    /**
-     * Attempt to acquire a token from the semaphore provided at construction.
-     *
-     * If a token is available, return a valid guard. The task should then
-     * proceed.
-     *
-     * If no tokens are available, snooze() the task forever and queue to be
-     * notified by the semaphore when tokens become available.
-     *
-     * @return a guard, valid if a token was acquired and execution can continue
-     */
-    cb::SemaphoreGuard<cb::Semaphore*> acquireOrWait();
-
-    // semaphore used to restrict how many tasks can run at once
-    cb::AwaitableSemaphore& semaphore;
 };

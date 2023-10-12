@@ -62,3 +62,17 @@ void EpNotifiableTask::wakeup() {
         ExecutorPool::get()->wake(static_cast<size_t>(uid));
     }
 }
+
+EpLimitedConcurrencyTask::EpLimitedConcurrencyTask(
+        EventuallyPersistentEngine& e,
+        TaskId id,
+        cb::AwaitableSemaphore& semaphore,
+        bool completeBeforeShutdown)
+    : LimitedConcurrencyBase(semaphore),
+      EpNotifiableTask(
+              e, id, 0 /* initial sleeptime*/, completeBeforeShutdown) {
+}
+
+void EpLimitedConcurrencyTask::signal() {
+    wakeup();
+}

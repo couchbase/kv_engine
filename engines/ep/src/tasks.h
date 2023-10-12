@@ -11,9 +11,8 @@
 
 #pragma once
 
+#include "ep_task.h"
 #include "kvstore/kvstore.h"
-#include <executor/globaltask.h>
-#include <executor/limited_concurrency_task.h>
 #include <memcached/storeddockey.h>
 #include <array>
 #include <chrono>
@@ -65,7 +64,7 @@ private:
 /**
  * A task for compacting a vbucket db file
  */
-class CompactTask : public LimitedConcurrencyTask {
+class CompactTask : public EpLimitedConcurrencyTask {
 public:
     CompactTask(EPBucket& bucket,
                 Vbid vbid,

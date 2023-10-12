@@ -12,7 +12,7 @@
 #include "task_concurrency_test.h"
 
 #include "../mock/mock_synchronous_ep_engine.h"
-#include <executor/limited_concurrency_task.h>
+#include "ep_task.h"
 #include <platform/awaitable_semaphore.h>
 #include <platform/semaphore_guard.h>
 
@@ -20,13 +20,13 @@
 
 #include "thread_gate.h"
 
-class ConcurrencyTestTask : public LimitedConcurrencyTask {
+class ConcurrencyTestTask : public EpLimitedConcurrencyTask {
 public:
     using Callback = TaskConcurrencyTest::Callback;
     ConcurrencyTestTask(EventuallyPersistentEngine& e,
                         cb::AwaitableSemaphore& semaphore,
                         Callback callback)
-        : LimitedConcurrencyTask(e, TaskId::ItemPager, semaphore, false),
+        : EpLimitedConcurrencyTask(e, TaskId::ItemPager, semaphore, false),
           callback(std::move(callback)) {
     }
     bool runInner() override {

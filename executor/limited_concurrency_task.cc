@@ -10,26 +10,21 @@
  */
 
 #include "limited_concurrency_task.h"
-#include <engines/ep/src/ep_engine.h>
 
 LimitedConcurrencyTask::LimitedConcurrencyTask(
-        EventuallyPersistentEngine& e,
+        Taskable& t,
         TaskId id,
         cb::AwaitableSemaphore& semaphore,
         bool completeBeforeShutdown)
-    : NotifiableTask(e.getTaskable(),
-                     id,
-                     0 /* initial sleeptime*/,
-                     completeBeforeShutdown),
-      semaphore(semaphore) {
-    GlobalTask::engine = &e;
+    : LimitedConcurrencyBase(semaphore),
+      NotifiableTask(t, id, 0, completeBeforeShutdown) {
 }
 
 void LimitedConcurrencyTask::signal() {
     wakeup();
 }
 
-cb::SemaphoreGuard<cb::Semaphore*> LimitedConcurrencyTask::acquireOrWait() {
+cb::SemaphoreGuard<cb::Semaphore*> LimitedConcurrencyBase::acquireOrWait() {
     if (semaphore.acquire_or_wait(shared_from_this())) {
         // token was acquired! Return an RAII guard holding it, and let
         // the task continue.
