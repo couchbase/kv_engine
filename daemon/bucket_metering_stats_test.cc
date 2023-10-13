@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2022-Present Couchbase, Inc.
  *
@@ -11,7 +10,6 @@
 
 #include <daemon/buckets.h>
 #include <daemon/stats.h>
-#include <fmt/format.h>
 #include <serverless/config.h>
 #include <statistics/cardinality.h>
 #include <statistics/labelled_collector.h>
@@ -28,14 +26,14 @@
  */
 class BucketManagerIntrospector {
 public:
-    static cb::engine_errc create(const std::string name,
-                                  const std::string config,
+    static cb::engine_errc create(std::string_view name,
+                                  std::string_view config,
                                   BucketType type) {
         cb::test::DummyCookie cookie;
         return BucketManager::instance().create(cookie, name, config, type);
     }
 
-    static cb::engine_errc destroy(const std::string name,
+    static cb::engine_errc destroy(std::string_view name,
                                    bool force,
                                    std::optional<BucketType> type = {}) {
         cb::test::DummyCookie cookie;
@@ -56,7 +54,7 @@ protected:
     }
     void SetUp() override {
         // create a bucket named foobar
-        BucketManagerIntrospector::create("foobar", "", BucketType::Memcached);
+        BucketManagerIntrospector::create("foobar", {}, BucketType::Memcached);
         bucket = &BucketManager::instance().at(1);
     }
 
@@ -65,7 +63,7 @@ protected:
         BucketManagerIntrospector::destroy("foobar", true);
     }
 
-    Bucket* bucket;
+    Bucket* bucket = nullptr;
 };
 
 TEST_F(BucketMeteringStatsTest, CollectInitialMeteringStats) {

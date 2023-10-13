@@ -437,7 +437,7 @@ std::mutex buckets_lock;
 std::array<Bucket, cb::limits::TotalBuckets + 1> all_buckets;
 
 cb::engine_errc BucketManager::setClusterConfig(
-        const std::string& name,
+        std::string_view name,
         std::shared_ptr<ClusterConfiguration::Configuration> configuration) {
     // Make sure we don't race with anyone else touching the bucket array
     // (create/delete bucket or set cluster config).
@@ -483,7 +483,7 @@ cb::engine_errc BucketManager::setClusterConfig(
     return cb::engine_errc::success;
 }
 
-void BucketManager::iterateBuckets(std::function<bool(Bucket&)> fn) {
+void BucketManager::iterateBuckets(const std::function<bool(Bucket&)>& fn) {
     for (auto& b : all_buckets) {
         std::lock_guard<std::mutex> guard(b.mutex);
         if (!fn(b)) {
@@ -606,15 +606,15 @@ void BucketManager::createEngineInstance(Bucket& bucket,
 }
 
 cb::engine_errc BucketManager::create(CookieIface& cookie,
-                                      const std::string name,
-                                      const std::string config,
+                                      std::string_view name,
+                                      std::string_view config,
                                       BucketType type) {
     return create(cookie.getConnectionId(), name, config, type);
 }
 
 cb::engine_errc BucketManager::create(uint32_t cid,
-                                      const std::string name,
-                                      const std::string config,
+                                      std::string_view name,
+                                      std::string_view config,
                                       BucketType type) {
     LOG_INFO("{}: Create {} bucket [{}]", cid, to_string(type), name);
     auto [err, free_bucket] = allocateBucket(name);
@@ -683,14 +683,14 @@ cb::engine_errc BucketManager::create(uint32_t cid,
 
 cb::engine_errc BucketManager::doBlockingDestroy(
         CookieIface& cookie,
-        const std::string name,
+        std::string_view name,
         bool force,
         std::optional<BucketType> type) {
     return destroy(std::to_string(cookie.getConnectionId()), name, force, type);
 }
 
 cb::engine_errc BucketManager::destroy(std::string_view cid,
-                                       const std::string name,
+                                       std::string_view name,
                                        bool force,
                                        std::optional<BucketType> type) {
     auto [res, destroyer] = startDestroy(cid, name, force, type);
@@ -706,7 +706,7 @@ cb::engine_errc BucketManager::destroy(std::string_view cid,
 
 std::pair<cb::engine_errc, std::optional<BucketDestroyer>>
 BucketManager::startDestroy(std::string_view cid,
-                            const std::string name,
+                            std::string_view name,
                             bool force,
                             std::optional<BucketType> type) {
     cb::engine_errc ret = cb::engine_errc::no_such_key;
@@ -896,7 +896,7 @@ void BucketManager::tick() {
     });
 }
 
-void BucketManager::forEach(std::function<bool(Bucket&)> fn) {
+void BucketManager::forEach(const std::function<bool(Bucket&)>& fn) {
     for (Bucket& bucket : all_buckets) {
         bool do_break = false;
         if (bucket.state == Bucket::State::Ready) {

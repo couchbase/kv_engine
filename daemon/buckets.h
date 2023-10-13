@@ -116,7 +116,7 @@ public:
      * here as we had an available padding byte here, another alternative
      * would have been to put a member within the BucketManager itself.
      */
-    bool management_operation_in_progress;
+    bool management_operation_in_progress = false;
 
     /// The number of items in flight from the bucket (which keeps a reference
     /// inside the bucket so we cannot kill the bucket until they're gone.
@@ -124,7 +124,7 @@ public:
     /// a reference in the "clients" member. When the clients member is 0
     /// we'll just wait for this member to become 0 before we can drop
     /// the bucket.
-    std::atomic<uint32_t> items_in_transit;
+    std::atomic<uint32_t> items_in_transit{0};
 
     /// The type of bucket.
     ///
@@ -429,13 +429,13 @@ public:
      * @return Status for the operation
      */
     cb::engine_errc create(CookieIface& cookie,
-                           const std::string name,
-                           const std::string config,
+                           std::string_view name,
+                           std::string_view config,
                            BucketType type);
 
     /// Set the cluster configuration for the named bucket
     cb::engine_errc setClusterConfig(
-            const std::string& name,
+            std::string_view name,
             std::shared_ptr<ClusterConfiguration::Configuration> configuration);
 
     /**
@@ -456,7 +456,7 @@ public:
      */
     std::pair<cb::engine_errc, std::optional<BucketDestroyer>> startDestroy(
             std::string_view cid,
-            const std::string name,
+            std::string_view name,
             bool force,
             std::optional<BucketType> type);
 
@@ -476,7 +476,7 @@ public:
      * @return Status for the operation
      */
     cb::engine_errc doBlockingDestroy(CookieIface& cookie,
-                                      const std::string name,
+                                      std::string_view name,
                                       bool force,
                                       std::optional<BucketType> type);
 
@@ -494,7 +494,7 @@ public:
      * the function.
      *
      */
-    void forEach(std::function<bool(Bucket&)> fn);
+    void forEach(const std::function<bool(Bucket&)>& fn);
 
     /**
      * Registers an internal client with the bucket. The bucket must be in the
@@ -574,8 +574,8 @@ protected:
      * @return Status for the operation
      */
     cb::engine_errc create(uint32_t cid,
-                           const std::string name,
-                           const std::string config,
+                           std::string_view name,
+                           std::string_view config,
                            BucketType type);
 
     /**
@@ -589,7 +589,7 @@ protected:
      * @return Status for the operation
      */
     cb::engine_errc destroy(std::string_view cid,
-                            const std::string name,
+                            std::string_view name,
                             bool force,
                             std::optional<BucketType> type);
 
@@ -604,7 +604,7 @@ protected:
      * the method _without_ holding the lock, but then you're not guaranteed
      * that buckets will come or go during the iteration).
      */
-    void iterateBuckets(std::function<bool(Bucket&)> fn);
+    void iterateBuckets(const std::function<bool(Bucket&)>& fn);
 
     /**
      * Allocate a bucket for the given name and set its state to creating.
