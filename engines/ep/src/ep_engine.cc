@@ -4098,6 +4098,7 @@ protected:
 
 /**
  * Function object to send stats for a single dcp connection.
+ * Note this does not do per-stream stats.
  */
 struct ConnStatBuilder {
     ConnStatBuilder(CookieIface& c, AddStatFn as, DcpStatsFilter filter)
@@ -4117,6 +4118,29 @@ struct ConnStatBuilder {
 
     const auto& getCounter() {
         return aggregator;
+    }
+
+    CookieIface& cookie;
+    AddStatFn add_stat;
+    DcpStatsFilter filter;
+    ConnCounter aggregator;
+};
+
+/**
+ * Function object to send per-stream stats for a single dcp connection.
+ */
+struct ConnPerStreamStatBuilder {
+    ConnPerStreamStatBuilder(CookieIface& c,
+                             AddStatFn as,
+                             DcpStatsFilter filter)
+        : cookie(c), add_stat(std::move(as)), filter(std::move(filter)) {
+    }
+
+    void operator()(std::shared_ptr<ConnHandler> tc) {
+        ++aggregator.totalConns;
+        if (filter.include(tc)) {
+            tc->addStreamStats(add_stat, cookie);
+        }
     }
 
     CookieIface& cookie;
@@ -4278,7 +4302,6 @@ cb::engine_errc EventuallyPersistentEngine::doDcpStats(
         const AddStatFn& add_stat,
         std::string_view value) {
     ConnStatBuilder dcpVisitor(cookie, add_stat, DcpStatsFilter{value});
-    // ConnStatBuilder also adds per-stream stats while aggregating.
     dcpConnMap_->each(dcpVisitor);
 
     const auto& aggregator = dcpVisitor.getCounter();
@@ -4287,6 +4310,11 @@ cb::engine_errc EventuallyPersistentEngine::doDcpStats(
     addAggregatedProducerStats(collector.forBucket(getName()), aggregator);
 
     dcpConnMap_->addStats(add_stat, cookie);
+
+    ConnPerStreamStatBuilder dcpStreamVisitor(
+            cookie, add_stat, DcpStatsFilter{value});
+    dcpConnMap_->each(dcpStreamVisitor);
+
     return cb::engine_errc::success;
 }
 

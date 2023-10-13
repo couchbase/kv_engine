@@ -41,6 +41,7 @@
 #include <platform/timeutils.h>
 #include <spdlog/fmt/fmt.h>
 #include <statistics/cbstat_collector.h>
+#include <numeric>
 
 const std::chrono::seconds DcpProducer::defaultDcpNoopTxInterval(20);
 
@@ -1592,6 +1593,17 @@ void DcpProducer::addStats(const AddStatFn& add_stat, CookieIface& c) {
 
     ready.addStats(getName() + ":dcp_ready_queue_", add_stat, c);
 
+    size_t num_valid_streams =
+            std::accumulate(streams->begin(),
+                            streams->end(),
+                            0,
+                            [](size_t count, const StreamsMap::value_type& vt) {
+                                return count + vt.second->rlock().size();
+                            });
+    addStat("num_streams", num_valid_streams, add_stat, c);
+}
+
+void DcpProducer::addStreamStats(const AddStatFn& add_stat, CookieIface& c) {
     // Make a copy of all valid streams (under lock), and then call addStats
     // for each one. (Done in two stages to minmise how long we have the
     // streams map locked for).
@@ -1609,8 +1621,6 @@ void DcpProducer::addStats(const AddStatFn& add_stat, CookieIface& c) {
     for (const auto& stream : valid_streams) {
         stream->addStats(add_stat, c);
     }
-
-    addStat("num_streams", valid_streams.size(), add_stat, c);
 }
 
 void DcpProducer::addTakeoverStats(const AddStatFn& add_stat,

@@ -120,6 +120,8 @@ public:
 
     void addStats(const AddStatFn& add_stat, CookieIface& c) override;
 
+    void addStreamStats(const AddStatFn& add_stat, CookieIface& c) override;
+
     void addTakeoverStats(const AddStatFn& add_stat,
                           CookieIface& c,
                           const VBucket& vb);

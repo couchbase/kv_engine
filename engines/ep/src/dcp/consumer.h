@@ -282,6 +282,8 @@ public:
 
     void addStats(const AddStatFn& add_stat, CookieIface& c) override;
 
+    void addStreamStats(const AddStatFn& add_stat, CookieIface& c) override;
+
     void aggregateQueueStats(ConnCounter& aggregator) const override;
 
     void notifyStreamReady(Vbid vbucket);

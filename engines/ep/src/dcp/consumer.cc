@@ -1144,7 +1144,7 @@ bool DcpConsumer::handleResponse(const cb::mcbp::Response& response) {
         // - which of of writing is 6.x - so 5.x is no longer supported. However,
         // there isn't a simple way to detect 5.x - only less than 5 - so for
         // now we are slightly more permissive and still allow 5.x, rejecting
-        // 4.x and lower. 
+        // 4.x and lower.
         auto producerIsVersion5orHigher =
                 status != cb::mcbp::Status::UnknownCommand;
         if (!producerIsVersion5orHigher) {
@@ -1272,6 +1272,20 @@ void DcpConsumer::seqnoAckStream(Vbid vbid, int64_t seqno) {
 void DcpConsumer::addStats(const AddStatFn& add_stat, CookieIface& c) {
     ConnHandler::addStats(add_stat, c);
 
+    addStat("total_backoffs", backoffs, add_stat, c);
+    addStat("processor_task_state", getProcessorTaskStatusStr(), add_stat, c);
+    flowControl.addStats(add_stat, c);
+
+    vbReady.addStats(getName() + ":dcp_buffered_ready_queue_", add_stat, c);
+    addStat("processor_notification",
+            processorNotification.load(),
+            add_stat,
+            c);
+
+    addStat("synchronous_replication", isSyncReplicationEnabled(), add_stat, c);
+}
+
+void DcpConsumer::addStreamStats(const AddStatFn& add_stat, CookieIface& c) {
     // Make a copy of all valid streams (under lock), and then call addStats
     // for each one. (Done in two stages to minmise how long we have the
     // streams map locked for).
@@ -1285,18 +1299,6 @@ void DcpConsumer::addStats(const AddStatFn& add_stat, CookieIface& c) {
     for (const auto& stream : valid_streams) {
         stream->addStats(add_stat, c);
     }
-
-    addStat("total_backoffs", backoffs, add_stat, c);
-    addStat("processor_task_state", getProcessorTaskStatusStr(), add_stat, c);
-    flowControl.addStats(add_stat, c);
-
-    vbReady.addStats(getName() + ":dcp_buffered_ready_queue_", add_stat, c);
-    addStat("processor_notification",
-            processorNotification.load(),
-            add_stat,
-            c);
-
-    addStat("synchronous_replication", isSyncReplicationEnabled(), add_stat, c);
 }
 
 void DcpConsumer::aggregateQueueStats(ConnCounter& aggregator) const {

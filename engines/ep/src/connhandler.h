@@ -281,7 +281,18 @@ public:
                  const AddStatFn& add_stat,
                  CookieIface& c) const;
 
+    /**
+     * Generate statistics for this connection. Does not include per-stream
+     * statistics.
+     */
     virtual void addStats(const AddStatFn& add_stat, CookieIface& c);
+
+    /**
+     * Generate statistics for all DCP streams associated with this connection.
+     */
+    virtual void addStreamStats(const AddStatFn& add_stat, CookieIface& c) {
+        // Empty
+    }
 
     virtual void aggregateQueueStats(ConnCounter& stats_aggregator) const {
         // Empty
