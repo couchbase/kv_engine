@@ -113,7 +113,7 @@ public:
                                      const DocKey&,
                                      size_t,
                                      size_t,
-                                     int,
+                                     uint32_t,
                                      rel_time_t,
                                      uint8_t,
                                      Vbid) override {

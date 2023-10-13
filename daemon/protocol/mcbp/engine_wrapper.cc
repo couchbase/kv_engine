@@ -365,7 +365,7 @@ cb::unique_item_ptr bucket_allocate(Cookie& cookie,
                                     const DocKey& key,
                                     const size_t nbytes,
                                     const size_t priv_nbytes,
-                                    const int flags,
+                                    const uint32_t flags,
                                     const rel_time_t exptime,
                                     uint8_t datatype,
                                     Vbid vbucket) {

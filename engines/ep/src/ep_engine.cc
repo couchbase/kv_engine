@@ -232,7 +232,7 @@ cb::unique_item_ptr EventuallyPersistentEngine::allocateItem(
         const DocKey& key,
         size_t nbytes,
         size_t priv_nbytes,
-        int flags,
+        uint32_t flags,
         rel_time_t exptime,
         uint8_t datatype,
         Vbid vbucket) {
@@ -2291,7 +2291,7 @@ cb::EngineErrorItemPair EventuallyPersistentEngine::itemAllocate(
         const DocKey& key,
         const size_t nbytes,
         const size_t priv_nbytes,
-        const int flags,
+        const uint32_t flags,
         rel_time_t exptime,
         uint8_t datatype,
         Vbid vbucket) {

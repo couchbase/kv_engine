@@ -27,7 +27,7 @@ struct MockEngine : public EngineIface, public DcpIface {
                                      const DocKey& key,
                                      size_t nbytes,
                                      size_t priv_nbytes,
-                                     int flags,
+                                     uint32_t flags,
                                      rel_time_t exptime,
                                      uint8_t datatype,
                                      Vbid vbucket) override;
