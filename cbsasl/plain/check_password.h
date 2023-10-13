@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -25,7 +24,6 @@ namespace cb::sasl::plain {
  * @return Error::OK if the provided password match the supplied
  *                   password.
  */
-Error check_password(Context* context,
-                     const cb::sasl::pwdb::User& user,
-                     const std::string& password);
+Error check_password(const cb::sasl::pwdb::User& user,
+                     std::string_view password);
 } // namespace cb::sasl::plain

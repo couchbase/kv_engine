@@ -13,14 +13,12 @@
 #include "cbsasl/pwfile.h"
 #include "check_password.h"
 
-#include <cstring>
-
 namespace cb::sasl::mechanism::plain {
 
 std::pair<Error, std::string_view> ServerBackend::start(
         std::string_view input) {
     if (input.empty()) {
-        return std::make_pair<Error, std::string_view>(Error::BAD_PARAM, {});
+        return {Error::BAD_PARAM, {}};
     }
 
     // Skip everything up to the first \0
@@ -31,7 +29,7 @@ std::pair<Error, std::string_view> ServerBackend::start(
     inputpos++;
 
     if (inputpos >= input.size()) {
-        return std::make_pair<Error, std::string_view>(Error::BAD_PARAM, {});
+        return {Error::BAD_PARAM, {}};
     }
 
     size_t pwlen = 0;
@@ -57,11 +55,10 @@ std::pair<Error, std::string_view> ServerBackend::start(
 
     cb::sasl::pwdb::User user;
     if (!find_user(username, user)) {
-        return std::pair<Error, std::string_view>{Error::NO_USER, {}};
+        return {Error::NO_USER, {}};
     }
 
-    return std::make_pair<Error, std::string_view>(
-            cb::sasl::plain::check_password(&context, user, userpw), {});
+    return {cb::sasl::plain::check_password(user, userpw), {}};
 }
 
 std::pair<Error, std::string_view> ClientBackend::start() {
@@ -73,12 +70,10 @@ std::pair<Error, std::string_view> ClientBackend::start() {
     }
 
     buffer.push_back(0);
-    std::copy(usernm.begin(), usernm.end(), std::back_inserter(buffer));
+    buffer.insert(buffer.end(), usernm.begin(), usernm.end());
     buffer.push_back(0);
-    std::copy(passwd.begin(), passwd.end(), std::back_inserter(buffer));
-
-    return std::make_pair<Error, std::string_view>(
-            Error::OK, {buffer.data(), buffer.size()});
+    buffer.insert(buffer.end(), passwd.begin(), passwd.end());
+    return {Error::OK, buffer};
 }
 
 Error authenticate(const std::string& username, const std::string& passwd) {
@@ -87,7 +82,7 @@ Error authenticate(const std::string& username, const std::string& passwd) {
         return Error::NO_USER;
     }
 
-    return cb::sasl::plain::check_password(nullptr, user, passwd);
+    return cb::sasl::plain::check_password(user, passwd);
 }
 
 } // namespace cb::sasl::mechanism::plain

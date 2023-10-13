@@ -57,7 +57,7 @@ private:
      * Where to store the encoded string:
      * "\0username\0password"
      */
-    std::vector<char> buffer;
+    std::string buffer;
 };
 
 } // namespace cb::sasl::mechanism::plain

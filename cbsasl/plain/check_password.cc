@@ -7,19 +7,16 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-
 #include "check_password.h"
 
 #include <cbsasl/util.h>
 #include <gsl/gsl-lite.hpp>
-#include <platform/base64.h>
 
 using cb::crypto::Algorithm;
 
 namespace cb::sasl::plain {
-Error check_password(Context* context,
-                     const cb::sasl::pwdb::User& user,
-                     const std::string& password) {
+Error check_password(const cb::sasl::pwdb::User& user,
+                     std::string_view password) {
     const auto& metadata = user.getPaswordHash();
     std::string generated;
 
