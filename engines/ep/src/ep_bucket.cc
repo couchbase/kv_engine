@@ -1526,7 +1526,9 @@ bool EPBucket::doCompact(Vbid vbid,
     cookies.clear();
 
     --stats.pendingCompactions;
-    return reschedule;
+
+    // Must ensure reschedule request is ignored when shutting down
+    return reschedule && !stats.isShutdown;
 }
 
 bool EPBucket::updateCompactionTasks(Vbid vbid) {

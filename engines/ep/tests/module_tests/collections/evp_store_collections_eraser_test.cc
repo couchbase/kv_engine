@@ -40,9 +40,10 @@ public:
         // particular case it ensures that we visit older (stale) values that
         // may still exist during compaction.
 #ifdef EP_USE_MAGMA
-        config_string += magmaRollbackConfig;
+        config_string += magmaRollbackConfig + ";";
 #endif
-
+        // Setting this to zero so compaction is immediately runnable after drop
+        config_string += "collections_drop_compaction_delay=0";
         STParameterizedBucketTest::SetUp();
         setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
         vb = store->getVBucket(vbid);
@@ -2135,14 +2136,21 @@ public:
         }
     }
 
-    void runAndFailCompaction() {
+    // run compaction with a hook which will force failure.
+    // The setShutdown parameter will mean that shutdown is "flagged" from the
+    // callback to ensure that the reschedule code is tested. setting shutdown
+    // too early and the callback won't be reached.
+    void runAndFailCompaction(bool setShutdown) {
         auto* kvstore = store->getRWUnderlying(vbid);
         ASSERT_TRUE(kvstore);
 
         if (isMagma()) {
 #if EP_USE_MAGMA
             dynamic_cast<MockMagmaKVStore&>(*kvstore).setCompactionStatusHook(
-                    [](magma::Status& status) {
+                    [this, setShutdown](magma::Status& status) {
+                        if (setShutdown) {
+                            engine->getEpStats().isShutdown = true;
+                        }
                         throw std::runtime_error(
                                 "CollectionsEraserPersistentWithFailure "
                                 "forcing compaction to fail");
@@ -2153,14 +2161,19 @@ public:
         } else {
             dynamic_cast<MockCouchKVStore&>(*kvstore)
                     .setConcurrentCompactionPreLockHook(
-                            [](auto& compactionKey) {
+                            [this, setShutdown](auto& compactionKey) {
+                                if (setShutdown) {
+                                    engine->getEpStats().isShutdown = true;
+                                }
                                 throw std::runtime_error(
                                         "CollectionsEraserPersistentWithFailure"
                                         " forcing compaction to fail");
                             });
         }
 
-        runCollectionsEraser(vbid, false /*expectSuccess*/);
+        // Run compaction via the task which has the reschedule code.
+        runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                    "Compact DB file 0");
 
         if (isMagma()) {
 #if EP_USE_MAGMA
@@ -2193,16 +2206,48 @@ TEST_P(CollectionsEraserPersistentWithFailure, FailAndRetry) {
     size_t preFailure = engine->getEpStats().compactionFailed;
 
     // Inject failure
-    runAndFailCompaction();
+    runAndFailCompaction(false);
 
     size_t postFailure = engine->getEpStats().compactionFailed;
     EXPECT_GT(postFailure, preFailure);
 
     // Rescheduled and should run again
-    runCollectionsEraser(vbid);
+    runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                "Compact DB file 0");
 
     size_t postSuccess = engine->getEpStats().compactionFailed;
     EXPECT_EQ(postFailure, postSuccess);
+}
+
+// Test checks that compaction does not reschedule if shutting down.
+TEST_P(CollectionsEraserPersistentWithFailure, FailAndNoRetry) {
+    // Flush the create
+    CollectionsManifest cm;
+    setCollections(cookie, cm.add(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    store_item(vbid, StoredDocKey{"apple", CollectionEntry::fruit}, "red");
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    // Collection Drop
+    setCollections(cookie, cm.remove(CollectionEntry::fruit));
+    flushVBucketToDiskIfPersistent(vbid, 1);
+
+    size_t preFailure = engine->getEpStats().compactionFailed;
+
+    // Inject failure and set shutdown, task must not reschedule
+    runAndFailCompaction(true);
+
+    size_t postFailure = engine->getEpStats().compactionFailed;
+    EXPECT_GT(postFailure, preFailure);
+
+    // No task to run
+    try {
+        runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
+                    "Compact DB file 0");
+        FAIL() << "Expected task run failure";
+    } catch (const std::exception&) {
+    }
 }
 
 // Delete an item in the same flush batch as the drop of its collection.
