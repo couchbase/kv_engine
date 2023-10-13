@@ -271,18 +271,20 @@ cb::engine_errc server_prometheus_metering(
     thread_stats->thread_op++;
 
 #define THREAD_GUTS2(conn, thread_stats, slab_op, thread_op) \
-    thread_stats->slab_op++; \
-    thread_stats->thread_op++;
+    do {                                                     \
+        thread_stats->slab_op++;                             \
+        thread_stats->thread_op++;                           \
+    } while (0)
 
 #define SLAB_THREAD_GUTS(conn, thread_stats, slab_op, thread_op) \
     SLAB_GUTS(conn, thread_stats, slab_op, thread_op) \
     THREAD_GUTS(conn, thread_stats, slab_op, thread_op)
 
 #define STATS_INCR1(GUTS, conn, slab_op, thread_op)     \
-    {                                                   \
+    do {                                                \
         auto* stats_incr1_ts = get_thread_stats(conn);  \
         GUTS(conn, stats_incr1_ts, slab_op, thread_op); \
-    }
+    } while (0)
 
 #define STATS_INCR(conn, op) \
     STATS_INCR1(THREAD_GUTS, conn, op, op)
