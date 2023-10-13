@@ -59,13 +59,18 @@ std::map<std::string, std::string> StatTest::get_stat(const char* statkey,
         stats[k] = v;
     };
     MockCookie cookie;
-    EXPECT_EQ(
-            cb::engine_errc::success,
-            engine->get_stats(cookie,
-                              {statkey, statkey == NULL ? 0 : strlen(statkey)},
-                              value,
-                              add_stats))
-            << "Failed to get stats.";
+
+    // Do get_stats and handle it throttling.
+    auto ec = cb::engine_errc::throttled;
+    while (ec == cb::engine_errc::throttled) {
+        ec = engine->get_stats(
+                cookie,
+                {statkey, statkey == nullptr ? 0 : strlen(statkey)},
+                value,
+                add_stats);
+    }
+
+    EXPECT_EQ(cb::engine_errc::success, ec) << "Failed to get stats.";
 
     return stats;
 }

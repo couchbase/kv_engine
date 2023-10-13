@@ -903,6 +903,13 @@ cb::engine_errc StatsCommandContext::getTaskResult() {
     if (command_exit_code == cb::engine_errc::would_block) {
         // The call to stats blocked, so we need to retry
         state = State::DoStats;
+    } else if (command_exit_code == cb::engine_errc::throttled) {
+        // The call to stats throttled, so we send what we've received and
+        // attempt to run again to completion.
+        stats_task.iterateStats(
+                [this](auto k, auto v) { append_stats(k, v, cookie); });
+        state = State::DoStats;
+        return cb::engine_errc::success;
     } else {
         state = State::CommandComplete;
         stats_task.iterateStats(

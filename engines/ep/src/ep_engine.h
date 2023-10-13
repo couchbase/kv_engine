@@ -1098,7 +1098,10 @@ protected:
                                   const AddStatFn& addStat,
                                   std::string_view keyArgs);
     /**
-     * Immediately collect DCP stats, without scheduling a background task.
+     * Immediately collect DCP stats. This function yields control back to the
+     * caller in places, to allow the caller to allow the caller to proccess
+     * smaller chunks of data and provide backpressure.
+     * @return throttled if the there are more stats to send; success when done.
      */
     cb::engine_errc doDcpStats(CookieIface& cookie,
                                const AddStatFn& add_stat,

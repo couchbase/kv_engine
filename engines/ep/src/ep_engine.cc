@@ -4130,13 +4130,12 @@ struct ConnStatBuilder {
  * Function object to send per-stream stats for a single dcp connection.
  */
 struct ConnPerStreamStatBuilder {
-    ConnPerStreamStatBuilder(CookieIface& c,
-                             AddStatFn as,
-                             DcpStatsFilter filter)
-        : cookie(c), add_stat(std::move(as)), filter(std::move(filter)) {
+    ConnPerStreamStatBuilder(CookieIface& c, DcpStatsFilter filter)
+        : cookie(c), filter(std::move(filter)) {
     }
 
     void operator()(std::shared_ptr<ConnHandler> tc) {
+        Expects(add_stat);
         ++aggregator.totalConns;
         if (filter.include(*tc)) {
             tc->addStreamStats(add_stat, cookie);
@@ -4307,6 +4306,14 @@ cb::engine_errc EventuallyPersistentEngine::doDcpStats(
         CookieIface& cookie,
         const AddStatFn& add_stat,
         std::string_view value) {
+    if (auto optDcpStreamVisitor =
+                takeEngineSpecific<std::unique_ptr<ConnPerStreamStatBuilder>>(
+                        cookie)) {
+        optDcpStreamVisitor.value()->add_stat = add_stat;
+        dcpConnMap_->each(**optDcpStreamVisitor);
+        return cb::engine_errc::success;
+    }
+
     ConnStatBuilder dcpVisitor(cookie, add_stat, DcpStatsFilter{value});
     dcpConnMap_->each(dcpVisitor);
 
@@ -4317,11 +4324,13 @@ cb::engine_errc EventuallyPersistentEngine::doDcpStats(
 
     dcpConnMap_->addStats(add_stat, cookie);
 
-    ConnPerStreamStatBuilder dcpStreamVisitor(
-            cookie, add_stat, DcpStatsFilter{value});
-    dcpConnMap_->each(dcpStreamVisitor);
+    // Store the per-stream visitor in the cookie and yield back to caller. We
+    // will process the per-stream stats next time we're called.
+    auto dcpStreamVisitor = std::make_unique<ConnPerStreamStatBuilder>(
+            cookie, DcpStatsFilter{value});
+    storeEngineSpecific(cookie, std::move(dcpStreamVisitor));
 
-    return cb::engine_errc::success;
+    return cb::engine_errc::throttled;
 }
 
 void EventuallyPersistentEngine::addAggregatedProducerStats(

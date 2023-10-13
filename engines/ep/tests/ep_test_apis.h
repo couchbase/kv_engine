@@ -329,6 +329,15 @@ std::pair<cb::engine_errc, std::string> get_value(EngineIface* h,
                                                   Vbid vbucket,
                                                   DocStateFilter state);
 
+/**
+ * Get engine statistics. Handle the engine_errc::throttled.
+ */
+cb::engine_errc get_stats_wrapper(EngineIface* h,
+                                  CookieIface& cookie,
+                                  std::string_view key,
+                                  std::string_view value,
+                                  const AddStatFn& add_stat);
+
 bool verify_vbucket_missing(EngineIface* h, Vbid vb);
 bool verify_vbucket_state(EngineIface* h,
                           Vbid vb,

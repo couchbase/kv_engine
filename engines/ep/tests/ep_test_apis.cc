@@ -1162,6 +1162,18 @@ std::pair<cb::engine_errc, std::string> get_value(EngineIface* h,
     return make_pair(cb::engine_errc(rv.first), value);
 }
 
+cb::engine_errc get_stats_wrapper(EngineIface* h,
+                                  CookieIface& cookie,
+                                  std::string_view key,
+                                  std::string_view value,
+                                  const AddStatFn& add_stat) {
+    cb::engine_errc err;
+    do {
+        err = h->get_stats(cookie, key, value, add_stat);
+    } while (err == cb::engine_errc::throttled);
+    return err;
+}
+
 bool verify_vbucket_missing(EngineIface* h, Vbid vb) {
     const auto vbstr = "vb_" + std::to_string(vb.get());
 
@@ -1174,7 +1186,7 @@ bool verify_vbucket_missing(EngineIface* h, Vbid vb) {
 
     auto* cookie = testHarness->create_cookie(h);
     checkeq(cb::engine_errc::success,
-            h->get_stats(*cookie, {}, {}, add_stats),
+            get_stats_wrapper(h, *cookie, {}, {}, add_stats),
             "Failed to get stats.");
     testHarness->destroy_cookie(cookie);
 
@@ -1266,11 +1278,12 @@ std::string get_stat(EngineIface* h,
     get_stat_context.actual_stat_value.clear();
 
     auto* cookie = testHarness->create_cookie(h);
-    cb::engine_errc err =
-            h->get_stats(*cookie,
-                         {statkey, statkey == nullptr ? 0 : strlen(statkey)},
-                         {},
-                         add_individual_stat);
+    cb::engine_errc err = get_stats_wrapper(
+            h,
+            *cookie,
+            {statkey, statkey == nullptr ? 0 : strlen(statkey)},
+            {},
+            add_individual_stat);
     testHarness->destroy_cookie(cookie);
 
     if (err != cb::engine_errc::success) {
@@ -1355,10 +1368,12 @@ statistic_map get_all_stats(EngineIface* h, const char* statset) {
         vals.clear();
     }
     auto* cookie = testHarness->create_cookie(h);
-    auto err = h->get_stats(*cookie,
-                            {statset, statset == nullptr ? 0 : strlen(statset)},
-                            {},
-                            add_stats);
+    auto err = get_stats_wrapper(
+            h,
+            *cookie,
+            {statset, statset == nullptr ? 0 : strlen(statset)},
+            {},
+            add_stats);
     testHarness->destroy_cookie(cookie);
 
     if (err != cb::engine_errc::success) {
@@ -1694,7 +1709,7 @@ cb::engine_errc get_stats(gsl::not_null<EngineIface*> h,
                           std::string_view value,
                           const AddStatFn& callback) {
     auto* cookie = testHarness->create_cookie(h);
-    auto ret = h->get_stats(*cookie, key, value, callback);
+    auto ret = get_stats_wrapper(h, *cookie, key, value, callback);
     testHarness->destroy_cookie(cookie);
     return ret;
 }

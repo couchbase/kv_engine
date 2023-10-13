@@ -26,6 +26,44 @@ protected:
         }
         TestappClientTest::SetUp();
     }
+
+    std::unique_ptr<MemcachedConnection> setupProducerWithStream(
+            const std::string& name) {
+        BinprotResponse rsp;
+        auto producerConn = getAdminConnection().clone(true);
+        producerConn->authenticate("@admin", mcd_env->getPassword("@admin"));
+        producerConn->selectBucket(bucketName);
+        producerConn->sendCommand(BinprotDcpOpenCommand{
+                name, cb::mcbp::request::DcpOpenPayload::Producer});
+        producerConn->recvResponse(rsp);
+        EXPECT_TRUE(rsp.isSuccess()) << rsp.getStatus();
+
+        BinprotDcpStreamRequestCommand streamReq;
+        streamReq.setDcpReserved(0);
+        streamReq.setDcpStartSeqno(0);
+        streamReq.setDcpEndSeqno(0xffffffff);
+        streamReq.setDcpVbucketUuid(0);
+        streamReq.setDcpSnapStartSeqno(0);
+        streamReq.setDcpSnapEndSeqno(0xfffffff);
+        streamReq.setVBucket(Vbid(0));
+        producerConn->sendCommand(streamReq);
+        // Instead of calling recvResponse(), which requires a Response and
+        // throws on Request sent by DCP, use recvFrame and ignore any DCP
+        // messages.
+        Frame frame;
+        producerConn->recvFrame(frame);
+        while (cb::mcbp::is_server_magic(frame.getMagic())) {
+            producerConn->recvFrame(frame,
+                                    cb::mcbp::ClientOpcode::Invalid,
+                                    std::chrono::seconds(5));
+        }
+        if (cb::mcbp::is_client_magic(frame.getMagic())) {
+            EXPECT_TRUE(cb::mcbp::isStatusSuccess(
+                    frame.getResponse()->getStatus()));
+        }
+
+        return producerConn;
+    }
 };
 
 INSTANTIATE_TEST_SUITE_P(TransportProtocols,
@@ -153,7 +191,9 @@ TEST_P(DcpTest, DcpStats) {
     conn.recvResponse(rsp);
     ASSERT_TRUE(rsp.isSuccess());
 
-    userConnection->stats("dcp");
+    auto stats = userConnection->stats("dcp");
+    EXPECT_TRUE(stats.contains("ep_dcp_dead_conn_count"))
+            << "dcp stats: " << stats.dump(2);
 }
 
 TEST_P(DcpTest, DcpAggStats) {
@@ -168,4 +208,21 @@ TEST_P(DcpTest, DcpAggStats) {
     ASSERT_TRUE(rsp.isSuccess());
 
     userConnection->stats("dcpagg _");
+}
+
+TEST_P(DcpTest, DcpStreamStats) {
+    auto& conn = getAdminConnection();
+    conn.selectBucket(bucketName);
+    conn.sendCommand(BinprotDcpOpenCommand{
+            "testapp_dcp", cb::mcbp::request::DcpOpenPayload::Producer});
+
+    BinprotResponse rsp;
+    conn.recvResponse(rsp);
+    ASSERT_TRUE(rsp.isSuccess());
+
+    auto producerConn = setupProducerWithStream("testapp_dcp");
+
+    auto stats = userConnection->stats("dcp");
+    EXPECT_TRUE(stats.contains("eq_dcpq:testapp_dcp:stream_0_flags"))
+            << "dcp stats: " << stats.dump(2);
 }
