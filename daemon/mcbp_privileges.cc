@@ -62,6 +62,19 @@ static PrivilegeAccess requireInsertOrUpsert(Cookie& cookie) {
     }
 }
 
+static PrivilegeAccess dcpConsumerOrProducer(Cookie& cookie) {
+    switch (cookie.getConnection().getType()) {
+    case Connection::Type::Normal:
+        return cb::rbac::PrivilegeAccessFail;
+    case Connection::Type::Producer:
+        return cookie.checkPrivilege(Privilege::DcpProducer);
+    case Connection::Type::Consumer:
+        return cookie.checkPrivilege(Privilege::DcpConsumer);
+    }
+    throw std::invalid_argument(
+            "dcpConsumerOrProducer(): Invalid connection type");
+}
+
 template <Privilege T>
 static PrivilegeAccess requirePrivilegeInAtLeastOneCollection(Cookie& cookie) {
     return cookie.checkForPrivilegeAtLeastInOneCollection(T);
@@ -173,9 +186,10 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
           require<Privilege::DcpConsumer>);
     setup(cb::mcbp::ClientOpcode::DcpSetVbucketState,
           require<Privilege::DcpConsumer>);
-    setup(cb::mcbp::ClientOpcode::DcpNoop, empty);
-    setup(cb::mcbp::ClientOpcode::DcpBufferAcknowledgement, empty);
-    setup(cb::mcbp::ClientOpcode::DcpControl, empty);
+    setup(cb::mcbp::ClientOpcode::DcpNoop, dcpConsumerOrProducer);
+    setup(cb::mcbp::ClientOpcode::DcpBufferAcknowledgement,
+          dcpConsumerOrProducer);
+    setup(cb::mcbp::ClientOpcode::DcpControl, dcpConsumerOrProducer);
     setup(cb::mcbp::ClientOpcode::DcpSystemEvent,
           require<Privilege::DcpConsumer>);
     setup(cb::mcbp::ClientOpcode::DcpPrepare, require<Privilege::DcpConsumer>);

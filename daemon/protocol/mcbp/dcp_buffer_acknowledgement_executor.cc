@@ -1,4 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2017-Present Couchbase, Inc.
  *
@@ -8,28 +7,20 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
-
-#include "executors.h"
-
 #include "engine_wrapper.h"
-#include "utilities.h"
+#include "executors.h"
+#include <daemon/cookie.h>
 #include <memcached/protocol_binary.h>
 
 void dcp_buffer_acknowledgement_executor(Cookie& cookie) {
     auto ret = cookie.swapAiostat(cb::engine_errc::success);
 
     if (ret == cb::engine_errc::success) {
-        ret = mcbp::haveDcpPrivilege(cookie);
-
-        if (ret == cb::engine_errc::success) {
-            auto& req = cookie.getRequest();
-            using cb::mcbp::request::DcpBufferAckPayload;
-            const auto& payload =
-                    req.getCommandSpecifics<DcpBufferAckPayload>();
-            ret = dcpBufferAcknowledgement(cookie,
-                                           req.getOpaque(),
-                                           payload.getBufferBytes());
-        }
+        auto& req = cookie.getRequest();
+        using cb::mcbp::request::DcpBufferAckPayload;
+        const auto& payload = req.getCommandSpecifics<DcpBufferAckPayload>();
+        ret = dcpBufferAcknowledgement(
+                cookie, req.getOpaque(), payload.getBufferBytes());
     }
 
     if (ret != cb::engine_errc::success) {
