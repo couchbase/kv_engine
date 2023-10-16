@@ -66,7 +66,6 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e,
       includeValue(includeVal),
       includeXattributes(includeXattrs),
       includeDeletedUserXattrs(includeDeletedUserXattrs),
-      lastReadSeqnoUnSnapshotted(st_seqno),
       lastSentSeqno(st_seqno),
       lastSentSeqnoAdvance(0),
       curChkSeqno(st_seqno),
@@ -846,8 +845,6 @@ void ActiveStream::addStats(const AddStatFn& add_stat, const CookieIface* c) {
         addStat("last_sent_snap_end_seqno",
                 lastSentSnapEndSeqno.load(std::memory_order_relaxed));
         addStat("last_read_seqno", lastReadSeqno.load());
-        addStat("last_read_seqno_unsnapshotted",
-                lastReadSeqnoUnSnapshotted.load());
         addStat("ready_queue_memory", getReadyQueueMemory());
         addStat("backfill_buffer_bytes", bufferedBackfill.bytes.load());
         addStat("backfill_buffer_items", bufferedBackfill.items.load());
@@ -1317,6 +1314,7 @@ void ActiveStream::processItems(
          * sent meaning the snapshot was never completed.
          */
         std::optional<uint64_t> highNonVisibleSeqno;
+        uint64_t newLastReadSeqno = 0;
         for (auto& qi : outstandingItemsResult.items) {
             if (qi->getOperation() == queue_op::checkpoint_end) {
                 // At the end of each checkpoint remove its snapshot range, so
@@ -1337,7 +1335,8 @@ void ActiveStream::processItems(
                     snapshot(outstandingItemsResult,
                              mutations,
                              visibleSeqno,
-                             highNonVisibleSeqno);
+                             highNonVisibleSeqno,
+                             newLastReadSeqno);
                     /* clear out all the mutations since they are already put
                        onto the readyQ */
                     mutations.clear();
@@ -1365,7 +1364,8 @@ void ActiveStream::processItems(
             }
 
             if (shouldProcessItem(*qi)) {
-                lastReadSeqnoUnSnapshotted = qi->getBySeqno();
+                newLastReadSeqno = qi->getBySeqno();
+
                 // Check if the item is allowed on the stream, note the filter
                 // updates itself for collection deletion events
                 if (filter.checkAndUpdate(*qi)) {
@@ -1387,7 +1387,8 @@ void ActiveStream::processItems(
             snapshot(outstandingItemsResult,
                      mutations,
                      visibleSeqno,
-                     highNonVisibleSeqno);
+                     highNonVisibleSeqno,
+                     newLastReadSeqno);
         } else if (isSeqnoAdvancedEnabled()) {
             // Note that we cannot enter this case if supportSyncReplication()
             // returns true (see isSeqnoAdvancedEnabled). This means that we
@@ -1476,13 +1477,13 @@ bool ActiveStream::shouldProcessItem(const Item& item) {
 void ActiveStream::snapshot(const OutstandingItemsResult& meta,
                             std::deque<std::unique_ptr<DcpResponse>>& items,
                             uint64_t maxVisibleSeqno,
-                            std::optional<uint64_t> highNonVisibleSeqno) {
+                            std::optional<uint64_t> highNonVisibleSeqno,
+                            uint64_t newLastReadSeqno) {
     if (items.empty()) {
         return;
     }
 
-    /* This assumes that all items in the "items deque" is put onto readyQ */
-    lastReadSeqno.store(lastReadSeqnoUnSnapshotted);
+    lastReadSeqno.store(newLastReadSeqno);
 
     if (isCurrentSnapshotCompleted()) {
         // Get OptionalSeqnos which for the items list types should have values

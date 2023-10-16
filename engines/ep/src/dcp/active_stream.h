@@ -632,8 +632,7 @@ protected:
         std::atomic<size_t> sent = 0;
     } backfillItems;
 
-    /* The last sequence number queued from disk or memory and is
-       snapshotted and put onto readyQ */
+    // The last sequence number queued into the readyQ from disk or memory
     AtomicMonotonic<uint64_t, ThrowExceptionPolicy> lastReadSeqno;
 
     /* backfill ById or BySeqno updates this member during the scan, then
@@ -694,11 +693,13 @@ private:
      * @param highNonVisibleSeqno the snapEnd seqno that includes any non
      * visible mutations i.e. prepares and aborts. This is only used when
      * collections is enabled and sync writes are not supported on the stream.
+     * @param newLastReadSeqno The new lastReadSeqno, see member for details.
      */
     void snapshot(const OutstandingItemsResult& meta,
                   std::deque<std::unique_ptr<DcpResponse>>& items,
                   uint64_t maxVisibleSeqno,
-                  std::optional<uint64_t> highNonVisibleSeqno);
+                  std::optional<uint64_t> highNonVisibleSeqno,
+                  uint64_t newLastReadSeqno);
 
     void endStream(cb::mcbp::DcpStreamEndStatus reason);
 
@@ -838,10 +839,6 @@ private:
 
     //! Number of times a backfill is paused.
     cb::RelaxedAtomic<uint64_t> numBackfillPauses{0};
-
-    /* The last sequence number queued from memory, but is yet to be
-       snapshotted and put onto readyQ */
-    std::atomic<uint64_t> lastReadSeqnoUnSnapshotted;
 
     //! The last sequence number sent to the network layer
     AtomicMonotonic<uint64_t, ThrowExceptionPolicy> lastSentSeqno;
