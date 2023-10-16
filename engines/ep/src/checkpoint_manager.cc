@@ -309,7 +309,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
 CursorRegResult CheckpointManager::registerCursorBySeqno(
         const std::lock_guard<std::mutex>& lh,
         const std::string& name,
-        uint64_t startBySeqno,
+        uint64_t lastProcessedSeqno,
         CheckpointCursor::Droppable droppable) {
     std::shared_ptr<CheckpointCursor> newCursor;
 
@@ -323,8 +323,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
         // If:
         // - there is only 1 checkpoint in CM
         // - and, ItemExpel removed all mutations from that checkpoint
-        // (MB-39344) then we register a cursor at checkpoint begin and inform
-        // the caller that there's nothing in memory, so a backfill is needed.
+        // (MB-39344) then we register a cursor at checkpoint begin.
         //
         // Note: The legacy logic (below) for cursor-registering is based on
         // Checkpoint::getMinimumCursorSeqno()/getHighSeqno() that are
@@ -333,20 +332,24 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
                 name, ckptIt, (*ckptIt)->begin(), droppable, 0);
         result.seqno = lastBySeqno + 1;
         result.cursor.setCursor(newCursor);
-        result.tryBackfill = true;
+
+        // Trigger backfill only if there's a gap between lastProcessedSeqno and
+        // nextSeqnoAvailableFromCheckpoint
+        const uint64_t nextSeqnoAvailableFromCheckpoint = lastBySeqno + 1;
+        result.tryBackfill =
+                (nextSeqnoAvailableFromCheckpoint != lastProcessedSeqno + 1);
     } else {
         // Path here handles all scenarios but the new one introduced in
         // MB-39344 (ie one single open checkpoint has been emptied by
         // ItemExpel).
 
         const auto& openCkpt = getOpenCheckpoint(lh);
-        if (openCkpt.getHighSeqno() < startBySeqno) {
+        if (openCkpt.getHighSeqno() < lastProcessedSeqno) {
             throw std::invalid_argument(
-                    "CheckpointManager::registerCursorBySeqno: startBySeqno "
-                    "(which is " +
-                    std::to_string(startBySeqno) +
-                    ") is less than last "
-                    "checkpoint highSeqno (which is " +
+                    "CheckpointManager::registerCursorBySeqno: "
+                    "lastProcessedSeqno (which is " +
+                    std::to_string(lastProcessedSeqno) +
+                    ") is less than last checkpoint highSeqno (which is " +
                     std::to_string(openCkpt.getHighSeqno()) + ")");
         }
 
@@ -360,20 +363,20 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
             uint64_t en = (*ckptIt)->getHighSeqno();
             uint64_t st = (*ckptIt)->getMinimumCursorSeqno();
 
-            if (startBySeqno < st) {
+            if (lastProcessedSeqno < st) {
                 // Requested sequence number is before the start of this
                 // checkpoint, position cursor at the checkpoint begin.
                 newCursor = std::make_shared<CheckpointCursor>(
                         name, ckptIt, (*ckptIt)->begin(), droppable, 0);
                 result.seqno = st;
                 result.cursor.setCursor(newCursor);
-                // Set tryBackfill:true only if startBySeqno to st is non
+                // Set tryBackfill:true only if lastProcessedSeqno to st is non
                 // contiguous. Note this is likely the fix for MB-53616/MB-58302
                 // which were noted in master only, and likely backported to the
                 // neo branch via MB-39344
-                result.tryBackfill = st - startBySeqno > 1;
+                result.tryBackfill = st - lastProcessedSeqno > 1;
                 break;
-            } else if (startBySeqno <= en) {
+            } else if (lastProcessedSeqno <= en) {
                 // checkpoint was empty by expel, so we don't know the real
                 // start, backfill is needed whilst we continue the search for
                 // a checkpoint to best satisfy the start. MB-58261
@@ -385,7 +388,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
                 // requested start is the high seqno. The cursor should go to an
                 // open checkpoint ready for new mutations.
                 if ((*ckptIt)->getState() == CHECKPOINT_CLOSED &&
-                    startBySeqno == uint64_t(lastBySeqno.load())) {
+                    lastProcessedSeqno == uint64_t(lastBySeqno.load())) {
                     continue;
                 }
 
@@ -393,7 +396,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
                 // the end (and if there are more checkpoints).
                 const bool isLastCkpt =
                         std::next(ckptIt) == checkpointList.end();
-                if (startBySeqno == en && !isLastCkpt) {
+                if (lastProcessedSeqno == en && !isLastCkpt) {
                     continue;
                 }
 
@@ -410,7 +413,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
                         break;
                     }
                     const auto nextSeqno = uint64_t((*next)->getBySeqno());
-                    if (startBySeqno < nextSeqno) {
+                    if (lastProcessedSeqno < nextSeqno) {
                         result.seqno = nextSeqno;
                         break;
                     }

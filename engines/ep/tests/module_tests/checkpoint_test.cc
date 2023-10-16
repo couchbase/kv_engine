@@ -1962,10 +1962,23 @@ void SingleThreadedCheckpointTest::testRegisterCursorInCheckpointEmptyByExpel(
     // Verify that we register the cursor successfully.
     // Before the fix for MB-53055 this step fails in the case where the
     // checkpoint is "empty" but contains some meta-item after checkpoint_start.
-    const auto res = manager.registerCursorBySeqno(
-            "cursor", 2, CheckpointCursor::Droppable::Yes);
+    //
+    // Note: Checkpoint's highSeqno=2 and user passes lastProcessedSeqno=2,
+    // backfill not needed
+    auto res = manager.registerCursorBySeqno(
+            "cursor_triggers_backfill", 2, CheckpointCursor::Droppable::Yes);
+    EXPECT_FALSE(res.tryBackfill);
+    auto cursor = res.cursor.lock();
+    EXPECT_EQ(queue_op::empty, (*cursor->getPos())->getOperation());
+    EXPECT_EQ(1, (*cursor->getPos())->getBySeqno());
+    EXPECT_EQ(0, cursor->getDistance());
+
+    // Note: Checkpoint's highSeqno=2 and user passes lastProcessedSeqno=1,
+    // backfill needed
+    res = manager.registerCursorBySeqno(
+            "cursor_no_backfill", 1, CheckpointCursor::Droppable::Yes);
     EXPECT_TRUE(res.tryBackfill);
-    const auto cursor = res.cursor.lock();
+    cursor = res.cursor.lock();
     EXPECT_EQ(queue_op::empty, (*cursor->getPos())->getOperation());
     EXPECT_EQ(1, (*cursor->getPos())->getBySeqno());
     EXPECT_EQ(0, cursor->getDistance());
