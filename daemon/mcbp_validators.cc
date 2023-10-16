@@ -303,6 +303,12 @@ Status McbpValidator::verify_header(Cookie& cookie,
             case cb::mcbp::request::FrameInfoId::DurabilityRequirement:
                 try {
                     cb::durability::Requirements req(data);
+                    if (!req.isValid()) {
+                        status = Status::Einval;
+                        cookie.setErrorContext(
+                                "Invalid durability requirements");
+                        return false;
+                    }
                     if (!cb::mcbp::is_durability_supported(opcode)) {
                         status = Status::Einval;
                         cookie.setErrorContext(
@@ -438,7 +444,7 @@ Status McbpValidator::verify_header(Cookie& cookie,
         cb::mcbp::is_collection_command(request.getClientOpcode()) &&
         (cookie.getPrivilegeContext().hasScopePrivileges() ||
          cookie.getEffectiveUser() || cb::serverless::isEnabled())) {
-        auto status = setCurrentCollectionInfo(
+        status = setCurrentCollectionInfo(
                 cookie, cookie.getRequestKey().getCollectionID());
         if (status != Status::Success) {
             return status;
@@ -674,8 +680,8 @@ static Status dcp_add_stream_validator(Cookie& cookie) {
     const auto& payload = req.getCommandSpecifics<DcpAddStreamPayload>();
 
     const uint32_t flags = payload.getFlags();
-    if (auto status = verify_common_dcp_stream_restrictions(cookie, flags);
-        status != Status::Success) {
+    status = verify_common_dcp_stream_restrictions(cookie, flags);
+    if (status != Status::Success) {
         return status;
     }
     return verify_common_dcp_restrictions(cookie);
@@ -730,8 +736,8 @@ static Status dcp_stream_req_validator(Cookie& cookie) {
     const auto& payload =
             req.getCommandSpecifics<cb::mcbp::request::DcpStreamReqPayload>();
     const uint32_t flags = payload.getFlags();
-    if (auto status = verify_common_dcp_stream_restrictions(cookie, flags);
-        status != Status::Success) {
+    status = verify_common_dcp_stream_restrictions(cookie, flags);
+    if (status != Status::Success) {
         return status;
     }
 
