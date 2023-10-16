@@ -44,7 +44,6 @@
 #include "protocol/mcbp/settings_reload_command_context.h"
 #include "protocol/mcbp/single_state_steppable_context.h"
 #include "protocol/mcbp/stats_context.h"
-#include "protocol/mcbp/unlock_context.h"
 #include "session_cas.h"
 #include "settings.h"
 #include "ssl_utils.h"
@@ -65,7 +64,12 @@ static void get_locked_executor(Cookie& cookie) {
 }
 
 static void unlock_executor(Cookie& cookie) {
-    cookie.obtainContext<UnlockCommandContext>(cookie).drive();
+    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
+              return bucket_unlock(c,
+                                   c.getRequestKey(),
+                                   c.getRequest().getVBucket(),
+                                   c.getRequest().getCas());
+          }).drive();
 }
 
 static void gat_executor(Cookie& cookie) {
@@ -219,6 +223,15 @@ static void isasl_refresh_executor(Cookie& cookie) {
 static void ssl_certs_refresh_executor(Cookie& cookie) {
     cookie.setErrorContext("Use ifconfig tls instead");
     cookie.sendResponse(cb::mcbp::Status::NotSupported);
+}
+
+static void collections_set_manifest_executor(Cookie& cookie) {
+    cookie.obtainContext<SingleStateCommandContext>(cookie, [](Cookie& c) {
+              return c.getConnection()
+                      .getBucketEngine()
+                      .set_collection_manifest(c,
+                                               c.getRequest().getValueString());
+          }).drive();
 }
 
 static void verbosity_executor(Cookie& cookie) {

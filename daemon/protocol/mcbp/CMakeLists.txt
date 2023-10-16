@@ -12,7 +12,6 @@ add_library(memcached_daemon_mcbp OBJECT
         collections_get_collection_id_executor.cc
         collections_get_manifest_executor.cc
         collections_get_scope_id_executor.cc
-        collections_set_manifest_executor.cc
         command_context.h
         dcp_abort_executor.cc
         dcp_add_failover_log.cc
@@ -91,8 +90,6 @@ add_library(memcached_daemon_mcbp OBJECT
         stats_context.h
         steppable_command_context.cc
         steppable_command_context.h
-        unlock_context.cc
-        unlock_context.h
         utilities.h)
 kv_enable_pch(memcached_daemon_mcbp)
 cb_enable_unity_build(memcached_daemon_mcbp)

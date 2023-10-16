@@ -16,6 +16,7 @@
 #include "front_end_thread.h"
 #include "memcached.h"
 #include "network_interface_description.h"
+#include "settings.h"
 #include "subdocument_validators.h"
 #include "tls_configuration.h"
 #include "xattr/utils.h"
@@ -1953,6 +1954,10 @@ static Status collections_set_manifest_validator(Cookie& cookie) {
     if (cookie.getRequest().getVBucket() != Vbid(0)) {
         cookie.setErrorContext("Request vbucket id must be 0");
         return Status::Einval;
+    }
+
+    if (!Settings::instance().isCollectionsEnabled()) {
+        return Status::NotSupported;
     }
 
     return Status::Success;
