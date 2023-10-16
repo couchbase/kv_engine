@@ -847,7 +847,7 @@ private:
     std::atomic<uint64_t> lastSentSeqnoAdvance;
 
     //! The last known seqno pointed to by the checkpoint cursor
-    std::atomic<uint64_t> curChkSeqno;
+    AtomicWeaklyMonotonic<uint64_t, ThrowExceptionPolicy> curChkSeqno;
 
     /*
      * The next snapshot start that we will send (set when we set
