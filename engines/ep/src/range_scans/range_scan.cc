@@ -121,13 +121,7 @@ RangeScan::~RangeScan() {
 
     auto cs = *continueState.rlock();
 
-    auto level = spdlog::level::level_enum::debug;
-    if (cs.finalStatus != cb::engine_errc::range_scan_complete) {
-        level = spdlog::level::level_enum::warn;
-    }
-
-    EP_LOG_FMT(
-            level,
+    EP_LOG_DEBUG(
             "{} finished in {} status:{}, after {}ms, continued:{}, keys:{}{}",
             getLogId(),
             cs.state,
@@ -753,6 +747,21 @@ std::ostream& operator<<(std::ostream& os,
 
 CollectionID RangeScan::getCollectionID() const {
     return start.getDocKey().getCollectionID();
+}
+
+void RangeScan::logForTimeout() const {
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            now() - createTime)
+                            .count();
+    EP_LOG_WARN(
+            "{} timeout after {}ms, continues:{}, keys:{}, values-mem:{}, "
+            "values-disk:{}",
+            getLogId(),
+            duration,
+            continueCount,
+            totalKeys,
+            totalValuesFromMemory,
+            totalValuesFromDisk);
 }
 
 void RangeScan::ContinueState::setupForIdle() {

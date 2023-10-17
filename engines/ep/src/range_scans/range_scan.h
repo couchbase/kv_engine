@@ -325,6 +325,9 @@ public:
         return continueCount;
     }
 
+    /// Log a warning with useful information about the timed out scan
+    void logForTimeout() const;
+
     /**
      * To facilitate testing, the now function, which returns a time point can
      * be replaced

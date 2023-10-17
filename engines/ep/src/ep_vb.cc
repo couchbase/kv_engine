@@ -1545,7 +1545,7 @@ cb::engine_errc EPVBucket::cancelRangeScan(cb::rangescan::Id id,
             cancelStatus == cb::engine_errc::no_such_key);
 
     if (cancelStatus == cb::engine_errc::success) {
-        EP_LOG_INFO("{} RangeScan {} cancelled by request", getId(), id);
+        EP_LOG_DEBUG("{} RangeScan {} cancelled by request", getId(), id);
     }
 
     // The client doesn't wait for the task to run/complete

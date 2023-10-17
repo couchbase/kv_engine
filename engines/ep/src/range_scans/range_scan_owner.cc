@@ -337,6 +337,7 @@ VB::RangeScanOwner::cancelAllExceedingDuration(EPBucket& bucket,
         if (remainingTime == std::chrono::seconds(0)) {
             itr->second->setStateCancelled(
                     cb::engine_errc::range_scan_cancelled);
+            itr->second->logForTimeout();
             auto scan = itr->second;
             itr = locked->rangeScans.erase(itr);
             readyScans->addScan(bucket, scan);
