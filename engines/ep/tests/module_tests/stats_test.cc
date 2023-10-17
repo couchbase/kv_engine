@@ -1056,7 +1056,6 @@ protected:
         stats.mem_high_wat_percent.store(nonDefaultCounterValue);
         stats.memFreedByCheckpointItemExpel.store(nonDefaultCounterValue);
         stats.forceShutdown.store(nonDefaultBool);
-        stats.pendingCompactions.store(nonDefaultCounterValue);
         stats.bg_meta_fetched.store(nonDefaultCounterValue);
         stats.numRemainingBgItems.store(nonDefaultCounterValue);
         stats.numRemainingBgJobs.store(nonDefaultCounterValue);
@@ -1185,7 +1184,6 @@ protected:
         EXPECT_EQ(nonStatValue, stats.expPagerTime);
         EXPECT_EQ(nonStatBool, stats.isShutdown);
         EXPECT_EQ(nonStatValue, stats.pendingOps);
-        EXPECT_EQ(nonStatValue, stats.pendingCompactions);
         EXPECT_EQ(nonStatValue, stats.numRemainingBgItems);
         EXPECT_EQ(nonStatValue, stats.numRemainingBgJobs);
         EXPECT_EQ(nonStatValue, stats.replicaCheckpointOverhead);

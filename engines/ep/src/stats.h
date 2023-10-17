@@ -374,9 +374,6 @@ public:
     //! Histogram of pending operation wait times.
     Hdr1sfMicroSecHistogram pendingOpsHisto;
 
-    //! Number of pending vbucket compaction requests
-    Counter pendingCompactions;
-
     //! Number of times background fetches occurred.
     Counter bg_fetched;
     //! Number of times background fetches were triggered by compaction (for

@@ -727,7 +727,7 @@
     {
         "key": "ep_pending_compactions",
         "unit": "count",
-        "description": "Number of pending vbucket compactions",
+        "description": "For persistent buckets, the count of compaction tasks.",
         "added": "7.0.0"
     },
     {

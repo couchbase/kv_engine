@@ -58,6 +58,9 @@ public:
         return cb::engine_errc::no_such_key;
     }
 
+    cb::engine_errc getImplementationStats(
+            const BucketStatCollector& collector) const override;
+
     /// Disk stats not supported for Ephemeral buckets.
     cb::engine_errc getPerVBucketDiskStats(CookieIface& cookie,
                                            const AddStatFn& add_stat) override {

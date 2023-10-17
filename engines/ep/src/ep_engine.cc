@@ -1171,7 +1171,6 @@ cb::engine_errc EventuallyPersistentEngine::compactDatabaseInner(
     CompactionConfig compactionConfig{
             purge_before_ts, purge_before_seq, drop_deletes, false};
 
-    ++stats.pendingCompactions;
     // Set something in the EngineSpecfic so we can determine which phase of the
     // command is executing.
     storeEngineSpecific(cookie, ScheduledCompactionToken{});
@@ -1181,7 +1180,6 @@ cb::engine_errc EventuallyPersistentEngine::compactDatabaseInner(
 
     Expects(status != cb::engine_errc::success);
     if (status != cb::engine_errc::would_block) {
-        --stats.pendingCompactions;
         // failed, clear the engine-specific
         clearEngineSpecific(cookie);
         EP_LOG_WARN("Compaction of {} failed: {}", vbid, status);
@@ -3341,7 +3339,6 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
     collector.addStat(Key::ep_pending_ops_max_duration,
                       epstats.pendingOpsMaxDuration);
 
-    collector.addStat(Key::ep_pending_compactions, epstats.pendingCompactions);
     collector.addStat(Key::ep_rollback_count, epstats.rollbackCount);
 
     collector.addStat(Key::ep_degraded_mode, isDegradedMode());
@@ -3408,6 +3405,8 @@ cb::engine_errc EventuallyPersistentEngine::doEngineStatsLowCardinality(
                      epstats.numOpsDelMetaResolutionFailedIdentical);
 
     doDiskFailureStats(collector);
+
+    kvBucket->getImplementationStats(collector);
 
     // Note: These are also reported per-shard in 'kvstore' stats, however
     // we want to be able to graph these over time, and hence need to expose

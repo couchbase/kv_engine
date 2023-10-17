@@ -399,6 +399,13 @@ public:
             const BucketStatCollector& collector) = 0;
 
     /**
+     * Get statistics which are specific to the implementation (persistent vs
+     * ephemeral)
+     */
+    virtual cb::engine_errc getImplementationStats(
+            const BucketStatCollector& collector) const = 0;
+
+    /**
      * Get detailed (per-vbucket) disk stats.
      *
      * @param cookie Cookie associated with ADD_STAT

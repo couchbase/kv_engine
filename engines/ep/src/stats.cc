@@ -36,7 +36,6 @@ EPStats::EPStats()
       replicaCheckpointOverhead(0),
       forceShutdown(false),
       pendingOps(0),
-      pendingCompactions(0),
       numRemainingBgItems(0),
       numRemainingBgJobs(0),
       alogTime(0),
@@ -50,7 +49,7 @@ EPStats::EPStats()
 
 EPStats::~EPStats() = default;
 
-static_assert(sizeof(EPStats) == 2192,
+static_assert(sizeof(EPStats) == 2184,
               "EPStats size is unexpected - have you added/removed stats?");
 
 void EPStats::setMaxDataSize(size_t size) {

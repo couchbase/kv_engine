@@ -96,4 +96,7 @@ public:
     cb::AwaitableSemaphore& public_getCompactionSemaphore();
 
     void public_updateCompactionConcurrency();
+
+    const std::unordered_map<Vbid, std::shared_ptr<CompactTask>>&
+    public_getCompactionTasks() const;
 };

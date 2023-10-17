@@ -159,3 +159,8 @@ cb::AwaitableSemaphore& MockEPBucket::public_getCompactionSemaphore() {
 void MockEPBucket::public_updateCompactionConcurrency() {
     updateCompactionConcurrency();
 }
+
+const std::unordered_map<Vbid, std::shared_ptr<CompactTask>>&
+MockEPBucket::public_getCompactionTasks() const {
+    return *compactionTasks.rlock();
+}

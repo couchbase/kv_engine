@@ -1525,8 +1525,6 @@ bool EPBucket::doCompact(Vbid vbid,
     // All cookies notified so clear the container
     cookies.clear();
 
-    --stats.pendingCompactions;
-
     // Must ensure reschedule request is ignored when shutting down
     return reschedule && !stats.isShutdown;
 }
@@ -1590,6 +1588,14 @@ cb::engine_errc EPBucket::getFileStats(const BucketStatCollector& collector) {
     collector.addStat(Key::ep_db_history_start_timestamp,
                       totalInfo.historyStartTimestamp.count());
 
+    return cb::engine_errc::success;
+}
+
+cb::engine_errc EPBucket::getImplementationStats(
+        const BucketStatCollector& collector) const {
+    using namespace cb::stats;
+    collector.addStat(Key::ep_pending_compactions,
+                      compactionTasks.rlock()->size());
     return cb::engine_errc::success;
 }
 

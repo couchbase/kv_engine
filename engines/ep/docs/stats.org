@@ -73,7 +73,8 @@ For introductory information on stats within Couchbase, start with the
 |                                       | a vbucket                               |
 | ep_vbucket_del_avg_walltime           | Avg wall time (µs) spent by deleting    |
 |                                       | a vbucket                               |
-| ep_pending_compactions                | Number of pending vbucket compactions   |
+| ep_pending_compactions                | For persistent buckets this is the count|
+|                                       | of compaction tasks.                    |
 | ep_rollback_count                     | Number of rollbacks on consumer         |
 | ep_flush_duration_total               | Cumulative milliseconds spent flushing  |
 | ep_num_ops_get_meta                   | Number of getMeta operations            |

@@ -180,6 +180,9 @@ public:
 
     cb::engine_errc getFileStats(const BucketStatCollector& collector) override;
 
+    cb::engine_errc getImplementationStats(
+            const BucketStatCollector& collector) const override;
+
     cb::engine_errc getPerVBucketDiskStats(CookieIface& cookie,
                                            const AddStatFn& add_stat) override;
 

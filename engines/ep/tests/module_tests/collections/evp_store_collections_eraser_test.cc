@@ -2205,11 +2205,16 @@ TEST_P(CollectionsEraserPersistentWithFailure, FailAndRetry) {
 
     size_t preFailure = engine->getEpStats().compactionFailed;
 
+    auto& mockEP = dynamic_cast<MockEPBucket&>(*store);
+    EXPECT_EQ(1, mockEP.public_getCompactionTasks().size());
+
     // Inject failure
     runAndFailCompaction(false);
 
     size_t postFailure = engine->getEpStats().compactionFailed;
     EXPECT_GT(postFailure, preFailure);
+
+    EXPECT_EQ(1, mockEP.public_getCompactionTasks().size());
 
     // Rescheduled and should run again
     runNextTask(*task_executor->getLpTaskQ()[AUXIO_TASK_IDX],
@@ -2217,6 +2222,7 @@ TEST_P(CollectionsEraserPersistentWithFailure, FailAndRetry) {
 
     size_t postSuccess = engine->getEpStats().compactionFailed;
     EXPECT_EQ(postFailure, postSuccess);
+    EXPECT_EQ(0, mockEP.public_getCompactionTasks().size());
 }
 
 // Test checks that compaction does not reschedule if shutting down.
