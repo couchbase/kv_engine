@@ -4081,9 +4081,9 @@ public:
         }
     }
 
-    bool include(const std::shared_ptr<ConnHandler>& tc) {
-        if ((user && *user != tc->getAuthenticatedUser()) ||
-            (port && *port != tc->getConnectedPort())) {
+    bool include(const ConnHandler& tc) {
+        if ((user && *user != tc.getAuthenticatedUser()) ||
+            (port && *port != tc.getConnectedPort())) {
             // Connection should not be part of this output
             return false;
         }
@@ -4107,7 +4107,7 @@ struct ConnStatBuilder {
 
     void operator()(std::shared_ptr<ConnHandler> tc) {
         ++aggregator.totalConns;
-        if (filter.include(tc)) {
+        if (filter.include(*tc)) {
             tc->addStats(add_stat, cookie);
             auto tp = std::dynamic_pointer_cast<DcpProducer>(tc);
             if (tp) {
@@ -4138,7 +4138,7 @@ struct ConnPerStreamStatBuilder {
 
     void operator()(std::shared_ptr<ConnHandler> tc) {
         ++aggregator.totalConns;
-        if (filter.include(tc)) {
+        if (filter.include(*tc)) {
             tc->addStreamStats(add_stat, cookie);
         }
     }
