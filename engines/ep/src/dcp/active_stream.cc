@@ -1078,6 +1078,15 @@ void ActiveStream::nextCheckpointItemTask() {
 
 void ActiveStream::nextCheckpointItemTask(
         const std::lock_guard<std::mutex>& streamMutex) {
+    auto vbucket = engine->getVBucket(vb_);
+    if (!vbucket) {
+        // The entity deleting the vbucket must set stream to dead,
+        // calling setDead(cb::mcbp::DcpStreamEndStatus::StateChanged) will
+        // cause deadlock because it will try to grab streamMutex which is
+        // already acquired at this point here
+        return;
+    }
+
     if (!producerPtr.lock()) {
         // Nothing to do, the connection is being shut down
         return;
@@ -1089,25 +1098,13 @@ void ActiveStream::nextCheckpointItemTask(
         return;
     }
 
-    auto res = getOutstandingItems();
-    if (res.isEmpty()) {
-        return;
-    }
-
+    auto res = getOutstandingItems(*vbucket);
     processItems(streamMutex, res);
 }
 
-ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems() {
+ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
+        VBucket& vb) {
     OutstandingItemsResult result;
-    auto vb = engine->getVBucket(vb_);
-    if (!vb) {
-        // The entity deleting the vbucket must set stream to dead,
-        // calling setDead(cb::mcbp::DcpStreamEndStatus::StateChanged) will
-        // cause deadlock because it will try to grab streamMutex which is
-        // already acquired at this point here
-        return {};
-    }
-
     // Commencing item processing - set guard flag.
     chkptItemsExtractionInProgress.store(true);
 
@@ -1115,8 +1112,8 @@ ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems() {
     CheckpointManager::ItemsForCursor itemsForCursor{};
     auto cursorPtr = cursor.lock();
     if (cursorPtr) {
-        itemsForCursor = vb->checkpointManager->getNextItemsForDcp(
-                *cursorPtr, result.items);
+        itemsForCursor = vb.checkpointManager->getNextItemsForDcp(*cursorPtr,
+                                                                  result.items);
     }
     engine->getEpStats().dcpCursorsGetItemsHisto.add(
             std::chrono::duration_cast<std::chrono::microseconds>(

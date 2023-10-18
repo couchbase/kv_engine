@@ -125,7 +125,7 @@ void DurabilityActiveStreamTest::testSendDcpPrepare() {
     EXPECT_EQ(value, (*it)->getValue()->to_s());
 
     // We must have ckpt-start + Prepare
-    auto outstandingItemsResult = stream->public_getOutstandingItems();
+    auto outstandingItemsResult = stream->public_getOutstandingItems(*vb);
     ASSERT_EQ(2, outstandingItemsResult.items.size());
     ASSERT_EQ(queue_op::checkpoint_start,
               outstandingItemsResult.items.at(0)->getOperation());
@@ -283,7 +283,7 @@ void DurabilityActiveStreamTest::testSendCompleteSyncWrite(Resolution res) {
     }
 
     // Fetch items via DCP stream.
-    auto outstandingItemsResult = stream->public_getOutstandingItems();
+    auto outstandingItemsResult = stream->public_getOutstandingItems(*vb);
     uint64_t expectedVisibleSeqno = 0;
     switch (res) {
     case Resolution::Commit:
@@ -868,7 +868,7 @@ TEST_P(DurabilityActiveStreamTest,
     }
     vb->notifyActiveDMOfLocalSyncWrite();
 
-    auto items = stream->getOutstandingItems();
+    auto items = stream->getOutstandingItems(*vb);
     stream->public_processItems(items);
     stream->consumeBackfillItems(*producer, 1);
     stream->public_nextQueuedItem(*producer);
@@ -878,7 +878,7 @@ TEST_P(DurabilityActiveStreamTest,
     EXPECT_EQ(1, vb->getHighCompletedSeqno());
 
     // Move the DCP cursor
-    items = stream->getOutstandingItems();
+    items = stream->getOutstandingItems(*vb);
     stream->public_processItems(items);
 
     flushVBucketToDiskIfPersistent(vbid, 2);
@@ -900,7 +900,7 @@ TEST_P(DurabilityActiveStreamTest,
     }
     vb->notifyActiveDMOfLocalSyncWrite();
 
-    items = stream->getOutstandingItems();
+    items = stream->getOutstandingItems(*vb);
     stream->public_processItems(items);
     stream->consumeBackfillItems(*producer, 3);
     stream->public_nextQueuedItem(*producer);
@@ -4706,13 +4706,13 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
 
     // 5) Test the checkpoint and stream output.
 
-    auto outItems = stream->public_getOutstandingItems();
+    auto outItems = stream->public_getOutstandingItems(*vb);
     if (isPersistent()) {
         ASSERT_THAT(
                 outItems.items,
                 testing::ElementsAre(HasOperation(queue_op::checkpoint_start),
                                      HasOperation(queue_op::checkpoint_end)));
-        outItems = stream->public_getOutstandingItems();
+        outItems = stream->public_getOutstandingItems(*vb);
     }
     // Simulate running the checkpoint processor task
     // We must have ckpt-start + Prepare + Mutation + ckpt-end
@@ -4762,7 +4762,7 @@ void DurabilityPromotionStreamTest::testDiskCheckpointStreamedAsDiskSnapshot() {
 
     // Simulate running the checkpoint processor task again, now we process
     // the second and the third checkpoints (both type:memory)
-    outItems = stream->public_getOutstandingItems();
+    outItems = stream->public_getOutstandingItems(*vb);
     ASSERT_EQ(8, outItems.items.size());
     ASSERT_EQ(queue_op::checkpoint_start, outItems.items.at(0)->getOperation());
     // this set_vbucket_state is from creating a new failover table entry as
@@ -4976,7 +4976,7 @@ void DurabilityPromotionStreamTest::
     // First CheckpointProcessorTask run
     // Get items from CM, expect Memory{M:1}:
     //   ckpt-start + ckpt-end + ckpt-start + M:1 + ckpt-end
-    auto outItems = activeStream->public_getOutstandingItems();
+    auto outItems = activeStream->public_getOutstandingItems(*vb);
     ASSERT_THAT(outItems.items,
                 testing::ElementsAre(HasOperation(queue_op::checkpoint_start),
                                      HasOperation(queue_op::checkpoint_end),
@@ -5012,7 +5012,7 @@ void DurabilityPromotionStreamTest::
     //
     // !! NOTE: This is the important part of the test !!
     //   Before this patch we do not get any ckpt-start from CM
-    outItems = activeStream->public_getOutstandingItems();
+    outItems = activeStream->public_getOutstandingItems(*vb);
     ASSERT_EQ(4, outItems.items.size());
     ASSERT_EQ(queue_op::checkpoint_start, outItems.items.at(0)->getOperation());
     ASSERT_EQ(queue_op::pending_sync_write,
@@ -5060,7 +5060,7 @@ void DurabilityPromotionStreamTest::
     // Third CheckpointProcessorTask run
     // Get items from CM, expect Memory{set-vbs:4, M:4}:
     //   ckpt-start + set-vbs:4 + M:4 + ckpt-end
-    outItems = activeStream->public_getOutstandingItems();
+    outItems = activeStream->public_getOutstandingItems(*vb);
     ASSERT_EQ(4, outItems.items.size());
     ASSERT_EQ(queue_op::checkpoint_start, outItems.items.at(0)->getOperation());
     // this set_vbucket_state is from creating a new failover table entry as
@@ -5211,14 +5211,14 @@ void DurabilityPromotionStreamTest::
     ASSERT_EQ(0, activeStream->public_readyQSize());
 
     // CheckpointProcessorTask runs
-    auto outItems = activeStream->public_getOutstandingItems();
+    auto outItems = activeStream->public_getOutstandingItems(*vb);
     ASSERT_EQ(2, outItems.items.size());
     ASSERT_EQ(queue_op::checkpoint_start, outItems.items.at(0)->getOperation());
     ASSERT_EQ(queue_op::checkpoint_end, outItems.items.at(1)->getOperation());
 
     // Get items from CM, expect Disk{PRE:1, M:2}:
     //   {CS, PRE:1, M:2, CE}
-    outItems = activeStream->public_getOutstandingItems();
+    outItems = activeStream->public_getOutstandingItems(*vb);
     ASSERT_EQ(4, outItems.items.size());
 
     ASSERT_EQ(queue_op::checkpoint_start, outItems.items.at(0)->getOperation());
@@ -5257,7 +5257,7 @@ void DurabilityPromotionStreamTest::
     // CheckpointProcessorTask runs again
     // Get items from CM, expect Disk{PRE:3, M:4}:
     //   {CS, PRE:3, M:4, CE}
-    outItems = activeStream->public_getOutstandingItems();
+    outItems = activeStream->public_getOutstandingItems(*vb);
     ASSERT_EQ(4, outItems.items.size());
 
     ASSERT_EQ(queue_op::checkpoint_start, outItems.items.at(0)->getOperation());
@@ -5395,7 +5395,7 @@ TEST_P(DurabilityPromotionStreamTest,
     // Get items from CM, expect Disk{M:1} as only one Disk checkpoint can be
     // retrieved at a time
     auto vb = store->getVBucket(vbid);
-    auto outItems = activeStream->public_getOutstandingItems();
+    auto outItems = activeStream->public_getOutstandingItems(*vb);
 
     // Push items into the Stream::readyQ
     activeStream->public_processItems(outItems);
@@ -5404,7 +5404,7 @@ TEST_P(DurabilityPromotionStreamTest,
         // Call public_getOutstandingItems() again as the last call will have
         // only looked at the empty checkpoint which has been kept around due to
         // the cursor placed by registerCursorAtCMStartIfEphemeral().
-        outItems = activeStream->public_getOutstandingItems();
+        outItems = activeStream->public_getOutstandingItems(*vb);
         activeStream->public_processItems(outItems);
     }
 
@@ -5426,7 +5426,7 @@ TEST_P(DurabilityPromotionStreamTest,
 
     // CheckpointProcessorTask runs
     // Get items from CM, expect Disk{A:3}
-    outItems = activeStream->public_getOutstandingItems();
+    outItems = activeStream->public_getOutstandingItems(*vb);
     activeStream->public_processItems(outItems);
 
     // 7)
@@ -5530,7 +5530,7 @@ TEST_P(DurabilityPromotionStreamTest,
     // Get items from CM, expect Disk{M:1} as only one Disk checkpoint can be
     // retrieved at a time
     auto vb = store->getVBucket(vbid);
-    auto outItems = activeStream->public_getOutstandingItems();
+    auto outItems = activeStream->public_getOutstandingItems(*vb);
 
     // Push items into the Stream::readyQ
     activeStream->public_processItems(outItems);
@@ -5554,7 +5554,7 @@ TEST_P(DurabilityPromotionStreamTest,
 
     // CheckpointProcessorTask runs
     // Get items from CM, expect Disk{A:3}
-    outItems = activeStream->public_getOutstandingItems();
+    outItems = activeStream->public_getOutstandingItems(*vb);
     activeStream->public_processItems(outItems);
 
     // 7)
@@ -5644,7 +5644,7 @@ TEST_P(DurabilityPromotionStreamTest, ReplicaDeadActiveCanCommitPrepare) {
     flushVBucketToDiskIfPersistent(vbid, 1);
 
     // Push items into the Stream::readyQ
-    auto outItems = activeStream->public_getOutstandingItems();
+    auto outItems = activeStream->public_getOutstandingItems(*vb);
     activeStream->public_processItems(outItems);
 
     resp = activeStream->public_nextQueuedItem(*producer);
@@ -6166,7 +6166,7 @@ TEST_P(DurabilityActiveStreamTest, inMemoryMultipleMarkers) {
 
     // We should get items from two checkpoints which will make processItems
     // generate two markers
-    auto items = stream->public_getOutstandingItems();
+    auto items = stream->public_getOutstandingItems(*vb);
     stream->public_processItems(items);
 
     // marker, prepare, marker, mutation, prepare
