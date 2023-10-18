@@ -41,8 +41,8 @@ public:
             std::optional<std::string_view> jsonFilter = {});
 
     // Expose underlying protected ActiveStream methods as public
-    OutstandingItemsResult public_getOutstandingItems() {
-        return getOutstandingItems();
+    OutstandingItemsResult public_getOutstandingItems(VBucket& vb) {
+        return getOutstandingItems(vb);
     }
 
     void public_processItems(OutstandingItemsResult& result) {
@@ -134,9 +134,9 @@ public:
         state_ = state;
     }
 
-    OutstandingItemsResult getOutstandingItems() override {
+    OutstandingItemsResult getOutstandingItems(VBucket& vb) override {
         preGetOutstandingItemsCallback();
-        return ActiveStream::getOutstandingItems();
+        return ActiveStream::getOutstandingItems(vb);
     }
 
     /// A callback to allow tests to inject code before we access the checkpoint

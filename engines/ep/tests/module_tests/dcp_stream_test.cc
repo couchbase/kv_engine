@@ -655,7 +655,7 @@ TEST_P(StreamTest, test_mb17766) {
             << "nextCheckpointItem() should initially be true.";
 
     // Get the set of outstanding items
-    auto items = stream->public_getOutstandingItems();
+    auto items = stream->public_getOutstandingItems(*vb0);
 
     // REGRESSION CHECK: nextCheckpointItem() should still return true
     EXPECT_TRUE(stream->public_nextCheckpointItem(*producer))

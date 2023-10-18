@@ -988,41 +988,36 @@ void ActiveStream::nextCheckpointItemTask() {
 
 void ActiveStream::nextCheckpointItemTask(
         const std::lock_guard<std::mutex>& streamMutex) {
-    if (!producerPtr.lock()) {
-        // Nothing to do, the connection is being shut down
+    VBucketPtr vbucket = engine->getVBucket(vb_);
+    if (vbucket) {
+        auto producer = producerPtr.lock();
+        if (!producer) {
+            return;
+        }
+
+        // MB-29369: only run the task's work if the stream is in an in-memory
+        // phase (of which takeover is a variant).
+        if (isInMemory() || isTakeoverSend()) {
+            auto res = getOutstandingItems(*vbucket);
+            processItems(res, streamMutex);
+        }
+    } else {
+        /* The entity deleting the vbucket must set stream to dead,
+           calling setDead(cb::mcbp::DcpStreamEndStatus::StateChanged) will
+           cause deadlock because it will try to grab streamMutex which is
+           already acquired at this point here */
         return;
     }
-
-    // MB-29369: only run the task's work if the stream is in an in-memory
-    // phase (of which takeover is a variant).
-    if (!(isInMemory() || isTakeoverSend())) {
-        return;
-    }
-
-    auto res = getOutstandingItems();
-    if (res.isEmpty()) {
-        return;
-    }
-
-    processItems(res, streamMutex);
 }
 
-ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems() {
+ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
+        VBucket& vb) {
     OutstandingItemsResult result;
-    auto vb = engine->getVBucket(vb_);
-    if (!vb) {
-        // The entity deleting the vbucket must set stream to dead,
-        // calling setDead(cb::mcbp::DcpStreamEndStatus::StateChanged) will
-        // cause deadlock because it will try to grab streamMutex which is
-        // already acquired at this point here
-        return {};
-    }
-
     // Commencing item processing - set guard flag.
     chkptItemsExtractionInProgress.store(true);
 
     auto _begin_ = std::chrono::steady_clock::now();
-    const auto itemsForCursor = vb->checkpointManager->getNextItemsForCursor(
+    const auto itemsForCursor = vb.checkpointManager->getNextItemsForCursor(
             cursor.lock().get(), result.items);
     engine->getEpStats().dcpCursorsGetItemsHisto.add(
             std::chrono::duration_cast<std::chrono::microseconds>(
@@ -1074,7 +1069,7 @@ ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems() {
     result.historical = itemsForCursor.historical;
 
     result.visibleSeqno = itemsForCursor.visibleSeqno;
-    if (vb->checkpointManager->hasClosedCheckpointWhichCanBeRemoved()) {
+    if (vb.checkpointManager->hasClosedCheckpointWhichCanBeRemoved()) {
         engine->getKVBucket()->wakeUpCheckpointMemRecoveryTask();
     }
     return result;

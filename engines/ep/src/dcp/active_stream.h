@@ -351,10 +351,6 @@ public:
         OutstandingItemsResult();
         ~OutstandingItemsResult();
 
-        bool isEmpty() const {
-            return items.empty();
-        }
-
         /**
          * Optional state required when sending a checkpoint of type Disk
          * (i.e. when a Producer streams a disk-snapshot from memory.
@@ -509,10 +505,13 @@ protected:
     void notifyEmptyBackfill_UNLOCKED(uint64_t lastSeenSeqno);
 
     /**
+     * @param vb reference to the associated vbucket
+     *
      * @return the outstanding items for the stream's checkpoint cursor and
      *         checkpoint type.
      */
-    virtual ActiveStream::OutstandingItemsResult getOutstandingItems();
+    virtual ActiveStream::OutstandingItemsResult getOutstandingItems(
+            VBucket& vb);
 
     /**
      * Given a set of queued items, create mutation response for each item,
