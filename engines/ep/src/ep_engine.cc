@@ -4211,22 +4211,31 @@ struct ConnStatBuilder {
  * Function object to send per-stream stats for a single dcp connection.
  */
 struct ConnPerStreamStatBuilder {
-    ConnPerStreamStatBuilder(CookieIface& c, DcpStatsFilter filter)
-        : cookie(c), filter(std::move(filter)) {
+    ConnPerStreamStatBuilder(DcpStatsFilter filter)
+        : filter(std::move(filter)) {
+    }
+
+    /**
+     * Visit the next connection in the queue.
+     */
+    bool addStreamStats(CookieIface& cookie, const AddStatFn& as) {
+        while (!connQueue.empty()) {
+            auto conn = connQueue.front();
+            connQueue.pop();
+
+            if (filter.include(*conn)) {
+                conn->addStreamStats(as, cookie);
+            }
+        }
+        return true;
     }
 
     void operator()(std::shared_ptr<ConnHandler> tc) {
-        Expects(add_stat);
-        ++aggregator.totalConns;
-        if (filter.include(*tc)) {
-            tc->addStreamStats(add_stat, cookie);
-        }
+        connQueue.emplace(tc);
     }
 
-    CookieIface& cookie;
-    AddStatFn add_stat;
+    std::queue<std::shared_ptr<ConnHandler>> connQueue;
     DcpStatsFilter filter;
-    ConnCounter aggregator;
 };
 
 struct ConnAggStatBuilder {
@@ -4390,8 +4399,13 @@ cb::engine_errc EventuallyPersistentEngine::doDcpStats(
     if (auto optDcpStreamVisitor =
                 takeEngineSpecific<std::unique_ptr<ConnPerStreamStatBuilder>>(
                         cookie)) {
-        optDcpStreamVisitor.value()->add_stat = add_stat;
-        dcpConnMap_->each(**optDcpStreamVisitor);
+        bool hasCompleted =
+                optDcpStreamVisitor.value()->addStreamStats(cookie, add_stat);
+        if (!hasCompleted) {
+            // Continue on the next run.
+            storeEngineSpecific(cookie, std::move(*optDcpStreamVisitor));
+            return cb::engine_errc::throttled;
+        }
         return cb::engine_errc::success;
     }
 
@@ -4407,8 +4421,11 @@ cb::engine_errc EventuallyPersistentEngine::doDcpStats(
 
     // Store the per-stream visitor in the cookie and yield back to caller. We
     // will process the per-stream stats next time we're called.
-    auto dcpStreamVisitor = std::make_unique<ConnPerStreamStatBuilder>(
-            cookie, DcpStatsFilter{value});
+    auto dcpStreamVisitor =
+            std::make_unique<ConnPerStreamStatBuilder>(DcpStatsFilter{value});
+    // Dump the contents on the ConnMap into the visitor. This will not actually
+    // generate any stats yet.
+    dcpConnMap_->each(*dcpStreamVisitor);
     storeEngineSpecific(cookie, std::move(dcpStreamVisitor));
 
     return cb::engine_errc::throttled;
