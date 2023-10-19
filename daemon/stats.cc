@@ -298,13 +298,20 @@ cb::engine_errc server_prometheus_stats(
         }
         BucketManager::instance().forEach([&kvCollector,
                                            metricGroup](Bucket& bucket) {
-            if (bucket.type == BucketType::NoBucket ||
-                bucket.type == BucketType::ClusterConfigOnly) {
-                // skip the initial bucket with aggregated stats and config-only
-                // buckets
+            if (bucket.type == BucketType::ClusterConfigOnly) {
+                // skip config-only buckets but keep the no-bucket with stats
+                // not associated with a bucket
                 return true;
             }
             auto bucketC = kvCollector.forBucket(bucket.name);
+
+            if (bucket.type == BucketType::NoBucket) {
+                // collect only opcode timings and continue checking buckets
+                if (metricGroup != MetricGroup::Low) {
+                    server_bucket_timing_stats(bucketC, bucket.timings);
+                }
+                return true;
+            }
 
             // do engine stats
             bucket.getEngine().get_prometheus_stats(bucketC, metricGroup);
