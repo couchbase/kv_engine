@@ -33,27 +33,27 @@ enum class Key;
  */
 class ValueChangedListener {
 public:
-    void valueChanged(const std::string& key, bool value) {
+    void valueChanged(std::string_view key, bool value) {
         booleanValueChanged(key, value);
     }
 
-    void valueChanged(const std::string& key, size_t value) {
+    void valueChanged(std::string_view key, size_t value) {
         sizeValueChanged(key, value);
     }
 
-    void valueChanged(const std::string& key, ssize_t value) {
+    void valueChanged(std::string_view key, ssize_t value) {
         ssizeValueChanged(key, value);
     }
 
-    void valueChanged(const std::string& key, float value) {
+    void valueChanged(std::string_view key, float value) {
         floatValueChanged(key, value);
     }
 
-    void valueChanged(const std::string& key, std::string value) {
+    void valueChanged(std::string_view key, std::string value) {
         stringValueChanged(key, value.c_str());
     }
 
-    void valueChanged(const std::string& key, const char* value) {
+    void valueChanged(std::string_view key, const char* value) {
         stringValueChanged(key, value);
     }
 
@@ -62,34 +62,34 @@ public:
      * @param key the key who changed
      * @param value the new value for the key
      */
-    virtual void booleanValueChanged(const std::string& key, bool);
+    virtual void booleanValueChanged(std::string_view key, bool);
 
     /**
      * Callback if when a numeric configuration value changed
      * @param key the key who changed
      * @param value the new value for the key
      */
-    virtual void sizeValueChanged(const std::string& key, size_t);
+    virtual void sizeValueChanged(std::string_view key, size_t);
 
     /**
      * Callback if when a numeric configuration value changed
      * @param key the key who changed
      * @param value the new value for the key
      */
-    virtual void ssizeValueChanged(const std::string& key, ssize_t);
+    virtual void ssizeValueChanged(std::string_view key, ssize_t);
 
     /**
      * Callback if when a floatingpoint configuration value changed
      * @param key the key who changed
      * @param value the new value for the key
      */
-    virtual void floatValueChanged(const std::string& key, float);
+    virtual void floatValueChanged(std::string_view key, float);
     /**
      * Callback if when a string configuration value changed
      * @param key the key who changed
      * @param value the new value for the key
      */
-    virtual void stringValueChanged(const std::string& key, const char*);
+    virtual void stringValueChanged(std::string_view key, const char*);
 
     static void logUnhandledType(std::string_view key, std::string_view type);
 
@@ -103,26 +103,26 @@ public:
  */
 class ValueChangedValidator {
 public:
-    void validate(const std::string& key, bool value) {
+    void validate(std::string_view key, bool value) {
         validateBool(key, value);
     }
 
-    void validate(const std::string& key, size_t value) {
+    void validate(std::string_view key, size_t value) {
         validateSize(key, value);
     }
 
-    void validate(const std::string& key, ssize_t value) {
+    void validate(std::string_view key, ssize_t value) {
         validateSSize(key, value);
     }
 
-    void validate(const std::string& key, float value) {
+    void validate(std::string_view key, float value) {
         validateFloat(key, value);
     }
 
-    void validate(const std::string& key, const char* value) {
+    void validate(std::string_view key, const char* value) {
         validateString(key, value);
     }
-    void validate(const std::string& key, std::string value) {
+    void validate(std::string_view key, std::string value) {
         validateString(key, value.c_str());
     }
 
@@ -132,7 +132,7 @@ public:
      * @param value the requested new value
      * @throws runtime_error if the validation failed
      */
-    virtual void validateBool(const std::string& key, bool);
+    virtual void validateBool(std::string_view key, bool);
 
     /**
      * Validator for a numeric value
@@ -140,7 +140,7 @@ public:
      * @param value the requested new value
      * @throws runtime_error if the validation failed
      */
-    virtual void validateSize(const std::string& key, size_t);
+    virtual void validateSize(std::string_view key, size_t);
 
     /**
      * Validator for a signed numeric value
@@ -148,7 +148,7 @@ public:
      * @param value the requested new value
      * @throws runtime_error if the validation failed
      */
-    virtual void validateSSize(const std::string& key, ssize_t);
+    virtual void validateSSize(std::string_view key, ssize_t);
 
     /**
      * Validator for a floating point
@@ -156,7 +156,7 @@ public:
      * @param value the requested new value
      * @throws runtime_error if the validation failed
      */
-    virtual void validateFloat(const std::string& key, float);
+    virtual void validateFloat(std::string_view key, float);
 
     /**
      * Validator for a character string
@@ -164,7 +164,7 @@ public:
      * @param value the requested new value
      * @throws runtime_error if the validation failed
      */
-    virtual void validateString(const std::string& key, const char*);
+    virtual void validateString(std::string_view key, const char*);
 
     virtual ~ValueChangedValidator() = default;
 };
@@ -206,7 +206,7 @@ public:
     void addStats(const BucketStatCollector& collector) const;
 
     using Visitor = std::function<void(
-            const std::string& key, bool isDynamic, std::string value)>;
+            std::string_view key, bool isDynamic, std::string value)>;
 
     /**
      * Invokes the given function on all configuration values which have
@@ -232,7 +232,7 @@ public:
      *            when the value change.
      * @throw invalid_argument if the specified key isn't a valid config key.
      */
-    void addValueChangedListener(const std::string& key,
+    void addValueChangedListener(std::string_view key,
                                  std::unique_ptr<ValueChangedListener> val);
 
     /**
@@ -255,7 +255,7 @@ public:
      *                         std::string_view).
      */
     template <class Callable>
-    void addAndNotifyValueChangedCallback(const std::string& key,
+    void addAndNotifyValueChangedCallback(std::string_view key,
                                           Callable&& callback) {
         addValueChangedFunc(key,
                             std::function(std::forward<Callable>(callback)));
@@ -273,8 +273,8 @@ public:
      * @param validator the new validator
      * @return the old validator (or NULL if there wasn't a validator)
      */
-    ValueChangedValidator *setValueValidator(const std::string &key,
-                                             ValueChangedValidator *validator);
+    ValueChangedValidator* setValueValidator(std::string_view key,
+                                             ValueChangedValidator* validator);
     /**
      * Adds an alias for a configuration. Values can be set in configuration
      * under the original or aliased named, but setters/getters will only be
@@ -297,7 +297,7 @@ public:
 
     bool requirementsMet(const value_t& value) const;
 
-    void requirementsMetOrThrow(const std::string& key) const;
+    void requirementsMetOrThrow(std::string_view key) const;
 
     const bool isServerless;
 
@@ -310,7 +310,7 @@ protected:
      *        False if the value cannot be changed once object is constructed.
      */
     template <class T>
-    void addParameter(std::string key, T value, bool dynamic);
+    void addParameter(std::string_view key, T value, bool dynamic);
 
     /**
      * Add a new configuration parameter that has different defaults values for
@@ -323,7 +323,7 @@ protected:
      *        False if the value cannot be changed once object is constructed.
      */
     template <class T>
-    void addParameter(std::string key,
+    void addParameter(std::string_view key,
                       T defaultOnPrem,
                       T defaultServerless,
                       bool dynamic);
@@ -337,7 +337,7 @@ protected:
      * @throws runtime_error if the validation failed
      */
     template <class T>
-    void setParameter(const std::string& key, T value);
+    void setParameter(std::string_view key, T value);
 
     /**
      * Get the configuration parameter for a given key
@@ -346,7 +346,7 @@ protected:
      * @throws runtime_error if the validation failed
      */
     template <class T>
-    T getParameter(const std::string& key) const;
+    T getParameter(std::string_view key) const;
 
     /**
      * Add a single config param to the provided stat collector, if the
@@ -364,7 +364,7 @@ private:
      * given config key changes.
      */
     template <class Arg>
-    void addValueChangedFunc(const std::string& key,
+    void addValueChangedFunc(std::string_view key,
                              std::function<void(Arg)> callback);
 
     // Access to the configuration variables is protected by the mutex
@@ -378,5 +378,5 @@ private:
 // This specialisation is needed to convert char* to std::string to store in
 // the variant.
 template <>
-void Configuration::setParameter<const char*>(const std::string& key,
+void Configuration::setParameter<const char*>(std::string_view key,
                                               const char* value);

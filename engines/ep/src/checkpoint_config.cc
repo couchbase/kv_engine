@@ -23,7 +23,7 @@ public:
     explicit ChangeListener(CheckpointConfig& c) : config(c) {
     }
 
-    void sizeValueChanged(const std::string& key, size_t value) override {
+    void sizeValueChanged(std::string_view key, size_t value) override {
         if (key.compare("max_checkpoints") == 0) {
             config.setMaxCheckpoints(value);
         }

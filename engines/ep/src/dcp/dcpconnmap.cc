@@ -29,8 +29,8 @@ public:
     explicit DcpConfigChangeListener(DcpConnMap& connMap);
     ~DcpConfigChangeListener() override {
     }
-    void sizeValueChanged(const std::string& key, size_t value) override;
-    void booleanValueChanged(const std::string& key, bool value) override;
+    void sizeValueChanged(std::string_view key, size_t value) override;
+    void booleanValueChanged(std::string_view key, bool value) override;
 
 private:
     DcpConnMap& myConnMap;
@@ -443,7 +443,7 @@ float DcpConnMap::getMinCompressionRatio() {
 DcpConnMap::DcpConfigChangeListener::DcpConfigChangeListener(DcpConnMap& connMap)
     : myConnMap(connMap){}
 
-void DcpConnMap::DcpConfigChangeListener::sizeValueChanged(const std::string &key,
+void DcpConnMap::DcpConfigChangeListener::sizeValueChanged(std::string_view key,
                                                            size_t value) {
     if (key == "dcp_consumer_process_buffered_messages_yield_limit") {
         myConnMap.consumerYieldConfigChanged(value);
@@ -455,7 +455,7 @@ void DcpConnMap::DcpConfigChangeListener::sizeValueChanged(const std::string &ke
 }
 
 void DcpConnMap::DcpConfigChangeListener::booleanValueChanged(
-        const std::string& key, bool value) {
+        std::string_view key, bool value) {
     if (key == "allow_sanitize_value_in_deletion") {
         myConnMap.consumerAllowSanitizeValueInDeletionConfigChanged(value);
     }

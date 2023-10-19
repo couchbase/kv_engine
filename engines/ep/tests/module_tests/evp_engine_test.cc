@@ -296,9 +296,7 @@ TEST_P(EPEngineParamTest, DynamicConfigValuesModifiable) {
 
     // For each dynamic config variable (should be possible to change at
     // runtime), attempt to set (to the same as it's current value).
-    config.visit([this](const std::string& key,
-                        bool dynamic,
-                        std::string value) {
+    config.visit([this](std::string_view key, bool dynamic, std::string value) {
         std::vector<std::string> handled;
         if (dynamic) {
             std::string msg;

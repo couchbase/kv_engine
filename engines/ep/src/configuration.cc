@@ -51,23 +51,23 @@ std::string to_string(const value_variant_t& value) {
                       value);
 }
 
-void ValueChangedListener::booleanValueChanged(const std::string& key, bool) {
+void ValueChangedListener::booleanValueChanged(std::string_view key, bool) {
     logUnhandledType(key, "bool");
 }
 
-void ValueChangedListener::sizeValueChanged(const std::string& key, size_t) {
+void ValueChangedListener::sizeValueChanged(std::string_view key, size_t) {
     logUnhandledType(key, "size_t");
 }
 
-void ValueChangedListener::ssizeValueChanged(const std::string& key, ssize_t) {
+void ValueChangedListener::ssizeValueChanged(std::string_view key, ssize_t) {
     logUnhandledType(key, "ssize_t");
 }
 
-void ValueChangedListener::floatValueChanged(const std::string& key, float) {
+void ValueChangedListener::floatValueChanged(std::string_view key, float) {
     logUnhandledType(key, "float");
 }
 
-void ValueChangedListener::stringValueChanged(const std::string& key,
+void ValueChangedListener::stringValueChanged(std::string_view key,
                                               const char*) {
     logUnhandledType(key, "string");
 }
@@ -80,37 +80,36 @@ void ValueChangedListener::logUnhandledType(std::string_view key,
             type);
 }
 
-void ValueChangedValidator::validateBool(const std::string& key, bool) {
-    std::string error = "Configuration error.. " + key +
+void ValueChangedValidator::validateBool(std::string_view key, bool) {
+    std::string error = "Configuration error.. " + std::string{key} +
                         " does not take a boolean parameter";
     EP_LOG_DEBUG_RAW(error);
     throw std::runtime_error(error);
 }
 
-void ValueChangedValidator::validateSize(const std::string& key, size_t) {
-    std::string error = "Configuration error.. " + key +
+void ValueChangedValidator::validateSize(std::string_view key, size_t) {
+    std::string error = "Configuration error.. " + std::string{key} +
                         " does not take a size_t parameter";
     EP_LOG_DEBUG_RAW(error);
     throw std::runtime_error(error);
 }
 
-void ValueChangedValidator::validateSSize(const std::string& key, ssize_t) {
-    std::string error = "Configuration error.. " + key +
+void ValueChangedValidator::validateSSize(std::string_view key, ssize_t) {
+    std::string error = "Configuration error.. " + std::string{key} +
                         " does not take a ssize_t parameter";
     EP_LOG_DEBUG_RAW(error);
     throw std::runtime_error(error);
 }
 
-void ValueChangedValidator::validateFloat(const std::string& key, float) {
-    std::string error =
-            "Configuration error.. " + key + " does not take a float parameter";
+void ValueChangedValidator::validateFloat(std::string_view key, float) {
+    std::string error = "Configuration error.. " + std::string{key} +
+                        " does not take a float parameter";
     EP_LOG_DEBUG_RAW(error);
     throw std::runtime_error(error);
 }
 
-void ValueChangedValidator::validateString(const std::string& key,
-                                           const char*) {
-    std::string error = "Configuration error.. " + key +
+void ValueChangedValidator::validateString(std::string_view key, const char*) {
+    std::string error = "Configuration error.. " + std::string{key} +
                         " does not take a string parameter";
     EP_LOG_DEBUG_RAW(error);
     throw std::runtime_error(error);
@@ -150,33 +149,33 @@ struct Configuration::value_t {
 };
 
 template <class T>
-void Configuration::addParameter(std::string key, T value, bool dynamic) {
+void Configuration::addParameter(std::string_view key, T value, bool dynamic) {
     addParameter<T>(key, value, value, dynamic);
 }
 
 template <class T>
-void Configuration::addParameter(std::string key,
+void Configuration::addParameter(std::string_view key,
                                  T defaultOnPrem,
                                  T defaultServerless,
                                  bool dynamic) {
-    auto [itr, success] =
-            attributes.insert({key, std::make_shared<value_t>(dynamic)});
+    auto [itr, success] = attributes.insert(
+            {std::string{key}, std::make_shared<value_t>(dynamic)});
     if (!success) {
-        throw std::logic_error("Configuration::addParameter(" + key +
-                               ") already exists.");
+        throw std::logic_error("Configuration::addParameter(" +
+                               std::string{key} + ") already exists.");
     }
     itr->second->value = isServerless ? defaultServerless : defaultOnPrem;
 }
 
 template <class T>
-void Configuration::setParameter(const std::string& key, T value) {
+void Configuration::setParameter(std::string_view key, T value) {
     std::vector<ValueChangedListener*> copy;
     {
         std::lock_guard<std::mutex> lh(mutex);
         auto it = attributes.find(key);
         if (it == attributes.end()) {
-            throw std::invalid_argument("Configuration::setParameter(" + key +
-                                        ") doesn't exist.");
+            throw std::invalid_argument("Configuration::setParameter(" +
+                                        std::string{key} + ") doesn't exist.");
         }
         if (it->second->validator) {
             it->second->validator->validate(key, value);
@@ -194,13 +193,13 @@ void Configuration::setParameter(const std::string& key, T value) {
 }
 
 template <>
-void Configuration::setParameter<const char*>(const std::string& key,
+void Configuration::setParameter<const char*>(std::string_view key,
                                               const char* value) {
     setParameter(key, std::string(value));
 }
 
 template <class T>
-T Configuration::getParameter(const std::string& key) const {
+T Configuration::getParameter(std::string_view key) const {
     std::lock_guard<std::mutex> lh(mutex);
 
     const auto iter = attributes.find(key);
@@ -212,21 +211,20 @@ T Configuration::getParameter(const std::string& key) const {
 
     if (!value) {
         throw std::invalid_argument("Configuration::getParameter: key \"" +
-                                    key + "\" (which is " +
+                                    std::string{key} + "\" (which is " +
                                     to_string(iter->second->value) +
                                     ") is not " + type_name<T>::value);
     }
     return *value;
 }
 
-template bool Configuration::getParameter<bool>(const std::string& key) const;
-template size_t Configuration::getParameter<size_t>(
-        const std::string& key) const;
+template bool Configuration::getParameter<bool>(std::string_view key) const;
+template size_t Configuration::getParameter<size_t>(std::string_view key) const;
 template ssize_t Configuration::getParameter<ssize_t>(
-        const std::string& key) const;
-template float Configuration::getParameter<float>(const std::string& key) const;
+        std::string_view key) const;
+template float Configuration::getParameter<float>(std::string_view key) const;
 template std::string Configuration::getParameter<std::string>(
-        const std::string& key) const;
+        std::string_view key) const;
 
 void Configuration::maybeAddStat(const BucketStatCollector& collector,
                                  cb::stats::Key key,
@@ -261,24 +259,27 @@ void Configuration::addAlias(const std::string& key, const std::string& alias) {
 }
 
 void Configuration::addValueChangedListener(
-        const std::string& key, std::unique_ptr<ValueChangedListener> val) {
+        std::string_view key, std::unique_ptr<ValueChangedListener> val) {
     std::lock_guard<std::mutex> lh(mutex);
-    if (attributes.find(key) == attributes.end()) {
+    auto it = attributes.find(key);
+    if (it == attributes.end()) {
         throw std::invalid_argument(
-                "Configuration::addValueChangedListener: No such config key '" +
-                key + "'");
+                fmt::format("Configuration::addValueChangedListener: No such "
+                            "config key '{}'",
+                            key));
     }
-    attributes[key]->changeListener.emplace_back(std::move(val));
+    it->second->changeListener.emplace_back(std::move(val));
 }
 
-ValueChangedValidator *Configuration::setValueValidator(const std::string &key,
-                                            ValueChangedValidator *validator) {
-    ValueChangedValidator *ret = nullptr;
+ValueChangedValidator* Configuration::setValueValidator(
+        std::string_view key, ValueChangedValidator* validator) {
     std::lock_guard<std::mutex> lh(mutex);
-    if (attributes.find(key) != attributes.end()) {
-        ret = attributes[key]->validator.release();
-        attributes[key]->validator.reset(validator);
+    auto it = attributes.find(key);
+    if (it == attributes.end()) {
+        return nullptr;
     }
+    auto* ret = it->second->validator.release();
+    it->second->validator.reset(validator);
 
     return ret;
 }
@@ -311,12 +312,12 @@ bool Configuration::requirementsMet(const value_t& value) const {
     }
     return true;
 }
-void Configuration::requirementsMetOrThrow(const std::string& key) const {
+void Configuration::requirementsMetOrThrow(std::string_view key) const {
     std::lock_guard<std::mutex> lh(mutex);
     auto itr = attributes.find(key);
     if (itr != attributes.end()) {
         if (!requirementsMet(*(itr->second))) {
-            throw requirements_unsatisfied("Cannot set" + key +
+            throw requirements_unsatisfied("Cannot set" + std::string{key} +
                                            " : requirements not met");
         }
     }
@@ -390,7 +391,7 @@ public:
     }
 
     template <class ArgType>
-    void forwardToCallable(const std::string& key, ArgType value) {
+    void forwardToCallable(std::string_view key, ArgType value) {
         if constexpr (std::is_invocable_v<Callback, ArgType>) {
             callback(value);
         } else {
@@ -400,20 +401,19 @@ public:
             logUnhandledType(key, type_name<ArgType>::value);
         }
     }
-    void booleanValueChanged(const std::string& key, bool value) override {
+    void booleanValueChanged(std::string_view key, bool value) override {
         forwardToCallable(key, value);
     }
-    void sizeValueChanged(const std::string& key, size_t value) override {
+    void sizeValueChanged(std::string_view key, size_t value) override {
         forwardToCallable(key, value);
     }
-    void ssizeValueChanged(const std::string& key, ssize_t value) override {
+    void ssizeValueChanged(std::string_view key, ssize_t value) override {
         forwardToCallable(key, value);
     }
-    void floatValueChanged(const std::string& key, float value) override {
+    void floatValueChanged(std::string_view key, float value) override {
         forwardToCallable(key, value);
     }
-    void stringValueChanged(const std::string& key,
-                            const char* value) override {
+    void stringValueChanged(std::string_view key, const char* value) override {
         forwardToCallable(key, std::string_view(value));
     }
 
@@ -437,7 +437,7 @@ template <class T>
 using owning_type_t = typename owning_type<T>::type;
 
 template <class Arg>
-void Configuration::addValueChangedFunc(const std::string& key,
+void Configuration::addValueChangedFunc(std::string_view key,
                                         std::function<void(Arg)> callback) {
     owning_type_t<Arg> currentValue;
     {
@@ -446,7 +446,7 @@ void Configuration::addValueChangedFunc(const std::string& key,
         if (itr == attributes.end()) {
             throw std::invalid_argument(
                     "Configuration::addValueChangedFunc: No such config key '" +
-                    key + "'");
+                    std::string{key} + "'");
         }
         // Config params will _always_ have a value of the intended type set,
         // either the default or some updated value.
@@ -491,24 +491,31 @@ void Configuration::addValueChangedFunc(const std::string& key,
 
     // re-acquire the lock and insert the callback
     std::lock_guard<std::mutex> lh(mutex);
-    attributes[key]->changeListener.emplace_back(
+    auto itr = attributes.find(key);
+    if (itr == attributes.end()) {
+        throw std::invalid_argument(
+                fmt::format("Configuration::addValueChangedFunc: No such "
+                            "config key '{}'",
+                            key));
+    }
+    itr->second->changeListener.emplace_back(
             std::make_unique<ValueChangedCallback<Arg>>(std::move(callback)));
 }
 
-template void Configuration::addValueChangedFunc(const std::string&,
+template void Configuration::addValueChangedFunc(std::string_view,
                                                  std::function<void(bool)>);
-template void Configuration::addValueChangedFunc(const std::string&,
+template void Configuration::addValueChangedFunc(std::string_view,
                                                  std::function<void(size_t)>);
-template void Configuration::addValueChangedFunc(const std::string&,
+template void Configuration::addValueChangedFunc(std::string_view,
                                                  std::function<void(ssize_t)>);
-template void Configuration::addValueChangedFunc(const std::string&,
+template void Configuration::addValueChangedFunc(std::string_view,
                                                  std::function<void(float)>);
 template void Configuration::addValueChangedFunc(
-        const std::string&, std::function<void(std::string_view)>);
+        std::string_view, std::function<void(std::string_view)>);
 
 // Explicit instantiations for addParameter for supported types.
-template void Configuration::addParameter(std::string, bool, bool);
-template void Configuration::addParameter(std::string, size_t, bool);
-template void Configuration::addParameter(std::string, ssize_t, bool);
-template void Configuration::addParameter(std::string, float, bool);
-template void Configuration::addParameter(std::string, std::string, bool);
+template void Configuration::addParameter(std::string_view, bool, bool);
+template void Configuration::addParameter(std::string_view, size_t, bool);
+template void Configuration::addParameter(std::string_view, ssize_t, bool);
+template void Configuration::addParameter(std::string_view, float, bool);
+template void Configuration::addParameter(std::string_view, std::string, bool);

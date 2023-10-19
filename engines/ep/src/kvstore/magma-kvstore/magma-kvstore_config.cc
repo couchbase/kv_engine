@@ -23,7 +23,7 @@ public:
     ConfigChangeListener(MagmaKVStoreConfig& c) : config(c) {
     }
 
-    void sizeValueChanged(const std::string& key, size_t value) override {
+    void sizeValueChanged(std::string_view key, size_t value) override {
         if (key == "magma_fragmentation_percentage") {
             config.setMagmaFragmentationPercentage(value);
         } else if (key == "magma_flusher_thread_percentage") {
@@ -41,21 +41,20 @@ public:
         }
     }
 
-    void floatValueChanged(const std::string& key, float value) override {
+    void floatValueChanged(std::string_view key, float value) override {
         if (key == "magma_mem_quota_ratio") {
             config.setMagmaMemQuotaRatio(value);
         }
     }
 
-    void stringValueChanged(const std::string& key,
-                            const char* value) override {
+    void stringValueChanged(std::string_view key, const char* value) override {
         if (key == "vbucket_mapping_sanity_checking_error_mode") {
             config.setVBucketMappingErrorHandlingMethod(
                     cb::getErrorHandlingMethod(value));
         }
     }
 
-    void booleanValueChanged(const std::string& key, bool b) override {
+    void booleanValueChanged(std::string_view key, bool b) override {
         if (key == "vbucket_mapping_sanity_checking") {
             config.setSanityCheckVBucketMapping(b);
         } else if (key == "magma_enable_block_cache") {

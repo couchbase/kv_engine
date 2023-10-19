@@ -215,7 +215,7 @@ public:
     explicit ValueChangedListener(EPBucket& bucket) : bucket(bucket) {
     }
 
-    void sizeValueChanged(const std::string& key, size_t value) override {
+    void sizeValueChanged(std::string_view key, size_t value) override {
         if (key == "flusher_total_batch_limit") {
             bucket.setFlusherBatchSplitTrigger(value);
         } else if (key == "alog_sleep_time") {
@@ -227,7 +227,7 @@ public:
         }
     }
 
-    void booleanValueChanged(const std::string& key, bool value) override {
+    void booleanValueChanged(std::string_view key, bool value) override {
         if (key == "access_scanner_enabled") {
             if (value) {
                 bucket.enableAccessScannerTask();

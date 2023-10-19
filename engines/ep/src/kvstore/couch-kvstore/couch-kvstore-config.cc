@@ -20,7 +20,7 @@ public:
     explicit ConfigChangeListener(CouchKVStoreConfig& c) : config(c) {
     }
 
-    void booleanValueChanged(const std::string& key, bool value) override {
+    void booleanValueChanged(std::string_view key, bool value) override {
         if (key == "couchstore_tracing") {
             config.setCouchstoreTracingEnabled(value);
         }
@@ -32,7 +32,7 @@ public:
         }
     }
 
-    void sizeValueChanged(const std::string& key, size_t value) override {
+    void sizeValueChanged(std::string_view key, size_t value) override {
         if (key == "couchstore_file_cache_max_size") {
             config.setCouchstoreFileCacheMaxSize(value);
         }

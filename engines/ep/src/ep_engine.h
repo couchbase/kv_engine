@@ -676,24 +676,24 @@ public:
                                       std::string_view value,
                                       Vbid vbucket);
 
-    cb::engine_errc setFlushParam(const std::string& key,
+    cb::engine_errc setFlushParam(std::string_view key,
                                   const std::string& val,
                                   std::string& msg);
 
-    cb::engine_errc setReplicationParam(const std::string& key,
+    cb::engine_errc setReplicationParam(std::string_view key,
                                         const std::string& val,
                                         std::string& msg);
 
-    cb::engine_errc setCheckpointParam(const std::string& key,
+    cb::engine_errc setCheckpointParam(std::string_view key,
                                        const std::string& val,
                                        std::string& msg);
 
-    cb::engine_errc setDcpParam(const std::string& key,
+    cb::engine_errc setDcpParam(std::string_view key,
                                 const std::string& val,
                                 std::string& msg);
 
     cb::engine_errc setVbucketParam(Vbid vbucket,
-                                    const std::string& key,
+                                    std::string_view key,
                                     const std::string& val,
                                     std::string& msg);
 
@@ -1551,10 +1551,10 @@ class EpEngineValueChangeListener : public ValueChangedListener {
 public:
     explicit EpEngineValueChangeListener(EventuallyPersistentEngine& e);
 
-    void sizeValueChanged(const std::string& key, size_t value) override;
-    void stringValueChanged(const std::string& key, const char* value) override;
-    void floatValueChanged(const std::string& key, float value) override;
-    void booleanValueChanged(const std::string& key, bool b) override;
+    void sizeValueChanged(std::string_view key, size_t value) override;
+    void stringValueChanged(std::string_view key, const char* value) override;
+    void floatValueChanged(std::string_view key, float value) override;
+    void booleanValueChanged(std::string_view key, bool b) override;
 
 private:
     EventuallyPersistentEngine& engine;

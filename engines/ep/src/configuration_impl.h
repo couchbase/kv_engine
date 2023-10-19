@@ -19,6 +19,7 @@
 
 #include "configuration.h"
 
+#include <fmt/ranges.h>
 #include <set>
 #include <string>
 #include <variant>
@@ -52,9 +53,9 @@ public:
         return this;
     }
 
-    void validateSize(const std::string& key, size_t value) override {
+    void validateSize(std::string_view key, size_t value) override {
         if (value < lower || value > upper) {
-            std::string error = "Validation Error, " + key +
+            std::string error = "Validation Error, " + std::string{key} +
                                 " takes values between " +
                                 std::to_string(lower) + " and " +
                                 std::to_string(upper) + " (Got: " +
@@ -63,12 +64,12 @@ public:
         }
     }
 
-    void validateSSize(const std::string& key, ssize_t value) override {
+    void validateSSize(std::string_view key, ssize_t value) override {
         auto s_lower = static_cast<ssize_t> (lower);
         auto s_upper = static_cast<ssize_t> (upper);
 
         if (value < s_lower || value > s_upper) {
-            std::string error = "Validation Error, " + key +
+            std::string error = "Validation Error, " + std::string{key} +
                                 " takes values between " +
                                 std::to_string(s_lower) + " and " +
                                 std::to_string(s_upper) + " (Got: " +
@@ -100,9 +101,9 @@ public:
         return this;
     }
 
-    void validateSSize(const std::string& key, ssize_t value) override {
+    void validateSSize(std::string_view key, ssize_t value) override {
         if (value < lower || value > upper) {
-            std::string error = "Validation Error, " + key +
+            std::string error = "Validation Error, " + std::string{key} +
                                 " takes values between " +
                                 std::to_string(lower) + " and " +
                                 std::to_string(upper) + " (Got: " +
@@ -134,9 +135,9 @@ public:
         return this;
     }
 
-    void validateFloat(const std::string& key, float value) override {
+    void validateFloat(std::string_view key, float value) override {
         if (value < lower || value > upper) {
-            std::string error = "Validation Error, " + key +
+            std::string error = "Validation Error, " + std::string{key} +
                                 " takes values between " +
                                 std::to_string(lower) + " and " +
                                 std::to_string(upper) + " (Got: " +
@@ -163,10 +164,10 @@ public:
         return this;
     }
 
-    void validateString(const std::string& key, const char* value) override {
+    void validateString(std::string_view key, const char* value) override {
         if (acceptable.find(std::string(value)) == acceptable.end()) {
-            std::string error = "Validation Error, " + key +
-                                " takes one of [";
+            std::string error =
+                    "Validation Error, " + std::string{key} + " takes one of [";
             for (const auto& it : acceptable) {
                 error += it + ", ";
             }
@@ -186,7 +187,7 @@ private:
 
 class Requirement {
 public:
-    Requirement* add(const std::string& key, value_variant_t value) {
+    Requirement* add(std::string_view key, value_variant_t value) {
         requirements.emplace_back(key, value);
         return this;
     }

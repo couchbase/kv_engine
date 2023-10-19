@@ -164,8 +164,8 @@ void VBucketMap::setHLCDriftBehindThreshold(std::chrono::microseconds threshold)
     }
 }
 
-void VBucketMap::VBucketConfigChangeListener::sizeValueChanged(const std::string &key,
-                                                   size_t value) {
+void VBucketMap::VBucketConfigChangeListener::sizeValueChanged(
+        std::string_view key, size_t value) {
     if (key == "hlc_drift_ahead_threshold_us") {
         map.setHLCDriftAheadThreshold(std::chrono::microseconds(value));
     } else if (key == "hlc_drift_behind_threshold_us") {

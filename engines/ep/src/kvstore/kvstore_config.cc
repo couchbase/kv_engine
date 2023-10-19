@@ -33,7 +33,7 @@ public:
     explicit ConfigChangeListener(KVStoreConfig& c) : config(c) {
     }
 
-    void sizeValueChanged(const std::string& key, size_t value) override {
+    void sizeValueChanged(std::string_view key, size_t value) override {
         if (key == "fsync_after_every_n_bytes_written") {
             config.setPeriodicSyncBytes(value);
         } else if (key == "pitr_max_history_age") {
@@ -45,7 +45,7 @@ public:
         }
     }
 
-    void booleanValueChanged(const std::string& key, bool b) override {
+    void booleanValueChanged(std::string_view key, bool b) override {
         if (key == "pitr_enabled") {
             config.setPitrEnabled(b);
         }

@@ -40,8 +40,7 @@ public:
         : bucket(bucket) {
     }
 
-    void stringValueChanged(const std::string& key,
-                            const char* value) override {
+    void stringValueChanged(std::string_view key, const char* value) override {
         if (key == "ephemeral_full_policy") {
             if (std::string_view(value) == "auto_delete") {
                 bucket.enableItemPager();
@@ -61,7 +60,7 @@ public:
         }
     }
 
-    void ssizeValueChanged(const std::string& key, ssize_t value) override {
+    void ssizeValueChanged(std::string_view key, ssize_t value) override {
         if (key == "ephemeral_metadata_purge_age") {
             if (value == -1) {
                 bucket.disableTombstonePurgerTask();
@@ -76,7 +75,7 @@ public:
         }
     }
 
-    void sizeValueChanged(const std::string& key, size_t value) override {
+    void sizeValueChanged(std::string_view key, size_t value) override {
         if (key == "ephemeral_metadata_purge_interval") {
             // Cancel and re-schedule the task to pick up the new interval.
             bucket.enableTombstonePurgerTask();

@@ -38,7 +38,7 @@ friend class Warmup;
             : map(vbucketMap) {
         }
 
-        void sizeValueChanged(const std::string &key, size_t value) override;
+        void sizeValueChanged(std::string_view key, size_t value) override;
 
     private:
         VBucketMap& map;

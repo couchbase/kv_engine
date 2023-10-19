@@ -81,7 +81,7 @@ public:
         // EMPTY
     }
 
-    void sizeValueChanged(const std::string& key, size_t value) override {
+    void sizeValueChanged(std::string_view key, size_t value) override {
         if (key == "mem_low_wat") {
             stats.setLowWaterMark(value);
         } else if (key == "mem_high_wat") {
@@ -99,7 +99,7 @@ public:
         }
     }
 
-    void floatValueChanged(const std::string& key, float value) override {
+    void floatValueChanged(std::string_view key, float value) override {
         if (key == "mem_used_merge_threshold_percent") {
             store.getEPEngine()
                     .getArenaMallocClient()
@@ -128,7 +128,7 @@ public:
     explicit EPStoreValueChangeListener(KVBucket& st) : store(st) {
     }
 
-    void sizeValueChanged(const std::string& key, size_t value) override {
+    void sizeValueChanged(std::string_view key, size_t value) override {
         if (key == "exp_pager_stime") {
             store.setExpiryPagerSleeptime(value);
         } else if (key == "backfill_mem_threshold") {
@@ -153,13 +153,13 @@ public:
         }
     }
 
-    void ssizeValueChanged(const std::string& key, ssize_t value) override {
+    void ssizeValueChanged(std::string_view key, ssize_t value) override {
         if (key == "exp_pager_initial_run_time") {
             store.setExpiryPagerTasktime(value);
         }
     }
 
-    void booleanValueChanged(const std::string& key, bool value) override {
+    void booleanValueChanged(std::string_view key, bool value) override {
         if (key == "bfilter_enabled") {
             store.setAllBloomFilters(value);
         } else if (key == "exp_pager_enabled") {
@@ -175,7 +175,7 @@ public:
         }
     }
 
-    void floatValueChanged(const std::string& key, float value) override {
+    void floatValueChanged(std::string_view key, float value) override {
         if (key == "bfilter_residency_threshold") {
             store.setBfiltersResidencyThreshold(value);
         } else if (key == "dcp_min_compression_ratio") {
@@ -193,8 +193,7 @@ public:
         }
     }
 
-    void stringValueChanged(const std::string& key,
-                            const char* value) override {
+    void stringValueChanged(std::string_view key, const char* value) override {
         if (key == "durability_min_level") {
             const auto res = store.setMinDurabilityLevel(
                     cb::durability::to_level(value));

@@ -34,7 +34,7 @@ public:
             : connManager(connManager) {
         }
 
-        void floatValueChanged(const std::string& key, float value) override {
+        void floatValueChanged(std::string_view key, float value) override {
             if (key == "connection_manager_interval") {
                 connManager.setSnoozeTime(std::chrono::duration<float>(value));
             }

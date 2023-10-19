@@ -541,7 +541,7 @@ void EventuallyPersistentEngine::reset_stats(CookieIface& cookie) {
 }
 
 cb::engine_errc EventuallyPersistentEngine::setReplicationParam(
-        const std::string& key, const std::string& val, std::string& msg) {
+        std::string_view key, const std::string& val, std::string& msg) {
     auto rv = cb::engine_errc::success;
 
     try {
@@ -575,7 +575,7 @@ cb::engine_errc EventuallyPersistentEngine::setReplicationParam(
 }
 
 cb::engine_errc EventuallyPersistentEngine::setCheckpointParam(
-        const std::string& key, const std::string& val, std::string& msg) {
+        std::string_view key, const std::string& val, std::string& msg) {
     auto rv = cb::engine_errc::success;
 
     try {
@@ -626,7 +626,7 @@ cb::engine_errc EventuallyPersistentEngine::setCheckpointParam(
 }
 
 cb::engine_errc EventuallyPersistentEngine::setFlushParam(
-        const std::string& key, const std::string& val, std::string& msg) {
+        std::string_view key, const std::string& val, std::string& msg) {
     auto rv = cb::engine_errc::success;
 
     // Handle the actual mutation.
@@ -915,7 +915,7 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
             configuration.setHistoryRetentionBytes(std::stoull(val));
         } else {
             EP_LOG_WARN("Rejecting setFlushParam request key:{}", key);
-            msg = "Unknown config param " + key;
+            msg = "Unknown config param " + std::string{key};
             rv = cb::engine_errc::invalid_arguments;
         }
         // Handles exceptions thrown by the cb_stob function
@@ -945,7 +945,7 @@ cb::engine_errc EventuallyPersistentEngine::setFlushParam(
     return rv;
 }
 
-cb::engine_errc EventuallyPersistentEngine::setDcpParam(const std::string& key,
+cb::engine_errc EventuallyPersistentEngine::setDcpParam(std::string_view key,
                                                         const std::string& val,
                                                         std::string& msg) {
     auto rv = cb::engine_errc::success;
@@ -1011,7 +1011,7 @@ cb::engine_errc EventuallyPersistentEngine::setDcpParam(const std::string& key,
 
 cb::engine_errc EventuallyPersistentEngine::setVbucketParam(
         Vbid vbucket,
-        const std::string& key,
+        std::string_view key,
         const std::string& val,
         std::string& msg) {
     auto rv = cb::engine_errc::success;
@@ -1921,7 +1921,7 @@ EpEngineValueChangeListener::EpEngineValueChangeListener(
     : engine(e) {
 }
 
-void EpEngineValueChangeListener::sizeValueChanged(const std::string& key,
+void EpEngineValueChangeListener::sizeValueChanged(std::string_view key,
                                                    size_t value) {
     if (key.compare("getl_max_timeout") == 0) {
         engine.setGetlMaxTimeout(value);
@@ -1940,7 +1940,7 @@ void EpEngineValueChangeListener::sizeValueChanged(const std::string& key,
     }
 }
 
-void EpEngineValueChangeListener::stringValueChanged(const std::string& key,
+void EpEngineValueChangeListener::stringValueChanged(std::string_view key,
                                                      const char* value) {
     if (key == "compression_mode") {
         std::string value_str{value, strlen(value)};
@@ -1952,7 +1952,7 @@ void EpEngineValueChangeListener::stringValueChanged(const std::string& key,
     }
 }
 
-void EpEngineValueChangeListener::floatValueChanged(const std::string& key,
+void EpEngineValueChangeListener::floatValueChanged(std::string_view key,
                                                     float value) {
     if (key == "min_compression_ratio") {
         engine.setMinCompressionRatio(value);
@@ -1961,7 +1961,7 @@ void EpEngineValueChangeListener::floatValueChanged(const std::string& key,
     }
 }
 
-void EpEngineValueChangeListener::booleanValueChanged(const std::string& key,
+void EpEngineValueChangeListener::booleanValueChanged(std::string_view key,
                                                       bool b) {
     if (key == "allow_sanitize_value_in_deletion") {
         engine.allowSanitizeValueInDeletion.store(b);

@@ -319,11 +319,11 @@ TEST(ConfigurationTest, ValidatorWorks) {
 
 class MockValueChangedListener : public ValueChangedListener {
 public:
-    MOCK_METHOD2(booleanValueChanged, void(const std::string&, bool));
-    MOCK_METHOD2(sizeValueChanged, void(const std::string&, size_t));
-    MOCK_METHOD2(ssizeValueChanged, void(const std::string&, ssize_t));
-    MOCK_METHOD2(floatValueChanged, void(const std::string&, float));
-    MOCK_METHOD2(stringValueChanged, void(const std::string&, const char*));
+    MOCK_METHOD2(booleanValueChanged, void(std::string_view, bool));
+    MOCK_METHOD2(sizeValueChanged, void(std::string_view, size_t));
+    MOCK_METHOD2(ssizeValueChanged, void(std::string_view, ssize_t));
+    MOCK_METHOD2(floatValueChanged, void(std::string_view, float));
+    MOCK_METHOD2(stringValueChanged, void(std::string_view, const char*));
 };
 
 using ::testing::_;
