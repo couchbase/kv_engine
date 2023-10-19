@@ -13,6 +13,7 @@
 #include "cookie.h"
 #include "daemon/protocol/mcbp/engine_wrapper.h"
 #include "front_end_thread.h"
+#include "mcbp/codec/stats_codec.h"
 #include "memcached.h"
 #include "nobucket_taskable.h"
 #include <logger/logger.h>
@@ -25,13 +26,17 @@ cb::engine_errc StatsTask::getCommandError() const {
     return taskData.lock()->command_error;
 }
 
-void StatsTask::iterateStats(
-        std::function<void(std::string_view, std::string_view)> callback)
-        const {
-    taskData.withLock([&callback](auto& data) {
-        for (const auto& [k, v] : data.stats) {
-            callback(k, v);
+void StatsTask::drainBufferedStatsToOutput() {
+    taskData.withLock([this](auto& data) {
+        if (data.stats_buf->empty()) {
+            return;
         }
+
+        Expects(!data.stats_buf->isChained());
+        cookie.getConnection().copyToOutputStream(std::string_view{
+                reinterpret_cast<const char*>(data.stats_buf->data()),
+                data.stats_buf->length()});
+        data.stats_buf->clear();
     });
 }
 
@@ -57,7 +62,23 @@ bool StatsTask::run() {
 void StatsTask::addStatCallback(TaskData& writable_data,
                                 std::string_view k,
                                 std::string_view v) {
-    writable_data.stats.emplace_back(k, v);
+    Expects(writable_data.stats_buf);
+
+    cb::mcbp::response::StatsResponse rsp(k.size(), v.size());
+    rsp.setOpaque(cookie.getHeader().getOpaque());
+
+    // Write the mcbp response into the task's buffer (header, key, value).
+    auto& iob = *writable_data.stats_buf;
+    iob.reserve(0, sizeof(rsp) + k.size() + v.size());
+    rsp.getHeaderString().copy(reinterpret_cast<char*>(iob.writableTail()),
+                               std::string_view::npos);
+    iob.append(sizeof(rsp));
+
+    k.copy(reinterpret_cast<char*>(iob.writableTail()), std::string_view::npos);
+    iob.append(k.size());
+
+    v.copy(reinterpret_cast<char*>(iob.writableTail()), std::string_view::npos);
+    iob.append(v.size());
 }
 
 StatsTaskBucketStats::StatsTaskBucketStats(Cookie& cookie,

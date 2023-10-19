@@ -25,6 +25,7 @@
 #include <executor/executorpool.h>
 #include <gsl/gsl-lite.hpp>
 #include <logger/logger.h>
+#include <mcbp/codec/stats_codec.h>
 #include <mcbp/protocol/framebuilder.h>
 #include <mcbp/protocol/header.h>
 #include <memcached/stat_group.h>
@@ -41,6 +42,7 @@
 #include <chrono>
 #include <cinttypes>
 #include <stdexcept>
+#include <string_view>
 
 using namespace std::string_view_literals;
 
@@ -83,15 +85,7 @@ void add_stat(Cookie& cookie,
 static void append_stats(std::string_view key,
                          std::string_view value,
                          Cookie& cookie) {
-    cb::mcbp::Response header = {};
-    header.setMagic(cb::mcbp::Magic::ClientResponse);
-    header.setOpcode(cb::mcbp::ClientOpcode::Stat);
-    header.setDatatype(cb::mcbp::Datatype::Raw);
-    header.setStatus(cb::mcbp::Status::Success);
-    header.setFramingExtraslen(0);
-    header.setExtlen(0);
-    header.setKeylen(key.size());
-    header.setBodylen(key.size() + value.size());
+    cb::mcbp::response::StatsResponse header(key.size(), value.size());
     header.setOpaque(cookie.getHeader().getOpaque());
     auto& c = cookie.getConnection();
     c.copyToOutputStream(
@@ -912,14 +906,12 @@ cb::engine_errc StatsCommandContext::getTaskResult() {
     } else if (command_exit_code == cb::engine_errc::throttled) {
         // The call to stats throttled, so we send what we've received and
         // attempt to run again to completion.
-        stats_task.iterateStats(
-                [this](auto k, auto v) { append_stats(k, v, cookie); });
+        stats_task.drainBufferedStatsToOutput();
         state = State::DoStats;
         return cb::engine_errc::success;
     } else {
         state = State::CommandComplete;
-        stats_task.iterateStats(
-                [this](auto k, auto v) { append_stats(k, v, cookie); });
+        stats_task.drainBufferedStatsToOutput();
     }
 
     return cb::engine_errc::success;

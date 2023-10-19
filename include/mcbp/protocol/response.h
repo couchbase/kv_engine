@@ -177,6 +177,9 @@ public:
         return reinterpret_cast<Header*>(this)->getExtdata();
     }
 
+    std::string_view getHeaderString() const {
+        return reinterpret_cast<const Header*>(this)->getString();
+    }
     cb::const_byte_buffer getKey() const {
         return reinterpret_cast<const Header*>(this)->getKey();
     }

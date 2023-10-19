@@ -11,6 +11,7 @@
 
 #include <executor/globaltask.h>
 #include <folly/Synchronized.h>
+#include <folly/io/IOBuf.h>
 #include <memcached/engine_common.h>
 #include <memcached/engine_error.h>
 #include <vector>
@@ -27,10 +28,8 @@ public:
     /// Get the result from the command
     cb::engine_errc getCommandError() const;
 
-    /// Iterate over all the collected stats pairs and call the provided
-    /// callback
-    void iterateStats(std::function<void(std::string_view, std::string_view)>
-                              callback) const;
+    /// Writes any buffered stats to the output buffer.
+    void drainBufferedStatsToOutput();
 
 protected:
     bool run() final;
@@ -50,10 +49,13 @@ protected:
     Cookie& cookie;
 
 private:
-    using StatVector = std::vector<std::pair<std::string, std::string>>;
+    /// The initial capacity of the buffer where we store the stats responses.
+    static constexpr size_t BUFFER_CAPACITY = 16 * 1024;
+
     struct TaskData {
         cb::engine_errc command_error{cb::engine_errc::success};
-        StatVector stats;
+        std::unique_ptr<folly::IOBuf> stats_buf{
+                folly::IOBuf::createCombined(BUFFER_CAPACITY)};
     };
 
     /**
