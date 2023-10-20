@@ -711,7 +711,16 @@ private:
      */
     void scheduleBackfill_UNLOCKED(DcpProducer& producer, bool reschedule);
 
-    bool isCurrentSnapshotCompleted() const;
+    /**
+     * ActiveStream is in a complete snapshot:
+     * - Always, on active vbuckets
+     * - If we have sent up to the last seqno in the last marker range, for
+     *   non-active vbuckets
+     *
+     * @param vb Reference to the underlying vbucket
+     * @return Whether the stream is in a complete snapshot
+     */
+    bool isCurrentSnapshotCompleted(const VBucket& vb) const;
 
     /**
      * Drop the cursor registered with the checkpoint manager. Used during

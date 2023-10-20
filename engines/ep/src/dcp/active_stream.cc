@@ -1474,7 +1474,8 @@ void ActiveStream::snapshot(const OutstandingItemsResult& meta,
 
     lastReadSeqno.store(newLastReadSeqno);
 
-    if (isCurrentSnapshotCompleted()) {
+    const auto vb = engine->getVBucket(vb_);
+    if (vb && isCurrentSnapshotCompleted(*vb)) {
         // Get OptionalSeqnos which for the items list types should have values
         auto seqnoStart = items.front()->getBySeqno();
         auto seqnoEnd = items.back()->getBySeqno();
@@ -2302,17 +2303,15 @@ uint64_t ActiveStream::getLastSentSeqno() const {
     return lastSentSeqno.load();
 }
 
-bool ActiveStream::isCurrentSnapshotCompleted() const {
-    VBucketPtr vbucket = engine->getVBucket(vb_);
-    // An atomic read of vbucket state without acquiring the
-    // reader lock for state should suffice here.
-    if (vbucket && vbucket->getState() == vbucket_state_replica) {
-        if (lastSentSnapEndSeqno.load(std::memory_order_relaxed) >=
-            lastReadSeqno) {
-            return false;
-        }
+bool ActiveStream::isCurrentSnapshotCompleted(const VBucket& vb) const {
+    if (vb.getState() != vbucket_state_replica) {
+        return true;
     }
-    return true;
+    // @todo MB-58961:
+    // 1. Shouldn't it be a weak-inequality here (ie, <=) ?
+    // 2. Shouldn't we use lastSentSeqno in place of lastReadSeqno here?
+    // At the time of writing I'm pushing a non-logic change, so defer the above
+    return lastSentSnapEndSeqno.load(std::memory_order_relaxed) < lastReadSeqno;
 }
 
 bool ActiveStream::dropCheckpointCursor_UNLOCKED() {
@@ -2509,19 +2508,25 @@ bool ActiveStream::isSeqnoAdvancedNeededBackFill() const {
      * case we do not want to send a SeqnoAdvanced at the end of backfill.
      * So check that we don't have an in memory range to stream from.
      */
-    auto vb = engine->getVBucket(vb_);
-    if (vb) {
-        if (vb->getState() == vbucket_state_replica) {
-            return maxScanSeqno > lastBackfilledSeqno &&
-                   maxScanSeqno == lastSentSnapEndSeqno.load();
-        }
-    } else {
+    const auto vb = engine->getVBucket(vb_);
+
+    // Note: Early returns 'true' maintains the same logic as the parent commit,
+    // no logic change
+    if (!vb) {
         log(spdlog::level::level_enum::warn,
-            "{} isSeqnoAdvancedNeededBackFill() for vbucket which does not "
-            "exist",
+            "{} ActiveStream::isSeqnoAdvancedNeededBackFill() for vbucket "
+            "which does not exist",
             logPrefix);
+        return true;
     }
-    return isCurrentSnapshotCompleted();
+
+    if (vb->getState() != vbucket_state_replica) {
+        return true;
+    }
+
+    // vbucket_state_replica
+    return maxScanSeqno > lastBackfilledSeqno &&
+           maxScanSeqno == lastSentSnapEndSeqno;
 }
 
 bool ActiveStream::isSeqnoGapAtEndOfSnapshot(uint64_t streamSeqno) const {
