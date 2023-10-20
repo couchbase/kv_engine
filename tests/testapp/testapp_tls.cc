@@ -52,6 +52,12 @@ protected:
 
     void setTlsMinimumSpec(const std::string& version) {
         tls["minimum version"] = version;
+        if (version == "TLS 1" || version == "TLS 1.1") {
+            tls["cipher list"]["TLS 1.2"] = "@SECLEVEL=0 HIGH";
+        } else {
+            tls["cipher list"]["TLS 1.2"] = "HIGH";
+        }
+
         reloadConfig();
     }
 
@@ -123,7 +129,7 @@ TEST_P(TlsTests, Minimum_Tls1_3) {
 
 TEST_P(TlsTests, TLS12_Ciphers) {
     // Disable all TLS v1 ciphers
-    tls["cipher list"]["TLS 1.2"] = "HIGH:!TLSv1";
+    tls["cipher list"]["TLS 1.2"] = "@SECLEVEL=0:HIGH:!TLSv1";
     reloadConfig();
 
     // We should be able to pick one of the other ciphers

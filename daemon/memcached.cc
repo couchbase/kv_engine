@@ -57,7 +57,6 @@
 #include <platform/timeutils.h>
 #include <statistics/prometheus.h>
 #include <utilities/breakpad.h>
-#include <utilities/openssl_utils.h>
 #include <chrono>
 #include <csignal>
 #include <cstdlib>
@@ -822,7 +821,6 @@ int memcached_main(int argc, char** argv) {
 
     setup_libevent_locking();
 
-    initialize_openssl();
     cb::net::initialize();
 
     /* init settings */
@@ -1115,9 +1113,6 @@ int memcached_main(int argc, char** argv) {
 
     LOG_INFO_RAW("Removing breakpad");
     cb::breakpad::destroy();
-
-    LOG_INFO_RAW("Shutting down OpenSSL");
-    shutdown_openssl();
 
     LOG_INFO_RAW("Shutting down event base");
     main_base.reset();

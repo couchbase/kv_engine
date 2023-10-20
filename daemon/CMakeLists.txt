@@ -237,7 +237,7 @@ target_link_libraries(memcached_daemon
                       ${SNAPPY_LIBRARIES}
                       ${MALLOC_LIBRARIES}
                       ${LIBEVENT_LIBRARIES}
-                      ${OPENSSL_LIBRARIES}
+                      OpenSSL::SSL
                       ${COUCHBASE_NETWORK_LIBS}
                       ${MEMCACHED_EXTRA_LIBS})
 add_sanitizers(memcached_daemon)

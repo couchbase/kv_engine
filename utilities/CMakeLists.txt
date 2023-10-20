@@ -31,8 +31,6 @@ add_library(mcd_util STATIC
             json_utilities.h
             logtags.cc
             logtags.h
-            openssl_utils.cc
-            openssl_utils.h
             stat_group.cc
             string_utilities.cc
             string_utilities.h
@@ -55,7 +53,7 @@ target_link_libraries(mcd_util
                 memcached_logger
                 platform
                 hdrhistogram
-                ${OPENSSL_LIBRARIES})
+                OpenSSL::SSL)
 add_sanitizers(mcd_util)
 kv_enable_pch(mcd_util)
 

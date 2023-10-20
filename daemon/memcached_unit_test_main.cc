@@ -11,7 +11,6 @@
 #include <folly/portability/GTest.h>
 #include <getopt.h>
 #include <logger/logger.h>
-#include <utilities/openssl_utils.h>
 #include <iostream>
 
 int main(int argc, char** argv) {
@@ -32,7 +31,6 @@ int main(int argc, char** argv) {
             return EXIT_FAILURE;
         }
     }
-    initialize_openssl();
 
     if (verbose) {
         cb::logger::createConsoleLogger();
@@ -42,7 +40,6 @@ int main(int argc, char** argv) {
 
     auto ret = RUN_ALL_TESTS();
     cb::logger::shutdown();
-    shutdown_openssl();
 
     return ret;
 }

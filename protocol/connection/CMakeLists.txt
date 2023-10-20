@@ -19,6 +19,6 @@ target_link_libraries(mc_client_connection PRIVATE
     memcached_rbac
     platform
     ${COUCHBASE_NETWORK_LIBS}
-    ${OPENSSL_LIBRARIES}
+    OpenSSL::SSL
   PRIVATE
     cbcompress)

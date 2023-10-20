@@ -73,7 +73,6 @@ include_directories(AFTER SYSTEM
                     ${phosphor_SOURCE_DIR}/include
                     ${gsl_lite_SOURCE_DIR}/include
                     ${LIBEVENT_INCLUDE_DIR}
-                    ${OPENSSL_INCLUDE_DIR}
                     ${BOOST_INCLUDE_DIR})
 
 if (WIN32)

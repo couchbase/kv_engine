@@ -546,6 +546,11 @@ void MemcachedConnection::connect() {
         // handshake and successful completion.
         SSL_CTX_set_mode(context, SSL_MODE_AUTO_RETRY);
         if (!tls_protocol.empty()) {
+            if (tls_protocol == "tlsv1" || tls_protocol == "tlsv1.1" ||
+                tls_protocol == "tlsv1_1") {
+                SSL_CTX_set_security_level(context, 0);
+            }
+
             SSL_CTX_set_options(context, tls_protocol_to_options(tls_protocol));
         }
 

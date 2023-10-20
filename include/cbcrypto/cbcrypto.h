@@ -16,7 +16,7 @@
 #include <string>
 
 namespace cb::crypto {
-enum class Algorithm { MD5, SHA1, SHA256, SHA512 };
+enum class Algorithm { SHA1, SHA256, SHA512 };
 
 bool isSupported(Algorithm algorithm);
 
