@@ -91,7 +91,7 @@ struct CursorRegResult {
     // True if the new cursor won't provide all mutations requested by the user
     bool tryBackfill;
     // The first seqno found in CM that the new cursor will pick at move
-    uint64_t seqno;
+    uint64_t nextSeqno;
     // The registered cursor
     Cursor cursor;
 };

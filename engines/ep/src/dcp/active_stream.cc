@@ -258,7 +258,7 @@ void ActiveStream::registerCursor(CheckpointManager& chkptmgr,
         if (result.tryBackfill) {
             pendingBackfill = true;
         }
-        curChkSeqno = result.seqno;
+        curChkSeqno = result.nextSeqno;
         cursor = result.cursor;
 
         // Note: We have just registered a cursor and then unlocked the CM at
@@ -273,12 +273,13 @@ void ActiveStream::registerCursor(CheckpointManager& chkptmgr,
         }
         log(spdlog::level::level_enum::info,
             "{} ActiveStream::registerCursor name \"{}\", wantedSeqno:{}, "
-            "result{{tryBackfill:{}, seqno:{}, op:{}}}, pendingBackfill:{}",
+            "result{{tryBackfill:{}, nextSeqno:{}, op:{}}}, "
+            "pendingBackfill:{}",
             logPrefix,
             name_,
             lastProcessedSeqno,
             result.tryBackfill,
-            result.seqno,
+            result.nextSeqno,
             op ? ::to_string(*op) : "N/A",
             pendingBackfill);
     } catch (std::exception& error) {
@@ -1788,16 +1789,17 @@ void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
         }
         log(spdlog::level::level_enum::info,
             "{} ActiveStream::scheduleBackfill_UNLOCKED register cursor with "
-            "name \"{}\" wantedSeqno:{}, result{{tryBackfill:{}, seqno:{}}}, "
+            "name \"{}\" wantedSeqno:{}, result{{tryBackfill:{}, "
+            "nextSeqno:{}}}, "
             "op:{}",
             logPrefix,
             name_,
             lastReadSeqno.load(),
             registerResult.tryBackfill,
-            registerResult.seqno,
+            registerResult.nextSeqno,
             op ? ::to_string(*op) : "N/A");
 
-        curChkSeqno = registerResult.seqno;
+        curChkSeqno = registerResult.nextSeqno;
         tryBackfill = registerResult.tryBackfill;
         cursor = registerResult.cursor;
 
@@ -2083,12 +2085,12 @@ void ActiveStream::notifyEmptyBackfill_UNLOCKED(uint64_t lastSeenSeqno) {
             log(spdlog::level::level_enum::info,
                 "{} ActiveStream::notifyEmptyBackfill "
                 "Re-registering dropped cursor with name \"{}\", "
-                "backfill:{}, seqno:{}",
+                "backfill:{}, nextSeqno:{}",
                 logPrefix,
                 name_,
                 result.tryBackfill,
-                result.seqno);
-            curChkSeqno = result.seqno;
+                result.nextSeqno);
+            curChkSeqno = result.nextSeqno;
             cursor = result.cursor;
         } catch (std::exception& error) {
             log(spdlog::level::level_enum::warn,

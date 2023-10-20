@@ -314,7 +314,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
     std::shared_ptr<CheckpointCursor> newCursor;
 
     CursorRegResult result;
-    result.seqno = std::numeric_limits<uint64_t>::max();
+    result.nextSeqno = std::numeric_limits<uint64_t>::max();
     result.tryBackfill = false;
 
     auto ckptIt = checkpointList.begin();
@@ -330,7 +330,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
         // meaningless if all mutations have been expelled.
         newCursor = std::make_shared<CheckpointCursor>(
                 name, ckptIt, (*ckptIt)->begin(), droppable, 0);
-        result.seqno = lastBySeqno + 1;
+        result.nextSeqno = lastBySeqno + 1;
         result.cursor.setCursor(newCursor);
 
         // Trigger backfill only if there's a gap between lastProcessedSeqno and
@@ -368,7 +368,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
                 // checkpoint, position cursor at the checkpoint begin.
                 newCursor = std::make_shared<CheckpointCursor>(
                         name, ckptIt, (*ckptIt)->begin(), droppable, 0);
-                result.seqno = st;
+                result.nextSeqno = st;
                 result.cursor.setCursor(newCursor);
                 // Set tryBackfill:true only if lastProcessedSeqno to st is non
                 // contiguous. Note this is likely the fix for MB-53616/MB-58302
@@ -409,12 +409,12 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
                 while (true) {
                     auto next = std::next(pos);
                     if (next == (*ckptIt)->end()) {
-                        result.seqno = uint64_t((*pos)->getBySeqno() + 1);
+                        result.nextSeqno = uint64_t((*pos)->getBySeqno() + 1);
                         break;
                     }
                     const auto nextSeqno = uint64_t((*next)->getBySeqno());
                     if (lastProcessedSeqno < nextSeqno) {
-                        result.seqno = nextSeqno;
+                        result.nextSeqno = nextSeqno;
                         break;
                     }
                     ++pos;
@@ -428,7 +428,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
             }
         }
 
-        if (result.seqno == std::numeric_limits<uint64_t>::max()) {
+        if (result.nextSeqno == std::numeric_limits<uint64_t>::max()) {
             /*
              * We should never get here since this would mean that the sequence
              * number we are looking for is higher than anything currently
