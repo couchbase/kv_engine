@@ -1474,8 +1474,26 @@ void ActiveStream::snapshot(const OutstandingItemsResult& meta,
 
     lastReadSeqno.store(newLastReadSeqno);
 
+    // Note: ActiveStream is in a complete snapshot
+    // - Always, on active vbuckets
+    // - If we have sent up to the last seqno in the last marker range, for
+    //   non-active vbuckets
+    //
+    // @todo MB-58961:
+    // 1. Shouldn't it be a weak-inequality here (ie, <=) ?
+    // 2. Shouldn't we use lastSentSeqno in place of lastReadSeqno here?
+    // At the time of writing I'm pushing a non-logic change, so defer the above
+    const auto isReplicaSnapshotComplete =
+            lastSentSnapEndSeqno.load(std::memory_order_relaxed) <
+            lastReadSeqno;
+
+    // Note: Here we consider "!replica" rather than "active", but I believe
+    // that streaming from "pending|dead" is just illegal, so we should change
+    // this.
+
     const auto vb = engine->getVBucket(vb_);
-    if (vb && isCurrentSnapshotCompleted(*vb)) {
+    if (vb && (vb->getState() != vbucket_state_replica ||
+               isReplicaSnapshotComplete)) {
         // Get OptionalSeqnos which for the items list types should have values
         auto seqnoStart = items.front()->getBySeqno();
         auto seqnoEnd = items.back()->getBySeqno();
@@ -2301,17 +2319,6 @@ uint64_t ActiveStream::getLastReadSeqno() const {
 
 uint64_t ActiveStream::getLastSentSeqno() const {
     return lastSentSeqno.load();
-}
-
-bool ActiveStream::isCurrentSnapshotCompleted(const VBucket& vb) const {
-    if (vb.getState() != vbucket_state_replica) {
-        return true;
-    }
-    // @todo MB-58961:
-    // 1. Shouldn't it be a weak-inequality here (ie, <=) ?
-    // 2. Shouldn't we use lastSentSeqno in place of lastReadSeqno here?
-    // At the time of writing I'm pushing a non-logic change, so defer the above
-    return lastSentSnapEndSeqno.load(std::memory_order_relaxed) < lastReadSeqno;
 }
 
 bool ActiveStream::dropCheckpointCursor_UNLOCKED() {
