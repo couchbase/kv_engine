@@ -40,6 +40,15 @@ public:
     }
     Vbid vbid0{0};
     Vbid vbid1{1};
+
+    void generateAccessLog() {
+        // Generate the access logs
+        ASSERT_TRUE(store->runAccessScannerTask());
+        auto& auxioQueue = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+        runNextTask(auxioQueue);
+        runNextTask(auxioQueue);
+        runNextTask(auxioQueue);
+    }
 };
 
 // Test will create two vbuckets and populate with 2 items in each vb. The
@@ -47,8 +56,6 @@ public:
 // the access log then warmup (with a configuration that cannot load all items)
 // should return the cache to pre-warmup state.
 TEST_P(AccessLogTest, WarmupWithAcceessLog) {
-    ASSERT_TRUE(store->isAccessScannerEnabled());
-
     auto key1 = makeStoredDocKey("key1");
     auto key2 = makeStoredDocKey("key2");
     auto key3 = makeStoredDocKey("key3");
@@ -94,12 +101,7 @@ TEST_P(AccessLogTest, WarmupWithAcceessLog) {
 
     check();
 
-    // Generate the access logs
-    ASSERT_TRUE(store->runAccessScannerTask());
-    auto& auxioQueue = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
-    runNextTask(auxioQueue);
-    runNextTask(auxioQueue);
-    runNextTask(auxioQueue);
+    generateAccessLog();
 
     // Reset and set a new config to ensure 1/2 items are loaded.
     // This will mean that after the LoadingAccessLog warmup phase has loaded
@@ -168,7 +170,7 @@ TEST_F(MutationLogApplyTest, Apply) {
         h.setVBucket(vbid0);
         h.setVBucket(vbid1);
 
-        h.loadBatch(ml.begin(), 6);
+        h.loadBatch(6);
         std::unordered_map<Vbid, std::unordered_set<StoredDocKey>> map;
         h.apply(&map, loadFn, true);
         EXPECT_EQ(0, map.count(vbid0));
@@ -187,7 +189,7 @@ TEST_F(MutationLogApplyTest, Apply) {
         MutationLogHarvester h(ml, engine.get());
         h.setVBucket(vbid0);
         h.setVBucket(vbid1);
-        h.loadBatch(ml.begin(), 6);
+        h.loadBatch(6);
 
         std::unordered_map<Vbid, std::unordered_set<StoredDocKey>> map;
         h.apply(&map, loadFn, false);
@@ -203,6 +205,66 @@ TEST_F(MutationLogApplyTest, Apply) {
             EXPECT_EQ(1, map[vbid1].count(key));
         }
     }
+}
+
+// Test provides coverage over co-operative access log warm-up, checking that
+// a reader thread isn't blocked for the entire duration of access log loading.
+TEST_P(AccessLogTest, ReadAndWarmup) {
+    // Test requires to bgfetch via reader tasks
+    ASSERT_TRUE(getEPBucket().startBgFetcher());
+    std::vector<std::pair<Vbid, StoredDocKey>> keys;
+    keys.emplace_back(vbid0, makeStoredDocKey("key0"));
+    keys.emplace_back(vbid0, makeStoredDocKey("key1"));
+    keys.emplace_back(vbid1, makeStoredDocKey("key2"));
+    keys.emplace_back(vbid1, makeStoredDocKey("key3"));
+
+    for (const auto& key : keys) {
+        store_item(key.first, key.second, "value");
+    }
+
+    flush_vbucket_to_disk(vbid0, 2);
+    flush_vbucket_to_disk(vbid1, 2);
+
+    generateAccessLog();
+
+    // Warmup and set the "chunk" to 0, this means that each key loaded will
+    // yield and avoids any need to hack around with time.
+    resetEngineAndEnableWarmup(buildNewWarmupConfig(
+            "warmup_accesslog_load_duration=0;warmup_batch_size=1"));
+    ASSERT_TRUE(getEPBucket().startBgFetcher());
+
+    // Step warmup until LoadingAccessLog
+    auto& readerQueue = *task_executor->getLpTaskQ()[READER_TASK_IDX];
+    auto* warmup = store->getWarmup();
+    ASSERT_TRUE(warmup);
+    while (warmup->getWarmupState() != WarmupState::State::LoadingAccessLog) {
+        runNextTask(readerQueue);
+    }
+
+    // Reading a key will require a bg-fetch at this point, the test will check
+    // it becomes interleaved with the access-log loading (which can also
+    // read the key and populate the cache).
+    auto options = static_cast<get_options_t>(QUEUE_BG_FETCH);
+
+    for (const auto& key : keys) {
+        auto gv = store->get(key.second, key.first, cookie, options);
+        ASSERT_EQ(cb::engine_errc::would_block, gv.getStatus());
+    }
+
+    const auto& stats = engine->getEpStats();
+    auto fetched = stats.bg_fetched;
+    int loaded = 0;
+    while (warmup->getWarmupState() == WarmupState::State::LoadingAccessLog) {
+        // Run a mixture of BgFetch and Warmup
+        runNextTask(readerQueue);
+        if (fetched != stats.bg_fetched) {
+            ++loaded;
+        }
+    }
+
+    // Possible that 3 of 4 keys were loaded and the next reader is going to
+    // load the 4th, so just check 3 were loaded.
+    ASSERT_GE(loaded, 3);
 }
 
 // The test config here only wants to cover persistent and both eviction modes

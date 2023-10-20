@@ -270,7 +270,8 @@ MutationLog::MutationLog(std::string path,
       entryBuffer(MutationLogEntry::len(256)),
       blockBuffer(bs),
       syncConfig(DEFAULT_SYNC_CONF),
-      readOnly(false) {
+      readOnly(false),
+      resumeItr(end()) {
     for (auto& ii : itemsLogged) {
         ii.store(0);
     }
@@ -548,6 +549,7 @@ void MutationLog::open(bool _readOnly) {
     if (!isEnabled()) {
         return;
     }
+    openTimePoint = std::chrono::steady_clock::now();
     readOnly = _readOnly;
     std::string error;
     if (readOnly) {
@@ -1050,14 +1052,19 @@ bool MutationLogHarvester::load() {
     return clean;
 }
 
-MutationLog::iterator MutationLogHarvester::loadBatch(
-        const MutationLog::iterator& start, size_t limit) {
-    if (limit == 0) {
-        limit = std::numeric_limits<size_t>::max();
-    }
-    auto it = start;
+bool MutationLogHarvester::loadBatchAndApply(size_t limit,
+                                        void* arg,
+                                        mlCallbackWithQueue mlc,
+                                        bool removeNonExistentKeys) {
+    const bool more = loadBatch(limit);
+    apply(arg, mlc, removeNonExistentKeys);
+    return more;
+}
+
+bool MutationLogHarvester::loadBatch(size_t limit) {
     size_t count = 0;
     committed.clear();
+    auto& it = mlog.resume();
     for (; it != mlog.end() && count < limit; ++it) {
         const auto& le = *it;
         ++itemsSeen[int(le->type())];
@@ -1079,7 +1086,7 @@ MutationLog::iterator MutationLogHarvester::loadBatch(
             break;
         }
     }
-    return it;
+    return it != mlog.end();
 }
 
 void MutationLogHarvester::apply(void *arg, mlCallback mlc) {

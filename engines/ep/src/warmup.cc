@@ -44,14 +44,12 @@
 #include <folly/lang/Assume.h>
 
 struct WarmupCookie {
-    WarmupCookie(EPBucket* s, StatusCallback<GetValue>& c)
-        : cb(c), epstore(s), loaded(0), skipped(0), error(0) { /* EMPTY */
+    WarmupCookie(EPBucket& s, StatusCallback<GetValue>& c, MutationLog& log)
+        : epstore(s), cb(c), log(log) {
     }
+    EPBucket& epstore;
     StatusCallback<GetValue>& cb;
-    EPBucket* epstore;
-    size_t loaded;
-    size_t skipped;
-    size_t error;
+    MutationLog& log;
 };
 
 void logWarmupStats(const EPStats& stats, const Warmup& warmup) {
@@ -689,7 +687,9 @@ public:
 
     bool run() override {
         TRACE_EVENT0("ep-engine/task", "WarmupLoadAccessLog");
-        _warmup->loadingAccessLog(_shardId);
+        if (_warmup->loadingAccessLog(_shardId)) {
+            return true;
+        }
         _warmup->removeFromTaskSet(uid);
         return false;
     }
@@ -802,9 +802,10 @@ private:
 static bool batchWarmupCallback(Vbid vbId,
                                 const std::set<StoredDocKey>& fetches,
                                 void* arg) {
-    auto* c = static_cast<WarmupCookie*>(arg);
+    Expects(arg);
+    auto& c = *static_cast<WarmupCookie*>(arg);
 
-    if (!c->epstore->hasWarmupReachedThreshold()) {
+    if (!c.epstore.hasWarmupReachedThreshold()) {
         vb_bgfetch_queue_t items2fetch;
         for (auto& key : fetches) {
             // Access log only records Committed keys, therefore construct
@@ -813,14 +814,13 @@ static bool batchWarmupCallback(Vbid vbId,
             // Deleted below via a unique_ptr in the next loop
             vb_bgfetch_item_ctx_t& bg_itm_ctx = items2fetch[diskKey];
             bg_itm_ctx.addBgFetch(std::make_unique<FrontEndBGFetchItem>(
-                    nullptr,
-                    c->epstore->getValueFilterForCompressionMode(),
-                    0));
+                    nullptr, c.epstore.getValueFilterForCompressionMode(), 0));
         }
 
-        auto& engine = c->epstore->getEPEngine();
-        c->epstore->getROUnderlying(vbId)->getMulti(
-                vbId, items2fetch, engine.getCreateItemCallback());
+        c.epstore.getROUnderlying(vbId)->getMulti(
+                vbId,
+                items2fetch,
+                c.epstore.getEPEngine().getCreateItemCallback());
 
         // applyItem controls the  mode this loop operates in.
         // true we will attempt the callback (attempt a HashTable insert)
@@ -833,7 +833,7 @@ static bool batchWarmupCallback(Vbid vbId,
             if (applyItem) {
                 if (bg_itm_ctx.value.getStatus() == cb::engine_errc::success) {
                     // NB: callback will delete the GetValue's Item
-                    c->cb.callback(bg_itm_ctx.value);
+                    c.cb.callback(bg_itm_ctx.value);
                 } else {
                     EP_LOG_WARN(
                             "Warmup failed to load data for {}"
@@ -841,23 +841,23 @@ static bool batchWarmupCallback(Vbid vbId,
                             vbId,
                             cb::UserData{items.first.to_string()},
                             bg_itm_ctx.value.getStatus());
-                    c->error++;
+                    c.log.incrementKeyError();
                 }
 
-                if (c->cb.getStatus() == cb::engine_errc::success) {
-                    c->loaded++;
+                if (c.cb.getStatus() == cb::engine_errc::success) {
+                    c.log.incrementKeyLoaded();
                 } else {
                     // Failed to apply an Item, so fail the rest
                     applyItem = false;
                 }
             } else {
-                c->skipped++;
+                c.log.incrementKeySkipped();
             }
         }
 
         return true;
     } else {
-        c->skipped++;
+        c.log.incrementKeySkipped();
         return false;
     }
 }
@@ -1735,18 +1735,26 @@ void Warmup::checkForAccessLog() {
 
     size_t accesslogs = 0;
     if (config.isAccessScannerEnabled()) {
-        for (uint16_t i = 0; i < store.vbMap.getNumShards(); i++) {
-            accessLog.emplace_back(
-                    config.getAlogPath() + "." + std::to_string(i),
-                    config.getAlogBlockSize());
-        }
+        accessLog.resize(store.vbMap.getNumShards());
+        for (uint16_t i = 0; i < accessLog.size(); i++) {
+            std::string file = config.getAlogPath() + "." + std::to_string(i);
+            auto& shardLogs = accessLog[i];
 
-        for (size_t i = 0; i < store.vbMap.shards.size(); i++) {
-            std::string curr = accessLog[i].getLogFile();
-            std::string old = accessLog[i].getLogFile();
-            old.append(".old");
-            if (cb::io::isFile(curr) || cb::io::isFile(old)) {
-                accesslogs++;
+            // The order here is important as the load phase will work from back
+            // so will use the current file before trying .old
+            if (cb::io::isFile(file + ".old")) {
+                shardLogs.emplace_back(
+                        std::make_unique<MutationLog>(file + ".old"));
+            }
+
+            if (cb::io::isFile(file)) {
+                shardLogs.emplace_back(std::make_unique<MutationLog>(
+                        file, config.getAlogBlockSize()));
+            }
+
+            if (shardLogs.size()) {
+                // If we found any access log, increase this counter by 1
+                ++accesslogs;
             }
         }
     }
@@ -1772,55 +1780,36 @@ void Warmup::scheduleLoadingAccessLog() {
     }
 }
 
-void Warmup::loadingAccessLog(uint16_t shardId) {
-    LoadStorageKVPairCallback load_cb(store, true, state.getState());
-    bool success = false;
-    auto stTime = std::chrono::steady_clock::now();
-    if (accessLog[shardId].exists()) {
-        try {
-            accessLog[shardId].open();
-            if (doWarmup(accessLog[shardId], shardVbStates[shardId], load_cb) !=
-                (size_t)-1) {
-                success = true;
-            }
-        } catch (const std::exception& e) {
-            corruptAccessLog = true;
-            EP_LOG_WARN("Error reading warmup access log:  {}", e.what());
-        }
+bool Warmup::loadingAccessLog(uint16_t shardId) {
+    Expects(!accessLog[shardId].empty());
+
+    // Always work back to front (note that the checkForAccessLog puts what is
+    // considered the most recent log at the back)
+    auto& log = accessLog[shardId].back();
+    Expects(log);
+    auto status = loadFromAccessLog(*log, shardId);
+    switch (status) {
+    case WarmupAccessLogState::Yield:
+        return true;
+    case WarmupAccessLogState::Failed:
+        corruptAccessLog = true;
+        // Get rid of the current MutationLog object
+        accessLog[shardId].pop_back();
+        break;
+    case WarmupAccessLogState::Done:
+        // Get rid of all MutationLog objects for the shard
+        accessLog[shardId].clear();
+        break;
     }
 
-    if (!success) {
-        // Do we have the previous file?
-        std::string nm = accessLog[shardId].getLogFile();
-        nm.append(".old");
-        MutationLog old(nm);
-        if (old.exists()) {
-            try {
-                old.open();
-                if (doWarmup(old, shardVbStates[shardId], load_cb) !=
-                    (size_t)-1) {
-                    success = true;
-                }
-            } catch (const std::exception& e) {
-                corruptAccessLog = true;
-                EP_LOG_WARN("Error reading old access log:  {}", e.what());
-            }
-        }
+    if (!accessLog[shardId].empty()) {
+        // More logs to try, yield
+        return true;
     }
 
-    size_t numItems = store.getEPEngine().getEpStats().warmedUpValues;
-    if (success && numItems) {
-        EP_LOG_INFO("{} items loaded from access log, completed in {}",
-                    uint64_t(numItems),
-                    cb::time2text(std::chrono::steady_clock::now() - stTime));
-    } else {
-        size_t estimatedCount = store.getEPEngine().getEpStats().warmedUpKeys;
-        setEstimatedWarmupCount(estimatedCount);
-    }
-
+    // No more logs for this shard, check if can we change state?
     if (++threadtask_count == store.vbMap.getNumShards()) {
-        // We don't need the accessLog anymore, and it uses a bunch of memory.
-        // Nuke it now to get the memory back.
+        // can free everything now
         accessLog.clear();
 
         if (!store.hasWarmupReachedThreshold()) {
@@ -1829,11 +1818,29 @@ void Warmup::loadingAccessLog(uint16_t shardId) {
             transition(WarmupState::State::Done);
         }
     }
+    return false;
 }
 
-size_t Warmup::doWarmup(MutationLog& lf,
-                        const std::map<Vbid, vbucket_state>& vbmap,
-                        StatusCallback<GetValue>& cb) {
+Warmup::WarmupAccessLogState Warmup::loadFromAccessLog(MutationLog& log,
+                                                       uint16_t shardId) {
+    if (!log.isOpen()) {
+        log.open();
+    }
+
+    try {
+        LoadStorageKVPairCallback load_cb(store, true, state.getState());
+        return doWarmup(log, shardVbStates[shardId], load_cb);
+    } catch (const std::exception& e) {
+        corruptAccessLog = true;
+        EP_LOG_WARN("Warmup Error reading access log: {}", e.what());
+    }
+    return WarmupAccessLogState::Failed;
+}
+
+Warmup::WarmupAccessLogState Warmup::doWarmup(
+        MutationLog& lf,
+        const std::map<Vbid, vbucket_state>& vbmap,
+        StatusCallback<GetValue>& cb) {
     MutationLogHarvester harvester(lf, &store.getEPEngine());
     std::map<Vbid, vbucket_state>::const_iterator it;
     for (it = vbmap.begin(); it != vbmap.end(); ++it) {
@@ -1843,38 +1850,30 @@ size_t Warmup::doWarmup(MutationLog& lf,
     // To constrain the number of elements from the access log we have to keep
     // alive (there may be millions of items per-vBucket), process it
     // a batch at a time.
-    std::chrono::nanoseconds log_load_duration{};
-    std::chrono::nanoseconds log_apply_duration{};
-    WarmupCookie cookie(&store, cb);
+    WarmupCookie cookie(store, cb, lf);
 
-    auto alog_iter = lf.begin();
-    do {
-        // Load a chunk of the access log file
-        auto start = std::chrono::steady_clock::now();
-        alog_iter = harvester.loadBatch(alog_iter, config.getWarmupBatchSize());
-        log_load_duration += (std::chrono::steady_clock::now() - start);
+    using namespace std::chrono;
+    auto start = steady_clock::now();
+    auto maxDuration = milliseconds{config.getWarmupAccesslogLoadDuration()};
+    auto batchSize = config.getWarmupBatchSize();
 
-        // .. then apply it to the store.
-        auto apply_start = std::chrono::steady_clock::now();
-        harvester.apply(&cookie,
-                        &batchWarmupCallback,
-                        store.getItemEvictionPolicy() == EvictionPolicy::Value);
-        log_apply_duration += (std::chrono::steady_clock::now() - apply_start);
-    } while (alog_iter != lf.end());
+    // Keep loading batches until time is up.
+    while (harvester.loadBatchAndApply(
+            batchSize,
+            &cookie,
+            &batchWarmupCallback,
+            store.getItemEvictionPolicy() == EvictionPolicy::Value)) {
+        if (steady_clock::now() - start >= maxDuration) {
+            return WarmupAccessLogState::Yield;
+        }
+    }
 
-    size_t total = harvester.total();
-    setEstimatedWarmupCount(total);
-    EP_LOG_DEBUG("Completed log read in {} with {} entries",
-                 cb::time2text(log_load_duration),
-                 total);
-
-    EP_LOG_DEBUG("Populated log in {} with(l: {}, s: {}, e: {})",
-                 cb::time2text(log_apply_duration),
-                 cookie.loaded,
-                 cookie.skipped,
-                 cookie.error);
-
-    return cookie.loaded;
+    EP_LOG_INFO("Warmup access log loaded items:{}, skipped:{}, error:{} in {}",
+                lf.getLoaded(),
+                lf.getSkipped(),
+                lf.getError(),
+                cb::time2text(lf.getDurationSinceOpen()));
+    return WarmupAccessLogState::Done;
 }
 
 void Warmup::scheduleLoadingKVPairs() {

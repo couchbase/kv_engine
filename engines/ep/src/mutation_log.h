@@ -404,10 +404,55 @@ public:
     }
 
     /**
+     * The MutationLog has an iterator member that permits a pause/resume
+     * iteration pattern. This method on first call (or any call when the resume
+     * iterator equals end()) will initialise the resume iterator to begin().
+     *
+     * @return the resume iterator
+     */
+    iterator& resume() {
+        if (resumeItr == end()) {
+            resumeItr = begin();
+        }
+        return resumeItr;
+    }
+
+    /**
      * An iterator pointing at the end of the log file.
      */
     iterator end() {
         return iterator(this, true);
+    }
+
+    void incrementKeyLoaded() {
+        ++keyLoaded;
+    }
+
+    void incrementKeySkipped() {
+        ++keySkipped;
+    }
+
+    void incrementKeyError() {
+        ++keyError;
+    }
+
+    size_t getLoaded() const {
+        return keyLoaded;
+    }
+
+    size_t getSkipped() const {
+        return keySkipped;
+    }
+
+    size_t getError() const {
+        return keyError;
+    }
+
+    /**
+     * @return how long it has been since this instance opened the log file.
+     */
+    const std::chrono::nanoseconds getDurationSinceOpen() const {
+        return std::chrono::steady_clock::now() - openTimePoint;
     }
 
     //! Items logged by type.
@@ -453,6 +498,11 @@ protected:
     std::vector<uint8_t> blockBuffer;
     uint8_t            syncConfig;
     bool               readOnly;
+    iterator resumeItr;
+    std::chrono::steady_clock::time_point openTimePoint;
+    size_t keyLoaded{0};
+    size_t keySkipped{0};
+    size_t keyError{0};
 
     friend std::ostream& operator<<(std::ostream& os, const MutationLog& mlog);
 
@@ -499,14 +549,11 @@ public:
      * Loaded entries are inserted into `committed`, which is cleared at the
      * start of each call.
      *
-     * @param start Iterator of where to start loading from.
-     * @param limit Limit of now many entries should be loaded. Zero means no
-     *              limit.
+     * @param limit Limit of now many entries should be loaded.
      * @return iterator of where to resume in the log (if the end was not
      *         reached), or MutationLog::iterator::end().
      */
-    MutationLog::iterator loadBatch(const MutationLog::iterator& start,
-                                    size_t limit);
+    bool loadBatch(size_t limit);
 
     /**
      * Apply the processed log entries through the given function.
@@ -524,6 +571,19 @@ public:
      *        have pre-populated the hash table and makes this a valid operation
      */
     void apply(void* arg, mlCallbackWithQueue mlc, bool removeNonExistentKeys);
+
+    /**
+     * Load "limit" keys from the log and call apply(3) for each key.
+     *
+     * @param limit Limit of now many entries should be loaded.
+     * @param arg see apply()
+     * @param mlc see apply()
+     * @param removeNonExistentKeys see apply()
+     */
+    bool loadBatchAndApply(size_t limit,
+                      void* arg,
+                      mlCallbackWithQueue mlc,
+                      bool removeNonExistentKeys);
 
     /**
      * Get the total number of entries found in the log.

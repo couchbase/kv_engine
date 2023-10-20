@@ -286,9 +286,10 @@ public:
                      std::chrono::steady_clock::duration(1));
     }
 
-    size_t doWarmup(MutationLog& lf,
-                    const std::map<Vbid, vbucket_state>& vbmap,
-                    StatusCallback<GetValue>& cb);
+    enum class WarmupAccessLogState { Yield, Done, Failed };
+    WarmupAccessLogState doWarmup(MutationLog& lf,
+                                  const std::map<Vbid, vbucket_state>& vbmap,
+                                  StatusCallback<GetValue>& cb);
 
     bool isComplete() const {
         return finishedLoading && state.getState() == WarmupState::State::Done;
@@ -434,8 +435,19 @@ private:
      *   KVStore.
      * - If key exists (wasn't subsequently deleted), insert into the
      *   HashTable.
+     *
+     * @return true if task should reschedule, false if not
      */
-    void loadingAccessLog(uint16_t shardId);
+    bool loadingAccessLog(uint16_t shardId);
+
+    /**
+     * Perform loading from the given access log for the given shard.
+     * Loading of access log data will stop on reaching the end of the log or
+     * if the time permitted for loading is reached (or fails).
+     *
+     * @return The state of loading required to determine the next warm-up phase
+     */
+    WarmupAccessLogState loadFromAccessLog(MutationLog& log, uint16_t shardId);
 
     /* Terminal state of warmup. Updates statistics and marks warmup as
      * completed
@@ -539,7 +551,7 @@ private:
                                       std::mutex>;
     VBMap warmedUpVbuckets;
 
-    std::deque<MutationLog> accessLog;
+    std::vector<std::vector<std::unique_ptr<MutationLog>>> accessLog;
 
     // To avoid making a number of methods on Warmup public; grant friendship
     // to the various Tasks which run the stages of warmup.

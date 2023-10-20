@@ -494,17 +494,16 @@ TEST_F(MutationLogTest, BatchLoad) {
         h.setVBucket(Vbid(0));
         h.setVBucket(Vbid(1));
 
-        // Ask for 2 items, ensure we get just two.
-        auto next_it = h.loadBatch(ml.begin(), 2);
-        EXPECT_NE(next_it, ml.end());
+        // Ask for 2 items, ensure we get just two. Expect return true as more
+        // data can be loaded.
+        EXPECT_TRUE(h.loadBatch(2));
 
         std::set<StoredDocKey> maps[2];
         h.apply(&maps, loaderFun);
         EXPECT_EQ(2, maps[0].size() + maps[1].size());
 
         // Ask for 10; should get the remainder (8).
-        next_it = h.loadBatch(next_it, 10);
-        cb_assert(next_it == ml.end());
+        EXPECT_FALSE(h.loadBatch(10));
 
         for (auto& map : maps) {
             map.clear();
@@ -636,8 +635,7 @@ TEST_F(MutationLogTest, upgrade) {
         h.setVBucket(vbid);
 
         // Ask for 2 items, ensure we get just two.
-        auto next_it = h.loadBatch(ml.begin(), 2);
-        EXPECT_NE(next_it, ml.end());
+        EXPECT_TRUE(h.loadBatch(2));
 
         std::set<StoredDocKey> maps[4]; // 4 <- vbid.get() + 1
         h.apply(&maps, loaderFun);
@@ -646,8 +644,8 @@ TEST_F(MutationLogTest, upgrade) {
         }
 
         // Ask for the remainder
-        next_it = h.loadBatch(next_it, items - 2);
-        EXPECT_EQ(ml.end(), next_it);
+        EXPECT_FALSE(h.loadBatch(items - 2));
+
         h.apply(&maps, loaderFun);
         for (int i = 2; i < items; i++) {
             EXPECT_TRUE(maps[vbid.get()].count(makeStoredDocKey(keys[i])) == 1);
@@ -725,8 +723,8 @@ TEST_F(MutationLogTest, readPreMadHatterAccessLog) {
     MutationLogHarvester h(ml);
     h.setVBucket(vbid);
 
-    auto next_it = h.loadBatch(ml.begin(), 0);
-    EXPECT_EQ(ml.end(), next_it);
+    // False means no more data available.
+    EXPECT_FALSE(h.loadBatch(std::numeric_limits<size_t>::max()));
 
     using namespace testing;
     // mutation log callback - called for each entry read.
