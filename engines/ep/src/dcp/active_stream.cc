@@ -265,15 +265,16 @@ void ActiveStream::registerCursor(CheckpointManager& chkptmgr,
         Expects(lockedCursor);
         log(spdlog::level::level_enum::info,
             "{} ActiveStream::registerCursor name \"{}\", "
-            "lastProcessedSeqno:{}, result{{tryBackfill:{}, nextSeqno:{}, "
-            "op:{}}}, pendingBackfill:{}",
+            "lastProcessedSeqno:{}, pendingBackfill:{}, "
+            "result{{tryBackfill:{}, op:{}, seqno:{}, nextSeqno:{}}}",
             logPrefix,
             name_,
             lastProcessedSeqno,
+            pendingBackfill,
             result.tryBackfill,
-            result.nextSeqno,
             ::to_string((*lockedCursor->getPos())->getOperation()),
-            pendingBackfill);
+            (*lockedCursor->getPos())->getBySeqno(),
+            result.nextSeqno);
     } catch (std::exception& error) {
         log(spdlog::level::level_enum::warn,
             "{} Failed to register cursor: {}",
@@ -1773,15 +1774,15 @@ void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
         Expects(lockedCursor);
         log(spdlog::level::level_enum::info,
             "{} ActiveStream::scheduleBackfill_UNLOCKED register cursor with "
-            "name \"{}\" lastProcessedSeqno:{}, result{{tryBackfill:{}, "
-            "nextSeqno:{}}}, "
-            "op:{}",
+            "name \"{}\" lastProcessedSeqno:{}, result{{tryBackfill:{}, op:{}, "
+            "seqno:{}, nextSeqno:{}}}",
             logPrefix,
             name_,
             lastReadSeqno.load(),
             registerResult.tryBackfill,
-            registerResult.nextSeqno,
-            ::to_string((*lockedCursor->getPos())->getOperation()));
+            ::to_string((*lockedCursor->getPos())->getOperation()),
+            (*lockedCursor->getPos())->getBySeqno(),
+            registerResult.nextSeqno);
 
         curChkSeqno = registerResult.nextSeqno;
         tryBackfill = registerResult.tryBackfill;
