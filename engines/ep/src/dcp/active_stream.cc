@@ -1966,9 +1966,34 @@ void ActiveStream::completeBackfillInner(
             // In-order backfills may require a seqno-advanced message if
             // there is a stream filter present (e.g. only streaming a single
             // collection).
-            if (isSeqnoAdvancedNeededBackFill()) {
-                queueSeqnoAdvanced();
+            if (isSeqnoAdvancedEnabled() &&
+                isSeqnoGapAtEndOfSnapshot(maxScanSeqno)) {
+                const auto vb = engine->getVBucket(vb_);
+                if (!vb) {
+                    log(spdlog::level::level_enum::warn,
+                        "{} ActiveStream::completeBackfillInner(): Vbucket "
+                        "does not exist",
+                        logPrefix);
+                }
+
+                // Not VB:  Vbucket doens't exist anymore; We still need to send
+                //          a SeqnoAdvance to bump the peer to end-of-snapshot.
+                // Active:  We must send a SeqnoAdvanced to bump the DCP
+                //          client's seqno to snap-end.
+                // Replica: Vbucket may transition backfill->memory without
+                //          sending another snapshot. Thus, in this case we
+                //          do not want to send a SeqnoAdvanced at the end
+                //          of backfill. So check that we don't have an in
+                //          memory range to stream from.
+                const auto replicaVucketSeqnoAdvance =
+                        maxScanSeqno > lastBackfilledSeqno &&
+                        maxScanSeqno == lastSentSnapEndSeqno;
+                if (!vb || vb->getState() != vbucket_state_replica ||
+                    replicaVucketSeqnoAdvance) {
+                    queueSeqnoAdvanced();
+                }
             }
+
             // Client does not support collections, so we cannot send a
             // seqno-advanced message to tell them that the last streamed seqno
             // is below the snap_end. However, we should still move the
@@ -2501,39 +2526,6 @@ bool ActiveStream::isSeqnoAdvancedEnabled() const {
     return isCollectionEnabledStream() &&
            (syncReplication == SyncReplication::No ||
             !flatBuffersSystemEventsEnabled);
-}
-
-bool ActiveStream::isSeqnoAdvancedNeededBackFill() const {
-    if (!isSeqnoAdvancedEnabled() || !isSeqnoGapAtEndOfSnapshot(maxScanSeqno)) {
-        return false;
-    }
-    /**
-     * In most cases we want to send a SeqnoAdvanced op if we have not sent
-     * the final seqno in the snapshot at the end of backfill. However,
-     * replica vbucket may transition their snapshot from backfill to
-     * streaming from memory without sending another snapshot. Thus, in this
-     * case we do not want to send a SeqnoAdvanced at the end of backfill.
-     * So check that we don't have an in memory range to stream from.
-     */
-    const auto vb = engine->getVBucket(vb_);
-
-    // Note: Early returns 'true' maintains the same logic as the parent commit,
-    // no logic change
-    if (!vb) {
-        log(spdlog::level::level_enum::warn,
-            "{} ActiveStream::isSeqnoAdvancedNeededBackFill() for vbucket "
-            "which does not exist",
-            logPrefix);
-        return true;
-    }
-
-    if (vb->getState() != vbucket_state_replica) {
-        return true;
-    }
-
-    // vbucket_state_replica
-    return maxScanSeqno > lastBackfilledSeqno &&
-           maxScanSeqno == lastSentSnapEndSeqno;
 }
 
 bool ActiveStream::isSeqnoGapAtEndOfSnapshot(uint64_t streamSeqno) const {

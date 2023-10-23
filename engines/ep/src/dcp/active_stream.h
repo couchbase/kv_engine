@@ -786,13 +786,6 @@ private:
     bool isSeqnoGapAtEndOfSnapshot(uint64_t streamSeqno) const;
 
     /**
-     * Method to check if a SeqnoAdvanced is needed at the end of backfill
-     * snapshot
-     * @return true if a SeqnoAdvanced is needed
-     */
-    bool isSeqnoAdvancedNeededBackFill() const;
-
-    /**
      * Method to enqueue a SeqnoAdvanced op with the seqno being the value of
      * lastSentSnapEndSeqno
      */
