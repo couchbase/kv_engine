@@ -390,10 +390,10 @@ backfill_status_t DCPBackfillDisk::scanHistory() {
     Expects(kvstore);
     switch (kvstore->scanAllVersions(bySeqnoCtx)) {
     case scan_success:
-        stream->setBackfillScanLastRead(bySeqnoCtx.lastReadSeqno);
         // Call complete and transition straight to done (via complete). This
         // avoids the sub-class (by_id or by_seq) complete function being called
-        stream->completeBackfill(runtime, bySeqnoCtx.diskBytesRead);
+        stream->completeBackfill(
+                bySeqnoCtx.lastReadSeqno, runtime, bySeqnoCtx.diskBytesRead);
         transitionState(backfill_state_completing);
         transitionState(backfill_state_done);
         return backfill_success;

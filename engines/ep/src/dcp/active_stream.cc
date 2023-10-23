@@ -565,19 +565,21 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> itm,
     return true;
 }
 
-void ActiveStream::completeBackfill(std::chrono::steady_clock::duration runtime,
+void ActiveStream::completeBackfill(uint64_t maxScanSeqno,
+                                    std::chrono::steady_clock::duration runtime,
                                     size_t diskBytesRead) {
-    // maxSeqno is not needed for InOrder completion
     completeBackfillInner(
-            BackfillType::InOrder, 0 /*maxSeqno*/, runtime, diskBytesRead);
+            BackfillType::InOrder, maxScanSeqno, runtime, diskBytesRead);
 }
 
 void ActiveStream::completeOSOBackfill(
-        uint64_t maxSeqno,
+        uint64_t maxScanSeqno,
         std::chrono::steady_clock::duration runtime,
         size_t diskBytesRead) {
-    completeBackfillInner(
-            BackfillType::OutOfSequenceOrder, maxSeqno, runtime, diskBytesRead);
+    completeBackfillInner(BackfillType::OutOfSequenceOrder,
+                          maxScanSeqno,
+                          runtime,
+                          diskBytesRead);
     firstMarkerSent = true;
 }
 
@@ -1949,7 +1951,7 @@ bool ActiveStream::tryAndScheduleOSOBackfill(DcpProducer& producer,
 
 void ActiveStream::completeBackfillInner(
         BackfillType backfillType,
-        uint64_t maxSeqno,
+        uint64_t maxScanSeqno,
         std::chrono::steady_clock::duration runtime,
         size_t diskBytesRead) {
     {
@@ -1963,21 +1965,20 @@ void ActiveStream::completeBackfillInner(
         }
 
         if (backfillType == BackfillType::InOrder) {
+            const auto vb = engine->getVBucket(vb_);
+            if (!vb) {
+                log(spdlog::level::level_enum::warn,
+                    "{} ActiveStream::completeBackfillInner(): Vbucket "
+                    "does not exist",
+                    logPrefix);
+                return;
+            }
+
             // In-order backfills may require a seqno-advanced message if
             // there is a stream filter present (e.g. only streaming a single
             // collection).
             if (isSeqnoAdvancedEnabled() &&
                 isSeqnoGapAtEndOfSnapshot(maxScanSeqno)) {
-                const auto vb = engine->getVBucket(vb_);
-                if (!vb) {
-                    log(spdlog::level::level_enum::warn,
-                        "{} ActiveStream::completeBackfillInner(): Vbucket "
-                        "does not exist",
-                        logPrefix);
-                }
-
-                // Not VB:  Vbucket doens't exist anymore; We still need to send
-                //          a SeqnoAdvance to bump the peer to end-of-snapshot.
                 // Active:  We must send a SeqnoAdvanced to bump the DCP
                 //          client's seqno to snap-end.
                 // Replica: Vbucket may transition backfill->memory without
@@ -1988,7 +1989,7 @@ void ActiveStream::completeBackfillInner(
                 const auto replicaVucketSeqnoAdvance =
                         maxScanSeqno > lastBackfilledSeqno &&
                         maxScanSeqno == lastSentSnapEndSeqno;
-                if (!vb || vb->getState() != vbucket_state_replica ||
+                if (vb->getState() != vbucket_state_replica ||
                     replicaVucketSeqnoAdvance) {
                     queueSeqnoAdvanced();
                 }
@@ -2007,8 +2008,6 @@ void ActiveStream::completeBackfillInner(
             if (!isCollectionEnabledStream() && maxScanSeqno > lastReadSeqno) {
                 lastReadSeqno.store(maxScanSeqno);
             }
-            // reset last seqno seen by backfill
-            maxScanSeqno = 0;
         }
 
         if (isBackfilling()) {
@@ -2055,10 +2054,10 @@ void ActiveStream::completeBackfillInner(
                     logPrefix);
             } else if (
                     producer->isOutOfOrderSnapshotsEnabledWithSeqnoAdvanced() &&
-                    maxSeqno != lastBackfilledSeqno) {
+                    maxScanSeqno != lastBackfilledSeqno) {
                 pushToReadyQ(std::make_unique<SeqnoAdvanced>(
-                        opaque_, vb_, sid, maxSeqno));
-                lastSentSeqnoAdvance.store(maxSeqno);
+                        opaque_, vb_, sid, maxScanSeqno));
+                lastSentSeqnoAdvance.store(maxScanSeqno);
             }
 
             // Now that the OSO backfill has ended, we can tweak
@@ -2066,8 +2065,8 @@ void ActiveStream::completeBackfillInner(
             // we've just processed. This ensures any pending backfill which
             // follows continues from maxSeqno and not the max seqno of the
             // collection(s) in the OSO scan, which could be way less.
-            if (maxSeqno > lastReadSeqno) {
-                lastReadSeqno = maxSeqno;
+            if (maxScanSeqno > lastReadSeqno) {
+                lastReadSeqno = maxScanSeqno;
             }
 
             pushToReadyQ(std::make_unique<OSOSnapshot>(

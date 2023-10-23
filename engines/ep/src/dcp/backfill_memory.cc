@@ -324,8 +324,6 @@ backfill_status_t DCPBackfillMemoryBuffered::scan() {
         ++rangeItr;
     }
 
-    stream->setBackfillScanLastRead(endSeqno);
-
     /* Backfill has ran to completion */
     complete(false);
 
@@ -350,7 +348,7 @@ void DCPBackfillMemoryBuffered::complete(bool cancelled) {
 
     /* [EPHE TODO]: invalidate cursor sooner before it gets deleted */
 
-    stream->completeBackfill(runtime, 0);
+    stream->completeBackfill(endSeqno, runtime, 0);
 
     auto severity = cancelled ? spdlog::level::level_enum::info
                               : spdlog::level::level_enum::debug;

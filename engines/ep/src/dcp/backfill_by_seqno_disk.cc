@@ -193,7 +193,6 @@ backfill_status_t DCPBackfillBySeqnoDisk::scan() {
         if (historyScan) {
             transitionState(backfill_state_scanning_history_snapshot);
         } else {
-            stream->setBackfillScanLastRead(scanCtx->lastReadSeqno);
             transitionState(backfill_state_completing);
         }
         return backfill_success;
@@ -234,7 +233,8 @@ void DCPBackfillBySeqnoDisk::complete(bool cancelled) {
     }
 
     const auto diskBytesRead = scanCtx ? scanCtx->diskBytesRead : 0;
-    stream->completeBackfill(runtime, diskBytesRead);
+    const auto maxScanSeqno = scanCtx ? scanCtx->lastReadSeqno : 0;
+    stream->completeBackfill(maxScanSeqno, runtime, diskBytesRead);
 
     auto severity = cancelled ? spdlog::level::level_enum::info
                               : spdlog::level::level_enum::debug;
