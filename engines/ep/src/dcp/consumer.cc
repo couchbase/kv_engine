@@ -1297,6 +1297,9 @@ void DcpConsumer::addStreamStats(const AddStatFn& add_stat, CookieIface& c) {
         }
     );
     for (const auto& stream : valid_streams) {
+        if (!stream->isActive()) {
+            continue;
+        }
         stream->addStats(add_stat, c);
     }
 }

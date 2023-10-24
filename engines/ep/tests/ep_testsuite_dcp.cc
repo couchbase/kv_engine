@@ -26,6 +26,7 @@
 
 #include <executor/executorpool.h>
 #include <fmt/format.h>
+#include <folly/ScopeGuard.h>
 #include <nlohmann/json.hpp>
 #include <platform/cb_malloc.h>
 #include <platform/cbassert.h>
@@ -78,6 +79,18 @@ static void dcpHandleResponse(EngineIface* h,
     if (erroCode == cb::engine_errc::would_block) {
         producers.clear_dcp_data();
     }
+}
+
+/**
+ * Disables all NonIo thread pool threads while the returned guard is in scope.
+ */
+static auto pauseNonIoPool() {
+    auto originalThreadCount = ExecutorPool::get()->getNumNonIO();
+    ExecutorPool::get()->setNumNonIO(ThreadPoolConfig::NonIoThreadCount(0));
+    return folly::makeGuard([originalThreadCount]() {
+        ExecutorPool::get()->setNumNonIO(
+                ThreadPoolConfig::NonIoThreadCount(originalThreadCount));
+    });
 }
 
 struct SeqnoRange {
@@ -777,6 +790,12 @@ cb::engine_errc TestDcpConsumer::openStreams() {
 
         /* Initiate stream request */
         uint64_t rollback = 0;
+
+        // While this is in scope, disable the NonIO pool.
+        // We verify some stats for the newly created stream below, and we don't
+        // want to race with the stream disappearing (set to dead or destroyed).
+        auto pauseStreamGuard = pauseNonIoPool();
+
         cb::engine_errc rv = dcp->stream_req(*cookie,
                                              ctx.flags,
                                              opaque,

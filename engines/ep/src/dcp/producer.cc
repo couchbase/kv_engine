@@ -1585,14 +1585,23 @@ void DcpProducer::addStats(const AddStatFn& add_stat, CookieIface& c) {
 
     ready.addStats(getName() + ":dcp_ready_queue_", add_stat, c);
 
-    size_t num_valid_streams =
-            std::accumulate(streams->begin(),
-                            streams->end(),
-                            0,
-                            [](size_t count, const StreamsMap::value_type& vt) {
-                                return count + vt.second->rlock().size();
-                            });
-    addStat("num_streams", num_valid_streams, add_stat, c);
+    size_t num_streams = 0;
+    size_t num_dead_streams = 0;
+    std::for_each(streams->begin(),
+                  streams->end(),
+                  [&num_streams,
+                   &num_dead_streams](const StreamsMap::value_type& vt) {
+                      for (auto handle = vt.second->rlock(); !handle.end();
+                           handle.next()) {
+                          num_streams++;
+                          if (!handle.get()->isActive()) {
+                              num_dead_streams++;
+                          }
+                      }
+                  });
+
+    addStat("num_streams", num_streams, add_stat, c);
+    addStat("num_dead_streams", num_dead_streams, add_stat, c);
 }
 
 void DcpProducer::addStreamStats(const AddStatFn& add_stat, CookieIface& c) {
@@ -1611,6 +1620,9 @@ void DcpProducer::addStreamStats(const AddStatFn& add_stat, CookieIface& c) {
                   });
 
     for (const auto& stream : valid_streams) {
+        if (!stream->isActive()) {
+            continue;
+        }
         stream->addStats(add_stat, c);
     }
 }
