@@ -470,7 +470,7 @@ def histograms(mc, raw_stats, default_label_func=time_label):
 
         # Create a label for this key (if not already defined).
         if 'lb_fun' not in all_ops_histo_data[k]:
-            label_func = time_label
+            label_func = default_label_func
             if k.endswith("Size") or k.endswith("Seek"):
                 label_func = size_label
             elif k.endswith("Count"):
