@@ -1867,7 +1867,9 @@ size_t Warmup::doWarmup(MutationLog& lf,
 
         // .. then apply it to the store.
         auto apply_start = std::chrono::steady_clock::now();
-        harvester.apply(&cookie, &batchWarmupCallback);
+        harvester.apply(&cookie,
+                        &batchWarmupCallback,
+                        store.getItemEvictionPolicy() == EvictionPolicy::Value);
         log_apply_duration += (std::chrono::steady_clock::now() - apply_start);
     } while (alog_iter != lf.end());
 

@@ -1092,26 +1092,12 @@ void MutationLogHarvester::apply(void *arg, mlCallback mlc) {
     }
 }
 
-void MutationLogHarvester::apply(void *arg, mlCallbackWithQueue mlc) {
-    if (engine == nullptr) {
-        throw std::logic_error("MutationLogHarvester::apply: Cannot apply "
-                "when engine is NULL");
-    }
+void MutationLogHarvester::apply(void* arg,
+                                 mlCallbackWithQueue mlc,
+                                 bool removeNonExistentKeys) {
     for (const auto vb : vbid_set) {
-        VBucketPtr vbucket = engine->getKVBucket()->getVBucket(vb);
-        if (!vbucket) {
-            continue;
-        }
-
-        // Remove any items which are no longer valid in the VBucket.
-        for (auto it = committed[vb].begin(); it != committed[vb].end(); ) {
-            if ((vbucket->ht
-                         .findForRead(*it, TrackReference::No, WantsDeleted::No)
-                         .storedValue == nullptr)) {
-                it = committed[vb].erase(it);
-            } else {
-                ++it;
-            }
+        if (removeNonExistentKeys) {
+            this->removeNonExistentKeys(vb);
         }
 
         if (committed[vb].empty()) {
@@ -1123,6 +1109,23 @@ void MutationLogHarvester::apply(void *arg, mlCallbackWithQueue mlc) {
             return;
         }
         committed[vb].clear();
+    }
+}
+
+void MutationLogHarvester::removeNonExistentKeys(Vbid vbid) {
+    Expects(engine);
+    auto vb = engine->getKVBucket()->getVBucket(vbid);
+    if (!vb) {
+        return;
+    }
+
+    // Remove any items which are no longer valid in the VBucket.
+    for (auto it = committed[vbid].begin(); it != committed[vbid].end();) {
+        if ((!vb->ht.findForRead(*it, TrackReference::No).storedValue)) {
+            it = committed[vbid].erase(it);
+        } else {
+            ++it;
+        }
     }
 }
 

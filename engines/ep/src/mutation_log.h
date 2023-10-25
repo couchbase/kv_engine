@@ -505,13 +505,24 @@ public:
      *         reached), or MutationLog::iterator::end().
      */
     MutationLog::iterator loadBatch(const MutationLog::iterator& start,
-                                        size_t limit);
+                                    size_t limit);
 
     /**
      * Apply the processed log entries through the given function.
      */
     void apply(void *arg, mlCallback mlc);
-    void apply(void *arg, mlCallbackWithQueue mlc);
+
+    /**
+     * Apply the processed log entries through the given function (queue
+     * variant)
+     *
+     * @param arg passed onto the mlc callback
+     * @param mlc callback function
+     * @param removeNonExistentKeys if true, remove keys from committed which
+     *        are not in the vbucket hash table. Value eviction use-case will
+     *        have pre-populated the hash table and makes this a valid operation
+     */
+    void apply(void* arg, mlCallbackWithQueue mlc, bool removeNonExistentKeys);
 
     /**
      * Get the total number of entries found in the log.
@@ -526,6 +537,11 @@ public:
     }
 
 private:
+    /**
+     * For all keys in committed[vb] remove those which are not found in the
+     * vbucket hash-table.
+     */
+    void removeNonExistentKeys(Vbid vb);
 
     MutationLog &mlog;
     EventuallyPersistentEngine *engine;
