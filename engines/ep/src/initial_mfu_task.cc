@@ -69,7 +69,9 @@ bool InitialMFUTask::run() {
     //    7 - 8     : ( 75.0479%)  530305 ▉
     // If we pick 30%ile, we'd pick initial MFU = 4, but that won't give
     // new items any protection from immediate eviction.
-    newInitialMFU += 1;
+    if (newInitialMFU < std::numeric_limits<uint8_t>::max()) {
+        newInitialMFU += 1;
+    }
 
     // Never start at MFU lower than 4. This leaves space for "cold" items to
     // become "very cold" as we reduce their freq counts due to unsuccessful

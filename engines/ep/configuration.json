@@ -694,7 +694,7 @@
             }
         },
         "item_eviction_initial_mfu_percentile": {
-            "default": "50",
+            "default": "25",
             "descr": "Percentile of existing item MFU distribution to use to determine the MFU to give to new items (0 would insert new items with MFU equal to that of the coldest item present; 100 to that of hottest item present) for the upfront_mfu_only eviction strategy.",
             "dynamic": true,
             "type": "size_t",
