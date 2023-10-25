@@ -1251,7 +1251,7 @@ Warmup::Warmup(EPBucket& st, const Configuration& config_)
       config(config_),
       shardVbStates(store.vbMap.getNumShards()),
       shardVbIds(store.vbMap.getNumShards()),
-      warmedUpVbuckets(config.getMaxVbuckets()) {
+      warmedUpVbuckets(std::in_place, config.getMaxVbuckets()) {
 }
 
 Warmup::~Warmup() = default;
@@ -1445,7 +1445,7 @@ void Warmup::createVBuckets(uint16_t shardId) {
             // Add the new vbucket to our local map, it will later be added
             // to the bucket's vbMap once the vbuckets are fully initialised
             // from KVStore data
-            warmedUpVbuckets.insert(std::make_pair(vbid.get(), vb));
+            warmedUpVbuckets.lock()->insert(std::make_pair(vbid.get(), vb));
         }
 
         // Pass the max deleted seqno for each vbucket.
@@ -1503,8 +1503,8 @@ void Warmup::loadCollectionStatsForShard(uint16_t shardId) {
     const auto* kvstore = store.getROUnderlyingByShard(shardId);
     // Iterate the VBs in the shard
     for (const auto vbid : shardVbIds[shardId]) {
-        auto itr = warmedUpVbuckets.find(vbid.get());
-        if (itr == warmedUpVbuckets.end()) {
+        auto vb = lookupVBucket(vbid);
+        if (!vb) {
             continue;
         }
 
@@ -1520,8 +1520,8 @@ void Warmup::loadCollectionStatsForShard(uint16_t shardId) {
             return;
         }
 
-        folly::SharedMutex::WriteHolder wlh(itr->second->getStateLock());
-        auto wh = itr->second->getManifest().wlock(wlh);
+        folly::SharedMutex::WriteHolder wlh(vb->getStateLock());
+        auto wh = vb->getManifest().wlock(wlh);
         // For each collection in the VB, get its stats
         for (auto& collection : wh) {
             // start tracking in-memory stats before items are warmed up.
@@ -1577,14 +1577,13 @@ void Warmup::estimateDatabaseItemCount(uint16_t shardId) {
     size_t item_count = 0;
 
     for (const auto vbid : shardVbIds[shardId]) {
-        size_t vbItemCount = 0;
-        auto itr = warmedUpVbuckets.find(vbid.get());
-        if (itr != warmedUpVbuckets.end()) {
-            auto& epVb = static_cast<EPVBucket&>(*itr->second);
-            epVb.setNumTotalItems(*store.getRWUnderlyingByShard(shardId));
-            vbItemCount = epVb.getNumTotalItems();
+        auto vb = lookupVBucket(vbid);
+        if (!vb) {
+            continue;
         }
-        item_count += vbItemCount;
+        auto& epVb = static_cast<EPVBucket&>(*vb);
+        epVb.setNumTotalItems(*store.getRWUnderlyingByShard(shardId));
+        item_count += epVb.getNumTotalItems();
     }
 
     estimatedItemCount.fetch_add(item_count);
@@ -1606,17 +1605,15 @@ void Warmup::scheduleLoadPreparedSyncWrites() {
 
 void Warmup::loadPreparedSyncWrites(uint16_t shardId) {
     for (const auto vbid : shardVbIds[shardId]) {
-        auto itr = warmedUpVbuckets.find(vbid.get());
-        if (itr == warmedUpVbuckets.end()) {
+        auto vb = lookupVBucket(vbid);
+        if (!vb) {
             continue;
         }
 
         // Our EPBucket function will do the load for us as we re-use the code
         // for rollback.
-        auto& vb = *(itr->second);
-
         auto [itemsVisited, preparesLoaded, defaultCollectionMVS, success] =
-                store.loadPreparedSyncWrites(vb);
+                store.loadPreparedSyncWrites(*vb);
         if (!success) {
             EP_LOG_CRITICAL(
                     "Warmup::loadPreparedSyncWrites(): "
@@ -1628,7 +1625,7 @@ void Warmup::loadPreparedSyncWrites(uint16_t shardId) {
         auto& epStats = store.getEPEngine().getEpStats();
         epStats.warmupItemsVisitedWhilstLoadingPrepares += itemsVisited;
         epStats.warmedUpPrepares += preparesLoaded;
-        vb.getManifest().setDefaultCollectionLegacySeqnos(
+        vb->getManifest().setDefaultCollectionLegacySeqnos(
                 defaultCollectionMVS,
                 vbid,
                 *store.getRWUnderlyingByShard(shardId));
@@ -1650,9 +1647,8 @@ void Warmup::schedulePopulateVBucketMap() {
 
 void Warmup::populateVBucketMap(uint16_t shardId) {
     for (const auto vbid : shardVbIds[shardId]) {
-        auto itr = warmedUpVbuckets.find(vbid.get());
-        if (itr != warmedUpVbuckets.end()) {
-            const auto& vbPtr = itr->second;
+        auto vbPtr = lookupVBucket(vbid);
+        if (vbPtr) {
             // Take the vBucket lock to stop the flusher from racing with our
             // set vBucket state. It MUST go to disk in the first flush batch
             // or we run the risk of not rolling back replicas that we should
@@ -1699,7 +1695,7 @@ void Warmup::populateVBucketMap(uint16_t shardId) {
         // flushers.
         store.startFlusher();
 
-        warmedUpVbuckets.clear();
+        warmedUpVbuckets.lock()->clear();
         // Once we have populated the VBMap we can allow setVB state changes
         processCreateVBucketsComplete(cb::engine_errc::success);
         if (store.getItemEvictionPolicy() == EvictionPolicy::Value) {
@@ -1972,6 +1968,15 @@ void Warmup::transition(WarmupState::State to, bool force) {
     state.transition(to, force);
     stateTransitionHook(to);
     step();
+}
+
+VBucketPtr Warmup::lookupVBucket(Vbid vbid) const {
+    auto locked = warmedUpVbuckets.lock();
+    auto it = locked->find(vbid.get());
+    if (it == locked->end()) {
+        return {};
+    }
+    return it->second;
 }
 
 void Warmup::addCommonStats(const StatCollector& collector) const {

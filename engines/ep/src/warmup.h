@@ -15,7 +15,6 @@
 #include "utilities/testing_hook.h"
 #include "vbucket_fwd.h"
 
-#include <folly/AtomicHashMap.h>
 #include <memcached/engine_common.h>
 #include <memcached/engine_error.h>
 #include <platform/atomic_duration.h>
@@ -468,6 +467,12 @@ private:
 
     void transition(WarmupState::State to, bool force = false);
 
+    /**
+     * Helper method to return the given vBucket setup in the CreateVBuckets
+     * phase. Returns an empty pointer if no such vBucket created.
+     */
+    VBucketPtr lookupVBucket(Vbid vbid) const;
+
     WarmupState state;
 
     EPBucket& store;
@@ -527,7 +532,9 @@ private:
      * Any vbucket found in the CreateVBuckets phase are added here and then
      * removed at the PopulateVBucketMap phase
      */
-    folly::AtomicHashMap<uint16_t, VBucketPtr> warmedUpVbuckets;
+    using VBMap = folly::Synchronized<std::unordered_map<uint16_t, VBucketPtr>,
+                                      std::mutex>;
+    VBMap warmedUpVbuckets;
 
     std::deque<MutationLog> accessLog;
 
