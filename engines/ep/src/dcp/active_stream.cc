@@ -1481,10 +1481,13 @@ void ActiveStream::snapshot(const OutstandingItemsResult& meta,
     // - If we have sent up to the last seqno in the last marker range, for
     //   non-active vbuckets
     //
-    // @todo MB-58961:
-    // 1. Shouldn't it be a weak-inequality here (ie, <=) ?
-    // 2. Shouldn't we use lastSentSeqno in place of lastReadSeqno here?
-    // At the time of writing I'm pushing a non-logic change, so defer the above
+    // * Update on the above*
+    // At the time of writing I have introduced the
+    // MemorySnapshotFromPartialReplica DCP test. Test stresses the behaviour
+    // here for replica vbuckets. The test proves that the condition that we
+    // enforce here isn't enough for ensuring that replica vbuckets stream
+    // consistent snapshots to the peer. See that test for details.
+    // @todo: MB-59288
     const auto isReplicaSnapshotComplete =
             lastSentSnapEndSeqno.load(std::memory_order_relaxed) <
             lastReadSeqno;

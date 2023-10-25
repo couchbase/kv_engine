@@ -4740,6 +4740,132 @@ TEST_P(SingleThreadedPassiveStreamTest, BackfillSnapshotFromPartialReplica) {
     EXPECT_EQ(1, snapMarker.getEndSeqno());
 }
 
+// Note: At the moment this test's purpose is to show how outbound DCP behaves
+// at replica.
+// @todo MB-59288
+TEST_P(SingleThreadedPassiveStreamTest, MemorySnapshotFromPartialReplica) {
+    auto& vb = *store->getVBucket(vbid);
+    ASSERT_EQ(0, vb.getHighSeqno());
+    auto& manager = static_cast<MockCheckpointManager&>(*vb.checkpointManager);
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(2, manager.getNumOpenChkItems()); // cs, vbs
+
+    removeCheckpoint(vb);
+    ASSERT_EQ(0, vb.getHighSeqno());
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(1, manager.getNumOpenChkItems()); // cs
+    const auto& list = manager.getCheckpointList();
+    ASSERT_FALSE(list.back()->modifiedByExpel());
+
+    // The stream isn't in any snapshot (no data received)
+    auto snapInfo = manager.getSnapshotInfo();
+    EXPECT_EQ(0, snapInfo.start);
+    EXPECT_EQ(snapshot_range_t(0, 0), snapInfo.range);
+
+    const uint64_t opaque = 1;
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       1, // start
+                                       2, // end
+                                       MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+                                       {},
+                                       {}));
+
+    const auto key = makeStoredDocKey("key");
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->mutation(opaque,
+                                 key,
+                                 {},
+                                 0,
+                                 0,
+                                 0,
+                                 vbid,
+                                 0,
+                                 1, // seqno
+                                 0,
+                                 0,
+                                 0,
+                                 {},
+                                 0));
+
+    EXPECT_EQ(1, vb.getHighSeqno());
+    EXPECT_EQ(2, manager.getNumOpenChkItems()); // cs, mut
+
+    // The stream is in a partial snapshot here
+    snapInfo = manager.getSnapshotInfo();
+    EXPECT_EQ(1, snapInfo.start);
+    EXPECT_EQ(snapshot_range_t(1, 2), snapInfo.range);
+
+    // Open an outbound stream from replica.
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer->test_consumer", 0, false);
+    producer->createCheckpointProcessorTask();
+    producer->scheduleCheckpointProcessorTask();
+    auto activeStream = std::make_shared<MockActiveStream>(
+            engine.get(), producer, 0, 0, vb);
+    activeStream->setActive();
+    ASSERT_TRUE(activeStream->isInMemory());
+    auto& readyQ = activeStream->public_readyQ();
+    ASSERT_EQ(0, readyQ.size());
+
+    // Core test
+    // I would expect that checkpoint generates a [0, 2] partial snapshot, only
+    // seqno:1 in checkpoint.
+    activeStream->nextCheckpointItemTask();
+    ASSERT_EQ(2, readyQ.size());
+    // marker
+    auto resp = activeStream->next(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto* snapMarker = dynamic_cast<SnapshotMarker*>(resp.get());
+    EXPECT_EQ(0, snapMarker->getStartSeqno());
+    EXPECT_EQ(1, snapMarker->getEndSeqno()); // @todo ??? I would expect 2
+    // seqno:1
+    resp = activeStream->next(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    auto* mut = dynamic_cast<MutationResponse*>(resp.get());
+    EXPECT_EQ(1, mut->getBySeqno());
+
+    // Now replica receives the snapEnd mutation
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->mutation(opaque,
+                                 key,
+                                 {},
+                                 0,
+                                 0,
+                                 0,
+                                 vbid,
+                                 0,
+                                 2, // seqno
+                                 0,
+                                 0,
+                                 0,
+                                 {},
+                                 0));
+
+    // Core test
+    // There's only seqno:2 remaining for the stream in checkpoint. I would
+    // expect that just that mutation is sent for completing the snapshot that
+    // we have partially sent to the peer.
+    activeStream->nextCheckpointItemTask();
+    ASSERT_EQ(2, readyQ.size()); // @todo ??? I would expect 1
+    // marker @todo ??? I would expect no marker
+    resp = activeStream->next(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    snapMarker = dynamic_cast<SnapshotMarker*>(resp.get());
+    EXPECT_EQ(2, snapMarker->getStartSeqno());
+    EXPECT_EQ(2, snapMarker->getEndSeqno());
+    // seqno:2
+    resp = activeStream->next(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    mut = dynamic_cast<MutationResponse*>(resp.get());
+    EXPECT_EQ(2, mut->getBySeqno());
+}
+
 /**
  * MB-38444: We fix an Ephemeral-only bug, but test covers Persistent bucket too
  */
