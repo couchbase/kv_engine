@@ -87,6 +87,8 @@ public:
     using size_type = std::vector<uint8_t>::size_type;
 };
 
+::std::ostream& operator<<(::std::ostream& os, const Frame& frame);
+
 class DocumentInfo {
 public:
     std::string id;

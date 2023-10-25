@@ -20,6 +20,7 @@
 #include <mcbp/codec/frameinfo.h>
 #include <mcbp/mcbp.h>
 #include <mcbp/protocol/framebuilder.h>
+#include <mcbp/protocol/magic.h>
 #include <memcached/protocol_binary.h>
 #include <nlohmann/json.hpp>
 #include <platform/compress.h>
@@ -300,6 +301,20 @@ void MemcachedConnection::enterMessagePumpMode(
         std::function<void(const cb::mcbp::Header&)> messageCallback) {
     asyncReadCallback->setFrameReceivedCallback(std::move(messageCallback));
     asyncSocket->setReadCB(asyncReadCallback.get());
+}
+
+::std::ostream& operator<<(::std::ostream& os, const Frame& frame) {
+    auto magic = frame.getMagic();
+    if (!cb::mcbp::is_legal(magic)) {
+        return os << fmt::format("Frame(magic={}, payload={{{0:x}}})",
+                                 fmt::join(frame.payload, " "));
+    } else if (cb::mcbp::is_request(magic)) {
+        return os << "Frame(" << frame.getRequest()->to_json(false).dump()
+                  << ")";
+    } else {
+        return os << "Frame(" << frame.getResponse()->to_json(false).dump()
+                  << ")";
+    }
 }
 
 ::std::ostream& operator<<(::std::ostream& os, const DocumentInfo& info) {
@@ -1155,6 +1170,10 @@ void MemcachedConnection::recvResponse(BinprotResponse& response,
     Frame frame;
     traceData.reset();
     recvFrame(frame, opcode, readTimeout);
+    if (!cb::mcbp::is_response(frame.getMagic())) {
+        throw std::logic_error(fmt::format(
+                "{}: Expected response frame, got {}", __func__, frame));
+    }
     response.assign(std::move(frame.payload));
     traceData = response.getTracingData();
 }
