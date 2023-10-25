@@ -14,6 +14,7 @@
 #include "ep_engine.h"
 #include "item_freq_decayer_visitor.h"
 #include "kv_bucket.h"
+#include "objectregistry.h"
 #include "stored-value.h"
 #include <executor/executorpool.h>
 
@@ -28,7 +29,10 @@ ItemFreqDecayerTaskManager::ItemFreqDecayerTaskManager()
 }
 
 ItemFreqDecayerTaskManager& ItemFreqDecayerTaskManager::get() {
-    static ItemFreqDecayerTaskManager manager;
+    static ItemFreqDecayerTaskManager manager = []() {
+        NonBucketAllocationGuard guard;
+        return ItemFreqDecayerTaskManager();
+    }();
     return manager;
 }
 
