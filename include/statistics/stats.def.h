@@ -471,8 +471,11 @@ STAT(memcached_version, , none, , ) // version string
 STAT(daemon_connections, , count, , )
 STAT(curr_connections, , count, , )
 STAT(system_connections, , count, , )
+STAT(user_connections, , count, , )
 STAT(total_connections, , count, , ) // total since start/reset
 STAT(connection_structures, , count, , )
+STAT(max_user_connections, , count, , )
+STAT(max_system_connections, , count, , )
 STAT(connection_recycle_high_watermark, , none, , )
 
 // Amount of memory allocated by the daemon.

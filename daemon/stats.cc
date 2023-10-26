@@ -41,12 +41,17 @@ static void server_global_stats(const StatCollector& collector) {
     collector.addStat(Key::memcached_version, MEMCACHED_VERSION);
 
     collector.addStat(Key::daemon_connections, ServerSocket::getNumInstances());
-    collector.addStat(Key::curr_connections,
-                      stats.curr_conns.load(std::memory_order_relaxed));
-    collector.addStat(Key::system_connections,
-                      stats.system_conns.load(std::memory_order_relaxed));
+    const auto curr = stats.curr_conns.load();
+    const auto sys = stats.system_conns.load();
+    collector.addStat(Key::curr_connections, curr);
+    collector.addStat(Key::system_connections, sys);
+    collector.addStat(Key::user_connections, curr>sys ? curr - sys : 0);
     collector.addStat(Key::total_connections, stats.total_conns);
     collector.addStat(Key::connection_structures, stats.conn_structs);
+    collector.addStat(Key::max_user_connections,
+                      Settings::instance().getMaxUserConnections());
+    collector.addStat(Key::max_system_connections,
+                      Settings::instance().getSystemConnections());
 
     auto pool_size = Settings::instance().getFreeConnectionPoolSize();
     if (pool_size != 0) {
