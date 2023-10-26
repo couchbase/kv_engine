@@ -290,10 +290,14 @@ $<SEMICOLON>dbname=./${name}.full_eviction.comp_passive.db")
     ADD_TEST(NAME ${name}.full_eviction.comp_active
             COMMAND ${_cmdline} -v -e "compression_mode=active$<SEMICOLON>item_eviction_policy=full_eviction\
 $<SEMICOLON>dbname=./${name}.full_eviction.comp_active.db")
-    SET_TESTS_PROPERTIES(${name}.value_eviction.comp_passive PROPERTIES TIMEOUT ${timeout})
-    SET_TESTS_PROPERTIES(${name}.value_eviction.comp_active PROPERTIES TIMEOUT ${timeout})
-    SET_TESTS_PROPERTIES(${name}.full_eviction.comp_passive PROPERTIES TIMEOUT ${timeout})
-    SET_TESTS_PROPERTIES(${name}.full_eviction.comp_active PROPERTIES TIMEOUT ${timeout})
+
+    foreach (eviction IN ITEMS value_eviction full_eviction)
+        foreach(comp IN ITEMS comp_passive comp_active)
+            set_tests_properties(${name}.${eviction}.${comp} PROPERTIES
+                    TIMEOUT ${timeout}
+                    ENVIRONMENT CB_ARENA_MALLOC_VERIFY_DEALLOC_CLIENT=1)
+        endforeach()
+    endforeach ()
 
     ADD_TEST(NAME ${name}.ephemeral.comp_passive
             COMMAND ${_cmdline} -v -e "compression_mode=passive$<SEMICOLON>bucket_type=ephemeral\
@@ -301,8 +305,11 @@ $<SEMICOLON>dbname=./${name}.ephemeral.comp_passive.db")
     ADD_TEST(NAME ${name}.ephemeral.comp_active
             COMMAND ${_cmdline} -v -e "compression_mode=active$<SEMICOLON>bucket_type=ephemeral\
 $<SEMICOLON>dbname=./${name}.ephemeral.comp_active.db")
-    SET_TESTS_PROPERTIES(${name}.ephemeral.comp_passive PROPERTIES TIMEOUT ${timeout})
-    SET_TESTS_PROPERTIES(${name}.ephemeral.comp_active PROPERTIES TIMEOUT ${timeout})
+    foreach(comp IN ITEMS comp_passive comp_active)
+        set_tests_properties(${name}.ephemeral.${comp} PROPERTIES
+                TIMEOUT ${timeout}
+                ENVIRONMENT CB_ARENA_MALLOC_VERIFY_DEALLOC_CLIENT=1)
+    endforeach()
 
     IF (EP_USE_ROCKSDB)
         ADD_TEST(NAME ${name}.value_eviction.rocksdb
