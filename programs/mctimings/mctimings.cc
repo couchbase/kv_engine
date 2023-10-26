@@ -316,6 +316,7 @@ int main(int argc, char** argv) {
                  if (!buckets.empty() && buckets.front() != "/all/") {
                      usage(getopt, EXIT_FAILURE);
                  }
+                 buckets.clear();
              },
              'a',
              "all-buckets",
