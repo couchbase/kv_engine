@@ -154,9 +154,9 @@ QueueDirtyResult Checkpoint::queueDirty(const queued_item& qi) {
                 // must be placed in a new checkpoint (as it is for the same
                 // key).
                 //
-                // If the new op is a commit (which would typically de-dupe
-                // a mutation) then we must also place the op in a new
-                // checkpoint.
+                // If the new op is a commit then we must also place the op in a
+                // new checkpoint as we don't want the new commit to dedup a
+                // previous commit or a previous normal mutation.
                 return {QueueDirtyStatus::FailureDuplicateItem, 0};
             } else if (indexEntry.getPosition() == toWrite.end()) {
                 // Case: normal mutation expelled
