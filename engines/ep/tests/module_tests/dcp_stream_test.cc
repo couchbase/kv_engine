@@ -1749,6 +1749,99 @@ void SingleThreadedPassiveStreamTest::setupConsumerAndPassiveStream() {
     maybeConsumePassiveStreamSeqnoAck();
 }
 
+TEST_P(SingleThreadedPassiveStreamTest, StreamStats) {
+    nlohmann::json stats;
+    AddStatFn add_stat = [&stats](auto key, auto value, auto&) {
+        stats[std::string(key)] = std::string(value);
+    };
+    stream->addStats(add_stat, *cookie);
+
+    auto expectStreamStat = [&](auto& stat) {
+        auto key = fmt::format("{}:stream_0_{}", stream->getName(), stat);
+        EXPECT_TRUE(stats.erase(key)) << "Expected " << key;
+    };
+
+    // PassiveStream stats
+    expectStreamStat("buffer_bytes");
+    expectStreamStat("buffer_items");
+    expectStreamStat("cur_snapshot_prepare");
+    expectStreamStat("cur_snapshot_type");
+    expectStreamStat("end_seqno");
+    expectStreamStat("flags");
+    expectStreamStat("items_ready");
+    expectStreamStat("last_received_seqno");
+    expectStreamStat("opaque");
+    expectStreamStat("readyQ_items");
+    expectStreamStat("ready_queue_memory");
+    expectStreamStat("snap_end_seqno");
+    expectStreamStat("snap_start_seqno");
+    expectStreamStat("start_seqno");
+    expectStreamStat("state");
+    expectStreamStat("vb_manifest_uid");
+    expectStreamStat("vb_uuid");
+
+    EXPECT_TRUE(stats.empty());
+    if (HasFailure()) {
+        std::cerr << "Unexpected stats " << stats.dump(2);
+    }
+}
+
+TEST_P(SingleThreadedActiveStreamTest, StreamStats) {
+    nlohmann::json stats;
+    AddStatFn add_stat = [&stats](auto key, auto value, auto&) {
+        stats[std::string(key)] = std::string(value);
+    };
+    stream->addStats(add_stat, *cookie);
+
+    auto expectStreamStat = [&](auto& stat) {
+        auto key = fmt::format("{}:stream_0_{}", stream->getName(), stat);
+        EXPECT_TRUE(stats.erase(key)) << "Expected " << key;
+    };
+
+    auto expectFilterStat = [&](auto& stat) {
+        auto key = fmt::format("{}:filter_0_{}", stream->getName(), stat);
+        EXPECT_TRUE(stats.erase(key)) << "Expected " << key;
+    };
+
+    // ActiveStream stats
+    expectStreamStat("backfill_buffer_bytes");
+    expectStreamStat("backfill_buffer_items");
+    expectStreamStat("backfill_disk_items");
+    expectStreamStat("backfill_mem_items");
+    expectStreamStat("backfill_sent");
+    expectStreamStat("change_streams_enabled");
+    expectStreamStat("cursor_registered");
+    expectStreamStat("end_seqno");
+    expectStreamStat("flags");
+    expectStreamStat("items_ready");
+    expectStreamStat("last_read_seqno");
+    expectStreamStat("last_sent_seqno");
+    expectStreamStat("last_sent_seqno_advance");
+    expectStreamStat("last_sent_snap_end_seqno");
+    expectStreamStat("memory_phase");
+    expectStreamStat("opaque");
+    expectStreamStat("readyQ_items");
+    expectStreamStat("ready_queue_memory");
+    expectStreamStat("snap_end_seqno");
+    expectStreamStat("snap_start_seqno");
+    expectStreamStat("start_seqno");
+    expectStreamStat("state");
+    expectStreamStat("vb_uuid");
+
+    // Filter stats
+    expectFilterStat("cids");
+    expectFilterStat("default_allowed");
+    expectFilterStat("passthrough");
+    expectFilterStat("sid");
+    expectFilterStat("size");
+    expectFilterStat("system_allowed");
+
+    EXPECT_TRUE(stats.empty());
+    if (HasFailure()) {
+        std::cerr << "Unexpected stats " << stats.dump(2);
+    }
+}
+
 TEST_P(SingleThreadedActiveStreamTest, DiskSnapshotSendsChkMarker) {
     auto vb = engine->getVBucket(vbid);
     auto& ckptMgr = *vb->checkpointManager;
