@@ -70,7 +70,7 @@ QuotaSharingItemPager::QuotaSharingItemPager(
                      std::chrono::duration_cast<std::chrono::duration<double>>(
                              getSleepTime())
                              .count()),
-      ItemPager(getNumConcurrentPagers()),
+      ItemPager(getNumConcurrentPagers(), getSleepTime()),
       bucketApi(bucketApi),
       group(group),
       getNumConcurrentPagers(std::move(getNumConcurrentPagers)),

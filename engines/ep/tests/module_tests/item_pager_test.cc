@@ -618,6 +618,36 @@ TEST_P(STItemPagerTest, ServerQuotaReached) {
     }
 }
 
+// Test that the ItemPager is scheduled periodically (pager_sleep_time_ms),
+// even if a "memoryConditon" is not detected. Regression test for MB-59287.
+TEST_P(STItemPagerTest, ItemPagerRunPeriodically) {
+    if (ephemeralFailNewData()) {
+        // EphemeralFailNewData doesn't enable the ItemPager.
+        return;
+    }
+
+    // Check initial sleep time of ItemPager - advance time by item pager
+    // sleep period, and run the next NonIO task.
+    // This should be the initial item pager run.
+    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+    EXPECT_EQ(0, lpNonioQ.getReadyQueueSize());
+    EXPECT_GE(lpNonioQ.getFutureQueueSize(), 1);
+    // Run the next task, advancing time by just over the item pager period,
+    // so we expect it to be run.
+    const auto timeAdvance = std::chrono::milliseconds{
+            engine->getConfiguration().getPagerSleepTimeMs() + 1};
+
+    const auto expectedTask = isCrossBucketHtQuotaSharing()
+                                      ? "Paging out items (quota sharing)."
+                                      : "Paging out items.";
+    runNextTask(lpNonioQ, expectedTask, timeAdvance);
+
+    // Check subsequent runs - again advance time by item pager sleep period,
+    // and run the next NonIO task.
+    // This should be the periodic item pager run.
+    runNextTask(lpNonioQ, expectedTask, timeAdvance * 2);
+}
+
 TEST_P(STItemPagerTest, HighWaterMarkTriggersPager) {
     // Fill to just over HWM
     populateUntilAboveHighWaterMark(vbid);

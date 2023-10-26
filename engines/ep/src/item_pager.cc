@@ -43,10 +43,12 @@
 
 #include <memory>
 
-ItemPager::ItemPager(size_t numConcurrentPagers)
+ItemPager::ItemPager(size_t numConcurrentPagers,
+                     std::chrono::milliseconds sleepTime)
     : numConcurrentPagers(numConcurrentPagers),
       pagerSemaphore(std::make_shared<cb::Semaphore>(numConcurrentPagers)),
-      doEvict(false) {
+      doEvict(false),
+      sleepTime(sleepTime) {
 }
 
 std::optional<VBucketFilter> ItemPager::createVBucketFilter(
@@ -92,7 +94,9 @@ StrictQuotaItemPager::StrictQuotaItemPager(EventuallyPersistentEngine& e,
                               e.getConfiguration().getPagerSleepTimeMs()))
                       .count(),
               false),
-      ItemPager(numConcurrentPagers),
+      ItemPager(numConcurrentPagers,
+                std::chrono::milliseconds(
+                        e.getConfiguration().getPagerSleepTimeMs())),
       stats(st) {
 }
 

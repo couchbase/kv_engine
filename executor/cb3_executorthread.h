@@ -80,7 +80,7 @@ public:
           currentTask(nullptr) {
     }
 
-    ~CB3ExecutorThread();
+    virtual ~CB3ExecutorThread();
 
     void start();
 
@@ -120,7 +120,7 @@ public:
 
     const std::string getStateName();
 
-    std::chrono::steady_clock::time_point getCurTime() const {
+    virtual std::chrono::steady_clock::time_point getCurTime() const {
         return now.getTimePoint();
     }
 

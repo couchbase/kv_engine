@@ -76,8 +76,10 @@ using FlushResult = EPBucket::FlushResult;
 using MoreAvailable = EPBucket::MoreAvailable;
 
 std::chrono::steady_clock::time_point SingleThreadedKVBucketTest::runNextTask(
-        TaskQueue& taskQ, std::string_view expectedTaskName) {
-    CheckedExecutor executor(task_executor, taskQ);
+        TaskQueue& taskQ,
+        std::string_view expectedTaskName,
+        std::chrono::steady_clock::duration timeAdvance) {
+    CheckedExecutor executor(task_executor, taskQ, timeAdvance);
 
     // Run the task
     executor.runCurrentTask(expectedTaskName);

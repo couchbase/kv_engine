@@ -38,12 +38,22 @@ struct failover_entry_t;
  */
 class SingleThreadedKVBucketTest : public KVBucketTest {
 public:
-    /*
+    /**
      * Run the next task from the taskQ
-     * The task must match the expectedTaskName parameter
+     *
+     * @param expectedTaskName The expected name of the next task to be run.
+     *        Will throw is this does not match the name of the actual next
+     *        task.
+     * @param timeAdvance Optional duration to advance the scheduler clock by,
+     *        to allow tasks which are only scheduled to run at some future
+     *        time to run "now", without having to actually wait for real-time
+     *        to pass.
      */
     std::chrono::steady_clock::time_point runNextTask(
-            TaskQueue& taskQ, std::string_view expectedTaskName);
+            TaskQueue& taskQ,
+            std::string_view expectedTaskName,
+            std::chrono::steady_clock::duration timeAdvance =
+                    std::chrono::steady_clock::duration::zero());
 
     /*
      * Run the next task from the taskQ
