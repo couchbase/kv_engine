@@ -428,14 +428,15 @@ bool ActiveStream::markDiskSnapshot(uint64_t startSeqno,
             log(spdlog::level::level_enum::info,
                 "{} ActiveStream::markDiskSnapshot: Sending disk snapshot with "
                 "start:{}, end:{}, flags:0x{:x}, flagsDecoded:{}, hcs:{}, "
-                "mvs:{}",
+                "mvs:{}, lastBackfilledSeqno:{}",
                 logPrefix,
                 startSeqno,
                 endSeqno,
                 flags,
                 dcpMarkerFlagsToString(flags),
                 to_string_or_none(hcsToSend),
-                to_string_or_none(mvsToSend));
+                to_string_or_none(mvsToSend),
+                lastBackfilledSeqno);
             // Clear the pending marker, it's no longer needed.
             // Note: Missing to reset the pending marker here would lead to
             // sending it unnecessarily in the case where the stream has an
@@ -600,16 +601,14 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> item,
         // need to be both updated under streamMutex. That's because the
         // end-stream path uses stream counters for updating prod/bm counters,
         // so they need to be consistent.
-
         if (pendingDiskMarker) {
             // There is a marker, move it to the readyQ
-
             log(spdlog::level::level_enum::info,
-                "{} ActiveStream::backfillReceived: Sending pending disk "
-                "snapshot with "
-                "start:{}, end:{}, flags:0x{:x}, flagsDecoded:{}, hcs:{}, "
-                "mvs:{}",
+                "{} ActiveStream::backfillReceived(seqno:{}): Sending pending "
+                "disk snapshot with start:{}, end:{}, flags:0x{:x}, "
+                "flagsDecoded:{}, hcs:{}, mvs:{}",
                 logPrefix,
+                *resp->getBySeqno(),
                 pendingDiskMarker->getStartSeqno(),
                 pendingDiskMarker->getEndSeqno(),
                 pendingDiskMarker->getFlags(),
