@@ -1244,7 +1244,7 @@ TEST_P(STItemPagerTest, ReplicaEvictedBeforeActive) {
                 return store->getVBucket(replicaVb)->getPageableMemUsage() >
                        watermarkDiff;
             });
-    EXPECT_GT(replicaItemCount, 0);
+    EXPECT_GT(replicaItemCount, 10);
 
     // Now fill the active VB until the high watermark is reached
     std::vector<Vbid> activeVbsToPopulate{activeVb};
@@ -1253,7 +1253,7 @@ TEST_P(STItemPagerTest, ReplicaEvictedBeforeActive) {
     });
     store->attemptToFreeMemory();
 
-    EXPECT_GT(activeItemCount, 0);
+    EXPECT_GT(activeItemCount, 10);
 
     setVBucketStateAndRunPersistTask(replicaVb, vbucket_state_replica);
 
@@ -1267,10 +1267,18 @@ TEST_P(STItemPagerTest, ReplicaEvictedBeforeActive) {
     // actives to be evicted as well.
     // Additionally, setting the replica vBuckets to replica state may change
     // the memory used. Set the low watermark so this doesn't affect the test.
+    // Note we cannot exactly predict where preciseMemoryUsed will be when
+    // the pager runs (it may be slightly higher due to heap allocaitons
+    // made by the pager itself), so we cannot exactly set the low watermark
+    // to:
+    //     current_precise_mem_used - replicaPageable
+    //
+    // as if precise_mem_used_when_pager is slightly higher, we'll need to
+    // evict more than just replica items. As such, set low watermark based on
+    // 75% of replica pagable, giving us a margin of error.
     stats.setLowWaterMark(
-            (stats.getPreciseTotalMemoryUsed() -
-             store->getVBucket(replicaVb)->getPageableMemUsage()) +
-            1);
+            stats.getPreciseTotalMemoryUsed() -
+            ((store->getVBucket(replicaVb)->getPageableMemUsage() * 3) / 4));
 
     // Run the item pager
     auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
