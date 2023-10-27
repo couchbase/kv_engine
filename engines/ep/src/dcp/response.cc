@@ -149,8 +149,9 @@ uint32_t MutationConsumerMessage::getMessageSize() const {
 }
 
 std::ostream& operator<<(std::ostream& os, const DcpResponse& r) {
-    os << "DcpResponse[" << &r << "] with"
-       << " event:" << r.to_string();
+    os << "DcpResponse[" << &r << "]"
+       << " event:" << r.to_string() << " seqno:"
+       << (r.getBySeqno() ? std::to_string(*r.getBySeqno()) : "nullopt");
     return os;
 }
 
