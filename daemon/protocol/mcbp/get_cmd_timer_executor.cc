@@ -162,11 +162,8 @@ std::pair<cb::engine_errc, std::string> get_cmd_timer(Cookie& cookie) {
             if (histo) {
                 return {cb::engine_errc::success, histo->to_string()};
             }
-
-            Hdr1sfMicroSecHistogram h;
             return {cb::engine_errc::success, {}};
         }
-
         return {cb::engine_errc::no_access, {}};
     }
 
