@@ -30,6 +30,7 @@ class BucketLogger;
 struct DocKey;
 class EPStats;
 class EventuallyPersistentEngine;
+class Stream;
 
 /**
  * Aggregator object to count stats.
@@ -294,11 +295,31 @@ public:
      */
     virtual void addStats(const AddStatFn& add_stat, CookieIface& c);
 
+    enum class StreamStatsFormat {
+        /// Each stat in every stream is prefixed by the stream name and vbid.
+        Legacy,
+        /// All stats for every stream are exposed under the stream name and
+        /// vbid as a single JSON string.
+        Json,
+    };
+
     /**
      * Generate statistics for all DCP streams associated with this connection.
+     * @param add_stat Callback for sending stats.
+     * @param c The associated cookie.
+     * @param format The requested format.
      */
-    virtual void addStreamStats(const AddStatFn& add_stat, CookieIface& c) {
+    virtual void addStreamStats(const AddStatFn& add_stat,
+                                CookieIface& c,
+                                StreamStatsFormat format) {
         // Empty
+    }
+
+    /**
+     * Non-virtual overload for addStreamStats() which default format to Legacy.
+     */
+    void addStreamStats(const AddStatFn& add_stat, CookieIface& c) {
+        addStreamStats(add_stat, c, StreamStatsFormat::Legacy);
     }
 
     virtual void aggregateQueueStats(ConnCounter& stats_aggregator) const {
@@ -407,6 +428,24 @@ public:
     }
 
 protected:
+    /**
+     * Send stats for the given list of streams in the legacy format, where
+     * every individual stream statistic features as a separate stat in the
+     * output, prefixed by the stream name.
+     */
+    void doStreamStatsLegacy(
+            const std::vector<std::shared_ptr<Stream>>& streams,
+            const AddStatFn& add_stat,
+            CookieIface& c);
+
+    /**
+     * Sends stats for the given list of streams in the JSON format, where every
+     * stream is represented by a JSON object.
+     */
+    void doStreamStatsJson(const std::vector<std::shared_ptr<Stream>>& streams,
+                           const AddStatFn& add_stat,
+                           CookieIface& c);
+
     EventuallyPersistentEngine &engine_;
     EPStats &stats;
 

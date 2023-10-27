@@ -1613,7 +1613,9 @@ void DcpProducer::addStats(const AddStatFn& add_stat, CookieIface& c) {
     addStat("num_dead_streams", num_dead_streams, add_stat, c);
 }
 
-void DcpProducer::addStreamStats(const AddStatFn& add_stat, CookieIface& c) {
+void DcpProducer::addStreamStats(const AddStatFn& add_stat,
+                                 CookieIface& c,
+                                 StreamStatsFormat format) {
     // Make a copy of all valid streams (under lock), and then call addStats
     // for each one. (Done in two stages to minmise how long we have the
     // streams map locked for).
@@ -1624,34 +1626,17 @@ void DcpProducer::addStreamStats(const AddStatFn& add_stat, CookieIface& c) {
                   [&valid_streams](const StreamsMap::value_type& vt) {
                       for (auto handle = vt.second->rlock(); !handle.end();
                            handle.next()) {
-                          valid_streams.push_back(handle.get());
+                          auto as = handle.get();
+                          if (as->isActive()) {
+                              valid_streams.push_back(handle.get());
+                          }
                       }
                   });
 
-    for (const auto& stream : valid_streams) {
-        if (!stream->isActive()) {
-            continue;
-        }
-
-        std::array<char, 1024> prefixed_key;
-        char* key_ptr = fmt::format_to(prefixed_key.data(),
-                                       "{}:stream_{}_",
-                                       stream->getName(),
-                                       stream->getVBucket().get());
-        auto prefix_size = std::distance(prefixed_key.data(), key_ptr);
-
-        auto add_stream_stat =
-                [&add_stat, &key_ptr, &prefixed_key, &prefix_size](
-                        auto k, auto v, auto& c) {
-                    Expects(prefix_size + k.size() < prefixed_key.size());
-                    auto key_end = std::copy(k.begin(), k.end(), key_ptr);
-                    std::string_view formatted_key{
-                            prefixed_key.data(),
-                            static_cast<size_t>(std::distance(
-                                    prefixed_key.data(), key_end))};
-                    add_stat(formatted_key, v, c);
-                };
-        stream->addStats(add_stream_stat, c);
+    if (format == StreamStatsFormat::Json) {
+        doStreamStatsJson(valid_streams, add_stat, c);
+    } else {
+        doStreamStatsLegacy(valid_streams, add_stat, c);
     }
 }
 

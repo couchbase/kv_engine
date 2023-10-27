@@ -48,11 +48,13 @@
 #include <engines/ep/tests/mock/mock_dcp_backfill_mgr.h>
 #include <folly/portability/GMock.h>
 #include <folly/synchronization/Baton.h>
+#include <memcached/dcp_stream_id.h>
 #include <platform/timeutils.h>
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <xattr/blob.h>
 #include <xattr/utils.h>
+#include <memory>
 #include <thread>
 
 using FlushResult = EPBucket::FlushResult;
@@ -1785,6 +1787,46 @@ TEST_P(SingleThreadedPassiveStreamTest, StreamStats) {
     }
 }
 
+TEST_P(SingleThreadedPassiveStreamTest, ConsumerStatsLegacy) {
+    nlohmann::json stats;
+    AddStatFn add_stat = [&stats](auto key, auto value, auto&) {
+        stats[std::string(key)] = std::string(value);
+    };
+
+    // Collect per-stream stats.
+    consumer->addStreamStats(
+            add_stat, *cookie, ConnHandler::StreamStatsFormat::Legacy);
+
+    EXPECT_TRUE(stats["test_consumer:stream_0_opaque"].is_string());
+
+    if (HasFailure()) {
+        std::cerr << "Unexpected stats " << stats.dump(2);
+    }
+}
+
+TEST_P(SingleThreadedPassiveStreamTest, ConsumerStatsJson) {
+    nlohmann::json stats;
+    AddStatFn add_stat = [&stats](auto key, auto value, auto&) {
+        stats[std::string(key)] = std::string(value);
+    };
+
+    // Collect per-stream stats.
+    consumer->addStreamStats(
+            add_stat, *cookie, ConnHandler::StreamStatsFormat::Json);
+
+    ASSERT_EQ(1, stats.size());
+
+    auto streamJson = stats["test_consumer:stream_0"].get<std::string>();
+
+    // Make sure it parses fine.
+    auto streamStats = nlohmann::json::parse(streamJson);
+    EXPECT_TRUE(streamStats.contains("opaque"));
+
+    if (HasFailure()) {
+        std::cerr << "Unexpected stats " << stats.dump(2);
+    }
+}
+
 TEST_P(SingleThreadedActiveStreamTest, StreamStats) {
     nlohmann::json stats;
     AddStatFn add_stat = [&stats](auto key, auto value, auto&) {
@@ -1830,6 +1872,53 @@ TEST_P(SingleThreadedActiveStreamTest, StreamStats) {
     expectStreamStat("filter_system_allowed");
 
     EXPECT_TRUE(stats.empty());
+    if (HasFailure()) {
+        std::cerr << "Unexpected stats " << stats.dump(2);
+    }
+}
+
+TEST_P(SingleThreadedActiveStreamTest, ProducerStatsLegacy) {
+    nlohmann::json stats;
+    AddStatFn add_stat = [&stats](auto key, auto value, auto&) {
+        stats[std::string(key)] = std::string(value);
+    };
+
+    // Put the stream in the producer's stream map.
+    auto streamPtr = std::static_pointer_cast<ActiveStream>(stream);
+    producer->updateStreamsMap(Vbid(0), cb::mcbp::DcpStreamId(1), streamPtr);
+    // Collect per-stream stats.
+    producer->addStreamStats(
+            add_stat, *cookie, ConnHandler::StreamStatsFormat::Legacy);
+
+    EXPECT_TRUE(
+            stats["test_producer->test_consumer:stream_0_opaque"].is_string());
+
+    if (HasFailure()) {
+        std::cerr << "Unexpected stats " << stats.dump(2);
+    }
+}
+
+TEST_P(SingleThreadedActiveStreamTest, ProducerStatsJson) {
+    nlohmann::json stats;
+    AddStatFn add_stat = [&stats](auto key, auto value, auto&) {
+        stats[std::string(key)] = std::string(value);
+    };
+
+    // Put the stream in the producer's stream map.
+    auto streamPtr = std::static_pointer_cast<ActiveStream>(stream);
+    producer->updateStreamsMap(Vbid(0), cb::mcbp::DcpStreamId(1), streamPtr);
+    // Collect per-stream stats.
+    producer->addStreamStats(
+            add_stat, *cookie, ConnHandler::StreamStatsFormat::Json);
+    ASSERT_EQ(1, stats.size());
+
+    auto streamJson =
+            stats["test_producer->test_consumer:stream_0"].get<std::string>();
+
+    // Make sure it parses fine.
+    auto streamStats = nlohmann::json::parse(streamJson);
+    EXPECT_TRUE(streamStats.contains("opaque"));
+
     if (HasFailure()) {
         std::cerr << "Unexpected stats " << stats.dump(2);
     }

@@ -12,17 +12,19 @@
 #include "connhandler.h"
 #include "bucket_logger.h"
 #include "connhandler_impl.h"
+#include "dcp/stream.h"
 #include "ep_engine.h"
 #include "ep_time.h"
 
+#include <fmt/format.h>
 #include <memcached/connection_iface.h>
 #include <memcached/cookie_iface.h>
 #include <memcached/durability_spec.h>
 #include <memcached/rbac/privilege_database.h>
+#include <nlohmann/json.hpp>
 #include <phosphor/phosphor.h>
 #include <platform/timeutils.h>
 #include <utilities/logtags.h>
-
 
 std::string to_string(ConnHandler::PausedReason r) {
     switch (r) {
@@ -455,6 +457,51 @@ void ConnHandler::scheduleNotify() {
     }
     if (isPaused()) {
         engine_.scheduleDcpStep(*getCookie());
+    }
+}
+
+void ConnHandler::doStreamStatsLegacy(
+        const std::vector<std::shared_ptr<Stream>>& streams,
+        const AddStatFn& add_stat,
+        CookieIface& c) {
+    std::array<char, 1024> prefixed_key;
+    for (const auto& stream : streams) {
+        char* key_ptr = fmt::format_to(prefixed_key.data(),
+                                       "{}:stream_{}_",
+                                       stream->getName(),
+                                       stream->getVBucket().get());
+        auto prefix_size = std::distance(prefixed_key.data(), key_ptr);
+
+        auto add_stream_stat =
+                [&add_stat, &key_ptr, &prefixed_key, &prefix_size](
+                        auto k, auto v, auto& c) {
+                    Expects(prefix_size + k.size() < prefixed_key.size());
+                    auto key_end = std::copy(k.begin(), k.end(), key_ptr);
+                    std::string_view formatted_key{
+                            prefixed_key.data(),
+                            static_cast<size_t>(std::distance(
+                                    prefixed_key.data(), key_end))};
+                    add_stat(formatted_key, v, c);
+                };
+        stream->addStats(add_stream_stat, c);
+    }
+}
+
+void ConnHandler::doStreamStatsJson(
+        const std::vector<std::shared_ptr<Stream>>& streams,
+        const AddStatFn& add_stat,
+        CookieIface& c) {
+    nlohmann::json json;
+    for (const auto& stream : streams) {
+        auto add_stream_stat = [&json](auto k, auto v, auto& c) {
+            json[k] = v;
+        };
+        json.clear();
+        stream->addStats(add_stream_stat, c);
+
+        auto key = fmt::format(
+                "{}:stream_{}", stream->getName(), stream->getVBucket().get());
+        add_stat(key, json.dump(), c);
     }
 }
 

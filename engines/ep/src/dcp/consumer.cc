@@ -1285,42 +1285,25 @@ void DcpConsumer::addStats(const AddStatFn& add_stat, CookieIface& c) {
     addStat("synchronous_replication", isSyncReplicationEnabled(), add_stat, c);
 }
 
-void DcpConsumer::addStreamStats(const AddStatFn& add_stat, CookieIface& c) {
+void DcpConsumer::addStreamStats(const AddStatFn& add_stat,
+                                 CookieIface& c,
+                                 StreamStatsFormat format) {
     // Make a copy of all valid streams (under lock), and then call addStats
     // for each one. (Done in two stages to minmise how long we have the
     // streams map locked for).
-    std::vector<PassiveStreamMap::mapped_type> valid_streams;
+    std::vector<std::shared_ptr<Stream>> valid_streams;
 
     streams.for_each(
-        [&valid_streams](const PassiveStreamMap::value_type& element) {
-            valid_streams.push_back(element.second);
-        }
-    );
+            [&valid_streams](const PassiveStreamMap::value_type& element) {
+                if (element.second->isActive()) {
+                    valid_streams.push_back(element.second);
+                }
+            });
 
-    for (const auto& stream : valid_streams) {
-        if (!stream->isActive()) {
-            continue;
-        }
-
-        std::array<char, 1024> prefixed_key;
-        char* key_ptr = fmt::format_to(prefixed_key.data(),
-                                       "{}:stream_{}_",
-                                       stream->getName(),
-                                       stream->getVBucket().get());
-        auto prefix_size = std::distance(prefixed_key.data(), key_ptr);
-
-        auto add_stream_stat =
-                [&add_stat, &key_ptr, &prefixed_key, &prefix_size](
-                        auto k, auto v, auto& c) {
-                    Expects(prefix_size + k.size() < prefixed_key.size());
-                    auto key_end = std::copy(k.begin(), k.end(), key_ptr);
-                    std::string_view formatted_key{
-                            prefixed_key.data(),
-                            static_cast<size_t>(std::distance(
-                                    prefixed_key.data(), key_end))};
-                    add_stat(formatted_key, v, c);
-                };
-        stream->addStats(add_stream_stat, c);
+    if (format == StreamStatsFormat::Json) {
+        doStreamStatsJson(valid_streams, add_stat, c);
+    } else {
+        doStreamStatsLegacy(valid_streams, add_stat, c);
     }
 }
 
