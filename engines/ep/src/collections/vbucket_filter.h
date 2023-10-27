@@ -160,10 +160,7 @@ public:
     /**
      * Add statistics for this filter, currently just depicts the object's state
      */
-    void addStats(const AddStatFn& add_stat,
-                  CookieIface& c,
-                  const std::string& prefix,
-                  Vbid vb) const;
+    void addStats(const AddStatFn& add_stat, CookieIface& c, Vbid vb) const;
 
     /**
      * Was this filter constructed for a non-collection aware client?

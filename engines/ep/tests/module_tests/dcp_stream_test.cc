@@ -1757,8 +1757,7 @@ TEST_P(SingleThreadedPassiveStreamTest, StreamStats) {
     stream->addStats(add_stat, *cookie);
 
     auto expectStreamStat = [&](auto& stat) {
-        auto key = fmt::format("{}:stream_0_{}", stream->getName(), stat);
-        EXPECT_TRUE(stats.erase(key)) << "Expected " << key;
+        EXPECT_TRUE(stats.erase(stat)) << "Expected " << stat;
     };
 
     // PassiveStream stats
@@ -1794,13 +1793,7 @@ TEST_P(SingleThreadedActiveStreamTest, StreamStats) {
     stream->addStats(add_stat, *cookie);
 
     auto expectStreamStat = [&](auto& stat) {
-        auto key = fmt::format("{}:stream_0_{}", stream->getName(), stat);
-        EXPECT_TRUE(stats.erase(key)) << "Expected " << key;
-    };
-
-    auto expectFilterStat = [&](auto& stat) {
-        auto key = fmt::format("{}:filter_0_{}", stream->getName(), stat);
-        EXPECT_TRUE(stats.erase(key)) << "Expected " << key;
+        EXPECT_TRUE(stats.erase(stat)) << "Expected " << stat;
     };
 
     // ActiveStream stats
@@ -1829,12 +1822,12 @@ TEST_P(SingleThreadedActiveStreamTest, StreamStats) {
     expectStreamStat("vb_uuid");
 
     // Filter stats
-    expectFilterStat("cids");
-    expectFilterStat("default_allowed");
-    expectFilterStat("passthrough");
-    expectFilterStat("sid");
-    expectFilterStat("size");
-    expectFilterStat("system_allowed");
+    expectStreamStat("filter_cids");
+    expectStreamStat("filter_default_allowed");
+    expectStreamStat("filter_passthrough");
+    expectStreamStat("filter_sid");
+    expectStreamStat("filter_size");
+    expectStreamStat("filter_system_allowed");
 
     EXPECT_TRUE(stats.empty());
     if (HasFailure()) {

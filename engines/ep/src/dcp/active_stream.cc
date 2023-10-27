@@ -910,16 +910,9 @@ void ActiveStream::addStats(const AddStatFn& add_stat, CookieIface& c) {
     Stream::addStats(add_stat, c);
 
     try {
-        fmt::memory_buffer keyBuff;
-        fmt::format_to(
-                std::back_inserter(keyBuff), "{}:stream_{}_", name_, vb_.get());
-        const auto prefixLen = keyBuff.size();
-        const auto addStat = [&keyBuff, prefixLen, add_stat, &c](
-                                     const auto& statKey, auto statValue) {
-            keyBuff.resize(prefixLen);
-            fmt::format_to(std::back_inserter(keyBuff), "{}", statKey);
-            add_casted_stat(
-                    {keyBuff.data(), keyBuff.size()}, statValue, add_stat, c);
+        const auto addStat = [&add_stat, &c](const auto& statKey,
+                                             auto statValue) {
+            add_casted_stat(statKey, statValue, add_stat, c);
         };
         addStat("backfill_disk_items", backfillItems.disk.load());
         addStat("backfill_mem_items", backfillItems.memory.load());
@@ -946,7 +939,10 @@ void ActiveStream::addStats(const AddStatFn& add_stat, CookieIface& c) {
             error.what());
     }
 
-    filter.addStats(add_stat, c, name_, vb_);
+    auto addFilterStat = [&add_stat](auto k, auto v, auto& c) {
+        add_stat(fmt::format("filter_{}", k), v, c);
+    };
+    filter.addStats(addFilterStat, c, vb_);
 }
 
 void ActiveStream::addTakeoverStats(const AddStatFn& add_stat,

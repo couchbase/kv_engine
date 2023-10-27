@@ -375,59 +375,25 @@ void Filter::disableDefaultCollection() {
 
 void Filter::addStats(const AddStatFn& add_stat,
                       CookieIface& c,
-                      const std::string& prefix,
                       Vbid vb) const {
     try {
-        const int bsize = 1024;
-        char buffer[bsize];
-        checked_snprintf(buffer,
-                         bsize,
-                         "%s:filter_%d_passthrough",
-                         prefix.c_str(),
-                         vb.get());
-        add_casted_stat(buffer, passthrough, add_stat, c);
-
-        checked_snprintf(buffer,
-                         bsize,
-                         "%s:filter_%d_system_allowed",
-                         prefix.c_str(),
-                         vb.get());
-        add_casted_stat(buffer, systemEventsAllowed, add_stat, c);
+        add_casted_stat("passthrough", passthrough, add_stat, c);
+        add_casted_stat("system_allowed", systemEventsAllowed, add_stat, c);
 
         // Skip adding the rest of the state as they only apply for !passthrough
         if (passthrough) {
             return;
         }
 
-        checked_snprintf(buffer,
-                         bsize,
-                         "%s:filter_%d_default_allowed",
-                         prefix.c_str(),
-                         vb.get());
-        add_casted_stat(buffer, defaultAllowed, add_stat, c);
+        add_casted_stat("default_allowed", defaultAllowed, add_stat, c);
 
         if (scopeID) {
-            checked_snprintf(buffer,
-                             bsize,
-                             "%s:filter_%d_scope_id",
-                             prefix.c_str(),
-                             vb.get());
-            add_casted_stat(buffer, scopeID->to_string(), add_stat, c);
-            checked_snprintf(buffer,
-                             bsize,
-                             "%s:filter_%d_scope_dropped",
-                             prefix.c_str(),
-                             vb.get());
-            add_casted_stat(buffer, scopeIsDropped, add_stat, c);
+            add_casted_stat("scope_id", scopeID->to_string(), add_stat, c);
+            add_casted_stat("scope_dropped", scopeIsDropped, add_stat, c);
         }
 
-        checked_snprintf(
-                buffer, bsize, "%s:filter_%d_sid", prefix.c_str(), vb.get());
-        add_casted_stat(buffer, streamId.to_string(), add_stat, c);
-
-        checked_snprintf(
-                buffer, bsize, "%s:filter_%d_size", prefix.c_str(), vb.get());
-        add_casted_stat(buffer, filter.size(), add_stat, c);
+        add_casted_stat("sid", streamId.to_string(), add_stat, c);
+        add_casted_stat("size", filter.size(), add_stat, c);
 
         std::string cids;
         for (const auto& pair : filter) {
@@ -436,14 +402,11 @@ void Filter::addStats(const AddStatFn& add_stat,
         if (!cids.empty()) {
             cids.pop_back();
         }
-        checked_snprintf(
-                buffer, bsize, "%s:filter_%d_cids", prefix.c_str(), vb.get());
-        add_casted_stat(buffer, cids, add_stat, c);
+        add_casted_stat("cids", cids, add_stat, c);
     } catch (std::exception& error) {
         EP_LOG_WARN(
-                "Filter::addStats: {}:{}"
+                "Filter::addStats: {}"
                 " exception.what:{}",
-                prefix,
                 vb,
                 error.what());
     }

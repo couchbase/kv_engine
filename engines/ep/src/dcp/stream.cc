@@ -101,62 +101,16 @@ void Stream::addStats(const AddStatFn& add_stat, CookieIface& c) {
     try {
         std::lock_guard<std::mutex> lh(streamMutex);
 
-        const int bsize = 1024;
-        char buffer[bsize];
-        checked_snprintf(
-                buffer, bsize, "%s:stream_%d_flags", name_.c_str(), vb_.get());
-        add_casted_stat(buffer, flags_, add_stat, c);
-        checked_snprintf(
-                buffer, bsize, "%s:stream_%d_opaque", name_.c_str(), vb_.get());
-        add_casted_stat(buffer, opaque_, add_stat, c);
-        checked_snprintf(buffer,
-                         bsize,
-                         "%s:stream_%d_start_seqno",
-                         name_.c_str(),
-                         vb_.get());
-        add_casted_stat(buffer, start_seqno_, add_stat, c);
-        checked_snprintf(buffer,
-                         bsize,
-                         "%s:stream_%d_end_seqno",
-                         name_.c_str(),
-                         vb_.get());
-        add_casted_stat(buffer, end_seqno_, add_stat, c);
-        checked_snprintf(buffer,
-                         bsize,
-                         "%s:stream_%d_vb_uuid",
-                         name_.c_str(),
-                         vb_.get());
-        add_casted_stat(buffer, vb_uuid_, add_stat, c);
-        checked_snprintf(buffer,
-                         bsize,
-                         "%s:stream_%d_snap_start_seqno",
-                         name_.c_str(),
-                         vb_.get());
-        add_casted_stat(buffer, snap_start_seqno_, add_stat, c);
-        checked_snprintf(buffer,
-                         bsize,
-                         "%s:stream_%d_snap_end_seqno",
-                         name_.c_str(),
-                         vb_.get());
-        add_casted_stat(buffer, snap_end_seqno_, add_stat, c);
-
-        checked_snprintf(
-                buffer, bsize, "%s:stream_%d_state", name_.c_str(), vb_.get());
-        add_casted_stat(buffer, getStateName(), add_stat, c);
-
-        checked_snprintf(buffer,
-                         bsize,
-                         "%s:stream_%d_items_ready",
-                         name_.c_str(),
-                         vb_.get());
-        add_casted_stat(buffer, itemsReady.load(), add_stat, c);
-
-        checked_snprintf(buffer,
-                         bsize,
-                         "%s:stream_%d_readyQ_items",
-                         name_.c_str(),
-                         vb_.get());
-        add_casted_stat(buffer, readyQ.size(), add_stat, c);
+        add_casted_stat("flags", flags_, add_stat, c);
+        add_casted_stat("opaque", opaque_, add_stat, c);
+        add_casted_stat("start_seqno", start_seqno_, add_stat, c);
+        add_casted_stat("end_seqno", end_seqno_, add_stat, c);
+        add_casted_stat("vb_uuid", vb_uuid_, add_stat, c);
+        add_casted_stat("snap_start_seqno", snap_start_seqno_, add_stat, c);
+        add_casted_stat("snap_end_seqno", snap_end_seqno_, add_stat, c);
+        add_casted_stat("state", getStateName(), add_stat, c);
+        add_casted_stat("items_ready", itemsReady.load(), add_stat, c);
+        add_casted_stat("readyQ_items", readyQ.size(), add_stat, c);
     } catch (std::exception& error) {
         EP_LOG_WARN("Stream::addStats: Failed to build stats: {}",
                     error.what());

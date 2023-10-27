@@ -1296,11 +1296,31 @@ void DcpConsumer::addStreamStats(const AddStatFn& add_stat, CookieIface& c) {
             valid_streams.push_back(element.second);
         }
     );
+
     for (const auto& stream : valid_streams) {
         if (!stream->isActive()) {
             continue;
         }
-        stream->addStats(add_stat, c);
+
+        std::array<char, 1024> prefixed_key;
+        char* key_ptr = fmt::format_to(prefixed_key.data(),
+                                       "{}:stream_{}_",
+                                       stream->getName(),
+                                       stream->getVBucket().get());
+        auto prefix_size = std::distance(prefixed_key.data(), key_ptr);
+
+        auto add_stream_stat =
+                [&add_stat, &key_ptr, &prefixed_key, &prefix_size](
+                        auto k, auto v, auto& c) {
+                    Expects(prefix_size + k.size() < prefixed_key.size());
+                    auto key_end = std::copy(k.begin(), k.end(), key_ptr);
+                    std::string_view formatted_key{
+                            prefixed_key.data(),
+                            static_cast<size_t>(std::distance(
+                                    prefixed_key.data(), key_end))};
+                    add_stat(formatted_key, v, c);
+                };
+        stream->addStats(add_stream_stat, c);
     }
 }
 

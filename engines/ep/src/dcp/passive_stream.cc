@@ -1270,7 +1270,6 @@ void PassiveStream::addStats(const AddStatFn& add_stat, CookieIface& c) {
     Stream::addStats(add_stat, c);
 
     try {
-        std::array<char, 1024> buf;
         size_t bufferItems = 0;
         size_t bufferBytes = 0;
         {
@@ -1278,70 +1277,35 @@ void PassiveStream::addStats(const AddStatFn& add_stat, CookieIface& c) {
             bufferItems = buffer.messages.size();
             bufferBytes = buffer.bytes;
         }
-        checked_snprintf(buf.data(),
-                         buf.size(),
-                         "%s:stream_%d_buffer_items",
-                         name_.c_str(),
-                         vb_.get());
-        add_casted_stat(buf.data(), bufferItems, add_stat, c);
-        checked_snprintf(buf.data(),
-                         buf.size(),
-                         "%s:stream_%d_buffer_bytes",
-                         name_.c_str(),
-                         vb_.get());
-        add_casted_stat(buf.data(), bufferBytes, add_stat, c);
-        checked_snprintf(buf.data(),
-                         buf.size(),
-                         "%s:stream_%d_last_received_seqno",
-                         name_.c_str(),
-                         vb_.get());
-        add_casted_stat(buf.data(), last_seqno.load(), add_stat, c);
-        checked_snprintf(buf.data(),
-                         buf.size(),
-                         "%s:stream_%d_ready_queue_memory",
-                         name_.c_str(),
-                         vb_.get());
-        add_casted_stat(buf.data(), getReadyQueueMemory(), add_stat, c);
-
-        checked_snprintf(buf.data(),
-                         buf.size(),
-                         "%s:stream_%d_cur_snapshot_type",
-                         name_.c_str(),
-                         vb_.get());
+        add_casted_stat("buffer_items", bufferItems, add_stat, c);
+        add_casted_stat("buffer_bytes", bufferBytes, add_stat, c);
+        add_casted_stat("last_received_seqno", last_seqno.load(), add_stat, c);
         add_casted_stat(
-                buf.data(), ::to_string(cur_snapshot_type.load()), add_stat, c);
+                "ready_queue_memory", getReadyQueueMemory(), add_stat, c);
+        add_casted_stat("cur_snapshot_type",
+                        ::to_string(cur_snapshot_type.load()),
+                        add_stat,
+                        c);
 
         if (cur_snapshot_type.load() != Snapshot::None) {
-            checked_snprintf(buf.data(),
-                             buf.size(),
-                             "%s:stream_%d_cur_snapshot_start",
-                             name_.c_str(),
-                             vb_.get());
-            add_casted_stat(buf.data(), cur_snapshot_start.load(), add_stat, c);
-            checked_snprintf(buf.data(),
-                             buf.size(),
-                             "%s:stream_%d_cur_snapshot_end",
-                             name_.c_str(),
-                             vb_.get());
-            add_casted_stat(buf.data(), cur_snapshot_end.load(), add_stat, c);
+            add_casted_stat("cur_snapshot_start",
+                            cur_snapshot_start.load(),
+                            add_stat,
+                            c);
+            add_casted_stat(
+                    "cur_snapshot_end", cur_snapshot_end.load(), add_stat, c);
         }
 
-        checked_snprintf(buf.data(),
-                         buf.size(),
-                         "%s:stream_%d_cur_snapshot_prepare",
-                         name_.c_str(),
-                         vb_.get());
-        add_casted_stat(buf.data(), cur_snapshot_prepare.load(), add_stat, c);
+        add_casted_stat("cur_snapshot_prepare",
+                        cur_snapshot_prepare.load(),
+                        add_stat,
+                        c);
 
         auto stream_req_value = createStreamReqValue();
 
         if (!stream_req_value.empty()) {
-            checked_snprintf(buf.data(),
-                             buf.size(),
-                             "%s:stream_%d_vb_manifest_uid",
-                             name_.c_str(),
-                             vb_.get());
-            add_casted_stat(buf.data(), stream_req_value.c_str(), add_stat, c);
+            add_casted_stat(
+                    "vb_manifest_uid", stream_req_value.c_str(), add_stat, c);
         }
 
     } catch (std::exception& error) {
