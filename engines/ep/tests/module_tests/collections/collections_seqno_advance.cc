@@ -27,7 +27,7 @@
 #include <utility>
 
 // These enums control the test input
-enum class InputType { Mutation, Prepare, CPEndStart, CPStart, CPEnd };
+enum class InputType { Mutation, Prepare, CPEndStart };
 
 enum class ForStream {
     Yes,
@@ -154,8 +154,6 @@ public:
             ++currentSeqno;
             break;
         case InputType::CPEndStart:
-        case InputType::CPStart:
-        case InputType::CPEnd:
             break;
         }
 
@@ -184,14 +182,6 @@ public:
         case InputType::CPEndStart: {
             queueCPEnd();
             queueCPStart();
-            break;
-        }
-        case InputType::CPStart: {
-            queueCPStart();
-            break;
-        }
-        case InputType::CPEnd: {
-            queueCPEnd();
             break;
         }
         }
@@ -429,12 +419,6 @@ std::string to_string(InputType type) {
     }
     case InputType::CPEndStart: {
         return "CPEndStart";
-    }
-    case InputType::CPStart: {
-        return "CPStart";
-    }
-    case InputType::CPEnd: {
-        return "CPEnd";
     }
     }
     throw std::invalid_argument("to_string(InputType) invalid input");
