@@ -3203,6 +3203,7 @@ RollbackResult MagmaKVStore::rollback(Vbid vbid,
                          status.String());
         // Fall through
     case Status::NotExists:
+    case Status::InvalidKVStore:
         logger->warn(
                 "MagmaKVStore::rollback {} KVStore not found, nothing has "
                 "been persisted yet.",
@@ -3337,10 +3338,10 @@ std::pair<bool, std::vector<Collections::KVStore::DroppedCollection>>
 MagmaKVStore::getDroppedCollections(Vbid vbid) const {
     Slice keySlice(LocalDocKey::droppedCollections);
     auto [status, dropped] = readLocalDoc(vbid, keySlice);
-    // Currently we need the NotExists check for the case in which we create the
-    // (magma)KVStore (done at first flush).
+    // Currently we need the InvalidKVStore check for the case in which we
+    // create the (magma)KVStore (done at first flush).
     // @TODO investigate removal/use of snapshot variant
-    if (!status.IsOK() && status.ErrorCode() != Status::Code::NotExists &&
+    if (!status.IsOK() && status.ErrorCode() != Status::Code::InvalidKVStore &&
         status.ErrorCode() != Status::Code::NotFound) {
         return {false, {}};
     }

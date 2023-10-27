@@ -768,7 +768,7 @@ TEST_F(MagmaKVStoreTest, ReadLocalDocErrorCode) {
     kvstore->delVBucket(vbid, std::move(kvsRev));
 
     res = kvstore->readLocalDoc(vbid, LocalDocKey::vbstate);
-    EXPECT_EQ(magma::Status::Code::NotExists, res.first.ErrorCode());
+    EXPECT_EQ(magma::Status::Code::InvalidKVStore, res.first.ErrorCode());
 }
 
 TEST_F(MagmaKVStoreTest, KVStoreRevisionAfterReopen) {
