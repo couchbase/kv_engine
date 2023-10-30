@@ -13,11 +13,16 @@
 
 #include "engine_fixture.h"
 
+#include "../tests/mock/mock_dcp_producer.h"
 #include "../tests/mock/mock_ep_bucket.h"
+#include "../tests/mock/mock_stream.h"
 
+#include <engines/ep/src/dcp/dcp-types.h>
 #include <engines/ep/src/kv_bucket.h>
+#include <engines/ep/src/vbucket.h>
 #include <executor/fake_executorpool.h>
 #include <folly/portability/GTest.h>
+#include <memcached/protocol_binary.h>
 #include <statistics/cbstat_collector.h>
 #include <statistics/labelled_collector.h>
 
@@ -27,6 +32,9 @@
 #include <programs/engine_testapp/mock_cookie.h>
 #include <programs/engine_testapp/mock_server.h>
 #include <utilities/test_manifest.h>
+#include <memory>
+#include <string>
+#include <unordered_map>
 
 class FakeManifest : public Collections::VB::Manifest {
 public:
@@ -136,6 +144,58 @@ public:
     }
 };
 
+class DcpStatsBench : public EngineStatsBench {
+public:
+    void SetUp(const benchmark::State& state) override {
+        EngineStatsBench::SetUp(state);
+        producer = std::make_shared<MockDcpProducer>(*engine,
+                                                     cookie,
+                                                     "test_producer",
+                                                     0,
+                                                     /*startTask*/ false);
+        producer->createCheckpointProcessorTask();
+
+        ASSERT_EQ(cb::engine_errc::success,
+                  engine->getKVBucket()->setVBucketState(Vbid(0),
+                                                         vbucket_state_active));
+
+        auto vb0 = engine->getVBucket(Vbid(0));
+        activeStream =
+                std::make_shared<MockActiveStream>(engine.get(),
+                                                   producer,
+                                                   0,
+                                                   /*opaque*/ 0,
+                                                   *vb0,
+                                                   /*st_seqno*/ 0,
+                                                   /*en_seqno*/ ~0,
+                                                   /*vb_uuid*/ 0xabcd,
+                                                   /*snap_start_seqno*/ 0,
+                                                   /*snap_end_seqno*/ ~0,
+                                                   IncludeValue::No,
+                                                   IncludeXattrs::No);
+
+        activeStream->public_registerCursor(
+                *vb0->checkpointManager, producer->getName(), 0);
+        activeStream->setActive();
+        auto streamPtr = std::static_pointer_cast<ActiveStream>(activeStream);
+        // Pretend we have the requested number of streams.
+        producer->enableMultipleStreamRequests();
+        for (int i = 0; i < state.range(1); i++) {
+            producer->updateStreamsMap(
+                    Vbid(0), cb::mcbp::DcpStreamId(i), streamPtr);
+        }
+    }
+
+    void TearDown(const benchmark::State& state) override {
+        activeStream.reset();
+        producer.reset();
+        EngineStatsBench::TearDown(state);
+    }
+
+    std::shared_ptr<MockDcpProducer> producer;
+    std::shared_ptr<MockActiveStream> activeStream;
+};
+
 BENCHMARK_DEFINE_F(EngineStatsBench, EngineStats)(benchmark::State& state) {
     CBStatCollector collector(dummyCallback, *cookie);
     auto bucketCollector = collector.forBucket("foobar");
@@ -160,6 +220,27 @@ BENCHMARK_DEFINE_F(MultiVBEngineStatsBench, VBucketDetailsStats)
         engine->doEngineStats(bucketCollector);
     }
 }
+
+BENCHMARK_DEFINE_F(DcpStatsBench, ProducerStreamStats)
+(benchmark::State& state) {
+    // Check expected number of times this stream exists in the producer (+1 for
+    // the pointer we have).
+    ASSERT_EQ(state.range(1) + 1, activeStream.use_count());
+
+    const auto format = state.range(0) ? ConnHandler::StreamStatsFormat::Json
+                                       : ConnHandler::StreamStatsFormat::Legacy;
+
+    while (state.KeepRunning()) {
+        producer->addStreamStats(dummyCallback, *cookie, format);
+    }
+}
+
+BENCHMARK_REGISTER_F(DcpStatsBench, ProducerStreamStats)
+        ->ArgNames({"Json", "Streams"})
+        ->ArgsProduct({
+                {0, 1},
+                {1, 10, 100, 1000},
+        });
 
 class VBucketDetailsBench : public EngineFixture {
 public:

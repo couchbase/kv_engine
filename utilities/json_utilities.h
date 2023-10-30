@@ -13,8 +13,31 @@
 
 #include <nlohmann/json.hpp>
 #include <optional>
+#include <string>
+#include <string_view>
 
 namespace cb {
+
+/**
+ * Performs obj[key] = value, but is optimised for the case where the object
+ * already has a string value of the specified key, by avoiding copying the
+ * value string into an nlohmann::json wrapper.
+ */
+void jsonSetStringView(nlohmann::json& obj,
+                       std::string_view key,
+                       std::string_view value);
+
+/**
+ * Resets the values of every key in the obj to the default value for that type
+ * of field. Numbers are set to 0, objects are set to {}, strings are reset by
+ * std::string::clear().
+ */
+void jsonResetValues(nlohmann::json& obj);
+
+/**
+ * Removes empty string values ("") from the object.
+ */
+void jsonRemoveEmptyStrings(nlohmann::json& obj);
 
 /**
  *  Helper function for throwing nlohmann incorrect type exceptions. Useful
