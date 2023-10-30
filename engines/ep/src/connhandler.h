@@ -52,6 +52,8 @@ struct ConnCounter {
     ConnCounter& operator+=(const ConnCounter& other) {
         totalConns += other.totalConns;
         totalProducers += other.totalProducers;
+        conn_activeStreams += other.conn_activeStreams;
+        conn_passiveStreams += other.conn_passiveStreams;
         conn_queueFill += other.conn_queueFill;
         conn_backfillDisk += other.conn_backfillDisk;
         conn_backfillMemory += other.conn_backfillMemory;
@@ -68,6 +70,8 @@ struct ConnCounter {
     size_t      totalConns;
     size_t      totalProducers;
 
+    size_t conn_activeStreams = 0;
+    size_t conn_passiveStreams = 0;
     size_t      conn_queueFill;
     /// Number of items backfilled from disk
     size_t conn_backfillDisk;

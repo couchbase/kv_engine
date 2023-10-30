@@ -1302,6 +1302,7 @@ void DcpConsumer::addStreamStats(const AddStatFn& add_stat, CookieIface& c) {
 }
 
 void DcpConsumer::aggregateQueueStats(ConnCounter& aggregator) const {
+    aggregator.conn_passiveStreams += streams.size();
     aggregator.conn_queueBackoff += backoffs;
 }
 

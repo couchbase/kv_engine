@@ -1679,8 +1679,10 @@ void DcpProducer::aggregateQueueStats(ConnCounter& aggregator) const {
     aggregator.conn_queueDrain += itemsSent;
     aggregator.conn_totalBytes += totalBytesSent;
     aggregator.conn_totalUncompressedDataSize += totalUncompressedDataSize;
+
     auto streamAggStats = getStreamAggStats();
 
+    aggregator.conn_activeStreams += streamAggStats.streams;
     aggregator.conn_queueRemaining += streamAggStats.itemsRemaining;
     aggregator.conn_queueMemory += streamAggStats.readyQueueMemory;
     aggregator.conn_backfillDisk += streamAggStats.backfillItemsDisk;
@@ -2047,7 +2049,9 @@ DcpProducer::StreamAggStats DcpProducer::getStreamAggStats() const {
             streams->begin(),
             streams->end(),
             [&stats](const StreamsMap::value_type& vt) {
-                for (auto itr = vt.second->rlock(); !itr.end(); itr.next()) {
+                auto itr = vt.second->rlock();
+                stats.streams += itr.size();
+                for (; !itr.end(); itr.next()) {
                     auto* as = itr.get().get();
                     if (as) {
                         stats.itemsRemaining += as->getItemsRemaining();

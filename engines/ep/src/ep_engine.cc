@@ -4255,6 +4255,10 @@ static void showConnAggStat(const std::string& connType,
             labelled.addStat(Key::connagg_consumer_count,
                              counter.totalConns - counter.totalProducers);
         }
+        labelled.addStat(Key::connagg_activestream_count,
+                         counter.conn_activeStreams);
+        labelled.addStat(Key::connagg_passivestream_count,
+                         counter.conn_passiveStreams);
         labelled.addStat(Key::connagg_items_backfilled_disk,
                          counter.conn_backfillDisk);
         labelled.addStat(Key::connagg_items_backfilled_memory,

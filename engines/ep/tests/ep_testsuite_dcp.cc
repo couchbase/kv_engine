@@ -2873,6 +2873,8 @@ static test_result test_dcp_agg_stats(EngineIface* h) {
     verifyStat("items_backfilled_memory", 0);
     verifyStat("items_remaining", 0);
     verifyStat("items_sent", 50);
+    verifyStat("activestream_count", 0);
+    verifyStat("passivestream_count", 0);
     verifyStat("producer_count", 5);
     verifyStat("ready_queue_bytes", 0);
     verifyStat("total_bytes", total_bytes);

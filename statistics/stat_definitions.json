@@ -3682,6 +3682,37 @@
         "added": "7.0.0"
     },
     {
+        "family": "dcp_stream_count",
+        "unit": "count",
+        "description": "Current number of Streams (Active or Passive)"
+    },
+    {
+        "key": "connagg_activestream_count",
+        "unit": "count",
+        "description": "Current number of ActiveStreams",
+        "cbstat": "{connection_type}:activestream_count",
+        "prometheus": {
+            "family": "dcp_stream_count",
+            "labels": {
+                "for": "producer"
+            }
+        },
+        "added": "7.6.0"
+    },
+    {
+        "key": "connagg_passivestream_count",
+        "unit": "count",
+        "description": "Current number of PassiveStreams",
+        "cbstat": "{connection_type}:passivestream_count",
+        "prometheus": {
+            "family": "dcp_stream_count",
+            "labels": {
+                "for": "consumer"
+            }
+        },
+        "added": "7.6.0"
+    },
+    {
         "family": "dcp_count",
         "unit": "count",
         "description": "Current number of DCP connections"
