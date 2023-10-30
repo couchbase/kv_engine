@@ -433,7 +433,7 @@ TEST_F(AuditFileTest, PruneFiles) {
 
         void set_prune_age(std::chrono::seconds age) {
             using namespace std::chrono;
-            audit_prune_age = age;
+            prune_age = age;
             next_prune = steady_clock::now() - seconds(1);
         }
 

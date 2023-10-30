@@ -51,10 +51,19 @@ AuditConfig::AuditConfig(const nlohmann::json& json) {
         set_event_states(json.at("event_states"));
     }
 
+    // allow audit_prune_age until ns_server commit to replace it with
+    // prune_age gets merged
     if (json.contains("audit_prune_age")) {
         size_t val = json["audit_prune_age"].get<size_t>();
         if (val != 0) {
-            audit_prune_age = std::chrono::seconds(val);
+            prune_age = std::chrono::seconds(val);
+        }
+    }
+
+    if (json.contains("prune_age")) {
+        size_t val = json["prune_age"].get<size_t>();
+        if (val != 0) {
+            prune_age = std::chrono::seconds(val);
         }
     }
 
@@ -63,6 +72,7 @@ AuditConfig::AuditConfig(const nlohmann::json& json) {
     tags["rotate_size"] = 1;
     tags["rotate_interval"] = 1;
     tags["audit_prune_age"] = 1;
+    tags["prune_age"] = 1;
     tags["auditd_enabled"] = 1;
     tags["buffered"] = 1;
     tags["log_path"] = 1;

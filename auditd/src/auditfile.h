@@ -137,7 +137,7 @@ protected:
     size_t current_size = 0;
     size_t max_log_size = 20 * 1024 * 1024;
     uint32_t rotate_interval = 900;
-    std::optional<std::chrono::seconds> audit_prune_age;
+    std::optional<std::chrono::seconds> prune_age;
     /// Iterating over all files in the directory and fetch their
     /// modification time may be "costly" so we don't want to run
     /// it too often.

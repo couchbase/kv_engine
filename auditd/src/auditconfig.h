@@ -70,9 +70,8 @@ public:
     /// while holding a mutex ;))
     nlohmann::json get_audit_event_filter() const;
 
-    [[nodiscard]] std::optional<std::chrono::seconds> get_audit_prune_age()
-            const {
-        return audit_prune_age;
+    [[nodiscard]] std::optional<std::chrono::seconds> get_prune_age() const {
+        return prune_age;
     }
 
 protected:
@@ -93,7 +92,7 @@ protected:
     bool auditd_enabled{false};
     uint32_t rotate_interval{900};
     size_t rotate_size{20 * 1024 * 1024};
-    std::optional<std::chrono::seconds> audit_prune_age;
+    std::optional<std::chrono::seconds> prune_age;
     bool buffered{true};
     bool filtering_enabled{false};
     uint32_t version{0};

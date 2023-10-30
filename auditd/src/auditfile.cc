@@ -63,13 +63,13 @@ void AuditFile::prune_old_audit_files() {
 
     const auto filesystem_now = file_time_type::clock::now();
     const auto now = steady_clock::now();
-    if (!audit_prune_age.has_value() || next_prune > now) {
+    if (!prune_age.has_value() || next_prune > now) {
         return;
     }
 
     auto oldest = filesystem_now;
 
-    const auto then = filesystem_now - *audit_prune_age;
+    const auto then = filesystem_now - *prune_age;
     iterate_old_files([this, then, &oldest](const auto& path) {
         auto mtime = last_write_time(path);
         if (mtime < then) {
@@ -80,12 +80,12 @@ void AuditFile::prune_old_audit_files() {
     });
 
     if (oldest == filesystem_now) {
-        next_prune = now + *audit_prune_age;
+        next_prune = now + *prune_age;
     } else {
         auto age = duration_cast<seconds>(filesystem_now - oldest);
 
         // set next prune to a second after the oldest file expire
-        next_prune = now + (*audit_prune_age - age) + seconds(1);
+        next_prune = now + (*prune_age - age) + seconds(1);
     }
 }
 
@@ -140,7 +140,7 @@ std::chrono::seconds AuditFile::get_sleep_time() const {
     using namespace std::chrono;
 
     const auto rotation = seconds{get_seconds_to_rotation()};
-    if (!audit_prune_age) {
+    if (!prune_age) {
         return rotation;
     }
     const auto now = steady_clock::now();
@@ -375,7 +375,7 @@ void AuditFile::reconfigure(const AuditConfig &config) {
     set_log_directory(config.get_log_directory());
     max_log_size = config.get_rotate_size();
     buffered = config.is_buffered();
-    audit_prune_age = config.get_audit_prune_age();
+    prune_age = config.get_prune_age();
     next_prune = std::chrono::steady_clock::now();
 }
 

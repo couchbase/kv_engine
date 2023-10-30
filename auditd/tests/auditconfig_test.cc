@@ -384,12 +384,12 @@ TEST_F(AuditConfigTest, TestSpecifyEventStates) {
 
 TEST_F(AuditConfigTest, AuditPruneAge) {
     config = AuditConfig(json);
-    EXPECT_FALSE(config.get_audit_prune_age().has_value());
-    json["audit_prune_age"] = 0;
+    EXPECT_FALSE(config.get_prune_age().has_value());
+    json["prune_age"] = 0;
     config = AuditConfig(json);
-    EXPECT_FALSE(config.get_audit_prune_age().has_value());
-    json["audit_prune_age"] = 1000;
+    EXPECT_FALSE(config.get_prune_age().has_value());
+    json["prune_age"] = 1000;
     config = AuditConfig(json);
-    EXPECT_TRUE(config.get_audit_prune_age().has_value());
-    EXPECT_EQ(1000, config.get_audit_prune_age().value().count());
+    EXPECT_TRUE(config.get_prune_age().has_value());
+    EXPECT_EQ(1000, config.get_prune_age().value().count());
 }
