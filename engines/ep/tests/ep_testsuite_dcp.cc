@@ -8283,11 +8283,16 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_producer_disk_backfill_buffer_limits,
                  test_setup,
                  teardown,
-                 /* Set buffer size to a very low value (less than the size
-                    of a mutation) */
+                 // - Set buffer size to a very low value (less than the size
+                 //   of a mutation)
+                 // - Disable ItemExpel. The test verifies some condition by
+                 //   looking at the number of removed checkpoints for memory
+                 //   recovery. If ItemExpel kicks in before checkpoint removal,
+                 //   then the test fails.
                  "dcp_backfill_byte_limit=1;chk_remover_stime=1;"
                  "chk_max_items=3;checkpoint_memory_recovery_upper_mark=0;"
-                 "checkpoint_memory_recovery_lower_mark=0",
+                 "checkpoint_memory_recovery_lower_mark=0;chk_expel_enabled="
+                 "false",
                  prepare,
                  cleanup),
         TestCase("test producer stream request (memory only)",
