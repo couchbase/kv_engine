@@ -14,6 +14,7 @@
 #include "../mock/mock_ep_bucket.h"
 #include "../mock/mock_item_freq_decayer.h"
 #include "../mock/mock_kvstore.h"
+#include "../mock/mock_mutation_log.h"
 #include "../mock/mock_synchronous_ep_engine.h"
 #include "checkpoint_manager.h"
 #include "collections/manager.h"
@@ -667,6 +668,57 @@ TEST_F(WarmupTest, MB_31450_newCp) {
 
 TEST_F(WarmupTest, MB_31450) {
     MB_31450(false);
+}
+
+TEST_F(WarmupTest, MB_58135_CorruptAccessLog) {
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    auto key = makeStoredDocKey("key");
+    for (int i = 0; i < 1; i++) {
+        store_item(vbid, makeStoredDocKey("key" + std::to_string(i)), "value");
+    }
+    flush_vbucket_to_disk(vbid, 1);
+
+    // Create an access log for each shard (warmup only uses access logs if it
+    // has a complete set). First one will be valid, second one will be
+    // corrupted.
+    ASSERT_EQ(2, engine->getWorkLoadPolicy().getNumShards());
+    {
+        MutationLog mlog("access_log.0");
+        mlog.open();
+        mlog.newItem(vbid, key);
+    }
+    {
+        MockMutationLog mlog("access_log.1");
+        mlog.open();
+        mlog.newItem(vbid, key);
+        bool modified = false;
+        for (size_t i = 0; i < mlog.public_getBlockPos(); i++) {
+            // Corrupt the magic
+            auto& c = mlog.public_getBlockBuffer()[i];
+            if (c == MutationLogEntryV3::MagicMarker) {
+                c = 0xff;
+                modified = true;
+            }
+        }
+        ASSERT_TRUE(modified);
+    }
+    // Copy corrupted access log to .old so we check both
+    // code paths (warmup will fallback to .old if the main one cannot be read).
+    namespace fs = std::filesystem;
+    auto alog = fs::path("access_log.1");
+    EXPECT_TRUE(fs::exists(alog));
+    auto alog_old = fs::path("access_log.1.old");
+    fs::remove(alog_old);
+    fs::copy_file(alog, alog_old);
+    EXPECT_TRUE(fs::exists(alog_old));
+
+    // Test: restart and warmup. Should not crash, warmup should succeed
+    // without access log.
+    resetEngineAndWarmup("alog_path=access_log");
+
+    auto* warmup = engine->getKVBucket()->getWarmup();
+    EXPECT_EQ(WarmupState::State::Done, warmup->getWarmupState());
 }
 
 // Test fixture for Durability-related Warmup tests.

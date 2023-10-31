@@ -714,7 +714,7 @@ private:
      * @param highNonVisibleSeqno the snapEnd seqno that includes any non
      * visible mutations i.e. prepares and aborts. This is only used when
      * collections is enabled and sync writes are not supported on the stream.
-     * @param newLastReadSeqno The new lastReadSeqno, see member for details-
+     * @param newLastReadSeqno The new lastReadSeqno, see member for details.
      */
     void snapshot(const OutstandingItemsResult& meta,
                   std::deque<std::unique_ptr<DcpResponse>>& items,
