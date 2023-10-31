@@ -17,48 +17,30 @@ namespace cb::sasl::mechanism::plain {
 
 std::pair<Error, std::string_view> ServerBackend::start(
         std::string_view input) {
-    if (input.empty()) {
+    // Format: message = [authzid] UTF8NUL authcid UTF8NUL passwd
+    //
+    // Skip authzid
+    auto index = input.find('\0');
+    if (index == std::string_view::npos) {
         return {Error::BAD_PARAM, {}};
     }
+    input.remove_prefix(index + 1);
 
-    // Skip everything up to the first \0
-    size_t inputpos = 0;
-    while (inputpos < input.size() && input[inputpos] != '\0') {
-        inputpos++;
-    }
-    inputpos++;
-
-    if (inputpos >= input.size()) {
+    // authcid (our username)
+    index = input.find('\0');
+    if (index == std::string_view::npos) {
         return {Error::BAD_PARAM, {}};
     }
+    username = std::string{input.substr(0, index)};
 
-    size_t pwlen = 0;
-    const char* username = input.data() + inputpos;
-    const char* password = nullptr;
-    while (inputpos < input.size() && input[inputpos] != '\0') {
-        inputpos++;
-    }
-    inputpos++;
-
-    if (inputpos > input.size()) {
-        return std::make_pair<Error, std::string_view>(Error::BAD_PARAM, {});
-    } else if (inputpos != input.size()) {
-        password = input.data() + inputpos;
-        while (inputpos < input.size() && input[inputpos] != '\0') {
-            inputpos++;
-            pwlen++;
-        }
-    }
-
-    this->username.assign(username);
-    const std::string userpw(password, pwlen);
-
+    // finally password
+    const auto password = input.substr(index + 1);
     cb::sasl::pwdb::User user;
     if (!find_user(username, user)) {
         return {Error::NO_USER, {}};
     }
 
-    return {cb::sasl::plain::check_password(user, userpw), {}};
+    return {cb::sasl::plain::check_password(user, password), {}};
 }
 
 std::pair<Error, std::string_view> ClientBackend::start() {
