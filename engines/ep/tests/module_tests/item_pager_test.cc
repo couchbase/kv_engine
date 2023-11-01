@@ -1756,6 +1756,68 @@ TEST_P(STEphemeralAutoDeleteItemPagerTest, PageOutHoldsVBStateLock) {
     EXPECT_TRUE(softDeleteCalled);
 }
 
+// Test reproduced MB-59368. This was an issue where memory reached the
+// threshold to trigger the pager (which will delete data), but code in the
+// paging visitor was checking different values and stopped the pager. The pager
+// would then just keep getting triggered leading to noticeable CPU increase
+// and no memory reduction.
+TEST_P(STEphemeralAutoDeleteItemPagerTest, MB_59368) {
+    // Need two vbuckets and one must be replica so that we account the replica
+    // memory usage which will affect the result of getPageableMemCurrent
+    const Vbid activeVbid = vbid;
+    const Vbid replicaVbid(1);
+
+    setVBucketState(replicaVbid, vbucket_state_replica);
+
+    auto setReplica = [this](Vbid replicaVbid, int count) {
+        auto key = makeStoredDocKey("replica_" + std::to_string(count));
+        auto item = make_item(replicaVbid, key, "value");
+        item.setCas(1 + count);
+        uint64_t seqno;
+        ASSERT_EQ(cb::engine_errc::success,
+                  store->setWithMeta(item,
+                                     0,
+                                     &seqno,
+                                     cookie,
+                                     {vbucket_state_replica},
+                                     CheckConflicts::No,
+                                     true,
+                                     GenerateBySeqno::Yes,
+                                     GenerateCas::Yes));
+    };
+
+    auto setActive = [this](Vbid activeVbid, int count) {
+        auto key = makeStoredDocKey("active_" + std::to_string(count));
+        auto item = make_item(activeVbid, key, "value");
+        storeItem(item);
+    };
+
+    auto& stats = engine->getEpStats();
+    int count = 0;
+    do {
+        // Write the active last as the path it executes will do the memory
+        // check that schedules the pager.
+        setReplica(replicaVbid, count);
+        setActive(activeVbid, count);
+        ++count;
+    } while (store->getPageableMemCurrent() <
+             store->getPageableMemHighWatermark());
+
+    // This is the condition which produced the issue.
+    ASSERT_LT(stats.getPreciseTotalMemoryUsed(), stats.mem_low_wat);
+
+    auto& vb = *store->getVBucket(activeVbid);
+    bool softDeleteCalled{false};
+    VBucketTestIntrospector::setSoftDeleteStoredValueHook(
+            vb, {[&softDeleteCalled](folly::SharedMutex& vbStateLock) {
+                softDeleteCalled = true;
+            }});
+
+    // Run the pager and check that items got deleted.
+    runHighMemoryPager();
+    EXPECT_TRUE(softDeleteCalled) << "Nothing was deleted";
+}
+
 /**
  * Test fixture for expiry pager tests - enables the Expiry Pager (in addition
  * to what the parent class does).

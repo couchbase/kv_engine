@@ -386,9 +386,11 @@ void ItemPagingVisitor::update() {
 }
 
 bool ItemPagingVisitor::shouldStopPaging() const {
-    auto current = static_cast<double>(stats.getEstimatedTotalMemoryUsed());
-    auto lower = static_cast<double>(stats.mem_low_wat);
-    // stop eviction whenever memory usage is below low watermark
+    auto current = static_cast<double>(store.getPageableMemCurrent());
+    auto lower = static_cast<double>(store.getPageableMemLowWatermark());
+
+    // stop eviction whenever pageable memory usage is below the pageable low
+    // watermark
     return current <= lower;
 }
 
