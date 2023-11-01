@@ -4650,6 +4650,96 @@ TEST_P(SingleThreadedPassiveStreamTest, GetSnapshotInfo) {
     EXPECT_EQ(snapshot_range_t(2, 2), snapInfo.range);
 }
 
+// Note: At the moment this test's purpose is to show how outbound DCP behaves
+// at replica.
+// @todo MB-59288
+TEST_P(SingleThreadedPassiveStreamTest, BackfillSnapshotFromPartialReplica) {
+    auto& vb = *store->getVBucket(vbid);
+    ASSERT_EQ(0, vb.getHighSeqno());
+    auto& manager = static_cast<MockCheckpointManager&>(*vb.checkpointManager);
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(2, manager.getNumOpenChkItems()); // cs, vbs
+    removeCheckpoint(vb);
+    ASSERT_EQ(0, vb.getHighSeqno());
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(1, manager.getNumOpenChkItems()); // cs
+    const auto& list = manager.getCheckpointList();
+    ASSERT_FALSE(list.back()->modifiedByExpel());
+    // The stream isn't in any snapshot (no data received)
+    auto snapInfo = manager.getSnapshotInfo();
+    EXPECT_EQ(0, snapInfo.start);
+    EXPECT_EQ(snapshot_range_t(0, 0), snapInfo.range);
+    // Same on disk
+    auto& underlying = *store->getRWUnderlying(vbid);
+    ASSERT_EQ(0, underlying.getLastPersistedSeqno(vbid));
+    auto vbstate = underlying.getPersistedVBucketState(vbid);
+    ASSERT_EQ(0, vbstate.state.lastSnapStart);
+    ASSERT_EQ(0, vbstate.state.lastSnapEnd);
+    const uint64_t opaque = 1;
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       1, // start
+                                       2, // end
+                                       MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+                                       {},
+                                       {}));
+    ASSERT_EQ(0, underlying.getLastPersistedSeqno(vbid));
+    vbstate = underlying.getPersistedVBucketState(vbid);
+    ASSERT_EQ(0, vbstate.state.lastSnapStart);
+    ASSERT_EQ(0, vbstate.state.lastSnapEnd);
+    const auto key = makeStoredDocKey("key");
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->mutation(opaque,
+                                 key,
+                                 {},
+                                 0,
+                                 0,
+                                 0,
+                                 vbid,
+                                 0,
+                                 1, // seqno
+                                 0,
+                                 0,
+                                 0,
+                                 {},
+                                 0));
+    EXPECT_EQ(1, vb.getHighSeqno());
+    EXPECT_EQ(2, manager.getNumOpenChkItems()); // cs, mut
+    // The stream is in a partial snapshot here
+    snapInfo = manager.getSnapshotInfo();
+    EXPECT_EQ(1, snapInfo.start);
+    EXPECT_EQ(snapshot_range_t(1, 2), snapInfo.range);
+    // Disk too
+    flushVBucketToDiskIfPersistent(vbid);
+    ASSERT_EQ(1, underlying.getLastPersistedSeqno(vbid));
+    vbstate = underlying.getPersistedVBucketState(vbid);
+    ASSERT_EQ(0, vbstate.state.lastSnapStart);
+    ASSERT_EQ(2, vbstate.state.lastSnapEnd);
+    // Trigger an outbound backfill
+    removeCheckpoint(vb);
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer->test_consumer", 0, false);
+    auto activeStream = std::make_shared<MockActiveStream>(
+            engine.get(), producer, 0, 0, vb);
+    activeStream->setActive();
+    ASSERT_TRUE(activeStream->isBackfilling());
+    auto& readyQ = activeStream->public_readyQ();
+    ASSERT_EQ(0, readyQ.size());
+    // Core test
+    // Backfill generates a [0, 1] complete snapshot even if on disk replica is
+    // in a partial [0, 2] snapshot.
+    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    runNextTask(lpAuxioQ); // init
+    ASSERT_EQ(1, readyQ.size());
+    auto resp = activeStream->next(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_EQ(0, snapMarker.getStartSeqno());
+    EXPECT_EQ(1, snapMarker.getEndSeqno());
+}
+
 /**
  * MB-38444: We fix an Ephemeral-only bug, but test covers Persistent bucket too
  */
