@@ -728,6 +728,13 @@ public:
                 "item_eviction_policy=full_eviction"s);
     }
 
+    static auto ephAutoDeleteConfigValues() {
+        using namespace std::string_literals;
+        return ::testing::Values(
+                "bucket_type=ephemeral:"
+                "ephemeral_full_policy=auto_delete"s);
+    }
+
     bool persistent() const {
         return GetParam().find("persistent") != std::string::npos;
     }

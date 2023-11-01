@@ -38,4 +38,9 @@ public:
     static void destroyDM(VBucket& vb) {
         vb.durabilityMonitor.reset();
     }
+
+    static void setSoftDeleteStoredValueHook(
+            VBucket& vb, TestingHook<folly::SharedMutex&> hook) {
+        vb.softDeleteStoredValueHook = hook;
+    }
 };

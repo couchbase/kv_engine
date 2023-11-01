@@ -2524,6 +2524,8 @@ protected:
      */
     const SyncWriteTimeoutHandlerFactory syncWriteTimeoutFactory;
 
+    TestingHook<folly::SharedMutex&> softDeleteStoredValueHook;
+
 private:
     /**
      * The replication topology, set as part of SET_VBUCKET_STATE.
