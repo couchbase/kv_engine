@@ -1794,7 +1794,7 @@ void Warmup::loadingAccessLog(uint16_t shardId) {
                 (size_t)-1) {
                 success = true;
             }
-        } catch (MutationLog::ReadException& e) {
+        } catch (const std::exception& e) {
             corruptAccessLog = true;
             EP_LOG_WARN("Error reading warmup access log:  {}", e.what());
         }
@@ -1812,7 +1812,7 @@ void Warmup::loadingAccessLog(uint16_t shardId) {
                     (size_t)-1) {
                     success = true;
                 }
-            } catch (MutationLog::ReadException& e) {
+            } catch (const std::exception& e) {
                 corruptAccessLog = true;
                 EP_LOG_WARN("Error reading old access log:  {}", e.what());
             }
