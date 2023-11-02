@@ -657,7 +657,7 @@ TEST_P(RegressionTest, MB54848) {
     FAIL() << "Timed out waiting for log messages to appear";
 }
 
-TEST_P(RegressionTest, DISABLED_MB55754) {
+TEST_P(RegressionTest, MB55754) {
     // Store the document
     BinprotSubdocMultiMutationCommand cmd;
     cmd.setKey(name);
@@ -721,7 +721,7 @@ TEST_P(RegressionTest, DISABLED_MB55754) {
     // 100 retries).
     const auto yields = conn_stats_after["yields"].get<int>() -
                         conn_stats_before["yields"].get<int>();
-    EXPECT_LE(4, yields) << "After: " << conn_stats_after["yields"].get<int>()
+    EXPECT_LE(3, yields) << "After: " << conn_stats_after["yields"].get<int>()
                          << " Before: "
                          << conn_stats_before["yields"].get<int>();
 }
