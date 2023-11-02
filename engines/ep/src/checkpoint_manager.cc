@@ -1307,34 +1307,50 @@ vbucket_state_t CheckpointManager::getVBState() const {
     return vb.getState();
 }
 
-void CheckpointManager::clear(const std::lock_guard<std::mutex>& lh,
-                              uint64_t seqno) {
+void CheckpointManager::clear(std::optional<uint64_t> seqno) {
     // Swap our checkpoint list for a new one so that we can clear everything
     // and addOpenCheckpoint will create the new checkpoint in our new list.
     // This also keeps our cursors pointing to valid checkpoints which is
     // necessary as we will dereference them in resetCursors to decrement the
     // counts of the old checkpoints.
-    CheckpointList newCheckpointList;
-    checkpointList.swap(newCheckpointList);
+    CheckpointList toRemove;
+    {
+        std::lock_guard<std::mutex> lh(queueLock);
+        const auto first = checkpointList.begin();
+        const auto end = checkpointList.end();
+        const auto last = std::prev(end);
+        Expects((*first)->getId() <= (*last)->getId());
+        const auto distance = ((*last)->getId() - (*first)->getId()) + 1;
+        // Note: Same as for the STL container, the overload of the splice
+        // function that doesn't require the distance is O(N) in the size of the
+        // input list, while this is a O(1) operation.
+        toRemove.splice(toRemove.begin(), checkpointList, first, end, distance);
+        Ensures(checkpointList.empty());
 
-    numItems = 0;
-    lastBySeqno.reset(seqno);
-    maxVisibleSeqno.reset(seqno);
+        numItems = 0;
+        const auto newHighSeqno = seqno ? *seqno : lastBySeqno;
+        lastBySeqno.reset(newHighSeqno);
+        maxVisibleSeqno.reset(newHighSeqno);
 
-    Expects(checkpointList.empty());
+        // Use lastBySeqno + 1 as that will be the seqno of the first item
+        // belonging to this checkpoint
+        addOpenCheckpoint(
+                lastBySeqno + 1,
+                lastBySeqno + 1,
+                maxVisibleSeqno,
+                {},
+                0, // HPS=0 because we have correct val on disk and in PDM
+                CheckpointType::Memory,
+                vb.isHistoryRetentionEnabled() ? CheckpointHistorical::Yes
+                                               : CheckpointHistorical::No);
+        resetCursors();
+    }
 
-    // Use lastBySeqno + 1 as that will be the seqno of the first item belonging
-    // to this checkpoint
-    addOpenCheckpoint(lastBySeqno + 1,
-                      lastBySeqno + 1,
-                      maxVisibleSeqno,
-                      {},
-                      0, // HPS=0 because we have correct val on disk and in PDM
-                      CheckpointType::Memory,
-                      vb.isHistoryRetentionEnabled()
-                              ? CheckpointHistorical::Yes
-                              : CheckpointHistorical::No);
-    resetCursors();
+    // Note: O(N) scan of all removed checkpoint (necessary for mem stats
+    // update) is lock-free.
+    for (auto& c : toRemove) {
+        c->detachFromManager();
+    }
 }
 
 void CheckpointManager::resetCursors() {
@@ -1417,11 +1433,6 @@ size_t CheckpointManager::getNumItemsForCursor(
                                 return a + b->getNumItems();
                             });
     return result;
-}
-
-void CheckpointManager::clear(std::optional<uint64_t> seqno) {
-    std::lock_guard<std::mutex> lh(queueLock);
-    clear(lh, seqno ? *seqno : lastBySeqno);
 }
 
 bool CheckpointManager::isLastMutationItemInCheckpoint(

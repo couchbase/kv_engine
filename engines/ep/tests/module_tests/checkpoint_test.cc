@@ -2102,10 +2102,8 @@ TEST_F(SingleThreadedCheckpointTest, ItemExpelResilientToVBucketRollback) {
     // caused by that rollback has removed the checkpoint touched by ItemExpel
     manager.expelUnreferencedCheckpointItems();
 
-    // @todo MB-58406: Fix and re-enabled the test
     // Note: The CM was cleared, so mem-usage must track the correct allocation
     // for the single/empty checkpoint in CheckpointList
-    /*
     auto config = CheckpointConfig(store->getEPEngine().getConfiguration());
     const auto emptyManager =
             CheckpointManager(store->getEPEngine().getEpStats(),
@@ -2122,7 +2120,6 @@ TEST_F(SingleThreadedCheckpointTest, ItemExpelResilientToVBucketRollback) {
     EXPECT_EQ(emptyManager.getMemOverheadQueue(),
               manager.getMemOverheadQueue());
     EXPECT_EQ(0, manager.getMemOverheadIndex());
-     */
 }
 
 // Test that when the same client registers twice, the first cursor 'dies'

@@ -709,15 +709,6 @@ protected:
                                 const CheckpointCursor& cursor) const;
 
     /**
-     * Clears this CM, effectively removing all checkpoints in the list and
-     * resetting seqnos.
-     *
-     * @param lh Lock to CM::queueLock
-     * @param seqno The high-seqno to set for the cleared CM
-     */
-    void clear(const std::lock_guard<std::mutex>& lh, uint64_t seqno);
-
-    /**
      *
      * @param lh Lock to CM::queueLock
      * @return a reference to the open checkpoint
