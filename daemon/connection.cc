@@ -787,8 +787,13 @@ void Connection::tryToProgressDcpStream() {
         // it could be pending bufferAcks
         numEvents = max_reqs_per_event;
     }
-    while (more && numEvents > 0 &&
-           std::chrono::steady_clock::now() < current_timeslice_end) {
+    bool exceededTimeslice = false;
+    while (more && numEvents > 0) {
+        exceededTimeslice =
+                std::chrono::steady_clock::now() >= current_timeslice_end;
+        if (exceededTimeslice) {
+            break;
+        }
         const auto [throttle, allocDomain] =
                 getBucket().shouldThrottleDcp(*this);
         dcpResourceAllocationDomain = allocDomain;
@@ -818,7 +823,7 @@ void Connection::tryToProgressDcpStream() {
             more = false;
         }
     }
-    if (more && numEvents == 0) {
+    if (more && (numEvents == 0 || exceededTimeslice)) {
         // We used the entire timeslice... schedule a new one
         triggerCallback();
     }
