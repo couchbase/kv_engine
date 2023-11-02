@@ -76,7 +76,7 @@ static Item store(HashTable& h, const StoredDocKey& k) {
     return i;
 }
 
-static void storeMany(HashTable& h, const std::vector<StoredDocKey>& keys) {
+static void storeMany(HashTable& h, gsl::span<StoredDocKey> keys) {
     for (const auto& key : keys) {
         store(h, key);
     }
@@ -251,6 +251,59 @@ TEST_F(HashTableTest, Resize) {
     EXPECT_EQ(769, h.getSize());
 
     verifyFound(h, keys);
+}
+
+/// Test that if a HashTable's size fluctuates between two prime sizes, we don't
+/// resize it (as we could end up oscellating between two HashTable capacities
+/// frequently, paying a large resize cost.
+TEST_F(HashTableTest, ResizeStablity) {
+    // Start with a hashTable sized as configuration - 47 slots
+    HashTable h(global_stats, makeFactory(), 47, 3, 0);
+    ASSERT_EQ(h.getSize(), 47);
+    ASSERT_EQ(h.getNumResizes(), 0);
+
+    // Populate to the the next prime size (97)
+    auto keys = generateKeys(98);
+    storeMany(h, gsl::span{keys.data(), 97});
+    ASSERT_EQ(97, count(h));
+
+    // Call resize(), should not yet resize (given chosen and previous size
+    // include the current size)
+    h.resize();
+    EXPECT_EQ(h.getNumResizes(), 0);
+    EXPECT_EQ(47, h.getSize());
+
+    // Add another item, increasing to 98 - should be enough to resize.
+    store(h, keys.at(97));
+    ASSERT_EQ(98, count(h));
+    h.resize();
+    EXPECT_EQ(h.getNumResizes(), 1);
+    EXPECT_EQ(97, h.getSize());
+
+    // Remove one item so only have 97 items, then resize again. Should stay
+    // at current size, even though previously 97 items did resize.
+    ASSERT_TRUE(HashTableTest::del(h, keys.at(97)));
+    ASSERT_EQ(97, count(h));
+    h.resize();
+    EXPECT_EQ(h.getNumResizes(), 1);
+    EXPECT_EQ(97, h.getSize());
+
+    // Remove another item; again we should not resize yet.
+    ASSERT_TRUE(HashTableTest::del(h, keys.at(96)));
+    ASSERT_EQ(96, count(h));
+    h.resize();
+    EXPECT_EQ(h.getNumResizes(), 1);
+    EXPECT_EQ(97, h.getSize());
+
+    // Reduce item count down to previous prime_size (47), this should be
+    // sufficient to trigger a resize() to previous prime size (47).
+    for (auto key : gsl::span{keys.data() + 47, 49}) {
+        ASSERT_TRUE(HashTableTest::del(h, key));
+    }
+    ASSERT_EQ(47, count(h));
+    h.resize();
+    EXPECT_EQ(h.getNumResizes(), 2);
+    EXPECT_EQ(47, h.getSize());
 }
 
 class AccessGenerator : public Generator<bool> {
