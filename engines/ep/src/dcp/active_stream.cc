@@ -1425,6 +1425,25 @@ void ActiveStream::processItems(
                 sendSnapshotAndSeqnoAdvanced(outstandingItemsResult,
                                              highNonVisibleSeqno.value(),
                                              highNonVisibleSeqno.value());
+            } else if (lastReadSeqno < curChkSeqno) {
+                // So here we are in the case where:
+                // - We have moved the DCP cursor and pulled some items
+                // - There was some non-meta items (as curChkSeqno has been
+                //   bumped)
+                // - We have filtered out some item (lastReadSeqno not aligned
+                //   to curChkSeqno)
+                // - Actually we have filtered all the items and we have skipped
+                //   the call to snapshot().
+                //
+                // We need to bump lastReadSeqno.
+                // The local newLastReadSeqno variable is updated with all
+                // seqnos that belong the stream, regardless of whether they are
+                // filtered out by the stream filter. That's the quantity that
+                // we normally use in the snapshot() golden-path for updating
+                // AS::lastReadSeqno. Used here with the same semantic.
+                if (lastReadSeqno < newLastReadSeqno) {
+                    lastReadSeqno = newLastReadSeqno;
+                }
             }
         }
         // if we've processed past the stream's end seqno then transition to the
@@ -1437,7 +1456,7 @@ void ActiveStream::processItems(
     // After the snapshot has been processed, check if the filter is now empty
     // a stream with an empty filter does nothing but self close
     if (filter.empty()) {
-        // Filter is now empty empty, so endStream
+        // Filter is now empty, so endStream
         endStream(cb::mcbp::DcpStreamEndStatus::FilterEmpty);
     }
 

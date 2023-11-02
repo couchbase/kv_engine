@@ -303,6 +303,14 @@ public:
 
     uint64_t getLastSentSeqno() const;
 
+    uint64_t getCurChkSeqno() const {
+        return curChkSeqno;
+    }
+
+    uint64_t getLastSentSnapEndSeqno() const {
+        return lastSentSnapEndSeqno;
+    }
+
     // Defined in active_stream_impl.h to remove the need to include the
     // producer header here
     template <typename... Args>

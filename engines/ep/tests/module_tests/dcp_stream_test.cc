@@ -5201,6 +5201,146 @@ TEST_P(SingleThreadedActiveStreamTest,
     EXPECT_EQ(DcpResponse::Event::Mutation, readyQ.back()->getEvent());
 }
 
+TEST_P(SingleThreadedActiveStreamTest, MB_58961) {
+    // No OSOBackfill in Ephemeral
+    if (ephemeral()) {
+        GTEST_SKIP();
+    }
+
+    // Create a collection
+    CollectionsManifest manifest;
+    const auto& cFruit = CollectionEntry::fruit;
+    manifest.add(
+            cFruit, cb::NoExpiryLimit, true /*history*/, ScopeEntry::defaultS);
+    auto& vb = *store->getVBucket(vbid);
+    vb.updateFromManifest(Collections::Manifest{std::string{manifest}});
+    ASSERT_EQ(1, vb.getHighSeqno());
+
+    // seqno:2 in cFruit
+    const std::string value("value");
+    store_item(vbid, makeStoredDocKey("keyF", cFruit), value);
+    ASSERT_EQ(2, vb.getHighSeqno());
+
+    // Add some data to the default collection
+    const auto& cDefault = CollectionEntry::defaultC;
+    store_item(vbid, makeStoredDocKey("keyD", cDefault), value);
+    ASSERT_EQ(3, vb.getHighSeqno());
+
+    // [e:1 cs:1 se:1 m(keyF):2 m(keyD):3)
+
+    // Ensure new stream will backfill
+    stream->public_getOutstandingItems(vb);
+    removeCheckpoint(vb);
+
+    // [e:4 cs:4)
+
+    // Ensure OSOBackfill is triggered
+    engine->getConfiguration().setDcpOsoBackfill("enabled");
+    producer->setOutOfOrderSnapshots(OutOfOrderSnapshots::YesWithSeqnoAdvanced);
+
+    // Stream filters on cFruit
+    recreateStream(
+            vb,
+            true,
+            fmt::format(R"({{"collections":["{:x}"]}})", uint32_t(cFruit.uid)));
+    ASSERT_TRUE(stream);
+    // Pushed to backfill
+    ASSERT_TRUE(stream->isBackfilling());
+
+    // [e:4 cs:4)
+    //  ^
+
+    auto& readyQ = stream->public_readyQ();
+    ASSERT_EQ(0, readyQ.size());
+
+    // Run the OSO backfill
+    runBackfill(); // push markers and data
+    ASSERT_EQ(5, readyQ.size());
+
+    auto resp = stream->public_nextQueuedItem(*producer);
+    EXPECT_EQ(DcpResponse::Event::OSOSnapshot, resp->getEvent());
+
+    resp = stream->public_nextQueuedItem(*producer);
+    EXPECT_EQ(DcpResponse::Event::SystemEvent, resp->getEvent());
+    EXPECT_EQ(1, resp->getBySeqno());
+
+    resp = stream->public_nextQueuedItem(*producer);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    EXPECT_EQ(2, resp->getBySeqno());
+
+    // Note: seqno:3 is in cDefault, filtered out, SeqnoAdvance(3) sent
+    resp = stream->public_nextQueuedItem(*producer);
+    EXPECT_EQ(DcpResponse::Event::SeqnoAdvanced, resp->getEvent());
+    EXPECT_EQ(3, resp->getBySeqno());
+
+    resp = stream->public_nextQueuedItem(*producer);
+    EXPECT_EQ(DcpResponse::Event::OSOSnapshot, resp->getEvent());
+
+    EXPECT_EQ(0, stream->getLastSentSnapEndSeqno());
+    EXPECT_EQ(2, stream->getLastBackfilledSeqno());
+    EXPECT_EQ(3, stream->getLastSentSeqno());
+    EXPECT_EQ(3, stream->getLastReadSeqno());
+    EXPECT_EQ(4, stream->getCurChkSeqno());
+
+    ASSERT_FALSE(stream->public_nextQueuedItem(*producer));
+    GMockDcpMsgProducers producers;
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
+    ASSERT_TRUE(stream->isInMemory());
+
+    // [e:4 cs:4)
+    //  ^
+
+    store_item(vbid, makeStoredDocKey("keyD4", cDefault), value);
+    ASSERT_EQ(4, vb.getHighSeqno());
+    store_item(vbid, makeStoredDocKey("keyD5", cDefault), value);
+    ASSERT_EQ(5, vb.getHighSeqno());
+
+    // [e:4 cs:4 m(keyD4):4 m(keyD5):5)
+    //  ^
+
+    // Move inMemory stream.
+    // Note: Before the fix we do move the cursor but we miss to advance the
+    // stream
+    ASSERT_EQ(0, readyQ.size());
+    runCheckpointProcessor(*producer, producers);
+    // Note: We don't send any snapshot when all items are filtrered out
+    EXPECT_EQ(0, readyQ.size());
+
+    // [e:4 cs:4 m(keyD4):4 m(keyD5):5)
+    //                      ^
+
+    EXPECT_EQ(0, stream->getLastSentSnapEndSeqno());
+    EXPECT_EQ(2, stream->getLastBackfilledSeqno());
+    EXPECT_EQ(3, stream->getLastSentSeqno());
+    EXPECT_EQ(5, stream->getLastReadSeqno()); // Before the fix: 3
+    EXPECT_EQ(5, stream->getCurChkSeqno());
+
+    // CursorDrop + backfill
+    ASSERT_TRUE(stream->handleSlowStream());
+    ASSERT_TRUE(stream->isInMemory());
+
+    // [e:4 cs:4 m(keyD4):4 m(keyD5):5)
+    //                      x
+
+    // Before the fix for MB-58961 this step triggers:
+    //
+    // libc++abi: terminating due to uncaught exception of type
+    // boost::exception_detail::error_info_injector<std::logic_error>:Monotonic<y>
+    // (ActiveStream(test_producer->test_consumer (vb:0))::curChkSeqno)
+    // invariant failed: new value (4) breaks invariant on current value (5)
+    //
+    // The reason for the failure in MB-58961 is that we miss to update
+    // AS::lastReadSeqno when we process the "empty-by-filter" snapshot before
+    // CursorDrop.
+    // By that:
+    // (a) lastReadSeqno stays at 3
+    // (b) In the subsequent AS::scheduleBackfill(lastReadSeqno:3) call we
+    //     re-register the cursor at cs:4 and we try to reset curChkSeqno (5) by
+    //     (4).
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(producers));
+    EXPECT_FALSE(stream->isBackfilling());
+}
+
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
                          SingleThreadedActiveStreamTest,
                          STParameterizedBucketTest::allConfigValues(),
