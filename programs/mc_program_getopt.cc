@@ -9,6 +9,7 @@
  */
 
 #include "mc_program_getopt.h"
+#include <cbsasl/mechanism.h>
 #include <platform/terminal_color.h>
 #include <programs/getpass.h>
 #include <programs/hostname_utils.h>
@@ -101,6 +102,15 @@ std::vector<std::string_view> McProgramGetopt::parse(
 }
 
 void McProgramGetopt::assemble() {
+    if (!sasl_mechanism.empty()) {
+        try {
+            cb::sasl::selectMechanism(sasl_mechanism);
+        } catch (const std::invalid_argument& ex) {
+            throw std::runtime_error(fmt::format(
+                    "Unknown (or unsupported) mechanism: {}", ex.what()));
+        }
+    }
+
     // try to build up the client
     if (password == "-") {
         password.assign(getpass());
