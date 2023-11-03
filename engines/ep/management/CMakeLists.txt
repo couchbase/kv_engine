@@ -35,6 +35,8 @@ ADD_TEST(NAME cbepctl_test
          COMMAND ${KV_BINARY_DIR}/cbepctl --help)
 ADD_TEST(NAME kv_trace_dump_test
          COMMAND ${KV_BINARY_DIR}/kv_trace_dump --help)
+ADD_TEST(NAME kv_stats_log_test
+         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/kv_stats_log_test.py)
 
 INSTALL(PROGRAMS
         cbanalyze-core
