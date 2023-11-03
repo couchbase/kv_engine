@@ -48,7 +48,8 @@ void StatTest::SetUp() {
     store->setVBucketState(vbid, vbucket_state_active);
 }
 
-std::map<std::string, std::string> StatTest::get_stat(const char* statkey) {
+std::map<std::string, std::string> StatTest::get_stat(const char* statkey,
+                                                      std::string_view value) {
     std::map<std::string, std::string> stats;
     auto add_stats = [&stats](std::string_view key,
                               std::string_view value,
@@ -62,7 +63,7 @@ std::map<std::string, std::string> StatTest::get_stat(const char* statkey) {
             cb::engine_errc::success,
             engine->get_stats(cookie,
                               {statkey, statkey == NULL ? 0 : strlen(statkey)},
-                              {},
+                              value,
                               add_stats))
             << "Failed to get stats.";
 
@@ -143,6 +144,36 @@ TEST_F(StatTest, DcpStatTest) {
 
     EXPECT_EQ(cb::tagUserData(username),
               vals["eq_dcpq:test_producer:user"]);
+}
+
+TEST_F(StatTest, FilteredDcpStatTest) {
+    auto username =
+            cookie_to_mock_cookie(cookie)->getConnection().getUser().name;
+
+    engine->getDcpConnMap().newProducer(*cookie,
+                                        "test_producer",
+                                        /*flags*/ 0);
+
+    // Need another connection to test the filtering. We filter by user, so we
+    // need to change that, lets use 2i in this case.
+    auto* indexCookie = create_mock_cookie();
+    auto& indexConn = indexCookie->getConnection();
+    indexConn.setUser("2i");
+    engine->getDcpConnMap().newProducer(*indexCookie,
+                                        "2i",
+                                        /*flags*/ 0);
+
+    const std::string stat = "dcp";
+    nlohmann::json filter = {{"filter", {{"user", username}}}};
+    auto vals = get_stat(stat.c_str(), filter.dump());
+
+    // Should find our filtered producer
+    EXPECT_EQ(cb::tagUserData(username), vals["eq_dcpq:test_producer:user"]);
+
+    // Should not find the 2i one
+    EXPECT_EQ(vals.end(), vals.find("eq_dcpq:2i:user"));
+
+    destroy_mock_cookie(indexCookie);
 }
 
 // MB-32589: Check that _hash-dump stats correctly accounts temporary memory.

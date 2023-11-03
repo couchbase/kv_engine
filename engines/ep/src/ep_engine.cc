@@ -4065,7 +4065,7 @@ public:
                 if (filter != attributes.end()) {
                     auto iter = filter->find("user");
                     if (iter != filter->end()) {
-                        user = cb::tagUserData(iter->get<std::string>());
+                        user = iter->get<std::string>();
                     }
                     iter = filter->find("port");
                     if (iter != filter->end()) {

@@ -46,6 +46,10 @@ public:
     std::string_view getDescription() const override;
     const cb::rbac::UserIdent& getUser() const override;
 
+    void setUser(const std::string& newUser) {
+        user = cb::rbac::UserIdent{newUser, cb::rbac::Domain::Local};
+    }
+
 protected:
     ConnectionPriority priority{ConnectionPriority::Medium};
     cb::rbac::UserIdent user{"nobody", cb::rbac::Domain::Local};

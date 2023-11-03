@@ -24,7 +24,9 @@ protected:
     /**
      * Requests the given statistics from the bucket.
      * @param statkey
+     * @param value optional value passed to STAT command
      * @return Map of stat name to value
      */
-    std::map<std::string, std::string> get_stat(const char* statkey = nullptr);
+    std::map<std::string, std::string> get_stat(const char* statkey = nullptr,
+                                                std::string_view value = {});
 };
