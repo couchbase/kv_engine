@@ -56,10 +56,18 @@ AuditConfig::AuditConfig(const nlohmann::json& json) {
         }
     }
 
+    if (json.contains("prune_age")) {
+        auto val = json["prune_age"].get<size_t>();
+        if (val != 0) {
+            *(prune_age.lock()) = std::chrono::seconds(val);
+        }
+    }
+
     std::map<std::string, int> tags;
     tags["version"] = 1;
     tags["rotate_size"] = 1;
     tags["rotate_interval"] = 1;
+    tags["prune_age"] = 1;
     tags["auditd_enabled"] = 1;
     tags["buffered"] = 1;
     tags["log_path"] = 1;
@@ -418,7 +426,7 @@ void AuditConfig::initialize_config(const nlohmann::json& json) {
     disabled_userids.swap(other.disabled_userids);
     event_states.swap(other.event_states);
     uuid.swap(other.uuid);
-
+    prune_age.swap(other.prune_age);
     version = other.version;
 }
 

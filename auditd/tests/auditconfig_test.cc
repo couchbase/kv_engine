@@ -500,3 +500,15 @@ TEST_F(AuditConfigTest, TestSpecifyEventStates) {
         }
     }
 }
+
+TEST_F(AuditConfigTest, AuditPruneAge) {
+    config.initialize_config(json);
+    EXPECT_FALSE(config.get_prune_age().has_value());
+    json["prune_age"] = 0;
+    config.initialize_config(json);
+    EXPECT_FALSE(config.get_prune_age().has_value());
+    json["prune_age"] = 1000;
+    config.initialize_config(json);
+    EXPECT_TRUE(config.get_prune_age().has_value());
+    EXPECT_EQ(1000, config.get_prune_age().value().count());
+}

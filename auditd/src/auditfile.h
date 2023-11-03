@@ -13,10 +13,14 @@
 #include "auditconfig.h"
 
 #include <nlohmann/json_fwd.hpp>
+#include <chrono>
 #include <cinttypes>
 #include <cstdio>
 #include <ctime>
+#include <filesystem>
+#include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 
 class AuditFile {
@@ -85,6 +89,10 @@ public:
      */
     uint32_t get_seconds_to_rotation() const;
 
+    [[nodiscard]] std::chrono::seconds get_sleep_time() const;
+
+    void prune_old_audit_files();
+
 protected:
     bool open();
     bool time_to_rotate_log() const;
@@ -97,6 +105,15 @@ protected:
     }
 
     static time_t auditd_time();
+
+    /**
+     * Iterate over "old" audit log files (named hostname-<timestamp>-audit.log)
+     * and call the provided callback with the path
+     *
+     * @param callback
+     */
+    void iterate_old_files(
+            const std::function<void(const std::filesystem::path&)>& callback);
 
     struct FileDeleter {
         void operator()(FILE* fp) {
@@ -112,6 +129,13 @@ protected:
     size_t current_size = 0;
     size_t max_log_size = 20 * 1024 * 1024;
     uint32_t rotate_interval = 900;
+    std::optional<std::chrono::seconds> prune_age;
+    /// Iterating over all files in the directory and fetch their
+    /// modification time may be "costly" so we don't want to run
+    /// it too often.
+    std::chrono::steady_clock::time_point next_prune =
+            std::chrono::steady_clock::now();
+
     bool buffered = true;
 };
 

@@ -358,6 +358,9 @@ the following fields:
   one day.  Minimum is 15 minutes)
 * rotate_size - number of bytes written to the file before rotating to a new
   file
+* prune_age - (optional field) Prune all audit log files older than the
+  specified value (in seconds). (set to 0 (or remove) to disable the
+  functionality).
 * buffered - should buffered file IO be used or not
 * disabled - list of event ids (numbers) containing those events that are NOT
   to be outputted to the audit log.  This is depreciated in version 2 and has

@@ -411,9 +411,7 @@ void AuditImpl::consume_events() {
 
     while (!stop_audit_consumer) {
         if (filleventqueue.empty()) {
-            events_arrived.wait_for(
-                    lock,
-                    std::chrono::seconds(auditfile.get_seconds_to_rotation()));
+            events_arrived.wait_for(lock, auditfile.get_sleep_time());
             if (filleventqueue.empty()) {
                 // We timed out, so just rotate the files
                 if (auditfile.maybe_rotate_files()) {

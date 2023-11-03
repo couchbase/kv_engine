@@ -13,8 +13,10 @@
 #include <nlohmann/json_fwd.hpp>
 #include <relaxed_atomic.h>
 #include <atomic>
+#include <chrono>
 #include <cinttypes>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility> // For std::pair
@@ -102,6 +104,10 @@ public:
      */
     std::unique_ptr<AuditEventFilter> createAuditEventFilter(uint64_t rev);
 
+    [[nodiscard]] std::optional<std::chrono::seconds> get_prune_age() const {
+        return *prune_age.lock();
+    }
+
 protected:
     void sanitize_path(std::string &path);
     void add_array(std::vector<uint32_t>& vec,
@@ -137,6 +143,9 @@ protected:
     folly::Synchronized<std::unordered_map<uint32_t, EventState>, std::mutex>
             event_states;
     folly::Synchronized<std::string, std::mutex> uuid;
+
+    folly::Synchronized<std::optional<std::chrono::seconds>, std::mutex>
+            prune_age;
 
     const uint32_t min_file_rotation_time = 900; // 15 minutes
     const uint32_t max_file_rotation_time = 604800; // 1 week

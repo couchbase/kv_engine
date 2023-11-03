@@ -10,6 +10,7 @@
  */
 #include "auditfile.h"
 
+#include <folly/ScopeGuard.h>
 #include <logger/logger.h>
 #include <memcached/isotime.h>
 #include <nlohmann/json.hpp>
@@ -18,14 +19,78 @@
 #include <platform/platform_time.h>
 #include <platform/strerror.h>
 #include <utilities/json_utilities.h>
-
-#include <sys/stat.h>
 #include <algorithm>
-#include <cstring>
 #include <iostream>
 #include <sstream>
 
+/// c++20 std::string::starts_with
+bool starts_with(std::string_view name, std::string_view prefix) {
+    return name.find(prefix) == 0;
+}
+
+/// c++20 std::string::ends_with
+bool ends_with(std::string_view name, std::string_view suffix) {
+    const auto idx = name.rfind(suffix);
+    if (idx == std::string_view::npos) {
+        return false;
+    }
+    return (idx + suffix.size()) == name.length();
+}
+
+void AuditFile::iterate_old_files(
+        const std::function<void(const std::filesystem::path&)>& callback) {
+    using namespace std::filesystem;
+    for (const auto& p : directory_iterator(log_directory)) {
+        try {
+            const auto& path = p.path();
+            if (starts_with(path.filename().generic_string(), hostname) &&
+                ends_with(path.generic_string(), "-audit.log")) {
+                callback(path);
+            }
+        } catch (const std::exception& e) {
+            LOG_WARNING(
+                    "AuditFile::iterate_old_files(): Exception occurred "
+                    "while inspecting \"{}\": {}",
+                    p.path().generic_string(),
+                    e.what());
+        }
+    }
+}
+
+void AuditFile::prune_old_audit_files() {
+    using namespace std::chrono;
+    using namespace std::filesystem;
+
+    const auto filesystem_now = file_time_type::clock::now();
+    const auto now = steady_clock::now();
+    if (!prune_age.has_value() || next_prune > now) {
+        return;
+    }
+
+    auto oldest = filesystem_now;
+
+    const auto then = filesystem_now - *prune_age;
+    iterate_old_files([this, then, &oldest](const auto& path) {
+        auto mtime = last_write_time(path);
+        if (mtime < then) {
+            remove(path);
+        } else if (mtime < oldest) {
+            oldest = mtime;
+        }
+    });
+
+    if (oldest == filesystem_now) {
+        next_prune = now + *prune_age;
+    } else {
+        auto age = duration_cast<seconds>(filesystem_now - oldest);
+
+        // set next prune to a second after the oldest file expire
+        next_prune = now + (*prune_age - age) + seconds(1);
+    }
+}
+
 bool AuditFile::maybe_rotate_files() {
+    auto prune = folly::makeGuard([this] { prune_old_audit_files(); });
     if (is_open() && time_to_rotate_log()) {
         if (is_empty()) {
             // Given the audit log is empty on rotation instead of
@@ -64,6 +129,20 @@ uint32_t AuditFile::get_seconds_to_rotation() const {
     } else {
         return rotate_interval;
     }
+}
+
+std::chrono::seconds AuditFile::get_sleep_time() const {
+    using namespace std::chrono;
+
+    const auto rotation = seconds{get_seconds_to_rotation()};
+    if (!prune_age) {
+        return rotation;
+    }
+    const auto now = steady_clock::now();
+    if (next_prune <= now) {
+        return seconds{0};
+    }
+    return std::min(rotation, duration_cast<seconds>(next_prune - now));
 }
 
 bool AuditFile::time_to_rotate_log() const {
@@ -267,6 +346,8 @@ void AuditFile::reconfigure(const AuditConfig &config) {
     set_log_directory(config.get_log_directory());
     max_log_size = config.get_rotate_size();
     buffered = config.is_buffered();
+    prune_age = config.get_prune_age();
+    next_prune = std::chrono::steady_clock::now();
 }
 
 bool AuditFile::flush() {
