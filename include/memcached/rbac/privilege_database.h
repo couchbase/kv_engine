@@ -41,8 +41,13 @@ struct UserIdent {
     UserIdent() = default;
     UserIdent(std::string n, Domain d) : name(std::move(n)), domain(d) {
     }
-    bool is_internal() const {
+
+    static bool is_internal(std::string_view name) {
         return !name.empty() && name.front() == '@';
+    }
+
+    bool is_internal() const {
+        return is_internal(name);
     }
 
     /// Get the name of the user. Internal users won't have the log

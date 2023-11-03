@@ -37,6 +37,7 @@
 #include <statistics/cbstat_collector.h>
 #include <statistics/labelled_collector.h>
 #include <statistics/units.h>
+#include <utilities/logtags.h>
 
 #include <functional>
 #include <string_view>
@@ -127,6 +128,21 @@ TEST_F(StatTest, vbucket_takeover_stats_no_stream) {
     EXPECT_EQ("does_not_exist", vals["status"]);
     EXPECT_EQ(0, std::stoi(vals["estimate"]));
     EXPECT_EQ(0, std::stoi(vals["backfillRemaining"]));
+}
+
+TEST_F(StatTest, DcpStatTest) {
+    auto username =
+            cookie_to_mock_cookie(cookie)->getConnection().getUser().name;
+
+    engine->getDcpConnMap().newProducer(*cookie,
+                                        "test_producer",
+                                        /*flags*/ 0);
+
+    const std::string stat = "dcp";
+    auto vals = get_stat(stat.c_str());
+
+    EXPECT_EQ(cb::tagUserData(username),
+              vals["eq_dcpq:test_producer:user"]);
 }
 
 // MB-32589: Check that _hash-dump stats correctly accounts temporary memory.

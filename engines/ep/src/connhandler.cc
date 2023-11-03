@@ -21,6 +21,8 @@
 #include <memcached/rbac/privilege_database.h>
 #include <phosphor/phosphor.h>
 #include <platform/timeutils.h>
+#include <utilities/logtags.h>
+
 
 std::string to_string(ConnHandler::PausedReason r) {
     switch (r) {
@@ -310,6 +312,14 @@ BucketLogger& ConnHandler::getLogger() {
 void ConnHandler::addStats(const AddStatFn& add_stat, CookieIface& c) {
     using namespace std::chrono;
 
+    // We can log internal users without redaction, and given that most/all DCP
+    // consumers will be internal, there is value in only redacting those we
+    // must.
+    auto nameForStats = getAuthenticatedUser();
+    if (!cb::rbac::UserIdent::is_internal(nameForStats)) {
+        nameForStats = cb::tagUserData(nameForStats);
+    }
+    addStat("user", nameForStats, add_stat, c);
     addStat("type", getType(), add_stat, c);
     addStat("created",
             duration_cast<seconds>(created.time_since_epoch()).count(),
