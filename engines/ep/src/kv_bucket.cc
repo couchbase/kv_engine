@@ -1974,15 +1974,25 @@ cb::engine_errc KVBucket::unlockKey(const DocKey& key,
         if (eviction_policy == EvictionPolicy::Value) {
             return cb::engine_errc::no_such_key;
         } else {
-            // With the full eviction, an item's lock is automatically
-            // released when the item is evicted from memory. Therefore,
-            // we simply return cb::engine_errc::temporary_failure when we
-            // receive unlockKey for an item that is not in memocy cache. Note
-            // that we don't spawn any bg fetch job to figure out if an item
-            // actually exists in disk or not.
-            return cb::engine_errc::temporary_failure;
-        }
+            // An item's lock is not persisted to disk. Therefore, if the item
+            // is found on disk and has not been deleted we return not_locked.
 
+            // Release HashBucketLock so that vb->getMetaData() can acquire it.
+            res.lock.getHTLock().unlock();
+
+            ItemMetaData itemMeta;
+            uint32_t deleted;
+            uint8_t datatype;
+            auto ret = vb->getMetaData(
+                    cookie, engine, cHandle, itemMeta, deleted, datatype);
+            if (ret != cb::engine_errc::success) {
+                return ret;
+            }
+            if (deleted) {
+                return cb::engine_errc::no_such_key;
+            }
+            return cb::engine_errc::not_locked;
+        }
     case VBucket::FetchForWriteResult::Status::ESyncWriteInProgress:
         return cb::engine_errc::sync_write_in_progress;
     }

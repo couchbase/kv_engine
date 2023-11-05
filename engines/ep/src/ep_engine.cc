@@ -2576,7 +2576,15 @@ cb::engine_errc EventuallyPersistentEngine::unlockInner(CookieIface& cookie,
                                                         const DocKey& key,
                                                         Vbid vbucket,
                                                         uint64_t cas) {
-    return kvBucket->unlockKey(key, vbucket, cas, ep_current_time(), &cookie);
+    auto ret =
+            kvBucket->unlockKey(key, vbucket, cas, ep_current_time(), &cookie);
+    if (ret == cb::engine_errc::no_such_key ||
+        ret == cb::engine_errc::not_my_vbucket) {
+        if (isDegradedMode()) {
+            return cb::engine_errc::temporary_failure;
+        }
+    }
+    return ret;
 }
 
 cb::EngineErrorCasPair EventuallyPersistentEngine::storeIfInner(

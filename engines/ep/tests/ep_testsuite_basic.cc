@@ -686,15 +686,9 @@ static enum test_result test_unl(EngineIface* h) {
         eviction_policy = "value_only";
     }
 
-    if (eviction_policy == "full_eviction") {
-        checkeq(cb::engine_errc::temporary_failure,
-                unl(h, nullptr, key, vbucketId),
-                "expected a TMPFAIL");
-    } else {
-        checkeq(cb::engine_errc::no_such_key,
-                unl(h, nullptr, key, vbucketId),
-                "expected the key to be missing...");
-    }
+    checkeq(cb::engine_errc::no_such_key,
+            unl(h, nullptr, key, vbucketId),
+            "expected the key to be missing...");
 
     checkeq(cb::engine_errc::success,
             store(h,
@@ -728,17 +722,33 @@ static enum test_result test_unl(EngineIface* h) {
             "Expected to succed unl with correct cas");
 
     /* acquire lock, should succeed */
+    ret = getl(h, nullptr, key, vbucketId, 0);
     checkeq(cb::engine_errc::success,
-            getl(h, nullptr, key, vbucketId, 0).first,
+            ret.first,
             "Lock should work after unlock");
+    cas = ret.second->getCas();
 
     /* wait 16 seconds */
     testHarness->time_travel(16);
 
     /* lock has expired, unl should fail */
     checkeq(cb::engine_errc::not_locked,
-            unl(h, nullptr, key, vbucketId, last_cas),
+            unl(h, nullptr, key, vbucketId, cas),
             "Expected to fail unl on lock timeout");
+
+    ret = getl(h, nullptr, key, vbucketId, 0);
+    checkeq(cb::engine_errc::success,
+            ret.first,
+            "Lock should work after expiry");
+    cas = ret.second->getCas();
+
+    checkeq(cb::engine_errc::success,
+            delete_with_value(h, nullptr, cas, key, "deldata"),
+            "Failed to delete locked item");
+
+    checkeq(cb::engine_errc::no_such_key,
+            unl(h, nullptr, key, vbucketId, cas),
+            "Expected to fail unl after deletion");
 
     return SUCCESS;
 }

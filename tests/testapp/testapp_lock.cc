@@ -152,8 +152,7 @@ TEST_P(LockTest, UnlockNoSuchDocument) {
         userConnection->unlock(name, Vbid(0), 0xdeadbeef);
         FAIL() << "The document should not exist";
     } catch (const ConnectionError& ex) {
-        // full eviction returns tmpfail
-        EXPECT_TRUE(ex.isNotFound() || ex.isTemporaryFailure());
+        EXPECT_TRUE(ex.isNotFound());
     }
     userConnection->setAutoRetryTmpfail(true);
 }
