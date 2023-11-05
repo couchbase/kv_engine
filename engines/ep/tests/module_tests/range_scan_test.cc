@@ -1805,6 +1805,7 @@ bool TestRangeScanHandler::validateContinueStatus(cb::engine_errc code) {
     case cb::engine_errc::delta_badval:
     case cb::engine_errc::locked:
     case cb::engine_errc::locked_tmpfail:
+    case cb::engine_errc::not_locked:
     case cb::engine_errc::predicate_failed:
     case cb::engine_errc::cannot_apply_collections_manifest:
     case cb::engine_errc::unknown_scope:

@@ -83,6 +83,8 @@ std::string cb::to_string(cb::engine_errc code) {
         return "resource is locked";
     case cb::engine_errc::locked_tmpfail:
         return "resource is locked; tmpfail";
+    case cb::engine_errc::not_locked:
+        return "resource is not locked";
     case cb::engine_errc::failed:
         return "generic failure";
     case cb::engine_errc::unknown_collection:

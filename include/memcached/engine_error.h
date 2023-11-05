@@ -151,6 +151,9 @@ enum class engine_errc {
     /// Operation was cancelled before completion and had no effect.
     cancelled = 0x2d,
 
+    /// The requested resource is not locked
+    not_locked = 0x2e,
+
     /** Generic failue. */
     failed = 0xff
 };

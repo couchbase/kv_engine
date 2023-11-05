@@ -50,6 +50,7 @@ void handle_executor_status(Cookie& cookie, cb::engine_errc status) {
     case engine_errc::delta_badval:
     case engine_errc::locked:
     case engine_errc::locked_tmpfail:
+    case engine_errc::not_locked:
     case engine_errc::unknown_collection:
     case engine_errc::predicate_failed:
     case engine_errc::cannot_apply_collections_manifest:

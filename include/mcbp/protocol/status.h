@@ -54,6 +54,8 @@ enum class Status : uint16_t {
     EWouldThrottle = 0x0c,
     /// The command can't be run in a config-only-bucket
     EConfigOnly = 0x0d,
+    /** The requested resource is not locked */
+    NotLocked = 0x0e,
     /** The authentication context is stale. You should reauthenticate*/
     AuthStale = 0x1f,
     /** Authentication failure (invalid user/password combination,

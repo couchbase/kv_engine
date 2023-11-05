@@ -1968,7 +1968,7 @@ cb::engine_errc KVBucket::unlockKey(const DocKey& key,
             }
             return cb::engine_errc::locked_tmpfail;
         }
-        return cb::engine_errc::temporary_failure;
+        return cb::engine_errc::not_locked;
     }
     case VBucket::FetchForWriteResult::Status::OkVacant:
         if (eviction_policy == EvictionPolicy::Value) {

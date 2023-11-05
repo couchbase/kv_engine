@@ -158,6 +158,37 @@ TEST_P(LockTest, UnlockNoSuchDocument) {
     userConnection->setAutoRetryTmpfail(true);
 }
 
+TEST_P(LockTest, UnlockNotLockedDocument) {
+    userConnection->setAutoRetryTmpfail(false);
+    auto info = userConnection->mutate(document, Vbid(0), MutationType::Add);
+
+    try {
+        userConnection->unlock(name, Vbid(0), info.cas);
+        FAIL() << "Unlocking a not locked document should fail";
+    } catch (const ConnectionError& ex) {
+        EXPECT_EQ(cb::mcbp::Status::NotLocked, ex.getReason());
+    }
+    userConnection->setAutoRetryTmpfail(true);
+}
+
+/**
+ * Verify that we return the old error code when we try to unlock
+ * a not locked item without XERROR enabled
+ */
+TEST_P(LockTest, UnlockNotLockedDocument_WithoutXerror) {
+    userConnection->setXerrorSupport(false);
+    userConnection->setAutoRetryTmpfail(false);
+    auto info = userConnection->mutate(document, Vbid(0), MutationType::Add);
+
+    try {
+        userConnection->unlock(name, Vbid(0), info.cas);
+        FAIL() << "Unlocking a not locked document should fail";
+    } catch (const ConnectionError& ex) {
+        EXPECT_TRUE(ex.isTemporaryFailure());
+    }
+    userConnection->setAutoRetryTmpfail(true);
+}
+
 TEST_P(LockTest, UnlockInvalidVBucket) {
     try {
         userConnection->unlock(name, Vbid(1), 0xdeadbeef);

@@ -369,7 +369,9 @@ cb::engine_errc Connection::remapErrorCode(cb::engine_errc code) {
     case cb::engine_errc::locked:
         return cb::engine_errc::key_already_exists;
     case cb::engine_errc::locked_tmpfail:
+    case cb::engine_errc::not_locked:
         return cb::engine_errc::temporary_failure;
+
     case cb::engine_errc::unknown_collection:
     case cb::engine_errc::unknown_scope:
         return isCollectionsSupported() ? code

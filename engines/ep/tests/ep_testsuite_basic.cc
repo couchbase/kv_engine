@@ -736,7 +736,7 @@ static enum test_result test_unl(EngineIface* h) {
     testHarness->time_travel(16);
 
     /* lock has expired, unl should fail */
-    checkeq(cb::engine_errc::temporary_failure,
+    checkeq(cb::engine_errc::not_locked,
             unl(h, nullptr, key, vbucketId, last_cas),
             "Expected to fail unl on lock timeout");
 
