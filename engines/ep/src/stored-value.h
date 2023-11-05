@@ -314,23 +314,7 @@ public:
         return value->isCompressible();
     }
 
-    bool eligibleForEviction(EvictionPolicy policy) const {
-        // Pending SyncWrite are always resident
-        if (isPending()) {
-            return false;
-        }
-
-        if (isDeleted() && !isDirty()) {
-            // clean, deleted SVs are always eligible for eviction
-            return true;
-        }
-
-        if (policy == EvictionPolicy::Value) {
-            return isResident() && !isDirty();
-        } else {
-            return !isDirty();
-        }
-    }
+    bool eligibleForEviction(EvictionPolicy policy) const;
 
     /**
      * Check if this item is expired or not.

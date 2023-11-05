@@ -105,6 +105,24 @@ StoredValue::StoredValue(const StoredValue& other, UniquePtr n)
     ObjectRegistry::onCreateStoredValue(this);
 }
 
+bool StoredValue::eligibleForEviction(EvictionPolicy policy) const {
+    // Pending SyncWrite are always resident
+    if (isPending()) {
+        return false;
+    }
+
+    if (isDeleted() && !isDirty()) {
+        // clean, deleted SVs are always eligible for eviction
+        return true;
+    }
+
+    if (policy == EvictionPolicy::Value) {
+        return isResident() && !isDirty();
+    } else {
+        return !isDirty();
+    }
+}
+
 void StoredValue::setValue(const Item& itm) {
     if (isOrdered()) {
         return static_cast<OrderedStoredValue*>(this)->setValueImpl(itm);
