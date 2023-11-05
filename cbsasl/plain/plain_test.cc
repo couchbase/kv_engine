@@ -114,6 +114,14 @@ TEST_F(PlainServerTest, CorrectChallengeWithPassword) {
     EXPECT_EQ(Error::OK, error);
 }
 
+/// Some clients send an additional NUL character at the end of the password
+/// (that isn't correct according to the spec, but  we used to accept it)
+TEST_F(PlainServerTest, CorrectChallengeWithPasswordAndAdditionalNul) {
+    const auto [error, data] = backend->start("\0password\0secret\0"sv);
+    EXPECT_TRUE(data.empty());
+    EXPECT_EQ(Error::OK, error);
+}
+
 TEST_F(PlainServerTest, CorrectChallengeWrongPassword) {
     const auto [error, data] = backend->start("\0password\0invalid"sv);
     EXPECT_TRUE(data.empty());

@@ -33,8 +33,12 @@ std::pair<Error, std::string_view> ServerBackend::start(
     }
     username = std::string{input.substr(0, index)};
 
-    // finally password
-    const auto password = input.substr(index + 1);
+    // finally password. Some clients may add an extra terminating
+    // NUL character
+    auto password = input.substr(index + 1);
+    if (!password.empty() && password.back() == '\0') {
+        password.remove_suffix(1);
+    }
     cb::sasl::pwdb::User user;
     if (!find_user(username, user)) {
         return {Error::NO_USER, {}};
