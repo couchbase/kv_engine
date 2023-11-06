@@ -2085,7 +2085,7 @@ TEST_P(STParamPersistentBucketTest, test_mb22451) {
     // flag to true
     EXPECT_TRUE(mock_stream->public_getPendingBackfill())
         << "handleSlowStream should set pendingBackfill to True";
-    mock_stream->completeBackfill(std::chrono::seconds(1), {});
+    mock_stream->completeBackfill(0, std::chrono::seconds(1), {});
     EXPECT_FALSE(mock_stream->public_isBackfillTaskRunning())
         << "completeBackfill should set isBackfillTaskRunning to False";
     EXPECT_TRUE(mock_stream->isBackfilling())

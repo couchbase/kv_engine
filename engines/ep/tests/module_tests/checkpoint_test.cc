@@ -750,7 +750,8 @@ TEST_P(CheckpointTest, MB25056_backfill_not_required) {
     // Request to register the cursor with a seqno that has been de-duped away
     CursorRegResult result = manager->registerCursorBySeqno(
             dcp_cursor.c_str(), 1005, CheckpointCursor::Droppable::Yes);
-    EXPECT_EQ(1011, result.seqno) << "Returned seqno is not expected value.";
+    EXPECT_EQ(1011, result.nextSeqno)
+            << "Returned seqno is not expected value.";
     EXPECT_FALSE(result.tryBackfill) << "Backfill is unexpectedly required.";
 }
 
@@ -1936,7 +1937,7 @@ void SingleThreadedCheckpointTest::
     }
 
     const auto cursor = res.takeCursor().lock();
-    EXPECT_EQ(3, res.seqno);
+    EXPECT_EQ(3, res.nextSeqno);
     EXPECT_EQ(4, (*cursor->getCheckpoint())->getId());
     EXPECT_EQ(queue_op::empty, (*cursor->getPos())->getOperation());
     EXPECT_EQ(3, (*cursor->getPos())->getBySeqno());
@@ -1961,7 +1962,7 @@ TEST_P(CheckpointTest, MB_58321) {
     auto res = manager->registerCursorBySeqno(
             "mb58321", 1001, CheckpointCursor::Droppable::Yes);
 
-    EXPECT_EQ(1002, res.seqno);
+    EXPECT_EQ(1002, res.nextSeqno);
     EXPECT_FALSE(res.tryBackfill);
 
     auto cursor = res.takeCursor();
@@ -2649,21 +2650,21 @@ void CheckpointTest::testExpelCheckpointItems() {
     std::string dcp_cursor1(DCP_CURSOR_PREFIX + std::to_string(1));
     CursorRegResult regResult = manager->registerCursorBySeqno(
             dcp_cursor1.c_str(), 1001, CheckpointCursor::Droppable::Yes);
-    EXPECT_EQ(1003, regResult.seqno);
+    EXPECT_EQ(1003, regResult.nextSeqno);
     EXPECT_TRUE(regResult.tryBackfill);
 
     // Try to register a DCP cursor from 1002 - another expelled item
     std::string dcp_cursor2(DCP_CURSOR_PREFIX + std::to_string(2));
     regResult = manager->registerCursorBySeqno(
             dcp_cursor2.c_str(), 1002, CheckpointCursor::Droppable::Yes);
-    EXPECT_EQ(1003, regResult.seqno);
+    EXPECT_EQ(1003, regResult.nextSeqno);
     EXPECT_FALSE(regResult.tryBackfill);
 
     // Try to register a DCP cursor from 1003 - the first item still in chk
     std::string dcp_cursor3(DCP_CURSOR_PREFIX + std::to_string(3));
     regResult = manager->registerCursorBySeqno(
             dcp_cursor3.c_str(), 1003, CheckpointCursor::Droppable::Yes);
-    EXPECT_EQ(1004, regResult.seqno);
+    EXPECT_EQ(1004, regResult.nextSeqno);
     EXPECT_FALSE(regResult.tryBackfill);
 }
 
@@ -3822,7 +3823,7 @@ TEST_P(ReplicaCheckpointTest, MB_47516) {
     auto cursor = manager->registerCursorBySeqno(
             "MB_47516", 0, CheckpointCursor::Droppable::Yes);
     EXPECT_TRUE(cursor.tryBackfill);
-    EXPECT_EQ(1002, cursor.seqno);
+    EXPECT_EQ(1002, cursor.nextSeqno);
 }
 
 // In the case of open/closed checkpoints cursors placed at the high-seqno
@@ -3843,10 +3844,10 @@ TEST_P(ReplicaCheckpointTest, MB_47551) {
                 "MB-47551", seqno, CheckpointCursor::Droppable::Yes);
         if (seqno == 1001) {
             EXPECT_FALSE(cursor.tryBackfill) << seqno;
-            EXPECT_EQ(1002, cursor.seqno) << seqno;
+            EXPECT_EQ(1002, cursor.nextSeqno) << seqno;
         } else {
             EXPECT_TRUE(cursor.tryBackfill) << seqno;
-            EXPECT_EQ(1001, cursor.seqno) << seqno;
+            EXPECT_EQ(1001, cursor.nextSeqno) << seqno;
         }
 
         // Cursor should be in the closed checkpoint, it has the items we need
@@ -3861,11 +3862,11 @@ TEST_P(ReplicaCheckpointTest, MB_47551) {
     // one. Also, we don't need a backfill as we are simulating a DCP client
     // that has already got 1002 and the next seqno 1003 is in checkpoint. 
     EXPECT_FALSE(cursor2.tryBackfill);
-    EXPECT_EQ(1003, cursor2.seqno);
+    EXPECT_EQ(1003, cursor2.nextSeqno);
     EXPECT_EQ(3, (*cursor2.takeCursor().lock()->getCheckpoint())->getId());
 }
 
-// This test exists to cover a the case where cursor re-registration moves the
+// This test exists to cover the case where cursor re-registration moves the
 // cursor for a new checkpoint and importantly when eager removal is in play.
 // Before ~Checkpoint had an Expects(getNumCursorsInCheckpoint() == 0); this
 // test would lead to a use-after-free issue which no other unit test hit.
@@ -3896,7 +3897,7 @@ TEST_P(CheckpointTest, reRegisterCheckpointCursor) {
     cursor = manager->registerCursorBySeqno(
             "cursor", 1002, CheckpointCursor::Droppable::Yes);
     EXPECT_FALSE(cursor.tryBackfill);
-    EXPECT_EQ(1003, cursor.seqno);
+    EXPECT_EQ(1003, cursor.nextSeqno);
     EXPECT_EQ(2, (*cursor.takeCursor().lock()->getCheckpoint())->getId());
 }
 
@@ -4258,11 +4259,11 @@ TEST_P(CheckpointTest, MB_53100_RegisterCursor) {
     // 3. Register at seqno 1001 as if we received a stream request from 1001
     auto result = manager->registerCursorBySeqno(
             "test", 1001, CheckpointCursor::Droppable::Yes);
-    EXPECT_EQ(1002, result.seqno);
+    EXPECT_EQ(1002, result.nextSeqno);
     // Create a WeaklyMonotonic var to track the current cursors seqno as it
     // would in the ActiveStream
     WeaklyMonotonic<uint64_t, ThrowExceptionPolicy> curSeqno;
-    curSeqno = result.seqno;
+    curSeqno = result.nextSeqno;
 
     // 4. Get items for cursor
     std::vector<queued_item> items;

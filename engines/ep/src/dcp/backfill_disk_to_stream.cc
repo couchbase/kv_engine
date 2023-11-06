@@ -220,7 +220,6 @@ backfill_status_t DCPBackfillDiskToStream::doHistoryScan(KVBucket& bucket,
     Expects(kvstore);
     switch (kvstore->scanAllVersions(bySeqnoCtx)) {
     case ScanStatus::Success:
-        stream->setBackfillScanLastRead(bySeqnoCtx.lastReadSeqno);
         historyScanComplete(*stream);
         return backfill_finished;
     case ScanStatus::Cancelled:
@@ -255,15 +254,17 @@ void DCPBackfillDiskToStream::historyScanComplete(ActiveStream& stream) {
     seqnoScanComplete(stream,
                       historyScanCtx.scanCtx->diskBytesRead,
                       historyScanCtx.snapshotInfo.range.getStart(),
-                      historyScanCtx.snapshotInfo.range.getEnd());
+                      historyScanCtx.snapshotInfo.range.getEnd(),
+                      historyScanCtx.scanCtx->lastReadSeqno);
 }
 
 void DCPBackfillDiskToStream::seqnoScanComplete(ActiveStream& stream,
                                                 size_t bytesRead,
                                                 uint64_t startSeqno,
-                                                uint64_t endSeqno) {
+                                                uint64_t endSeqno,
+                                                uint64_t maxSeqno) {
     runtime += (std::chrono::steady_clock::now() - runStart);
-    stream.completeBackfill(runtime, bytesRead);
+    stream.completeBackfill(maxSeqno, runtime, bytesRead);
     stream.log(spdlog::level::level_enum::debug,
                "({}) Backfill task ({} to {}) complete",
                vbid,

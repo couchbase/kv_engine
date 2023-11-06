@@ -44,11 +44,18 @@ protected:
      * @param bytesRead how many bytes read in the scan
      * @param startSeqno start of the scan range (used for logging)
      * @param endSeqno end of the scan range (used for logging)
+     * @param maxSeqno This is the highest seqno seen by KVStore when performing
+     *   a scan for the current snapshot we are backfilling for. This is
+     *   regardless of collection or visibility. This used inform
+     *   completeBackfill() of the last read seqno from disk, to help make a
+     *   decision on if we should enqueue a SeqnoAdvanced op (see
+     *   ::completeBackfill() for more info).
      */
     void seqnoScanComplete(ActiveStream& stream,
                            size_t bytesRead,
                            uint64_t startSeqno,
-                           uint64_t endSeqno);
+                           uint64_t endSeqno,
+                           uint64_t maxSeqno);
 
     /**
      * Bespoke function for history completion, pulls required values from the

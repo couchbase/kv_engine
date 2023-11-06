@@ -92,7 +92,7 @@ public:
     bool tryBackfill{false};
 
     // The first seqno found in CM that the new cursor will pick at move
-    uint64_t seqno{0};
+    uint64_t nextSeqno{0};
 
     // Take ownership of the cursor - caller is responsible for removing it
     // from CheckpointManager when no longer needed.

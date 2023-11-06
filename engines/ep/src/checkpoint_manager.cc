@@ -34,10 +34,10 @@ CursorRegResult::CursorRegResult() = default;
 
 CursorRegResult::CursorRegResult(CheckpointManager& manager,
                                  bool tryBackfill,
-                                 uint64_t seqno,
+                                 uint64_t nextSeqno,
                                  Cursor cursor)
     : tryBackfill{tryBackfill},
-      seqno{seqno},
+      nextSeqno{nextSeqno},
       manager{&manager},
       cursor{std::move(cursor)} {
 }

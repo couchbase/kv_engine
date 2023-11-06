@@ -249,20 +249,24 @@ public:
                           backfill_source_t backfill_source);
 
     /**
+     * @param maxScanSeqno the maximum seqno of the snapshot supplying the OSO
+     *        backfill. A SeqnoAdvanced maybe sent if the last backfilled
+     *        item is not the maxSeqno item
      * @param runtime The total runtime the backfill took, measured as active
-     * time executing (i.e. total BackfillManagerTask::run() durations for
-     * this backfill)
+     *        time executing (i.e. total BackfillManagerTask::run() durations
+     *        for this backfill)
      * @param diskBytesRead The total number of bytes read from disk during
      *        this backfill.
      */
-    void completeBackfill(std::chrono::steady_clock::duration runtime,
+    void completeBackfill(uint64_t maxScanSeqno,
+                          std::chrono::steady_clock::duration runtime,
                           size_t diskBytesRead);
 
     /**
      * Queues a single "Out of Seqno Order" marker with the 'end' flag
      * into the ready queue.
      *
-     * @param maxSeqno the maximum seqno of the snapshot supplying the OSO
+     * @param maxScanSeqno the maximum seqno of the snapshot supplying the OSO
      *        backfill. A SeqnoAdvanced maybe sent if the last backfilled
      *        item is not the maxSeqno item
      * @param runtime The total runtime the backfill took, measured as active
@@ -271,7 +275,7 @@ public:
      * @param diskBytesRead The total number of bytes read from disk during
      *        this backfill.
      */
-    void completeOSOBackfill(uint64_t maxSeqno,
+    void completeOSOBackfill(uint64_t maxScanSeqno,
                              std::chrono::steady_clock::duration runtime,
                              size_t diskBytesRead);
 
@@ -435,22 +439,6 @@ public:
      * ignored, and not cause rollback.
      */
     bool isIgnoringPurgedTombstones() const;
-
-    /**
-     * Used to set the last read seqno from a scan of the data store layer.
-     * (This is for external use only and ensures that
-     * maxScanSeqno is zero prior to being set).
-     * @param seqno last read seqno during a data store layer scan
-     */
-    void setBackfillScanLastRead(uint64_t seqno) {
-        std::unique_lock<std::mutex> lh(streamMutex);
-        /*
-         * maxScanSeqno should only be modified once per
-         * backfill
-         */
-        Expects(maxScanSeqno == 0);
-        maxScanSeqno = seqno;
-    }
 
     /**
      * Method to get the collections filter of the stream
@@ -733,8 +721,6 @@ private:
      */
     void scheduleBackfill_UNLOCKED(DcpProducer& producer, bool reschedule);
 
-    bool isCurrentSnapshotCompleted() const;
-
     /**
      * Drop the cursor registered with the checkpoint manager. Used during
      * cursor dropping. Upon failure to drop the cursor, puts stream to
@@ -808,13 +794,6 @@ private:
      * @return true if lastReadSeqno < snapEnd and snapEnd == streamSeqno
      */
     bool isSeqnoGapAtEndOfSnapshot(uint64_t streamSeqno) const;
-
-    /**
-     * Method to check if a SeqnoAdvanced is needed at the end of backfill
-     * snapshot
-     * @return true if a SeqnoAdvanced is needed
-     */
-    bool isSeqnoAdvancedNeededBackFill() const;
 
     /**
      * Method to enqueue a SeqnoAdvanced op with the seqno being the value of
@@ -930,15 +909,6 @@ private:
     ATOMIC_MONOTONIC3(uint64_t, lastSentSnapStartSeqno, Labeller);
     //! Last snapshot end seqno sent to the DCP client
     ATOMIC_MONOTONIC3(uint64_t, lastSentSnapEndSeqno, Labeller);
-
-    /*
-     * This is the highest seqno seen by KVStore when performing a scan
-     * for the current snapshot we are back filling for. This is regardless of
-     * collection or visibility. This used inform completeBackfill() of the last
-     * read seqno from disk, to help make a decision on if we should enqueue an
-     * SeqnoAdvanced op (see ::completeBackfill() for more info).
-     */
-    uint64_t maxScanSeqno{0};
 
     /* Flag used by checkpointCreatorTask that is set before all items are
        extracted for given checkpoint cursor, and is unset after all retrieved

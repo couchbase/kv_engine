@@ -206,7 +206,6 @@ backfill_status_t DCPBackfillBySeqnoDisk::scan() {
     switch (kvstore->scan(bySeqnoCtx)) {
     case ScanStatus::Success:
         if (!historyScan) {
-            stream->setBackfillScanLastRead(scanCtx->lastReadSeqno);
             complete(*stream);
         }
         return backfill_finished;
@@ -237,8 +236,11 @@ backfill_status_t DCPBackfillBySeqnoDisk::scan() {
 }
 
 void DCPBackfillBySeqnoDisk::complete(ActiveStream& stream) {
-    seqnoScanComplete(
-            stream, scanCtx ? scanCtx->diskBytesRead : 0, startSeqno, endSeqno);
+    seqnoScanComplete(stream,
+                      scanCtx ? scanCtx->diskBytesRead : 0,
+                      startSeqno,
+                      endSeqno,
+                      scanCtx ? scanCtx->lastReadSeqno : 0);
 }
 
 std::pair<bool, std::optional<uint64_t>>

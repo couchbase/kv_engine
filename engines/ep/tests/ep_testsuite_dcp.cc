@@ -8129,13 +8129,18 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_producer_disk_backfill_buffer_limits,
                  test_setup,
                  teardown,
-                 /* Set buffer size to a very low value (less than the size
-                    of a mutation) */
+                 // - Set buffer size to a very low value (less than the size
+                 //   of a mutation)
+                 // - Disable ItemExpel. The test verifies some condition by
+                 //   looking at the number of removed checkpoints for memory
+                 //   recovery. If ItemExpel kicks in before checkpoint removal,
+                 //   then the test fails.
+                 // - Allow all checkpoints removed by periodic recovery task
                  "dcp_backfill_byte_limit=1;chk_remover_stime=1;"
-                 // Allow all checkpoints removed by the periodic recoevery task
                  "checkpoint_max_size=1;"
                  "checkpoint_memory_recovery_upper_mark=0;"
-                 "checkpoint_memory_recovery_lower_mark=0",
+                 "checkpoint_memory_recovery_lower_mark=0;"
+                 "chk_expel_enabled=false",
                  prepare_skip_broken_under_rocks,
                  cleanup),
         TestCase("test producer stream request (memory only)",
@@ -8285,34 +8290,38 @@ BaseTestCase testsuite_testcases[] = {
                  prepare_ep_bucket, // relies on persistence (disk queue)
                  cleanup),
         /* [TODO]: Write a test case for backoff based on high memory usage */
-        TestCase("test dcp reconnect full snapshot",
-                 test_dcp_reconnect_full,
-                 test_setup,
-                 teardown,
-                 "dcp_enable_noop=false;dcp_consumer_flow_control_enabled=false",
-                 prepare,
-                 cleanup),
-        TestCase("test reconnect partial snapshot",
-                 test_dcp_reconnect_partial,
-                 test_setup,
-                 teardown,
-                 "dcp_enable_noop=false;dcp_consumer_flow_control_enabled=false",
-                 prepare,
-                 cleanup),
-        TestCase("test crash full snapshot",
-                 test_dcp_crash_reconnect_full,
-                 test_setup,
-                 teardown,
-                 "dcp_enable_noop=false;dcp_consumer_flow_control_enabled=false",
-                 prepare,
-                 cleanup),
-        TestCase("test crash partial snapshot",
-                 test_dcp_crash_reconnect_partial,
-                 test_setup,
-                 teardown,
-                 "dcp_enable_noop=false;dcp_consumer_flow_control_enabled=false",
-                 prepare,
-                 cleanup),
+        TestCase(
+                "test dcp reconnect full snapshot",
+                test_dcp_reconnect_full,
+                test_setup,
+                teardown,
+                "dcp_enable_noop=false;dcp_consumer_flow_control_enabled=false",
+                prepare,
+                cleanup),
+        TestCase(
+                "test reconnect partial snapshot",
+                test_dcp_reconnect_partial,
+                test_setup,
+                teardown,
+                "dcp_enable_noop=false;dcp_consumer_flow_control_enabled=false",
+                prepare,
+                cleanup),
+        TestCase(
+                "test crash full snapshot",
+                test_dcp_crash_reconnect_full,
+                test_setup,
+                teardown,
+                "dcp_enable_noop=false;dcp_consumer_flow_control_enabled=false",
+                prepare,
+                cleanup),
+        TestCase(
+                "test crash partial snapshot",
+                test_dcp_crash_reconnect_partial,
+                test_setup,
+                teardown,
+                "dcp_enable_noop=false;dcp_consumer_flow_control_enabled=false",
+                prepare,
+                cleanup),
         TestCase("test rollback to zero on consumer",
                  test_rollback_to_zero,
                  test_setup,
@@ -8516,13 +8525,14 @@ BaseTestCase testsuite_testcases[] = {
                  nullptr,
                  prepare,
                  cleanup),
-        TestCase("dcp erroneous snapshot marker scenario",
-                 test_dcp_erroneous_marker,
-                 test_setup,
-                 teardown,
-                 "dcp_enable_noop=false;dcp_consumer_flow_control_enabled=false",
-                 prepare,
-                 cleanup),
+        TestCase(
+                "dcp erroneous snapshot marker scenario",
+                test_dcp_erroneous_marker,
+                test_setup,
+                teardown,
+                "dcp_enable_noop=false;dcp_consumer_flow_control_enabled=false",
+                prepare,
+                cleanup),
         TestCase("dcp invalid mutation(s)/deletion(s)",
                  test_dcp_invalid_mutation_deletion,
                  test_setup,

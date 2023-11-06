@@ -256,29 +256,23 @@ void ActiveStream::registerCursor(CheckpointManager& chkptmgr,
         if (result.tryBackfill) {
             pendingBackfill = true;
         }
-        curChkSeqno = result.seqno;
+        curChkSeqno = result.nextSeqno;
         cursor = result.takeCursor();
 
-        // Note: We have just registered a cursor and then unlocked the CM at
-        // return. Might cursor-drop kick in before we even try to access the
-        // cursor for logging here?
-        std::optional<queue_op> op{};
-        {
-            const auto lockedCursor = cursor.lock();
-            if (lockedCursor) {
-                op = (*lockedCursor->getPos())->getOperation();
-            }
-        }
+        const auto lockedCursor = cursor.lock();
+        Expects(lockedCursor);
         log(spdlog::level::level_enum::info,
-            "{} ActiveStream::registerCursor name \"{}\", wantedSeqno:{}, "
-            "result{{tryBackfill:{}, seqno:{}, op:{}}}, pendingBackfill:{}",
+            "{} ActiveStream::registerCursor name \"{}\", "
+            "lastProcessedSeqno:{}, pendingBackfill:{}, "
+            "result{{tryBackfill:{}, op:{}, seqno:{}, nextSeqno:{}}}",
             logPrefix,
             name_,
             lastProcessedSeqno,
+            pendingBackfill,
             result.tryBackfill,
-            result.seqno,
-            op ? ::to_string(*op) : "N/A",
-            pendingBackfill);
+            ::to_string((*lockedCursor->getPos())->getOperation()),
+            (*lockedCursor->getPos())->getBySeqno(),
+            result.nextSeqno);
     } catch (std::exception& error) {
         log(spdlog::level::level_enum::warn,
             "{} Failed to register cursor: {}",
@@ -658,19 +652,21 @@ bool ActiveStream::backfillReceived(std::unique_ptr<Item> item,
     return !buffersFull;
 }
 
-void ActiveStream::completeBackfill(std::chrono::steady_clock::duration runtime,
+void ActiveStream::completeBackfill(uint64_t maxScanSeqno,
+                                    std::chrono::steady_clock::duration runtime,
                                     size_t diskBytesRead) {
-    // maxSeqno is not needed for InOrder completion
     completeBackfillInner(
-            BackfillType::InOrder, 0 /*maxSeqno*/, runtime, diskBytesRead);
+            BackfillType::InOrder, maxScanSeqno, runtime, diskBytesRead);
 }
 
 void ActiveStream::completeOSOBackfill(
-        uint64_t maxSeqno,
+        uint64_t maxScanSeqno,
         std::chrono::steady_clock::duration runtime,
         size_t diskBytesRead) {
-    completeBackfillInner(
-            BackfillType::OutOfSequenceOrder, maxSeqno, runtime, diskBytesRead);
+    completeBackfillInner(BackfillType::OutOfSequenceOrder,
+                          maxScanSeqno,
+                          runtime,
+                          diskBytesRead);
     firstMarkerSent = true;
 }
 
@@ -1589,7 +1585,26 @@ void ActiveStream::snapshot(const OutstandingItemsResult& meta,
 
     lastReadSeqno.store(newLastReadSeqno);
 
-    if (isCurrentSnapshotCompleted()) {
+    // Note: ActiveStream is in a complete snapshot
+    // - Always, on active vbuckets
+    // - If we have sent up to the last seqno in the last marker range, for
+    //   non-active vbuckets
+    //
+    // @todo MB-58961:
+    // 1. Shouldn't it be a weak-inequality here (ie, <=) ?
+    // 2. Shouldn't we use lastSentSeqno in place of lastReadSeqno here?
+    // At the time of writing I'm pushing a non-logic change, so defer the above
+    const auto isReplicaSnapshotComplete =
+            lastSentSnapEndSeqno.load(std::memory_order_relaxed) <
+            lastReadSeqno;
+
+    // Note: Here we consider "!replica" rather than "active", but I believe
+    // that streaming from "pending|dead" is just illegal, so we should change
+    // this.
+
+    const auto vb = engine->getVBucket(vb_);
+    if (vb && (vb->getState() != vbucket_state_replica ||
+               isReplicaSnapshotComplete)) {
         // Get OptionalSeqnos which for the items list types should have values
         auto seqnoStart = items.front()->getBySeqno();
         auto seqnoEnd = items.back()->getBySeqno();
@@ -1924,33 +1939,25 @@ void ActiveStream::scheduleBackfill_UNLOCKED(DcpProducer& producer,
             return;
         }
 
-        // Note: We have just registered a cursor and then unlocked the CM at
-        // return. Might cursor-drop kick in before we even try to access the
-        // cursor for logging here?
-        std::optional<queue_op> op{};
-        {
-            const auto lockedCursor = registerResult.getCursor().lock();
-            if (lockedCursor) {
-                op = (*lockedCursor->getPos())->getOperation();
-            }
-        }
+        scheduleBackfillRegisterCursorHook();
+
+        curChkSeqno = registerResult.nextSeqno;
+        tryBackfill = registerResult.tryBackfill;
+        cursor = registerResult.takeCursor();
+
+        const auto lockedCursor = cursor.lock();
+        Expects(lockedCursor);
         log(spdlog::level::level_enum::info,
             "{} ActiveStream::scheduleBackfill_UNLOCKED register cursor with "
-            "name \"{}\" wantedSeqno:{}, result{{tryBackfill:{}, seqno:{}}}, "
-            "op:{}, lastReadSeqno:{}",
+            "name \"{}\" lastProcessedSeqno:{}, result{{tryBackfill:{}, op:{}, "
+            "seqno:{}, nextSeqno:{}}}",
             logPrefix,
             name_,
             lastReadSeqno.load(),
             registerResult.tryBackfill,
-            registerResult.seqno,
-            op ? ::to_string(*op) : "N/A",
-            lastReadSeqno.load());
-
-        scheduleBackfillRegisterCursorHook();
-
-        curChkSeqno = registerResult.seqno;
-        tryBackfill = registerResult.tryBackfill;
-        cursor = registerResult.takeCursor();
+            ::to_string((*lockedCursor->getPos())->getOperation()),
+            (*lockedCursor->getPos())->getBySeqno(),
+            registerResult.nextSeqno);
 
         if (lastReadSeqno.load() > curChkSeqno) {
             // something went wrong registering the cursor - it is too early
@@ -2090,7 +2097,7 @@ bool ActiveStream::tryAndScheduleOSOBackfill(DcpProducer& producer,
 
 void ActiveStream::completeBackfillInner(
         BackfillType backfillType,
-        uint64_t maxSeqno,
+        uint64_t maxScanSeqno,
         std::chrono::steady_clock::duration runtime,
         size_t diskBytesRead) {
     {
@@ -2104,12 +2111,36 @@ void ActiveStream::completeBackfillInner(
         }
 
         if (backfillType == BackfillType::InOrder) {
+            const auto vb = engine->getVBucket(vb_);
+            if (!vb) {
+                log(spdlog::level::level_enum::warn,
+                    "{} ActiveStream::completeBackfillInner(): Vbucket "
+                    "does not exist",
+                    logPrefix);
+                return;
+            }
+
             // In-order backfills may require a seqno-advanced message if
             // there is a stream filter present (e.g. only streaming a single
             // collection).
-            if (isSeqnoAdvancedNeededBackFill()) {
-                queueSeqnoAdvanced();
+            if (isSeqnoAdvancedEnabled() &&
+                isSeqnoGapAtEndOfSnapshot(maxScanSeqno)) {
+                // Active:  We must send a SeqnoAdvanced to bump the DCP
+                //          client's seqno to snap-end.
+                // Replica: Vbucket may transition backfill->memory without
+                //          sending another snapshot. Thus, in this case we
+                //          do not want to send a SeqnoAdvanced at the end
+                //          of backfill. So check that we don't have an in
+                //          memory range to stream from.
+                const auto replicaVucketSeqnoAdvance =
+                        maxScanSeqno > lastBackfilledSeqno &&
+                        maxScanSeqno == lastSentSnapEndSeqno;
+                if (vb->getState() != vbucket_state_replica ||
+                    replicaVucketSeqnoAdvance) {
+                    queueSeqnoAdvanced();
+                }
             }
+
             // Client does not support collections, so we cannot send a
             // seqno-advanced message to tell them that the last streamed seqno
             // is below the snap_end. However, we should still move the
@@ -2123,8 +2154,6 @@ void ActiveStream::completeBackfillInner(
             if (!isCollectionEnabledStream() && maxScanSeqno > lastReadSeqno) {
                 lastReadSeqno.store(maxScanSeqno);
             }
-            // reset last seqno seen by backfill
-            maxScanSeqno = 0;
         }
 
         if (isBackfilling()) {
@@ -2175,10 +2204,10 @@ void ActiveStream::completeBackfillInner(
                     logPrefix);
             } else if (
                     producer->isOutOfOrderSnapshotsEnabledWithSeqnoAdvanced() &&
-                    maxSeqno != lastBackfilledSeqno) {
+                    maxScanSeqno != lastBackfilledSeqno) {
                 pushToReadyQ(std::make_unique<SeqnoAdvanced>(
-                        opaque_, vb_, sid, maxSeqno));
-                lastSentSeqnoAdvance.store(maxSeqno);
+                        opaque_, vb_, sid, maxScanSeqno));
+                lastSentSeqnoAdvance.store(maxScanSeqno);
             }
 
             // Now that the OSO backfill has ended, we can tweak
@@ -2186,8 +2215,8 @@ void ActiveStream::completeBackfillInner(
             // we've just processed. This ensures any pending backfill which
             // follows continues from maxSeqno and not the max seqno of the
             // collection(s) in the OSO scan, which could be way less.
-            if (maxSeqno > lastReadSeqno) {
-                lastReadSeqno = maxSeqno;
+            if (maxScanSeqno > lastReadSeqno) {
+                lastReadSeqno = maxScanSeqno;
             }
 
             pushToReadyQ(std::make_unique<OSOSnapshot>(
@@ -2232,15 +2261,15 @@ void ActiveStream::notifyEmptyBackfill_UNLOCKED(uint64_t lastSeenSeqno) {
                             lastSeenSeqno,
                             CheckpointCursor::Droppable::Yes);
             log(spdlog::level::level_enum::info,
-                "{} ActiveStream::notifyEmptyBackfill "
+                "{} ActiveStream::notifyEmptyBackfill: "
                 "Re-registering dropped cursor with name \"{}\", "
-                "lastSeenSeqno:{}, registeredSeqno:{}, backfill:{}",
+                "lastSeenSeqno:{}, backfill:{}, nextSeqno:{}",
                 logPrefix,
                 name_,
                 lastSeenSeqno,
-                result.seqno,
-                result.tryBackfill);
-            curChkSeqno = result.seqno;
+                result.tryBackfill,
+                result.nextSeqno);
+            curChkSeqno = result.nextSeqno;
             cursor = result.takeCursor();
         } catch (std::exception& error) {
             log(spdlog::level::level_enum::warn,
@@ -2469,19 +2498,6 @@ uint64_t ActiveStream::getLastSentSeqno() const {
     return lastSentSeqno.load();
 }
 
-bool ActiveStream::isCurrentSnapshotCompleted() const {
-    VBucketPtr vbucket = engine->getVBucket(vb_);
-    // An atomic read of vbucket state without acquiring the
-    // reader lock for state should suffice here.
-    if (vbucket && vbucket->getState() == vbucket_state_replica) {
-        if (lastSentSnapEndSeqno.load(std::memory_order_relaxed) >=
-            lastReadSeqno) {
-            return false;
-        }
-    }
-    return true;
-}
-
 bool ActiveStream::dropCheckpointCursor_UNLOCKED() {
     VBucketPtr vbucket = engine->getVBucket(vb_);
     if (!vbucket) {
@@ -2665,33 +2681,6 @@ bool ActiveStream::isSeqnoAdvancedEnabled() const {
     return isCollectionEnabledStream() &&
            (syncReplication == SyncReplication::No ||
             !flatBuffersSystemEventsEnabled);
-}
-
-bool ActiveStream::isSeqnoAdvancedNeededBackFill() const {
-    if (!isSeqnoAdvancedEnabled() || !isSeqnoGapAtEndOfSnapshot(maxScanSeqno)) {
-        return false;
-    }
-    /**
-     * In most cases we want to send a SeqnoAdvanced op if we have not sent
-     * the final seqno in the snapshot at the end of backfill. However,
-     * replica vbucket may transition their snapshot from backfill to
-     * streaming from memory without sending another snapshot. Thus, in this
-     * case we do not want to send a SeqnoAdvanced at the end of backfill.
-     * So check that we don't have an in memory range to stream from.
-     */
-    auto vb = engine->getVBucket(vb_);
-    if (vb) {
-        if (vb->getState() == vbucket_state_replica) {
-            return maxScanSeqno > lastBackfilledSeqno &&
-                   maxScanSeqno == lastSentSnapEndSeqno.load();
-        }
-    } else {
-        log(spdlog::level::level_enum::warn,
-            "{} isSeqnoAdvancedNeededBackFill() for vbucket which does not "
-            "exist",
-            logPrefix);
-    }
-    return isCurrentSnapshotCompleted();
 }
 
 bool ActiveStream::isSeqnoGapAtEndOfSnapshot(uint64_t streamSeqno) const {
