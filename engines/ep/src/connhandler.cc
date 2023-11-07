@@ -328,7 +328,10 @@ void ConnHandler::addStats(const AddStatFn& add_stat, CookieIface& c) {
     addStat("pending_disconnect", disconnect.load(), add_stat, c);
     addStat("supports_ack", supportAck.load(), add_stat, c);
     addStat("paused", isPaused(), add_stat, c);
+
     const auto details = pausedDetails.copy();
+    addStat("paused_count", details.pausedCounter, add_stat, c);
+    addStat("unpaused_count", details.unpausedCounter, add_stat, c);
     if (isPaused()) {
         addStat("paused_current_reason",
                 to_string(details.reason),
@@ -379,6 +382,9 @@ void ConnHandler::pause(ConnHandler::PausedReason r) {
     pausedDetails.withLock([r, now](auto& details) {
         details.reason = r;
         details.lastPaused = now;
+        if (r == PausedReason::BufferLogFull) {
+            ++details.pausedCounter;
+        }
     });
 }
 
@@ -402,6 +408,9 @@ void ConnHandler::unPause() {
                 details.reason);
         details.reasonCounts[index]++;
         details.reasonDurations[index] += (now - details.lastPaused);
+        if (details.reason == PausedReason::BufferLogFull) {
+            ++details.unpausedCounter;
+        }
     });
 }
 
@@ -432,6 +441,12 @@ std::string ConnHandler::getPausedDetails() const {
                        totalCount,
                        cb::time2text(totalDuration),
                        std::string_view{buf.data(), buf.size()});
+}
+
+std::pair<size_t, size_t> ConnHandler::getPausedCounters() const {
+    return pausedDetails.withLock([](const auto& details) {
+        return std::make_pair(details.pausedCounter, details.unpausedCounter);
+    });
 }
 
 void ConnHandler::scheduleNotify() {

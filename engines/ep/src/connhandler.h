@@ -63,7 +63,8 @@ struct ConnCounter {
         conn_queueRemaining += other.conn_queueRemaining;
         conn_queueBackoff += other.conn_queueBackoff;
         conn_queueMemory += other.conn_queueMemory;
-
+        conn_paused += other.conn_paused;
+        conn_unpaused += other.conn_unpaused;
         return *this;
     }
 
@@ -84,6 +85,8 @@ struct ConnCounter {
     size_t      conn_queueRemaining;
     size_t      conn_queueBackoff;
     size_t conn_queueMemory;
+    size_t conn_paused{0};
+    size_t conn_unpaused{0};
 };
 
 class ConnHandler : public DcpConnHandlerIface {
@@ -357,6 +360,8 @@ public:
         return paused;
     }
 
+    std::pair<size_t, size_t> getPausedCounters() const;
+
     void unPause();
 
     /**
@@ -474,6 +479,11 @@ private:
         /// each possible reason (excluding current pause).
         std::array<std::chrono::nanoseconds, PausedReasonCount>
                 reasonDurations{};
+
+        // The following two counters only change when the reason is
+        // BufferLogFull and exist so we can remove logging of such events.
+        size_t pausedCounter{0};
+        size_t unpausedCounter{0};
     };
     folly::Synchronized<PausedDetails, std::mutex> pausedDetails;
 

@@ -4271,6 +4271,8 @@ static void showConnAggStat(const std::string& connType,
                           counter.conn_totalUncompressedDataSize);
         labelled.addStat(Key::connagg_ready_queue_bytes,
                          counter.conn_queueMemory);
+        labelled.addStat(Key::connagg_paused, counter.conn_paused);
+        labelled.addStat(Key::connagg_unpaused, counter.conn_unpaused);
 
     } catch (std::exception& error) {
         EP_LOG_WARN("showConnAggStat: Failed to build stats: {}", error.what());

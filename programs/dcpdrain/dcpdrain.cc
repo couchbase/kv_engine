@@ -711,7 +711,7 @@ int main(int argc, char** argv) {
             break;
         case 'a':
             acknowledge_ratio = std::strtof(optarg, nullptr);
-            if (acknowledge_ratio <= 0 || acknowledge_ratio >= 1) {
+            if (acknowledge_ratio <= 0 || acknowledge_ratio > 1) {
                 std::cerr << "Error: invalid value '" << optarg
                           << "' specified for -acknowledge-ratio. Supported "
                              "values are between 0 and 1\n";

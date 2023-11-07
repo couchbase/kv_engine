@@ -2879,6 +2879,8 @@ static test_result test_dcp_agg_stats(EngineIface* h) {
     verifyStat("ready_queue_bytes", 0);
     verifyStat("total_bytes", total_bytes);
     verifyStat("total_uncompressed_data_size", total_bytes);
+    verifyStat("paused_count", 0);
+    verifyStat("unpaused_count", 0);
 
     // Check for any unexpected stats not covered above.
     for (auto& stat : stats) {

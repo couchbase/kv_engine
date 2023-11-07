@@ -141,14 +141,6 @@ void DcpProducer::BufferLog::acknowledge(size_t bytes) {
         ackedBytes += bytes;
 
         if (state == Full) {
-            EP_LOG_INFO(
-                    "{} Notifying paused connection now that "
-                    "DcpProducer::BufferLog is no longer full; ackedBytes:{}"
-                    ", bytesSent:{}, maxBytes:{}",
-                    producer.logHeader(),
-                    ackedBytes,
-                    uint64_t(bytesOutstanding),
-                    uint64_t(maxBytes));
             producer.scheduleNotify();
         }
     }
@@ -1679,6 +1671,10 @@ void DcpProducer::aggregateQueueStats(ConnCounter& aggregator) const {
     aggregator.conn_queueDrain += itemsSent;
     aggregator.conn_totalBytes += totalBytesSent;
     aggregator.conn_totalUncompressedDataSize += totalUncompressedDataSize;
+
+    auto pausedCounters = getPausedCounters();
+    aggregator.conn_paused = pausedCounters.first;
+    aggregator.conn_unpaused = pausedCounters.second;
 
     auto streamAggStats = getStreamAggStats();
 

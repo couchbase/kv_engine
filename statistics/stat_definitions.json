@@ -3793,6 +3793,26 @@
         },
         "added": "7.1.0"
     },
+        {
+        "key": "connagg_paused",
+        "unit": "count",
+        "description": "Count of how many times the DCP connection has been paused",
+        "cbstat": "{connection_type}:paused_count",
+        "prometheus": {
+            "family": "dcp_paused_count"
+        },
+        "added": "7.6.0"
+    },
+    {
+        "key": "connagg_unpaused",
+        "unit": "count",
+        "description": "Count of how many times the DCP connection has been unpaused",
+        "cbstat": "{connection_type}:unpaused_count",
+        "prometheus": {
+            "family": "dcp_unpaused_count"
+        },
+        "added": "7.6.0"
+    },
     {
         "family": "dcp_items_backfilled",
         "unit": "count",
