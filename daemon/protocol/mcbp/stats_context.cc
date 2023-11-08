@@ -906,12 +906,15 @@ cb::engine_errc StatsCommandContext::getTaskResult() {
     } else if (command_exit_code == cb::engine_errc::throttled) {
         // The call to stats throttled, so we send what we've received and
         // attempt to run again to completion.
-        stats_task.drainBufferedStatsToOutput();
         state = State::DoStats;
-        return cb::engine_errc::success;
+        return stats_task.drainBufferedStatsToOutput(
+                /*notifyOnIoCompete*/ true);
     } else {
         state = State::CommandComplete;
-        stats_task.drainBufferedStatsToOutput();
+        // No need for notification here, as we just want to finish execution
+        // and free up the cookie.
+        return stats_task.drainBufferedStatsToOutput(
+                /*notifyOnIoCompete*/ false);
     }
 
     return cb::engine_errc::success;

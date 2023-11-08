@@ -28,8 +28,14 @@ public:
     /// Get the result from the command
     cb::engine_errc getCommandError() const;
 
-    /// Writes any buffered stats to the output buffer.
-    void drainBufferedStatsToOutput();
+    /**
+     * Writes any buffered stats to the output buffer.
+     * @param notifyOnIoCompete Whether to notifyIoComplete() the cookie once
+     * the buffer has left the connection sendQueue.
+     * @return cb::engine_errc::would_block if the cookie will be notified later
+     */
+    [[nodiscard]] cb::engine_errc drainBufferedStatsToOutput(
+            bool notifyOnIoCompete);
 
 protected:
     bool run() final;

@@ -12,11 +12,15 @@
 #include "connection.h"
 #include "cookie.h"
 #include "daemon/protocol/mcbp/engine_wrapper.h"
+#include "daemon/sendbuffer.h"
+#include "daemon/settings.h"
 #include "front_end_thread.h"
 #include "mcbp/codec/stats_codec.h"
 #include "memcached.h"
+#include "memcached/engine_error.h"
 #include "nobucket_taskable.h"
 #include <logger/logger.h>
+#include <memory>
 
 StatsTask::StatsTask(TaskId id, Cookie& cookie)
     : GlobalTask(NoBucketTaskable::instance(), id), cookie(cookie) {
@@ -26,18 +30,43 @@ cb::engine_errc StatsTask::getCommandError() const {
     return taskData.lock()->command_error;
 }
 
-void StatsTask::drainBufferedStatsToOutput() {
-    taskData.withLock([this](auto& data) {
-        if (data.stats_buf->empty()) {
+cb::engine_errc StatsTask::drainBufferedStatsToOutput(bool notifyCookieOnSend) {
+    taskData.withLock([this, &notifyCookieOnSend](auto& data) {
+        if (!data.stats_buf || data.stats_buf->empty()) {
+            // No data to send, so we won't be notifying the cookie and should
+            // return success.
+            notifyCookieOnSend = false;
             return;
         }
 
+        // Code doesn't currently use chained IOBufs and if it did, this
+        // statement can be removed. Note the SendBuffer interface excepts a
+        // contiguous view (and so does libevent).
         Expects(!data.stats_buf->isChained());
-        cookie.getConnection().copyToOutputStream(std::string_view{
-                reinterpret_cast<const char*>(data.stats_buf->data()),
-                data.stats_buf->length()});
-        data.stats_buf->clear();
+
+        // Move out the current IOBuf, leave nullptr.
+        auto buf = std::move(data.stats_buf);
+        // View over it for the SendBuffer.
+        std::string_view view{reinterpret_cast<const char*>(buf->data()),
+                              buf->length()};
+
+        std::unique_ptr<SendBuffer> send_buf;
+        if (notifyCookieOnSend) {
+            // Pass in the cookie to notify.
+            send_buf = std::make_unique<NotifySendBuffer>(
+                    std::move(buf), view, cookie);
+        } else {
+            send_buf = std::make_unique<IOBufSendBuffer>(std::move(buf), view);
+        }
+
+        cookie.getConnection().chainDataToOutputStream(std::move(send_buf));
     });
+
+    if (notifyCookieOnSend) {
+        return cb::engine_errc::would_block;
+    } else {
+        return cb::engine_errc::success;
+    }
 }
 
 bool StatsTask::run() {
