@@ -1530,6 +1530,25 @@ void ActiveStream::processItemsInner(
         sendSnapshotAndSeqnoAdvanced(outstandingItemsResult,
                                      highNonVisibleSeqno.value(),
                                      highNonVisibleSeqno.value());
+    } else if (lastReadSeqno < curChkSeqno) {
+        // So here we are in the case where:
+        // - We have moved the DCP cursor and pulled some items
+        // - There was some non-meta items (as curChkSeqno has been
+        //   bumped)
+        // - We have filtered out some item (lastReadSeqno not aligned
+        //   to curChkSeqno)
+        // - Actually we have filtered all the items and we have skipped
+        //   the call to snapshot().
+        //
+        // We need to bump lastReadSeqno.
+        // The local newLastReadSeqno variable is updated with all
+        // seqnos that belong the stream, regardless of whether they are
+        // filtered out by the stream filter. That's the quantity that
+        // we normally use in the snapshot() golden-path for updating
+        // AS::lastReadSeqno. Used here with the same semantic.
+        if (lastReadSeqno < newLastReadSeqno) {
+            lastReadSeqno = newLastReadSeqno;
+        }
     }
 }
 
@@ -1590,10 +1609,13 @@ void ActiveStream::snapshot(const OutstandingItemsResult& meta,
     // - If we have sent up to the last seqno in the last marker range, for
     //   non-active vbuckets
     //
-    // @todo MB-58961:
-    // 1. Shouldn't it be a weak-inequality here (ie, <=) ?
-    // 2. Shouldn't we use lastSentSeqno in place of lastReadSeqno here?
-    // At the time of writing I'm pushing a non-logic change, so defer the above
+    // * Update on the above*
+    // At the time of writing I have introduced the
+    // MemorySnapshotFromPartialReplica DCP test. Test stresses the behaviour
+    // here for replica vbuckets. The test proves that the condition that we
+    // enforce here isn't enough for ensuring that replica vbuckets stream
+    // consistent snapshots to the peer. See that test for details.
+    // @todo: MB-59288
     const auto isReplicaSnapshotComplete =
             lastSentSnapEndSeqno.load(std::memory_order_relaxed) <
             lastReadSeqno;
