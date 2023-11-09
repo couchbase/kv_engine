@@ -818,6 +818,10 @@ cb::engine_errc PassiveStream::processCommit(
     if (!vb) {
         return cb::engine_errc::not_my_vbucket;
     }
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    if (!permittedVBStates.test(vb->getState())) {
+        return cb::engine_errc::not_my_vbucket;
+    }
 
     auto rv = vb->commit(commit.getKey(),
                          commit.getPreparedSeqno(),
