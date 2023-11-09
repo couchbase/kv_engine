@@ -6816,6 +6816,87 @@ TEST_P(CDCPassiveStreamTest, TouchedByExpelCheckpointNotReused) {
                                  0));
 }
 
+// MB-59518 is an issue where a DCP passive-stream processed a commit against
+// an active vbucket resulting in a duplicate commit (and failure). The issue
+// occurred because it was possible to reach the VBucket::commit function
+// during a replica->active state change provided that operations are buffered.
+// The fix was to put strong VBucket state checks in the PassiveStream commit
+// path.
+void SingleThreadedPassiveStreamTest::replicaToActiveBufferedRejected(
+        DcpResponse::Event event) {
+    consumer->disableFlatBuffersSystemEvents();
+
+    // Force consumer buffering.
+    auto& stats = engine->getEpStats();
+    stats.replicationThrottleThreshold = 0;
+    const size_t size = stats.getMaxDataSize();
+    engine->setMaxDataSize(1);
+    ASSERT_EQ(ReplicationThrottle::Status::Pause,
+              engine->getReplicationThrottle().getStatus());
+
+    auto vb = engine->getVBucket(vbid);
+
+    // Buffer the requested operation
+    snapshot(*consumer, stream->getOpaque(), 1, 1);
+
+    if (event == DcpResponse::Event::Mutation) {
+        EXPECT_EQ(cb::engine_errc::success,
+                  mutation(*consumer,
+                           stream->getOpaque(),
+                           makeStoredDocKey("key"),
+                           1));
+    } else if (event == DcpResponse::Event::Deletion) {
+        EXPECT_EQ(cb::engine_errc::success,
+                  deletion(*consumer,
+                           stream->getOpaque(),
+                           makeStoredDocKey("key"),
+                           1));
+    } else if (event == DcpResponse::Event::SystemEvent) {
+        EXPECT_EQ(cb::engine_errc::success,
+                  createCollection(*consumer, stream->getOpaque(), 1));
+    } else {
+        FAIL() << "Unexpected event";
+    }
+
+    // Was buffered and not applied.
+    EXPECT_EQ(0, vb->getHighSeqno());
+
+    std::function<void()> hook = [this]() {
+        // Change the vbucket state using the hook. This will happen whilst the
+        // consumer buffering "thread" has a stream pointer. Important or not
+        // is that ns_server uses "null" in the chain when the failover occurs
+        setVBucketState(
+                vbid,
+                vbucket_state_active,
+                nlohmann::json::parse(R"({"topology":[["active",null]]})"),
+                TransferVB::No);
+    };
+    stream->setProcessBufferedMessages_postFront_Hook(hook);
+
+    // And process the buffered commit. This commit should be rejected!
+    stats.replicationThrottleThreshold = 99;
+    engine->setMaxDataSize(size);
+    ASSERT_EQ(ReplicationThrottle::Status::Process,
+              engine->getReplicationThrottle().getStatus());
+    EXPECT_EQ(more_to_process, consumer->processBufferedItems());
+    EXPECT_EQ(all_processed, consumer->processBufferedItems());
+
+    // Expect no change, operation was rejected
+    EXPECT_EQ(0, vb->getHighSeqno());
+}
+
+TEST_P(SingleThreadedPassiveStreamTest, ReplicaToActiveBufferedMutation) {
+    replicaToActiveBufferedRejected(DcpResponse::Event::Mutation);
+}
+
+TEST_P(SingleThreadedPassiveStreamTest, ReplicaToActiveBufferedDeletion) {
+    replicaToActiveBufferedRejected(DcpResponse::Event::Deletion);
+}
+
+TEST_P(SingleThreadedPassiveStreamTest, ReplicaToActiveBufferedSystemEvent) {
+    replicaToActiveBufferedRejected(DcpResponse::Event::SystemEvent);
+}
+
 INSTANTIATE_TEST_SUITE_P(Persistent,
                          CDCPassiveStreamTest,
                          STParameterizedBucketTest::magmaConfigValues(),

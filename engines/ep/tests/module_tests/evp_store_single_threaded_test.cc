@@ -27,6 +27,7 @@
 #include "checkpoint_manager.h"
 #include "checkpoint_remover.h"
 #include "checkpoint_utils.h"
+#include "collections/events_generated.h"
 #include "collections/vbucket_manifest_handles.h"
 #include "dcp/active_stream_checkpoint_processor_task.h"
 #include "dcp/backfill-manager.h"
@@ -1093,6 +1094,22 @@ cb::engine_errc STParameterizedBucketTest::mutation(DcpConsumer& consumer,
                              /*nru*/ 0);
 }
 
+cb::engine_errc STParameterizedBucketTest::deletion(DcpConsumer& consumer,
+                                                    uint32_t opaque,
+                                                    const DocKey& key,
+                                                    uint64_t seqno) {
+    return consumer.deletion(opaque,
+                             key,
+                             cb::const_byte_buffer(),
+                             /*priv_bytes*/ 0,
+                             PROTOCOL_BINARY_DATATYPE_JSON,
+                             /*cas*/ 1,
+                             vbid,
+                             /*bySeqno*/ seqno,
+                             /*revSeqno*/ 0,
+                             /*meta*/ cb::const_byte_buffer());
+}
+
 cb::engine_errc STParameterizedBucketTest::prepare(DcpConsumer& consumer,
                                                    uint32_t opaque,
                                                    const DocKey& key,
@@ -1128,6 +1145,32 @@ cb::engine_errc STParameterizedBucketTest::abort(DcpConsumer& consumer,
                                                  uint64_t prepareSeqno,
                                                  uint64_t seqno) {
     return consumer.abort(opaque, vbid, key, prepareSeqno, seqno);
+}
+
+cb::engine_errc STParameterizedBucketTest::createCollection(
+        DcpConsumer& consumer, uint32_t opaque, uint64_t seqno) {
+    // Create just the fruit collection @ seqno using flatbuffer message
+    flatbuffers::FlatBufferBuilder fb;
+    const auto collection = CollectionEntry::fruit;
+    auto fbPayload = Collections::VB::CreateCollection(
+            fb,
+            1,
+            uint32_t(ScopeEntry::defaultS.getId()),
+            uint32_t(collection.getId()),
+            false, /*max-ttl*/
+            0,
+            fb.CreateString(collection.name.data(), collection.name.size()),
+            false /*history*/);
+    fb.Finish(fbPayload);
+    return consumer.systemEvent(
+            opaque,
+            vbid,
+            mcbp::systemevent::id::CreateCollection,
+            seqno,
+            mcbp::systemevent::version::version2,
+            {reinterpret_cast<const uint8_t*>(collection.name.data()),
+             collection.name.size()},
+            {fb.GetBufferPointer(), fb.GetSize()});
 }
 
 /*

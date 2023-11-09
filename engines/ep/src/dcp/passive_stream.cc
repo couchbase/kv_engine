@@ -667,9 +667,7 @@ cb::engine_errc PassiveStream::processMessage(MutationConsumerMessage* message,
                                                  0,
                                                  nullptr,
                                                  consumer->getCookie(),
-                                                 {vbucket_state_active,
-                                                  vbucket_state_replica,
-                                                  vbucket_state_pending},
+                                                 permittedVBStates,
                                                  CheckConflicts::No,
                                                  true,
                                                  GenerateBySeqno::No,
@@ -703,9 +701,7 @@ cb::engine_errc PassiveStream::processMessage(MutationConsumerMessage* message,
                 nullptr,
                 message->getVBucket(),
                 consumer->getCookie(),
-                {vbucket_state_active,
-                 vbucket_state_replica,
-                 vbucket_state_pending},
+                permittedVBStates,
                 CheckConflicts::No,
                 meta,
                 GenerateBySeqno::No,
@@ -847,7 +843,6 @@ cb::engine_errc PassiveStream::processAbort(
     if (!vb) {
         return cb::engine_errc::not_my_vbucket;
     }
-
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
     if (!permittedVBStates.test(vb->getState())) {
         return cb::engine_errc::not_my_vbucket;
@@ -876,6 +871,10 @@ cb::engine_errc PassiveStream::processSystemEvent(
     VBucketPtr vb = engine->getVBucket(vb_);
 
     if (!vb) {
+        return cb::engine_errc::not_my_vbucket;
+    }
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    if (!permittedVBStates.test(vb->getState())) {
         return cb::engine_errc::not_my_vbucket;
     }
 

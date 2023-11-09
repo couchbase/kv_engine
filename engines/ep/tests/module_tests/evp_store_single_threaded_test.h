@@ -839,6 +839,10 @@ public:
                              uint32_t opaque,
                              const DocKey& key,
                              uint64_t seqno);
+    cb::engine_errc deletion(DcpConsumer& consumer,
+                             uint32_t opaque,
+                             const DocKey& key,
+                             uint64_t seqno);
     cb::engine_errc prepare(DcpConsumer& consumer,
                             uint32_t opaque,
                             const DocKey& key,
@@ -853,6 +857,9 @@ public:
                           const DocKey& key,
                           uint64_t prepareSeqno,
                           uint64_t seqno);
+    cb::engine_errc createCollection(DcpConsumer& consumer,
+                                     uint32_t opaque,
+                                     uint64_t seqno);
 
 protected:
     void SetUp() override;
