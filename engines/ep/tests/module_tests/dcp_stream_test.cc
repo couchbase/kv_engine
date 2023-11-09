@@ -5152,6 +5152,240 @@ TEST_P(SingleThreadedPassiveStreamTest, GetSnapshotInfo) {
     EXPECT_EQ(snapshot_range_t(2, 2), snapInfo.range);
 }
 
+// Note: At the moment this test's purpose is to show how outbound DCP behaves
+// at replica.
+// @todo MB-59288
+TEST_P(SingleThreadedPassiveStreamTest, BackfillSnapshotFromPartialReplica) {
+    if (isRocksDB()) {
+        // Broken on RocksDB
+        GTEST_SKIP();
+    }
+
+    auto& vb = *store->getVBucket(vbid);
+    ASSERT_EQ(0, vb.getHighSeqno());
+    auto& manager = static_cast<MockCheckpointManager&>(*vb.checkpointManager);
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(2, manager.getNumOpenChkItems()); // cs, vbs
+    removeCheckpoint(vb);
+    ASSERT_EQ(0, vb.getHighSeqno());
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(1, manager.getNumOpenChkItems()); // cs
+    const auto& list = manager.getCheckpointList();
+    ASSERT_FALSE(list.back()->modifiedByExpel());
+
+    // The stream isn't in any snapshot (no data received)
+    auto snapInfo = manager.getSnapshotInfo();
+    EXPECT_EQ(0, snapInfo.start);
+    EXPECT_EQ(snapshot_range_t(0, 0), snapInfo.range);
+    // Same on disk
+    auto& underlying = *store->getRWUnderlying(vbid);
+    ASSERT_EQ(0, underlying.getLastPersistedSeqno(vbid));
+    auto vbstate = underlying.getPersistedVBucketState(vbid);
+    ASSERT_EQ(0, vbstate.state.lastSnapStart);
+    ASSERT_EQ(0, vbstate.state.lastSnapEnd);
+
+    const uint64_t opaque = 1;
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       1, // start
+                                       2, // end
+                                       MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+                                       {},
+                                       {}));
+    ASSERT_EQ(0, underlying.getLastPersistedSeqno(vbid));
+    vbstate = underlying.getPersistedVBucketState(vbid);
+    ASSERT_EQ(0, vbstate.state.lastSnapStart);
+    ASSERT_EQ(0, vbstate.state.lastSnapEnd);
+    const auto key = makeStoredDocKey("key");
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->mutation(opaque,
+                                 key,
+                                 {},
+                                 0,
+                                 0,
+                                 0,
+                                 vbid,
+                                 0,
+                                 1, // seqno
+                                 0,
+                                 0,
+                                 0,
+                                 {},
+                                 0));
+    EXPECT_EQ(1, vb.getHighSeqno());
+    EXPECT_EQ(2, manager.getNumOpenChkItems()); // cs, mut
+
+    // The stream is in a partial snapshot here
+    snapInfo = manager.getSnapshotInfo();
+    EXPECT_EQ(1, snapInfo.start);
+    EXPECT_EQ(snapshot_range_t(1, 2), snapInfo.range);
+    // Disk too
+    flushVBucketToDiskIfPersistent(vbid);
+    ASSERT_EQ(1, underlying.getLastPersistedSeqno(vbid));
+    vbstate = underlying.getPersistedVBucketState(vbid);
+    ASSERT_EQ(0, vbstate.state.lastSnapStart);
+    ASSERT_EQ(2, vbstate.state.lastSnapEnd);
+
+    // Trigger an outbound backfill
+    removeCheckpoint(vb);
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer->test_consumer", 0, false);
+    producer->createCheckpointProcessorTask();
+    producer->scheduleCheckpointProcessorTask();
+    auto activeStream = std::make_shared<MockActiveStream>(
+            engine.get(), producer, 0, 0, vb);
+    activeStream->setActive();
+    ASSERT_TRUE(activeStream->isBackfilling());
+    auto& readyQ = activeStream->public_readyQ();
+    ASSERT_EQ(0, readyQ.size());
+
+    // Core test
+    // Backfill generates a [0, 1] complete snapshot even if on disk replica is
+    // in a partial [0, 2] snapshot.
+    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    runNextTask(lpAuxioQ); // init + scan
+    ASSERT_EQ(2, readyQ.size());
+    // marker
+    auto resp = activeStream->next(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto snapMarker = dynamic_cast<SnapshotMarker&>(*resp);
+    EXPECT_EQ(0, snapMarker.getStartSeqno());
+    EXPECT_EQ(1, snapMarker.getEndSeqno());
+    // mutation
+    resp = activeStream->next(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    EXPECT_EQ(1, resp->getBySeqno());
+}
+
+// Note: At the moment this test's purpose is to show how outbound DCP behaves
+// at replica.
+// @todo MB-59288
+TEST_P(SingleThreadedPassiveStreamTest, MemorySnapshotFromPartialReplica) {
+    auto& vb = *store->getVBucket(vbid);
+    ASSERT_EQ(0, vb.getHighSeqno());
+    auto& manager = static_cast<MockCheckpointManager&>(*vb.checkpointManager);
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(2, manager.getNumOpenChkItems()); // cs, vbs
+
+    removeCheckpoint(vb);
+    ASSERT_EQ(0, vb.getHighSeqno());
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(1, manager.getNumOpenChkItems()); // cs
+    const auto& list = manager.getCheckpointList();
+    ASSERT_FALSE(list.back()->modifiedByExpel());
+
+    // The stream isn't in any snapshot (no data received)
+    auto snapInfo = manager.getSnapshotInfo();
+    EXPECT_EQ(0, snapInfo.start);
+    EXPECT_EQ(snapshot_range_t(0, 0), snapInfo.range);
+
+    const uint64_t opaque = 1;
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       1, // start
+                                       2, // end
+                                       MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+                                       {},
+                                       {}));
+
+    const auto key = makeStoredDocKey("key");
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->mutation(opaque,
+                                 key,
+                                 {},
+                                 0,
+                                 0,
+                                 0,
+                                 vbid,
+                                 0,
+                                 1, // seqno
+                                 0,
+                                 0,
+                                 0,
+                                 {},
+                                 0));
+
+    EXPECT_EQ(1, vb.getHighSeqno());
+    EXPECT_EQ(2, manager.getNumOpenChkItems()); // cs, mut
+
+    // The stream is in a partial snapshot here
+    snapInfo = manager.getSnapshotInfo();
+    EXPECT_EQ(1, snapInfo.start);
+    EXPECT_EQ(snapshot_range_t(1, 2), snapInfo.range);
+
+    // Open an outbound stream from replica.
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer->test_consumer", 0, false);
+    producer->createCheckpointProcessorTask();
+    producer->scheduleCheckpointProcessorTask();
+    auto activeStream = std::make_shared<MockActiveStream>(
+            engine.get(), producer, 0, 0, vb);
+    activeStream->setActive();
+    ASSERT_TRUE(activeStream->isInMemory());
+    auto& readyQ = activeStream->public_readyQ();
+    ASSERT_EQ(0, readyQ.size());
+
+    // Core test
+    // I would expect that checkpoint generates a [0, 2] partial snapshot, only
+    // seqno:1 in checkpoint.
+    activeStream->nextCheckpointItemTask();
+    ASSERT_EQ(2, readyQ.size());
+    // marker
+    auto resp = activeStream->next(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    auto* snapMarker = dynamic_cast<SnapshotMarker*>(resp.get());
+    EXPECT_EQ(0, snapMarker->getStartSeqno());
+    EXPECT_EQ(1, snapMarker->getEndSeqno()); // @todo ??? I would expect 2
+    // seqno:1
+    resp = activeStream->next(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    auto* mut = dynamic_cast<MutationResponse*>(resp.get());
+    EXPECT_EQ(1, mut->getBySeqno());
+
+    // Now replica receives the snapEnd mutation
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->mutation(opaque,
+                                 key,
+                                 {},
+                                 0,
+                                 0,
+                                 0,
+                                 vbid,
+                                 0,
+                                 2, // seqno
+                                 0,
+                                 0,
+                                 0,
+                                 {},
+                                 0));
+
+    // Core test
+    // There's only seqno:2 remaining for the stream in checkpoint. I would
+    // expect that just that mutation is sent for completing the snapshot that
+    // we have partially sent to the peer.
+    activeStream->nextCheckpointItemTask();
+    ASSERT_EQ(2, readyQ.size()); // @todo ??? I would expect 1
+    // marker @todo ??? I would expect no marker
+    resp = activeStream->next(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::SnapshotMarker, resp->getEvent());
+    snapMarker = dynamic_cast<SnapshotMarker*>(resp.get());
+    EXPECT_EQ(2, snapMarker->getStartSeqno());
+    EXPECT_EQ(2, snapMarker->getEndSeqno());
+    // seqno:2
+    resp = activeStream->next(*producer);
+    ASSERT_TRUE(resp);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    mut = dynamic_cast<MutationResponse*>(resp.get());
+    EXPECT_EQ(2, mut->getBySeqno());
+}
+
 /**
  * MB-38444: We fix an Ephemeral-only bug, but test covers Persistent bucket too
  */
@@ -5674,6 +5908,147 @@ TEST_P(SingleThreadedActiveStreamTest, MB_57772) {
 
     EXPECT_EQ(0, store->getKVStoreScanTracker().getNumRunningBackfills());
     EXPECT_EQ(0, bfm.getNumBackfills());
+}
+
+TEST_P(SingleThreadedActiveStreamTest, MB_58961) {
+    // No OSOBackfill in Ephemeral
+    if (ephemeral()) {
+        GTEST_SKIP();
+    }
+
+    // Create a collection
+    CollectionsManifest manifest;
+    const auto& cFruit = CollectionEntry::fruit;
+    manifest.add(
+            cFruit, cb::NoExpiryLimit, true /*history*/, ScopeEntry::defaultS);
+    auto& vb = *store->getVBucket(vbid);
+    vb.updateFromManifest(folly::SharedMutex::ReadHolder(vb.getStateLock()),
+                          Collections::Manifest{std::string{manifest}});
+    ASSERT_EQ(1, vb.getHighSeqno());
+
+    // seqno:2 in cFruit
+    const std::string value("value");
+    store_item(vbid, makeStoredDocKey("keyF", cFruit), value);
+    ASSERT_EQ(2, vb.getHighSeqno());
+
+    // Add some data to the default collection
+    const auto& cDefault = CollectionEntry::defaultC;
+    store_item(vbid, makeStoredDocKey("keyD", cDefault), value);
+    ASSERT_EQ(3, vb.getHighSeqno());
+
+    // [e:1 cs:1 se:1 m(keyF):2 m(keyD):3)
+
+    // Ensure new stream will backfill
+    stream->public_getOutstandingItems(vb);
+    removeCheckpoint(vb);
+
+    // [e:4 cs:4)
+
+    // Ensure OSOBackfill is triggered
+    engine->getConfiguration().setDcpOsoBackfill("enabled");
+    producer->setOutOfOrderSnapshots(OutOfOrderSnapshots::YesWithSeqnoAdvanced);
+
+    // Stream filters on cFruit
+    recreateStream(
+            vb,
+            true,
+            fmt::format(R"({{"collections":["{:x}"]}})", uint32_t(cFruit.uid)));
+    ASSERT_TRUE(stream);
+    // Pushed to backfill
+    ASSERT_TRUE(stream->isBackfilling());
+
+    // [e:4 cs:4)
+    //  ^
+
+    auto& readyQ = stream->public_readyQ();
+    ASSERT_EQ(0, readyQ.size());
+
+    // Run the OSO backfill
+    runBackfill(); // push markers and data
+    ASSERT_EQ(5, readyQ.size());
+
+    auto resp = stream->public_nextQueuedItem(*producer);
+    EXPECT_EQ(DcpResponse::Event::OSOSnapshot, resp->getEvent());
+
+    resp = stream->public_nextQueuedItem(*producer);
+    EXPECT_EQ(DcpResponse::Event::SystemEvent, resp->getEvent());
+    EXPECT_EQ(1, resp->getBySeqno());
+
+    resp = stream->public_nextQueuedItem(*producer);
+    EXPECT_EQ(DcpResponse::Event::Mutation, resp->getEvent());
+    EXPECT_EQ(2, resp->getBySeqno());
+
+    // Note: seqno:3 is in cDefault, filtered out, SeqnoAdvance(3) sent
+    resp = stream->public_nextQueuedItem(*producer);
+    EXPECT_EQ(DcpResponse::Event::SeqnoAdvanced, resp->getEvent());
+    EXPECT_EQ(3, resp->getBySeqno());
+
+    resp = stream->public_nextQueuedItem(*producer);
+    EXPECT_EQ(DcpResponse::Event::OSOSnapshot, resp->getEvent());
+
+    EXPECT_EQ(0, stream->getLastSentSnapEndSeqno());
+    EXPECT_EQ(2, stream->getLastBackfilledSeqno());
+    EXPECT_EQ(3, stream->getLastSentSeqno());
+    EXPECT_EQ(3, stream->getLastReadSeqno());
+    EXPECT_EQ(4, stream->getCurChkSeqno());
+
+    ASSERT_FALSE(stream->public_nextQueuedItem(*producer));
+    GMockDcpMsgProducers producers;
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, producers));
+    ASSERT_TRUE(stream->isInMemory());
+
+    // [e:4 cs:4)
+    //  ^
+
+    store_item(vbid, makeStoredDocKey("keyD4", cDefault), value);
+    ASSERT_EQ(4, vb.getHighSeqno());
+    store_item(vbid, makeStoredDocKey("keyD5", cDefault), value);
+    ASSERT_EQ(5, vb.getHighSeqno());
+
+    // [e:4 cs:4 m(keyD4):4 m(keyD5):5)
+    //  ^
+
+    // Move inMemory stream.
+    // Note: Before the fix we do move the cursor but we miss to advance the
+    // stream
+    ASSERT_EQ(0, readyQ.size());
+    runCheckpointProcessor(*producer, producers);
+    // Note: We don't send any snapshot when all items are filtrered out
+    EXPECT_EQ(0, readyQ.size());
+
+    // [e:4 cs:4 m(keyD4):4 m(keyD5):5)
+    //                      ^
+
+    EXPECT_EQ(0, stream->getLastSentSnapEndSeqno());
+    EXPECT_EQ(2, stream->getLastBackfilledSeqno());
+    EXPECT_EQ(3, stream->getLastSentSeqno());
+    EXPECT_EQ(5, stream->getLastReadSeqno()); // Before the fix: 3
+    EXPECT_EQ(5, stream->getCurChkSeqno());
+
+    // CursorDrop + backfill
+    ASSERT_TRUE(stream->handleSlowStream());
+    ASSERT_TRUE(stream->isInMemory());
+
+    // [e:4 cs:4 m(keyD4):4 m(keyD5):5)
+    //                      x
+
+    // Before the fix for MB-58961 this step triggers:
+    //
+    // libc++abi: terminating due to uncaught exception of type
+    // boost::exception_detail::error_info_injector<std::logic_error>:Monotonic<y>
+    // (ActiveStream(test_producer->test_consumer (vb:0))::curChkSeqno)
+    // invariant failed: new value (4) breaks invariant on current value (5)
+    //
+    // The reason for the failure in MB-58961 is that we miss to update
+    // AS::lastReadSeqno when we process the "empty-by-filter" snapshot before
+    // CursorDrop.
+    // By that:
+    // (a) lastReadSeqno stays at 3
+    // (b) In the subsequent AS::scheduleBackfill(lastReadSeqno:3) call we
+    //     re-register the cursor at cs:4 and we try to reset curChkSeqno (5) by
+    //     (4).
+    EXPECT_EQ(cb::engine_errc::would_block, producer->step(false, producers));
+    EXPECT_FALSE(stream->isBackfilling());
 }
 
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
