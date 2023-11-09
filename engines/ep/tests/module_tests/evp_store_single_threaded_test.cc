@@ -1127,6 +1127,14 @@ cb::engine_errc STParameterizedBucketTest::commit(DcpConsumer& consumer,
     return consumer.commit(opaque, vbid, key, prepareSeqno, seqno);
 }
 
+cb::engine_errc STParameterizedBucketTest::abort(DcpConsumer& consumer,
+                                                 uint32_t opaque,
+                                                 const DocKey& key,
+                                                 uint64_t prepareSeqno,
+                                                 uint64_t seqno) {
+    return consumer.abort(opaque, vbid, key, prepareSeqno, seqno);
+}
+
 /*
  * MB-31175
  * The following test checks to see that when we call handleSlowStream in an

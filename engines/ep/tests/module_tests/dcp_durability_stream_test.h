@@ -275,6 +275,9 @@ protected:
      * Read the highCompletedSeqno from disk.
      */
     uint64_t getPersistedHCS();
+
+    /// Test coverage for MB-59518
+    void replicaToActiveBufferedResolution(bool resolutionIsCommit);
 };
 
 class DurabilityPassiveStreamEphemeralTest

@@ -846,6 +846,11 @@ public:
                            const DocKey& key,
                            uint64_t prepareSeqno,
                            uint64_t seqno);
+    cb::engine_errc abort(DcpConsumer& consumer,
+                          uint32_t opaque,
+                          const DocKey& key,
+                          uint64_t prepareSeqno,
+                          uint64_t seqno);
 
 protected:
     void SetUp() override;

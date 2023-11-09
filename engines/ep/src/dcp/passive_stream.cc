@@ -848,6 +848,11 @@ cb::engine_errc PassiveStream::processAbort(
         return cb::engine_errc::not_my_vbucket;
     }
 
+    folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    if (!permittedVBStates.test(vb->getState())) {
+        return cb::engine_errc::not_my_vbucket;
+    }
+
     auto rv = vb->abort(abort.getKey(),
                         abort.getPreparedSeqno(),
                         abort.getAbortSeqno(),

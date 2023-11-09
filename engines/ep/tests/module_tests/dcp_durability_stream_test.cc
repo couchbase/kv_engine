@@ -4557,7 +4557,8 @@ TEST_P(DurabilityPassiveStreamPersistentTest, BufferDcpAbort) {
 // during a replica->active state change provided that operations are buffered.
 // The fix was to put strong VBucket state checks in the PassiveStream commit
 // path.
-TEST_P(DurabilityPassiveStreamPersistentTest, ReplicaToActiveBufferedCommit) {
+void DurabilityPassiveStreamPersistentTest::replicaToActiveBufferedResolution(
+        bool resolutionIsCommit) {
     // Begin by pushing a mutation. Only to get away from seqno:0
     auto key = makeStoredDocKey("key");
     EXPECT_EQ(cb::engine_errc::success,
@@ -4584,11 +4585,16 @@ TEST_P(DurabilityPassiveStreamPersistentTest, ReplicaToActiveBufferedCommit) {
 
     auto vb = engine->getVBucket(vbid);
 
-    // Buffer the commit of the prepare
+    // Buffer the commit/abort of the prepare
     EXPECT_EQ(cb::engine_errc::success,
               snapshot(*consumer, stream->getOpaque(), 3, 3));
-    EXPECT_EQ(cb::engine_errc::success,
-              commit(*consumer, stream->getOpaque(), durableKey, 2, 3));
+    if (resolutionIsCommit) {
+        EXPECT_EQ(cb::engine_errc::success,
+                  commit(*consumer, stream->getOpaque(), durableKey, 2, 3));
+    } else {
+        EXPECT_EQ(cb::engine_errc::success,
+                  abort(*consumer, stream->getOpaque(), durableKey, 2, 3));
+    }
     EXPECT_EQ(2, vb->getHighSeqno());
 
     std::function<void()> hook = [this]() {
@@ -4601,8 +4607,8 @@ TEST_P(DurabilityPassiveStreamPersistentTest, ReplicaToActiveBufferedCommit) {
     };
     stream->setProcessBufferedMessages_postFront_Hook(hook);
 
-    // And process the buffered commit. This commit should be rejected. Prior
-    // to the fix it would be processed against the active.
+    // And process the buffered resolution. This operation should be rejected.
+    // Prior to the fix it would be processed against the active.
     stats.replicationThrottleThreshold = 99;
     engine->setMaxDataSize(size);
     ASSERT_EQ(ReplicationThrottle::Status::Process,
@@ -4610,7 +4616,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, ReplicaToActiveBufferedCommit) {
     EXPECT_EQ(more_to_process, consumer->processBufferedItems());
     EXPECT_EQ(all_processed, consumer->processBufferedItems());
 
-    // Before fixing high-seqno would be at 3 (commit)
+    // Before fixing high-seqno would be at 3 (commit/abort)
     EXPECT_EQ(2, vb->getHighSeqno());
 
     setVBucketState(
@@ -4628,6 +4634,7 @@ TEST_P(DurabilityPassiveStreamPersistentTest, ReplicaToActiveBufferedCommit) {
 
     // And fail. With MB-59518 an error is logged about a failure to find the
     // prepare, this function would throw because the commit is not successful
+    // Note the abort case would fail here in the same way as commit
     try {
         vb->processResolvedSyncWrites();
     } catch (const std::exception& e) {
@@ -4635,6 +4642,14 @@ TEST_P(DurabilityPassiveStreamPersistentTest, ReplicaToActiveBufferedCommit) {
     }
     EXPECT_EQ(3, vb->getHighSeqno());
     flushVBucketToDiskIfPersistent(vbid);
+}
+
+TEST_P(DurabilityPassiveStreamPersistentTest, ReplicaToActiveBufferedCommit) {
+    replicaToActiveBufferedResolution(true);
+}
+
+TEST_P(DurabilityPassiveStreamPersistentTest, ReplicaToActiveBufferedAbort) {
+    replicaToActiveBufferedResolution(false);
 }
 
 void DurabilityPromotionStreamTest::SetUp() {
