@@ -222,10 +222,12 @@ public:
     // Need to explicilty import EngineIface::flush to avoid warning about
     // DCPIface::flush hiding it.
     using EngineIface::flush;
+    using EngineIface::get_stats;
     cb::engine_errc get_stats(CookieIface& cookie,
                               std::string_view key,
                               std::string_view value,
-                              const AddStatFn& add_stat) override;
+                              const AddStatFn& add_stat,
+                              const CheckYieldFn& check_yield) override;
     cb::engine_errc get_prometheus_stats(
             const BucketStatCollector& collector,
             cb::prometheus::MetricGroup metricGroup) override;
@@ -525,6 +527,12 @@ public:
                              std::string_view key,
                              std::string_view value,
                              const AddStatFn& add_stat);
+
+    cb::engine_errc getStats(CookieIface& cookie,
+                             std::string_view key,
+                             std::string_view value,
+                             const AddStatFn& add_stat,
+                             const CheckYieldFn& check_yield);
 
     void resetStats();
 
@@ -1138,6 +1146,7 @@ protected:
      */
     cb::engine_errc doDcpStats(CookieIface& cookie,
                                const AddStatFn& add_stat,
+                               const CheckYieldFn& check_yield,
                                std::string_view value);
 
     void addAggregatedProducerStats(const BucketStatCollector& collector,

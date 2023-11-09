@@ -386,7 +386,8 @@ cb::engine_errc EventuallyPersistentEngine::get_stats(
         CookieIface& cookie,
         std::string_view key,
         std::string_view value,
-        const AddStatFn& add_stat) {
+        const AddStatFn& add_stat,
+        const CheckYieldFn& check_yield) {
     // The AddStatFn callback may allocate memory (temporary buffers for
     // stat data) which will be de-allocated inside the server, after the
     // engine call (get_stat) has returned. As such we do not want to
@@ -397,7 +398,7 @@ cb::engine_errc EventuallyPersistentEngine::get_stats(
     auto addStatExitBorderGuard = makeExitBorderGuard(std::cref(add_stat));
 
     return acquireEngine(this)->getStats(
-            cookie, key, value, addStatExitBorderGuard);
+            cookie, key, value, addStatExitBorderGuard, check_yield);
 }
 
 cb::engine_errc EventuallyPersistentEngine::get_prometheus_stats(
@@ -4133,12 +4134,19 @@ struct ConnPerStreamStatBuilder {
     /**
      * Visit the next connection in the queue.
      */
-    bool addStreamStats(CookieIface& cookie, const AddStatFn& as) {
+    bool addStreamStats(CookieIface& cookie,
+                        const AddStatFn& as,
+                        const CheckYieldFn& check_yield) {
         while (!connQueue.empty()) {
             auto conn = connQueue.front();
+            const auto shouldInclude = filter.include(*conn);
+            if (shouldInclude && check_yield()) {
+                // More work to do, but we've been requested to yield.
+                return false;
+            }
             connQueue.pop();
 
-            if (filter.include(*conn)) {
+            if (shouldInclude) {
                 conn->addStreamStats(as, cookie);
             }
         }
@@ -4310,12 +4318,13 @@ cb::engine_errc EventuallyPersistentEngine::doConnAggStats(
 cb::engine_errc EventuallyPersistentEngine::doDcpStats(
         CookieIface& cookie,
         const AddStatFn& add_stat,
+        const CheckYieldFn& check_yield,
         std::string_view value) {
     if (auto optDcpStreamVisitor =
                 takeEngineSpecific<std::unique_ptr<ConnPerStreamStatBuilder>>(
                         cookie)) {
-        bool hasCompleted =
-                optDcpStreamVisitor.value()->addStreamStats(cookie, add_stat);
+        bool hasCompleted = optDcpStreamVisitor.value()->addStreamStats(
+                cookie, add_stat, check_yield);
         if (!hasCompleted) {
             // Continue on the next run.
             storeEngineSpecific(cookie, std::move(*optDcpStreamVisitor));
@@ -5115,11 +5124,22 @@ cb::engine_errc EventuallyPersistentEngine::doPrivilegedStats(
     return cb::engine_errc::no_access;
 }
 
+static const CheckYieldFn default_check_yield_fn{[]() { return false; }};
+
+cb::engine_errc EventuallyPersistentEngine::getStats(
+        CookieIface& cookie,
+        std::string_view key,
+        std::string_view value,
+        const AddStatFn& add_stat) {
+    return getStats(cookie, key, value, add_stat, default_check_yield_fn);
+}
+
 cb::engine_errc EventuallyPersistentEngine::getStats(
         CookieIface& c,
         std::string_view key,
         std::string_view value,
-        const AddStatFn& add_stat) {
+        const AddStatFn& add_stat,
+        const CheckYieldFn& check_yield) {
     ScopeTimer2<HdrMicroSecStopwatch, TracerStopwatch> timer(
             std::forward_as_tuple(stats.getStatsCmdHisto),
             std::forward_as_tuple(&c, cb::tracing::Code::GetStats));
@@ -5140,7 +5160,7 @@ cb::engine_errc EventuallyPersistentEngine::getStats(
         return doConnAggStats(bucketCollector, key.substr(7));
     }
     if (key == "dcp"sv) {
-        return doDcpStats(c, add_stat, value);
+        return doDcpStats(c, add_stat, check_yield, value);
     }
     if (key == "eviction"sv) {
         return doEvictionStats(c, add_stat);

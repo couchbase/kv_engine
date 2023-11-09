@@ -14,6 +14,13 @@
 #include <memcached/engine.h>
 #include <memcached/range_scan_optional_configuration.h>
 
+cb::engine_errc EngineIface::get_stats(CookieIface& cookie,
+                                       std::string_view key,
+                                       std::string_view value,
+                                       const AddStatFn& add_stat) {
+    return get_stats(cookie, key, value, add_stat, []() { return false; });
+}
+
 cb::EngineErrorGetCollectionIDResult EngineIface::get_collection_id(
         CookieIface& cookie, std::string_view path) {
     return cb::EngineErrorGetCollectionIDResult{cb::engine_errc::not_supported};

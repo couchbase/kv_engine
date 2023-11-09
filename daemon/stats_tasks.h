@@ -37,6 +37,11 @@ public:
     [[nodiscard]] cb::engine_errc drainBufferedStatsToOutput(
             bool notifyOnIoCompete);
 
+    /**
+     * Return the size of the stats response buffer in bytes.
+     */
+    size_t getBufferSize() const;
+
 protected:
     bool run() final;
 
@@ -75,6 +80,12 @@ private:
                          std::string_view v);
 
     folly::Synchronized<TaskData, std::mutex> taskData;
+    /**
+     * The total size of buffered responses. Logically the same as the sum of
+     * taskData.stats_buf[i]->length(), but maintained separately for
+     * efficiency.
+     */
+    std::atomic<ssize_t> statsBufSize{0};
 };
 
 /**

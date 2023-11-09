@@ -566,6 +566,7 @@ struct EngineIface {
      * @param key optional argument to stats
      * @param value optional value for the given stat group
      * @param add_stat callback to feed results to the output
+     * @param check_yield callback to check whether to yield execution
      *
      * @return cb::engine_errc::success if all goes well
      */
@@ -573,7 +574,16 @@ struct EngineIface {
             CookieIface& cookie,
             std::string_view key,
             std::string_view value,
-            const AddStatFn& add_stat) = 0;
+            const AddStatFn& add_stat,
+            const CheckYieldFn& check_yield) = 0;
+
+    /**
+     * Get statistics from the engine (overload with no yielding support).
+     */
+    [[nodiscard]] virtual cb::engine_errc get_stats(CookieIface& cookie,
+                                                    std::string_view key,
+                                                    std::string_view value,
+                                                    const AddStatFn& add_stat);
 
     /**
      * Get statistics for Prometheus exposition from the engine.

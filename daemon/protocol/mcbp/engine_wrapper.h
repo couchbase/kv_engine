@@ -126,10 +126,13 @@ cb::unique_item_ptr bucket_allocate(Cookie& cookie,
 
 cb::engine_errc bucket_flush(Cookie& cookie);
 
-cb::engine_errc bucket_get_stats(Cookie& cookie,
-                                 std::string_view key,
-                                 cb::const_byte_buffer value,
-                                 const AddStatFn& add_stat);
+cb::engine_errc bucket_get_stats(
+        Cookie& cookie,
+        std::string_view key,
+        cb::const_byte_buffer value,
+        const AddStatFn& add_stat,
+        const CheckYieldFn& check_yield = []() { return false; });
+
 cb::engine_errc bucket_start_persistence(Cookie& cookie);
 cb::engine_errc bucket_stop_persistence(Cookie& cookie);
 cb::engine_errc bucket_set_traffic_control_mode(Cookie& cookie,

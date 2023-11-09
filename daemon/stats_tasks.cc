@@ -46,6 +46,7 @@ cb::engine_errc StatsTask::drainBufferedStatsToOutput(bool notifyCookieOnSend) {
             cookie.getConnection().chainDataToOutputStream(
                     std::make_unique<IOBufSendBuffer>(std::move(iob), view));
             data.stats_buf.pop_front();
+            statsBufSize -= view.size();
         }
 
         auto& buf = data.stats_buf.front();
@@ -63,6 +64,9 @@ cb::engine_errc StatsTask::drainBufferedStatsToOutput(bool notifyCookieOnSend) {
         }
         cookie.getConnection().chainDataToOutputStream(std::move(send_buf));
         data.stats_buf.pop_front();
+        statsBufSize -= view.size();
+        // Sanity check: we've drained the buffer.
+        Expects(statsBufSize == 0);
     });
 
     if (notifyCookieOnSend) {
@@ -70,6 +74,10 @@ cb::engine_errc StatsTask::drainBufferedStatsToOutput(bool notifyCookieOnSend) {
     } else {
         return cb::engine_errc::success;
     }
+}
+
+size_t StatsTask::getBufferSize() const {
+    return statsBufSize.load();
 }
 
 bool StatsTask::run() {
@@ -106,13 +114,14 @@ void StatsTask::addStatCallback(TaskData& writable_data,
 
     // Write the mcbp response into the task's buffer (header, key, value).
     auto& iob = *writable_data.stats_buf.back();
-    iob.reserve(0, header.size() + k.size() + v.size());
+    iob.reserve(0, total);
     std::copy(header.begin(), header.end(), iob.writableTail());
     iob.append(sizeof(rsp));
     std::copy(k.begin(), k.end(), iob.writableTail());
     iob.append(k.size());
     std::copy(v.begin(), v.end(), iob.writableTail());
     iob.append(v.size());
+    statsBufSize += total;
 }
 
 StatsTaskBucketStats::StatsTaskBucketStats(Cookie& cookie,
@@ -125,13 +134,19 @@ StatsTaskBucketStats::StatsTaskBucketStats(Cookie& cookie,
 
 void StatsTaskBucketStats::getStats(cb::engine_errc& command_error,
                                     const AddStatFn& add_stat_callback) {
+    const auto max_send_size = Settings::instance().getMaxSendQueueSize();
+    const auto check_yield_callback = [this, max_send_size]() {
+        return getBufferSize() >= max_send_size;
+    };
+
     command_error = bucket_get_stats(
             cookie,
             key,
             cb::const_byte_buffer(
                     reinterpret_cast<const uint8_t*>(value.data()),
                     value.size()),
-            add_stat_callback);
+            add_stat_callback,
+            check_yield_callback);
 }
 
 std::string StatsTaskBucketStats::getDescription() const {

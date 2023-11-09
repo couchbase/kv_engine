@@ -534,7 +534,8 @@ cb::engine_errc default_engine::unlock(CookieIface& cookie,
 cb::engine_errc default_engine::get_stats(CookieIface& cookie,
                                           std::string_view key,
                                           std::string_view value,
-                                          const AddStatFn& add_stat) {
+                                          const AddStatFn& add_stat,
+                                          const CheckYieldFn&) {
     cb::engine_errc ret = cb::engine_errc::success;
 
     if (key.empty()) {

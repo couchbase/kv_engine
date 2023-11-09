@@ -32,6 +32,13 @@ using AddStatFn = std::function<void(
         std::string_view key, std::string_view value, CookieIface& cookie)>;
 
 /**
+ * Callback for functions producing stats, used to allow execution to yield.
+ *
+ * @return true if the execution should yield
+ */
+using CheckYieldFn = std::function<bool()>;
+
+/**
  * The response handler only accepts JSON or Raw datatype (not xattr or
  * snappy compressed).
  */

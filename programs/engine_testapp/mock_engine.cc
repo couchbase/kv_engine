@@ -240,9 +240,10 @@ cb::engine_errc MockEngine::unlock(CookieIface& cookie,
 cb::engine_errc MockEngine::get_stats(CookieIface& cookie,
                                       std::string_view key,
                                       std::string_view value,
-                                      const AddStatFn& add_stat) {
-    auto engine_fn = [this, &cookie, key, value, stat = std::cref(add_stat)]() {
-        return the_engine->get_stats(cookie, key, value, stat);
+                                      const AddStatFn& add_stat,
+                                      const CheckYieldFn& check_yield) {
+    auto engine_fn = [this, &cookie, key, value, &add_stat, &check_yield]() {
+        return the_engine->get_stats(cookie, key, value, add_stat, check_yield);
     };
 
     return call_engine_and_handle_EWOULDBLOCK(cookie, engine_fn);

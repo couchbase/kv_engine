@@ -173,7 +173,8 @@ struct default_engine : public EngineIface {
     cb::engine_errc get_stats(CookieIface& cookie,
                               std::string_view key,
                               std::string_view value,
-                              const AddStatFn& add_stat) override;
+                              const AddStatFn& add_stat,
+                              const CheckYieldFn&) override;
 
     cb::engine_errc get_prometheus_stats(
             const BucketStatCollector& collector,

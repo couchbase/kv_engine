@@ -171,7 +171,8 @@ public:
     cb::engine_errc get_stats(CookieIface& cookie,
                               std::string_view key,
                               std::string_view value,
-                              const AddStatFn& add_stat) override;
+                              const AddStatFn& add_stat,
+                              const CheckYieldFn& check_yield) override;
     void reset_stats(CookieIface& cookie) override;
     cb::engine_errc unknown_command(CookieIface& cookie,
                                     const cb::mcbp::Request& req,
@@ -1130,12 +1131,14 @@ cb::engine_errc EWB_Engine::flush(CookieIface& cookie) {
 cb::engine_errc EWB_Engine::get_stats(CookieIface& cookie,
                                       std::string_view key,
                                       std::string_view value,
-                                      const AddStatFn& add_stat) {
+                                      const AddStatFn& add_stat,
+                                      const CheckYieldFn& check_yield) {
     cb::engine_errc err = cb::engine_errc::success;
     if (should_inject_error(Cmd::GET_STATS, &cookie, err)) {
         return err;
     } else {
-        return real_engine->get_stats(cookie, key, value, add_stat);
+        return real_engine->get_stats(
+                cookie, key, value, add_stat, check_yield);
     }
 }
 

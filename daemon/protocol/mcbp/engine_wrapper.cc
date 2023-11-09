@@ -438,13 +438,15 @@ cb::engine_errc bucket_flush(Cookie& cookie) {
 cb::engine_errc bucket_get_stats(Cookie& cookie,
                                  std::string_view key,
                                  cb::const_byte_buffer value,
-                                 const AddStatFn& add_stat) {
+                                 const AddStatFn& add_stat,
+                                 const CheckYieldFn& check_yield) {
     auto& c = cookie.getConnection();
     auto ret = c.getBucketEngine().get_stats(
             cookie,
             key,
             {reinterpret_cast<const char*>(value.data()), value.size()},
-            add_stat);
+            add_stat,
+            check_yield);
     if (ret == cb::engine_errc::disconnect) {
         LOG_WARNING(
                 "{}: {} bucket_get_stats return cb::engine_errc::disconnect",

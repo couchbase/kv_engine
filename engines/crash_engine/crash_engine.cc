@@ -189,7 +189,8 @@ public:
     cb::engine_errc get_stats(CookieIface&,
                               std::string_view,
                               std::string_view,
-                              const AddStatFn&) override {
+                              const AddStatFn&,
+                              const CheckYieldFn&) override {
         return cb::engine_errc::failed;
     }
 
