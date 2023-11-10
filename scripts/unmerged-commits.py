@@ -78,6 +78,11 @@ sequences = {
 
         # platform 7.1.x maintenance train
         [('couchbase/7.1.4', 'couchbase/neo')],
+    ],
+
+    'sigar': [
+        # main sigar release train
+        [('couchbase/neo', 'couchbase/master')]
     ]
 }
 
