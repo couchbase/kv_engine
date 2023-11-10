@@ -447,28 +447,26 @@ static cb::engine_errc stat_tracing_executor(const std::string& arg,
         explicit MemcachedCallback(Cookie& cookie) : c(cookie) {
         }
 
-        void operator()(gsl_p::cstring_span key,
-                        gsl_p::cstring_span value) override {
-            append_stats(
-                    {key.data(), key.size()}, {value.data(), value.size()}, c);
+        void operator()(std::string_view key, std::string_view value) override {
+            append_stats(key, value, c);
         }
 
-        void operator()(gsl_p::cstring_span key, bool value) override {
+        void operator()(std::string_view key, bool value) override {
             const auto svalue = value ? "true"sv : "false"sv;
-            append_stats({key.data(), key.size()}, svalue.data(), c);
+            append_stats(key, svalue, c);
         }
 
-        void operator()(gsl_p::cstring_span key, size_t value) override {
-            append_stats({key.data(), key.size()}, std::to_string(value), c);
+        void operator()(std::string_view key, size_t value) override {
+            append_stats(key, std::to_string(value), c);
         }
 
-        void operator()(gsl_p::cstring_span key,
+        void operator()(std::string_view key,
                         phosphor::ssize_t value) override {
-            append_stats({key.data(), key.size()}, std::to_string(value), c);
+            append_stats(key, std::to_string(value), c);
         }
 
-        void operator()(gsl_p::cstring_span key, double value) override {
-            append_stats({key.data(), key.size()}, std::to_string(value), c);
+        void operator()(std::string_view key, double value) override {
+            append_stats(key, std::to_string(value), c);
         }
 
     private:
