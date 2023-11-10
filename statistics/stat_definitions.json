@@ -613,6 +613,7 @@
     {
         "key": "ep_tmp_oom_errors",
         "unit": "count",
+        "type": "counter",
         "description": "Number of times temporary OOMs happened while processing operations",
         "added": "7.0.0"
     },
@@ -651,60 +652,70 @@
     {
         "key": "ep_num_pager_runs",
         "unit": "count",
+        "type": "counter",
         "description": "Number of times we ran pager loops to seek additional memory",
         "added": "7.0.0"
     },
     {
         "key": "ep_num_expiry_pager_runs",
         "unit": "count",
+        "type": "counter",
         "description": "Number of times we ran expiry pager loops to purge expired items from memory/disk",
         "added": "7.0.0"
     },
     {
         "key": "ep_num_freq_decayer_runs",
         "unit": "count",
+        "type": "counter",
         "description": "Number of times we ran the freq decayer task because a frequency counter has become saturated",
         "added": "7.0.0"
     },
     {
         "key": "ep_items_expelled_from_checkpoints",
         "unit": "count",
+        "type": "counter",
         "description": "Number of items expelled from checkpoints. Expelled refers to items that have been ejected from memory but are still considered to be part of the checkpoint.",
         "added": "7.0.0"
     },
     {
         "key": "ep_items_rm_from_checkpoints",
         "unit": "count",
+        "type": "counter",
         "description": "Number of items removed from closed unreferenced checkpoints",
         "added": "7.0.0"
     },
     {
         "key": "ep_num_value_ejects",
         "unit": "count",
+        "type": "counter",
         "description": "Number of times item values got ejected from memory to disk",
         "added": "7.0.0"
     },
     {
         "key": "ep_num_eject_failures",
         "unit": "count",
+        "type": "counter",
         "description": "Number of items that could not be ejected",
         "added": "7.0.0"
     },
     {
         "key": "ep_num_not_my_vbuckets",
         "unit": "count",
+        "type": "counter",
         "description": "Number of times Not My VBucket exception happened during runtime",
         "added": "7.0.0"
     },
     {
         "key": "ep_pending_ops",
         "unit": "count",
+        "type": "gauge",
         "description": "Number of ops awaiting pending vbuckets",
         "added": "7.0.0"
     },
     {
         "key": "ep_pending_ops_total",
         "unit": "count",
+        "type": "counter",
         "description": "Total blocked pending ops since reset",
         "added": "7.0.0"
     },
