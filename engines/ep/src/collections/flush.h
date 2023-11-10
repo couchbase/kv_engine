@@ -43,9 +43,11 @@ public:
      * run of the flusher and pass a PersistedStats object which the KVStore
      * should persist.
      *
+     * @param vbid vbucket flushing
      * @param a function to callback
      */
     void saveCollectionStats(
+            Vbid vbid,
             std::function<void(CollectionID, const PersistedStats&)> cb);
 
     /**

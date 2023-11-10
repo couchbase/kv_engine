@@ -3177,6 +3177,7 @@ couchstore_error_t CouchKVStore::saveDocs(
                                           makeJsonVBState(state));
 
     kvctx.commitData.collections.saveCollectionStats(
+            vbid,
             [this, &dbRef = *db, &txnCtx](
                     CollectionID cid,
                     const Collections::VB::PersistedStats& stats) {

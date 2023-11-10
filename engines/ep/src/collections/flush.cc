@@ -27,6 +27,7 @@ namespace Collections::VB {
 // statistics gathered by the Flush and uses the std::function callback to
 // have the KVStore implementation write them to storage, e.g. a local document.
 void Flush::saveCollectionStats(
+        Vbid vbid,
         std::function<void(CollectionID, const PersistedStats&)> cb) {
     // For each collection modified in the flush run ask the VBM for the
     // current stats (using the high-seqno so we find the correct generation
@@ -46,12 +47,30 @@ void Flush::saveCollectionStats(
         auto collsFlushStats = manifest.get().lock().getStatsForFlush(
                 cid, flushStats.getPersistedHighSeqno());
 
-        // Generate new stats, add the deltas from this flush batch for count
-        // and size and set the high-seqno (which includes prepares)
-        PersistedStats ps(collsFlushStats.itemCount + flushStats.getItemCount(),
-                          flushStats.getPersistedHighSeqno(),
-                          collsFlushStats.diskSize + flushStats.getDiskSize());
-        cb(cid, ps);
+        try {
+            // Generate new stats, add the deltas from this flush batch for
+            // count and size and set the high-seqno (which includes prepares)
+            PersistedStats ps(
+                    collsFlushStats.itemCount + flushStats.getItemCount(),
+                    flushStats.getPersistedHighSeqno(),
+                    collsFlushStats.diskSize + flushStats.getDiskSize());
+            cb(cid, ps);
+        } catch (const std::exception& e) {
+            EP_LOG_CRITICAL(
+                    "Exception {} whilst updated stats for {} cid:{} "
+                    "itemCount:{} "
+                    "+ {}, highSeqno:{}, diskSize:{} + {}. dropped:{}",
+                    e.what(),
+                    vbid,
+                    cid,
+                    collsFlushStats.itemCount,
+                    flushStats.getItemCount(),
+                    flushStats.getPersistedHighSeqno(),
+                    collsFlushStats.diskSize,
+                    flushStats.getDiskSize(),
+                    flushAccounting.getDroppedCollections().size());
+            throw e;
+        }
     }
 }
 

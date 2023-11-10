@@ -1611,6 +1611,7 @@ int MagmaKVStore::saveDocs(MagmaKVStoreTransactionContext& txnCtx,
         addStatUpdateToWriteOps(magmaDbStats, postWriteOps);
 
         commitData.collections.saveCollectionStats(
+                vbid,
                 [this, &localDbReqs](
                         CollectionID cid,
                         const Collections::VB::PersistedStats& stats) {
