@@ -4585,9 +4585,16 @@ void DurabilityPassiveStreamPersistentTest::replicaToActiveBufferedResolution(
 
     auto vb = engine->getVBucket(vbid);
 
-    // Buffer the commit/abort of the prepare
+    // Buffer a snapshot with commit/abort of the prepare.
+    // Note to detect a bug when processing a buffered snapshot marker, if we
+    // set the type as DISK it would hit an exception when calling
+    // setDuplicatePrepareWindow.
     EXPECT_EQ(cb::engine_errc::success,
-              snapshot(*consumer, stream->getOpaque(), 3, 3));
+              snapshot(*consumer,
+                       stream->getOpaque(),
+                       3,
+                       3,
+                       MARKER_FLAG_DISK | MARKER_FLAG_CHK));
     if (resolutionIsCommit) {
         EXPECT_EQ(cb::engine_errc::success,
                   commit(*consumer, stream->getOpaque(), durableKey, 2, 3));

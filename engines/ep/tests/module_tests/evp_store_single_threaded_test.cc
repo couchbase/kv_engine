@@ -1068,14 +1068,9 @@ cb::engine_errc STParameterizedBucketTest::addItem(Item& itm,
 cb::engine_errc STParameterizedBucketTest::snapshot(DcpConsumer& consumer,
                                                     uint32_t opaque,
                                                     uint64_t start,
-                                                    uint64_t end) {
-    return consumer.snapshotMarker(opaque,
-                                   vbid,
-                                   start,
-                                   end,
-                                   MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
-                                   0,
-                                   0);
+                                                    uint64_t end,
+                                                    uint32_t flags) {
+    return consumer.snapshotMarker(opaque, vbid, start, end, flags, 0, end);
 }
 
 cb::engine_errc STParameterizedBucketTest::mutation(DcpConsumer& consumer,
