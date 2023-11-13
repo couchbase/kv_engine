@@ -211,15 +211,6 @@ TEST_P(DcpTest, DcpAggStats) {
 }
 
 TEST_P(DcpTest, DcpStreamStats) {
-    auto& conn = getAdminConnection();
-    conn.selectBucket(bucketName);
-    conn.sendCommand(BinprotDcpOpenCommand{
-            "testapp_dcp", cb::mcbp::request::DcpOpenPayload::Producer});
-
-    BinprotResponse rsp;
-    conn.recvResponse(rsp);
-    ASSERT_TRUE(rsp.isSuccess());
-
     auto producerConn = setupProducerWithStream("testapp_dcp");
 
     auto stats = userConnection->stats("dcp");
