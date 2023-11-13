@@ -233,6 +233,48 @@ static DiskDocKey makeDiskDocKey(const Slice& key) {
     return DiskDocKey{key.Data(), key.Len()};
 }
 
+/**
+ * Given a magma::Status::Code on error, map to the equivalent cb::engine_errc
+ */
+cb::engine_errc magmaErr2EngineErr(Status::Code result) {
+    // General approach is return 'temporary_failure' for recoverable errors,
+    // if non-recoverage then return failed, unless there's something more
+    // relevent.
+    switch (result) {
+    case Status::Ok:
+        return cb::engine_errc::success;
+    case Status::OkDocNotFound:
+        return cb::engine_errc::no_such_key;
+    case Status::Internal:
+        return cb::engine_errc::failed;
+    case Status::Invalid:
+        return cb::engine_errc::invalid_arguments;
+    case Status::InvalidKVStore:
+        return cb::engine_errc::temporary_failure;
+    case Status::Corruption:
+        return cb::engine_errc::failed;
+    case Status::NotFound:
+        return cb::engine_errc::failed;
+    case Status::IOError:
+        return cb::engine_errc::temporary_failure;
+    case Status::ReadOnly:
+        return cb::engine_errc::temporary_failure;
+    case Status::TransientIO:
+        return cb::engine_errc::temporary_failure;
+    case Status::DiskFull:
+        return cb::engine_errc::temporary_failure;
+    case Status::Cancelled:
+        return cb::engine_errc::temporary_failure;
+    case Status::RetryLater:
+        return cb::engine_errc::temporary_failure;
+    case Status::CheckpointNotFound:
+        return cb::engine_errc::temporary_failure;
+    case Status::NoAccess:
+        return cb::engine_errc::temporary_failure;
+    }
+    folly::assume_unreachable();
+}
+
 class MagmaKVFileHandle : public KVFileHandle {
 public:
     MagmaKVFileHandle(Vbid vbid,
@@ -2612,19 +2654,6 @@ std::pair<Status, std::string> MagmaKVStore::readLocalDoc(
 std::string MagmaKVStore::encodeVBState(const vbucket_state& vbstate) const {
     nlohmann::json j = vbstate;
     return j.dump();
-}
-
-cb::engine_errc MagmaKVStore::magmaErr2EngineErr(Status::Code err) {
-    if (err == Status::Code::OkDocNotFound) {
-        return cb::engine_errc::no_such_key;
-    }
-    // This routine is intended to mimic couchErr2EngineErr.
-    // Since magma doesn't have a memory allocation error, all magma errors
-    // get translated into cb::engine_errc::temporary_failure.
-    if (err == Status::Code::Ok) {
-        return cb::engine_errc::success;
-    }
-    return cb::engine_errc::temporary_failure;
 }
 
 std::optional<MagmaDbStats> MagmaKVStore::getMagmaDbStats(Vbid vbid) const {

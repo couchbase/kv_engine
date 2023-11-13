@@ -636,8 +636,6 @@ protected:
                         int status,
                         kvstats_ctx& kvctx);
 
-    static cb::engine_errc magmaErr2EngineErr(magma::Status::Code err);
-
     /// private getWithHeader shared with public get and getWithHeader
     GetValue getWithHeader(const DiskDocKey& key,
                            Vbid vbid,
