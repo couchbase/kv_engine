@@ -23,10 +23,8 @@
 #include "kv_bucket.h"
 #include "tasks.h"
 #include "test_helpers.h"
-#include "tests/mock/mock_add_stat_fn.h"
 #include "tests/mock/mock_function_helper.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
-#include "thread_gate.h"
 #include "trace_helpers.h"
 #include "warmup.h"
 #include <statistics/tests/mock/mock_stat_collector.h>
@@ -869,11 +867,11 @@ TEST_P(DatatypeStatTest, datatypesInitiallyZero) {
     EXPECT_EQ(0, std::stoi(vals["ep_replica_datatype_snappy,json,xattr"]));
 }
 
-void setDatatypeItem(KVBucket* store,
-                     CookieIface* cookie,
-                     protocol_binary_datatype_t datatype,
-                     std::string name,
-                     std::string val = "[0]") {
+static void setDatatypeItem(KVBucket* store,
+                            CookieIface* cookie,
+                            protocol_binary_datatype_t datatype,
+                            std::string_view name,
+                            const std::string& val = "[0]") {
     Item item(make_item(
             Vbid(0), {name, DocKeyEncodesCollectionId::No}, val, 0, datatype));
     store->set(item, cookie);
@@ -1037,7 +1035,7 @@ public:
        stats.maxDataSize.store(value);
     }
 
-    static int public_getMaxDataSize(EPStats& stats) {
+    static size_t public_getMaxDataSize(EPStats& stats) {
         return stats.maxDataSize;
     }
 };
