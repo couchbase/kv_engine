@@ -502,6 +502,10 @@ public:
                                                     uint64_t collectionDiskSize,
                                                     uint64_t totalItems);
 
+    bool isChkExtractionInProgress() const {
+        return chkptItemsExtractionInProgress;
+    }
+
 protected:
     void clear_UNLOCKED();
 

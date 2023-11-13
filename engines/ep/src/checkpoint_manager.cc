@@ -1256,13 +1256,15 @@ bool CheckpointManager::incrCursor(const std::lock_guard<std::mutex>& lh,
     // Move forward
     cursor.incrPos();
 
-    if (cursor.getPos() != (*cursor.getCheckpoint())->end()) {
+    auto pos = cursor.getPos();
+    if (pos != (*cursor.getCheckpoint())->end()) {
         return true;
     }
 
     if (!moveCursorToNextCheckpoint(lh, cursor)) {
         // There is no further checkpoint to move the cursor to, reset it to the
         // original position
+        Expects(pos == (*cursor.getCheckpoint())->end());
         cursor.decrPos();
         return false;
     }

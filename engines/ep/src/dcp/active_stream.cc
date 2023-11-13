@@ -1116,6 +1116,24 @@ ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
 
     result.checkpointType = itemsForCursor.checkpointType;
     result.ranges = itemsForCursor.ranges;
+    result.historical = itemsForCursor.historical;
+    result.visibleSeqno = itemsForCursor.visibleSeqno;
+
+    if (itemsForCursor.ranges.empty()) {
+        Expects(result.items.empty());
+        log(spdlog::level::level_enum::warn,
+            "{} ActiveStream::getOutstandingItems: no data from checkpoints"
+            "- type:{}, {}, ranges:{}, HCS:{}, MVS:{}, items:{}",
+            logPrefix,
+            ::to_string(itemsForCursor.checkpointType),
+            ::to_string(itemsForCursor.historical),
+            itemsForCursor.ranges.size(),
+            ::to_string_or_none(itemsForCursor.highCompletedSeqno),
+            itemsForCursor.visibleSeqno,
+            result.items.size());
+        return result;
+    }
+
     if (isDiskCheckpointType(result.checkpointType)) {
         // CM can never return multiple disk checkpoints or checkpoints of
         // different types. So if Disk, then one range.
@@ -1156,10 +1174,6 @@ ActiveStream::OutstandingItemsResult ActiveStream::getOutstandingItems(
         result.diskCheckpointState->highCompletedSeqno =
                 *itemsForCursor.highCompletedSeqno;
     }
-
-    result.historical = itemsForCursor.historical;
-
-    result.visibleSeqno = itemsForCursor.visibleSeqno;
 
     return result;
 }
