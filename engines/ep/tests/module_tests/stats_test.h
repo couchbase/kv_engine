@@ -27,6 +27,6 @@ protected:
      * @param value optional value passed to STAT command
      * @return Map of stat name to value
      */
-    std::map<std::string, std::string> get_stat(const char* statkey = nullptr,
+    std::map<std::string, std::string> get_stat(std::string_view statkey = {},
                                                 std::string_view value = {});
 };

@@ -48,26 +48,17 @@ void StatTest::SetUp() {
     store->setVBucketState(vbid, vbucket_state_active);
 }
 
-std::map<std::string, std::string> StatTest::get_stat(const char* statkey,
+std::map<std::string, std::string> StatTest::get_stat(std::string_view statkey,
                                                       std::string_view value) {
     std::map<std::string, std::string> stats;
-    auto add_stats = [&stats](std::string_view key,
-                              std::string_view value,
-                              const auto&) {
-        std::string k(key.data(), key.size());
-        std::string v(value.data(), value.size());
-        stats[k] = v;
+    auto add_stats = [&stats](auto key, auto value, const auto&) {
+        stats[std::string{key}] = std::string{value};
     };
     MockCookie cookie;
-
     // Do get_stats and handle it throttling.
     auto ec = cb::engine_errc::throttled;
     while (ec == cb::engine_errc::throttled) {
-        ec = engine->get_stats(
-                cookie,
-                {statkey, statkey == nullptr ? 0 : strlen(statkey)},
-                value,
-                add_stats);
+        ec = engine->get_stats(cookie, statkey, value, add_stats);
     }
 
     EXPECT_EQ(cb::engine_errc::success, ec) << "Failed to get stats.";
@@ -130,7 +121,7 @@ TEST_F(StatTest, vbucket_takeover_stats_no_stream) {
     const std::string stat =
             "dcp-vbtakeover " + std::to_string(vbid.get()) + " test_producer";
     ;
-    auto vals = get_stat(stat.c_str());
+    auto vals = get_stat(stat);
     EXPECT_EQ("does_not_exist", vals["status"]);
     EXPECT_EQ(0, std::stoi(vals["estimate"]));
     EXPECT_EQ(0, std::stoi(vals["backfillRemaining"]));
@@ -144,8 +135,7 @@ TEST_F(StatTest, DcpStatTest) {
                                         "test_producer",
                                         /*flags*/ 0);
 
-    const std::string stat = "dcp";
-    auto vals = get_stat(stat.c_str());
+    auto vals = get_stat("dcp");
 
     EXPECT_EQ(cb::tagUserData(username),
               vals["eq_dcpq:test_producer:user"]);
@@ -168,9 +158,8 @@ TEST_F(StatTest, FilteredDcpStatTest) {
                                         "2i",
                                         /*flags*/ 0);
 
-    const std::string stat = "dcp";
     nlohmann::json filter = {{"filter", {{"user", username}}}};
-    auto vals = get_stat(stat.c_str(), filter.dump());
+    auto vals = get_stat("dcp", filter.dump());
 
     // Should find our filtered producer
     EXPECT_EQ(cb::tagUserData(username), vals["eq_dcpq:test_producer:user"]);
@@ -835,9 +824,8 @@ TEST_P(ParameterizedStatTest, DiskInfoStatsAfterWarmup) {
         // Magma does not track on-disk-prepare-bytes, see MB-42900 for details
         EXPECT_LT(0, std::stoi(stats["ep_db_prepare_size"]));
         // Magma always returns 0 from getNumPersistedDeletes
-        auto onDiskDeletes =
-                get_stat(fmt::format("dcp-vbtakeover {}", vbid.get())
-                                   .c_str())["on_disk_deletes"];
+        auto onDiskDeletes = get_stat(fmt::format(
+                "dcp-vbtakeover {}", vbid.get()))["on_disk_deletes"];
         EXPECT_LT(0, std::stoi(onDiskDeletes));
     }
 
@@ -853,16 +841,15 @@ TEST_P(ParameterizedStatTest, DiskInfoStatsAfterWarmup) {
         // Magma does not track on-disk-prepare-bytes, see MB-42900 for details
         EXPECT_LT(0, std::stoi(newStats["ep_db_prepare_size"]));
         // Magma always returns 0 from getNumPersistedDeletes
-        auto onDiskDeletes =
-                get_stat(fmt::format("dcp-vbtakeover {}", vbid.get())
-                                   .c_str())["on_disk_deletes"];
+        auto onDiskDeletes = get_stat(fmt::format(
+                "dcp-vbtakeover {}", vbid.get()))["on_disk_deletes"];
         EXPECT_LT(0, std::stoi(onDiskDeletes));
     }
 }
 
 TEST_P(DatatypeStatTest, datatypesInitiallyZero) {
     // Check that the datatype stats initialise to 0
-    auto vals = get_stat(nullptr);
+    auto vals = get_stat();
     EXPECT_EQ(0, std::stoi(vals["ep_active_datatype_snappy"]));
     EXPECT_EQ(0, std::stoi(vals["ep_active_datatype_snappy,json"]));
     EXPECT_EQ(0, std::stoi(vals["ep_active_datatype_snappy,xattr"]));
@@ -894,12 +881,12 @@ void setDatatypeItem(KVBucket* store,
 
 TEST_P(DatatypeStatTest, datatypeJsonToXattr) {
     setDatatypeItem(store, cookie, PROTOCOL_BINARY_DATATYPE_JSON, "jsonDoc");
-    auto vals = get_stat(nullptr);
+    auto vals = get_stat();
     EXPECT_EQ(1, std::stoi(vals["ep_active_datatype_json"]));
 
     // Check that updating an items datatype works
     setDatatypeItem(store, cookie, PROTOCOL_BINARY_DATATYPE_XATTR, "jsonDoc");
-    vals = get_stat(nullptr);
+    vals = get_stat();
 
     EXPECT_EQ(1, std::stoi(vals["ep_active_datatype_xattr"]));
     EXPECT_EQ(0, std::stoi(vals["ep_active_datatype_json"]));
@@ -907,19 +894,19 @@ TEST_P(DatatypeStatTest, datatypeJsonToXattr) {
 
 TEST_P(DatatypeStatTest, datatypeRawStatTest) {
     setDatatypeItem(store, cookie, 0, "rawDoc");
-    auto vals = get_stat(nullptr);
+    auto vals = get_stat();
     EXPECT_EQ(1, std::stoi(vals["ep_active_datatype_raw"]));
 }
 
 TEST_P(DatatypeStatTest, datatypeXattrStatTest) {
     setDatatypeItem(store, cookie, PROTOCOL_BINARY_DATATYPE_XATTR, "xattrDoc");
-    auto vals = get_stat(nullptr);
+    auto vals = get_stat();
     EXPECT_EQ(1, std::stoi(vals["ep_active_datatype_xattr"]));
     // Update the same key with a different value. The datatype stat should
     // stay the same
     setDatatypeItem(store, cookie, PROTOCOL_BINARY_DATATYPE_XATTR,
                     "xattrDoc", "[2]");
-    vals = get_stat(nullptr);
+    vals = get_stat();
     EXPECT_EQ(1, std::stoi(vals["ep_active_datatype_xattr"]));
 }
 
@@ -928,7 +915,7 @@ TEST_P(DatatypeStatTest, datatypeCompressedStatTest) {
                     cookie,
                     PROTOCOL_BINARY_DATATYPE_SNAPPY,
                     "compressedDoc");
-    auto vals = get_stat(nullptr);
+    auto vals = get_stat();
     EXPECT_EQ(1, std::stoi(vals["ep_active_datatype_snappy"]));
 }
 
@@ -938,7 +925,7 @@ TEST_P(DatatypeStatTest, datatypeCompressedJson) {
             cookie,
             PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_SNAPPY,
             "jsonCompressedDoc");
-    auto vals = get_stat(nullptr);
+    auto vals = get_stat();
     EXPECT_EQ(1, std::stoi(vals["ep_active_datatype_snappy,json"]));
 }
 
@@ -948,7 +935,7 @@ TEST_P(DatatypeStatTest, datatypeCompressedXattr) {
                     PROTOCOL_BINARY_DATATYPE_XATTR |
                             PROTOCOL_BINARY_DATATYPE_SNAPPY,
                     "xattrCompressedDoc");
-    auto vals = get_stat(nullptr);
+    auto vals = get_stat();
     EXPECT_EQ(1, std::stoi(vals["ep_active_datatype_snappy,xattr"]));
 }
 
@@ -958,7 +945,7 @@ TEST_P(DatatypeStatTest, datatypeJsonXattr) {
             cookie,
             PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR,
             "jsonXattrDoc");
-    auto vals = get_stat(nullptr);
+    auto vals = get_stat();
     EXPECT_EQ(1, std::stoi(vals["ep_active_datatype_json,xattr"]));
 }
 
@@ -968,7 +955,7 @@ TEST_P(DatatypeStatTest, datatypeDeletion) {
             cookie,
             PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR,
             "jsonXattrDoc");
-    auto vals = get_stat(nullptr);
+    auto vals = get_stat();
     EXPECT_EQ(1, std::stoi(vals["ep_active_datatype_json,xattr"]));
     uint64_t cas = 0;
     mutation_descr_t mutation_descr;
@@ -979,7 +966,7 @@ TEST_P(DatatypeStatTest, datatypeDeletion) {
                       {},
                       nullptr,
                       mutation_descr);
-    vals = get_stat(nullptr);
+    vals = get_stat();
     EXPECT_EQ(0, std::stoi(vals["ep_active_datatype_json,xattr"]));
 }
 
@@ -990,7 +977,7 @@ TEST_P(DatatypeStatTest, datatypeCompressedJsonXattr) {
                             PROTOCOL_BINARY_DATATYPE_SNAPPY |
                             PROTOCOL_BINARY_DATATYPE_XATTR,
                     "jsonCompressedXattrDoc");
-    auto vals = get_stat(nullptr);
+    auto vals = get_stat();
     EXPECT_EQ(1, std::stoi(vals["ep_active_datatype_snappy,json,xattr"]));
 }
 
@@ -1005,7 +992,7 @@ TEST_P(DatatypeStatTest, datatypeExpireItem) {
                Vbid(0),
                cookie,
                NONE);
-    auto vals = get_stat(nullptr);
+    auto vals = get_stat();
 
     //Should be 0, becuase the doc should have expired
     EXPECT_EQ(0, std::stoi(vals["ep_active_datatype_json"]));
@@ -1020,12 +1007,12 @@ TEST_P(DatatypeStatTest, datatypeEviction) {
             cookie,
             PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR,
             "jsonXattrDoc");
-    auto vals = get_stat(nullptr);
+    auto vals = get_stat();
     EXPECT_EQ(1, std::stoi(vals["ep_active_datatype_json,xattr"]));
     getEPBucket().flushVBucket(vbid);
     const char* msg;
     store->evictKey(key, vbid, &msg);
-    vals = get_stat(nullptr);
+    vals = get_stat();
     if (GetParam() == "value_only"){
         // Should still be 1 as only value is evicted
         EXPECT_EQ(1, std::stoi(vals["ep_active_datatype_json,xattr"]));
@@ -1039,7 +1026,7 @@ TEST_P(DatatypeStatTest, datatypeEviction) {
         // Run the bgfetch to restore the item from disk
         runBGFetcherTask();
     }
-    vals = get_stat(nullptr);
+    vals = get_stat();
     // The item should be restored to memory, hence added back to the stats
     EXPECT_EQ(1, std::stoi(vals["ep_active_datatype_json,xattr"]));
 }
@@ -1375,7 +1362,7 @@ TEST_P(DatatypeStatTest, MB23892) {
             cookie,
             PROTOCOL_BINARY_DATATYPE_JSON | PROTOCOL_BINARY_DATATYPE_XATTR,
             "jsonXattrDoc");
-    auto vals = get_stat(nullptr);
+    auto vals = get_stat();
     EXPECT_EQ(1, std::stoi(vals["ep_active_datatype_json,xattr"]));
     getEPBucket().flushVBucket(vbid);
     const char* msg;
