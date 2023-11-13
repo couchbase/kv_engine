@@ -4903,6 +4903,65 @@ TEST_P(SingleThreadedPassiveStreamTest, MemorySnapshotFromPartialReplica) {
     EXPECT_EQ(2, mut->getBySeqno());
 }
 
+TEST_P(SingleThreadedPassiveStreamTest,
+       EmptyDiskSnapshotFromReplicaCheckpoint) {
+    auto& vb = *store->getVBucket(vbid);
+    ASSERT_EQ(0, vb.getHighSeqno());
+    auto& manager = static_cast<MockCheckpointManager&>(*vb.checkpointManager);
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(2, manager.getNumOpenChkItems()); // cs, vbs
+
+    removeCheckpoint(vb);
+    ASSERT_EQ(0, vb.getHighSeqno());
+    ASSERT_EQ(1, manager.getNumCheckpoints());
+    ASSERT_EQ(1, manager.getNumOpenChkItems()); // cs
+    const auto& list = manager.getCheckpointList();
+    ASSERT_FALSE(list.back()->modifiedByExpel());
+
+    // The stream isn't in any snapshot (no data received)
+    auto snapInfo = manager.getSnapshotInfo();
+    EXPECT_EQ(0, snapInfo.start);
+    EXPECT_EQ(snapshot_range_t(0, 0), snapInfo.range);
+
+    const uint64_t opaque = 1;
+    EXPECT_EQ(cb::engine_errc::success,
+              consumer->snapshotMarker(opaque,
+                                       vbid,
+                                       1, // start
+                                       2, // end
+                                       MARKER_FLAG_DISK | MARKER_FLAG_CHK,
+                                       {},
+                                       {}));
+
+    // Open an outbound stream from replica.
+    auto producer = std::make_shared<MockDcpProducer>(
+            *engine, cookie, "test_producer->test_consumer", 0, false);
+    producer->createCheckpointProcessorTask();
+    producer->scheduleCheckpointProcessorTask();
+
+    auto activeStream =
+            producer->mockActiveStreamRequest(0, 0, vb, 0, ~0, 0xabcd, 0, ~0);
+
+    ASSERT_TRUE(activeStream->isInMemory());
+    auto& readyQ = activeStream->public_readyQ();
+    ASSERT_EQ(0, readyQ.size());
+
+    // Only checkpoint_start item processed
+    activeStream->nextCheckpointItemTask();
+    EXPECT_EQ(0, readyQ.size());
+
+    // Extra task execution triggers an exception before the fix for MB-59310:
+    //
+    // libc++abi: terminating due to uncaught exception of type
+    // std::logic_error: ActiveStream::getOutstandingItems:
+    // stream:test_producer->test_consumer vb:0 processing checkpoint
+    // type:InitialDisk, CheckpointHistorical::No, ranges:0, HCS:0, MVS:2,
+    // items:0
+    activeStream->nextCheckpointItemTask();
+
+    EXPECT_FALSE(activeStream->isChkExtractionInProgress());
+}
+
 /**
  * MB-38444: We fix an Ephemeral-only bug, but test covers Persistent bucket too
  */

@@ -1244,13 +1244,19 @@ bool CheckpointManager::incrCursor(CheckpointCursor &cursor) {
     // Move forward
     cursor.incrPos();
 
-    if (cursor.getPos() != (*cursor.getCheckpoint())->end()) {
+    auto pos = cursor.getPos();
+    if (pos != (*cursor.getCheckpoint())->end()) {
         return true;
     }
 
     if (!moveCursorToNextCheckpoint(cursor)) {
         // There is no further checkpoint to move the cursor to, reset it to the
         // original position
+        if (pos != (*cursor.getCheckpoint())->end()) {
+            EP_LOG_WARN(
+                    "CheckpointManager::incrCursor: Unexpected pos({}) != end",
+                    (*pos)->getOperation());
+        }
         cursor.decrPos();
         return false;
     }
