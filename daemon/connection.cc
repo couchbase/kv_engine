@@ -172,7 +172,9 @@ nlohmann::json Connection::to_json() const {
 
     nlohmann::json arr = nlohmann::json::array();
     for (const auto& c : cookies) {
-        arr.push_back(c->to_json());
+        if (c && !c->empty()) {
+            arr.push_back(c->to_json());
+        }
     }
     ret["cookies"] = arr;
 
