@@ -11,6 +11,9 @@
 
 #pragma once
 
+#include "ep_types.h"
+#include <platform/atomic.h>
+
 #include <folly/SharedMutex.h>
 #include <memory>
 #include <mutex>
@@ -94,4 +97,6 @@ struct CursorRegResult {
     uint64_t nextSeqno;
     // The registered cursor
     Cursor cursor;
+    // The item the cursor was registered on.
+    queued_item position;
 };

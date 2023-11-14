@@ -328,10 +328,12 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
         // Note: The legacy logic (below) for cursor-registering is based on
         // Checkpoint::getMinimumCursorSeqno()/getHighSeqno() that are
         // meaningless if all mutations have been expelled.
+        auto pos = (*ckptIt)->begin();
         newCursor = std::make_shared<CheckpointCursor>(
-                name, ckptIt, (*ckptIt)->begin(), droppable, 0);
+                name, ckptIt, pos, droppable, 0);
         result.nextSeqno = lastBySeqno + 1;
         result.cursor.setCursor(newCursor);
+        result.position = *pos;
 
         // Trigger backfill only if there's a gap between lastProcessedSeqno and
         // nextSeqnoAvailableFromCheckpoint
@@ -366,10 +368,12 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
             if (lastProcessedSeqno < st) {
                 // Requested sequence number is before the start of this
                 // checkpoint, position cursor at the checkpoint begin.
+                auto pos = (*ckptIt)->begin();
                 newCursor = std::make_shared<CheckpointCursor>(
-                        name, ckptIt, (*ckptIt)->begin(), droppable, 0);
+                        name, ckptIt, pos, droppable, 0);
                 result.nextSeqno = st;
                 result.cursor.setCursor(newCursor);
+                result.position = *pos;
                 // Set tryBackfill:true only if lastProcessedSeqno to st is non
                 // contiguous. Note this is likely the fix for MB-53616/MB-58302
                 // which were noted in master only, and likely backported to the
@@ -424,6 +428,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(
                 newCursor = std::make_shared<CheckpointCursor>(
                         name, ckptIt, pos, droppable, distance);
                 result.cursor.setCursor(newCursor);
+                result.position = *pos;
                 break;
             }
         }
