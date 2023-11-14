@@ -47,39 +47,11 @@
 using namespace std::string_view_literals;
 
 /*************************** ADD STAT CALLBACKS ***************************/
-
-// Generic add_stat<T>. Uses std::to_string which requires heap allocation.
-template <typename T>
-void add_stat(Cookie& cookie,
-              const AddStatFn& add_stat_callback,
-              const char* name,
-              const T& val) {
-    add_stat_callback(name, std::to_string(val), &cookie);
-}
-
-void add_stat(Cookie& cookie,
-              const AddStatFn& add_stat_callback,
-              const char* name,
-              const std::string& value) {
+static void add_stat(Cookie& cookie,
+                     const AddStatFn& add_stat_callback,
+                     std::string_view name,
+                     std::string_view value) {
     add_stat_callback(name, value, cookie);
-}
-
-void add_stat(Cookie& cookie,
-              const AddStatFn& add_stat_callback,
-              const char* name,
-              const char* value) {
-    add_stat_callback(name, value, cookie);
-}
-
-void add_stat(Cookie& cookie,
-              const AddStatFn& add_stat_callback,
-              const char* name,
-              const bool value) {
-    if (value) {
-        add_stat(cookie, add_stat_callback, name, "true");
-    } else {
-        add_stat(cookie, add_stat_callback, name, "false");
-    }
 }
 
 static void append_stats(std::string_view key,
@@ -658,7 +630,7 @@ static cb::engine_errc stat_runtimes_executor(const std::string& arg,
                              .isEmpty()) {
                     add_stat(cookie,
                              appendStatsFn,
-                             GlobalTask::getTaskIdString(id).c_str(),
+                             GlobalTask::getTaskIdString(id),
                              stats.taskRuntimeHistogram[static_cast<int>(id)]
                                      .to_string());
                 }
@@ -683,7 +655,7 @@ static cb::engine_errc stat_scheduler_executor(const std::string& arg,
                              .isEmpty()) {
                     add_stat(cookie,
                              appendStatsFn,
-                             GlobalTask::getTaskIdString(id).c_str(),
+                             GlobalTask::getTaskIdString(id),
                              stats.taskSchedulingHistogram[static_cast<int>(id)]
                                      .to_string());
                 }
