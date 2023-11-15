@@ -252,6 +252,11 @@ public:
     virtual void releaseBlockedCookies();
 
     /**
+     * Implementation dependent handler of initiate_shutdown
+     */
+    virtual void initiateShutdown();
+
+    /**
      * Sets the vbucket or creates a vbucket with the desired state
      *
      * @param vbid vbucket id

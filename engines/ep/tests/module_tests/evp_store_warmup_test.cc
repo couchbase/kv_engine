@@ -335,7 +335,19 @@ void WarmupTest::testOperationsInterlockedWithWarmup(bool abortWarmup) {
     // Unblock cookies - either by aborting warmup, or advancing warmup
     // far enough that the request can be issued successfully.
     if (abortWarmup) {
+        // The order here matches how memcached will shutdown the bucket.
         engine->initiate_shutdown();
+
+        // MB-56646: In the abort case expect that the warmup cookies have all
+        // been notified from within initiate_shutdown. This is important for
+        // DCP connections which maybe parked in get_failover_log. If those
+        // connections were not yet notified (i.e. wait until
+        // cancel_all_operations_in_ewb_state) the connection can be
+        // disconnected by initiate_shutdown leaving a dangling pointer in
+        // Warmup
+        for (const auto& n : notifications) {
+            EXPECT_EQ(cb::engine_errc::disconnect, mock_waitfor_cookie(n));
+        }
         engine->cancel_all_operations_in_ewb_state();
     } else {
         // Per warmup advance normally, until we have completed
@@ -345,14 +357,10 @@ void WarmupTest::testOperationsInterlockedWithWarmup(bool abortWarmup) {
             executor.runCurrentTask();
         }
         EXPECT_NE(nullptr, store->getVBuckets().getBucket(vbid));
-    }
 
-    // Should have received one more notification than started with, and
-    // with appropriate status code.
-    const auto expectedStatus = abortWarmup ? cb::engine_errc::disconnect
-                                            : cb::engine_errc::success;
-    for (const auto& n : notifications) {
-        EXPECT_EQ(expectedStatus, mock_waitfor_cookie(n));
+        for (const auto& n : notifications) {
+            EXPECT_EQ(cb::engine_errc::success, mock_waitfor_cookie(n));
+        }
     }
 
     if (!abortWarmup) {

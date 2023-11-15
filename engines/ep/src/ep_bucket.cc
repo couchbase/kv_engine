@@ -2432,10 +2432,6 @@ Flusher* EPBucket::getOneFlusher() {
 void EPBucket::releaseBlockedCookies() {
     KVBucket::releaseBlockedCookies();
 
-    // Stop warmup (if not yet completed) which will unblock any cookies which
-    // were held pending if they were received before populateVBucketMap phase.
-    stopWarmup();
-
     // Abort any running compactions, there's no point running them for any
     // external clients because we're disconnecting them.
     cancelEWBCompactionTasks = true;
@@ -2454,6 +2450,23 @@ void EPBucket::releaseBlockedCookies() {
             engine.notifyIOComplete(cookie, cb::engine_errc::failed);
         }
     }
+}
+
+void EPBucket::initiateShutdown() {
+    // MB-56646: A crash occurred because DCP connections are able to disconnect
+    // as part of initiate_shutdown (see KVBucket::initiateShutdown). Having
+    // Warmup notify cookies as part of releaseBlockedCookies (which comes after
+    // initiateShutdown) is therefore not safe, it could end up with a dangling
+    // pointer to notify. Therefore it is important to notify the warmup waiters
+    // before KVBucket::initiateShutdown is called.
+    if (warmupTask) {
+        warmupTask->notifyWaitingCookies(cb::engine_errc::disconnect);
+    }
+
+    KVBucket::initiateShutdown();
+
+    // Finally signal to warmup to stop
+    stopWarmup();
 }
 
 std::shared_ptr<RangeScan> EPBucket::takeNextRangeScan(size_t taskId) {

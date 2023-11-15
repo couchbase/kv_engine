@@ -1291,13 +1291,6 @@ void Warmup::stop() {
     }
     transition(WarmupState::State::Done, true);
     done();
-
-    // If we haven't already completed populateVBucketMap step, then
-    // unblock (and cancel) any pending cookies so those connections don't
-    // get stuck.
-    // (On a normal, successful warmup these cookies would have already
-    // been notified when populateVBucketMap finished).
-    processCreateVBucketsComplete(cb::engine_errc::disconnect);
 }
 
 void Warmup::scheduleInitialize() {
@@ -1460,19 +1453,21 @@ void Warmup::createVBuckets(uint16_t shardId) {
     }
 }
 
-void Warmup::processCreateVBucketsComplete(cb::engine_errc status) {
+void Warmup::notifyWaitingCookies(cb::engine_errc status) {
     PendingCookiesQueue toNotify;
     {
         std::unique_lock<std::mutex> lock(pendingCookiesMutex);
-        createVBucketsComplete = true;
+        mustWaitForWarmup = false;
         pendingCookies.swap(toNotify);
     }
     if (toNotify.empty()) {
         return;
     }
 
-    EP_LOG_INFO("Warmup::processCreateVBucketsComplete unblocking {} cookie(s)",
-                toNotify.size());
+    EP_LOG_INFO(
+            "Warmup::notifyWaitingCookies unblocking {} cookie(s) status:{}",
+            toNotify.size(),
+            status);
     for (auto* c : toNotify) {
         store.getEPEngine().notifyIOComplete(c, status);
     }
@@ -1480,7 +1475,7 @@ void Warmup::processCreateVBucketsComplete(cb::engine_errc status) {
 
 bool Warmup::maybeWaitForVBucketWarmup(CookieIface* cookie) {
     std::lock_guard<std::mutex> lg(pendingCookiesMutex);
-    if (!createVBucketsComplete) {
+    if (mustWaitForWarmup) {
         pendingCookies.push_back(cookie);
         return true;
     }
@@ -1696,8 +1691,10 @@ void Warmup::populateVBucketMap(uint16_t shardId) {
         store.startFlusher();
 
         warmedUpVbuckets.lock()->clear();
-        // Once we have populated the VBMap we can allow setVB state changes
-        processCreateVBucketsComplete(cb::engine_errc::success);
+        // Once we have populated the VBMap we can release operations that are
+        // waiting for the VBuckets to of been loaded E.g. setVBState
+        // and GetFailoverLog
+        notifyWaitingCookies(cb::engine_errc::success);
         if (store.getItemEvictionPolicy() == EvictionPolicy::Value) {
             transition(WarmupState::State::KeyDump);
         } else {

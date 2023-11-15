@@ -937,6 +937,13 @@ void KVBucket::releaseBlockedCookies() {
     }
 }
 
+void KVBucket::initiateShutdown() {
+    EP_LOG_INFO_RAW(
+            "Shutting down all DCP connections in "
+            "preparation for bucket deletion.");
+    engine.getDcpConnMap().shutdownAllConnections();
+}
+
 cb::engine_errc KVBucket::setVBucketState(Vbid vbid,
                                           vbucket_state_t to,
                                           const nlohmann::json* meta,

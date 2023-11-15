@@ -86,7 +86,7 @@ void KVBucketTest::SetUp() {
 
     if (completeWarmup && engine->getKVBucket()->getWarmup()) {
         engine->getKVBucket()->getWarmup()->setFinishedLoading();
-        engine->getKVBucket()->getWarmup()->processCreateVBucketsComplete(
+        engine->getKVBucket()->getWarmup()->notifyWaitingCookies(
                 cb::engine_errc::success);
     }
 }

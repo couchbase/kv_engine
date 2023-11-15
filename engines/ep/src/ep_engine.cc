@@ -6608,10 +6608,7 @@ void EventuallyPersistentEngine::handleDisconnect(CookieIface& cookie) {
 
 void EventuallyPersistentEngine::initiate_shutdown() {
     auto eng = acquireEngine(this);
-    EP_LOG_INFO_RAW(
-            "Shutting down all DCP connections in "
-            "preparation for bucket deletion.");
-    dcpConnMap_->shutdownAllConnections();
+    kvBucket->initiateShutdown();
 }
 
 void EventuallyPersistentEngine::cancel_all_operations_in_ewb_state() {

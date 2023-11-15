@@ -315,11 +315,10 @@ public:
     bool maybeWaitForVBucketWarmup(CookieIface* cookie);
 
     /**
-     * Perform any notifications to any pending setVBState operations and mark
-     * that vbucket creation is complete.
+     * Perform any notifications to any pending operations
      * @param status Status code to send to all waiting cookies.
      */
-    void processCreateVBucketsComplete(cb::engine_errc status);
+    void notifyWaitingCookies(cb::engine_errc status);
 
     bool setOOMFailure() {
         bool inverse = false;
@@ -521,8 +520,8 @@ private:
     /// All of the cookies which need notifying when create-vbuckets is done
     using PendingCookiesQueue = std::deque<CookieIface*>;
     PendingCookiesQueue pendingCookies;
-    /// flag to mark once warmup is passed createVbuckets
-    bool createVBucketsComplete{false};
+    /// If true, some operations must wait for warmup (ewouldblock)
+    bool mustWaitForWarmup{true};
     /// A mutex which gives safe access to the cookies and state flag
     std::mutex pendingCookiesMutex;
     /// True if we've been unable to persist vbucket state during warmup

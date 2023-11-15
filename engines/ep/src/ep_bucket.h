@@ -310,6 +310,8 @@ public:
 
     void releaseBlockedCookies() override;
 
+    void initiateShutdown() override;
+
     bool canEvictFromReplicas() override {
         return true;
     }
