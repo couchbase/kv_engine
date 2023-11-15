@@ -956,8 +956,7 @@ void ActiveStream::addTakeoverStats(const AddStatFn& add_stat,
             "ActiveStream::addTakeoverStats: Stream has "
             "status StreamDead",
             logPrefix);
-        // Return status of does_not_exist to ensure rebalance does not hang.
-        add_casted_stat("status", "does_not_exist", add_stat, cookie);
+        add_casted_stat("status", "stream_is_dead", add_stat, cookie);
         add_casted_stat("estimate", 0, add_stat, cookie);
         add_casted_stat("backfillRemaining", 0, add_stat, cookie);
         return;

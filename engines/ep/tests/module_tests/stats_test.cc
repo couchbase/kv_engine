@@ -23,6 +23,8 @@
 #include "kv_bucket.h"
 #include "tasks.h"
 #include "test_helpers.h"
+#include "tests/mock/mock_dcp_producer.h"
+#include "tests/mock/mock_dcp_conn_map.h"
 #include "tests/mock/mock_function_helper.h"
 #include "tests/mock/mock_synchronous_ep_engine.h"
 #include "trace_helpers.h"
@@ -108,21 +110,60 @@ TEST_F(StatTest, vbucket_seqno_stats_test) {
                         Pair(vbucket + ":max_visible_seqno", "0")));
 }
 
-// Test that if we request takeover stats for stream that does not exist we
-// return does_not_exist.
-TEST_F(StatTest, vbucket_takeover_stats_no_stream) {
-    // Create a new Dcp producer, reserving its cookie.
-    engine->getDcpConnMap().newProducer(*cookie,
-                                        "test_producer",
-                                        /*flags*/ 0);
-
+// Test that if we request takeover stats for something that does not exist we
+// return some variation of does_not_exist.
+TEST_F(StatTest, VBTakeoverStats) {
+    // No connection
     const std::string stat =
             "dcp-vbtakeover " + std::to_string(vbid.get()) + " test_producer";
-    ;
+
     auto vals = get_stat(stat);
-    EXPECT_EQ("does_not_exist", vals["status"]);
+    EXPECT_EQ("connection_does_not_exist", vals["status"]);
     EXPECT_EQ(0, std::stoi(vals["estimate"]));
-    EXPECT_EQ(0, std::stoi(vals["backfillRemaining"]));
+    EXPECT_EQ(0, std::stoi(vals["chk_items"]));
+
+    // Test with a new connection
+    auto producer = createDcpProducer(cookie, IncludeDeleteTime::No, true,
+                                      "eq_dcpq:test_producer");
+
+    auto& mockConnMap = static_cast<MockDcpConnMap&>(engine->getDcpConnMap());
+    mockConnMap.addConn(cookie, producer);
+
+    vals = get_stat(stat);
+    EXPECT_EQ("stream_does_not_exist", vals["status"]);
+    EXPECT_EQ(0, std::stoi(vals["estimate"]));
+
+    // Test with a stream
+    // Need a vBucket to create a stream
+    setVBucketState(
+            vbid,
+            vbucket_state_active,
+            {{"topology", nlohmann::json::array({{"active", "replica"}})}});
+
+    auto vb = store->getVBucket(vbid);
+    ASSERT_TRUE(vb = store->getVBucket(vbid));
+
+    producer->mockActiveStreamRequest(0, // flags
+                      1, // opaque
+                      *vb,
+                      0, // start_seqno
+                      ~0ull, // end_seqno
+                      0, // vbucket_uuid,
+                      0, // snap_start_seqno,
+                      0); // snap_end_seqno
+
+    vals = get_stat(stat);
+    EXPECT_EQ("in-memory", vals["status"]);
+    EXPECT_EQ(0, std::stoi(vals["estimate"]));
+    EXPECT_EQ(0, std::stoi(vals["chk_items"]));
+
+    // A dead stream should return a different status
+    auto stream = producer->findStream(vbid);
+    stream->setDead(cb::mcbp::DcpStreamEndStatus::Closed);
+
+    vals = get_stat(stat);
+    EXPECT_EQ("stream_is_dead", vals["status"]);
+    EXPECT_EQ(0, std::stoi(vals["estimate"]));
 }
 
 TEST_F(StatTest, DcpStatTest) {

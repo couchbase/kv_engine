@@ -1698,7 +1698,7 @@ void DcpProducer::addTakeoverStats(const AddStatFn& add_stat,
     }
     // Error path - return status of does_not_exist to ensure rebalance does not
     // hang.
-    add_casted_stat("status", "does_not_exist", add_stat, c);
+    add_casted_stat("status", "stream_does_not_exist", add_stat, c);
     add_casted_stat("estimate", 0, add_stat, c);
     add_casted_stat("backfillRemaining", 0, add_stat, c);
 }

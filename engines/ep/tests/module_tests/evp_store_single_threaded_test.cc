@@ -301,14 +301,15 @@ void SingleThreadedKVBucketTest::resetEngineAndWarmup(std::string new_config,
 std::shared_ptr<MockDcpProducer> SingleThreadedKVBucketTest::createDcpProducer(
         CookieIface* cookie,
         IncludeDeleteTime deleteTime,
-        bool flatBuffersSystemEvents) {
+        bool flatBuffersSystemEvents,
+        const std::string name) {
     int flags = cb::mcbp::request::DcpOpenPayload::IncludeXattrs;
     if (deleteTime == IncludeDeleteTime::Yes) {
         flags |= cb::mcbp::request::DcpOpenPayload::IncludeDeleteTimes;
     }
     auto newProducer = std::make_shared<MockDcpProducer>(*engine,
                                                          cookie,
-                                                         "test_producer",
+                                                         name,
                                                          flags,
                                                          false /*startTask*/);
 

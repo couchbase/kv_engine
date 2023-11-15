@@ -71,7 +71,8 @@ public:
     std::shared_ptr<MockDcpProducer> createDcpProducer(
             CookieIface* cookie,
             IncludeDeleteTime deleteTime,
-            bool flatBuffersSystemEvents = true);
+            bool flatBuffersSystemEvents = true,
+            const std::string name = "test_producer");
 
     /*
      * DCP helper.

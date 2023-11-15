@@ -6273,7 +6273,8 @@ cb::engine_errc EventuallyPersistentEngine::doDcpVbTakeoverStats(
         }
         size_t chk_items =
                 vb_items > 0 ? vb->checkpointManager->getNumOpenChkItems() : 0;
-        add_casted_stat("status", "does_not_exist", add_stat, cookie);
+        add_casted_stat("status", "connection_does_not_exist", add_stat,
+                        cookie);
         add_casted_stat("on_disk_deletes", del_items, add_stat, cookie);
         add_casted_stat("vb_items", vb_items, add_stat, cookie);
         add_casted_stat("chk_items", chk_items, add_stat, cookie);
