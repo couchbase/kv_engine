@@ -53,7 +53,7 @@ public:
     bool isPacketAvailable() const override {
         throw std::runtime_error("FuzzConnection: Not implemented");
     }
-    cb::const_byte_buffer getAvailableBytes(size_t max) const override {
+    cb::const_byte_buffer getAvailableBytes() const override {
         throw std::runtime_error("FuzzConnection: Not implemented");
     }
     void triggerCallback() override {

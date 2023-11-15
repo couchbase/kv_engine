@@ -467,7 +467,8 @@ void LibeventConnection::nextPacket() {
     }
 }
 
-cb::const_byte_buffer LibeventConnection::getAvailableBytes(size_t max) const {
+cb::const_byte_buffer LibeventConnection::getAvailableBytes() const {
+    constexpr size_t max = 1024;
     auto* input = bufferevent_get_input(bev.get());
     auto nb = std::min(evbuffer_get_length(input), max);
     return {evbuffer_pullup(input, nb), nb};

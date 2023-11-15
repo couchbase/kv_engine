@@ -539,14 +539,10 @@ public:
     virtual bool isPacketAvailable() const = 0;
 
     /**
-     * Get all of the available bytes (up to a maximum bumber of bytes) in
-     * the input stream in a continuous byte buffer.
-     *
-     * NOTE: THIS MIGHT CAUSE REALLOCATION of the input stream so it should
-     * NOT be used unless strictly needed
+     * Get all of the available bytes (up to 1k) in the input stream in
+     * a continuous byte buffer.
      */
-    virtual cb::const_byte_buffer getAvailableBytes(
-            size_t max = 1024) const = 0;
+    virtual cb::const_byte_buffer getAvailableBytes() const = 0;
 
     /**
      * Is SASL disabled for this connection or not? (connection authenticated

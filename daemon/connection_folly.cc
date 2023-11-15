@@ -191,8 +191,8 @@ const cb::mcbp::Header& FollyConnection::getPacket() const {
     return asyncReadCallback->getPacket();
 }
 
-cb::const_byte_buffer FollyConnection::getAvailableBytes(size_t max) const {
-    return asyncReadCallback->getAvailableBytes(max);
+cb::const_byte_buffer FollyConnection::getAvailableBytes() const {
+    return asyncReadCallback->getAvailableBytes(1024);
 }
 
 size_t FollyConnection::getSendQueueSize() const {

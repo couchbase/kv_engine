@@ -41,7 +41,7 @@ public:
     void chainDataToOutputStream(std::unique_ptr<SendBuffer> buffer) override;
     bool isPacketAvailable() const override;
     const cb::mcbp::Header& getPacket() const override;
-    cb::const_byte_buffer getAvailableBytes(size_t max = 1024) const override;
+    cb::const_byte_buffer getAvailableBytes() const override;
     size_t getSendQueueSize() const override;
     void nextPacket() override;
     void triggerCallback() override;

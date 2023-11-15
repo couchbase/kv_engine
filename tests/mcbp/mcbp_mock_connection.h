@@ -34,7 +34,7 @@ public:
     bool isPacketAvailable() const override {
         throw std::runtime_error("MockConnection: Not implemented");
     }
-    cb::const_byte_buffer getAvailableBytes(size_t max) const override {
+    cb::const_byte_buffer getAvailableBytes() const override {
         throw std::runtime_error("MockConnection: Not implemented");
     }
     void triggerCallback() override {
