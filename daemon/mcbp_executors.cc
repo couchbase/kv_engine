@@ -1020,30 +1020,8 @@ void execute_client_request_packet(Cookie& cookie,
             cookie);
 }
 
-void execute_request_packet(Cookie& cookie, const cb::mcbp::Request& request) {
-    switch (request.getMagic()) {
-    case cb::mcbp::Magic::AltClientRequest:
-    case cb::mcbp::Magic::ClientRequest:
-        execute_client_request_packet(cookie, request);
-        return;
-    case cb::mcbp::Magic::ServerRequest:
-        throw std::runtime_error(
-                "execute_request_packet: processing server requests is not "
-                "(yet) supported");
-    case cb::mcbp::Magic::AltClientResponse:
-        break;
-    case cb::mcbp::Magic::ClientResponse:
-        break;
-    case cb::mcbp::Magic::ServerResponse:
-        break;
-    }
-
-    throw std::logic_error(
-            "execute_request_packet: provided packet is not a request");
-}
-
-static void execute_client_response_packet(Cookie& cookie,
-                                           const cb::mcbp::Response& response) {
+void execute_client_response_packet(Cookie& cookie,
+                                    const cb::mcbp::Response& response) {
     const auto opcode = response.getClientOpcode();
     auto handler = response_handlers[uint8_t(opcode)];
     if (handler) {
@@ -1062,8 +1040,8 @@ static void execute_client_response_packet(Cookie& cookie,
     }
 }
 
-static void execute_server_response_packet(Cookie& cookie,
-                                           const cb::mcbp::Response& response) {
+void execute_server_response_packet(Cookie& cookie,
+                                    const cb::mcbp::Response& response) {
     auto& c = cookie.getConnection();
     const auto opcode = response.getServerOpcode();
     switch (opcode) {
@@ -1083,29 +1061,4 @@ static void execute_server_response_packet(Cookie& cookie,
             c.getId(),
             uint32_t(opcode),
             is_valid_opcode(opcode) ? to_string(opcode) : "<invalid opcode>");
-}
-
-/**
- * We've received a response packet. Parse and execute it
- *
- * @param cookie the current command context
- * @param response the actual response packet
- */
-void execute_response_packet(Cookie& cookie,
-                             const cb::mcbp::Response& response) {
-    switch (response.getMagic()) {
-    case cb::mcbp::Magic::ClientResponse:
-    case cb::mcbp::Magic::AltClientResponse:
-        execute_client_response_packet(cookie, response);
-        return;
-    case cb::mcbp::Magic::ServerResponse:
-        execute_server_response_packet(cookie, response);
-        return;
-    case cb::mcbp::Magic::ClientRequest:
-    case cb::mcbp::Magic::AltClientRequest:
-    case cb::mcbp::Magic::ServerRequest:;
-    }
-
-    throw std::logic_error(
-            "execute_response_packet: provided packet is not a response");
 }

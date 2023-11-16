@@ -20,7 +20,9 @@ class Response;
 
 void initialize_mbcp_lookup_map();
 
-void execute_request_packet(Cookie& cookie, const cb::mcbp::Request& request);
-
-void execute_response_packet(Cookie& cookie,
-                             const cb::mcbp::Response& response);
+void execute_client_request_packet(Cookie& cookie,
+                                   const cb::mcbp::Request& request);
+void execute_client_response_packet(Cookie& cookie,
+                                    const cb::mcbp::Response& response);
+void execute_server_response_packet(Cookie& cookie,
+                                    const cb::mcbp::Response& response);

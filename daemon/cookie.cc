@@ -164,12 +164,27 @@ bool Cookie::doExecute() {
     }
 
     const auto& header = getHeader();
-    if (header.isResponse()) {
-        execute_response_packet(*this, header.getResponse());
-    } else {
-        // We've already verified that the packet is a legal packet
-        // so it must be a request
-        execute_request_packet(*this, header.getRequest());
+    using cb::mcbp::Magic;
+    // We've already verified that the packet is a legal packet
+    switch (Magic(header.getMagic())) {
+    case Magic::ClientRequest:
+    case Magic::AltClientRequest:
+        execute_client_request_packet(*this, header.getRequest());
+        break;
+
+    case Magic::ClientResponse:
+    case Magic::AltClientResponse:
+        execute_client_response_packet(*this, header.getResponse());
+        break;
+
+    case Magic::ServerRequest:
+        throw std::runtime_error(
+                "cookie::doExecute(): processing server requests is not "
+                "(yet) supported");
+        break;
+    case Magic::ServerResponse:
+        execute_server_response_packet(*this, header.getResponse());
+        break;
     }
 
     if (isEwouldblock()) {
