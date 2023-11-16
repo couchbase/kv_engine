@@ -828,6 +828,9 @@ cb::engine_errc PassiveStream::processCommit(
     // NOTE: Theoretically this will never occur, because we kill all streams
     // when changing the VBucket state.
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+    if (!permittedVBStates.test(vb->getState())) {
+        return cb::engine_errc::not_my_vbucket;
+    }
 
     auto rv = vb->commit(rlh,
                          commit.getKey(),
@@ -860,6 +863,10 @@ cb::engine_errc PassiveStream::processAbort(
     // NOTE: Theoretically this will never occur, because we kill all streams
     // when changing the VBucket state.
     folly::SharedMutex::ReadHolder rlh(vb->getStateLock());
+
+    if (!permittedVBStates.test(vb->getState())) {
+        return cb::engine_errc::not_my_vbucket;
+    }
 
     auto rv = vb->abort(rlh,
                         abort.getKey(),

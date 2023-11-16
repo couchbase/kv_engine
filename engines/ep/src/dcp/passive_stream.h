@@ -11,6 +11,7 @@
 #pragma once
 
 #include "dcp/stream.h"
+#include "permitted_vb_states.h"
 #include "spdlog/common.h"
 #include "utilities/testing_hook.h"
 #include "vbucket_fwd.h"
@@ -441,4 +442,9 @@ protected:
 
     // True if the consumer/producer enabled FlatBuffers
     bool flatBuffersSystemEventsEnabled{false};
+
+    // Set of states that the vbucket must match for a PassiveStream to attempt
+    // processing messages.
+    const PermittedVBStates permittedVBStates{vbucket_state_replica,
+                                              vbucket_state_pending};
 };

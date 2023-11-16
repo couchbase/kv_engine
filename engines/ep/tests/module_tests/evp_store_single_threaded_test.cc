@@ -1107,6 +1107,76 @@ cb::engine_errc STParameterizedBucketTest::addItem(Item& itm,
     return rc;
 }
 
+cb::engine_errc STParameterizedBucketTest::snapshot(DcpConsumer& consumer,
+                                                    uint32_t opaque,
+                                                    uint64_t start,
+                                                    uint64_t end) {
+    return consumer.snapshotMarker(opaque,
+                                   vbid,
+                                   start,
+                                   end,
+                                   MARKER_FLAG_MEMORY | MARKER_FLAG_CHK,
+                                   0,
+                                   0);
+}
+
+cb::engine_errc STParameterizedBucketTest::mutation(DcpConsumer& consumer,
+                                                    uint32_t opaque,
+                                                    const DocKey& key,
+                                                    uint64_t seqno) {
+    return consumer.mutation(opaque,
+                             key,
+                             cb::const_byte_buffer(),
+                             /*priv_bytes*/ 0,
+                             PROTOCOL_BINARY_DATATYPE_JSON,
+                             /*cas*/ 1,
+                             vbid,
+                             /*flags*/ 0,
+                             /*bySeqno*/ seqno,
+                             /*revSeqno*/ 0,
+                             /*expTime*/ 0,
+                             /*lock_time*/ 0,
+                             /*meta*/ cb::const_byte_buffer(),
+                             /*nru*/ 0);
+}
+
+cb::engine_errc STParameterizedBucketTest::prepare(DcpConsumer& consumer,
+                                                   uint32_t opaque,
+                                                   const DocKey& key,
+                                                   uint64_t seqno) {
+    return consumer.prepare(opaque,
+                            key,
+                            cb::const_byte_buffer(),
+                            /*priv_bytes*/ 0,
+                            PROTOCOL_BINARY_DATATYPE_JSON,
+                            /*cas*/ 1,
+                            vbid,
+                            /*flags*/ 0,
+                            /*bySeqno*/ seqno,
+                            /*revSeqno*/ 0,
+                            /*expTime*/ 0,
+                            /*lock_time*/ 0,
+                            0,
+                            DocumentState::Alive,
+                            cb::durability::Level::Majority);
+}
+
+cb::engine_errc STParameterizedBucketTest::commit(DcpConsumer& consumer,
+                                                  uint32_t opaque,
+                                                  const DocKey& key,
+                                                  uint64_t prepareSeqno,
+                                                  uint64_t seqno) {
+    return consumer.commit(opaque, vbid, key, prepareSeqno, seqno);
+}
+
+cb::engine_errc STParameterizedBucketTest::abort(DcpConsumer& consumer,
+                                                 uint32_t opaque,
+                                                 const DocKey& key,
+                                                 uint64_t prepareSeqno,
+                                                 uint64_t seqno) {
+    return consumer.abort(opaque, vbid, key, prepareSeqno, seqno);
+}
+
 /*
  * MB-31175
  * The following test checks to see that when we call handleSlowStream in an
