@@ -4590,6 +4590,108 @@ TEST_P(DurabilityPassiveStreamPersistentTest, BufferDcpAbort) {
     EXPECT_EQ(ackBytes, consumer->getFlowControl().getFreedBytes());
 }
 
+// MB-59518 is an issue where a DCP passive-stream processed a commit against
+// an active vbucket resulting in a duplicate commit (and failure). The issue
+// occurred because it was possible to reach the VBucket::commit function
+// during a replica->active state change provided that operations are buffered.
+// The fix was to put strong VBucket state checks in the PassiveStream commit
+// path.
+void DurabilityPassiveStreamPersistentTest::replicaToActiveBufferedResolution(
+        bool resolutionIsCommit) {
+    // Begin by pushing a mutation. Only to get away from seqno:0
+    auto key = makeStoredDocKey("key");
+    EXPECT_EQ(cb::engine_errc::success,
+              snapshot(*consumer, stream->getOpaque(), 1, 1));
+    EXPECT_EQ(cb::engine_errc::success,
+              mutation(*consumer, stream->getOpaque(), key, 1));
+    flushVBucketToDiskIfPersistent(vbid);
+
+    // Now push a prepare onto the replica.
+    auto durableKey = makeStoredDocKey("durable");
+    EXPECT_EQ(cb::engine_errc::success,
+              snapshot(*consumer, stream->getOpaque(), 2, 2));
+    EXPECT_EQ(cb::engine_errc::success,
+              prepare(*consumer, stream->getOpaque(), durableKey, 2));
+    flushVBucketToDiskIfPersistent(vbid);
+
+    // Now begin buffering.
+    auto& config = engine->getConfiguration();
+    config.setMutationMemRatio(0.0);
+    auto& stats = engine->getEpStats();
+    const size_t size = stats.getMaxDataSize();
+    stats.setMaxDataSize(1);
+    ASSERT_EQ(ReplicationThrottle::Status::Pause,
+              engine->getReplicationThrottle().getStatus());
+
+    auto vb = engine->getVBucket(vbid);
+
+    // Buffer the commit/abort of the prepare
+    EXPECT_EQ(cb::engine_errc::success,
+              snapshot(*consumer, stream->getOpaque(), 3, 3));
+    if (resolutionIsCommit) {
+        EXPECT_EQ(cb::engine_errc::success,
+                  commit(*consumer, stream->getOpaque(), durableKey, 2, 3));
+    } else {
+        EXPECT_EQ(cb::engine_errc::success,
+                  abort(*consumer, stream->getOpaque(), durableKey, 2, 3));
+    }
+    EXPECT_EQ(2, vb->getHighSeqno());
+
+    std::function<void()> hook = [this]() {
+        // Change the vbucket state using the hook. This will happen whilst the
+        // consumer buffering "thread" has a stream pointer.
+        setVBucketState(vbid,
+                        vbucket_state_active,
+                        nlohmann::json::parse(R"({"topology":[["active"]]})"),
+                        TransferVB::No);
+    };
+    stream->setProcessBufferedMessages_postFront_Hook(hook);
+
+    // And process the buffered resolution. This operation should be rejected.
+    // Prior to the fix it would be processed against the active.
+    config.setMutationMemRatio(0.99);
+    stats.setMaxDataSize(size);
+    ASSERT_EQ(ReplicationThrottle::Status::Process,
+              engine->getReplicationThrottle().getStatus());
+    EXPECT_EQ(more_to_process, consumer->processBufferedItems());
+    EXPECT_EQ(all_processed, consumer->processBufferedItems());
+
+    // Before fixing high-seqno would be at 3 (commit/abort)
+    EXPECT_EQ(2, vb->getHighSeqno());
+
+    setVBucketState(
+            vbid,
+            vbucket_state_active,
+            nlohmann::json::parse(
+                    R"({"topology":[["active"],["active","replica"]]})"));
+
+    // In MB-59518 it's not clear exactly what sequence of ACKS permit the
+    // tracked write to resolve (in the next step), but this is enough for a
+    // reproduction of the crash.
+    vb->seqnoAcknowledged(folly::SharedMutex::ReadHolder(vb->getStateLock()),
+                          "replica",
+                          2 /*prepareSeqno*/);
+
+    // And fail. With MB-59518 an error is logged about a failure to find the
+    // prepare, this function would throw because the commit is not successful
+    // Note the abort case would fail here in the same way as commit
+    try {
+        vb->processResolvedSyncWrites();
+    } catch (const std::exception& e) {
+        FAIL() << "processResolvedSyncWrites exception:" << e.what();
+    }
+    EXPECT_EQ(3, vb->getHighSeqno());
+    flushVBucketToDiskIfPersistent(vbid);
+}
+
+TEST_P(DurabilityPassiveStreamPersistentTest, ReplicaToActiveBufferedCommit) {
+    replicaToActiveBufferedResolution(true);
+}
+
+TEST_P(DurabilityPassiveStreamPersistentTest, ReplicaToActiveBufferedAbort) {
+    replicaToActiveBufferedResolution(false);
+}
+
 void DurabilityPromotionStreamTest::SetUp() {
     // Set up as a replica
     DurabilityPassiveStreamTest::SetUp();

@@ -735,6 +735,31 @@ public:
         return expected;
     }
 
+    // A set of basic helper functions to reduce the size of tests which are
+    // driving a DCPConsumer
+    cb::engine_errc snapshot(DcpConsumer& consumer,
+                             uint32_t opaque,
+                             uint64_t start,
+                             uint64_t end);
+    cb::engine_errc mutation(DcpConsumer& consumer,
+                             uint32_t opaque,
+                             const DocKey& key,
+                             uint64_t seqno);
+    cb::engine_errc prepare(DcpConsumer& consumer,
+                            uint32_t opaque,
+                            const DocKey& key,
+                            uint64_t seqno);
+    cb::engine_errc commit(DcpConsumer& consumer,
+                           uint32_t opaque,
+                           const DocKey& key,
+                           uint64_t prepareSeqno,
+                           uint64_t seqno);
+    cb::engine_errc abort(DcpConsumer& consumer,
+                          uint32_t opaque,
+                          const DocKey& key,
+                          uint64_t prepareSeqno,
+                          uint64_t seqno);
+
 protected:
     void SetUp() override;
 
