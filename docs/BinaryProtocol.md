@@ -2431,7 +2431,7 @@ Locks the item for mutations for a specified period of time. Locking an item
 updates the CAS and the new CAS value is returned. The item becomes unlocked:
 * when the timeout expires
 * when manually unlocked
-* under full eviction, when evicted
+* on node shutdown, as the locked status is NOT persisted to disk
 
 Request:
 
@@ -2481,34 +2481,31 @@ Response (if found):
 * MAY have key.
 * MAY have value.
 
-If the key is found and the CAS matches the request CAS, the key is unlocked
-and Success is returned. If the key is found and the CAS does NOT match,
-Locked is returned. If the key is not found or if the key has been evicted,
-the status code depends on the eviction policy.
+If the key is found locked and the CAS matches the request CAS,
+the key is unlocked and Success is returned.
+If the key is found locked and the CAS does NOT match, Locked is returned.
+If the key is found NOT locked, NotLocked is returned.
+If the key is not found (after disk lookup), KeyEnoent is returned.
 
-```
-                             │ Found?
-                             │
-                       yes   │ no
-                      ┌──────┴─────┐
-                      │            │         yes
-                      │      Eviction=Value? ──── [KeyEnoent]
-                      │            │
-                      │            │
-                  Locked?          │ no
-                      │            │
-                  yes │ no         │
-        CAS match? ───┴──────── [Tmpfail]
-              │
-           yes│ no
-[Success] ────┴──── [Locked*]
-```
+      Found? ─────► [KeyEnoent]
+        │      no
+        │ yes
+        ▼
+     Locked? ─────► [NotLocked*]
+        │      no
+        │ yes
+        ▼
+    CAS match? ────► [Locked*]
+        │       no
+        │ yes
+        ▼
+    [Success]
 
-For clients which do not enable XError, Tmpfail is returned instead of Locked.
+For clients which do not enable XError, ETmpfail is returned instead of
+Locked/NotLocked.
 
-Note about full eviction only: If a key is evicted it is automatically
-unlocked. If a key is not resident, we return Tmpfail. At this point, the
-key is either non-resident and unlocked or it doesn't exist.
+Note: The locked status is NOT persisted to disk, hence the metadata of
+locked items are not evicted even in full eviction mode.
 
 Added in CB Server v1.6.3 (d201a5ccd800fc78e0b10bfcc7638e7708d87bba).
 
