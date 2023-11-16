@@ -69,7 +69,12 @@ public:
             controls.emplace_back("always_buffer_operations", "true");
         }
 
-        setupConsumer(*conn, "replication:client->server", controls);
+        setupConsumer(
+                *conn,
+                "replication:" + std::string(::testing::UnitTest::GetInstance()
+                                                     ->current_test_info()
+                                                     ->name()),
+                controls);
         setupConsumerStream(*conn, Vbid(0), {{0xdeadbeefull, 0}});
 
         // Setup a Document
