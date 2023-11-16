@@ -1375,7 +1375,11 @@ bool HashTable::unlocked_ejectItem(const HashTable::HashBucketLock& hbl,
     const auto preProps = valueStats.prologue(hbl, vptr);
 
     // Deleted items may be entirely removed from memory even in value eviction.
-    bool keepMetadata = policy == EvictionPolicy::Value && !vptr->isDeleted();
+    // Locked items are not entirely removed from memory as the locked status is
+    // not persisted to disk.
+    bool keepMetadata =
+            !vptr->isDeleted() && (policy == EvictionPolicy::Value ||
+                                   vptr->isLocked(ep_current_time()));
 
     if (keepMetadata) {
         // Just eject the value.

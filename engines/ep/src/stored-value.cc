@@ -106,21 +106,28 @@ StoredValue::StoredValue(const StoredValue& other, UniquePtr n)
 }
 
 bool StoredValue::eligibleForEviction(EvictionPolicy policy) const {
-    // Pending SyncWrite are always resident
-    if (isPending()) {
+    // Always resident:
+    // * Dirty SVs
+    // * Pending SyncWrites
+    if (isDirty() || isPending()) {
         return false;
     }
 
-    if (isDeleted() && !isDirty()) {
-        // clean, deleted SVs are always eligible for eviction
+    // Always eligible for eviction:
+    // * Clean, resident SVs (can evict at least value)
+    // * Clean, deleted SVs
+    if (isResident() || isDeleted()) {
         return true;
     }
 
-    if (policy == EvictionPolicy::Value) {
-        return isResident() && !isDirty();
-    } else {
-        return !isDirty();
+    // In full eviction, a SV may become non-resident when it is evicted
+    // while locked. Revisit when it is unlocked.
+    if (policy == EvictionPolicy::Full) {
+        return !isLocked(ep_current_time());
     }
+
+    // Non-resident SVs in value eviction have already been evicted.
+    return false;
 }
 
 void StoredValue::setValue(const Item& itm) {

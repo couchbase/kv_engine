@@ -605,6 +605,52 @@ TEST_P(HashTableStatsTest, EjectFlush) {
     ht.clear();
 }
 
+TEST_P(HashTableStatsTest, EjectLockedItem) {
+    EXPECT_EQ(MutationStatus::WasClean, ht.set(item));
+    {
+        auto res = ht.findForWrite(key);
+        ASSERT_TRUE(res.storedValue);
+        auto* sv = res.storedValue;
+        sv->markClean();
+        EXPECT_TRUE(sv->isResident());
+        EXPECT_TRUE(sv->eligibleForEviction(evictionPolicy));
+
+        // Lock item
+        sv->lock(ep_current_time() + 20);
+        EXPECT_TRUE(sv->isResident());
+        EXPECT_TRUE(sv->eligibleForEviction(evictionPolicy));
+
+        // Eject item
+        EXPECT_TRUE(ht.unlocked_ejectItem(res.lock, sv, evictionPolicy));
+        EXPECT_FALSE(sv->isResident());
+        EXPECT_FALSE(sv->eligibleForEviction(evictionPolicy));
+
+        // Unlock item
+        sv->unlock();
+        EXPECT_FALSE(sv->isResident());
+        if (evictionPolicy == EvictionPolicy::Value) {
+            EXPECT_FALSE(sv->eligibleForEviction(evictionPolicy));
+        } else {
+            EXPECT_TRUE(sv->eligibleForEviction(evictionPolicy));
+
+            // Eject item
+            EXPECT_TRUE(ht.unlocked_ejectItem(res.lock, sv, evictionPolicy));
+        }
+    }
+    {
+        auto res = ht.findForRead(key);
+        if (evictionPolicy == EvictionPolicy::Value) {
+            ASSERT_TRUE(res.storedValue);
+            auto* sv = res.storedValue;
+            EXPECT_FALSE(sv->isResident());
+            EXPECT_FALSE(sv->eligibleForEviction(evictionPolicy));
+        } else {
+            EXPECT_FALSE(res.storedValue);
+        }
+    }
+    ht.clear();
+}
+
 /*
  * Test that when unlocked_ejectItem returns false indicating that it failed
  * to eject an item, the stat numFailedEjects increases by one.

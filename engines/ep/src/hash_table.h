@@ -96,6 +96,11 @@ enum class DeletionDurability : uint8_t {};
  * number of items which exist but are not resident (see numNonResidentItems).
  * This is full eviction.
  *
+ * Even when we are in full eviction mode, the value of StoredValue objects
+ * can be missing, as it is possible to fetch just the metadata from disk.
+ * Additionally, when locked StoredValues are ejected, only their value is
+ * removed, as the locked status is not persisted to disk.
+ *
  * The HashTable can hold StoredValues which are either 'valid' (i.e. represent
  * the current state of that key), or which are logically deleted. Typically
  * StoredValues which are deleted are only held in the HashTable for a short
