@@ -170,7 +170,7 @@ static void process_bin_unknown_packet(Cookie& cookie) {
         connection.shutdown();
         break;
     default:
-        cookie.sendResponse(cb::engine_errc(ret));
+        cookie.sendResponse(ret);
     }
 }
 
@@ -325,7 +325,7 @@ static void set_ctrl_token_executor(Cookie& cookie) {
     const auto casval = req.getCas();
     uint64_t value;
 
-    auto ret = cb::engine_errc(session_cas.cas(newval, casval, value));
+    auto ret = session_cas.cas(newval, casval, value);
 
     // The contract in the protocol description for set-ctrl-token is
     // to include the CAS value in the response even for failures
@@ -383,7 +383,7 @@ static void ioctl_get_executor(Cookie& cookie) {
         connection.shutdown();
         break;
     default:
-        cookie.sendResponse(cb::mcbp::to_status(cb::engine_errc(remapErr)));
+        cookie.sendResponse(remapErr);
     }
 }
 
@@ -421,7 +421,7 @@ static void ioctl_set_executor(Cookie& cookie) {
         connection.shutdown();
         break;
     default:
-        cookie.sendResponse(cb::mcbp::to_status(cb::engine_errc(remapErr)));
+        cookie.sendResponse(remapErr);
     }
 }
 
