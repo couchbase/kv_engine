@@ -1578,12 +1578,8 @@ void DcpProducer::addTakeoverStats(const AddStatFn& add_stat,
                 stream->addTakeoverStats(add_stat, c, vb);
                 return;
             }
-            logger->warn(
-                    "({}) "
-                    "DcpProducer::addTakeoverStats Stream type is {} and not "
-                    "the expected Active",
-                    vb.getId(),
-                    stream->getStreamTypeName());
+            logger->warn("({}) DcpProducer::addTakeoverStats no stream found",
+                         vb.getId());
         } else if (handle.size() > 1) {
             throw std::logic_error(
                     "DcpProducer::addTakeoverStats unexpected size streams:(" +
