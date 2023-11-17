@@ -544,6 +544,15 @@ cb::engine_errc DcpProducer::streamRequest(
         return cb::engine_errc::out_of_range;
     }
 
+    if (!engine_.getMemoryTracker().isBelowMutationMemoryQuota(
+                sizeof(ActiveStream))) {
+        logger->warn(
+                "({}) Stream request failed because "
+                "memory usage is above quota",
+                vbucket);
+        return cb::engine_errc::no_memory;
+    }
+
     // Take copy of Filter's streamID, given it will be moved-from when
     // ActiveStream is constructed.
     const auto streamID = filter.getStreamId();

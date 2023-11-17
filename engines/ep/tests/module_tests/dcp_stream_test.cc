@@ -6103,6 +6103,39 @@ TEST_P(SingleThreadedActiveStreamTest, MB_58961) {
     EXPECT_FALSE(stream->isBackfilling());
 }
 
+TEST_P(SingleThreadedActiveStreamTest, StreamRequestMemoryQuota) {
+    const auto& vb = *store->getVBucket(vbid);
+    auto& config = engine->getConfiguration();
+    const auto initRatio = config.getMutationMemRatio();
+    for (const float newRatio : {1e-6f, 0.9123f, initRatio}) {
+        config.setMutationMemRatio(newRatio);
+        ASSERT_FLOAT_EQ(newRatio, config.getMutationMemRatio());
+        ASSERT_FLOAT_EQ(newRatio, store->getMutationMemRatio());
+        uint64_t rollbackSeqno = -1;
+        auto ret = producer->streamRequest(0,
+                                           2,
+                                           vbid,
+                                           0,
+                                           -1,
+                                           vb.failovers->getLatestUUID(),
+                                           0,
+                                           0,
+                                           &rollbackSeqno,
+                                           mock_dcp_add_failover_log,
+                                           std::nullopt);
+        if (newRatio < 0.5f) {
+            EXPECT_EQ(cb::engine_errc::no_memory, ret);
+        } else {
+            EXPECT_EQ(cb::engine_errc::success, ret);
+        }
+        auto activeStream = std::dynamic_pointer_cast<ActiveStream>(
+                producer->findStream(vbid));
+        if (activeStream) {
+            activeStream->setDead(cb::mcbp::DcpStreamEndStatus::Closed);
+        }
+    }
+}
+
 INSTANTIATE_TEST_SUITE_P(AllBucketTypes,
                          SingleThreadedActiveStreamTest,
                          STParameterizedBucketTest::allConfigValues(),

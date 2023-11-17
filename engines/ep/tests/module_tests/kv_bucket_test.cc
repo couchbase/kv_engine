@@ -2268,6 +2268,55 @@ TEST_P(KVBucketParamTest, HistoryRetentionBytes_NotMagma) {
     EXPECT_THAT(err, testing::HasSubstr("requirements not met"));
 }
 
+TEST_P(KVBucketParamTest, MutationMemRatio) {
+    auto& config = engine->getConfiguration();
+    const auto initRatio = config.getMutationMemRatio();
+    const auto newRatio = 0.9345f;
+    ASSERT_NE(newRatio, store->getMutationMemRatio());
+    ASSERT_FLOAT_EQ(initRatio, store->getMutationMemRatio());
+    config.setMutationMemRatio(newRatio);
+    EXPECT_FLOAT_EQ(newRatio, config.getMutationMemRatio());
+    EXPECT_FLOAT_EQ(newRatio, store->getMutationMemRatio());
+}
+
+TEST_P(KVBucketParamTest, MutationMemRatio_LowerThanMin) {
+    auto& config = engine->getConfiguration();
+    const auto initRatio = config.getMutationMemRatio();
+    const auto newRatio = -0.001f;
+    ASSERT_NE(newRatio, store->getMutationMemRatio());
+    ASSERT_FLOAT_EQ(initRatio, store->getMutationMemRatio());
+    try {
+        config.setMutationMemRatio(newRatio);
+    } catch (const std::range_error& ex) {
+        EXPECT_THAT(
+                ex.what(),
+                testing::HasSubstr("Validation Error, mutation_mem_ratio takes "
+                                   "values between 0.000000 and 1.000000"));
+        EXPECT_FLOAT_EQ(initRatio, store->getMutationMemRatio());
+        return;
+    }
+    FAIL();
+}
+
+TEST_P(KVBucketParamTest, MutationMemRatio_HigherThanMax) {
+    auto& config = engine->getConfiguration();
+    const auto initRatio = config.getMutationMemRatio();
+    const auto newRatio = 1.001f;
+    ASSERT_NE(newRatio, store->getMutationMemRatio());
+    ASSERT_FLOAT_EQ(initRatio, store->getMutationMemRatio());
+    try {
+        config.setMutationMemRatio(newRatio);
+    } catch (const std::range_error& ex) {
+        EXPECT_THAT(
+                ex.what(),
+                testing::HasSubstr("Validation Error, mutation_mem_ratio takes "
+                                   "values between 0.000000 and 1.000000"));
+        EXPECT_FLOAT_EQ(initRatio, store->getMutationMemRatio());
+        return;
+    }
+    FAIL();
+}
+
 class StoreIfTest : public KVBucketTest {
 public:
     void SetUp() override {

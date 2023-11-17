@@ -1298,17 +1298,21 @@ cb::engine_errc EventuallyPersistentEngine::stream_req(
     auto engine = acquireEngine(this);
     auto& conn = engine->getConnHandler(cookie);
     try {
-        return conn.streamRequest(flags,
-                                  opaque,
-                                  vbucket,
-                                  startSeqno,
-                                  endSeqno,
-                                  vbucketUuid,
-                                  snapStartSeqno,
-                                  snapEndSeqno,
-                                  rollbackSeqno,
-                                  callback,
-                                  json);
+        auto ret = conn.streamRequest(flags,
+                                      opaque,
+                                      vbucket,
+                                      startSeqno,
+                                      endSeqno,
+                                      vbucketUuid,
+                                      snapStartSeqno,
+                                      snapEndSeqno,
+                                      rollbackSeqno,
+                                      callback,
+                                      json);
+        if (ret == cb::engine_errc::no_memory) {
+            return memoryCondition();
+        }
+        return ret;
     } catch (const cb::engine_error& e) {
         EP_LOG_INFO("stream_req engine_error {}", e.what());
         return cb::engine_errc(e.code().value());
