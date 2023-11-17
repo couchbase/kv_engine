@@ -174,9 +174,8 @@ public:
         return {getData(), getNBytes()};
     }
 
-    cb::byte_buffer getValueBuffer() override {
-        return {reinterpret_cast<uint8_t*>(const_cast<char*>(getData())),
-                getNBytes()};
+    cb::char_buffer getValueBuffer() override {
+        return {const_cast<char*>(getData()), getNBytes()};
     }
 
     const StoredDocKey& getKey() const {

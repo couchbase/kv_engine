@@ -105,8 +105,8 @@ struct ItemHolder : public ItemIface {
         return {item_get_data(item), item->nbytes};
     }
 
-    cb::byte_buffer getValueBuffer() override {
-        return {reinterpret_cast<uint8_t*>(item_get_data(item)), item->nbytes};
+    cb::char_buffer getValueBuffer() override {
+        return {item_get_data(item), item->nbytes};
     }
 
     default_engine* const engine;

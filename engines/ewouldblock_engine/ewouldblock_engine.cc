@@ -142,15 +142,15 @@ public:
     }
 
     std::string_view getValueView() const override {
-        return {reinterpret_cast<const char*>(value.data()), value.size()};
+        return value;
     }
 
-    cb::byte_buffer getValueBuffer() override {
+    cb::char_buffer getValueBuffer() override {
         return {value.data(), value.size()};
     }
 
     std::string key;
-    std::vector<uint8_t> value;
+    std::string value;
 };
 
 /** ewouldblock_engine class */

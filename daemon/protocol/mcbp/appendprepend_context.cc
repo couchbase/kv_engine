@@ -129,9 +129,8 @@ cb::engine_errc AppendPrependCommandContext::allocateNewItem() {
 
     // If the resulting document's data is valid JSON, set the datatype flag
     // to reflect this.
-    std::string_view buf{
-            reinterpret_cast<const char*>(body.data() + xattrs.size()),
-            body.size() - xattrs.size()};
+    const auto buf = std::string_view{body.data() + xattrs.size(),
+                                      body.size() - xattrs.size()};
     // Update the documents datatype and CAS values
     setDatatypeJSONFromValue(buf, datatype);
     newitem->setDataType(datatype);
