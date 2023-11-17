@@ -52,6 +52,10 @@ public:
      */
     cb::engine_errc drive();
 
+protected:
+    // Added for testing of the connection timer.
+    friend class BucketDestroyerIntrospector;
+
 private:
     /**
      * Start shutting down the engine.

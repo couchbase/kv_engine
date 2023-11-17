@@ -115,8 +115,10 @@ cb::engine_errc BucketDestroyer::waitForConnections() {
                 bucket.clients,
                 currConns.dump());
 
-        guard.lock();
+        // we need to wait more
+        return cb::engine_errc::would_block;
     }
+
     state = State::WaitingForItemsInTransit;
     return cb::engine_errc::success;
 }
