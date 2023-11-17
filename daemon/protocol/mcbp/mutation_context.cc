@@ -110,7 +110,7 @@ cb::engine_errc MutationCommandContext::validateInput() {
 
     // If snappy datatype is enabled and if the datatype is SNAPPY,
     // validate to data to ensure that it is compressed using SNAPPY
-    auto raw_value = cookie.getRequest().getValue();
+    auto raw_value = cookie.getRequest().getValueString();
     if (cb::mcbp::datatype::is_snappy(datatype)) {
         auto inflated = cookie.getInflatedInputPayload();
 
@@ -131,8 +131,7 @@ cb::engine_errc MutationCommandContext::validateInput() {
 
         // We should use the inflated version of the data when we want
         // to check if it is JSON or not
-        raw_value = {reinterpret_cast<const uint8_t*>(inflated.data()),
-                     inflated.size()};
+        raw_value = inflated;
     }
 
     // Determine if document is JSON or not. We do not trust what the client

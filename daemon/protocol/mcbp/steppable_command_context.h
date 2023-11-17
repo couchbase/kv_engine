@@ -54,8 +54,8 @@ protected:
      * @throws std::bad_alloc if insufficient memory was available to parse
      *         the value.
      */
-    void setDatatypeJSONFromValue(const cb::const_byte_buffer& value,
-                                  protocol_binary_datatype_t& datatype);
+    void setDatatypeJSONFromValue(const std::string_view value,
+                                  protocol_binary_datatype_t& datatype) const;
 
     /**
      * The cookie executing this command

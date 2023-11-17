@@ -54,8 +54,8 @@ void SteppableCommandContext::drive() {
 }
 
 void SteppableCommandContext::setDatatypeJSONFromValue(
-        const cb::const_byte_buffer& value,
-        protocol_binary_datatype_t& datatype) {
+        const std::string_view value,
+        protocol_binary_datatype_t& datatype) const {
     // Determine if document is JSON or not. We do not trust what the client
     // sent - instead we check for ourselves.
     if (connection.getThread().isValidJson(cookie, value)) {

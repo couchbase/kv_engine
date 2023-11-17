@@ -12,11 +12,8 @@
 
 #include "auditd/src/audit_event_filter.h"
 #include "connection.h"
-#include "ssl_utils.h"
 #include <folly/Synchronized.h>
 #include <folly/io/async/EventBase.h>
-#include <memcached/engine_error.h>
-#include <platform/platform_thread.h>
 #include <platform/sized_buffer.h>
 #include <platform/socket.h>
 #include <subdoc/operations.h>
@@ -104,13 +101,7 @@ struct FrontEndThread {
     /// Check to see if the data in view is valid JSON and update
     /// the bucket histogram (and cookie trace scope) with time spent
     /// for JSON validation
-    bool isValidJson(Cookie& cookie, std::string_view view);
-
-    bool isValidJson(Cookie& cookie, cb::const_byte_buffer view) {
-        return isValidJson(
-                cookie,
-                {reinterpret_cast<const char*>(view.data()), view.size()});
-    }
+    bool isValidJson(Cookie& cookie, std::string_view view) const;
 
     /// Use the JSON SyntaxValidator to validate the XATTR blob
     bool isXattrBlobValid(std::string_view view);

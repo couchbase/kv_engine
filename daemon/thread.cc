@@ -28,6 +28,7 @@
 #include <platform/scope_timer.h>
 #include <platform/socket.h>
 #include <platform/strerror.h>
+#include <platform/thread.h>
 #include <platform/timeutils.h>
 #include <xattr/utils.h>
 #include <atomic>
@@ -398,7 +399,7 @@ FrontEndThread::FrontEndThread() : validator(cb::json::SyntaxValidator::New()) {
 
 FrontEndThread::~FrontEndThread() = default;
 
-bool FrontEndThread::isValidJson(Cookie& cookie, std::string_view view) {
+bool FrontEndThread::isValidJson(Cookie& cookie, std::string_view view) const {
     // Record how long JSON checking takes to both Tracer and bucket-level
     // histogram.
     using namespace cb::tracing;
