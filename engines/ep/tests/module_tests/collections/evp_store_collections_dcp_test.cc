@@ -3006,6 +3006,8 @@ class CollectionsDcpPersistentOnly : public CollectionsDcpParameterizedTest {
 public:
     void resurrectionTest(bool dropAtEnd, bool updateItemPath, bool deleteItem);
     void resurrectionStatsTest(bool reproduceUnderflow, bool updateItemDropped);
+    void defaultCollectionLegacySeqnos(bool modifyWithoutXattr);
+    std::unique_ptr<Item> makeModifyWithXattr();
 };
 
 // Observed in MB-39864, the data we store in _local had a collection with
@@ -4605,7 +4607,8 @@ TEST_P(CollectionsDcpPersistentOnly, ModifyFilteredCollection) {
     EXPECT_EQ(producers->last_can_deduplicate, CanDeduplicate::Yes);
 }
 
-TEST_P(CollectionsDcpPersistentOnly, DefaultCollectionLegacySeqnos) {
+void CollectionsDcpPersistentOnly::defaultCollectionLegacySeqnos(
+        bool modifyWithoutXattr) {
     using namespace cb::mcbp;
     using namespace mcbp::systemevent;
     using namespace CollectionEntry;
@@ -4663,10 +4666,23 @@ TEST_P(CollectionsDcpPersistentOnly, DefaultCollectionLegacySeqnos) {
         validate(2, 2, 2);
     }
 
-    // Modify default collection, so only high-seqno moves
-    CollectionsManifest cm;
-    cm.update(defaultC, cb::NoExpiryLimit, true /*history*/);
-    setCollections(cookie, cm);
+    if (modifyWithoutXattr) {
+        // Modify default collection, so only high-seqno moves
+        CollectionsManifest cm;
+        cm.update(defaultC, cb::NoExpiryLimit, true /*history*/);
+        setCollections(cookie, cm);
+    } else {
+        // by-pass the manifest update path as this variant of the test needs to
+        // create an xattr system-event as per 7.2
+        EXPECT_EQ(3,
+                  store->getVBucket(vbid)->addSystemEventItem(
+                          makeModifyWithXattr(),
+                          {},
+                          CollectionID::Default,
+                          store->getVBucket(vbid)->getManifest().wlock(),
+                          [](uint64_t) {}));
+    }
+
     {
         SCOPED_TRACE("Modify collection @ seqno 3");
         validate(2, 2, 3);
@@ -4728,6 +4744,44 @@ TEST_P(CollectionsDcpPersistentOnly, DefaultCollectionLegacySeqnos) {
         SCOPED_TRACE("Replica warmup");
         validateSeqnos(replicaVB, 2, 2, 3);
     }
+}
+
+TEST_P(CollectionsDcpPersistentOnly, DefaultCollectionLegacySeqnos) {
+    defaultCollectionLegacySeqnos(true);
+}
+
+std::unique_ptr<Item> CollectionsDcpPersistentOnly::makeModifyWithXattr() {
+    // Here we have to manually inject the 7.2 modify event. Cannot use a real
+    // manifest driven event as it will be using flatbuffers.
+    // Build the system event value, enable history
+    flatbuffers::FlatBufferBuilder builder;
+    std::string name{"_default"};
+    auto collection = Collections::VB::CreateCollection(
+            builder,
+            1, // uid
+            uint32_t(ScopeID::Default),
+            uint32_t(CollectionID::Default),
+            false, // no maxTTL
+            0, // no maxTTL
+            builder.CreateString(name.data(), name.size()),
+            true, // history enabled
+            0);
+    builder.Finish(collection);
+    // Create the Item (so it has the system event key etc...)
+    auto event = SystemEventFactory::makeModifyCollectionEvent(
+            CollectionID::Default,
+            {builder.GetBufferPointer(), builder.GetSize()},
+            {});
+
+    // Use the code which remains in VB::Manifest that glues a seqno into the
+    // event using xattr. Here we add 2 as the legacy seqno
+    Collections::VB::Manifest::attachMaxLegacyDCPSeqno(*event, 2);
+
+    return event;
+}
+
+TEST_P(CollectionsDcpPersistentOnly, DefaultCollectionLegacySeqnoFromXattr) {
+    defaultCollectionLegacySeqnos(false);
 }
 
 TEST_P(CollectionsDcpPersistentOnly, getRangeCountingSystemEvents) {

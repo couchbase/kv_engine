@@ -27,6 +27,14 @@ table Collection {
     // history: MB-54516: added in neo (7.2) branch. If this field is not part
     // of a Collection structure it is defaulted to false.
     history:bool = false;
+
+    // All fields after here are added from 7.2.4
+    //
+    // defaultCollectionMVS: MB-59452: This field exists to assist in the
+    // tracking of what is the max-visible seqno of the default collection. This
+    // field is only written to when the event is a modification of the default
+    // collection and serves no purpose outside of KV-engine.
+    defaultCollectionMVS:ulong = 0;
 }
 
 // FlatBuffers SystemEvents: This is the structure used by DropCollection
