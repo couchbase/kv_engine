@@ -402,12 +402,12 @@ private:
             int64_t abortSeqno,
             const Collections::VB::CachingReadHandle& cHandle) override;
 
-    void bgFetch(HashTable::HashBucketLock&& hbl,
-                 const DocKey& key,
-                 const StoredValue& v,
-                 CookieIface* cookie,
-                 EventuallyPersistentEngine& engine,
-                 bool isMeta = false) override;
+    cb::engine_errc bgFetch(HashTable::HashBucketLock&& hbl,
+                            const DocKey& key,
+                            const StoredValue& v,
+                            CookieIface* cookie,
+                            EventuallyPersistentEngine& engine,
+                            bool isMeta = false) override;
 
     cb::engine_errc addTempItemAndBGFetch(HashTable::HashBucketLock&& hbl,
                                           const DocKey& key,

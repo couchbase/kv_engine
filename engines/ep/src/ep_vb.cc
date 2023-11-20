@@ -808,12 +808,12 @@ VBNotifyCtx EPVBucket::addNewAbort(
     return queueAbortForUnseenPrepare(item, queueItmCtx);
 }
 
-void EPVBucket::bgFetch(HashTable::HashBucketLock&& hbl,
-                        const DocKey& key,
-                        const StoredValue& v,
-                        CookieIface* cookie,
-                        EventuallyPersistentEngine& engine,
-                        const bool isMeta) {
+cb::engine_errc EPVBucket::bgFetch(HashTable::HashBucketLock&& hbl,
+                                   const DocKey& key,
+                                   const StoredValue& v,
+                                   CookieIface* cookie,
+                                   EventuallyPersistentEngine& engine,
+                                   const bool isMeta) {
     auto token = v.getCas();
     // We unlock the hbl here as queueBGFetchItem will take a vBucket wide lock
     // and we don't want need this lock anymore.
@@ -833,6 +833,7 @@ void EPVBucket::bgFetch(HashTable::HashBucketLock&& hbl,
             getBgFetcher());
     EP_LOG_DEBUG("Queued a background fetch, now at {}",
                  uint64_t(bgfetch_size));
+    return cb::engine_errc::would_block;
 }
 
 /* [TBD]: Get rid of std::unique_lock<std::mutex> lock */
@@ -847,13 +848,12 @@ cb::engine_errc EPVBucket::addTempItemAndBGFetch(
     case TempAddStatus::NoMem:
         return cb::engine_errc::no_memory;
     case TempAddStatus::BgFetch:
-        bgFetch(std::move(hbl),
-                key,
-                *rv.storedValue,
-                cookie,
-                engine,
-                metadataOnly);
-        return cb::engine_errc::would_block;
+        return bgFetch(std::move(hbl),
+                       key,
+                       *rv.storedValue,
+                       cookie,
+                       engine,
+                       metadataOnly);
     }
     folly::assume_unreachable();
 }
@@ -922,7 +922,8 @@ GetValue EPVBucket::getInternalNonResident(HashTable::HashBucketLock&& hbl,
                                            QueueBgFetch queueBgFetch,
                                            const StoredValue& v) {
     if (queueBgFetch == QueueBgFetch::Yes) {
-        bgFetch(std::move(hbl), key, v, cookie, engine);
+        cb::engine_errc ec = bgFetch(std::move(hbl), key, v, cookie, engine);
+        return GetValue(nullptr, ec, v.getBySeqno(), true);
     }
     return GetValue(
             nullptr, cb::engine_errc::would_block, v.getBySeqno(), true);

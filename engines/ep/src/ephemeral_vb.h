@@ -347,12 +347,12 @@ private:
                                 OrderedStoredValue& newOsv,
                                 int64_t prepareSeqno);
 
-    void bgFetch(HashTable::HashBucketLock&& hbl,
-                 const DocKey& key,
-                 const StoredValue& v,
-                 CookieIface* cookie,
-                 EventuallyPersistentEngine& engine,
-                 bool isMeta = false) override;
+    cb::engine_errc bgFetch(HashTable::HashBucketLock&& hbl,
+                            const DocKey& key,
+                            const StoredValue& v,
+                            CookieIface* cookie,
+                            EventuallyPersistentEngine& engine,
+                            bool isMeta = false) override;
 
     cb::engine_errc addTempItemAndBGFetch(HashTable::HashBucketLock&& hbl,
                                           const DocKey& key,

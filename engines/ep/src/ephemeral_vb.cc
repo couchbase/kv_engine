@@ -854,12 +854,12 @@ void EphemeralVBucket::updateSeqListPostAbort(
     seqList->updateHighCompletedSeqno(lh, listWriteLg, prepareSeqno);
 }
 
-void EphemeralVBucket::bgFetch(HashTable::HashBucketLock&& hbl,
-                               const DocKey& key,
-                               const StoredValue& v,
-                               CookieIface* cookie,
-                               EventuallyPersistentEngine& engine,
-                               const bool isMeta) {
+cb::engine_errc EphemeralVBucket::bgFetch(HashTable::HashBucketLock&& hbl,
+                                          const DocKey& key,
+                                          const StoredValue& v,
+                                          CookieIface* cookie,
+                                          EventuallyPersistentEngine& engine,
+                                          const bool isMeta) {
     throw std::logic_error(
             "EphemeralVBucket::bgFetch() is not valid. Called on " +
             getId().to_string() + " for key: " +

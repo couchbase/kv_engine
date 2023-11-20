@@ -2454,13 +2454,15 @@ private:
      * @param engine Reference to ep engine
      * @param isMeta whether the fetch is for a non-resident value or metadata
      *               of a (possibly) deleted item
+     * @return cb::engine_errc::would_block when a background fetch as been
+     * queued, cb::engine_errc::temporary_failure otherwise
      */
-    virtual void bgFetch(HashTable::HashBucketLock&& hbl,
-                         const DocKey& key,
-                         const StoredValue& v,
-                         CookieIface* cookie,
-                         EventuallyPersistentEngine& engine,
-                         bool isMeta = false) = 0;
+    virtual cb::engine_errc bgFetch(HashTable::HashBucketLock&& hbl,
+                                    const DocKey& key,
+                                    const StoredValue& v,
+                                    CookieIface* cookie,
+                                    EventuallyPersistentEngine& engine,
+                                    bool isMeta = false) = 0;
 
     /**
      *Construct a bgfetch for compaction, which on completion will attempt to
